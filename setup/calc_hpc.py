@@ -13,7 +13,7 @@ from pathlib import Path
 
 def locate_artifact_dir() -> Path:
     """Locates the pre-established CoChem_Artifacts directory."""
-    artifact_dir = Path.home() / "CoChem_Artifacts"
+    artifact_dir = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
     if not artifact_dir.exists():
         print("❌ FATAL: Air-Gap directory (CoChem_Artifacts) not found.")
         print("Please run Stage 0.2a (interact_codespaces.py) or base setup first.")
@@ -29,6 +29,7 @@ def check_slurm_presence() -> bool:
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE, 
             text=True,
+            encoding='utf-8'
             check=True
         )
         print(f"✅ SLURM detected at: {result.stdout.strip()}")

@@ -114,7 +114,7 @@ class CoChemMIntUI:
             return dev_target
             
         # 3. Fallback to Local Home Directory (Standard Linux/Windows WSL)
-        local_target = Path.home() / "CoChem_Artifacts"
+        local_target = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
         local_target.mkdir(parents=True, exist_ok=True)
         return local_target
 

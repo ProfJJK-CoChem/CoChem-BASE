@@ -17,7 +17,7 @@ def verify_codespace_kernel() -> bool:
 
 def provision_airgap_directories() -> Path:
     """Constructs the Air-Gap directory tree. Defaults to the user home to isolate from Git."""
-    artifact_dir = Path.home() / "CoChem_Artifacts"
+    artifact_dir = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
     
     subdirs = [
         artifact_dir / "Registry" / "Engines",
@@ -43,7 +43,8 @@ def install_ui_dependencies():
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True
+            text=True,
+            encoding='utf-8'
         )
         print("✅ UI Dependencies satisfied.")
     except subprocess.CalledProcessError as e:

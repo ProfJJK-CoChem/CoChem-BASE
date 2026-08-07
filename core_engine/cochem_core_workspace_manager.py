@@ -31,7 +31,7 @@ class WorkspaceManager:
     ]
 
     def __init__(self, base_path: Optional[str] = None):
-        self.base_path = Path(base_path) if base_path else Path.home() / "CoChem_Artifacts"
+        self.base_path = Path(base_path) if base_path else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
         self.lock_file = self.base_path / ".cochem_workspace.lock"
 
     def _acquire_lock(self, file_descriptor) -> bool:

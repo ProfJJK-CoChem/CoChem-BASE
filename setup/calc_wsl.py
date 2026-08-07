@@ -23,24 +23,70 @@ def verify_wsl_kernel() -> bool:
         pass
     return False
 
+def check_openmpi_version(mpi_path: str) -> str:
+    """Check the version of OpenMPI and return it."""
+    try:
+        result = subprocess.run([mpi_path, "--version"], capture_output=True, text=True, encoding='utf-8', check=True)
+        version_line = result.stdout.split('\n')[0]
+        # Extract version number from line (e.g., "Open MPI v4.1.5")
+        import re
+        match = re.search(r'v(\d+\.\d+)', version_line)
+        if match:
+            return match.group(1)
+        return "unknown"
+    except Exception:
+        return "unknown"
+
 def provision_openmpi() -> str:
-    """Locates OpenMPI or halts with instructions for WSL installation."""
+    """Locates OpenMPI or autonomously installs it with Active Repair."""
     print("🔍 Probing for OpenMPI (mpirun)...")
     mpi_path = shutil.which("mpirun")
     
     if not mpi_path:
         print("❌ OpenMPI not found in WSL $PATH.")
-        print("⚠️  WSL Fix: Run 'sudo apt-get update && sudo apt-get install openmpi-bin libopenmpi-dev' in your terminal.")
-        sys.exit(1)
+        print("🔄 Initiating Autonomous OpenMPI Installation & Path Binder...")
         
-    try:
-        result = subprocess.run([mpi_path, "--version"], capture_output=True, text=True, check=True)
-        version_line = result.stdout.split('\n')[0]
-        print(f"✅ OpenMPI verified at: {mpi_path} ({version_line})")
+        # Try to install OpenMPI 4.1.x using apt-get
+        try:
+            print("📦 Installing OpenMPI 4.1.x via apt-get...")
+            subprocess.run(["sudo", "apt-get", "update"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            result = subprocess.run([
+                "sudo", "apt-get", "install", "-y", "openmpi-bin", "libopenmpi-dev"
+            ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            
+            print("✅ OpenMPI installation completed successfully.")
+            
+            # Verify the installation and check version
+            mpi_path = shutil.which("mpirun")
+            if not mpi_path:
+                print("❌ Failed to locate mpirun after installation.")
+                sys.exit(1)
+                
+            version = check_openmpi_version(mpi_path)
+            print(f"✅ OpenMPI verified at: {mpi_path} (Version: {version})")
+            
+            # Check that it's version 4.1.x as required by ORCA 6.1.1
+            if not version.startswith("4.1"):
+                print("⚠️  Warning: OpenMPI version is not 4.1.x. ORCA 6.1.1 requires this specific version.")
+                print("   You may encounter segfaults or compatibility issues.")
+                
+            return mpi_path
+            
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to install OpenMPI: {e.stderr}")
+            print("⚠️  WSL Fix: Please manually run 'sudo apt-get update && sudo apt-get install openmpi-bin libopenmpi-dev' in your terminal.")
+            sys.exit(1)
+    else:
+        # OpenMPI found, check version
+        version = check_openmpi_version(mpi_path)
+        print(f"✅ OpenMPI found at: {mpi_path} (Version: {version})")
+        
+        # Check that it's version 4.1.x as required by ORCA 6.1.1
+        if not version.startswith("4.1"):
+            print("⚠️  Warning: OpenMPI version is not 4.1.x. ORCA 6.1.1 requires this specific version.")
+            print("   You may encounter segfaults or compatibility issues.")
+        
         return mpi_path
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to execute mpirun. Error: {e.stderr}")
-        sys.exit(1)
 
 def provision_orca(engine_dir: Path) -> str:
     """Finds existing ORCA or extracts a .tar.xz archive using the Siloed Linux Archive protocol."""
@@ -93,7 +139,7 @@ def provision_orca(engine_dir: Path) -> str:
 
 def register_calculation_state(mpi_path: str, orca_path: str):
     """Updates the Golden Registry with the native WSL execution pathways."""
-    registry_path = Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json"
+    registry_path = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "Registry" / "cochem_system_config.json"
     
     if registry_path.exists():
         with open(registry_path, 'r') as f:
@@ -129,7 +175,7 @@ def run_calculation_setup():
         print("❌ FATAL: Target environment is not WSL. Please run calc_mac.py or calc_linux.py instead.")
         sys.exit(1)
         
-    engine_dir = Path.home() / "CoChem_Artifacts" / "Registry" / "Engines"
+    engine_dir = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "Registry" / "Engines"
     engine_dir.mkdir(parents=True, exist_ok=True)
     
     mpi_path = provision_openmpi()

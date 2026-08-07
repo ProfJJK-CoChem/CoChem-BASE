@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/api/visuals", tags=["Visuals"])
-ARTIFACT_DIR = Path.home() / "CoChem_Artifacts" / "Scratch"
+ARTIFACT_DIR = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "Scratch"
 
 @router.get("/spectrum/{basin_id}")
 async def get_spectrum(basin_id: str):

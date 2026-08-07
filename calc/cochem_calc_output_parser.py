@@ -16,7 +16,7 @@ logger = logging.getLogger("CoChem-QuantumParser")
 
 class QuantumParser:
     def __init__(self, artifact_dir: str = None):
-        self.artifact_base = Path(artifact_dir) if artifact_dir else Path.home() / "CoChem_Artifacts" / "Scratch"
+        self.artifact_base = Path(artifact_dir) if artifact_dir else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "Scratch"
         self.scf_threshold = 1e-7
 
     def verify_scf_convergence(self, log_path: Path) -> bool:

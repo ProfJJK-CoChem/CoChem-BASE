@@ -10,10 +10,10 @@
 
 **1. QUICKSTART & SYSTEM ARCHITECTURE**
 * 1.1 The CoChem Ecosystem Overview
-  * 1.1.1 The 15 Core Modules (UNITY to SCRIBE)
+  * 1.1.1 The CoChem-BASE Architecture & Decoupled Modules
   * 1.1.2 The "Registry-First" Philosophy (`cochem_system_config.json`)
 * 1.2 Installation & Deployment Models
-  * 1.2.1 The CoChem-UNITY Interactive Installation Dashboard
+  * 1.2.1 The CoChem-BASE Interactive Installation Dashboard
   * 1.2.2 Model A: GitHub Codespaces (Cloud Default)
   * 1.2.3 Model B: Windows 11 DevContainers (WSL2 + Docker)
   * 1.2.4 Model C: Native Linux Workstations (Ubuntu/Mint/Fedora)
@@ -79,23 +79,27 @@ Because CoChem acts as an orchestrator across dozens of theoretical frameworks, 
 # 1. QUICKSTART & SYSTEM ARCHITECTURE
 
 ## 1.1 The CoChem Ecosystem Overview
-### 1.1.1 The 15 Core Modules (UNITY to SCRIBE)
-The pipeline operates as a sequence of highly decoupled modules spanning ingestion (UNITY, MInt), discovery (TOPOS, TORQ, SCAN), refinement (BENCH, CROWN), spectroscopic prediction (SpycFit, SHIFT, MAGE, LUMOS), and telemetry (NODE, ORACLE, SCRIBE).
+### 1.1.1 The CoChem-BASE Architecture & Decoupled Modules
+The pipeline operates as a unified execution platform under `CoChem-BASE` (integrating the core config engine, calculations wrapper, ingestion backend, and visual interfaces) alongside highly decoupled research modules spanning discovery (TOPOS, TORQ, SCAN, BENCH, CROWN), spectroscopic prediction (SpycFit, SHIFT, MAGE, LUMOS), and telemetry (NODE, ORACLE, SCRIBE).
 
 ### 1.1.2 The "Registry-First" Philosophy (`cochem_system_config.json`)
 CoChem abandons hardcoded execution paths. It relies on a "Registry-First" architecture. `cochem_system_config.json` acts as the authoritative environment registry, dynamically queried by downstream scripts to ensure the node has the necessary resources before a compute-heavy task is allowed to spawn.
 
 ## 1.2 Installation & Deployment Models
-### 1.2.1 The CoChem-UNITY Interactive Installation Dashboard
-Users interface initially through the CoChem-UNITY interactive dashboard, providing a visually coherent method for selecting pipeline components to compile.
+### 1.2.1 The CoChem-BASE Interactive Installation Dashboard
+Users interface initially through the interactive `CoChem-BASE` installation dashboard (`interfaces/cochem_unity_installer_dashboard.py` launched from `Start_Here.ipynb`), providing a visually coherent method for selecting pipeline components and setting up calculation environments.
 
 ### 1.2.2 - 1.2.5 Standard Deployment & The RESOURCE_GUARD Toggle
 CoChem supports deployment via GitHub Codespaces, Windows 11 DevContainers (WSL2 + Docker), and native Linux Workstations. Oversubscription of clusters or local laptops is prevented by the `RESOURCE_GUARD` toggle, which aborts memory-unsafe execution blocks and provides API-based dry-runs where heavy local model weights (e.g., 4GB+ `.gguf` files for the LLM) are skipped.
 
 ### 1.2.6 Pre-Flight Disk Checks & Offline Fallbacks
 Computational chemistry creates massive transient files. If a drive reaches 100% capacity during a coupled-cluster routine, the node will suffer a hard crash.
-* **The 10GB psutil Gate:** During Stage 0 initialization, `cochem_setup_1_sys.py` utilizes the `psutil` library to scan the target I/O Scratch Directory. If < 10GB of free NVMe/SSD space is available, the setup aborts immediately with a safe, descriptive warning rather than failing destructively mid-calculation.
-* **Offline/Firewall Tarball Routing:** The setup script pings a reliable external server (1.1.1.1). If the host machine is air-gapped or behind a strict university firewall preventing standard `git clone` or `pip install` operations, the script dynamically flips to **Local Fallback Mode**, extracting pre-packaged local tarballs instead of utilizing external `urllib` fetchers.
+* **The 10GB psutil Gate:** During Stage 0 initialization, the OS-native setup modules (specifically `setup/calc_wsl.py` or other native calculation platform setups) utilize the `psutil` library to scan the target workspace partition. If < 10GB of free space is available, the setup aborts immediately with a safe, descriptive warning rather than failing destructively mid-calculation.
+  > [!NOTE]
+  > **AUDIT DIFF**: The codebase implementation in `interfaces/cochem_unity_installer_dashboard.py` (line 85) actually checks for a minimum of **5GB** free space instead of the claimed 10GB.
+* **Offline/Firewall Tarball Routing:** The setup scripts ping a reliable external server (1.1.1.1). If the host machine is air-gapped or behind a strict university firewall preventing standard operations, the scripts dynamically flip to **Local Fallback Mode**, extracting pre-packaged local tarballs instead of utilizing external network fetchers.
+  > [!NOTE]
+  > **AUDIT DIFF**: Active pinging of `1.1.1.1` is not implemented in the codebase. The scripts simply look for the local archive files directly.
 * **Autonomous Source Cleanup:** Upon successful compilation of heavy machine-learning libraries (like MACE-OFF23), the orchestrator immediately purges the raw source-code directories, recovering hundreds of megabytes of workspace storage.
 
 ### 1.2.7 The Thermal Throttle Governor (SIGSTOP / SIGCONT)
@@ -103,9 +107,13 @@ High-tier computations, particularly Canonical Coupled-Cluster or dense FSSH dyn
 * **The Intercept:** CoChem integrates natively with Linux `lm-sensors`. The orchestrator runs a lightweight background thread monitoring the CPU package temperature.
 * **Dynamic Suspension:** If the node temperature exceeds 90°C, CoChem autonomously issues a POSIX `SIGSTOP` command to the running OpenMPI processes. This freezes the calculation in memory, allowing the silicon to cool.
 * **Resumption:** Once the temperature falls back below 75°C, the daemon issues a `SIGCONT` command, cleanly resuming the calculation without losing a single SCF iteration.
+  > [!WARNING]
+  > **AUDIT DIFF**: The Thermal Throttle Governor feature (including background sensors polling and POSIX process suspension) is conceptual and not currently implemented in the python scripts.
 
 ### 1.2.8 OpenMPI Shared-Memory (SHM) Checksum Verification
 When parallelizing heavy tensor contractions across 24 to 128 cores, data is passed through Shared-Memory (SHM) segments. In heavily utilized clusters, rapid context switching can occasionally cause silent memory corruption across the hardware bus. CoChem mathematically enforces reproducibility by verifying the byte-size of the partitioned tensors against an expected SHM checksum before the ORCA wrapper allows the final energy extraction, guaranteeing that a predicted rotational constant is free of silent hardware faults.
+  > [!NOTE]
+  > **AUDIT DIFF**: OpenMPI Shared-Memory checksum verification is currently missing from the codebase.
 
 ## 1.3 The 7-Phase Initialization Protocol (Stage 0.0)
 ### 1.3.1 Dynamic Micro-Silos and C++ ABI Conflict Resolution
@@ -115,7 +123,9 @@ Why does CoChem use "Micro-Silos"? Installing `mace-torch` (which requires speci
 Stage 0 natively profiles the available system resources, mapping PyTorch batch sizes and ORCA `%maxcore` targets to safely saturate available RAM and VRAM without invoking swap thrashing.
 
 ### 1.3.3 Strict Pydantic Schema Validation
-The `cochem_system_config.json` is the central nervous system of the pipeline. If a user manually edits this file and accidentally changes a boolean `true` to a string `"true"`, legacy scripts would crash mid-execution. CoChem prevents environment drift by wrapping the entire registry in a strict **Pydantic** data schema. Every time a sub-module boots, it validates the JSON against the schema. If an invalid type is detected, the `cochem_setup_5_finalize.py` module immediately intercepts the error and heals the configuration back to standard defaults.
+The `cochem_system_config.json` is the central nervous system of the pipeline. If a user manually edits this file and accidentally changes a boolean `true` to a string `"true"`, legacy scripts would crash mid-execution. CoChem prevents environment drift by wrapping the entire registry in a strict **Pydantic** data schema (defined in `core_engine/cochem_core_registry_schema.py`). Every time a sub-module boots, it validates the JSON against the schema. If an invalid type is detected, the setup orchestrator (`setup/cochem_setup_orchestrator.py`) immediately intercepts the error and heals the configuration back to standard defaults.
+  > [!NOTE]
+  > **AUDIT DIFF**: The Pydantic schema class is defined in `core_engine/cochem_core_registry_schema.py` but is not imported or used by `core_engine/cochem_core_registry_manager.py` or other files.
 
 ## 1.4 CoChem-DOCK: Telemetry & The Unified GUI
 Streaming raw output from an ORCA calculation (which can produce tens of thousands of lines of SCF iterations) directly into a standard Jupyter Notebook cell will cause the browser's Document Object Model (DOM) to freeze and crash, leading to data loss.
@@ -129,6 +139,8 @@ By leveraging React's `useRef` hook rather than `useState` for the log stream, C
 ### 1.4.3 LTTB Decimation for Massive Spectral Arrays
 A standard room-temperature partition function simulated by CoChem-SpycFit can contain upwards of 10 million individual frequency/intensity points. Attempting to render 10 million coordinate pairs in a browser-based React or Plotly canvas will cause the WebGL engine to instantly out-of-memory (OOM) crash the user's browser tab.
 * **The Solution (LTTB):** CoChem-DOCK passes the massive dataset through a **Largest-Triangle-Three-Buckets (LTTB)** decimation algorithm before streaming it to the frontend. Unlike standard down-sampling (which arbitrarily deletes points and frequently erases sharp spectral peaks), LTTB mathematically evaluates the visual triangle area of the dataset. It compresses the 10-million-point array down to 5,000 points while perfectly preserving the visual fidelity of all spectral peak maxima and signal baselines.
+  > [!WARNING]
+  > **AUDIT DIFF**: The Largest-Triangle-Three-Buckets (LTTB) decimation algorithm is not implemented in the Python codebase.
 
 ---
 
@@ -145,6 +157,8 @@ The user interfaces with MInt via the CoChem-UNITY frontend. This dashboard bypa
 For standard molecular systems, users can bypass local file management entirely.
 ### 2.2.1 Asynchronous Querying & py3Dmol Visual Grid
 By entering an IUPAC name, common string, or SMILES identifier into the MInt dashboard, the system utilizes an asynchronous `aiohttp` routine to query the PubChem database. The backend retrieves the spatial coordinates and instantly renders the top 5 conformational matches inside a `py3Dmol` interactive WebGL grid. Users can rotate, zoom, and visually verify the structure, selecting the most appropriate starting geometry with a single click.
+  > [!WARNING]
+  > **AUDIT DIFF**: The codebase does not use `aiohttp` or PubChem, nor does it render `py3Dmol` conformer grids. It synchronously queries NIH Cactus to get a single SMILES string and uses RDKit to embed and optimize coordinates locally.
 
 ## 2.3 Method B: Direct File Uploads
 For novel compounds, transition states, or proprietary geometries, users upload custom `.xyz` files directly into the GUI for ingestion parsing.
@@ -193,6 +207,8 @@ While the CoChem-SCAN module maps rigid, user-defined grids, untargeted global m
 ORCA's native GOAT routine can be slow if run sequentially. CoChem intercepts the GOAT block and utilizes Python's `concurrent.futures.ThreadPoolExecutor`.
 * By reading the available threads from `cochem_system_config.json`, the orchestrator spawns multiple independent ORCA processes simultaneously (e.g., 8 concurrent instances).
 * It dynamically partitions memory by calculating MaxMemory / NCores, actively writing the `%maxcore` flag into each isolated `basename_T1_m{idx}.inp` file, ensuring complete hardware saturation without causing swap-file thrashing.
+  > [!WARNING]
+  > **AUDIT DIFF**: Parallel GOAT wrapping via ThreadPoolExecutor and dynamic maxcore partitioning is not implemented in the Python scripts.
 
 ### 3.2.2 The Calc_Hess true Directive for Floppy Complexes
 For weakly bound, non-covalent clusters (e.g., $\text{SO}_2 \cdots \text{H}_2$), standard quasi-Newton optimizers frequently fail, "ping-ponging" endlessly around a shallow, flat potential energy surface.
@@ -210,6 +226,8 @@ If two structures have matching distance vectors, CoChem invokes the **Jiggle-Qu
 1. The atoms of the suspect duplicate are artificially perturbed (jiggled) by 0.1 Å.
 2. The MLFF immediately quenches the geometry back to the nearest energy minimum.
 3. If the perturbed structure falls back into the exact same energy well as the target minimum, it is mathematically proven to share the same topological basin. The duplicate is deleted.
+  > [!WARNING]
+  > **AUDIT DIFF**: The Jiggle-Quench deduplication protocol is not implemented in the pipeline. It is only present as a mock function in the educational CURE sandbox.
 
 ### 3.3.3 The Interactive Tolerance Slider
 Sometimes, shallow Van der Waals basins merge into a single well at room temperature. These conformers technically share a basin but represent distinct macroscopic states. During the deduplication phase, the GUI presents a **Tolerance Multiplier** slider. The user can override the strict Jiggle-Quench algorithm to artificially loosen or tighten the basin boundaries, maintaining human oversight over the automated cull.
@@ -222,6 +240,8 @@ For high-resolution spectroscopy, assuming a molecule behaves as a set of rigid 
 
 ### 3.4.2 Dynamic Calculation of the Reduced Moment of Inertia ($F(\phi)$)
 As the internal rotor spins, the surrounding molecular frame flexes and breathes. CoChem abandons the static approximation. It evaluates the exact geometry at every point along the torsional curve, actively computing the geometry-dependent reduced moment of inertia, $F(\phi)$. This precise mechanical parameter is subsequently wrapped into the final HDF5 serialization, ensuring the downstream spectroscopic fitters correctly map the A/E quantum splitting caused by the hindered rotor.
+  > [!NOTE]
+  > **AUDIT DIFF**: Calculation of $F(\phi)$ is not implemented in `CoChem-TORQ`'s scripts.
 
 ## 3.5 Active Learning & PES Database Generation (CoChem-PES-ML)
 While CoChem utilizes pre-trained universal potentials (like MACE-OFF23) for rapid zero-order conformational searches, highly exotic molecular scaffolds, transition-metal complexes, or transition states often reside outside the training domain of these universal models.
@@ -238,6 +258,8 @@ The data curated from these "Fail-Down" intercepts is not discarded.
 * The exact Double-Hybrid coordinates, energies, and forces are atomically serialized into the `landscape.h5` database.
 * **Dynamic Retraining:** CoChem then invokes the `mace-torch` training script in the background. It utilizes the newly appended dataset to fine-tune the MACE model weights, explicitly teaching the neural network the physics of the previously unknown region.
 * **Result:** The updated, system-specific ML potential is then re-deployed, allowing the conformational search to proceed with near-DFT accuracy at 1/1000th the computational cost.
+  > [!WARNING]
+  > **AUDIT DIFF**: Dynamic model retraining and active learning deployment is not implemented in the Python scripts.
 * *Note:* Generating a custom PES database requires significant GPU VRAM. CoChem natively profiles the hardware (`cochem_system_config.json`) and will automatically adjust the PyTorch batch sizes to prevent `CUDA_OUT_OF_MEMORY` errors during the active learning phase.
 
 ## 3.6 Automated Isotopologue Generation (CoChem-MUSE)
@@ -252,6 +274,8 @@ Simply changing the atomic mass in a `.xyz` file and recalculating the energy is
 Generating a substitution structure ($r_s$) relies on the Kraitchman equations. These equations calculate atomic coordinates from the shift in the moments of inertia upon isotopic substitution ($\Delta I$).
 * **The Kraitchman Singularity:** If an atom lies perfectly on or very close to a principal inertial axis (e.g., the Carbon atom in HCN), $\Delta I$ approaches zero, leading to division by zero and resulting in imaginary (unphysical) spatial coordinates.
 * **The Intercept:** Before executing the isotopologue factory, CoChem calculates the principal axes. It deploys the **Condition Number Trap**, flagging any substituted atom lying < 0.15 Å from a principal axis. The manual will warn the user that this atom's substitution coordinate will mathematically explode, triggering a fallback to Costain’s empirical uncertainty bounds ($\delta r = 0.0015 / \vert{}r\vert{} \text{ \AA}$).
+  > [!WARNING]
+  > **AUDIT DIFF**: The Kraitchman coordinate calculator and the principal axis proximity trap are not implemented in the codebase.
 
 ---
 
@@ -272,10 +296,14 @@ CoChem bypasses this bottleneck by dynamically writing ORCA input blocks that in
 ## 4.2 Core-Valence & Scalar Relativistic Corrections
 Valence-only optimizations ignore the deep electronic core. For high-resolution microwave parameters, ignoring core-electron polarization causes the rotational constants to drift by several megahertz.
 CoChem injects the `%core` block, utilizing core-polarized basis sets (e.g., `cc-pwCVTZ`) to explicitly correlate the 1s electrons. Simultaneously, it activates the **Zeroth-Order Regular Approximation (ZORA)** or **Douglas-Kroll-Hess (DKH)** Hamiltonian to account for the relativistic mass-velocity of electrons near heavy nuclei like Iodine or Transition Metals.
+  > [!WARNING]
+  > **AUDIT DIFF**: The `TIER_4_EQ_TARGET` optimization in the codebase uses the standard `def2-TZVPP` basis set without any relativistic or core correlation blocks.
 
 ## 4.3 Weak Interactions & BSSE (CoChem-CROWN)
 When refining weakly bound Van der Waals complexes (e.g., water dimers), the finite size of the basis set introduces an artificial mathematical stabilization. The basis functions of molecule A artificially "borrow" the basis functions of molecule B, creating the **Basis Set Superposition Error (BSSE)**.
 CoChem-CROWN intercepts complexed geometries. It automatically generates three targeted ORCA inputs per geometry, utilizing "Ghost Atoms" (Mass=0, Charge=0) to calculate the exact monomer energies within the dimer basis set, mathematically neutralizing the BSSE via the Boys-Bernardi Counterpoise procedure.
+  > [!WARNING]
+  > **AUDIT DIFF**: Dimer counterpoise input generation and ghost atom coordinates configuration are not implemented in the Python codebase.
 
 ## 4.4 The Multireference Trap: $T_1$ and $D_1$ Diagnostics
 A fundamental limitation of CCSD(T) is that it is a *single-reference* method. It assumes the ground state is dominated by a single Slater Determinant. For transition states or open-shell biradicals, this assumption can catastrophically fail.
@@ -316,6 +344,8 @@ Rotational and vibrational spectra are highly dense, often containing millions o
 
 ### 5.1.1 Legacy SPCAT/SPFIT vs. Modern JAX Acceleration
 Legacy codes calculate the Jacobians required for fitting by using slow finite-difference methods. **CoChem-SpycFit** ports the rigid-rotor and centrifugally-distorted Hamiltonians (Watson A- and S-reductions) directly into **JAX**. This allows the fitting engine to use automatic differentiation (Autodiff) to calculate exact analytical Jacobians, yielding sub-kHz fitting accuracy without numerical gradient noise.
+  > [!WARNING]
+  > **AUDIT DIFF**: JAX Watson Hamiltonian rigid-rotor fitting and autodiff calculations are not implemented in the python scripts.
 
 ### 5.1.2 Anharmonicity & VPT2 Deperturbation Parsing
 The harmonic oscillator approximation breaks down for high-resolution IR. CoChem parses ORCA's Anharmonic Vibrational Perturbation Theory (VPT2) output.
@@ -331,6 +361,8 @@ For synthetic chemists, predicting retention times and fragmentation patterns is
 
 ### 5.3.1 Kováts RI & Radical Fragmentation
 * **Kováts Retention Index (RI):** CoChem-MAGE calculates boiling point and polarity vectors to predict the RI against standard alkane ladders for non-polar GC columns (e.g., DB-5).
+  > [!NOTE]
+  > **AUDIT DIFF**: Kováts RI calculation is implemented in `cochem_mage_sim.py` using a heuristic regression model based on molecular weight, LogP, and TPSA, rather than full thermodynamic column partitioning.
 * **RRKM Fragmentation:** Using graph theory edge-severing, MAGE simulates high-energy electron ionization (EI, $70\text{ eV}$). It calculates the statistical Rice-Ramsperger-Kassel-Marcus (RRKM) rates of bond cleavage to generate a theoretical m/z stick spectrum.
 
 ## 5.4 Ultraviolet-Visible Spectroscopy (CoChem-UVisSpycFit)
@@ -490,11 +522,15 @@ Students are tasked with designing a theoretical experiment to capture a transie
 
 ### 7.3.2 Abstract Syntax Tree (AST) Evasion Auditing
 To prevent students from simply hardcoding the correct answers into their Jupyter Notebooks, the grading backend utilizes Python's `ast` (Abstract Syntax Tree) module. It mathematically parses the student's code structure, verifying that the appropriate loops and quantum engine calls were actually executed. If a student bypasses the ORCA call and just prints "Energy = -400.12 Hartrees," the submission is automatically flagged for Evasion, preventing falsified data points.
+  > [!WARNING]
+  > **AUDIT DIFF**: AST evasion parsing is not implemented in the evaluation scripts.
 
 ### 7.3.3 Advanced Plagiarism Traps: Temporal Collusion Detection
 While CoChem-EVAL relies on Abstract Syntax Tree (AST) hashing to catch code-copying, students often attempt to evade this by manually rewriting variable names.
 * **The Git History Parser:** To combat sophisticated evasion in group environments, CoChem parses the underlying `.git` commit history of the Codespace workspace.
 * **Temporal Collusion:** The system analyzes the delta between commit timestamps across different student repositories. If Student A and Student B both push topologically identical, highly complex MACE-OFF23 workflow cells within 15 seconds of each other, the pipeline flags this as "Temporal Collusion." The AST parser will mark the submission for manual PI review, successfully identifying unauthorized peer-to-peer data sharing.
+  > [!WARNING]
+  > **AUDIT DIFF**: Cross-repository temporal collusion checks and push delta logs are not implemented in the Python scripts.
 
 ### 7.3.4 The Individual Contribution Index (ICI) and Free-Rider Detection
 The CoChem-CURE module requires students to operate in defined research groups. A primary failure point of group pedagogy is the "Free-Rider" phenomenon, where one student performs all the computational heavy lifting.

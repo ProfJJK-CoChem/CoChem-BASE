@@ -24,7 +24,7 @@ def load_system_config() -> dict:
     base_dir = Path(__file__).resolve().parent.parent.parent
     config_path = base_dir / "cochem_system_config.json"
     if not config_path.exists():
-        config_path = Path.home() / "CoChem_Artifacts" / "cochem_system_config.json"
+        config_path = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "cochem_system_config.json"
     if not config_path.exists():
         raise FileNotFoundError("FATAL: cochem_system_config.json not found in registry. Run Stage 0 setup first.")
     with open(config_path, "r") as f:

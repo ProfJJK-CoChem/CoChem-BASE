@@ -10,6 +10,7 @@ import os
 import sys
 import json
 import subprocess
+import platform
 from pathlib import Path
 
 # Dual-Matrix Routing Dictionaries
@@ -30,7 +31,11 @@ CALC_MAP = {
 
 def get_manifest_path() -> Path:
     """Locates the unified deployment manifest enforcing the Air-Gap rule."""
-    registry_dir = Path.home() / "CoChem_Artifacts" / "Registry"
+    artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
+    if artifact_dir:
+        registry_dir = Path(artifact_dir) / "Registry"
+    else:
+        registry_dir = Path.home() / "CoChem_Artifacts" / "Registry"
     manifest = registry_dir / "cochem_deployment_manifest.json"
     
     if manifest.exists():
@@ -45,7 +50,7 @@ def get_manifest_path() -> Path:
     print("Please complete the CoChem-BASE UI selection in Start_Here.ipynb first.")
     sys.exit(1)
 
-def execute_script(script_name: str):
+def execute_script(script_name: str, env_name: str):
     """Dispatches the target Python script sequentially with strict error trapping."""
     script_path = Path(__file__).resolve().parent / script_name
     
@@ -55,8 +60,16 @@ def execute_script(script_name: str):
         
     print(f"\n▶️ Dispatching OS-Native Router: {script_name}...")
     try:
+        # Cross OS boundary if executing from a Windows host targeting WSL
+        if "WSL" in env_name and platform.system() == "Windows":
+            drive = str(script_path)[0].lower()
+            wsl_path = f"/mnt/{drive}/{str(script_path)[3:].replace(os.sep, '/')}"
+            cmd = ["wsl", "python3", wsl_path]
+        else:
+            cmd = [sys.executable, str(script_path)]
+            
         # Standardize execution to the active python interpreter
-        subprocess.run([sys.executable, str(script_path)], check=True)
+        subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         print(f"\n❌ FATAL: '{script_name}' failed with exit code {e.returncode}.")
         print("Please check the terminal output above for specific OS errors.")
@@ -97,10 +110,10 @@ def main():
     print(f"⚙️  Target Calculation Layer: {calc_env}\n")
     
     # Phase 1: Provision Interaction (UI / Jupyter / Logs)
-    execute_script(interact_script)
+    execute_script(interact_script, interact_env)
     
     # Phase 2: Provision Calculation (Engines / MPI / Slurm)
-    execute_script(calc_script)
+    execute_script(calc_script, calc_env)
     
     print("\n✅ CoChem-BASE Master Orchestration Complete.")
     print("System Config Registry has been successfully compiled.")

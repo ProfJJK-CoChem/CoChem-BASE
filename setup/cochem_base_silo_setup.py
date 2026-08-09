@@ -1,112 +1,116 @@
+#!/usr/bin/env python3
+"""
+CoChem-BASE Silo Setup Script
+This script creates the conda environment for CoChem-BASE.
+"""
+
 import subprocess
 import sys
-import json
 import os
+import json
 from pathlib import Path
 
-def get_artifact_dir():
-    try:
-        repo_root = Path(__file__).resolve().parent.parent
-        config_path = repo_root / ".cochem_env.json"
-        
-        # also check cwd
-        if not config_path.exists():
-            config_path = Path.cwd() / ".cochem_env.json"
-            
-        if config_path.exists():
-            with open(config_path, "r") as f:
-                data = json.load(f)
-                if "artifact_dir" in data:
-                    return Path(data["artifact_dir"])
-    except Exception:
-        pass
-    # Fix the logic error in the original code
-    artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if artifact_dir:
-        return Path(artifact_dir)
-    else:
-        return Path.home() / "CoChem_Artifacts"
-
-def main():
-    artifact_dir = get_artifact_dir()
-    env_dir = artifact_dir / "Silos" / "cochem_base_silo"
-    env_dir.parent.mkdir(parents=True, exist_ok=True)
+def setup_conda_silo():
+    """Setup the conda silo environment"""
     
-    print("🔍 Checking system requirements...")
+    print("==============================================================")
+    print(" 🧪 CoChem-BASE: Conda Silo Environment Creation")
+    print("==============================================================\n")
     
-    # Check if conda is available
-    try:
-        result = subprocess.run(["conda", "--version"], check=True, capture_output=True, text=True)
-        print(f"✅ Conda found: {result.stdout.strip()}")
-    except FileNotFoundError:
-        print("❌ Conda not found. Please ensure Conda/Miniconda is installed and in your PATH.")
-        print("   You can download it from: https://docs.conda.io/en/latest/miniconda.html")
-        sys.exit(1)
-    except subprocess.CalledProcessError:
-        print("❌ Conda command failed.")
+    # Get the artifact directory from config
+    cfg_path = Path.cwd() / ".cochem_env.json"
+    if not cfg_path.exists():
+        print("❌ Configuration file (.cochem_env.json) not found!")
         sys.exit(1)
         
-    print(f"🔄 Creating / Updating Conda environment at: {env_dir}...")
+    with open(cfg_path, "r") as f:
+        config = json.load(f)
+        
+    artifact_dir = Path(config["artifact_dir"])
+    silo_dir = artifact_dir / "Silos" / "cochem_base_silo"
+    
+    print(f"Artifact Directory: {artifact_dir}")
+    print(f"Silo Directory: {silo_dir}\n")
+    
+    # Create the artifact directory if it doesn't exist
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    silo_dir.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Check if environment already exists
+    conda_meta_path = silo_dir / "conda-meta"
+    
+    # More robust check - verify this is actually a valid conda environment
+    env_valid = False
+    
+    if conda_meta_path.exists():
+        # Additional verification: check for key conda files that should exist
+        try:
+            # Check if there's at least one conda package installed
+            import os
+            meta_files = list(conda_meta_path.glob("*.json"))
+            if len(meta_files) > 0:
+                env_valid = True
+            else:
+                print("⚠️ Conda-meta directory exists but is empty - treating as invalid")
+        except Exception as e:
+            print(f"⚠️ Error checking conda-meta: {e}")
+    
+    if env_valid:
+        print("✅ Conda environment already exists at:", silo_dir)
+        print("   Skipping creation process")
+        return True
+        
+    # If we're here, the environment doesn't exist or is invalid
+    print("🔄 Environment not found or invalid, proceeding with creation...")
+        
+    print("🔄 Creating new conda environment...")
     
     # Create the conda environment
     try:
-        # Check if environment already exists
-        result = subprocess.run(["conda", "info", "--envs"], check=True, capture_output=True, text=True)
-        if str(env_dir) in result.stdout:
-            print("⚠️ Environment already exists, updating...")
-        else:
-            print("📦 Creating new conda environment...")
+        # Create the environment using the specified directory
+        create_cmd = [
+            "conda", "create", "--prefix", str(silo_dir),
+            "-c", "conda-forge", "python=3.10", "numpy", "pandas", 
+            "scipy", "matplotlib", "jupyter", "ipywidgets",
+            "openbabel", "rdkit", "ase", "pyyaml", "requests",
+            "--yes"
+        ]
         
-        # Create or update the environment
-        subprocess.run(["conda", "create", "-p", str(env_dir), "python=3.10", "-y"], check=True, capture_output=True)
-        print(f"✅ Conda environment created/updated at: {env_dir}")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to create/update conda environment: {e}")
-        sys.exit(1)
-
-    # Install pip dependencies inside the environment
-    packages = ["ipywidgets>=8.0.0", "psutil", "jupyterlab", "numpy", "pandas", "matplotlib", "seaborn", "scipy", "openbabel", "rdkit"]
-    print(f"📦 Installing Python packages into {env_dir}: {', '.join(packages)}")
-    
-    try:
-        # Use conda run to execute pip install within the environment
-        subprocess.run(["conda", "run", "-p", str(env_dir), "pip", "install"] + packages, check=True, capture_output=True)
-        print("✅ Python packages installed successfully!")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install packages into {env_dir}. Error: {e}")
-        sys.exit(1)
-    
-    # Install additional conda packages
-    conda_packages = ["pip", "conda", "ipython", "jupyter"]
-    print(f"📦 Installing additional conda packages: {', '.join(conda_packages)}")
-    
-    try:
-        subprocess.run(["conda", "install", "-p", str(env_dir)] + conda_packages, check=True, capture_output=True)
-        print("✅ Additional conda packages installed successfully!")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install additional conda packages into {env_dir}. Error: {e}")
-        sys.exit(1)
+        print("Running command:", " ".join(create_cmd))
+        result = subprocess.run(create_cmd, check=True, capture_output=True, text=True)
+        print(result.stdout)
         
-    # Install the CoChem modules in development mode
-    try:
-        current_dir = Path(__file__).parent.parent
-        print(f"📦 Installing CoChem modules from: {current_dir}")
-        subprocess.run(["conda", "run", "-p", str(env_dir), "pip", "install", "-e", str(current_dir)], check=True, capture_output=True)
-        print("✅ CoChem modules installed successfully!")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Failed to install CoChem modules. Error: {e}")
-        sys.exit(1)
-    
-    # Verify installation
-    try:
-        result = subprocess.run(["conda", "run", "-p", str(env_dir), "python", "-c", "import ipywidgets; print('ipywidgets version:', ipywidgets.__version__)"], 
-                               check=True, capture_output=True, text=True)
-        print("✅ Verification successful!")
-        print(result.stdout.strip())
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Verification failed: {e}")
+        # Install additional packages
+        install_cmd = [
+            "conda", "install", "--prefix", str(silo_dir),
+            "-c", "conda-forge", "mypy", "black", "flake8",
+            "--yes"
+        ]
         
-    print(f"✅ Silo setup complete at {env_dir}!")
+        print("Installing additional packages...")
+        result = subprocess.run(install_cmd, check=True, capture_output=True, text=True)
+        print(result.stdout)
+        
+        # Install specific packages that might not be in conda-forge
+        pip_install = [
+            "python", "-m", "pip", "install",
+            "openbabel", "pybel", "chemformula", "periodictable"
+        ]
+        
+        print("Installing pip packages...")
+        result = subprocess.run(pip_install, check=True, capture_output=True, text=True)
+        print(result.stdout)
+        
+        print("✅ Conda environment created successfully at:", silo_dir)
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Error creating conda environment: {e}")
+        print(f"Error output: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"❌ Unexpected error: {e}")
+        return False
 
 if __name__ == "__main__":
-    main()
+    setup_conda_silo()

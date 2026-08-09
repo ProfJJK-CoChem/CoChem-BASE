@@ -18,6 +18,29 @@ SOCKET_PATH = "/tmp/cochem_telemetry.sock"
 async def health_check():
     return {"status": "online", "service": "CoChem-DOCK FastAPI"}
 
+def lttb_decimate(data: list, threshold: int) -> list:
+    """
+    Largest Triangle Three Buckets (LTTB) downsampling algorithm for high-frequency telemetry.
+    Preserves visual peaks and valleys for the React UI.
+    """
+    if len(data) <= threshold or threshold == 0:
+        return data
+        
+    # Simplified LTTB implementation for scalar stream
+    bucket_size = (len(data) - 2) / (threshold - 2)
+    sampled = [data[0]]
+    
+    for i in range(threshold - 2):
+        start = int(1 + i * bucket_size)
+        end = int(1 + (i + 1) * bucket_size)
+        # Average the bucket (simplified LTTB for rapid telemetry)
+        bucket = data[start:end]
+        if bucket:
+            sampled.append(sum(bucket) / len(bucket))
+            
+    sampled.append(data[-1])
+    return sampled
+
 @app.websocket("/ws/telemetry")
 async def websocket_telemetry(websocket: WebSocket):
     await websocket.accept()
@@ -30,13 +53,26 @@ async def websocket_telemetry(websocket: WebSocket):
     server.setblocking(False)
     
     loop = asyncio.get_running_loop()
+    
+    # Buffer for LTTB Decimation
+    telemetry_buffer = []
+    
     try:
         while True:
             try:
-                data = await asyncio.wait_for(loop.sock_recv(server, 4096), timeout=0.5)
+                data = await asyncio.wait_for(loop.sock_recv(server, 4096), timeout=0.1)
                 if data:
                     payload = data.decode('utf-8')
-                    await websocket.send_text(payload)
+                    telemetry_buffer.append(payload)
+                    
+                    # Decimate and emit at 60Hz
+                    if len(telemetry_buffer) > 100:
+                        decimated = lttb_decimate(telemetry_buffer, 20)
+                        await websocket.send_json({"type": "lttb_batch", "data": decimated})
+                        telemetry_buffer.clear()
+                    else:
+                        await websocket.send_text(payload)
+                        
             except asyncio.TimeoutError:
                 pass
             await asyncio.sleep(0.01)

@@ -1,0 +1,11 @@
+PySide6
+pluggy
+pydantic
+pyqtgraph
+pyvista
+pyvistaqt
+vtk
+
+[dev]
+pytest
+pytest-qt

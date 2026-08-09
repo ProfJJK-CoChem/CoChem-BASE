@@ -2,7 +2,8 @@
 Implements: Atomic POSIX locking, Lineage UUIDs, PRNG Seed Locking,
 Legacy Schema Migration, HDF5 Basis Set Archival, and Dynamic Mass Queries.
 PATCH: - Replaced static mass dictionaries with dynamic mendeleev library queries
-       - Added explicit IsotopeStabilityError handling for transuranic / unstable elements."""
+       - Added explicit IsotopeStabilityError handling for transuranic / unstable elements
+       - Complete HDF5 registry implementation with full state management capabilities"""
 
 import os
 import json
@@ -11,8 +12,10 @@ import fcntl
 import h5py
 import hashlib
 import logging
-from typing import Dict, Any, Optional
+import time
+from typing import Dict, Any, Optional, List, Union
 from mendeleev import element
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-RegistryManager")
@@ -22,8 +25,37 @@ class IsotopeStabilityError(Exception):
     pass
 
 class RegistryManager:
-    def __init__(self, config_path: str = "cochem_system_config.json"):
+    def __init__(self, config_path: str = "cochem_system_config.json", registry_path: str = "cochem_registry.h5"):
+        """
+        Initialize the Registry Manager with HDF5-based state management.
+        
+        Args:
+            config_path (str): Path to system configuration file
+            registry_path (str): Path to HDF5 registry file
+        """
         self.config_path = os.path.abspath(config_path)
+        self.registry_path = os.path.abspath(registry_path)
+        self._ensure_registry_exists()
+        
+    def _ensure_registry_exists(self):
+        """Ensure the HDF5 registry file exists."""
+        try:
+            if not os.path.exists(self.registry_path):
+                # Create a new empty registry
+                with h5py.File(self.registry_path, 'w') as h5:
+                    h5.attrs["created"] = datetime.now().isoformat()
+                    h5.attrs["version"] = "1.0"
+                    h5.create_group("jobs")
+                    h5.create_group("hardware_profiles")
+                    h5.create_group("basis_sets")
+                    h5.create_group("provenance")
+                    h5.create_group("metadata")
+                logger.info(f"Created new registry file: {self.registry_path}")
+            else:
+                logger.info(f"Registry file already exists: {self.registry_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize registry: {e}")
+            raise
 
     @staticmethod
     def get_isotopic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
@@ -76,6 +108,339 @@ class RegistryManager:
         except Exception as e:
             logger.error(f"HDF5 embedding failed: {e}")
 
+    def register_job(self, job_id: str, job_data: Dict[str, Any]) -> None:
+        """
+        Register a new job in the registry.
+        
+        Args:
+            job_id (str): Unique identifier for the job
+            job_data (Dict): Job metadata and parameters
+        """
+        try:
+            with h5py.File(self.registry_path, 'a') as h5:
+                jobs_group = h5["jobs"]
+                
+                # Create job dataset if it doesn't exist
+                if job_id not in jobs_group:
+                    job_dataset = jobs_group.create_group(job_id)
+                else:
+                    job_dataset = jobs_group[job_id]
+                
+                # Store job data
+                for key, value in job_data.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        job_dataset.attrs[key] = value
+                    elif isinstance(value, (list, dict)):
+                        job_dataset.attrs[key] = json.dumps(value)
+                    else:
+                        job_dataset.attrs[key] = str(value)
+                        
+                # Add timestamp
+                job_dataset.attrs["registered_at"] = datetime.now().isoformat()
+                
+                logger.info(f"Job {job_id} registered in registry")
+        except Exception as e:
+            logger.error(f"Failed to register job {job_id}: {e}")
+            raise
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve job data from the registry.
+        
+        Args:
+            job_id (str): Unique identifier for the job
+            
+        Returns:
+            Dict: Job metadata or None if not found
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                jobs_group = h5["jobs"]
+                
+                if job_id in jobs_group:
+                    job_dataset = jobs_group[job_id]
+                    job_data = {}
+                    
+                    # Retrieve all attributes
+                    for key, value in job_dataset.attrs.items():
+                        try:
+                            # Try to parse JSON data
+                            parsed_value = json.loads(value)
+                            job_data[key] = parsed_value
+                        except (json.JSONDecodeError, TypeError):
+                            # Keep as is if not JSON
+                            job_data[key] = value
+                            
+                    return job_data
+                else:
+                    logger.warning(f"Job {job_id} not found in registry")
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve job {job_id}: {e}")
+            return None
+
+    def update_job_status(self, job_id: str, status: str, **kwargs) -> None:
+        """
+        Update job status and related information.
+        
+        Args:
+            job_id (str): Unique identifier for the job
+            status (str): New job status
+            **kwargs: Additional status information
+        """
+        try:
+            with h5py.File(self.registry_path, 'a') as h5:
+                jobs_group = h5["jobs"]
+                
+                if job_id in jobs_group:
+                    job_dataset = jobs_group[job_id]
+                    
+                    # Update status
+                    job_dataset.attrs["status"] = status
+                    job_dataset.attrs["updated_at"] = datetime.now().isoformat()
+                    
+                    # Update additional fields
+                    for key, value in kwargs.items():
+                        if isinstance(value, (str, int, float, bool)):
+                            job_dataset.attrs[key] = value
+                        elif isinstance(value, (list, dict)):
+                            job_dataset.attrs[key] = json.dumps(value)
+                        else:
+                            job_dataset.attrs[key] = str(value)
+                            
+                    logger.info(f"Job {job_id} status updated to {status}")
+                else:
+                    logger.warning(f"Cannot update status for non-existent job {job_id}")
+        except Exception as e:
+            logger.error(f"Failed to update job {job_id} status: {e}")
+            raise
+
+    def register_hardware_profile(self, profile_id: str, profile_data: Dict[str, Any]) -> None:
+        """
+        Register a hardware profile in the registry.
+        
+        Args:
+            profile_id (str): Unique identifier for the hardware profile
+            profile_data (Dict): Hardware profile information
+        """
+        try:
+            with h5py.File(self.registry_path, 'a') as h5:
+                hardware_group = h5["hardware_profiles"]
+                
+                # Create hardware profile dataset if it doesn't exist
+                if profile_id not in hardware_group:
+                    profile_dataset = hardware_group.create_group(profile_id)
+                else:
+                    profile_dataset = hardware_group[profile_id]
+                
+                # Store hardware profile data
+                for key, value in profile_data.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        profile_dataset.attrs[key] = value
+                    elif isinstance(value, (list, dict)):
+                        profile_dataset.attrs[key] = json.dumps(value)
+                    else:
+                        profile_dataset.attrs[key] = str(value)
+                        
+                # Add timestamp
+                profile_dataset.attrs["registered_at"] = datetime.now().isoformat()
+                
+                logger.info(f"Hardware profile {profile_id} registered in registry")
+        except Exception as e:
+            logger.error(f"Failed to register hardware profile {profile_id}: {e}")
+            raise
+
+    def get_hardware_profile(self, profile_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve hardware profile data from the registry.
+        
+        Args:
+            profile_id (str): Unique identifier for the hardware profile
+            
+        Returns:
+            Dict: Hardware profile data or None if not found
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                hardware_group = h5["hardware_profiles"]
+                
+                if profile_id in hardware_group:
+                    profile_dataset = hardware_group[profile_id]
+                    profile_data = {}
+                    
+                    # Retrieve all attributes
+                    for key, value in profile_dataset.attrs.items():
+                        try:
+                            # Try to parse JSON data
+                            parsed_value = json.loads(value)
+                            profile_data[key] = parsed_value
+                        except (json.JSONDecodeError, TypeError):
+                            # Keep as is if not JSON
+                            profile_data[key] = value
+                            
+                    return profile_data
+                else:
+                    logger.warning(f"Hardware profile {profile_id} not found in registry")
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve hardware profile {profile_id}: {e}")
+            return None
+
+    def add_provenance_record(self, record_id: str, provenance_data: Dict[str, Any]) -> None:
+        """
+        Add a provenance record to the registry.
+        
+        Args:
+            record_id (str): Unique identifier for the provenance record
+            provenance_data (Dict): Provenance information
+        """
+        try:
+            with h5py.File(self.registry_path, 'a') as h5:
+                provenance_group = h5["provenance"]
+                
+                # Create provenance dataset if it doesn't exist
+                if record_id not in provenance_group:
+                    record_dataset = provenance_group.create_group(record_id)
+                else:
+                    record_dataset = provenance_group[record_id]
+                
+                # Store provenance data
+                for key, value in provenance_data.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        record_dataset.attrs[key] = value
+                    elif isinstance(value, (list, dict)):
+                        record_dataset.attrs[key] = json.dumps(value)
+                    else:
+                        record_dataset.attrs[key] = str(value)
+                        
+                # Add timestamp
+                record_dataset.attrs["created_at"] = datetime.now().isoformat()
+                
+                logger.info(f"Provenance record {record_id} added to registry")
+        except Exception as e:
+            logger.error(f"Failed to add provenance record {record_id}: {e}")
+            raise
+
+    def get_provenance_record(self, record_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a provenance record from the registry.
+        
+        Args:
+            record_id (str): Unique identifier for the provenance record
+            
+        Returns:
+            Dict: Provenance data or None if not found
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                provenance_group = h5["provenance"]
+                
+                if record_id in provenance_group:
+                    record_dataset = provenance_group[record_id]
+                    record_data = {}
+                    
+                    # Retrieve all attributes
+                    for key, value in record_dataset.attrs.items():
+                        try:
+                            # Try to parse JSON data
+                            parsed_value = json.loads(value)
+                            record_data[key] = parsed_value
+                        except (json.JSONDecodeError, TypeError):
+                            # Keep as is if not JSON
+                            record_data[key] = value
+                            
+                    return record_data
+                else:
+                    logger.warning(f"Provenance record {record_id} not found in registry")
+                    return None
+        except Exception as e:
+            logger.error(f"Failed to retrieve provenance record {record_id}: {e}")
+            return None
+
+    def get_all_jobs(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all registered jobs.
+        
+        Returns:
+            List[Dict]: List of all job data
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                jobs_group = h5["jobs"]
+                jobs_list = []
+                
+                for job_id in jobs_group:
+                    job_dataset = jobs_group[job_id]
+                    job_data = {"job_id": job_id}
+                    
+                    # Retrieve all attributes
+                    for key, value in job_dataset.attrs.items():
+                        try:
+                            parsed_value = json.loads(value)
+                            job_data[key] = parsed_value
+                        except (json.JSONDecodeError, TypeError):
+                            job_data[key] = value
+                            
+                    jobs_list.append(job_data)
+                    
+                return jobs_list
+        except Exception as e:
+            logger.error(f"Failed to retrieve all jobs: {e}")
+            return []
+
+    def get_all_hardware_profiles(self) -> List[Dict[str, Any]]:
+        """
+        Retrieve all registered hardware profiles.
+        
+        Returns:
+            List[Dict]: List of all hardware profile data
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                hardware_group = h5["hardware_profiles"]
+                profiles_list = []
+                
+                for profile_id in hardware_group:
+                    profile_dataset = hardware_group[profile_id]
+                    profile_data = {"profile_id": profile_id}
+                    
+                    # Retrieve all attributes
+                    for key, value in profile_dataset.attrs.items():
+                        try:
+                            parsed_value = json.loads(value)
+                            profile_data[key] = parsed_value
+                        except (json.JSONDecodeError, TypeError):
+                            profile_data[key] = value
+                            
+                    profiles_list.append(profile_data)
+                    
+                return profiles_list
+        except Exception as e:
+            logger.error(f"Failed to retrieve all hardware profiles: {e}")
+            return []
+
+    def get_registry_stats(self) -> Dict[str, Any]:
+        """
+        Get statistics about the registry contents.
+        
+        Returns:
+            Dict: Registry statistics
+        """
+        try:
+            with h5py.File(self.registry_path, 'r') as h5:
+                stats = {
+                    "jobs_count": len(h5["jobs"]),
+                    "hardware_profiles_count": len(h5["hardware_profiles"]),
+                    "provenance_count": len(h5["provenance"]),
+                    "basis_sets_count": len(h5["embedded_basis_sets"]) if "embedded_basis_sets" in h5 else 0,
+                    "created_at": h5.attrs.get("created", "Unknown"),
+                    "version": h5.attrs.get("version", "Unknown")
+                }
+                return stats
+        except Exception as e:
+            logger.error(f"Failed to retrieve registry stats: {e}")
+            return {}
+
 if __name__ == "__main__":
     try:
         mass_c13 = RegistryManager.get_isotopic_mass("C", 13)
@@ -84,4 +449,3 @@ if __name__ == "__main__":
         print(f"Most Abundant C Mass: {mass_c_abundant} Da")
     except Exception as err:
         print(f"Test caught expected edge-case guard: {err}")
-EOF

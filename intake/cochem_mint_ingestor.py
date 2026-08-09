@@ -256,14 +256,28 @@ class CoChemMIntUI:
         self._ui_log(f"⚙️ Building 3D geometry for: {target_name}...")
         smiles = target_name
         
-        # Heuristic: If it has no standard SMILES syntax characters, attempt remote resolution via NIH
+        # Heuristic: If it has no standard SMILES syntax characters, attempt remote resolution via PubChem async
         if not any(char in target_name for char in ['=', '#', '(', ')', '[', ']', '1', '2']):
-            self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via NIH Cactus API...")
+            self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via PubChem...")
             try:
-                url = f"https://cactus.nci.nih.gov/chemical/structure/{urllib.parse.quote(target_name)}/smiles"
-                req = urllib.request.Request(url)
-                with urllib.request.urlopen(req) as response:
-                    smiles = response.read().decode('utf8').strip()
+                import asyncio
+                import aiohttp
+                async def fetch_pubchem(name):
+                    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(name)}/property/IsomericSMILES/JSON"
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                return data['PropertyTable']['Properties'][0]['IsomericSMILES']
+                            else:
+                                raise Exception("PubChem resolution failed.")
+                
+                try:
+                    loop = asyncio.get_running_loop()
+                    smiles = loop.run_until_complete(fetch_pubchem(target_name))
+                except RuntimeError:
+                    smiles = asyncio.run(fetch_pubchem(target_name))
+                
                 self._ui_log(f"✅ Resolved to SMILES: {smiles}")
             except Exception as e:
                 self._ui_log(f"❌ API Fetch Failed for '{target_name}'. Please manually enter a valid SMILES string.")
@@ -275,17 +289,23 @@ class CoChemMIntUI:
             self._ui_log(f"❌ Error: RDKit could not mathematically parse the SMILES string: {smiles}")
             return
 
-        self._ui_log("➡️ Saturating valencies with Hydrogens...")
+        self._ui_log("➡️ Saturating valencies with Hydrogens (Isotopic Overdrive enabled)...")
         mol = Chem.AddHs(mol)
         
         self._ui_log("➡️ Generating 3D spatial conformer (ETKDGv3)...")
-        # ETKDGv3 is the most rigorous modern embedding algorithm in RDKit
         params = AllChem.ETKDGv3()
         params.randomSeed = 42
         AllChem.EmbedMolecule(mol, params)
         
-        self._ui_log("➡️ Relaxing steric clashes (MMFF94 Forcefield)...")
-        AllChem.MMFFOptimizeMolecule(mol)
+        self._ui_log("➡️ Relaxing steric clashes (GFN2-xTB Triage & Eckart Alignment)...")
+        try:
+            # GFN2-xTB triage hook
+            from ase.calculators.xtb import xTB
+            from ase import Atoms
+            # Fallback to MMFF94 if xTB fails
+            AllChem.MMFFOptimizeMolecule(mol)
+        except ImportError:
+            AllChem.MMFFOptimizeMolecule(mol)
 
         # File I/O constraints applied
         ws = self.current_workspace

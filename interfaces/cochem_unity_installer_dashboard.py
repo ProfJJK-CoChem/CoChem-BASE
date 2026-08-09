@@ -33,7 +33,8 @@ ECOSYSTEM_REGISTRY = {
     "CoChem-MAGE": {"desc": "GC-MS fragmentation logic emulation using ML potentials.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE", "mandatory": False},
     "CoChem-PULSE": {"desc": "Time-dependent vibrational dynamics and laser simulations.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-PULSE", "mandatory": False},
     "CoChem-SCAN": {"desc": "Internal conformational exploration heuristic tool.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN", "mandatory": False},
-    "CoChem-SHIFT": {"desc": "NMR tensor extraction (J-couplings, chemical shifts).", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT", "mandatory": False}
+    "CoChem-SHIFT": {"desc": "NMR tensor extraction (J-couplings, chemical shifts).", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT", "mandatory": False},
+    "CoChem-GEOM": {"desc": "Precision molecular structure determination and fitting.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM", "mandatory": False}
 }
 
 class SynapInstallerGUI:

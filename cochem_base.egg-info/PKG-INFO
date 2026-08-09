@@ -1,0 +1,33 @@
+Metadata-Version: 2.4
+Name: cochem-base
+Version: 0.1.0
+Summary: Core shell and hardware orchestrator for CoChem-Studio
+Author: CoChem Team
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: PySide6
+Requires-Dist: pluggy
+Requires-Dist: pydantic
+Requires-Dist: pyqtgraph
+Requires-Dist: pyvista
+Requires-Dist: pyvistaqt
+Requires-Dist: vtk
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-qt; extra == "dev"
+Dynamic: license-file
+
+# CoChem-BASE
+
+**CoChem-BASE** is the central hardware-aware orchestrator for the CoChem computational chemistry suite.
+
+It is responsible for:
+- Executing the 10-Tier Temporal Wall Clock matrix via `asyncio`.
+- Dynamically profiling hardware (CUDA vs CPU) and managing MLFF fallbacks (e.g., swapping `MACE-OFF24m` for `g-xTB` on CPU nodes).
+- Initializing and managing the `cochem_state.h5` tensor, bypassing all flat JSON I/O bottlenecks.
+- Scrubbing computational keywords (e.g., dynamically suppressing BSSE Counterpoise when TightPNO DLPNO-CCSD(T) is requested).
+- Pre-flight schema validation across `TOPOS`, `TORQ`, `SpycFit`, and `SCRIBE` to prevent mid-pipeline crashes.
+
+## Usage
+Please refer to the authoritative [CoChem Master User Manual](CoChem_Master_User_Manual.md) for full execution instructions across the entire 5-module pipeline.

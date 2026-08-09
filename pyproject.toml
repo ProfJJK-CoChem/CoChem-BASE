@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cochem-base"
+version = "0.1.0"
+description = "Core shell and hardware orchestrator for CoChem-Studio"
+authors = [
+    {name = "CoChem Team"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "PySide6",
+    "pluggy",
+    "pydantic",
+    "pyqtgraph",
+    "pyvista",
+    "pyvistaqt",
+    "vtk"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-qt"
+]
+
+[tool.setuptools.packages.find]
+include = ["cochem_base*", "cochem_topos*"]

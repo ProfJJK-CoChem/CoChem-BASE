@@ -1,0 +1,343 @@
+{
+    "$defs": {
+        "GeomTorqStage": {
+            "description": "Stage 2: Precision Structure and Quantum Resonance (GEOM / TORQ)",
+            "properties": {
+                "b3lyp_opt": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "B3LYP/6-31G(d) Geometry Optimization result path",
+                    "title": "B3Lyp Opt"
+                },
+                "crest_screening": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "CREST Conformational Screening results",
+                    "title": "Crest Screening"
+                },
+                "anharmonic_freq": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "type": "number"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Anharmonic Frequencies",
+                    "title": "Anharmonic Freq"
+                },
+                "hessian_matrix": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "items": {
+                                    "type": "number"
+                                },
+                                "type": "array"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Hessian Matrix",
+                    "title": "Hessian Matrix"
+                },
+                "internal_coords": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Internal coordinates mapping",
+                    "title": "Internal Coords"
+                }
+            },
+            "title": "GeomTorqStage",
+            "type": "object"
+        },
+        "KineticLumosStage": {
+            "description": "Stage 3: Transition State & Excited State (KINETIC / LUMOS)",
+            "properties": {
+                "wB97XD_opt": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "\u03c9B97X-D/def2-TZVP results",
+                    "title": "Wb97Xd Opt"
+                },
+                "dlpno_ccsd_t": {
+                    "anyOf": [
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "DLPNO-CCSD(T) Energy",
+                    "title": "Dlpno Ccsd T"
+                },
+                "rrkm_rate_constants": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": {
+                                "type": "number"
+                            },
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "RRKM Rate Constants",
+                    "title": "Rrkm Rate Constants"
+                },
+                "uv_vis_tddft": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "UV-Vis TD-DFT spectral data",
+                    "title": "Uv Vis Tddft"
+                },
+                "transition_state_opt": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Transition State Geometry Opt result",
+                    "title": "Transition State Opt"
+                }
+            },
+            "title": "KineticLumosStage",
+            "type": "object"
+        },
+        "SpycfitShiftStage": {
+            "description": "Stage 4: Spectroscopy (SpycFit / SHIFT)",
+            "properties": {
+                "bayesian_assignment": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Bayesian Spectral Assignment",
+                    "title": "Bayesian Assignment"
+                },
+                "spectral_fitting": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Fitted spectral parameters",
+                    "title": "Spectral Fitting"
+                },
+                "nmr_shielding_tensor": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "items": {
+                                    "type": "number"
+                                },
+                                "type": "array"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "NMR Shielding Tensor",
+                    "title": "Nmr Shielding Tensor"
+                },
+                "franck_condon_factors": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "type": "number"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Franck-Condon Factors",
+                    "title": "Franck Condon Factors"
+                },
+                "vibrational_modes": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "additionalProperties": true,
+                                "type": "object"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Vibrational Modes",
+                    "title": "Vibrational Modes"
+                }
+            },
+            "title": "SpycfitShiftStage",
+            "type": "object"
+        },
+        "ToposStage": {
+            "description": "Stage 1: Combinatorial Engine (TOPOS) Data",
+            "properties": {
+                "mmff94_conformer": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Path or string representing MMFF94 Conformer",
+                    "title": "Mmff94 Conformer"
+                },
+                "smiles_string": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "SMILES string of the molecule",
+                    "title": "Smiles String"
+                },
+                "torsional_scan": {
+                    "anyOf": [
+                        {
+                            "items": {
+                                "type": "number"
+                            },
+                            "type": "array"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Torsional scan coordinates",
+                    "title": "Torsional Scan"
+                },
+                "point_group_id": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Point Group symmetry ID",
+                    "title": "Point Group Id"
+                },
+                "z_matrix": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Z-Matrix of the conformer",
+                    "title": "Z Matrix"
+                }
+            },
+            "title": "ToposStage",
+            "type": "object"
+        }
+    },
+    "description": "Central Method Pass-Through / Correlation Matrix\nEnsures strict typing between computational stages.",
+    "properties": {
+        "topos": {
+            "$ref": "#/$defs/ToposStage"
+        },
+        "geom_torq": {
+            "$ref": "#/$defs/GeomTorqStage"
+        },
+        "kinetic_lumos": {
+            "$ref": "#/$defs/KineticLumosStage"
+        },
+        "spycfit_shift": {
+            "$ref": "#/$defs/SpycfitShiftStage"
+        },
+        "target_property": {
+            "anyOf": [
+                {
+                    "type": "string"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "default": null,
+            "description": "Final target property objective",
+            "title": "Target Property"
+        }
+    },
+    "title": "CorrelationMatrix",
+    "type": "object"
+}

@@ -35,7 +35,7 @@ def test_pipeline_data_flow():
 
 def test_pydantic_physical_bounds():
     """Test Phase 5 Scientific Error Prevention for Negative Temperatures."""
-    with pytest.raises(ValueError, match="Input should be greater than or equal to 0"):
+    with pytest.raises(ValueError, match="Input should be greater than"):
         ToposStage(
             temperature=-10.0, # Illegal negative Kelvin
             multiplicity=1

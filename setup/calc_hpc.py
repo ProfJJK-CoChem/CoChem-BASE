@@ -29,7 +29,7 @@ def check_slurm_presence() -> bool:
             stdout=subprocess.PIPE, 
             stderr=subprocess.PIPE, 
             text=True,
-            encoding='utf-8'
+            encoding='utf-8',
             check=True
         )
         print(f"✅ SLURM detected at: {result.stdout.strip()}")

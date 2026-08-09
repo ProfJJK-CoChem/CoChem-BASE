@@ -15,7 +15,9 @@ class OutputStream(QObject):
         self.signals.text_written.emit(text)
         
     def flush(self):
-        pass
+        if hasattr(sys.__stdout__, "flush"):
+            sys.__stdout__.flush()
+
 
 class ScribeDock(QDockWidget):
     """Data Provenance & Asynchronous Logging Console (CoChem-SCRIBE)"""

@@ -12,12 +12,15 @@ cochem_base/core/dispatcher.py
 cochem_base/core/generate_schema.py
 cochem_base/core/hardware.py
 cochem_base/core/models.py
+cochem_base/core/test_hardware.py
 cochem_base/gui/__init__.py
 cochem_base/gui/dashboard.py
 cochem_base/gui/main.py
 cochem_base/gui/main_window.py
 cochem_base/gui/scribe.py
+cochem_base/gui/test_degradation.py
 cochem_base/gui/test_gui.py
+cochem_base/gui/test_pipeline.py
 cochem_base/gui/topos.py
 cochem_base/gui/torq.py
 cochem_base/plugins/__init__.py

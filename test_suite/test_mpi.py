@@ -5,12 +5,12 @@ import time
 
 def run_multi_core_orca_test(orca_path="orca"):
     """Runs a highly simplified <1 second ORCA job using OpenMPI (2 cores)."""
-    inp_content = \"\"\"! SP tightscf PAL2
+    inp_content = """! SP tightscf PAL2
 * xyz 0 1
 H 0.0 0.0 0.0
 H 0.0 0.0 0.74
 *
-\"\"\"
+"""
     with tempfile.TemporaryDirectory() as tmpdir:
         inp_file = os.path.join(tmpdir, "test_job_mpi.inp")
         with open(inp_file, "w") as f:

@@ -25,6 +25,13 @@ class ExecutionRouter:
     forking workloads between local execution and remote HPC schedulers.
     """
     
+class ExecutionRouter:
+    """
+    Core Execution Router for the CoChem pipeline.
+    Acts as the definitive switchboard, polling the Golden Registry and dynamically 
+    forking workloads between local execution and remote HPC schedulers.
+    """
+    
     def __init__(self, registry_path: Optional[str] = None):
         """
         Initializes the router and loads the Golden Registry.
@@ -32,7 +39,9 @@ class ExecutionRouter:
         if registry_path:
             self.registry_path = Path(registry_path)
         else:
-            self.registry_path = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts")) / "Registry" / "cochem_system_config.json"
+            artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
+            base_dir = Path(artifact_dir) if artifact_dir else (Path.home() / "CoChem_Artifacts")
+            self.registry_path = base_dir / "Registry" / "cochem_system_config.json"
         
         self.registry = self._load_registry()
 
@@ -125,14 +134,18 @@ class ExecutionRouter:
             "{payload_command}\n"
         )
         
-        # Render the template safely with required parameters
-        rendered_script = template.format(
-            job_name=job_name,
-            cores=cores,
-            mem_mb=mem_mb,
-            wall_time=wall_time,
-            payload_command=payload_command
-        )
+        # Render the template safely with explicit key replacement without crashing on bash variables
+        replacements = {
+            "{job_name}": str(job_name),
+            "{cores}": str(cores),
+            "{mem_mb}": str(mem_mb),
+            "{wall_time}": str(wall_time),
+            "{payload_command}": str(payload_command)
+        }
+        rendered_script = template
+        for k, v in replacements.items():
+            rendered_script = rendered_script.replace(k, v)
+
 
         target_sbatch = Path(cwd) / f"{job_name}_submit.sbatch"
         try:

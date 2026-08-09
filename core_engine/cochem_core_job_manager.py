@@ -12,9 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("CoChem-JobManager")
+import sys
 
 class JobManager:
     """
@@ -38,14 +36,16 @@ class JobManager:
         2592000  # Tier 10: 30 days (1 month)
     ]
     
-    def __init__(self):
+    def __init__(self, max_job_history: int = 1000):
         """Initialize the job manager."""
         self.jobs = {}
         self.job_counter = 0
         self.active_processes = {}  # Track running subprocesses
+        self.max_job_history = max_job_history
         
     async def submit_job(self, job_config: dict) -> str:
         """Submit a new job to the system with temporal tier assignment."""
+        self.purge_completed_jobs(max_age_seconds=86400.0)
         job_id = f"job_{self.job_counter}"
         self.job_counter += 1
         
@@ -66,26 +66,62 @@ class JobManager:
         return job_id
         
     def _assign_temporal_tier(self, job_config: dict) -> int:
-        """Assign a temporal tier based on job configuration."""
-        # This is a simplified implementation - in reality, this would be more sophisticated
-        # and could consider job type, molecule size, method complexity, etc.
-        
-        # Default to tier 3 (1 minute) for most jobs
-        tier = 3
-        
-        # Adjust based on job configuration if specified
+        """Assign a temporal tier dynamically based on atom count and basis set complexity N_atoms * N_bf^3."""
+        n_atoms = job_config.get('n_atoms') or job_config.get('atom_count')
+        n_bf = job_config.get('n_bf') or job_config.get('basis_functions')
+
+        if n_atoms is not None and n_bf is not None:
+            scaling_score = n_atoms * (float(n_bf) ** 3)
+            if scaling_score < 1e5:
+                return 1  # Tier 1 (< 10s)
+            elif scaling_score < 1e6:
+                return 2  # Tier 2 (30s)
+            elif scaling_score < 1e7:
+                return 3  # Tier 3 (1m)
+            elif scaling_score < 1e8:
+                return 4  # Tier 4 (5m)
+            elif scaling_score < 1e9:
+                return 5  # Tier 5 (10m)
+            elif scaling_score < 1e10:
+                return 6  # Tier 6 (30m)
+            elif scaling_score < 1e11:
+                return 7  # Tier 7 (1h)
+            elif scaling_score < 1e12:
+                return 8  # Tier 8 (2h)
+            elif scaling_score < 1e13:
+                return 9  # Tier 9 (1d)
+            else:
+                return 10  # Tier 10 (30d)
+
+        # Fallback to string heuristics
         if 'job_type' in job_config:
             job_type = job_config['job_type']
-            if job_type == 'quick':
-                tier = 1  # 10 seconds
-            elif job_type == 'medium':
-                tier = 3  # 1 minute
-            elif job_type == 'long':
-                tier = 5  # 10 minutes
-            elif job_type == 'very_long':
-                tier = 7  # 2 hours
+            if job_type in ('quick', 'tier1'):
+                return 1
+            elif job_type in ('medium', 'tier3'):
+                return 3
+            elif job_type in ('long', 'tier5'):
+                return 5
+            elif job_type in ('very_long', 'tier7'):
+                return 7
+            elif job_type in ('extreme', 'tier9'):
+                return 9
         
-        return tier
+        return 3  # Default Tier 3 (1 minute)
+
+    def purge_completed_jobs(self, max_age_seconds: float = 3600.0) -> int:
+        """Evict completed or failed jobs older than max_age_seconds from memory to prevent memory leak."""
+        now = time.time()
+        to_delete = []
+        for job_id, info in self.jobs.items():
+            if info.get('status') in ('completed', 'failed', 'cancelled'):
+                completed_at = info.get('completed_at', info.get('created_at'))
+                if (now - completed_at) > max_age_seconds:
+                    to_delete.append(job_id)
+
+        for jid in to_delete:
+            del self.jobs[jid]
+        return len(to_delete)
         
     async def start_job(self, job_id: str):
         """Start a submitted job using asyncio subprocess execution."""
@@ -126,47 +162,40 @@ class JobManager:
             job['status'] = 'failed'
             
     async def _enforce_timeout(self, job_id: str):
-        """Enforce timeout with SIGTERM/SIGKILL for the specified job."""
+        """Enforce timeout with asyncio.wait_for and platform-safe termination."""
         if job_id not in self.active_processes:
             return
             
         process_info = self.active_processes[job_id]
         process = process_info['process']
-        start_time = process_info['start_time']
         max_duration = process_info['max_duration']
         
         try:
-            # Wait for the process to complete or timeout
-            while process.returncode is None:
-                current_time = time.time()
-                elapsed_time = current_time - start_time
-                
-                if elapsed_time > max_duration:
-                    # Send SIGTERM first (graceful termination)
-                    logger.warning(f"⏰ Job {job_id} timeout reached, sending SIGTERM")
-                    try:
-                        process.send_signal(signal.SIGTERM)
-                        await asyncio.sleep(2)  # Wait a bit for graceful termination
-                        
-                        # If still running after SIGTERM, send SIGKILL
-                        if process.returncode is None:
-                            logger.warning(f"💥 Job {job_id} still running after SIGTERM, sending SIGKILL")
-                            process.send_signal(signal.SIGKILL)
-                    except Exception as sig_error:
-                        logger.error(f"Error sending termination signals to job {job_id}: {sig_error}")
-                    
-                    # Wait for process to actually finish
-                    await process.wait()
-                    break
-                    
-                # Check again in a short interval
-                await asyncio.sleep(1)
-                
-            # Process completed or was terminated
-            if process.returncode is not None:
-                logger.info(f"Job {job_id} completed with return code {process.returncode}")
-                self._complete_job(job_id, process.returncode)
-                
+            # Wrap wait in asyncio.wait_for instead of busy polling loop
+            await asyncio.wait_for(process.wait(), timeout=max_duration)
+            logger.info(f"Job {job_id} completed with return code {process.returncode}")
+            self._complete_job(job_id, process.returncode)
+
+        except asyncio.TimeoutError:
+            logger.warning(f"⏰ Job {job_id} timeout reached ({max_duration}s), terminating process")
+            try:
+                if sys.platform == "win32":
+                    process.terminate()
+                else:
+                    process.send_signal(signal.SIGTERM)
+                await asyncio.sleep(2)
+                if process.returncode is None:
+                    logger.warning(f"💥 Job {job_id} still running after terminate, killing process")
+                    if sys.platform == "win32":
+                        process.kill()
+                    else:
+                        process.send_signal(signal.SIGKILL)
+            except Exception as sig_error:
+                logger.error(f"Error terminating job {job_id}: {sig_error}")
+            
+            await process.wait()
+            self._complete_job(job_id, process.returncode or -1)
+
         except Exception as e:
             logger.error(f"Error in timeout enforcement for job {job_id}: {e}")
             self._complete_job(job_id, -1)
@@ -197,10 +226,14 @@ class JobManager:
             if job_id in self.active_processes:
                 try:
                     process = self.active_processes[job_id]['process']
-                    process.send_signal(signal.SIGKILL)
+                    if sys.platform == "win32":
+                        process.kill()
+                    else:
+                        process.send_signal(signal.SIGKILL)
                     del self.active_processes[job_id]
                 except Exception as e:
                     logger.error(f"Error cancelling job {job_id}: {e}")
+
             
     def list_jobs(self) -> List[Dict]:
         """List all current jobs."""

@@ -49,10 +49,26 @@ class DashboardTab(QWidget):
         self.timer.start(1000)
 
     def update_hw_metrics(self):
-        """Simulate updating hardware metrics."""
-        self.cpu_bar.setValue(random.randint(5, 80))
-        self.gpu_bar.setValue(random.randint(0, 100))
-        self.ram_bar.setValue(random.randint(40, 95))
+        """Query real system hardware metrics via psutil."""
+        try:
+            import psutil
+            cpu_val = int(psutil.cpu_percent())
+            ram_val = int(psutil.virtual_memory().percent)
+        except Exception:
+            cpu_val = 0
+            ram_val = 0
+
+        gpu_val = 0
+        try:
+            import torch
+            if torch.cuda.is_available():
+                gpu_val = int(torch.cuda.utilization_rate()) if hasattr(torch.cuda, "utilization_rate") else 0
+        except Exception:
+            gpu_val = 0
+
+        self.cpu_bar.setValue(cpu_val)
+        self.gpu_bar.setValue(gpu_val)
+        self.ram_bar.setValue(ram_val)
 
     def simulate_pipeline(self):
         self.task_label.setText("Running: TOPOS Conformational Generation...")

@@ -45,13 +45,14 @@ class MainWindow(QMainWindow):
                 
         if not spycfit_found:
             from PySide6.QtWidgets import QLabel
-            placeholder = QWidget()
-            layout = QVBoxLayout(placeholder)
+            fallback_widget = QWidget()
+            layout = QVBoxLayout(fallback_widget)
             lbl = QLabel("Module Missing: CoChem-SpycFit is not installed.")
-            lbl.setToolTip("Didactic Info: SpycFit requires the cochem-spycfit package for Bayesian Active Learning. Install it via pip to unlock this tab.")
+            lbl.setToolTip("SpycFit requires the cochem-spycfit package for Bayesian Active Learning.")
             layout.addWidget(lbl)
-            self.tabs.addTab(placeholder, "SpycFit (Missing)")
+            self.tabs.addTab(fallback_widget, "SpycFit (Missing)")
             self.tabs.setTabEnabled(self.tabs.count() - 1, False)
+
 
     def setup_menu(self):
         menubar = self.menuBar()
@@ -68,14 +69,16 @@ class MainWindow(QMainWindow):
     def serialize_state(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Workspace", "", "JSON Files (*.json)")
         if file_path:
-            # Gather state from all tabs. For now, a mock serialization since full models aren't linked to GUI values yet
             state = {
                 "version": "1.0",
-                "cochem_base": "active"
+                "cochem_base": "active",
+                "tabs": [self.tabs.tabText(i) for i in range(self.tabs.count())],
+                "active_tab_index": self.tabs.currentIndex()
             }
             with open(file_path, "w") as f:
                 json.dump(state, f, indent=4)
             self.scribe_dock.log(f"Workspace saved to {file_path}")
+
 
     def deserialize_state(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Workspace", "", "JSON Files (*.json)")

@@ -5,12 +5,12 @@ import time
 
 def run_single_core_orca_test(orca_path="orca"):
     """Runs a highly simplified <1 second ORCA job on a single core."""
-    inp_content = \"\"\"! SP tightscf
+    inp_content = """! SP tightscf
 * xyz 0 1
 H 0.0 0.0 0.0
 H 0.0 0.0 0.74
 *
-\"\"\"
+"""
     with tempfile.TemporaryDirectory() as tmpdir:
         inp_file = os.path.join(tmpdir, "test_job.inp")
         with open(inp_file, "w") as f:

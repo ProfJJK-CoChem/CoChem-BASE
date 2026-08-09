@@ -10,8 +10,10 @@ class ToposStage(BaseModel):
     z_matrix: Optional[str] = Field(None, description="Z-Matrix of the conformer")
     
     # GUI Suggestion: Scientific Error Prevention
-    temperature: float = Field(298.15, ge=0.0, description="System temperature in Kelvin (cannot be negative)")
+    temperature: float = Field(298.15, gt=0.0, description="System temperature in Kelvin (must be > 0)")
     multiplicity: int = Field(1, ge=1, description="Spin multiplicity (must be >= 1)")
+    LAM_TRIGGER_REQUIRED: bool = Field(default=False, description="Flag indicating if 1D PES scan is required")
+    symmetry_group: Optional[str] = Field(default="C1", description="Symmetry point group")
 
 class GeomTorqStage(BaseModel):
     """Stage 2: Precision Structure and Quantum Resonance (GEOM / TORQ)"""
@@ -47,3 +49,10 @@ class CorrelationMatrix(BaseModel):
     kinetic_lumos: KineticLumosStage = Field(default_factory=KineticLumosStage)
     spycfit_shift: SpycfitShiftStage = Field(default_factory=SpycfitShiftStage)
     target_property: Optional[str] = Field(None, description="Final target property objective")
+    LAM_TRIGGER_REQUIRED: bool = Field(default=False, description="Flag indicating if 1D PES scan is required")
+    symmetry_group: Optional[str] = Field(default="C1", description="Symmetry point group")
+
+class CoChemConfig(CorrelationMatrix):
+    """Configuration model for CoChem pipeline and HDF5 validation."""
+    pass
+

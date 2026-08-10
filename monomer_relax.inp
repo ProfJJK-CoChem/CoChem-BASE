@@ -1,0 +1,46 @@
+
+! r2SCAN-3c  DIIS
+%maxcore 2000
+
+%output
+    PrintLevel Medium
+%end
+
+%scf
+    MaxIter 300
+    SCFType DIIS
+%end
+
+%geom
+    MaxCycles 1000
+    TolForce 1e-4
+    TolDispl 1e-3
+%end
+
+%relax
+    MaxCycles 200
+%end
+
+! r2SCAN-3c TightOPT TightSCF
+%geom
+  TolE 1e-7
+  TolRMSG 3e-6
+  TolMaxG 1e-5
+  TolRMSD 5e-5
+  TolMaxD 1e-4
+  Constraints
+    { B 0 2 C }
+    { B 0 3 C }
+    { B 1 2 C }
+    { B 1 3 C }
+  end
+end
+
+
+* xyz 0 1
+ H   0.00000000   0.95000000   0.00000000
+ O   0.00000000   0.00000000   0.00000000
+ O   1.40000000   0.00000000   0.00000000
+ H   1.40000000   0.95000000   0.50000000
+
+*

@@ -12,12 +12,17 @@ class HardwareDiscovery:
     
     @staticmethod
     def get_cpu_cores():
-        return multiprocessing.cpu_count()
+        try:
+            return multiprocessing.cpu_count()
+        except Exception as e:
+            logger.warning(f"multiprocessing.cpu_count() failed: {e}. Falling back to 1 core.")
+            return 1
 
     @staticmethod
     def get_gpu_availability():
         devices = []
         available = False
+        fp64_capable = False
         
         # Method 1: PyTorch check
         try:
@@ -26,14 +31,22 @@ class HardwareDiscovery:
                 available = True
                 for i in range(torch.cuda.device_count()):
                     props = torch.cuda.get_device_properties(i)
+                    cap = (props.major, props.minor)
+                    is_fp64 = cap[0] >= 7  # Volta/Ampere/Hopper/Ada support FP64
+                    if is_fp64:
+                        fp64_capable = True
                     devices.append({
                         "id": i,
                         "name": props.name,
-                        "vram_gb": round(props.total_memory / (1024.**3), 2)
+                        "vram_gb": round(props.total_memory / (1024.**3), 2),
+                        "compute_capability": f"{cap[0]}.{cap[1]}",
+                        "fp64_capable": is_fp64
                     })
-                return {"available": available, "devices": devices}
-        except ImportError:
-            pass
+                return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
+        except ImportError as e:
+            logger.debug(f"PyTorch unavailable for GPU check: {e}")
+        except Exception as e:
+            logger.warning(f"PyTorch GPU check failed: {e}")
 
         # Method 2: pynvml check
         try:
@@ -51,12 +64,14 @@ class HardwareDiscovery:
                     devices.append({
                         "id": i,
                         "name": name,
-                        "vram_gb": round(mem_info.total / (1024.**3), 2)
+                        "vram_gb": round(mem_info.total / (1024.**3), 2),
+                        "compute_capability": "unknown",
+                        "fp64_capable": False
                     })
                 pynvml.nvmlShutdown()
-                return {"available": available, "devices": devices}
-        except Exception:
-            pass
+                return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
+        except Exception as e:
+            logger.warning(f"pynvml GPU check failed: {e}")
 
         # Method 3: nvidia-smi fallback
         try:
@@ -71,21 +86,32 @@ class HardwareDiscovery:
                         parts = line.split(",")
                         name = parts[0].strip()
                         vram_mb = float(parts[1].strip()) if len(parts) > 1 else 0.0
-                        devices.append({"id": idx, "name": name, "vram_gb": round(vram_mb / 1024.0, 2)})
+                        devices.append({
+                            "id": idx,
+                            "name": name,
+                            "vram_gb": round(vram_mb / 1024.0, 2),
+                            "compute_capability": "unknown",
+                            "fp64_capable": False
+                        })
                 if devices:
                     available = True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"nvidia-smi fallback GPU check failed: {e}")
 
-        return {"available": available, "devices": devices}
-        
+        return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
+
+    @staticmethod
+    def get_core_pinning_config():
+        """Generates environment string for P-core pinning on hybrid architectures (§8.4)."""
+        return "KMP_HW_SUBSET=8c:intel_core,1t"
+
     @staticmethod
     def get_system_ram_gb():
         try:
             import psutil
             return round(psutil.virtual_memory().total / (1024.**3), 2)
-        except ImportError:
-            logger.warning("psutil not installed, falling back to OS system RAM detection")
+        except Exception as e:
+            logger.warning(f"psutil RAM detection failed ({e}), falling back to OS system RAM detection")
             if sys.platform == "win32":
                 try:
                     class MEMORYSTATUSEX(ctypes.Structure):
@@ -125,4 +151,3 @@ class HardwareDiscovery:
             "gpu": cls.get_gpu_availability(),
             "ram_gb": cls.get_system_ram_gb()
         }
-

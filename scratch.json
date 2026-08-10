@@ -1,0 +1,434 @@
+{
+  "D:\\Gdrive\\__CoChem\\GitHub-Repo\\CoChem-BASE\\Method_Matrix.md": [
+    {
+      "line": 20,
+      "text": "| 2 | **GPU crossover** (\u00a78.3) | no crossover analysis; a blanket exclusion | A quantitative crossover table: A100 vs 32 Xeon cores gives **0.182\u00d7 at (H\u2082O)\u2082 (~118 bf) [M]**, 1.37\u00d7 at (H\u2082O)\u2083, 2.67\u00d7 at (H\u2082O)\u2084, 8.03\u00d7 at (H\u2082O)\u2081\u2080 ([gpu4pyscf benchmarks](https://raw.githubusercontent.com/pyscf/gpu4pyscf/master/benchmarks/scf/scf_pyscf_qchem.md)); crossover \u2248150\u2013170 bf against 32 cores, hence **\u224850\u201390 bf against 8 P-cores [D]**. Plus a matched-input fair-comparison protocol, and the honest limits: no GPU DLPNO or CCSD(T) in any free code, no double hybrids, a g-function ceiling, 24 GB |"
+    },
+    {
+      "line": 23,
+      "text": "| 5 | **State reuse** (\u00a78B) | no state columns; chaining unaddressed | `State-in` / `State-out` columns on every tier row, an 11-arrow canonical pipeline, a working driver script, and the finding that **the highest-value transfer is the converged geometry, not the wavefunction** \u2014 in the DLPNO row each optimisation cycle is 6N = 60 single points ([ORCA numerical gradients](https://www.faccts.de/docs/orca/6.1/manual/contents/essentialelements/numericalgradients.html)) |"
+    },
+    {
+      "line": 32,
+      "text": "| 14 | **Two tracks** (\u00a79, \u00a713\u2013\u00a714) | one implied driver | Separate **ORCA track** and **CFOUR track** with an acquisition table. **CFOUR has analytic CCSD(T) second derivatives; ORCA has analytic Hessians for SCF only.** At N = 10 the anharmonic force field is 49 analytic CFOUR Hessians against **176,400 ORCA/DLPNO single points**, a ratio of 36N\u00b2 = 3,600 [D]. CFOUR has no 10 s or 1 min entry; ORCA has no 1 month CCSD(T)-anharmonic entry |"
+    },
+    {
+      "line": 33,
+      "text": "| 15 | **Two ORCA capabilities restored** (\u00a79.3) | implied ORCA cannot optimise at CCSD(T); understated its VPT2 output | Corrected. ORCA **does** have canonical CCSD(T) analytic gradients via AUTOCI (RHF and UHF) \u2014 it is DLPNO that lacks them. ORCA's VPT2 **does** emit centrifugal distortion, Watson parameters, \u03b1 constants and a Pickett/SPCAT export. Sextic distortion remains CFOUR-only |"
+    },
+    {
+      "line": 52,
+      "text": "**What survives from v3's hardware analysis, unchanged.** ORCA has no GPU path \u2014 that is a software-capability fact and it is correct; no ORCA row runs its own electronic structure on a GPU. The 0.556 TFLOPS derivation itself is arithmetically right; it is the inference from it that failed. The eight-rank / `%maxcore 3000` guidance, the GitHub Actions limits and the ORCA licence findings are unaffected. And the specific exclusions stand: there is **no GPU DLPNO-CCSD(T) in any free code**, no double hybrids in gpu4pyscf, a g-function basis ceiling, and 24 GB is a hard wall with no graceful spill."
+    },
+    {
+      "line": 83,
+      "text": "| 3 d \u2013 1 mo | `T3C-3d`\u2026`T4C-1mo` (CFOUR track) | sextic distortion, isotopologue force fields, CCSD(T)-quality anharmonicity | that the ORCA track can reach here |"
+    },
+    {
+      "line": 161,
+      "text": "4. **Escalate only the selected points to CCSD(T)-F12 or DLPNO-CCSD(T1)** and fit a \u0394-correction: \"as few as 200 CCSD(T) energies\" have sufficed ([\u0394-learning PES](https://arxiv.org/abs/2011.11601v1))."
+    },
+    {
+      "line": 589,
+      "text": "The 1801-point energy-only route is the reason energy-only Hessians are never scheduled below the 1-day tier. **ORCA VPT2 requires analytic Hessians**, so no `ExtOpt`, MLFF, double-hybrid, DLPNO or F12 tier may claim ORCA VPT2; those tiers get numerical Hessians and a finite-difference anharmonic treatment, or nothing. Where a coupled-cluster anharmonic force field is genuinely wanted, the answer is CFOUR, not a larger ORCA allocation (Section 9.2)."
+    },
+    {
+      "line": 617,
+      "text": "The ORCA tutorial states that the \"Optimal value of F was found as 1.5 on a wide range of diverse interactions in the GMTKN55 superset, and thus it should NOT be changed\", that the TCutPNO exponents \"must be consecutive (e.g. 6/7, 7/8, etc.)\", and that \"For CPS extrapolation, it is recommended to keep all other DLPNO thresholds the same\" ([ORCA 6.1 extrapolation tutorial](https://www.faccts.de/docs/orca/6.1/tutorials/workflows/extrapol.html)). F is optimal at 1.5 \u00b1 0.2 ([Altun, Neese & Bistoni](https://pmc.ncbi.nlm.nih.gov/articles/PMC7586325/))."
+    },
+    {
+      "line": 642,
+      "text": "- **DLPNO-CCSD(T)/TightPNO/aug-cc-pVTZ, ~10 atoms, 8\u201316 cores: 5\u201340 min, plan on 15 min, uncertainty \u00d7/\u00f7 3, measure locally before scheduling.** Published anchors, all DLPNO-CCSD(T) with the improved (T): diclofenac/def2-SVP (329 basis functions) 10.2 min on 4 cores; def2-TZVP (667 BF) 71.8 min; def2-QZVPP (1439 BF) 1203 min; penicillin 430 BF \u2192 10.3 min, 858 BF \u2192 64.5 min, 1921 BF \u2192 614.7 min; vancomycin 1797 BF \u2192 147.7 min ([Guo, Riplinger, Becker, Liakos, Minenkov, Cavallo & Neese, *JCP* 148, 011101 (2018)](https://pubs.aip.org/aip/jcp/article-pdf/doi/10.1063/1.5011798/13764376/011101_1_online.pdf)). A 10-atom complex in aug-cc-pVTZ is about 380\u2013450 basis functions. TightPNO tightens `T_CutPNO` from 3.33e-7 to 1e-7, `T_CutPairs` to 1e-5 and `T_CutMKN` to 1e-4, typically a factor of 2\u20134 for small systems. An independent anchor of 63 atoms / 2203 AOs / 16 cores / 7.7 h for LNO-CCSD(T) is consistent ([Nagy *et al.*, *Chem. Sci.*](https://real.mtak.hu/205919/1/state-of-the-art-local-correlation-methods-enable-affordable-gold-standard-quantum-chemistry-for-up-to-hundreds-of-atoms.pdf)). Estimates near 30 s per point are excluded: the SCF plus RI-MP2 guess alone exceeds that."
+    },
+    {
+      "line": 643,
+      "text": "- **Consequence: at 15 min per point a 12-hour tier buys about 48 points on 16 cores**, not thousands. This alone removes any tier that promised a DLPNO-CCSD(T) surface scan below the one-week mark. Every tier cell states its uncertainty as `15 min (\u00d7/\u00f7 3)`, and a **mandatory local calibration** \u2014 one single point on the actual complex, wall time recorded, all tier point counts rescaled \u2014 precedes any use of these tiers as a schedule."
+    },
+    {
+      "line": 785,
+      "text": "The mechanism is specific to ORCA. ORCA distributes SCF integral batches, DFT grid batches and DLPNO pair lists across ranks and **synchronises every iteration**, so a synchronous iteration costs the time of the slowest rank. Hyper-threaded P-core siblings share one set of AVX2 FMA ports, so oversubscribing them degrades a floating-point-bound code rather than helping."
+    },
+    {
+      "line": 803,
+      "text": "For DLPNO on a single node, `%mdci StorageType Shared` lets one shared copy of frequently used integrals serve all ranks and falls back to disk if memory is short; it works only when all processes are on one node ([ORCA 6.1 MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)), which is Setup 2's situation. **A RAM disk is the wrong answer on 64 GB:** `%maxcore 3000` \u00d7 8 already commits 24 GB, and concurrent DLPNO scratch is estimated at 40\u2013160 GB, so a tmpfs large enough to matter would have to be carved out of memory the calculation needs."
+    },
+    {
+      "line": 805,
+      "text": "**Memory bandwidth is the binding constraint for correlated work.** The eight P-cores at AVX2 can issue roughly 0.61\u20130.64 TFLOPS FP64 (8 cores \u00d7 2 FMA ports \u00d7 4 doubles per 256-bit vector \u00d7 2 flops \u00d7 \u22484.8\u20135.0 GHz). At 102.4 GB/s that is a machine balance of about 0.16 bytes per FLOP: any kernel achieving fewer than about 6 FLOPs per byte moved is bandwidth-limited. Compute-bound on this box: two-electron integral evaluation, and large dense multiplications inside a canonical CCSD ladder when the blocks fit in the 30 MB L3. Bandwidth-bound: the four-index integral transformation, DFT exchange\u2013correlation grid evaluation, DLPNO pair-list and PNO-construction phases, and the chain-of-spheres exchange step. Adding ranks adds no bandwidth; two channels is two channels."
+    },
+    {
+      "line": 846,
+      "text": "**The card's legitimate roles in this document.** (a) **Reference-accuracy DFT via gpu4pyscf** \u2014 energies, analytic gradients and analytic Hessians, TDA/TDDFT, PCM/SMD, geometry and transition-state optimisation, in full double precision, for systems above roughly 100 basis functions (\u00a78.3). (b) Machine-learned force-field inference and molecular dynamics. (c) GPU dense or matrix-free diagonalisation of small discrete-variable-representation Hamiltonians, with the caveats of \u00a713.2. (d) Screening-grade mixed-precision SCF in TeraChem where ~1 mHa is tolerable. **Not for:** double hybrids, any coupled cluster of reference quality, DLPNO, CASSCF/NEVPT2, basis beyond g, or working sets above 24 GB."
+    },
+    {
+      "line": 895,
+      "text": "**The honest limits, in one list.** No GPU DLPNO-CCSD(T) exists in any code. GPU CCSD(T) exists in TeraChem, not in any free code, and even there a 63-atom, >1000-basis-function (T) correction takes \"a little under 8 hours on a single node\" ([Fajen *et al.*](https://www.arxiv.org/abs/2512.01055)). No double hybrids in gpu4pyscf. Basis functions beyond g are unavailable. 24 GB is a wall with no graceful spill; the A100 Hessian for 84-atom sphingomyelin needed 30 min on an 80 GB card, so **Hessians are the first thing to fall off a 24 GB board**. Anything input/output-bound \u2014 SPFIT/SPCAT fitting, QCxMS trajectory farms, file-heavy scans \u2014 gets nothing. And CPU fallback in gpu4pyscf is automatic and silent for any module not on the GPU list, which is a *timing* hazard: **always check the log for which module ran where.**"
+    },
+    {
+      "line": 991,
+      "text": "| **MDCI / DLPNO / canonical CC single point** | **not documented** | the MDCI chapter describes no restart mechanism ([ORCA 6.1 MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)); treat as non-restartable |"
+    },
+    {
+      "line": 995,
+      "text": "**Storage.** Canonical CCSD(T)/aug-cc-pVQZ on a 10-atom complex (~596 basis functions, ~35 correlated occupied orbitals, N_virt \u2248 561) needs a four-external integral set of about N_v\u2074/8 doubles \u2248 **99 GB**, plus a three-external set of about **25 GB**, if run integral-conventional. ORCA warns that \"AOX-based calculations take four times as much disk space as AO-based calculations\", recommends `KCOpt KC_AOBLAS`/`KC_AO` above about 300 basis functions, and reserves the full transformation for \"up to about 300 basis functions\" ([ORCA 6.1 MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)). **This job is not runnable integral-conventional on Setup 2 and must be AO-direct on Setup 3 with at least 150 GB of node-local scratch.** For DLPNO, the nearest measured anchor is about 8.40 GiB of scratch for a 24-atom uracil-dimer DLPNO-CCSD/cc-pVDZ TightPNO run ([OSTI report](https://www.osti.gov/servlets/purl/2578595)), scaling to an estimated **5\u201320 GB per TightPNO/aug-cc-pVTZ point per rank**, hence 40\u2013160 GB concurrent across 8 ranks unless `StorageType Shared` is used. Provision at least 500 GB of free NVMe on Setup 2 and never run these jobs on the OS drive. The binding requirement is IOPS and queue depth rather than bandwidth, because DLPNO writes many small irregular blocks from concurrent ranks: a consumer PCIe 4.0 NVMe drive is adequate, a SATA SSD or a network filesystem is not."
+    },
+    {
+      "line": 1031,
+      "text": "TD-DFT, LED, NBO, implicit_solvation, DLPNO, F12_single_point,"
+    },
+    {
+      "line": 1060,
+      "text": "assert method not in {double_hybrid, DLPNO, canonical_CCSD(T),"
+    },
+    {
+      "line": 1122,
+      "text": "# ORCA MDCI / DLPNO / canonical CC: no documented restart"
+    },
+    {
+      "line": 1165,
+      "text": "| **Memory bandwidth** | 89.6 GB/s at Intel spec, 102.4 GB/s at XMP | high during the four-index transform, COSX and DLPNO pair/PNO construction | MLFF: peak host RAM \u22720.1 GB, dispatch-bound \u2192 **<5 % `[E]`**; gpu4pyscf: **5\u201315 % `[E]`** | small for MLFF, moderate for GPU-DFT | prefer an MLFF companion to a correlated ORCA job. **Measure locally \u2014 currently `n.a.`** |"
+    },
+    {
+      "line": 1202,
+      "text": "\u2502 S3  DLPNO-CCSD(T) re-rank-> ranked_hi.csv    \u2502   \u2502 T3 gpu4pyscf DF screen -> cull list  \u2502"
+    },
+    {
+      "line": 1411,
+      "text": "**Assumptions, every one labelled and every one requiring local re-measurement per \u00a720.1.** A1: GOAT needs \u2248100 \u00d7 N_atoms = **900** optimisations `[M, from the manual]`. A2: GFN2-xTB optimisation \u2248 3 s on one core `[E]`. A3: GOAT yields **40** distinct isomers after Stage-A deduplication `[E]`. A4: \u03c9B97X-D4/def2-TZVPP on 9 atoms \u2248 250 basis functions, one gradient \u2248 **25 s** on 8 P-cores, \u224829 s on 7 `[E]`. A5: DFT optimisation \u2248 **30** cycles from an xTB start, \u2248**12** from an MLFF start with an MLFF Hessian `[E, from the published 2\u20133\u00d7]`. A6: analytic DFT Hessian \u2248 **1,200 s** `[E]`. A7: DLPNO-CCSD(T) single point \u2248 **600 s** `[E]`. A8: MLFF inference **48 ms** steady state, model load **30 s** `[M]`. A9: gpu4pyscf DF-r\u00b2SCAN single point \u2248 **8 s** `[E]` \u2014 below the crossover, so no large GPU win is claimed. A10: heterogeneous mode costs one P-core plus ~5 % \u21d2 CPU stage times \u00d7 **1.20** `[E]`."
+    },
+    {
+      "line": 1419,
+      "text": "| DLPNO-CCSD(T) re-rank, top 10 | 10 \u00d7 600 s | 1.67 h |"
+    },
+    {
+      "line": 1429,
+      "text": "| DLPNO-CCSD(T), CPU | | 1.67 h |"
+    },
+    {
+      "line": 1442,
+      "text": "| 2.0 \u2192 3.2 h | DLPNO-CCSD(T) re-rank, top 10, as two concurrent 3-rank jobs \u2248 1.2 h | idle / next system |"
+    },
+    {
+      "line": 1450,
+      "text": "**The honest headline is Amdahl's law.** Once the optimisation stage is pipelined, **the coupled-cluster and Hessian tail is 53 % of the remaining wall time and no amount of GPU touches it** \u2014 ORCA has no GPU path and no GPU DLPNO exists. Further gain must come from Setup 3, not from this box."
+    },
+    {
+      "line": 1460,
+      "text": "**The highest-value state transfer in this document is not the wavefunction. It is the converged geometry.** An SCF restart saves a fraction of one SCF. A converged cheap geometry saves whole optimisation cycles, and each cycle is one SCF *plus* one gradient \u2014 in the DLPNO geometry row each gradient is 6N = 60 single points, because ORCA's numerical gradient costs \"6 \u00d7 (number of atoms) \u00d7 (time for one single point calculation)\" ([ORCA numerical gradients](https://www.faccts.de/docs/orca/6.1/manual/contents/essentialelements/numericalgradients.html)). Removing 10 of 25 cycles removes 600 single points \u2248 **150 h on one rank `[D]`** at this document's 15 min/point figure. That is the single largest lever anywhere in the document."
+    },
+    {
+      "line": 1486,
+      "text": "| **ORCA \u2014 cannot restart** | MDCI / DLPNO / canonical CC | \u2014 | \u2014 | \u2014 | \u2014 | MDCI exposes `MaxIter`, `STol`, `LShift`, `MaxDIIS` and **no restart facility** ([MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)). A killed CC job restarts only from the `.gbw`, losing all amplitudes |"
+    },
+    {
+      "line": 1553,
+      "text": "| 8 | Tight optimisation \u2192 high-level single point | `s4.xyz` + `s4.gbw` | `! DLPNO-CCSD(T1) \u2026 MORead` + `%moinp \"s4.gbw\"` | saves the SCF only. **No CC restart exists in ORCA** \u2014 if the CC dies you repeat it |"
+    },
+    {
+      "line": 1648,
+      "text": "! DLPNO-CCSD(T1) TightPNO aug-cc-pVTZ aug-cc-pVTZ/C def2/JK TightSCF MORead"
+    },
+    {
+      "line": 1812,
+      "text": "s6 = Stage(\"s6\", \"DLPNO-CCSD(T1) TightPNO aug-cc-pVTZ aug-cc-pVTZ/C TightSCF\","
+    },
+    {
+      "line": 1856,
+      "text": "| **DLPNO / canonical CC** | ORCA | **NO** | MDCI documents no restart | **must fit one job**; a 1 w-tier canonical CC job is out of reach on Setup 1 |"
+    },
+    {
+      "line": 1865,
+      "text": "**Job types that cannot be checkpointed and must be decomposed:** ORCA analytic frequencies, ORCA MDCI/CC, CREST and GOAT searches, and any single DLPNO point exceeding the cap. **The decomposition unit is always an independent displacement or grid point** \u2014 which is exactly why the numerical-gradient and PES rows survive a 6 h cap and the analytic-Hessian rows do not."
+    },
+    {
+      "line": 2080,
+      "text": "method=\"DLPNO-CCSD(T1)\", basis=\"aug-cc-pVTZ\","
+    },
+    {
+      "line": 2106,
+      "text": "## 9. Codes and acquisition: the ORCA track and the CFOUR track"
+    },
+    {
+      "line": 2121,
+      "text": "| D \u2014 ORCA, DLPNO | numerical gradient 6N = 60 single points; numerical Hessian 60 \u00d7 60 = 3,600; total 49 \u00d7 3,600 | **176,400** | \"Analytic gradients are not available\" for DLPNO ([MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)) |"
+    },
+    {
+      "line": 2123,
+      "text": "**Track D / Track A = (6N)\u00b2 = 36N\u00b2 = 3,600\u00d7 at N = 10**, independent of per-job cost `[D]`. For DLPNO to win it would have to be faster than canonical CCSD(T) by a factor exceeding 3,600/k, where k is the cost ratio of an analytic CCSD(T) Hessian to a CCSD(T) energy. **k was not verified from any source \u2014 `n.a.`** \u2014 but even generously at k \u2248 20, DLPNO would need to be ~180\u00d7 faster per point, and at 5\u201310 atoms its linear-scaling advantage has barely switched on. **There is no crossover in this size range. CFOUR owns every CCSD(T)-quality anharmonic tier; ORCA owns search, energetics, F12/DLPNO refinement and DFT-quality VPT2.**"
+    },
+    {
+      "line": 2125,
+      "text": "A second, non-arithmetic reason to prefer analytic Hessians: the CFOUR developers \"encourage you to use analytic second derivatives whenever possible, especially when one is planning to calculate an anharmonic force field\", because cubic and quartic constants are obtained by numerical differentiation and inherit the accuracy of what is differentiated. ORCA says the same in the negative: VPT2 \"is very sensitive to numerical noise due to convergence, approximations and other settings\". A numerical-gradient-of-numerical-gradient DLPNO force field is three differentiations away from the energy, on a surface that is only \"virtually but not perfectly smooth (like any method that involves cut-offs)\". **Cost aside, it is the wrong tool.**"
+    },
+    {
+      "line": 2138,
+      "text": "| Binaries vs source | prebuilt binaries, e.g. `orca_6_0_0_linux_x86-64_avx2_shared_openmpi416.tar.xz` ([CSC ORCA docs](https://docs.csc.fi/apps/orca/)) | **source only**; needs Fortran and C/C++ compilers plus BLAS; `GENBAS` must be present ([CFOUR installation](https://cfour.uni-mainz.de/cfour/index.php?n=Main.Installation)) |"
+    },
+    {
+      "line": 2156,
+      "text": "| Analytic gradients, coupled cluster | CCSD, CCSD(T) for RHF/UHF; ROHF CCSD(T) gradient-level only | **yes \u2014 via AUTOCI for RHF/UHF CCSD, CCSD[T], CCSD(T), CCD, CISD, CEPA(0), MP2\u2013MP4** ([AUTOCI](https://orca-manual.mpi-muelheim.mpg.de/_sources/contents/modelchemistries/autoci.md)). *v3 implied ORCA cannot optimise at CCSD(T). It can; it is DLPNO that cannot* |"
+    },
+    {
+      "line": 2162,
+      "text": "| Nuclear quadrupole coupling | electric field gradients from `PROPS=FIRST_ORDER`, with the documented conversion \u03c7(kHz) = EFG(a.u.) \u00d7 Q(mbarn) \u00d7 234.96474 | EFGs available; for closed-shell DLPNO-CCSD an unrelaxed density permits analytic first-order properties, but \"an unrelaxed density for CCSD(T) is **NOT** available\" |"
+    },
+    {
+      "line": 2163,
+      "text": "| Dipole and higher multipoles | dipole, quadrupole, octopole from `PROPS=FIRST_ORDER` | from unrelaxed densities for closed-shell DLPNO-CCSD; not for CCSD(T) |"
+    },
+    {
+      "line": 2167,
+      "text": "| F12 | not on the public features page \u2192 **`n.a.`** | extensive: `CCSD(T)-F12`, `-F12/RI`, `-F12D/RI`, `DLPNO-CCSD(T)-F12`, `DLPNO-CCSD(T1)-F12(/D)`; F12 costs \"usually 10-30 %\" of the DLPNO correlation step. **No F12 *gradient*** |"
+    },
+    {
+      "line": 2168,
+      "text": "| DLPNO / local correlation | not available \u2192 **`n.a.`** | yes, but **\"Analytic gradients are not available\"**; numerical gradients \"have been attempted and reported to have been successful\" |"
+    },
+    {
+      "line": 2289,
+      "text": "**What this ORCA job cannot produce, and why.** (1) A CCSD(T) anharmonic force field \u2014 `!VPT2` supports only analytic-Hessian methods. (2) Anything for a **linear** complex \u2014 \"Linear molecules are not supported yet\", a serious limitation for OC\u00b7\u00b7\u00b7HX and HCN-containing dimers. (3) Sextic centrifugal distortion. (4) A double-hybrid or DLPNO force field. (5) CCSD(T)-quality electric field gradients \u2014 \"an unrelaxed density for CCSD(T) is NOT available\". (6) Nuclear spin\u2013rotation constants and the diagonal Born\u2013Oppenheimer correction."
+    },
+    {
+      "line": 2296,
+      "text": "4. **ORCA / DLPNO-CCSD(T1)-F12D/RI** \u2014 relative and binding energies, Boltzmann weights; F12 adds 10\u201330 % to the DLPNO correlation time and introduces no new truncation parameters."
+    },
+    {
+      "line": 2412,
+      "text": "**Prohibition 2 \u2014 ONIOM and QM/QM2 are rejected at 5\u201310 atoms.** ORCA's QM/QM2 works and is cheap \u2014 barriers of 24.34 (full \u03c9B97X-D3), 24.49 (\u03c9B97X-D3/PBE), 25.48 (DLPNO-CCSD(T)/PBE) against 25.65 kcal/mol reference, in 30 seconds on 16 cores ([ORCA multiscale tutorial](https://www.faccts.de/docs/orca/6.1/tutorials/multi/basics-otheroniom.html)). It does not earn its place here for three reasons. (1) **Scale mismatch** \u2014 ORCA's multiscale machinery is documented for \"tens and hundreds of thousands of atoms\" with active regions of \"hundreds of atoms\" ([ORCA QM/MM general](https://orca-manual.mpi-muelheim.mpg.de/contents/multiscalesimulations/qmmm-general.html)); a 5\u201310 atom dimer *is* the high-level region and there is nothing left to demote. (2) **No bond to cut** \u2014 ONIOM needs a covalent bond and a link atom; a van der Waals dimer has none between the fragments, so the natural partition is fragment-wise, which is not ONIOM but the many-body expansion or simply the frozen-monomer composite of \u00a79A.1. (3) **The saving is zero** \u2014 the whole complex at the high level is affordable at every tier from 30 minutes upward. *It becomes relevant only for a complex microsolvated by \u22653 additional waters, i.e. outside this scope.*"
+    },
+    {
+      "line": 2423,
+      "text": "| **R2** | **CCSD(T)/CBS monomers frozen + \u03c9B97M-V/def2-QZVPP intermolecular + DLPNO-CCSD(T) single point + VPT2** \u2014 *the user's scheme, executed properly* | 1. monomers from literature CCSD(T)/CBS or fc-CCSD(T)/cc-pVTZ (MAD 0.003 \u00c5) \u00b7 2. freeze intramolecular coordinates \u00b7 3. optimise the 6 intermolecular degrees of freedom at \u03c9B97M-V/def2-QZVPP with \u00a74.4 thresholds \u00b7 4. three-leg Boys\u2013Bernardi counterpoise at DLPNO-CCSD(T1)/TightPNO/aug-cc-pVTZ \u00b7 5. \u0394B_vib from \u03c9B97X-V/def2-TZVPP VPT2 on the semi-rigid manifold \u00b7 6. report B_e, \u0394B_vib, B\u2080 and the residual gradient on the frozen coordinates | ORCA throughout | **\u22485 h `[E]`** (3 h optimisation + 45 min for 3 CP legs + 1 h VPT2) | **0.4\u20131.5 % in B_e**, ~0.3\u20130.5 % if semi-rigid; **A to <0.2 %** | **the best de novo accuracy-per-core-hour row in the document.** Replaces v3's Table 3 12 h and 1 d rows |"
+    },
+    {
+      "line": 2429,
+      "text": "| **R8** | **\u0394-CCSD(T) single point on a DFT geometry** | DFT geometry, then a counterpoise-corrected DLPNO- or F12-CCSD(T) energy | ORCA | 15 min (\u00d7/\u00f7 3) | **zero improvement in B** | **energy only. Explicitly not a geometry recipe.** Listed to be ruled out \u2014 it improves a quantity that does not appear in the rotational Hamiltonian |"
+    },
+    {
+      "line": 2821,
+      "text": "- **ORCA track** \u2014 search, energetics, F12 and DLPNO refinement, DFT-quality VPT2, Pickett export."
+    },
+    {
+      "line": 2822,
+      "text": "- **CFOUR track** \u2014 CCSD(T)-quality anharmonic force fields, sextic centrifugal distortion, spin\u2013rotation, the diagonal Born\u2013Oppenheimer correction, isotopologue force fields from one field."
+    },
+    {
+      "line": 2824,
+      "text": "Where a track cannot fill a tier, the row says so explicitly rather than being omitted. **The CFOUR track has no 10 s and no 1 min row** \u2014 it has no semi-empirical engine, no global optimiser and no DFT on its public feature list \u2014 **and no DLPNO or F12 row at any tier**. **The ORCA track has no 1 month row for a CCSD(T) anharmonic force field**, and no sextic-distortion capability at any tier. Tables 1, 2, 5, 7, 9 and 10 are single-track (ORCA and its satellites); the reason CFOUR cannot fill them is stated in each table's preamble."
+    },
+    {
+      "line": 2889,
+      "text": "**Rule 7 (new) \u2014 every number carries a provenance tag.** `[M]` measured or published benchmark, `[D]` derived by arithmetic from a specification or another measurement, `[E]` expert estimate. **No `[D]` or `[E]` value may be the sole support for a hardware exclusion, a routing gate or an accuracy claim.** Where one currently is \u2014 the GPU crossover at 50\u201390 basis functions, the semi-rigid and floppy B\u2080 bands, the teaching-runner throughput ratio, the DLPNO 15 min/point figure, the g-xTB gradient penalty \u2014 **the document says so and marks the value as requiring local measurement.** The five such values are collected in \u00a721.2."
+    },
+    {
+      "line": 2905,
+      "text": "**Single track (ORCA and its satellites).** *The CFOUR track cannot fill any row of this table: it has no semi-empirical engine, no global optimiser and no DFT on its public feature list.* The two-stage deduplication protocol is retained from v3 and tightened: **Stage A** at engine defaults (RMSD 0.125 \u00c5, \u0394E 0.100 kcal/mol, \u0394B 1.0\u20132.5 %), **Stage B** at the spectroscopic threshold `--bthr 0.001`, because 1 % \u2248 120 MHz at 12 GHz is ten times looser than the experiment resolves (\u00a79B.3)."
+    },
+    {
+      "line": 2933,
+      "text": "| T1-1mo | 5,760 @ 8 cores; 21,504 @ 128 | all seeds \u00d7 both engines \u00d7 `--v4` / `GOAT-DIVERSITY`; DLPNO re-ranking | everything above | maximal ensemble \u2014 **D** | relaxed | 8 GB / 20 GB | mixed | No | \u2014 | **dominated for every reported observable**; the concurrent two-device union (\u00a78A.2) delivers most of it free |"
+    },
+    {
+      "line": 2967,
+      "text": "| T2-3d | 576 @ 8 cores | 500 DLPNO points at 15 min each = 125 core-h \u21d2 **10.4 h wall at `-j 16` `[D]`**, or 29 min on 1,024 HPC cores | HDF5 geometry list; neighbour `.gbw` | 500 CC energies in HDF5; DVR eigenvalues \u2014 **D** | frozen-iso | 3 GB per job / 5\u201320 GB per point | ORCA academic | No | Inductiva RTX 3090 Lanczos: 0.67\u00d7 at dim 10\u2074, 4.2\u00d7 at 10\u2075 `[M]` | v3's \"125 h on one rank\" read as the row's cost; it is the *serial* number. **Correct optimisations are CUDA-graph capture of the fixed-shape matvec and block Lanczos, not a faster card** |"
+    },
+    {
+      "line": 2975,
+      "text": "#### Table 3-O \u2014 ORCA track"
+    },
+    {
+      "line": 2985,
+      "text": "| **T3O-1d** | 1 d | DLPNO-CCSD(T) numerical-gradient optimisation \u2014 ORCA | **B_e \u00b10.3\u20130.8 % floppy, \u00b10.15\u20130.5 % semi-rigid `[D]`** | **S** | A | **no analytic DLPNO gradient**: each gradient is 6N = 60 single points, 25 cycles \u2248 1,500 points \u2248 375 core-h. **Dominated by T3O-12h** |"
+    },
+    {
+      "line": 2986,
+      "text": "| **T3O-3d** | 3 d | canonical CCSD(T)/aug-cc-pVQZ, AUTOCI analytic gradients \u2014 ORCA (Setup 3) | **B_e \u00b10.3\u20131 % `[M]`, with a warning** | **S** | A | **fc-CCSD(T)/cc-pVQZ gave \u22126.56 % in A_e for a C\u2085H\u2082 isomer `[M]`**; frozen core is a \u22120.81 % bias in B_e |"
+    },
+    {
+      "line": 2998,
+      "text": "| T3O-3h | 24 | `! wB97M-V def2-QZVPP def2/J RIJCOSX TightSCF DefGrid3` + \u00a74.4 `%geom` + constraints; then 3 \u00d7 `! DLPNO-CCSD(T1) TightPNO aug-cc-pVTZ`; then `! wB97X-V def2-TZVPP Freq VPT2 VeryTightSCF` | `s(30min).xyz` + `.gbw` (TZ\u2192QZ projection) | `.xyz`, `.gbw`, `.opt`, `.hess` \u2014 the geometry that feeds Tables 4 and 5 \u2014 **R** | **frozen-iso** | 3 GB per rank / 6 GB | ORCA academic | Yes (at risk) | \u03c9B97X-V A21 RMSD 0.58 pm; rare gases 7.91 pm `[M]` | **the best de novo accuracy-per-core-hour row in the document.** Report the residual gradient on the frozen coordinates |"
+    },
+    {
+      "line": 3000,
+      "text": "| T3O-1d | 192 | `! DLPNO-CCSD(T) TightPNO aug-cc-pVTZ NumGrad Opt TightSCF` + \u00a74.4 `%geom` | `s(3h).xyz` + `.gbw`; per-displacement neighbour `.gbw` | `.xyz`; 60 displacement single points per cycle \u2014 **D**, run them as independent jobs | relaxed | 3 GB per rank / 5\u201320 GB per point | ORCA academic | No | geometry maximum **`n.a.`** | **Dominated by T3O-12h**: 375 core-h for a floppy geometry no better than T3O-3h, against a 0.13 %-MAE composite at 6\u201320 h |"
+    },
+    {
+      "line": 3001,
+      "text": "| T3O-3d | 576 @ 8 cores; 9,216 @ 128 | `! AUTOCI-CCSD(T) aug-cc-pVQZ Opt TightSCF`; AO-direct mandatory | `s(3h).xyz` + `.gbw` | `.xyz`, `.gbw` \u2014 **D** in ORCA, **R** in CFOUR | relaxed | 8 GB per rank / **99 GB four-external + 25 GB three-external if integral-conventional** | ORCA academic | No | \u22126.56 % in A_e `[M]` | ~596 basis functions sits at ORCA's 500\u2013600 practical ceiling. **`fc` vs `ae` is not a detail: the core-correlation effect on A_e was 1.0 pp with inconsistent sign.** Prefer CFOUR (T3C-3d) or junChS-F12 (Molpro) |"
+    },
+    {
+      "line": 3005,
+      "text": "#### Table 3-C \u2014 CFOUR track"
+    },
+    {
+      "line": 3024,
+      "text": "| T3C-10s / T3C-1min | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | No | \u2014 | **track gap, stated rather than hidden.** Escalate to the ORCA track |"
+    },
+    {
+      "line": 3042,
+      "text": "#### Table 4-O \u2014 ORCA track"
+    },
+    {
+      "line": 3072,
+      "text": "#### Table 4-C \u2014 CFOUR track"
+    },
+    {
+      "line": 3091,
+      "text": "| T4C-10s / T4C-1min | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | \u2014 | No | \u2014 | **track gap, stated.** Use the ORCA track |"
+    },
+    {
+      "line": 3095,
+      "text": "| T4C-12h | 96 | `VIB=EXACT, ANHARM=VPT2, ANH_STEPSIZ=50000, FD_PROJECT=ON` | `JOBARC` | full cubic + semidiagonal quartic field \u2014 **R** | frozen-inc | 32 GB / 150 GB | CFOUR academic | No | quartic 2\u20133 %, sextic 3\u20134 % `[M]` | 49 analytic Hessians against **176,400 ORCA/DLPNO single points** for the same object \u2014 a ratio of 36N\u00b2 `[D]` |"
+    },
+    {
+      "line": 3103,
+      "text": "**Single track (ORCA).** *CFOUR can supply reference energies but has no DLPNO or F12, so the cost-effective rows here are all ORCA rows.* **D\u2080 is not an assignment observable** \u2014 it does not appear in the rotational Hamiltonian \u2014 so this table is post-assignment validation and conformer ranking, never a route to a constant."
+    },
+    {
+      "line": 3112,
+      "text": "| **T5-12h** | 12 h | DLPNO-CCSD(T1)/TightPNO/aug-cc-pVTZ with local energy decomposition | **\u0394E \u00b10.2\u20130.5 kcal/mol `[E]`**, plus a physical decomposition | **S** | A | **no MDCI restart** \u2014 the job must fit one window |"
+    },
+    {
+      "line": 3127,
+      "text": "| T5-12h | 96 | `! DLPNO-CCSD(T1) TightPNO aug-cc-pVTZ aug-cc-pVTZ/C def2/JK TightSCF` + `%mdci TCutPNO 1e-7 DoLED true StorageType Shared end` | `.xyz` + `.gbw` from T3O-3h | energies, LED terms \u2014 **D**, no MDCI restart | frozen-inc | 3 GB per rank / 5\u201320 GB | ORCA academic | No | TightPNO S66 outliers <0.3 kcal/mol `[M]` | `StorageType Shared` works only when all ranks are on one node \u2014 which is Setup 2's situation |"
+    },
+    {
+      "line": 3141,
+      "text": "#### Table 6-O \u2014 ORCA track"
+    },
+    {
+      "line": 3150,
+      "text": "| **T6O-12h** | 12 h | DLPNO-CCSD unrelaxed-density multipoles and field gradients | \u03bc and \u03c7 at coupled-cluster quality for closed shells | **S** | A | **\"an unrelaxed density for CCSD(T) is NOT available\"** \u2014 CCSD only |"
+    },
+    {
+      "line": 3158,
+      "text": "#### Table 6-C \u2014 CFOUR track"
+    },
+    {
+      "line": 3190,
+      "text": "| **T7-3d** | 3 d | DLPNO-CCSD(T) single points along the converged path | the barrier at coupled-cluster quality, still **\u00b114 %** against experiment | **S** | A | **the cap is set by the benchmark spread, not by the electronic structure** |"
+    },
+    {
+      "line": 3200,
+      "text": "#### Table 8-O \u2014 ORCA track"
+    },
+    {
+      "line": 3213,
+      "text": "| **T8O-1mo** | 1 mo | **\u2014 a CCSD(T)-quality anharmonic force field is not reachable in this track** | \u2014 | \u2014 | \u2014 | **Track gap.** `!VPT2` accepts only analytic-Hessian methods, and the DLPNO alternative needs 176,400 single points at N = 10. **Escalate to `T8C-1mo`** |"
+    },
+    {
+      "line": 3215,
+      "text": "#### Table 8-C \u2014 CFOUR track"
+    },
+    {
+      "line": 3230,
+      "text": "**Expansion block \u2014 Tables 8-O and 8-C.** Core-h follow the standard ladder, with 128-core figures for the 3 d, 1 w and 1 mo rows (9,216 / 21,504 / 92,160). **State-in**: the geometry and `.gbw` (ORCA) or `JOBARC` (CFOUR) from the corresponding Table 3 row. **State-out**: `.hess` / `FCMFINAL`, which feeds Tables 4 and 6 and every isotopologue \u2014 ORCA analytic-frequency rows are **D** (not restartable) while every CFOUR row is **R**. **Frozen-mono** inherits. **Mem** 3 GB per rank (ORCA) or a 32 GB global allocation (CFOUR); scratch 6\u2013250 GB. **Licence** ORCA academic / CFOUR academic wet-signature. **Setup 1** yes to 3 h on the ORCA track, never on the CFOUR track. **Max benchmark error**: r\u00b2SCAN-3c aRMSD 35 cm\u207b\u00b9 `[M]`; small-basis C\u2013H stretches too high \"by 10\u201320 cm\u207b\u00b9 or more\" `[M]`; water VPT2+K overtones within 1.4 cm\u207b\u00b9 `[M]`. **Mitigation**: state which modes were treated harmonically and which anharmonically, and exclude every mode below ~100 cm\u207b\u00b9 from a hybrid force field."
+    },
+    {
+      "line": 3264,
+      "text": "| **T10-12h** | 12 h | STEOM-DLPNO-CCSD excitations | excitations \u00b10.1\u20130.2 eV `[E]` | **S** | A | **no MDCI restart** \u2014 must fit one window |"
+    },
+    {
+      "line": 3282,
+      "text": "| `T3O-1d` (DLPNO numerical-gradient optimisation) | **`T3O-12h` (junChS)** | 375 core-hours of single points for a floppy geometry no better than `T3O-3h`, against a composite with a **0.13 % MAE in B_e `[M]`** at 6\u201320 h |"
+    },
+    {
+      "line": 3283,
+      "text": "| `T3O-3d` (canonical CCSD(T)/aug-cc-pVQZ) | **`T3C-3d` or recipe R3 (junChS-F12)** | fc-CCSD(T)/cc-pVQZ gave **\u22126.56 % in A_e** for a C\u2085H\u2082 isomer `[M]`; junChS-F12 is \"one order of magnitude faster than the CBS+CV counterparts\" and reaches 0.0011 \u00c5 MUE on SE100 |"
+    },
+    {
+      "line": 3299,
+      "text": "**Characterisation.** You have an assignment and want a defensible structure and energetics. The frontier runs `T3O-12h` \u2192 `T3C-12h` \u2192 `T4C-12h` \u2192 `T5-3h`, and the CFOUR track is not optional: sextic distortion, spin\u2013rotation and a CCSD(T)-quality anharmonic field exist only there."
+    },
+    {
+      "line": 3329,
+      "text": "**Single-reference diagnostics.** Every CCSD(T), DLPNO-CCSD(T), EOM-CCSD and STEOM-CCSD result carries its T1 and D1 diagnostics and, where available, the percentage of the atomisation energy carried by the perturbative triples. Coupled cluster degrades systematically for large, highly polarizable, small-gap \u03c0 systems where the perturbative triples overbind, and in that regime cross-validation against fixed-node diffusion Monte Carlo or rank-reduced CCSDT(Q) is required ([*JCP* 162, 114112](https://pubs.aip.org/jcp/article/162/11/114112/3339921/On-the-applicability-of-CCSD-T-for-dispersion); [arXiv:2410.12603](https://arxiv.org/abs/2410.12603))."
+    },
+    {
+      "line": 3331,
+      "text": "**Spin contamination.** Charge and multiplicity are stated for every calculation; unrestricted references for all open-shell species, which here means the whole mass-spectrometry column of Table 10 (charge +1, multiplicity 2). \u27e8S\u00b2\u27e9 is recorded, and a deviation above 10 % of the expected value triggers rejection or recomputation. Open-shell DLPNO-CCSD(T) uses the same keyword as the closed-shell case but is designed for **high-spin** open shells, and open-shell singlets \"may give qualitatively wrong results\" ([MDCI](https://www.faccts.de/docs/orca/6.1/manual/contents/modelchemistries/mdci.html)); such systems are routed elsewhere."
+    },
+    {
+      "line": 3467,
+      "text": "**The ten wall-clock tiers in this document are estimated design targets, not measurements on the hardware of Section 8.** They are anchored on published benchmarks \u2014 an r\u00b2SCAN-3c SCF timing for a 153-atom, 7,155-AO complex on four cores ([r\u00b2SCAN-3c](https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/60c752f6bb8c1a21633dbf6c/original/r2scan-3c-an-efficient-swiss-army-knife-composite-electronic-structure-method.pdf)), a canonical CCSD/cc-pVTZ benzene timing on 16 cores ([PySCF benchmarks](https://pyscf.org/benchmark.html)), DLPNO-CCSD(T1) timings for 63- and 90-atom systems ([Nagy *et al.*, *Chem. Sci.*](https://real.mtak.hu/205919/1/state-of-the-art-local-correlation-methods-enable-affordable-gold-standard-quantum-chemistry-for-up-to-hundreds-of-atoms.pdf)), an F12 overhead measurement ([Pavo\u0161evi\u0107 & Neese, SI](https://arxiv.org/pdf/2008.03237.pdf)), ORCA's own statements on numerical-gradient and molecular-dynamics step cost ([ORCA optimisations](https://www.faccts.de/docs/orca/6.0/manual/contents/typical/optimizations.html); [ORCA molecular dynamics](https://www.faccts.de/docs/orca/6.0/manual/contents/detailed/moldyn.html)), QCxMS trajectory defaults ([QCxMS run documentation](https://xtb-docs.readthedocs.io/en/latest/qcxms_doc/qcxms_run.html)), and MACE-OFF23 throughput on an A100 ([*JACS* 2024](https://pubs.acs.org/doi/10.1021/jacs.4c07099)) \u2014 then scaled to the 5\u201310 atom system size. Rows dominated by numerical differentiation publish their explicit single-point counts so the estimate can be audited."
+    },
+    {
+      "line": 3485,
+      "text": "Rotational fits of floppy complexes are frequently ill-conditioned: in H\u2082CO\u2013HCl the A constant could not be determined and was held fixed at 42 GHz, while \u0394_K, \u03b4_J and \u03b4_K were indeterminate and set to zero ([Fraser *et al.*](https://www.sciencedirect.com/science/article/pii/0022285287900919/pdf)). Fixing A at a computed value is already an infinitely sharp prior, and nobody objects to it; a stated prior with a propagated uncertainty is more honest than that, not less. **But the value of an experimental rotational constant is that it is independent of theory**, and its downstream uses \u2014 semi-experimental equilibrium structures, benchmark sets for method development, catalogue entries used to identify species in the interstellar medium \u2014 all depend on that independence. A constant regularised toward a DLPNO-CCSD(T) value cannot be used to test DLPNO-CCSD(T), and the contamination is invisible three papers later. It also breaks error propagation, because Kraitchman coordinates and their Costain errors are derived from measured moments of inertia, so a theory-shrunk B silently biases an r_s structure presented as experimental."
+    },
+    {
+      "line": 3516,
+      "text": "| 4 | **DLPNO 15 min/point (\u00d7/\u00f7 3)** | `[E]`, extrapolated from published anchors on different molecules and bases | every PES and geometry cost in Tables 2, 3 and 5 | one DLPNO-CCSD(T1)/TightPNO/aug-cc-pVTZ single point on the actual complex, wall time recorded, all point counts rescaled |"
+    },
+    {
+      "line": 3599,
+      "text": "**Correction 5 \u2014 \"constrained monomer relaxation at each grid point\" is deleted.** It rested on analytic DLPNO-CCSD(T) gradients, which ORCA 6.1 does not have, and the SAPT surface developers reject gradient-based grid construction on principle ([Metz & Szalewicz](https://par.nsf.gov/servlets/purl/10194876)). Use rigid-monomer single points, or the flexible-monomer autoPES protocol, or move the relaxation to CFOUR or Molpro where analytic derivatives exist."
+    },
+    {
+      "line": 3693,
+      "text": "47. [CFOUR installation](https://cfour.uni-mainz.de/cfour/index.php?n=Main.Installation) \u2014 cfour.uni-mainz.de"
+    }
+  ],
+  "D:\\Gdrive\\__CoChem\\GitHub-Repo\\CoChem-BASE\\CoChem_User_Manual.md": [
+    {
+      "line": 40,
+      "text": "- [4.6 Quantum Engine Track Division: ORCA vs CFOUR](#46-quantum-engine-track-division-orca-vs-cfour)"
+    },
+    {
+      "line": 94,
+      "text": "| 1  | CoChem-UNITY  | Installation & GUI Dashboard      | React / FastAPI          |"
+    },
+    {
+      "line": 99,
+      "text": "| 6  | CoChem-BENCH  | Ab Initio Thermochemical Limit    | junChS / DLPNO-CCSD(T)   |"
+    },
+    {
+      "line": 118,
+      "text": "6. **CoChem-BENCH**: Executes gold-standard composite electronic structure calculations (junChS, CBS+CV, DLPNO-CCSD(T)) to deliver equilibrium geometries ($r_e$) and $B_e$ [`\u00a713.3`]. Implements high-precision CBS extrapolations."
+    },
+    {
+      "line": 130,
+      "text": "The 15 modules communicate through explicit JSON-RPC and REST endpoints managed by the FastAPI server in UNITY. Inter-module data flow strictly follows the QCSchema standard (`qcjson`). When BENCH finishes a DLPNO-CCSD(T) single point, it emits a QCSchema `AtomicResult` object containing the total electronic energy, gradient array, and wave-function diagnostic scalars. SCRIBE listens on the event bus, writing `AtomicResult` objects directly into the active HDF5 store (`PESStore`) [`\u00a78C.2`]."
+    },
+    {
+      "line": 143,
+      "text": "\"model\": {\"method\": \"DLPNO-CCSD(T)\", \"basis\": \"def2-TZVPP\"},"
+    },
+    {
+      "line": 819,
+      "text": "3. Optimize *only* the 6 intermolecular degrees of freedom (intermolecular separation $R$ and orientation angles) at the target composite level (e.g., $\\omega\\text{B97M-V/def2-QZVPP}$ or DLPNO-CCSD(T))."
+    },
+    {
+      "line": 841,
+      "text": "## 4.6 Quantum Engine Track Division: ORCA vs CFOUR"
+    },
+    {
+      "line": 864,
+      "text": "2. **ORCA Track (DLPNO Numerical Differentiation)**: Because ORCA lacks analytical CCSD(T) Hessians, computing a single Hessian requires finite differences of gradients."
+    },
+    {
+      "line": 867,
+      "text": "- Total single points for 49 Hessians: $49 \\times 3,600 = \\mathbf{176,400\\text{ single-point DLPNO calculations!}}$ [`\u00a79.3`]."
+    },
+    {
+      "line": 894,
+      "text": "> **Track Assignment Rule**: *CFOUR owns all coupled-cluster anharmonic force fields (VPT2), sextic centrifugal distortion, and spin-rotation tensors. ORCA owns conformer searching, DLPNO single points, and DFT-level VPT2* [`\u00a79.1`\u2013`\u00a79.4`]."
+    },
+    {
+      "line": 1021,
+      "text": "| - Engine: ORCA DLPNO-CCSD(T) / CFOUR Analytic Hessians                            |"
+    },
+    {
+      "line": 1055,
+      "text": "|  [DLPNO Single Point] <--(6)--- [junChS Composite] <--(5)--- [wB97M-V TightOpt]   |"
+    },
+    {
+      "line": 2027,
+      "text": "| DLPNO-CCSD(T) Geometry Opt (T3O-1d)| junChS Composite      | DLPNO Opt is 10x     |"
+    },
+    {
+      "line": 2059,
+      "text": "- [x] Coupled-cluster VPT2 routed to CFOUR track; GOAT & single points to ORCA [`\u00a79.1`]."
+    }
+  ]
+}

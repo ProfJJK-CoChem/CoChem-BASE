@@ -75,8 +75,15 @@ class CoChemConfig(BaseModel):
 
 # If executed directly, run a schema sanity check
 if __name__ == "__main__":
+    import shutil
     print(">>> Validating CoChemConfig Schema Types...")
     try:
+        def discover_engine(binary_name: str) -> EngineInfo:
+            p = shutil.which(binary_name)
+            if p:
+                return EngineInfo(status="found", path=str(p), version="auto", hash="auto")
+            return EngineInfo(status="missing", path=None, version=None, hash=None)
+
         mock_hw = HardwareConfig(
             physical_cpu_cores=8,
             logical_cpu_cores=16,
@@ -86,14 +93,14 @@ if __name__ == "__main__":
             vram_gb=24.0,
             os_target="linux_x86_64"
         )
-        mock_engines = EnginePaths(
-            orca=EngineInfo(status="bypassed", path="BYPASSED", version="None", hash="None"),
-            mpirun=EngineInfo(status="found", path="/usr/bin/mpirun", version="4.1.2", hash="abc"),
-            xtb=EngineInfo(status="missing")
+        active_engines = EnginePaths(
+            orca=discover_engine("orca"),
+            mpirun=discover_engine("mpirun"),
+            xtb=discover_engine("xtb")
         )
         master = CoChemConfig(
             hardware=mock_hw,
-            engines=mock_engines,
+            engines=active_engines,
             silos=SiloConfig(torq_silo_active=True)
         )
         print(" [SUCCESS] Pydantic models successfully instantiated. Golden Schema is structurally sound.")

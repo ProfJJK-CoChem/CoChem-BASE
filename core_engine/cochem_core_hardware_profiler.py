@@ -108,12 +108,13 @@ class HardwareProfiler:
     def _calculate_hardware_score(self) -> float:
         """Calculate an overall hardware score for job routing decisions."""
         try:
-            # Get system capabilities
-            capabilities = self.get_hardware_capabilities()
+            # Direct computation to avoid infinite recursion with get_hardware_capabilities()
+            cpu_tflops = self._calculate_cpu_tflops()
+            memory_total_gb = psutil.virtual_memory().total / (1024**3)
             
             # Weighted scoring system (simplified)
-            cpu_score = min(capabilities['cpu_tflops'] / 10.0, 1.0)  # Normalize to 0-1
-            memory_score = min(capabilities['memory_total_gb'] / 32.0, 1.0)  # Normalize to 0-1
+            cpu_score = min(cpu_tflops / 10.0, 1.0)  # Normalize to 0-1
+            memory_score = min(memory_total_gb / 32.0, 1.0)  # Normalize to 0-1
             
             # Simple weighted average (you can adjust weights as needed)
             hardware_score = (cpu_score * 0.6 + memory_score * 0.4) * 100
@@ -124,7 +125,7 @@ class HardwareProfiler:
         except Exception as e:
             logger.error(f"Error calculating hardware score: {e}")
             return 0.0
-            
+
     def get_performance_metrics(self) -> Dict:
         """Get performance metrics with benchmarking capabilities."""
         # This includes basic performance metrics plus system benchmarks
@@ -317,88 +318,6 @@ class HardwareProfiler:
         except Exception as e:
             logger.error(f"Error getting GPU details: {e}")
             return []
-
-    def get_hardware_capabilities(self) -> Dict:
-        """Get comprehensive hardware capabilities for job routing decisions."""
-        capabilities = {
-            'cpu_count': psutil.cpu_count(logical=True),
-            'cpu_architecture': platform.machine(),
-            'memory_total_gb': psutil.virtual_memory().total / (1024**3),
-            'is_virtual_machine': self._check_virtualization(),
-            'cpu_tflops': self._calculate_cpu_tflops(),  # Enhanced with TFLOPS calculation
-            'hardware_score': self._calculate_hardware_score()  # Overall hardware score
-        }
-        
-        return capabilities
-        
-    def _check_virtualization(self) -> bool:
-        """Check if system is running in a virtual machine."""
-        try:
-            # Check for common VM indicators
-            vm_indicators = ['virtualbox', 'vmware', 'qemu', 'vmware']
-            platform_info = platform.platform().lower()
-            
-            for indicator in vm_indicators:
-                if indicator in platform_info:
-                    return True
-                    
-            return False
-        except Exception:
-            return False
-            
-    def _calculate_cpu_tflops(self) -> float:
-        """Calculate CPU TFLOPS based on processor specifications."""
-        try:
-            # This is a simplified estimation - in practice, you'd use more sophisticated benchmarks
-            cpu_count = psutil.cpu_count(logical=True)
-            
-            # Get CPU frequency (in GHz)
-            cpu_freq = psutil.cpu_freq()
-            if cpu_freq and cpu_freq.current:
-                freq_ghz = cpu_freq.current / 1000.0
-            else:
-                # Fallback to typical values
-                freq_ghz = 2.5  # Default CPU frequency in GHz
-            
-            # Estimate FLOPS per core (this is a rough approximation)
-            # Modern CPUs can do ~2-4 FLOPS/core/cycle depending on architecture and operation type
-            flops_per_core_per_cycle = 3.0  # Average estimate
-            
-            # Estimate cycles per second (frequency in Hz)
-            cycles_per_second = freq_ghz * 1e9
-            
-            # Total estimated FLOPS for all cores
-            total_flops = cpu_count * flops_per_core_per_cycle * cycles_per_second
-            
-            # Convert to TFLOPS (10^12 FLOPS)
-            tflops = total_flops / 1e12
-            
-            logger.info(f"Estimated CPU TFLOPS: {tflops:.2f}")
-            return tflops
-            
-        except Exception as e:
-            logger.error(f"Error calculating CPU TFLOPS: {e}")
-            return 0.0
-            
-    def _calculate_hardware_score(self) -> float:
-        """Calculate an overall hardware score for job routing decisions."""
-        try:
-            # Get system capabilities
-            capabilities = self.get_hardware_capabilities()
-            
-            # Weighted scoring system (simplified)
-            cpu_score = min(capabilities['cpu_tflops'] / 10.0, 1.0)  # Normalize to 0-1
-            memory_score = min(capabilities['memory_total_gb'] / 32.0, 1.0)  # Normalize to 0-1
-            
-            # Simple weighted average (you can adjust weights as needed)
-            hardware_score = (cpu_score * 0.6 + memory_score * 0.4) * 100
-            
-            logger.info(f"Calculated hardware score: {hardware_score:.2f}")
-            return hardware_score
-            
-        except Exception as e:
-            logger.error(f"Error calculating hardware score: {e}")
-            return 0.0
 
 def main():
     """Main entry point for the hardware profiler."""

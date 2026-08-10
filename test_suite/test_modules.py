@@ -1,9 +1,18 @@
 import os
 from pathlib import Path
 
-def check_modules_installed(base_path=r"D:\_CoChem\CoChem_Artifacts\modules"):
+def check_modules_installed(base_path=None):
     """Checks if the required modules are present in the modules directory."""
-    required_modules = ["CoChem-BASE", "CoChem-TOPOS", "CoChem-TORQ", "CoChem-SCRIBE"]
+    if base_path is None:
+        base_path = os.environ.get("COCHEM_MODULE_DIR")
+        if not base_path:
+            root = Path(__file__).resolve().parents[2]
+            if (root / "CoChem-BASE").exists():
+                base_path = str(root)
+            else:
+                base_path = str(Path.home() / "CoChem_Artifacts" / "modules")
+
+    required_modules = ["CoChem-BASE", "CoChem-TOPOS", "CoChem-TORQ"]
     missing = []
     found = []
     

@@ -294,7 +294,31 @@ class CoChemMIntUI:
         
         self._ui_log("➡️ Generating 3D spatial conformer (ETKDGv3)...")
         params = AllChem.ETKDGv3()
-        params.randomSeed = 42
+        seed = getattr(self, "random_seed", None)
+        if seed is None:
+            env_seed = os.environ.get("COCHEM_RDKIT_SEED")
+            if env_seed is not None:
+                try:
+                    seed = int(env_seed)
+                except ValueError:
+                    seed = None
+                    
+        if seed is None:
+            config_file = Path(__file__).resolve().parents[1] / "cochem_system_config.json"
+            if config_file.exists():
+                try:
+                    with open(config_file, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                        raw_s = cfg.get("rdkit_random_seed")
+                        if raw_s is not None:
+                            seed = int(raw_s)
+                except Exception:
+                    seed = None
+
+        if seed is None:
+            seed = 42
+
+        params.randomSeed = int(seed)
         AllChem.EmbedMolecule(mol, params)
         
         self._ui_log("➡️ Relaxing steric clashes (GFN2-xTB Triage & Eckart Alignment)...")

@@ -46,7 +46,7 @@ def get_manifest_path() -> Path:
     if local_manifest.exists():
         return local_manifest
         
-    print(f"❌ FATAL: Deployment manifest not found at {manifest}.")
+    print(f"[FATAL] Deployment manifest not found at {manifest}.")
     print("Please complete the CoChem-BASE UI selection in Start_Here.ipynb first.")
     sys.exit(1)
 
@@ -55,10 +55,10 @@ def execute_script(script_name: str, env_name: str):
     script_path = Path(__file__).resolve().parent / script_name
     
     if not script_path.exists():
-        print(f"❌ FATAL: Setup script '{script_name}' is missing from the setup/ directory.")
+        print(f"[FATAL] Setup script '{script_name}' is missing from the setup/ directory.")
         sys.exit(1)
         
-    print(f"\n▶️ Dispatching OS-Native Router: {script_name}...")
+    print(f"\n[DISPATCH] Dispatching OS-Native Router: {script_name}...")
     try:
         # Cross OS boundary if executing from a Windows host targeting WSL
         if "WSL" in env_name and platform.system() == "Windows":
@@ -71,7 +71,7 @@ def execute_script(script_name: str, env_name: str):
         # Standardize execution to the active python interpreter
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ FATAL: '{script_name}' failed with exit code {e.returncode}.")
+        print(f"\n[FATAL] '{script_name}' failed with exit code {e.returncode}.")
         print("Please check the terminal output above for specific OS errors.")
         sys.exit(e.returncode)
 
@@ -81,16 +81,13 @@ def detect_cuda_capability() -> bool:
     Returns True if CUDA is available, False otherwise.
     """
     try:
-        # Try to run nvidia-smi command to check for CUDA availability
         result = subprocess.run(['nvidia-smi', '--query-gpu=count', '--format=csv,noheader,nounits'], 
                                capture_output=True, text=True, timeout=10)
         if result.returncode == 0 and result.stdout.strip() != '0':
             return True
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-        # If nvidia-smi is not available or fails, try alternative methods
         pass
 
-    # Try to detect CUDA via Python libraries
     try:
         import torch
         if torch.cuda.is_available():
@@ -105,7 +102,6 @@ def detect_cuda_capability() -> bool:
     except ImportError:
         pass
 
-    # No CUDA capability detected
     return False
 
 def detect_hardware_capability() -> dict:
@@ -121,15 +117,12 @@ def detect_hardware_capability() -> dict:
         memory_gb = round(psutil.virtual_memory().total / (1024**3), 2)
         is_cuda_available = detect_cuda_capability()
         
-        # Detect QCxMS binary availability
         is_qcxms_available = False
         try:
-            # Try to find QCxMS in common locations or via PATH
             result = subprocess.run(['which', 'QCxMS'], capture_output=True, text=True)
             if result.returncode == 0 and result.stdout.strip():
                 is_qcxms_available = True
         except Exception:
-            # If which command fails, try direct execution test
             try:
                 subprocess.run(['QCxMS', '--version'], capture_output=True, timeout=5)
                 is_qcxms_available = True
@@ -145,34 +138,31 @@ def detect_hardware_capability() -> dict:
             'qcxms_available': is_qcxms_available
         }
     except Exception as e:
-        print(f"⚠️  Failed to detect hardware capabilities: {e}")
+        print(f"[WARNING] Failed to detect hardware capabilities: {e}")
         return {'cpu_count': 1, 'memory_gb': 0, 'cuda_available': False, 'platform': 'Unknown', 'architecture': 'Unknown', 'qcxms_available': False}
 
-def get_mlff_fallback_strategy(hardware_info: dict) -> str:
+def get_mlff_fallback_strategy(hardware_info: dict, daemon_online: bool = True, atom_count: int = 10) -> str:
     """
-    Determines the appropriate MLFF fallback strategy based on hardware capabilities.
-    Returns the calculation environment to use for MLFF routing.
+    Determines MLFF fallback routing (§9B.4) considering daemon availability and memory limits.
     """
-    # If CUDA is available, prioritize GPU-accelerated MLFF
-    if hardware_info.get('cuda_available', False):
-        print("🎮 GPU Acceleration detected - prioritizing CUDA-enabled MLFF execution")
-        return "Local-Linux (Deb)"  # Assuming this can handle CUDA
-    
-    # For CPU-only systems, determine appropriate fallback strategy
-    cpu_count = hardware_info.get('cpu_count', 1)
-    memory_gb = hardware_info.get('memory_gb', 0)
-    
-    # Determine MLFF strategy based on system resources
-    if cpu_count >= 8 and memory_gb >= 16:
-        print("🧠 High-performance CPU detected - enabling advanced MLFF with full parallelization")
+    if not daemon_online:
+        print("[WARNING] MLFF-GOAT server daemon offline -> Falling back to local AIMNet2 / GFN2-xTB")
+        return "AIMNet2"
+
+    memory_gb = hardware_info.get('memory_gb', 16)
+    is_cuda = hardware_info.get('cuda_available', False)
+
+    # Memory overflow check
+    if not is_cuda and atom_count > 100:
+        print(f"[WARNING] CPU system RAM limit warning for N={atom_count} -> Falling back to GFN2-xTB")
+        return "GFN2-xTB"
+    elif is_cuda and atom_count > 500:
+        print(f"[WARNING] GPU VRAM limit warning for N={atom_count} -> Falling back to GFN2-xTB")
+        return "GFN2-xTB"
+
+    if is_cuda:
         return "Local-Linux (Deb)"
-    elif cpu_count >= 4 and memory_gb >= 8:
-        print("⚡ Medium-performance CPU detected - enabling optimized MLFF execution")
-        return "Local-Linux (Deb)"  # This could be adjusted based on specific requirements
-    else:
-        print("⚡ Low-performance system detected - enabling basic MLFF execution with minimal resources")
-        # For very low performance systems, route to Codespaces for fallback or g-xTB if available
-        return "Codespaces"  # Route to Codespaces as a fallback for CPU-only systems
+    return "Local-Linux (Deb)" if memory_gb >= 16 else "Codespaces"
 
 def detect_element_boundaries(molecule_input: str) -> list:
     """
@@ -180,29 +170,24 @@ def detect_element_boundaries(molecule_input: str) -> list:
     Returns a list of detected elements.
     """
     try:
-        # Try to parse as SMILES first
         if molecule_input.startswith('[') and ']' in molecule_input:
-            # This is likely a SMILES string with atom specifications
             import re
-            # Extract elements from SMILES notation
             elements = re.findall(r'[A-Z][a-z]*', molecule_input)
-            return list(set(elements))  # Remove duplicates
+            return list(set(elements))
         else:
-            # Try to parse as XYZ file
             lines = molecule_input.strip().split('\n')
             if len(lines) >= 2:
-                # First line is number of atoms, second line is atom symbols
                 element_symbols = []
-                for i in range(2, min(len(lines), 100)):  # Check first 100 lines
+                for i in range(2, min(len(lines), 100)):
                     if lines[i].strip():
                         parts = lines[i].split()
                         if len(parts) > 0:
                             symbol = parts[0]
                             if symbol.isalpha() and len(symbol) <= 2:
                                 element_symbols.append(symbol)
-                return list(set(element_symbols))  # Remove duplicates
+                return list(set(element_symbols))
     except Exception as e:
-        print(f"⚠️  Failed to parse molecule input for elements: {e}")
+        print(f"[WARNING] Failed to parse molecule input for elements: {e}")
     
     return []
 
@@ -211,8 +196,6 @@ def get_element_fallback_strategy(elements: list) -> str:
     Determine if elements are outside MACE-OFF24m parameterized boundaries.
     Returns appropriate fallback method if needed.
     """
-    # Elements that are outside the parameterized boundaries of MACE-OFF24m
-    # These typically include transition metals and heavier elements
     non_mace_elements = {
         'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn',
         'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Y', 'Zr',
@@ -225,17 +208,21 @@ def get_element_fallback_strategy(elements: list) -> str:
         'Md', 'No', 'Lr'
     }
     
-    # Check if any elements are outside MACE-OFF24m boundaries
     non_mace_detected = [elem for elem in elements if elem in non_mace_elements]
     
     if non_mace_detected:
-        print(f"⚠️  Detected elements outside MACE-OFF24m parameterized boundaries: {non_mace_detected}")
-        print("🎯 Triggering AIMNet2 fallback to prevent runtime crashes")
+        print(f"[WARNING] Detected elements outside MACE-OFF24m parameterized boundaries: {non_mace_detected}")
+        print("[TARGET] Triggering AIMNet2 fallback to prevent runtime crashes")
         return "AIMNet2"
     
-    return None  # No fallback needed
+    return None
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+        print("CoChem-BASE Setup Orchestrator")
+        print("Usage: python setup/cochem_setup_orchestrator.py [--help]")
+        sys.exit(0)
+
     print("=======================================================")
     print(" CoChem-BASE: OS-Native Dual Matrix Orchestrator ")
     print("=======================================================\n")
@@ -245,47 +232,42 @@ def main():
         try:
             manifest = json.load(f)
         except json.JSONDecodeError:
-            print(f"❌ FATAL: Manifest {manifest_path} is corrupted.")
+            print(f"[FATAL] Manifest {manifest_path} is corrupted.")
             sys.exit(1)
         
     interact_env = manifest.get("interaction_environment")
     calc_env = manifest.get("calculation_environment")
     
     if not interact_env or not calc_env:
-        print("❌ FATAL: Manifest is missing 'interaction_environment' or 'calculation_environment' keys.")
+        print("[FATAL] Manifest is missing 'interaction_environment' or 'calculation_environment' keys.")
         sys.exit(1)
         
-    # Detect hardware capabilities
     hardware_info = detect_hardware_capability()
-    print(f"🔧 Detected Hardware: {hardware_info}")
+    print(f"[HARDWARE] Detected Hardware: {hardware_info}")
     
-    # Implement MLFF fallback routing logic based on hardware capability
     if calc_env == "MLFF-Fallback":
-        print("🔄 MLFF-Fallback strategy detected - determining optimal execution environment")
+        print("[ROUTING] MLFF-Fallback strategy detected - determining optimal execution environment")
         calc_env = get_mlff_fallback_strategy(hardware_info)
-        print(f"🎯 Selected calculation environment: {calc_env}")
+        print(f"[TARGET] Selected calculation environment: {calc_env}")
 
     interact_script = INTERACT_MAP.get(interact_env)
     calc_script = CALC_MAP.get(calc_env)
     
     if not interact_script:
-        print(f"❌ FATAL: Unknown Interaction Environment: {interact_env}")
+        print(f"[FATAL] Unknown Interaction Environment: {interact_env}")
         sys.exit(1)
         
     if not calc_script:
-        print(f"❌ FATAL: Unknown Calculation Environment: {calc_env}")
+        print(f"[FATAL] Unknown Calculation Environment: {calc_env}")
         sys.exit(1)
         
-    print(f"🌐 Target Interaction Layer: {interact_env}")
-    print(f"⚙️  Target Calculation Layer: {calc_env}\n")
+    print(f"[INTERACTION] Target Interaction Layer: {interact_env}")
+    print(f"[CALCULATION] Target Calculation Layer: {calc_env}\n")
     
-    # Phase 1: Provision Interaction (UI / Jupyter / Logs)
     execute_script(interact_script, interact_env)
-    
-    # Phase 2: Provision Calculation (Engines / MPI / Slurm)
     execute_script(calc_script, calc_env)
     
-    print("\n✅ CoChem-BASE Master Orchestration Complete.")
+    print("\n[SUCCESS] CoChem-BASE Master Orchestration Complete.")
     print("System Config Registry has been successfully compiled.")
 
 if __name__ == "__main__":

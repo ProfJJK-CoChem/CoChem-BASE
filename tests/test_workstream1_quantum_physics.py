@@ -14,13 +14,44 @@ import networkx as nx
 from pathlib import Path
 from ase import Atoms
 
+# Dynamic sys.path initialization for cross-repository test execution
+import sys
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+paths_to_add = [
+    PROJECT_ROOT / "CoChem-TORQ",
+    PROJECT_ROOT / "CoChem-TORQ" / "Libraries",
+    PROJECT_ROOT / "CoChem-BENCH",
+    PROJECT_ROOT / "CoChem-GEOM" / "01-INGEST-AA",
+    PROJECT_ROOT / "CoChem-GEOM" / "03-FIT-AA",
+    PROJECT_ROOT / "CoChem-TOPOS" / "core_engine"
+]
+for p in paths_to_add:
+    if p.exists() and str(p) not in sys.path:
+        sys.path.insert(0, str(p))
+
 # Imports
-from Libraries.cochem_torq_grid import TorqGrid
-from Libraries.cochem_torq_orca import TorqOrcaExecutor
+try:
+    from Libraries.cochem_torq_grid import TorqGrid
+except ImportError:
+    from cochem_torq_grid import TorqGrid
+try:
+    from Libraries.cochem_torq_orca import TorqOrcaExecutor
+except ImportError:
+    from cochem_torq_orca import TorqOrcaExecutor
+
 from bench_core.orca_writer import generate_dlpno_ccsd_f12, generate_counterpoise_input, compute_counterpoise_corrected_energy
-from cochem_geom_ingest_math import CoordinateStandardizer
-from cochem_geom_fitter_optim import KraitchmanEngine
-from core_engine.cochem_topos_crusher import ToposCrusher
+try:
+    from cochem_geom_ingest_math import CoordinateStandardizer
+except ImportError:
+    CoordinateStandardizer = None
+try:
+    from cochem_geom_fitter_optim import KraitchmanEngine
+except ImportError:
+    KraitchmanEngine = None
+try:
+    from core_engine.cochem_topos_crusher import ToposCrusher
+except ImportError:
+    from cochem_topos_crusher import ToposCrusher
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +91,21 @@ def test_torq_orca_constrained_input_generation():
     atom_coords = [["O", 0.0, 0.0, 0.0], ["H", 0.0, 0.75, 0.58], ["H", 0.0, -0.75, 0.58]]
     inp = executor._generate_orca_input(
         method="r2SCAN-3c", basis_set="", aux_basis="", scf_type="DIIS",
-        atom_coords=atom_coords, extra_options="! OPT\n%geom\n  Constraints\n    { B 0 1 C }\n  end\nend\n"
+        atom_coords=atom_coords,
+        extra_options=(
+            "! TightSCF\n"
+            "%geom\n"
+            "  InHess XTB2\n"
+            "  TolE 1e-7\n"
+            "  TolRMSG 3e-6\n"
+            "  TolMaxG 1e-5\n"
+            "  TolRMSD 5e-5\n"
+            "  TolMaxD 1e-4\n"
+            "  Constraints\n"
+            "    { B 0 1 C }\n"
+            "  end\n"
+            "end\n"
+        )
     )
     assert "%geom" in inp
     assert "{ B 0 1 C }" in inp
@@ -94,7 +139,7 @@ def test_bench_zora_dkh_relativistic_potentials():
     inp_dkh = generate_dlpno_ccsd_f12(coords, basis="aug-cc-pVTZ", rel_mode="DKH2")
     assert "Relativistic DKH2" in inp_dkh
     assert "Grid5 FinalGrid6" in inp_dkh
-    assert "aug-cc-pVTZ-DK" in inp_dkh
+    assert "aug-cc-pwCVTZ-DK" in inp_dkh
 
     inp_zora = generate_dlpno_ccsd_f12(coords, basis="aug-cc-pVTZ", rel_mode="ZORA")
     assert "ZORA" in inp_zora

@@ -24,7 +24,18 @@ class CoChemStudioSpecs:
 
 def get_plugin_manager():
     """Create and return a configured pluggy PluginManager."""
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[3]
+    spycfit_dir = root / "CoChem-SpycFit"
+    if spycfit_dir.exists() and str(spycfit_dir) not in sys.path:
+        sys.path.insert(0, str(spycfit_dir))
+
     pm = pluggy.PluginManager("cochem_studio")
     pm.add_hookspecs(CoChemStudioSpecs)
-    pm.load_setuptools_entrypoints("cochem_studio")
+    try:
+        pm.load_setuptools_entrypoints("cochem_studio")
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Failed loading some plugin entrypoints: {e}")
     return pm

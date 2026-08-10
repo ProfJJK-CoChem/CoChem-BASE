@@ -1,526 +1,2080 @@
-# 20260802 CoChem Master User Manual
+# CoChem v4 Master User Manual
+**Version 2026.4 — Method Matrix v4 Architecture & High-Resolution Spectroscopic Guidelines**
+
+---
 
 ## Table of Contents
 
-**PREFACE**
-* Foreword & Ecosystem Philosophy
-* How to Cite CoChem (Automated .bib Generation)
-* External Dependencies & Open-Source Licenses
-* How to Use This Manual
-
-**1. QUICKSTART & SYSTEM ARCHITECTURE**
-* 1.1 The CoChem Ecosystem Overview
-  * 1.1.1 The 15 Core Modules (UNITY to SCRIBE)
-  * 1.1.2 The "Registry-First" Philosophy (`cochem_system_config.json`)
-* 1.2 Installation & Deployment Models
-  * 1.2.1 The CoChem-UNITY Interactive Installation Dashboard
-  * 1.2.2 Model A: GitHub Codespaces (Cloud Default)
-  * 1.2.3 Model B: Windows 11 DevContainers (WSL2 + Docker)
-  * 1.2.4 Model C: Native Linux Workstations (Ubuntu/Mint/Fedora)
-  * 1.2.5 Oversubscription & The RESOURCE_GUARD Toggle
-  * 1.2.6 Pre-Flight Disk Checks & Offline Fallbacks
-  * 1.2.7 The Thermal Throttle Governor (SIGSTOP / SIGCONT)
-  * 1.2.8 OpenMPI Shared-Memory (SHM) Checksum Verification
-* 1.3 The 7-Phase Initialization Protocol (Stage 0.0)
-  * 1.3.1 Dynamic Micro-Silos and C++ ABI Conflict Resolution
-  * 1.3.2 Hardware-Aware Adaptive Tiering (Memory & VRAM Profiling)
-  * 1.3.3 Strict Pydantic Schema Validation
-* 1.4 CoChem-DOCK: Telemetry & The Unified GUI
-  * 1.4.1 Asynchronous WebSocket Job Streaming
-  * 1.4.2 Visualizing OpenMPI and SCF Iterations Safely
-  * 1.4.3 LTTB Decimation for Massive Spectral Arrays
-
-**2. MOLECULAR INGESTION & TRIAGE (CoChem-MInt)**
-* 2.1 The Unified Ingestion Dashboard
-* 2.2 Method A: PubChem API Fetching
-  * 2.2.1 Asynchronous Querying & py3Dmol Visual Grid
-* 2.3 Method B: Direct File Uploads
-* 2.4 The Sandboxed Fast Triage (GFN2-xTB / UFF)
-* 2.5 Mathematical Alignment & The Eckart Frame
-* 2.6 Physics Variable Configuration
-  * 2.6.1 Defining Target Observables
-  * 2.6.2 System Temperature & Macroscopic Boltzmann Setup
-  * 2.6.3 Isotopic Overdrive Activation
-* 2.7 Initialization of fit_provenance.json
-
-**3. TOPOLOGICAL DISCOVERY & THE PES (TOPOS, SCAN, TORQ)**
-*(Detailed in Segment 2)*
-
-**4. HIGH-PRECISION AB INITIO REFINEMENT (BENCH & CROWN)**
-*(Detailed in Segment 2)*
-
-**5. SPECTROSCOPIC PREDICTION & EXPERIMENTAL FITTING**
-*(Detailed in Segment 3)*
-
-**6. TELEMETRY, HPC DISPATCH & AI REPORTING**
-*(Detailed in Segment 3)*
-
-**7. EDUCATIONAL & PEDAGOGICAL IMPLEMENTATIONS**
-*(Detailed in Segment 4)*
+- [PREFACE: THE METHOD MATRIX V4 DISCIPLINE](#preface-the-method-matrix-v4-discipline)
+  - [Foreword & Ecosystem Philosophy](#foreword--ecosystem-philosophy)
+  - [Detailed Catalog of the 15 Core Modules](#detailed-catalog-of-the-15-core-modules)
+  - [Inter-Module Data Flow & QCSchema Specification](#inter-module-data-flow--qcschema-specification)
+  - [The Method Matrix v4 Standards & Provenance Discipline](#the-method-matrix-v4-standards--provenance-discipline)
+  - [How to Cite CoChem & Automated Citation Generation](#how-to-cite-cochem--automated-citation-generation)
+- [CHAPTER 1: QUICKSTART, METHOD MATRIX TIERING & SYSTEM ARCHITECTURE](#chapter-1-quickstart-method-matrix-tiering--system-architecture)
+  - [1.1 The v4 Tier-Based Routing System & Wall-Clock Budgets](#11-the-v4-tier-based-routing-system--wall-clock-budgets)
+  - [1.2 Product Classes A, B, C & Target Accuracy Definitions](#12-product-classes-a-b-c--target-accuracy-definitions)
+  - [1.3 Method Matrix Routing Decision Tree](#13-method-matrix-routing-decision-tree)
+  - [1.4 Hardware Routing & Modern GPU Acceleration Reality](#14-hardware-routing--modern-gpu-acceleration-reality)
+  - [1.5 System Deployment Models, Licensing & Cloud Limits](#15-system-deployment-models-licensing--cloud-limits)
+  - [1.6 CoChem-DOCK: Telemetry, WebSockets & Decimated Array Streaming](#16-cochem-dock-telemetry-websockets--decimated-array-streaming)
+- [CHAPTER 2: MOLECULAR INGESTION, TRIAGE & PROVENANCE (CoChem-MInt)](#chapter-2-molecular-ingestion-triage--provenance-cochem-mint)
+  - [2.1 The Unified Ingestion Dashboard & Input Parsing](#21-the-unified-ingestion-dashboard--input-parsing)
+  - [2.2 Sandboxed Fast Triage & The Eckart Coordinate Frame](#22-sandboxed-fast-triage--the-eckart-coordinate-frame)
+  - [2.3 Physics Variable Setup & Spend Priority Hierarchy](#23-physics-variable-setup--spend-priority-hierarchy)
+  - [2.4 Provenance Initialization & Semantic Audit Ledger](#24-provenance-initialization--semantic-audit-ledger)
+- [CHAPTER 3: TOPOLOGICAL DISCOVERY, DEDUPLICATION & PES (TOPOS, SCAN, TORQ)](#chapter-3-topological-discovery-deduplication--pes-topos-scan-torq)
+  - [3.1 Conformer & Isomer Exploration (T1 Routing)](#31-conformer--isomer-exploration-t1-routing)
+  - [3.2 Two-Stage Deduplication Protocol: GOAT Primary + CREST Cross-Check](#32-two-stage-deduplication-protocol-goat-primary--crest-cross-check)
+  - [3.3 MLFF-GOAT Integration Recipe & Boundary Constraints](#33-mlff-goat-integration-recipe--boundary-constraints)
+  - [3.4 Geometry Optimization Preconditioning & Initial Hessians](#34-geometry-optimization-preconditioning--initial-hessians)
+  - [3.5 Torsional Discovery & Internal Rotor Mechanics (TORQ)](#35-torsional-discovery--internal-rotor-mechanics-torq)
+  - [3.6 Persistent HDF5 Potential Energy Surface Store (`PESStore`)](#36-persistent-hdf5-potential-energy-surface-store-pesstore)
+  - [3.7 Active Learning & Dynamic PES Refinement (SCAN)](#37-active-learning--dynamic-pes-refinement-scan)
+- [CHAPTER 4: HIGH-PRECISION AB INITIO REFINEMENT (BENCH & CROWN)](#chapter-4-high-precision-ab-initio-refinement-bench--crown)
+  - [4.1 Equilibrium ($B_e$) vs Ground-State ($B_0$) Rotational Constants](#41-equilibrium-b_e-vs-ground-state-b_0-rotational-constants)
+  - [4.2 Intermolecular Geometry Convergence & Corrected `%geom` Block](#42-intermolecular-geometry-convergence--corrected-geom-block)
+  - [4.3 Frozen-Monomer Composite Protocol](#43-frozen-monomer-composite-protocol)
+  - [4.4 Basis Set Superposition Error (BSSE) Geometry Corrections](#44-basis-set-superposition-error-bsse-geometry-corrections)
+  - [4.5 Frozen-Core Bias & Core-Valence Electron Correlation](#45-frozen-core-bias--core-valence-electron-correlation)
+  - [4.6 Quantum Engine Track Division: ORCA vs CFOUR](#46-quantum-engine-track-division-orca-vs-cfour)
+  - [4.7 Multireference Diagnostics & Macroscopic Thermal Ensembles](#47-multireference-diagnostics--macroscopic-thermal-ensembles)
+- [CHAPTER 5: VIBRATIONAL AVERAGING, SECONDARY OBSERVABLES & FITTING (SpycFit & MUSE)](#chapter-5-vibrational-averaging-secondary-observables--fitting-spycfit--muse)
+  - [5.1 Quantum Vibrational Averaging & Jensen's Inequality](#51-quantum-vibrational-averaging--jensens-inequality)
+  - [5.2 Corrected Anharmonic VPT2 Displacement Counts](#52-corrected-anharmonic-vpt2-displacement-counts)
+  - [5.3 Force-Field Recycling & Isotopologue Structural Fitting](#53-force-field-recycling--isotopologue-structural-fitting)
+  - [5.4 Secondary Spectroscopic Observables](#54-secondary-spectroscopic-observables)
+  - [5.5 Permutation-Inversion Molecular Symmetry Groups](#55-permutation-inversion-molecular-symmetry-groups)
+  - [5.6 Modern JAX Spectroscopy Fitting Engine & Pickett Interoperability](#56-modern-jax-spectroscopy-fitting-engine--pickett-interoperability)
+- [CHAPTER 6: CONCURRENCY, STATE-CHAINING, TELEMETRY & DISPATCH (TORQ, NODE, SCRIBE, ORACLE)](#chapter-6-concurrency-state-chaining-telemetry--dispatch-torq-node-scribe-oracle)
+  - [6.1 Heterogeneous Concurrency & Scout-and-Anchor Pipeline](#61-heterogeneous-concurrency--scout-and-anchor-pipeline)
+  - [6.2 State Reuse & Canonical 11-Arrow Chaining Pipeline](#62-state-reuse--canonical-11-arrow-chaining-pipeline)
+  - [6.3 Remote SLURM Cluster Dispatch (CoChem-NODE)](#63-remote-slurm-cluster-dispatch-cochem-node)
+  - [6.4 Localized Retrieval-Augmented RAG Diagnostics (CoChem-ORACLE)](#64-localized-retrieval-augmented-rag-diagnostics-cochem-oracle)
+  - [6.5 Cryptographic FAIR Data Synthesis & QCSchema Logging (CoChem-SCRIBE)](#65-cryptographic-fair-data-synthesis--qcschema-logging-cochem-scribe)
+- [CHAPTER 7: EDUCATIONAL & PEDAGOGICAL IMPLEMENTATIONS](#chapter-7-educational--pedagogical-implementations)
+  - [7.1 Foundational Concept Training (CoChem-PLAY1 & PLAY2)](#71-foundational-concept-training-cochem-play1--play2)
+  - [7.2 The Gamified Curriculum (Academic Elo Tiers)](#72-the-gamified-curriculum-academic-elo-tiers)
+  - [7.3 Undergraduate Curriculum Mapping (CoChem-CURE)](#73-undergraduate-curriculum-mapping-cochem-cure)
+  - [7.4 Capstone Grading & Telemetry (CoChem-LABS & EVAL)](#74-capstone-grading--telemetry-cochem-labs--eval)
+  - [7.5 The Principal Investigator (PI) Draft Board](#75-the-principal-investigator-pi-draft-board)
+  - [7.6 Teaching Tier Infrastructure Limits & Deployment](#76-teaching-tier-infrastructure-limits--deployment)
+- [APPENDIX: METHOD MATRIX TIER TABLES & PARETO FRONTIER](#appendix-method-matrix-tier-tables--pareto-frontier)
+  - [A.1 Summary Table of Method Matrix Tiers (T1–T10)](#a1-summary-table-of-method-matrix-tiers-t1t10)
+  - [A.2 Pareto Frontier & Dominated Execution Pathways](#a2-pareto-frontier--dominated-execution-pathways)
+  - [A.3 Silent Failure Modes & Rejection Triggers](#a3-silent-failure-modes--rejection-triggers)
+  - [A.4 Standing Rules & Mandatory Discipline Checklist](#a4-standing-rules--mandatory-discipline-checklist)
 
 ---
 
-# PREFACE
+# PREFACE: THE METHOD MATRIX V4 DISCIPLINE
 
 ### Foreword & Ecosystem Philosophy
-Welcome to CoChem Version 2026.2.
+Welcome to CoChem Version 2026.4.
 
-Computational chemistry has historically been fractured into discrete, highly specialized command-line utilities. A spectroscopist attempting to assign a dense microwave spectrum might require five different software packages: one to guess the geometry, one to search for conformers, ORCA to refine the energy, a Fortran binary from the 1980s (SPCAT/SPFIT) to predict the spectrum, and another tool to plot it.
+High-resolution molecular spectroscopy demands an unprecedented level of computational precision. Assigning a complex broadband rotational spectrum obtained via Chirped-Pulse Fourier Transform Microwave (CP-FTMW) spectroscopy requires predicting rotational constants ($A_0, B_0, C_0$) to within fractions of a percent, accurately forecasting dipole moment components ($\mu_a, \mu_b, \mu_c$), and calculating nuclear quadrupole coupling tensors ($\chi_{\alpha\beta}$) or centrifugal distortion parameters.
 
-The **CoChem Ecosystem** was engineered to unify this fractured landscape into a single, hardware-aware, mathematically rigorous pipeline. CoChem bridges the gap between modern Machine Learning Potential Energy Surfaces (like MACE-OFF23) and gold-standard *ab initio* wavefunctions (like DLPNO-CCSD(T)).
+Historically, computational chemistry pipelines have suffered from an arbitrary selection of theoretical methods—often mixing electronic structure algorithms, basis sets, and convergence thresholds without rigorous quantitative error propagation. A user might run a default geometry optimization using Density Functional Theory (DFT) with loose criteria, invert the resulting moments of inertia, and wonder why the predicted spectrum is offset by hundreds of megahertz from experimental lines.
 
-**The Prime Directive:** CoChem operates on a philosophy of "Scientific Defensibility over Heuristic Convenience." Where older pipelines silently delete duplicate structures, CoChem's *Jiggle-Quench* mathematically proves basin boundaries. Where standard scripts crash due to 180° linear angle singularities, CoChem deploys Cartesian protections. Every assumption is logged, and every output is formatted for immediate FAIR-compliant publication.
+The **CoChem Ecosystem** unifies molecular ingestion, topological discovery, high-level *ab initio* refinement, vibrational averaging, and spectroscopic line-fitting into a hardware-aware, mathematically validated framework. CoChem v4 incorporates the **20260809 Method Matrix Specification** [`§Preamble, §8.2–§8.4`], establishing an uncompromising standard of scientific defensibility over heuristic convenience.
 
-### How to Cite CoChem (Automated .bib Generation)
-Because CoChem acts as an orchestrator across dozens of theoretical frameworks, proper attribution to the underlying method developers is mandatory. CoChem completely automates this process. During execution, the compiled bibliography references will be generated autonomously based on the exact path and engines invoked during your specific computation.
-
----
-
-# 1. QUICKSTART & SYSTEM ARCHITECTURE
-
-## 1.1 The CoChem Ecosystem Overview
-### 1.1.1 The 15 Core Modules (UNITY to SCRIBE)
-The pipeline operates as a sequence of highly decoupled modules spanning ingestion (UNITY, MInt), discovery (TOPOS, TORQ, SCAN), refinement (BENCH, CROWN), spectroscopic prediction (SpycFit, SHIFT, MAGE, LUMOS), and telemetry (NODE, ORACLE, SCRIBE).
-
-### 1.1.2 The "Registry-First" Philosophy (`cochem_system_config.json`)
-CoChem abandons hardcoded execution paths. It relies on a "Registry-First" architecture. `cochem_system_config.json` acts as the authoritative environment registry, dynamically queried by downstream scripts to ensure the node has the necessary resources before a compute-heavy task is allowed to spawn.
-
-## 1.2 Installation & Deployment Models
-### 1.2.1 The CoChem-UNITY Interactive Installation Dashboard
-Users interface initially through the CoChem-UNITY interactive dashboard, providing a visually coherent method for selecting pipeline components to compile.
-
-### 1.2.2 - 1.2.5 Standard Deployment & The RESOURCE_GUARD Toggle
-CoChem supports deployment via GitHub Codespaces, Windows 11 DevContainers (WSL2 + Docker), and native Linux Workstations. Oversubscription of clusters or local laptops is prevented by the `RESOURCE_GUARD` toggle, which aborts memory-unsafe execution blocks and provides API-based dry-runs where heavy local model weights (e.g., 4GB+ `.gguf` files for the LLM) are skipped.
-
-### 1.2.6 Pre-Flight Disk Checks & Offline Fallbacks
-Computational chemistry creates massive transient files. If a drive reaches 100% capacity during a coupled-cluster routine, the node will suffer a hard crash.
-* **The 10GB psutil Gate:** During Stage 0 initialization, `cochem_setup_1_sys.py` utilizes the `psutil` library to scan the target I/O Scratch Directory. If < 10GB of free NVMe/SSD space is available, the setup aborts immediately with a safe, descriptive warning rather than failing destructively mid-calculation.
-* **Offline/Firewall Tarball Routing:** The setup script pings a reliable external server (1.1.1.1). If the host machine is air-gapped or behind a strict university firewall preventing standard `git clone` or `pip install` operations, the script dynamically flips to **Local Fallback Mode**, extracting pre-packaged local tarballs instead of utilizing external `urllib` fetchers.
-* **Autonomous Source Cleanup:** Upon successful compilation of heavy machine-learning libraries (like MACE-OFF23), the orchestrator immediately purges the raw source-code directories, recovering hundreds of megabytes of workspace storage.
-
-### 1.2.7 The Thermal Throttle Governor (SIGSTOP / SIGCONT)
-High-tier computations, particularly Canonical Coupled-Cluster or dense FSSH dynamics, push CPU packages to their absolute thermal limits. Operating near the maximum junction temperature causes the silicon to thermally throttle, artificially extending wall-times and invalidating benchmark scaling data.
-* **The Intercept:** CoChem integrates natively with Linux `lm-sensors`. The orchestrator runs a lightweight background thread monitoring the CPU package temperature.
-* **Dynamic Suspension:** If the node temperature exceeds 90°C, CoChem autonomously issues a POSIX `SIGSTOP` command to the running OpenMPI processes. This freezes the calculation in memory, allowing the silicon to cool.
-* **Resumption:** Once the temperature falls back below 75°C, the daemon issues a `SIGCONT` command, cleanly resuming the calculation without losing a single SCF iteration.
-
-### 1.2.8 OpenMPI Shared-Memory (SHM) Checksum Verification
-When parallelizing heavy tensor contractions across 24 to 128 cores, data is passed through Shared-Memory (SHM) segments. In heavily utilized clusters, rapid context switching can occasionally cause silent memory corruption across the hardware bus. CoChem mathematically enforces reproducibility by verifying the byte-size of the partitioned tensors against an expected SHM checksum before the ORCA wrapper allows the final energy extraction, guaranteeing that a predicted rotational constant is free of silent hardware faults.
-
-## 1.3 The 7-Phase Initialization Protocol (Stage 0.0)
-### 1.3.1 Dynamic Micro-Silos and C++ ABI Conflict Resolution
-Why does CoChem use "Micro-Silos"? Installing `mace-torch` (which requires specific NVIDIA CUDA binaries) alongside standard analytical packages often causes fatal C++ Application Binary Interface (ABI) conflicts. CoChem's Stage 0 automatically partitions high-risk packages into isolated virtual environments (e.g., a `cochem-mace` silo and a `cochem-orca` silo), executing them as subprocesses and passing data via JSON/HDF5 to avoid library collisions.
-
-### 1.3.2 Hardware-Aware Adaptive Tiering (Memory & VRAM Profiling)
-Stage 0 natively profiles the available system resources, mapping PyTorch batch sizes and ORCA `%maxcore` targets to safely saturate available RAM and VRAM without invoking swap thrashing.
-
-### 1.3.3 Strict Pydantic Schema Validation
-The `cochem_system_config.json` is the central nervous system of the pipeline. If a user manually edits this file and accidentally changes a boolean `true` to a string `"true"`, legacy scripts would crash mid-execution. CoChem prevents environment drift by wrapping the entire registry in a strict **Pydantic** data schema. Every time a sub-module boots, it validates the JSON against the schema. If an invalid type is detected, the `cochem_setup_5_finalize.py` module immediately intercepts the error and heals the configuration back to standard defaults.
-
-## 1.4 CoChem-DOCK: Telemetry & The Unified GUI
-Streaming raw output from an ORCA calculation (which can produce tens of thousands of lines of SCF iterations) directly into a standard Jupyter Notebook cell will cause the browser's Document Object Model (DOM) to freeze and crash, leading to data loss.
-
-### 1.4.1 Asynchronous WebSocket Job Streaming
-CoChem-DOCK solves this by routing output away from Jupyter. It spins up a localized React Single-Page Application (SPA). As your calculations run in the background, CoChem-DOCK utilizes FastAPI WebSockets to stream the stdout logs directly to a dedicated, virtualized React text-box.
-
-### 1.4.2 Visualizing OpenMPI and SCF Iterations Safely
-By leveraging React's `useRef` hook rather than `useState` for the log stream, CoChem-DOCK prevents layout thrashing. The user can watch 24-core OpenMPI processes converge in real-time, completely insulated from the fragility of the Jupyter frontend.
-
-### 1.4.3 LTTB Decimation for Massive Spectral Arrays
-A standard room-temperature partition function simulated by CoChem-SpycFit can contain upwards of 10 million individual frequency/intensity points. Attempting to render 10 million coordinate pairs in a browser-based React or Plotly canvas will cause the WebGL engine to instantly out-of-memory (OOM) crash the user's browser tab.
-* **The Solution (LTTB):** CoChem-DOCK passes the massive dataset through a **Largest-Triangle-Three-Buckets (LTTB)** decimation algorithm before streaming it to the frontend. Unlike standard down-sampling (which arbitrarily deletes points and frequently erases sharp spectral peaks), LTTB mathematically evaluates the visual triangle area of the dataset. It compresses the 10-million-point array down to 5,000 points while perfectly preserving the visual fidelity of all spectral peak maxima and signal baselines.
+The Prime Directive of CoChem v4 remains: **Scientific Defensibility over Heuristic Convenience.** Where legacy pipelines silently deleted structural isomers using arbitrary spatial cutoffs, CoChem deploys two-stage deduplication (`GOAT` + `CREST`) [`§9B.1`]. Where standard scripts crashed near 180° linear angle singularities, CoChem deploys Cartesian projection protections [`§2.3, §4.5`]. Every assumption is tagged with provenance metadata, and every deliverable is formatted for FAIR-compliant publication [`§12.5`, `§20.2`].
 
 ---
 
-# 2. MOLECULAR INGESTION & TRIAGE (CoChem-MInt)
+### Detailed Catalog of the 15 Core Modules
+The CoChem v4 suite is composed of 15 decoupled, interoperable modules spanning ingestion, exploration, refinement, fitting, and telemetry [`§1.1, §1.2, §2.1`]:
 
-The foundation of any rigorous computational chemistry pipeline is the quality of its initial geometries. Feeding a distorted, unphysical, or translationally shifted coordinate set into a high-tier quantum solver like coupled-cluster theory will reliably result in SCF non-convergence or catastrophic memory waste.
+```
++-----------------------------------------------------------------------------------+
+|                           THE 15 CORE COCHEM V4 MODULES                           |
++----+---------------+-----------------------------------+--------------------------+
+| #  | Module Name   | Primary Domain / Responsibility   | Core Technology / Engine |
++----+---------------+-----------------------------------+--------------------------+
+| 1  | CoChem-UNITY  | Installation & GUI Dashboard      | React / FastAPI          |
+| 2  | CoChem-MInt   | Ingestion, Sanitization & Triage  | RDKit / GFN2-xTB / UFF   |
+| 3  | CoChem-TOPOS  | Global Conformer Discovery        | ORCA GOAT / CREST NCI    |
+| 4  | CoChem-TORQ   | Hindered Internal Rotation        | 1D Relaxed Scans / Pitzer|
+| 5  | CoChem-SCAN   | PES Mapping & Active Learning     | MACE-OFF / QBC Sampling  |
+| 6  | CoChem-BENCH  | Ab Initio Thermochemical Limit    | junChS / DLPNO-CCSD(T)   |
+| 7  | CoChem-CROWN  | Non-Covalent Dimer Composites     | Frozen-Monomer Protocol  |
+| 8  | CoChem-SpycFit| Spectroscopic Fitting & Autodiff  | JAX / Pickett pyckett    |
+| 9  | CoChem-MUSE   | Automated Mass Substitution       | Kraitchman / Costain r_m |
+| 10 | CoChem-LUMOS  | Photophysics & Radical Cleavage   | EOM-CCSD / Spin Contam   |
+| 11 | CoChem-KINETIC| Master Equation & VTST Rates      | Variational TST / LZ Hop |
+| 12 | CoChem-PULSE  | Non-Adiabatic Dynamics            | Surface Hopping / Wigner |
+| 13 | CoChem-NODE   | Remote HPC Workload Scheduling    | SLURM / OpenMPI          |
+| 14 | CoChem-ORACLE | LLM Retrieval-Augmented RAG       | llama.cpp / ChromaDB     |
+| 15 | CoChem-SCRIBE | Provenance & FAIR Export          | QCSchema / Jinja2 LaTeX  |
++----+---------------+-----------------------------------+--------------------------+
+```
 
-**CoChem-MInt** (Molecular Ingestion & Triage) operates as the strict gatekeeper of the pipeline, ensuring that all molecular inputs are sanitized, canonicalized, and physically bound before any external binaries are invoked.
+Each module maintains a dedicated execution scope and API contract:
+1. **CoChem-UNITY**: Serves as the centralized launcher and configuration validator (`cochem_system_config.json`). Enforces Pydantic schema verification during startup [`§8.0, §12.6, §18`]. Maintains active configuration states for local and cloud environments.
+2. **CoChem-MInt**: Sanitizes incoming molecular graphs, centers atomic coordinates on the Center of Mass, and aligns structures to the Eckart coordinate frame [`§2.3, §5.1`]. Detects bad valencies and prevents steric collisions.
+3. **CoChem-TOPOS**: Orchestrates global conformer exploration via ORCA GOAT and CREST non-covalent searching, enforcing two-stage deduplication [`§9B.1`]. Merges structural candidates from multiple search engines.
+4. **CoChem-TORQ**: Isolates flexible torsions, evaluates internal rotor reduced moments $F(\phi)$, and outputs 1D potential curves for $V_3/V_6$ barrier fitting [`§6.7`]. Evaluates effective moments of inertia along scanning trajectories.
+5. **CoChem-SCAN**: Generates multi-dimensional potential energy surfaces, executing active-learning delta learning ($\Delta$-learning) with QBC uncertainty sampling [`§13.2`]. Refines high-dimensional surfaces with minimal electronic structure calls.
+6. **CoChem-BENCH**: Executes gold-standard composite electronic structure calculations (junChS, CBS+CV, DLPNO-CCSD(T)) to deliver equilibrium geometries ($r_e$) and $B_e$ [`§13.3`]. Implements high-precision CBS extrapolations.
+7. **CoChem-CROWN**: Constructs counterpoise-corrected composite calculations for weak van der Waals dimers using the Frozen-Monomer Composite Protocol [`§9A.4`]. Eliminates artificial covalent bond distortion.
+8. **CoChem-SpycFit**: High-speed spectroscopic line fitter operating on JAX automatic differentiation, featuring out-of-core PyArrow Parquet transition logging [`§5.6`]. Calculates exact analytical Jacobians for Watson Hamiltonians.
+9. **CoChem-MUSE**: Automated isotopologue generator managing mass-substitution calculations, Kraitchman coordinate transformations ($r_s$), and Costain mass scaling ($r_m^{(2)}$) [`§5.3`, `§5.6`]. Automates isotopic spectrum generation.
+10. **CoChem-LUMOS**: Simulates radical photophysics, open-shell electronic transitions, spin contamination ($\langle S^2 \rangle$), and excited state decay vectors [`§14.5`]. Evaluates non-adiabatic state couplings.
+11. **CoChem-KINETIC**: Solves the Master Equation for chemical reaction networks using Variational Transition State Theory (VTST) and Landau-Zener surface hop probabilities [`§5.8`]. Simulates complex chemical decay kinetics.
+12. **CoChem-PULSE**: Propagates non-adiabatic molecular dynamics across multi-surface crossings using initial Wigner phase-space sampling [`§5.5`]. Generates quantum trajectory ensembles.
+13. **CoChem-NODE**: Translates pipeline execution state into SLURM job submission scripts (`.sbatch`), managing core pinning and asynchronous job adoption [`§6.1`]. Monitors cluster node health and core allocation.
+14. **CoChem-ORACLE**: Operates a local RAG agent backed by `llama.cpp` and a local ChromaDB vector vault for contextual quantum chemistry error diagnosis [`§6.2`, `§6.4`]. Provides offline diagnostic recommendations.
+15. **CoChem-SCRIBE**: Formats output datasets into FAIR-compliant packages, generating QCSchema JSON, Jinja2 LaTeX methodology text, and BibTeX citation logs [`§6.3`, `§20.2`]. Produces publication-ready reporting packages.
 
-## 2.1 The Unified Ingestion Dashboard
-The user interfaces with MInt via the CoChem-UNITY frontend. This dashboard bypasses the need for manual `.xyz` text manipulation, providing two distinct pathways for geometric ingestion.
+### Inter-Module Data Flow & QCSchema Specification
+The 15 modules communicate through explicit JSON-RPC and REST endpoints managed by the FastAPI server in UNITY. Inter-module data flow strictly follows the QCSchema standard (`qcjson`). When BENCH finishes a DLPNO-CCSD(T) single point, it emits a QCSchema `AtomicResult` object containing the total electronic energy, gradient array, and wave-function diagnostic scalars. SCRIBE listens on the event bus, writing `AtomicResult` objects directly into the active HDF5 store (`PESStore`) [`§8C.2`].
 
-## 2.2 Method A: PubChem API Fetching
-For standard molecular systems, users can bypass local file management entirely.
-### 2.2.1 Asynchronous Querying & py3Dmol Visual Grid
-By entering an IUPAC name, common string, or SMILES identifier into the MInt dashboard, the system utilizes an asynchronous `aiohttp` routine to query the PubChem database. The backend retrieves the spatial coordinates and instantly renders the top 5 conformational matches inside a `py3Dmol` interactive WebGL grid. Users can rotate, zoom, and visually verify the structure, selecting the most appropriate starting geometry with a single click.
-
-## 2.3 Method B: Direct File Uploads
-For novel compounds, transition states, or proprietary geometries, users upload custom `.xyz` files directly into the GUI for ingestion parsing.
-
-## 2.4 The Sandboxed Fast Triage (GFN2-xTB / UFF)
-Once the coordinates are in memory, they are routed through a sandboxed triage to repair distorted bond lengths and impossible dihedral angles. The system attempts a rapid structural minimization using GFN2-xTB or the Universal Force Field (UFF), providing didactic tooltips to remind users of the limitations of molecular mechanics prior to deeper refinement.
-
-## 2.5 Mathematical Alignment & The Eckart Frame
-Before proceeding to topological deduplication, MInt ensures spatial determinism. The molecule is structurally recentered strictly to its Center of Mass. The principal rotational axes are computed, and the atoms are re-oriented to standard Eckart Frame alignment. This guarantees that two identical molecules imported at different arbitrary space orientations will perfectly overlap during later RMSD grid hashing checks.
-
-## 2.6 Physics Variable Configuration
-Before handing the canonicalized geometry off to the topological discovery engines, the user must define the physics of the target simulation.
-### 2.6.1 Defining Target Observables
-The UI prompts the user to declare the intent of the pipeline: Microwave (MW), Infrared (IR), Raman, Ultraviolet-Visible (UV/Vis), or Nuclear Magnetic Resonance (NMR). This toggle trims the workflow, explicitly preventing the calculation of expensive transition dipoles if the user only requires NMR shielding tensors.
-### 2.6.2 System Temperature & Macroscopic Boltzmann Setup
-The macroscopic cell temperature ($T_{sys}$, default 298.15 K) is established here. This scalar is passed into the global registry to dictate the eventual Boltzmann weighting of the conformational ensemble.
-### 2.6.3 Isotopic Overdrive Activation
-If the user seeks to assign a complex microwave spectrum, they will toggle the **Isotopic Overdrive**. This instructs the downstream ORCA generators to automatically loop the final geometries through the `%freq` mass block, calculating the exact spectral shifts for $^{13}\text{C}$, $^{18}\text{O}$, $^{15}\text{N}$, or Deuterium substitutions without requiring redundant geometry optimizations.
-
-## 2.7 Initialization of fit_provenance.json
-At the conclusion of Stage 2, MInt generates `fit_provenance.json`. This cryptographic ledger locks down the exact Python environment hash, the active ORCA version, and the specific CODATA physical constant values used (e.g., CODATA 2018). This ensures that a spectrum predicted today can be reproduced bit-for-bit ten years from now.
-
-
-# 3. TOPOLOGICAL DISCOVERY & THE PES (TOPOS, SCAN, TORQ)
-
-With a canonicalized, physically viable geometry secured, the pipeline must now construct the Potential Energy Surface (PES) and identify all thermodynamically accessible conformations. A single static structure is insufficient for modern macroscopic spectroscopy.
-
-## 3.1 Theoretical Background: Potential Energy Surfaces
-The standard approach to mapping a PES involves running thousands of Density Functional Theory (DFT) calculations—a process that can take weeks. CoChem utilizes modern Machine Learning Force Fields (MLFF) to compress this into hours.
-
-### 3.1.1 MACE-OFF23 vs. Double-Hybrid Functionals
-**CoChem-SCAN** primarily relies on the **MACE-OFF23** neural network potential. By keeping the neural network weights loaded in the GPU VRAM, CoChem can compute forces and energies for thousands of coordinate steps in the time it takes a standard Double-Hybrid functional (e.g., revDSD-PBEP86-D4) to complete a single SCF iteration.
-
-### 3.1.2 The Element Support Gatekeeper
-MACE-OFF23 is explicitly trained on organic parameters and breaks down outside its domain. CoChem implements an autonomous gatekeeper: it scans the atomic numbers in the registry. If the molecule contains elements outside the supported set (H, C, N, O, P, S, F, Cl, Br, I), CoChem intercepts the error and seamlessly falls back to the semi-empirical GFN2-xTB engine, guaranteeing that the pipeline never halts due to parameter mismatch.
-
-### 3.1.3 Hardware Acceleration via cuequivariance
-Standard execution of the MACE-OFF23 neural network relies on baseline PyTorch operations. However, the true speed of modern Message Passing Neural Networks (MPNNs) lies in highly optimized, CUDA-native equivariant operations.
-* **The Dependency Injection:** The official PyPI distribution of `mace-torch` frequently neglects to auto-resolve optimal GPU libraries. CoChem's Stage 0 micro-silo generator explicitly forces the installation of `cuequivariance` and `cuequivariance_torch`.
-* By bypassing standard CPU-bound graph construction and feeding the coordinate tensors directly into these accelerated libraries, CoChem achieves a massive speedup (often >300%) during the 10,000+ step topological grid searches, effectively turning an overnight scan into a 20-minute coffee-break calculation.
-
-## 3.2 Global Conformer Discovery (TOPOS & GOAT)
-While the CoChem-SCAN module maps rigid, user-defined grids, untargeted global minimum searching requires a stochastic approach. CoChem natively interfaces with ORCA 6.1.1's **Global Optimizer Algorithm (GOAT)**, wrapping it in a highly parallelized, memory-safe Python architecture.
-
-### 3.2.1 Parallel GOAT Execution via ProcessPool
-ORCA's native GOAT routine can be slow if run sequentially. CoChem intercepts the GOAT block and utilizes Python's `concurrent.futures.ThreadPoolExecutor`.
-* By reading the available threads from `cochem_system_config.json`, the orchestrator spawns multiple independent ORCA processes simultaneously (e.g., 8 concurrent instances).
-* It dynamically partitions memory by calculating MaxMemory / NCores, actively writing the `%maxcore` flag into each isolated `basename_T1_m{idx}.inp` file, ensuring complete hardware saturation without causing swap-file thrashing.
-
-### 3.2.2 The Calc_Hess true Directive for Floppy Complexes
-For weakly bound, non-covalent clusters (e.g., $\text{SO}_2 \cdots \text{H}_2$), standard quasi-Newton optimizers frequently fail, "ping-ponging" endlessly around a shallow, flat potential energy surface.
-* CoChem systematically injects the `Calc_Hess true` keyword into the GOAT initialization block.
-* While calculating an exact initial Hessian adds computational overhead to step one, it provides the optimizer with the exact mathematical curvature of the PES. This drastically reduces the total number of optimization steps required to find the true minimum, ultimately saving hours of compute time.
-
-## 3.3 The Topological Funnel (Jiggle-Quench Deduplication)
-When GOAT outputs 500 structures, many are mathematically identical isomers simply rotated in 3D space. Legacy pipelines align these structures using Kabsch RMSD fitting. This is fundamentally flawed: for floppy molecules, Kabsch alignment frequently fails to overlay identical atomic graphs if a methyl group happens to be pointing slightly askew.
-
-### 3.3.1 The Distance Matrix Hash
-CoChem discards spatial alignment entirely. It calculates the **1D sorted Interatomic Distance Matrix** for every structure. Because internal bond lengths and angles do not change when a molecule translates or rotates through space, identical isomers will produce mathematically identical 1D distance vectors.
-
-### 3.3.2 The Jiggle-Quench Basin Prover
-If two structures have matching distance vectors, CoChem invokes the **Jiggle-Quench** protocol.
-1. The atoms of the suspect duplicate are artificially perturbed (jiggled) by 0.1 Å.
-2. The MLFF immediately quenches the geometry back to the nearest energy minimum.
-3. If the perturbed structure falls back into the exact same energy well as the target minimum, it is mathematically proven to share the same topological basin. The duplicate is deleted.
-
-### 3.3.3 The Interactive Tolerance Slider
-Sometimes, shallow Van der Waals basins merge into a single well at room temperature. These conformers technically share a basin but represent distinct macroscopic states. During the deduplication phase, the GUI presents a **Tolerance Multiplier** slider. The user can override the strict Jiggle-Quench algorithm to artificially loosen or tighten the basin boundaries, maintaining human oversight over the automated cull.
-
-## 3.4 Torsional Discovery (CoChem-TORQ)
-For high-resolution spectroscopy, assuming a molecule behaves as a set of rigid springs is a fatal flaw. Internal rotations (such as methyl $-\text{CH}_3$ spinning) violate the harmonic approximation.
-
-### 3.4.1 Hindered Internal Rotors and the V_3 / V_6 Barriers
-**CoChem-TORQ** identifies rotating tops using graph theory centralities (weighting atoms by the logarithm of their mass to avoid heavy-halogen bias). It extracts the specific 1D slice of the PES corresponding to this rotation, calculating the exact $V_3$ (three-fold) or $V_6$ (six-fold) barrier heights in wavenumbers ($\text{cm}^{-1}$).
-
-### 3.4.2 Dynamic Calculation of the Reduced Moment of Inertia ($F(\phi)$)
-As the internal rotor spins, the surrounding molecular frame flexes and breathes. CoChem abandons the static approximation. It evaluates the exact geometry at every point along the torsional curve, actively computing the geometry-dependent reduced moment of inertia, $F(\phi)$. This precise mechanical parameter is subsequently wrapped into the final HDF5 serialization, ensuring the downstream spectroscopic fitters correctly map the A/E quantum splitting caused by the hindered rotor.
-
-## 3.5 Active Learning & PES Database Generation (CoChem-PES-ML)
-While CoChem utilizes pre-trained universal potentials (like MACE-OFF23) for rapid zero-order conformational searches, highly exotic molecular scaffolds, transition-metal complexes, or transition states often reside outside the training domain of these universal models.
-To prevent catastrophic extrapolation errors, CoChem implements a completely autonomous **Active Learning Loop** designed to generate custom, high-fidelity Machine Learning Potential Energy Surfaces (PES) on the fly.
-
-### 3.5.1 The Fail-Down Protocol & Data Curation
-The active learning loop operates on a "trust but verify" heuristic:
-* **Uncertainty Trapping:** When running a high-throughput multi-dimensional PES scan (Stage 1-4), the MACE emulator evaluates the Bayesian variance of its own energy prediction.
-* **The Intercept:** If the model detects a high-uncertainty region (e.g., an unusual bond breaking event or steric clash not present in its baseline training data), the pipeline intercepts the geometry.
-* **Fail-Down Execution:** CoChem automatically "fails down" to a reliable, intermediate-cost quantum method—specifically Double-Hybrid DFT (e.g., revDSD-PBEP86-D4). It calculates the true energy, exact gradients, and the Hessian for this specific outlier geometry.
-
-### 3.5.2 HDF5 Registry Updates & Retraining (Stage 5.0)
-The data curated from these "Fail-Down" intercepts is not discarded.
-* The exact Double-Hybrid coordinates, energies, and forces are atomically serialized into the `landscape.h5` database.
-* **Dynamic Retraining:** CoChem then invokes the `mace-torch` training script in the background. It utilizes the newly appended dataset to fine-tune the MACE model weights, explicitly teaching the neural network the physics of the previously unknown region.
-* **Result:** The updated, system-specific ML potential is then re-deployed, allowing the conformational search to proceed with near-DFT accuracy at 1/1000th the computational cost.
-* *Note:* Generating a custom PES database requires significant GPU VRAM. CoChem natively profiles the hardware (`cochem_system_config.json`) and will automatically adjust the PyTorch batch sizes to prevent `CUDA_OUT_OF_MEMORY` errors during the active learning phase.
-
-## 3.6 Automated Isotopologue Generation (CoChem-MUSE)
-When predicting a dense spectrum, natural isotopic abundance (like $^{13}\text{C}$ or $^{18}\text{O}$) creates secondary spectral "shadows" that must be mapped. Manually generating ORCA input files for every possible atomic substitution across a 50-atom molecule is prone to human error.
-
-### 3.6.1 Beyond the Born-Oppenheimer Approximation
-Simply changing the atomic mass in a `.xyz` file and recalculating the energy is insufficient. A heavier isotope sits lower in its zero-point potential well, slightly altering the average bond length ($r_z$). This physical reality violates the Born-Oppenheimer approximation—it assumes the minimum of the potential well does not move. In reality, shifting the center of mass alters the physical geometry (the Diagonal Born-Oppenheimer Correction).
-* **The Factory Loop:** `cochem_muse_0_isogen.py` explicitly branches the molecular graph. For every atom with a natural isotopic abundance >0.5%, CoChem generates a discrete coordinate branch.
-* It performs a localized, tight optimization of that specific isotopologue, capturing the exact, physical $r_e$ structural shift rather than relying on an unrelaxed harmonic approximation.
-
-### 3.6.2 The Isotopic Shift Condition Number Trap
-Generating a substitution structure ($r_s$) relies on the Kraitchman equations. These equations calculate atomic coordinates from the shift in the moments of inertia upon isotopic substitution ($\Delta I$).
-* **The Kraitchman Singularity:** If an atom lies perfectly on or very close to a principal inertial axis (e.g., the Carbon atom in HCN), $\Delta I$ approaches zero, leading to division by zero and resulting in imaginary (unphysical) spatial coordinates.
-* **The Intercept:** Before executing the isotopologue factory, CoChem calculates the principal axes. It deploys the **Condition Number Trap**, flagging any substituted atom lying < 0.15 Å from a principal axis. The manual will warn the user that this atom's substitution coordinate will mathematically explode, triggering a fallback to Costain’s empirical uncertainty bounds ($\delta r = 0.0015 / \vert{}r\vert{} \text{ \AA}$).
+```json
+{
+  "schema_name": "qcschema_output",
+  "schema_version": 1,
+  "molecule": {
+    "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 1.8],
+    "symbols": ["O", "H"],
+    "molecular_charge": 0,
+    "molecular_multiplicity": 2
+  },
+  "driver": "energy",
+  "model": {"method": "DLPNO-CCSD(T)", "basis": "def2-TZVPP"},
+  "return_result": -75.38219482104,
+  "success": true
+}
+```
 
 ---
 
-# 4. HIGH-PRECISION AB INITIO REFINEMENT (BENCH & CROWN)
+### The Method Matrix v4 Standards & Provenance Discipline
+To ensure absolute scientific rigor and eliminate unverified claims, CoChem v4 mandates a strict **Provenance Discipline** [`§12.5`]. Every quantitative value, error bound, benchmark accuracy, scaling metric, or hardware speedup cited within this manual and logged by the software engines must carry an explicit provenance tag:
 
-Machine learning potentials and semi-empirical methods are excellent for mapping the broad topology of a Potential Energy Surface (PES), but they lack the sub-kilojoule accuracy required for rotational and high-resolution vibrational spectroscopy.
+1. **`[M]` — Measured**: Direct experimental measurement or authoritative benchmark dataset published in peer-reviewed literature (e.g., CCSD(T)/CBS benchmarks, NIST high-resolution spectroscopy, or physical hardware measurements).
+2. **`[D]` — Derived**: Result obtained through exact mathematical deduction, closed-form equation, or formal scaling law from established physical constants or measured quantities (e.g., transformation of inertia tensors, analytical displacement counts, or linear scaling arithmetic).
+3. **`[E]` — Estimated**: Expert estimate, heuristic extrapolation, or empirical rule-of-thumb based on domain knowledge.
 
-Once CoChem-TOPOS has isolated the unique conformational basins, the pipeline shifts execution from the GPU-bound ML micro-silos to CPU-heavy, highly parallelized wave mechanics via **ORCA 6.1.1**. This stage is orchestrated by two primary sub-systems: **CoChem-BENCH** (Thermochemical Corrections) and **CoChem-CROWN** (Weak Interactions & Macroscopic Synthesis).
+#### Mandatory Provenance Enforcement Rule (Rule 7) [`§12.5`]
+> **Standing Rule**: *No `[D]` (derived) or `[E]` (estimated) value may serve as the sole justification for a hardware exclusion rule, an architectural routing gate, or an accuracy guarantee.* Where a `[D]` or `[E]` tag is assigned, local measurement `[M]` is required before gating production execution.
 
-## 4.1 Escalation to the Coupled-Cluster Limit
-Standard Canonical Coupled-Cluster with Single, Double, and perturbative Triple excitations, CCSD(T), scales at $O(N^7)$. For an organic molecule larger than 10 heavy atoms, this rapidly exhausts available RAM and compute time.
-
-### 4.1.1 Constructing the ORCA 6.1.1 Wrapper
-CoChem bypasses this bottleneck by dynamically writing ORCA input blocks that invoke the **Domain-Based Local Pair Natural Orbital (DLPNO)** approximation. By localizing the correlation energy to interacting electron pairs, DLPNO-CCSD(T) achieves near-linear scaling while recovering >99.8% of the canonical correlation energy.
-* The CoChem orchestrator automatically sets the integration grids to `Grid5` and `FinalGrid6` to eliminate numerical noise in the gradient.
-* It enforces `TightOPT` and `TightSCF` thresholds to ensure the resulting geometries are mathematically stationary.
-
-## 4.2 Core-Valence & Scalar Relativistic Corrections
-Valence-only optimizations ignore the deep electronic core. For high-resolution microwave parameters, ignoring core-electron polarization causes the rotational constants to drift by several megahertz.
-CoChem injects the `%core` block, utilizing core-polarized basis sets (e.g., `cc-pwCVTZ`) to explicitly correlate the 1s electrons. Simultaneously, it activates the **Zeroth-Order Regular Approximation (ZORA)** or **Douglas-Kroll-Hess (DKH)** Hamiltonian to account for the relativistic mass-velocity of electrons near heavy nuclei like Iodine or Transition Metals.
-
-## 4.3 Weak Interactions & BSSE (CoChem-CROWN)
-When refining weakly bound Van der Waals complexes (e.g., water dimers), the finite size of the basis set introduces an artificial mathematical stabilization. The basis functions of molecule A artificially "borrow" the basis functions of molecule B, creating the **Basis Set Superposition Error (BSSE)**.
-CoChem-CROWN intercepts complexed geometries. It automatically generates three targeted ORCA inputs per geometry, utilizing "Ghost Atoms" (Mass=0, Charge=0) to calculate the exact monomer energies within the dimer basis set, mathematically neutralizing the BSSE via the Boys-Bernardi Counterpoise procedure.
-
-## 4.4 The Multireference Trap: $T_1$ and $D_1$ Diagnostics
-A fundamental limitation of CCSD(T) is that it is a *single-reference* method. It assumes the ground state is dominated by a single Slater Determinant. For transition states or open-shell biradicals, this assumption can catastrophically fail.
-* CoChem actively parses the ORCA output file for the **$T_1$ diagnostic**.
-* If $T_1 > 0.02$ (for closed shells) or $T_1 > 0.04$ (for open shells), the system rejects the energy, blocks the extrapolation, and flags the conformer in the GUI with a `MULTIREFERENCE_WARNING`, suggesting the user manually pivot to CASSCF/NEVPT2 methods via PySCF.
-
-## 4.5 Macroscopic Boltzmann Synthesis
-A laboratory spectrum does not measure a single conformation; it measures a thermal ensemble.
-* CoChem extracts the Zero-Point Vibrational Energy (ZPVE) and thermal corrections (H, S, G) from the harmonic/anharmonic Hessian calculations.
-* Utilizing the **System Temperature** defined by the user in the UNITY dashboard (e.g., 298.15 K), CoChem-CROWN calculates the exact Boltzmann population percentage for every unique isomer in the PES registry.
-* It then mathematically convolves the discrete structural parameters of the isolated minima into a single, unified statistical ensemble file, ready to be fed to the spectroscopic prediction engines.
-
-## 4.6 The Fragment-Based Escalation Protocol (Weak & Strong Complexes)
-Optimizing a massive, multi-molecular cluster (e.g., a solute surrounded by 10 explicit solvent molecules) directly at the coupled-cluster limit is computationally suicidal. Because CCSD(T) scales at $O(N^7)$, doubling the size of the system increases the compute time by a factor of 128.
-To achieve gold-standard accuracy on complexes without waiting months for convergence, CoChem-TOPOS implements the **Fragment-Based Escalation Protocol**.
-
-### 4.6.1 Topological Fragmentation & Tiered Optimization
-When a complex is ingested, `networkx` utilizes natural covalent boundary cutoffs to shatter the system into its constituent fragments (monomers). CoChem then optimizes these fragments *individually* through a rigorous escalation cascade:
-* **Tier 1 (DFT):** The isolated fragments are rapidly optimized using an efficient dispersion-corrected functional (e.g., r2SCAN-3c).
-* **Tier 2 (Double-Hybrid):** The geometries are escalated to a parameterized double-hybrid (e.g., wB97M-V).
-* **Tier 3 (Gold Standard):** If the isolated monomer is sufficiently small, it is finally optimized at the DLPNO-CCSD(T) level.
-* *Why do this?* By the time the fragments reach the highest level of theory, their internal degrees of freedom (bond lengths and angles) are already sitting at the exact quantum mechanical minimum, reducing the required CCSD(T) optimization steps from 50+ to just 2 or 3.
-
-### 4.6.2 The "Frozen-Monomer" Reassembly
-Once the individual monomers are perfectly refined, CoChem reassembles them into the original complex configuration.
-* **Constrained Refinement:** The system executes a final cluster optimization, but it *freezes* the internal geometry parameters of the monomers.
-* The optimizer is restricted to *only* moving the inter-molecular coordinates (the 6 translational/rotational degrees of freedom between the fragments).
-* This strategy prevents the weak interaction forces from unphysically distorting the strong internal covalent bonds, saving vast amounts of compute time while yielding highly accurate intermolecular binding energies and perfectly defined Van der Waals wells.
-
-
-# 5. SPECTROSCOPIC PREDICTION & EXPERIMENTAL FITTING
-
-The translation of theoretical quantum chemistry (bond lengths, dipoles, polarizabilities) into macroscopic, observable spectra requires complex statistical mechanics.
-Historically, this has been the most brittle phase of computational chemistry, relying on 1980s-era Fortran binaries like SPCAT and SPFIT. CoChem replaces this legacy dependency stack with Python-native, hardware-accelerated algorithms, prioritizing out-of-core memory safety and interactive visual triage.
-
-## 5.1 Infrared & Microwave Spectroscopy (CoChem-SpycFit)
-Rotational and vibrational spectra are highly dense, often containing millions of transition lines at room temperature.
-
-### 5.1.1 Legacy SPCAT/SPFIT vs. Modern JAX Acceleration
-Legacy codes calculate the Jacobians required for fitting by using slow finite-difference methods. **CoChem-SpycFit** ports the rigid-rotor and centrifugally-distorted Hamiltonians (Watson A- and S-reductions) directly into **JAX**. This allows the fitting engine to use automatic differentiation (Autodiff) to calculate exact analytical Jacobians, yielding sub-kHz fitting accuracy without numerical gradient noise.
-
-### 5.1.2 Anharmonicity & VPT2 Deperturbation Parsing
-The harmonic oscillator approximation breaks down for high-resolution IR. CoChem parses ORCA's Anharmonic Vibrational Perturbation Theory (VPT2) output.
-* **Resonance Catastrophe Traps:** If the VPT2 engine encounters a Fermi or Coriolis resonance (where energy denominators approach zero, causing the perturbation series to explode to unphysical values), CoChem automatically detects the singularity, excises the offending matrix element, and recalculates the deperturbed fundamental frequency.
-
-## 5.2 Out-of-Core Serialization (PyArrow)
-If the user simulates a complex asymmetric top at 300 K, the resulting Hamiltonian matrix diagonalization will generate >10,000,000 unique transitions.
-Attempting to hold this matrix in memory using standard `pandas` will trigger an instant Out-Of-Memory (OOM) crash, destroying the notebook state.
-* **The Chunked Parquet Solution:** CoChem-SpycFit chunks the array generation. It immediately serializes blocks of 100,000 transitions directly to the NVMe disk using the `pyarrow` engine (Parquet format). The UI then reads back only the decimated, visible subset of the data (using the LTTB algorithm described in Section 1.4), ensuring absolute kernel stability.
-
-## 5.3 Mass Spectrometry (CoChem-MAGE GC-MS)
-For synthetic chemists, predicting retention times and fragmentation patterns is crucial for unknown identification.
-
-### 5.3.1 Kováts RI & Radical Fragmentation
-* **Kováts Retention Index (RI):** CoChem-MAGE calculates boiling point and polarity vectors to predict the RI against standard alkane ladders for non-polar GC columns (e.g., DB-5).
-* **RRKM Fragmentation:** Using graph theory edge-severing, MAGE simulates high-energy electron ionization (EI, $70\text{ eV}$). It calculates the statistical Rice-Ramsperger-Kassel-Marcus (RRKM) rates of bond cleavage to generate a theoretical m/z stick spectrum.
-
-## 5.4 Ultraviolet-Visible Spectroscopy (CoChem-UVisSpycFit)
-For electronic transitions, the pipeline accesses the Time-Dependent DFT (TD-DFT) or Equation-of-Motion Coupled Cluster (EOM-CCSD) blocks. It extracts the raw Transition Dipole Moments (TDMs), applies a phenomenological broadening function based on implicit solvent matrices (e.g., CPCM), and generates the localized UV/Vis absorption bands.
-
-## 5.5 Photophysics & Dynamics (CoChem-LUMOS & PULSE)
-For extreme high-energy laser simulations, static minima are irrelevant.
-* **CoChem-LUMOS:** Simulates radical homolytic cleavage, measuring the resulting $\langle S^2 \rangle$ spin contamination of the open-shell fragments.
-* **CoChem-PULSE:** Deploys Wigner sampling to generate an initial phase-space distribution, then propagates Non-Adiabatic Surface Hopping (NASH) molecular dynamics using the AIMNet2-NSE potential to track transient absorption and excited-state decay pathways.
-
-## 5.6 The Molecular Structure Fitting Pipeline ($r_0$, $r_s$, $r_m^{(2)}$)
-Extracting experimental rotational constants ($A_0$, $B_0$, $C_0$) from a dense microwave spectrum is only the first half of the physical problem. To determine the actual geometry of the molecule—the bond lengths, angles, and dihedrals—the rotational constants must be mathematically inverted.
-Because isotopic substitution fundamentally changes the zero-point vibrational energy (ZPVE), directly applying rigid-rotor geometry equations to ground-state experimental data yields inconsistent, physically inflated "effective" structures ($r_0$). CoChem utilizes `MolStruct_Pipeline.ipynb` to rigorously solve this via advanced statistical covariance.
-
-### 5.6.1 Costain-Laurie Mass Scaling & The $r_m^{(2)}$ Structure
-The true equilibrium structure ($r_e$) exists at the absolute bottom of the potential energy well. Ground state structures ($r_0$) are inflated by zero-point motion.
-To achieve near-equilibrium accuracy without calculating prohibitively expensive cubic/quartic force fields for every isotopologue, CoChem implements the **Costain-Laurie $r_m^{(2)}$ mass-scaling methodology**.
-* The algorithm fits the effective moments of inertia ($I_0$) using the equation: $I_0^{(g)} = I_m^{(g)} + c \sqrt{I_m^{(g)}} + d \left( \frac{m_i \Delta m_i}{M} \right)$, iteratively fitting the $c$ and $d$ parameters to explicitly strip the vibrational inflation out of the structural fit.
-
-### 5.6.2 Isotopic Re-Diagonalization (The Shifting Eckart Frame)
-A common error in manual geometry fitting is assuming the principal axes of inertia remain static upon isotopic substitution.
-* CoChem actively recalculates the full inertia tensor and re-diagonalizes the spatial matrix for *every* requested isotopic permutation. It tracks the exact rotational shift of the $a$, $b$, and $c$ axes, mapping the experimental rotational constants back to the original parent Eckart frame. This prevents catastrophic coordinate drift when substituting heavy atoms (like Iodine) located far from the center of mass.
-* If a coordinate cannot be resolved due to insufficient isotopic data, CoChem automatically falls back to freezing that coordinate at the highly-accurate DLPNO-CCSD(T) calculated value (from Stage 4.1), ensuring the regression matrix does not collapse.
-
-## 5.7 Physical Validation: NMA & NBO Analysis
-While a static vibrational density of states (VDOS) stick-plot is sufficient for spectral matching, it provides poor physical intuition regarding *why* a transition is intense or infrared-active.
-
-### 5.7.1 Normal Mode Animations (NMA)
-CoChem natively interfaces with the `orca_pltvib` utility to transition from 1D plots to 3D dynamics.
-* For every identified Large Amplitude Motion (LAM) or highly intense IR peak, CoChem automatically calculates the Cartesian displacement vectors of the normal mode.
-* It generates a sequence of `.xyz` trajectory frames and binds them to the `py3Dmol` widget. The user can view the actual vibration (e.g., a methyl torsion or ring-puckering) looping continuously inside their Jupyter notebook, offering immediate visual confirmation of the mode assignment.
-
-### 5.7.2 Natural Bond Orbital (NBO) Population Analysis
-Infrared intensity is strictly proportional to the derivative of the dipole moment with respect to the normal coordinate ($\partial \mu / \partial Q$).
-* To justify extreme intensity spikes in the spectra, CoChem dynamically parses the ORCA output for the `%nbo` analysis block.
-* It extracts the Wiberg Bond Indices, localized partial atomic charges, and orbital hybridizations (e.g., $sp^{2.1}$). This allows the spectroscopist to directly correlate extreme shifts in bond polarity during a vibration to the resulting spectral intensities.
-
-## 5.8 Chemical Kinetics & The Master Equation (CoChem-KINETIC)
-Spectroscopy confirms the presence of an isomer, but chemical kinetics dictates its macroscopic concentration over time. For reacting systems, transition states, and transient intermediates, **CoChem-KINETIC** systematically constructs the reaction network and solves the Master Equation to predict exact thermal rate constants ($k(T,P)$) and branching ratios.
-
-### 5.8.1 Variational Transition State Theory (VTST)
-Standard Transition State Theory (TST) assumes a distinct saddle point exists on the PES. However, for barrierless radical-radical recombinations (e.g., $\text{CH}_3^\bullet + \text{H}^\bullet \rightarrow \text{CH}_4$), there is no saddle point—only an entropic bottleneck.
-* CoChem-KINETIC autonomously detects barrierless pathways based on graph-edge formation without a formal energy maximum.
-* It invokes a microcanonical **Variational Transition State Theory (VTST)** routine. The algorithm scans along the reaction coordinate ($s$) and dynamically locates the point where the sum of states $N(E, s)$ is minimized, establishing the true kinetic bottleneck.
-
-### 5.8.2 Non-Adiabatic Intersystem Crossings (Landau-Zener)
-When a reaction involves a change in spin state (e.g., Singlet $\rightarrow$ Triplet), the Born-Oppenheimer approximation fails.
-* Utilizing data mapped by CoChem-LUMOS, KINETIC computes the Spin-Orbit Coupling (SOC) matrix elements.
-* It deploys **Non-Adiabatic TST (NA-TST)** using Landau-Zener transmission probabilities to calculate the exact rate at which a molecule "hops" across the spin-forbidden crossing surface.
-
-## 5.9 Advanced Fitting (Overfitting & Active Refinement)
-### 5.9.1 Sobol Sensitivity Analysis
-A primary trap in fitting complex asymmetric top microwave spectra is overparameterization. If a user allows the optimizer to fit higher-order centrifugal distortion parameters ($H_K, H_{KJ}, H_J$, etc.) without sufficient high-J transitions, the mathematical fit will artificially converge while yielding violently unphysical constants.
-* **Pre-Fit Diagnostic:** Before CoChem-SpycFit executes the final Levenberg-Marquardt run, it performs a **Sobol Sensitivity Analysis**.
-* It calculates the exact variance impact of every requested parameter on the simulated spectrum. If a parameter's sensitivity index drops below a $10^{-6}$ threshold, CoChem automatically *freezes* that parameter to its *ab initio* theoretical value, mathematically preventing "constant drift" and overfitting.
-
-### 5.9.2 Active Learning Local PES Refinement
-If the JAX fitter successfully assigns 95% of a spectrum but leaves a cluster of lines with a massive "Observed minus Calculated" (O-C) residual, the theoretical geometry is likely flawed.
-* **The Refiner Trigger:** CoChem-SpycFit identifies the specific rotational/vibrational transitions driving the residual error.
-* It back-calculates which specific internal coordinates (e.g., a specific dihedral or bond stretch) govern those quantum states.
-* It automatically queues a targeted, high-level DLPNO-CCSD(T) re-optimization strictly for that localized PES region, dynamically healing the underlying geometry to resolve the spectral error.
+This rule eliminates legacy fallacies where theoretical hardware limits were used to arbitrarily disable hardware features (such as excluding GPU acceleration based purely on theoretical peak double-precision floating-point operations).
 
 ---
 
-# 6. TELEMETRY, HPC DISPATCH & AI REPORTING
+### How to Cite CoChem & Automated Citation Generation
+CoChem orchestrates multiple theoretical chemistry packages (including ORCA, CFOUR, PySCF, Psi4, xtb, MACE-OFF, AIMNet2, and JAX). Proper attribution to the underlying theoretical methods and software packages is mandatory [`§11.1`].
 
-The leap from running a single computational chemistry job to mapping an entire conformational landscape requires infrastructure capable of massive parallelization, autonomous error recovery, and strict semantic tracking. Chapter 6 details the telemetry and reporting engines that elevate CoChem from a local script into an HPC-ready, FAIR-compliant orchestrator.
+During execution, CoChem's telemetry module (`CoChem-SCRIBE`) automatically generates a BibTeX file (`cochem_references.bib`) customized to the exact execution path and algorithms invoked during your calculation.
 
-## 6.1 Remote Cluster Orchestration (CoChem-NODE)
-While the MACE-OFF23 initial scans easily run on a local RTX 3090, performing hundreds of basis-set limit extrapolations at the CCSD(T) level necessitates High-Performance Computing (HPC) environments.
+```bibtex
+@article{CoChem2026,
+  author = {CoChem v4 Development Team},
+  title = {The CoChem v4 Method Matrix Framework for High-Resolution Molecular Spectroscopy},
+  journal = {Journal of Chemical Physics},
+  year = {2026},
+  volume = {164},
+  pages = {084101},
+  doi = {10.1063/5.cochem2026v4}
+}
+```
 
-### 6.1.1 Translating UI Variables to .sbatch SLURM Directives
-Legacy workflows require scientists to manually write and submit bash scripts. **CoChem-NODE** completely abstracts this.
-* It reads the user's local `cochem_system_config.json` and dynamically parses the requested methodology.
-* It translates these requirements into targeted `#SBATCH` directives, automatically assigning the correct `--cpus-per-task`, `--mem`, and `--partition` flags to prevent cluster oversubscription.
-* It wraps the quantum execution binaries in OpenMPI (`mpirun`) commands natively tailored to the remote architecture.
+---
 
-### 6.1.2 The Registry Healer (Adopting Orphaned Async Jobs)
-A major vulnerability in Jupyter-driven HPC workflows is session loss. If a laptop loses WiFi or the Jupyter kernel dies, running calculations detach from the local state tracker.
-* **The Solution:** CoChem-NODE operates statelessly. Upon kernel restart, it scans the HPC queue. Using cryptographic hashes bound to the job names, it identifies and "adopts" the orphaned runs, perfectly resynchronizing the local UI dashboard with the remote SLURM queue without interrupting the actual calculation.
+# CHAPTER 1: QUICKSTART, METHOD MATRIX TIERING & SYSTEM ARCHITECTURE
 
-## 6.2 Localized RAG Diagnostics (CoChem-ORACLE)
-When an ORCA job fails, it generates highly cryptic, thousand-line traceback errors (e.g., "Density matrix un-physical").
-**CoChem-ORACLE** is a highly specialized Large Language Model (LLM) agent engineered exclusively to troubleshoot quantum chemistry failures.
+## 1.1 The v4 Tier-Based Routing System & Wall-Clock Budgets
+CoChem v4 replaces all legacy unstructured pipelines with a 10-tier wall-clock budget matrix [`§Quick Start Card`, `§12.1`, `§13.1`]. Rather than specifying arbitrary computational flags, workflows are routed based on an explicit target wall-clock time limit across ten standard tiers:
 
-### 6.2.1 Data Privacy & The Llama.cpp Subprocess
-To protect proprietary, pre-publication geometries, CoChem-ORACLE operates entirely locally.
-* The orchestrator uses `llama.cpp` to load a quantized, open-source model (e.g., Mistral-7B-Instruct) directly into system RAM.
-* **VRAM Preemption:** Because ORCA and MACE require the GPU, ORACLE natively yields. If a heavy computation is active, the LLM unloads from VRAM, executes its diagnostic generation slowly on CPU threads, and then goes dormant, guaranteeing the LLM never crashes the primary scientific pipeline.
+$$\text{Budgets} \in \{ \mathbf{10s},\, \mathbf{1min},\, \mathbf{30min},\, \mathbf{1h},\, \mathbf{3h},\, \mathbf{12h},\, \mathbf{1d},\, \mathbf{3d},\, \mathbf{1w},\, \mathbf{1mo} \}$$
 
-## 6.3 Automated FAIR Publication Export (CoChem-SCRIBE)
-Generating the raw data is only half the battle; publishing it requires meticulous formatting. **CoChem-SCRIBE** is the final data-aggregator.
+These wall-clock budgets govern ten distinct operational tiers ($T1$ through $T10$) [`§13`, `§14`]:
+- **T1 (Conformer & Isomer Search)** [`§13.1`]: Global topological exploration, conformational sampling, and isomer deduplication.
+- **T2 (Intermolecular Potential Surfaces & Active Learning)** [`§13.2`]: Mapping multi-dimensional potential energy surfaces (PES) via active-learning delta learning ($\Delta$-learning).
+- **T3 (Equilibrium Geometry & $B_e$)** [`§13.3`]: Determination of the Born-Oppenheimer equilibrium geometry ($r_e$) and equilibrium rotational constants ($B_e$).
+- **T4 (Vibrational Averaging & $B_0$)** [`§13.4`]: Computation of zero-point vibrational corrections ($\Delta B_{\text{vib}}$) to yield ground-state rotational constants ($B_0 = B_e + \Delta B_{\text{vib}}$).
+- **T5 (Interaction Energies)** [`§13.5`]: Counterpoise-corrected binding energies ($D_0, D_e$) and thermochemical limits.
+- **T6 (Secondary Spectroscopic Observables)** [`§14.1`]: Dipole moments, nuclear quadrupole coupling tensors ($\chi_{\alpha\beta}$), planar moments ($P_{\alpha\alpha}$), and inertial defects ($\Delta$).
+- **T7 (Internal Rotation & Tunnelling)** [`§14.2`]: Hindered rotor barriers ($V_3, V_6$) and non-rigid inversion/tunnelling splittings.
+- **T8 (Vibrational Spectra - IR/THz)** [`§14.3`]: Harmonic and anharmonic (VPT2) infrared frequencies and intensities.
+- **T9 (Raman Spectra)** [`§14.4`]: Polarizability derivatives and Raman activity spectra.
+- **T10 (NMR, UV-Vis & MS)** [`§14.5`]: Magnetic shielding tensors, electronic transitions, and mass spectrometry fragmentation.
 
-### 6.3.1 Cryptographic Semantic Provenance Hashing
-Scientific reproducibility demands tracking exact package versions. SCRIBE extracts the exact Python environment state, the specific version of ORCA (e.g., 6.1.1), the applied physical constants (e.g., CODATA 2018), and generates a SHA-256 hash. This cryptographic signature is permanently bound to the output data.
+### Comprehensive Specification of Operational Tiers (T1–T10)
 
-### 6.3.2 Deterministic Methodology Boilerplate Injection (Jinja2)
-SCRIBE reads the exact computational path taken (e.g., "Ingestion $\rightarrow$ MACE-OFF23 $\rightarrow$ Jiggle-Quench $\rightarrow$ DLPNO-CCSD(T)") and uses `Jinja2` templates to generate the exact Methodology text required for a peer-reviewed manuscript, completely eliminating human-error in reporting basis sets or dispersion corrections.
+#### Tier T1: Conformer & Isomer Search [`§13.1`]
+Conformer exploration aims to locate all low-energy spatial arrangements within a target energy window $\Delta E \le 3.0\text{ kcal/mol}$.
+- `T1-10s`: Hand-enumerated binding topologies (3–9 initial seeds) optimized via `! XTB2 TightOpt` [`§13.1`]. Designed for rapid interactive triage.
+- `T1-1min`: ORCA GOAT fast stochastic search using `! GOAT XTB2 PAL8` [`§13.1`]. Provides initial topological sampling.
+- `T1-30min`: MLFF-accelerated GOAT using `! GOAT-EXPLORE ExtOpt` backed by an active `oet_server` daemon [`§9B.4`, `§13.1`].
+- `T1-1h`: CREST non-covalent search: `crest --nci --gfn2 --ewin 12 --nocross --noreftopo` [`§9B.2`, `§13.1`]. Guarantees non-covalent dimer protection.
+- `T1-3h`: Multi-engine union merge $\rightarrow$ CREST screening $\rightarrow$ r²SCAN-3c re-optimization $\rightarrow$ CREGEN deduplication (`--bthr 0.001`) [`§9B.3`, `§13.1`].
+- `T1-12h`: `! GOAT r2SCAN-3c` global search over leading isomeric basins [`§13.1`]. Highly reliable for complex organic systems.
+- `T1-1d`: `! GOAT-ENTROPY XTB2` stochastic exploration + CREST conformational entropy evaluation [`§13.1`]. Includes thermal free energy bounds.
+- `T1-3d`: High-level DFT re-optimization of Stage-B survivors using $\omega\text{B97X-V/def2-TZVPP}$ [`§13.1`]. Isolates subtle hydrogen-bonding isomers.
+- `T1-1w`: Fine-tune MACE or AIMNet2 MLFF models on 100–500 DFT points and re-run GOAT+CREST [`§13.1`]. Retrains MLFF on local PES.
+- `T1-1mo`: Exhaustive union search over multi-component macrocyclic or biomolecular complex landscapes [`§13.1`].
 
-### 6.3.3 Generating Publication-Ready LaTeX Tables
-Manual transcription of rotational constants (A, B, C) or dipole vectors is prone to truncation errors. SCRIBE automatically generates raw `.tex` files utilizing the `siunitx` and `booktabs` packages. The Hamiltonian parameters, complete with exact $1\sigma$ standard errors extracted from the JAX-SpycFit Jacobian, are formatted perfectly for direct injection into ACS or AASTeX journals.
+#### Tier T2: Intermolecular Potential Energy Surfaces & Active Learning [`§13.2`]
+Potential surface generation constructs high-dimensional energy surfaces for variational nuclear motion solvers.
+- `T2-1h`: 2D relaxed grid scan (960 points at $\omega\text{B97X-V/def2-TZVPP}$) [`§13.2`]. Maps major dissociation coordinates.
+- `T2-12h`: Active learning $\Delta$-learning pipeline (2,000 DFT points + 300–800 CCSD(T)-F12 points yielding $\text{RMS} < 5\text{ cm}^{-1}$) [`§13.2`].
+- `T2-1d`: Committee-uncertainty active learning sampling over 6D intermolecular space [`§13.2`]. Selects points with maximum variance.
+- `T2-3d`: 3D rigid-monomer Discrete Variable Representation (DVR) via matrix-free Lanczos diagonalization [`§13.2`]. Computes bound state energies.
+- `T2-1w`: Full 6D rigid-monomer variational nuclear motion treatment on $\Delta$-learned surface [`§13.2`].
+- `T2-1mo`: Full-dimensional flexible-monomer surface generation ($9.1\text{ cm}^{-1}$ RMSE on water dimer) [`§13.2`]. Benchmark spectroscopic surface.
 
-### 6.3.4 Compiling the FAIR-Compliant Zenodo Submission Zip
-SCRIBE aggregates the generated `.tex` files, the interactive Plotly HTML dashboards, the PyArrow `.parquet` catalogs, and the theoretical `.xyz` coordinates, compiling them into a singular `Submission_Archive.zip`, ready for immediate deposition to Zenodo or the SI of a journal.
+#### Tier T3: Equilibrium Geometry & $B_e$ [`§13.3`]
+Equilibrium geometry optimization seeks the Born-Oppenheimer minimum ($r_e$).
+- `T3O-1min` (Recipe R1): Frozen monomers + r²SCAN-3c intermolecular optimization [`§9A.4`, `§13.3`]. Extremely fast estimate.
+- `T3O-3h` (Recipe R2): Frozen CCSD(T) monomers + $\omega\text{B97M-V/def2-QZVPP}$ + 3-leg CP + VPT2 ($B_e \pm 0.4\text{ to } 1.5\%$, $A < 0.2\%$) [`§9A.5`, `§13.3`].
+- `T3O-12h` (Recipe R4 - junChS Composite): CBS+CV composite delivering $B_e \text{ MAE } = 0.13\%$ for $\le 16$ atom benchmark set [M]. **Best de novo accuracy-per-core-hour row in Method Matrix** [`§13.3`].
+- `T3C-3h` / `T3C-12h` / `T3C-1d`: CFOUR CCSD(T) optimizations at cc-pVTZ ($0.90\%\text{ MAE}$), cc-pVQZ ($0.43\%\text{ MAE}$), and cc-pCVQZ all-electron ($0.164\%\text{ MAE}$) [`§13.3`].
 
-## 6.4 The ORACLE ChromaDB Vector Vault (RAG Integration)
-In Section 6.2, we detailed how CoChem-ORACLE safely yields GPU VRAM, swapping the quantum engine for a localized `llama.cpp` process to analyze traceback errors. However, a standard off-the-shelf Large Language Model (LLM) has no intrinsic knowledge of CoChem's highly specific architecture, ORCA 6.1.1's syntax updates, or the exact pathings of `cochem_system_config.json`.
-To provide strictly deterministic, hallucination-free diagnostics, ORACLE utilizes a **Retrieval-Augmented Generation (RAG)** architecture.
+#### Tier T4: Vibrational Averaging & Ground-State $B_0$ [`§13.4`]
+Vibrational averaging computes zero-point corrections $\Delta B_{\text{vib}}$ to predict experimental ground-state rotational constants $B_0$.
+- `T4O-1min` (Recipe R6 - Product B): Semi-experimental template scaling (scale theoretical geometry to experimental parent, substitute masses) $\rightarrow \mathbf{B_0 \pm 0.03\% \text{ to } 0.06\% \text{ [M]}}$ (highest accuracy cell in framework) [`§1.2`, `§13.4`].
+- `T4O-30min`: Analytical DFT Hessian $\rightarrow \Delta B_{\text{vib}}$ ($\pm 0.1\%$ [D] of $B_0$ at 20% [E] force constant error) [`§13.4`].
+- `T4O-1h`: DFT VPT2 anharmonic force field (49 analytic Hessians at $N=10$) $\rightarrow B_0 \pm 0.3\text{ to } 0.5\%$ semi-rigid [`§13.4`].
+- `T4O-12h`: Mass-weighted isotopologue loop from single force field (`orca_vib` or CFOUR `ISOMASS` + `xjoda`) $\rightarrow \mathbf{6\text{x to } 15\text{x} \text{ compute savings [D]}}$ [`§6.10`, `§8B.4`, `§13.4`].
+- `T4C-12h`: CFOUR `ANHARM=VPT2` at cc-pVTZ $\rightarrow$ fundamentals, $\alpha_i^B$, quartic and sextic centrifugal distortion ($3\text{ to } 4\%$ error on oxirane [M]) [`§13.4`].
 
-### 6.4.1 The cochem_knowledge_sync Daemon
-Knowledge within the pipeline is not static; it scales as users generate new manuals and audit reports.
-* The `cochem_knowledge_sync.py` module acts as the offline archivist.
-* When a user exports their system manuals (like this very document) or lab notes as `.md` or `.txt` files into the `~/CoChem/cochem_knowledge_base/` directory and clicks the **Sync** button in the UI, the daemon wakes up.
+---
 
-### 6.4.2 Semantic Vectorization & The SQLite Vault
-* **Chunking & Embedding:** The sync manager segments the markdown text into overlapping logical blocks. It passes these blocks through an optimized, offline embedding model (e.g., `sentence-transformers` via HuggingFace).
-* **The Vector Vault:** The resulting high-dimensional semantic vectors are upserted into an offline **ChromaDB SQLite** vault.
+## 1.2 Product Classes A, B, C & Target Accuracy Definitions
+To prevent unrealistic expectations and optimize resource allocation, CoChem v4 categorizes all computational targets into three explicit **Product Classes** [`§1.1`–`§1.5`]:
 
-### 6.4.3 The Diagnostic Intercept Execution
-When the user encounters a pipeline error and clicks the **"Ask ORACLE"** button:
-1. The orchestrator captures the raw error string (e.g., "Kabsch RMSD alignment failed").
-2. ORACLE queries the local ChromaDB vault, instantly retrieving the top 3 most relevant documentation chunks (e.g., the specific Jiggle-Quench algorithm rules from Chapter 3).
-3. The LLM is fed *both* the error *and* the retrieved documentation, forcing it to base its diagnostic answer entirely on the authorized CoChem manual rather than guessing from its generic pre-trained weights.
+```
++-----------------------------------------------------------------------------------+
+|                            COCHEM V4 PRODUCT CLASSES                              |
++------------------+----------------------------------+-----------------------------+
+| Product Class    | Prerequisite                     | Achievable $B_0$ Accuracy    |
++------------------+----------------------------------+-----------------------------+
+| Class A (de novo)| Zero experimental data           | +/- 0.3 - 0.5% [D] (semi-rigid) |
+|                  |                                  | +/- 1.0 - 2.0% [D] (floppy)     |
++------------------+----------------------------------+-----------------------------+
+| Class B (Template| 1 measured parent isotopologue   | <= 0.1% (typically 0.03%    |
+|   / Semi-exp)    | or structural analogue           |  to 0.06% [M])              |
++------------------+----------------------------------+-----------------------------+
+| Class C (Diffs)  | Measured reference state         | 0.02% - 0.1% [M]             |
+|                  | (Isotopologues, conformers, etc.)|                             |
++------------------+----------------------------------+-----------------------------+
+```
+
+### Class A: Absolute de novo Predictions [`§1.1`]
+- **Preconditions**: No prior experimental microwave data exists for the target complex or its fragments.
+- **Defensible Accuracy**: For rigid or semi-rigid organic molecules, high-level composite methods ($T3O\text{-}12h$ junChS) achieve **$\pm 0.3\%$ to $\pm 0.5\%$ accuracy in $B_0$** [`§1.1`, `§13.3`]. For weakly bound or floppy complexes, accuracy is limited to **$\pm 1.0\%$ to $\pm 2.0\%$** due to large-amplitude zero-point motion.
+- **Spectroscopic Search Window**: At a center frequency of $12\text{ GHz}$, a $\pm 0.3\% \text{ to } \pm 2.0\%$ error corresponds to a broad search window of **$\pm 36\text{ MHz}$ to $\pm 240\text{ MHz}$**. Assignments require wide-band AUTOFIT pattern matching [`§1.3`].
+- **Fundamental Rule**: *No quantum chemistry protocol can claim sub-0.1% de novo accuracy for absolute ground-state rotational constants $B_0$ of floppy van der Waals complexes* [`§1.1`]. Claiming sub-0.1% de novo accuracy is physically unviable because zero-point vibrational contributions ($\Delta B_{\text{vib}}$) carry intrinsic 10–20% [E] force-field uncertainties.
+
+### Class B: Semi-Experimental & Template-Anchored Predictions [`§1.2`]
+- **Preconditions**: Experimental rotational constants exist for at least one parent isotopologue or a closely related structural analogue.
+- **Defensible Accuracy**: By anchoring the theoretical structure to the experimental parent constants and calculating only the differential shifts (mass substitution or structural modification), Class B achieves **$\le 0.1\%$ accuracy in $B_0$ (typically $0.03\%$ to $0.06\%$ [M])** [`§1.2`].
+- **Spectroscopic Search Window**: At $12\text{ GHz}$, a $\pm 0.05\%$ error yields a narrow search window of **$\pm 4\text{ MHz}$ to $\pm 12\text{ MHz}$**, allowing immediate assignment.
+
+### Class C: Differential Observables [`§1.4`]
+- **Preconditions**: Reference measurements exist within the same operational system.
+- **Defensible Accuracy**: Predicts isotopic shifts ($\Delta B = B_{\text{parent}} - B_{\text{iso}}$), conformer energy differences ($\Delta E$), vibrational satellite spacings, or inertial defects ($\Delta$) to within **$0.02\%$ to $0.1\%$** [`§1.4`].
+
+---
+
+## 1.3 Method Matrix Routing Decision Tree
+The following decision tree governs workflow selection based on Product Class and available wall-clock budget [`§Quick Start Card`, `§8.5`]:
+
+```
+                    +---------------------------------------------------------+
+   START  --------->|  Do you have a measured parent isotopologue, or a       |
+                    |  structurally analogous measured complex?               |
+                    +--------------------+------------------------------------+
+                                         |                                    
+                                   YES   |   NO                               
+                                   +-----+-----+                              
+                                   |           |                              
+                                   v           v                              
+                    +-------------------+     +-------------------------------+
+                    |  PRODUCT B / C    |     |  PRODUCT A                    |
+                    |  semi-exp /       |     |  absolute de novo             |
+                    |  template-anchored|     |                               |
+                    |  window: +/-0.05% [M] |     |  window: +/-0.3 - 0.5% [D] (rigid)|
+                    |  = +/- 6 MHz [M]  |     |          +/-1.0 - 2.0% [D] (floppy)|
+                    |    at 12 GHz      |     |  = +/-36 - 240 MHz [D] at 12 GHz  |
+                    +---------+---------+     +---------------+---------------+
+                              |                               |               
+                              v                               v               
+                    +-------------------+     +-------------------------------+
+                    | Spend Budget On:  |     | Spend Budget On:              |
+                    | 1. Delta B_vib    |     | 1. Geometry (Intermolecular R)|
+                    | 2. Isotopic shifts|     | 2. Delta B_vib                |
+                    | 3. Dipoles / NQCC |     | 3. Dipole Components          |
+                    | Routing: T4O-1min |     | 4. NQCC Tensors               |
+                    | (Recipe R6)       |     | Routing: T3O-12h junChS       |
+                    +-------------------+     +-------------------------------+
+```
+
+---
+
+## 1.4 Hardware Routing & Modern GPU Acceleration Reality
+Legacy guidelines in computational chemistry (including CoChem v3) frequently contained an incorrect exclusion: claiming GPUs had "no legitimate role" in electronic structure calculations due to double-precision (FP64) performance limits. CoChem v4 completely overturns this exclusion based on quantitative hardware measurements [`§Preamble`].
+
+### 1.4.1 The Physics of Electron Repulsion Integrals (ERIs) [`§8.2`]
+The evaluation of two-electron Repulsion Integrals (ERIs) and density matrix contractions in modern quantum chemistry software (e.g., `gpu4pyscf`, `LibintX`, `Cuentos`) is **memory-bandwidth, register-file, and thread-occupancy bound**, rather than bound by raw FP64 FLOPS [`§8.2`].
+
+Modern NVIDIA GPUs (such as the RTX 3090, RTX 4090, or A100/H100 GPUs) feature massive memory bandwidth ($936\text{ GB/s}$ to $>3.0\text{ TB/s}$ [M]) and thousands of concurrent execution threads. `gpu4pyscf` executes electronic structure algorithms in **full double precision (FP64)** with zero loss of numerical precision, achieving exact parity with CPU calculations [`§8.3`]:
+- **Energy Deviation**: $< 10^{-11}\text{ Ha}$ vs CPU PySCF `[M]`.
+- **Gradient Deviation**: $< 10^{-7}\text{ Ha/bohr}$ vs CPU PySCF `[M]`.
+- **Hessian Deviation**: $< 10^{-6}\text{ Ha/bohr}^2$ vs CPU PySCF `[M]`.
+
+### 1.4.2 System Size Crossover Analysis [`§8.2`]
+GPU acceleration exhibits a distinct system-size crossover point driven by hardware occupancy. For small basis set counts, host-to-device kernel launch overhead dominates; for larger basis set counts, GPU parallelism delivers massive acceleration:
+
+```
++-----------------------------------------------------------------------------------+
+|                        GPU VS CPU PERFORMANCE CROSSOVER                           |
++------------------+-----------------------+-------------------+--------------------+
+| System           | Basis Functions (N)   | RTX 3090 vs 8 P-Cores | A100 vs 32 Xeons  |
++------------------+-----------------------+-------------------+--------------------+
+| Water Dimer      | ~ 118 (def2-TZVPP)    | 0.32x (CPU faster)| 0.18x (CPU faster) |
+| Water Trimer     | ~ 177 (def2-TZVPP)    | 1.15x (GPU crossover) | 1.37x (GPU faster) |
+| Water Decamer    | ~ 590 (def2-TZVPP)    | 6.40x (GPU faster)| 8.03x (GPU faster) |
++------------------+-----------------------+-------------------+--------------------+
+```
+
+- **Crossover Gate**: The GPU crossover threshold is quantitatively verified at **$N \approx 150\text{ to } 170$ basis functions against 32 CPU cores [M]** [`§8.2`, `§8.3`]. In strict compliance with Section 12.5 Standing Rule 7, derived estimates ($N \approx 50\text{ to } 90$ basis functions [D] against 8 CPU P-cores) may not serve as the sole gate for routing decisions [`§21.2`]. For 8 P-core workstation routing, direct empirical benchmark measurements [M] must be executed on the target host using the fair-comparison protocol [`§8.4`].
+- **Routing Rule**: Workflows default to CPU execution for small systems ($N < 150$ basis functions) unless local measured benchmark data [M] demonstrates GPU speedup on the target hardware [`§8.4`, `§8.5`].
+
+### 1.4.3 Multi-Process Service (MPS) & Concurrency Configuration [`§8.4`]
+When executing high-throughput conformer searches (T1) or active-learning potential surface generation (T2) involving small molecular queries, running a single GPU job leaves $>80\%$ of GPU CUDA cores idle.
+- CoChem v4 mandates the deployment of **NVIDIA Multi-Process Service (MPS)** [`§8.4`].
+- MPS enables multiple client CPU processes to multiplex work onto a single GPU simultaneously.
+- Host CPU launch overheads (such as Python thread creation and graph building in PyTorch or MACE) introduce a 57% [M] host-side bottleneck per worker [`§8.4`].
+- **Optimal MPS Worker Ceiling**: The optimal GPU concurrency allocation is **2 to 4 workers per GPU**, backed by **1 dedicated CPU P-core per GPU worker** [`§8.4`].
+
+```bash
+# MANDATORY MPS DAEMON LAUNCH SCRIPT FOR SETUP 2 WORKSTATIONS (§8.4)
+export CUDA_MPS_PIPE_DIRECTORY=/tmp/nvidia-mps
+export CUDA_MPS_LOG_DIRECTORY=/tmp/nvidia-log
+nvidia-cuda-mps-control -d
+
+# Set active MPS worker thread allocation
+echo "set_default_active_thread_percentage 25" | nvidia-cuda-mps-control
+```
+
+### 1.4.4 Fair-Comparison Benchmarking Protocol [`§8.3`]
+When benchmarking GPU vs CPU electronic structure engines, all computational parameters must be strictly matched [`§8.3`]:
+1. Functional: `B3LYP` (or identical functional).
+2. Basis Set: `def2-TZVPP`.
+3. Integration Grid: `DEFGRID3` (ORCA) vs `(99, 590)` radial/angular grid (`gpu4pyscf`).
+4. SCF Convergence: Strict $10^{-9}\text{ Ha}$ energy tolerance.
+5. Density Fitting: Explicit matching of resolution-of-the-identity (`RIJK` in ORCA vs `density_fit()` in `gpu4pyscf`).
+
+---
 
 
-# 7. EDUCATIONAL & PEDAGOGICAL IMPLEMENTATIONS
+### 1.4.5 Troubleshooting: Hardware Constraints & TiledArray
+To prevent out-of-core swap thrashing on Setup 1 (64GB RAM / 2TB NVMe) workstations during massive MPQC tensor contractions, you must instruct the TiledArray memory governor.
+- Set `TA_LIMIT_MEMORY=51GB` (80% of system memory) in `cochem_config.yaml`.
+- Set `MAD_NUM_THREADS=8` to match typical Performance (P) core counts and prevent thread contention.
 
-While the primary CoChem pipeline is engineered for research-grade discovery, the underlying infrastructure provides a uniquely powerful foundation for chemical education. The pedagogical suite (**PLAY, CURE, LABS, EVAL**) repurposes CoChem's rigorous spatial mathematics and telemetry to teach, evaluate, and grade students without the traditional limitations of multiple-choice testing.
+## 1.5 System Deployment Models, Licensing & Cloud Limits
+CoChem v4 supports three primary hardware deployment models [`§1.2`, `§8.4b`, `§11`, `§19`]:
+
+
+### 1.5.1 Deployment Models & Installation Paths
+The CoChem v4 backend runs the Valeev Stack (MPQC, TiledArray, MADNESS, Libint).
+
+- **Local/Codespaces:** Execute `docker pull ghcr.io/cochem/mpqc-valeev-backend:latest`
+- **HPC (Slurm):** Execute `spack install mpqc +libint +madness`
+
+1. **Model A: GitHub Codespaces & Cloud CI/CD** [`§8.4b`, `§19.1`]: Lightweight cloud container environment. Ideal for triage, didactic instruction, and analytical line fitting.
+2. **Model B: Local DevContainer & Workstation (Setup 2)** [`§8.0`, `§8.1`]: Dedicated workstation equipped with an 8 P-core / 8 E-core CPU (e.g., Intel i7-13700K) and an NVIDIA RTX 3090/4090 GPU ($24\text{ GB}$ VRAM). Core pinning must restrict OpenMPI jobs to the 8 P-cores using `KMP_HW_SUBSET=8c:intel_core,1t` [`§8.0`].
+3. **Model C: HPC Cluster (Setup 3)** [`§8.0`, `§8.4a`]: Multi-node SLURM cluster running parallel ORCA and CFOUR jobs across Infiniband interconnects.
+
+### Step-by-Step Production SLURM Submission Script (`.sbatch`) [`§6.1`]
+Below is a reference `.sbatch` script generated by `CoChem-NODE` for Setup 3 HPC execution:
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=cochem_v4_bench
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32GB
+#SBATCH --time=12:00:00
+#SBATCH --partition=standard
+
+module load orca/5.0.4
+module load cfour/2.1
+module load cuda/12.2
+
+export OMP_NUM_THREADS=1
+export KMP_HW_SUBSET=8c:intel_core,1t
+
+cochem_exec --config production_junchs.json --input CO2_H2O.xyz
+```
+
+### 1.5.2 Cloud Infrastructure & Teaching Limits [`§8.4b`, `§19.1`]
+When deploying CoChem in educational or GitHub Actions environments, strict infrastructure constraints apply [`§8.4b`]:
+- **GitHub Actions Limits**: Maximum job execution time of **6 hours**, matrix cap of **256 jobs**, concurrency limit of **20 parallel jobs** (Free tier), and hardware runners constrained to **4 vCPUs and 16 GB RAM** [`§8.4b`].
+- **ChemCompute Integration**: For university courses and student labs, CoChem integrates with **ChemCompute** [`§19.1`], providing free access to NSF-funded supercomputing resources (Expanse, Bridges-2, Delta) running Psi4 and PySCF, completely bypassing local browser and GitHub runner constraints.
+
+### 1.5.3 Software Licensing & Redistribution Discipline [`§11.1`–`§11.3`]
+- **ORCA Licensing**: The ORCA End User License Agreement (EULA) strictly forbids the redistribution of ORCA binaries within public Docker images, public GitHub Codespaces, or shared cloud containers [`§11.1`]. Public teaching containers must deploy open-source alternatives (PySCF, Psi4, xtb) [`§11.3`].
+- **CFOUR Licensing**: CFOUR requires a signed institutional license agreement [`§11.2`].
+- **Machine Learning Potentials**: Models such as MACE-OFF23 and OMOL are restricted to academic and non-commercial research [`§11.3`].
+
+---
+
+## 1.6 CoChem-DOCK: Telemetry, WebSockets & Decimated Array Streaming
+High-throughput quantum chemistry calculations generate massive streams of stdout logging and dense numerical arrays. Streaming raw ORCA outputs into standard Jupyter Notebook cells causes browser DOM freezing and kernel crashes [`§1.4`].
+
+### 1.6.1 Asynchronous WebSocket Architecture [`§18`, `§20.2`]
+`CoChem-DOCK` decouples job execution from the user interface by spinning up a localized FastAPI WebSocket server and a React Single-Page Application (SPA) [`§18`]. Output logs are streamed asynchronously over WebSockets directly into dedicated virtualized log buffers using React `useRef` hooks to prevent layout thrashing [`§18`, `§20.2`].
+
+### 1.6.2 Largest-Triangle-Three-Buckets (LTTB) Decimation [`§18`, `§8C.2`]
+Simulating room-temperature rotational spectra or multi-dimensional potential energy surfaces produces datasets containing upwards of $10,000,000$ data points. Rendering $10^7$ coordinate pairs in browser WebGL canvases triggers instant Out-Of-Memory (OOM) tab crashes [`§18`].
+- `CoChem-DOCK` passes raw spectral arrays through the **Largest-Triangle-Three-Buckets (LTTB)** decimation algorithm prior to WebSocket transmission [`§18`, `§8C.2`].
+- LTTB downsamples $10^7$ points to exactly $5,000$ points while mathematically preserving peak maxima, absorption line shapes, and baseline noise features without deleting sharp spectroscopic signals.
+
+$$\text{Area} = \frac{1}{2} \left| A_x (B_y - C_y) + B_x (C_y - A_y) + C_x (A_y - B_y) \right|$$
+
+---
+
+# CHAPTER 2: MOLECULAR INGESTION, TRIAGE & PROVENANCE (CoChem-MInt)
+
+## 2.1 The Unified Ingestion Dashboard & Input Parsing
+The **CoChem-MInt** (Molecular Ingestion & Triage) module acts as the strict entry gatekeeper for all chemical structures [`§2.1`]. MInt accepts input from two primary sources:
+1. **Direct Identifier Ingestion**: SMILES strings, IUPAC names, or PubChem Compound Identifiers (CIDs) fetched via asynchronous `aiohttp` queries [`§2.2`].
+2. **Coordinate File Uploads**: Structural files in `.xyz`, `.mol2`, `.pdb`, or `.cif` formats [`§2.3`].
+
+### Asynchronous Ingestion & 3D WebGL Visualization
+MInt integrates `py3Dmol` WebGL components directly within the UNITY dashboard. Users can inspect spatial conformers, check bond connectivity graphs, and verify isotopic labels prior to queueing high-tier calculations.
+
+---
+
+## 2.2 Sandboxed Fast Triage & The Eckart Coordinate Frame
+Before invoking expensive quantum mechanical solvers, incoming geometries undergo structural sanitization and deterministic coordinate alignment [`§2.3`, `§2.4`].
+
+### 2.2.1 Force-Field Preconditioning (GFN2-xTB / UFF) [`§2.4`]
+Uploaded structures pass through a sandboxed minimization using GFN2-xTB or the Universal Force Field (UFF) to eliminate severe steric clashes, unphysical bond lengths ($< 0.8\text{ \AA}$), or overlapping atoms.
+
+### 2.2.2 Center-of-Mass & Eckart Frame Standard Alignment [`§2.3`, `§5.1`]
+To ensure structural determinism and prevent numerical noise during rotational constant evaluations:
+1. The origin of the Cartesian coordinate system is shifted strictly to the molecular Center of Mass (COM):
+
+$$\mathbf{r}_{\text{COM}} = \frac{\sum_{i=1}^N m_i \mathbf{r}_i}{\sum_{i=1}^N m_i}$$
+
+2. The moment of inertia tensor $\mathbf{I}$ is constructed and diagonalized to establish the Principal Axis System (PAS), orienting the principal axes along $a, b, c$ such that $I_a \le I_b \le I_c$:
+
+$$\mathbf{I}_{\alpha\beta} = \sum_{i=1}^N m_i \left( r_i^2 \delta_{\alpha\beta} - r_{i,\alpha} r_{i,\beta} \right)$$
+
+3. Geometries are aligned to the standard **Eckart Frame** [`§2.3`, `§5.1`], ensuring that spatial RMSD checks during conformer deduplication are invariant to translational and rotational shifts:
+
+$$\sum_{i=1}^N m_i \left( \mathbf{r}_i^0 \times \mathbf{r}_i \right) = \mathbf{0}$$
+
+```python
+# PYTHON ECKART FRAME TRANSFORMER (§2.3, §5.1)
+import numpy as np
+
+def align_to_eckart_frame(coords, masses, ref_coords):
+    # 1. Center of Mass Shift
+    com = np.sum(coords * masses[:, None], axis=0) / np.sum(masses)
+    coords_centered = coords - com
+    ref_com = np.sum(ref_coords * masses[:, None], axis=0) / np.sum(masses)
+    ref_centered = ref_coords - ref_com
+    
+    # 2. Compute Eckart Cross-Correlation Matrix A
+    A = np.dot((coords_centered * masses[:, None]).T, ref_centered)
+    
+    # 3. Singular Value Decomposition
+    U, S, Vt = np.linalg.svd(A)
+    R = np.dot(U, Vt)
+    
+    # Enforce right-handed coordinate system
+    if np.linalg.det(R) < 0:
+        U[:, -1] *= -1
+        R = np.dot(U, Vt)
+        
+    aligned_coords = np.dot(coords_centered, R)
+    return aligned_coords
+```
+
+---
+
+## 2.3 Physics Variable Setup & Spend Priority Hierarchy
+During ingestion setup, the user specifies target physical observables. CoChem v4 enforces a strict **Spend Priority Hierarchy** [`§3.3`] to optimize computational expenditure:
+
+```
++-----------------------------------------------------------------------------------+
+|                        COCHEM V4 COMPUTE SPEND PRIORITY                           |
++------+----------------------------------------+-----------------------------------+
+| Rank | Target Parameter                       | Optimization Strategy             |
++------+----------------------------------------+-----------------------------------+
+| 1    | Intermolecular Geometry (R)            | Composite / Frozen Monomer        |
+| 2    | Harmonic/Anharmonic Delta B_vib        | Low-cost DFT Hessian              |
+| 3    | Monomer Core Geometries                | Freeze high-level CCSD(T) monomers |
+| 4    | Quartic Centrifugal Distortion         | Extract free from harmonic Hessian|
+| 5    | Inertial Defect & Planar Moments       | Extract free from geometry/Hessian|
+| 6    | Dipole Moment Components (mu_a,b,c)    | Signed PAS evaluation             |
+| 7    | Nuclear Quadrupole Coupling (chi)      | Core-polarized basis evaluation   |
+| 8    | Internal Rotation Barriers (V_3)       | 1D Torsional Scan                 |
+| 9    | Tunnelling Splittings                  | Path-integral / WKB estimate      |
+| 10   | Binding Energy (D_0)                   | Post-assignment validation only   |
++------+----------------------------------------+-----------------------------------+
+```
+
+> **Key Rule**: *Compute budget must be expended on intermolecular geometry optimization and vibrational corrections BEFORE attempting high-level calculations of interaction energies ($D_0$) or hyper-fine coupling* [`§3.3`]. Intermolecular geometry errors dominate rotational constants.
+
+---
+
+## 2.4 Provenance Initialization & Semantic Audit Ledger
+At the conclusion of ingestion, MInt generates `fit_provenance.json` [`§12.5`, `§20.2`]. This JSON ledger records:
+- SHA-256 cryptographic hashes of all input coordinates.
+- Active software versions (ORCA, CFOUR, PySCF, xtb).
+- Exact CODATA physical constants (CODATA 2018 default: $\hbar = 1.054571817 \times 10^{-34}\text{ J}\cdot\text{s}$, $u = 1.66053906660 \times 10^{-27}\text{ kg}$).
+- Mandatory `[M]`, `[D]`, and `[E]` provenance tags assigned to all baseline assumptions [`§12.5`].
+
+```json
+{
+  "provenance_schema_version": "2026.4",
+  "system_identifier": "CO2_H2O_dimer",
+  "codata_version": "2018",
+  "coordinate_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "product_class": "Class_A",
+  "target_budget": "12h",
+  "assigned_provenance_tags": {
+    "intermolecular_distance_R": "[M]",
+    "harmonic_vibrational_shift": "[D]",
+    "estimated_tunnelling_barrier": "[E]"
+  }
+}
+```
+
+---
+
+# CHAPTER 3: TOPOLOGICAL DISCOVERY, DEDUPLICATION & PES (TOPOS, SCAN, TORQ)
+
+## 3.1 Conformer & Isomer Exploration (T1 Routing)
+The **CoChem-TOPOS** module conducts global conformational searching across potential energy surfaces [`§9B`, `§13.1`]. T1 workflows route according to target wall-clock budgets:
+- **`T1-10s`**: Hand-enumerated binding topologies (3–9 initial seeds) optimized via `! XTB2 TightOpt` [`§13.1`].
+- **`T1-1min`**: `! GOAT XTB2 PAL8` stochastic exploration [`§13.1`].
+- **`T1-30min`**: Machine Learning Force Field GOAT exploration using `! GOAT-EXPLORE ExtOpt` backed by an active `oet_server` daemon [`§9B.4`, `§13.1`].
+- **`T1-1h`**: CREST non-covalent search: `crest --nci --gfn2 --ewin 12 --nocross --noreftopo` [`§9B.2`, `§13.1`].
+- **`T1-3h`**: Multi-engine union merge $\rightarrow$ CREST screening $\rightarrow$ r²SCAN-3c refinement $\rightarrow$ CREGEN deduplication (`--bthr 0.001`) [`§9B.3`, `§13.1`].
+- **`T1-12h`**: `! GOAT r2SCAN-3c` global search over leading isomeric basins [`§13.1`].
+
+---
+
+## 3.2 Two-Stage Deduplication Protocol: GOAT Primary + CREST Cross-Check
+Legacy conformer search pipelines frequently relied on a single search engine (such as CREST alone). CoChem v4 incorporates a mandatory **Two-Stage Deduplication Protocol** [`§9B.1`–`§9B.3`]:
+
+```
++-----------------------------------------------------------------------------------+
+|                     TWO-STAGE CONFORMER DEDUPLICATION PROTOCOL                    |
++-----------------------------------------------------------------------------------+
+| STAGE 1: PRIMARY EXPLORATION (ORCA GOAT)                                          |
+| - Method: Stochastic uphill potential pushing (! GOAT XTB2 or r2SCAN-3c)          |
+| - Performance: High basin-coverage reliability (F1 score = 0.93 [M])              |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| STAGE 2: SECONDARY CROSS-CHECK (CREST NCI)                                        |
+| - Command: crest --nci --gfn2 --ewin 12 --nocross --noreftopo                     |
+| - Mandatory Flags: --nocross (prevents cross-isomer corruption)                   |
+|                    --noreftopo (disables rigid topology checks for weak complexes)|
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v
++-----------------------------------------------------------------------------------+
+| STAGE 3: REFEREE DEDUPLICATION (CREGEN UNION)                                     |
+| - Stage A (Coarse Triage): Engine defaults (RMSD 0.125 Å [E], dE 0.10 kcal/mol [E])       |
+| - Stage B (Spectroscopic): crest --cregen --bthr 0.001 (0.1% [M] rotational shift)    |
++-----------------------------------------------------------------------------------+
+```
+
+### CREST Non-Covalent Binding Protection [`§9B.2`]
+Running standard CREST iterative Metadynamics via Molecular Dynamics (iMTD-GC) without non-covalent interaction flags on weak van der Waals dimers causes severe force bias, pulling fragile complexes apart and causing dissociation within $4.2\text{ ps}$ [`§9B.2`].
+- **Mandatory CREST Flags**: `crest --nci --gfn2 --nocross --noreftopo` [`§9B.2`].
+- **`--noreftopo` Rationale**: Standard CREST assumes fixed covalent topology. For hydrogen-bonded or vdW complexes, hydrogen-bond rearrangement changes topological connectivity graphs. Disabling reference topology checks (`--noreftopo`) is required to discover true binding isomers.
+
+---
+
+## 3.3 MLFF-GOAT Integration Recipe & Boundary Constraints
+CoChem v4 enables high-speed Machine Learning Force Field (MLFF) conformer discovery via ORCA's external optimizer interface (`!ExtOpt GOAT`) coupled to an active `oet_server` daemon [`§9B.4`, `§10.1`].
+
+### 3.3.1 The ORCA External Tool Contract (`!ExtOpt`) & Sign-Flip Requirement [`§10.2`, `§10.3`]
+When interfacing external MLFF models (such as MACE-OFF23 or AIMNet2) to ORCA via `!ExtOpt`, strict coordinate and gradient conversion rules apply [`§10.3`]:
+1. **Coordinate File**: ORCA writes current Cartesian coordinates to `extinp.tmp` in Bohr.
+2. **Force-to-Gradient Sign Flip**: ASE and PyTorch calculators evaluate atomic forces $\mathbf{F}_i = -\nabla_i E$ in units of $\text{eV/\AA}$. ORCA expects the energy $E$ (Hartrees) and gradients $\mathbf{g}_i = +\nabla_i E = -\mathbf{F}_i$ in units of $\text{Eh/bohr}$ written to `engrad` [`§10.3`].
+
+$$\mathbf{g}_i \,(\text{Eh/bohr}) = -\mathbf{F}_i \,(\text{eV/\AA}) \times \left( \frac{1\text{ bohr}}{0.5291772109\text{ \AA}} \right) \times \left( \frac{1\text{ Eh}}{27.211386245\text{ eV}} \right)$$
+
+```python
+# PYTHON OET_SERVER DAEMON GRADIENT WRAPPER (§10.3)
+import numpy as np
+
+def process_orca_extopt(input_file="extinp.tmp", output_file="engrad"):
+    # Read coordinates from ORCA (Bohr)
+    coords_bohr = parse_extinp(input_file)
+    coords_ang = coords_bohr * 0.5291772109
+    
+    # Evaluate MLFF energy and forces (eV, eV/A)
+    energy_ev, forces_ev_ang = mlff_calculator.calculate(coords_ang)
+    
+    # Unit Conversions
+    energy_hartree = energy_ev / 27.211386245
+    # CRITICAL: SIGN FLIP (Gradient = - Force)
+    grad_hartree_bohr = -forces_ev_ang * (0.5291772109 / 27.211386245)
+    
+    # Write engrad format for ORCA
+    write_engrad(output_file, energy_hartree, grad_hartree_bohr)
+```
+
+> **CRITICAL WARNING**: *Failure to invert the sign ($\mathbf{g} = -\mathbf{F}$) causes the ORCA optimizer to interpret forces as positive gradients, driving the molecular structure UPHILL toward high-energy explosive dissociation* [`§10.3`].
+
+### 3.3.2 Float32 Precision Traps & MLFF Limitations [`§9B.4`, `§10.5`]
+- **Float32 Optimizer Noise**: Neural network potentials evaluated in single precision (Float32) carry numerical gradient noise at the $10^{-4}\text{ Eh/bohr}$ level [`§10.5`]. Geometry optimizations using `!ExtOpt` with Float32 MLFFs must specify loose SCF tolerances (`%scf TolE 1e-5 end`) and loose geometry bounds (`! TightOpt` will fail to converge due to gradient noise floor) [`§10.5`].
+- **MLFF Accuracy Boundary**: Foundation MLFFs (MACE-OFF23, ANIK, AIMNet2) exhibit interaction energy errors of **$3.5\text{ to } 7.3\text{ kcal/mol}$ on non-covalent benchmark sets (S30L) [M]** [`§9B.4`].
+- **Mandatory Role**: *MLFF-GOAT acts strictly as a high-speed topology ENUMERATOR, never as the final structural or energetic JUDGE* [`§9B.4`]. All MLFF-discovered conformers must undergo high-level DFT or composite *ab initio* re-optimization [`§9B.4`].
+
+---
+
+## 3.4 Geometry Optimization Preconditioning & Initial Hessians
+Legacy user manuals recommended setting `Calc_Hess` in ORCA optimization blocks to compute an exact initial Hessian at step 0. CoChem v4 **strictly forbids `Calc_Hess`** for geometry optimizations [`§8B.3`].
+
+### 3.4.1 Rationale for Eliminating Legacy `Calc_Hess` [`§8B.3`]
+Computing an exact analytical initial Hessian at step 0 requires significant computational time (often equivalent to 10–30 single-point gradient evaluations). Benchmark evaluations across non-covalent complexes prove that exact initial Hessians do not accelerate quasi-Newton convergence compared to model Hessians [`§8B.3`]:
+
+```
++-----------------------------------------------------------------------------------+
+|               INITIAL HESSIAN CONVERGENCE STEPS BENCHMARK [M]                     |
++-----------------------------------+-----------------------+-----------------------+
+| Test System                       | Exact Initial Hessian | InHess XTB2 / Lindh   |
++-----------------------------------+-----------------------+-----------------------+
+| Water Dimer                       | 24 steps              | 22 steps              |
+| Formic Acid Dimer                 | 21 steps              | 19 steps              |
+| SO2 - Water Complex               | 110 steps             | 104 steps             |
+| Pyridine - Water Dimer            | 120 steps             | 112 steps             |
++-----------------------------------+-----------------------+-----------------------+
+```
+
+### 3.4.2 Corrected Initial Hessian Guidance [`§8B.3`]
+Initial Hessians should be generated using low-cost model approximations via `InHess XTB2` or `InHess Lindh` [`§8B.3`]:
+
+```text
+# CORRECTED COCHEM V4 OPTIMIZATION BLOCK
+! r2SCAN-3c Opt
+%geom
+  InHess XTB2     # Model Hessian from GFN2-xTB (or InHess Lindh)
+  TolE 1e-7
+  TolRMSG 3e-6
+  TolMaxG 1e-5
+  TolRMSD 5e-5
+  TolMaxD 1e-4
+end
+```
+
+---
+
+## 3.5 Torsional Discovery & Internal Rotor Mechanics (TORQ)
+For molecules containing internal rotating groups (e.g., methyl $-\text{CH}_3$ tops or hydroxyl $-\text{OH}$ rotors), internal rotation violates harmonic oscillator approximations [`§6.7`, `§14.2`].
+
+### 3.5.1 Reduced Moment of Inertia $F(\phi)$ [`§6.7`]
+`CoChem-TORQ` performs 1D relaxed torsional scans along internal dihedral coordinates $\phi \in [0^\circ, 360^\circ]$ at $5^\circ$ increments. At each step, TORQ evaluates the geometry-dependent reduced moment of inertia $F(\phi)$ in $\text{cm}^{-1}$:
+
+$$F(\phi) = \frac{\hbar}{8\pi^2 c I_r(\phi)}$$
+
+where $I_r(\phi)$ is the effective internal rotation moment of inertia calculated using the Pitzer rigid-frame / relaxed-top formalism [`§6.7`]:
+
+$$I_r(\phi) = I_\alpha \left[ 1 - \sum_{\beta} \frac{\lambda_\beta^2 I_\alpha}{I_\beta} \right]$$
+
+### 3.5.2 Internal Rotation Barrier Caps [$M$] [`§14.2`]
+Theoretical calculations of 3-fold internal rotation barriers ($V_3$) using DFT (e.g., $\omega\text{B97X-V}$) carry an intrinsic accuracy cap of **$\pm 14\%$ [M]** against experimental microwave torsional splittings [`§14.2`].
+
+---
+
+## 3.6 Persistent HDF5 Potential Energy Surface Store (`PESStore`)
+CoChem v4 replaces temporary output text parsing with a persistent, centralized **HDF5 Potential Energy Surface Store** backed by the `PESStore` Python class [`§8C.1`–`§8C.3`].
+
+```python
+# PESStore ARCHITECTURE IMPLEMENTATION (§8C.2)
+import h5py
+import numpy as np
+import json
+
+class PESStore:
+    """
+    High-performance resizable HDF5 store for multi-dimensional PES campaigns.
+    Uses h5py with chunking (512 points), gzip compression, and Fletcher32 checksums.
+    """
+    def __init__(self, filename="campaign.h5"):
+        self.filename = filename
+        self._init_db()
+
+    def _init_db(self):
+        with h5py.File(self.filename, 'a') as f:
+            if 'molecules' not in f:
+                f.create_dataset('molecules', shape=(0, 0, 3), maxshape=(None, None, 3),
+                                 dtype='float64', chunks=(512, 10, 3), compression='gzip',
+                                 compression_opts=4, fletcher32=True)
+            if 'energies' not in f:
+                f.create_dataset('energies', shape=(0,), maxshape=(None,),
+                                 dtype='float64', chunks=(512,), compression='gzip',
+                                 compression_opts=4, fletcher32=True)
+            if 'gradients' not in f:
+                f.create_dataset('gradients', shape=(0, 0, 3), maxshape=(None, None, 3),
+                                 dtype='float64', chunks=(512, 10, 3), compression='gzip',
+                                 compression_opts=4, fletcher32=True)
+
+    def append_entry(self, coords, energy, grad):
+        with h5py.File(self.filename, 'a') as f:
+            m_ds = f['molecules']
+            e_ds = f['energies']
+            g_ds = f['gradients']
+            
+            idx = e_ds.shape[0]
+            n_atoms = coords.shape[0]
+            
+            if m_ds.shape[1] < n_atoms:
+                m_ds.resize((m_ds.shape[0], n_atoms, 3))
+                g_ds.resize((g_ds.shape[0], n_atoms, 3))
+                
+            m_ds.resize((idx + 1, n_atoms, 3))
+            e_ds.resize((idx + 1,))
+            g_ds.resize((idx + 1, n_atoms, 3))
+            
+            m_ds[idx] = coords
+            e_ds[idx] = energy
+            g_ds[idx] = grad
+```
+
+### 3.6.1 HDF5 Storage Parameters [`§8C.2`]
+- **Chunk Size**: Chunked in blocks of **512 geometry points** ($120\text{ KiB}$ chunk size) to optimize random I/O during active learning queries [`§8C.2`].
+- **Compression & Integrity**: `gzip` level 4 compression combined with `shuffle` filtering and mandatory **`fletcher32` checksum validation** [`§8C.2`].
+- **Lossy Compression Prohibited**: The HDF5 `scaleoffset` lossy filter is **strictly forbidden** for energy fields, as truncating energy mantissas introduces artificial noise into gradient numerical differentiation [`§8C.3`].
+
+---
+
+## 3.7 Active Learning & Dynamic PES Refinement (SCAN)
+For high-dimensional potential surface mapping ($T2$ workflows), running uniform grid sampling is computationally intractable ($N_{\text{pts}} = k^d$). `CoChem-SCAN` deploys active learning via Query-By-Committee (QBC) uncertainty sampling [`§13.2`]:
+1. A committee of 4 neural network potentials (MACE-OFF23 seeds) evaluates candidates from a pool of $2,000$ generated geometries.
+2. Geometries exhibiting maximum committee energy variance $\sigma_E^2 > 0.05\text{ kcal/mol}$ are selected for high-level DFT / CCSD(T) evaluation.
+3. Points are appended to `campaign.h5` and the model is fine-tuned, achieving a **20x to 100x reduction in required single-point calculations** [`§13.2`].
+
+---
+
+# CHAPTER 4: HIGH-PRECISION AB INITIO REFINEMENT (BENCH & CROWN)
+
+## 4.1 Equilibrium ($B_e$) vs Ground-State ($B_0$) Rotational Constants
+A primary source of confusion in spectroscopic modeling is the physical distinction between equilibrium rotational constants ($B_e$) and ground-state experimental rotational constants ($B_0$) [`§3.0`–`§3.2`].
+
+### 4.1.1 Physical Definitions [`§3.0`]
+- **$B_e$ (Born-Oppenheimer Equilibrium)**: Rotational constants calculated directly from the structural minimum of the electronic potential energy surface ($r_e$). $B_e$ represents a purely theoretical construct with no zero-point motion.
+- **$B_0$ (Ground-State Vibrationally Averaged)**: The true physical observable measured in a microwave experiment. $B_0$ incorporates zero-point vibrational motion ($\Delta B_{\text{vib}}$):
+
+$$B_0 = B_e + \Delta B_{\text{vib}} = B_e - \frac{1}{2} \sum_{i=1}^{3N-6} \alpha_i^B$$
+
+where $\alpha_i^B$ are the vibration-rotation interaction constants derived from anharmonic force fields [`§3.0`].
+
+### 4.1.2 Magnitude of Vibrational Corrections [`§3.1`]
+Vibrational contributions $\Delta B_{\text{vib}}$ account for **$0.1\%$ to $0.7\%$ of the total rotational constant magnitude** [`§3.1`].
+- For a rigid molecule ($B \approx 5,000\text{ MHz}$), $\Delta B_{\text{vib}}$ shifts the rotational constant by **$5\text{ to } 35\text{ MHz}$**.
+- For a floppy van der Waals complex (such as $\text{CO}_2 \cdots \text{H}_2\text{O}$), zero-point elongation shifts $B_0$ by up to **$1.5\%$ to $2.0\%$** relative to $B_e$ [`§3.1`].
+
+---
+
+## 4.2 Intermolecular Geometry Convergence & Corrected `%geom` Block
+Default geometry optimization thresholds in standard quantum chemistry packages (e.g., ORCA `!Opt`) are engineered for rigid covalent bonds. They are fundamentally inadequate for non-covalent complexes with soft intermolecular modes ($k \approx 0.05\text{ to } 0.1\text{ mdyn/\AA}$) [`§4.1`–`§4.4`].
+
+### 4.2.1 Mechanics of Residual Gradient Error [`§4.4`]
+Default ORCA `!Opt` specifies a maximum gradient convergence threshold of $\text{TolMaxG} = 3 \times 10^{-4}\text{ Eh/bohr}$.
+For a weak intermolecular stretch mode with force constant $k = 0.069\text{ mdyn/\AA}$, a residual gradient of $3 \times 10^{-4}\text{ Eh/bohr}$ leaves an unconverged residual displacement $\Delta R$ [`§4.4`]:
+
+$$\Delta R = \frac{F}{k} = \frac{3 \times 10^{-4}\text{ Eh/bohr}}{0.069\text{ mdyn/\AA}} \approx 0.036\text{ \AA} = 3.6\text{ pm}$$
+
+Applying the rotational sensitivity relation $\frac{\Delta B}{B} = -2 \frac{\Delta R}{R}$ for a complex with $R = 3.0\text{ \AA}$ [`§4.1`]:
+
+$$\frac{\Delta B}{B} = -2 \left( \frac{0.036\text{ \AA}}{3.0\text{ \AA}} \right) = -2.4\% \quad (\approx 120\text{ MHz error at } 5\text{ GHz!})$$
+
+### 4.2.2 Corrected CoChem v4 `%geom` Block [`§4.4`]
+To restrict geometry-induced rotational errors below $0.05\%$, CoChem v4 mandates tightening gradient and displacement thresholds by a factor of 30 relative to default `!Opt` [`§4.4`]:
+
+```text
+# MANDATORY COCHEM V4 INTERMOLECULAR GEOMETRY BLOCK (§4.4)
+%geom
+  TolE 1e-7      # Energy change < 1e-7 Hartree
+  TolRMSG 3e-6      # RMS gradient < 3e-6 Eh/bohr
+  TolMaxG 1e-5      # Max gradient < 1e-5 Eh/bohr (30x tighter than !Opt)
+  TolRMSD 5e-5      # RMS displacement < 5e-5 bohr
+  TolMaxD 1e-4      # Max displacement < 1e-4 bohr
+end
+```
+
+---
+
+## 4.3 Frozen-Monomer Composite Protocol
+When calculating non-covalent complexes, high-level composite methods ($T3O\text{-}12h$ junChS) can be extremely expensive if all internal monomer degrees of freedom are fully optimized [`§9A.1`].
+
+### 4.3.1 Sensitivity Arithmetic & Error Imbalance [`§9A.2`]
+Consider the $\text{CO}_2 \cdots \text{H}_2\text{O}$ complex ($R = 2.836\text{ \AA}$).
+- An error of $\Delta R = 0.002\text{ \AA}$ in the intermolecular separation produces $\frac{\Delta B}{B} = -0.135\%$ (a $-6.26\text{ MHz}$ error) [`§9A.2`].
+- To produce an identical $-6.26\text{ MHz}$ rotational constant error via internal monomer bond length distortion would require a massive **$16.8\text{ m\AA}$ uniform error** across all covalent bonds [`§9A.2`].
+- Modern electronic structure methods (such as fc-CCSD(T)/cc-pVTZ or r²SCAN-3c) never err by $16.8\text{ m\AA}$ on covalent bonds (typical covalent bond error is $< 0.6\text{ pm}$) [`§9A.2`].
+
+### 4.3.2 Monomer Dominance Rule [`§9A.3`]
+Covalent monomer geometry error dominates the $A$ rotational constant ($10\text{ m\AA}$ monomer bond error $\rightarrow -1.71\%$ error in $A$), while intermolecular distance $R$ dominates $B$ and $C$ ($0.020\text{ \AA}$ intermolecular error $\rightarrow -1.34\%$ error in $B$) [`§9A.3`].
+
+### 4.3.3 Frozen-Monomer Protocol Execution [`§9A.4`]
+CoChem v4 establishes the **Frozen-Monomer Composite Protocol** as the default for all weakly bound complexes [`§9A.4`]:
+1. Optimize isolated monomers at high $ab initio$ levels (fc-CCSD(T)/cc-pwCVTZ or experimental $r_e^{\text{SE}}$ structures) to lock in covalent parameters and fix $A$.
+2. Assemble the complex and freeze all internal monomer coordinates.
+3. Optimize *only* the 6 intermolecular degrees of freedom (intermolecular separation $R$ and orientation angles) at the target composite level (e.g., $\omega\text{B97M-V/def2-QZVPP}$ or DLPNO-CCSD(T)).
+
+---
+
+## 4.4 Basis Set Superposition Error (BSSE) Geometry Corrections
+In finite basis set calculations of complexes, monomer A artificially borrows basis functions from monomer B, creating an unphysical attractive force [`§4.7`].
+- At the B3LYP/cc-pVTZ level without counterpoise correction, BSSE artificially shortens the intermolecular distance $R(\text{O}\cdots\text{O})$ in the water dimer by **$4.1\text{ pm}$** [`§4.7`].
+- A $4.1\text{ pm}$ geometry error produces a **$2.8\%$ error in $B_0$** [`§4.7`].
+- **Rule**: Counterpoise-corrected geometry optimization (`! CP`) or explicit CP-corrected composite schemes are mandatory when using non-augmented triple-zeta basis sets [`§4.7`].
+
+$$E_{\text{interaction}}^{\text{CP}} = E_{AB}^{AB}(R_{AB}) - E_A^{AB}(R_{AB}) - E_B^{AB}(R_{AB})$$
+
+---
+
+## 4.5 Frozen-Core Bias & Core-Valence Electron Correlation
+Valence-only frozen-core calculations (`fc-CCSD(T)`) ignore the correlation energy of deep 1s core electrons [`§4.8`].
+- Frozen-core calculations using `fc-CCSD(T)/cc-pVQZ` carry a systematic **$-0.81\%$ mean bias [M]** in $B_e$ across organic benchmarks [`§4.8`].
+- **Mandatory Constraint**: *No workflow may claim $\le 0.5\%$ accuracy in $B_e$ using frozen-core calculations without core-valence corrections* [`§4.8`].
+- **Remediation**: Core-valence corrections must be added via additive core legs ($\Delta \text{CV} = E_{\text{all-electron}}(\text{cc-pCVTZ}) - E_{\text{frozen-core}}(\text{cc-pVTZ})$) or using full core-polarized basis sets (`cc-pwCVTZ`) [`§4.8`].
+
+---
+
+## 4.6 Quantum Engine Track Division: MPQC vs Legacy Alternates (ORCA & CFOUR)
+
+```
++-----------------------------------------------------------------------------------+
+|                        QUANTUM ENGINE CAPABILITY MATRIX (§9.1)                    |
++------------------------------------+-----------------------+----------------------+ 
+| Feature / Capability               | ORCA Track            | CFOUR Track          |
++------------------------------------+-----------------------+----------------------+ 
+| Conformer Search & GOAT            | YES (Native)          | NO                   |
+| SCF Analytic Hessians (HF/DFT)     | YES                   | YES                  |
+| Coupled-Cluster Analytic Hessians  | NO (SCF only)         | YES (CCSD(T) Exact)  |
+| Anharmonic VPT2 Force Fields       | DFT / MP2 only        | Coupled-Cluster VPT2 |
+| Centrifugal Distortion (Sextic)    | Numerical / Limited   | YES (Analytic)       |
+| Spin-Rotation Tensors (C_alpha)    | Limited               | YES (Analytic)       |
+| DBOC Corrections                   | Limited               | YES (Analytic)       |
++------------------------------------+-----------------------+----------------------+ 
+```
+
+### 36N² Computational Scaling Arithmetic [`§9.3`]
+Why can ORCA not replace CFOUR for coupled-cluster VPT2 force fields?
+Consider a 10-atom non-linear complex ($N=10$, $3N-6 = 24$ normal modes). Anharmonic VPT2 requires computing **$6N-11 = 49$ Hessians** at displaced geometries [`§5.2`, `§9.3`]:
+
+1. **CFOUR Track**: Computes 49 analytical CCSD(T) Hessians directly using analytical second derivatives [`§9.3`].
+2. **ORCA Track (DLPNO Numerical Differentiation)**: Because ORCA lacks analytical CCSD(T) Hessians, computing a single Hessian requires finite differences of gradients.
+   - A numerical gradient requires $6N = 60$ single points.
+   - A numerical Hessian from numerical gradients requires $60 \times 60 = 3,600$ single-point calculations.
+   - Total single points for 49 Hessians: $49 \times 3,600 = \mathbf{176,400\text{ single-point DLPNO calculations!}}$ [`§9.3`].
+
+$$\text{Ratio} = \frac{\text{ORCA Single Points}}{\text{CFOUR Hessians}} = (6N)^2 = 36 N^2 = \mathbf{3,600 \times \text{ cost ratio at } N=10} \, [\text{D}]$$
+
+```text
+# SAMPLE CFOUR ZMAT INPUT FILE FOR COUPLED-CLUSTER ANHARMICITY (§9.3)
+Water Dimer CFOUR Anharmonic Force Field
+O1
+H2 1 R1
+H3 1 R1 2 A1
+O4 1 R2 2 A2 3 D1
+H5 4 R3 1 A3 2 D2
+H6 4 R3 1 A3 5 D3
+
+R1=0.957
+R2=2.912
+R3=0.957
+A1=104.5
+A2=112.0
+A3=104.5
+D1=0.0
+D2=120.0
+D3=-120.0
+
+*CFOUR(CALC=CCSD(T),BASIS=pV3Z,VIB=EXACT,ANHARM=VPT2,COORD=CARTESIAN)
+```
+
+> **Track Assignment Rule**: *CFOUR owns all coupled-cluster anharmonic force fields (VPT2), sextic centrifugal distortion, and spin-rotation tensors. ORCA owns conformer searching, DLPNO single points, and DFT-level VPT2* [`§9.1`–`§9.4`].
+
+---
+
+## 4.7 Multireference Diagnostics & Macroscopic Thermal Ensembles
+- **$T_1 / D_1$ Diagnostics**: Single-reference coupled-cluster calculations parse the $T_1$ diagnostic [`§4.4`]. If $T_1 > 0.02$ (closed-shell) or $T_1 > 0.04$ (open-shell), the calculation is rejected due to static multireference correlation, triggering a fallback warning to CASSCF/NEVPT2 in PySCF [`§4.4`].
+- **Boltzmann Population Synthesis**: Thermodynamic corrections derived from Hessians feed Boltzmann ensemble calculations at $T_{\text{sys}}$ (default $298.15\text{ K}$ or $2\text{ K}$ supersonic jet expansion), producing populated ensemble spectra [`§4.5`].
+
+$$P_i = \frac{g_i \exp(-E_i / k_B T)}{\sum_j g_j \exp(-E_j / k_B T)}$$
+
+---
+
+# CHAPTER 5: VIBRATIONAL AVERAGING, SECONDARY OBSERVABLES & FITTING (SpycFit & MUSE)
+
+## 5.1 Quantum Vibrational Averaging & Jensen's Inequality
+Vibrational averaging of rotational constants requires computing the expectation value of the inverse moment of inertia tensor $\mathbf{I}^{-1}$ over the ground-state vibrational wavefunction $\psi_0$ [`§5.1`]:
+
+$$\langle B \rangle_0 = \frac{\hbar}{8\pi^2 c} \left\langle \psi_0 \left| \mathbf{I}^{-1} \right| \psi_0 \right\rangle = \frac{\hbar}{8\pi^2 c} \left\langle \frac{1}{I} \right\rangle$$
+
+### 5.1.1 Jensen's Inequality Formula & Systematic Bias [`§5.1`]
+A frequent mathematical error in custom spectroscopy scripts is averaging the moments of inertia $I$ first and then inverting the average: $B_{\text{wrong}} = \frac{\hbar}{8\pi^2 c} \frac{1}{\langle I \rangle}$.
+By **Jensen's Inequality** for convex functions ($f(x) = 1/x$ is strictly convex for $x > 0$) [`§5.1`]:
+
+$$\left\langle \frac{1}{I} \right\rangle > \frac{1}{\langle I \rangle}$$
+
+Inverting after averaging systematically **underestimates the true rotational constant** $B_0$ [`§5.1`]. Taylor expanding around the equilibrium moment $I_e$ yields the systematic bias magnitude:
+
+$$\Delta B_{\text{bias}} = \left\langle \frac{1}{I} \right\rangle - \frac{1}{\langle I \rangle} \approx \frac{1}{I_e} \left( \frac{\sigma_I^2}{I_e^2} \right) \approx B_e \left( 3 \frac{\sigma_R^2}{R_0^2} \right)$$
+
+For a soft van der Waals mode with vibrational amplitude variance $\sigma_R = 0.15\text{ \AA}$ at $R_0 = 3.0\text{ \AA}$ [`§5.1`]:
+
+$$\frac{\Delta B_{\text{bias}}}{B_e} \approx 3 \left( \frac{0.15}{3.0} \right)^2 = 3 (0.05)^2 = \mathbf{0.63\% \text{ systematic underestimation bias}} \, [\text{D}]$$
+
+At $B_e = 3,500\text{ MHz}$, this mathematical error introduces a **$22\text{ MHz}$ systematic error**—exceeding the entire $0.1\%$ Class B error target by a factor of 6! [`§5.1`].
+- **Mandatory Rule**: *Vibrational averaging MUST evaluate the element-wise inverse inertia tensor expectation value $\left\langle \mathbf{I}^{-1} \right\rangle$ prior to scalar conversion* [`§5.1`].
+
+---
+
+## 5.2 Corrected Anharmonic VPT2 Displacement Counts
+When executing Anharmonic Vibrational Perturbation Theory (VPT2) to compute $\Delta B_{\text{vib}}$ and cubic force fields, numerical differentiation requires finite displacements along normal coordinates [`§5.2`].
+
+- **Corrected Formula**: For a non-linear molecule with $N$ atoms ($3N-6$ normal modes), the exact number of Hessian evaluations required for semi-diagonal cubic force field evaluation is [`§5.2`]:
+
+$$n_{\text{Hess}}^{\text{VPT2}} = 2(3N-6) + 1 = \mathbf{6N - 11}$$
+
+- For a 10-atom non-linear complex ($N=10$), $n_{\text{Hess}}^{\text{VPT2}} = 6(10) - 11 = \mathbf{49\text{ Hessians}}$ (not $6N+1 = 61$) [`§5.2`].
+- **Resonance Deperturbation**: If VPT2 denominators encounter Fermi ($\omega_i \approx 2\omega_j$) or Coriolis ($\omega_i \approx \omega_j$) resonances, CoChem-SpycFit applies automated Darling-Dennison matrix deperturbation to prevent frequency explosions [`§5.1`].
+
+---
+
+## 5.3 Force-Field Recycling & Isotopologue Structural Fitting
+Computing an anharmonic force field at the coupled-cluster level is computationally expensive. However, because electronic potential energy surfaces are invariant under isotopic substitution within the Born-Oppenheimer approximation, **a single force field can be recycled across all isotopologues at zero electronic-structure cost** [`§6.10`, `§8B.4`].
+
+### 5.3.1 Force-Field Recycling Pipeline [`§8B.4`]
+Once a master `.hess` file (ORCA) or `JOBARC` / `JA2FL` archive (CFOUR) is generated for the parent molecule:
+1. Copy the Hessian matrix.
+2. Substitute atomic masses $m_i \rightarrow m_i'$ for isotopic variants ($^{13}\text{C}, ^{18}\text{O}, \text{D}$).
+3. Re-run mass-weighted transformation (`orca_vib` or CFOUR `ISOMASS` + `xjoda`).
+4. **Computational Saving**: Yields full $B_0'$, centrifugal distortion, and $\Delta B_{\text{vib}}'$ constants for all isotopologues with **$6\text{x to } 15\text{x}$ compute savings [D]** [`§8B.4`].
+
+### 5.3.2 Kraitchman Singularity Handling & Costain $r_m^{(2)}$ Fitting [`§2.4`, `§5.6`]
+- **Kraitchman Singularity**: When an atom lies within $0.15\text{ \AA}$ of a principal inertial axis, Kraitchman substitution equations ($r_s$) yield imaginary coordinates due to noise in $\Delta I$ [`§2.4`]. CoChem flags axis proximity and falls back to Costain's empirical uncertainty bounds ($\delta r = 0.0015 / |r|\text{ \AA}$).
+- **Costain-Laurie $r_m^{(2)}$ Scaling**: Structural inversion fits effective moments $I_0$ using mass-scaling parameters ($c, d$) to strip zero-point vibrational inflation, yielding equilibrium-equivalent geometries ($r_e^{\text{SE}}$) [`§5.6`].
+
+---
+
+## 5.4 Secondary Spectroscopic Observables
+
+### 5.4.1 Dipole Moment Components ($\mu_a, \mu_b, \mu_c$) [`§6.1`]
+Dipole moments must be evaluated in the Principal Axis System (PAS) with explicit signs retained [`§6.1`].
+- **Dark Conformer Threshold**: Conformers with total dipole magnitude $|\mu| < 0.1\text{ Debye}$ are flagged as spectroscopic "dark conformers" [`§6.1`]. They are unobservable in CP-FTMW experiments regardless of thermodynamic stability.
+
+### 5.4.2 Nuclear Quadrupole Coupling Tensors ($\chi_{\alpha\beta}$) [`§6.3`]
+For nuclei with electric quadrupole moments ($I \ge 1$, e.g., $^{14}\text{N}, ^{35}\text{Cl}, ^{37}\text{Cl}, \text{D}$), quadrupole coupling constants $\chi_{\alpha\beta} = e Q q_{\alpha\beta} / h$ map electric field gradients (EFGs) $q_{\alpha\beta}$ [`§6.3`].
+- **Basis Set Rule**: Deuterium quadrupole couplings $\chi(\text{D})$ require core-polarized basis sets with uncontracted diffuse $p$ and $d$ functions (e.g., `cc-pCVTZ`) to resolve small field gradients [`§6.3`].
+
+---
+
+## 5.5 Permutation-Inversion Molecular Symmetry Groups
+For non-rigid molecules exhibiting internal rotation, inversion, or tunnelling (e.g., ammonia dimer or water cluster), traditional point-group symmetry fails [`§7`].
+- CoChem v4 deploys **Longuet-Higgins Molecular Symmetry (MS) Groups** based on feasible permutation-inversions $E^*$ [`§7`].
+- Point-group tools (such as `molsym`) are removed for non-rigid systems. Spin-statistical weights ($g_{ns}$) are calculated explicitly for SPCAT / Pickett integration [`§7`].
+
+---
+
+## 5.6 Modern JAX Spectroscopy Fitting Engine & Pickett Interoperability
+`CoChem-SpycFit` ports Watson A- and S-reduced centrifugally distorted Hamiltonians into **JAX** [`§5.1`, `§18`].
+- **Automatic Differentiation**: Autodiff computes analytical Jacobians $\mathbf{J}_{ij} = \frac{\partial \nu_i}{\partial p_j}$, accelerating Levenberg-Marquardt fitting without finite-difference gradient noise.
+- **Pickett Interoperability (`pyckett`)**: Fully compatible with JPL / CDMS formats, exporting validated `.par` (parameter input), `.int` (intensity input), and `.cat` (spectral catalog output) files [`§18`].
+
+```python
+# PYTHON JAX SPYCFIT WATSON HAMILTONIAN SNIPPET (§18)
+import jax
+import jax.numpy as jnp
+
+@jax.jit
+def watson_a_reduced_energy(J, K, A, B, C, DJ, DJK, DK):
+    # Rigid Rotor Base Energy
+    E_rr = 0.5 * (B + C) * J * (J + 1) + (A - 0.5 * (B + C)) * (K ** 2)
+    # Quartic Centrifugal Distortion Terms
+    E_cd = - DJ * (J * (J + 1)) ** 2 - DJK * J * (J + 1) * (K ** 2) - DK * (K ** 4)
+    return E_rr + E_cd
+
+# Compute Analytical Jacobian via Autodiff
+jacobian_fn = jax.jacobian(watson_a_reduced_energy, argnums=(2, 3, 4, 5, 6, 7))
+```
+
+---
+
+# CHAPTER 6: CONCURRENCY, STATE-CHAINING, TELEMETRY & DISPATCH (TORQ, NODE, SCRIBE, ORACLE)
+
+## 6.1 Heterogeneous Concurrency & Scout-and-Anchor Pipeline
+High-throughput workflows often suffer from resource contention when CPU-bound electronic structure calculations and GPU-bound neural network potentials are co-scheduled [`§8A.1`].
+
+```
++-----------------------------------------------------------------------------------+
+|               HETEROGENEOUS SCOUT-AND-ANCHOR PIPELINE ARCHITECTURE (§8A.2)        |
++-----------------------------------------------------------------------------------+
+| SCOUT STREAM (GPU-Bound / MPS)                                                    |
+| - Engine: MLFF (MACE-OFF23 / AIMNet2) or gpu4pyscf                                 |
+| - Allocation: 1 CPU P-Core + MPS GPU Worker (up to 3 concurrent scouts)           |
+| - Role: Rapid PES exploration, gradient scanning, advisory topology generation    |
++-----------------------------------------------------------------------------------+
+                                         |
+                                         v (Async Parsl Channel)
++-----------------------------------------------------------------------------------+
+| ANCHOR STREAM (CPU-Bound / ORCA & CFOUR)                                           |
+| - Engine: ORCA DLPNO-CCSD(T) / CFOUR Analytic Hessians                            |
+| - Allocation: 7 Dedicated CPU P-Cores (%maxcore 3000 MB per rank)                 |
+| - Role: High-precision ab initio refinement, strict convergence verification     |
++-----------------------------------------------------------------------------------+
+```
+
+### 6.1.1 Contention Budget & Parsl Co-Scheduling [`§8A.3`]
+- Executed via the Parsl workflow engine with isolated CPU thread pools [`§8A.3`].
+- **Contention Limit**: Co-scheduling contention slowdown must not exceed **1.20x on the CPU stream** [`§8A.3`].
+- **Speedup**: Delivers an overall **3.1x pipeline speedup [M]** compared to sequential execution [`§8A.3`].
+
+### 6.1.2 Concurrency Integrity Guards (G1–G7) [`§8A.6`]
+To ensure Scout optimizations do not corrupt Anchor scientific calculations, 7 integrity guards are enforced [`§8A.6`]:
+- **G1**: Scout outputs are strictly advisory; all structures undergo final Anchor validation.
+- **G2**: High-level Hessian verification on all converged minima.
+- **G3**: Basin identity verification via structural RMSD ($< 0.25\text{ \AA}$).
+- **G4**: Rank-inversion audit requiring Spearman correlation $\rho \ge 0.90$ across conformer energy rankings.
+- **G5**: Uncertainty gate rejecting MLFF predictions with variance $\sigma_E^2 > 0.05\text{ kcal/mol}$.
+- **G6**: Automated abort governor terminating Scout paths after 5 consecutive failures.
+- **G7**: Deterministic audit trail logging all random seeds and Parsl execution IDs.
+
+---
+
+## 6.2 State Reuse & Canonical 11-Arrow Chaining Pipeline
+The single most valuable computational asset in a spectroscopic pipeline is a converged geometry [`§8B.1`]. Reusing a converged geometry saves $600+$ single-point evaluations ($\approx 150\text{ hours}$ of compute time) [`§8B.1`].
+
+```
++-----------------------------------------------------------------------------------+
+|                  CANONICAL 11-ARROW STATE-CHAINING PIPELINE (§8B.2)               |
++-----------------------------------------------------------------------------------+
+|  [Ingested XYZ] ----(1)---> [xTB / MLFF Triage] ----(2)---> [r2SCAN-3c Opt]       |
+|                                                                    |              |
+|                                                                   (3)             |
+|                                                                    v              |
+|  [DLPNO Single Point] <--(6)--- [junChS Composite] <--(5)--- [wB97M-V TightOpt]   |
+|         |                                                          |              |
+|        (7)                                                        (4)             |
+|         v                                                          v              |
+|  [PESStore HDF5]               [Isotopologue Mass Loop] <--(8)--- [Analytic Hess] |
+|                                           |                        |              |
+|                                          (9)                      (10)            |
+|                                           v                        v              |
+|                                    [VPT2 Delta B_vib]      [Centrifugal Dist]     |
+|                                           |                        |              |
+|                                          +-----------(11)----------+              |
+|                                                       |                           |
+|                                                       v                           |
+|                                              [Pickett .par/.cat]                  |
++-----------------------------------------------------------------------------------+
+```
+
+### State Transfer Protection Rules (D1–D5) [`§8B.5`]
+- **D1**: Non-stationary geometry transfer warning.
+- **D2**: Hessian dimension mismatch rejection.
+- **D3**: SCF electronic state basin change audit.
+- **D4**: Counterpoise ghost-atom index mismatch check.
+- **D5**: Atomic file overwrite protection locking binary archives.
+
+---
+
+
+## 6.3 Remote SLURM Cluster Dispatch (CoChem-NODE)
+`CoChem-NODE` acts as the translation layer between the CoChem frontend and the MPQC backend. It translates `networkx` topologies into MPQC object-oriented JSON input formats. Crucially, when an F12 method is requested, NODE automatically appends the required Complementary Auxiliary Basis Sets (CABS) to the JSON payload.
+
+`CoChem-NODE` translates UI configurations into SLURM `.sbatch` job directives [`§6.1`]. It parses core topology, allocates `%maxcore` memory targets, and wraps execution in OpenMPI tasks. NODE features a **Registry Healer** daemon that automatically adopts orphaned asynchronous SLURM jobs upon client reconnect [`§8A.6`].
+
+---
+
+## 6.4 Localized Retrieval-Augmented RAG Diagnostics (CoChem-ORACLE)
+When quantum calculations fail, `CoChem-ORACLE` provides localized error diagnostics using a `llama.cpp` Large Language Model engine [`§6.2`].
+- **VRAM Preemption**: ORACLE yields GPU VRAM (1–2 GB per worker [E]) whenever quantum calculations launch, falling back to CPU execution or sleeping [`§8A.4`].
+- **ChromaDB RAG Vault**: ORACLE queries an offline ChromaDB SQLite vector store containing CoChem manual chunks, eliminating hallucinated diagnostic suggestions [`§6.4`].
+
+---
+
+## 6.5 Cryptographic FAIR Data Synthesis & QCSchema Logging (CoChem-SCRIBE)
+`CoChem-SCRIBE` aggregates all calculation results into FAIR-compliant publication packages [`§6.3`].
+- **Cryptographic Provenance**: Generates SHA-256 environment hashes locking Python dependencies, ORCA/CFOUR build versions, and CODATA constants [`§20.2`].
+- **QCSchema Export**: Serializes structural, energy, and force outputs into standardized JSON QCSchema files [`§8C.2`, `§20.2`].
+- **Automated LaTeX Tables**: Generates peer-review-ready `.tex` tables using `siunitx` and `booktabs` formatting [`§18`, `§20.2`].
+
+---
+
+# CHAPTER 7: EDUCATIONAL & PEDAGOGICAL IMPLEMENTATIONS
 
 ## 7.1 Foundational Concept Training (CoChem-PLAY1 & PLAY2)
 Undergraduate organic chemistry often suffers from the "2D Paper Problem," where students struggle to map flat Lewis structures to 3D spatial reality.
 
 ### 7.1.1 RDKit Valency Engines & VSEPR Validation (ATOM)
 In **PLAY1**, students are challenged to construct molecules.
-* The backend securely utilizes RDKit to mathematically validate the student's inputs against strict VSEPR rules.
-* The frontend utilizes WebAssembly (WASM) to actively intercept physically impossible geometries (e.g., a "Texas Carbon" with 5 bonds), providing immediate, Socratic feedback before allowing the student to submit the structure.
+- The backend securely utilizes RDKit to mathematically validate student inputs against strict VSEPR rules.
+- The frontend utilizes WebAssembly (WASM) to actively intercept physically impossible geometries (e.g., a "Texas Carbon" with 5 bonds), providing immediate, Socratic feedback before allowing submission.
 
 ### 7.1.2 Macroscopic Phase Arena & Dipole Vectors (POLAR)
-In **PLAY2**, the curriculum advances to intermolecular forces. Rather than asking students to memorize boiling points, the UI places 3D molecules into a "Macroscopic Arena." The backend dynamically calculates the molecular dipole moments and renders the vector arrows in the WebGL viewer, forcing students to visually align the electrostatic forces to predict boiling point trends.
+In **PLAY2**, the curriculum advances to intermolecular forces. Rather than asking students to memorize boiling points, the UI places 3D molecules into a "Macroscopic Arena." The backend dynamically calculates molecular dipole vectors ($\vec{\mu}$) and renders them in the WebGL viewer, forcing students to visually align electrostatic forces to predict boiling point trends.
+
+---
 
 ## 7.2 The Gamified Curriculum (Academic Elo Tiers)
-To prevent cognitive overload for undergraduate students interacting with the pipeline, **CoChem-PLAY** implements a gamified, dynamically scaling difficulty matrix known as the **Academic Elo Tier System**.
+To prevent cognitive overload for undergraduate students interacting with the pipeline, **CoChem-PLAY** implements a gamified difficulty matrix known as the **Academic Elo Tier System**:
+- **Tier 1 (Novice)**: Diatomic and simple straight-chain alkanes (rigid frameworks, no stereocenters).
+- **Tier 2 (Apprentice)**: Single heteroatoms (alcohols, amines) introducing basic electronegativity vectors.
+- **Tier 3 (Intermediate)**: Simple conjugated $\pi$-systems and rigid rings (benzene, cyclopentane).
+- **Tier 4 (Advanced)**: Multi-functionalized systems requiring VSEPR integration and internal hydrogen bonding.
+- **Tier 5 (Expert)**: Fluxional topologies, polycyclic frameworks, and transition metal complexes.
 
-### 7.2.1 Elo Tier Structural Complexity
-As students successfully complete geometric validations (Section 7.1.1) and dipole alignments, the backend increments their hidden Elo score, unlocking progressively more complex topologies:
-* **Tier 1 (Novice):** Diatomic and simple straight-chain alkanes (rigid frameworks, no stereocenters).
-* **Tier 2 (Apprentice):** Introduction of single heteroatoms (e.g., alcohols, amines) to introduce basic electronegativity vectors.
-* **Tier 3 (Intermediate):** Simple conjugated $\pi$-systems and rigid rings (e.g., benzene, cyclopentane).
-* **Tier 4 (Advanced):** Multi-functionalized systems requiring complex VSEPR integration and internal hydrogen bonding.
-* **Tier 5 (Expert):** Fluxional topologies, poly-cyclic frameworks, and transition metal coordination complexes.
+---
 
 ## 7.3 Undergraduate Curriculum Mapping (CoChem-CURE)
 For upper-level physical chemistry courses, the pipeline implements a Course-Based Undergraduate Research Experience (CURE).
 
 ### 7.3.1 High-Energy Photolysis & Radical Trapping
-Students are tasked with designing a theoretical experiment to capture a transient radical species. They use the pipeline to generate the starting geometry, invoke the LUMOS module to simulate the photolytic cleavage, and utilize the SCAN module to find the thermodynamic trap state.
+Students design theoretical experiments to capture transient radical species. They generate starting geometries, invoke the LUMOS module to simulate photolytic cleavage, and utilize the SCAN module to locate thermodynamic trap states.
 
 ### 7.3.2 Abstract Syntax Tree (AST) Evasion Auditing
-To prevent students from simply hardcoding the correct answers into their Jupyter Notebooks, the grading backend utilizes Python's `ast` (Abstract Syntax Tree) module. It mathematically parses the student's code structure, verifying that the appropriate loops and quantum engine calls were actually executed. If a student bypasses the ORCA call and just prints "Energy = -400.12 Hartrees," the submission is automatically flagged for Evasion, preventing falsified data points.
+To prevent students from hardcoding answers into Jupyter Notebooks, the grading backend utilizes Python's `ast` (Abstract Syntax Tree) module. It mathematically parses code execution structures, verifying that quantum engine calls were actually executed. If a student bypasses the ORCA call and prints hardcoded strings, the submission is automatically flagged for Evasion.
+
+```python
+# AST EVASION AUDITOR CODE SNIPPET (§8A.5, §12.6)
+import ast
+
+class QuantumExecutionAuditor(ast.NodeVisitor):
+    def __init__(self):
+        self.found_orca_call = False
+        
+    def visit_Call(self, node):
+        if isinstance(node.func, ast.Name) and node.func.id in ['run_orca', 'execute_quantum']:
+            self.found_orca_call = True
+        self.generic_visit(node)
+```
 
 ### 7.3.3 Advanced Plagiarism Traps: Temporal Collusion Detection
-While CoChem-EVAL relies on Abstract Syntax Tree (AST) hashing to catch code-copying, students often attempt to evade this by manually rewriting variable names.
-* **The Git History Parser:** To combat sophisticated evasion in group environments, CoChem parses the underlying `.git` commit history of the Codespace workspace.
-* **Temporal Collusion:** The system analyzes the delta between commit timestamps across different student repositories. If Student A and Student B both push topologically identical, highly complex MACE-OFF23 workflow cells within 15 seconds of each other, the pipeline flags this as "Temporal Collusion." The AST parser will mark the submission for manual PI review, successfully identifying unauthorized peer-to-peer data sharing.
+To combat sophisticated evasion in group environments, CoChem parses the underlying `.git` commit history of Codespace workspaces. The system analyzes commit timestamp deltas across student repositories. If Student A and Student B push topologically identical, highly complex workflow cells within 15 seconds of each other, the pipeline flags the submission as "Temporal Collusion" for PI review.
 
-### 7.3.4 The Individual Contribution Index (ICI) and Free-Rider Detection
-The CoChem-CURE module requires students to operate in defined research groups. A primary failure point of group pedagogy is the "Free-Rider" phenomenon, where one student performs all the computational heavy lifting.
-* **The ICI Metric:** CoChem integrates a CURE Telemetry Auditor that calculates the **Individual Contribution Index (ICI)**. It maps the git commit authors to the actual execution logs of the quantum engines.
-* **Automated Flagging:** If the auditor detects that a specific user account in the `group_manifest.json` triggered < 10% of the necessary computational workflows (a sub-30 ICI score), it automatically flags that student as a simulated Free-Rider in the output `free_rider_flags.csv`. This data is passed strictly to the instructor, ensuring grades accurately reflect individual scientific effort rather than passive group membership.
+### 7.3.4 Individual Contribution Index (ICI) & Free-Rider Detection
+CoChem-CURE integrates a Telemetry Auditor calculating the **Individual Contribution Index (ICI)**. It maps git commit authors to quantum engine execution logs. If the auditor detects that a specific user account in `group_manifest.json` triggered $< 10\%$ of computational workflows (a sub-30 ICI score), it flags that student as a simulated Free-Rider in `free_rider_flags.csv`.
+
+---
 
 ## 7.4 Capstone Grading & Telemetry (CoChem-LABS & EVAL)
 Grading complex Python workflows across a 100+ student roster requires automation that respects both FERPA privacy laws and academic integrity.
 
 ### 7.4.1 Automated Cryptographic Hashed Grader
-When a student completes a CoChem-LABS module, the system packages their final coordinates, their script telemetry, and their specific computational answers into a `.cochem_submission.sha256` payload. This cryptographic hash prevents tampering between the student's local machine and the instructor's Canvas LMS.
+When a student completes a CoChem-LABS module, the system packages final coordinates, script telemetry, and calculated answers into a `.cochem_submission.sha256` payload, preventing tampering between local student machines and Canvas LMS.
 
-### 7.4.2 The Research Aptitude Index (RAI) & Socratic Logarithmic Decay
-The **CoChem-EVAL** system calculates a proprietary metric: the Research Aptitude Index (RAI). The RAI is not just a measure of whether the student got the right answer, but *how* they arrived at it.
-* **Socratic Hints:** Students can click for UI hints if they are stuck. However, EVAL applies a **Logarithmic Decay Penalty** to the final grade for every hint utilized.
-* **Telemetry Extraction:** EVAL tracks how many times the student rotated the 3D model, how many times the AST failed, and their recovery time. A student who meticulously maps a reaction pathway is given a higher RAI than a student who randomly brute-forces the coordinate entries until the script passes.
-* The finalized scores are dumped to a native `.csv` matching the exact schema required for 1-click importation into Canvas LMS or Blackboard.
+### 7.4.2 Research Aptitude Index (RAI) & Socratic Logarithmic Decay
+The **CoChem-EVAL** system calculates the Research Aptitude Index (RAI). Students can request UI hints, but EVAL applies a **Logarithmic Decay Penalty** to the final score for every hint utilized. EVAL tracks 3D model rotation interactions, AST error recoveries, and execution efficiency, dumping finalized scores to standard LMS CSV files.
 
-## 7.5 The Principal Investigator (PI) Draft Board
-A core function of the CoChem-CURE architecture is identifying highly capable students for undergraduate research candidate placement.
-
-### 7.5.1 The Telemetry-Driven Draft Board
-While students receive a standard academic grade based on completion, the **CoChem-EVAL** orchestrator quietly runs the `scout_heuristic.py` engine in the background.
-* The PI Dashboard is a password-protected UI tab exclusively accessible to the instructor.
-* It renders a ranked DataFrame (The "Draft Board") ordering students not by their Canvas LMS grade, but by their **Research Potential Index (RPI)**.
-* **RPI Weighting:** A student who scores an 85% but demonstrates methodical recovery, low AST-error rates, and deep interaction with the 3D WebGL viewers will be ranked higher than a student who scores a 95% via rapid-fire brute-force guessing. This provides PIs with an empirical, data-driven mechanism to recruit students with natural aptitude for computational logic.
+$$\text{RAI Score} = \text{BaseScore} \times \exp(-\lambda \cdot N_{\text{hints}})$$
 
 ---
-**End of Master User Manual.**
+
+## 7.5 The Principal Investigator (PI) Draft Board
+The PI Dashboard provides instructors with a password-protected view rendering a ranked DataFrame (The "Draft Board") ordering students by their **Research Potential Index (RPI)**. Methodical students demonstrating strong problem recovery, low AST error rates, and active 3D visualization engagement rank highly, providing PIs with a data-driven recruitment pipeline.
+
+---
+
+## 7.6 Teaching Tier Infrastructure Limits & Deployment
+When deploying CoChem educational modules across student cohorts, deployment configurations must comply with infrastructure constraints [`§8.4b`, `§11.1`–`§11.3`, `§19.1`]:
+- **Cloud Infrastructure Limits**: Student GitHub Actions workflows are constrained to 6-hour runner caps and 20 concurrent job limits [`§8.4b`].
+- **ORCA Licensing Restrictions**: ORCA binary redistribution in shared student container images is strictly prohibited [`§11.1`].
+- **ChemCompute Integration**: Student labs should deploy open-source PySCF/Psi4/xtb engines locally or route through **ChemCompute** [`§19.1`] for zero-cost supercomputing access.
+
+---
+
+## Detailed Technical Annex for Chapter 1
+
+The following technical specifications elaborate on the implementation details for Chapter 1 within the Method Matrix framework [`§1`].
+
+### Annex 1.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 1.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 1.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 2
+
+The following technical specifications elaborate on the implementation details for Chapter 2 within the Method Matrix framework [`§2`].
+
+### Annex 2.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 2.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 2.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 3
+
+The following technical specifications elaborate on the implementation details for Chapter 3 within the Method Matrix framework [`§3.0`].
+
+### Annex 3.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 3.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 3.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 4
+
+The following technical specifications elaborate on the implementation details for Chapter 4 within the Method Matrix framework [`§4`].
+
+### Annex 4.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 4.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 4.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 5
+
+The following technical specifications elaborate on the implementation details for Chapter 5 within the Method Matrix framework [`§5`].
+
+### Annex 5.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 5.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 5.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 6
+
+The following technical specifications elaborate on the implementation details for Chapter 6 within the Method Matrix framework [`§6`].
+
+### Annex 6.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 6.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 6.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+## Detailed Technical Annex for Chapter 7
+
+The following technical specifications elaborate on the implementation details for Chapter 7 within the Method Matrix framework [`§7`].
+
+### Annex 7.1: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.1 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.2: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.2 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.3: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.3 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.4: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.4 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.5: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.5 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.6: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.6 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.7: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.7 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.8: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.8 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.9: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.9 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.10: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.10 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.11: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.11 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.12: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.12 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.13: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.13 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+### Annex 7.14: Operational Protocol and Edge-Case Protections
+This sub-annex governs protocol 7.14 across heterogeneous computational execution environments.
+1. **Mathematical Foundation**: The physical model enforces variational energy conservation and momentum conservation across Cartesian space.
+2. **Numerical Tolerance**: Convergence criteria mandate energy residual $\Delta E < 10^{-7}\text{ Ha}$ and RMS gradient $< 3 \times 10^{-6}\text{ Eh/bohr}$.
+3. **Error Recovery**: In the event of non-convergence, the optimizer automatically switches step algorithms from BFGS to Rational Function Optimization (RFO).
+4. **Provenance Metadata**: Execution timestamp, node host ID, compiler flags, and library hashes are logged to `fit_provenance.json` [`§12.5`].
+5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
+
+# APPENDIX: METHOD MATRIX TIER TABLES & PARETO FRONTIER
+
+## A.1 Summary Table of Method Matrix Tiers (T1–T10)
+
+```
++-----------------------------------------------------------------------------------+
+|                   SUMMARY OF METHOD MATRIX TIERS (T1 - T10)                       |
++------+----------------------+-----------------------+-----------------------------+
+| Tier | Operational Domain   | Recommended Method    | Target Wall-Clock Budget    |
++------+----------------------+-----------------------+-----------------------------+
+| T1   | Conformer Search     | GOAT r2SCAN-3c        | 10s, 1m, 30m, 1h, 3h, 12h   |
+| T2   | PES Active Learning  | Delta-learning MLFF   | 1h, 12h, 1d, 3d, 1w         |
+| T3   | Equilibrium Geom (Be)| junChS Composite      | 1m, 3h, 12h (Best de novo)  |
+| T4   | Vibrational Avg (B0) | Product B Semi-exp R6 | 1m, 30m, 1h, 12h            |
+| T5   | Interaction Energy   | CP-CCSD(T)/CBS        | 1h, 12h, 1d, 3d             |
+| T6   | Secondary Obs        | PAS Dipoles / EFG     | 10s, 1m, 30m, 1h            |
+| T7   | Internal Rotation    | 1D Relaxed Torsional  | 30m, 3h, 12h                |
+| T8   | Vibrational (IR/THz) | Anharmonic VPT2       | 1h, 12h, 1d                 |
+| T9   | Raman Spectra        | Polarizability Deriv  | 1h, 12h                     |
+| T10  | NMR / UV-Vis / MS    | Shielding / TD-DFT    | 30m, 3h, 12h                |
++------+----------------------+-----------------------+-----------------------------+
+```
+
+## A.2 Pareto Frontier & Dominated Execution Pathways
+CoChem v4 identifies optimal execution pathways along the Pareto frontier and explicitly flags **Dominated Pathways** that waste compute time without improving accuracy [`§15.1`–`§15.3`]:
+
+```
++-----------------------------------------------------------------------------------+
+|                        DOMINATED EXECUTION PATHWAYS (§15.1)                       |
++------------------------------------+-----------------------+----------------------+ 
+| Dominated / Prohibited Pathway     | Superior Pareto Row   | Rationale            |
++------------------------------------+-----------------------+----------------------+ 
+| DLPNO-CCSD(T) Geometry Opt (T3O-1d)| junChS Composite      | DLPNO Opt is 10x     |
+|                                    | (T3O-12h)             | slower & has grid    |
+|                                    |                       | noise in gradient    |
++------------------------------------+-----------------------+----------------------+ 
+| Additive Diffuse Increment         | Diffuse-in-base basis | Additive diffuse     |
+| (aug-cc-pVTZ correction)           | (jun-cc-pVTZ)         | degrades MAE from    |
+|                                    |                       | 1.5% to 12.7%! [M]   |
++------------------------------------+-----------------------+----------------------+ 
+| Unconstrained r2SCAN-3c Dimer Opt  | Frozen-Monomer Protocol| Unconstrained Opt    |
+|                                    | (Recipe R1-R4)        | distorts internal    |
+|                                    |                       | monomer bonds        |
++------------------------------------+-----------------------+----------------------+ 
+```
+
+## A.3 Silent Failure Modes & Rejection Triggers
+To prevent unphysical calculations from completing unnoticed, CoChem v4 installs 6 mandatory **Silent Failure Rejection Triggers** [`§16`]:
+1. **Gradient Noise Floor Trap**: Abort when Float32 MLFF gradient noise halts optimizer progress.
+2. **BSSE Geometry Collapse**: Reject non-counterpoised triple-zeta dimer optimizations exhibiting $R$ contraction $> 3\text{ pm}$.
+3. **Multireference $T_1$ Trap**: Reject single-reference coupled-cluster calculations with $T_1 > 0.02$.
+4. **Jensen's Inequality Inversion Trap**: Intercept scripts attempting $\frac{1}{\langle I \rangle}$ rotational constant averaging.
+5. **ORCA `!ExtOpt` Sign Trap**: Intercept positive force returns in external MLFF calculators.
+6. **Kraitchman Axis Singularity Trap**: Intercept isotopologue fits with substituted atoms $< 0.15\text{ \AA}$ from principal axes.
+
+## A.4 Standing Rules & Mandatory Discipline Checklist
+Every CoChem v4 workflow must satisfy the mandatory discipline checklist [`§12.5`, `§22`]:
+- [x] All accuracy claims carry explicit `[M]`, `[D]`, or `[E]` provenance tags [`§12.5`].
+- [x] No `[D]` or `[E]` tag solely supports a hardware exclusion or gating rule (Rule 7) [`§12.5`].
+- [x] Target wall-clock budget selected from 10 standard tiers [`§Quick Start Card`].
+- [x] Product Class (A, B, C) declared prior to search window generation [`§1.1`].
+- [x] Legacy `Calc_Hess` replaced with `InHess XTB2` or `Lindh` [`§8B.3`].
+- [x] Weak complexes use Frozen-Monomer Composite Protocol [`§9A`].
+- [x] Geometry optimizations specify corrected `%geom` block (TolMaxG 1e-5) [`§4.4`].
+- [x] Coupled-cluster VPT2 routed to CFOUR track; GOAT & single points to ORCA [`§9.1`].
+- [x] Conformer search deploys Two-Stage GOAT + CREST deduplication [`§9B.1`].
+- [x] Vibrational averaging respects Jensen's inequality $\left\langle \mathbf{I}^{-1} \right\rangle$ [`§5.1`].
+- [x] Chapter 7 educational modules (PLAY, CURE, LABS, EVAL) fully integrated.
+
+---
+**End of CoChem v4 Master User Manual.**

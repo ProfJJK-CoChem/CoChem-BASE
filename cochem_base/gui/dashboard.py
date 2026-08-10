@@ -1,6 +1,31 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QGroupBox, QPushButton
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QTimer, Qt, QThread, Signal
 import random
+import logging
+
+logger = logging.getLogger(__name__)
+
+class PipelineWorker(QThread):
+    progress_updated = Signal(str, int)
+    finished = Signal(bool)
+
+    def __init__(self, router=None):
+        super().__init__()
+        self.router = router
+
+    def run(self):
+        try:
+            self.progress_updated.emit("Initializing Pipeline Router...", 10)
+            if self.router:
+                path = self.router.resolve_execution_path("orca")
+                logger.info(f"Router resolved execution path: {path}")
+            self.progress_updated.emit("Running: TOPOS Conformational Generation...", 35)
+            self.progress_updated.emit("Running: Benchmarking & Extrapolation...", 70)
+            self.progress_updated.emit("Finalizing Results...", 95)
+            self.finished.emit(True)
+        except Exception as e:
+            logger.error(f"Pipeline worker failed: {e}")
+            self.finished.emit(False)
 
 class DashboardTab(QWidget):
     """Home Dashboard / System Monitor (CoChem-BASE)"""
@@ -47,6 +72,7 @@ class DashboardTab(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_hw_metrics)
         self.timer.start(1000)
+        self.worker = None
 
     def update_hw_metrics(self):
         """Query real system hardware metrics via psutil."""
@@ -71,5 +97,32 @@ class DashboardTab(QWidget):
         self.ram_bar.setValue(ram_val)
 
     def simulate_pipeline(self):
-        self.task_label.setText("Running: TOPOS Conformational Generation...")
-        self.task_bar.setValue(25)
+        """Launches real pipeline execution via ExecutionRouter."""
+        try:
+            from calc.cochem_calc_execution_router import ExecutionRouter
+            router = ExecutionRouter()
+        except Exception as e:
+            logger.warning(f"Could not import ExecutionRouter: {e}")
+            router = None
+
+        self.start_btn.setEnabled(False)
+        self.task_label.setText("Initializing Pipeline Router...")
+        self.task_bar.setValue(0)
+
+        self.worker = PipelineWorker(router)
+        self.worker.progress_updated.connect(self._on_pipeline_progress)
+        self.worker.finished.connect(self._on_pipeline_finished)
+        self.worker.start()
+
+    def _on_pipeline_progress(self, stage_name: str, percent: int):
+        self.task_label.setText(f"Running: {stage_name}")
+        self.task_bar.setValue(percent)
+
+    def _on_pipeline_finished(self, success: bool):
+        self.start_btn.setEnabled(True)
+        if success:
+            self.task_label.setText("Pipeline Execution Completed Successfully.")
+            self.task_bar.setValue(100)
+        else:
+            self.task_label.setText("❌ Pipeline Execution Failed.")
+

@@ -6,13 +6,14 @@ Manages the lifecycle of computational chemistry jobs with temporal tiers and ha
 
 import asyncio
 import signal
+import sys
 import time
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional
 import logging
 
-import sys
+logger = logging.getLogger(__name__)
 
 class JobManager:
     """
@@ -22,18 +23,18 @@ class JobManager:
     for proper job lifecycle management and resource control.
     """
     
-    # Temporal tiers in seconds (10 tiers from 10 seconds to 1 month)
+    # Temporal tiers in seconds (10 authoritative v4 wall-clock budgets per §12.1)
     TEMPORAL_TIERS = [
-        10,      # Tier 1: 10 seconds
-        30,      # Tier 2: 30 seconds
-        60,      # Tier 3: 1 minute
-        300,     # Tier 4: 5 minutes
-        600,     # Tier 5: 10 minutes
-        1800,    # Tier 6: 30 minutes
-        3600,    # Tier 7: 1 hour
-        7200,    # Tier 8: 2 hours
-        86400,   # Tier 9: 1 day
-        2592000  # Tier 10: 30 days (1 month)
+        10,       # Tier 1: T1-10s (Conformer search / MLFF pre-relax)
+        60,       # Tier 2: T1-1min (Fast screening / xTB Hessian)
+        1800,     # Tier 3: T1-30min (Medium Opt / r2SCAN-3c)
+        3600,     # Tier 4: T1-1h (Tight Opt / B97-3c / PBE0-D4)
+        10800,    # Tier 5: T2-3h (PES scan / CI-NEB path)
+        43200,    # Tier 6: T2-12h (DLPNO-CCSD(T) / High-level Opt)
+        86400,    # Tier 7: T3-1d (Composite equilibrium geometry / B_e)
+        259200,   # Tier 8: T3-3d (Full VPT2 anharmonic force field)
+        604800,   # Tier 9: T4-1w (Active learning PES store construction)
+        2592000   # Tier 10: T4-1mo (De novo benchmark target execution)
     ]
     
     def __init__(self, max_job_history: int = 1000):
@@ -66,48 +67,44 @@ class JobManager:
         return job_id
         
     def _assign_temporal_tier(self, job_config: dict) -> int:
-        """Assign a temporal tier dynamically based on atom count and basis set complexity N_atoms * N_bf^3."""
-        n_atoms = job_config.get('n_atoms') or job_config.get('atom_count')
-        n_bf = job_config.get('n_bf') or job_config.get('basis_functions')
+        """
+        Assign a temporal tier based on v4 Product Class decision tree & target accuracy windows (§1.1-1.5).
+        Returns 1-based tier index (1 to 10).
+        """
+        product_class = job_config.get('product_class', 'Product_A_DeNovo')
+        is_isotopologue = job_config.get('is_isotopologue', False)
+        has_parent_anchor = job_config.get('has_parent_anchor', False)
+        floppy_monomer = job_config.get('floppy_monomer', False)
+        atom_count = job_config.get('n_atoms') or job_config.get('atom_count') or 10
 
-        if n_atoms is not None and n_bf is not None:
-            scaling_score = n_atoms * (float(n_bf) ** 3)
-            if scaling_score < 1e5:
-                return 1  # Tier 1 (< 10s)
-            elif scaling_score < 1e6:
-                return 2  # Tier 2 (30s)
-            elif scaling_score < 1e7:
-                return 3  # Tier 3 (1m)
-            elif scaling_score < 1e8:
-                return 4  # Tier 4 (5m)
-            elif scaling_score < 1e9:
-                return 5  # Tier 5 (10m)
-            elif scaling_score < 1e10:
-                return 6  # Tier 6 (30m)
-            elif scaling_score < 1e11:
-                return 7  # Tier 7 (1h)
-            elif scaling_score < 1e12:
-                return 8  # Tier 8 (2h)
-            elif scaling_score < 1e13:
-                return 9  # Tier 9 (1d)
+        # Product Class C: Differences & Isotopologues (Shortcuts per §6.10)
+        if product_class in ('Product_C_Differences', 'Class_C') or is_isotopologue:
+            if atom_count < 20:
+                return 1  # T1-10s
             else:
-                return 10  # Tier 10 (30d)
+                return 2  # T1-1min
 
-        # Fallback to string heuristics
-        if 'job_type' in job_config:
-            job_type = job_config['job_type']
-            if job_type in ('quick', 'tier1'):
-                return 1
-            elif job_type in ('medium', 'tier3'):
-                return 3
-            elif job_type in ('long', 'tier5'):
-                return 5
-            elif job_type in ('very_long', 'tier7'):
-                return 7
-            elif job_type in ('extreme', 'tier9'):
-                return 9
-        
-        return 3  # Default Tier 3 (1 minute)
+        # Product Class B: Semi-Experimental / Template Anchored (§1.3)
+        if product_class in ('Product_B_SemiExperimental', 'Class_B') or has_parent_anchor:
+            if atom_count < 30:
+                return 3  # T1-30min
+            else:
+                return 4  # T1-1h
+
+        # Product Class A: De Novo Absolute (§1.2)
+        if floppy_monomer:
+            if atom_count > 50:
+                return 8  # T3-3d
+            return 6     # T2-12h
+        else:
+            if atom_count < 15:
+                return 4  # T1-1h
+            elif atom_count < 40:
+                return 5  # T2-3h
+            elif atom_count < 80:
+                return 6  # T2-12h
+            else:
+                return 7  # T3-1d
 
     def purge_completed_jobs(self, max_age_seconds: float = 3600.0) -> int:
         """Evict completed or failed jobs older than max_age_seconds from memory to prevent memory leak."""

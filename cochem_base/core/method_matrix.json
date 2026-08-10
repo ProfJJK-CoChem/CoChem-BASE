@@ -1,343 +1,192 @@
 {
     "$defs": {
-        "GeomTorqStage": {
-            "description": "Stage 2: Precision Structure and Quantum Resonance (GEOM / TORQ)",
+        "ConcurrencyTag": {
+            "enum": [
+                "C",
+                "G",
+                "P",
+                "S"
+            ],
+            "title": "ConcurrencyTag",
+            "type": "string"
+        },
+        "FrozenMonomerFlag": {
+            "enum": [
+                "relaxed",
+                "frozen-iso",
+                "frozen-inc"
+            ],
+            "title": "FrozenMonomerFlag",
+            "type": "string"
+        },
+        "ProductClassConfig": {
             "properties": {
-                "b3lyp_opt": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "B3LYP/6-31G(d) Geometry Optimization result path",
-                    "title": "B3Lyp Opt"
+                "product_class": {
+                    "$ref": "#/$defs/ProductClassEnum"
                 },
-                "crest_screening": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "CREST Conformational Screening results",
-                    "title": "Crest Screening"
+                "target_accuracy_b0_percent": {
+                    "description": "B0 target accuracy percentage",
+                    "title": "Target Accuracy B0 Percent",
+                    "type": "number"
                 },
-                "anharmonic_freq": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "type": "number"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Anharmonic Frequencies",
-                    "title": "Anharmonic Freq"
+                "search_window_12ghz_mhz": {
+                    "description": "Search window width at 12 GHz",
+                    "title": "Search Window 12Ghz Mhz",
+                    "type": "number"
                 },
-                "hessian_matrix": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Hessian Matrix",
-                    "title": "Hessian Matrix"
-                },
-                "internal_coords": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Internal coordinates mapping",
-                    "title": "Internal Coords"
+                "mandatory_spend_priority": {
+                    "description": "Ordered list of compute spend priorities (\u00a73.3)",
+                    "items": {
+                        "type": "string"
+                    },
+                    "title": "Mandatory Spend Priority",
+                    "type": "array"
                 }
             },
-            "title": "GeomTorqStage",
+            "required": [
+                "product_class",
+                "target_accuracy_b0_percent",
+                "search_window_12ghz_mhz",
+                "mandatory_spend_priority"
+            ],
+            "title": "ProductClassConfig",
             "type": "object"
         },
-        "KineticLumosStage": {
-            "description": "Stage 3: Transition State & Excited State (KINETIC / LUMOS)",
+        "ProductClassEnum": {
+            "enum": [
+                "Product_A_DeNovo",
+                "Product_B_SemiExperimental",
+                "Product_C_Differences"
+            ],
+            "title": "ProductClassEnum",
+            "type": "string"
+        },
+        "TierRowConfig": {
             "properties": {
-                "wB97XD_opt": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "\u03c9B97X-D/def2-TZVP results",
-                    "title": "Wb97Xd Opt"
-                },
-                "dlpno_ccsd_t": {
-                    "anyOf": [
-                        {
-                            "type": "number"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "DLPNO-CCSD(T) Energy",
-                    "title": "Dlpno Ccsd T"
-                },
-                "rrkm_rate_constants": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": {
-                                "type": "number"
-                            },
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "RRKM Rate Constants",
-                    "title": "Rrkm Rate Constants"
-                },
-                "uv_vis_tddft": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "UV-Vis TD-DFT spectral data",
-                    "title": "Uv Vis Tddft"
-                },
-                "transition_state_opt": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "Transition State Geometry Opt result",
-                    "title": "Transition State Opt"
-                }
-            },
-            "title": "KineticLumosStage",
-            "type": "object"
-        },
-        "SpycfitShiftStage": {
-            "description": "Stage 4: Spectroscopy (SpycFit / SHIFT)",
-            "properties": {
-                "bayesian_assignment": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Bayesian Spectral Assignment",
-                    "title": "Bayesian Assignment"
-                },
-                "spectral_fitting": {
-                    "anyOf": [
-                        {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Fitted spectral parameters",
-                    "title": "Spectral Fitting"
-                },
-                "nmr_shielding_tensor": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "NMR Shielding Tensor",
-                    "title": "Nmr Shielding Tensor"
-                },
-                "franck_condon_factors": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "type": "number"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Franck-Condon Factors",
-                    "title": "Franck Condon Factors"
-                },
-                "vibrational_modes": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "additionalProperties": true,
-                                "type": "object"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Vibrational Modes",
-                    "title": "Vibrational Modes"
-                }
-            },
-            "title": "SpycfitShiftStage",
-            "type": "object"
-        },
-        "ToposStage": {
-            "description": "Stage 1: Combinatorial Engine (TOPOS) Data",
-            "properties": {
-                "mmff94_conformer": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "Path or string representing MMFF94 Conformer",
-                    "title": "Mmff94 Conformer"
-                },
-                "smiles_string": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "SMILES string of the molecule",
-                    "title": "Smiles String"
-                },
-                "torsional_scan": {
-                    "anyOf": [
-                        {
-                            "items": {
-                                "type": "number"
-                            },
-                            "type": "array"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "description": "Torsional scan coordinates",
-                    "title": "Torsional Scan"
-                },
-                "point_group_id": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "Point Group symmetry ID",
-                    "title": "Point Group Id"
-                },
-                "z_matrix": {
-                    "anyOf": [
-                        {
-                            "type": "string"
-                        },
-                        {
-                            "type": "null"
-                        }
-                    ],
-                    "default": null,
-                    "description": "Z-Matrix of the conformer",
-                    "title": "Z Matrix"
-                }
-            },
-            "title": "ToposStage",
-            "type": "object"
-        }
-    },
-    "description": "Central Method Pass-Through / Correlation Matrix\nEnsures strict typing between computational stages.",
-    "properties": {
-        "topos": {
-            "$ref": "#/$defs/ToposStage"
-        },
-        "geom_torq": {
-            "$ref": "#/$defs/GeomTorqStage"
-        },
-        "kinetic_lumos": {
-            "$ref": "#/$defs/KineticLumosStage"
-        },
-        "spycfit_shift": {
-            "$ref": "#/$defs/SpycfitShiftStage"
-        },
-        "target_property": {
-            "anyOf": [
-                {
+                "tier_id": {
+                    "description": "Tier ID string, e.g., T3O-12h",
+                    "title": "Tier Id",
                     "type": "string"
                 },
-                {
-                    "type": "null"
+                "category": {
+                    "description": "T1 (Search), T2 (PES), T3 (Geom), T4 (Vib), T5 (Interaction)",
+                    "title": "Category",
+                    "type": "string"
+                },
+                "walltime_seconds": {
+                    "description": "Wall-clock budget in seconds",
+                    "title": "Walltime Seconds",
+                    "type": "integer"
+                },
+                "method_string": {
+                    "description": "Exact electronic structure method keyword",
+                    "title": "Method String",
+                    "type": "string"
+                },
+                "basis_set": {
+                    "description": "Primary orbital basis set",
+                    "title": "Basis Set",
+                    "type": "string"
+                },
+                "auxiliary_basis": {
+                    "anyOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "default": null,
+                    "description": "Auxiliary fitting basis set",
+                    "title": "Auxiliary Basis"
+                },
+                "accuracy_window_mhz": {
+                    "additionalProperties": {
+                        "type": "number"
+                    },
+                    "description": "Target search window at 12 GHz",
+                    "title": "Accuracy Window Mhz",
+                    "type": "object"
+                },
+                "concurrency_tags": {
+                    "description": "Resource concurrency classification",
+                    "items": {
+                        "$ref": "#/$defs/ConcurrencyTag"
+                    },
+                    "title": "Concurrency Tags",
+                    "type": "array"
+                },
+                "state_in_dependencies": {
+                    "description": "Required input states",
+                    "items": {
+                        "type": "string"
+                    },
+                    "title": "State In Dependencies",
+                    "type": "array"
+                },
+                "state_out_artifacts": {
+                    "description": "Emitted state artifacts",
+                    "items": {
+                        "type": "string"
+                    },
+                    "title": "State Out Artifacts",
+                    "type": "array"
+                },
+                "frozen_monomer_mode": {
+                    "$ref": "#/$defs/FrozenMonomerFlag",
+                    "default": "relaxed",
+                    "description": "Frozen-monomer mode"
+                },
+                "provenance_tag": {
+                    "description": "[M], [D], or [E] tag for accuracy claim",
+                    "title": "Provenance Tag",
+                    "type": "string"
                 }
+            },
+            "required": [
+                "tier_id",
+                "category",
+                "walltime_seconds",
+                "method_string",
+                "basis_set",
+                "accuracy_window_mhz",
+                "concurrency_tags",
+                "provenance_tag"
             ],
-            "default": null,
-            "description": "Final target property objective",
-            "title": "Target Property"
+            "title": "TierRowConfig",
+            "type": "object"
         }
     },
-    "title": "CorrelationMatrix",
+    "properties": {
+        "version": {
+            "default": "4.0.0",
+            "description": "Method Matrix specification version",
+            "title": "Version",
+            "type": "string"
+        },
+        "product_classes": {
+            "additionalProperties": {
+                "$ref": "#/$defs/ProductClassConfig"
+            },
+            "title": "Product Classes",
+            "type": "object"
+        },
+        "tier_rows": {
+            "additionalProperties": {
+                "$ref": "#/$defs/TierRowConfig"
+            },
+            "title": "Tier Rows",
+            "type": "object"
+        },
+        "concurrency_guards": {
+            "additionalProperties": {
+                "type": "boolean"
+            },
+            "title": "Concurrency Guards",
+            "type": "object"
+        }
+    },
+    "title": "MethodMatrixV4",
     "type": "object"
 }

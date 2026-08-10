@@ -16,8 +16,7 @@ def run_all_preflight_checks(artifact_dir=None, module_dir=None, orca_path="orca
     results['artifacts'] = {'status': art_ok, 'message': art_msg}
     
     # 3. Module Installation Check
-    mod_dir_to_use = module_dir if module_dir else r"D:\_CoChem\CoChem_Artifacts\modules"
-    mod_ok, mod_msg = check_modules_installed(mod_dir_to_use)
+    mod_ok, mod_msg = check_modules_installed(module_dir)
     results['modules'] = {'status': mod_ok, 'message': mod_msg}
     
     # 4. ORCA Single Core Test

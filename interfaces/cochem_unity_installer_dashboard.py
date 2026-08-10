@@ -77,19 +77,30 @@ class SynapInstallerGUI:
             self._build_ui()
 
     def _get_git_hash(self):
-        return hashlib.sha256(os.urandom(32)).hexdigest()[:16]
+        try:
+            res = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True, timeout=5
+            )
+            return res.stdout.strip()[:16]
+        except Exception:
+            build_hash_file = Path(__file__).resolve().parent.parent / ".build_hash"
+            if build_hash_file.exists():
+                return build_hash_file.read_text(encoding="utf-8").strip()[:16]
+            return "RELEASE_BUILD"
 
     def _pre_flight_disk_check(self):
-        """Verifies safe OS operation before rendering."""
+        """Verifies safe OS operation before rendering (enforces 10GB gate per User Manual §1.2.6)."""
         try:
             free_gb = psutil.disk_usage(str(Path.home())).free / (1024**3)
-            if free_gb < 5.0:
+            if free_gb < 10.0:
                 self.disk_safe = False
-                self.error_msg = f"❌ CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 5GB required."
+                self.error_msg = f"❌ CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 10GB required."
             else:
                 self.disk_safe = True
-        except Exception:
-            self.disk_safe = True  # Bypass if psutil is restricted natively
+        except Exception as e:
+            self.disk_safe = False
+            self.error_msg = f"⚠️ WARNING: Storage capacity verification failed ({e}). Manual scratch path confirmation required."
 
     def _verify_host_orca_path(self, raw_path: str) -> bool:
         candidate = Path((raw_path or "").strip().strip('"').strip("'"))

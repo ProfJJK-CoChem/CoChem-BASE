@@ -2103,6 +2103,17 @@ if __name__ == "__main__":
 
 ---
 
+## **4\. Analytical Hessian CC Mandate: 3-Tier Routing Protocol**
+
+Chapter 9 of the Method Matrix (Codes and Acquisition) is updated to reflect the new Graceful Fallback Protocol for coupled-cluster VPT2 force fields.  
+**Routing Logic Update:**
+
+> 1. **Tier 1 (Optimal):** CFOUR detected $\rightarrow$ Route to Analytic CCSD(T) Hessian.  
+> 2. **Tier 2 (ORCA):** ORCA detected $\rightarrow$ Route to Analytic CCSD(T) Hessian.  
+> 3. **Tier 3 (Open-Source Exact Physics):** MPQC or Psi4 detected $\rightarrow$ Halt and prompt the user with the following UI dialogue:*"Analytical CCSD(T) Hessians are unavailable in this engine. Running Numerical Hessians will require $\approx 176,000$ single points. **Options:** \[A\] Execute Numerical CCSD(T) (Warning: High Compute Time), or \[B\] Calculate harmonic at CCSD(T) but extract anharmonic VPT2 corrections at MP2/DFT (Substituted Hybrid Force Field \- Recommended)."*
+
+
+
 ## 9. Codes and acquisition: the MPQC track and Legacy/Proprietary Alternates (ORCA & CFOUR)
 
 

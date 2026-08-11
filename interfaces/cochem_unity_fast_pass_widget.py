@@ -5,19 +5,22 @@ Implements Remote Database Searching, 3D Visualization, Dynamic ETA, and Telemet
 """
 import time
 import logging
+from typing import Any
 import ipywidgets as widgets
 from IPython.display import display, clear_output
+
 try:
     import py3Dmol
     HAS_3DMOL = True
 except ImportError:
     HAS_3DMOL = False
 
-logging.basicConfig(level=logging.INFO)
-telemetry_logger = logging.getLogger("CoChem-Telemetry")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-Telemetry")
+
 
 class FastPassWidget:
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_smiles = None
         self.search_input = widgets.Text(placeholder='e.g., Aspirin...', description='Molecule:')
         self.search_btn = widgets.Button(description='Search PubChem', button_style='primary')
@@ -36,34 +39,36 @@ class FastPassWidget:
             self.telemetry_out
         ])
 
-    def _log_telemetry(self, level, message):
+    def _log_telemetry(self, level: str, message: str) -> None:
         with self.telemetry_out:
             clear_output(wait=True)
             color = "red" if level in ["ERROR", "FATAL"] else "green"
-            print(f"<span style='color:{color};'><b>[{level}]</b> {message}</span>")
+            display(widgets.HTML(f"<span style='color:{color};'><b>[{level}]</b> {message}</span>"))
 
-    def _perform_remote_search(self, b):
+    def _perform_remote_search(self, b: Any) -> None:
         self._log_telemetry("INFO", f"Searching PubChem for {self.search_input.value}...")
-        time.sleep(0.5) # Mock wait
+        time.sleep(0.5)
         self.match_dropdown.options = [("Aspirin (CID: 2244)", "CC(=O)OC1=CC=CC=C1C(=O)O")]
         self.match_dropdown.disabled = False
         self.opt_btn.disabled = False
         self._log_telemetry("SUCCESS", "Found matches.")
 
-    def _render_3d_molecule(self, change):
+    def _render_3d_molecule(self, change: Any) -> None:
         self.current_smiles = change.new
         with self.viz_output:
             clear_output()
             if HAS_3DMOL:
-                print("3D Viewer rendered here via py3Dmol (Requires execution context).")
+                display(widgets.HTML("3D Viewer rendered here via py3Dmol (Requires execution context)."))
             else:
-                print(f"Selected SMILES: {self.current_smiles}")
+                display(widgets.HTML(f"Selected SMILES: {self.current_smiles}"))
 
-    def _trigger_quick_opt(self, b):
-        if not self.current_smiles: return
+    def _trigger_quick_opt(self, b: Any) -> None:
+        if not self.current_smiles:
+            return
         self._log_telemetry("INFO", "Initiating Fast Pass Geometry Optimization...")
         time.sleep(1)
         self._log_telemetry("SUCCESS", "Optimization Complete. Geometry ready for TOPOS.")
+
 
 if __name__ == "__main__":
     widget = FastPassWidget()

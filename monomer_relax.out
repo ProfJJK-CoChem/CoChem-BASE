@@ -165,12 +165,19 @@ interface, adapt or use parts of their codes:
 
 
   ***********************************
-  * Starting time: Mon Aug 10 15:58:19 2026
+  * Starting time: Tue Aug 11 17:36:33 2026
   * Host name:     JJDESKTOP
-  * Process ID:    40804
+  * Process ID:    12412
   * Working dir.:  D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE
   ***********************************
 
-ERROR: expect a '$', '!', '', '*' or '[' in the input
-       Line 2 of .\monomer_relax.inp (
-)
+
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                 INPUT ERROR
+            UNRECOGNIZED OR DUPLICATED KEYWORD(S) IN SIMPLE INPUT LINE
+                 R2SCAN-3C  
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[file orca_main/main_input_keywordline.cpp, line 13872]: 
+
+[file orca_main/main_input_keywordline.cpp, line 13872]: 
+

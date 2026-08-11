@@ -1,32 +1,13 @@
 import os
 import json
+import logging
 from pathlib import Path
+from cochem_base.config_loader import get_artifact_dir as loader_get_artifact_dir
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-ArtifactPathManager")
+
 
 def get_artifact_dir() -> Path:
-    try:
-        repo_root = Path(__file__).resolve().parent.parent
-        config_path = repo_root / ".cochem_env.json"
-        
-        # also check cwd
-        if not config_path.exists():
-            config_path = Path.cwd() / ".cochem_env.json"
-            
-        if config_path.exists():
-            with open(config_path, "r") as f:
-                data = json.load(f)
-                if "artifact_dir" in data:
-                    return Path(data["artifact_dir"])
-    except Exception:
-        pass
-    # Fix the logic error in the original code
-    artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if artifact_dir:
-        return Path(artifact_dir)
-    else:
-        return Path.home() / "CoChem_Artifacts"
-    # Fix the logic error in the original code
-    artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if artifact_dir:
-        return Path(artifact_dir)
-    else:
-        return Path.home() / "CoChem_Artifacts"
+    """Delegates to the central CoChem-BASE config loader for 4-tier dynamic resolution hierarchy."""
+    return loader_get_artifact_dir()

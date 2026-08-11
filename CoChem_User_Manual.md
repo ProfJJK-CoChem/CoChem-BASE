@@ -1195,6 +1195,54 @@ When deploying CoChem educational modules across student cohorts, deployment con
 
 ---
 
+
+
+# V4.1 HITL & Branching Addendum
+
+## **2\. Spectroscopic Workflows & Human-in-the-Loop (HITL) Autonomy**
+
+The User Manual will be updated to explicitly emphasize user authority. The pipeline assists and accelerates, but the human user is the final arbiter.  
+**2.1 Bipartite Peak Matching (Auto-Propose Assistant)**
+
+* **Update to CoChem-SpycFit:** The Hungarian Algorithm is deployed strictly as an "Auto-Propose Assistant." The GUI will draw dashed lines proposing theoretical-to-experimental assignments.  
+* **HITL Constraint:** Zero automatic fitting is permitted. The spectroscopist must be able to drag, drop, modify, and ignore proposed peaks. The user must explicitly click "Approve" before the JAX Levenberg-Marquardt fitter executes.
+
+**2.2 The orca\_vib Isotopologue Fast-Forward Guard**
+
+* **Update to T4O-12h (Isotopologue Routing):** The electronic-structure-free orca\_vib Hessian recycling is approved for **Heavy-Atom Substitutions only** ($^{13}$C, $^{18}$O, $^{15}$N, $^{34}$S, $^{37}$Cl).  
+* **HITL Constraint:** If the pipeline detects a Hydrogen $\rightarrow$ Deuterium substitution, execution pauses. The UI must warn the user of the **Ubbelohde Effect** (geometric contraction due to lowered zero-point energy). The user must manually approve proceeding with the shortcut or make the final decision to route to a full anharmonic/geometric re-evaluation.
+
+**2.3 Recipe R2: Frozen-Monomer Composite**
+
+* **Update to §9A.4 & Recipe R2:** The text "un-bypassable default" is stricken entirely.  
+* **Constraint:** R2 is designated as the **Strongly Recommended Default** (pre-checked in the UI) to save compute time, but the user maintains full authority to uncheck the parameter and execute a fully relaxed intermolecular optimization.
+
+
+
+## **3\. Rigid vs. Weak Complex Branching Logic**
+
+Certain high-efficiency heuristics fail catastrophically on floppy van der Waals complexes. The ingestion module (CoChem-MInt) will tag molecules as \[Rigid\] or \[Weak\_Complex\], enabling selective algorithmic offerings based on the underlying physics.  
+**3.1 Template-Scaled Semi-Experimental Shifts**
+
+* **Update:** Offered as an explicit UI option *only* for systems flagged as \[Rigid\]. The user makes the final choice to execute.  
+* **Constraint:** Blocked and hidden from the UI for \[Weak\_Complex\] systems due to the non-systematic nature of DFT dispersion errors on soft intermolecular coordinates.
+
+**3.2 Focal-Point Gradient Acceleration**
+
+* **Update:** Offered as a high-speed CCSD(T)/Large-Basis approximation option *only* for systems flagged as \[Rigid\]. The user makes the final choice to execute.  
+* **Constraint:** Blocked and hidden for \[Weak\_Complex\] systems. Small bases lack diffuse functions necessary for dispersion gradients and are highly susceptible to BSSE contamination, which steers the optimizer into false minima.
+
+
+
+## **5\. System Architecture Upgrades**
+
+**Update to §8C and §13.2:**
+
+* **Matrix-Free Lanczos/Davidson Diagonalization:** Documented as the mandated solver for 3D/6D Discrete Variable Representation (DVR) grids. Matrices are computed "on-the-fly" ($\mathbf{H}\vec{v}$) rather than stored in memory, dropping RAM overhead from 33+ GB down to megabytes.  
+* **pathlib OS Agnosticism:** Documented in the developer guidelines. All internal file generation, I/O routing, and directory scaffolding must use Python's pathlib.Path() to guarantee seamless interoperability across Windows (Codespaces), macOS, and Linux HPC environments by dynamically resolving forward/backslashes.
+
+
+
 ## Detailed Technical Annex for Chapter 1
 
 The following technical specifications elaborate on the implementation details for Chapter 1 within the Method Matrix framework [`§1`].
@@ -1892,6 +1940,18 @@ This sub-annex governs protocol 6.14 across heterogeneous computational executio
 5. **FAIR Data Serialization**: Output tensors are serialized to QCSchema JSON and HDF5 archives [`§8C.2`, `§20.2`].
 
 ## Detailed Technical Annex for Chapter 7
+
+## **1\. Educational & Didactic Sandboxing (Strict Fencing)**
+
+To preserve the absolute integrity of the research and production pipeline, all pedagogical features are strictly segregated into the **CoChem-SEED, PLAY, CURE, EVAL, and LABS** environments.  
+**Additions to Chapter 7 (Educational Implementations):**
+
+* **Integrated Features:** Automated Plagiarism Traps via Isotopic Seeds, Dual-Registry Gradebook Firewall, Temporal Collusion Detection, Blind Unknown Pool Cryptographic Rotation, Individual Contribution Index (ICI), Course-Curriculum Mapping (CURE), Gamified Elo Tiering (CoChem-PLAY), "Guess the Vector" Minigame, Interactive IR Functional Group Drag-and-Drop, Negative-Absorption Penalty Matrices, Isotopic Ratio Demonstrative Sliders, Offline Spectral Cache Fallbacks, Automated QTI 1.2 Canvas Exports, Mandatory Reflection JSON Blocks, Intrinsic Reaction Coordinate (IRC) Scrubbing, Authentic Experimental Noise Training, Pre-CURE Spectroscopic Literacy Calibration, and Didactic Summary Markdown Injection.  
+* **Permanently Redacted (Do Not Implement):** Canvas Token Secure Vaulting, Socratic Logarithmic Decay Scoring.
+
+
+
+
 
 The following technical specifications elaborate on the implementation details for Chapter 7 within the Method Matrix framework [`§7`].
 

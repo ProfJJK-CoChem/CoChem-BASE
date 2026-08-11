@@ -10,7 +10,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Add the project root to the Python path so we can import modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from setup.cochem_setup_orchestrator import (
@@ -21,50 +20,50 @@ from setup.cochem_setup_orchestrator import (
     main
 )
 
+
 class TestSetupOrchestrator(unittest.TestCase):
-    
-    def setUp(self):
+
+    def setUp(self) -> None:
         """Set up test fixtures before each test method."""
-        # Create a temporary manifest for testing
-        self.temp_manifest = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json')
+        self.temp_dir = tempfile.TemporaryDirectory()
+        registry_dir = Path(self.temp_dir.name) / "Registry"
+        registry_dir.mkdir(parents=True, exist_ok=True)
+        manifest_file = registry_dir / "cochem_deployment_manifest.json"
+
         manifest_data = {
             "interaction_environment": "Local-Windows (WSL)",
             "calculation_environment": "Local-Linux (Deb)"
         }
-        json.dump(manifest_data, self.temp_manifest)
-        self.temp_manifest.close()
-        
-        # Mock the environment variable to point to our test manifest
+        with open(manifest_file, 'w', encoding='utf-8') as f:
+            json.dump(manifest_data, f)
+
         self.original_env = os.environ.get('COCHEM_ARTIFACT_DIR')
-        os.environ['COCHEM_ARTIFACT_DIR'] = os.path.dirname(self.temp_manifest.name)
-    
-    def tearDown(self):
+        os.environ['COCHEM_ARTIFACT_DIR'] = self.temp_dir.name
+
+    def tearDown(self) -> None:
         """Clean up after each test method."""
-        # Restore original environment variable
         if self.original_env is not None:
             os.environ['COCHEM_ARTIFACT_DIR'] = self.original_env
         else:
             os.environ.pop('COCHEM_ARTIFACT_DIR', None)
-            
-        # Clean up temporary manifest file
+
         try:
-            os.unlink(self.temp_manifest.name)
+            self.temp_dir.cleanup()
         except OSError:
             pass
 
-    def test_get_manifest_path(self):
+    def test_get_manifest_path(self) -> None:
         """Test that get_manifest_path returns the correct path."""
         manifest_path = get_manifest_path()
         self.assertTrue(manifest_path.exists())
         self.assertEqual(manifest_path.name, "cochem_deployment_manifest.json")
-    
-    def test_detect_cuda_capability(self):
+
+    def test_detect_cuda_capability(self) -> None:
         """Test CUDA capability detection."""
-        # This test will simply check that the function doesn't crash
         result = detect_cuda_capability()
         self.assertIsInstance(result, bool)
-    
-    def test_detect_hardware_capability(self):
+
+    def test_detect_hardware_capability(self) -> None:
         """Test hardware capability detection."""
         result = detect_hardware_capability()
         self.assertIsInstance(result, dict)
@@ -73,10 +72,9 @@ class TestSetupOrchestrator(unittest.TestCase):
         self.assertIn('cuda_available', result)
         self.assertIn('platform', result)
         self.assertIn('architecture', result)
-    
-    def test_get_mlff_fallback_strategy(self):
+
+    def test_get_mlff_fallback_strategy(self) -> None:
         """Test MLFF fallback strategy determination."""
-        # Test with high-performance hardware
         high_perf_hardware = {
             'cpu_count': 16,
             'memory_gb': 32,
@@ -85,8 +83,7 @@ class TestSetupOrchestrator(unittest.TestCase):
         strategy = get_mlff_fallback_strategy(high_perf_hardware)
         self.assertIsInstance(strategy, str)
         self.assertTrue(len(strategy) > 0)
-        
-        # Test with low-performance hardware
+
         low_perf_hardware = {
             'cpu_count': 2,
             'memory_gb': 4,
@@ -95,6 +92,7 @@ class TestSetupOrchestrator(unittest.TestCase):
         strategy = get_mlff_fallback_strategy(low_perf_hardware)
         self.assertIsInstance(strategy, str)
         self.assertTrue(len(strategy) > 0)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,35 +8,49 @@ without violating login-node policies. Configures SLURM routing rules.
 import os
 import sys
 import json
+import shutil
 import subprocess
+import logging
 from pathlib import Path
+from cochem_base.config_loader import get_artifact_dir
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-HPCSetup")
+
+try:
+    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+except ImportError:
+    safe_subprocess_run = None
+
 
 def locate_artifact_dir() -> Path:
     """Locates the pre-established CoChem_Artifacts directory."""
-    artifact_dir = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
+    artifact_dir = get_artifact_dir()
     if not artifact_dir.exists():
-        print("❌ FATAL: Air-Gap directory (CoChem_Artifacts) not found.")
-        print("Please run Stage 0.2a (interact_codespaces.py) or base setup first.")
+        logger.error("Air-Gap directory (CoChem_Artifacts) not found.")
+        logger.error("Please run Stage 0.2a (interact_codespaces.py) or base setup first.")
         sys.exit(1)
     return artifact_dir
 
+
 def check_slurm_presence() -> bool:
     """Executes a lightweight query to detect the SLURM scheduler without heavy compute."""
-    print("🔍 Probing for SLURM scheduler (sbatch)...")
-    try:
-        result = subprocess.run(
-            ["which", "sbatch"], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE, 
-            text=True,
-            encoding='utf-8',
-            check=True
-        )
-        print(f"✅ SLURM detected at: {result.stdout.strip()}")
+    logger.info("Probing for SLURM scheduler (sbatch)...")
+    sbatch_bin = shutil.which("sbatch")
+    if sbatch_bin:
+        logger.info(f"SLURM detected at: {sbatch_bin}")
         return True
-    except subprocess.CalledProcessError:
-        print("⚠️ SLURM not found on this node. Execution will default to local subprocess.")
+    try:
+        if safe_subprocess_run:
+            result = safe_subprocess_run(["sbatch", "--version"], timeout=10.0, check=True)
+        else:
+            result = subprocess.run(["sbatch", "--version"], capture_output=True, text=True, timeout=10.0, check=True)
+        logger.info(f"SLURM detected: {result.stdout.strip()}")
+        return True
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+        logger.warning("SLURM not found on this node. Execution will default to local subprocess.")
         return False
+
 
 def generate_sbatch_template(artifact_dir: Path, modules: str) -> str:
     """Generates a standardized .sbatch execution template for the pipeline to consume."""
@@ -66,62 +80,62 @@ echo "🚀 Starting CoChem HPC Job on host: $HOSTNAME"
 {{payload_command}}
 echo "✅ CoChem HPC Job Completed."
 """
-    with open(template_path, 'w') as f:
+    with open(template_path, 'w', encoding="utf-8") as f:
         f.write(sbatch_content)
-    print(f"✅ Standard SLURM template generated at: {template_path}")
+    logger.info(f"Standard SLURM template generated at: {template_path}")
     return str(template_path)
 
-def update_golden_registry(artifact_dir: Path, template_path: str, modules: str):
+
+def update_golden_registry(artifact_dir: Path, template_path: str, modules: str) -> None:
     """Updates the Golden Registry to route future calculations to SLURM."""
     registry_path = artifact_dir / "Registry" / "cochem_system_config.json"
-    
+
     if registry_path.exists():
-        with open(registry_path, 'r') as f:
+        with open(registry_path, 'r', encoding="utf-8") as f:
             try:
-                registry = json.load(f)
+                registry = json.loads(f.read())
             except json.JSONDecodeError:
                 registry = {}
     else:
         registry = {}
 
-    # Establish the HPC routing block
     registry.setdefault("hpc", {})
     registry["hpc"]["status"] = "slurm_ready"
     registry["hpc"]["scheduler"] = "slurm"
     registry["hpc"]["module_loads"] = modules
     registry["hpc"]["template_path"] = template_path
-    
-    # Override execution default to prevent local CPU overload on the login node
+
     registry.setdefault("execution", {})
     registry["execution"]["default_engine"] = "sbatch"
 
-    with open(registry_path, 'w') as f:
+    with open(registry_path, 'w', encoding="utf-8") as f:
         json.dump(registry, f, indent=4)
-        
-    print(f"✅ Golden Registry updated with strict HPC SLURM routing rules.")
 
-def run_hpc_setup():
-    print("=======================================================")
-    print(" CoChem-BASE: HPC Login-Node Prober & SLURM Configurator")
-    print("=======================================================\n")
-    
+    logger.info("Golden Registry updated with strict HPC SLURM routing rules.")
+
+
+def run_hpc_setup() -> None:
+    logger.info("=======================================================")
+    logger.info(" CoChem-BASE: HPC Login-Node Prober & SLURM Configurator")
+    logger.info("=======================================================\n")
+
     artifact_dir = locate_artifact_dir()
-    
+
     if not check_slurm_presence():
-        print("🛑 Halting HPC configuration. Target is not a SLURM submit node.")
+        logger.warning("Halting HPC configuration. Target is not a SLURM submit node.")
         sys.exit(0)
 
-    # Allow custom module parsing via CLI, otherwise use common defaults
     if len(sys.argv) > 1:
         modules = "\n".join(f"module load {mod}" for mod in sys.argv[1:])
     else:
         modules = "module load openmpi\nmodule load orca"
-        print(f"ℹ️ No custom modules provided. Using default:\n{modules}")
+        logger.info(f"No custom modules provided. Using default:\n{modules}")
 
     template_path = generate_sbatch_template(artifact_dir, modules)
     update_golden_registry(artifact_dir, template_path, modules)
-    
-    print("\n✅ Cloud-to-Cluster (C2C) HPC matrix successfully configured. Ready for dispatch.")
+
+    logger.info("Cloud-to-Cluster (C2C) HPC matrix successfully configured. Ready for dispatch.")
+
 
 if __name__ == "__main__":
     run_hpc_setup()

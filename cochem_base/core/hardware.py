@@ -4,14 +4,21 @@ import logging
 import subprocess
 import multiprocessing
 import ctypes
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
+try:
+    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+except ImportError:
+    safe_subprocess_run = None
+
+
 class HardwareDiscovery:
     """Hardware discovery orchestrator for CoChem-BASE"""
-    
+
     @staticmethod
-    def get_cpu_cores():
+    def get_cpu_cores() -> int:
         try:
             return multiprocessing.cpu_count()
         except Exception as e:
@@ -19,11 +26,11 @@ class HardwareDiscovery:
             return 1
 
     @staticmethod
-    def get_gpu_availability():
-        devices = []
+    def get_gpu_availability() -> Dict[str, Any]:
+        devices: List[Dict[str, Any]] = []
         available = False
         fp64_capable = False
-        
+
         # Method 1: PyTorch check
         try:
             import torch
@@ -75,11 +82,13 @@ class HardwareDiscovery:
 
         # Method 3: nvidia-smi fallback
         try:
-            res = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5
-            )
-            if res.returncode == 0:
+            cmd = ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
+            if safe_subprocess_run:
+                res = safe_subprocess_run(cmd, timeout=10.0, check=True)
+            else:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0, check=True)
+
+            if res.returncode == 0 and res.stdout:
                 lines = res.stdout.strip().splitlines()
                 for idx, line in enumerate(lines):
                     if line:
@@ -101,12 +110,12 @@ class HardwareDiscovery:
         return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
 
     @staticmethod
-    def get_core_pinning_config():
+    def get_core_pinning_config() -> str:
         """Generates environment string for P-core pinning on hybrid architectures (§8.4)."""
         return "KMP_HW_SUBSET=8c:intel_core,1t"
 
     @staticmethod
-    def get_system_ram_gb():
+    def get_system_ram_gb() -> float:
         try:
             import psutil
             return round(psutil.virtual_memory().total / (1024.**3), 2)
@@ -134,7 +143,7 @@ class HardwareDiscovery:
                     logger.warning(f"Windows memory detection failed: {e}")
             elif os.path.exists("/proc/meminfo"):
                 try:
-                    with open("/proc/meminfo", "r") as f:
+                    with open("/proc/meminfo", "r", encoding="utf-8") as f:
                         for line in f:
                             if line.startswith("MemTotal:"):
                                 parts = line.split()
@@ -145,7 +154,7 @@ class HardwareDiscovery:
             return 16.0
 
     @classmethod
-    def get_full_profile(cls):
+    def get_full_profile(cls) -> Dict[str, Any]:
         return {
             "cpu_cores": cls.get_cpu_cores(),
             "gpu": cls.get_gpu_availability(),

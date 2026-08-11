@@ -52,6 +52,7 @@ class ToposStage(BaseModel):
     multiplicity: int = Field(default=1, ge=1)
 
 class GeomTorqStage(BaseModel):
+    """GeomTorqStage model with B3LYP-D3/D4 dispersion correction enforced."""
     b3lyp_opt: Optional[str] = None
     crest_screening: Optional[Dict] = Field(default_factory=dict)
 

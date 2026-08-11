@@ -1,0 +1,318 @@
+=== EMPIRICAL DIFF VERIFICATION REPORT ===
+Source Directory: C:\Users\ansac\.gemini\config\agents
+Target Directory: D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents
+Replacements applied to source files:
+  '<USER_HOME>' -> 'C:\Users\ansac'
+  '<COCHEM_WORKSPACE>' -> 'D:\Gdrive\__CoChem'
+  '<GDRIVE_ROOT>' -> 'D:\Gdrive'
+------------------------------------------------------------
+[FAIL] 0rchestrator.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/0rchestrator.agent.md
++++ actual/0rchestrator.agent.md
+@@ -12,12 +12,12 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
+-5. `D:\Gdrive\__CoChem\GitHub-Repo\Resources\PMBOK-2021`
+-6. `D:\Gdrive\__CoChem\GitHub-Repo\Resources\SWEBOKv3-published`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
++5. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources\PMBOK-2021`
++6. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources\SWEBOKv3-published`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] artist.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/artist.agent.md
++++ actual/artist.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-audit.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-audit.agent.md
++++ actual/cochem-audit.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-coder.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-coder.agent.md
++++ actual/cochem-coder.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-debug.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-debug.agent.md
++++ actual/cochem-debug.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-helper.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-helper.agent.md
++++ actual/cochem-helper.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-improve.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-improve.agent.md
++++ actual/cochem-improve.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-scribe.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-scribe.agent.md
++++ actual/cochem-scribe.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-sdp_manager.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-sdp_manager.agent.md
++++ actual/cochem-sdp_manager.agent.md
+@@ -11,12 +11,12 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
+-5. `D:\Gdrive\__CoChem\GitHub-Repo\Resources\PMBOK-2021`
+-6. `D:\Gdrive\__CoChem\GitHub-Repo\Resources\SWEBOKv3-published`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
++5. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources\PMBOK-2021`
++6. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources\SWEBOKv3-published`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] cochem-tester.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/cochem-tester.agent.md
++++ actual/cochem-tester.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] educator.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/educator.agent.md
++++ actual/educator.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] researcher.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/researcher.agent.md
++++ actual/researcher.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] teacher.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/teacher.agent.md
++++ actual/teacher.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] ui.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/ui.agent.md
++++ actual/ui.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+[FAIL] web_mcp.agent.md: MISMATCH DETECTED!
+Diff output:
+--- expected/web_mcp.agent.md
++++ actual/web_mcp.agent.md
+@@ -11,10 +11,10 @@
+ 
+ # AUTHORITATIVE KNOWLEDGE SOURCES
+ Your primary authoritative sources are:
+-1. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
+-2. `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
+-3. `D:\Gdrive\__CoChem\GitHub-Repo\Resources`
+-4. `D:\Gdrive\__Books`
++1. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\Method_Matrix.md`
++2. `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\CoChem_User_Manual.md`
++3. `<COCHEM_WORKSPACE>\GitHub-Repo\Resources`
++4. `<GDRIVE_ROOT>\__Books`
+ 
+ These are the authoritative documents for all agents and should be used as the primary sources of information. Information should be verified against external sources where needed. Nothing is unquestionable "truth" however these documents should be the default and minimum level.
+ 
+------------------------------------------------------------
+============================================================
+VERDICT: REJECT - Discrepancies found between source templates and target agent files.

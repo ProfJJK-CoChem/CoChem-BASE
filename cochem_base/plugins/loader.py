@@ -1,28 +1,30 @@
 import pluggy
+from typing import List, Any
 
 hookspec = pluggy.HookspecMarker("cochem_studio")
 hookimpl = pluggy.HookimplMarker("cochem_studio")
 
+
 class CoChemStudioSpecs:
     """A hook specification namespace."""
-    
+
     @hookspec
-    def register_tabs(self, main_window):
+    def register_tabs(self, main_window: Any) -> List[Any]:
         """Register new tabs to the main window's tab widget."""
         return []
 
     @hookspec
-    def register_3d_overlays(self, viewer):
+    def register_3d_overlays(self, viewer: Any) -> List[Any]:
         """Register 3D overlays to the molecular viewer."""
         return []
 
     @hookspec
-    def register_menu_actions(self, menu_bar):
+    def register_menu_actions(self, menu_bar: Any) -> List[Any]:
         """Register new actions to the main menu bar."""
         return []
 
 
-def get_plugin_manager():
+def get_plugin_manager() -> pluggy.PluginManager:
     """Create and return a configured pluggy PluginManager."""
     import sys
     from pathlib import Path

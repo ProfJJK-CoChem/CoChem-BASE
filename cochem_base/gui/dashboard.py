@@ -2,18 +2,20 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgre
 from PySide6.QtCore import QTimer, Qt, QThread, Signal
 import random
 import logging
+from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
+
 
 class PipelineWorker(QThread):
     progress_updated = Signal(str, int)
     finished = Signal(bool)
 
-    def __init__(self, router=None):
+    def __init__(self, router: Optional[Any] = None) -> None:
         super().__init__()
         self.router = router
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.progress_updated.emit("Initializing Pipeline Router...", 10)
             if self.router:
@@ -27,23 +29,24 @@ class PipelineWorker(QThread):
             logger.error(f"Pipeline worker failed: {e}")
             self.finished.emit(False)
 
+
 class DashboardTab(QWidget):
     """Home Dashboard / System Monitor (CoChem-BASE)"""
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         layout = QVBoxLayout(self)
 
         # Hardware Utilization Group
         hw_group = QGroupBox("Real-time Hardware Utilization")
         hw_layout = QVBoxLayout()
-        
+
         self.cpu_bar = QProgressBar()
         self.cpu_bar.setFormat("CPU: %p%")
         self.gpu_bar = QProgressBar()
         self.gpu_bar.setFormat("GPU: %p%")
         self.ram_bar = QProgressBar()
         self.ram_bar.setFormat("RAM: %p%")
-        
+
         hw_layout.addWidget(self.cpu_bar)
         hw_layout.addWidget(self.gpu_bar)
         hw_layout.addWidget(self.ram_bar)
@@ -60,21 +63,21 @@ class DashboardTab(QWidget):
         queue_layout.addWidget(self.task_bar)
         queue_group.setLayout(queue_layout)
         layout.addWidget(queue_group)
-        
+
         # Start Pipeline button
         self.start_btn = QPushButton("Start Pipeline")
         self.start_btn.clicked.connect(self.simulate_pipeline)
         layout.addWidget(self.start_btn)
-        
+
         layout.addStretch()
 
         # Timer for simulated HW metrics
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_hw_metrics)
         self.timer.start(1000)
-        self.worker = None
+        self.worker: Optional[PipelineWorker] = None
 
-    def update_hw_metrics(self):
+    def update_hw_metrics(self) -> None:
         """Query real system hardware metrics via psutil."""
         try:
             import psutil
@@ -96,7 +99,7 @@ class DashboardTab(QWidget):
         self.gpu_bar.setValue(gpu_val)
         self.ram_bar.setValue(ram_val)
 
-    def simulate_pipeline(self):
+    def simulate_pipeline(self) -> None:
         """Launches real pipeline execution via ExecutionRouter."""
         try:
             from calc.cochem_calc_execution_router import ExecutionRouter
@@ -114,15 +117,14 @@ class DashboardTab(QWidget):
         self.worker.finished.connect(self._on_pipeline_finished)
         self.worker.start()
 
-    def _on_pipeline_progress(self, stage_name: str, percent: int):
+    def _on_pipeline_progress(self, stage_name: str, percent: int) -> None:
         self.task_label.setText(f"Running: {stage_name}")
         self.task_bar.setValue(percent)
 
-    def _on_pipeline_finished(self, success: bool):
+    def _on_pipeline_finished(self, success: bool) -> None:
         self.start_btn.setEnabled(True)
         if success:
             self.task_label.setText("Pipeline Execution Completed Successfully.")
             self.task_bar.setValue(100)
         else:
             self.task_label.setText("❌ Pipeline Execution Failed.")
-

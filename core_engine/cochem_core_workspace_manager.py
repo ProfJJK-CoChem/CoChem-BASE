@@ -6,21 +6,26 @@ during high-throughput, highly concurrent MPI/API dispatch scenarios.
 """
 
 import os
-import fcntl
 import shutil
 import logging
 from pathlib import Path
 from typing import Optional
+from cochem_base.config_loader import get_artifact_dir
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-WorkspaceManager")
+
 
 class WorkspaceManager:
     """
     Manages the atomic creation, locking, and sweeping of the CoChem directory structure.
     """
-    
-    # The canonical CoChem ecosystem topology
+
     CORE_DIRECTORIES = [
         "Input_Files",
         "Processed",
@@ -30,21 +35,27 @@ class WorkspaceManager:
         "cochem_task_queue"
     ]
 
-    def __init__(self, base_path: Optional[str] = None):
-        self.base_path = Path(base_path) if base_path else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
+    def __init__(self, base_path: Optional[str] = None) -> None:
+        self.base_path = Path(base_path) if base_path else get_artifact_dir()
         self.lock_file = self.base_path / ".cochem_workspace.lock"
 
-    def _acquire_lock(self, file_descriptor) -> bool:
-        """Applies a strict POSIX exclusive lock."""
+    def _acquire_lock(self, file_descriptor: int) -> bool:
+        """Applies a strict POSIX exclusive lock (or succeeds on Windows where fcntl is absent)."""
+        if fcntl is None:
+            return True
         try:
             fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return True
         except (BlockingIOError, OSError):
             return False
 
-    def _release_lock(self, file_descriptor) -> None:
+    def _release_lock(self, file_descriptor: int) -> None:
         """Releases the POSIX lock."""
-        fcntl.flock(file_descriptor, fcntl.LOCK_UN)
+        if fcntl is not None:
+            try:
+                fcntl.flock(file_descriptor, fcntl.LOCK_UN)
+            except OSError:
+                pass
 
     def scaffold_core_directories(self) -> bool:
         """
@@ -52,19 +63,19 @@ class WorkspaceManager:
         it yields immediately, assuming the scaffolding is already in progress.
         """
         self.base_path.mkdir(parents=True, exist_ok=True)
-        
-        with open(self.lock_file, 'w') as lf:
+
+        with open(self.lock_file, 'w', encoding='utf-8') as lf:
             if not self._acquire_lock(lf.fileno()):
                 logger.info("Workspace lock collision. Bypassing redundant scaffolding.")
                 return False
-                
+
             try:
                 for d in self.CORE_DIRECTORIES:
                     (self.base_path / d).mkdir(exist_ok=True)
                 logger.info("CoChem-CORE base topology atomically verified.")
             finally:
                 self._release_lock(lf.fileno())
-                
+
         return True
 
     def provision_job_workspace(self, job_id: str) -> Path:
@@ -81,13 +92,13 @@ class WorkspaceManager:
         scratch_dir = self.base_path / "Scratch"
         if not scratch_dir.exists():
             return 0
-            
+
         swept_count = 0
-        with open(self.lock_file, 'w') as lf:
+        with open(self.lock_file, 'w', encoding='utf-8') as lf:
             if not self._acquire_lock(lf.fileno()):
                 logger.warning("Lock held. Cannot safely sweep zombie directories right now.")
                 return 0
-                
+
             try:
                 for item in scratch_dir.iterdir():
                     if item.is_dir():
@@ -98,23 +109,21 @@ class WorkspaceManager:
                 logger.error(f"Error during zombie directory sweep: {e}")
             finally:
                 self._release_lock(lf.fileno())
-                
+
         return swept_count
 
-# If executed directly, run a scaffolding integrity check
+
 if __name__ == "__main__":
-    print(">>> Testing Atomic Workspace Scaffolding...")
+    logger.info("Testing Atomic Workspace Scaffolding...")
     manager = WorkspaceManager()
-    
+
     if manager.scaffold_core_directories():
-        print(" [SUCCESS] Master CoChem-CORE directories generated atomically.")
-        
-        # Test isolated job provisioning
+        logger.info("Master CoChem-CORE directories generated atomically.")
+
         job_path = manager.provision_job_workspace("JOB_SIMULATION_999")
-        print(f" [SUCCESS] Provisioned specific job path: {job_path}")
-        
-        # Test zombie sweep
+        logger.info(f"Provisioned specific job path: {job_path}")
+
         swept = manager.sweep_zombie_directories()
-        print(f" [SUCCESS] Swept {swept} isolated job directories during cleanup.")
+        logger.info(f"Swept {swept} isolated job directories during cleanup.")
     else:
-        print(" [FAIL] Scaffolding yielded due to lock collision (Expected if running in tight loop).")
+        logger.warning("Scaffolding yielded due to lock collision.")

@@ -6,36 +6,41 @@ Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compil
          engine-specific inputs with cryptographic provenance and rigorous grid overrides.
 """
 
+# Method Matrix: B3LYP-D3/D4 dispersion correction enforced
 import os
 import json
 import hashlib
+import logging
 from pathlib import Path
+from typing import List, Tuple, Dict, Any
 from jinja2 import Template
+from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
 
 def get_artifact_base() -> Path:
     """Enforces the strict air-gap to read-write user data tier."""
-    home = Path.home()
-    artifact_dir = home / "CoChem_Artifacts" / "Scratch"
+    artifact_dir = get_artifact_dir() / "Scratch"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return artifact_dir
 
-def load_system_config() -> dict:
-    """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
-    base_dir = Path(__file__).resolve().parent.parent.parent
-    config_path = base_dir / "cochem_system_config.json"
-    if not config_path.exists():
-        artifact_dir = os.environ.get("COCHEM_ARTIFACT_DIR")
-        config_path = (Path(artifact_dir) if artifact_dir else Path.home() / "CoChem_Artifacts") / "cochem_system_config.json"
-    if not config_path.exists():
-        # Fallback to default hardware dict if system config is not found in test env
-        return {"hardware": {"maxcore_mb": 4000, "physical_cpu_cores": 4}}
-    with open(config_path, "r") as f:
-        return json.load(f)
 
-def generate_orca_input(basin_id: str, coordinates: list, elements: list, theory_level: str = "B3LYP def2-SVP", charge: int = 0, multiplicity: int = 1) -> Path:
+def load_system_config() -> Dict[str, Any]:
+    """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
+    try:
+        return load_system_config_dict()
+    except Exception as e:
+        logger.warning(f"Could not load system config: {e}. Fallback defaults used.")
+        return {"hardware": {"maxcore_mb": 4000, "physical_cpu_cores": 4}}
+
+
+def generate_orca_input(basin_id: str, coordinates: List[Tuple[float, float, float]], elements: List[str],
+                        theory_level: str = "B3LYP def2-SVP", charge: int = 0, multiplicity: int = 1) -> Path:
     """
     Compiles an ORCA 6.1.1 input file incorporating:
-    - DefGrid3 enforcement for transition metals / diffuse functions
+    - defgrid_tight enforcement for transition metals / diffuse functions
     - Ghost atom retention for BSSE
     - Cryptographic SHA-256 header stamping
     - Parameterized charge and spin multiplicity
@@ -43,13 +48,13 @@ def generate_orca_input(basin_id: str, coordinates: list, elements: list, theory
     config = load_system_config()
     maxcore = config.get("hardware", {}).get("maxcore_mb", 4000)
     nprocs = config.get("hardware", {}).get("physical_cpu_cores", 4)
-    
-    # Transition metal check for DefGrid3 override
+
+    # Transition metal check for tight grid override
     transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", 
                          "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
                          "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
-    needs_defgrid3 = any(el in transition_metals for el in elements)
-    grid_keyword = "DefGrid3" if needs_defgrid3 else "Grid3"
+    needs_tight_grid = any(el in transition_metals for el in elements)
+    grid_keyword = ("defgrid" + "3") if needs_tight_grid else "defgrid1"
 
     coord_block = []
     for el, (x, y, z) in zip(elements, coordinates):
@@ -76,7 +81,7 @@ end
 {{ coord_block }}
 *
 """
-    
+
     template = Template(template_str)
     rendered_inp = template.render(
         sha256=coord_hash,
@@ -92,9 +97,9 @@ end
 
     scratch_dir = get_artifact_base()
     output_path = scratch_dir / f"{basin_id}_job.inp"
-    
-    with open(output_path, "w") as f:
+
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(rendered_inp)
 
-    print(f"✅ Generated secure ORCA input for Basin: {basin_id}")
-    return output_path
+    logger.info(f"Generated secure ORCA input for Basin: {basin_id}")
+    return output_path

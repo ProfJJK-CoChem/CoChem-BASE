@@ -15,9 +15,21 @@ import shutil
 import zipfile
 import threading
 import psutil
+import logging
 from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
 import ipywidgets as widgets
 from IPython.display import display, clear_output
+from cochem_base.config_loader import get_artifact_dir, get_repo_root
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-Installer")
+
+try:
+    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run, register_popen_process
+except ImportError:
+    safe_subprocess_run = None
+    register_popen_process = None
 
 ECOSYSTEM_REGISTRY = {
     "CoChem-CORE": {"desc": "Foundational registry, memory routing, and OS-level hardware guards.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE", "mandatory": True},
@@ -34,35 +46,35 @@ ECOSYSTEM_REGISTRY = {
     "CoChem-PULSE": {"desc": "Time-dependent vibrational dynamics and laser simulations.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-PULSE", "mandatory": False},
     "CoChem-SCAN": {"desc": "Internal conformational exploration heuristic tool.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN", "mandatory": False},
     "CoChem-SHIFT": {"desc": "NMR tensor extraction (J-couplings, chemical shifts).", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT", "mandatory": False},
-    "CoChem-GEOM": {"desc": "Precision molecular structure determination and fitting.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM", "mandatory": False}
+    "CoChem-GEOM": {"desc": "Precision molecular structure determination and fitting.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM", "mandatory": False},
+    "Antigravity-Assistant": {"desc": "Antigravity 2.0 Cloud LLM Assistant (Data Privacy Cannot Be Guaranteed).", "repo": "https://antigravity.google/cli", "mandatory": False}
 }
 
+
 class SynapInstallerGUI:
-    def __init__(self):
-        self.buttons = {}
-        
-        # 1. Enforce Air-Gap Paths
-        self.artifact_dir = Path.home() / "CoChem_Artifacts"
+    def __init__(self) -> None:
+        self.buttons: Dict[str, Any] = {}
+
+        self.artifact_dir = get_artifact_dir()
         self.registry_dir = self.artifact_dir / "Registry"
         self.engine_registry = self.registry_dir / "Engines"
         self.module_registry = self.registry_dir / "Modules"
-        
+
         self.engine_registry.mkdir(parents=True, exist_ok=True)
         self.module_registry.mkdir(parents=True, exist_ok=True)
-        
+
         self.log_file = self.artifact_dir / "Logs" / "cochem_deploy.log"
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Updated Manifest Path for the new OS Orchestrator
+
         self.manifest_file = self.registry_dir / "cochem_deployment_manifest.json"
-        
+
         self.interaction_options = [
             "Local-Windows (WSL)",
             "Local-MacOS (OrbStack)",
             "Local-Linux (Deb)",
             "Codespaces"
         ]
-        
+
         self.calculation_options = [
             "Local-Windows (WSL)",
             "Local-MacOS (OrbStack)",
@@ -70,18 +82,19 @@ class SynapInstallerGUI:
             "GitHub Actions",
             "HPC"
         ]
-        
+
         self.disk_safe = False
+        self.error_msg = ""
         self._pre_flight_disk_check()
         if self.disk_safe:
             self._build_ui()
 
-    def _get_git_hash(self):
+    def _get_git_hash(self) -> str:
         try:
-            res = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True, text=True, check=True, timeout=5
-            )
+            if safe_subprocess_run:
+                res = safe_subprocess_run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=5)
+            else:
+                res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=5)
             return res.stdout.strip()[:16]
         except Exception:
             build_hash_file = Path(__file__).resolve().parent.parent / ".build_hash"
@@ -89,7 +102,7 @@ class SynapInstallerGUI:
                 return build_hash_file.read_text(encoding="utf-8").strip()[:16]
             return "RELEASE_BUILD"
 
-    def _pre_flight_disk_check(self):
+    def _pre_flight_disk_check(self) -> None:
         """Verifies safe OS operation before rendering (enforces 10GB gate per User Manual §1.2.6)."""
         try:
             free_gb = psutil.disk_usage(str(Path.home())).free / (1024**3)
@@ -113,26 +126,29 @@ class SynapInstallerGUI:
 
         if not candidate.exists():
             with self.status_out:
-                print(f"❌ ORCA path does not exist at: {candidate}")
+                logger.error(f"ORCA path does not exist at: {candidate}")
             return False
 
         verify_dir = Path(tempfile.mkdtemp(prefix="cochem_orca_verify_", dir=str(self.artifact_dir)))
         inp = verify_dir / "verify_orca.inp"
         inp.write_text("! SP STO-3G\n*xyz 0 1\nHe 0 0 0\n*\n", encoding="utf-8")
         try:
-            result = subprocess.run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90)
+            if safe_subprocess_run:
+                result = safe_subprocess_run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)
+            else:
+                result = subprocess.run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)  # check=True
             stdout_upper = (result.stdout or "").upper()
             out_file = verify_dir / "verify_orca.out"
             out_text = out_file.read_text(errors="replace").upper() if out_file.exists() else ""
             markers = ["ORCA TERMINATED NORMALLY", "O   R   C   A", "O R C A"]
             if result.returncode == 0 and any(m in stdout_upper or m in out_text for m in markers):
                 with self.status_out:
-                    print(f"✅ ORCA verification passed via: {candidate}")
+                    logger.info(f"ORCA verification passed via: {candidate}")
                 return True
             return False
         except Exception as e:
             with self.status_out:
-                print(f"❌ ORCA verification exception: {e}")
+                logger.error(f"ORCA verification exception: {e}")
             return False
         finally:
             shutil.rmtree(verify_dir, ignore_errors=True)
@@ -145,7 +161,7 @@ class SynapInstallerGUI:
                     return True
         return False
 
-    def _extract_upload_entries(self, files):
+    def _extract_upload_entries(self, files: Any) -> List[Tuple[str, Any]]:
         if not files:
             return []
         if isinstance(files, dict):
@@ -158,7 +174,7 @@ class SynapInstallerGUI:
                 entries.append((getattr(entry, "name", ""), entry))
         return entries
 
-    def _stage_orca_upload(self, files) -> bool:
+    def _stage_orca_upload(self, files: Any) -> bool:
         entries = self._extract_upload_entries(files)
         if not entries:
             return False
@@ -168,34 +184,36 @@ class SynapInstallerGUI:
             for fname, fdata in entries:
                 fname_lower = fname.lower()
                 if not fname_lower.endswith((".tar.xz", ".tz", ".tar.gz", ".zip")):
-                    print(f"❌ Unsupported archive type: {fname or 'unknown'}")
+                    logger.warning(f"Unsupported archive type: {fname or 'unknown'}")
                     continue
-                
+
                 target = self.module_registry / fname if fname_lower.endswith(".zip") else self.engine_registry / fname
-                    
+
                 content = fdata.get("content", b"") if isinstance(fdata, dict) else getattr(fdata, "content", b"")
-                if isinstance(content, memoryview): content = content.tobytes()
-                elif isinstance(content, bytearray): content = bytes(content)
-                
+                if isinstance(content, memoryview):
+                    content = content.tobytes()
+                elif isinstance(content, bytearray):
+                    content = bytes(content)
+
                 if not content:
                     continue
-                
+
                 with open(target, "wb") as f:
                     f.write(content)
                 size = target.stat().st_size if target.exists() else 0
                 if size > 0:
-                    print(f"✅ Archive staged to: {target} ({size} bytes)")
+                    logger.info(f"Archive staged to: {target} ({size} bytes)")
                     staged_any = True
         return staged_any
 
-    def _pure_python_deployment_worker(self, manifest_payload):
+    def _pure_python_deployment_worker(self, manifest_payload: Dict[str, Any]) -> None:
         """Threaded pure-Python replacement for bash routers. Enforces Air-Gap."""
         target_modules = manifest_payload["selected_repositories"]
-        
+
         progress_step = 80.0 / max(len(target_modules), 1)
-        
+
         with open(self.log_file, 'a', encoding="utf-8") as log_out:
-            def log_msg(msg):
+            def log_msg(msg: str) -> None:
                 self.output_console.append_stdout(f"{msg}\n")
                 log_out.write(f"{msg}\n")
                 log_out.flush()
@@ -205,64 +223,84 @@ class SynapInstallerGUI:
 
             clean_env = os.environ.copy()
             clean_env['GIT_TERMINAL_PROMPT'] = '0'
-            
+
             for mod in target_modules:
-                # We skip CORE cloning if it's the current environment, but include downstream dependencies
                 if mod == "CoChem-CORE":
                     log_msg(f"  ℹ️ Base repository active. Bypassing clone for {mod}.")
                     self.progress_bar.value += progress_step
                     continue
 
+                if mod == "Antigravity-Assistant":
+                    log_msg(f"☁️ Provisioning Antigravity 2.0 Assistant...")
+                    if os.name == 'nt':
+                        cmd = 'powershell -NoProfile -Command "irm https://antigravity.google/cli/install.ps1 | iex"'
+                    else:
+                        cmd = 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+                    try:
+                        if safe_subprocess_run:
+                            safe_subprocess_run(cmd, shell=True, env=clean_env, check=True, timeout=120.0)
+                        else:
+                            subprocess.run(cmd, shell=True, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
+                        log_msg(f"  ✅ Antigravity 2.0 CLI installed successfully.")
+                    except Exception as e:
+                        log_msg(f"  ❌ Failed to install Antigravity 2.0: {e}")
+                    self.progress_bar.value += progress_step
+                    continue
+
                 repo_url = ECOSYSTEM_REGISTRY[mod]["repo"]
                 target_dir = self.module_registry / mod
-                
+
                 if (target_dir / ".git").exists():
                     log_msg(f"🔄 Updating existing module: {mod}")
                     try:
-                        subprocess.run(["git", "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True)
+                        if safe_subprocess_run:
+                            safe_subprocess_run(["git", "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
+                        else:
+                            subprocess.run(["git", "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
                         log_msg(f"  ✅ {mod} updated successfully.")
-                    except subprocess.CalledProcessError as e:
-                        log_msg(f"  ⚠️ Fast-forward failed for {mod}. Error: {e.stderr.strip()}")
+                    except Exception as e:
+                        log_msg(f"  ⚠️ Fast-forward failed for {mod}: {e}")
                 else:
                     sideload_success = False
                     possible_zips = [
                         self.module_registry / f"{mod}.zip", self.module_registry / f"{mod}-main.zip",
                         self.engine_registry / f"{mod}.zip", self.artifact_dir / f"{mod}.zip"
                     ]
-                    
+
                     for zpath in possible_zips:
                         if zpath.exists():
                             log_msg(f"📦 Air-Gap Bridge: Sideloading {mod} from {zpath.name}...")
                             try:
                                 with zipfile.ZipFile(zpath, 'r') as zip_ref:
                                     zip_ref.extractall(self.module_registry)
-                                
+
                                 for suffix in ["-main", "-master"]:
                                     extracted_dir = self.module_registry / f"{mod}{suffix}"
                                     if extracted_dir.exists() and not target_dir.exists():
                                         extracted_dir.rename(target_dir)
-                                        
+
                                 if target_dir.exists():
                                     log_msg(f"  ✅ Extracted {mod} via Air-Gap. Network bypassed.")
                                     sideload_success = True
                                     break
                             except Exception as e:
                                 log_msg(f"  ⚠️ Zip extraction failed: {e}")
-                    
+
                     if not sideload_success:
                         log_msg(f"📥 Deep cloning {mod} from {repo_url}...")
                         try:
-                            subprocess.run(["git", "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True)
+                            if safe_subprocess_run:
+                                safe_subprocess_run(["git", "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
+                            else:
+                                subprocess.run(["git", "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
                             log_msg(f"  ✅ Cloned {mod} successfully.")
-                        except subprocess.CalledProcessError as e:
-                            err = (e.stderr or "").strip() or str(e)
-                            log_msg(f"  ❌ Failed to clone {mod}: {err}")
-                
+                        except Exception as e:
+                            log_msg(f"  ❌ Failed to clone {mod}: {e}")
+
                 self.progress_bar.value += progress_step
 
             log_msg("\n✅ Stage 0.0.2 Module synchronization completed.")
-            
-            # Subprocess handoff to CoChem-BASE OS-Native Orchestrator
+
             orchestrator = Path(__file__).resolve().parent.parent / "setup" / "cochem_setup_orchestrator.py"
             if orchestrator.exists():
                 log_msg(f"🔄 Handing off to CoChem-BASE OS-Native Orchestrator: {orchestrator.name}...")
@@ -274,10 +312,14 @@ class SynapInstallerGUI:
                         stderr=subprocess.STDOUT, 
                         text=True, bufsize=1, env=clean_env
                     )
-                    for line in process.stdout:
-                        self.output_console.append_stdout(line)
-                        log_out.write(line)
-                        log_out.flush()
+                    if register_popen_process:
+                        register_popen_process(process)
+
+                    if process.stdout:
+                        for line in process.stdout:
+                            self.output_console.append_stdout(line)
+                            log_out.write(line)
+                            log_out.flush()
                     process.wait()
                     if process.returncode == 0:
                         log_msg("✅ Orchestrator completed successfully.")
@@ -291,10 +333,10 @@ class SynapInstallerGUI:
             else:
                 log_msg(f"⚠️ OS-Native Orchestrator not found at {orchestrator}. Setup stopped.")
                 self.progress_bar.bar_style = 'warning'
-                
+
             self.progress_bar.value = 100.0
 
-    def _on_submit(self, b):
+    def _on_submit(self, b: Any) -> None:
         self.submit_btn.disabled = True
         self.submit_btn.description = "Deploying..."
         self.progress_bar.value = 0.0
@@ -302,12 +344,11 @@ class SynapInstallerGUI:
         self.progress_bar.layout.display = 'block'
         self.output_console.clear_output()
         self.status_out.clear_output()
-        
+
         selected_modules = [mod for mod, cb in self.buttons.items() if cb.value]
         host_orca_path = self.host_orca_path.value.strip()
         host_orca_verified = False
-        
-        # New Decoupled Output Schema matching setup_orchestrator
+
         manifest_payload = {
             "version": "2026.2",
             "git_provenance_hash": self._get_git_hash(),
@@ -316,54 +357,52 @@ class SynapInstallerGUI:
             "orca_tarball_path": host_orca_path,
             "selected_repositories": selected_modules
         }
-        
-        with open(self.manifest_file, 'w') as f:
+
+        with open(self.manifest_file, 'w', encoding="utf-8") as f:
             json.dump(manifest_payload, f, indent=4)
-            
+
         with self.status_out:
-            print(f"✅ Matrix Selections locked securely in: {self.manifest_file}")
-            
+            logger.info(f"Matrix Selections locked securely in: {self.manifest_file}")
+
             if host_orca_path and host_orca_path != "Not Available - Auto-Routed":
-                print("🔬 Verifying native ORCA execution pathway...")
+                logger.info("Verifying native ORCA execution pathway...")
                 host_orca_verified = self._verify_host_orca_path(host_orca_path)
                 if not host_orca_verified and not self._has_staged_orca_archive():
-                    print("⚠️ ORCA verification failed. Fix path or stage an archive instead.")
+                    logger.warning("ORCA verification failed. Fix path or stage an archive instead.")
                     self.submit_btn.disabled = False
                     self.submit_btn.description = "Lock & Deploy"
                     return
-            
+
             staged_now = False
             if not host_orca_verified:
                 staged_now = self._stage_orca_upload(getattr(self.orca_upload, "value", None))
 
             if host_orca_verified or staged_now or self._has_staged_orca_archive():
-                print("➡️ Dispatching Pure-Python Deployment Thread...")
+                logger.info("Dispatching Pure-Python Deployment Thread...")
                 threading.Thread(target=self._pure_python_deployment_worker, args=(manifest_payload,), daemon=True).start()
             else:
-                print("⚠️ ORCA archive not detected in engine registry.")
-                print(f"📦 Expected location: {self.engine_registry}")
-                print("➡️ Upload ORCA archive first, or type 'BYPASSED' into Host ORCA field if you wish to run in Python-Only mode.")
+                logger.warning(f"ORCA archive not detected in engine registry at {self.engine_registry}")
                 self.submit_btn.disabled = False
                 self.submit_btn.description = "Lock & Deploy"
 
-    def _on_stage_orca_click(self, _):
+    def _on_stage_orca_click(self, _: Any) -> None:
         with self.status_out:
             clear_output()
             staged = self._stage_orca_upload(getattr(self.orca_upload, "value", None))
             if staged:
-                print("➡️ Archives are staged and ready for setup.")
+                logger.info("Archives are staged and ready for setup.")
             else:
-                print("⚠️ No valid archives detected to stage.")
+                logger.warning("No valid archives detected to stage.")
 
-    def build_ui(self):
+    def build_ui(self) -> Any:
         if not self.disk_safe:
             return widgets.VBox([widgets.HTML(f"<h3>{self.error_msg}</h3>")])
-            
+
         return self.main_ui
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         title = widgets.HTML("<h2>CoChem-BASE: Ecosystem Deployer</h2>")
-        
+
         artifact_hint = widgets.HTML(
             f"<div style='background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #0366d6; margin-bottom: 15px;'>"
             f"<b>CoChem Artifacts Native Bridge:</b> {self.artifact_dir}<br>"
@@ -372,13 +411,12 @@ class SynapInstallerGUI:
             f"<i style='font-size: 0.9em; color: #555;'>Offline? Download the Github .zip files and drop them into the target folder above.</i>"
             f"</div>"
         )
-        
+
         self.interact_target = widgets.Dropdown(options=self.interaction_options, value=self.interaction_options[0], description="Interaction (UI):", layout={'width': '80%'})
         self.calc_target = widgets.Dropdown(options=self.calculation_options, value=self.calculation_options[0], description="Calculation (Compute):", layout={'width': '80%'})
-        
-        self.host_orca_path = widgets.Text(value="", placeholder="Optional: /opt/orca/orca", description="Host ORCA:", layout={'width': '80%'})
-        
-        # Modules
+
+        self.host_orca_path = widgets.Text(value="", placeholder="Optional binary path (e.g. orca)", description="Host ORCA:", layout={'width': '80%'})
+
         checks = [widgets.HTML("<h3>Base Ecosystem & Optional Micro-Silos</h3>")]
         for prog, info in ECOSYSTEM_REGISTRY.items():
             cb = widgets.Checkbox(value=info["mandatory"], description=prog, disabled=info["mandatory"], layout={'width': '250px'})
@@ -415,6 +453,7 @@ class SynapInstallerGUI:
             widgets.HTML("<h4>Live Subprocess Execution Log</h4>"),
             self.output_console
         ])
+
 
 if __name__ == "__main__":
     installer = SynapInstallerGUI()

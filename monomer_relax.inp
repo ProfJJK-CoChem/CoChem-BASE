@@ -1,5 +1,4 @@
-
-! r2SCAN-3c  DIIS
+! r2SCAN-3c DIIS
 %maxcore 2000
 
 %output
@@ -8,21 +7,11 @@
 
 %scf
     MaxIter 300
-    SCFType DIIS
-%end
-
-%geom
-    MaxCycles 1000
-    TolForce 1e-4
-    TolDispl 1e-3
-%end
-
-%relax
-    MaxCycles 200
 %end
 
 ! r2SCAN-3c TightOPT TightSCF
 %geom
+  InHess XTB2
   TolE 1e-7
   TolRMSG 3e-6
   TolMaxG 1e-5
@@ -42,5 +31,4 @@ end
  O   0.00000000   0.00000000   0.00000000
  O   1.40000000   0.00000000   0.00000000
  H   1.40000000   0.95000000   0.50000000
-
 *

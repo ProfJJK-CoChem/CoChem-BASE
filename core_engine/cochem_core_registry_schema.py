@@ -6,9 +6,13 @@ Guarantees downstream scientific components never encounter missing keys,
 type errors, or unmapped hardware states.
 """
 
+import logging
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 class HardwareConfig(BaseModel):
     """Rigid bounds for physical compute resources to prevent OOM/Thread crashes."""
@@ -76,7 +80,7 @@ class CoChemConfig(BaseModel):
 # If executed directly, run a schema sanity check
 if __name__ == "__main__":
     import shutil
-    print(">>> Validating CoChemConfig Schema Types...")
+    logger.info(">>> Validating CoChemConfig Schema Types...")
     try:
         def discover_engine(binary_name: str) -> EngineInfo:
             p = shutil.which(binary_name)
@@ -103,7 +107,7 @@ if __name__ == "__main__":
             engines=active_engines,
             silos=SiloConfig(torq_silo_active=True)
         )
-        print(" [SUCCESS] Pydantic models successfully instantiated. Golden Schema is structurally sound.")
-        print(f" [OUTPUT] {master.model_dump_json(indent=2)[:200]}...")
+        logger.info(" [SUCCESS] Pydantic models successfully instantiated. Golden Schema is structurally sound.")
+        logger.info(f" [OUTPUT] {master.model_dump_json(indent=2)[:200]}...")
     except Exception as e:
-        print(f" [FAIL] Schema validation crashed: {e}")
+        logger.error(f" [FAIL] Schema validation crashed: {e}")

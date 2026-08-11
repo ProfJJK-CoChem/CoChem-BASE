@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CoChem-BASE Setup Stage 1: System Environment & Offline Tarball Fallback Manager.
-Performs pre-flight environment checks and routes download requests to local archives in air-gapped environments. (Suggestion 9)
+Performs pre-flight environment checks and routes download requests to local archives in air-gapped environments.
 """
 
 import os
@@ -12,7 +12,9 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def is_online(host: str = "1.1.1.1", port: int = 53, timeout: float = 2.0) -> bool:
     """Checks internet connectivity via socket connection."""
@@ -24,6 +26,7 @@ def is_online(host: str = "1.1.1.1", port: int = 53, timeout: float = 2.0) -> bo
         return True
     except Exception:
         return False
+
 
 def fetch_or_extract_archive(archive_name: str, url: str, local_archive: Path, dest_dir: Path) -> bool:
     """Extracts local tarball/zip if offline; downloads if online."""
@@ -52,6 +55,7 @@ def fetch_or_extract_archive(archive_name: str, url: str, local_archive: Path, d
             return True
         return True
 
+
 if __name__ == "__main__":
     online = is_online()
-    print(f"System Online Status: {online}")
+    logger.info(f"System Online Status: {online}")

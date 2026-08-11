@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import zmq
 import zmq.asyncio
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class ZeroMQDaemon:
     """Async ZeroMQ PUB/SUB daemon for handling telemetry and state broadcasts.
-    
+
     Sets up a PUB socket on port 5555 (default) and SUB socket on port 5556 (default).
     """
 
@@ -21,7 +21,7 @@ class ZeroMQDaemon:
         pub_port: int = 5555,
         sub_port: int = 5556,
         host: str = "127.0.0.1",
-    ):
+    ) -> None:
         self.pub_port = pub_port
         self.sub_port = sub_port
         self.host = host
@@ -91,7 +91,7 @@ class ZeroMQDaemon:
         """Broadcast state payload on specified topic."""
         await self.publish(topic, payload)
 
-    async def recv_message(self) -> tuple[str, Dict[str, Any]]:
+    async def recv_message(self) -> Tuple[str, Dict[str, Any]]:
         """Receive a topic and JSON payload from SUB socket."""
         if not self.sub_socket or not self._running:
             raise RuntimeError("ZeroMQDaemon is not running")
@@ -100,7 +100,7 @@ class ZeroMQDaemon:
         data = json.loads(parts[1].decode("utf-8"))
         return topic, data
 
-    async def listen_for_events(self) -> tuple[str, Dict[str, Any]]:
+    async def listen_for_events(self) -> Tuple[str, Dict[str, Any]]:
         """Listen for incoming telemetry events on SUB socket."""
         return await self.recv_message()
 
@@ -113,4 +113,3 @@ class ZeroMQDaemon:
 
 # Backward-compatible alias
 BaseDaemon = ZeroMQDaemon
-

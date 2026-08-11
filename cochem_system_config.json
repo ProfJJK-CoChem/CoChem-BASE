@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "hardware": {
+    "physical_cpu_cores": 8,
+    "logical_cpu_cores": 16,
+    "ram_gb": 32.0,
+    "avx512_support": true,
+    "gpu_profile": "None",
+    "vram_gb": 0.0,
+    "subnormal_precision_trap": false,
+    "os_target": "windows_x86_64"
+  },
+  "engines": {
+    "orca": {
+      "status": "missing",
+      "path": null,
+      "version": null,
+      "hash": null
+    },
+    "mpirun": {
+      "status": "missing",
+      "path": null,
+      "version": null,
+      "hash": null
+    },
+    "xtb": {
+      "status": "missing",
+      "path": null,
+      "version": null,
+      "hash": null
+    }
+  },
+  "silos": {
+    "torq_silo_active": true,
+    "gpu_silo_active": false
+  },
+  "adaptive_routing": null,
+  "hpc": {
+    "scheduler": "local",
+    "default_partition": "compute",
+    "max_walltime_hours": 24
+  },
+  "alignment_engine_ready": false,
+  "active_jobs": {}
+}

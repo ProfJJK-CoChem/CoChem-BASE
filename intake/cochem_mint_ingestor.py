@@ -13,12 +13,23 @@ import json
 import time
 import threading
 import logging
+import hashlib  # Cryptographic SHA-256 provenance (sha256)
 import subprocess
 import importlib
 import site
 import urllib.request
 import urllib.parse
 from pathlib import Path
+from typing import Optional, Dict, Any, List
+from cochem_base.config_loader import get_artifact_dir
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-MInt")
+
+try:
+    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+except ImportError:
+    safe_subprocess_run = None
 
 # --- Dynamic Dependency Trap ---
 try:
@@ -26,37 +37,30 @@ try:
     from watchdog.events import FileSystemEventHandler
     HAS_WATCHDOG = True
 except ImportError:
-    print("➡️ 'watchdog' library missing. Triggering inline installation...")
+    logger.info("'watchdog' library missing. Triggering inline installation...")
     try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "watchdog"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
+        if safe_subprocess_run:
+            safe_subprocess_run(cmd, timeout=60.0, check=True)
+        else:
+            subprocess.run(cmd, check=True, timeout=60.0, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         importlib.invalidate_caches()
         importlib.reload(site)
-        
-        # Dynamically inject into globals to satisfy class inheritance parsing
+
         watchdog_events = importlib.import_module('watchdog.events')
         watchdog_observers = importlib.import_module('watchdog.observers')
         globals()['FileSystemEventHandler'] = watchdog_events.FileSystemEventHandler
         globals()['Observer'] = watchdog_observers.Observer
-        
+
         HAS_WATCHDOG = True
-        print("✅ Watchdog bootstrap completed.")
+        logger.info("Watchdog bootstrap completed.")
     except Exception as e:
         HAS_WATCHDOG = False
-        print(f"⚠️ Watchdog bootstrap failed: {e}. Running in degraded mode.")
+        logger.warning(f"Watchdog bootstrap failed: {e}. Running in degraded mode.")
 
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 
-# =====================================================================
-# TELEMETRY & LOGGING
-# =====================================================================
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("CoChem-MInt")
 
 def print_status(msg: str, status: str = "info") -> None:
     """Jupyter-safe HTML status printer."""
@@ -64,57 +68,49 @@ def print_status(msg: str, status: str = "info") -> None:
     color = colors.get(status, "black")
     display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {msg}"))
 
-# =====================================================================
-# WATCHDOG EVENT HANDLER
-# =====================================================================
-# Define a dummy class if watchdog failed to load, preventing NameError
+
 if not HAS_WATCHDOG:
-    class FileSystemEventHandler:
+    class FileSystemEventHandler:  # type: ignore
         pass
+
 
 class IngestionWatchdog(FileSystemEventHandler):
     """Monitors the active Project directory for new .xyz submissions."""
-    
-    def __init__(self, ui_callback):
+
+    def __init__(self, ui_callback: Any) -> None:
         if HAS_WATCHDOG:
             super().__init__()
         self.ui_callback = ui_callback
 
-    def on_created(self, event):
+    def on_created(self, event: Any) -> None:
         if HAS_WATCHDOG and not event.is_directory and event.src_path.endswith('.xyz'):
             logger.info(f"Watchdog detected new geometry: {event.src_path}")
             self.ui_callback(f"Detected: {Path(event.src_path).name}")
 
-# =====================================================================
-# UNIFIED MINT GUI CLASS
-# =====================================================================
+
 class CoChemMIntUI:
-    def __init__(self):
+    def __init__(self) -> None:
         if not HAS_WATCHDOG:
             print_status("CRITICAL: 'watchdog' library missing from main environment. Cannot build data bridge.", "fail")
-            
-        # Strictly enforce the Air-Gap (Never allow CWD/Repo target)
+
         self.artifact_dir = self._enforce_airgap_path()
         self.observer = None
         self._build_ui()
 
     def _enforce_airgap_path(self) -> Path:
         """Strictly locates or creates the CoChem_Artifacts air-gapped directory."""
-        # 1. Prefer explicit environmental override
         env_target = os.environ.get("COCHEM_ARTIFACT_DIR")
         if env_target:
             target = Path(env_target)
             target.mkdir(parents=True, exist_ok=True)
             return target
 
-        # 2. Check explicitly mounted DevContainer volumes
         dev_target = Path("/workspaces/CoChem_Artifacts")
         if Path("/workspaces").exists():
             dev_target.mkdir(parents=True, exist_ok=True)
             return dev_target
-            
-        # 3. Fallback to Local Home Directory (Standard Linux/Windows WSL)
-        local_target = (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else (Path(os.environ.get("COCHEM_ARTIFACT_DIR")) if os.environ.get("COCHEM_ARTIFACT_DIR") else Path.home() / "CoChem_Artifacts"))
+
+        local_target = get_artifact_dir()
         local_target.mkdir(parents=True, exist_ok=True)
         return local_target
 
@@ -124,18 +120,17 @@ class CoChemMIntUI:
         proj_name = self.project_name.value.strip().replace(" ", "_")
         if not proj_name:
             proj_name = "Unnamed_Project"
-            
+
         workspace_path = self.artifact_dir / proj_name
         workspace_path.mkdir(parents=True, exist_ok=True)
         return workspace_path
 
-    def _build_ui(self):
+    def _build_ui(self) -> None:
         """Constructs the Jupyter VBox interface."""
         self.out = widgets.Output(layout={'border': '1px solid #ccc', 'padding': '10px', 'height': '200px', 'overflow_y': 'auto'})
-        
+
         self.title = widgets.HTML("<h2>🧪 CoChem-MInt: Molecular Intake & Canonicalization</h2>")
-        
-        # Dynamic Project Query
+
         self.project_name = widgets.Text(
             value='New_Project', 
             description='Project Name:', 
@@ -144,12 +139,10 @@ class CoChemMIntUI:
         )
         self.project_name.observe(self._on_project_name_change, names='value')
 
-        # Live Path visualizer
         self.path_display = widgets.HTML(
             value=f"<span style='color: #4B5563; font-family: monospace; font-size: 0.9em;'>📁 Air-Gapped Target: {self.current_workspace}</span>"
         )
-        
-        # Drag and Drop Uploader
+
         self.file_upload = widgets.FileUpload(
             accept='.xyz', 
             multiple=True, 
@@ -158,7 +151,6 @@ class CoChemMIntUI:
         )
         self.file_upload.observe(self._on_file_upload, names='value')
 
-        # Molecule Target Input
         self.molecule_name_input = widgets.Text(
             value='',
             placeholder='e.g., Aspirin or CC(=O)OC1=CC=CC=C1C(=O)O',
@@ -167,47 +159,44 @@ class CoChemMIntUI:
             layout=widgets.Layout(width='400px')
         )
 
-        # Action Buttons
         self.btn_scan = widgets.Button(description="Scan Folder & Canonicalize", button_style="info", icon="search")
         self.btn_build = widgets.Button(description="Build Molecule", button_style="warning", icon="cube")
         self.btn_watch = widgets.Button(description="Start Watchdog", button_style="success", icon="eye")
-        
+
         self.btn_scan.on_click(self._on_scan_clicked)
         self.btn_build.on_click(self._on_build_clicked)
         self.btn_watch.on_click(self._on_watch_clicked)
-        
-        # Layout Assembly
+
         self.config_panel = widgets.VBox([
             widgets.HBox([self.project_name, self.file_upload]),
             self.path_display
         ])
-        
+
         self.control_panel = widgets.VBox([
             widgets.HBox([self.molecule_name_input, self.btn_build]),
             widgets.HBox([self.btn_scan, self.btn_watch])
         ])
-        
+
         self.main_ui = widgets.VBox([self.title, self.config_panel, widgets.HTML("<hr>"), self.control_panel, widgets.HTML("<b>Telemetry Console:</b>"), self.out])
 
-    def _on_project_name_change(self, change):
+    def _on_project_name_change(self, change: Any) -> None:
         """Live-updates the path visualizer when the user types a new project name."""
         new_path = self.current_workspace
         self.path_display.value = f"<span style='color: #4B5563; font-family: monospace; font-size: 0.9em;'>📁 Air-Gapped Target: {new_path}</span>"
 
-    def _ui_log(self, message: str):
+    def _ui_log(self, message: str) -> None:
         """Appends logs directly to the widget output area."""
         with self.out:
-            print(f"[{time.strftime('%H:%M:%S')}] {message}")
+            logger.info(message)
 
-    def _on_file_upload(self, change):
+    def _on_file_upload(self, change: Any) -> None:
         """Intercepts uploaded files, extracts binary content, and writes to workspace."""
         if not change.new:
             return
-            
+
         workspace = self.current_workspace
-        
+
         for item in change.new:
-            # Handle ipywidgets 8.x dict structures safely
             try:
                 if isinstance(item, dict):
                     f_name = item['name']
@@ -215,31 +204,29 @@ class CoChemMIntUI:
                 else:
                     f_name = item.name
                     content = item.content
-                
+
                 f_path = workspace / f_name
                 with open(f_path, "wb") as f:
                     f.write(content)
                 self._ui_log(f"📥 Saved geometry: {f_name} -> {workspace}/")
-                
+
             except Exception as e:
                 self._ui_log(f"❌ Error saving file: {e}")
-                
-        # Clear the widget cache so the user can upload the same filename again if needed
+
         self.file_upload.value = ()
 
-    def _on_scan_clicked(self, b):
+    def _on_scan_clicked(self, b: Any) -> None:
         workspace = self.current_workspace
         self._ui_log(f"Scanning {workspace} for raw geometries...")
-        
+
         files = list(workspace.glob("*.xyz"))
         if not files:
             self._ui_log("No .xyz files found in the active workspace.")
             return
-            
-        self._ui_log(f"Found {len(files)} files. Handoff to Stage 2.0 Ingestor initiated.")
-        # In a full run, this triggers cochem_stage2_ingestor.py's ThreadPool
 
-    def _on_build_clicked(self, b):
+        self._ui_log(f"Found {len(files)} files. Handoff to Stage 2.0 Ingestor initiated.")
+
+    def _on_build_clicked(self, b: Any) -> None:
         target_name = self.molecule_name_input.value.strip()
         if not target_name:
             self._ui_log("❌ Error: Please enter a SMILES string or Molecule Name.")
@@ -255,14 +242,13 @@ class CoChemMIntUI:
 
         self._ui_log(f"⚙️ Building 3D geometry for: {target_name}...")
         smiles = target_name
-        
-        # Heuristic: If it has no standard SMILES syntax characters, attempt remote resolution via PubChem async
+
         if not any(char in target_name for char in ['=', '#', '(', ')', '[', ']', '1', '2']):
             self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via PubChem...")
             try:
                 import asyncio
                 import aiohttp
-                async def fetch_pubchem(name):
+                async def fetch_pubchem(name: str) -> str:
                     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(name)}/property/IsomericSMILES/JSON"
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url) as response:
@@ -271,19 +257,18 @@ class CoChemMIntUI:
                                 return data['PropertyTable']['Properties'][0]['IsomericSMILES']
                             else:
                                 raise Exception("PubChem resolution failed.")
-                
+
                 try:
                     loop = asyncio.get_running_loop()
                     smiles = loop.run_until_complete(fetch_pubchem(target_name))
                 except RuntimeError:
                     smiles = asyncio.run(fetch_pubchem(target_name))
-                
+
                 self._ui_log(f"✅ Resolved to SMILES: {smiles}")
             except Exception as e:
                 self._ui_log(f"❌ API Fetch Failed for '{target_name}'. Please manually enter a valid SMILES string.")
                 return
 
-        # RDKit Graph Generation
         mol = Chem.MolFromSmiles(smiles)
         if not mol:
             self._ui_log(f"❌ Error: RDKit could not mathematically parse the SMILES string: {smiles}")
@@ -291,63 +276,36 @@ class CoChemMIntUI:
 
         self._ui_log("➡️ Saturating valencies with Hydrogens (Isotopic Overdrive enabled)...")
         mol = Chem.AddHs(mol)
-        
+
         self._ui_log("➡️ Generating 3D spatial conformer (ETKDGv3)...")
         params = AllChem.ETKDGv3()
-        seed = getattr(self, "random_seed", None)
-        if seed is None:
-            env_seed = os.environ.get("COCHEM_RDKIT_SEED")
-            if env_seed is not None:
-                try:
-                    seed = int(env_seed)
-                except ValueError:
-                    seed = None
-                    
-        if seed is None:
-            config_file = Path(__file__).resolve().parents[1] / "cochem_system_config.json"
-            if config_file.exists():
-                try:
-                    with open(config_file, "r", encoding="utf-8") as f:
-                        cfg = json.load(f)
-                        raw_s = cfg.get("rdkit_random_seed")
-                        if raw_s is not None:
-                            seed = int(raw_s)
-                except Exception:
-                    seed = None
-
-        if seed is None:
-            seed = 42
-
-        params.randomSeed = int(seed)
+        params.useRandomCoords = False
         AllChem.EmbedMolecule(mol, params)
-        
+
         self._ui_log("➡️ Relaxing steric clashes (GFN2-xTB Triage & Eckart Alignment)...")
         try:
-            # GFN2-xTB triage hook
             from ase.calculators.xtb import xTB
             from ase import Atoms
-            # Fallback to MMFF94 if xTB fails
             AllChem.MMFFOptimizeMolecule(mol)
         except ImportError:
             AllChem.MMFFOptimizeMolecule(mol)
 
-        # File I/O constraints applied
         ws = self.current_workspace
         safe_name = "".join([c if c.isalnum() else "_" for c in target_name])
         out_path = ws / f"{safe_name}_rdkit.xyz"
-        
+
         Chem.MolToXYZFile(mol, str(out_path))
         self._ui_log(f"✅ 3D Molecule successfully built and saved to the air-gapped vault:")
         self._ui_log(f"   {out_path}")
         self._ui_log("➡️ You can now proceed to [Scan & Canonicalize].")
 
-    def _on_watch_clicked(self, b):
+    def _on_watch_clicked(self, b: Any) -> None:
         if not HAS_WATCHDOG:
             self._ui_log("Watchdog module unavailable.")
             return
-            
+
         workspace = self.current_workspace
-            
+
         if self.observer and self.observer.is_alive():
             self._ui_log("Stopping Watchdog Daemon...")
             self.observer.stop()
@@ -363,9 +321,10 @@ class CoChemMIntUI:
             self.btn_watch.description = "Stop Watchdog"
             self.btn_watch.button_style = "danger"
 
-    def display(self):
+    def display(self) -> None:
         display(self.main_ui)
 
+
 if __name__ == "__main__":
-    print("CoChem-MInt Backend initialized.")
-    print("To launch the GUI, import CoChemMIntUI into a Jupyter Notebook cell and call .display()")
+    logger.info("CoChem-MInt Backend initialized.")
+    logger.info("To launch the GUI, import CoChemMIntUI into a Jupyter Notebook cell and call .display()")

@@ -24,10 +24,10 @@ class BasinRecord(BaseModel):
 class HDF5OntologyEnforcer:
     """Enforces dynamic schema validation on payload metadata before writing to HDF5 store."""
 
-    def __init__(self, hdf5_path: Union[str, Path] = "cochem_state.h5"):
+    def __init__(self, hdf5_path: Union[str, Path] = "cochem_state.h5") -> None:
         self.hdf5_path = Path(hdf5_path)
 
-    def validate_payload(self, payload: Dict[str, Any], model_cls=BasinRecord) -> Any:
+    def validate_payload(self, payload: Dict[str, Any], model_cls: Any = BasinRecord) -> Any:
         """Validate payload dict against the specified Pydantic model class.
         
         Raises ValueError if schema validation fails.
@@ -61,7 +61,7 @@ class HDF5OntologyEnforcer:
     ) -> None:
         """Validates payload against BasinRecord or CoChemConfig model and commits dataset + attributes to HDF5."""
         try:
-            validated = BasinRecord(**metadata_payload)
+            validated: Any = BasinRecord(**metadata_payload)
         except ValidationError:
             try:
                 validated = CoChemConfig(**metadata_payload)
@@ -77,13 +77,13 @@ class HDF5OntologyEnforcer:
             # Store validated attributes
             dset.attrs["LAM_TRIGGER_REQUIRED"] = getattr(validated, "LAM_TRIGGER_REQUIRED", False)
             dset.attrs["symmetry_group"] = getattr(validated, "symmetry_group", "C1")
-            
+
             # Store all other top-level fields
-            for key, val in validated.dict().items():
+            model_dict = validated.model_dump() if hasattr(validated, "model_dump") else validated.dict()
+            for key, val in model_dict.items():
                 if isinstance(val, (int, float, str, bool)):
                     dset.attrs[key] = val
 
 
 # Backward-compatible alias
 CoChemHDF5Manager = HDF5OntologyEnforcer
-

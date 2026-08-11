@@ -6,9 +6,19 @@ This is used to optimize the setup process by avoiding unnecessary reinstallatio
 
 import sys
 import subprocess
+import logging
 from pathlib import Path
 
-def check_conda_environment_exists(env_path):
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-TestEnvExists")
+
+try:
+    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+except ImportError:
+    safe_subprocess_run = None
+
+
+def check_conda_environment_exists(env_path: str) -> bool:
     """
     Check if a conda environment exists at the specified path.
     
@@ -19,49 +29,44 @@ def check_conda_environment_exists(env_path):
         bool: True if environment exists, False otherwise
     """
     try:
-        # First try to use conda info --envs to list all environments
-        result = subprocess.run(
-            ["conda", "info", "--envs"], 
-            check=True, 
-            capture_output=True, 
-            text=True
-        )
-        
-        # Check if the environment path is in the conda environments list
+        if safe_subprocess_run:
+            result = safe_subprocess_run(["conda", "info", "--envs"], check=True, timeout=30.0)
+        else:
+            result = subprocess.run(["conda", "info", "--envs"], check=True, capture_output=True, text=True, timeout=30.0)
+
         if env_path in result.stdout:
-            print(f"✅ Conda environment found at: {env_path}")
+            logger.info(f"Conda environment found at: {env_path}")
             return True
-            
-        # If not found via conda info, also check filesystem
+
         env_dir = Path(env_path)
         if env_dir.exists():
-            print(f"✅ Environment directory found at: {env_path}")
+            logger.info(f"Environment directory found at: {env_path}")
             return True
-            
+
     except subprocess.CalledProcessError as e:
-        print(f"⚠️ Conda command failed: {e}")
-        # Fallback to filesystem check only
+        logger.warning(f"Conda command failed: {e}")
         env_dir = Path(env_path)
         if env_dir.exists():
-            print(f"✅ Environment directory found at: {env_path} (fallback)")
+            logger.info(f"Environment directory found at: {env_path} (fallback)")
             return True
-            
+
     except Exception as e:
-        print(f"⚠️ Error checking environment: {e}")
-        
+        logger.warning(f"Error checking environment: {e}")
+
     return False
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python test_env_exists.py <environment_path>")
+        logger.error("Usage: python test_env_exists.py <environment_path>")
         sys.exit(1)
-        
-    env_path = sys.argv[1]
-    exists = check_conda_environment_exists(env_path)
-    
+
+    target_env_path = sys.argv[1]
+    exists = check_conda_environment_exists(target_env_path)
+
     if exists:
-        print("Environment exists")
+        logger.info("Environment exists")
         sys.exit(0)
     else:
-        print("Environment does not exist")
+        logger.info("Environment does not exist")
         sys.exit(1)

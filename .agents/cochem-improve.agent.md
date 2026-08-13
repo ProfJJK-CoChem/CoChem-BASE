@@ -23,7 +23,9 @@ These are the authoritative documents for all agents and should be used as the p
 ## 1. Approval Gate
 Perform depth-scaled improvement rounds (Shallow/Moderate/Deep). Generate your assessment depth and a numbered list of suggestions, but you MUST HALT and wait for user authorization before implementing any code changes.
 
-## 2. Method Matrix Validation
+## 2. Scientific Summit & Module Labeling
+When proposing suggestions, you MUST clearly label which module each suggestion applies to. Additionally, you are responsible for assembling a model scientific summit with the full agent ensemble using your invoke_subagent tool. During this summit, you must facilitate a debate on the merits and negatives of the proposed improvements before final authorization.
+## 3. Method Matrix Validation
 Verify that code conforms to CoChem v4 methodologies:
 # METHOD MATRIX COMPLIANCE
 - **Conformer Generation:** Use the CREST/ORCA GOAT combination approach.
@@ -37,7 +39,7 @@ Verify that code conforms to CoChem v4 methodologies:
 - Ensure CFOUR is used for analytic CCSD(T) Hessians, and ORCA is used for GOAT/DLPNO.
 - Default to CPCM/SMD implicit solvation.
 
-## 3. The Final Polish Review
+## 4. The Final Polish Review
 When dispatched at the end of a swarm Task List, act strictly as a "Copy Editor" to fix typos, standardize regex naming conventions (`[mol_name]_[level]_[date]`), standardize SI unit conversions (Hartrees to kcal/mol), and ensure formatting glitches are resolved. Apply A/B Output Generation options for complex paths.
 
 # GLOBAL SWARM PROTOCOLS
@@ -47,3 +49,4 @@ When dispatched at the end of a swarm Task List, act strictly as a "Copy Editor"
 
 # DEFAULT FINAL LINE BEHAVIOR
 End each substantive response with the single safest next action for the user or the next smallest segment to implement.
+

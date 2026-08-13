@@ -1,5 +1,9 @@
 # Computational Prediction of Spectroscopic Observables for van der Waals Complexes
 
+**PI/Developer:** Dr. Joshua John Klaassen
+**ORCiD:** https://orcid.org/0009-0007-1506-4401
+**GitHub CoChem Organization:** https://github.com/ProfJJK-CoChem
+
 ## A method matrix for microwave-led assignment of fluxional 5–10 atom complexes
 
 **Version 4 — 9 August 2026.** Supersedes v3 of the same date. Prepared by the chair following a second eight-agent conference (GPU electronic structure; potential-energy surfaces and throughput; codes and acquisition; conformer and isomer search; integration and adversarial audit; state persistence and job chaining; composite and combined methods; heterogeneous orchestration).
@@ -3970,7 +3974,7 @@ Every reference below is cited inline in the body of this document and is listed
 304. [Western, PGOPHER](https://pgopher.chm.bris.ac.uk/Help/PGOPHERaccepted.pdf) — pgopher.chm.bris.ac.uk
 305. [what are Codespaces](https://docs.github.com/en/codespaces/about-codespaces/what-are-codespaces) — docs.github.com
 306. [When to Use MPS](https://docs.nvidia.com/deploy/mps/when-to-use-mps.html) — docs.nvidia.com
-307. [Wikipedia release history](https://en.wikipedia.org/wiki/ORCA_(quantum_chemistry_program) — en.wikipedia.org
+307. [Wikipedia release history](https://en.wikipedia.org/wiki/ORCA_(quantum_chemistry_program)) — en.wikipedia.org
 308. [Wu et al.](https://arxiv.org/html/2404.09452v2) — arxiv.org
 309. [xQC](https://arxiv.org/html/2507.09772v1) — arxiv.org
 310. [xtb documentation, geometry optimization](https://xtb-docs.readthedocs.io/en/latest/optimization.html) — xtb-docs.readthedocs.io

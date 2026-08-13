@@ -63,20 +63,6 @@ class TaskDispatcher:
             else:
                 cmd_args = command
 
-            # [Mock Mode Bridge] Intercept quantum execution to prevent OOM
-            binary_name = Path(cmd_args[0]).name.lower() if cmd_args else ""
-            if binary_name in ["orca", "xtb", "crest", "crest.exe", "orca.exe", "xtb.exe"]:
-                logger.info(f"[Mock Mode Bridge] Intercepted {binary_name} call. Returning synthetic success.")
-                with self.results_lock:
-                    self.results[task_id] = {
-                        "status": "success",
-                        "stdout": f"Mock {binary_name} executed successfully. T1 diagnostic : 0.0120\nSCF CONVERGED",
-                        "stderr": "",
-                        "returncode": 0
-                    }
-                self.task_queue.task_done()
-                return
-
             process = subprocess.Popen(
                 cmd_args,
                 shell=False,
@@ -133,13 +119,6 @@ class SubprocessBroker:
             cmd_args = shlex.split(command)
         else:
             cmd_args = command
-
-        # [Mock Mode Bridge] Intercept quantum execution to prevent OOM
-        from pathlib import Path
-        binary_name = Path(cmd_args[0]).name.lower() if cmd_args else ""
-        if binary_name in ["orca", "xtb", "crest", "crest.exe", "orca.exe", "xtb.exe"]:
-            logger.info(f"[Mock Mode Bridge] Intercepted {binary_name} call. Returning synthetic success.")
-            return 0, f"Mock {binary_name} executed successfully. T1 diagnostic : 0.0120\nSCF CONVERGED", ""
 
         tout = timeout if timeout is not None else self.timeout_seconds
         proc = subprocess.Popen(

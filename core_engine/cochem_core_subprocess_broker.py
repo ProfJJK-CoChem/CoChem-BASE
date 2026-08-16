@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
 """
 CoChem-CORE: Stage 3.0 - The Subprocess Broker
 Implements: Non-blocking IPC Execution, Zombie Process Reaper,
@@ -16,6 +18,7 @@ import logging
 import shutil
 import atexit
 import shlex
+import hashlib
 from pathlib import Path
 from typing import List, Optional, Union, Dict, Any
 
@@ -98,7 +101,7 @@ def safe_subprocess_run(
         cwd_str = None
 
     try:
-        res = subprocess.run(cmd, cwd=cwd_str, timeout=timeout, check=check, capture_output=capture_output, text=text, env=env, **kwargs)  # check=True timeout=300.0
+        res = subprocess.run(cmd, cwd=cwd_str, timeout=timeout, check=check, capture_output=capture_output, text=text, env=env, **kwargs)
         return res
     except subprocess.CalledProcessError as e:
         logger.error(f"Subprocess '{cmd}' failed with returncode {e.returncode}: {e.stderr}")
@@ -141,9 +144,8 @@ class SubprocessBroker:
                     job_shm_dir.mkdir(parents=True, exist_ok=True)
                     logger.info(f"Allocated RAM-disk execution directory: {job_shm_dir}")
                     return job_shm_dir
-            except Exception:
-                pass
-
+            except Exception as exc:
+                logger.debug(f"RAM-disk check skipped: {exc}")
         # Fallback to local cwd
         logger.info("RAM-disk unavailable or insufficient. Falling back to local directory.")
         return self.cwd
@@ -155,7 +157,7 @@ class SubprocessBroker:
             return
 
         def monitor_loop() -> None:
-            while not self._stop_event.is_set():
+            while not self._stop_event.set():
                 mem = psutil.virtual_memory()
                 if mem.available < (1024 ** 3):  # Less than 1GB free
                     logger.error(f"CRITICAL OOM IMMINENT. Available RAM: {mem.available / 1e6:.1f} MB")
@@ -195,8 +197,8 @@ class SubprocessBroker:
             try:
                 file.unlink()
                 count += 1
-            except OSError:
-                pass
+            except OSError as err:
+                logger.debug(f"Unable to unlink core file {file}: {err}")
         if count > 0:
             logger.info(f"Garbage collection swept {count} binary dump(s).")
 
@@ -210,13 +212,15 @@ class SubprocessBroker:
 
         if isinstance(payload_command, str):
             command = shlex.split(payload_command)
+            cmd_str = payload_command
         else:
             command = payload_command
+            cmd_str = " ".join(payload_command)
 
         logger.info(f"Dispatching '{job_name}' to broker in {exec_path}...")
 
-        stdout_hist = []
-        stderr_hist = []
+        stdout_hist: List[str] = []
+        stderr_hist: List[str] = []
 
         popen_kwargs: Dict[str, Any] = {
             "cwd": str(exec_path),
@@ -278,8 +282,12 @@ class SubprocessBroker:
             if 'process' in locals() and process in self.active_processes:
                 self.active_processes.remove(process)
 
+            # Compute genuine cryptographic dispatch audit hash
+            dispatch_seed = f"{job_name}:{cmd_str}:{exit_code}:{time.time()}".encode('utf-8')
+            dispatch_hash = hashlib.sha256(dispatch_seed).hexdigest()
+
             if self.telemetry:
-                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, "DISPATCH_HASH_MOCK")
+                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash)
 
             self.garbage_collect_core_dumps(exec_path)
 

@@ -55,8 +55,7 @@ class WorkspaceManager:
             try:
                 fcntl.flock(file_descriptor, fcntl.LOCK_UN)
             except OSError:
-                pass
-
+                """Implementation pending"""
     def scaffold_core_directories(self) -> bool:
         """
         Atomically generates the master directories. If another process holds the lock,

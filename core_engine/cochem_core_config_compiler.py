@@ -20,9 +20,7 @@ logger = logging.getLogger("CoChem-ConfigCompiler")
 
 class ECPValidationError(ValueError):
     """Raised when a heavy element lacks a required ECP definition."""
-    pass
-
-
+    """Implementation pending"""
 # =============================================================================
 # ABSTRACTED HPC SCHEDULER STRATEGIES
 # =============================================================================

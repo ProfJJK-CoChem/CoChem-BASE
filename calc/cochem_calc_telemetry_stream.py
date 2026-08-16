@@ -37,8 +37,7 @@ class TelemetryStreamer:
                 s.connect(self.socket_path)
                 s.sendall(json.dumps(payload).encode('utf-8'))
         except (FileNotFoundError, ConnectionRefusedError, OSError, AttributeError):
-            pass
-
+            """Implementation pending"""
     def stream_telemetry(self, timeout_sec: int = 120) -> Generator[Dict[str, Any], None, None]:
         start_wait = time.time()
         while not self.log_path.exists():

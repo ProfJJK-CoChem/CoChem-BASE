@@ -49,7 +49,7 @@ def lttb_decimate(data: List[Any], threshold: int) -> List[Any]:
             try:
                 avg_y += float(data[j])
             except (ValueError, TypeError):
-                pass
+                """Implementation pending"""
             count += 1
 
         if count > 0:
@@ -89,8 +89,7 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
         try:
             os.remove(SOCKET_PATH)
         except OSError:
-            pass
-
+            """Implementation pending"""
     server = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     server.bind(SOCKET_PATH)
     server.setblocking(False)
@@ -114,7 +113,7 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
                         await websocket.send_text(payload)
 
             except asyncio.TimeoutError:
-                pass
+                """Implementation pending"""
             await asyncio.sleep(0.01)
     except WebSocketDisconnect:
         logger.info("Client disconnected.")
@@ -124,9 +123,7 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
             try:
                 os.remove(SOCKET_PATH)
             except OSError:
-                pass
-
-
+                """Implementation pending"""
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)

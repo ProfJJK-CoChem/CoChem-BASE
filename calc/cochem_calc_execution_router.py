@@ -1,3 +1,11 @@
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
+"""
+Core Execution Router for the CoChem pipeline.
+Acts as the definitive switchboard, polling the Golden Registry and dynamically 
+forking workloads between local execution and remote HPC schedulers.
+"""
+
 import os
 import json
 import logging
@@ -6,7 +14,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from cochem_base.config_loader import resolve_config_path, load_system_config_dict
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 try:
@@ -62,10 +69,10 @@ class ExecutionRouter:
         logger.info(f"Resolved execution path for {target_engine}: {default_path}")
         return default_path
 
-    def _dispatch_local(self, payload_command: str, cwd: str, env: Optional[Dict[str, str]] = None) -> int:
+    def _dispatch_local(self, payload_command: str, cwd: str, env: Optional[Dict[str, str]] = None, timeout: float = 300.0) -> int:
         """
         Stage 1.1: Local Dispatch (SubprocessBroker Handoff).
-        Executes workloads natively on the local workstation.
+        Executes workloads natively on the local workstation with robust timeout and exception containment.
         """
         logger.info(f"Dispatching locally: {payload_command} in {cwd}")
 
@@ -79,11 +86,17 @@ class ExecutionRouter:
         else:
             try:
                 if safe_subprocess_run:
-                    res = safe_subprocess_run(payload_command, cwd=cwd, timeout=300.0, check=False, env=merged_env, shell=True)
+                    res = safe_subprocess_run(payload_command, cwd=cwd, timeout=timeout, check=True, env=merged_env, shell=True)
                     return res.returncode
                 else:
-                    res = subprocess.run(payload_command, shell=True, cwd=cwd, env=merged_env, check=False, timeout=300.0)  # check=True timeout=300.0
+                    res = subprocess.run(payload_command, shell=True, cwd=cwd, env=merged_env, check=True, timeout=timeout, capture_output=True, text=True)
                     return res.returncode
+            except subprocess.TimeoutExpired as e:
+                logger.error(f"Local execution timed out after {timeout}s: {e}")
+                return -124
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Local execution command failed with exit code {e.returncode}: {e.stderr}")
+                return e.returncode
             except Exception as e:
                 logger.error(f"Local execution failed: {e}")
                 return -1
@@ -153,4 +166,5 @@ class ExecutionRouter:
             return self._dispatch_hpc(payload_command, job_name, cwd, cores, mem_mb, wall_time)
         else:
             env_overrides = kwargs.get("env", None)
-            return self._dispatch_local(payload_command, cwd, env_overrides)
+            timeout = kwargs.get("timeout", 300.0)
+            return self._dispatch_local(payload_command, cwd, env_overrides, timeout=timeout)

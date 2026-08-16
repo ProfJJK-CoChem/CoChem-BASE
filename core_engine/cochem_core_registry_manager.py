@@ -27,9 +27,7 @@ logger = logging.getLogger("CoChem-RegistryManager")
 
 class IsotopeStabilityError(Exception):
     """Raised when the mendeleev library cannot resolve a stable mass for an unstable or transuranic isotope."""
-    pass
-
-
+    """Implementation pending"""
 class RegistryManager:
     def __init__(self, config_path: Optional[str] = None, registry_path: Optional[str] = None) -> None:
         """

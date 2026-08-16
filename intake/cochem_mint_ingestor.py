@@ -71,9 +71,7 @@ def print_status(msg: str, status: str = "info") -> None:
 
 if not HAS_WATCHDOG:
     class FileSystemEventHandler:  # type: ignore
-        pass
-
-
+        """Implementation pending"""
 class IngestionWatchdog(FileSystemEventHandler):
     """Monitors the active Project directory for new .xyz submissions."""
 

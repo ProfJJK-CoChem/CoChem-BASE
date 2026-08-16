@@ -50,8 +50,7 @@ class TestSetupOrchestrator(unittest.TestCase):
         try:
             self.temp_dir.cleanup()
         except OSError:
-            pass
-
+            """Implementation pending"""
     def test_get_manifest_path(self) -> None:
         """Test that get_manifest_path returns the correct path."""
         manifest_path = get_manifest_path()

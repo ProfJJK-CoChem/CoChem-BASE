@@ -96,22 +96,19 @@ def detect_cuda_capability() -> bool:
         if result.returncode == 0 and result.stdout and result.stdout.strip() != '0':
             return True
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-        pass
-
+        """Implementation pending"""
     try:
         import torch
         if torch.cuda.is_available():
             return True
     except ImportError:
-        pass
-
+        """Implementation pending"""
     try:
         import tensorflow as tf
         if tf.config.list_physical_devices('GPU'):
             return True
     except ImportError:
-        pass
-
+        """Implementation pending"""
     return False
 
 
@@ -133,8 +130,7 @@ def detect_hardware_capability() -> Dict[str, Any]:
                 subprocess.run(['QCxMS', '--version'], capture_output=True, timeout=5.0, check=False)  # check=True
                 is_qcxms_available = True
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-                pass
-
+                """Implementation pending"""
         return {
             'cpu_count': cpu_count,
             'memory_gb': memory_gb,

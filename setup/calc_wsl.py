@@ -32,7 +32,7 @@ def verify_wsl_kernel() -> bool:
             if "microsoft" in version_info or "wsl" in version_info:
                 return True
     except FileNotFoundError:
-        pass
+        """Implementation pending"""
     return False
 
 

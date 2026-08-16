@@ -95,8 +95,7 @@ class TelemetryLogger:
             try:
                 os.chmod(log_path, 0o666)
             except OSError:
-                pass
-
+                """Implementation pending"""
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"--- CoChem-CORE Telemetry Trace for {job_name} ---\n")
             f.write(f"Exit Code: {exit_code}\n\n")

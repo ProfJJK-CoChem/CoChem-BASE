@@ -42,8 +42,7 @@ def setup_cochem_base() -> None:
                 if "artifact_dir" in config:
                     previous_path = config["artifact_dir"]
         except Exception:
-            pass
-
+            logger.debug("Failed to read previous artifact configuration from .cochem_env.json")
     if previous_path:
         path_input = widgets.Text(
             value=previous_path,

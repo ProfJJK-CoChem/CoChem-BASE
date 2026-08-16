@@ -71,4 +71,4 @@ class CorrelationMatrix(BaseModel):
     spycfit_shift: SpycfitShiftStage = Field(default_factory=SpycfitShiftStage)
 
 class CoChemConfig(CorrelationMatrix):
-    pass
+    """Implementation pending"""

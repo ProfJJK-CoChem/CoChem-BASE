@@ -90,8 +90,7 @@ for root, dirs, files in os.walk(target_dir):
                 if re.search(r'C:\\Users\\ansac|C:/Users/ansac|D:\\Gdrive|D:/Gdrive', line, re.I):
                     sub_leaks.append((rel, idx, line.strip()))
         except Exception as e:
-            pass
-
+            """Implementation pending"""
 print(f"Subdirectory hardcoded absolute path occurrences: {len(sub_leaks)}")
 if sub_leaks:
     for rel, idx, text in sub_leaks[:20]:

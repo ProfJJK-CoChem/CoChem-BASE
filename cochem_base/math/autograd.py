@@ -25,7 +25,7 @@ def coulomb_potential(q1: float, q2: float, distance: float, k: float = 8.987551
 
     return k * q1 * q2 / distance
 
-def coulomb_gradient(q1: float, q2: float, dx: float, dy: float, dz: float, k: float = 8.9875517923e9):
+def coulomb_gradient(q1: float, q2: float, dx: float, dy: float, dz: float, k: float = 8.9875517923e9) -> tuple[float, float, float]:
     """
     Calculates the gradient of the Coulomb potential between two point charges.
 

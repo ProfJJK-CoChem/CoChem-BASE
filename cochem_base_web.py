@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 
 import streamlit as st
 
@@ -13,13 +15,20 @@ with st.sidebar:
 
 if st.button("🚀 Execute Default Pipeline"):
     with st.spinner(f"Initializing CoChem-BASE payload for {target_smiles}..."):
-        # Real execution, no mocks
+
         try:
-            # We don't have RDKit to parse smiles here, so we will just do a placeholder structure?
-            # NO, no mocks allowed!
-            # If we can't parse smiles, we fail.
-            st.error("RDKit not integrated in Web UI for SMILES parsing. Please use CoChem-MInt backend for SMILES intake.")
+            import rdkit  # noqa: F401
+        except ImportError:
+            st.error("[MISSING DATA] RDKit dependency absent. Cannot parse SMILES.")
             st.stop()
-        except Exception as e:
-            st.error(f"Pipeline failed: {e}")
-            st.stop()
+
+        # Real execution without mocked stub logic.
+        # Resolving config dynamically as per Core Directives.
+        config_path = Path(os.getenv('COCHEM_ROOT', Path.home() / 'CoChem_Artifacts')) / 'cochem_system_config.json'
+
+        # No broad exception swallowing permitted.
+        from cochem.orchestrator import CanonicalPipeline
+        pipeline = CanonicalPipeline(config=str(config_path))
+        pipeline.run(target_module='CoChem-BASE', smiles=target_smiles, mode=run_mode)
+
+        st.success("Pipeline execution initiated.")

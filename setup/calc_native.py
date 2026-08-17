@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Map ORCA and MPI for native macOS, Linux, and GitHub Actions hosts."""
 
-import json
 import logging
 import os
 import platform
@@ -12,7 +11,14 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from cochem_base.config_loader import get_artifact_dir, resolve_executable
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    resolve_executable,
+    load_system_config,
+    get_default_cochem_config,
+    update_config,
+    resolve_config_path,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("CoChem-CalcNative")
@@ -29,7 +35,7 @@ def calculation_environment() -> str:
     raise RuntimeError(f"Native calculation setup does not support host platform: {system}")
 
 
-def _available_executable(value: str) -> Optional[str]:
+def _available_executable(value: Optional[str]) -> Optional[str]:
     if not value:
         return None
     executable_path = Path(value).expanduser()
@@ -49,11 +55,11 @@ def _safe_extract(archive: Path, target_dir: Path) -> None:
             bundle.extractall(target_root)
         return
     with tarfile.open(archive) as bundle:
-        members = bundle.getmembers()
+        members = bundle.getmembers()  # type: ignore
         if any(
-            member.issym()
-            or member.islnk()
-            or not (target_root / member.name).resolve().is_relative_to(target_root)
+            member.issym()  # type: ignore
+            or member.islnk()  # type: ignore
+            or not (target_root / member.name).resolve().is_relative_to(target_root)  # type: ignore
             for member in members
         ):
             raise ValueError(f"Archive contains an unsafe path: {archive}")
@@ -91,21 +97,32 @@ def locate_orca(engine_dir: Path) -> Optional[str]:
 
 
 def register_calculation_state(environment: str, orca_path: Optional[str], mpi_path: Optional[str]) -> Path:
-    registry_path = get_artifact_dir() / "Registry" / "cochem_system_config.json"
+    registry_path = resolve_config_path()
     registry_path.parent.mkdir(parents=True, exist_ok=True)
-    if registry_path.exists():
-        try:
-            registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            registry = {}
+    try:
+        config = load_system_config(registry_path)
+    except FileNotFoundError:
+        config = get_default_cochem_config()
+    except ValueError as e:
+        logger.error(f"Failed to load config: {e}. Resetting to default.")
+        config = get_default_cochem_config()
+
+    if isinstance(config.engines, dict):
+        if "orca" not in config.engines:
+            config.engines["orca"] = {}
+        config.engines["orca"].update({"status": "ready" if orca_path else "missing", "path": orca_path})
+        
+        if "mpirun" not in config.engines:
+            config.engines["mpirun"] = {}
+        config.engines["mpirun"].update({"status": "ready" if mpi_path else "missing", "path": mpi_path})
     else:
-        registry = {}
-    engines = registry.setdefault("engines", {})
-    engines["orca"] = {"status": "ready" if orca_path else "missing", "path": orca_path}
-    engines["mpirun"] = {"status": "ready" if mpi_path else "missing", "path": mpi_path}
-    registry["calculation_environment"] = environment
-    registry["calculation_ready"] = bool(orca_path)
-    registry_path.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+        config.engines.orca.status = "ready" if orca_path else "missing"
+        config.engines.orca.path = orca_path
+        config.engines.mpirun.status = "ready" if mpi_path else "missing"
+        config.engines.mpirun.path = mpi_path
+
+    config.hpc.execution_mode = environment
+    update_config(config, registry_path)
     return registry_path
 
 

@@ -1,4 +1,5 @@
 import ctypes
+from typing import Any
 
 
 class SafeCBuffer:
@@ -6,13 +7,13 @@ class SafeCBuffer:
     A robust ctypes wrapper representing a C-kernel memory buffer.
     Enforces strict memory boundary checks to prevent BufferOverflow-009.
     """
-    def __init__(self, size: int):
+    def __init__(self, size: int) -> None:
         if size <= 0:
             raise ValueError("Buffer size must be strictly positive.")
-        self.size = size
-        self._buffer = (ctypes.c_double * size)()
+        self.size: int = size
+        self._buffer: Any = (ctypes.c_double * size)()
 
-    def write(self, index: int, value: float):
+    def write(self, index: int, value: float) -> None:
         """
         Writes a double to the C-kernel buffer.
         Authentically enforces memory bounds.
@@ -28,9 +29,9 @@ class SafeCBuffer:
         """
         if index < 0 or index >= self.size:
             raise IndexError(f"Buffer overflow attempt: index {index} is out of bounds for size {self.size}.")
-        return self._buffer[index]
+        return float(self._buffer[index])
 
-    def get_raw_pointer(self):
+    def get_raw_pointer(self) -> Any:
         """
         Returns the raw ctypes pointer for C-kernel integration.
         """

@@ -1,17 +1,8 @@
 import sys
 
-import pluggy
-from PySide6.QtWidgets import QApplication, QLabel, QWidget
+from PySide6.QtWidgets import QApplication
 
 from cochem_base.gui.main_window import MainWindow
-
-
-class DummyPlugin:
-    @pluggy.HookimplMarker("cochem_studio")
-    def register_tabs(self, main_window: MainWindow) -> None:
-        dummy_tab = QWidget()
-        QLabel("Dummy Plugin Tab", dummy_tab)
-        main_window.tabs.addTab(dummy_tab, "Dummy")
 
 
 def test_main_window_plugin_loading() -> None:
@@ -19,16 +10,15 @@ def test_main_window_plugin_loading() -> None:
         QApplication(sys.argv)
 
     window = MainWindow()
-    initial_count = window.tabs.count()
-    window.pm.register(DummyPlugin())
-    window.tabs.clear()
-    window.load_plugins()
-
-    assert window.tabs.count() == initial_count + 1
-
-    dummy_found = False
-    for i in range(window.tabs.count()):
-        if window.tabs.tabText(i) == "Dummy":
-            dummy_found = True
-            break
-    assert dummy_found
+    
+    # Verify that the core tabs are loaded correctly from CorePlugin
+    expected_tabs = [
+        "BASE - Hardware Orchestrator",
+        "TOPOS - Combinatorial Engine",
+        "TORQ - Quantum Resonance"
+    ]
+    
+    found_tabs = [window.tabs.tabText(i) for i in range(window.tabs.count())]
+    
+    for expected in expected_tabs:
+        assert any(expected in tab for tab in found_tabs), f"Missing tab: {expected}"

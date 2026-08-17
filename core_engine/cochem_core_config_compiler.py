@@ -20,7 +20,7 @@ logger = logging.getLogger("CoChem-ConfigCompiler")
 
 class ECPValidationError(ValueError):
     """Raised when a heavy element lacks a required ECP definition."""
-    """Implementation pending"""
+    pass
 # =============================================================================
 # ABSTRACTED HPC SCHEDULER STRATEGIES
 # =============================================================================
@@ -110,8 +110,8 @@ class ConfigCompiler:
             try:
                 el = element(sym)
                 atomic_num = el.atomic_number
-            except Exception:
-                atomic_num = 0
+            except Exception as e:
+                raise ValueError(f"Invalid chemical symbol '{sym}' encountered during ECP validation.") from e
 
             if atomic_num > 36 and sym not in defined_ecps:
                 raise ECPValidationError(f"Heavy element {sym} (Z={atomic_num}) missing ECP specification")

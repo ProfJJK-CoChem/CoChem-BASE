@@ -1,0 +1,515 @@
+calc\cochem_calc_output_parser.py:35:1: E402 Module level import not at top of file
+   |
+33 |     provenance: QCSchemaProvenance
+34 |
+35 | from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+36 |
+37 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+cochem_base_web.py:20:20: F401 `rdkit` imported but unused; consider using `importlib.util.find_spec` to test for availability
+   |
+19 |         try:
+20 |             import rdkit
+   |                    ^^^^^ F401
+21 |         except ImportError:
+22 |             st.error("[MISSING DATA] RDKit dependency absent. Cannot parse SMILES.")
+   |
+   = help: Remove unused import: `rdkit`
+
+cochem_viewer.py:35:1: E402 Module level import not at top of file
+   |
+33 | # where cochem_base is importable. If not, one might need to adjust sys.path,
+34 | # but per standard module structure it should be available.
+35 | from cochem_base.config_loader import get_artifact_dir
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+   |
+
+test_quote.py:1:1: I001 Import block is un-sorted or un-formatted
+  |
+1 | import subprocess; subprocess.run(["conda", "create", "-n", "test_quote_env2", "--dry-run", "pydantic >=2"])
+  | ^^^^^^^^^^^^^^^^^ I001
+  |
+  = help: Organize imports
+
+test_quote.py:1:18: E702 Multiple statements on one line (semicolon)
+  |
+1 | import subprocess; subprocess.run(["conda", "create", "-n", "test_quote_env2", "--dry-run", "pydantic >=2"])
+  |                  ^ E702
+  |
+
+tests\test_matrix_dashboard_keep_gh.py:19:1: E402 Module level import not at top of file
+   |
+17 |     sys.path.insert(0, str(BASE_DIR))
+18 |
+19 | from cochem_base.config_loader import resolve_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+20 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_keep_gh.py:20:1: E402 Module level import not at top of file
+   |
+19 | from cochem_base.config_loader import resolve_executable
+20 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+21 |
+22 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_keep_gh.py:47:1: W293 Blank line contains whitespace
+   |
+45 |     Interaction: Local-Windows (WSL)
+46 |     Calculation: GitHub Actions
+47 |     
+   | ^^^^ W293
+48 |     This replaces hardcoded mock/stub binaries with actual physical binary
+49 |     resolution. We simulate the GH Actions environment and ensure the system
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_keep_hpc.py:22:1: E402 Module level import not at top of file
+   |
+20 |     sys.path.insert(0, str(BASE_DIR))
+21 |
+22 | from cochem_base.config_loader import resolve_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+23 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_keep_hpc.py:23:1: E402 Module level import not at top of file
+   |
+22 | from cochem_base.config_loader import resolve_executable
+23 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+24 |
+25 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_keep_hpc.py:50:1: W293 Blank line contains whitespace
+   |
+48 |     Interaction: Local-Windows (WSL)
+49 |     Calculation: HPC
+50 |     
+   | ^^^^ W293
+51 |     This replaces hardcoded mock/stub binaries with actual physical binary
+52 |     resolution. We simulate the HPC environment and ensure the system
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_keep_hpc.py:145:24: B011 Do not `assert False` (`python -O` removes these calls), raise `AssertionError()`
+    |
+143 |                     timeout=10
+144 |                 )
+145 |                 assert False, "Expected ORCA execution to return non-zero exit code when called without arguments."
+    |                        ^^^^^ B011
+146 |             except subprocess.CalledProcessError as e:
+147 |                 # ORCA without arguments should cleanly fail requesting a parameter file
+    |
+    = help: Replace `assert False`
+
+tests\test_matrix_dashboard_keep_linux.py:19:1: E402 Module level import not at top of file
+   |
+17 |     sys.path.insert(0, str(BASE_DIR))
+18 |
+19 | from cochem_base.config_loader import resolve_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+20 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_keep_linux.py:20:1: E402 Module level import not at top of file
+   |
+19 | from cochem_base.config_loader import resolve_executable
+20 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+21 |
+22 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_keep_mac_win.py:22:1: E402 Module level import not at top of file
+   |
+20 |     sys.path.insert(0, str(BASE_DIR))
+21 |
+22 | from cochem_base.config_loader import resolve_executable, resolve_wsl_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+23 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_keep_mac_win.py:23:1: E402 Module level import not at top of file
+   |
+22 | from cochem_base.config_loader import resolve_executable, resolve_wsl_executable
+23 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+24 |
+25 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_keep_mac_win.py:50:1: W293 Blank line contains whitespace
+   |
+48 |     Interaction: Local-MacOS (OrbStack)
+49 |     Calculation: Local-Windows (WSL)
+50 |     
+   | ^^^^ W293
+51 |     This replaces static configurations with actual physical binary
+52 |     resolution. We evaluate the macOS + WSL cross-OS combination and ensure the system
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_keep_mac_win.py:53:77: W291 Trailing whitespace
+   |
+51 |     This replaces static configurations with actual physical binary
+52 |     resolution. We evaluate the macOS + WSL cross-OS combination and ensure the system
+53 |     either cleanly fails due to physical binary absence or successfully runs 
+   |                                                                             ^ W291
+54 |     physical validation with proper wslpath mappings if binaries are present.
+55 |     """
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_keep_mac_win.py:139:24: B011 Do not `assert False` (`python -O` removes these calls), raise `AssertionError()`
+    |
+137 |                     timeout=10
+138 |                 )
+139 |                 assert False, "Expected ORCA execution to return non-zero exit code when called without arguments."
+    |                        ^^^^^ B011
+140 |             except subprocess.CalledProcessError as e:
+141 |                 output: bytes = e.stdout + e.stderr
+    |
+    = help: Replace `assert False`
+
+tests\test_matrix_dashboard_keep_macos.py:12:1: E402 Module level import not at top of file
+   |
+10 |     sys.path.insert(0, str(BASE_DIR))
+11 |
+12 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+13 |
+14 | # Strict Logging Protocol Enforcement
+   |
+
+tests\test_matrix_dashboard_keep_macos.py:21:85: W291 Trailing whitespace
+   |
+19 |     """
+20 |     Test the 'Keep previous setup' logic for MacOS OrbStack on a Windows host.
+21 |     When OrbStack ('orb') is configured but missing physically, it should gracefully 
+   |                                                                                     ^ W291
+22 |     fail and trigger an ERR_MISSING_BIN equivalent validation failure, preventing 
+23 |     phantom execution.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_keep_macos.py:22:82: W291 Trailing whitespace
+   |
+20 |     Test the 'Keep previous setup' logic for MacOS OrbStack on a Windows host.
+21 |     When OrbStack ('orb') is configured but missing physically, it should gracefully 
+22 |     fail and trigger an ERR_MISSING_BIN equivalent validation failure, preventing 
+   |                                                                                  ^ W291
+23 |     phantom execution.
+24 |     """
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_new_gh.py:33:1: E402 Module level import not at top of file
+   |
+31 |     sys.path.insert(0, str(BASE_DIR))
+32 |
+33 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+34 |
+35 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_new_gh.py:43:1: W293 Blank line contains whitespace
+   |
+41 |     Interaction: Local-Windows (WSL)
+42 |     Calculation: GitHub Actions
+43 |     
+   | ^^^^ W293
+44 |     Verifies that explicit paths (as typed in the UI for GH Actions) are correctly
+45 |     passed and handled without stub logic. Handles the physical validation absence
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_new_hpc.py:22:1: E402 Module level import not at top of file
+   |
+20 |     sys.path.insert(0, str(BASE_DIR))
+21 |
+22 | from cochem_base.config_loader import resolve_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+23 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_new_hpc.py:23:1: E402 Module level import not at top of file
+   |
+22 | from cochem_base.config_loader import resolve_executable
+23 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+24 |
+25 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_new_hpc.py:50:1: W293 Blank line contains whitespace
+   |
+48 |     Interaction: Local-Windows (WSL)
+49 |     Calculation: HPC
+50 |     
+   | ^^^^ W293
+51 |     This replaces hardcoded strings with actual physical binary resolution. We configure 
+52 |     the HPC environment constraints and ensure the system bypasses strict local file checks 
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_new_hpc.py:51:89: W291 Trailing whitespace
+   |
+49 |     Calculation: HPC
+50 |     
+51 |     This replaces hardcoded strings with actual physical binary resolution. We configure 
+   |                                                                                         ^ W291
+52 |     the HPC environment constraints and ensure the system bypasses strict local file checks 
+53 |     when HPC SLURM presence or templating paths are identified in the config. It should evaluate 
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_new_hpc.py:52:92: W291 Trailing whitespace
+   |
+51 |     This replaces hardcoded strings with actual physical binary resolution. We configure 
+52 |     the HPC environment constraints and ensure the system bypasses strict local file checks 
+   |                                                                                            ^ W291
+53 |     when HPC SLURM presence or templating paths are identified in the config. It should evaluate 
+54 |     cleanly rather than failing hard.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_new_hpc.py:53:97: W291 Trailing whitespace
+   |
+51 |     This replaces hardcoded strings with actual physical binary resolution. We configure 
+52 |     the HPC environment constraints and ensure the system bypasses strict local file checks 
+53 |     when HPC SLURM presence or templating paths are identified in the config. It should evaluate 
+   |                                                                                                 ^ W291
+54 |     cleanly rather than failing hard.
+55 |     """
+   |
+   = help: Remove trailing whitespace
+
+tests\test_matrix_dashboard_new_hpc.py:148:24: B011 Do not `assert False` (`python -O` removes these calls), raise `AssertionError()`
+    |
+146 |                     timeout=10
+147 |                 )
+148 |                 assert False, "Expected ORCA execution to return non-zero exit code when called without arguments."
+    |                        ^^^^^ B011
+149 |             except subprocess.CalledProcessError as e:
+150 |                 # ORCA without arguments should cleanly fail requesting a parameter file
+    |
+    = help: Replace `assert False`
+
+tests\test_matrix_dashboard_new_linux.py:36:1: E402 Module level import not at top of file
+   |
+34 |     sys.path.insert(0, str(BASE_DIR))
+35 |
+36 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+37 |
+38 | # Strict Logging Protocol Enforcement
+   |
+
+tests\test_matrix_dashboard_new_mac_win.py:36:1: E402 Module level import not at top of file
+   |
+34 |     sys.path.insert(0, str(BASE_DIR))
+35 |
+36 | from cochem_base.config_loader import resolve_wsl_executable
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+37 | from test_suite.run_tests import run_all_preflight_checks
+   |
+
+tests\test_matrix_dashboard_new_mac_win.py:37:1: E402 Module level import not at top of file
+   |
+36 | from cochem_base.config_loader import resolve_wsl_executable
+37 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+38 |
+39 | logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+   |
+
+tests\test_matrix_dashboard_new_mac_win.py:50:1: W293 Blank line contains whitespace
+   |
+48 |     Interaction: Local-MacOS (OrbStack)
+49 |     Calculation: Local-Windows (WSL)
+50 |     
+   | ^^^^ W293
+51 |     Verifies that explicit paths are correctly passed and handled.
+52 |     Handles physical validation absence gracefully.
+   |
+   = help: Remove whitespace from blank line
+
+tests\test_matrix_dashboard_new_mac_win.py:77:9: F841 Local variable `mpi_exists` is assigned to but never used
+   |
+76 |         orca_exists: bool = Path(orca_cmd).exists() if orca_cmd else False
+77 |         mpi_exists: bool = Path(mpi_cmd).exists() if mpi_cmd else False
+   |         ^^^^^^^^^^ F841
+78 |
+79 |         # Generate UI form data payload for New Install Mac-Win
+   |
+   = help: Remove assignment to unused variable `mpi_exists`
+
+tests\test_matrix_dashboard_new_mac_win.py:112:9: F841 Local variable `orca_mpi` is assigned to but never used
+    |
+111 |         orca_single: Dict[str, Any] = results.get("orca_single", {})
+112 |         orca_mpi: Dict[str, Any] = results.get("orca_mpi", {})
+    |         ^^^^^^^^ F841
+113 |
+114 |         artifact_file: Path = ARTIFACTS_DIR / "test_new_install_mac_win_results.log"
+    |
+    = help: Remove assignment to unused variable `orca_mpi`
+
+tests\test_matrix_dashboard_new_macos.py:12:1: E402 Module level import not at top of file
+   |
+10 |     sys.path.insert(0, str(BASE_DIR))
+11 |
+12 | from test_suite.run_tests import run_all_preflight_checks
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+13 |
+14 | # Strict Logging Protocol Enforcement
+   |
+
+tests\test_matrix_dashboard_new_macos.py:22:76: W291 Trailing whitespace
+   |
+20 |     Test the 'New Install -> Set Paths & Test' logic for MacOS OrbStack context.
+21 |     Verifies that the paths are injected via a configuration payload (manifest),
+22 |     and pre-flight checks properly fall back to ERR_MISSING_BIN / not found 
+   |                                                                            ^ W291
+23 |     when the OrbStack binary is physically unavailable on the host.
+24 |     """
+   |
+   = help: Remove trailing whitespace
+
+tests\test_new_install_linux.py:106:75: W291 Trailing whitespace
+    |
+104 | def test_provision_silo_linux_wsl(clean_artifact_env: Path) -> None:
+105 |     """
+106 |     Validates a New Install (creating and provisioning the silo) targeting 
+    |                                                                           ^ W291
+107 |     a Linux / WSL context. Runs physically on Windows but provisions
+108 |     the required conda silo into our artifact registry under physical constraints.
+    |
+    = help: Remove trailing whitespace
+
+tests\test_new_install_macos.py:73:75: W291 Trailing whitespace
+   |
+71 | def test_provision_silo_macos_orbstack(clean_artifact_env):
+72 |     """
+73 |     Validates a New Install (creating and provisioning the silo) targeting 
+   |                                                                           ^ W291
+74 |     a macOS OrbStack context. Runs physically on Windows but provisions
+75 |     the required conda silo into our artifact registry under physical constraints.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_silo_setup_keep_hpc.py:32:68: W291 Trailing whitespace
+   |
+30 |     """
+31 |     Test that setup_conda_silo correctly identifies an existing silo,
+32 |     and verify that the simulation identifies HPC context requiring 
+   |                                                                    ^ W291
+33 |     specific validation logic to bypass strict local binary checks.
+34 |     Real constraints are enforced. No mocks are used.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_silo_setup_keep_mac_win.py:35:84: W291 Trailing whitespace
+   |
+33 |     """
+34 |     Test that setup_conda_silo correctly identifies an existing silo,
+35 |     and verify that the orchestrator logic identifies the correct path requirements 
+   |                                                                                    ^ W291
+36 |     when a cross-os combination is used (macOS interacting, but Windows computing).
+37 |     Real constraints are enforced. No mocks are used.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_silo_setup_keep_macos.py:29:1: E402 Module level import not at top of file
+   |
+27 | atexit.register(sweep_zombies)
+28 |
+29 | from pydantic import BaseModel, Field
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+   |
+
+tests\test_silo_setup_keep_macos.py:39:84: W291 Trailing whitespace
+   |
+37 |     """
+38 |     Test that setup_conda_silo correctly identifies an existing silo,
+39 |     and verify that the orchestrator logic identifies the correct path requirements 
+   |                                                                                    ^ W291
+40 |     when interaction and calculation are both Local-MacOS (OrbStack).
+41 |     Real constraints are enforced. Zero-stub policy is strictly enforced.
+   |
+   = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_gh.py:106:75: W291 Trailing whitespace
+    |
+104 | def test_provision_silo_windows_gh(clean_artifact_env_gh: Path) -> None:
+105 |     """
+106 |     Validates a New Install (creating and provisioning the silo) targeting 
+    |                                                                           ^ W291
+107 |     Local-Windows (WSL) interaction environment and GitHub Actions 
+108 |     calculation environment. Runs physically and provisions
+    |
+    = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_gh.py:107:67: W291 Trailing whitespace
+    |
+105 |     """
+106 |     Validates a New Install (creating and provisioning the silo) targeting 
+107 |     Local-Windows (WSL) interaction environment and GitHub Actions 
+    |                                                                   ^ W291
+108 |     calculation environment. Runs physically and provisions
+109 |     the required conda silo into our artifact registry.
+    |
+    = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_hpc.py:124:75: W291 Trailing whitespace
+    |
+122 | def test_provision_silo_windows_hpc(clean_artifact_env_hpc: Path) -> None:
+123 |     """
+124 |     Validates a New Install (creating and provisioning the silo) targeting 
+    |                                                                           ^ W291
+125 |     Local-Windows (WSL) interaction environment and HPC calculation environment. 
+126 |     Runs physically and provisions the required conda silo into our artifact registry.
+    |
+    = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_hpc.py:125:81: W291 Trailing whitespace
+    |
+123 |     """
+124 |     Validates a New Install (creating and provisioning the silo) targeting 
+125 |     Local-Windows (WSL) interaction environment and HPC calculation environment. 
+    |                                                                                 ^ W291
+126 |     Runs physically and provisions the required conda silo into our artifact registry.
+127 |     """
+    |
+    = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_mac_win.py:123:75: W291 Trailing whitespace
+    |
+121 | def test_provision_silo_mac_win(clean_artifact_env_mac_win: Path) -> None:
+122 |     """
+123 |     Validates a New Install (creating and provisioning the silo) targeting 
+    |                                                                           ^ W291
+124 |     Local-MacOS (OrbStack) interaction environment and Local-Windows (WSL)
+125 |     calculation environment. Runs physically and provisions
+    |
+    = help: Remove trailing whitespace
+
+tests\test_silo_setup_new_macos.py:123:75: W291 Trailing whitespace
+    |
+121 | def test_provision_silo_macos(clean_artifact_env_macos: Path) -> None:
+122 |     """
+123 |     Validates a New Install (creating and provisioning the silo) targeting 
+    |                                                                           ^ W291
+124 |     Local-MacOS (OrbStack) interaction environment and Local-MacOS (OrbStack)
+125 |     calculation environment. Runs physically and provisions
+    |
+    = help: Remove trailing whitespace
+
+Found 51 errors.
+No fixes available (29 hidden fixes can be enabled with the `--unsafe-fixes` option).

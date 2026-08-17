@@ -33,7 +33,7 @@ class TelemetryLogger:
 
         # Extract delta E values to catch ping-pong convergence failure
         self.delta_e_pattern = re.compile(r'dE\s*=\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)')
-        self.scf_history: deque = deque(maxlen=5)
+        self.scf_history: deque[float] = deque(maxlen=5)
 
     def _get_hardware_provenance(self) -> Dict[str, str]:
         """Captures static node identifiers for reproducibility."""
@@ -92,10 +92,7 @@ class TelemetryLogger:
         """
         log_path = os.path.join(self.log_dir, f"{job_name}_telemetry.log")
         if os.path.exists(log_path):
-            try:
-                os.chmod(log_path, 0o666)
-            except OSError:
-                """Implementation pending"""
+            os.chmod(log_path, 0o666)
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"--- CoChem-CORE Telemetry Trace for {job_name} ---\n")
             f.write(f"Exit Code: {exit_code}\n\n")
@@ -122,15 +119,3 @@ class TelemetryLogger:
             logger.warning(f"Could not set read-only permissions on {log_path}: {e}")
 
         return log_path
-
-
-if __name__ == "__main__":
-    logger_test = TelemetryLogger(verbosity="info")
-
-    logger.info("Testing Oscillation Trap...")
-    safe1 = logger_test.process_stream_chunk("SCF Iteration 12: dE = 0.5")
-    safe2 = logger_test.process_stream_chunk("SCF Iteration 13: dE = -0.4")
-    safe3 = logger_test.process_stream_chunk("SCF Iteration 14: dE = 0.5")
-    safe4 = logger_test.process_stream_chunk("SCF Iteration 15: dE = -0.4")
-    safe5 = logger_test.process_stream_chunk("SCF Iteration 16: dE = 0.5")
-    logger.info(f"Status after Ping-Pong: {safe5} (Expected: False)")

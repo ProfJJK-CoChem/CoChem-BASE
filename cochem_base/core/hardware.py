@@ -1,3 +1,4 @@
+import atexit
 import ctypes
 import logging
 import multiprocessing
@@ -5,7 +6,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+import psutil
+from pydantic import BaseModel, Field
 
 from cochem_base.config_loader import resolve_executable
 
@@ -14,7 +18,49 @@ logger = logging.getLogger(__name__)
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
+
+
+def cleanup_zombie_processes() -> None:
+    try:
+        current_process = psutil.Process()
+        children = current_process.children(recursive=True)
+        for child in children:
+            try:
+                if child.is_running():
+                    child.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        _, alive = psutil.wait_procs(children, timeout=3.0)
+        for p in alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except Exception as e:
+        logger.error(f"Zombie process cleanup failed: {e}")
+
+atexit.register(cleanup_zombie_processes)
+
+
+class GpuDevice(BaseModel):
+    id: int
+    name: str
+    vram_gb: float
+    compute_capability: str
+    fp64_capable: bool
+
+
+class GpuProfile(BaseModel):
+    available: bool
+    fp64_capable: bool
+    devices: List[GpuDevice]
+
+
+class HardwareProfile(BaseModel):
+    cpu_cores: int
+    gpu: GpuProfile
+    ram_gb: float
 
 
 class HardwareDiscovery:
@@ -23,14 +69,17 @@ class HardwareDiscovery:
     @staticmethod
     def get_cpu_cores() -> int:
         try:
-            return multiprocessing.cpu_count()
+            count = multiprocessing.cpu_count()
+            if count is None or count <= 0:
+                raise ValueError("Invalid cpu_count")
+            return count
         except Exception as e:
-            logger.warning(f"multiprocessing.cpu_count() failed: {e}. Falling back to 1 core.")
-            return 1
+            logger.error(f"multiprocessing.cpu_count() failed: {e}.")
+            raise RuntimeError(f"[MISSING DATA] Could not determine CPU cores: {e}") from e
 
     @staticmethod
-    def get_gpu_availability() -> Dict[str, Any]:
-        devices: List[Dict[str, Any]] = []
+    def get_gpu_availability() -> GpuProfile:
+        devices: List[GpuDevice] = []
         available = False
         fp64_capable = False
 
@@ -58,23 +107,23 @@ class HardwareDiscovery:
                     if is_fp64:
                         fp64_capable = True
 
-                    devices.append({
-                        "id": i,
-                        "name": name,
-                        "vram_gb": round(mem_info.total / (1024.**3), 2),
-                        "compute_capability": comp_cap,
-                        "fp64_capable": is_fp64
-                    })
+                    devices.append(GpuDevice(
+                        id=i,
+                        name=name,
+                        vram_gb=round(mem_info.total / (1024.**3), 2),
+                        compute_capability=comp_cap,
+                        fp64_capable=is_fp64
+                    ))
                 pynvml.nvmlShutdown()
-                return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
+                return GpuProfile(available=available, fp64_capable=fp64_capable, devices=devices)
         except Exception as e:
             logger.warning(f"pynvml GPU check failed: {e}")
 
-        # Method 3: nvidia-smi fallback
+        # Method 2: nvidia-smi fallback
         try:
             nvidia_smi = resolve_executable(env_var="NVIDIA_SMI_CMD", candidates=("nvidia-smi",))
-            cmd = [nvidia_smi, "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
-            if safe_subprocess_run:
+            cmd = [str(nvidia_smi), "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
+            if safe_subprocess_run is not None:
                 res = safe_subprocess_run(cmd, timeout=10.0, check=True)
             else:
                 res = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0, check=True)
@@ -86,19 +135,23 @@ class HardwareDiscovery:
                         parts = line.split(",")
                         name = parts[0].strip()
                         vram_mb = float(parts[1].strip()) if len(parts) > 1 else 0.0
-                        devices.append({
-                            "id": idx,
-                            "name": name,
-                            "vram_gb": round(vram_mb / 1024.0, 2),
-                            "compute_capability": "unknown",
-                            "fp64_capable": False
-                        })
+                        devices.append(GpuDevice(
+                            id=idx,
+                            name=name,
+                            vram_gb=round(vram_mb / 1024.0, 2),
+                            compute_capability="unknown",
+                            fp64_capable=False
+                        ))
                 if devices:
                     available = True
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"nvidia-smi timed out: {e}")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"nvidia-smi failed with code {e.returncode}")
         except Exception as e:
             logger.warning(f"nvidia-smi fallback GPU check failed: {e}")
 
-        return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
+        return GpuProfile(available=available, fp64_capable=fp64_capable, devices=devices)
 
     @staticmethod
     def get_core_pinning_config() -> str:
@@ -108,7 +161,6 @@ class HardwareDiscovery:
     @staticmethod
     def get_system_ram_gb() -> float:
         try:
-            import psutil
             return round(psutil.virtual_memory().total / (1024.**3), 2)
         except Exception as e:
             logger.warning(f"psutil RAM detection failed ({e}), falling back to OS system RAM detection")
@@ -130,26 +182,27 @@ class HardwareDiscovery:
                     stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
                     ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
                     return round(stat.ullTotalPhys / (1024.**3), 2)
-                except Exception as e:
-                    logger.warning(f"Windows memory detection failed: {e}")
+                except Exception as ex:
+                    logger.error(f"Windows memory detection failed: {ex}")
             else:
-                meminfo_path = Path(os.sep) / "proc" / "meminfo"
-            if sys.platform != "win32" and meminfo_path.exists():
-                try:
-                    with open(meminfo_path, "r", encoding="utf-8") as f:
-                        for line in f:
-                            if line.startswith("MemTotal:"):
-                                parts = line.split()
-                                kb = float(parts[1])
-                                return round(kb / (1024.0 * 1024.0), 2)
-                except Exception as e:
-                    logger.warning(f"Linux /proc/meminfo reading failed: {e}")
-            return 16.0
+                meminfo_path = Path("/proc/meminfo")
+                if meminfo_path.exists():
+                    try:
+                        with open(meminfo_path, "r", encoding="utf-8") as f:
+                            for line in f:
+                                if line.startswith("MemTotal:"):
+                                    parts = line.split()
+                                    kb = float(parts[1])
+                                    return round(kb / (1024.0 * 1024.0), 2)
+                    except Exception as ex:
+                        logger.error(f"Linux /proc/meminfo reading failed: {ex}")
+        
+        raise RuntimeError("[MISSING DATA] Could not determine system RAM.")
 
     @classmethod
-    def get_full_profile(cls) -> Dict[str, Any]:
-        return {
-            "cpu_cores": cls.get_cpu_cores(),
-            "gpu": cls.get_gpu_availability(),
-            "ram_gb": cls.get_system_ram_gb()
-        }
+    def get_full_profile(cls) -> HardwareProfile:
+        return HardwareProfile(
+            cpu_cores=cls.get_cpu_cores(),
+            gpu=cls.get_gpu_availability(),
+            ram_gb=cls.get_system_ram_gb()
+        )

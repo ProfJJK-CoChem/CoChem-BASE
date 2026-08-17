@@ -8,7 +8,6 @@ Issues POSIX SIGSTOP (or Windows suspend) if CPU temp > 90°C and SIGCONT (resum
 import logging
 import os
 import signal
-from typing import Set
 
 import psutil
 
@@ -22,9 +21,26 @@ class ThermalGovernorDaemon:
         self.high_temp = high_temp
         self.low_temp = low_temp
         self.interval = interval
-        self.pids: Set[int] = set()
-        self.paused_pids: Set[int] = set()
+        self.pids: set[int] = set()
+        self.paused_pids: set[int] = set()
         self.running: bool = False
+        
+        if not self._check_sensors_available():
+            raise RuntimeError("[MISSING DATA] Thermal sensors are unavailable on this system/platform. Cannot enforce thermal limits.")
+
+    def _check_sensors_available(self) -> bool:
+        if not hasattr(psutil, "sensors_temperatures"):
+            return False
+        try:
+            temps = psutil.sensors_temperatures()
+            if not temps:
+                return False
+            all_temps = [entry.current for entries in temps.values() for entry in entries if hasattr(entry, 'current')]
+            if not all_temps:
+                return False
+            return True
+        except Exception:
+            return False
 
     def register_pid(self, pid: int) -> None:
         self.pids.add(pid)
@@ -35,17 +51,18 @@ class ThermalGovernorDaemon:
 
     def get_max_temp(self) -> float:
         """Queries hardware sensors for max CPU temperature."""
-        if hasattr(psutil, "sensors_temperatures"):
-            try:
-                temps = psutil.sensors_temperatures()
-                if temps:
-                    all_temps = [entry.current for entries in temps.values() for entry in entries if hasattr(entry, 'current')]
-                    if all_temps:
-                        return max(all_temps)
-            except Exception as e:
-                logger.debug(f"sensors_temperatures query error: {e}")
-        logger.warning("Thermal sensors unavailable via psutil.sensors_temperatures on this system/platform. Thermal protection inactive.")
-        return 0.0
+        if not hasattr(psutil, "sensors_temperatures"):
+            raise RuntimeError("psutil.sensors_temperatures is not supported on this platform.")
+        
+        temps = psutil.sensors_temperatures()
+        if not temps:
+            raise RuntimeError("Thermal sensors returned empty data.")
+            
+        all_temps = [entry.current for entries in temps.values() for entry in entries if hasattr(entry, 'current')]
+        if not all_temps:
+            raise RuntimeError("Could not extract current temperatures from sensor data.")
+            
+        return float(max(all_temps))
 
     def pause_process(self, pid: int) -> None:
         try:
@@ -57,11 +74,11 @@ class ThermalGovernorDaemon:
             self.paused_pids.add(pid)
             logger.warning(f"Issued pause (SIGSTOP/suspend) to PID {pid}")
         except (psutil.NoSuchProcess, ProcessLookupError) as e:
-            self.paused_pids.add(pid)
-            logger.warning(f"Failed to pause PID {pid} (process not found): {e}")
-        except Exception as e:
-            self.paused_pids.add(pid)
-            logger.error(f"Failed to pause PID {pid}: {e}")
+            logger.warning(f"Failed to pause PID {pid} (process not found): {e}. Unregistering PID.")
+            self.unregister_pid(pid)
+        except PermissionError as e:
+            logger.error(f"Permission denied when pausing PID {pid}: {e}")
+            raise
 
     def resume_process(self, pid: int) -> None:
         try:
@@ -71,12 +88,13 @@ class ThermalGovernorDaemon:
                 proc = psutil.Process(pid)
                 proc.resume()
             logger.info(f"Issued resume (SIGCONT/resume) to PID {pid}")
-        except (psutil.NoSuchProcess, ProcessLookupError) as e:
-            logger.warning(f"Process PID {pid} dead or missing when resuming: {e}")
-        except Exception as e:
-            logger.error(f"Failed to resume PID {pid}: {e}")
-        finally:
             self.paused_pids.discard(pid)
+        except (psutil.NoSuchProcess, ProcessLookupError) as e:
+            logger.warning(f"Process PID {pid} dead or missing when resuming: {e}. Unregistering PID.")
+            self.unregister_pid(pid)
+        except PermissionError as e:
+            logger.error(f"Permission denied when resuming PID {pid}: {e}")
+            raise
 
     def poll(self) -> None:
         """Performs a single temperature check and action iteration."""

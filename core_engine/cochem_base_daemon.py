@@ -1,14 +1,19 @@
 """ZeroMQ PUB/SUB Daemon for CoChem Base async telemetry and state broadcasts."""
 
 import asyncio
-import json
 import logging
 from typing import Any, Dict, Optional, Tuple
 
 import zmq
 import zmq.asyncio
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class TelemetryPayload(BaseModel):
+    """Generic Pydantic model for ZeroMQ telemetry payloads."""
+    model_config = ConfigDict(extra="allow")
 
 
 class ZeroMQDaemon:
@@ -35,14 +40,14 @@ class ZeroMQDaemon:
         """Initialize sockets and bind/connect ports."""
         self.ctx = zmq.asyncio.Context()
         self.pub_socket = self.ctx.socket(zmq.PUB)
-        self.pub_socket.bind(f"tcp://*:{self.pub_port}")
+        self.pub_socket.bind(f"tcp://{self.host}:{self.pub_port}")
 
         self.sub_socket = self.ctx.socket(zmq.SUB)
-        self.sub_socket.bind(f"tcp://*:{self.sub_port}")
+        self.sub_socket.bind(f"tcp://{self.host}:{self.sub_port}")
         self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
         self._running = True
-        logger.info(f"ZeroMQDaemon started: PUB on port {self.pub_port}, SUB on port {self.sub_port}")
+        logger.info(f"ZeroMQDaemon started: PUB on {self.host}:{self.pub_port}, SUB on {self.host}:{self.sub_port}")
 
     async def start_pub_server(self, port: int = 5555) -> None:
         """Start the PUB server socket on specified port."""
@@ -51,9 +56,9 @@ class ZeroMQDaemon:
             self.ctx = zmq.asyncio.Context()
         if not self.pub_socket:
             self.pub_socket = self.ctx.socket(zmq.PUB)
-            self.pub_socket.bind(f"tcp://*:{self.pub_port}")
+            self.pub_socket.bind(f"tcp://{self.host}:{self.pub_port}")
         self._running = True
-        logger.info(f"PUB server bound to port {self.pub_port}")
+        logger.info(f"PUB server bound to {self.host}:{self.pub_port}")
 
     async def start_sub_listener(self, port: int = 5556) -> None:
         """Start the SUB listener socket on specified port."""
@@ -62,10 +67,10 @@ class ZeroMQDaemon:
             self.ctx = zmq.asyncio.Context()
         if not self.sub_socket:
             self.sub_socket = self.ctx.socket(zmq.SUB)
-            self.sub_socket.bind(f"tcp://*:{self.sub_port}")
+            self.sub_socket.bind(f"tcp://{self.host}:{self.sub_port}")
             self.sub_socket.setsockopt_string(zmq.SUBSCRIBE, "")
         self._running = True
-        logger.info(f"SUB listener bound to port {self.sub_port}")
+        logger.info(f"SUB listener bound to {self.host}:{self.sub_port}")
 
     async def stop(self) -> None:
         """Close sockets and terminate context."""
@@ -85,7 +90,9 @@ class ZeroMQDaemon:
         """Publish a JSON payload on the given topic."""
         if not self.pub_socket or not self._running:
             raise RuntimeError("ZeroMQDaemon is not running")
-        payload = json.dumps(data)
+        
+        # Structural validation: throws ValidationError on bad data.
+        payload = TelemetryPayload.model_validate(data).model_dump_json()
         await self.pub_socket.send_multipart([topic.encode("utf-8"), payload.encode("utf-8")])
 
     async def broadcast_state(self, topic: str, payload: Dict[str, Any]) -> None:
@@ -98,7 +105,10 @@ class ZeroMQDaemon:
             raise RuntimeError("ZeroMQDaemon is not running")
         parts = await self.sub_socket.recv_multipart()
         topic = parts[0].decode("utf-8")
-        data = json.loads(parts[1].decode("utf-8"))
+        payload_str = parts[1].decode("utf-8")
+        
+        # Pydantic boundary validation. Let ValidationError propagate if malformed.
+        data = TelemetryPayload.model_validate_json(payload_str).model_dump()
         return topic, data
 
     async def listen_for_events(self) -> Tuple[str, Dict[str, Any]]:

@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pydantic import BaseModel, ValidationError
+
 from cochem_base.config_loader import get_artifact_dir, resolve_executable, resolve_wsl_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,7 +26,11 @@ logger = logging.getLogger("CoChem-SetupOrchestrator")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
+
+class DeploymentManifest(BaseModel):
+    interaction_environment: str
+    calculation_environment: str
 
 INTERACT_MAP = {
     "Local-Windows (WSL)": "interact_wsl.py",
@@ -85,7 +91,7 @@ def execute_script(script_name: str, env_name: str) -> None:
         if "WSL" in env_name and platform.system() == "Windows":
             wsl_executable = resolve_wsl_executable(required=True)
             conversion = subprocess.run(
-                [wsl_executable, "wslpath", "-u", "-a", str(script_path)],
+                [wsl_executable, "wslpath", "-u", "-a", script_path.as_posix()],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -99,7 +105,7 @@ def execute_script(script_name: str, env_name: str) -> None:
         else:
             cmd = [sys.executable, str(script_path)]
 
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, check=True, timeout=300.0)
         else:
             subprocess.run(cmd, check=True, timeout=300.0)
@@ -116,26 +122,29 @@ def detect_cuda_capability() -> bool:
     try:
         nvidia_smi = resolve_executable(env_var="NVIDIA_SMI_CMD", candidates=("nvidia-smi",))
         command = [nvidia_smi, '--query-gpu=count', '--format=csv,noheader,nounits']
-        if safe_subprocess_run:
-            result = safe_subprocess_run(command, capture_output=True, text=True, timeout=10.0, check=False)
+        if safe_subprocess_run is not None:
+            result = safe_subprocess_run(command, capture_output=True, text=True, timeout=10.0, check=True)
         else:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10.0, check=False)
-        if result.returncode == 0 and result.stdout and result.stdout.strip() != '0':
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10.0, check=True)
+        if result.stdout and result.stdout.strip() != '0':
             return True
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-        """Implementation pending"""
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.debug(f"NVIDIA SMI check failed or not found: {e}")
+        
     try:
         import torch
         if torch.cuda.is_available():
             return True
     except ImportError:
-        """Implementation pending"""
+        logger.debug("PyTorch not available for CUDA probe.")
+        
     try:
         import tensorflow as tf
         if tf.config.list_physical_devices('GPU'):
             return True
     except ImportError:
-        """Implementation pending"""
+        logger.debug("TensorFlow not available for GPU probe.")
+        
     return False
 
 
@@ -143,34 +152,31 @@ def detect_hardware_capability() -> Dict[str, Any]:
     """
     Detects hardware capabilities and returns a dictionary with relevant info.
     """
+    import multiprocessing
+    import psutil
+
+    cpu_count = multiprocessing.cpu_count()
+    memory_gb = round(psutil.virtual_memory().total / (1024**3), 2)
+    is_cuda_available = detect_cuda_capability()
+
     try:
-        import multiprocessing
-
-        import psutil
-
-        cpu_count = multiprocessing.cpu_count()
-        memory_gb = round(psutil.virtual_memory().total / (1024**3), 2)
-        is_cuda_available = detect_cuda_capability()
-
         qcxms = resolve_executable(env_var="QCXMS_CMD", candidates=("QCxMS", "qcxms"))
         is_qcxms_available = bool(shutil.which(qcxms) or Path(qcxms).is_file())
         if not is_qcxms_available:
-            try:
-                result = subprocess.run([qcxms, '--version'], capture_output=True, timeout=5.0, check=False)
-                is_qcxms_available = result.returncode == 0
-            except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
-                """Implementation pending"""
-        return {
-            'cpu_count': cpu_count,
-            'memory_gb': memory_gb,
-            'cuda_available': is_cuda_available,
-            'platform': platform.system(),
-            'architecture': platform.machine(),
-            'qcxms_available': is_qcxms_available
-        }
-    except Exception as e:
-        logger.warning(f"Failed to detect hardware capabilities: {e}")
-        return {'cpu_count': 1, 'memory_gb': 0, 'cuda_available': False, 'platform': 'Unknown', 'architecture': 'Unknown', 'qcxms_available': False}
+            result = subprocess.run([qcxms, '--version'], capture_output=True, timeout=5.0, check=True)
+            is_qcxms_available = True
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError, subprocess.CalledProcessError) as e:
+        logger.debug(f"QCxMS probe failed: {e}")
+        is_qcxms_available = False
+
+    return {
+        'cpu_count': cpu_count,
+        'memory_gb': memory_gb,
+        'cuda_available': is_cuda_available,
+        'platform': platform.system(),
+        'architecture': platform.machine(),
+        'qcxms_available': is_qcxms_available
+    }
 
 
 def get_mlff_fallback_strategy(hardware_info: Dict[str, Any], daemon_online: bool = True, atom_count: int = 10) -> str:
@@ -201,26 +207,22 @@ def detect_element_boundaries(molecule_input: str) -> List[str]:
     Parse the molecular input (xyz or SMILES) to detect elements.
     Returns a list of detected elements.
     """
-    try:
-        if molecule_input.startswith('[') and ']' in molecule_input:
-            import re
-            elements = re.findall(r'[A-Z][a-z]*', molecule_input)
-            return list(set(elements))
-        else:
-            lines = molecule_input.strip().split('\n')
-            if len(lines) >= 2:
-                element_symbols = []
-                for i in range(2, min(len(lines), 100)):
-                    if lines[i].strip():
-                        parts = lines[i].split()
-                        if len(parts) > 0:
-                            symbol = parts[0]
-                            if symbol.isalpha() and len(symbol) <= 2:
-                                element_symbols.append(symbol)
-                return list(set(element_symbols))
-    except Exception as e:
-        logger.warning(f"Failed to parse molecule input for elements: {e}")
-
+    if molecule_input.startswith('[') and ']' in molecule_input:
+        import re
+        elements = re.findall(r'[A-Z][a-z]*', molecule_input)
+        return list(set(elements))
+    else:
+        lines = molecule_input.strip().split('\n')
+        if len(lines) >= 2:
+            element_symbols = []
+            for i in range(2, min(len(lines), 100)):
+                if lines[i].strip():
+                    parts = lines[i].split()
+                    if len(parts) > 0:
+                        symbol = parts[0]
+                        if symbol.isalpha() and len(symbol) <= 2:
+                            element_symbols.append(symbol)
+            return list(set(element_symbols))
     return []
 
 
@@ -264,23 +266,20 @@ def main() -> None:
     manifest_path = get_manifest_path()
     with open(manifest_path, 'r', encoding='utf-8') as f:
         try:
-            manifest = json.loads(f.read())
+            manifest_data = json.loads(f.read())
+            manifest = DeploymentManifest(**manifest_data)
         except json.JSONDecodeError:
-            logger.error(f"Manifest {manifest_path} is corrupted.")
+            logger.error(f"Manifest {manifest_path} is corrupted (invalid JSON).")
+            sys.exit(1)
+        except ValidationError as e:
+            logger.error(f"Manifest {manifest_path} failed validation:\n{e}")
             sys.exit(1)
 
-    interact_env = manifest.get("interaction_environment")
-    calc_env = manifest.get("calculation_environment")
+    interact_env = manifest.interaction_environment
+    calc_env = manifest.calculation_environment
 
-    if not interact_env or not calc_env:
-        logger.error("Manifest is missing 'interaction_environment' or 'calculation_environment' keys.")
-        sys.exit(1)
-
-    default_interact, default_calc = detect_default_environments()
-    if str(interact_env).lower() == "auto":
-        interact_env = default_interact
-    if str(calc_env).lower() == "auto":
-        calc_env = default_calc
+    if '[MISSING DATA]' in (interact_env, calc_env) or interact_env.lower() == 'auto' or calc_env.lower() == 'auto':
+        raise ValueError("CRITICAL: Deployment manifest contains stubbed 'Auto' or '[MISSING DATA]' logic. Computed defaults designed to keep the process alive are strictly forbidden by the Root Cause Resolution Mandate.")
 
     hardware_info = detect_hardware_capability()
     logger.info(f"[HARDWARE] Detected Hardware: {hardware_info}")

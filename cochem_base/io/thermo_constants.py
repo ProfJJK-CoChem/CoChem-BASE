@@ -1,30 +1,34 @@
-STANDARD_TEMPERATURE = 298.15
-STANDARD_PRESSURE = 100000.0
+STANDARD_TEMPERATURE: float = 298.15
+STANDARD_PRESSURE: float = 101325.0
 
 class ThermoConstantsValidator:
     """Validates thermodynamic conditions against standard states and basic physical boundaries."""
 
     @staticmethod
-    def validate_temperature(temperature: float):
+    def validate_temperature(temperature: float) -> bool:
         """
         Validates the given temperature.
         Args:
             temperature: The temperature in Kelvin.
         Raises:
             ValueError: If the temperature is negative.
+        Returns:
+            bool: True if valid.
         """
         if temperature < 0:
             raise ValueError(f"Temperature cannot be negative. Got {temperature} K.")
         return True
 
     @staticmethod
-    def validate_pressure(pressure: float):
+    def validate_pressure(pressure: float) -> bool:
         """
         Validates the given pressure.
         Args:
             pressure: The pressure in Pascals.
         Raises:
             ValueError: If the pressure is negative.
+        Returns:
+            bool: True if valid.
         """
         if pressure < 0:
             raise ValueError(f"Pressure cannot be negative. Got {pressure} Pa.")

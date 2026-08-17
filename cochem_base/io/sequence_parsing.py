@@ -4,26 +4,26 @@ class SequenceParser:
     Enforces EuropePMCFASTA-006 compliance.
     """
 
-    STANDARD_AMINO_ACIDS = set("ACDEFGHIKLMNPQRSTVWY")
-    STANDARD_NUCLEOTIDES = set("ACGTU")
+    STANDARD_AMINO_ACIDS: set[str] = set("ACDEFGHIKLMNPQRSTVWY")
+    STANDARD_NUCLEOTIDES: set[str] = set("ACGTU")
 
-    def __init__(self, sequence_type: str = "protein"):
+    def __init__(self, sequence_type: str = "protein") -> None:
         """
         sequence_type: 'protein' or 'nucleotide'
         """
         if sequence_type not in ["protein", "nucleotide"]:
             raise ValueError("sequence_type must be 'protein' or 'nucleotide'")
-        self.sequence_type = sequence_type
-        self.valid_residues = self.STANDARD_AMINO_ACIDS if sequence_type == "protein" else self.STANDARD_NUCLEOTIDES
+        self.sequence_type: str = sequence_type
+        self.valid_residues: set[str] = self.STANDARD_AMINO_ACIDS if sequence_type == "protein" else self.STANDARD_NUCLEOTIDES
 
-    def parse_fasta(self, fasta_content: str) -> dict:
+    def parse_fasta(self, fasta_content: str) -> dict[str, str]:
         """
         Parses a FASTA string into a dictionary mapping headers to sequences.
         Authentically validates non-standard residues and sequence boundaries.
         """
-        sequences = {}
-        current_header = None
-        current_sequence = []
+        sequences: dict[str, str] = {}
+        current_header: str | None = None
+        current_sequence: list[str] = []
 
         for line_num, line in enumerate(fasta_content.splitlines(), 1):
             line = line.strip()
@@ -55,7 +55,7 @@ class SequenceParser:
 
         return sequences
 
-    def _validate_sequence(self, sequence: str, header: str):
+    def _validate_sequence(self, sequence: str, header: str) -> None:
         if not sequence:
             raise ValueError(f"Sequence boundary validation failed: Sequence for '{header}' is empty.")
 

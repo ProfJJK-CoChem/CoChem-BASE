@@ -12,4 +12,8 @@ def __getattr__(name: str) -> Any:
     if name == "WebGLStreamer":
         from .web_streaming import WebGLStreamer
         return WebGLStreamer
-    raise AttributeError(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return __all__

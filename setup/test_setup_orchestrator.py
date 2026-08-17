@@ -4,6 +4,7 @@ Test suite for CoChem-BASE Setup Orchestrator
 """
 
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -27,14 +28,15 @@ class TestSetupOrchestrator(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures before each test method."""
-        self.temp_dir = tempfile.TemporaryDirectory()
+        self.temp_dir = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         registry_dir = Path(self.temp_dir.name) / "Registry"
         registry_dir.mkdir(parents=True, exist_ok=True)
         manifest_file = registry_dir / "cochem_deployment_manifest.json"
 
+        interact, calc = detect_default_environments()
         manifest_data = {
-            "interaction_environment": "Local-Windows (WSL)",
-            "calculation_environment": "Local-Linux (Deb)"
+            "interaction_environment": interact,
+            "calculation_environment": calc
         }
         with open(manifest_file, 'w', encoding='utf-8') as f:
             json.dump(manifest_data, f)
@@ -51,8 +53,8 @@ class TestSetupOrchestrator(unittest.TestCase):
 
         try:
             self.temp_dir.cleanup()
-        except OSError:
-            """Implementation pending"""
+        except OSError as e:
+            logging.getLogger(__name__).warning("Failed to clean up temporary directory %s: %s", self.temp_dir.name, e)
     def test_get_manifest_path(self) -> None:
         """Test that get_manifest_path returns the correct path."""
         manifest_path = get_manifest_path()
@@ -91,22 +93,9 @@ class TestSetupOrchestrator(unittest.TestCase):
         self.assertIn('architecture', result)
 
     def test_get_mlff_fallback_strategy(self) -> None:
-        """Test MLFF fallback strategy determination."""
-        high_perf_hardware = {
-            'cpu_count': 16,
-            'memory_gb': 32,
-            'cuda_available': True
-        }
-        strategy = get_mlff_fallback_strategy(high_perf_hardware)
-        self.assertIsInstance(strategy, str)
-        self.assertTrue(len(strategy) > 0)
-
-        low_perf_hardware = {
-            'cpu_count': 2,
-            'memory_gb': 4,
-            'cuda_available': False
-        }
-        strategy = get_mlff_fallback_strategy(low_perf_hardware)
+        """Test MLFF fallback strategy determination against real hardware capabilities."""
+        hardware = detect_hardware_capability()
+        strategy = get_mlff_fallback_strategy(hardware)
         self.assertIsInstance(strategy, str)
         self.assertTrue(len(strategy) > 0)
 

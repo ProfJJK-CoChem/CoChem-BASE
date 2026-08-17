@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
 CoChem-CORE: Stage 0.0 - Workspace Scaffolding Tool
-Implements atomic POSIX locking to guarantee safe directory generation
+Implements atomic POSIX and Windows locking to guarantee safe directory generation
 during high-throughput, highly concurrent MPI/API dispatch scenarios.
 """
 
+import os
 import logging
 import shutil
 from pathlib import Path
@@ -15,7 +16,12 @@ from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
 try:
     import fcntl
 except ImportError:
-    fcntl = None
+    fcntl = None  # type: ignore
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-WorkspaceManager")
@@ -36,7 +42,7 @@ class WorkspaceManager:
     ]
 
     def __init__(self, base_path: Optional[str] = None) -> None:
-        self.base_path = (
+        self.base_path = Path(
             resolve_mapped_path(base_path, get_artifact_dir())
             if base_path
             else get_artifact_dir()
@@ -44,22 +50,37 @@ class WorkspaceManager:
         self.lock_file = self.base_path / ".cochem_workspace.lock"
 
     def _acquire_lock(self, file_descriptor: int) -> bool:
-        """Applies a strict POSIX exclusive lock (or succeeds on Windows where fcntl is absent)."""
-        if fcntl is None:
-            return True
-        try:
-            fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return True
-        except (BlockingIOError, OSError):
-            return False
-
-    def _release_lock(self, file_descriptor: int) -> None:
-        """Releases the POSIX lock."""
+        """Applies a strict exclusive lock (POSIX fcntl or Windows msvcrt)."""
         if fcntl is not None:
             try:
-                fcntl.flock(file_descriptor, fcntl.LOCK_UN)
+                fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)  # type: ignore
+                return True
+            except (BlockingIOError, OSError):
+                return False
+        elif msvcrt is not None:
+            try:
+                os.lseek(file_descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(file_descriptor, msvcrt.LK_NBLCK, 1)  # type: ignore
+                return True
+            except (BlockingIOError, OSError):
+                return False
+        else:
+            raise NotImplementedError("Platform does not support fcntl or msvcrt locking.")
+
+    def _release_lock(self, file_descriptor: int) -> None:
+        """Releases the lock."""
+        if fcntl is not None:
+            try:
+                fcntl.flock(file_descriptor, fcntl.LOCK_UN)  # type: ignore
             except OSError as e:
                 logger.warning(f"Failed to release workspace lock: {e}")
+        elif msvcrt is not None:
+            try:
+                os.lseek(file_descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(file_descriptor, msvcrt.LK_UNLCK, 1)  # type: ignore
+            except OSError as e:
+                logger.warning(f"Failed to release workspace lock: {e}")
+
     def scaffold_core_directories(self) -> bool:
         """
         Atomically generates the master directories. If another process holds the lock,
@@ -90,7 +111,8 @@ class WorkspaceManager:
     def sweep_zombie_directories(self) -> int:
         """
         Clears the 'Scratch' folder of orphaned job directories that failed to
-        clean up after a kernel crash. Requires full lock to prevent deleting active runs.
+        clean up after a kernel crash. Safely checks for active job locks if implemented.
+        Note: Currently relies on external job lock files (.job.lock) to avoid deleting active jobs.
         """
         scratch_dir = self.base_path / "Scratch"
         if not scratch_dir.exists():
@@ -105,8 +127,26 @@ class WorkspaceManager:
             try:
                 for item in scratch_dir.iterdir():
                     if item.is_dir():
-                        shutil.rmtree(item)
-                        swept_count += 1
+                        # Check for a specific job lock file to avoid deleting active runs
+                        job_lock = item / ".job.lock"
+                        is_active = False
+                        
+                        if job_lock.exists():
+                            try:
+                                with open(job_lock, 'a', encoding='utf-8') as jlf:
+                                    if not self._acquire_lock(jlf.fileno()):
+                                        is_active = True
+                                    else:
+                                        self._release_lock(jlf.fileno())
+                            except OSError:
+                                is_active = True # Assume active if we can't probe the lock
+                                
+                        if not is_active:
+                            try:
+                                shutil.rmtree(item)
+                                swept_count += 1
+                            except OSError as e:
+                                logger.error(f"Failed to remove zombie directory {item}: {e}")
                 logger.info(f"Swept {swept_count} zombie directories from Scratch.")
             except Exception as e:
                 logger.error(f"Error during zombie directory sweep: {e}")
@@ -126,7 +166,18 @@ if __name__ == "__main__":
         job_path = manager.provision_job_workspace("JOB_SIMULATION_999")
         logger.info(f"Provisioned specific job path: {job_path}")
 
+        # Adding dummy job lock to prevent its deletion in the immediate sweep
+        job_lock_file = job_path / ".job.lock"
+        job_lock_file.touch()
+
+        # We simulate holding the lock
+        lock_fd = os.open(job_lock_file, os.O_RDWR)
+        manager._acquire_lock(lock_fd)
+
         swept = manager.sweep_zombie_directories()
         logger.info(f"Swept {swept} isolated job directories during cleanup.")
+        
+        manager._release_lock(lock_fd)
+        os.close(lock_fd)
     else:
         logger.warning("Scaffolding yielded due to lock collision.")

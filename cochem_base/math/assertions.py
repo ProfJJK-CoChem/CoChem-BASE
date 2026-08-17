@@ -1,26 +1,30 @@
 import warnings
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 
 class MachineEpsilonWarning(Warning):
     """Warning raised when exact equality is used on continuous variables."""
-    def __init__(self, message="Exact equality comparison (==) detected on a continuous simulation variable."):
+    def __init__(self, message: str = "Exact equality comparison (==) detected on a continuous simulation variable.") -> None:
         self.message = message
         super().__init__(self.message)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self.message)
-class SimulationTensor(np.ndarray):
+
+
+class SimulationTensor(np.ndarray[Any, np.dtype[np.float64]]):
     """
     A custom wrapper for float64 tensors that actively intercepts logical
     evaluations to prevent infinite loops due to machine epsilon.
     """
-    def __new__(cls, input_array):
+    def __new__(cls, input_array: npt.ArrayLike) -> "SimulationTensor":
         obj = np.asarray(input_array, dtype=np.float64).view(cls)
         return obj
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> Any:
         # We throw the warning
         warnings.warn(
             "Exact equality comparison (==) detected on a continuous simulation variable. "
@@ -35,5 +39,5 @@ class SimulationTensor(np.ndarray):
         other_arr = np.asarray(other)
         return np.isclose(self_arr, other_arr, atol=1e-8, rtol=1e-5)
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    def __ne__(self, other: Any) -> Any:
+        return np.logical_not(self.__eq__(other))

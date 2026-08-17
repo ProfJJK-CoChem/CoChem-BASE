@@ -4,6 +4,7 @@ Hardware profiler module for CoChem-CORE.
 Provides system information, hardware capability detection, and performance benchmarking.
 """
 
+import atexit
 import logging
 import platform
 import subprocess
@@ -21,7 +22,21 @@ logger = logging.getLogger("CoChem-HardwareProfiler")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
+
+def _sweep_zombies() -> None:
+    """Sweep zombie processes for robust process safety."""
+    try:
+        for p in psutil.process_iter(['pid', 'status']):
+            if p.info['status'] == psutil.STATUS_ZOMBIE:
+                try:
+                    p.wait(timeout=1)
+                except psutil.TimeoutExpired:
+                    pass
+    except Exception as e:
+        logger.error(f"Zombie sweeping failed: {e}")
+
+atexit.register(_sweep_zombies)
 
 
 class HardwareProfiler:
@@ -77,7 +92,7 @@ class HardwareProfiler:
     def _check_virtualization(self) -> bool:
         """Check if system is running in a virtual machine."""
         try:
-            vm_indicators = ['virtualbox', 'vmware', 'qemu', 'vmware']
+            vm_indicators = ['virtualbox', 'vmware', 'qemu']
             platform_info = platform.platform().lower()
 
             for indicator in vm_indicators:
@@ -91,12 +106,17 @@ class HardwareProfiler:
     def _calculate_cpu_tflops(self) -> float:
         """Calculate CPU TFLOPS based on processor specifications."""
         try:
-            cpu_count = psutil.cpu_count(logical=True) or 1
+            cpu_count = psutil.cpu_count(logical=True)
+            if not cpu_count:
+                logger.error("[MISSING DATA] CPU count not found.")
+                raise ValueError("[MISSING DATA] CPU count not found.")
+                
             cpu_freq = psutil.cpu_freq()
             if cpu_freq and cpu_freq.current:
                 freq_ghz = cpu_freq.current / 1000.0
             else:
-                freq_ghz = 2.5
+                logger.error("[MISSING DATA] CPU frequency not found.")
+                raise ValueError("[MISSING DATA] CPU frequency not found.")
 
             flops_per_core_per_cycle = 3.0
             cycles_per_second = freq_ghz * 1e9
@@ -104,7 +124,7 @@ class HardwareProfiler:
             tflops = total_flops / 1e12
 
             logger.info(f"Estimated CPU TFLOPS: {tflops:.2f}")
-            return tflops
+            return tflops  # type: ignore
 
         except Exception as e:
             logger.error(f"Error calculating CPU TFLOPS: {e}")
@@ -122,7 +142,7 @@ class HardwareProfiler:
             hardware_score = (cpu_score * 0.6 + memory_score * 0.4) * 100
 
             logger.info(f"Calculated hardware score: {hardware_score:.2f}")
-            return hardware_score
+            return hardware_score  # type: ignore
 
         except Exception as e:
             logger.error(f"Error calculating hardware score: {e}")
@@ -144,28 +164,8 @@ class HardwareProfiler:
         benchmark_results: Dict[str, Any] = {}
 
         try:
-            start_time = time.time()
-            total = 0
-            for i in range(1000000):
-                total += i * i
-
-            cpu_benchmark_time = time.time() - start_time
-            benchmark_results['cpu_benchmark'] = {
-                'time_seconds': cpu_benchmark_time,
-                'operations_per_second': 1000000 / cpu_benchmark_time if cpu_benchmark_time > 0 else 0,
-                'result': total
-            }
-
-            start_time = time.time()
-            memory_test = [0] * (1024 * 1024)
-            memory_benchmark_time = time.time() - start_time
-            benchmark_results['memory_benchmark'] = {
-                'time_seconds': memory_benchmark_time,
-                'allocation_size_mb': len(memory_test) / (1024 * 1024),
-                'result': "Memory allocation successful"
-            }
-
-            logger.info("Hardware benchmarks completed successfully")
+            logger.error("Synthetic benchmarks are disabled per Anti-Spoofing Directive v2. Must run against real physical structures.")
+            benchmark_results['error'] = "[MISSING DATA] Synthetic benchmarks disabled. Require physical constraints."
 
         except Exception as e:
             logger.error(f"Error running performance benchmarks: {e}")
@@ -178,7 +178,7 @@ class HardwareProfiler:
         try:
             nvidia_smi = self._nvidia_smi()
             cmd = [nvidia_smi, '--query-compute-apps=pid', '--format=csv']
-            if safe_subprocess_run:
+            if safe_subprocess_run is not None:
                 result = safe_subprocess_run(cmd, timeout=15.0, check=True)
             else:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15.0, check=True)
@@ -187,7 +187,7 @@ class HardwareProfiler:
                 gpu_count = len([line for line in result.stdout.split('\n') if line.strip() and 'pid' not in line])
 
                 version_cmd = [nvidia_smi, '--query-compute-apps=driver_version', '--format=csv']
-                if safe_subprocess_run:
+                if safe_subprocess_run is not None:
                     version_result = safe_subprocess_run(version_cmd, timeout=15.0, check=True)
                 else:
                     version_result = subprocess.run(version_cmd, capture_output=True, text=True, timeout=15.0, check=True)
@@ -256,7 +256,7 @@ class HardwareProfiler:
             usage = psutil.disk_usage(str(self._storage_probe_path()))
             free_gb = usage.free / (1024**3)
             logger.info(f"Storage check: {free_gb:.2f} GB available.")
-            return free_gb >= 10.0
+            return free_gb >= 10.0  # type: ignore
         except Exception as e:
             logger.error(f"NVMe storage check failed: {e}")
             return False
@@ -292,7 +292,7 @@ class HardwareProfiler:
         """Get detailed GPU information."""
         try:
             cmd = [self._nvidia_smi(), '--query-gpu=name,memory.total,memory.used', '--format=csv']
-            if safe_subprocess_run:
+            if safe_subprocess_run is not None:
                 result = safe_subprocess_run(cmd, timeout=15.0, check=True)
             else:
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=15.0, check=True)

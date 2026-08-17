@@ -1,11 +1,19 @@
 """
 atomic_data.py - PubChem-compatible atomic data and isotopic validation hooks.
+
+Provenance:
+[D] Isotopic mass data derived from standard atomic weights (PubChem compatible).
 """
 
-class PubChemAtomicDataValidator:
-    def __init__(self):
-        # Known elemental stable/common isotopes and their approximate isotopic masses
-        self.known_isotopes = {
+from typing import Dict, Any
+from pydantic import BaseModel, Field, validate_call, confloat, constr, conint
+
+class PubChemAtomicDataValidator(BaseModel):
+    """
+    Validates isotopic masses against known PubChem data.
+    """
+    known_isotopes: Dict[str, Dict[int, float]] = Field(
+        default_factory=lambda: {
             "H": {1: 1.007825, 2: 2.014102, 3: 3.016049},
             "He": {3: 3.016029, 4: 4.002603},
             "Li": {6: 6.015122, 7: 7.016004},
@@ -25,15 +33,22 @@ class PubChemAtomicDataValidator:
             "K": {39: 38.963706, 40: 39.963998, 41: 40.961825},
             "Ca": {40: 39.962590, 42: 41.958618, 43: 42.958766, 44: 43.955481, 46: 45.953692, 48: 47.952522},
         }
+    )
 
-    def validate_isotopic_mass(self, element: str, mass_number: int, mass: float, tolerance: float = 0.05) -> bool:
+    @validate_call
+    def validate_isotopic_mass(
+        self, 
+        element: str, 
+        mass_number: int, 
+        mass: float, 
+        tolerance: float = 0.05
+    ) -> bool:
         """
         Validates if the provided isotopic mass is physically reasonable and matches
         known PubChem isotopic masses within a given tolerance.
+        
+        Provenance: [E] Matches mass against verified static known_isotopes dict.
         """
-        if not isinstance(mass, (int, float)):
-            raise TypeError("Mass must be a numeric value.")
-
         if mass <= 0:
             raise ValueError(f"Isotopic mass must be positive, got {mass}")
 
@@ -59,9 +74,12 @@ class PubChemAtomicDataValidator:
 
         return True
 
+@validate_call
 def validate_isotopic_mass(element: str, mass_number: int, mass: float) -> bool:
     """
     Hook function for PubChem validation.
+    
+    Provenance: [E] Wrapper for PubChemAtomicDataValidator.
     """
     validator = PubChemAtomicDataValidator()
     return validator.validate_isotopic_mass(element, mass_number, mass)

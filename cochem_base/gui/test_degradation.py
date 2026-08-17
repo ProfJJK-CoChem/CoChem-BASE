@@ -1,34 +1,31 @@
 import sys
-from unittest.mock import patch
 
 from PySide6.QtWidgets import QApplication
 
 from cochem_base.gui.main_window import MainWindow
+from cochem_base.plugins.loader import get_plugin_manager
 
 
 def test_graceful_degradation_spycfit_missing() -> None:
     if not QApplication.instance():
         QApplication(sys.argv)
 
-    with patch('cochem_base.gui.main_window.get_plugin_manager') as mock_get_pm:
-        from cochem_base.plugins.loader import get_plugin_manager
-        real_pm = get_plugin_manager()
+    pm = get_plugin_manager()
 
-        plugin = real_pm.get_plugin("cochem_spycfit")
-        if plugin:
-            real_pm.unregister(plugin=plugin)
+    spycfit_plugin = pm.get_plugin("cochem_spycfit")
+    if spycfit_plugin:
+        pm.unregister(plugin=spycfit_plugin)
 
-        real_pm.load_setuptools_entrypoints = lambda *args, **kwargs: None
+    window = MainWindow()
 
-        mock_get_pm.return_value = real_pm
+    missing_tab_found = False
+    for i in range(window.tabs.count()):
+        if window.tabs.tabText(i) == "SpycFit (Missing)":
+            missing_tab_found = True
+            assert window.tabs.isTabEnabled(i) is False
+            break
 
-        window = MainWindow()
+    assert missing_tab_found, "Graceful degradation failed: Missing tab not found."
 
-        missing_tab_found = False
-        for i in range(window.tabs.count()):
-            if window.tabs.tabText(i) == "SpycFit (Missing)":
-                missing_tab_found = True
-                assert window.tabs.isTabEnabled(i) is False
-                break
-
-        assert missing_tab_found, "Graceful degradation failed: Missing placeholder tab not found."
+    if spycfit_plugin:
+        pm.register(spycfit_plugin)

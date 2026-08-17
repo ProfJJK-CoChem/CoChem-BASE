@@ -1,9 +1,15 @@
+import os
+import sys
+import logging
 from typing import Any, List
+from pathlib import Path
 
 import pluggy
 
 hookspec = pluggy.HookspecMarker("cochem_studio")
 hookimpl = pluggy.HookimplMarker("cochem_studio")
+
+logger = logging.getLogger(__name__)
 
 
 class CoChemStudioSpecs:
@@ -27,18 +33,21 @@ class CoChemStudioSpecs:
 
 def get_plugin_manager() -> pluggy.PluginManager:
     """Create and return a configured pluggy PluginManager."""
-    import sys
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[3]
-    spycfit_dir = root / "CoChem-SpycFit"
+    # Dynamic pathing via env vars or pathlib.Path.home()
+    spycfit_env = os.getenv("COCHEM_SPYCFIT_DIR")
+    if spycfit_env:
+        spycfit_dir = Path(spycfit_env).resolve()
+    else:
+        spycfit_dir = Path.home() / ".cochem" / "plugins" / "CoChem-SpycFit"
+
     if spycfit_dir.exists() and str(spycfit_dir) not in sys.path:
         sys.path.insert(0, str(spycfit_dir))
 
     pm = pluggy.PluginManager("cochem_studio")
     pm.add_hookspecs(CoChemStudioSpecs)
-    try:
-        pm.load_setuptools_entrypoints("cochem_studio")
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).warning(f"Failed loading some plugin entrypoints: {e}")
+    
+    # Root Cause Resolution: Removed broad Exception swallowing.
+    # Architecture must structurally fail loudly if entrypoints are broken.
+    pm.load_setuptools_entrypoints("cochem_studio")
+    
     return pm

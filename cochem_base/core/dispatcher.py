@@ -8,11 +8,21 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from pydantic import BaseModel, Field
+
 from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
 from core_engine.cochem_core_subprocess_broker import register_popen_process
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+class TaskResult(BaseModel):
+    status: str
+    stdout: str = ""
+    stderr: str = ""
+    returncode: int = -1
+    error: Optional[str] = None
 
 
 class TaskDispatcher:
@@ -66,44 +76,56 @@ class TaskDispatcher:
             else:
                 cmd_args = command
 
-            process = subprocess.Popen(
-                cmd_args,
-                cwd=str(self.working_dir),
-                shell=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            register_popen_process(process)
+            try:
+                process = subprocess.Popen(
+                    cmd_args,
+                    cwd=str(self.working_dir),
+                    shell=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                register_popen_process(process)
+            except OSError as e:
+                res_obj = TaskResult(
+                    status="error",
+                    error=f"Failed to start process: {e}"
+                )
+                with self.results_lock:
+                    self.results[task_id] = res_obj.model_dump()
+                return
 
             try:
                 stdout, stderr = process.communicate(timeout=self.timeout_seconds)
-                res = {
-                    "status": "success" if process.returncode == 0 else "error",
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "returncode": process.returncode
-                }
+                res_obj = TaskResult(
+                    status="success" if process.returncode == 0 else "error",
+                    stdout=stdout or "",
+                    stderr=stderr or "",
+                    returncode=process.returncode
+                )
+                res = res_obj.model_dump()
             except subprocess.TimeoutExpired:
                 process.kill()
                 stdout, stderr = process.communicate()
-                res = {
-                    "status": "timeout",
-                    "stdout": stdout,
-                    "stderr": stderr,
-                    "returncode": -1,
-                    "error": f"Task timed out after {self.timeout_seconds} seconds"
-                }
+                res_obj = TaskResult(
+                    status="timeout",
+                    stdout=stdout or "",
+                    stderr=stderr or "",
+                    returncode=-1,
+                    error=f"Task timed out after {self.timeout_seconds} seconds"
+                )
+                res = res_obj.model_dump()
 
             with self.results_lock:
                 self.results[task_id] = res
 
         except Exception as e:
+            res_obj = TaskResult(
+                status="exception",
+                error=str(e)
+            )
             with self.results_lock:
-                self.results[task_id] = {
-                    "status": "exception",
-                    "error": str(e)
-                }
+                self.results[task_id] = res_obj.model_dump()
         finally:
             self.task_queue.task_done()
 
@@ -128,15 +150,19 @@ class SubprocessBroker:
             cmd_args = command
 
         tout = timeout if timeout is not None else self.timeout_seconds
-        proc = subprocess.Popen(
-            cmd_args,
-            cwd=str(self.working_dir),
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        register_popen_process(proc)
+        try:
+            proc = subprocess.Popen(
+                cmd_args,
+                cwd=str(self.working_dir),
+                shell=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            register_popen_process(proc)
+        except OSError as e:
+            raise RuntimeError(f"Failed to execute process: {e}") from e
+
         try:
             stdout, stderr = proc.communicate(timeout=tout)
             return proc.returncode, stdout, stderr

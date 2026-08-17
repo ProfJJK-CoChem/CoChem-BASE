@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import shutil
 import sys
 import traceback
 from pathlib import Path
 
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
 
 def resolve_base_root():
     mapped_root = os.environ.get('COCHEM_BASE_ROOT')
@@ -13,7 +16,7 @@ def resolve_base_root():
         if (root / 'setup' / 'cochem_base_setup.py').is_file():
             return root
         raise RuntimeError(f'COCHEM_BASE_ROOT does not contain CoChem-BASE: {root}')
-    for candidate in (Path.cwd(), *Path.cwd().parents):
+    for candidate in (Path(__file__).resolve().parent, *Path(__file__).resolve().parent.parents):
         for root in (candidate, candidate / 'CoChem-BASE'):
             if (root / 'setup' / 'cochem_base_setup.py').is_file():
                 return root.resolve()
@@ -39,14 +42,14 @@ def main():
         conda_exe = os.environ.get('COCHEM_CONDA_EXE', resolve_conda_executable(required=False))
 
         # --- Task 1: Cell 03 'New Install' and 'Create & Provision' ---
-        print("--- TASK 1: Cell 03 ---")
+        logger.info("--- TASK 1: Cell 03 ---")
         target_path = default_art
         silo_path = target_path / 'Silos'
         if silo_path.exists():
-            print(f"Deleting previous Silos directory at {silo_path}...")
+            logger.info(f"Deleting previous Silos directory at {silo_path}...")
             shutil.rmtree(silo_path, ignore_errors=True)
 
-        print("Setting up minimum environment...")
+        logger.info("Setting up minimum environment...")
         os.environ['COCHEM_ARTIFACT_DIR'] = str(target_path)
         if conda_exe and conda_exe.strip():
             os.environ['COCHEM_CONDA_EXE'] = conda_exe.strip()
@@ -54,18 +57,18 @@ def main():
         from setup.cochem_base_setup import provision_silo
 
         def log_cb(msg):
-            print(msg, end='')
+            sys.stdout.write(msg)
 
         success, env_dir, already_provisioned = provision_silo(str(target_path), log_callback=log_cb)
 
         if success:
-            print("SUCCESS: New installation completed and ready for the next step!")
+            logger.info("SUCCESS: New installation completed and ready for the next step!")
         else:
-            print("FAILURE: Silo provisioning failed.")
+            logger.info("FAILURE: Silo provisioning failed.")
             return {"status": "FAILURE", "error": "Silo provisioning failed"}
 
         # --- Task 2: Cell 05 'Interface Env: Codespaces', 'Calc Env: GitHub Actions' ---
-        print("\\n--- TASK 2: Cell 05 ---")
+        logger.info("\n--- TASK 2: Cell 05 ---")
         get_modules_dir = config_loader.get_modules_dir
         resolve_executable = config_loader.resolve_executable
 
@@ -74,10 +77,20 @@ def main():
             mpi_path = resolve_executable(mpi_value, env_var='MPI_CMD', candidates=('mpirun', 'mpiexec'))
             return orca_path, mpi_path
 
-        # Simulate dropdown selections setting environment/config conceptually
+        # Apply dropdown selections setting environment/config conceptually
         # Though the logic primarily runs run_all_preflight_checks
-        os.environ['COCHEM_INTERFACE_ENV'] = 'Codespaces'
-        os.environ['COCHEM_CALC_ENV'] = 'GitHub Actions'
+        import platform
+        interface_env = {
+            'Windows': 'Local-Windows (WSL)',
+            'Darwin': 'Local-MacOS (OrbStack)',
+            'Linux': 'Local-Linux (Deb)',
+        }.get(platform.system(), 'Codespaces')
+        if os.environ.get('CODESPACES'):
+            interface_env = 'Codespaces'
+        calc_env = interface_env if interface_env != 'Codespaces' else 'GitHub Actions'
+
+        os.environ['COCHEM_INTERFACE_ENV'] = interface_env
+        os.environ['COCHEM_CALC_ENV'] = calc_env
 
         orca_path, mpi_path = resolve_tool_paths()
         if orca_path:
@@ -85,8 +98,8 @@ def main():
         if mpi_path:
             os.environ['MPI_CMD'] = mpi_path
 
-        print(f"Resolved ORCA Path: {orca_path}")
-        print(f"Resolved MPI Path: {mpi_path}")
+        logger.info(f"Resolved ORCA Path: {orca_path}")
+        logger.info(f"Resolved MPI Path: {mpi_path}")
 
         from test_suite.run_tests import run_all_preflight_checks
         results = run_all_preflight_checks(
@@ -98,21 +111,21 @@ def main():
         all_passed = True
         for key, res in results.items():
             if key in ['modules', 'orca_single', 'orca_mpi']:
-                print(res['message'])
+                logger.info(res['message'])
                 if not res['status']:
                     all_passed = False
 
         if all_passed:
-            print("SUCCESS: Environment is fully ready to go!")
+            logger.info("SUCCESS: Environment is fully ready to go!")
             return {"status": "SUCCESS", "results": results}
         else:
-            print("FAILURE: Tests failed. Please check paths or verify OpenMPI configuration.")
+            logger.info("FAILURE: Tests failed. Please check paths or verify OpenMPI configuration.")
             return {"status": "FAILURE", "results": results}
 
     except Exception as e:
-        print(f"ERROR: {e}")
+        logger.error(f"ERROR: {e}")
         traceback.print_exc()
-        return {"status": "FAILURE", "error": str(e)}
+        raise ValueError("CRITICAL: UI Logic run failed. Exception Deflection blocked. Process crashing.") from e
 
 if __name__ == '__main__':
     res = main()

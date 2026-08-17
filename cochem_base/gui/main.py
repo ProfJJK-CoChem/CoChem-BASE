@@ -6,8 +6,8 @@ from cochem_base.gui.main_window import MainWindow
 
 
 def main() -> None:
-    app = QApplication(sys.argv)
-    window = MainWindow()
+    app: QApplication = QApplication(sys.argv)
+    window: MainWindow = MainWindow()
     window.show()
     sys.exit(app.exec())
 

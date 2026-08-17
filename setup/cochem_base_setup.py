@@ -13,20 +13,20 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Optional, Tuple
 
-import ipywidgets as widgets
-from IPython.display import HTML, display
-
-from cochem_base.config_loader import (
-    get_artifact_dir,
-    resolve_conda_executable,
-    resolve_mapped_path,
-)
+from pydantic import BaseModel, ValidationError
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 repo_root_str = str(REPO_ROOT)
 sys.path[:] = [repo_root_str, *(entry for entry in sys.path if entry != repo_root_str)]
 
+import ipywidgets as widgets  # noqa: E402
+from IPython.display import HTML, display  # noqa: E402
 
+from cochem_base.config_loader import (  # noqa: E402
+    get_artifact_dir,
+    resolve_conda_executable,
+    resolve_mapped_path,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-BaseSetup")
@@ -39,8 +39,12 @@ try:
         safe_subprocess_run,
     )
 except ImportError:
-    safe_subprocess_run = None
-    register_popen_process = None
+    safe_subprocess_run: Any = None  # type: ignore
+    register_popen_process: Any = None  # type: ignore
+
+
+class EnvConfig(BaseModel):
+    artifact_dir: str
 
 
 def _silo_subprocess_env() -> dict[str, str]:
@@ -77,12 +81,15 @@ def _environment_exists(env_dir: Path) -> bool:
     has_metadata = conda_meta_path.is_dir() and any(conda_meta_path.glob("*.json"))
     try:
         conda_executable = resolve_conda_executable(required=False)
-        command = [conda_executable, "info", "--envs"]
-        if safe_subprocess_run:
-            safe_subprocess_run(command, check=True, timeout=30.0)
+        if conda_executable is not None:
+            command = [str(conda_executable), "info", "--envs"]
+            if safe_subprocess_run is not None:
+                safe_subprocess_run(command, check=True, timeout=30.0)
+            else:
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=30.0)
         else:
-            subprocess.run(command, check=True, capture_output=True, text=True, timeout=30.0)
-    except Exception as exc:
+            logger.warning("Conda executable not found.")
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         logger.warning(f"Conda registry check failed; validating prefix metadata directly: {exc}")
     if env_dir.exists() and not has_metadata:
         logger.warning(f"Environment directory is missing Conda metadata: {conda_meta_path}")
@@ -96,9 +103,9 @@ def provision_silo(artifact_path: str, log_callback: Optional[Callable[[str], No
     """
     artifact_dir = _map_artifact_dir(artifact_path)
     cfg_path = REPO_ROOT / ".cochem_env.json"
-    cfg = {"artifact_dir": str(artifact_dir)}
+    cfg = EnvConfig(artifact_dir=str(artifact_dir))
     with open(cfg_path, "w", encoding="utf-8") as f:
-        json.dump(cfg, f)
+        f.write(cfg.model_dump_json())
     logger.info(f"Saved Artifact registry path to: {cfg_path}")
     logger.info(f"Target Artifact Director: {artifact_dir}\n")
 
@@ -114,18 +121,34 @@ def provision_silo(artifact_path: str, log_callback: Optional[Callable[[str], No
 
     try:
         proc = _launch_silo_setup()
-        if register_popen_process:
+        if register_popen_process is not None:
             register_popen_process(proc)
 
-        if proc.stdout:
-            for line in iter(proc.stdout.readline, ''):
-                if log_callback:
-                    log_callback(line)
-        proc.wait()
+        import atexit
+        def _kill_proc() -> None:
+            if proc.poll() is None:
+                proc.kill()
+        atexit.register(_kill_proc)
+
+        try:
+            if proc.stdout:
+                for line in iter(proc.stdout.readline, ''):
+                    if log_callback:
+                        log_callback(line)
+            proc.wait(timeout=3600.0)
+        finally:
+            atexit.unregister(_kill_proc)
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
         return proc.returncode == 0, env_dir, False
-    except Exception as e:
+    except subprocess.TimeoutExpired:
         if log_callback:
-            log_callback(f"Error launching script: {e}\n")
+            log_callback("Error: Silo setup timed out after 3600 seconds.\n")
+        return False, env_dir, False
+    except OSError as e:
+        if log_callback:
+            log_callback(f"OS Error launching script: {e}\n")
         return False, env_dir, False
 
 
@@ -153,21 +176,19 @@ def setup_cochem_base() -> None:
     previous_path: Optional[str] = None
     if cfg_path.exists():
         try:
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                config = json.loads(f.read())
-                if "artifact_dir" in config:
-                    previous_path = config["artifact_dir"]
-        except Exception:
-            logger.debug("Failed to read previous artifact configuration from .cochem_env.json")
+            config = EnvConfig.model_validate_json(cfg_path.read_text(encoding="utf-8"))
+            previous_path = config.artifact_dir
+        except (ValidationError, OSError) as e:
+            logger.debug(f"Failed to read previous artifact configuration from .cochem_env.json: {e}")
 
-    def _handle_provision(path_val: str, path_input_widget: widgets.Text, btn_to_disable1: widgets.Button, btn_to_disable2: Optional[widgets.Button], output_widget: widgets.Output):
+    def _handle_provision(path_val: str, path_input_widget: widgets.Text, btn_to_disable1: widgets.Button, btn_to_disable2: Optional[widgets.Button], output_widget: widgets.Output) -> None:
         with output_widget:
             output_widget.clear_output()
 
             log_output = widgets.Textarea(value='', disabled=True, layout=widgets.Layout(height='250px', width='100%'))
 
-            def thread_target():
-                def log_cb(msg: str):
+            def thread_target() -> None:
+                def log_cb(msg: str) -> None:
                     log_output.value += msg
 
                 artifact_dir = resolve_mapped_path(path_val, Path.home())

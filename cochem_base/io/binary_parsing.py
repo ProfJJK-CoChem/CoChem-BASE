@@ -1,4 +1,5 @@
 import struct
+from typing import Literal
 
 
 class BinaryParser:
@@ -7,20 +8,20 @@ class BinaryParser:
     Supports EndiannessMismatch-015 validations.
     """
 
-    LITTLE_ENDIAN_MAGIC = b'\x12\x34\x56\x78'
-    BIG_ENDIAN_MAGIC = b'\x78\x56\x34\x12'
+    LITTLE_ENDIAN_MAGIC: bytes = b'\x12\x34\x56\x78'
+    BIG_ENDIAN_MAGIC: bytes = b'\x78\x56\x34\x12'
 
-    def __init__(self, data: bytes, expected_endianness: str = "little"):
+    def __init__(self, data: bytes, expected_endianness: Literal["little", "big"] = "little") -> None:
         """
         expected_endianness: 'little' or 'big'
         """
-        self.data = data
-        self.offset = 0
+        self.data: bytes = data
+        self.offset: int = 0
         if expected_endianness not in ["little", "big"]:
             raise ValueError("Expected endianness must be 'little' or 'big'")
-        self.expected_endianness = expected_endianness
+        self.expected_endianness: Literal["little", "big"] = expected_endianness
 
-    def validate_magic_header(self):
+    def validate_magic_header(self) -> bool:
         """
         Reads the first 4 bytes and asserts that the endianness matches the expected architecture endianness.
         """
@@ -31,10 +32,10 @@ class BinaryParser:
         self.offset = 4
 
         if self.expected_endianness == "little" and header != self.LITTLE_ENDIAN_MAGIC:
-            raise ValueError(f"Endianness mismatch detected. Expected little-endian magic {self.LITTLE_ENDIAN_MAGIC}, got {header}")
+            raise ValueError(f"Endianness mismatch detected. Expected little-endian magic {self.LITTLE_ENDIAN_MAGIC!r}, got {header!r}")
 
         if self.expected_endianness == "big" and header != self.BIG_ENDIAN_MAGIC:
-            raise ValueError(f"Endianness mismatch detected. Expected big-endian magic {self.BIG_ENDIAN_MAGIC}, got {header}")
+            raise ValueError(f"Endianness mismatch detected. Expected big-endian magic {self.BIG_ENDIAN_MAGIC!r}, got {header!r}")
 
         return True
 
@@ -48,7 +49,7 @@ class BinaryParser:
         fmt = "<i" if self.expected_endianness == "little" else ">i"
         val = struct.unpack_from(fmt, self.data, self.offset)[0]
         self.offset += 4
-        return val
+        return int(val)
 
     def read_float64(self) -> float:
         """
@@ -60,4 +61,4 @@ class BinaryParser:
         fmt = "<d" if self.expected_endianness == "little" else ">d"
         val = struct.unpack_from(fmt, self.data, self.offset)[0]
         self.offset += 8
-        return val
+        return float(val)

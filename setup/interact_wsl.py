@@ -5,12 +5,13 @@ Provisions the UI dependencies, air-gap directories, and registers
 the WSL interaction layer into the Golden Registry without Docker abstractions.
 """
 
-import json
+import atexit
 import logging
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from cochem_base.config_loader import get_artifact_dir, resolve_wsl_executable
 
@@ -20,7 +21,23 @@ logger = logging.getLogger("CoChem-InteractWSL")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
+
+
+def cleanup_zombies() -> None:
+    """Sweeps for and terminates any zombie subprocesses spawned during setup."""
+    try:
+        import psutil
+        for child in psutil.Process().children(recursive=True):
+            try:
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    child.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except Exception:
+        pass
+
+atexit.register(cleanup_zombies)
 
 
 def verify_wsl_kernel() -> bool:
@@ -32,7 +49,7 @@ def verify_wsl_kernel() -> bool:
             if "microsoft" in version_info or "wsl" in version_info:
                 return True
     except FileNotFoundError:
-        """Implementation pending"""
+        logger.debug("Not a Linux/WSL environment, /proc/version missing.")
     return False
 
 
@@ -72,8 +89,8 @@ def bootstrap_wsl2_if_missing() -> bool:
     try:
         logger.info("Installing WSL2 and Ubuntu distribution...")
         wsl_executable = resolve_wsl_executable(required=True)
-        cmd = [wsl_executable, "--install", "-d", "Ubuntu"]
-        if safe_subprocess_run:
+        cmd = [str(wsl_executable), "--install", "-d", "Ubuntu"]
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, check=True, timeout=120.0)
         else:
             subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=120.0)
@@ -108,7 +125,7 @@ def install_ui_dependencies() -> None:
 
     try:
         cmd_ver = [sys.executable, "-m", "pip", "--version"]
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd_ver, check=True, timeout=10.0)
         else:
             subprocess.run(cmd_ver, check=True, capture_output=True, timeout=10.0)
@@ -117,14 +134,20 @@ def install_ui_dependencies() -> None:
         logger.warning("WSL Fix: Run 'sudo apt-get update && sudo apt-get install -y python3-pip' in your WSL terminal.")
         sys.exit(1)
 
-    required_packages = ["ipywidgets>=8.0.0", "psutil", "jupyterlab"]
+    required_packages = ["ipywidgets>=8.0.0", "psutil", "jupyterlab", "pydantic>=2.0.0"]
 
     try:
         cmd_inst = [sys.executable, "-m", "pip", "install", "--user"] + required_packages
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd_inst, check=True, timeout=120.0)
         else:
             subprocess.run(cmd_inst, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', timeout=120.0)
+        
+        # Invalidate caches so the newly installed pydantic is available for import in the current process
+        import importlib
+        import site
+        importlib.invalidate_caches()
+        
         logger.info("UI Dependencies satisfied.")
     except Exception as e:
         logger.error(f"FATAL: Failed to provision UI packages. Error: {e}")
@@ -133,22 +156,33 @@ def install_ui_dependencies() -> None:
 
 def register_interaction_state(artifact_dir: Path) -> None:
     """Updates the Golden Registry to confirm WSL Interaction provisioning."""
+    
+    from pydantic import BaseModel, Field
+    
+    class InteractionRegistry(BaseModel):
+        interaction_environment: Optional[str] = None
+        calculation_environment: Optional[str] = None
+        interaction_ready: Optional[bool] = None
+        silos: Dict[str, Any] = Field(default_factory=dict)
+        
     registry_path = artifact_dir / "Registry" / "cochem_system_config.json"
 
     if registry_path.exists():
-        with open(registry_path, 'r', encoding='utf-8') as f:
-            try:
-                registry = json.loads(f.read())
-            except json.JSONDecodeError:
-                registry = {"interaction_environment": None, "calculation_environment": None, "silos": {}}
+        try:
+            with open(registry_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                registry = InteractionRegistry.model_validate_json(content)
+        except Exception as e:
+            logger.warning(f"Failed to parse existing registry, creating new. Error: {e}")
+            registry = InteractionRegistry()
     else:
-        registry = {"interaction_environment": None, "calculation_environment": None, "silos": {}}
+        registry = InteractionRegistry()
 
-    registry["interaction_environment"] = "Local-Windows (WSL)"
-    registry["interaction_ready"] = True
+    registry.interaction_environment = "Local-Windows (WSL)"
+    registry.interaction_ready = True
 
     with open(registry_path, 'w', encoding='utf-8') as f:
-        json.dump(registry, f, indent=4)
+        f.write(registry.model_dump_json(indent=4))
 
     logger.info(f"Interaction State locked into Golden Registry: {registry_path}")
 

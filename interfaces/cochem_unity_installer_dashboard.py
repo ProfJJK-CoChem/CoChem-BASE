@@ -5,6 +5,7 @@ Provides the interactive GUI and pure-Python deployment logic for provisioning C
 Fully integrates the 14-repository ecosystem, Host ORCA verification, and Air-Gap Zip Sideloading.
 Now utilizes decoupled Interaction and Calculation OS-native matrices instead of Docker.
 """
+import atexit
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ from typing import Any, Dict, List, Tuple
 import ipywidgets as widgets
 import psutil
 from IPython.display import clear_output, display
+from pydantic import BaseModel, Field
 
 from cochem_base.config_loader import get_artifact_dir, get_base_root, resolve_executable
 
@@ -33,10 +35,38 @@ try:
         safe_subprocess_run,
     )
 except ImportError:
-    safe_subprocess_run = None
-    register_popen_process = None
+    safe_subprocess_run: Any = None  # type: ignore
+    register_popen_process: Any = None  # type: ignore
 
-ECOSYSTEM_REGISTRY = {
+def _cleanup_zombie_processes() -> None:
+    try:
+        current_process = psutil.Process(os.getpid())
+        children = current_process.children(recursive=True)
+        for child in children:
+            try:
+                child.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        gone, alive = psutil.wait_procs(children, timeout=3)
+        for p in alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except Exception as e:
+        logger.error(f"Zombie sweep failed: {e}")
+
+atexit.register(_cleanup_zombie_processes)
+
+class DeploymentManifest(BaseModel):
+    version: str
+    git_provenance_hash: str
+    interaction_environment: str
+    calculation_environment: str
+    orca_tarball_path: str
+    selected_repositories: List[str]
+
+ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
     "CoChem-CORE": {"desc": "Foundational registry, memory routing, and OS-level hardware guards.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE", "mandatory": True},
     "CoChem-TOPOS": {"desc": "Topological mapping, alignment, and geometry escalation.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS", "mandatory": True},
     "CoChem-TORQ": {"desc": "Torsional Discovery and Statistical Mechanics.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ", "mandatory": True},
@@ -97,11 +127,11 @@ class SynapInstallerGUI:
         try:
             git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
             command = [git_executable, "rev-parse", "HEAD"]
-            if safe_subprocess_run:
+            if safe_subprocess_run is not None:
                 res = safe_subprocess_run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
             else:
                 res = subprocess.run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
-            return res.stdout.strip()[:16]
+            return res.stdout.strip()[:16]  # type: ignore
         except Exception:
             build_hash_file = get_base_root() / ".build_hash"
             if build_hash_file.exists():
@@ -141,18 +171,22 @@ class SynapInstallerGUI:
         inp = verify_dir / "verify_orca.inp"
         inp.write_text("! SP STO-3G\n*xyz 0 1\nHe 0 0 0\n*\n", encoding="utf-8")
         try:
-            if safe_subprocess_run:
-                result = safe_subprocess_run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)
+            if safe_subprocess_run is not None:
+                result = safe_subprocess_run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=True)
             else:
-                result = subprocess.run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)  # check=True
+                result = subprocess.run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=True)
             stdout_upper = (result.stdout or "").upper()
             out_file = verify_dir / "verify_orca.out"
             out_text = out_file.read_text(errors="replace").upper() if out_file.exists() else ""
             markers = ["ORCA TERMINATED NORMALLY", "O   R   C   A", "O R C A"]
-            if result.returncode == 0 and any(m in stdout_upper or m in out_text for m in markers):
+            if any(m in stdout_upper or m in out_text for m in markers):
                 with self.status_out:
                     logger.info(f"ORCA verification passed via: {candidate}")
                 return True
+            return False
+        except subprocess.CalledProcessError as e:
+            with self.status_out:
+                logger.error(f"ORCA execution failed (exit code {e.returncode}). Check output/errors.")
             return False
         except Exception as e:
             with self.status_out:
@@ -254,7 +288,7 @@ class SynapInstallerGUI:
                         bash = resolve_executable(env_var="BASH_CMD", candidates=("bash",))
                         cmd = [bash, "-c", f'"{curl}" -fsSL https://antigravity.google/cli/install.sh | "{bash}"']
                     try:
-                        if safe_subprocess_run:
+                        if safe_subprocess_run is not None:
                             safe_subprocess_run(cmd, env=clean_env, check=True, timeout=120.0)
                         else:
                             subprocess.run(cmd, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
@@ -270,7 +304,7 @@ class SynapInstallerGUI:
                 if (target_dir / ".git").exists():
                     log_msg(f"🔄 Updating existing module: {mod}")
                     try:
-                        if safe_subprocess_run:
+                        if safe_subprocess_run is not None:
                             safe_subprocess_run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
                         else:
                             subprocess.run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
@@ -306,8 +340,8 @@ class SynapInstallerGUI:
                     if not sideload_success:
                         log_msg(f"📥 Deep cloning {mod} from {repo_url}...")
                         try:
-                            if safe_subprocess_run:
-                                safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
+                            if safe_subprocess_run is not None:
+                                safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)  # type: ignore
                             else:
                                 subprocess.run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
                             log_msg(f"  ✅ Cloned {mod} successfully.")
@@ -329,7 +363,7 @@ class SynapInstallerGUI:
                         stderr=subprocess.STDOUT,
                         text=True, bufsize=1, env=clean_env
                     )
-                    if register_popen_process:
+                    if register_popen_process is not None:
                         register_popen_process(process)
 
                     if process.stdout:
@@ -366,17 +400,19 @@ class SynapInstallerGUI:
         host_orca_path = self.host_orca_path.value.strip()
         host_orca_verified = False
 
-        manifest_payload = {
-            "version": "2026.2",
-            "git_provenance_hash": self._get_git_hash(),
-            "interaction_environment": self.interact_target.value,
-            "calculation_environment": self.calc_target.value,
-            "orca_tarball_path": host_orca_path,
-            "selected_repositories": selected_modules
-        }
+        manifest_model = DeploymentManifest(
+            version="2026.2",
+            git_provenance_hash=self._get_git_hash(),
+            interaction_environment=self.interact_target.value,
+            calculation_environment=self.calc_target.value,
+            orca_tarball_path=host_orca_path,
+            selected_repositories=selected_modules
+        )
 
         with open(self.manifest_file, 'w', encoding="utf-8") as f:
-            json.dump(manifest_payload, f, indent=4)
+            f.write(manifest_model.model_dump_json(indent=4))
+            
+        manifest_payload = manifest_model.model_dump()
 
         with self.status_out:
             logger.info(f"Matrix Selections locked securely in: {self.manifest_file}")

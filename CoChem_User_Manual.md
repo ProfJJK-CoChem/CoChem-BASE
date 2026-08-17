@@ -414,7 +414,7 @@ For homolytic dissociation profiles, MLFFs regularly exhibit spurious attractive
 Equivariant message-passing MLFFs (like MACE/NequIP) possess finite radial cutoffs (typically $R_c = 5.0$ \AA). Consequently, they are entirely blind to long-range electron correlation, primarily London dispersion forces which decay as $C_6 / r^6$.
 For users attempting to scan non-covalent interactions (dimer interaction energies, $\pi$-stacking), CoChem automatically injects a classical empirical dispersion term (Grimme's D4 or D3BJ).
 $$ E_{total} = E_{MLFF} + E_{disp}^{D4} $$
-The D4 correction computes geometry-dependent dynamic polarizabilities via Casimir-Polder integral approximations. If `UseDispersion = False` is explicitly specified during an NCI scan, the user is warned that the PES will resolve as a strictly repulsive wall.
+The D4 correction computes geometry-dependent dynamic polarizabilities via Casimir-Polder integral approximations. If `UseDispersion = False` is explicitly specified during an NCI scan, the calculation is rigorously rejected to prevent resolving a strictly repulsive wall.
 
 ---
 
@@ -430,6 +430,8 @@ $$ \mathcal{L}(\mathbf{q}, \lambda) = E(\mathbf{q}) - \lambda (q_s - q_{target})
 CoChem employs a Rational Function Optimization (RFO) step algorithm rather than basic steepest descent. The RFO formulation maps the Taylor expansion of the PES onto a rational function approximation (a Padé approximant), ensuring stability when the PES possesses large anharmonicities or negative curvatures. The update step $\Delta \mathbf{x}$ is found by solving the augmented eigenvalue problem:
 $$ \begin{pmatrix} \mathbf{H} & \mathbf{g} \\ \mathbf{g}^T & 0 \end{pmatrix} \begin{pmatrix} \Delta \mathbf{x} \\ 1 \end{pmatrix} = \nu \begin{pmatrix} \Delta \mathbf{x} \\ 1 \end{pmatrix} $$
 where $\mathbf{H}$ is the approximate Hessian matrix and $\mathbf{g}$ is the analytical gradient.
+
+Optimization loops must start on loose integration grids (defgrid1) and dynamically tighten (defgrid3) only near the energy minimum. The older Grid3/Grid5 terminology is deprecated and explicitly forbidden.
 
 **Hessian Updating via BFGS:**
 As the geometry steps along the PES, computing the exact analytical $\mathbf{H}$ at every step is prohibitively expensive ($O(N^4)$ for MP2/DFT). CoChem utilizes the BFGS (Broyden–Fletcher–Goldfarb–Shanno) secant update formula to evolve the Hessian iteratively:
@@ -506,11 +508,11 @@ The `TOPOS`, `SCAN`, and `TORQ` modules are rigidly controlled via the `%geom` b
   # --- TORQ (Optimization Engine) ---
   OptType = TS              # Options: Min, TS, NEB, IRC
   HessDiag = Lanczos        # Options: Dense, Davidson, Lanczos
-  Calc_Hess = Every 10      # Analytically compute Hessian every N steps
+  InHess = XTB2             # Precondition Hessian via XTB2 or Lindh. Never use Calc_Hess true.
   MaxStep = 0.1             # Trust radius for the step in Bohr
   MaxIter = 300
   TolE = 1e-6               # Energy convergence limit (Eh)
-  TolMAXG = 3e-4            # Max Gradient limit (Eh/Bohr)
+  TolMAXG = 3e-4            # Max Gradient limit (Eh/Bohr). Use 1e-5 for weak complexes.
   TolRMSX = 6e-4            # RMS displacement limit (Bohr)
 end
 ```

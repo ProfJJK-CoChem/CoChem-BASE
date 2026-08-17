@@ -13,30 +13,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    from pydantic import BaseModel, Field, ValidationError
+except ImportError:
+    print("[MISSING DATA] Pydantic dependency missing.")
+    raise
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-IngestionEngine")
 
-try:
-    from pydantic import BaseModel, Field, ValidationError
-    HAS_PYDANTIC = True
-except ImportError:
-    HAS_PYDANTIC = False
-    logger.warning("pydantic not found. Ingestion falling back to native dictionaries.")
 
+class AtomNode(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=2)
+    x: float
+    y: float
+    z: float
 
-if HAS_PYDANTIC:
-    class AtomNode(BaseModel):
-        symbol: str = Field(..., min_length=1, max_length=2)
-        x: float
-        y: float
-        z: float
-
-    class MolecularGraph(BaseModel):
-        filename: str
-        atoms: List[AtomNode]
-        total_atoms: int
-        net_charge: int = Field(default=0)
-        multiplicity: int = Field(default=1)
+class MolecularGraph(BaseModel):
+    filename: str
+    atoms: List[AtomNode]
+    total_atoms: int
+    net_charge: int = Field(default=0)
+    multiplicity: int = Field(default=1)
 
 
 class IngestionEngine:
@@ -82,12 +80,11 @@ class IngestionEngine:
                 "multiplicity": 1
             }
 
-            if HAS_PYDANTIC:
-                try:
-                    MolecularGraph(**graph_data)
-                except ValidationError as ve:
-                    logger.error(f"Validation failed for {file_path.name}: {ve}")
-                    return None
+            try:
+                MolecularGraph(**graph_data)  # type: ignore
+            except ValidationError as ve:
+                logger.error(f"Validation failed for {file_path.name}: {ve}")
+                return None
 
             return graph_data
 
@@ -95,7 +92,7 @@ class IngestionEngine:
             logger.error(f"Failed to read {file_path.name}: {e}")
             return None
 
-    def process_batch(self, input_dir: str) -> List[Dict[str, Any]]:
+    def process_batch(self, input_dir: str | Path) -> List[Dict[str, Any]]:
         """
         Executes bounded multithreaded ingestion to protect RAM against
         directories containing tens of thousands of conformers.
@@ -125,28 +122,3 @@ class IngestionEngine:
 
         logger.info(f"Batch ingestion complete. Yielded {len(valid_graphs)} valid molecular graphs.")
         return valid_graphs
-
-
-if __name__ == "__main__":
-    logger.info(">>> Testing Ingestion Engine...")
-
-    test_dir = Path("mock_input")
-    test_dir.mkdir(exist_ok=True)
-
-    mock_xyz = test_dir / "water.xyz"
-    with open(mock_xyz, "w", encoding="utf-8") as f:
-        f.write("3\nWater molecule\nO 0.000 0.000 0.117\nH 0.000 0.757 -0.469\nH 0.000 -0.757 -0.469\n")
-
-    mock_bad_xyz = test_dir / "bad.xyz"
-    with open(mock_bad_xyz, "w", encoding="utf-8") as f:
-        f.write("2\nBad file\nC 0.0 0.0\n")
-
-    engine = IngestionEngine()
-    results = engine.process_batch(str(test_dir))
-
-    logger.info(f"[RESULT] Successfully parsed {len(results)} out of 2 files.")
-    if results:
-        logger.info(f"[DATA] First valid geometry: {results[0]['filename']} ({results[0]['total_atoms']} atoms)")
-
-    import shutil
-    shutil.rmtree(test_dir)

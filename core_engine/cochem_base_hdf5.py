@@ -1,20 +1,25 @@
 """HDF5 Ontology Enforcer for CoChem Base metadata validation."""
 
+import logging
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Type, TypeVar, Union
 
 import h5py
 import numpy as np
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from cochem_base.config_loader import get_artifact_dir, get_state_file_path, resolve_mapped_path
 from cochem_base.core.models import CoChemConfig
 
+T = TypeVar("T", bound=BaseModel)
+
 
 class BasinRecord(BaseModel):
     """Pydantic model for HDF5 Basin Record schema enforcement."""
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     molecule_name: str = Field(..., description="Name or identifier of the molecule")
-    xyz_coordinates: Optional[Any] = Field(None, description="Atomic coordinates tensor or list")
+    xyz_coordinates: Optional[Union[list[Any], np.ndarray[Any, Any]]] = Field(None, description="Atomic coordinates tensor or list")
     energy: float = Field(..., description="Total energy of the basin")
     symmetry_group: str = Field(default="C1", description="Point group symmetry")
     LAM_TRIGGER_REQUIRED: bool = Field(default=False, description="Large Amplitude Motion trigger flag")
@@ -24,14 +29,14 @@ class HDF5OntologyEnforcer:
     """Enforces dynamic schema validation on payload metadata before writing to HDF5 store."""
 
     def __init__(self, hdf5_path: Optional[Union[str, Path]] = None) -> None:
-        self.hdf5_path = (
+        self.hdf5_path: Path = (
             resolve_mapped_path(hdf5_path, get_artifact_dir())
             if hdf5_path is not None
             else get_state_file_path()
         )
         self.hdf5_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def validate_payload(self, payload: Dict[str, Any], model_cls: Any = BasinRecord) -> Any:
+    def validate_payload(self, payload: Dict[str, Any], model_cls: Type[T]) -> T:
         """Validate payload dict against the specified Pydantic model class.
 
         Raises ValueError if schema validation fails.
@@ -39,6 +44,7 @@ class HDF5OntologyEnforcer:
         try:
             return model_cls(**payload)
         except ValidationError as exc:
+            logging.error(f"HDF5 metadata schema validation failed: {exc}")
             raise ValueError(f"HDF5 metadata schema validation failed: {exc}") from exc
 
     def write_record(self, group_path: str, data: Dict[str, Any]) -> None:
@@ -65,11 +71,12 @@ class HDF5OntologyEnforcer:
     ) -> None:
         """Validates payload against BasinRecord or CoChemConfig model and commits dataset + attributes to HDF5."""
         try:
-            validated: Any = BasinRecord(**metadata_payload)
+            validated: Union[BasinRecord, CoChemConfig] = BasinRecord(**metadata_payload)
         except ValidationError:
             try:
                 validated = CoChemConfig(**metadata_payload)
             except ValidationError as exc:
+                logging.error(f"HDF5 metadata schema validation failed: {exc}")
                 raise ValueError(f"HDF5 metadata schema validation failed: {exc}") from exc
 
         with h5py.File(self.hdf5_path, "a") as h5f:

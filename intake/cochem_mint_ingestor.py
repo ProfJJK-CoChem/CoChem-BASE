@@ -28,7 +28,7 @@ logger = logging.getLogger("CoChem-MInt")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
 
 # --- Dynamic Dependency Trap ---
 try:
@@ -39,7 +39,7 @@ except ImportError:
     logger.info("'watchdog' library missing. Triggering inline installation...")
     try:
         cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, timeout=60.0, check=True)
         else:
             subprocess.run(cmd, check=True, timeout=60.0, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -108,7 +108,7 @@ class CoChemMIntUI:
 
         workspace_path = self.artifact_dir / proj_name
         workspace_path.mkdir(parents=True, exist_ok=True)
-        return workspace_path
+        return workspace_path  # type: ignore
 
     def _build_ui(self) -> None:
         """Constructs the Jupyter VBox interface."""
@@ -195,7 +195,7 @@ class CoChemMIntUI:
                     f.write(content)
                 self._ui_log(f"📥 Saved geometry: {f_name} -> {workspace}/")
 
-            except Exception as e:
+            except (IOError, OSError, KeyError, AttributeError) as e:
                 self._ui_log(f"❌ Error saving file: {e}")
 
         self.file_upload.value = ()
@@ -218,8 +218,14 @@ class CoChemMIntUI:
             return
 
         try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
+            import typing
+            if typing.TYPE_CHECKING:
+                from typing import Any
+                Chem: Any = None
+                AllChem: Any = None
+            else:
+                from rdkit import Chem  # type: ignore
+                from rdkit.Chem import AllChem  # type: ignore
         except ImportError:
             self._ui_log("❌ Error: RDKit is not installed in the active micro-silo.")
             self._ui_log("   Please execute 'conda install -c conda-forge rdkit' or route through the PLAY environment.")
@@ -231,28 +237,21 @@ class CoChemMIntUI:
         if not any(char in target_name for char in ['=', '#', '(', ')', '[', ']', '1', '2']):
             self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via PubChem...")
             try:
-                import asyncio
-
-                import aiohttp
-                async def fetch_pubchem(name: str) -> str:
-                    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(name)}/property/IsomericSMILES/JSON"
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(url) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                return data['PropertyTable']['Properties'][0]['IsomericSMILES']
-                            else:
-                                raise Exception("PubChem resolution failed.")
-
-                try:
-                    loop = asyncio.get_running_loop()
-                    smiles = loop.run_until_complete(fetch_pubchem(target_name))
-                except RuntimeError:
-                    smiles = asyncio.run(fetch_pubchem(target_name))
-
-                self._ui_log(f"✅ Resolved to SMILES: {smiles}")
-            except Exception:
-                self._ui_log(f"❌ API Fetch Failed for '{target_name}'. Please manually enter a valid SMILES string.")
+                import json
+                import urllib.error
+                import urllib.parse
+                import urllib.request
+                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(target_name)}/property/IsomericSMILES/JSON"
+                req = urllib.request.Request(url, headers={'User-Agent': 'CoChem/1.0'})
+                with urllib.request.urlopen(req, timeout=15.0) as response:
+                    if response.status == 200:
+                        data = json.loads(response.read().decode('utf-8'))
+                        smiles = data['PropertyTable']['Properties'][0]['IsomericSMILES']
+                        self._ui_log(f"✅ Resolved to SMILES: {smiles}")
+                    else:
+                        raise ValueError(f"PubChem returned status {response.status}")
+            except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError) as e:
+                self._ui_log(f"❌ API Fetch Failed for '{target_name}': {e}. Please manually enter a valid SMILES string.")
                 return
 
         mol = Chem.MolFromSmiles(smiles)
@@ -268,13 +267,9 @@ class CoChemMIntUI:
         params.useRandomCoords = False
         AllChem.EmbedMolecule(mol, params)
 
-        self._ui_log("➡️ Relaxing steric clashes (GFN2-xTB Triage & Eckart Alignment)...")
-        import importlib.util
-        if importlib.util.find_spec("ase") and importlib.util.find_spec("xtb"):
-            # Placeholder for xTB relaxation
-            AllChem.MMFFOptimizeMolecule(mol)
-        else:
-            AllChem.MMFFOptimizeMolecule(mol)
+        self._ui_log("➡️ Relaxing initial geometry (MMFF94)...")
+        # RDKit MMFF94 is used strictly as an initial embedding guess prior to CREST/ORCA GOAT
+        AllChem.MMFFOptimizeMolecule(mol)
 
         ws = self.current_workspace
         safe_name = "".join([c if c.isalnum() else "_" for c in target_name])
@@ -301,9 +296,9 @@ class CoChemMIntUI:
         else:
             self._ui_log(f"Starting Watchdog Daemon on {workspace}...")
             event_handler = IngestionWatchdog(self._ui_log)
-            self.observer = Observer()
-            self.observer.schedule(event_handler, str(workspace), recursive=False)
-            self.observer.start()
+            self.observer = Observer()  # type: ignore
+            self.observer.schedule(event_handler, str(workspace), recursive=False)  # type: ignore
+            self.observer.start()  # type: ignore
             self.btn_watch.description = "Stop Watchdog"
             self.btn_watch.button_style = "danger"
 

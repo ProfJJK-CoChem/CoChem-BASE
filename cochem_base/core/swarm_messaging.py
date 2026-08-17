@@ -11,17 +11,17 @@ class MPIBroadcastManager:
     Manages and tracks messaging limits across a computational swarm
     to prevent broadcast floods.
     """
-    def __init__(self, max_broadcasts: int = 100, window_seconds: float = 60.0):
+    def __init__(self, max_broadcasts: int = 100, window_seconds: float = 60.0) -> None:
         if max_broadcasts <= 0:
             raise ValueError("max_broadcasts must be > 0.")
         if window_seconds <= 0:
             raise ValueError("window_seconds must be > 0.")
 
-        self.max_broadcasts = max_broadcasts
-        self.window_seconds = window_seconds
-        self.broadcast_timestamps = []
+        self.max_broadcasts: int = max_broadcasts
+        self.window_seconds: float = window_seconds
+        self.broadcast_timestamps: list[float] = []
 
-    def _cleanup_old_records(self, current_time: float):
+    def _cleanup_old_records(self, current_time: float) -> None:
         """Remove broadcast records that fall outside the time window."""
         cutoff = current_time - self.window_seconds
         self.broadcast_timestamps = [t for t in self.broadcast_timestamps if t > cutoff]
@@ -48,14 +48,14 @@ class MPIBroadcastManager:
         self._cleanup_old_records(time.time())
         return len(self.broadcast_timestamps)
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset the broadcast tracker."""
         self.broadcast_timestamps.clear()
 
 class OutOfMemoryGateError(RuntimeError):
     """Raised when memory allocation exceeds the permitted gate limits."""
 
-def allocate_swarm_matrix(rows: int, cols: int, max_bytes: int):
+def allocate_swarm_matrix(rows: int, cols: int, max_bytes: int) -> np.ndarray:
     """
     Allocates a swarm matrix structure, verifying memory limits.
     Assuming 8 bytes per float64 element.

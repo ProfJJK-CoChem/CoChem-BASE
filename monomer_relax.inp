@@ -1,4 +1,3 @@
-! r2SCAN-3c DIIS
 %maxcore 2000
 
 %output
@@ -9,7 +8,7 @@
     MaxIter 300
 %end
 
-! r2SCAN-3c TightOPT TightSCF
+! r2SCAN-3c TightOPT TightSCF DIIS defgrid3
 %geom
   InHess XTB2
   TolE 1e-7
@@ -18,10 +17,8 @@
   TolRMSD 5e-5
   TolMaxD 1e-4
   Constraints
-    { B 0 2 C }
-    { B 0 3 C }
-    { B 1 2 C }
-    { B 1 3 C }
+    { B 0 1 C }
+    { B 2 3 C }
   end
 end
 

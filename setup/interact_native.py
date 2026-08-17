@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """Provision the CoChem interaction layer on native macOS and Linux hosts."""
 
@@ -8,7 +9,9 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any
+
+from pydantic import BaseModel, ConfigDict
 
 from cochem_base.config_loader import get_artifact_dir
 
@@ -18,7 +21,7 @@ logger = logging.getLogger("CoChem-InteractNative")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
 
 
 PACKAGE_MAP: Dict[str, str] = {
@@ -26,6 +29,12 @@ PACKAGE_MAP: Dict[str, str] = {
     "psutil": "psutil",
     "jupyterlab": "jupyterlab",
 }
+
+
+class SystemConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    interaction_environment: str | None = None
+    interaction_ready: bool | None = None
 
 
 def interaction_environment() -> str:
@@ -54,24 +63,39 @@ def install_missing_ui_dependencies() -> None:
     if not missing:
         return
     command = [sys.executable, "-m", "pip", "install", *missing]
-    if safe_subprocess_run:
-        safe_subprocess_run(command, check=True, timeout=300.0)
+    if safe_subprocess_run is not None:
+        try:
+            safe_subprocess_run(command, check=True, timeout=300.0)
+        except Exception as e:
+            logger.error(f"Subprocess broker failed during dependency installation: {e}")
+            sys.exit(1)
     else:
-        subprocess.run(command, check=True, timeout=300.0)
+        try:
+            subprocess.run(command, check=True, timeout=300.0)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Dependency installation failed with code {e.returncode}: {e}")
+            sys.exit(1)
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"Dependency installation timed out: {e}")
+            sys.exit(1)
 
 
 def register_interaction_state(artifact_dir: Path, environment: str) -> None:
     registry_path = artifact_dir / "Registry" / "cochem_system_config.json"
     if registry_path.exists():
         try:
-            registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            registry = {}
+            raw_data = json.loads(registry_path.read_text(encoding="utf-8"))
+            registry = SystemConfig(**raw_data)
+        except (json.JSONDecodeError, OSError, ValueError) as e:
+            logger.warning(f"Failed to load existing registry, starting fresh. Reason: {e}")
+            registry = SystemConfig()
     else:
-        registry = {}
-    registry["interaction_environment"] = environment
-    registry["interaction_ready"] = True
-    registry_path.write_text(json.dumps(registry, indent=2), encoding="utf-8")
+        registry = SystemConfig()
+        
+    registry.interaction_environment = environment
+    registry.interaction_ready = True
+    
+    registry_path.write_text(registry.model_dump_json(indent=2), encoding="utf-8")
 
 
 def run_interaction_setup() -> None:

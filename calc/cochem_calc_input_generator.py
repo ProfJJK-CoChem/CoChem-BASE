@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
 
@@ -29,14 +29,12 @@ class MoleculeInput(BaseModel):
     is_weak_complex: bool = Field(default=False, description="Is this a weak intermolecular complex?")
     is_opt: bool = Field(default=True, description="Is this a geometry optimization?")
 
-    @field_validator("theory_level")
-    @classmethod
-    def validate_dispersion(cls, v: str, info: Any) -> str:
-        data = info.data
-        if data.get("is_weak_complex", False):
-            if "D3" not in v.upper() and "D4" not in v.upper():
+    @model_validator(mode="after")
+    def validate_dispersion(self) -> "MoleculeInput":
+        if self.is_weak_complex:
+            if "D3" not in self.theory_level.upper() and "D4" not in self.theory_level.upper():
                 raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
-        return v
+        return self
 
     @field_validator("multiplicity")
     @classmethod
@@ -56,8 +54,7 @@ def load_system_config() -> Dict[str, Any]:
     try:
         return load_system_config_dict()
     except Exception as e:
-        logger.warning(f"Could not load system config: {e}. Fallback defaults used.")
-        return {"hardware": {"maxcore_mb": 4000, "physical_cpu_cores": 4}}
+        raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
 
 def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
     """
@@ -69,8 +66,10 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     - Method Matrix Compliance (Grids, Dispersion, Hessians)
     """
     config = load_system_config()
-    maxcore = config.get("hardware", {}).get("maxcore_mb", 4000)
-    nprocs = config.get("hardware", {}).get("physical_cpu_cores", 4)
+    if "hardware" not in config or "maxcore_mb" not in config["hardware"] or "physical_cpu_cores" not in config["hardware"]:
+        raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb or physical_cpu_cores.")
+    maxcore = config["hardware"]["maxcore_mb"]
+    nprocs = config["hardware"]["physical_cpu_cores"]
 
     # Transition metal check for tight grid override
     transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
@@ -83,7 +82,7 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     grid_keyword = "defgrid3" if needs_tight_grid else "defgrid1"
 
     coord_block = []
-    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=False):
+    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
         coord_block.append(f"  {el:<4} {x:14.8f} {y:14.8f} {z:14.8f}")
     coord_str = "\n".join(coord_block)
 

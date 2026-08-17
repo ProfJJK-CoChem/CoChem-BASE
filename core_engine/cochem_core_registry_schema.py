@@ -7,7 +7,7 @@ type errors, or unmapped hardware states.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -123,7 +123,7 @@ class CoChemConfig(BaseModel):
     orca_version: Optional[str] = Field(default="6.1.1")
     rdkit_random_seed: Optional[int] = Field(default=42)
     registry_checksum: Optional[str] = Field(default="")
-    last_updated: Optional[str] = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    last_updated: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     hardware: HardwareConfig
     engines: Union[Dict[str, Any], EnginePaths] = Field(default_factory=dict)
     silos: Optional[SiloConfig] = Field(default=None, description="Deprecated/optional silos config")
@@ -143,14 +143,26 @@ if __name__ == "__main__":
                 return EngineInfo(status="found", path=str(p), version="auto", hash="auto")
             return EngineInfo(status="missing", path=None, version=None, hash=None)
 
-        mock_hw = HardwareConfig(
-            physical_cpu_cores=8,
-            logical_cpu_cores=16,
-            ram_gb=32.0,
-            avx512_support=True,
-            gpu_profile="NVIDIA RTX 4090",
-            vram_gb=24.0,
-            os_target="linux_x86_64"
+        import os
+        import platform
+        try:
+            import psutil
+            total_ram_gb = psutil.virtual_memory().total / (1024**3)
+            phys_cores = psutil.cpu_count(logical=False) or 1
+            log_cores = psutil.cpu_count(logical=True) or 1
+        except ImportError:
+            total_ram_gb = 16.0
+            phys_cores = os.cpu_count() or 1
+            log_cores = os.cpu_count() or 1
+
+        system_hw = HardwareConfig(
+            physical_cpu_cores=phys_cores,
+            logical_cpu_cores=log_cores,
+            ram_gb=total_ram_gb,
+            avx512_support=False,
+            gpu_profile="None",
+            vram_gb=0.0,
+            os_target=platform.system().lower()
         )
         active_engines = EnginePaths(
             orca=discover_engine("orca"),
@@ -158,7 +170,7 @@ if __name__ == "__main__":
             xtb=discover_engine("xtb")
         )
         master = CoChemConfig(
-            hardware=mock_hw,
+            hardware=system_hw,
             engines=active_engines,
             silos=SiloConfig(torq_silo_active=True)
         )

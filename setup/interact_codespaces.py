@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 CoChem-BASE Stage 0.2a: Interaction Environment Setup (Codespaces)
@@ -10,8 +11,9 @@ import logging
 import os
 import subprocess
 import sys
+import atexit
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Any
 
 from cochem_base.config_loader import get_artifact_dir
 
@@ -21,7 +23,26 @@ logger = logging.getLogger("CoChem-InteractCodespaces")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
+
+
+def cleanup_zombies() -> None:
+    """Sweep zombie processes spawned by this script."""
+    try:
+        import psutil
+        current_proc = psutil.Process()
+        children = current_proc.children(recursive=True)
+        for child in children:
+            try:
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    child.terminate()
+                    child.wait(timeout=3)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
+                pass
+    except ImportError:
+        pass  # psutil not yet installed
+
+atexit.register(cleanup_zombies)
 
 
 def verify_codespace_kernel() -> bool:
@@ -50,18 +71,24 @@ def provision_airgap_directories() -> Path:
 
 def install_ui_dependencies() -> None:
     """Bootstraps missing pip dependencies for the Codespace UI."""
-    required_packages = ["ipywidgets>=8.0.0", "psutil", "jupyterlab"]
+    required_packages = ["ipywidgets>=8.0.0", "psutil", "jupyterlab", "pydantic"]
     logger.info("Bootstrapping Codespace Interaction UI Dependencies...")
 
     try:
         cmd = [sys.executable, "-m", "pip", "install", "--user"] + required_packages
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, check=True, timeout=120.0)
         else:
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding='utf-8', timeout=120.0)
         logger.info("UI Dependencies satisfied.")
-    except Exception as e:
-        logger.error(f"FATAL: Failed to provision UI packages. Error: {e}")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"FATAL: Subprocess failed to provision UI packages. Error: {e.stderr if hasattr(e, 'stderr') else e}")
+        sys.exit(1)
+    except subprocess.TimeoutExpired as e:
+        logger.error(f"FATAL: Subprocess timed out provisioning UI packages. Error: {e}")
+        sys.exit(1)
+    except OSError as e:
+        logger.error(f"FATAL: OS error occurred provisioning UI packages. Error: {e}")
         sys.exit(1)
 
 
@@ -84,25 +111,38 @@ def probe_hardware_memory() -> Tuple[str, float]:
 
 def register_interaction_state(artifact_dir: Path, render_mode: str, ram_gb: float) -> None:
     """Updates the Golden Registry to confirm Codespace Interaction provisioning."""
+    from pydantic import BaseModel, Field
+
+    class InteractionRegistry(BaseModel):
+        silos: dict[str, Any] = Field(default_factory=dict)
+        interaction_environment: str | None = None
+        interaction_ready: bool = False
+        ui_render_mode: str | None = None
+        codespace_ram_gb: float | None = None
+
+        model_config = {
+            "extra": "allow"
+        }
+
     registry_path = artifact_dir / "Registry" / "cochem_system_config.json"
 
+    registry_data = {}
     if registry_path.exists():
         with open(registry_path, 'r', encoding='utf-8') as f:
             try:
-                registry = json.loads(f.read())
+                registry_data = json.load(f)
             except json.JSONDecodeError:
-                registry = {}
-    else:
-        registry = {}
+                registry_data = {}
 
-    registry.setdefault("silos", {})
-    registry["interaction_environment"] = "Codespaces"
-    registry["interaction_ready"] = True
-    registry["ui_render_mode"] = render_mode
-    registry["codespace_ram_gb"] = round(ram_gb, 2)
+    config = InteractionRegistry(**registry_data)
+
+    config.interaction_environment = "Codespaces"
+    config.interaction_ready = True
+    config.ui_render_mode = render_mode
+    config.codespace_ram_gb = round(ram_gb, 2)
 
     with open(registry_path, 'w', encoding='utf-8') as f:
-        json.dump(registry, f, indent=4)
+        f.write(config.model_dump_json(indent=4))
 
     logger.info(f"Codespace Interaction State locked into Golden Registry: {registry_path}")
 

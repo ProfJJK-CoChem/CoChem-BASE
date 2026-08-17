@@ -28,7 +28,7 @@ try:
 except ImportError:
     logger.warning("SubprocessBroker not found in core_engine. Falling back to native subprocess.")
     HAS_BROKER = False
-    safe_subprocess_run = None
+    safe_subprocess_run: Any = None  # type: ignore
 
 
 class ExecutionRouter:
@@ -73,7 +73,7 @@ class ExecutionRouter:
             logger.warning(f"Engine '{target_engine}' not found in registry. Using default path.")
 
         logger.info(f"Resolved execution path for {target_engine}: {default_path}")
-        return default_path
+        return default_path  # type: ignore
 
     def _dispatch_local(self, payload_command: str, cwd: str, env: Optional[Dict[str, str]] = None, timeout: float = 300.0) -> int:
         """
@@ -86,12 +86,12 @@ class ExecutionRouter:
         if env:
             merged_env.update(env)
 
-        if HAS_BROKER and SubprocessBroker:
+        if HAS_BROKER and SubprocessBroker:  # type: ignore
             broker = SubprocessBroker(cwd=cwd, env=merged_env)
             return broker.execute(payload_command)
         else:
             try:
-                if safe_subprocess_run:
+                if safe_subprocess_run is not None:
                     res = safe_subprocess_run(payload_command, cwd=cwd, timeout=timeout, check=True, env=merged_env, shell=True)
                     return res.returncode
                 else:
@@ -142,7 +142,7 @@ class ExecutionRouter:
                 f.write(rendered_script)
             logger.info(f"Generated SLURM script: {target_sbatch}")
 
-            if safe_subprocess_run:
+            if safe_subprocess_run is not None:
                 result = safe_subprocess_run([sbatch, str(target_sbatch)], cwd=cwd, timeout=60.0, check=True)
             else:
                 result = subprocess.run([sbatch, str(target_sbatch)], capture_output=True, text=True, cwd=cwd, timeout=60.0, check=True)

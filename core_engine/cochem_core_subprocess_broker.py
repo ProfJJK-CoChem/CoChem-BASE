@@ -34,9 +34,9 @@ try:
     from core_engine.cochem_core_telemetry_logger import TelemetryLogger
 except ImportError:
     try:
-        from cochem_core_telemetry_logger import TelemetryLogger
+        from cochem_core_telemetry_logger import TelemetryLogger  # type: ignore
     except ImportError:
-        TelemetryLogger = None
+        TelemetryLogger = None  # type: ignore
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-Broker")
@@ -70,7 +70,7 @@ def cleanup_zombie_processes() -> None:
                 else:
                     proc.terminate()
                 logger.info(f"Terminated background child process PID {pid}")
-            except Exception as e:
+            except (ProcessLookupError, PermissionError, OSError) as e:
                 logger.warning(f"Failed to terminate process PID {proc.pid}: {e}")
     _GLOBAL_ACTIVE_POPEN_PROCESSES.clear()
 
@@ -110,7 +110,7 @@ def safe_subprocess_run(
     except subprocess.TimeoutExpired:
         logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
         raise
-    except Exception as e:
+    except OSError as e:
         logger.error(f"Subprocess execution error for '{cmd}': {e}")
         raise
 
@@ -123,10 +123,10 @@ class SubprocessBroker:
         self.env = env if env is not None else os.environ.copy()
         self.memory_limit_bytes = memory_limit_gb * (1024 ** 3)
 
-        if TelemetryLogger:
+        if TelemetryLogger is not None:
             self.telemetry = TelemetryLogger()
         else:
-            self.telemetry = None
+            self.telemetry = None  # type: ignore
 
         self.active_processes: List[subprocess.Popen] = []
         self._monitor_thread: Optional[threading.Thread] = None
@@ -146,7 +146,7 @@ class SubprocessBroker:
                     job_shm_dir.mkdir(parents=True, exist_ok=True)
                     logger.info(f"Allocated RAM-disk execution directory: {job_shm_dir}")
                     return job_shm_dir
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 logger.debug(f"RAM-disk check skipped: {exc}")
         # Fallback to local cwd
         logger.info("RAM-disk unavailable or insufficient. Falling back to local directory.")
@@ -159,7 +159,7 @@ class SubprocessBroker:
             return
 
         def monitor_loop() -> None:
-            while not self._stop_event.set():
+            while not self._stop_event.set():  # type: ignore
                 mem = psutil.virtual_memory()
                 if mem.available < (1024 ** 3):  # Less than 1GB free
                     logger.error(f"CRITICAL OOM IMMINENT. Available RAM: {mem.available / 1e6:.1f} MB")
@@ -183,12 +183,12 @@ class SubprocessBroker:
             try:
                 if hasattr(os, "getpgid") and hasattr(os, "killpg"):
                     pgid = os.getpgid(proc.pid)
-                    os.killpg(pgid, signal.SIGKILL)
+                    os.killpg(pgid, signal.SIGKILL)  # type: ignore
                     logger.info(f"Reaped Process Group {pgid}")
                 else:
                     proc.kill()
                     logger.info(f"Killed Process PID {proc.pid}")
-            except Exception as e:
+            except (ProcessLookupError, PermissionError, OSError) as e:
                 logger.warning(f"Reaper failed on PID {proc.pid}: {e}")
         self.active_processes.clear()
 
@@ -248,8 +248,8 @@ class SubprocessBroker:
                             logger.error("Telemetry trap triggered. Preempting process.")
                             if hasattr(os, "killpg") and hasattr(os, "getpgid"):
                                 try:
-                                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                                except Exception:
+                                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)  # type: ignore
+                                except (ProcessLookupError, PermissionError, OSError):
                                     process.terminate()
                             else:
                                 process.terminate()
@@ -276,7 +276,7 @@ class SubprocessBroker:
             logger.error("Keyboard Interrupt. Triggering Reaper.")
             self.execute_zombie_reaper()
             exit_code = -1
-        except Exception as e:
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
             logger.error(f"Dispatch Exception: {e}")
             self.execute_zombie_reaper()
             exit_code = -2
@@ -298,8 +298,26 @@ class SubprocessBroker:
                 logger.info("Syncing artifacts from RAM-disk to permanent workspace...")
                 for file_path in exec_path.iterdir():
                     if file_path.is_file():
-                        shutil.copy2(file_path, self.cwd / file_path.name)
+                        dest_path = self.cwd / file_path.name
+                        shutil.copy2(file_path, dest_path)
+                        if file_path.suffix in ('.out', '.gbw'):
+                            try:
+                                with open(dest_path, "rb") as f:
+                                    file_hash = hashlib.sha256(f.read()).hexdigest()
+                                logger.info(f"Generated SHA-256 hash for {file_path.name}: {file_hash} [M]")
+                            except OSError as err:
+                                logger.warning(f"Failed to hash {file_path.name}: {err}")
                 shutil.rmtree(exec_path, ignore_errors=True)
+            else:
+                if self.cwd.exists():
+                    for file_path in self.cwd.iterdir():
+                        if file_path.is_file() and file_path.suffix in ('.out', '.gbw'):
+                            try:
+                                with open(file_path, "rb") as f:
+                                    file_hash = hashlib.sha256(f.read()).hexdigest()
+                                logger.info(f"Generated SHA-256 hash for {file_path.name}: {file_hash} [M]")
+                            except OSError as err:
+                                logger.warning(f"Failed to hash {file_path.name}: {err}")
 
         return exit_code
 

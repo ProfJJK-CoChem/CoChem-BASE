@@ -1,16 +1,20 @@
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 
-import cochem_base.config_loader as config_loader
-from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
-from setup.cochem_base_setup import _launch_silo_setup
-
-BASE_ROOT = Path("d:/__CoChem/GitHub-Repo/CoChem-BASE").resolve()
+BASE_ROOT = Path(__file__).resolve().parent
 if str(BASE_ROOT) not in sys.path:
     sys.path.insert(0, str(BASE_ROOT))
 os.environ['COCHEM_BASE_ROOT'] = str(BASE_ROOT)
+
+import cochem_base.config_loader as config_loader  # noqa: E402
+from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path  # noqa: E402
+from setup.cochem_base_setup import _launch_silo_setup  # noqa: E402
+
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger(__name__)
 
 resolve_conda_executable = config_loader.resolve_conda_executable
 
@@ -20,7 +24,7 @@ def _map_artifact_dir(value: str) -> Path:
     os.environ["COCHEM_ARTIFACT_DIR"] = str(artifact_dir)
     return artifact_dir
 
-print("--- TASK 1: New Install -> Create & Provision ---")
+logger.info("--- TASK 1: New Install -> Create & Provision ---")
 artifact_dir = _map_artifact_dir(str(get_artifact_dir()))
 cfg_path = BASE_ROOT / ".cochem_env.json"
 cfg = {"artifact_dir": str(artifact_dir)}
@@ -30,18 +34,19 @@ with open(cfg_path, "w", encoding="utf-8") as f:
 
 
 
-print(f"Launching silo setup script for {artifact_dir}...")
+logger.info(f"Launching silo setup script for {artifact_dir}...")
 proc = _launch_silo_setup()
-for line in iter(proc.stdout.readline, ''):
-    print(line, end='')
+if proc.stdout is not None:
+    for line in iter(proc.stdout.readline, ''):
+        sys.stdout.write(line)
 proc.wait()
 if proc.returncode == 0:
-    print("✅ Silo build completed successfully.")
+    logger.info("✅ Silo build completed successfully.")
 else:
-    print(f"❌ Silo build failed with code {proc.returncode}")
+    logger.info(f"❌ Silo build failed with code {proc.returncode}")
     sys.exit(1)
 
-print("\n--- TASK 2: Interface Env / Calc Env -> Set Paths & Test ---")
+logger.info("\n--- TASK 2: Interface Env / Calc Env -> Set Paths & Test ---")
 get_modules_dir = config_loader.get_modules_dir
 resolve_executable = config_loader.resolve_executable
 
@@ -58,9 +63,9 @@ if orca_path:
 if mpi_path:
     os.environ['MPI_CMD'] = str(mpi_path)
 
-print(f"ORCA Path: {orca_path}")
-print(f"OpenMPI Path: {mpi_path}")
-print("Running test suite...")
+logger.info(f"ORCA Path: {orca_path}")
+logger.info(f"OpenMPI Path: {mpi_path}")
+logger.info("Running test suite...")
 
 try:
     from test_suite.run_tests import run_all_preflight_checks
@@ -72,14 +77,14 @@ try:
     all_passed = True
     for key, res in results.items():
         if key in ['modules', 'orca_single', 'orca_mpi']:
-            print(res['message'])
+            logger.info(res['message'])
             if not res['status']:
                 all_passed = False
     if all_passed:
-        print("✅ Environment is fully ready to go!")
+        logger.info("✅ Environment is fully ready to go!")
     else:
-        print("❌ Tests failed.")
+        logger.info("❌ Tests failed.")
         sys.exit(1)
 except Exception as e:
-    print(f"❌ Error running tests: {e}")
-    sys.exit(1)
+    logger.info(f"❌ Error running tests: {e}")
+    raise ValueError("CRITICAL: UI tasks failed. Exception Deflection blocked.") from e

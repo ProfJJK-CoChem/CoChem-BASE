@@ -10,7 +10,7 @@ authors = [
     {name = "CoChem Team"}
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "PySide6",
     "pluggy",
@@ -33,7 +33,7 @@ dev = [
 include = ["cochem_base*", "cochem_topos*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["test_suite"]
 
 [tool.ruff]
 line-length = 100
@@ -45,9 +45,44 @@ select = ["E", "F", "W", "I", "B"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
-ignore_missing_imports = true
 explicit_package_bases = true
-exclude = ["build/", "dist/"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+no_implicit_optional = true
+exclude = ["build/", "dist/", "rdkit-stubs", "site-packages"]
+mypy_path = "stubs"
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6.*",
+    "pluggy.*",
+    "pyqtgraph.*",
+    "pyvista.*",
+    "pyvistaqt.*",
+    "vtk.*",
+    "h5py.*",
+    "rich.*",
+    "scipy.*",
+    "rdkit.*",
+    "psutil.*",
+    "mendeleev.*",
+    "ipywidgets.*",
+    "networkx.*",
+    "pynvml.*",
+    "cochem.*",
+    "Libraries.*",
+    "cochem_bench.*",
+    "bench_core.*",
+    "cochem_geom_ingest_math.*",
+    "cochem_geom_fitter_optim.*",
+    "core_engine.cochem_topos_crusher.*",
+    "cochem_topos_crusher.*",
+    "cochem_torq_grid.*",
+    "cochem_torq_orca.*"
+]
+ignore_missing_imports = true

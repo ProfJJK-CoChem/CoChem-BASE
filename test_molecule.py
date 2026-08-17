@@ -1,50 +1,34 @@
-import sys
+import pytest
 
 from cochem_base.io.molecule_definition import Atom, Molecule
 
 
-def main():
-    print("Running Molecule tests...")
-
-    # 1. Test valid parsing
+def test_molecule_valid_parsing():
+    """Test valid xyz parsing using pytest assertions."""
     xyz_data = '''3
 Water Molecule
 O 0.000 0.000 0.117
 H 0.000 0.757 -0.477
 H 0.000 -0.757 -0.477
 '''
-    try:
-        mol = Molecule.from_xyz(xyz_data)
-        print(f"Successfully parsed: {mol}")
-        for atom in mol.atoms:
-            print(f"  {atom}")
-    except Exception as e:
-        print(f"Failed to parse valid XYZ: {e}")
-        sys.exit(1)
+    mol = Molecule.from_xyz(xyz_data)
+    assert len(mol.atoms) == 3
+    assert mol.atoms[0].symbol == 'O'
+    assert mol.atoms[1].symbol == 'H'
+    assert mol.atoms[2].symbol == 'H'
 
-    # 2. Test AtomicPositivity validation
-    print("\nTesting strict positivity validation...")
-    try:
-        # X doesn't exist in our table, will default to Z=0
-        invalid_xyz = '''1
+
+def test_molecule_invalid_symbol():
+    """Test strict positivity validation for invalid symbols."""
+    invalid_xyz = '''1
 Invalid
 X 0.0 0.0 0.0
 '''
+    with pytest.raises(ValueError, match="Atomic number must be strictly positive"):
         Molecule.from_xyz(invalid_xyz)
-        print("FAIL: Did not raise ValueError for invalid atomic number.")
-        sys.exit(1)
-    except ValueError as e:
-        print(f"SUCCESS: Caught expected ValueError: {e}")
 
-    try:
-        # Directly pass invalid Z
+
+def test_atom_negative_z():
+    """Test strict positivity validation for negative Z."""
+    with pytest.raises(ValueError, match="Atomic number must be strictly positive"):
         Atom("U", -92, 0, 0, 0)
-        print("FAIL: Did not raise ValueError for negative atomic number.")
-        sys.exit(1)
-    except ValueError as e:
-        print(f"SUCCESS: Caught expected ValueError: {e}")
-
-    print("\nAll tests passed successfully.")
-
-if __name__ == "__main__":
-    main()

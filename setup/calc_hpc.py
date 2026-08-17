@@ -5,11 +5,22 @@ Safely maps the execution pathways on a high-performance computing cluster
 without violating login-node policies. Configures SLURM routing rules.
 """
 
+import atexit
 import json
 import logging
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from cochem_base.config_loader import get_artifact_dir, resolve_executable
 
@@ -20,6 +31,49 @@ try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
     safe_subprocess_run = None
+
+
+def cleanup_zombies() -> None:
+    """Ensure zombie process sweeping via psutil."""
+    if psutil is None:
+        return
+    try:
+        current_process = psutil.Process(os.getpid())
+        children = current_process.children(recursive=True)
+        if not children:
+            return
+        for child in children:
+            try:
+                child.terminate()
+            except psutil.NoSuchProcess:
+                pass
+        gone, alive = psutil.wait_procs(children, timeout=3)
+        for p in alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except Exception as e:
+        logger.debug(f"Zombie sweep failed: {e}")
+
+atexit.register(cleanup_zombies)
+
+
+class HPCSettings(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    status: str = "slurm_ready"
+    scheduler: str = "slurm"
+    module_loads: str = ""
+    template_path: str = ""
+
+class ExecutionSettings(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    default_engine: str = "sbatch"
+
+class SystemRegistry(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    hpc: HPCSettings = Field(default_factory=HPCSettings)
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
 
 
 def locate_artifact_dir() -> Path:
@@ -36,15 +90,30 @@ def check_slurm_presence() -> bool:
     """Executes a lightweight query to detect the SLURM scheduler without heavy compute."""
     logger.info("Probing for SLURM scheduler (sbatch)...")
     sbatch_bin = resolve_executable(env_var="SBATCH_CMD", candidates=("sbatch",))
+    
+    if not shutil.which(sbatch_bin):
+        logger.warning(f"SLURM not found on this node. Could not resolve {sbatch_bin}")
+        return False
+        
     try:
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             result = safe_subprocess_run([sbatch_bin, "--version"], timeout=10.0, check=True)
         else:
             result = subprocess.run([sbatch_bin, "--version"], capture_output=True, text=True, timeout=10.0, check=True)
+        
         logger.info(f"SLURM detected: {result.stdout.strip()}")
         return True
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
-        logger.warning("SLURM not found on this node. Execution will default to local subprocess.")
+    except subprocess.TimeoutExpired as e:
+        logger.warning(f"SLURM check timed out: {e}")
+        return False
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"SLURM check failed with exit code {e.returncode}: {e}")
+        return False
+    except FileNotFoundError:
+        logger.warning("SLURM executable not found during execution.")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error during SLURM check: {e}")
         return False
 
 
@@ -85,27 +154,29 @@ echo "✅ CoChem HPC Job Completed."
 def update_golden_registry(artifact_dir: Path, template_path: str, modules: str) -> None:
     """Updates the Golden Registry to route future calculations to SLURM."""
     registry_path = artifact_dir / "Registry" / "cochem_system_config.json"
+    
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
 
     if registry_path.exists():
         with open(registry_path, 'r', encoding="utf-8") as f:
             try:
-                registry = json.loads(f.read())
-            except json.JSONDecodeError:
-                registry = {}
+                data = json.loads(f.read())
+                registry = SystemRegistry.model_validate(data)
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning(f"Failed to parse registry, initializing empty: {e}")
+                registry = SystemRegistry()
     else:
-        registry = {}
+        registry = SystemRegistry()
 
-    registry.setdefault("hpc", {})
-    registry["hpc"]["status"] = "slurm_ready"
-    registry["hpc"]["scheduler"] = "slurm"
-    registry["hpc"]["module_loads"] = modules
-    registry["hpc"]["template_path"] = template_path
+    registry.hpc.status = "slurm_ready"
+    registry.hpc.scheduler = "slurm"
+    registry.hpc.module_loads = modules
+    registry.hpc.template_path = template_path
 
-    registry.setdefault("execution", {})
-    registry["execution"]["default_engine"] = "sbatch"
+    registry.execution.default_engine = "sbatch"
 
     with open(registry_path, 'w', encoding="utf-8") as f:
-        json.dump(registry, f, indent=4)
+        json.dump(registry.model_dump(mode='json'), f, indent=4)
 
     logger.info("Golden Registry updated with strict HPC SLURM routing rules.")
 

@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 CoChem-BASE: Calculation Environment Setup (Local-Windows / WSL)
@@ -22,7 +23,8 @@ logger = logging.getLogger("CoChem-WSLSetup")
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    safe_subprocess_run = None
+    from typing import Any
+    safe_subprocess_run: Any = None  # type: ignore
 
 
 def verify_wsl_kernel() -> bool:
@@ -34,14 +36,14 @@ def verify_wsl_kernel() -> bool:
             if "microsoft" in version_info or "wsl" in version_info:
                 return True
     except FileNotFoundError:
-        """Implementation pending"""
+        logger.debug("/proc/version not found, assuming not WSL.")
     return False
 
 
 def check_openmpi_version(mpi_path: str) -> str:
     """Check the version of OpenMPI and return it."""
     try:
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             result = safe_subprocess_run([mpi_path, "--version"], capture_output=True, text=True, check=True, timeout=10.0)
         else:
             result = subprocess.run([mpi_path, "--version"], capture_output=True, text=True, encoding='utf-8', check=True, timeout=10.0)
@@ -49,9 +51,9 @@ def check_openmpi_version(mpi_path: str) -> str:
         match = re.search(r'v(\d+\.\d+)', version_line)
         if match:
             return match.group(1)
-        return "unknown"
-    except Exception:
-        return "unknown"
+        raise ValueError(f"Could not parse OpenMPI version from: {version_line}")
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+        raise RuntimeError(f"Command to check OpenMPI version failed: {e}")
 
 
 def provision_openmpi() -> str:
@@ -68,7 +70,7 @@ def provision_openmpi() -> str:
             logger.info("Installing OpenMPI 4.1.x via apt-get...")
             sudo = resolve_executable(env_var="SUDO_CMD", candidates=("sudo",))
             apt_get = resolve_executable(env_var="APT_GET_CMD", candidates=("apt-get",))
-            if safe_subprocess_run:
+            if safe_subprocess_run is not None:
                 safe_subprocess_run([sudo, apt_get, "update"], check=True, timeout=60.0)
                 safe_subprocess_run([sudo, apt_get, "install", "-y", "openmpi-bin", "libopenmpi-dev"], check=True, timeout=120.0)
             else:
@@ -79,8 +81,7 @@ def provision_openmpi() -> str:
 
             mpi_path = resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec"))
             if not (Path(mpi_path).is_file() or shutil.which(mpi_path)):
-                logger.error("Failed to locate mpirun after installation.")
-                sys.exit(1)
+                raise RuntimeError("Failed to locate mpirun after installation.")
 
             version = check_openmpi_version(mpi_path)
             logger.info(f"OpenMPI verified at: {mpi_path} (Version: {version})")
@@ -90,10 +91,10 @@ def provision_openmpi() -> str:
 
             return mpi_path
 
-        except (subprocess.CalledProcessError, Exception) as e:
+        except (subprocess.CalledProcessError, RuntimeError) as e:
             logger.error(f"Failed to install OpenMPI: {e}")
             logger.warning("WSL Fix: Please manually run 'sudo apt-get update && sudo apt-get install openmpi-bin libopenmpi-dev' in your terminal.")
-            sys.exit(1)
+            raise RuntimeError(f"OpenMPI provisioning failed: {e}")
     else:
         version = check_openmpi_version(mpi_path)
         logger.info(f"OpenMPI found at: {mpi_path} (Version: {version})")
@@ -124,7 +125,7 @@ def provision_orca(engine_dir: Path) -> str:
     if not archives:
         logger.error(f"ORCA engine not found. No .tar.xz archives detected in {engine_dir}")
         logger.warning("Please drop the Linux ORCA archive into the Registry/Engines folder and rerun.")
-        sys.exit(1)
+        raise RuntimeError("ORCA engine missing.")
 
     target_archive = archives[0]
     logger.info(f"Found ORCA Archive: {target_archive.name}. Initiating extraction...")
@@ -132,7 +133,7 @@ def provision_orca(engine_dir: Path) -> str:
     try:
         tar_executable = resolve_executable(env_var="TAR_CMD", candidates=("tar",))
         cmd = [tar_executable, "-xf", str(target_archive), "--no-same-owner", "-C", str(engine_dir)]
-        if safe_subprocess_run:
+        if safe_subprocess_run is not None:
             safe_subprocess_run(cmd, check=True, timeout=120.0)
         else:
             subprocess.run(cmd, check=True, timeout=120.0)
@@ -143,17 +144,16 @@ def provision_orca(engine_dir: Path) -> str:
                 logger.info(f"Successfully staged and verified ORCA at: {path}")
                 return str(path)
 
-        logger.error("Extraction succeeded but 'orca' binary could not be located inside the folder.")
-        sys.exit(1)
+        raise RuntimeError("Extraction succeeded but 'orca' binary could not be located inside the folder.")
 
-    except Exception as e:
-        logger.error(f"Extraction failed. Is the archive corrupted? Error: {e}")
-        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Extraction failed. Is the archive corrupted? Error: {e}")
 
 
 def register_calculation_state(mpi_path: str, orca_path: str) -> None:
     """Updates the Golden Registry with the native WSL execution pathways."""
     registry_path = get_artifact_dir() / "Registry" / "cochem_system_config.json"
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
 
     if registry_path.exists():
         with open(registry_path, 'r', encoding='utf-8') as f:
@@ -187,8 +187,7 @@ def run_calculation_setup() -> None:
     logger.info("=======================================================\n")
 
     if not verify_wsl_kernel():
-        logger.error("FATAL: Target environment is not WSL. Please run calc_mac.py or calc_linux.py instead.")
-        sys.exit(1)
+        raise RuntimeError("FATAL: Target environment is not WSL. Please run calc_mac.py or calc_linux.py instead.")
 
     engine_dir = get_artifact_dir() / "Registry" / "Engines"
     engine_dir.mkdir(parents=True, exist_ok=True)

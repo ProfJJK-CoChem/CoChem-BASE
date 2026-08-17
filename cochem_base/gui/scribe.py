@@ -15,19 +15,23 @@ class OutputStream(QObject):
         super().__init__()
         self.signals = signals
 
-    def write(self, text: str) -> None:
+    def write(self, text: str) -> int:
         self.signals.text_written.emit(text)
+        return len(text)
 
     def flush(self) -> None:
-        if hasattr(sys.__stdout__, "flush"):
+        if sys.__stdout__ is not None and hasattr(sys.__stdout__, "flush"):
             sys.__stdout__.flush()
+
+    def isatty(self) -> bool:
+        return False
 
 
 class ScribeDock(QDockWidget):
     """Data Provenance & Asynchronous Logging Console (CoChem-SCRIBE)"""
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__("CoChem-SCRIBE (Data Provenance)", parent)
-        self.setAllowedAreas(Qt.BottomDockWidgetArea)
+        self.setAllowedAreas(Qt.BottomDockWidgetArea)  # type: ignore
 
         self.console = QTextEdit()
         self.console.setReadOnly(True)

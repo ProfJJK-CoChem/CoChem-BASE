@@ -1,13 +1,21 @@
 import json
 
+from pydantic import BaseModel, ValidationError
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QLabel, QMainWindow, QTabWidget, QVBoxLayout, QWidget
 
 from cochem_base.config_loader import get_artifact_dir
 from cochem_base.gui.scribe import ScribeDock
 from cochem_base.plugins.internal import CorePlugin
 from cochem_base.plugins.loader import get_plugin_manager
+
+
+class WorkspaceState(BaseModel):
+    version: str
+    cochem_base: str
+    tabs: list[str]
+    active_tab_index: int
 
 
 class MainWindow(QMainWindow):
@@ -24,7 +32,7 @@ class MainWindow(QMainWindow):
 
         # Bottom Dock for SCRIBE (Logging Console)
         self.scribe_dock = ScribeDock(self)
-        self.addDockWidget(Qt.BottomDockWidgetArea, self.scribe_dock)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.scribe_dock)  # type: ignore
 
         # Initialize plugin manager
         self.pm = get_plugin_manager()
@@ -47,7 +55,6 @@ class MainWindow(QMainWindow):
                 break
 
         if not spycfit_found:
-            from PySide6.QtWidgets import QLabel
             fallback_widget = QWidget()
             layout = QVBoxLayout(fallback_widget)
             lbl = QLabel("Module Missing: CoChem-SpycFit is not installed.")
@@ -73,21 +80,37 @@ class MainWindow(QMainWindow):
         workspace_dir.mkdir(parents=True, exist_ok=True)
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Workspace", str(workspace_dir), "JSON Files (*.json)")
         if file_path:
-            state = {
-                "version": "1.0",
-                "cochem_base": "active",
-                "tabs": [self.tabs.tabText(i) for i in range(self.tabs.count())],
-                "active_tab_index": self.tabs.currentIndex()
-            }
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(state, f, indent=4)
-            self.scribe_dock.log(f"Workspace saved to {file_path}")
+            try:
+                state = WorkspaceState(
+                    version="1.0",
+                    cochem_base="active",
+                    tabs=[self.tabs.tabText(i) for i in range(self.tabs.count())],
+                    active_tab_index=self.tabs.currentIndex()
+                )
+                with open(file_path, "w", encoding="utf-8") as f:
+                    f.write(state.model_dump_json(indent=4))
+                self.scribe_dock.log(f"Workspace saved to {file_path}")
+            except OSError as e:
+                self.scribe_dock.log(f"Failed to save workspace: OSError: {e}")
 
     def deserialize_state(self) -> None:
         workspace_dir = get_artifact_dir() / "Workspaces"
         workspace_dir.mkdir(parents=True, exist_ok=True)
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Workspace", str(workspace_dir), "JSON Files (*.json)")
         if file_path:
-            with open(file_path, "r", encoding="utf-8") as f:
-                json.loads(f.read())
-            self.scribe_dock.log(f"Workspace loaded from {file_path}")
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                
+                state = WorkspaceState(**data)
+                
+                if 0 <= state.active_tab_index < self.tabs.count():
+                    self.tabs.setCurrentIndex(state.active_tab_index)
+                
+                self.scribe_dock.log(f"Workspace loaded from {file_path}")
+            except OSError as e:
+                self.scribe_dock.log(f"Failed to load workspace: OSError: {e}")
+            except json.JSONDecodeError as e:
+                self.scribe_dock.log(f"Failed to load workspace: JSON Decode Error: {e}")
+            except ValidationError as e:
+                self.scribe_dock.log(f"Failed to load workspace: Invalid State Format: {e}")

@@ -21,20 +21,26 @@ from typing import Any, Dict, List, Tuple
 import ipywidgets as widgets
 import psutil
 from IPython.display import clear_output, display
+from pydantic import BaseModel, Field
 
 from cochem_base.config_loader import get_artifact_dir, get_base_root, resolve_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-Installer")
 
-try:
-    from core_engine.cochem_core_subprocess_broker import (
-        register_popen_process,
-        safe_subprocess_run,
-    )
-except ImportError:
-    safe_subprocess_run = None
-    register_popen_process = None
+sys.path.insert(0, str(get_base_root()))
+from core_engine.cochem_core_subprocess_broker import (
+    register_popen_process,
+    safe_subprocess_run,
+)
+
+class DeploymentManifest(BaseModel):
+    version: str = Field(default="2026.2")
+    git_provenance_hash: str
+    interaction_environment: str
+    calculation_environment: str
+    orca_tarball_path: str
+    selected_repositories: List[str]
 
 ECOSYSTEM_REGISTRY = {
     "CoChem-CORE": {"desc": "Foundational registry, memory routing, and OS-level hardware guards.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE", "mandatory": True},
@@ -97,12 +103,10 @@ class SynapInstallerGUI:
         try:
             git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
             command = [git_executable, "rev-parse", "HEAD"]
-            if safe_subprocess_run:
-                res = safe_subprocess_run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
-            else:
-                res = subprocess.run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
-            return res.stdout.strip()[:16]
-        except Exception:
+            res = safe_subprocess_run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
+            return res.stdout.strip()[:16]  # type: ignore
+        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            logger.warning(f"Git hash resolution failed: {e}")
             build_hash_file = get_base_root() / ".build_hash"
             if build_hash_file.exists():
                 return build_hash_file.read_text(encoding="utf-8").strip()[:16]
@@ -141,10 +145,7 @@ class SynapInstallerGUI:
         inp = verify_dir / "verify_orca.inp"
         inp.write_text("! SP STO-3G\n*xyz 0 1\nHe 0 0 0\n*\n", encoding="utf-8")
         try:
-            if safe_subprocess_run:
-                result = safe_subprocess_run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)
-            else:
-                result = subprocess.run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)  # check=True
+            result = safe_subprocess_run([str(candidate), str(inp)], cwd=str(verify_dir), capture_output=True, text=True, timeout=90.0, check=False)
             stdout_upper = (result.stdout or "").upper()
             out_file = verify_dir / "verify_orca.out"
             out_text = out_file.read_text(errors="replace").upper() if out_file.exists() else ""
@@ -254,10 +255,7 @@ class SynapInstallerGUI:
                         bash = resolve_executable(env_var="BASH_CMD", candidates=("bash",))
                         cmd = [bash, "-c", f'"{curl}" -fsSL https://antigravity.google/cli/install.sh | "{bash}"']
                     try:
-                        if safe_subprocess_run:
-                            safe_subprocess_run(cmd, env=clean_env, check=True, timeout=120.0)
-                        else:
-                            subprocess.run(cmd, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
+                        safe_subprocess_run(cmd, env=clean_env, check=True, timeout=120.0)
                         log_msg("  ✅ Antigravity 2.0 CLI installed successfully.")
                     except Exception as e:
                         log_msg(f"  ❌ Failed to install Antigravity 2.0: {e}")
@@ -270,12 +268,9 @@ class SynapInstallerGUI:
                 if (target_dir / ".git").exists():
                     log_msg(f"🔄 Updating existing module: {mod}")
                     try:
-                        if safe_subprocess_run:
-                            safe_subprocess_run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
-                        else:
-                            subprocess.run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
+                        safe_subprocess_run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
                         log_msg(f"  ✅ {mod} updated successfully.")
-                    except Exception as e:
+                    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
                         log_msg(f"  ⚠️ Fast-forward failed for {mod}: {e}")
                 else:
                     sideload_success = False
@@ -300,18 +295,15 @@ class SynapInstallerGUI:
                                     log_msg(f"  ✅ Extracted {mod} via Air-Gap. Network bypassed.")
                                     sideload_success = True
                                     break
-                            except Exception as e:
+                            except (zipfile.BadZipFile, OSError) as e:
                                 log_msg(f"  ⚠️ Zip extraction failed: {e}")
 
                     if not sideload_success:
                         log_msg(f"📥 Deep cloning {mod} from {repo_url}...")
                         try:
-                            if safe_subprocess_run:
-                                safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
-                            else:
-                                subprocess.run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
+                            safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)  # type: ignore
                             log_msg(f"  ✅ Cloned {mod} successfully.")
-                        except Exception as e:
+                        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
                             log_msg(f"  ❌ Failed to clone {mod}: {e}")
 
                 self.progress_bar.value += progress_step
@@ -329,8 +321,7 @@ class SynapInstallerGUI:
                         stderr=subprocess.STDOUT,
                         text=True, bufsize=1, env=clean_env
                     )
-                    if register_popen_process:
-                        register_popen_process(process)
+                    register_popen_process(process)
 
                     if process.stdout:
                         for line in process.stdout:
@@ -366,17 +357,19 @@ class SynapInstallerGUI:
         host_orca_path = self.host_orca_path.value.strip()
         host_orca_verified = False
 
-        manifest_payload = {
-            "version": "2026.2",
-            "git_provenance_hash": self._get_git_hash(),
-            "interaction_environment": self.interact_target.value,
-            "calculation_environment": self.calc_target.value,
-            "orca_tarball_path": host_orca_path,
-            "selected_repositories": selected_modules
-        }
+        manifest = DeploymentManifest(
+            version="2026.2",
+            git_provenance_hash=self._get_git_hash(),
+            interaction_environment=self.interact_target.value,
+            calculation_environment=self.calc_target.value,
+            orca_tarball_path=host_orca_path,
+            selected_repositories=selected_modules
+        )
 
         with open(self.manifest_file, 'w', encoding="utf-8") as f:
-            json.dump(manifest_payload, f, indent=4)
+            f.write(manifest.model_dump_json(indent=4))
+            
+        manifest_payload = manifest.model_dump()
 
         with self.status_out:
             logger.info(f"Matrix Selections locked securely in: {self.manifest_file}")

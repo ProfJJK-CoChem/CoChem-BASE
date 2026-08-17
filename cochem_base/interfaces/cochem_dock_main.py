@@ -4,11 +4,15 @@ CoChem-DOCK: Stage 9.0 - FastAPI Telemetry Polling Backend
 Bridges the UNIX Domain Socket from Stage 2.3 into React WebSockets.
 """
 import asyncio
+import json
 import logging
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, ValidationError
 
 from cochem_base.telemetry_transport import (
     close_telemetry_server_socket,
@@ -21,12 +25,18 @@ logger = logging.getLogger("CoChem-DOCK")
 app = FastAPI(title="CoChem-DOCK Telemetry API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+
+class TelemetryEvent(BaseModel):
+    type: str = Field(default="unknown")
+    energy_hartree: Optional[float] = None
+
+
 @app.get("/api/health")
 async def health_check() -> Dict[str, Any]:
     return {"status": "online", "service": "CoChem-DOCK FastAPI"}
 
 
-def lttb_decimate(data: List[Any], threshold: int) -> List[Any]:
+def lttb_decimate(data: List[str], threshold: int) -> List[str]:
     """
     Largest Triangle Three Buckets (LTTB) downsampling algorithm for high-frequency telemetry.
     Preserves visual peaks and valleys for the React UI.
@@ -34,23 +44,35 @@ def lttb_decimate(data: List[Any], threshold: int) -> List[Any]:
     if len(data) <= threshold or threshold == 0:
         return data
 
-    bucket_size = (len(data) - 2) / (threshold - 2)
-    sampled = [data[0]]
+    parsed_data: List[Tuple[int, str, float]] = []
+
+    for idx, item in enumerate(data):
+        try:
+            obj = json.loads(item)
+            event = TelemetryEvent(**obj)
+            if event.type == "scf_step" and event.energy_hartree is not None:
+                parsed_data.append((idx, item, event.energy_hartree))
+        except (json.JSONDecodeError, ValueError, TypeError, ValidationError):
+            # Not a valid scf_step or malformed telemetry, keep it in the stream without downsampling
+            pass
+
+    if len(parsed_data) <= threshold or threshold == 0:
+        return data
+
+    bucket_size = (len(parsed_data) - 2) / (threshold - 2)
+    sampled_indices: Set[int] = {parsed_data[0][0]}
 
     a = 0
     for i in range(threshold - 2):
         bucket_start = int(1 + i * bucket_size)
-        bucket_end = min(int(1 + (i + 1) * bucket_size), len(data) - 1)
+        bucket_end = min(int(1 + (i + 1) * bucket_size), len(parsed_data) - 1)
         next_bucket_start = int(1 + (i + 1) * bucket_size)
-        next_bucket_end = min(int(1 + (i + 2) * bucket_size), len(data))
+        next_bucket_end = min(int(1 + (i + 2) * bucket_size), len(parsed_data))
 
         avg_x, avg_y, count = 0.0, 0.0, 0
         for j in range(next_bucket_start, next_bucket_end):
             avg_x += j
-            try:
-                avg_y += float(data[j])
-            except (ValueError, TypeError):
-                pass
+            avg_y += parsed_data[j][2]
             count += 1
 
         if count > 0:
@@ -59,22 +81,26 @@ def lttb_decimate(data: List[Any], threshold: int) -> List[Any]:
 
         max_area, max_area_index = -1.0, bucket_start
         for j in range(bucket_start, bucket_end):
-            try:
-                point_b_y = float(data[j])
-                point_a_y = float(data[a])
-            except (ValueError, TypeError):
-                continue
+            point_b_y = parsed_data[j][2]
+            point_a_y = parsed_data[a][2]
 
             area = abs(a * (point_b_y - avg_y) + j * (avg_y - point_a_y) + avg_x * (point_a_y - point_b_y)) * 0.5
             if area > max_area:
                 max_area = area
                 max_area_index = j
 
-        sampled.append(data[max_area_index])
+        sampled_indices.add(parsed_data[max_area_index][0])
         a = max_area_index
 
-    sampled.append(data[-1])
-    return sampled
+    sampled_indices.add(parsed_data[-1][0])
+
+    parsed_indices: Set[int] = {p[0] for p in parsed_data}
+    result: List[str] = []
+    for idx, item in enumerate(data):
+        if idx in sampled_indices or idx not in parsed_indices:
+            result.append(item)
+
+    return result
 
 
 @app.websocket("/ws/telemetry")
@@ -83,7 +109,7 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
     server, socket_path = create_telemetry_server_socket()
 
     loop = asyncio.get_running_loop()
-    telemetry_buffer: List[Any] = []
+    telemetry_buffer: List[str] = []
 
     try:
         while True:
@@ -110,9 +136,6 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
 
 
 if __name__ == "__main__":
-    import os
-
-    import uvicorn
     uvicorn.run(
         app,
         host=os.environ.get("COCHEM_DOCK_HOST", "127.0.0.1"),

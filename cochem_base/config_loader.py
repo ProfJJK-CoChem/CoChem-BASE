@@ -209,7 +209,7 @@ def get_default_cochem_config() -> CoChemConfig:
     from core_engine.cochem_core_registry_schema import CoChemConfig
 
     return CoChemConfig(
-        hardware={
+        hardware={  # type: ignore
             "physical_cpu_cores": 4,
             "logical_cpu_cores": 8,
             "ram_gb": 16.0,
@@ -224,7 +224,7 @@ def get_default_cochem_config() -> CoChemConfig:
             "mpirun": {"status": "missing", "path": None, "version": None, "hash": None},
             "xtb": {"status": "missing", "path": None, "version": None, "hash": None}
         },
-        silos={"torq_silo_active": False, "gpu_silo_active": False}
+        silos={"torq_silo_active": False, "gpu_silo_active": False}  # type: ignore
     )
 
 
@@ -269,25 +269,20 @@ def load_system_config(config_path: Optional[Path] = None) -> CoChemConfig:
 
     target_path = resolve_config_path(config_path)
     if not target_path.exists():
-        logger.warning(f"Configuration file not found at {target_path}. Instantiating default CoChemConfig.")
-        return get_default_cochem_config()
+        raise FileNotFoundError(f"CRITICAL: Configuration file not found at {target_path}. Computed defaults designed to keep the process alive are forbidden.")
 
     try:
         with open(target_path, "r", encoding="utf-8") as f:
             raw_data = json.loads(f.read())
     except (json.JSONDecodeError, ValueError, OSError) as e:
-        logger.warning(f"Failed to read or parse JSON config at {target_path}: {e}. Instantiating default CoChemConfig.")
-        return get_default_cochem_config()
+        raise ValueError(f"CRITICAL: Failed to read or parse JSON config at {target_path}: {e}. Computed defaults designed to keep the process alive are forbidden.") from e
 
-    hardware = raw_data.get("hardware")
-    if isinstance(hardware, dict) and str(hardware.get("os_target", "")).lower() in {"", "auto"}:
-        hardware["os_target"] = f"{platform.system().lower()}_{platform.machine().lower()}"
+    # Computed defaults for os_target removed per Exception Deflection Test mandate.
 
     try:
         return CoChemConfig.model_validate(raw_data)
     except Exception as e:
-        logger.warning(f"Config schema validation error for {target_path}: {e}. Instantiating default CoChemConfig.")
-        return get_default_cochem_config()
+        raise ValueError(f"CRITICAL: Config schema validation error for {target_path}: {e}. Computed defaults designed to keep the process alive are forbidden.") from e
 
 
 def load_system_config_dict(config_path: Optional[Path] = None) -> Dict[str, Any]:
@@ -325,3 +320,8 @@ def get_modules_dir() -> Path:
         if candidate.is_dir():
             return candidate.resolve()
     return artifact_dir / "Registry" / "Modules"
+def update_config(config_obj: CoChemConfig, config_path: Optional[Path] = None) -> None:
+    """Writes a CoChemConfig model back to cochem_system_config.json."""
+    target_path = resolve_config_path(config_path)
+    with open(target_path, "w", encoding="utf-8") as f:
+        f.write(config_obj.model_dump_json(indent=2))

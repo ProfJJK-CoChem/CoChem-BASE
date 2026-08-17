@@ -8,33 +8,33 @@
     "gpu_profile": "None",
     "vram_gb": 0.0,
     "subnormal_precision_trap": false,
-    "os_target": "auto"
+    "os_target": "[MISSING DATA]"
   },
   "engines": {
     "orca": {
       "status": "missing",
-      "path": null,
-      "version": null,
-      "hash": null
+      "path": "[MISSING DATA]",
+      "version": "[MISSING DATA]",
+      "hash": "[MISSING DATA]"
     },
     "mpirun": {
       "status": "missing",
-      "path": null,
-      "version": null,
-      "hash": null
+      "path": "[MISSING DATA]",
+      "version": "[MISSING DATA]",
+      "hash": "[MISSING DATA]"
     },
     "xtb": {
       "status": "missing",
-      "path": null,
-      "version": null,
-      "hash": null
+      "path": "[MISSING DATA]",
+      "version": "[MISSING DATA]",
+      "hash": "[MISSING DATA]"
     }
   },
   "silos": {
     "torq_silo_active": true,
     "gpu_silo_active": false
   },
-  "adaptive_routing": null,
+  "adaptive_routing": "[MISSING DATA]",
   "hpc": {
     "scheduler": "local",
     "default_partition": "compute",

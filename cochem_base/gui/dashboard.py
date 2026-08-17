@@ -1,8 +1,20 @@
 import logging
-from typing import Any, Optional
+import sys
+from pathlib import Path
+from typing import Optional
+
+import psutil
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtWidgets import QGroupBox, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
+
+from calc.cochem_calc_execution_router import ExecutionRouter
+from cochem_base.config_loader import get_artifact_dir
 
 logger = logging.getLogger(__name__)
 
@@ -11,22 +23,29 @@ class PipelineWorker(QThread):
     progress_updated = Signal(str, int)
     finished = Signal(bool)
 
-    def __init__(self, router: Optional[Any] = None) -> None:
+    def __init__(self, router: ExecutionRouter) -> None:
         super().__init__()
         self.router = router
 
     def run(self) -> None:
-        try:
-            self.progress_updated.emit("Initializing Pipeline Router...", 10)
-            if self.router:
-                path = self.router.resolve_execution_path("orca")
-                logger.info(f"Router resolved execution path: {path}")
-            self.progress_updated.emit("Running: TOPOS Conformational Generation...", 35)
-            self.progress_updated.emit("Running: Benchmarking & Extrapolation...", 70)
-            self.progress_updated.emit("Finalizing Results...", 95)
-            self.finished.emit(True)
-        except Exception as e:
-            logger.error(f"Pipeline worker failed: {e}")
+        self.progress_updated.emit("Initializing Execution Router & Running Stage 1 Setup...", 10)
+        
+        # Eliminate mocked data/stub logic. We must run a real task constraint.
+        # Run cochem_setup_1_sys.py as the real initial pipeline task.
+        cmd = f'"{sys.executable}" -m calc.cochem_setup_1_sys'
+        cwd = str(get_artifact_dir())
+        
+        # Router dispatch handles timeouts and executions without swallowing them blindly.
+        exit_code = self.router.route_job("default", cmd, cwd=cwd, job_name="cochem_pipeline_stage1")
+        
+        if exit_code == 0:
+            self.progress_updated.emit("Stage 1 Setup Complete. 11-Arrow Pipeline Handoff Required.", 50)
+            # The rest of the pipeline is currently unimplemented. 
+            # We abort here rather than mocking the remaining steps.
+            logger.error("[HARD_ABORT: PHYSICS WALL] 11-Arrow Canonical Pipeline not implemented. Handoff to cochem-coder required.")
+            self.finished.emit(False)
+        else:
+            self.progress_updated.emit(f"Pipeline Failed at Stage 1 (Exit Code: {exit_code})", 0)
             self.finished.emit(False)
 
 
@@ -66,12 +85,12 @@ class DashboardTab(QWidget):
 
         # Start Pipeline button
         self.start_btn = QPushButton("Start Pipeline")
-        self.start_btn.clicked.connect(self.simulate_pipeline)
+        self.start_btn.clicked.connect(self.start_pipeline)
         layout.addWidget(self.start_btn)
 
         layout.addStretch()
 
-        # Timer for simulated HW metrics
+        # Timer for real HW metrics
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_hw_metrics)
         self.timer.start(1000)
@@ -79,34 +98,24 @@ class DashboardTab(QWidget):
 
     def update_hw_metrics(self) -> None:
         """Query real system hardware metrics via psutil."""
-        try:
-            import psutil
-            cpu_val = int(psutil.cpu_percent())
-            ram_val = int(psutil.virtual_memory().percent)
-        except Exception:
-            cpu_val = 0
-            ram_val = 0
+        # Exception Deflection Test: Removed broad try/except swallowing. 
+        # If psutil fails, it should raise and expose the OS dependency bug.
+        cpu_val = int(psutil.cpu_percent())
+        ram_val = int(psutil.virtual_memory().percent)
 
         gpu_val = 0
-        try:
-            import torch
-            if torch.cuda.is_available():
-                gpu_val = int(torch.cuda.utilization_rate()) if hasattr(torch.cuda, "utilization_rate") else 0
-        except Exception:
-            gpu_val = 0
+        if torch is not None and torch.cuda.is_available():
+            if hasattr(torch.cuda, "utilization_rate"):
+                gpu_val = int(torch.cuda.utilization_rate())
 
         self.cpu_bar.setValue(cpu_val)
         self.gpu_bar.setValue(gpu_val)
         self.ram_bar.setValue(ram_val)
 
-    def simulate_pipeline(self) -> None:
+    def start_pipeline(self) -> None:
         """Launches real pipeline execution via ExecutionRouter."""
-        try:
-            from calc.cochem_calc_execution_router import ExecutionRouter
-            router = ExecutionRouter()
-        except Exception as e:
-            logger.warning(f"Could not import ExecutionRouter: {e}")
-            router = None
+        # Removed exception deflection around ExecutionRouter import/init.
+        router = ExecutionRouter()
 
         self.start_btn.setEnabled(False)
         self.task_label.setText("Initializing Pipeline Router...")
@@ -127,4 +136,4 @@ class DashboardTab(QWidget):
             self.task_label.setText("Pipeline Execution Completed Successfully.")
             self.task_bar.setValue(100)
         else:
-            self.task_label.setText("❌ Pipeline Execution Failed.")
+            self.task_label.setText("❌ Pipeline Execution Failed. Check Logs.")

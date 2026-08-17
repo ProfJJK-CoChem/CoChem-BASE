@@ -1,10 +1,16 @@
-import os
 import glob
-import difflib
-import re
+import os
 
-source_dir = r'C:\Users\ansac\.gemini\config\agents'
-target_dir = r'D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents'
+from cochem_base.path_sanitization import (
+    get_agent_templates_dir,
+    get_agents_dir,
+    leak_patterns,
+    sanitize_local_paths,
+)
+
+source_dir = str(get_agent_templates_dir())
+target_dir = str(get_agents_dir())
+local_leak_patterns = leak_patterns()
 
 source_files = sorted(glob.glob(os.path.join(source_dir, '*.agent.md')))
 
@@ -30,13 +36,7 @@ for sf in source_files:
     t_norm = t_raw.replace('\r\n', '\n')
 
     # Sanitize source
-    s_san = s_norm
-    s_san = s_san.replace(r'C:\Users\ansac', '<USER_HOME>')
-    s_san = s_san.replace('C:/Users/ansac', '<USER_HOME>')
-    s_san = s_san.replace(r'd:\Gdrive\__CoChem', '<COCHEM_WORKSPACE>')
-    s_san = s_san.replace('d:/Gdrive/__CoChem', '<COCHEM_WORKSPACE>')
-    s_san = s_san.replace(r'D:\Gdrive\__CoChem', '<COCHEM_WORKSPACE>')
-    s_san = s_san.replace('D:/Gdrive/__CoChem', '<COCHEM_WORKSPACE>')
+    s_san = sanitize_local_paths(s_norm)
 
     if s_san == t_norm:
         print(f"  [PASS] {fname} (Identical after path sanitization)")
@@ -57,7 +57,7 @@ for sf in source_files:
     with open(tf, 'r', encoding='utf-8') as f:
         content = f.read()
     for lineno, line in enumerate(content.splitlines(), 1):
-        if re.search(r'ansac|gdrive|__cochem', line, re.I):
+        if any(pattern.search(line) for pattern, _ in local_leak_patterns):
             agent_md_leaks.append((fname, lineno, line.strip()))
 
 if not agent_md_leaks:
@@ -72,7 +72,7 @@ print("=== FORENSIC CHECK 3: Leak Scan in Subdirectories / Metadata ===")
 print("==================================================")
 
 sub_leaks = []
-for root, dirs, files in os.walk(target_dir):
+for root, _dirs, files in os.walk(target_dir):
     for file in files:
         fpath = os.path.join(root, file)
         rel = os.path.relpath(fpath, target_dir)
@@ -82,14 +82,14 @@ for root, dirs, files in os.walk(target_dir):
         # Skip .agent.md files (already scanned in Check 2)
         if file.endswith('.agent.md'):
             continue
-        
+
         try:
             with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
                 lines = f.readlines()
             for idx, line in enumerate(lines, 1):
-                if re.search(r'C:\\Users\\ansac|C:/Users/ansac|D:\\Gdrive|D:/Gdrive', line, re.I):
+                if any(pattern.search(line) for pattern, _ in local_leak_patterns):
                     sub_leaks.append((rel, idx, line.strip()))
-        except Exception as e:
+        except Exception:
             """Implementation pending"""
 print(f"Subdirectory hardcoded absolute path occurrences: {len(sub_leaks)}")
 if sub_leaks:

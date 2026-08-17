@@ -1,6 +1,7 @@
-import numpy as np
 import base64
-import json
+
+import numpy as np
+
 
 class WebSparsityMatrix:
     """
@@ -15,13 +16,13 @@ class WebSparsityMatrix:
         if data is not None:
             for d in data:
                 self.add_element(d['row'], d['col'], d['value'])
-        
+
     def add_element(self, row, col, value):
         if 0 <= row < self.rows and 0 <= col < self.cols:
             self.data_dict[(int(row), int(col))] = float(value)
         else:
             raise ValueError("Index out of bounds")
-            
+
     def to_browser_format(self):
         """
         Converts the matrix to a BrowserSparsity-004 compliant binary blob structure.
@@ -34,11 +35,11 @@ class WebSparsityMatrix:
             rows_list.append(r)
             cols_list.append(c)
             vals_list.append(v)
-            
+
         rows_arr = np.array(rows_list, dtype=np.int32)
         cols_arr = np.array(cols_list, dtype=np.int32)
         vals_arr = np.array(vals_list, dtype=np.float32)
-        
+
         return {
             "version": "BrowserSparsity-004",
             "dimensions": {"rows": self.rows, "cols": self.cols},

@@ -1,5 +1,6 @@
+from typing import Any, List
+
 import pluggy
-from typing import List, Any
 
 hookspec = pluggy.HookspecMarker("cochem_studio")
 hookimpl = pluggy.HookimplMarker("cochem_studio")

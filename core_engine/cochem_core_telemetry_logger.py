@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
 CoChem-CORE: Stage 4.0 - Telemetry, Stability, & Provenance Logger
-Implements: Orbital Stability Regex Traps, SCF Oscillation Traps, 
+Implements: Orbital Stability Regex Traps, SCF Oscillation Traps,
 Hardware Provenance Capture, Segfault Hex-Dumping, and JSON-LD Footer Generation.
 """
 
-import os
-import re
 import json
 import logging
+import os
 import platform
-import subprocess
+import re
 from collections import deque
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
+
 from cochem_base.config_loader import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -103,7 +103,7 @@ class TelemetryLogger:
             for line in stdout_history:
                 f.write(line + "\n")
 
-            if exit_code in [139, 134, -11]: 
+            if exit_code in [139, 134, -11]:
                 f.write("\n\n!!! CRITICAL SEGMENTATION FAULT (Exit Code 139) !!!\n")
                 f.write("Dumping last 256 bytes of STDERR as Hexadecimal Trace:\n")
                 raw_err = "".join(stderr_history[-20:]).encode('utf-8', errors='replace')

@@ -1,15 +1,17 @@
-import os
 import difflib
-import sys
+import os
+from pathlib import Path
 
-SOURCE_DIR = r"C:\Users\ansac\.gemini\config\agents"
-TARGET_DIR = r"D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents"
+from cochem_base.path_sanitization import (
+    get_agent_templates_dir,
+    get_agents_dir,
+    placeholder_values,
+)
 
-REPLACEMENTS = [
-    ("<USER_HOME>", r"C:\Users\ansac"),
-    ("<COCHEM_WORKSPACE>", r"D:\Gdrive\__CoChem"),
-    ("<GDRIVE_ROOT>", r"D:\Gdrive")
-]
+SOURCE_DIR = str(get_agent_templates_dir())
+TARGET_DIR = str(get_agents_dir())
+
+REPLACEMENTS = [(placeholder, str(path)) for placeholder, path in placeholder_values().items()]
 
 agent_files = [
     "0rchestrator.agent.md",
@@ -43,7 +45,7 @@ report_lines.append("-" * 60)
 for filename in agent_files:
     src_path = os.path.join(SOURCE_DIR, filename)
     tgt_path = os.path.join(TARGET_DIR, filename)
-    
+
     if not os.path.exists(src_path):
         report_lines.append(f"ERROR: Source file missing: {src_path}")
         all_identical = False
@@ -52,27 +54,27 @@ for filename in agent_files:
         report_lines.append(f"ERROR: Target file missing: {tgt_path}")
         all_identical = False
         continue
-        
+
     with open(src_path, "r", encoding="utf-8") as f:
         src_raw = f.read()
-        
+
     # Apply replacements
     expected_content = src_raw
     for old, new in REPLACEMENTS:
         expected_content = expected_content.replace(old, new)
-        
+
     with open(tgt_path, "r", encoding="utf-8") as f:
         actual_content = f.read()
-        
+
     if expected_content == actual_content:
         report_lines.append(f"[PASS] {filename}: EXACT MATCH ({len(actual_content)} chars, {len(actual_content.splitlines())} lines)")
     else:
         all_identical = False
         report_lines.append(f"[FAIL] {filename}: MISMATCH DETECTED!")
-        
+
         expected_lines = expected_content.splitlines(keepends=True)
         actual_lines = actual_content.splitlines(keepends=True)
-        
+
         diff = list(difflib.unified_diff(
             expected_lines, actual_lines,
             fromfile=f"expected/{filename}",
@@ -92,5 +94,6 @@ else:
 report_text = "\n".join(report_lines)
 print(report_text)
 
-with open(r"D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\teamwork_preview_challenger_2\verification_results.txt", "w", encoding="utf-8") as f:
+output_path = Path(TARGET_DIR) / "teamwork_preview_challenger_2" / "verification_results.txt"
+with open(output_path, "w", encoding="utf-8") as f:
     f.write(report_text)

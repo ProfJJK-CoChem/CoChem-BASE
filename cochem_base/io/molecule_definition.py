@@ -1,5 +1,6 @@
 import typing
 
+
 class Atom:
     """
     Represents a single atom in a molecule.
@@ -35,15 +36,15 @@ class Molecule:
         lines = [line.strip() for line in xyz_string.strip().splitlines() if line.strip()]
         if not lines:
             raise ValueError("Empty XYZ string")
-        
+
         try:
             num_atoms = int(lines[0])
-        except ValueError:
-            raise ValueError("First line of XYZ must be an integer representing the number of atoms.")
-            
+        except ValueError as e:
+            raise ValueError("First line of XYZ must be an integer representing the number of atoms.") from e
+
         name = lines[1] if len(lines) > 1 else "Unknown"
         molecule = cls(name=name)
-        
+
         # Periodic table mapping up to 118
         symbol_to_z = {
             "H": 1, "He": 2, "Li": 3, "Be": 4, "B": 5, "C": 6, "N": 7, "O": 8, "F": 9, "Ne": 10,
@@ -59,22 +60,22 @@ class Molecule:
             "Md": 101, "No": 102, "Lr": 103, "Rf": 104, "Db": 105, "Sg": 106, "Bh": 107, "Hs": 108, "Mt": 109, "Ds": 110,
             "Rg": 111, "Cn": 112, "Nh": 113, "Fl": 114, "Mc": 115, "Lv": 116, "Ts": 117, "Og": 118
         }
-        
+
         for i in range(2, min(2 + num_atoms, len(lines))):
             parts = lines[i].split()
             if len(parts) >= 4:
                 symbol = parts[0]
                 try:
                     x, y, z = map(float, parts[1:4])
-                except ValueError:
-                    raise ValueError(f"Invalid coordinates at line {i+1}: {lines[i]}")
-                
+                except ValueError as e:
+                    raise ValueError(f"Invalid coordinates at line {i+1}: {lines[i]}") from e
+
                 # Fetch atomic number, defaulting to 0 if unknown so the Atom class catches it
                 atomic_number = symbol_to_z.get(symbol.capitalize(), 0)
-                
+
                 atom = Atom(symbol=symbol, atomic_number=atomic_number, x=x, y=y, z=z)
                 molecule.add_atom(atom)
-                
+
         return molecule
 
     def __repr__(self):

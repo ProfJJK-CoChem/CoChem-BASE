@@ -3,18 +3,15 @@
 CoChem-CORE: Stage 1.0 - Headless Ingestion Engine
 Module: intake/cochem_stage2_ingestor.py
 Bridges raw molecular coordinate files (.xyz, .sdf) into strictly validated
-mathematical arrays. Enforces basic valency checks and atomic parsing using 
+mathematical arrays. Enforces basic valency checks and atomic parsing using
 bounded thread pools to prevent memory exhaustion during batch intakes.
 """
 
-import os
-import re
-import json
 import logging
-import numpy as np
-from pathlib import Path
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple, Dict, Any, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-IngestionEngine")

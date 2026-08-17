@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """
 CoChem-CORE Stage 2.4: Quantum Parser
-Enforces strict SCF convergence checks (ΔE < 10^-7), QCSchema JSON-LD exports, 
+Enforces strict SCF convergence checks (ΔE < 10^-7), QCSchema JSON-LD exports,
 cryptographic SHA-256 artifact verification, and applies immutable POSIX read-only locks (chmod 0o444).
 """
 
+import hashlib
+import json
+import logging
 import os
 import re
-import json
-import hashlib
-import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
-from cochem_base.config_loader import get_artifact_dir
+from typing import Any, Dict, Optional
+
+from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-QuantumParser")
@@ -21,9 +22,10 @@ logger = logging.getLogger("CoChem-QuantumParser")
 class QuantumParser:
     def __init__(self, artifact_dir: Optional[str] = None) -> None:
         if artifact_dir:
-            self.artifact_base = Path(artifact_dir)
+            self.artifact_base = resolve_mapped_path(artifact_dir, get_artifact_dir())
         else:
             self.artifact_base = get_artifact_dir() / "Scratch"
+        self.artifact_base.mkdir(parents=True, exist_ok=True)
         self.scf_threshold = 1e-7
 
     def verify_scf_convergence(self, log_path: Path) -> bool:

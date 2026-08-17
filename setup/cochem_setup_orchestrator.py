@@ -6,16 +6,17 @@ to the correct OS-native Interaction and Calculation scripts, completely
 bypassing legacy Docker/DevContainer abstractions.
 """
 
-import os
-import sys
 import json
-import subprocess
+import logging
+import os
 import platform
 import shutil
-import logging
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from cochem_base.config_loader import get_artifact_dir
+from typing import Any, Dict, List, Optional
+
+from cochem_base.config_loader import get_artifact_dir, resolve_executable, resolve_wsl_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-SetupOrchestrator")
@@ -27,18 +28,32 @@ except ImportError:
 
 INTERACT_MAP = {
     "Local-Windows (WSL)": "interact_wsl.py",
-    "Local-MacOS (OrbStack)": "interact_mac.py",
-    "Local-Linux (Deb)": "interact_linux.py",
+    "Local-MacOS (OrbStack)": "interact_native.py",
+    "Local-Linux (Deb)": "interact_native.py",
     "Codespaces": "interact_codespaces.py"
 }
 
 CALC_MAP = {
     "Local-Windows (WSL)": "calc_wsl.py",
-    "Local-MacOS (OrbStack)": "calc_mac.py",
-    "Local-Linux (Deb)": "calc_linux.py",
-    "GitHub Actions": "calc_gh_actions.py",
+    "Local-MacOS (OrbStack)": "calc_native.py",
+    "Local-Linux (Deb)": "calc_native.py",
+    "GitHub Actions": "calc_native.py",
     "HPC": "calc_hpc.py"
 }
+
+
+def detect_default_environments() -> tuple[str, str]:
+    """Select host-native interaction and calculation routes for neutral manifests."""
+    if os.environ.get("CODESPACES"):
+        return "Codespaces", "GitHub Actions"
+    system = platform.system()
+    if system == "Windows":
+        return "Local-Windows (WSL)", "Local-Windows (WSL)"
+    if system == "Darwin":
+        return "Local-MacOS (OrbStack)", "Local-MacOS (OrbStack)"
+    if system == "Linux":
+        return "Local-Linux (Deb)", "Local-Linux (Deb)"
+    raise RuntimeError(f"Unsupported host platform: {system}")
 
 
 def get_manifest_path() -> Path:
@@ -68,9 +83,19 @@ def execute_script(script_name: str, env_name: str) -> None:
     logger.info(f"[DISPATCH] Dispatching OS-Native Router: {script_name}...")
     try:
         if "WSL" in env_name and platform.system() == "Windows":
-            drive = str(script_path)[0].lower()
-            wsl_path = f"/mnt/{drive}/{str(script_path)[3:].replace(os.sep, '/')}"
-            cmd = ["wsl", "python3", wsl_path]
+            wsl_executable = resolve_wsl_executable(required=True)
+            conversion = subprocess.run(
+                [wsl_executable, "wslpath", "-u", "-a", str(script_path)],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30.0,
+            )
+            wsl_path = conversion.stdout.strip()
+            if not wsl_path:
+                raise RuntimeError(f"WSL failed to map setup script path: {script_path}")
+            wsl_python = os.environ.get("COCHEM_WSL_PYTHON", "python3")
+            cmd = [wsl_executable, wsl_python, wsl_path]
         else:
             cmd = [sys.executable, str(script_path)]
 
@@ -89,10 +114,12 @@ def detect_cuda_capability() -> bool:
     Returns True if CUDA is available, False otherwise.
     """
     try:
+        nvidia_smi = resolve_executable(env_var="NVIDIA_SMI_CMD", candidates=("nvidia-smi",))
+        command = [nvidia_smi, '--query-gpu=count', '--format=csv,noheader,nounits']
         if safe_subprocess_run:
-            result = safe_subprocess_run(['nvidia-smi', '--query-gpu=count', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=10.0, check=False)
+            result = safe_subprocess_run(command, capture_output=True, text=True, timeout=10.0, check=False)
         else:
-            result = subprocess.run(['nvidia-smi', '--query-gpu=count', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=10.0, check=False)  # check=True
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10.0, check=False)
         if result.returncode == 0 and result.stdout and result.stdout.strip() != '0':
             return True
     except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
@@ -117,18 +144,20 @@ def detect_hardware_capability() -> Dict[str, Any]:
     Detects hardware capabilities and returns a dictionary with relevant info.
     """
     try:
-        import psutil
         import multiprocessing
+
+        import psutil
 
         cpu_count = multiprocessing.cpu_count()
         memory_gb = round(psutil.virtual_memory().total / (1024**3), 2)
         is_cuda_available = detect_cuda_capability()
 
-        is_qcxms_available = bool(shutil.which("QCxMS"))
+        qcxms = resolve_executable(env_var="QCXMS_CMD", candidates=("QCxMS", "qcxms"))
+        is_qcxms_available = bool(shutil.which(qcxms) or Path(qcxms).is_file())
         if not is_qcxms_available:
             try:
-                subprocess.run(['QCxMS', '--version'], capture_output=True, timeout=5.0, check=False)  # check=True
-                is_qcxms_available = True
+                result = subprocess.run([qcxms, '--version'], capture_output=True, timeout=5.0, check=False)
+                is_qcxms_available = result.returncode == 0
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
                 """Implementation pending"""
         return {
@@ -246,6 +275,12 @@ def main() -> None:
     if not interact_env or not calc_env:
         logger.error("Manifest is missing 'interaction_environment' or 'calculation_environment' keys.")
         sys.exit(1)
+
+    default_interact, default_calc = detect_default_environments()
+    if str(interact_env).lower() == "auto":
+        interact_env = default_interact
+    if str(calc_env).lower() == "auto":
+        calc_env = default_calc
 
     hardware_info = detect_hardware_capability()
     logger.info(f"[HARDWARE] Detected Hardware: {hardware_info}")

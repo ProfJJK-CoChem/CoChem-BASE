@@ -1,6 +1,8 @@
 from enum import Enum
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel, Field
+
 
 class ProductClassEnum(str, Enum):
     CLASS_A = "Product_A_DeNovo"

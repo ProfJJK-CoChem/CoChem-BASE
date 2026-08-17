@@ -1,8 +1,8 @@
+
 import pytest
-from typing import Any
-from unittest.mock import patch
-from cochem_base.core.hardware import HardwareDiscovery
+
 from cochem_base.core.dispatcher import TaskDispatcher
+from cochem_base.core.hardware import HardwareDiscovery
 
 
 def test_hardware_discovery() -> None:
@@ -19,17 +19,15 @@ def submit_task_with_preemption(dispatcher: TaskDispatcher, task_id: str, comman
     dispatcher.submit_task(task_id, command)
 
 
-@patch('cochem_base.core.hardware.HardwareDiscovery.get_system_ram_gb')
-def test_hardware_preemption_rejection(mock_get_ram: Any) -> None:
-    # Simulate a node with only 8GB of RAM
-    mock_get_ram.return_value = 8.0
-
+def test_hardware_preemption_rejection() -> None:
     dispatcher = TaskDispatcher()
+    actual_ram = HardwareDiscovery.get_system_ram_gb()
 
-    # Task requires 16GB, should be preempted
-    with pytest.raises(MemoryError, match="Preemption: Task requires 16.0GB, but only 8.0GB available."):
-        submit_task_with_preemption(dispatcher, "task_heavy_ccsd", "echo 'Running'", required_ram_gb=16.0)
+    # Task requires actual_ram + 10.0GB, should be preempted
+    excess_ram = actual_ram + 10.0
+    with pytest.raises(MemoryError, match=f"Preemption: Task requires {excess_ram}GB, but only {actual_ram}GB available."):
+        submit_task_with_preemption(dispatcher, "task_heavy_ccsd", "echo 'Running'", required_ram_gb=excess_ram)
 
-    # Task requires 4GB, should succeed
-    submit_task_with_preemption(dispatcher, "task_light_dft", "echo 'Running'", required_ram_gb=4.0)
+    # Task requires 0.1GB, should succeed
+    submit_task_with_preemption(dispatcher, "task_light_dft", "echo 'Running'", required_ram_gb=0.1)
     assert dispatcher.task_queue.qsize() == 1

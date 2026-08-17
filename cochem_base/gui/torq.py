@@ -1,5 +1,13 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QGroupBox, QSlider, QLabel, QHBoxLayout, QPushButton
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class TorqTab(QWidget):

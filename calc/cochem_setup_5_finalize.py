@@ -8,10 +8,12 @@ and auto-heals configuration files.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 from pydantic import ValidationError
-from core_engine.cochem_core_registry_schema import CoChemConfig
+
 from cochem_base.config_loader import resolve_config_path
+from core_engine.cochem_core_registry_schema import CoChemConfig
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

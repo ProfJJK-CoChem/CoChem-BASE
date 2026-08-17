@@ -1,5 +1,6 @@
 import math
 
+
 class Point:
     """
     Represents a Cartesian point in 3D space.

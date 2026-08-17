@@ -1,9 +1,10 @@
-import pytest
 import asyncio
-import numpy as np
 from pathlib import Path
-from core_engine.cochem_base_daemon import ZeroMQDaemon, BaseDaemon
-from core_engine.cochem_base_hdf5 import HDF5OntologyEnforcer, CoChemHDF5Manager, BasinRecord
+
+import pytest
+
+from core_engine.cochem_base_daemon import BaseDaemon
+from core_engine.cochem_base_hdf5 import CoChemHDF5Manager
 
 
 def test_zeromq_daemon_lifecycle() -> None:

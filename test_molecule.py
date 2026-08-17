@@ -1,9 +1,11 @@
 import sys
+
 from cochem_base.io.molecule_definition import Atom, Molecule
+
 
 def main():
     print("Running Molecule tests...")
-    
+
     # 1. Test valid parsing
     xyz_data = '''3
 Water Molecule
@@ -19,7 +21,7 @@ H 0.000 -0.757 -0.477
     except Exception as e:
         print(f"Failed to parse valid XYZ: {e}")
         sys.exit(1)
-        
+
     # 2. Test AtomicPositivity validation
     print("\nTesting strict positivity validation...")
     try:
@@ -33,7 +35,7 @@ X 0.0 0.0 0.0
         sys.exit(1)
     except ValueError as e:
         print(f"SUCCESS: Caught expected ValueError: {e}")
-        
+
     try:
         # Directly pass invalid Z
         Atom("U", -92, 0, 0, 0)
@@ -41,7 +43,7 @@ X 0.0 0.0 0.0
         sys.exit(1)
     except ValueError as e:
         print(f"SUCCESS: Caught expected ValueError: {e}")
-        
+
     print("\nAll tests passed successfully.")
 
 if __name__ == "__main__":

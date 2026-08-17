@@ -2,25 +2,36 @@
 """
 CoChem-CORE: Stage 0.0 - Golden Registry Schema Gatekeeper
 Defines the absolute Pydantic models for `cochem_system_config.json`.
-Guarantees downstream scientific components never encounter missing keys, 
+Guarantees downstream scientific components never encounter missing keys,
 type errors, or unmapped hardware states.
 """
 
 import logging
-from typing import Dict, Any, Optional, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime
+from typing import Any, Dict, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _default_mps_pipe_dir() -> str:
+    from cochem_base.config_loader import get_mps_directories
+    return str(get_mps_directories()[0])
+
+
+def _default_mps_log_dir() -> str:
+    from cochem_base.config_loader import get_mps_directories
+    return str(get_mps_directories()[1])
 
 class MPSConfig(BaseModel):
     """CUDA Multi-Process Service (MPS) configuration."""
     enabled: bool = Field(default=True, description="Enable CUDA MPS daemon multiplexing")
     max_workers: int = Field(default=4, description="Max concurrent MPS worker tasks per GPU")
     thread_percentage: int = Field(default=25, description="CUDA MPS active thread percentage ceiling")
-    pipe_dir: str = Field(default="/tmp/nvidia-mps", description="MPS pipe directory")
-    log_dir: str = Field(default="/tmp/nvidia-log", description="MPS log directory")
+    pipe_dir: str = Field(default_factory=_default_mps_pipe_dir, description="MPS pipe directory")
+    log_dir: str = Field(default_factory=_default_mps_log_dir, description="MPS log directory")
 
 class CorePinningConfig(BaseModel):
     """Core Pinning and Topology Configuration."""

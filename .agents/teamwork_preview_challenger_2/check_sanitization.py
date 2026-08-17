@@ -1,29 +1,24 @@
-import os
 import glob
+import os
 
-TARGET_DIR = r"D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents"
+from cochem_base.path_sanitization import get_agents_dir, leak_patterns
+
+TARGET_DIR = str(get_agents_dir())
 agent_files = glob.glob(os.path.join(TARGET_DIR, "*.agent.md"))
 
-patterns = [
-    "C:\\Users\\ansac",
-    "c:\\users\\ansac",
-    "D:\\Gdrive\\__CoChem",
-    "d:\\gdrive\\__cochem",
-    "D:\\Gdrive",
-    "d:\\gdrive"
-]
+patterns = leak_patterns()
 
 all_clean = True
 for filepath in agent_files:
     filename = os.path.basename(filepath)
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
-    
+
     found = []
-    for p in patterns:
-        if p in content or p.lower() in content.lower():
-            found.append(p)
-            
+    for pattern, label in patterns:
+        if pattern.search(content):
+            found.append(label)
+
     if found:
         print(f"[LEAK DETECTED] {filename}: found {found}")
         all_clean = False

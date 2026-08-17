@@ -3,22 +3,23 @@
 CoChem-DOCK: Stage 9.0 - FastAPI Telemetry Polling Backend
 Bridges the UNIX Domain Socket from Stage 2.3 into React WebSockets.
 """
-import os
 import asyncio
-import socket
 import logging
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+
+from cochem_base.telemetry_transport import (
+    close_telemetry_server_socket,
+    create_telemetry_server_socket,
+)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-DOCK")
 
 app = FastAPI(title="CoChem-DOCK Telemetry API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
-SOCKET_PATH = os.environ.get("COCHEM_TELEMETRY_SOCKET", "/tmp/cochem_telemetry.sock")
-
 
 @app.get("/api/health")
 async def health_check() -> Dict[str, Any]:
@@ -79,20 +80,7 @@ def lttb_decimate(data: List[Any], threshold: int) -> List[Any]:
 @app.websocket("/ws/telemetry")
 async def websocket_telemetry(websocket: WebSocket) -> None:
     await websocket.accept()
-
-    if not hasattr(socket, "AF_UNIX"):
-        logger.warning("AF_UNIX not supported on this platform. WebSocket telemetry simulation inactive.")
-        await websocket.close()
-        return
-
-    if os.path.exists(SOCKET_PATH):
-        try:
-            os.remove(SOCKET_PATH)
-        except OSError:
-            """Implementation pending"""
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    server.bind(SOCKET_PATH)
-    server.setblocking(False)
+    server, socket_path = create_telemetry_server_socket()
 
     loop = asyncio.get_running_loop()
     telemetry_buffer: List[Any] = []
@@ -118,12 +106,15 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         logger.info("Client disconnected.")
     finally:
-        server.close()
-        if os.path.exists(SOCKET_PATH):
-            try:
-                os.remove(SOCKET_PATH)
-            except OSError:
-                """Implementation pending"""
+        close_telemetry_server_socket(server, socket_path)
+
+
 if __name__ == "__main__":
+    import os
+
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(
+        app,
+        host=os.environ.get("COCHEM_DOCK_HOST", "127.0.0.1"),
+        port=int(os.environ.get("COCHEM_DOCK_PORT", "8000")),
+    )

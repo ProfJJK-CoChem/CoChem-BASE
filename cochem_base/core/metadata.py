@@ -1,6 +1,7 @@
-from typing import Dict, List, Optional, Any, Callable
 import functools
 import time
+from typing import Any, Callable, Dict, List, Optional
+
 
 class LAPACKCitationTracker:
     """
@@ -16,13 +17,13 @@ class LAPACKCitationTracker:
         """
         if not routine_name or not doi:
             raise ValueError("Routine name and DOI must be non-empty strings.")
-            
+
         routine_name = routine_name.strip().lower()
         doi = doi.strip()
-        
+
         if routine_name not in self._citations:
             self._citations[routine_name] = []
-            
+
         if doi not in self._citations[routine_name]:
             self._citations[routine_name].append(doi)
 
@@ -58,7 +59,7 @@ class ProvenanceTracker:
         """
         if seed is None:
             raise ValueError("Seed cannot be None for provenance tracking.")
-            
+
         record = {
             "function": func_name,
             "seed": seed,
@@ -90,20 +91,20 @@ def execute_with_provenance(func: Callable = None, *, tracker: Optional[Provenan
     """
     if func is None:
         return functools.partial(execute_with_provenance, tracker=tracker)
-        
+
     actual_tracker = tracker if tracker is not None else default_provenance_tracker
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         if "seed" not in kwargs:
             raise ValueError(f"Stochastic function '{func.__name__}' requires a 'seed' keyword argument for provenance tracking.")
-            
+
         seed = kwargs["seed"]
         try:
             actual_tracker.record_execution(func.__name__, seed, args, kwargs)
         except Exception as e:
             raise RuntimeError(f"Provenance tracking failed for '{func.__name__}': {str(e)}") from e
-            
+
         return func(*args, **kwargs)
-        
+
     return wrapper

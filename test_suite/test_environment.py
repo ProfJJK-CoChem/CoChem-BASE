@@ -1,7 +1,8 @@
+import logging
 import os
 import sys
-import logging
-from typing import Tuple, Optional
+from typing import Optional, Tuple
+
 from cochem_base.config_loader import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

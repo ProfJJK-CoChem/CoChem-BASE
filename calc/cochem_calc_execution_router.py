@@ -2,17 +2,23 @@
 # Apache License 2.0
 """
 Core Execution Router for the CoChem pipeline.
-Acts as the definitive switchboard, polling the Golden Registry and dynamically 
+Acts as the definitive switchboard, polling the Golden Registry and dynamically
 forking workloads between local execution and remote HPC schedulers.
 """
 
-import os
-import json
 import logging
+import os
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional
-from cochem_base.config_loader import resolve_config_path, load_system_config_dict
+from typing import Any, Dict, Optional
+
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    load_system_config_dict,
+    resolve_config_path,
+    resolve_executable,
+    resolve_mapped_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +34,14 @@ except ImportError:
 class ExecutionRouter:
     """
     Core Execution Router for the CoChem pipeline.
-    Acts as the definitive switchboard, polling the Golden Registry and dynamically 
+    Acts as the definitive switchboard, polling the Golden Registry and dynamically
     forking workloads between local execution and remote HPC schedulers.
     """
 
     def __init__(self, registry_path: Optional[str] = None) -> None:
         """Initializes the router and loads the Golden Registry."""
         if registry_path:
-            self.registry_path = Path(registry_path)
+            self.registry_path = resolve_config_path(Path(registry_path))
         else:
             self.registry_path = resolve_config_path()
 
@@ -101,14 +107,14 @@ class ExecutionRouter:
                 logger.error(f"Local execution failed: {e}")
                 return -1
 
-    def _dispatch_hpc(self, payload_command: str, job_name: str, cwd: str, 
+    def _dispatch_hpc(self, payload_command: str, job_name: str, cwd: str,
                       cores: int = 4, mem_mb: int = 8192, wall_time: str = "24:00:00") -> str:
         """
         Stage 1.2: HPC Dispatch (SLURM Template Rendering & Submission).
         Bypasses local limitations by generating and submitting a .sbatch script.
         """
         hpc_config = self.registry.get("hpc", {})
-        template = hpc_config.get("sbatch_template", 
+        template = hpc_config.get("sbatch_template",
             "#!/bin/bash\n"
             "#SBATCH --job-name={job_name}\n"
             "#SBATCH --ntasks={cores}\n"
@@ -130,15 +136,16 @@ class ExecutionRouter:
             rendered_script = rendered_script.replace(k, v)
 
         target_sbatch = Path(cwd) / f"{job_name}_submit.sbatch"
+        sbatch = resolve_executable(env_var="SBATCH_CMD", candidates=("sbatch",))
         try:
             with open(target_sbatch, 'w', encoding='utf-8') as f:
                 f.write(rendered_script)
             logger.info(f"Generated SLURM script: {target_sbatch}")
 
             if safe_subprocess_run:
-                result = safe_subprocess_run(["sbatch", str(target_sbatch)], cwd=cwd, timeout=60.0, check=True)
+                result = safe_subprocess_run([sbatch, str(target_sbatch)], cwd=cwd, timeout=60.0, check=True)
             else:
-                result = subprocess.run(["sbatch", str(target_sbatch)], capture_output=True, text=True, cwd=cwd, timeout=60.0, check=True)
+                result = subprocess.run([sbatch, str(target_sbatch)], capture_output=True, text=True, cwd=cwd, timeout=60.0, check=True)
 
             stdout = result.stdout.strip() if result.stdout else ""
             logger.info(f"HPC Submission successful: {stdout}")
@@ -153,18 +160,20 @@ class ExecutionRouter:
             logger.error(f"SLURM submission failed: {e}")
             return "SUBMISSION_FAILED"
 
-    def route_job(self, target_engine: str, payload_command: str, cwd: str, 
+    def route_job(self, target_engine: str, payload_command: str, cwd: str,
                   job_name: str = "cochem_job", **kwargs: Any) -> Any:
         """Main entry point for routing a computational job based on the Golden Registry."""
-        os.makedirs(cwd, exist_ok=True)
+        working_dir = resolve_mapped_path(cwd, get_artifact_dir() / "Scratch")
+        working_dir.mkdir(parents=True, exist_ok=True)
+        mapped_cwd = str(working_dir)
         path = self.resolve_execution_path(target_engine)
 
         if path == "sbatch":
             cores = kwargs.get("cores", 4)
             mem_mb = kwargs.get("mem_mb", 8192)
             wall_time = kwargs.get("wall_time", "24:00:00")
-            return self._dispatch_hpc(payload_command, job_name, cwd, cores, mem_mb, wall_time)
+            return self._dispatch_hpc(payload_command, job_name, mapped_cwd, cores, mem_mb, wall_time)
         else:
             env_overrides = kwargs.get("env", None)
             timeout = kwargs.get("timeout", 300.0)
-            return self._dispatch_local(payload_command, cwd, env_overrides, timeout=timeout)
+            return self._dispatch_local(payload_command, mapped_cwd, env_overrides, timeout=timeout)

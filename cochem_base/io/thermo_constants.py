@@ -34,16 +34,16 @@ class ThermoConstantsValidator:
     def is_standard_state(cls, temperature: float, pressure: float, temp_tol: float = 0.01, press_tol: float = 1.0) -> bool:
         """
         Checks if the given temperature and pressure represent a standard state.
-        
+
         Args:
             temperature: The temperature in Kelvin.
             pressure: The pressure in Pascals.
             temp_tol: Tolerance for temperature matching (K).
             press_tol: Tolerance for pressure matching (Pa).
-            
+
         Returns:
             bool: True if the conditions are at standard state, False otherwise.
-            
+
         Raises:
             ValueError: If temperature or pressure is physically invalid.
         """
@@ -52,5 +52,5 @@ class ThermoConstantsValidator:
 
         temp_match = abs(temperature - STANDARD_TEMPERATURE) <= temp_tol
         press_match = abs(pressure - STANDARD_PRESSURE) <= press_tol
-        
+
         return temp_match and press_match

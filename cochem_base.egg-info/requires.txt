@@ -1,6 +1,6 @@
 PySide6
 pluggy
-pydantic
+pydantic>=2
 pyqtgraph
 pyvista
 pyvistaqt
@@ -9,3 +9,5 @@ vtk
 [dev]
 pytest
 pytest-qt
+ruff>=0.1.0
+mypy>=1.8.0

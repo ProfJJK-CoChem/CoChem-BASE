@@ -1,10 +1,13 @@
-import os
-import sys
-import logging
-import subprocess
-import multiprocessing
 import ctypes
-from typing import Dict, Any, List
+import logging
+import multiprocessing
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+
+from cochem_base.config_loader import resolve_executable
 
 logger = logging.getLogger(__name__)
 
@@ -31,31 +34,7 @@ class HardwareDiscovery:
         available = False
         fp64_capable = False
 
-        # Method 1: PyTorch check
-        try:
-            import torch
-            if torch.cuda.is_available():
-                available = True
-                for i in range(torch.cuda.device_count()):
-                    props = torch.cuda.get_device_properties(i)
-                    cap = (props.major, props.minor)
-                    is_fp64 = cap[0] >= 7  # Volta/Ampere/Hopper/Ada support FP64
-                    if is_fp64:
-                        fp64_capable = True
-                    devices.append({
-                        "id": i,
-                        "name": props.name,
-                        "vram_gb": round(props.total_memory / (1024.**3), 2),
-                        "compute_capability": f"{cap[0]}.{cap[1]}",
-                        "fp64_capable": is_fp64
-                    })
-                return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
-        except ImportError as e:
-            logger.debug(f"PyTorch unavailable for GPU check: {e}")
-        except Exception as e:
-            logger.warning(f"PyTorch GPU check failed: {e}")
-
-        # Method 2: pynvml check
+        # Method 1: pynvml check
         try:
             import pynvml
             pynvml.nvmlInit()
@@ -68,12 +47,23 @@ class HardwareDiscovery:
                     if isinstance(name, bytes):
                         name = name.decode("utf-8")
                     mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    try:
+                        cap = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
+                        is_fp64 = cap[0] >= 7
+                        comp_cap = f"{cap[0]}.{cap[1]}"
+                    except pynvml.NVMLError:
+                        is_fp64 = False
+                        comp_cap = "unknown"
+
+                    if is_fp64:
+                        fp64_capable = True
+
                     devices.append({
                         "id": i,
                         "name": name,
                         "vram_gb": round(mem_info.total / (1024.**3), 2),
-                        "compute_capability": "unknown",
-                        "fp64_capable": False
+                        "compute_capability": comp_cap,
+                        "fp64_capable": is_fp64
                     })
                 pynvml.nvmlShutdown()
                 return {"available": available, "fp64_capable": fp64_capable, "devices": devices}
@@ -82,7 +72,8 @@ class HardwareDiscovery:
 
         # Method 3: nvidia-smi fallback
         try:
-            cmd = ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
+            nvidia_smi = resolve_executable(env_var="NVIDIA_SMI_CMD", candidates=("nvidia-smi",))
+            cmd = [nvidia_smi, "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"]
             if safe_subprocess_run:
                 res = safe_subprocess_run(cmd, timeout=10.0, check=True)
             else:
@@ -141,9 +132,11 @@ class HardwareDiscovery:
                     return round(stat.ullTotalPhys / (1024.**3), 2)
                 except Exception as e:
                     logger.warning(f"Windows memory detection failed: {e}")
-            elif os.path.exists("/proc/meminfo"):
+            else:
+                meminfo_path = Path(os.sep) / "proc" / "meminfo"
+            if sys.platform != "win32" and meminfo_path.exists():
                 try:
-                    with open("/proc/meminfo", "r", encoding="utf-8") as f:
+                    with open(meminfo_path, "r", encoding="utf-8") as f:
                         for line in f:
                             if line.startswith("MemTotal:"):
                                 parts = line.split()

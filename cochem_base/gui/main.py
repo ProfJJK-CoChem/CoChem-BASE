@@ -1,5 +1,7 @@
 import sys
+
 from PySide6.QtWidgets import QApplication
+
 from cochem_base.gui.main_window import MainWindow
 
 

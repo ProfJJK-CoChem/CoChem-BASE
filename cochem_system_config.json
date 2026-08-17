@@ -8,7 +8,7 @@
     "gpu_profile": "None",
     "vram_gb": 0.0,
     "subnormal_precision_trap": false,
-    "os_target": "windows_x86_64"
+    "os_target": "auto"
   },
   "engines": {
     "orca": {

@@ -1,7 +1,8 @@
 import sys
+from typing import Any, Optional
+
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QDockWidget, QTextEdit, QWidget
-from PySide6.QtCore import Qt, QObject, Signal
-from typing import Optional, Any
 
 
 class StreamSignals(QObject):

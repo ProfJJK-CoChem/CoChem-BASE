@@ -5,14 +5,13 @@ Safely maps the execution pathways on a high-performance computing cluster
 without violating login-node policies. Configures SLURM routing rules.
 """
 
-import os
-import sys
 import json
-import shutil
-import subprocess
 import logging
+import subprocess
+import sys
 from pathlib import Path
-from cochem_base.config_loader import get_artifact_dir
+
+from cochem_base.config_loader import get_artifact_dir, resolve_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-HPCSetup")
@@ -36,15 +35,12 @@ def locate_artifact_dir() -> Path:
 def check_slurm_presence() -> bool:
     """Executes a lightweight query to detect the SLURM scheduler without heavy compute."""
     logger.info("Probing for SLURM scheduler (sbatch)...")
-    sbatch_bin = shutil.which("sbatch")
-    if sbatch_bin:
-        logger.info(f"SLURM detected at: {sbatch_bin}")
-        return True
+    sbatch_bin = resolve_executable(env_var="SBATCH_CMD", candidates=("sbatch",))
     try:
         if safe_subprocess_run:
-            result = safe_subprocess_run(["sbatch", "--version"], timeout=10.0, check=True)
+            result = safe_subprocess_run([sbatch_bin, "--version"], timeout=10.0, check=True)
         else:
-            result = subprocess.run(["sbatch", "--version"], capture_output=True, text=True, timeout=10.0, check=True)
+            result = subprocess.run([sbatch_bin, "--version"], capture_output=True, text=True, timeout=10.0, check=True)
         logger.info(f"SLURM detected: {result.stdout.strip()}")
         return True
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):

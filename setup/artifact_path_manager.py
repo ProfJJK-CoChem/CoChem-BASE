@@ -1,7 +1,6 @@
-import os
-import json
 import logging
 from pathlib import Path
+
 from cochem_base.config_loader import get_artifact_dir as loader_get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

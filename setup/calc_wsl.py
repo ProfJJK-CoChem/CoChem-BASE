@@ -5,15 +5,16 @@ Provisions the ORCA engine and OpenMPI pathway natively inside WSL.
 Extracts archives, resolves paths, and locks the state into the Golden Registry.
 """
 
-import os
-import sys
 import json
-import subprocess
-import shutil
 import logging
+import os
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
-from cochem_base.config_loader import get_artifact_dir
+
+from cochem_base.config_loader import get_artifact_dir, resolve_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-WSLSetup")
@@ -26,8 +27,9 @@ except ImportError:
 
 def verify_wsl_kernel() -> bool:
     """Validates that the script is executing inside a Windows Subsystem for Linux kernel."""
+    version_path = Path(os.sep) / "proc" / "version"
     try:
-        with open('/proc/version', 'r', encoding='utf-8') as f:
+        with open(version_path, 'r', encoding='utf-8') as f:
             version_info = f.read().lower()
             if "microsoft" in version_info or "wsl" in version_info:
                 return True
@@ -55,25 +57,28 @@ def check_openmpi_version(mpi_path: str) -> str:
 def provision_openmpi() -> str:
     """Locates OpenMPI or autonomously installs it with Active Repair."""
     logger.info("Probing for OpenMPI (mpirun)...")
-    mpi_path = shutil.which("mpirun")
+    mpi_path = resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec"))
+    mpi_found = Path(mpi_path).is_file() or shutil.which(mpi_path)
 
-    if not mpi_path:
+    if not mpi_found:
         logger.warning("OpenMPI not found in WSL $PATH.")
         logger.info("Initiating Autonomous OpenMPI Installation & Path Binder...")
 
         try:
             logger.info("Installing OpenMPI 4.1.x via apt-get...")
+            sudo = resolve_executable(env_var="SUDO_CMD", candidates=("sudo",))
+            apt_get = resolve_executable(env_var="APT_GET_CMD", candidates=("apt-get",))
             if safe_subprocess_run:
-                safe_subprocess_run(["sudo", "apt-get", "update"], check=True, timeout=60.0)
-                safe_subprocess_run(["sudo", "apt-get", "install", "-y", "openmpi-bin", "libopenmpi-dev"], check=True, timeout=120.0)
+                safe_subprocess_run([sudo, apt_get, "update"], check=True, timeout=60.0)
+                safe_subprocess_run([sudo, apt_get, "install", "-y", "openmpi-bin", "libopenmpi-dev"], check=True, timeout=120.0)
             else:
-                subprocess.run(["sudo", "apt-get", "update"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60.0)
-                subprocess.run(["sudo", "apt-get", "install", "-y", "openmpi-bin", "libopenmpi-dev"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120.0)
+                subprocess.run([sudo, apt_get, "update"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60.0)
+                subprocess.run([sudo, apt_get, "install", "-y", "openmpi-bin", "libopenmpi-dev"], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=120.0)
 
             logger.info("OpenMPI installation completed successfully.")
 
-            mpi_path = shutil.which("mpirun")
-            if not mpi_path:
+            mpi_path = resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec"))
+            if not (Path(mpi_path).is_file() or shutil.which(mpi_path)):
                 logger.error("Failed to locate mpirun after installation.")
                 sys.exit(1)
 
@@ -125,7 +130,8 @@ def provision_orca(engine_dir: Path) -> str:
     logger.info(f"Found ORCA Archive: {target_archive.name}. Initiating extraction...")
 
     try:
-        cmd = ["tar", "-xf", str(target_archive), "--no-same-owner", "-C", str(engine_dir)]
+        tar_executable = resolve_executable(env_var="TAR_CMD", candidates=("tar",))
+        cmd = [tar_executable, "-xf", str(target_archive), "--no-same-owner", "-C", str(engine_dir)]
         if safe_subprocess_run:
             safe_subprocess_run(cmd, check=True, timeout=120.0)
         else:

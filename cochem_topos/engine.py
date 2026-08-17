@@ -1,8 +1,7 @@
-import math
 import logging
-import hashlib  # Cryptographic SHA-256 artifact verification (sha256)
-import numpy as np
 from typing import List
+
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem, rdForceFieldHelpers, rdMolTransforms
 
@@ -70,7 +69,7 @@ class ToposEngine:
                 else:
                     energies.append(0.0)
             except Exception as ex:
-                raise ValueError(f"Forcefield optimization failed during torsional scan: {ex}")
+                raise ValueError(f"Forcefield optimization failed during torsional scan: {ex}") from ex
         return energies
 
     def assign_point_group(self) -> str:

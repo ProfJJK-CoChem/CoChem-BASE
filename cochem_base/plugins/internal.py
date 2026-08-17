@@ -1,5 +1,7 @@
-import pluggy
 from typing import Any
+
+import pluggy
+
 from cochem_base.gui.dashboard import DashboardTab
 from cochem_base.gui.topos import ToposTab
 from cochem_base.gui.torq import TorqTab

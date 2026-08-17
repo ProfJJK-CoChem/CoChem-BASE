@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
 CoChem-BASE Stage 0.2a: Interaction Environment Setup (Codespaces)
-Provisions the UI dependencies, establishes the Air-Gap structure, and 
+Provisions the UI dependencies, establishes the Air-Gap structure, and
 enforces strict WebGL memory constraints based on the host cloud instance.
 """
 
-import os
-import sys
 import json
-import subprocess
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
-from typing import Tuple, Dict, Any
+from typing import Tuple
+
 from cochem_base.config_loader import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -25,7 +26,8 @@ except ImportError:
 
 def verify_codespace_kernel() -> bool:
     """Validates execution within a GitHub Codespaces or DevContainer context."""
-    return Path("/workspaces").exists() or "CODESPACES" in os.environ
+    workspace_folder = os.environ.get("CODESPACE_VSCODE_FOLDER")
+    return "CODESPACES" in os.environ or bool(workspace_folder and Path(workspace_folder).is_dir())
 
 
 def provision_airgap_directories() -> Path:

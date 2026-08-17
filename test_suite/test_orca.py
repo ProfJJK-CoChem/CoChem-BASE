@@ -1,8 +1,8 @@
+import logging
 import os
 import subprocess
 import tempfile
 import time
-import logging
 from typing import Tuple
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
 CoChem-BASE: Interaction Environment Setup (Local-Windows / WSL)
-Provisions the UI dependencies, air-gap directories, and registers 
+Provisions the UI dependencies, air-gap directories, and registers
 the WSL interaction layer into the Golden Registry without Docker abstractions.
 """
 
-import os
-import sys
 import json
-import subprocess
-import shutil
 import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
-from cochem_base.config_loader import get_artifact_dir
+
+from cochem_base.config_loader import get_artifact_dir, resolve_wsl_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-InteractWSL")
@@ -25,8 +25,9 @@ except ImportError:
 
 def verify_wsl_kernel() -> bool:
     """Validates that the script is executing inside a Windows Subsystem for Linux kernel."""
+    version_path = Path(os.sep) / "proc" / "version"
     try:
-        with open('/proc/version', 'r', encoding='utf-8') as f:
+        with open(version_path, 'r', encoding='utf-8') as f:
             version_info = f.read().lower()
             if "microsoft" in version_info or "wsl" in version_info:
                 return True
@@ -37,13 +38,8 @@ def verify_wsl_kernel() -> bool:
 
 def check_wsl2_installation() -> bool:
     """Check if WSL2 is installed and available on Windows system."""
-    try:
-        wsl_path = Path("C:/Windows/System32/wsl.exe")
-        if not wsl_path.exists():
-            return False
-        return True
-    except Exception:
-        return False
+    wsl_executable = resolve_wsl_executable()
+    return sys.platform == "win32" and bool(wsl_executable)
 
 
 def request_admin_elevation() -> bool:
@@ -75,7 +71,8 @@ def bootstrap_wsl2_if_missing() -> bool:
 
     try:
         logger.info("Installing WSL2 and Ubuntu distribution...")
-        cmd = ["powershell", "-Command", "wsl --install -d Ubuntu"]
+        wsl_executable = resolve_wsl_executable(required=True)
+        cmd = [wsl_executable, "--install", "-d", "Ubuntu"]
         if safe_subprocess_run:
             safe_subprocess_run(cmd, check=True, timeout=120.0)
         else:

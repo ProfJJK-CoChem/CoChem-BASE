@@ -1,9 +1,10 @@
+import logging
 import os
 import subprocess
 import tempfile
 import time
-import logging
-from typing import Tuple
+from pathlib import Path
+from typing import Optional, Tuple
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TestMPI")
@@ -14,7 +15,7 @@ except ImportError:
     safe_subprocess_run = None
 
 
-def run_multi_core_orca_test(orca_path: str = "orca") -> Tuple[bool, str]:
+def run_multi_core_orca_test(orca_path: str = "orca", mpi_path: Optional[str] = None) -> Tuple[bool, str]:
     """Runs a highly simplified <1 second ORCA job using OpenMPI (2 cores)."""
     inp_content = """! SP tightscf PAL2
 * xyz 0 1
@@ -29,10 +30,18 @@ H 0.0 0.0 0.74
 
         try:
             start = time.time()
+            execution_env = os.environ.copy()
+            if mpi_path:
+                mpi_executable = Path(mpi_path).expanduser()
+                if mpi_executable.is_file():
+                    execution_env["PATH"] = os.pathsep.join(
+                        (str(mpi_executable.resolve().parent), execution_env.get("PATH", ""))
+                    )
+                execution_env["MPI_CMD"] = mpi_path
             if safe_subprocess_run:
-                result = safe_subprocess_run([orca_path, inp_file], capture_output=True, text=True, cwd=tmpdir, timeout=15.0, check=False)
+                result = safe_subprocess_run([orca_path, inp_file], capture_output=True, text=True, cwd=tmpdir, timeout=15.0, check=False, env=execution_env)
             else:
-                result = subprocess.run([orca_path, inp_file], capture_output=True, text=True, cwd=tmpdir, timeout=15.0, check=False)  # check=True
+                result = subprocess.run([orca_path, inp_file], capture_output=True, text=True, cwd=tmpdir, timeout=15.0, check=False, env=execution_env)  # check=True
             end = time.time()
 
             stdout_text = result.stdout or ""

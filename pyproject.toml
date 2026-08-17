@@ -14,7 +14,7 @@ requires-python = ">=3.9"
 dependencies = [
     "PySide6",
     "pluggy",
-    "pydantic",
+    "pydantic>=2",
     "pyqtgraph",
     "pyvista",
     "pyvistaqt",
@@ -24,8 +24,30 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "pytest-qt"
+    "pytest-qt",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0"
 ]
 
 [tool.setuptools.packages.find]
 include = ["cochem_base*", "cochem_topos*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = [".venv", ".conda", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+explicit_package_bases = true
+exclude = ["build/", "dist/"]

@@ -5,28 +5,33 @@ Provides the interactive GUI and pure-Python deployment logic for provisioning C
 Fully integrates the 14-repository ecosystem, Host ORCA verification, and Air-Gap Zip Sideloading.
 Now utilizes decoupled Interaction and Calculation OS-native matrices instead of Docker.
 """
-import os
 import json
-import hashlib
-import sys
-import subprocess
-import tempfile
-import shutil
-import zipfile
-import threading
-import psutil
 import logging
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import zipfile
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
+
 import ipywidgets as widgets
-from IPython.display import display, clear_output
-from cochem_base.config_loader import get_artifact_dir, get_repo_root
+import psutil
+from IPython.display import clear_output, display
+
+from cochem_base.config_loader import get_artifact_dir, get_base_root, resolve_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-Installer")
 
 try:
-    from core_engine.cochem_core_subprocess_broker import safe_subprocess_run, register_popen_process
+    from core_engine.cochem_core_subprocess_broker import (
+        register_popen_process,
+        safe_subprocess_run,
+    )
 except ImportError:
     safe_subprocess_run = None
     register_popen_process = None
@@ -43,7 +48,6 @@ ECOSYSTEM_REGISTRY = {
     "CoChem-KINETIC": {"desc": "Reaction network and master equation kinetics solver.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC", "mandatory": False},
     "CoChem-LUMOS": {"desc": "Open-shell dynamics, AIMNet2, and photochemistry.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS", "mandatory": False},
     "CoChem-MAGE": {"desc": "GC-MS fragmentation logic emulation using ML potentials.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE", "mandatory": False},
-    "CoChem-PULSE": {"desc": "Time-dependent vibrational dynamics and laser simulations.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-PULSE", "mandatory": False},
     "CoChem-SCAN": {"desc": "Internal conformational exploration heuristic tool.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN", "mandatory": False},
     "CoChem-SHIFT": {"desc": "NMR tensor extraction (J-couplings, chemical shifts).", "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT", "mandatory": False},
     "CoChem-GEOM": {"desc": "Precision molecular structure determination and fitting.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM", "mandatory": False},
@@ -91,13 +95,15 @@ class SynapInstallerGUI:
 
     def _get_git_hash(self) -> str:
         try:
+            git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
+            command = [git_executable, "rev-parse", "HEAD"]
             if safe_subprocess_run:
-                res = safe_subprocess_run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=5)
+                res = safe_subprocess_run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
             else:
-                res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True, timeout=5)
+                res = subprocess.run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
             return res.stdout.strip()[:16]
         except Exception:
-            build_hash_file = Path(__file__).resolve().parent.parent / ".build_hash"
+            build_hash_file = get_base_root() / ".build_hash"
             if build_hash_file.exists():
                 return build_hash_file.read_text(encoding="utf-8").strip()[:16]
             return "RELEASE_BUILD"
@@ -116,13 +122,15 @@ class SynapInstallerGUI:
             self.error_msg = f"⚠️ WARNING: Storage capacity verification failed ({e}). Manual scratch path confirmation required."
 
     def _verify_host_orca_path(self, raw_path: str) -> bool:
-        candidate = Path((raw_path or "").strip().strip('"').strip("'"))
-        if not str(candidate):
+        mapped_orca = resolve_executable(
+            (raw_path or "").strip().strip('"').strip("'") or None,
+            env_var="ORCA_CMD",
+            candidates=("orca",),
+        )
+        discovered = shutil.which(mapped_orca)
+        candidate = Path(discovered or mapped_orca).expanduser()
+        if not mapped_orca:
             return False
-
-        if candidate.is_dir():
-            options = [candidate / "orca", candidate / "bin" / "orca", candidate / "orca.exe", candidate / "bin" / "orca.exe"]
-            candidate = next((opt for opt in options if opt.exists()), candidate)
 
         if not candidate.exists():
             with self.status_out:
@@ -223,6 +231,12 @@ class SynapInstallerGUI:
 
             clean_env = os.environ.copy()
             clean_env['GIT_TERMINAL_PROMPT'] = '0'
+            base_root = str(get_base_root())
+            existing_pythonpath = clean_env.get("PYTHONPATH")
+            clean_env["PYTHONPATH"] = os.pathsep.join(
+                entry for entry in (base_root, existing_pythonpath) if entry
+            )
+            git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
 
             for mod in target_modules:
                 if mod == "CoChem-CORE":
@@ -231,17 +245,20 @@ class SynapInstallerGUI:
                     continue
 
                 if mod == "Antigravity-Assistant":
-                    log_msg(f"☁️ Provisioning Antigravity 2.0 Assistant...")
+                    log_msg("☁️ Provisioning Antigravity 2.0 Assistant...")
                     if os.name == 'nt':
-                        cmd = 'powershell -NoProfile -Command "irm https://antigravity.google/cli/install.ps1 | iex"'
+                        powershell = resolve_executable(env_var="POWERSHELL_CMD", candidates=("pwsh", "powershell"))
+                        cmd = [powershell, "-NoProfile", "-Command", "irm https://antigravity.google/cli/install.ps1 | iex"]
                     else:
-                        cmd = 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+                        curl = resolve_executable(env_var="CURL_CMD", candidates=("curl",))
+                        bash = resolve_executable(env_var="BASH_CMD", candidates=("bash",))
+                        cmd = [bash, "-c", f'"{curl}" -fsSL https://antigravity.google/cli/install.sh | "{bash}"']
                     try:
                         if safe_subprocess_run:
-                            safe_subprocess_run(cmd, shell=True, env=clean_env, check=True, timeout=120.0)
+                            safe_subprocess_run(cmd, env=clean_env, check=True, timeout=120.0)
                         else:
-                            subprocess.run(cmd, shell=True, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
-                        log_msg(f"  ✅ Antigravity 2.0 CLI installed successfully.")
+                            subprocess.run(cmd, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
+                        log_msg("  ✅ Antigravity 2.0 CLI installed successfully.")
                     except Exception as e:
                         log_msg(f"  ❌ Failed to install Antigravity 2.0: {e}")
                     self.progress_bar.value += progress_step
@@ -254,9 +271,9 @@ class SynapInstallerGUI:
                     log_msg(f"🔄 Updating existing module: {mod}")
                     try:
                         if safe_subprocess_run:
-                            safe_subprocess_run(["git", "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
+                            safe_subprocess_run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
                         else:
-                            subprocess.run(["git", "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
+                            subprocess.run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
                         log_msg(f"  ✅ {mod} updated successfully.")
                     except Exception as e:
                         log_msg(f"  ⚠️ Fast-forward failed for {mod}: {e}")
@@ -290,9 +307,9 @@ class SynapInstallerGUI:
                         log_msg(f"📥 Deep cloning {mod} from {repo_url}...")
                         try:
                             if safe_subprocess_run:
-                                safe_subprocess_run(["git", "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
+                                safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
                             else:
-                                subprocess.run(["git", "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
+                                subprocess.run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
                             log_msg(f"  ✅ Cloned {mod} successfully.")
                         except Exception as e:
                             log_msg(f"  ❌ Failed to clone {mod}: {e}")
@@ -301,15 +318,15 @@ class SynapInstallerGUI:
 
             log_msg("\n✅ Stage 0.0.2 Module synchronization completed.")
 
-            orchestrator = Path(__file__).resolve().parent.parent / "setup" / "cochem_setup_orchestrator.py"
+            orchestrator = get_base_root() / "setup" / "cochem_setup_orchestrator.py"
             if orchestrator.exists():
                 log_msg(f"🔄 Handing off to CoChem-BASE OS-Native Orchestrator: {orchestrator.name}...")
                 try:
                     process = subprocess.Popen(
-                        [sys.executable, str(orchestrator)], 
+                        [sys.executable, str(orchestrator)],
                         cwd=str(orchestrator.parent),
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.STDOUT, 
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
                         text=True, bufsize=1, env=clean_env
                     )
                     if register_popen_process:
@@ -412,8 +429,16 @@ class SynapInstallerGUI:
             f"</div>"
         )
 
-        self.interact_target = widgets.Dropdown(options=self.interaction_options, value=self.interaction_options[0], description="Interaction (UI):", layout={'width': '80%'})
-        self.calc_target = widgets.Dropdown(options=self.calculation_options, value=self.calculation_options[0], description="Calculation (Compute):", layout={'width': '80%'})
+        host_interaction = {
+            "Windows": "Local-Windows (WSL)",
+            "Darwin": "Local-MacOS (OrbStack)",
+            "Linux": "Local-Linux (Deb)",
+        }.get(platform.system(), "Codespaces")
+        if os.environ.get("CODESPACES"):
+            host_interaction = "Codespaces"
+        host_calculation = host_interaction if host_interaction != "Codespaces" else "GitHub Actions"
+        self.interact_target = widgets.Dropdown(options=self.interaction_options, value=host_interaction, description="Interaction (UI):", layout={'width': '80%'})
+        self.calc_target = widgets.Dropdown(options=self.calculation_options, value=host_calculation, description="Calculation (Compute):", layout={'width': '80%'})
 
         self.host_orca_path = widgets.Text(value="", placeholder="Optional binary path (e.g. orca)", description="Host ORCA:", layout={'width': '80%'})
 

@@ -1,8 +1,8 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QGroupBox, QPushButton
-from PySide6.QtCore import QTimer, Qt, QThread, Signal
-import random
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
+
+from PySide6.QtCore import QThread, QTimer, Signal
+from PySide6.QtWidgets import QGroupBox, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 logger = logging.getLogger(__name__)
 

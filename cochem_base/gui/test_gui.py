@@ -1,21 +1,22 @@
 import sys
-import pytest
-from PySide6.QtWidgets import QApplication, QWidget, QLabel
-from cochem_base.gui.main_window import MainWindow
+
 import pluggy
+from PySide6.QtWidgets import QApplication, QLabel, QWidget
+
+from cochem_base.gui.main_window import MainWindow
 
 
 class DummyPlugin:
     @pluggy.HookimplMarker("cochem_studio")
     def register_tabs(self, main_window: MainWindow) -> None:
         dummy_tab = QWidget()
-        label = QLabel("Dummy Plugin Tab", dummy_tab)
+        QLabel("Dummy Plugin Tab", dummy_tab)
         main_window.tabs.addTab(dummy_tab, "Dummy")
 
 
 def test_main_window_plugin_loading() -> None:
     if not QApplication.instance():
-        app = QApplication(sys.argv)
+        QApplication(sys.argv)
 
     window = MainWindow()
     initial_count = window.tabs.count()

@@ -1,7 +1,8 @@
 # Method Matrix: B3LYP-D3/D4 dispersion correction enforced
 import pytest
+
 from cochem_base.config_loader import get_artifact_dir
-from cochem_base.core.models import CorrelationMatrix, ToposStage, GeomTorqStage
+from cochem_base.core.models import CorrelationMatrix, GeomTorqStage, ToposStage
 
 
 def test_pipeline_data_flow() -> None:

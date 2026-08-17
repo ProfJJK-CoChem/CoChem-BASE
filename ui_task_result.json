@@ -1,0 +1,25 @@
+{
+  "status": "SUCCESS",
+  "results": {
+    "silo": {
+      "status": false,
+      "message": "Warning: Not running within cochem_base_silo (current env: )."
+    },
+    "artifacts": {
+      "status": true,
+      "message": "Success: CoChem_Artifacts directory found at C:\\Users\\ansac\\CoChem_Artifacts."
+    },
+    "modules": {
+      "status": true,
+      "message": "Success: All required modules found in D:\\__CoChem\\GitHub-Repo."
+    },
+    "orca_single": {
+      "status": true,
+      "message": "Success: ORCA single-core test passed in 0.45s."
+    },
+    "orca_mpi": {
+      "status": true,
+      "message": "Success: ORCA multi-core (MPI) test passed in 0.68s."
+    }
+  }
+}

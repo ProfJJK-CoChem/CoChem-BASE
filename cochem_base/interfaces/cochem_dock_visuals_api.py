@@ -3,21 +3,20 @@
 CoChem-DOCK: Stage 9.0 - Subprocess Bridge for Live UI Plotting
 Parses QCSchema and HDF5 binaries to serve Plotly-compatible JSON payloads.
 """
-import os
 import json
-from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import APIRouter, HTTPException
+
 from cochem_base.config_loader import get_artifact_dir
 
 router = APIRouter(prefix="/api/visuals", tags=["Visuals"])
-ARTIFACT_DIR = get_artifact_dir() / "Scratch"
 
 
 @router.get("/spectrum/{basin_id}")
 async def get_spectrum(basin_id: str) -> Dict[str, Any]:
     """Fetches finalized theoretical spectrum data for Plotly rendering."""
-    schema_path = ARTIFACT_DIR / f"{basin_id}_qcschema.json"
+    schema_path = get_artifact_dir() / "Scratch" / f"{basin_id}_qcschema.json"
 
     if not schema_path.exists():
         raise HTTPException(status_code=404, detail="QCSchema artifact not found.")
@@ -42,4 +41,4 @@ async def get_spectrum(basin_id: str) -> Dict[str, Any]:
         }
         return plotly_payload
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

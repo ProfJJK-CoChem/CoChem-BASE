@@ -1,25 +1,25 @@
-import os
 import glob
+import os
 import re
 
-agent_dir = r"D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents"
-config_dir = r"C:\Users\ansac\.gemini\config\agents"
+from cochem_base.path_sanitization import (
+    get_agent_templates_dir,
+    get_agents_dir,
+    leak_patterns,
+    sanitize_local_paths,
+)
+
+agent_dir = str(get_agents_dir())
+config_dir = str(get_agent_templates_dir())
 
 # 1. Check all files under .agents recursively for personal path leaks
 print("=== RECURSIVE PATH LEAK CHECK ACROSS ALL FILES IN .AGENTS ===")
 all_files = []
-for root, dirs, files in os.walk(agent_dir):
+for root, _dirs, files in os.walk(agent_dir):
     for file in files:
         all_files.append(os.path.join(root, file))
 
-leak_patterns = [
-    (r"C:\\Users\\ansac", "C:\\Users\\ansac"),
-    (r"C:/Users/ansac", "C:/Users/ansac"),
-    (r"D:\\Gdrive\\__CoChem", "D:\\Gdrive\\__CoChem"),
-    (r"D:/Gdrive/__CoChem", "D:/Gdrive/__CoChem"),
-    (r"D:\\Gdrive", "D:\\Gdrive"),
-    (r"D:/Gdrive", "D:/Gdrive"),
-]
+local_leak_patterns = leak_patterns()
 
 total_leaks_in_agents_dir = []
 
@@ -28,11 +28,11 @@ for filepath in all_files:
     # Skip checking reviewer's own script/output files or dispatch if needed, but let's check everything and report context
     with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
         lines = f.readlines()
-    
+
     file_leaks = []
     for idx, line in enumerate(lines, 1):
-        for pattern, label in leak_patterns:
-            if re.search(pattern, line, re.IGNORECASE):
+        for pattern, label in local_leak_patterns:
+            if pattern.search(line):
                 file_leaks.append((idx, label, line.strip()))
                 break
     if file_leaks:
@@ -53,7 +53,7 @@ for filepath in agent_files:
     fname = os.path.basename(filepath)
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
-        
+
     print(f"\n--- {fname} ---")
     fm_match = re.search(r'^---\r?\n(.*?)\r?\n---', content, re.DOTALL)
     if fm_match:
@@ -62,13 +62,13 @@ for filepath in agent_files:
         print(fm_text.strip())
     else:
         print("CRITICAL: No YAML frontmatter!")
-        
+
     # Check required fields
     has_write_tools = "enable_write_tools: true" in content
     has_mcp_tools = "enable_mcp_tools: true" in content
     print(f"  enable_write_tools: {has_write_tools}")
     print(f"  enable_mcp_tools: {has_mcp_tools}")
-    
+
     # Check body completeness
     body = content[fm_match.end():] if fm_match else content
     print(f"  Body length: {len(body)} chars, {len(body.splitlines())} lines")
@@ -86,12 +86,7 @@ if os.path.exists(config_dir):
                 c1 = f1.read()
                 c2 = f2.read()
             # Perform sanitization simulation on c1 to see if c2 equals sanitized c1
-            sanitized_c1 = c1.replace(r"C:\Users\ansac", "<USER_HOME>") \
-                            .replace(r"C:/Users/ansac", "<USER_HOME>") \
-                            .replace(r"D:\Gdrive\__CoChem", "<COCHEM_WORKSPACE>") \
-                            .replace(r"D:/Gdrive/__CoChem", "<COCHEM_WORKSPACE>") \
-                            .replace(r"D:\Gdrive", "<GDRIVE_ROOT>") \
-                            .replace(r"D:/Gdrive", "<GDRIVE_ROOT>")
+            sanitized_c1 = sanitize_local_paths(c1)
             matches_sanitized = (sanitized_c1 == c2)
             print(f"File {cf_name}: matches sanitized config = {matches_sanitized}")
             if not matches_sanitized:

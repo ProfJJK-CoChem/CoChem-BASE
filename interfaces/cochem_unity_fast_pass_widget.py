@@ -3,17 +3,15 @@
 CoChem-UNITY: Stage 0.2 - Fast Pass Ingestion & Triage Widget
 Implements Remote Database Searching, 3D Visualization, Dynamic ETA, and Telemetry Traps.
 """
-import time
+import importlib.util
 import logging
+import time
 from typing import Any
-import ipywidgets as widgets
-from IPython.display import display, clear_output
 
-try:
-    import py3Dmol
-    HAS_3DMOL = True
-except ImportError:
-    HAS_3DMOL = False
+import ipywidgets as widgets
+from IPython.display import clear_output, display
+
+HAS_3DMOL = importlib.util.find_spec("py3Dmol") is not None
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-Telemetry")

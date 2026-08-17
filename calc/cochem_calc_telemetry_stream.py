@@ -5,15 +5,14 @@ Module: calc/cochem_calc_telemetry_stream.py
 Purpose: Provides O(1) memory live-streaming of active logs with cryptographic provenance and cross-platform socket handling.
 """
 
-import os
-import re
-import time
-import json
-import socket
 import hashlib
 import logging
-from pathlib import Path
-from typing import Generator, Dict, Any, Optional
+import re
+import time
+from typing import Any, Dict, Generator, Optional
+
+from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
+from cochem_base.telemetry_transport import send_telemetry_payload
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TelemetryStreamer")
@@ -21,23 +20,18 @@ logger = logging.getLogger("CoChem-TelemetryStreamer")
 
 class TelemetryStreamer:
     def __init__(self, log_path: str, socket_path: Optional[str] = None) -> None:
-        self.log_path = Path(log_path).resolve()
+        self.log_path = resolve_mapped_path(log_path, get_artifact_dir() / "Scratch")
         if socket_path:
-            self.socket_path = socket_path
-        else:
-            self.socket_path = os.environ.get("COCHEM_TELEMETRY_SOCKET", "/tmp/cochem_telemetry.sock")
+            import os
+            os.environ["COCHEM_TELEMETRY_SOCKET"] = str(resolve_mapped_path(socket_path))
         self.scf_pattern = re.compile(r"^\s*(\d+)\s+([-+]?\d+\.\d+)\s+([-+]?\d+\.\d+)")
         self.maxcore_pattern = re.compile(r"(?:MaxCore in MB|%maxcore)\s*[:]?\s*(\d+)", re.IGNORECASE)
 
     def _emit_to_socket(self, payload: Dict[str, Any]) -> None:
-        if not hasattr(socket, "AF_UNIX"):
-            return  # AF_UNIX is non-POSIX / unsupported on raw Windows without IPC fallback
         try:
-            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as s:
-                s.connect(self.socket_path)
-                s.sendall(json.dumps(payload).encode('utf-8'))
-        except (FileNotFoundError, ConnectionRefusedError, OSError, AttributeError):
-            """Implementation pending"""
+            send_telemetry_payload(payload)
+        except OSError as exc:
+            logger.debug(f"Telemetry endpoint unavailable: {exc}")
     def stream_telemetry(self, timeout_sec: int = 120) -> Generator[Dict[str, Any], None, None]:
         start_wait = time.time()
         while not self.log_path.exists():

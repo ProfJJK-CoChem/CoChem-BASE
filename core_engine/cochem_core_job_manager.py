@@ -5,13 +5,11 @@ Manages the lifecycle of computational chemistry jobs with temporal tiers and ha
 """
 
 import asyncio
+import logging
 import signal
 import sys
 import time
-import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional, Any
-import logging
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -20,7 +18,7 @@ logger = logging.getLogger(__name__)
 class JobManager:
     """
     Manages the lifecycle of computational chemistry jobs with temporal tiers and hardware awareness.
-    
+
     Implements 10 temporal wall-clock tiers from 10 seconds to 1 month, with SIGTERM/SIGKILL enforcement
     for proper job lifecycle management and resource control.
     """

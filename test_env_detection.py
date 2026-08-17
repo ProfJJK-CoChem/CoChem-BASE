@@ -4,11 +4,10 @@ Test script for environment detection logic in CoChem-BASE setup.
 This validates that our improved detection method works correctly.
 """
 
-import json
 import logging
 import subprocess
-from pathlib import Path
-from cochem_base.config_loader import get_artifact_dir
+
+from cochem_base.config_loader import get_artifact_dir, resolve_conda_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TestEnvDetection")
@@ -29,26 +28,21 @@ def check_environment_detection() -> bool:
 
     env_exists = False
     try:
+        conda_executable = resolve_conda_executable(required=False)
+        command = [conda_executable, "info", "--envs"]
         if safe_subprocess_run:
-            result = safe_subprocess_run(["conda", "info", "--envs"], check=True, timeout=30.0)
+            safe_subprocess_run(command, check=True, timeout=30.0)
         else:
-            result = subprocess.run(["conda", "info", "--envs"], check=True, capture_output=True, text=True, timeout=30.0)
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=30.0)
 
-        if str(env_dir) in result.stdout:
-            conda_meta_path = env_dir / "conda-meta"
-            if conda_meta_path.exists():
-                env_exists = True
-                logger.info("Valid conda environment detected")
-            else:
-                logger.warning(f"Environment path found but conda-meta directory missing: {conda_meta_path}")
-                env_exists = False
-        else:
-            env_exists = env_dir.exists()
-            if env_exists:
-                logger.warning("Directory exists but not registered in conda environments")
+        conda_meta_path = env_dir / "conda-meta"
+        env_exists = conda_meta_path.is_dir() and any(conda_meta_path.glob("*.json"))
+        if env_exists:
+            logger.info("Valid Conda environment metadata detected")
     except Exception as e:
         logger.warning(f"Conda check failed: {e}")
-        env_exists = env_dir.exists()
+        conda_meta_path = env_dir / "conda-meta"
+        env_exists = conda_meta_path.is_dir() and any(conda_meta_path.glob("*.json"))
 
     logger.info(f"Final environment detection result: {env_exists}")
     return env_exists

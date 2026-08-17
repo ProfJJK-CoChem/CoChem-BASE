@@ -4,12 +4,16 @@ Hardware profiler module for CoChem-CORE.
 Provides system information, hardware capability detection, and performance benchmarking.
 """
 
-import psutil
-import platform
-import time
-import subprocess
-from typing import Dict, List, Optional, Any
 import logging
+import platform
+import subprocess
+import time
+from pathlib import Path
+from typing import Any, Dict, List
+
+import psutil
+
+from cochem_base.config_loader import get_artifact_dir, get_ramdisk_dir, resolve_executable
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-HardwareProfiler")
@@ -23,14 +27,23 @@ except ImportError:
 class HardwareProfiler:
     """
     Provides system information, hardware capability detection, and performance benchmarking.
-    
-    Implements TFLOPS calculation and hardware calibration benchmarking as required by 
+
+    Implements TFLOPS calculation and hardware calibration benchmarking as required by
     20260807_workflow.md for dynamic MLFF fallback detection.
     """
 
     def __init__(self) -> None:
         """Initialize the hardware profiler."""
         self.system_info: Dict[str, Any] = {}
+
+    @staticmethod
+    def _storage_probe_path() -> Path:
+        artifact_dir = get_artifact_dir()
+        return artifact_dir if artifact_dir.exists() else Path.home()
+
+    @staticmethod
+    def _nvidia_smi() -> str:
+        return resolve_executable(env_var="NVIDIA_SMI_CMD", candidates=("nvidia-smi",))
 
     def get_system_info(self) -> Dict[str, Any]:
         """Get basic system information."""
@@ -43,7 +56,7 @@ class HardwareProfiler:
             'cpu_freq': psutil.cpu_freq(),
             'memory_total': psutil.virtual_memory().total,
             'memory_available': psutil.virtual_memory().available,
-            'disk_usage': psutil.disk_usage('/')
+            'disk_usage': psutil.disk_usage(str(self._storage_probe_path()))
         }
 
         return self.system_info
@@ -163,7 +176,8 @@ class HardwareProfiler:
     def get_cuda_info(self) -> Dict[str, Any]:
         """Get CUDA information if available with enhanced detection."""
         try:
-            cmd = ['nvidia-smi', '--query-compute-apps=pid', '--format=csv']
+            nvidia_smi = self._nvidia_smi()
+            cmd = [nvidia_smi, '--query-compute-apps=pid', '--format=csv']
             if safe_subprocess_run:
                 result = safe_subprocess_run(cmd, timeout=15.0, check=True)
             else:
@@ -172,7 +186,7 @@ class HardwareProfiler:
             if result.returncode == 0 and result.stdout:
                 gpu_count = len([line for line in result.stdout.split('\n') if line.strip() and 'pid' not in line])
 
-                version_cmd = ['nvidia-smi', '--query-compute-apps=driver_version', '--format=csv']
+                version_cmd = [nvidia_smi, '--query-compute-apps=driver_version', '--format=csv']
                 if safe_subprocess_run:
                     version_result = safe_subprocess_run(version_cmd, timeout=15.0, check=True)
                 else:
@@ -239,7 +253,7 @@ class HardwareProfiler:
     def _check_10gb_nvme(self) -> bool:
         """Phase 1: Verifies at least 10GB of free space on the high-speed drive."""
         try:
-            usage = psutil.disk_usage('/')
+            usage = psutil.disk_usage(str(self._storage_probe_path()))
             free_gb = usage.free / (1024**3)
             logger.info(f"Storage check: {free_gb:.2f} GB available.")
             return free_gb >= 10.0
@@ -254,7 +268,7 @@ class HardwareProfiler:
                 temps = psutil.sensors_temperatures()
                 if not temps:
                     return True
-                for name, entries in temps.items():
+                for _name, entries in temps.items():
                     for entry in entries:
                         if entry.current > 90.0:
                             return False
@@ -265,8 +279,9 @@ class HardwareProfiler:
     def _check_openmpi_shm(self) -> bool:
         """Phase 3: Validates OpenMPI Shared Memory (SHM) mappings for parallel efficiency."""
         try:
-            if platform.system() == "Linux":
-                shm_usage = psutil.disk_usage('/dev/shm')
+            ramdisk_dir = get_ramdisk_dir()
+            if platform.system() == "Linux" and ramdisk_dir is not None:
+                shm_usage = psutil.disk_usage(str(ramdisk_dir))
                 if shm_usage.total < (1 * 1024**3):
                     return False
             return True
@@ -276,7 +291,7 @@ class HardwareProfiler:
     def _get_gpu_details(self) -> List[Dict[str, Any]]:
         """Get detailed GPU information."""
         try:
-            cmd = ['nvidia-smi', '--query-gpu=name,memory.total,memory.used', '--format=csv']
+            cmd = [self._nvidia_smi(), '--query-gpu=name,memory.total,memory.used', '--format=csv']
             if safe_subprocess_run:
                 result = safe_subprocess_run(cmd, timeout=15.0, check=True)
             else:

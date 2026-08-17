@@ -8,13 +8,14 @@ Validates:
 4. TOPOS: Jiggle-Quench Deduplication with Distance Matrix Hashing, process_conformer rotamer merging.
 """
 
-import pytest
-import numpy as np
-import networkx as nx
+import sys
 from pathlib import Path
+
+import networkx as nx
+import numpy as np
+import pytest
 from ase import Atoms
 
-import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 paths_to_add = [
     PROJECT_ROOT / "CoChem-TORQ",
@@ -37,7 +38,23 @@ try:
 except ImportError:
     from cochem_torq_orca import TorqOrcaExecutor
 
-from bench_core.orca_writer import generate_dlpno_ccsd_f12, generate_counterpoise_input, compute_counterpoise_corrected_energy
+try:
+    from cochem_bench.orca_writer import (
+        compute_counterpoise_corrected_energy,
+        generate_counterpoise_input,
+        generate_dlpno_ccsd_f12,
+    )
+except ImportError:
+    try:
+        from bench_core.orca_writer import (
+            compute_counterpoise_corrected_energy,
+            generate_counterpoise_input,
+            generate_dlpno_ccsd_f12,
+        )
+    except ImportError:
+        generate_dlpno_ccsd_f12 = None
+        generate_counterpoise_input = None
+        compute_counterpoise_corrected_energy = None
 try:
     from cochem_geom_ingest_math import CoordinateStandardizer
 except ImportError:

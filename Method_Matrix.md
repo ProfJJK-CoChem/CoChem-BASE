@@ -254,6 +254,7 @@ The energy scale spans roughly **0.1–20 kcal/mol**. S66 runs from −19.49 kca
 - **Open-shell radicals and their magnetic hyperfine structure.** Fermi-contact and dipolar hyperfine of radicals is a different problem with different methods. It is excluded by decision, not by omission: a reader with an Ar–OH complex should not assume this document covers it.
 - **Periodic solids.** ORCA has no periodic boundary conditions, no k-point sampling and no phonon module. Crystalline terahertz work routes to CP2k, Quantum ESPRESSO or VASP with phonopy, under its own convergence protocol, and is out of scope.
 - **Resonance Raman.** The autocorrelation formalism of Table 9 assumes the Placzek polarizability approximation, far from resonance.
+- **Time-Dependent / Laser Dynamics.** Time-dependent Schrödinger equation (TDSE), attosecond integration, surface hopping, and laser field interactions are strictly out of scope. The ecosystem is explicitly confined to static ab initio geometry optimization, electronic structure, and VPT2 / anharmonic force fields for predicting rotational constants in the microwave regime.
 
 ### 2.3 Structure vocabulary
 

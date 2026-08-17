@@ -4,13 +4,11 @@ CoChem-BASE Setup Stage 1: System Environment & Offline Tarball Fallback Manager
 Performs pre-flight environment checks and routes download requests to local archives in air-gapped environments.
 """
 
-import os
-import socket
 import logging
+import socket
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

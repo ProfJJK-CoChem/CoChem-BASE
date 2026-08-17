@@ -3,9 +3,9 @@
 Test suite for CoChem-BASE Setup Orchestrator
 """
 
+import json
 import os
 import sys
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,11 +13,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from setup.cochem_setup_orchestrator import (
-    get_manifest_path,
+    CALC_MAP,
+    INTERACT_MAP,
     detect_cuda_capability,
+    detect_default_environments,
     detect_hardware_capability,
+    get_manifest_path,
     get_mlff_fallback_strategy,
-    main
 )
 
 
@@ -56,6 +58,22 @@ class TestSetupOrchestrator(unittest.TestCase):
         manifest_path = get_manifest_path()
         self.assertTrue(manifest_path.exists())
         self.assertEqual(manifest_path.name, "cochem_deployment_manifest.json")
+
+    def test_all_environment_routes_have_scripts(self) -> None:
+        setup_dir = Path(__file__).resolve().parent
+        for script_name in (*INTERACT_MAP.values(), *CALC_MAP.values()):
+            self.assertTrue((setup_dir / script_name).is_file(), script_name)
+
+    def test_default_environment_mapping_is_host_native(self) -> None:
+        import platform
+        sys_os = platform.system()
+        interact, calc = detect_default_environments()
+        if sys_os == "Darwin":
+            self.assertEqual((interact, calc), ("Local-MacOS (OrbStack)", "Local-MacOS (OrbStack)"))
+        elif sys_os == "Windows":
+            self.assertEqual((interact, calc), ("Local-Windows (WSL)", "Local-Windows (WSL)"))
+        elif sys_os == "Linux":
+            self.assertEqual((interact, calc), ("Local-Linux (Deb)", "Local-Linux (Deb)"))
 
     def test_detect_cuda_capability(self) -> None:
         """Test CUDA capability detection."""

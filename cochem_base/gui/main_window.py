@@ -1,10 +1,13 @@
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget, QVBoxLayout, QFileDialog
-from PySide6.QtGui import QAction
-from PySide6.QtCore import Qt
 import json
-from cochem_base.plugins.loader import get_plugin_manager
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QFileDialog, QMainWindow, QTabWidget, QVBoxLayout, QWidget
+
+from cochem_base.config_loader import get_artifact_dir
 from cochem_base.gui.scribe import ScribeDock
 from cochem_base.plugins.internal import CorePlugin
+from cochem_base.plugins.loader import get_plugin_manager
 
 
 class MainWindow(QMainWindow):
@@ -66,7 +69,9 @@ class MainWindow(QMainWindow):
         file_menu.addAction(load_action)
 
     def serialize_state(self) -> None:
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Workspace", "", "JSON Files (*.json)")
+        workspace_dir = get_artifact_dir() / "Workspaces"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Workspace", str(workspace_dir), "JSON Files (*.json)")
         if file_path:
             state = {
                 "version": "1.0",
@@ -79,8 +84,10 @@ class MainWindow(QMainWindow):
             self.scribe_dock.log(f"Workspace saved to {file_path}")
 
     def deserialize_state(self) -> None:
-        file_path, _ = QFileDialog.getOpenFileName(self, "Load Workspace", "", "JSON Files (*.json)")
+        workspace_dir = get_artifact_dir() / "Workspaces"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        file_path, _ = QFileDialog.getOpenFileName(self, "Load Workspace", str(workspace_dir), "JSON Files (*.json)")
         if file_path:
             with open(file_path, "r", encoding="utf-8") as f:
-                state = json.loads(f.read())
+                json.loads(f.read())
             self.scribe_dock.log(f"Workspace loaded from {file_path}")

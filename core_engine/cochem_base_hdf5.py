@@ -1,15 +1,14 @@
 """HDF5 Ontology Enforcer for CoChem Base metadata validation."""
 
-from pydantic import BaseModel, Field, ValidationError
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+
 import h5py
 import numpy as np
-import sys
-import os
+from pydantic import BaseModel, Field, ValidationError
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from cochem_base.core.models import CoChemConfig, ToposStage, CorrelationMatrix
+from cochem_base.config_loader import get_artifact_dir, get_state_file_path, resolve_mapped_path
+from cochem_base.core.models import CoChemConfig
 
 
 class BasinRecord(BaseModel):
@@ -24,12 +23,17 @@ class BasinRecord(BaseModel):
 class HDF5OntologyEnforcer:
     """Enforces dynamic schema validation on payload metadata before writing to HDF5 store."""
 
-    def __init__(self, hdf5_path: Union[str, Path] = "cochem_state.h5") -> None:
-        self.hdf5_path = Path(hdf5_path)
+    def __init__(self, hdf5_path: Optional[Union[str, Path]] = None) -> None:
+        self.hdf5_path = (
+            resolve_mapped_path(hdf5_path, get_artifact_dir())
+            if hdf5_path is not None
+            else get_state_file_path()
+        )
+        self.hdf5_path.parent.mkdir(parents=True, exist_ok=True)
 
     def validate_payload(self, payload: Dict[str, Any], model_cls: Any = BasinRecord) -> Any:
         """Validate payload dict against the specified Pydantic model class.
-        
+
         Raises ValueError if schema validation fails.
         """
         try:

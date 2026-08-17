@@ -4,13 +4,25 @@ CoChem-BASE Silo Setup Script
 This script creates the conda environment for CoChem-BASE.
 """
 
+import logging
 import subprocess
 import sys
-import os
-import json
-import logging
 from pathlib import Path
-from cochem_base.config_loader import get_artifact_dir
+
+import cochem_base
+from cochem_base.config_loader import get_artifact_dir, resolve_conda_executable
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+repo_root_str = str(REPO_ROOT)
+sys.path[:] = [repo_root_str, *(entry for entry in sys.path if entry != repo_root_str)]
+
+
+
+LOADED_BASE_ROOT = Path(cochem_base.__file__).resolve().parent.parent
+if LOADED_BASE_ROOT != REPO_ROOT:
+    raise ImportError(
+        f"CoChem-BASE import resolved to {LOADED_BASE_ROOT}, expected active checkout {REPO_ROOT}."
+    )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-SiloSetup")
@@ -60,11 +72,13 @@ def setup_conda_silo() -> bool:
     logger.info("Creating new conda environment...")
 
     try:
+        conda_executable = resolve_conda_executable()
         create_cmd = [
-            "conda", "create", "--prefix", str(silo_dir),
-            "-c", "conda-forge", "python=3.10", "numpy", "pandas", 
+            conda_executable, "create", "--prefix", str(silo_dir),
+            "-c", "conda-forge", "python=3.10", "numpy", "pandas",
             "scipy", "matplotlib", "jupyter", "ipywidgets",
             "openbabel", "rdkit", "ase", "pyyaml", "requests",
+            "pydantic>=2",
             "--yes"
         ]
 
@@ -76,7 +90,7 @@ def setup_conda_silo() -> bool:
         logger.info(result.stdout)
 
         install_cmd = [
-            "conda", "install", "--prefix", str(silo_dir),
+            conda_executable, "install", "--prefix", str(silo_dir),
             "-c", "conda-forge", "mypy", "black", "flake8",
             "--yes"
         ]
@@ -89,8 +103,9 @@ def setup_conda_silo() -> bool:
         logger.info(result.stdout)
 
         pip_install = [
-            sys.executable, "-m", "pip", "install",
-            "openbabel", "pybel", "chemformula", "periodictable"
+            conda_executable, "run", "--prefix", str(silo_dir),
+            "python", "-m", "pip", "install",
+            "chemformula", "periodictable"
         ]
 
         logger.info("Installing pip packages...")
@@ -98,6 +113,18 @@ def setup_conda_silo() -> bool:
             result = safe_subprocess_run(pip_install, check=True, timeout=300.0)
         else:
             result = subprocess.run(pip_install, check=True, capture_output=True, text=True, timeout=300.0)
+        logger.info(result.stdout)
+
+        project_install = [
+            conda_executable, "run", "--prefix", str(silo_dir),
+            "python", "-m", "pip", "install", "--no-deps", "--editable", str(REPO_ROOT)
+        ]
+
+        logger.info("Mapping the active CoChem-BASE checkout into the silo...")
+        if safe_subprocess_run:
+            result = safe_subprocess_run(project_install, check=True, timeout=300.0)
+        else:
+            result = subprocess.run(project_install, check=True, capture_output=True, text=True, timeout=300.0)
         logger.info(result.stdout)
 
         logger.info(f"Conda environment created successfully at: {silo_dir}")
@@ -109,4 +136,7 @@ def setup_conda_silo() -> bool:
 
 
 if __name__ == "__main__":
-    setup_conda_silo()
+    if "--probe-import" in sys.argv:
+        print(cochem_base.__file__)
+    else:
+        setup_conda_silo()

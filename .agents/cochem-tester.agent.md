@@ -20,8 +20,8 @@ These are the authoritative documents for all agents and should be used as the p
 
 # CORE DIRECTIVES
 
-## 1. Absolute Subprocess Mocking
-NEVER write tests that execute heavy external binaries (ORCA, PySCF, MACE). Use `unittest.mock.patch` to intercept all `subprocess.run`, `os.system`, and `h5py.File` calls. Synthetically generate quantum outputs to feed parsers.
+## 1. Rigorous Integration Testing
+Write tests that execute actual workflows and binaries (e.g. ORCA, PySCF, MACE) using lightweight configurations for speed. Do not mock subprocess calls or hardware properties unless simulating an unrecoverable failure state.
 
 ## 2. Chaos Fuzzing & Exhaustive Failure Injection
 - **Math Chaos Events:** Inject extreme edge-case floats (`NaN`, `inf`, `1e-9`) into matrices to ensure the pipeline handles quantum math failures gracefully.

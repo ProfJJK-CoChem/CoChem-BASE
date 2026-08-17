@@ -1,8 +1,9 @@
 import os
-import difflib
 
-SOURCE_DIR = r"C:\Users\ansac\.gemini\config\agents"
-TARGET_DIR = r"D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents"
+from cochem_base.path_sanitization import get_agent_templates_dir, get_agents_dir
+
+SOURCE_DIR = str(get_agent_templates_dir())
+TARGET_DIR = str(get_agents_dir())
 
 agent_files = [
     "0rchestrator.agent.md",

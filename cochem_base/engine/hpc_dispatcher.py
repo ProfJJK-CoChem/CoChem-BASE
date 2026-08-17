@@ -1,11 +1,12 @@
 import asyncio
 import concurrent.futures
-from typing import Any, Callable, Dict, Optional
 import uuid
+from typing import Any, Callable, Dict, Optional
+
 
 class HPCDispatcher:
     """
-    A dispatcher for high-performance computing tasks that handles queuing 
+    A dispatcher for high-performance computing tasks that handles queuing
     and asynchronous execution using an underlying thread or process pool.
     """
     def __init__(self, max_workers: int = 4):
@@ -15,7 +16,7 @@ class HPCDispatcher:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         self.tasks: Dict[str, asyncio.Future] = {}
         self.results: Dict[str, Any] = {}
-        
+
     async def dispatch(self, func: Callable, *args, **kwargs) -> str:
         """
         Dispatch a task for asynchronous execution.
@@ -23,11 +24,11 @@ class HPCDispatcher:
         """
         task_id = str(uuid.uuid4())
         loop = asyncio.get_running_loop()
-        
+
         # We run the function in the thread pool executor
         future = loop.run_in_executor(self.executor, lambda: func(*args, **kwargs))
         self.tasks[task_id] = future
-        
+
         # Optional callback to store results when done
         def _on_done(fut):
             try:
@@ -44,13 +45,13 @@ class HPCDispatcher:
         """
         if task_id not in self.tasks:
             raise ValueError(f"Unknown task ID: {task_id}")
-            
+
         future = self.tasks[task_id]
         if timeout is not None:
             result = await asyncio.wait_for(future, timeout=timeout)
         else:
             result = await future
-            
+
         if isinstance(result, Exception):
             raise result
         return result
@@ -61,12 +62,12 @@ class HPCDispatcher:
         """
         if task_id not in self.tasks:
             return "UNKNOWN"
-            
+
         future = self.tasks[task_id]
         if future.done():
             return "COMPLETED"
         return "RUNNING"
-        
+
     def shutdown(self, wait: bool = True):
         """
         Shutdown the dispatcher and underlying executor.

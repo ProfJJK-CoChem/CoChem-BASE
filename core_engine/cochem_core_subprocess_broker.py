@@ -8,19 +8,20 @@ OOM Preemption Polling, and Core-Dump Garbage Collection.
 Provides `safe_subprocess_run` and `register_popen_process` for ecosystem subprocess safety.
 """
 
+import atexit
+import hashlib
+import logging
 import os
-import sys
-import time
+import shlex
+import shutil
 import signal
 import subprocess
 import threading
-import logging
-import shutil
-import atexit
-import shlex
-import hashlib
+import time
 from pathlib import Path
-from typing import List, Optional, Union, Dict, Any
+from typing import Any, Dict, List, Optional, Union
+
+from cochem_base.config_loader import get_artifact_dir, get_ramdisk_dir, resolve_mapped_path
 
 # Attempt psutil for OOM preemption and process management
 try:
@@ -106,7 +107,7 @@ def safe_subprocess_run(
     except subprocess.CalledProcessError as e:
         logger.error(f"Subprocess '{cmd}' failed with returncode {e.returncode}: {e.stderr}")
         raise
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
         raise
     except Exception as e:
@@ -115,8 +116,9 @@ def safe_subprocess_run(
 
 
 class SubprocessBroker:
-    def __init__(self, cwd: str = ".", env: Optional[Dict[str, str]] = None, memory_limit_gb: float = 8.0) -> None:
-        self.cwd = Path(cwd)
+    def __init__(self, cwd: Optional[Union[str, Path]] = None, env: Optional[Dict[str, str]] = None, memory_limit_gb: float = 8.0) -> None:
+        default_work_dir = get_artifact_dir() / "Scratch"
+        self.cwd = resolve_mapped_path(cwd, default_work_dir) if cwd is not None else default_work_dir
         self.cwd.mkdir(parents=True, exist_ok=True)
         self.env = env if env is not None else os.environ.copy()
         self.memory_limit_bytes = memory_limit_gb * (1024 ** 3)
@@ -134,13 +136,13 @@ class SubprocessBroker:
         atexit.register(self.execute_zombie_reaper)
 
     def _allocate_scratch_space(self, job_name: str, required_mb: int = 4000) -> Path:
-        """Allocates fast RAM-disk (/dev/shm) space if available, falling back to cwd."""
-        shm_path = Path("/dev/shm")
-        if HAS_PSUTIL and shm_path.exists() and shm_path.is_dir():
+        """Allocate a mapped host RAM disk when available, falling back to artifact storage."""
+        ramdisk_path = get_ramdisk_dir()
+        if HAS_PSUTIL and ramdisk_path is not None and ramdisk_path.is_dir():
             try:
-                free_mb = psutil.disk_usage(str(shm_path)).free / (1024 * 1024)
+                free_mb = psutil.disk_usage(str(ramdisk_path)).free / (1024 * 1024)
                 if free_mb > (required_mb * 1.2):
-                    job_shm_dir = shm_path / f"cochem_{job_name}_{int(time.time())}"
+                    job_shm_dir = ramdisk_path / f"cochem_{job_name}_{int(time.time())}"
                     job_shm_dir.mkdir(parents=True, exist_ok=True)
                     logger.info(f"Allocated RAM-disk execution directory: {job_shm_dir}")
                     return job_shm_dir
@@ -267,7 +269,7 @@ class SubprocessBroker:
             t_stdout.join()
             t_stderr.join()
 
-            process.wait()
+            process.wait(timeout=3600)
             exit_code = process.returncode
 
         except KeyboardInterrupt:
@@ -292,7 +294,7 @@ class SubprocessBroker:
             self.garbage_collect_core_dumps(exec_path)
 
             # Sync RAM-disk artifacts back to permanent storage
-            if "/dev/shm" in str(exec_path) and exec_path.exists():
+            if exec_path != self.cwd and exec_path.exists():
                 logger.info("Syncing artifacts from RAM-disk to permanent workspace...")
                 for file_path in exec_path.iterdir():
                     if file_path.is_file():
@@ -303,5 +305,5 @@ class SubprocessBroker:
 
 
 if __name__ == "__main__":
-    broker = SubprocessBroker(cwd=".")
+    broker = SubprocessBroker()
     logger.info("Broker Initialized and protections armed.")

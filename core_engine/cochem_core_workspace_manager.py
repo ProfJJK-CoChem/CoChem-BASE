@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
 CoChem-CORE: Stage 0.0 - Workspace Scaffolding Tool
-Implements atomic POSIX locking to guarantee safe directory generation 
+Implements atomic POSIX locking to guarantee safe directory generation
 during high-throughput, highly concurrent MPI/API dispatch scenarios.
 """
 
-import os
-import shutil
 import logging
+import shutil
 from pathlib import Path
 from typing import Optional
-from cochem_base.config_loader import get_artifact_dir
+
+from cochem_base.config_loader import get_artifact_dir, resolve_mapped_path
 
 try:
     import fcntl
@@ -36,7 +36,11 @@ class WorkspaceManager:
     ]
 
     def __init__(self, base_path: Optional[str] = None) -> None:
-        self.base_path = Path(base_path) if base_path else get_artifact_dir()
+        self.base_path = (
+            resolve_mapped_path(base_path, get_artifact_dir())
+            if base_path
+            else get_artifact_dir()
+        )
         self.lock_file = self.base_path / ".cochem_workspace.lock"
 
     def _acquire_lock(self, file_descriptor: int) -> bool:
@@ -54,8 +58,8 @@ class WorkspaceManager:
         if fcntl is not None:
             try:
                 fcntl.flock(file_descriptor, fcntl.LOCK_UN)
-            except OSError:
-                """Implementation pending"""
+            except OSError as e:
+                logger.warning(f"Failed to release workspace lock: {e}")
     def scaffold_core_directories(self) -> bool:
         """
         Atomically generates the master directories. If another process holds the lock,

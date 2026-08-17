@@ -5,13 +5,12 @@ Monitors CPU temperatures during high-intensity calculations.
 Issues POSIX SIGSTOP (or Windows suspend) if CPU temp > 90°C and SIGCONT (resume) when temp < 75°C.
 """
 
-import os
-import sys
-import signal
-import time
-import psutil
 import logging
+import os
+import signal
 from typing import Set
+
+import psutil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)

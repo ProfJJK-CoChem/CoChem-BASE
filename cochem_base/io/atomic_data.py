@@ -25,18 +25,18 @@ class PubChemAtomicDataValidator:
             "K": {39: 38.963706, 40: 39.963998, 41: 40.961825},
             "Ca": {40: 39.962590, 42: 41.958618, 43: 42.958766, 44: 43.955481, 46: 45.953692, 48: 47.952522},
         }
-        
+
     def validate_isotopic_mass(self, element: str, mass_number: int, mass: float, tolerance: float = 0.05) -> bool:
         """
-        Validates if the provided isotopic mass is physically reasonable and matches 
+        Validates if the provided isotopic mass is physically reasonable and matches
         known PubChem isotopic masses within a given tolerance.
         """
         if not isinstance(mass, (int, float)):
             raise TypeError("Mass must be a numeric value.")
-            
+
         if mass <= 0:
             raise ValueError(f"Isotopic mass must be positive, got {mass}")
-            
+
         if mass > 300:
             raise ValueError(f"Isotopic mass is unreasonably large: {mass}")
 
@@ -44,19 +44,19 @@ class PubChemAtomicDataValidator:
             if abs(mass - mass_number) > 1.0:
                 raise ValueError(f"Mass {mass} deviates too much from mass number {mass_number} for unknown element {element}.")
             return True
-            
+
         element_data = self.known_isotopes[element]
         if mass_number not in element_data:
             raise ValueError(f"Unknown isotope: {element}-{mass_number}")
-            
+
         expected_mass = element_data[mass_number]
-        
+
         if abs(mass - expected_mass) > tolerance:
             raise ValueError(
                 f"Isotopic mass {mass} for {element}-{mass_number} deviates from expected {expected_mass} "
                 f"by more than {tolerance}."
             )
-            
+
         return True
 
 def validate_isotopic_mass(element: str, mass_number: int, mass: float) -> bool:

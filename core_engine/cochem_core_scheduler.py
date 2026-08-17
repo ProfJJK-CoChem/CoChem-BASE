@@ -4,11 +4,10 @@ Scheduler module for CoChem-CORE.
 Manages scheduling and queuing of computational chemistry tasks.
 """
 
-import time
-import threading
 import logging
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import threading
+import time
+from typing import Any, Dict, List, Optional
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-CoreScheduler")
@@ -62,11 +61,26 @@ class CoreScheduler:
     def start_scheduling(self) -> None:
         """Start the scheduler."""
         self.is_running = True
+        self._scheduler_thread = threading.Thread(target=self._scheduler_loop, daemon=True)
+        self._scheduler_thread.start()
         logger.info("🔄 Scheduler started")
+
+    def _scheduler_loop(self) -> None:
+        """Continuously pop tasks from the queue in the background."""
+        while self.is_running:
+            try:
+                task = self.schedule_next_task()
+                if task:
+                    logger.debug(f"Background thread scheduled task {task['id']}")
+            except Exception as e:
+                logger.error(f"Scheduler loop error: {e}")
+            time.sleep(0.1)
 
     def stop_scheduling(self) -> None:
         """Stop the scheduler."""
         self.is_running = False
+        if hasattr(self, '_scheduler_thread'):
+            self._scheduler_thread.join(timeout=2.0)
         logger.info("🛑 Scheduler stopped")
 
 
@@ -80,9 +94,11 @@ def main() -> None:
     scheduler.add_task("test_task_1", {"type": "dft_calculation"})
     scheduler.add_task("test_task_2", {"type": "optimization"})
 
-    task = scheduler.schedule_next_task()
-    if task:
-        scheduler.complete_task(task['id'])
+    # Wait for thread to process tasks
+    time.sleep(0.5)
+
+    # Complete the first task to demonstrate lifecycle
+    scheduler.complete_task("test_task_1")
 
     scheduler.stop_scheduling()
 

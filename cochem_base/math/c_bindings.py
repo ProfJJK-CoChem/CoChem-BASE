@@ -1,5 +1,6 @@
 import ctypes
 
+
 class SafeCBuffer:
     """
     A robust ctypes wrapper representing a C-kernel memory buffer.
@@ -10,7 +11,7 @@ class SafeCBuffer:
             raise ValueError("Buffer size must be strictly positive.")
         self.size = size
         self._buffer = (ctypes.c_double * size)()
-        
+
     def write(self, index: int, value: float):
         """
         Writes a double to the C-kernel buffer.
@@ -19,7 +20,7 @@ class SafeCBuffer:
         if index < 0 or index >= self.size:
             raise IndexError(f"Buffer overflow attempt: index {index} is out of bounds for size {self.size}.")
         self._buffer[index] = ctypes.c_double(value)
-        
+
     def read(self, index: int) -> float:
         """
         Reads a double from the C-kernel buffer.

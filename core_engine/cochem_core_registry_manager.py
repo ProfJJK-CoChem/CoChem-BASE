@@ -5,21 +5,22 @@ PATCH: - Replaced static mass dictionaries with dynamic mendeleev library querie
        - Added explicit IsotopeStabilityError handling for transuranic / unstable elements
        - Complete HDF5 registry implementation with full state management capabilities"""
 
-import os
 import json
-import uuid
+import os
+
 try:
     import fcntl
 except ImportError:
     fcntl = None
-import h5py
-import hashlib
 import logging
-import time
-from typing import Dict, Any, Optional, List, Union
-from mendeleev import element
 from datetime import datetime
-from cochem_base.config_loader import resolve_config_path, get_artifact_dir
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import h5py
+from mendeleev import element
+
+from cochem_base.config_loader import get_artifact_dir, resolve_config_path, resolve_mapped_path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-RegistryManager")
@@ -32,18 +33,18 @@ class RegistryManager:
     def __init__(self, config_path: Optional[str] = None, registry_path: Optional[str] = None) -> None:
         """
         Initialize the Registry Manager with HDF5-based state management.
-        
+
         Args:
             config_path (str): Path to system configuration file
             registry_path (str): Path to HDF5 registry file
         """
         if config_path:
-            self.config_path = os.path.abspath(config_path)
+            self.config_path = str(resolve_config_path(Path(config_path)))
         else:
             self.config_path = str(resolve_config_path())
 
         if registry_path:
-            self.registry_path = os.path.abspath(registry_path)
+            self.registry_path = str(resolve_mapped_path(registry_path, get_artifact_dir() / "Registry"))
         else:
             self.registry_path = str(get_artifact_dir() / "Registry" / "cochem_registry.h5")
 
@@ -93,17 +94,19 @@ class RegistryManager:
                 raise IsotopeStabilityError(f"Element {symbol} lacks a valid default atomic mass binding.")
         except Exception as e:
             logger.error(f"Failed to query Mendeleev for symbol '{symbol}': {e}")
-            raise IsotopeStabilityError(f"Isotopic mass resolution failed for {symbol}: {e}")
+            raise IsotopeStabilityError(f"Isotopic mass resolution failed for {symbol}: {e}") from e
 
     def embed_basis_set_archive(self, h5_path: str, basis_file_path: str, label: str) -> None:
         """Embedded Basis Set Archival (Prevents link rot)."""
-        if not os.path.exists(basis_file_path):
-            logger.error(f"Basis set file not found: {basis_file_path}")
+        mapped_h5_path = resolve_mapped_path(h5_path, get_artifact_dir() / "Registry")
+        mapped_basis_path = resolve_mapped_path(basis_file_path, get_artifact_dir())
+        if not mapped_basis_path.exists():
+            logger.error(f"Basis set file not found: {mapped_basis_path}")
             return
-        with open(basis_file_path, "r", encoding="utf-8") as f:
+        with open(mapped_basis_path, "r", encoding="utf-8") as f:
             raw_text = f.read()
         try:
-            with h5py.File(h5_path, "a", swmr=True) as h5:
+            with h5py.File(mapped_h5_path, "a", swmr=True) as h5:
                 if "embedded_basis_sets" not in h5:
                     h5.create_group("embedded_basis_sets")
 
@@ -115,7 +118,7 @@ class RegistryManager:
                 dset = group.create_dataset(label, shape=(), dtype=dt)
                 dset[()] = raw_text
 
-                logger.info(f"Basis set '{label}' permanently embedded into {h5_path} with SWMR active.")
+                logger.info(f"Basis set '{label}' permanently embedded into {mapped_h5_path} with SWMR active.")
         except Exception as e:
             logger.error(f"HDF5 embedding failed: {e}")
 

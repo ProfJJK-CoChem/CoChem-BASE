@@ -4,10 +4,12 @@ Script to test if a conda environment exists at a specific path.
 This is used to optimize the setup process by avoiding unnecessary reinstallation.
 """
 
-import sys
-import subprocess
 import logging
+import subprocess
+import sys
 from pathlib import Path
+
+from cochem_base.config_loader import resolve_conda_executable, resolve_mapped_path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TestEnvExists")
@@ -21,39 +23,32 @@ except ImportError:
 def check_conda_environment_exists(env_path: str) -> bool:
     """
     Check if a conda environment exists at the specified path.
-    
+
     Args:
         env_path (str): The path where the conda environment should exist
-        
+
     Returns:
         bool: True if environment exists, False otherwise
     """
+    env_dir = resolve_mapped_path(env_path, Path.home())
     try:
+        conda_executable = resolve_conda_executable(required=False)
+        command = [conda_executable, "info", "--envs"]
         if safe_subprocess_run:
-            result = safe_subprocess_run(["conda", "info", "--envs"], check=True, timeout=30.0)
+            safe_subprocess_run(command, check=True, timeout=30.0)
         else:
-            result = subprocess.run(["conda", "info", "--envs"], check=True, capture_output=True, text=True, timeout=30.0)
-
-        if env_path in result.stdout:
-            logger.info(f"Conda environment found at: {env_path}")
-            return True
-
-        env_dir = Path(env_path)
-        if env_dir.exists():
-            logger.info(f"Environment directory found at: {env_path}")
-            return True
+            subprocess.run(command, check=True, capture_output=True, text=True, timeout=30.0)
 
     except subprocess.CalledProcessError as e:
         logger.warning(f"Conda command failed: {e}")
-        env_dir = Path(env_path)
-        if env_dir.exists():
-            logger.info(f"Environment directory found at: {env_path} (fallback)")
-            return True
-
     except Exception as e:
         logger.warning(f"Error checking environment: {e}")
 
-    return False
+    conda_meta_path = env_dir / "conda-meta"
+    exists = conda_meta_path.is_dir() and any(conda_meta_path.glob("*.json"))
+    if exists:
+        logger.info(f"Valid Conda environment found at: {env_dir}")
+    return exists
 
 
 if __name__ == "__main__":

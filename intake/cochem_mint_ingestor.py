@@ -2,25 +2,24 @@
 """
 CoChem-CORE: Stage 1.x - Consolidated Molecular Intake Backend
 Module: intake/CoChem-MInt.py
-Purpose: Jupyter-native unified GUI for directory scanning, structural 
+Purpose: Jupyter-native unified GUI for directory scanning, structural
          canonicalization, and real-time watchdog monitoring.
          STRICT AIR-GAP: Forcibly routes all workspaces to CoChem_Artifacts.
 """
 
-import os
-import sys
-import json
-import time
-import threading
-import logging
-import hashlib  # Cryptographic SHA-256 provenance (sha256)
-import subprocess
 import importlib
+import logging
 import site
-import urllib.request
+import subprocess
+import sys
 import urllib.parse
+import urllib.request
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
+
+import ipywidgets as widgets
+from IPython.display import display
+
 from cochem_base.config_loader import get_artifact_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -33,8 +32,8 @@ except ImportError:
 
 # --- Dynamic Dependency Trap ---
 try:
-    from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
     HAS_WATCHDOG = True
 except ImportError:
     logger.info("'watchdog' library missing. Triggering inline installation...")
@@ -58,8 +57,7 @@ except ImportError:
         HAS_WATCHDOG = False
         logger.warning(f"Watchdog bootstrap failed: {e}. Running in degraded mode.")
 
-import ipywidgets as widgets
-from IPython.display import display, clear_output
+
 
 
 def print_status(msg: str, status: str = "info") -> None:
@@ -97,20 +95,9 @@ class CoChemMIntUI:
 
     def _enforce_airgap_path(self) -> Path:
         """Strictly locates or creates the CoChem_Artifacts air-gapped directory."""
-        env_target = os.environ.get("COCHEM_ARTIFACT_DIR")
-        if env_target:
-            target = Path(env_target)
-            target.mkdir(parents=True, exist_ok=True)
-            return target
-
-        dev_target = Path("/workspaces/CoChem_Artifacts")
-        if Path("/workspaces").exists():
-            dev_target.mkdir(parents=True, exist_ok=True)
-            return dev_target
-
-        local_target = get_artifact_dir()
-        local_target.mkdir(parents=True, exist_ok=True)
-        return local_target
+        artifact_dir = get_artifact_dir()
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return artifact_dir
 
     @property
     def current_workspace(self) -> Path:
@@ -130,8 +117,8 @@ class CoChemMIntUI:
         self.title = widgets.HTML("<h2>🧪 CoChem-MInt: Molecular Intake & Canonicalization</h2>")
 
         self.project_name = widgets.Text(
-            value='New_Project', 
-            description='Project Name:', 
+            value='New_Project',
+            description='Project Name:',
             style={'description_width': 'initial'},
             tooltip='This creates a dedicated workspace inside CoChem_Artifacts/'
         )
@@ -142,9 +129,9 @@ class CoChemMIntUI:
         )
 
         self.file_upload = widgets.FileUpload(
-            accept='.xyz', 
-            multiple=True, 
-            description='Drop Geometries', 
+            accept='.xyz',
+            multiple=True,
+            description='Drop Geometries',
             button_style='primary'
         )
         self.file_upload.observe(self._on_file_upload, names='value')
@@ -245,6 +232,7 @@ class CoChemMIntUI:
             self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via PubChem...")
             try:
                 import asyncio
+
                 import aiohttp
                 async def fetch_pubchem(name: str) -> str:
                     url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(name)}/property/IsomericSMILES/JSON"
@@ -263,7 +251,7 @@ class CoChemMIntUI:
                     smiles = asyncio.run(fetch_pubchem(target_name))
 
                 self._ui_log(f"✅ Resolved to SMILES: {smiles}")
-            except Exception as e:
+            except Exception:
                 self._ui_log(f"❌ API Fetch Failed for '{target_name}'. Please manually enter a valid SMILES string.")
                 return
 
@@ -281,11 +269,11 @@ class CoChemMIntUI:
         AllChem.EmbedMolecule(mol, params)
 
         self._ui_log("➡️ Relaxing steric clashes (GFN2-xTB Triage & Eckart Alignment)...")
-        try:
-            from ase.calculators.xtb import xTB
-            from ase import Atoms
+        import importlib.util
+        if importlib.util.find_spec("ase") and importlib.util.find_spec("xtb"):
+            # Placeholder for xTB relaxation
             AllChem.MMFFOptimizeMolecule(mol)
-        except ImportError:
+        else:
             AllChem.MMFFOptimizeMolecule(mol)
 
         ws = self.current_workspace
@@ -293,7 +281,7 @@ class CoChemMIntUI:
         out_path = ws / f"{safe_name}_rdkit.xyz"
 
         Chem.MolToXYZFile(mol, str(out_path))
-        self._ui_log(f"✅ 3D Molecule successfully built and saved to the air-gapped vault:")
+        self._ui_log("✅ 3D Molecule successfully built and saved to the air-gapped vault:")
         self._ui_log(f"   {out_path}")
         self._ui_log("➡️ You can now proceed to [Scan & Canonicalize].")
 

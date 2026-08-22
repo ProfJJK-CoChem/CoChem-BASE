@@ -13,13 +13,13 @@ import hashlib
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from enum import Enum
-from pathlib import Path
 import platform
 import re
 import shutil
-from typing import Any, Dict, List, Optional, Set, Union, cast
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, Optional, Set, Union, cast
 
 from pydantic import (
     BaseModel,
@@ -638,7 +638,7 @@ class SiloPathsSchema(BaseModel):
         ):
             if hasattr(self, candidate):
                 val = getattr(self, candidate)
-                return val == "BYPASSED"
+                return bool(val == "BYPASSED")
         return False
 
     def is_found(self, binary_name: str) -> bool:

@@ -14,6 +14,7 @@ import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -55,6 +56,7 @@ class ProvenanceErrorCode(str, Enum):
     CONFIG_VALIDATION_FAILED = "CONFIG_VALIDATION_FAILED"
     PATH_TRAVERSAL_DETECTED = "PATH_TRAVERSAL_DETECTED"
     TELEMETRY_FAILURE = "TELEMETRY_FAILURE"
+    DISK_QUOTA_EXCEEDED = "DISK_QUOTA_EXCEEDED"
 
     # Engine & Math
     CONVERGENCE_FAILURE = "CONVERGENCE_FAILURE"
@@ -484,6 +486,70 @@ class QCSchemaValidationError(ConfigError):
     )
 
 
+class DiskQuotaError(CoChemError, OSError):
+    """Raised when available disk space in Scratch or workspace is below the required threshold."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.DISK_QUOTA_EXCEEDED
+    )
+
+    def __init__(
+        self,
+        message: Optional[Union[str, float]] = None,
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+        *,
+        required_gb: Optional[float] = None,
+        available_gb: Optional[float] = None,
+        path: Optional[Union[str, Path]] = None,
+        **kwargs: Any,
+    ) -> None:
+        merged_details: Dict[str, Any] = dict(details) if details is not None else {}
+
+        if isinstance(message, (int, float)) and required_gb is None:
+            required_gb = float(message)
+            msg_val = None
+        else:
+            msg_val = str(message) if message is not None else None
+
+        req = required_gb if required_gb is not None else merged_details.get("required_gb", 50.0)
+        avail = available_gb if available_gb is not None else merged_details.get("available_gb", 0.0)
+        p = path if path is not None else merged_details.get("path")
+
+        self.required_gb: float = float(req) if req is not None else 50.0
+        self.available_gb: float = float(avail) if avail is not None else 0.0
+        self.path: Optional[Union[str, Path]] = Path(p) if isinstance(p, (str, Path)) else None
+
+        merged_details["required_gb"] = self.required_gb
+        merged_details["available_gb"] = self.available_gb
+        if self.path is not None:
+            merged_details["path"] = str(self.path)
+
+        if msg_val is None:
+            p_str = str(self.path) if self.path is not None else "workspace"
+            msg = (
+                f"Insufficient scratch disk quota at {p_str}: "
+                f"required {self.required_gb:.2f} GB, available {self.available_gb:.2f} GB"
+            )
+        else:
+            msg = msg_val
+
+        super().__init__(
+            message=msg,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=merged_details,
+            timestamp=timestamp,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = super().to_dict()
+        d["required_gb"] = self.required_gb
+        d["available_gb"] = self.available_gb
+        d["path"] = str(self.path) if self.path is not None else None
+        return d
+
+
 # =====================================================================
 # Engine & Math Exceptions
 # =====================================================================
@@ -863,6 +929,7 @@ __all__ = [
     "PathTraversalError",
     "TelemetryTransportError",
     "QCSchemaValidationError",
+    "DiskQuotaError",
     # Engine & Math Exceptions
     "ConvergenceError",
     "SpinContaminationError",

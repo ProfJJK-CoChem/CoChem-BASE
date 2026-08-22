@@ -1,2055 +1,3070 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc5_08_dependency_manager_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc6_01_workspace_manager_prompt.md.
 Original prompt:
-# Context
-You are tasked with writing the core orchestration utility `dependency_manager.py` for CoChem-BASE.
+# Prompt: Workspace Scaffolding Daemon
 
-# Goal
-Create `dependency_manager.py` that contains the `DependencyManager` class to strictly wrap and manage `pip` and `conda` subprocess calls during the provisioning phases.
+**Target File:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\core\cochem_core_workspace_manager.py`
 
-# Requirements
-- The setup orchestrator must implement a `DependencyManager` class to wrap `pip/conda` subprocess calls.
-- Implement strict Idempotency and a Rollback Protocol: If a phase fails, an `__exit__` context manager must trigger a rollback, safely wiping any partially built virtual environments and intermediate `.tmp` JSON states.
-- Support "Dynamic Version Walking" by iteratively stepping down the minor Python version (e.g., `3.12 -> 3.11 -> 3.10`) if compilation/ABI failures occur.
-- Guarantee the workspace remains sterile for the next execution attempt.
+## Goal
+Implement the Workspace Scaffolding Daemon to atomically generate, secure, and validate the Bipartite Data Tier at exactly `D:\__CoChem\CoChem_Artifacts`. This provides an isolated, pristine working directory for downstream calculation engines, completely disconnected from the static GitHub repository.
 
-# Constraints
-- Target filepath: `D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\dependency_manager.py`
-- DO NOT use any mocks, stubs, or placeholder values in your code. Write real implementation logic.
-- Ensure strict adherence to the Tripartite Workspace Air-Gap and Method Matrix rules.
+## Requirements
+
+1. **Parsl DAG Dependency Orchestration & Race Condition Prevention**
+   - Autonomously scaffold the target directory tree: `/Input_Files`, `/Processed`, `/Logs`, `/Scratch`, `/Registry`, `/Databases` within `D:\__CoChem\CoChem_Artifacts`.
+   - Mandate Parsl DAG dependency orchestration for directory scaffolding to serialize directory creation before computational tasks are spawned. 
+   - **Constraint:** Do not use `.workspace.lock` files or filesystem-based mutexes for directory creation topologies.
+
+2. **Directory Permission Locks (Deletion Shield)**
+   - Use `os.chmod` to enforce `0o755` permissions for standard active working directories.
+   - For finalized `.zip` report payloads, `.tex` artifacts, and locked states, apply `os.chmod(0o444)` (Read-Only) post-generation to prevent accidental recursive deletion (`rm -rf`).
+
+3. **Pre-Flight Disk Quota & File System Traps**
+   - Before authorizing any quantum calculation queue, execute `shutil.disk_usage()` on the target `Scratch/` directory.
+   - Mathematically assert that at least 50GB of free disk space is available.
+   - If space is insufficient, raise a custom `DiskQuotaError` immediately to prevent disk exhaustion.
+
+## Constraints & Rules
+- **NO MOCKS, STUBS, OR PLACEHOLDERS.** Write complete, production-ready logic.
+- Ensure strict compliance with all constraints and requirements.
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_method_matrix_refactor.py ---
-"""Physical Zero-Mock Test Suite for Copy of Method_Matrix.md Refactoring.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\exceptions.py ---
+"""Ecosystem-wide exception and warning definitions for CoChem.
 
-Verifies strict Unix LF line endings, UTF-8 encoding without BOM, zero personal path leakage,
-canonical token compliance, complete structural sections, Method Matrix invariants,
-two-track architecture, provenance tagging discipline, and formatting integrity.
+Provides hierarchical error types, standardized error codes, structured
+metadata payload serialization, polymorphic deserialization registries,
+pickle support for multiprocessing, and exception wrapper utilities compliant
+with CoChem Method Matrix standards.
 """
 
 from __future__ import annotations
 
-import re
+import asyncio
+import functools
+import json
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
-import pytest
-
-from cochem_base.config_loader import get_base_root
-from cochem_base.path_sanitization import (
-    find_path_leaks,
-    leak_patterns,
-    placeholder_values,
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    Optional,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+    overload,
 )
 
 
-@pytest.fixture(params=[
-    Path(r"D:\__CoChem\GitHub-Repo\.old_plan_docs\20260810_docs\Copy of Method_Matrix.md"),
-    get_base_root() / "Method_Matrix.md",
-])
-def target_file(request: pytest.FixtureRequest) -> Path:
-    target: Path = request.param
-    if not target.exists():
-        pytest.skip(f"Target file does not exist at {target}")
-    return target
+class ProvenanceErrorCode(str, Enum):
+    """Standardized error codes for CoChem provenance, engine, and infrastructure errors."""
+
+    # Method Matrix & Provenance
+    METHOD_MATRIX_VIOLATION_DEFGRID = "METHOD_MATRIX_VIOLATION_DEFGRID"
+    EXCEPTION_DEFLECTION_BLOCKED = "EXCEPTION_DEFLECTION_BLOCKED"
+    MISSING_DATA = "MISSING_DATA"
+    SPIN_CONTAMINATION_EXCEEDED = "SPIN_CONTAMINATION_EXCEEDED"
+    UNSUPPORTED_METHOD = "UNSUPPORTED_METHOD"
+    DISPERSION_MISSING = "DISPERSION_MISSING"
+    INVALID_HESSIAN_STRATEGY = "INVALID_HESSIAN_STRATEGY"
+    FROZEN_MONOMER_VIOLATION = "FROZEN_MONOMER_VIOLATION"
+    PATHOLOGY_CLASH = "PATHOLOGY_CLASH"
+    TRIAGE_OVERRIDE_SPIN = "TRIAGE_OVERRIDE_SPIN"
+    AUTOFIT_LIMIT_EXCEEDED = "AUTOFIT_LIMIT_EXCEEDED"
+    EVALUATION_TIMEOUT = "EVALUATION_TIMEOUT"
+    QCSCHEMA_VALIDATION_FAILED = "QCSCHEMA_VALIDATION_FAILED"
+    BSSE_CORRECTION_FAILED = "BSSE_CORRECTION_FAILED"
+
+    # Infrastructure & Security
+    HDF5_SWMR_LOCK_TIMEOUT = "HDF5_SWMR_LOCK_TIMEOUT"
+    REGISTRY_LOCK_TIMEOUT = "REGISTRY_LOCK_TIMEOUT"
+    INTEGRITY_VIOLATION = "INTEGRITY_VIOLATION"
+    CONFIG_VALIDATION_FAILED = "CONFIG_VALIDATION_FAILED"
+    PATH_TRAVERSAL_DETECTED = "PATH_TRAVERSAL_DETECTED"
+    TELEMETRY_FAILURE = "TELEMETRY_FAILURE"
+    DISK_QUOTA_EXCEEDED = "DISK_QUOTA_EXCEEDED"
+
+    # Engine & Math
+    CONVERGENCE_FAILURE = "CONVERGENCE_FAILURE"
+    OUT_OF_MEMORY = "OUT_OF_MEMORY"
+    HARDWARE_DETECTION_FAILED = "HARDWARE_DETECTION_FAILED"
+    SINGULARITY_DETECTED = "SINGULARITY_DETECTED"
+
+    @classmethod
+    def from_str(cls, code: Union[str, ProvenanceErrorCode]) -> ProvenanceErrorCode:
+        """Convert a string or enum instance into a ProvenanceErrorCode.
+
+        Args:
+            code: String error code or existing ProvenanceErrorCode instance.
+
+        Returns:
+            The matching ProvenanceErrorCode enum instance.
+
+        Raises:
+            ValueError: If the code does not match any valid ProvenanceErrorCode.
+        """
+        if isinstance(code, cls):
+            return code
+        if isinstance(code, str):
+            cleaned = code.strip()
+            try:
+                return cls(cleaned)
+            except ValueError:
+                try:
+                    return cls[cleaned.upper()]
+                except KeyError:
+                    raise ValueError(f"Unknown ProvenanceErrorCode: {code!r}") from None
+        raise ValueError(f"Expected str or ProvenanceErrorCode, got {type(code).__name__}: {code!r}")
+
+    @classmethod
+    def has_code(cls, code: Union[str, Any]) -> bool:
+        """Check if a given string or object corresponds to a valid ProvenanceErrorCode.
+
+        Args:
+            code: String or object to check.
+
+        Returns:
+            True if code matches a known ProvenanceErrorCode value or name, False otherwise.
+        """
+        if isinstance(code, cls):
+            return True
+        if isinstance(code, str):
+            cleaned = code.strip()
+            if cleaned in cls._value2member_map_:
+                return True
+            if cleaned.upper() in cls.__members__:
+                return True
+        return False
 
 
-def test_file_exists_and_non_empty(target_file: Path) -> None:
-    """Verify that the Method Matrix exists and has comprehensive content (>500 KB)."""
-    stat = target_file.stat()
-    assert stat.st_size > 100_000, f"File size too small ({stat.st_size} bytes)"
+def format_error_message(
+    error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: str = "",
+    details: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Format a standardized CoChem error message string.
+
+    Args:
+        error_code: Optional ProvenanceErrorCode enum or string code.
+        message: Descriptive error message text.
+        details: Optional dictionary containing contextual metadata.
+
+    Returns:
+        Formatted error message string, e.g. '[E: CODE] Message (details: k=v)'.
+    """
+    code_str: Optional[str] = None
+    if error_code is not None:
+        code_str = error_code.value if isinstance(error_code, ProvenanceErrorCode) else str(error_code).strip()
+
+    prefix = f"[E: {code_str}] " if code_str else ""
+    base = f"{prefix}{message}"
+    if details:
+        details_str = ", ".join(f"{k}={v!r}" for k, v in sorted(details.items()))
+        return f"{base} (details: {details_str})"
+    return base
 
 
-def test_unix_lf_line_endings(target_file: Path) -> None:
-    """Verify strictly Unix LF line endings (\n) and no Windows CRLF (\r\n)."""
-    with open(target_file, "rb") as f:
-        raw = f.read()
-    assert b"\r\n" not in raw, f"Found Windows CRLF (\r\n) line endings in {target_file.name}"
-    assert b"\n" in raw, f"Missing newline characters in {target_file.name}"
+def format_warning_message(
+    warning_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: str = "",
+    details: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Format a standardized CoChem warning message string.
+
+    Args:
+        warning_code: Optional ProvenanceErrorCode enum or string code.
+        message: Descriptive warning message text.
+        details: Optional dictionary containing contextual metadata.
+
+    Returns:
+        Formatted warning message string, e.g. '[W: CODE] Message (details: k=v)'.
+    """
+    code_str: Optional[str] = None
+    if warning_code is not None:
+        code_str = warning_code.value if isinstance(warning_code, ProvenanceErrorCode) else str(warning_code).strip()
+
+    prefix = f"[W: {code_str}] " if code_str else ""
+    base = f"{prefix}{message}"
+    if details:
+        details_str = ", ".join(f"{k}={v!r}" for k, v in sorted(details.items()))
+        return f"{base} (details: {details_str})"
+    return base
 
 
-def test_utf8_encoding_no_bom(target_file: Path) -> None:
-    """Verify standard UTF-8 encoding without Byte Order Mark."""
-    with open(target_file, "rb") as f:
-        header = f.read(3)
-    assert header != b"\xef\xbb\xbf", f"Found UTF-8 BOM marker in {target_file.name}"
+def _reconstruct_cochem_error(
+    cls: Type[CoChemError],
+    message: str,
+    error_code: Optional[Union[ProvenanceErrorCode, str]],
+    details: Optional[Dict[str, Any]],
+    timestamp: Optional[str],
+) -> CoChemError:
+    """Helper function to reconstruct a CoChemError instance during unpickling.
 
-    with open(target_file, "r", encoding="utf-8") as f:
-        content = f.read()
-    assert len(content) > 0
+    Args:
+        cls: The CoChemError subclass to instantiate.
+        message: The original unformatted error message.
+        error_code: Optional error code.
+        details: Optional details dictionary.
+        timestamp: Optional ISO 8601 UTC timestamp string.
 
-
-def test_zero_personal_path_leaks(target_file: Path) -> None:
-    """Verify zero personal/machine path leakage across the entire document."""
-    content = target_file.read_text(encoding="utf-8")
-    leaks = find_path_leaks(content)
-    assert len(leaks) == 0, f"Detected {len(leaks)} path leak(s) in {target_file.name}: {leaks}"
-
-
-def test_no_hardcoded_linux_user_paths(target_file: Path) -> None:
-    """Verify that no un-sanitized /home/user paths exist in the document."""
-    content = target_file.read_text(encoding="utf-8")
-    hardcoded = re.findall(r"/home/\w+/[^\s`\(\)\"\'<>]+", content)
-    assert len(hardcoded) == 0, f"Detected hardcoded Linux user paths: {hardcoded}"
-
-
-def test_canonical_tokens_present(target_file: Path) -> None:
-    """Verify standard path tokens are utilized."""
-    content = target_file.read_text(encoding="utf-8")
-    assert "<USER_HOME>" in content, "Missing canonical <USER_HOME> token"
+    Returns:
+        Reconstructed CoChemError (or subclass) instance.
+    """
+    return cls(
+        message=message,
+        error_code=error_code,
+        details=details,
+        timestamp=timestamp,
+    )
 
 
-def test_clean_markdown_no_raw_directive_xml(target_file: Path) -> None:
-    """Verify that raw XML directive tags are not polluting the markdown."""
-    content = target_file.read_text(encoding="utf-8")
-    banned_tags = [
-        "<GLOBAL_SWARM_ANTI_HALLUCINATION_DIRECTIVES>",
-        "<SWARM_AUTONOMY_MANDATE>",
-        "<ANTI_SPOOFING_COUNCIL_DIRECTIVE>",
-        "<ADVERSARIAL_AUDIT_DIRECTIVE>",
-        "<ROOT_CAUSE_MANDATE>",
-    ]
-    for tag in banned_tags:
-        assert tag not in content, f"Found raw XML directive tag in {target_file.name}: {tag}"
+# Polymorphic exception registry for deserialization
+_EXCEPTION_REGISTRY: Dict[str, Type[CoChemError]] = {}
 
 
-def test_code_fence_balance(target_file: Path) -> None:
-    """Verify all markdown code blocks are properly opened and closed."""
-    content = target_file.read_text(encoding="utf-8")
-    fences = [line for line in content.splitlines() if line.strip().startswith("```")]
-    assert len(fences) % 2 == 0, f"Unbalanced code fences ({len(fences)}) in {target_file.name}"
+class CoChemError(Exception):
+    """Root exception for all CoChem ecosystem errors.
+
+    Attributes:
+        message: Human-readable error description.
+        error_code: Optional ProvenanceErrorCode or string identifier.
+        details: Supplementary structured metadata key-value pairs.
+        timestamp: ISO 8601 UTC timestamp of error creation.
+        formatted_message: Fully formatted message including code prefix and details.
+    """
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = None
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register all subclasses dynamically for polymorphic deserialization."""
+        super().__init_subclass__(**kwargs)
+        _EXCEPTION_REGISTRY[cls.__name__] = cls
+
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+    ) -> None:
+        self.message: str = str(message)
+
+        raw_code = error_code if error_code is not None else self.default_error_code
+        if isinstance(raw_code, str):
+            try:
+                self.error_code: Optional[Union[ProvenanceErrorCode, str]] = ProvenanceErrorCode(raw_code)
+            except ValueError:
+                self.error_code = raw_code
+        elif isinstance(raw_code, ProvenanceErrorCode):
+            self.error_code = raw_code
+        else:
+            self.error_code = None
+
+        self.details: Dict[str, Any] = dict(details) if details is not None else {}
+        self.timestamp: str = timestamp if timestamp is not None else datetime.now(timezone.utc).isoformat()
+        self.formatted_message: str = format_error_message(self.error_code, self.message, self.details)
+        super().__init__(self.formatted_message)
+
+    def __str__(self) -> str:
+        return self.formatted_message
+
+    def __repr__(self) -> str:
+        parts = [repr(self.message)]
+        if self.error_code is not None:
+            parts.append(f"error_code={self.error_code!r}")
+        if self.details:
+            parts.append(f"details={self.details!r}")
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize exception attributes into a structured dictionary.
+
+        Returns:
+            Dictionary containing error_type, error_code, message, details, and timestamp.
+        """
+        code_val = self.error_code.value if isinstance(self.error_code, ProvenanceErrorCode) else self.error_code
+        return {
+            "error_type": self.__class__.__name__,
+            "error_code": code_val,
+            "message": self.message,
+            "details": dict(self.details),
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> CoChemError:
+        """Deserialize a structured dictionary into a CoChemError or appropriate subclass.
+
+        Polymorphically instantiates the target subclass if registered in _EXCEPTION_REGISTRY.
+
+        Args:
+            data: Dictionary containing error_type, error_code, message, details, and optional timestamp.
+
+        Returns:
+            Instantiated CoChemError (or subclass) instance.
+        """
+        error_type = data.get("error_type")
+        target_cls: Type[CoChemError] = cls
+        if error_type and error_type in _EXCEPTION_REGISTRY:
+            target_cls = _EXCEPTION_REGISTRY[error_type]
+        elif cls is CoChemError and error_type:
+            target_cls = CoChemError
+
+        message = str(data.get("message", ""))
+        error_code = data.get("error_code")
+        details = data.get("details")
+        timestamp = data.get("timestamp")
+
+        return target_cls(
+            message=message,
+            error_code=error_code,
+            details=details if isinstance(details, dict) else None,
+            timestamp=timestamp if isinstance(timestamp, str) else None,
+        )
+
+    def to_json(self, indent: Optional[int] = None) -> str:
+        """Serialize exception attributes into a JSON string.
+
+        Args:
+            indent: Optional indentation level for pretty-printing.
+
+        Returns:
+            JSON string representation of the exception payload.
+        """
+        return json.dumps(self.to_dict(), indent=indent, default=str)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> CoChemError:
+        """Deserialize a JSON string into a CoChemError or appropriate subclass.
+
+        Args:
+            json_str: JSON formatted string containing serialized error payload.
+
+        Returns:
+            Deserialized CoChemError (or subclass) instance.
+
+        Raises:
+            ValueError: If the JSON payload is not a valid dictionary object.
+        """
+        data = json.loads(json_str)
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected JSON object, got {type(data).__name__}")
+        return cls.from_dict(data)
+
+    def __reduce__(self) -> Tuple[Any, Tuple[Any, ...]]:
+        """Pickle serialization helper for multiprocessing compatibility.
+
+        Preserves class identity, message, error_code, details, and timestamp
+        across process boundaries without redundant formatting prefixes.
+
+        Returns:
+            Tuple of (reconstructor_callable, args_tuple).
+        """
+        return (
+            _reconstruct_cochem_error,
+            (
+                self.__class__,
+                self.message,
+                self.error_code,
+                self.details,
+                self.timestamp,
+            ),
+        )
 
 
-def test_primary_sections_present(target_file: Path) -> None:
-    """Verify all canonical primary numbered sections are present."""
-    content = target_file.read_text(encoding="utf-8")
+# Register base error in registry
+_EXCEPTION_REGISTRY["CoChemError"] = CoChemError
 
-    required_sections = [
-        "# Computational Prediction of Spectroscopic Observables for van der Waals Complexes",
-        "## Changes in this revision",
-        "## The one-page decision card",
-        "## Quick start",
-        "## 1. The three products and the routing question",
-        "## 2. Scope, system class and vocabulary",
-        "## 3. Required accuracy specification",
-        "## 4. Error propagation: the geometry",
-        "## 5. Corrected working equations, counts and constants",
-        "## 6. Observables the previous versions underweighted",
-        "## 7. Nuclear spin statistics and permutation-inversion symmetry",
-        "## 8. Hardware, and the routing decision procedure",
-        "## 8A. Concurrency and the scout-and-anchor heterogeneous pipeline",
-        "## 8B. Job chaining and state reuse",
-        "## 8C. The HDF5 PES store",
-        "## 8D. Analytical Hessian CC Mandate: 3-Tier Routing Protocol",
-        "## 9. Codes and acquisition: the MPQC track and Legacy/Proprietary Alternates (ORCA & CFOUR)",
-        "## 9A. Composite and combined methods",
-        "## 9B. Conformer and isomer search: GOAT, CREST, and the union",
-        "## 10. The ORCA external-tool contract, implemented",
-        "## 11. Software licensing",
-        "## 12. How to read the tier tables",
-        "## 13. Tables 1–5: search, surface, geometry, averaging, energetics",
-        "## 14. Tables 6–10: secondary observables, large-amplitude motion, and the non-microwave regimes",
-        "## 15. The Pareto frontier, dominated rows, and the two use cases",
-        "## 16. Failure modes and mandatory guards",
-        "## 17. Validation protocol: the six-system working set",
-        "## 18. Deliverable specification",
-        "## 19. The teaching tier, corrected",
-        "## 20. Reproducibility and provenance",
-        "## 21. Hard limits, and the development roadmap",
-        "## 22. Conference record and provenance of this revision",
-        "## Appendix A. Large-amplitude-motion integrations, retained from v3",
-        "## 23. References",
-    ]
-
-    for sec in required_sections:
-        assert sec in content, f"Missing required section in {target_file.name}: {sec}"
+# Backwards compatibility alias
+CoChemBaseError = CoChemError
+_EXCEPTION_REGISTRY["CoChemBaseError"] = CoChemError
 
 
-def test_provenance_and_method_matrix_invariants(target_file: Path) -> None:
-    """Verify core Method Matrix scientific and physical invariants."""
-    content = target_file.read_text(encoding="utf-8")
+# =====================================================================
+# Provenance & Method Matrix Exceptions
+# =====================================================================
 
-    # Provenance tags
-    assert "[M]" in content, "Missing [M] measured provenance tag"
-    assert "[D]" in content, "Missing [D] derived provenance tag"
-    assert "[E]" in content, "Missing [E] estimated provenance tag"
+class ProvenanceError(CoChemError):
+    """Base error for provenance tracking and Method Matrix compliance violations."""
 
-    # Hessian & Grid invariants
-    assert "InHess XTB2" in content
-    assert "Lindh" in content
-    assert "Calc_Hess true" in content or "Calc_Hess" in content
-    assert "DEFGRID2" in content or "DEFGRID3" in content or "DEFGRID4" in content
-    assert "TightOpt" in content
-    assert "TightSCF" in content
-    assert "TolMaxG 1e-5" in content or "TolMaxG" in content
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = None
 
-    # Method & Hardware rules
-    assert "Frozen-Monomer" in content or "frozen monomer" in content.lower()
-    assert "junChS" in content
-    assert "gpu4pyscf" in content
-    assert "RTX 3090" in content
-    assert "PESStore" in content
-    assert "AUTOFIT" in content
-    assert "CREST" in content
-    assert "GOAT" in content
-    assert "CFOUR" in content
-    assert "ORCA" in content
-    assert "MPQC" in content
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_old_plan_method_matrix.py ---
-"""Physical Zero-Mock Test Suite for 20360805 Method Matrix .md Refactoring.
+class MethodMatrixViolationError(ProvenanceError):
+    """Raised when a calculation violates Method Matrix standards (e.g. DEFGRID, unsupported functionals)."""
 
-Verifies strict Unix LF line endings, UTF-8 encoding without BOM, zero personal path leakage,
-canonical token compliance, complete structural sections, Method Matrix v4 invariants,
-10 domain tier tables, provenance tagging discipline ([M], [D], [E]), and formatting integrity.
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID
+    )
+
+
+class ExceptionDeflectionBlockedError(ProvenanceError):
+    """Raised when an attempt to deflect or silently suppress an exception is detected and blocked."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.EXCEPTION_DEFLECTION_BLOCKED
+    )
+
+
+class AntiSpoofingViolationError(ProvenanceError):
+    """Raised when audit trail or telemetry spoofing / tampering is detected."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+class MissingDataError(ProvenanceError, KeyError):
+    """Raised when required provenance, basis set, or calculation dataset is missing."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = ProvenanceErrorCode.MISSING_DATA
+
+
+class FrozenMonomerViolationError(MethodMatrixViolationError):
+    """Raised when frozen monomer constraints or coordinates are improperly modified."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.FROZEN_MONOMER_VIOLATION
+    )
+
+
+class UnsupportedMethodError(MethodMatrixViolationError):
+    """Raised when an unsupported quantum chemistry method, functional, or basis set is requested."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.UNSUPPORTED_METHOD
+    )
+
+
+class TriagePathologyError(ProvenanceError):
+    """Raised when automated triage encounters geometric pathology or severe steric clashes."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.PATHOLOGY_CLASH
+    )
+
+
+class BSSECorrectionError(MethodMatrixViolationError):
+    """Raised when counterpoise or basis set superposition error (BSSE) correction fails or is inconsistent."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.BSSE_CORRECTION_FAILED
+    )
+
+
+# =====================================================================
+# Infrastructure & Storage Exceptions
+# =====================================================================
+
+class HDF5LockTimeoutError(CoChemError, TimeoutError):
+    """Raised when acquiring an HDF5 SWMR file lock times out."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT
+    )
+
+
+class RegistryLockError(CoChemError, TimeoutError):
+    """Raised when registry lock acquisition or release times out or fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.REGISTRY_LOCK_TIMEOUT
+    )
+
+
+class SecurityIntegrityError(CoChemError, PermissionError):
+    """Raised for security and integrity validation failures (e.g. checksum mismatch, unauthorized access)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+class ConfigError(CoChemError, ValueError):
+    """Raised when configuration loading, schema validation, or parsing fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONFIG_VALIDATION_FAILED
+    )
+
+
+class PathTraversalError(SecurityIntegrityError):
+    """Raised when path traversal attacks or directory escape attempts are detected."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.PATH_TRAVERSAL_DETECTED
+    )
+
+
+class TelemetryTransportError(CoChemError, ConnectionError):
+    """Raised when telemetry transport fails to send/receive metric packets or socket fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.TELEMETRY_FAILURE
+    )
+
+
+class QCSchemaValidationError(ConfigError):
+    """Raised when QCSchema input/output topology, molecule, or wave function fails validation."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.QCSCHEMA_VALIDATION_FAILED
+    )
+
+
+class DiskQuotaError(CoChemError, OSError):
+    """Raised when available disk space in Scratch or workspace is below the required threshold."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.DISK_QUOTA_EXCEEDED
+    )
+
+    def __init__(
+        self,
+        message: Optional[Union[str, float]] = None,
+        error_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+        timestamp: Optional[str] = None,
+        *,
+        required_gb: Optional[float] = None,
+        available_gb: Optional[float] = None,
+        path: Optional[Union[str, Path]] = None,
+        **kwargs: Any,
+    ) -> None:
+        merged_details: Dict[str, Any] = dict(details) if details is not None else {}
+
+        if isinstance(message, (int, float)) and required_gb is None:
+            required_gb = float(message)
+            msg_val = None
+        else:
+            msg_val = str(message) if message is not None else None
+
+        req = required_gb if required_gb is not None else merged_details.get("required_gb", 50.0)
+        avail = available_gb if available_gb is not None else merged_details.get("available_gb", 0.0)
+        p = path if path is not None else merged_details.get("path")
+
+        self.required_gb: float = float(req) if req is not None else 50.0
+        self.available_gb: float = float(avail) if avail is not None else 0.0
+        self.path: Optional[Union[str, Path]] = Path(p) if isinstance(p, (str, Path)) else None
+
+        merged_details["required_gb"] = self.required_gb
+        merged_details["available_gb"] = self.available_gb
+        if self.path is not None:
+            merged_details["path"] = str(self.path)
+
+        if msg_val is None:
+            p_str = str(self.path) if self.path is not None else "workspace"
+            msg = (
+                f"Insufficient scratch disk quota at {p_str}: "
+                f"required {self.required_gb:.2f} GB, available {self.available_gb:.2f} GB"
+            )
+        else:
+            msg = msg_val
+
+        super().__init__(
+            message=msg,
+            error_code=error_code if error_code is not None else self.default_error_code,
+            details=merged_details,
+            timestamp=timestamp,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = super().to_dict()
+        d["required_gb"] = self.required_gb
+        d["available_gb"] = self.available_gb
+        d["path"] = str(self.path) if self.path is not None else None
+        return d
+
+
+# =====================================================================
+# Engine & Math Exceptions
+# =====================================================================
+
+class ConvergenceError(CoChemError, RuntimeError):
+    """Raised when SCF, geometry optimization, or numerical convergence fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class SpinContaminationError(CoChemError, ValueError):
+    """Raised when <S^2> spin contamination exceeds allowed thresholds for open-shell calculations."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED
+    )
+
+
+class DispersionMissingError(MethodMatrixViolationError):
+    """Raised when required dispersion correction (e.g. D3BJ, D4) is omitted in DFT calculations."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.DISPERSION_MISSING
+    )
+
+
+class InvalidHessianStrategyError(CoChemError, ValueError):
+    """Raised when an invalid Hessian strategy is specified for frequency or transition state calculations."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
+    )
+
+
+class SingularityError(CoChemError, ValueError):
+    """Raised when numerical matrix singularity or ill-conditioned linear algebra operations occur."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SINGULARITY_DETECTED
+    )
+
+
+class OutOfMemoryGateError(CoChemError, MemoryError):
+    """Raised when pre-flight memory gating predicts insufficient RAM/VRAM for a calculation."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.OUT_OF_MEMORY
+    )
+
+
+class HardwareDetectionError(CoChemError, RuntimeError):
+    """Raised when CPU/GPU/accelerator hardware topology detection fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+    )
+
+
+class DispatcherError(CoChemError, RuntimeError):
+    """Raised when calculation engine dispatch, executable resolution, or job execution fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.UNSUPPORTED_METHOD
+    )
+
+
+# =====================================================================
+# Warnings
+# =====================================================================
+
+class CoChemWarning(UserWarning):
+    """Base warning category for the CoChem ecosystem."""
+
+    pass
+
+
+class MethodMatrixWarning(CoChemWarning):
+    """Issued when a calculation configuration deviates from Method Matrix recommendations but is non-fatal."""
+
+    pass
+
+
+class ConvergenceWarning(CoChemWarning):
+    """Issued when numerical convergence is slow, oscillatory, or near the threshold limit."""
+
+    pass
+
+
+class CoChemDeprecationWarning(CoChemWarning, DeprecationWarning):
+    """Issued when deprecated features, APIs, or legacy configuration options are accessed."""
+
+    pass
+
+
+class HardwareWarning(CoChemWarning):
+    """Issued when hardware topology, memory headroom, or acceleration features are degraded."""
+
+    pass
+
+
+class SecurityWarning(CoChemWarning):
+    """Issued for non-fatal security boundary, path sanitization, or permission concerns."""
+
+    pass
+
+
+# =====================================================================
+# Utilities, Boundaries, and Decorators
+# =====================================================================
+
+def wrap_exception(
+    exc: BaseException,
+    target_cls: Type[CoChemError] = CoChemError,
+    default_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+) -> CoChemError:
+    """Wrap an existing exception into a CoChemError subclass, chaining cause and preserving context.
+
+    Args:
+        exc: The original exception to wrap.
+        target_cls: The destination CoChemError subclass (defaults to CoChemError).
+        default_code: Fallback error code if the original exception does not have one.
+        message: Optional custom message override. If None, inherits str(exc).
+        details: Optional additional metadata dictionary to merge.
+
+    Returns:
+        An instance of target_cls chained to exc via __cause__.
+    """
+    if isinstance(exc, target_cls) and message is None and default_code is None and details is None:
+        return exc
+
+    extracted_code = getattr(exc, "error_code", default_code)
+    extracted_details: Dict[str, Any] = {}
+    exc_details = getattr(exc, "details", None)
+    if isinstance(exc_details, dict):
+        extracted_details.update(exc_details)
+    if details:
+        extracted_details.update(details)
+
+    msg = message if message is not None else str(exc)
+    code = default_code if default_code is not None else extracted_code
+
+    wrapped = target_cls(
+        message=msg,
+        error_code=code,
+        details=extracted_details if extracted_details else None,
+    )
+    wrapped.__cause__ = exc
+    return wrapped
+
+
+@contextmanager
+def cochem_error_boundary(
+    target_cls: Type[CoChemError] = CoChemError,
+    default_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    reraise: bool = True,
+    exclude: Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]] = None,
+) -> Iterator[None]:
+    """Context manager boundary that catches exceptions and wraps them into CoChemError.
+
+    Args:
+        target_cls: Target CoChemError subclass to wrap into.
+        default_code: Fallback error code if the original exception lacks one.
+        message: Optional custom message override.
+        details: Optional additional metadata dictionary to attach.
+        reraise: If True, raises the wrapped exception; if False, suppresses it.
+        exclude: Optional exception class or tuple of classes to exclude from wrapping.
+
+    Yields:
+        None
+
+    Raises:
+        CoChemError: The wrapped exception if reraise is True and an exception was caught.
+    """
+    try:
+        yield
+    except BaseException as exc:
+        if isinstance(exc, (KeyboardInterrupt, SystemExit, GeneratorExit)):
+            raise
+        if exclude is not None and isinstance(exc, exclude):
+            raise
+        wrapped = wrap_exception(
+            exc=exc,
+            target_cls=target_cls,
+            default_code=default_code,
+            message=message,
+            details=details,
+        )
+        if reraise:
+            raise wrapped from exc
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+@overload
+def cochem_error_handler(
+    target_cls_or_fn: Type[CoChemError],
+    default_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    reraise: bool = True,
+    exclude: Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]] = None,
+    *,
+    target_cls: Optional[Type[CoChemError]] = None,
+) -> Callable[[F], F]:
+    ...
+
+
+@overload
+def cochem_error_handler(
+    target_cls_or_fn: None = None,
+    default_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    reraise: bool = True,
+    exclude: Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]] = None,
+    *,
+    target_cls: Optional[Type[CoChemError]] = None,
+) -> Callable[[F], F]:
+    ...
+
+
+@overload
+def cochem_error_handler(
+    target_cls_or_fn: F,
+) -> F:
+    ...
+
+
+def cochem_error_handler(
+    target_cls_or_fn: Optional[Union[Type[CoChemError], Callable[..., Any]]] = None,
+    default_code: Optional[Union[ProvenanceErrorCode, str]] = None,
+    message: Optional[str] = None,
+    details: Optional[Dict[str, Any]] = None,
+    reraise: bool = True,
+    exclude: Optional[Union[Type[BaseException], Tuple[Type[BaseException], ...]]] = None,
+    *,
+    target_cls: Optional[Type[CoChemError]] = None,
+) -> Any:
+    """Decorator to wrap function executions inside a CoChem error boundary.
+
+    Supports both synchronous functions and asynchronous coroutine functions.
+    Can be used with or without arguments:
+        @cochem_error_handler
+        def my_func(): ...
+
+        @cochem_error_handler(target_cls=ConvergenceError)
+        def my_func(): ...
+
+        @cochem_error_handler(ConvergenceError)
+        def my_func(): ...
+
+        @cochem_error_handler(reraise=False)
+        def my_func(): ...
+
+    Args:
+        target_cls_or_fn: Target CoChemError subclass to wrap into, or decorated function if bare decorator.
+        default_code: Fallback error code if an unhandled exception is raised.
+        message: Optional custom error message override.
+        details: Optional additional structured metadata to attach.
+        reraise: If True (default), re-raises wrapped CoChemError; if False, returns None on failure.
+        exclude: Optional exception class or tuple of classes to bypass wrapping.
+        target_cls: Keyword-only alias for target CoChemError subclass.
+
+    Returns:
+        Decorated function or decorator callable.
+    """
+    if callable(target_cls_or_fn) and not (
+        isinstance(target_cls_or_fn, type) and issubclass(target_cls_or_fn, CoChemError)
+    ):
+        # Bare decorator usage: @cochem_error_handler
+        bare_fn = cast(Callable[..., Any], target_cls_or_fn)
+        effective_target_cls: Type[CoChemError] = target_cls or CoChemError
+
+        if asyncio.iscoroutinefunction(bare_fn):
+
+            @functools.wraps(bare_fn)
+            async def async_bare_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with cochem_error_boundary(
+                    target_cls=effective_target_cls,
+                    default_code=default_code,
+                    message=message,
+                    details=details,
+                    reraise=reraise,
+                    exclude=exclude,
+                ):
+                    return await bare_fn(*args, **kwargs)
+
+            return cast(Any, async_bare_wrapper)
+        else:
+
+            @functools.wraps(bare_fn)
+            def sync_bare_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with cochem_error_boundary(
+                    target_cls=effective_target_cls,
+                    default_code=default_code,
+                    message=message,
+                    details=details,
+                    reraise=reraise,
+                    exclude=exclude,
+                ):
+                    return bare_fn(*args, **kwargs)
+
+            return cast(Any, sync_bare_wrapper)
+
+    if target_cls is not None:
+        effective_cls = target_cls
+    elif isinstance(target_cls_or_fn, type) and issubclass(target_cls_or_fn, CoChemError):
+        effective_cls = target_cls_or_fn
+    else:
+        effective_cls = CoChemError
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        if asyncio.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with cochem_error_boundary(
+                    target_cls=effective_cls,
+                    default_code=default_code,
+                    message=message,
+                    details=details,
+                    reraise=reraise,
+                    exclude=exclude,
+                ):
+                    return await func(*args, **kwargs)
+
+            return async_wrapper
+        else:
+
+            @functools.wraps(func)
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+                with cochem_error_boundary(
+                    target_cls=effective_cls,
+                    default_code=default_code,
+                    message=message,
+                    details=details,
+                    reraise=reraise,
+                    exclude=exclude,
+                ):
+                    return func(*args, **kwargs)
+
+            return sync_wrapper
+
+    return decorator
+
+
+__all__ = [
+    # Registries
+    "_EXCEPTION_REGISTRY",
+    # Error Codes
+    "ProvenanceErrorCode",
+    # Root Exceptions
+    "CoChemError",
+    "CoChemBaseError",
+    # Provenance & Method Matrix Exceptions
+    "ProvenanceError",
+    "MethodMatrixViolationError",
+    "ExceptionDeflectionBlockedError",
+    "AntiSpoofingViolationError",
+    "MissingDataError",
+    "FrozenMonomerViolationError",
+    "UnsupportedMethodError",
+    "TriagePathologyError",
+    "BSSECorrectionError",
+    # Infrastructure & Storage Exceptions
+    "HDF5LockTimeoutError",
+    "RegistryLockError",
+    "SecurityIntegrityError",
+    "ConfigError",
+    "PathTraversalError",
+    "TelemetryTransportError",
+    "QCSchemaValidationError",
+    "DiskQuotaError",
+    # Engine & Math Exceptions
+    "ConvergenceError",
+    "SpinContaminationError",
+    "DispersionMissingError",
+    "InvalidHessianStrategyError",
+    "SingularityError",
+    "OutOfMemoryGateError",
+    "HardwareDetectionError",
+    "DispatcherError",
+    # Warnings
+    "CoChemWarning",
+    "MethodMatrixWarning",
+    "ConvergenceWarning",
+    "CoChemDeprecationWarning",
+    "HardwareWarning",
+    "SecurityWarning",
+    # Utilities, Boundaries, Decorators, and Serialization Helpers
+    "format_error_message",
+    "format_warning_message",
+    "wrap_exception",
+    "cochem_error_boundary",
+    "cochem_error_handler",
+    "_reconstruct_cochem_error",
+]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_workspace_manager.py ---
+#!/usr/bin/env python3
+"""
+CoChem-CORE: Stage 0.0 - Workspace Scaffolding Daemon & Air-Gap Manager
+Re-exports canonical workspace manager from cochem_base.core.cochem_core_workspace_manager.
 """
 
 from __future__ import annotations
 
-import re
+from cochem_base.core.cochem_core_workspace_manager import *
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_workspace_manager.py ---
+"""
+Unit and integration test suite for CoChem-CORE: Workspace Scaffolding Daemon,
+Parsl DAG Dependency Orchestration, Deletion Shield Permission Locking,
+and Pre-Flight Scratch Disk Quota Traps.
+
+Strict Zero-Mock Mandate: Real Parsl DAG execution with ThreadPoolExecutor,
+real directory scaffolding under tmp_path, real shutil.disk_usage() telemetry,
+real cross-platform os.chmod permission locking/unlocking, real file writes/reads,
+and real zombie sweeping & job isolation.
+
+Method Matrix v4 & SRS Workspace Scaffolding Daemon Specification Compliant.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import os
+import shutil
+import time
 from pathlib import Path
+from typing import Any, Generator
+
 import pytest
 
-from cochem_base.path_sanitization import (
-    find_path_leaks,
+from cochem_base.core.cochem_core_workspace_manager import (
+    CORE_DIRECTORIES,
+    DEFAULT_ARTIFACT_ROOT,
+    MIN_SCRATCH_FREE_GB,
+    AirgapTopology,
+    BipartiteTopology,
+    DaemonStatus,
+    DirectoryInfo,
+    DiskQuotaError,
+    DiskQuotaMetrics,
+    ScaffoldResult,
+    WorkspaceDaemon,
+    WorkspaceManager,
+    WorkspaceScaffoldingDaemon,
+    apply_bipartite_airgap,
+    apply_tripartite_airgap,
+    assert_scratch_disk_quota,
+    check_scratch_disk_quota,
+    cleanup_job_workspace,
+    file_lock,
+    get_default_workspace_manager,
+    get_directory_status,
+    get_job_workspace,
+    is_job_active,
+    lock_artifact_permissions,
+    provision_job_workspace,
+    scaffold_core_directories,
+    scaffold_workspace_parsl,
+    sweep_zombie_directories,
+    unlock_artifact_permissions,
 )
+from cochem_base.exceptions import CoChemError
+
+# =============================================================================
+# PYTEST FIXTURES (ZERO-MOCK REAL PARSL & STORAGE ENVIRONMENTS)
+# =============================================================================
 
 
 @pytest.fixture
-def method_matrix_file() -> Path:
-    """Fixture providing the absolute path to the refactored 20360805 Method Matrix .md."""
-    target = Path(r"D:\__CoChem\GitHub-Repo\.old_plan_docs\20360805 Method Matrix .md")
-    if not target.exists():
-        pytest.skip(f"Target file does not exist at {target}")
-    return target
+def parsl_session() -> Generator[Any, None, None]:
+    """Pytest fixture providing an initialized Parsl ThreadPoolExecutor environment.
+
+    Ensures safe teardown and resource deallocation between test runs.
+    """
+    import parsl
+    from parsl.config import Config
+    from parsl.executors.threads import ThreadPoolExecutor
+
+    try:
+        parsl.clear()
+    except Exception:
+        pass
+
+    cfg = Config(
+        executors=[ThreadPoolExecutor(max_threads=4, label="cochem_workspace_test_pool")],
+        strategy="none",
+    )
+    parsl.load(cfg)
+    try:
+        yield cfg
+    finally:
+        try:
+            parsl.clear()
+        except Exception:
+            pass
 
 
-def test_file_exists_and_non_empty(method_matrix_file: Path) -> None:
-    """Verify that the Method Matrix exists and has comprehensive content (>50 KB)."""
-    stat = method_matrix_file.stat()
-    assert stat.st_size > 50_000, f"File size too small ({stat.st_size} bytes)"
+# =============================================================================
+# 1. MODULE EXPORTS, CONSTANTS, AND PYDANTIC DATA MODEL TESTS
+# =============================================================================
 
 
-def test_unix_lf_line_endings(method_matrix_file: Path) -> None:
-    """Verify strictly Unix LF line endings (\n) and no Windows CRLF (\r\n)."""
-    with open(method_matrix_file, "rb") as f:
-        raw = f.read()
-    assert b"\r\n" not in raw, f"Found Windows CRLF (\r\n) line endings in {method_matrix_file.name}"
-    assert b"\n" in raw, f"Missing newline characters in {method_matrix_file.name}"
+def test_module_exports_and_constants() -> None:
+    """Verify all required classes, functions, models, and constants are exported."""
+    expected_core_dirs = ["Input_Files", "Processed", "Logs", "Scratch", "Registry", "Databases"]
+    for d in expected_core_dirs:
+        assert d in CORE_DIRECTORIES
+
+    assert isinstance(DEFAULT_ARTIFACT_ROOT, Path)
+    assert MIN_SCRATCH_FREE_GB == 50.0
+
+    # Ensure alias parity
+    assert WorkspaceScaffoldingDaemon is WorkspaceDaemon
 
 
-def test_utf8_encoding_no_bom(method_matrix_file: Path) -> None:
-    """Verify standard UTF-8 encoding without Byte Order Mark."""
-    with open(method_matrix_file, "rb") as f:
-        header = f.read(3)
-    assert header != b"\xef\xbb\xbf", f"Found UTF-8 BOM marker in {method_matrix_file.name}"
+def test_pydantic_disk_quota_metrics_model() -> None:
+    """Verify DiskQuotaMetrics Pydantic data model structure, validation, and serialization."""
+    metrics = DiskQuotaMetrics(
+        path="/tmp/test_scratch",
+        total_bytes=100 * (1024**3),
+        used_bytes=40 * (1024**3),
+        free_bytes=60 * (1024**3),
+        total_gb=100.0,
+        used_gb=40.0,
+        free_gb=60.0,
+        min_required_gb=50.0,
+        is_sufficient=True,
+    )
 
-    content = method_matrix_file.read_text(encoding="utf-8")
-    assert len(content) > 0
+    assert metrics.path == "/tmp/test_scratch"
+    assert metrics.total_gb == 100.0
+    assert metrics.free_gb == 60.0
+    assert metrics.min_required_gb == 50.0
+    assert metrics.is_sufficient is True
+    assert metrics.timestamp > 0.0
 
+    data = metrics.model_dump()
+    assert data["is_sufficient"] is True
+    assert data["free_gb"] == 60.0
 
-def test_zero_personal_path_leaks(method_matrix_file: Path) -> None:
-    """Verify zero personal/machine path leakage across the entire document."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    leaks = find_path_leaks(content)
-    assert len(leaks) == 0, f"Detected {len(leaks)} path leak(s) in {method_matrix_file.name}: {leaks}"
-
-
-def test_no_hardcoded_linux_user_paths(method_matrix_file: Path) -> None:
-    """Verify that no un-sanitized /home/user paths exist in the document."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    hardcoded = re.findall(r"/home/\w+/[^\s`\(\)\"\'<>]+", content)
-    assert len(hardcoded) == 0, f"Detected hardcoded Linux user paths: {hardcoded}"
-
-
-def test_canonical_tokens_present(method_matrix_file: Path) -> None:
-    """Verify standard path placeholder tokens are utilized."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    assert "<USER_HOME>" in content, "Missing canonical <USER_HOME> token"
-    assert "<COCHEM_WORKSPACE>" in content, "Missing canonical <COCHEM_WORKSPACE> token"
-
-
-def test_clean_markdown_no_raw_directive_xml(method_matrix_file: Path) -> None:
-    """Verify that raw XML directive tags are not polluting the markdown."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    banned_tags = [
-        "<GLOBAL_SWARM_ANTI_HALLUCINATION_DIRECTIVES>",
-        "<SWARM_AUTONOMY_MANDATE>",
-        "<ANTI_SPOOFING_COUNCIL_DIRECTIVE>",
-        "<ADVERSARIAL_AUDIT_DIRECTIVE>",
-        "<ROOT_CAUSE_MANDATE>",
-    ]
-    for tag in banned_tags:
-        assert tag not in content, f"Found raw XML directive tag in {method_matrix_file.name}: {tag}"
+    restored = DiskQuotaMetrics.model_validate(data)
+    assert restored.free_gb == 60.0
+    assert restored.path == "/tmp/test_scratch"
 
 
-def test_code_fence_balance(method_matrix_file: Path) -> None:
-    """Verify all markdown code blocks are properly opened and closed."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    fences = [line for line in content.splitlines() if line.strip().startswith("```")]
-    assert len(fences) % 2 == 0, f"Unbalanced code fences ({len(fences)}) in {method_matrix_file.name}"
+def test_pydantic_directory_info_model() -> None:
+    """Verify DirectoryInfo Pydantic data model."""
+    d_info = DirectoryInfo(
+        path="/data/cochem/Logs",
+        exists=True,
+        file_count=12,
+        dir_count=3,
+        total_size_bytes=204800,
+        is_writable=True,
+        is_readable=True,
+    )
+    assert d_info.file_count == 12
+    assert d_info.dir_count == 3
+    assert d_info.total_size_bytes == 204800
+    assert d_info.is_writable is True
+    assert d_info.is_readable is True
+
+    serialized = d_info.model_dump()
+    assert serialized["file_count"] == 12
+    assert DirectoryInfo.model_validate(serialized).exists is True
 
 
-def test_primary_sections_present(method_matrix_file: Path) -> None:
-    """Verify all canonical primary numbered sections are present."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-
-    required_sections = [
-        "# Computational Spectroscopy and Property Prediction Regime for van der Waals Complexes",
-        "## Metadata and Provenance Classification",
-        "## 1. Introduction and Methodological Scope",
-        "## 2. Hardware Architecture and Algorithmic Routing",
-        "## 3. Fundamental Physical Corrections: Dispersion, BSSE, and Monomer Constraints",
-        "## 4. Structural Regimes: PES, Isomers, and Reactions",
-        "## 5. Vibrational and Rotational Spectroscopy Regimes",
-        "## 6. Electronic, Magnetic, and Mass Spectrometry Regimes",
-        "## 7. Overcoming Limitations and Environmental Edge Cases",
-        "## 8. Works Cited",
-    ]
-
-    for sec in required_sections:
-        assert sec in content, f"Missing required section in {method_matrix_file.name}: {sec}"
-
-
-def test_all_ten_domain_tables_present_and_valid(method_matrix_file: Path) -> None:
-    """Verify that all 10 domain tier tables exist and have consistent column counts."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    lines = content.splitlines()
-
-    table_titles = [
-        "**Table 1: Molecular Structure & Isomer Search**",
-        "**Table 2: Potential Energy Surface & Reaction Potential Scans**",
-        "**Table 3: Isomer Energy Differences & Point Energy**",
-        "**Table 4: Laser-Induced Reactions (Pure Samples & Mixtures)**",
-        "**Table 5: Microwave and Rotovibrational Spectroscopy**",
-        "**Table 6: Infrared (IR) & THz/Far-infrared Spectroscopy**",
-        "**Table 7: Raman Spectroscopy**",
-        "**Table 8: Nuclear Magnetic Resonance (NMR) Spectroscopy**",
-        "**Table 9: UV-Vis Spectroscopy**",
-        "**Table 10: GC-MS / EI-MS Fragmentation**",
-    ]
-
-    for title in table_titles:
-        assert title in content, f"Missing table title: {title}"
-
-    # Verify column consistency across all tables (ignoring code blocks)
-    current_table: list[tuple[int, int, list[str]]] = []
-    tables_found = 0
-    in_code_block = False
-
-    for idx, line in enumerate(lines, start=1):
-        if line.strip().startswith("```"):
-            in_code_block = not in_code_block
-            continue
-
-        if in_code_block:
-            continue
-
-        if "|" in line:
-            cols = [c.strip() for c in line.split("|")[1:-1]]
-            current_table.append((idx, len(cols), cols))
-        else:
-            if current_table:
-                header_cols = current_table[0][1]
-                assert header_cols == 11, f"Table at line {current_table[0][0]} expected 11 columns, got {header_cols}"
-                for row_line, row_cols, _ in current_table:
-                    assert row_cols == header_cols, (
-                        f"Column mismatch at line {row_line}: expected {header_cols}, got {row_cols}"
-                    )
-                tables_found += 1
-                current_table = []
-
-    if current_table:
-        header_cols = current_table[0][1]
-        assert header_cols == 11
-        for row_line, row_cols, _ in current_table:
-            assert row_cols == header_cols
-        tables_found += 1
-
-    assert tables_found == 10, f"Expected 10 tables, found {tables_found}"
+def test_pydantic_scaffold_result_model() -> None:
+    """Verify ScaffoldResult Pydantic data model."""
+    res = ScaffoldResult(
+        base_path="/data/CoChem_Artifacts",
+        directories=["Input_Files", "Processed", "Logs", "Scratch", "Registry", "Databases"],
+        created_paths=[
+            "/data/CoChem_Artifacts/Input_Files",
+            "/data/CoChem_Artifacts/Processed",
+            "/data/CoChem_Artifacts/Logs",
+            "/data/CoChem_Artifacts/Scratch",
+            "/data/CoChem_Artifacts/Registry",
+            "/data/CoChem_Artifacts/Databases",
+        ],
+        success=True,
+        parsl_task_ids=["task_0", "task_1", "task_2", "task_3", "task_4", "task_5"],
+        execution_time_seconds=0.045,
+    )
+    assert res.success is True
+    assert len(res.directories) == 6
+    assert len(res.created_paths) == 6
+    assert len(res.parsl_task_ids) == 6
+    assert res.execution_time_seconds == 0.045
 
 
-def test_provenance_and_method_matrix_invariants(method_matrix_file: Path) -> None:
-    """Verify core Method Matrix scientific, computational, and physical invariants."""
-    content = method_matrix_file.read_text(encoding="utf-8")
+def test_pydantic_topology_models() -> None:
+    """Verify AirgapTopology and BipartiteTopology data models."""
+    airgap = AirgapTopology(
+        immutable_code="/repo/CoChem-BASE",
+        dynamic_state="/artifacts",
+        volatile_compute="/artifacts/Scratch",
+        code_tier="/repo/CoChem-BASE",
+        data_tier="/artifacts",
+        compute_tier="/artifacts/Scratch",
+        status="active",
+    )
+    assert airgap.status == "active"
+    assert airgap.compute_tier == "/artifacts/Scratch"
 
-    # Provenance tags
-    assert "[M]" in content, "Missing [M] measured provenance tag"
-    assert "[D]" in content, "Missing [D] derived provenance tag"
-    assert "[E]" in content, "Missing [E] estimated provenance tag"
-
-    # Hessian & Grid invariants
-    assert "InHess XTB2" in content
-    assert "DefGrid3" in content
-    assert "DefGrid4" in content
-    assert "TightSCF" in content
-    assert "TolMaxG 1e-5" in content
-
-    # Method & Hardware rules
-    assert "Frozen-Monomer" in content or "frozen-monomer" in content.lower()
-    assert "D4" in content
-    assert "Counterpoise" in content
-    assert "MACE" in content
-    assert "AIMNet2" in content
-    assert "g-xTB" in content
-    assert "DLPNO-CCSD(T)" in content
-    assert "F12-CCSD(T)" in content
-    assert "STEOM-CCSD" in content
-    assert "QCxMS" in content
-    assert "ORCA 6.1" in content
+    bipartite = BipartiteTopology(
+        code_tier="/repo/CoChem-BASE",
+        data_tier="/artifacts",
+        status="active",
+    )
+    assert bipartite.code_tier == "/repo/CoChem-BASE"
+    assert bipartite.data_tier == "/artifacts"
 
 
-def test_works_cited_citations_hyperlinked(method_matrix_file: Path) -> None:
-    """Verify that references in Section 8 are properly formatted as markdown hyperlinks."""
-    content = method_matrix_file.read_text(encoding="utf-8")
-    assert "## 8. Works Cited" in content
-    works_cited_text = content.split("## 8. Works Cited")[1]
-    links = re.findall(r"\[([^\]]+)\]\((https?://[^\)]+)\)", works_cited_text)
-    assert len(links) >= 40, f"Expected at least 40 hyperlinked references, found {len(links)}"
+def test_pydantic_daemon_status_model() -> None:
+    """Verify DaemonStatus data model."""
+    status = DaemonStatus(
+        is_running=True,
+        interval_seconds=30.0,
+        sweeps_completed=5,
+        last_sweep_timestamp=time.time(),
+        last_zombies_swept=2,
+        last_disk_quota_metrics=None,
+    )
+    assert status.is_running is True
+    assert status.sweeps_completed == 5
+    assert status.last_zombies_swept == 2
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\dependency_manager.py ---
+
+# =============================================================================
+# 2. DISK QUOTA ERROR & PRE-FLIGHT SCRATCH DISK QUOTA TRAPS
+# =============================================================================
+
+
+def test_disk_quota_error_exception_structure() -> None:
+    """Verify DiskQuotaError carries required diagnostic metadata and is a CoChemError."""
+    err = DiskQuotaError(
+        required_gb=50.0,
+        available_gb=12.4,
+        path=Path("/tmp/Scratch"),
+        message="Insufficient scratch disk quota",
+    )
+    assert isinstance(err, CoChemError)
+    assert isinstance(err, OSError)
+    assert err.required_gb == 50.0
+    assert err.available_gb == 12.4
+    assert str(err.path).endswith("Scratch")
+    assert "50.00 GB" in str(err) or "50.0" in str(err)
+    assert "12.40 GB" in str(err) or "12.4" in str(err)
+
+
+def test_check_scratch_disk_quota_sufficient_space(tmp_path: Path) -> None:
+    """Zero-mock pre-flight disk quota check with sufficient space succeeds."""
+    scratch_dir = tmp_path / "Scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    # Calling check_scratch_disk_quota with very low threshold (e.g. 0.001 GB = 1MB)
+    metrics = check_scratch_disk_quota(scratch_dir, min_free_gb=0.001)
+
+    assert isinstance(metrics, DiskQuotaMetrics)
+    assert metrics.is_sufficient is True
+    assert metrics.free_gb > 0.0
+    assert metrics.total_gb > 0.0
+    assert metrics.used_gb >= 0.0
+    assert metrics.min_required_gb == 0.001
+    assert Path(metrics.path).resolve() == scratch_dir.resolve()
+
+    # Calling assert_scratch_disk_quota with small threshold must NOT raise
+    assert_result = assert_scratch_disk_quota(scratch_dir, min_free_gb=0.001)
+    assert assert_result.is_sufficient is True
+
+
+def test_check_scratch_disk_quota_insufficient_space_raises(tmp_path: Path) -> None:
+    """Zero-mock pre-flight disk quota trap: insufficient disk space raises DiskQuotaError."""
+    scratch_dir = tmp_path / "Scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    total, used, free = shutil.disk_usage(str(scratch_dir))
+    actual_free_gb = free / (1024**3)
+
+    # Set an impossible requirement higher than available free disk space
+    impossible_threshold_gb = actual_free_gb + 50000.0
+
+    # check_scratch_disk_quota returns metrics with is_sufficient=False
+    metrics = check_scratch_disk_quota(scratch_dir, min_free_gb=impossible_threshold_gb)
+    assert isinstance(metrics, DiskQuotaMetrics)
+    assert metrics.is_sufficient is False
+    assert metrics.min_required_gb == impossible_threshold_gb
+
+    # assert_scratch_disk_quota must raise DiskQuotaError
+    with pytest.raises(DiskQuotaError) as exc_info:
+        assert_scratch_disk_quota(scratch_dir, min_free_gb=impossible_threshold_gb)
+
+    err = exc_info.value
+    assert err.required_gb == impossible_threshold_gb
+    assert abs(err.available_gb - actual_free_gb) < 1.0
+    assert err.path is not None
+    assert Path(err.path).resolve() == scratch_dir.resolve()
+
+
+def test_workspace_manager_disk_quota_methods(tmp_path: Path) -> None:
+    """Verify WorkspaceManager instance methods for disk quota assertions."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    scratch_dir = tmp_path / "Scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    # Manager check with tiny quota
+    metrics = manager.check_scratch_disk_quota(min_free_gb=0.01)
+    assert metrics.is_sufficient is True
+
+    # Manager assert with tiny quota
+    assert_metrics = manager.assert_scratch_disk_quota(min_free_gb=0.01)
+    assert assert_metrics.is_sufficient is True
+
+    # Manager assert with impossible quota raises DiskQuotaError
+    with pytest.raises(DiskQuotaError):
+        manager.assert_scratch_disk_quota(min_free_gb=100_000_000.0)
+
+
+# =============================================================================
+# 3. PARSL DAG DEPENDENCY ORCHESTRATION & DIRECTORY SCAFFOLDING
+# =============================================================================
+
+
+def test_parsl_dag_workspace_scaffolding_core_tree(tmp_path: Path, parsl_session: Any) -> None:
+    """Zero-mock Parsl DAG directory tree scaffolding.
+
+    Verifies that directory tree /Input_Files, /Processed, /Logs, /Scratch, /Registry, /Databases
+    is created via Parsl app/DAG dependency chaining without .workspace.lock files or mutexes.
+    """
+    target_root = tmp_path / "CoChem_Artifacts"
+    assert not target_root.exists()
+
+    result = scaffold_workspace_parsl(base_path=target_root)
+
+    assert isinstance(result, ScaffoldResult)
+    assert result.success is True
+    assert target_root.exists() and target_root.is_dir()
+
+    expected_dirs = ["Input_Files", "Processed", "Logs", "Scratch", "Registry", "Databases"]
+    for d_name in expected_dirs:
+        d_path = target_root / d_name
+        assert d_path.exists(), f"Expected directory {d_name} was not created"
+        assert d_path.is_dir(), f"Expected {d_name} to be a directory"
+
+    # Constraint verification: NO .workspace.lock file or filesystem mutexes in creation topology
+    lock_file = target_root / ".workspace.lock"
+    assert not lock_file.exists(), "Parsl scaffolding topology must not generate .workspace.lock file"
+
+
+def test_parsl_dag_workspace_scaffolding_additional_dirs(tmp_path: Path, parsl_session: Any) -> None:
+    """Verify Parsl DAG scaffolding with additional custom silo and task queue directories."""
+    target_root = tmp_path / "CoChem_Artifacts_Extended"
+    additional = ["cochem_setup", "cochem_task_queue", "MACE_Checkpoints", "ORCA_Scratch"]
+
+    result = scaffold_workspace_parsl(base_path=target_root, additional_dirs=additional)
+
+    assert result.success is True
+    for d_name in CORE_DIRECTORIES:
+        assert (target_root / d_name).is_dir()
+
+    for custom_dir in additional:
+        assert (target_root / custom_dir).is_dir()
+
+
+def test_parsl_dag_task_dependency_chaining(tmp_path: Path, parsl_session: Any) -> None:
+    """Verify Parsl DAG dependency serialization: downstream compute task chains to directory futures.
+
+    Proves that a computational chemistry preparation task waits for directory creation
+    future resolution before writing genuine quantum chemical inputs.
+    """
+    from parsl.app.app import python_app
+
+    target_root = tmp_path / "CoChem_Artifacts_Chained"
+
+    # Define a downstream computational preparation task chained to scaffold future
+    @python_app
+    def prepare_orca_input(input_dir_path: str, filename: str, content: str) -> str:
+        from pathlib import Path
+        inp_file = Path(input_dir_path) / filename
+        inp_file.write_text(content, encoding="utf-8")
+        return str(inp_file)
+
+    # 1. Launch Parsl workspace scaffolding
+    scaffold_result = scaffold_workspace_parsl(base_path=target_root)
+    assert scaffold_result.success is True
+
+    # 2. Chain downstream input generation task
+    input_files_dir = str(target_root / "Input_Files")
+    orca_payload = (
+        "! B3LYP def2-SVP D4 Opt\n"
+        "%pal nprocs 4 end\n"
+        "* xyz 0 1\n"
+        "O  0.000000  0.000000  0.117790\n"
+        "H  0.000000  0.755453 -0.471161\n"
+        "H  0.000000 -0.755453 -0.471161\n"
+        "*\n"
+    )
+
+    future = prepare_orca_input(input_files_dir, "monomer_relax.inp", orca_payload)
+    output_path = future.result()
+
+    assert Path(output_path).exists()
+    assert (target_root / "Input_Files" / "monomer_relax.inp").read_text(encoding="utf-8") == orca_payload
+
+
+def test_workspace_manager_scaffold_workspace_parsl(tmp_path: Path, parsl_session: Any) -> None:
+    """Verify WorkspaceManager.scaffold_workspace_parsl method execution."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    result = manager.scaffold_workspace_parsl(additional_dirs=["Custom_Reports"])
+
+    assert isinstance(result, ScaffoldResult)
+    assert result.success is True
+    assert (tmp_path / "Custom_Reports").is_dir()
+    for d in CORE_DIRECTORIES:
+        assert (tmp_path / d).is_dir()
+
+
+# =============================================================================
+# 4. DELETION SHIELD PERMISSION LOCKING & RESTORATION (0o755 / 0o444)
+# =============================================================================
+
+
+def test_deletion_shield_file_permission_locking(tmp_path: Path) -> None:
+    """Zero-mock Deletion Shield: Finalized .zip, .tex, and .h5 artifacts set to 0o444 (Read-Only).
+
+    Verifies write attempts raise PermissionError while read-only, and restoring permissions
+    allows write access again.
+    """
+    artifacts_dir = tmp_path / "Final_Artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    report_zip = artifacts_dir / "calculation_report.zip"
+    report_zip.write_bytes(b"PK\x03\x04_GENUINE_ZIP_PAYLOAD")
+
+    publication_tex = artifacts_dir / "spectroscopy_table.tex"
+    publication_tex.write_text("\\begin{table}\n\\caption{Rotational Constants}\n\\end{table}", encoding="utf-8")
+
+    state_h5 = artifacts_dir / "cochem_state.h5"
+    state_h5.write_bytes(b"\x89HDF\r\n\x1a\n_STATE_PAYLOAD")
+
+    # Apply Deletion Shield (Read-Only 0o444)
+    lock_artifact_permissions(report_zip, read_only=True)
+    lock_artifact_permissions(publication_tex, read_only=True)
+    lock_artifact_permissions(state_h5, read_only=True)
+
+    # 1. Verify writing / overwriting fails with PermissionError
+    with pytest.raises(PermissionError):
+        with open(report_zip, "w", encoding="utf-8") as f:
+            f.write("malicious overwrite")
+
+    with pytest.raises(PermissionError):
+        with open(publication_tex, "w", encoding="utf-8") as f:
+            f.write("corrupted table")
+
+    with pytest.raises(PermissionError):
+        with open(state_h5, "wb") as f:
+            f.write(b"corrupted hdf5")
+
+    # 2. Unlock artifacts and verify write capability is restored
+    unlock_artifact_permissions(report_zip)
+    unlock_artifact_permissions(publication_tex)
+    lock_artifact_permissions(state_h5, read_only=False)
+
+    with open(report_zip, "wb") as f:
+        f.write(b"updated zip payload")
+    assert report_zip.read_bytes() == b"updated zip payload"
+
+    with open(publication_tex, "a", encoding="utf-8") as f:
+        f.write("\n% appended row")
+    assert "% appended row" in publication_tex.read_text(encoding="utf-8")
+
+
+def test_deletion_shield_recursive_directory_locking(tmp_path: Path) -> None:
+    """Zero-mock Deletion Shield: Recursive permission locking across directory trees."""
+    data_dir = tmp_path / "Persistent_Data_Tier"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    sub_reg = data_dir / "Registry" / "Schemas"
+    sub_reg.mkdir(parents=True, exist_ok=True)
+    schema_json = sub_reg / "v4_schema.json"
+    schema_json.write_text('{"schema_version": "4.0.0"}', encoding="utf-8")
+
+    sub_proc = data_dir / "Processed" / "Geom"
+    sub_proc.mkdir(parents=True, exist_ok=True)
+    geom_xyz = sub_proc / "dimer_opt.xyz"
+    geom_xyz.write_text("3\nDimer optimized\nO 0 0 0\nH 0 0 1\nH 0 1 0\n", encoding="utf-8")
+
+    # Lock whole directory tree recursively
+    lock_artifact_permissions(data_dir, read_only=True, recursive=True)
+
+    # Attempt to write to nested files must raise PermissionError
+    with pytest.raises(PermissionError):
+        with open(schema_json, "w", encoding="utf-8") as f:
+            f.write('{"tampered": true}')
+
+    with pytest.raises(PermissionError):
+        with open(geom_xyz, "w", encoding="utf-8") as f:
+            f.write("corrupted xyz")
+
+    # Restore read-write access
+    lock_artifact_permissions(data_dir, read_only=False, recursive=True)
+
+    with open(schema_json, "w", encoding="utf-8") as f:
+        f.write('{"schema_version": "4.0.1"}')
+    assert '4.0.1' in schema_json.read_text(encoding="utf-8")
+
+
+def test_deletion_shield_file_extension_filter(tmp_path: Path) -> None:
+    """Verify selective permission locking by file extension."""
+    work_dir = tmp_path / "Filtered_Work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+    lock_me_zip = work_dir / "payload.zip"
+    lock_me_zip.write_bytes(b"ZIP_DATA")
+
+    lock_me_tex = work_dir / "table.tex"
+    lock_me_tex.write_text("TEX_DATA", encoding="utf-8")
+
+    leave_me_tmp = work_dir / "scratch.tmp"
+    leave_me_tmp.write_text("TEMP_DATA", encoding="utf-8")
+
+    # Lock only .zip and .tex files
+    lock_artifact_permissions(
+        work_dir,
+        read_only=True,
+        recursive=True,
+        file_extensions=[".zip", ".tex"],
+    )
+
+    # .zip and .tex should be locked
+    with pytest.raises(PermissionError):
+        with open(lock_me_zip, "wb") as f:
+            f.write(b"FAIL")
+
+    with pytest.raises(PermissionError):
+        with open(lock_me_tex, "w", encoding="utf-8") as f:
+            f.write("FAIL")
+
+    # .tmp should remain writable
+    with open(leave_me_tmp, "w", encoding="utf-8") as f:
+        f.write("SUCCESS_MODIFIED")
+    assert leave_me_tmp.read_text(encoding="utf-8") == "SUCCESS_MODIFIED"
+
+    # Cleanup permissions
+    lock_artifact_permissions(work_dir, read_only=False, recursive=True)
+
+
+# =============================================================================
+# 5. WORKSPACE MANAGER CORE DIRECTORIES, JOBS, ZOMBIES, & STATUS
+# =============================================================================
+
+
+def test_workspace_manager_initialization(tmp_path: Path) -> None:
+    """Verify WorkspaceManager initialization and base path resolution."""
+    manager = WorkspaceManager(base_path=str(tmp_path))
+    assert manager.base_path == tmp_path.resolve()
+
+
+def test_workspace_manager_scaffold_core_directories_standard(tmp_path: Path) -> None:
+    """Verify standard scaffolding creates all core directories with active read/write permissions."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    success = manager.scaffold_core_directories(additional_dirs=["CustomModule", "CustomCache"])
+    assert success is True
+
+    for d in WorkspaceManager.CORE_DIRECTORIES:
+        expected_dir = tmp_path / d
+        assert expected_dir.exists() and expected_dir.is_dir()
+        # Verify writable
+        assert os.access(str(expected_dir), os.W_OK)
+
+    assert (tmp_path / "CustomModule").is_dir()
+    assert (tmp_path / "CustomCache").is_dir()
+
+
+def test_provision_and_get_job_workspace(tmp_path: Path) -> None:
+    """Verify job workspace provisioning and path resolution."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    manager.scaffold_core_directories()
+
+    job_id = "JOB_ORCA_DFT_001"
+    job_dir = manager.provision_job_workspace(job_id, create_job_lock=True)
+    assert job_dir.exists()
+    assert job_dir == tmp_path / "Scratch" / job_id
+    assert (job_dir / ".job.lock").exists()
+
+    retrieved = manager.get_job_workspace(job_id)
+    assert retrieved == job_dir
+
+
+def test_is_job_active_and_cleanup_protection(tmp_path: Path) -> None:
+    """Verify active job lock detection protects running calculations from deletion."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    manager.scaffold_core_directories()
+
+    job_id = "JOB_ACTIVE_GUARD"
+    job_dir = manager.provision_job_workspace(job_id, create_job_lock=True)
+    job_lock = job_dir / ".job.lock"
+
+    assert manager.is_job_active(job_id) is False
+
+    # Simulate an active running process holding the job lock
+    fd = os.open(str(job_lock), os.O_RDWR)
+    try:
+        acquired = manager._acquire_lock(fd)
+        assert acquired is True
+        assert manager.is_job_active(job_id) is True
+
+        # Non-forced cleanup must abort to protect active calculation
+        assert manager.cleanup_job_workspace(job_id, force=False) is False
+        assert job_dir.exists()
+    finally:
+        manager._release_lock(fd)
+        os.close(fd)
+
+    assert manager.is_job_active(job_id) is False
+    # Cleanup succeeds once lock is released
+    assert manager.cleanup_job_workspace(job_id, force=False) is True
+    assert not job_dir.exists()
+
+
+def test_sweep_zombie_directories(tmp_path: Path) -> None:
+    """Verify zombie directory sweeper removes orphaned crashed jobs while protecting active ones."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    manager.scaffold_core_directories()
+
+    # 1. Orphaned zombie job with unlocked .job.lock
+    job1_dir = manager.provision_job_workspace("JOB_ZOMBIE_1", create_job_lock=True)
+    (job1_dir / "temp_calc.dat").write_text("! B3LYP def2-SVP\n", encoding="utf-8")
+
+    # 2. Active running job with held lock
+    job2_dir = manager.provision_job_workspace("JOB_ACTIVE_2", create_job_lock=True)
+    job2_lock = job2_dir / ".job.lock"
+    fd2 = os.open(str(job2_lock), os.O_RDWR)
+    manager._acquire_lock(fd2)
+
+    # 3. Orphaned zombie job without lock file
+    job3_dir = manager.provision_job_workspace("JOB_ZOMBIE_3", create_job_lock=False)
+    (job3_dir / "output.log").write_text("PARTIAL LOG DATA\n", encoding="utf-8")
+
+    try:
+        swept = manager.sweep_zombie_directories(grace_period_seconds=0.0)
+        assert swept == 2
+
+        # Job 1 and Job 3 must be purged
+        assert not job1_dir.exists()
+        assert not job3_dir.exists()
+
+        # Job 2 must be preserved because it was actively locked
+        assert job2_dir.exists()
+    finally:
+        manager._release_lock(fd2)
+        os.close(fd2)
+
+    # After releasing lock, sweeping again purges Job 2
+    swept_again = manager.sweep_zombie_directories(grace_period_seconds=0.0)
+    assert swept_again == 1
+    assert not job2_dir.exists()
+
+
+def test_sweep_zombie_directories_grace_period(tmp_path: Path) -> None:
+    """Verify sweep_zombie_directories respects grace_period_seconds for newly provisioned directories."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    manager.scaffold_core_directories()
+
+    job_dir = manager.provision_job_workspace("JOB_FRESH_PROVISION", create_job_lock=False)
+    assert job_dir.exists()
+
+    # High grace period (e.g. 100s) must protect newly created directory
+    swept = manager.sweep_zombie_directories(grace_period_seconds=100.0)
+    assert swept == 0
+    assert job_dir.exists()
+
+    # Zero grace period sweeps unlocked directory
+    swept_now = manager.sweep_zombie_directories(grace_period_seconds=0.0)
+    assert swept_now == 1
+    assert not job_dir.exists()
+
+
+def test_get_directory_status(tmp_path: Path) -> None:
+    """Verify get_directory_status returns accurate diagnostic metrics and file counts."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    manager.scaffold_core_directories()
+
+    # Populate Logs
+    log_file = tmp_path / "Logs" / "cochem_orchestrator.log"
+    log_file.write_text("INFO: Orchestrator initialized\nINFO: Stage 0 complete\n", encoding="utf-8")
+
+    # Populate Processed
+    proc_file = tmp_path / "Processed" / "conformer_01.xyz"
+    proc_file.write_text("3\nConformer 01\nC 0 0 0\nH 0 0 1\nH 0 1 0\n", encoding="utf-8")
+
+    status = manager.get_directory_status()
+
+    assert "Logs" in status
+    assert status["Logs"]["exists"] is True
+    assert status["Logs"]["file_count"] == 1
+    assert status["Logs"]["total_size_bytes"] > 0
+    assert status["Logs"]["is_writable"] is True
+    assert status["Logs"]["is_readable"] is True
+
+    assert "Processed" in status
+    assert status["Processed"]["file_count"] == 1
+
+    assert "Scratch" in status
+    assert status["Scratch"]["exists"] is True
+    assert status["Scratch"]["file_count"] == 0
+
+
+def test_airgap_topologies_provisioning(tmp_path: Path) -> None:
+    """Verify Tripartite and Bipartite Airgap topologies provisioning."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    custom_code_dir = tmp_path / "CoChem_Source"
+    custom_code_dir.mkdir(parents=True, exist_ok=True)
+
+    # Tripartite
+    tri_map = manager.apply_tripartite_airgap(code_dir=custom_code_dir)
+    assert "immutable_code" in tri_map
+    assert "dynamic_state" in tri_map
+    assert "volatile_compute" in tri_map
+    assert tri_map["immutable_code"] == str(custom_code_dir.resolve())
+    assert tri_map["dynamic_state"] == str(tmp_path.resolve())
+    assert tri_map["volatile_compute"] == str((tmp_path / "Scratch").resolve())
+
+    # Bipartite
+    bi_map = manager.apply_bipartite_airgap(code_dir=custom_code_dir)
+    assert "code_tier" in bi_map
+    assert "data_tier" in bi_map
+    assert bi_map["code_tier"] == str(custom_code_dir.resolve())
+    assert bi_map["data_tier"] == str(tmp_path.resolve())
+
+
+# =============================================================================
+# 6. WORKSPACE DAEMON LIFECYCLE & ASYNC COROUTINES
+# =============================================================================
+
+
+def test_workspace_daemon_lifecycle(tmp_path: Path) -> None:
+    """Verify WorkspaceScaffoldingDaemon / WorkspaceDaemon threading lifecycle."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    daemon = WorkspaceScaffoldingDaemon(
+        manager=manager,
+        sweep_interval_seconds=0.1,
+        min_scratch_quota_gb=0.001,
+    )
+
+    assert daemon.get_status().is_running is False
+
+    # Execute single manual cycle
+    res = daemon.run_once()
+    assert res["cycle"] == 1
+    assert res["zombies_swept"] == 0
+    assert "airgap_topology" in res
+    assert "directory_status" in res
+    assert "scratch_disk_quota" in res
+    assert res["scratch_disk_quota"]["is_sufficient"] is True
+
+    # Start background daemon thread
+    daemon.start()
+    assert daemon.get_status().is_running is True
+    time.sleep(0.35)
+    daemon.stop()
+
+    status = daemon.get_status()
+    assert status.is_running is False
+    assert status.sweeps_completed >= 2
+
+
+def test_workspace_daemon_run_async(tmp_path: Path) -> None:
+    """Verify WorkspaceScaffoldingDaemon.run_async in asyncio loop."""
+    async def _run() -> None:
+        manager = WorkspaceManager(base_path=tmp_path)
+        daemon = WorkspaceDaemon(
+            manager=manager,
+            sweep_interval_seconds=0.05,
+            min_scratch_quota_gb=0.001,
+        )
+
+        task = asyncio.create_task(daemon.run_async())
+        await asyncio.sleep(0.15)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        assert daemon.sweeps_completed >= 1
+
+    asyncio.run(_run())
+
+
+# =============================================================================
+# 7. CROSS-PLATFORM FILE LOCKING & SINGLETON HELPERS
+# =============================================================================
+
+
+def test_cross_platform_file_lock(tmp_path: Path) -> None:
+    """Verify file_lock context manager mutual exclusion and timeout."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    lock_file_path = tmp_path / "concurrency.lock"
+
+    with manager.file_lock(lock_file_path, exclusive=True) as acquired1:
+        assert acquired1 is True
+        # Second non-blocking acquire attempt on same file must fail
+        with manager.file_lock(lock_file_path, exclusive=True, timeout=0.0) as acquired2:
+            assert acquired2 is False
+
+    # Lock released; third acquire must succeed
+    with manager.file_lock(lock_file_path, exclusive=True) as acquired3:
+        assert acquired3 is True
+
+
+def test_acquire_lock_timeout(tmp_path: Path) -> None:
+    """Verify lock acquisition timeout parameter behavior."""
+    manager = WorkspaceManager(base_path=tmp_path)
+    test_file = tmp_path / "timeout_test.lock"
+    fd1 = os.open(str(test_file), os.O_RDWR | os.O_CREAT)
+    fd2 = os.open(str(test_file), os.O_RDWR | os.O_CREAT)
+    try:
+        acquired1 = manager._acquire_lock(fd1, exclusive=True, timeout=0.0)
+        assert acquired1 is True
+
+        start = time.time()
+        acquired2 = manager._acquire_lock(fd2, exclusive=True, timeout=0.05)
+        elapsed = time.time() - start
+        assert acquired2 is False
+        assert elapsed >= 0.04
+    finally:
+        manager._release_lock(fd1)
+        os.close(fd1)
+        os.close(fd2)
+
+
+def test_module_level_helpers(tmp_path: Path) -> None:
+    """Verify all top-level module convenience helper functions."""
+    manager = get_default_workspace_manager()
+    assert isinstance(manager, WorkspaceManager)
+
+    # Top-level file lock
+    test_lock = tmp_path / "top_level.lock"
+    with file_lock(test_lock, exclusive=True) as ok:
+        assert ok is True
+
+    # Top-level core scaffold
+    scaffold_ok = scaffold_core_directories()
+    assert isinstance(scaffold_ok, bool)
+
+    # Top-level job provisioning
+    job_path = provision_job_workspace("JOB_TOP_LEVEL_TEST", create_job_lock=True)
+    assert job_path.exists()
+    assert get_job_workspace("JOB_TOP_LEVEL_TEST") == job_path
+    assert is_job_active("JOB_TOP_LEVEL_TEST") is False
+
+    # Top-level status & airgap
+    status_dict = get_directory_status()
+    assert isinstance(status_dict, dict)
+    airgap_dict = apply_tripartite_airgap()
+    assert "immutable_code" in airgap_dict
+    bipartite_dict = apply_bipartite_airgap()
+    assert "code_tier" in bipartite_dict
+
+    # Top-level quota checks
+    scratch_dir = tmp_path / "Scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    quota_metrics = check_scratch_disk_quota(scratch_dir, min_free_gb=0.001)
+    assert quota_metrics.is_sufficient is True
+
+    # Top-level cleanup & sweep
+    cleaned = cleanup_job_workspace("JOB_TOP_LEVEL_TEST")
+    assert cleaned is True
+    swept = sweep_zombie_directories(grace_period_seconds=0.0)
+    assert isinstance(swept, int)
+
+    # Top-level permission helpers
+    tex_artifact = tmp_path / "artifact.tex"
+    tex_artifact.write_text("TEST_TEX", encoding="utf-8")
+    lock_artifact_permissions(tex_artifact, read_only=True)
+    with pytest.raises(PermissionError):
+        with open(tex_artifact, "w") as f:
+            f.write("FAIL")
+    unlock_artifact_permissions(tex_artifact)
+    with open(tex_artifact, "w") as f:
+        f.write("RESTORED")
+    assert tex_artifact.read_text() == "RESTORED"
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\core\cochem_core_workspace_manager.py ---
+#!/usr/bin/env python3
 """
-CoChem Stage 0 Orchestration: DependencyManager & Dynamic Silo Provisioning Engine.
-Production-grade dependency management, pip/conda subprocess brokering,
-idempotent transactional staging, automated rollback protocol, Dynamic Version Walking,
-local wheel fallback resolution, and workspace sterility enforcement.
+CoChem-CORE: Stage 0.0 - Workspace Scaffolding Daemon & Air-Gap Manager
+Implements Parsl DAG dependency orchestration for directory scaffolding, cross-platform
+POSIX (fcntl) / Windows (msvcrt) file locking, Deletion Shield permission locks (0o755 / 0o444),
+and Pre-Flight Scratch Disk Quota Traps (shutil.disk_usage asserting >= 50GB free space).
 
-SRS Document 2 Part 2, SRS Document 4, and SRS Document 5 Compliant.
+Enforces Tripartite and Bipartite Workspace Air-Gaps:
+1. Static Execution Tier (Immutable Code & Schemas)
+2. Persistent Data Tier (Dynamic State, Registries, Databases, Logs)
+3. Ephemeral Compute Tier (Volatile Compute, Scratch, IPC pipes)
+
+Zero-Mock Policy: 100% genuine OS processes, genuine Parsl DAG tasks, and real filesystem operations.
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
+import contextlib
 import logging
 import os
-import platform
-import re
 import shutil
 import stat
-import subprocess
 import sys
-import tempfile
+import threading
 import time
-import uuid
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, ContextManager, Dict, Generator, List, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, Field
 
-# Configure internal module logger
-logger = logging.getLogger("CoChem-DependencyManager")
-if not logger.handlers:
-    _handler = logging.StreamHandler(sys.stderr)
-    _handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
-    )
-    logger.addHandler(_handler)
-    logger.setLevel(logging.INFO)
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_base_root,
+    get_scratch_dir,
+)
+from cochem_base.exceptions import DiskQuotaError
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None  # type: ignore
 
-# =============================================================================
-# 1. EXCEPTIONS
-# =============================================================================
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None  # type: ignore
 
-
-class DependencyManagerError(RuntimeError):
-    """Base exception for all DependencyManager execution failures."""
-
-
-class RollbackError(DependencyManagerError):
-    """Raised when an error occurs while attempting to rollback staged resources."""
-
-
-class PipExecutionError(DependencyManagerError):
-    """Raised when a pip subprocess execution fails under strict check mode."""
-
-
-class CondaExecutionError(DependencyManagerError):
-    """Raised when a conda/mamba subprocess execution fails under strict check mode."""
-
-
-class VersionWalkingError(DependencyManagerError):
-    """Raised when Dynamic Version Walking fails to resolve a working Python environment."""
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("CoChem-WorkspaceManager")
 
 
 # =============================================================================
-# 2. PYDANTIC V2 DATA MODELS
+# CONSTANTS & CONFIGURATION
 # =============================================================================
 
-
-class SubprocessExecutionRecord(BaseModel):
-    """Structured record of a subprocess execution."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    command: List[str] = Field(..., description="Executed command line arguments")
-    returncode: int = Field(..., description="Subprocess return code")
-    stdout: str = Field(default="", description="Captured standard output")
-    stderr: str = Field(default="", description="Captured standard error")
-    duration_seconds: float = Field(default=0.0, description="Wall-clock duration in seconds")
-    success: bool = Field(default=False, description="Whether command succeeded (returncode == 0)")
-    executable_path: Optional[str] = Field(default=None, description="Resolved executable path")
-
-
-class PipExecutionResult(SubprocessExecutionRecord):
-    """Execution record specific to pip subprocess calls."""
-
-
-class CondaExecutionResult(SubprocessExecutionRecord):
-    """Execution record specific to conda/mamba subprocess calls."""
-
-
-class DynamicVersionWalkStep(BaseModel):
-    """Audit record for a single step in the Dynamic Version Walking resolution chain."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    attempted_version: str = Field(..., description="Python minor version evaluated (e.g. '3.11')")
-    success: bool = Field(..., description="Whether version evaluation or compilation succeeded")
-    fallback_wheel_found: Optional[str] = Field(
-        default=None, description="Path to local fallback wheel/tarball if discovered"
-    )
-    error_summary: Optional[str] = Field(
-        default=None, description="Diagnostic error summary if unsuccessful"
-    )
-    duration_seconds: float = Field(default=0.0, description="Step evaluation duration in seconds")
-
-    @field_validator("attempted_version")
-    @classmethod
-    def validate_version(cls, v: str) -> str:
-        if not re.match(r"^\d+\.\d+(\.\d+)?$", v.strip()):
-            raise ValueError(f"Invalid Python version format: {v}")
-        return v.strip()
-
-
-class DynamicVersionWalkingResult(BaseModel):
-    """Aggregated result of Dynamic Version Walking and local wheel fallback resolution."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    initial_version: str = Field(default="3.11", description="Initial target Python version")
-    target_version: str = Field(default="3.11", description="Target version requested")
-    version_chain: List[str] = Field(
-        default_factory=lambda: ["3.12", "3.11", "3.10", "3.9"],
-        description="Evaluation sequence for minor Python versions",
-    )
-    resolved_version: Optional[str] = Field(
-        default=None, description="Resolved compatible Python version"
-    )
-    used_local_fallback: bool = Field(
-        default=False, description="Whether a local fallback wheel/archive was utilized"
-    )
-    fallback_binary_path: Optional[str] = Field(
-        default=None, description="Path to local fallback package if used"
-    )
-    steps: List[DynamicVersionWalkStep] = Field(
-        default_factory=list, description="Step-by-step resolution trail"
-    )
-    status: str = Field(default="PASSED", description="Outcome status of version walking")
-
-
-# =============================================================================
-# 3. COMPILATION & ABI ERROR PATTERN RECOGNITION
-# =============================================================================
-
-# Authentic error signatures for C++ compilation, linker errors, and Python ABI mismatches
-ABI_COMPILATION_PATTERNS: List[Tuple[str, str]] = [
-    (r"command\s+['\"].*?(gcc|g\+\+|clang|clang\+\+|cl\.exe)['\"]\s+failed", "COMPILATION_ERROR"),
-    (r"gcc:\s+error:", "COMPILATION_ERROR"),
-    (r"fatal error:\s+Python\.h:\s+No such file or directory", "MISSING_PYTHON_HEADER"),
-    (r"Microsoft Visual C\+\+\s+\d+\.\d+.*?\s+is required", "COMPILATION_ERROR"),
-    (r"error:\s+command\s+['\"].*?['\"]\s+failed with exit status", "COMPILATION_ERROR"),
-    (r"error:\s+command\s+['\"].*?['\"]\s+failed with exit code", "COMPILATION_ERROR"),
-    (r"ABI\s+tag\s+mismatch", "ABI_TAG_MISMATCH"),
-    (r"undefined symbol:\s+_Py", "ABI_TAG_MISMATCH"),
-    (r"incompatible\s+C\+\+\s+ABI", "ABI_TAG_MISMATCH"),
-    (r"GLIBCXX_\d+\.\d+(\.\d+)?\s+not found", "GLIBCXX_MISMATCH"),
-    (r"GLIBC_\d+\.\d+(\.\d+)?\s+not found", "GLIBC_MISMATCH"),
-    (r"Failed building wheel for", "WHEEL_BUILD_FAILURE"),
-    (r"Could not build wheels for", "WHEEL_BUILD_FAILURE"),
-    (r"Unsupported\s+Python\s+version", "UNSUPPORTED_VERSION"),
-    (r"Requires-Python\s+[><=!~]+", "UNSUPPORTED_VERSION"),
-    (r"no matching distribution found for", "NO_DISTRIBUTION_FOUND"),
+CORE_DIRECTORIES: List[str] = [
+    "Input_Files",
+    "Processed",
+    "Logs",
+    "Scratch",
+    "Registry",
+    "Databases",
 ]
 
-
-def is_abi_or_compilation_error(error_log: str) -> Tuple[bool, str]:
-    """
-    Parse error output for C++ compiler errors, linker failures, and ABI mismatches.
-    Returns (is_error: bool, category: str).
-    """
-    if not error_log:
-        return False, "NONE"
-
-    for pattern, category in ABI_COMPILATION_PATTERNS:
-        if re.search(pattern, error_log, re.IGNORECASE | re.MULTILINE):
-            return True, category
-
-    return False, "NONE"
+DEFAULT_ARTIFACT_ROOT: Path = Path(r"D:\__CoChem\CoChem_Artifacts")
+MIN_SCRATCH_FREE_GB: float = 50.0
 
 
 # =============================================================================
-# 4. FILESYSTEM SAFETY & ROBUST REMOVAL HELPERS
+# PYDANTIC DATA MODELS & METADATA
 # =============================================================================
 
 
-def _handle_remove_readonly(func: Any, path: str, exc_info: Any) -> None:
-    """Error handler for shutil.rmtree to handle Windows read-only files."""
-    try:
-        os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
-        func(path)
-    except OSError as exc:
-        logger.debug(f"Failed to clear read-only flag on {path}: {exc}")
+class DiskQuotaMetrics(BaseModel):
+    """Telemetry and capacity metrics for workspace disk quota."""
+
+    path: str
+    total_bytes: int
+    used_bytes: int
+    free_bytes: int
+    total_gb: float
+    used_gb: float
+    free_gb: float
+    min_required_gb: float
+    is_sufficient: bool
+    timestamp: float = Field(default_factory=time.time)
 
 
-def safe_remove_file(path: Union[str, Path], retries: int = 3, delay: float = 0.1) -> bool:
+class DirectoryInfo(BaseModel):
+    """Diagnostic status and capacity metrics for a workspace directory."""
+
+    path: str
+    exists: bool
+    file_count: int = 0
+    dir_count: int = 0
+    total_size_bytes: int = 0
+    is_writable: bool = False
+    is_readable: bool = False
+
+
+class ScaffoldResult(BaseModel):
+    """Result of Parsl-driven workspace directory tree scaffolding."""
+
+    base_path: str
+    directories: List[str]
+    created_paths: List[str]
+    success: bool
+    parsl_task_ids: List[str] = Field(default_factory=list)
+    execution_time_seconds: float = 0.0
+    timestamp: float = Field(default_factory=time.time)
+
+
+class AirgapTopology(BaseModel):
+    """Tripartite Workspace Air-Gap topology manifest."""
+
+    immutable_code: str
+    dynamic_state: str
+    volatile_compute: str
+    code_tier: str
+    data_tier: str
+    compute_tier: str
+    status: str = "active"
+    timestamp: float = Field(default_factory=time.time)
+
+
+class BipartiteTopology(BaseModel):
+    """Bipartite Workspace Air-Gap topology manifest."""
+
+    code_tier: str
+    data_tier: str
+    status: str = "active"
+    timestamp: float = Field(default_factory=time.time)
+
+
+class DaemonStatus(BaseModel):
+    """Operational status metrics for WorkspaceDaemon."""
+
+    is_running: bool
+    interval_seconds: float
+    sweeps_completed: int
+    last_sweep_timestamp: Optional[float] = None
+    last_zombies_swept: int = 0
+    last_disk_quota_metrics: Optional[DiskQuotaMetrics] = None
+
+
+# =============================================================================
+# PRE-FLIGHT DISK QUOTA CHECKS & ASSERTIONS
+# =============================================================================
+
+
+def check_scratch_disk_quota(
+    scratch_path: Optional[Union[str, Path]] = None,
+    min_free_gb: float = MIN_SCRATCH_FREE_GB,
+) -> DiskQuotaMetrics:
     """
-    Safely delete a file, handling read-only attributes and transient Windows locks.
+    Executes shutil.disk_usage() on target scratch directory, computes GB telemetry,
+    and returns a validated DiskQuotaMetrics model.
     """
-    target = Path(path).resolve()
-    if not target.exists():
-        return True
-
-    for attempt in range(retries):
+    if scratch_path is None:
         try:
-            if target.is_file() or target.is_symlink():
-                try:
-                    target.chmod(stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
-                target.unlink()
-                return True
-        except (PermissionError, OSError) as exc:
-            if attempt < retries - 1:
-                time.sleep(delay * (attempt + 1))
-            else:
-                logger.warning(f"Unable to delete file {target}: {exc}")
-                return False
-    return not target.exists()
+            p = get_scratch_dir().resolve()
+        except Exception:
+            p = DEFAULT_ARTIFACT_ROOT / "Scratch"
+    else:
+        p = Path(scratch_path)
+
+    target = p.resolve()
+    probe_path = target
+    while not probe_path.exists() and probe_path.parent != probe_path:
+        probe_path = probe_path.parent
+
+    total_bytes, used_bytes, free_bytes = shutil.disk_usage(str(probe_path))
+    total_gb = float(total_bytes) / (1024.0 ** 3)
+    used_gb = float(used_bytes) / (1024.0 ** 3)
+    free_gb = float(free_bytes) / (1024.0 ** 3)
+    is_sufficient = free_gb >= min_free_gb
+
+    return DiskQuotaMetrics(
+        path=str(target),
+        total_bytes=total_bytes,
+        used_bytes=used_bytes,
+        free_bytes=free_bytes,
+        total_gb=total_gb,
+        used_gb=used_gb,
+        free_gb=free_gb,
+        min_required_gb=min_free_gb,
+        is_sufficient=is_sufficient,
+        timestamp=time.time(),
+    )
 
 
-def safe_remove_dir(path: Union[str, Path], retries: int = 3, delay: float = 0.1) -> bool:
+def assert_scratch_disk_quota(
+    scratch_path: Optional[Union[str, Path]] = None,
+    min_free_gb: float = MIN_SCRATCH_FREE_GB,
+) -> DiskQuotaMetrics:
     """
-    Safely delete a directory tree, handling Windows read-only attributes and kernel locks.
+    Asserts that at least min_free_gb (default 50.0 GB) of free disk space is available.
+    Raises DiskQuotaError immediately if space is insufficient.
     """
-    target = Path(path).resolve()
-    if not target.exists():
-        return True
-
-    for attempt in range(retries):
-        try:
-            if target.is_dir():
-                shutil.rmtree(target, onerror=_handle_remove_readonly)
-                return True
-        except (PermissionError, OSError) as exc:
-            if attempt < retries - 1:
-                time.sleep(delay * (attempt + 1))
-            else:
-                logger.warning(f"Unable to delete directory tree {target}: {exc}")
-                return False
-    return not target.exists()
+    metrics = check_scratch_disk_quota(scratch_path=scratch_path, min_free_gb=min_free_gb)
+    if not metrics.is_sufficient:
+        raise DiskQuotaError(
+            required_gb=min_free_gb,
+            available_gb=metrics.free_gb,
+            path=Path(metrics.path),
+            message=(
+                f"Scratch disk quota trap triggered at {metrics.path}: "
+                f"required {min_free_gb:.2f} GB, available {metrics.free_gb:.2f} GB"
+            ),
+        )
+    return metrics
 
 
-def sweep_intermediate_tmp_files(
-    root_dir: Union[str, Path],
-    patterns: Optional[List[str]] = None,
-) -> List[Path]:
+# =============================================================================
+# PERMISSION AND SECURITY UTILITIES (DELETION SHIELD)
+# =============================================================================
+
+
+def lock_artifact_permissions(
+    path: Union[str, Path],
+    read_only: bool = True,
+    recursive: bool = False,
+    file_extensions: Optional[List[str]] = None,
+) -> None:
     """
-    Purge orphaned intermediate temporary files and directories to ensure workspace sterility.
+    Deletion Shield: Locks or unlocks artifact/directory permissions.
+    - read_only=True: Enforces 0o444 for files / Read-Only on Windows to protect finalized
+      .zip, .tex, .h5 payloads and directories against accidental deletion (rm -rf).
+    - read_only=False: Restores 0o755 / 0o644 / Read-Write permissions.
+    - recursive: Recursively applies to directory tree.
+    - file_extensions: Optional filter list (e.g. [".zip", ".tex"]).
     """
-    target_root = Path(root_dir).resolve()
-    if not target_root.exists() or not target_root.is_dir():
-        return []
+    p = Path(path).resolve()
+    if not p.exists():
+        return
 
-    target_patterns = patterns or ["*.tmp*", "*_stage_*", "*cochem_tmp_*"]
-    purged: List[Path] = []
+    exts: Optional[List[str]] = (
+        [ext.lower() if ext.startswith(".") else f".{ext.lower()}" for ext in file_extensions]
+        if file_extensions
+        else None
+    )
 
-    for pattern in target_patterns:
-        for p in target_root.rglob(pattern):
+    def _matches_filter(target_path: Path) -> bool:
+        if exts is None:
+            return True
+        if target_path.is_dir():
+            return False
+        return any(target_path.name.lower().endswith(ext) for ext in exts)
+
+    targets: List[Path] = []
+    if p.is_dir():
+        if recursive:
             try:
-                if p.is_file() or p.is_symlink():
-                    if safe_remove_file(p):
-                        purged.append(p)
-                elif p.is_dir():
-                    if safe_remove_dir(p):
-                        purged.append(p)
+                for item in p.rglob("*"):
+                    if _matches_filter(item):
+                        targets.append(item)
             except OSError as exc:
-                logger.debug(f"Failed to purge {p}: {exc}")
+                logger.warning(f"Failed to traverse directory tree for lock {p}: {exc}")
+        if _matches_filter(p):
+            targets.append(p)
+    else:
+        if _matches_filter(p):
+            targets.append(p)
 
-    return purged
-
-
-# =============================================================================
-# 5. BINARY & WHEEL RESOLUTION HELPERS
-# =============================================================================
-
-
-def resolve_conda_binary(custom_path: Optional[Union[str, Path]] = None) -> Optional[str]:
-    """
-    Probe host environment for conda, mamba, or micromamba executable.
-    """
-    if custom_path:
-        p = Path(custom_path).resolve()
-        if p.exists() and p.is_file():
-            return str(p)
-
-    # Check environment variables
-    for env_var in ("CONDA_EXE", "MAMBA_EXE", "MICROMAMBA_EXE"):
-        val = os.environ.get(env_var)
-        if val and Path(val).exists():
-            return str(Path(val).resolve())
-
-    # Probe PATH candidates
-    candidates = ["conda", "mamba", "micromamba", "conda.exe", "mamba.exe", "micromamba.exe"]
-    for candidate in candidates:
-        found = shutil.which(candidate)
-        if found:
-            return str(Path(found).resolve())
-
-    return None
+    for target in targets:
+        try:
+            if sys.platform == "win32":
+                mode = stat.S_IREAD if read_only else (stat.S_IREAD | stat.S_IWRITE)
+                try:
+                    os.chmod(str(target), mode)
+                except OSError as exc:
+                    logger.warning(f"Failed to set Windows permission on {target}: {exc}")
+            else:
+                if target.is_dir():
+                    mode = (
+                        stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+                        if read_only
+                        else stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+                    )
+                else:
+                    mode = (
+                        stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+                        if read_only
+                        else stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
+                    )
+                os.chmod(str(target), mode)
+        except OSError as exc:
+            logger.warning(f"Failed to set POSIX permissions on {target}: {exc}")
 
 
-def scan_for_local_wheel_fallback(
-    package_name: str,
-    search_dirs: Optional[List[Union[str, Path]]] = None,
-    target_python: Optional[str] = None,
-) -> Optional[Path]:
-    """
-    Scan configured directories for local pre-compiled wheels (.whl) or archives (.tar.gz, .zip).
-    """
-    # Normalize package name (e.g. mace-torch -> mace[_-]torch)
-    clean_name = package_name.lower().replace("-", "_")
-    name_pattern = clean_name.replace("_", "[-_]")
+def unlock_artifact_permissions(
+    path: Union[str, Path],
+    recursive: bool = False,
+    file_extensions: Optional[List[str]] = None,
+) -> None:
+    """Restores read-write permissions to an artifact or directory."""
+    lock_artifact_permissions(
+        path,
+        read_only=False,
+        recursive=recursive,
+        file_extensions=file_extensions,
+    )
 
-    # Build list of directories to probe
-    probe_dirs: List[Path] = []
-    if search_dirs:
-        probe_dirs.extend([Path(d).resolve() for d in search_dirs if Path(d).exists()])
 
-    # Add default CoChem artifact search paths
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        wheel_dir = Path(env_art).resolve() / "wheels"
-        if wheel_dir.exists() and wheel_dir not in probe_dirs:
-            probe_dirs.append(wheel_dir)
-
-    cwd_art = Path.cwd() / ".agent_artifacts" / "wheels"
-    if cwd_art.exists() and cwd_art not in probe_dirs:
-        probe_dirs.append(cwd_art)
-
-    cwd_dist = Path.cwd() / "dist"
-    if cwd_dist.exists() and cwd_dist not in probe_dirs:
-        probe_dirs.append(cwd_dist)
-
-    # Search for matching wheel / archive packages
-    py_tag = f"cp{target_python.replace('.', '')}" if target_python else None
-
-    # First pass: look for exact matching wheel with python tag (e.g. cp311)
-    if py_tag:
-        for d in probe_dirs:
-            for item in d.glob("*.whl"):
-                stem_lower = item.name.lower()
-                if re.search(f"^{name_pattern}", stem_lower) and py_tag in stem_lower:
-                    return item.resolve()
-
-    # Second pass: universal wheels (py3-none-any / py2.py3-none-any)
-    for d in probe_dirs:
-        for item in d.glob("*.whl"):
-            stem_lower = item.name.lower()
-            if re.search(f"^{name_pattern}", stem_lower) and (
-                "py3-none-any" in stem_lower or "py2.py3-none-any" in stem_lower
-            ):
-                return item.resolve()
-
-    # Third pass: if no target_python was specified, any matching wheel
-    if not target_python:
-        for d in probe_dirs:
-            for item in d.glob("*.whl"):
-                stem_lower = item.name.lower()
-                if re.search(f"^{name_pattern}", stem_lower):
-                    return item.resolve()
-
-    # Fourth pass: source archives (.tar.gz, .zip)
-    for d in probe_dirs:
-        for ext in ("*.tar.gz", "*.zip"):
-            for item in d.glob(ext):
-                stem_lower = item.name.lower()
-                if re.search(f"^{name_pattern}", stem_lower):
-                    return item.resolve()
-
-    return None
+lock_directory_permissions = lock_artifact_permissions
 
 
 # =============================================================================
-# 6. TRANSACTIONAL DEPENDENCY MANAGER CLASS
+# PARSL DAG DEPENDENCY ORCHESTRATION FOR DIRECTORY SCAFFOLDING
 # =============================================================================
 
 
-class DependencyManager:
+def _ensure_parsl_loaded() -> None:
+    """Ensure a Parsl DataFlowKernel is active, initializing local ThreadPoolExecutor if needed."""
+    try:
+        import parsl
+        from parsl.config import Config
+        from parsl.executors.threads import ThreadPoolExecutor
+
+        try:
+            parsl.dfk()
+        except Exception:
+            cfg = Config(
+                executors=[ThreadPoolExecutor(max_threads=4, label="cochem_workspace_scaffold_pool")],
+                strategy="none",
+            )
+            try:
+                parsl.load(cfg)
+            except Exception:
+                pass
+    except ImportError:
+        pass
+
+
+def scaffold_workspace_parsl(
+    base_path: Optional[Union[str, Path]] = None,
+    additional_dirs: Optional[List[str]] = None,
+) -> ScaffoldResult:
     """
-    Transactional dependency management context manager.
-    Wraps pip and conda subprocess calls, manages staged intermediate files,
-    guarantees atomic JSON writes, and provides automated rollback on failures
-    to preserve workspace sterility.
+    Autonomously scaffold directory tree using Parsl DAG dependency orchestration.
+    Serializes directory creation before computational tasks are spawned.
+    Constraint: Does NOT use .workspace.lock files or filesystem mutexes.
+    """
+    from parsl.app.app import python_app
+
+    start_time = time.time()
+    root = Path(base_path).resolve() if base_path is not None else DEFAULT_ARTIFACT_ROOT.resolve()
+
+    dirs_to_create = list(CORE_DIRECTORIES)
+    if additional_dirs:
+        for d in additional_dirs:
+            if d not in dirs_to_create:
+                dirs_to_create.append(d)
+
+    _ensure_parsl_loaded()
+
+    @python_app
+    def _parsl_create_dir_node(dir_path: str, parent_future: Optional[Any] = None) -> str:
+        import os
+        from pathlib import Path
+        p = Path(dir_path).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        if os.name != "nt":
+            try:
+                os.chmod(str(p), 0o755)
+            except OSError:
+                pass
+        return str(p)
+
+    root_future = _parsl_create_dir_node(str(root))
+    futures: List[Any] = []
+    created_paths: List[str] = []
+    parsl_task_ids: List[str] = []
+
+    for d in dirs_to_create:
+        d_path = str(root / d)
+        created_paths.append(d_path)
+        fut = _parsl_create_dir_node(d_path, parent_future=root_future)
+        futures.append(fut)
+        tid = fut.tid if (hasattr(fut, "tid") and isinstance(fut.tid, int)) else (len(futures) - 1)
+        parsl_task_ids.append(f"task_{tid}")
+
+    root_future.result()
+    for fut in futures:
+        fut.result()
+
+    elapsed = time.time() - start_time
+
+    return ScaffoldResult(
+        base_path=str(root),
+        directories=dirs_to_create,
+        created_paths=created_paths,
+        success=True,
+        parsl_task_ids=parsl_task_ids,
+        execution_time_seconds=elapsed,
+        timestamp=time.time(),
+    )
+
+
+# =============================================================================
+# WORKSPACE MANAGER
+# =============================================================================
+
+
+class WorkspaceManager:
+    """
+    Manages the atomic creation, locking, permission enforcement, disk quota gating,
+    and sweeping of the CoChem Tripartite/Bipartite directory structure.
+    """
+
+    CORE_DIRECTORIES: List[str] = CORE_DIRECTORIES
+
+    def __init__(self, base_path: Optional[Union[str, Path]] = None) -> None:
+        """
+        Initialize the WorkspaceManager.
+
+        Args:
+            base_path: Optional custom root path for artifacts. Defaults to get_artifact_dir().
+        """
+        if base_path is not None:
+            self.base_path = Path(base_path).resolve()
+        else:
+            try:
+                self.base_path = get_artifact_dir().resolve()
+            except Exception:
+                self.base_path = DEFAULT_ARTIFACT_ROOT.resolve()
+
+        self.lock_file: Path = self.base_path / ".cochem_workspace.lock"
+
+    def _acquire_lock(
+        self,
+        file_descriptor: int,
+        exclusive: bool = True,
+        timeout: float = 0.0,
+    ) -> bool:
+        """
+        Applies a strict cross-platform lock (POSIX fcntl or Windows msvcrt).
+
+        Args:
+            file_descriptor: Integer file descriptor to lock.
+            exclusive: True for exclusive lock, False for shared lock.
+            timeout: Maximum seconds to wait if lock is held. 0.0 is non-blocking.
+
+        Returns:
+            True if lock was acquired, False otherwise.
+        """
+        start_time = time.time()
+        while True:
+            if fcntl is not None:
+                try:
+                    lock_ex = getattr(fcntl, "LOCK_EX", 2)
+                    lock_sh = getattr(fcntl, "LOCK_SH", 1)
+                    lock_nb = getattr(fcntl, "LOCK_NB", 4)
+                    mode = (lock_ex if exclusive else lock_sh) | lock_nb
+                    fcntl.flock(file_descriptor, mode)  # type: ignore
+                    return True
+                except (BlockingIOError, OSError):
+                    pass
+            elif msvcrt is not None:
+                try:
+                    os.lseek(file_descriptor, 0, os.SEEK_SET)
+                    msvcrt.locking(file_descriptor, msvcrt.LK_NBLCK, 1)  # type: ignore
+                    return True
+                except (BlockingIOError, OSError):
+                    pass
+            else:
+                raise NotImplementedError("Platform does not support fcntl or msvcrt locking.")
+
+            if timeout <= 0.0 or (time.time() - start_time) >= timeout:
+                return False
+            time.sleep(0.01)
+
+    def _release_lock(self, file_descriptor: int) -> None:
+        """Releases the lock on the specified file descriptor."""
+        if fcntl is not None:
+            try:
+                lock_un = getattr(fcntl, "LOCK_UN", 8)
+                fcntl.flock(file_descriptor, lock_un)  # type: ignore
+            except OSError as exc:
+                logger.warning(f"Failed to release POSIX workspace lock: {exc}")
+        elif msvcrt is not None:
+            try:
+                os.lseek(file_descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(file_descriptor, msvcrt.LK_UNLCK, 1)  # type: ignore
+            except OSError as exc:
+                logger.warning(f"Failed to release Windows workspace lock: {exc}")
+
+    @contextlib.contextmanager
+    def file_lock(
+        self,
+        lock_file_path: Union[str, Path],
+        exclusive: bool = True,
+        timeout: float = 0.0,
+    ) -> Generator[bool, None, None]:
+        """
+        Context manager for acquiring and releasing a cross-platform file lock.
+
+        Args:
+            lock_file_path: Path to the lock file.
+            exclusive: True for exclusive lock, False for shared lock.
+            timeout: Maximum seconds to wait. 0.0 for non-blocking attempt.
+
+        Yields:
+            bool indicating whether lock acquisition succeeded.
+        """
+        target_path = Path(lock_file_path).resolve()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            fd = os.open(str(target_path), os.O_RDWR | os.O_CREAT)
+        except OSError as exc:
+            logger.warning(f"Failed to open lock file {target_path}: {exc}")
+            yield False
+            return
+
+        acquired = False
+        try:
+            acquired = self._acquire_lock(fd, exclusive=exclusive, timeout=timeout)
+            yield acquired
+        finally:
+            if acquired:
+                self._release_lock(fd)
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+    def scaffold_workspace_parsl(
+        self,
+        additional_dirs: Optional[List[str]] = None,
+    ) -> ScaffoldResult:
+        """Parsl DAG directory tree scaffolding method on WorkspaceManager."""
+        return scaffold_workspace_parsl(base_path=self.base_path, additional_dirs=additional_dirs)
+
+    def scaffold_core_directories(
+        self,
+        additional_dirs: Optional[List[str]] = None,
+        lock_permissions: bool = False,
+    ) -> bool:
+        """
+        Atomically generates the master directories under base_path.
+        If another process holds the workspace lock, yields immediately.
+
+        Args:
+            additional_dirs: Optional list of additional directory names to scaffold.
+            lock_permissions: If True, locks permissions on persistent directories.
+
+        Returns:
+            True if scaffolding completed successfully, False on lock collision.
+        """
+        self.base_path.mkdir(parents=True, exist_ok=True)
+
+        dirs_to_create = list(self.CORE_DIRECTORIES)
+        if additional_dirs:
+            for d in additional_dirs:
+                if d not in dirs_to_create:
+                    dirs_to_create.append(d)
+
+        with self.file_lock(self.lock_file, exclusive=True, timeout=0.0) as acquired:
+            if not acquired:
+                logger.info("Workspace lock collision. Bypassing redundant scaffolding.")
+                return False
+
+            try:
+                for d in dirs_to_create:
+                    target_dir = self.base_path / d
+                    target_dir.mkdir(parents=True, exist_ok=True)
+
+                    if lock_permissions and d not in ("Scratch", "cochem_task_queue"):
+                        lock_directory_permissions(target_dir, read_only=True)
+
+                logger.info("CoChem-CORE base topology atomically verified.")
+                return True
+            except Exception as exc:
+                logger.error(f"Error during directory scaffolding: {exc}")
+                raise
+
+    def provision_job_workspace(self, job_id: str, create_job_lock: bool = True) -> Path:
+        """
+        Creates an isolated, unique execution scratch folder for a specific computational chemistry job.
+
+        Args:
+            job_id: Unique job identifier string.
+            create_job_lock: If True, creates an initial `.job.lock` file in the job folder.
+
+        Returns:
+            Path object pointing to the provisioned job scratch directory.
+        """
+        job_dir = self.base_path / "Scratch" / job_id
+        job_dir.mkdir(parents=True, exist_ok=True)
+
+        if create_job_lock:
+            lock_file = job_dir / ".job.lock"
+            if not lock_file.exists():
+                lock_file.touch()
+
+        return job_dir
+
+    def get_job_workspace(self, job_id: str) -> Path:
+        """
+        Retrieves the scratch workspace path for a specific job.
+
+        Args:
+            job_id: Unique job identifier string.
+
+        Returns:
+            Path object for the job workspace directory.
+        """
+        return self.base_path / "Scratch" / job_id
+
+    def is_job_active(self, job_id: str) -> bool:
+        """
+        Checks if a job workspace is currently active by probing its `.job.lock` file.
+
+        Returns:
+            True if the job lock is actively held by a running process, False otherwise.
+        """
+        job_dir = self.get_job_workspace(job_id)
+        if not job_dir.exists():
+            return False
+
+        job_lock = job_dir / ".job.lock"
+        if not job_lock.exists():
+            return False
+
+        try:
+            fd = os.open(str(job_lock), os.O_RDWR)
+        except OSError:
+            # File sharing violation or access denied indicates the lock is held
+            return True
+
+        try:
+            acquired = self._acquire_lock(fd, exclusive=True, timeout=0.0)
+            if not acquired:
+                return True
+            else:
+                self._release_lock(fd)
+                return False
+        finally:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+    def cleanup_job_workspace(self, job_id: str, force: bool = False) -> bool:
+        """
+        Safely removes an isolated job workspace from the Scratch directory.
+
+        Args:
+            job_id: Unique job identifier string.
+            force: If True, bypasses active lock checks.
+
+        Returns:
+            True if successfully removed or non-existent, False if job is active.
+        """
+        job_dir = self.get_job_workspace(job_id)
+        if not job_dir.exists():
+            return True
+
+        if not force and self.is_job_active(job_id):
+            logger.warning(f"Aborting cleanup: Job workspace {job_id} is currently active.")
+            return False
+
+        def _rmtree_onerror(func: Any, path: str, exc_info: Any) -> None:
+            try:
+                os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+                func(path)
+            except Exception as exc:
+                logger.warning(f"Failed to force-delete {path}: {exc}")
+
+        try:
+            if sys.version_info >= (3, 12):
+                shutil.rmtree(job_dir, onexc=lambda fn, p, exc: _rmtree_onerror(fn, p, exc))
+            else:
+                shutil.rmtree(job_dir, onerror=_rmtree_onerror)
+            return not job_dir.exists()
+        except OSError as exc:
+            logger.error(f"Failed to cleanup job workspace {job_id}: {exc}")
+            return False
+
+    def sweep_zombie_directories(self, grace_period_seconds: float = 0.0) -> int:
+        """
+        Clears the 'Scratch' folder of orphaned job directories that failed to
+        clean up after a kernel or subprocess crash.
+        Safely probes for active `.job.lock` locks to avoid deleting running jobs.
+        Protects recently provisioned directories within `grace_period_seconds`.
+
+        Args:
+            grace_period_seconds: Minimum age in seconds before an unlocked directory is swept. Defaults to 0.0.
+
+        Returns:
+            Number of swept zombie directories.
+        """
+        scratch_dir = self.base_path / "Scratch"
+        if not scratch_dir.exists():
+            return 0
+
+        swept_count = 0
+        with self.file_lock(self.lock_file, exclusive=True, timeout=0.0) as acquired:
+            if not acquired:
+                logger.warning("Lock held. Cannot safely sweep zombie directories right now.")
+                return 0
+
+            try:
+                for item in list(scratch_dir.iterdir()):
+                    if item.is_dir():
+                        if grace_period_seconds > 0.0:
+                            try:
+                                if (time.time() - item.stat().st_mtime) < grace_period_seconds:
+                                    continue
+                            except OSError:
+                                continue
+
+                        job_lock = item / ".job.lock"
+                        is_active = False
+
+                        if job_lock.exists():
+                            try:
+                                fd = os.open(str(job_lock), os.O_RDWR)
+                                try:
+                                    if not self._acquire_lock(fd, exclusive=True, timeout=0.0):
+                                        is_active = True
+                                    else:
+                                        self._release_lock(fd)
+                                finally:
+                                    try:
+                                        os.close(fd)
+                                    except OSError:
+                                        pass
+                            except OSError:
+                                is_active = True
+
+                        if not is_active:
+                            def _rmtree_onerror(func: Any, path: str, exc_info: Any) -> None:
+                                try:
+                                    os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+                                    func(path)
+                                except Exception:
+                                    pass
+
+                            try:
+                                if sys.version_info >= (3, 12):
+                                    shutil.rmtree(item, onexc=lambda fn, p, exc: _rmtree_onerror(fn, p, exc))
+                                else:
+                                    shutil.rmtree(item, onerror=_rmtree_onerror)
+                                if not item.exists():
+                                    swept_count += 1
+                            except OSError as exc:
+                                logger.error(f"Failed to remove zombie directory {item}: {exc}")
+
+                logger.info(f"Swept {swept_count} zombie directories from Scratch.")
+            except Exception as exc:
+                logger.error(f"Error during zombie directory sweep: {exc}")
+
+        return swept_count
+
+    def get_directory_status(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Returns diagnostic status, file counts, and storage metrics for all core workspace directories.
+
+        Returns:
+            Dictionary mapping directory names to DirectoryInfo dictionary representations.
+        """
+        status: Dict[str, Dict[str, Any]] = {}
+        for dir_name in self.CORE_DIRECTORIES:
+            target_dir = self.base_path / dir_name
+            if not target_dir.exists():
+                info = DirectoryInfo(
+                    path=str(target_dir),
+                    exists=False,
+                    file_count=0,
+                    dir_count=0,
+                    total_size_bytes=0,
+                    is_writable=False,
+                    is_readable=False,
+                )
+                status[dir_name] = info.model_dump()
+                continue
+
+            file_count = 0
+            dir_count = 0
+            total_size = 0
+            try:
+                for root, dirs, files in os.walk(target_dir):
+                    dir_count += len(dirs)
+                    for f in files:
+                        file_count += 1
+                        fp = Path(root) / f
+                        try:
+                            total_size += fp.stat().st_size
+                        except OSError:
+                            pass
+            except OSError:
+                pass
+
+            is_writable = os.access(str(target_dir), os.W_OK)
+            is_readable = os.access(str(target_dir), os.R_OK)
+
+            info = DirectoryInfo(
+                path=str(target_dir),
+                exists=True,
+                file_count=file_count,
+                dir_count=dir_count,
+                total_size_bytes=total_size,
+                is_writable=is_writable,
+                is_readable=is_readable,
+            )
+            status[dir_name] = info.model_dump()
+
+        return status
+
+    def apply_tripartite_airgap(self, code_dir: Optional[Path] = None) -> Dict[str, str]:
+        """
+        Dynamically provisions the Tripartite Workspace Air-Gap:
+        1. Tier 1: Static Execution Tier (Immutable Code & Schemas)
+        2. Tier 2: Persistent Data Tier (Dynamic State, Registries, Databases, Logs)
+        3. Tier 3: Ephemeral Compute Tier (Volatile Compute, Scratch, IPC pipes)
+
+        Args:
+            code_dir: Optional directory to anchor as the immutable code tier.
+
+        Returns:
+            Dictionary mapping tier names to their verified absolute paths.
+        """
+        if code_dir is not None:
+            resolved_code_dir = Path(code_dir).resolve()
+        else:
+            try:
+                resolved_code_dir = get_base_root().resolve()
+            except Exception:
+                resolved_code_dir = Path(os.getcwd()).resolve()
+
+        self.scaffold_core_directories()
+
+        manifest = AirgapTopology(
+            immutable_code=str(resolved_code_dir),
+            dynamic_state=str(self.base_path),
+            volatile_compute=str(self.base_path / "Scratch"),
+            code_tier=str(resolved_code_dir),
+            data_tier=str(self.base_path),
+            compute_tier=str(self.base_path / "Scratch"),
+            status="active",
+        )
+        topology = {
+            "immutable_code": manifest.immutable_code,
+            "dynamic_state": manifest.dynamic_state,
+            "volatile_compute": manifest.volatile_compute,
+            "code_tier": manifest.code_tier,
+            "data_tier": manifest.data_tier,
+            "compute_tier": manifest.compute_tier,
+        }
+        logger.info(f"Tripartite Air-Gap provisioned: {topology}")
+        return topology
+
+    def apply_bipartite_airgap(self, code_dir: Optional[Path] = None) -> Dict[str, str]:
+        """
+        Dynamically provisions the Bipartite Workspace Air-Gap:
+        1. Code Tier: Static Execution Tier (Repository & Core Engine)
+        2. Data Tier: Dynamic Artifacts & Scratch Tier
+
+        Args:
+            code_dir: Optional directory to anchor as the immutable code tier.
+
+        Returns:
+            Dictionary mapping code_tier and data_tier to their verified absolute paths.
+        """
+        if code_dir is not None:
+            resolved_code_dir = Path(code_dir).resolve()
+        else:
+            try:
+                resolved_code_dir = get_base_root().resolve()
+            except Exception:
+                resolved_code_dir = Path(os.getcwd()).resolve()
+
+        self.scaffold_core_directories()
+
+        manifest = BipartiteTopology(
+            code_tier=str(resolved_code_dir),
+            data_tier=str(self.base_path),
+            status="active",
+        )
+        topology = {
+            "code_tier": manifest.code_tier,
+            "data_tier": manifest.data_tier,
+        }
+        logger.info(f"Bipartite Air-Gap provisioned: {topology}")
+        return topology
+
+    def check_scratch_disk_quota(self, min_free_gb: float = MIN_SCRATCH_FREE_GB) -> DiskQuotaMetrics:
+        """Instance method checking scratch disk quota."""
+        return check_scratch_disk_quota(scratch_path=self.base_path / "Scratch", min_free_gb=min_free_gb)
+
+    def assert_scratch_disk_quota(self, min_free_gb: float = MIN_SCRATCH_FREE_GB) -> DiskQuotaMetrics:
+        """Instance method asserting scratch disk quota."""
+        return assert_scratch_disk_quota(scratch_path=self.base_path / "Scratch", min_free_gb=min_free_gb)
+
+    # Static method aliases
+    lock_directory_permissions = staticmethod(lock_directory_permissions)
+    lock_artifact_permissions = staticmethod(lock_artifact_permissions)
+    unlock_artifact_permissions = staticmethod(unlock_artifact_permissions)
+
+
+# =============================================================================
+# WORKSPACE DAEMON
+# =============================================================================
+
+
+class WorkspaceDaemon:
+    """
+    Autonomous background daemon managing the Tripartite / Bipartite Workspace Air-Gap,
+    periodic zombie sweep cycles, directory health monitoring, and disk quota traps.
     """
 
     def __init__(
         self,
-        auto_rollback: bool = True,
-        logger_instance: Optional[logging.Logger] = None,
+        manager: Optional[WorkspaceManager] = None,
+        sweep_interval_seconds: float = 60.0,
+        min_scratch_quota_gb: float = MIN_SCRATCH_FREE_GB,
     ) -> None:
-        self._auto_rollback: bool = auto_rollback
-        self._logger: logging.Logger = logger_instance or logger
-        self._tracked_temp_files: List[Path] = []
-        self._tracked_temp_dirs: List[Path] = []
-        self._tracked_virtualenvs: List[Path] = []
-        self._tracked_conda_envs: List[str] = []
+        """
+        Initialize the WorkspaceDaemon.
 
-    # -------------------------------------------------------------------------
-    # Context Manager Protocol
-    # -------------------------------------------------------------------------
+        Args:
+            manager: Optional WorkspaceManager instance.
+            sweep_interval_seconds: Interval in seconds between sweep cycles.
+            min_scratch_quota_gb: Minimum scratch free space threshold in GB.
+        """
+        self.manager = manager or WorkspaceManager()
+        self.sweep_interval = sweep_interval_seconds
+        self.min_scratch_quota_gb = min_scratch_quota_gb
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self.sweeps_completed = 0
+        self.last_sweep_timestamp: Optional[float] = None
+        self.last_zombies_swept = 0
+        self.last_disk_quota_metrics: Optional[DiskQuotaMetrics] = None
 
-    def __enter__(self) -> DependencyManager:
-        return self
+    def run_once(self) -> Dict[str, Any]:
+        """
+        Executes a single cycle of the workspace daemon:
+        1. Verifies/scaffolds core directories & air-gap topology.
+        2. Sweeps zombie scratch directories.
+        3. Collects directory health status.
+        4. Monitors scratch disk quota headroom.
 
-    def __exit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> None:
-        if exc_type is not None and self._auto_rollback:
-            self._logger.warning(
-                f"[ROLLBACK TRIGGERED] Exception caught during execution: {exc_val}. "
-                f"Wiping staged virtual environments and intermediate artifacts..."
-            )
-            self.rollback()
+        Returns:
+            Dictionary summarizing cycle results.
+        """
+        self.manager.scaffold_core_directories()
+        airgap = self.manager.apply_tripartite_airgap()
+        zombies_swept = self.manager.sweep_zombie_directories()
+        status = self.manager.get_directory_status()
+        quota_metrics = self.manager.check_scratch_disk_quota(min_free_gb=self.min_scratch_quota_gb)
 
-    # -------------------------------------------------------------------------
-    # Tracking & State Properties
-    # -------------------------------------------------------------------------
+        self.sweeps_completed += 1
+        self.last_sweep_timestamp = time.time()
+        self.last_zombies_swept = zombies_swept
+        self.last_disk_quota_metrics = quota_metrics
 
-    @property
-    def tracked_temp_files(self) -> List[Path]:
-        """Return a copy of all tracked temporary files."""
-        return list(self._tracked_temp_files)
-
-    @property
-    def tracked_temp_dirs(self) -> List[Path]:
-        """Return a copy of all tracked temporary directories."""
-        return list(self._tracked_temp_dirs)
-
-    @property
-    def tracked_virtualenvs(self) -> List[Path]:
-        """Return a copy of all tracked virtual environment paths."""
-        return list(self._tracked_virtualenvs)
-
-    @property
-    def tracked_conda_envs(self) -> List[str]:
-        """Return a copy of all tracked conda environment identifiers."""
-        return list(self._tracked_conda_envs)
-
-    def track_temp_file(self, path: Union[str, Path]) -> Path:
-        """Register a temporary file to be purged during rollback."""
-        p = Path(path).resolve()
-        if p not in self._tracked_temp_files:
-            self._tracked_temp_files.append(p)
-        return p
-
-    def track_temp_dir(self, path: Union[str, Path]) -> Path:
-        """Register a temporary directory to be purged during rollback."""
-        p = Path(path).resolve()
-        if p not in self._tracked_temp_dirs:
-            self._tracked_temp_dirs.append(p)
-        return p
-
-    def track_virtualenv(self, path: Union[str, Path]) -> Path:
-        """Register a virtual environment root directory for rollback removal."""
-        p = Path(path).resolve()
-        if p not in self._tracked_virtualenvs:
-            self._tracked_virtualenvs.append(p)
-        return p
-
-    def track_conda_env(self, name_or_prefix: str) -> str:
-        """Register a conda environment name or prefix for rollback removal."""
-        ident = str(name_or_prefix).strip()
-        if ident not in self._tracked_conda_envs:
-            self._tracked_conda_envs.append(ident)
-        return ident
-
-    def untrack_file(self, path: Union[str, Path]) -> None:
-        """Remove a file from rollback tracking once successfully committed."""
-        p = Path(path).resolve()
-        if p in self._tracked_temp_files:
-            self._tracked_temp_files.remove(p)
-
-    def untrack_dir(self, path: Union[str, Path]) -> None:
-        """Remove a directory from rollback tracking once successfully committed."""
-        p = Path(path).resolve()
-        if p in self._tracked_temp_dirs:
-            self._tracked_temp_dirs.remove(p)
-
-    def untrack_virtualenv(self, path: Union[str, Path]) -> None:
-        """Remove a virtualenv from rollback tracking once successfully committed."""
-        p = Path(path).resolve()
-        if p in self._tracked_virtualenvs:
-            self._tracked_virtualenvs.remove(p)
-
-    def untrack_conda_env(self, name_or_prefix: str) -> None:
-        """Remove a conda environment from rollback tracking once successfully committed."""
-        ident = str(name_or_prefix).strip()
-        if ident in self._tracked_conda_envs:
-            self._tracked_conda_envs.remove(ident)
-
-    # -------------------------------------------------------------------------
-    # Staging & Factory Utilities
-    # -------------------------------------------------------------------------
-
-    def create_temp_file(
-        self,
-        suffix: str = ".tmp",
-        prefix: str = "cochem_tmp_",
-        directory: Optional[Union[str, Path]] = None,
-    ) -> Path:
-        """Create and track an ephemeral temporary file."""
-        dir_path = Path(directory) if directory else None
-        if dir_path:
-            dir_path.mkdir(parents=True, exist_ok=True)
-
-        fd, temp_path_str = tempfile.mkstemp(
-            suffix=suffix,
-            prefix=prefix,
-            dir=str(dir_path) if dir_path else None,
+        result: Dict[str, Any] = {
+            "timestamp": self.last_sweep_timestamp,
+            "cycle": self.sweeps_completed,
+            "zombies_swept": zombies_swept,
+            "airgap_topology": airgap,
+            "directory_status": status,
+            "scratch_disk_quota": quota_metrics.model_dump(),
+        }
+        logger.info(
+            f"WorkspaceDaemon cycle {self.sweeps_completed} completed. Swept {zombies_swept} zombies."
         )
-        os.close(fd)
-        temp_path = Path(temp_path_str).resolve()
-        self.track_temp_file(temp_path)
-        return temp_path
+        return result
 
-    def create_temp_dir(
-        self,
-        prefix: str = "cochem_stage_",
-        directory: Optional[Union[str, Path]] = None,
-    ) -> Path:
-        """Create and track an ephemeral temporary directory."""
-        dir_path = Path(directory) if directory else None
-        if dir_path:
-            dir_path.mkdir(parents=True, exist_ok=True)
+    def start(self) -> None:
+        """Starts the daemon in a background thread."""
+        if self._running:
+            logger.warning("WorkspaceDaemon is already running.")
+            return
 
-        temp_dir_str = tempfile.mkdtemp(
-            prefix=prefix,
-            dir=str(dir_path) if dir_path else None,
+        self._running = True
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._daemon_worker,
+            daemon=True,
+            name="CoChem-WorkspaceDaemon",
         )
-        temp_dir = Path(temp_dir_str).resolve()
-        self.track_temp_dir(temp_dir)
-        return temp_dir
+        self._thread.start()
+        logger.info(f"WorkspaceDaemon started (sweep interval: {self.sweep_interval}s).")
 
-    # -------------------------------------------------------------------------
-    # Rollback & Sterility Execution
-    # -------------------------------------------------------------------------
+    def stop(self, timeout: float = 5.0) -> None:
+        """Stops the daemon background thread."""
+        if not self._running:
+            return
 
-    def rollback(self) -> None:
-        """
-        Execute atomic rollback protocol. Safely erases all tracked temporary files,
-        staging directories, incomplete virtual environments, and conda environments.
-        """
-        # 1. Purge tracked temporary files
-        for temp_file in list(self._tracked_temp_files):
+        self._running = False
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+        self._thread = None
+        logger.info("WorkspaceDaemon stopped.")
+
+    def _daemon_worker(self) -> None:
+        """Internal daemon worker loop."""
+        while self._running and not self._stop_event.is_set():
             try:
-                safe_remove_file(temp_file)
+                self.run_once()
             except Exception as exc:
-                self._logger.error(f"Failed to remove tracked temp file {temp_file}: {exc}")
-        self._tracked_temp_files.clear()
+                logger.error(f"Error in WorkspaceDaemon cycle: {exc}")
 
-        # 2. Purge tracked temporary directories
-        for temp_dir in list(self._tracked_temp_dirs):
-            try:
-                safe_remove_dir(temp_dir)
-            except Exception as exc:
-                self._logger.error(f"Failed to remove tracked temp directory {temp_dir}: {exc}")
-        self._tracked_temp_dirs.clear()
+            self._stop_event.wait(timeout=self.sweep_interval)
 
-        # 3. Purge tracked virtual environments
-        for venv_path in list(self._tracked_virtualenvs):
-            try:
-                safe_remove_dir(venv_path)
-            except Exception as exc:
-                self._logger.error(f"Failed to remove tracked virtualenv {venv_path}: {exc}")
-        self._tracked_virtualenvs.clear()
-
-        # 4. Purge tracked conda environments
-        for conda_ident in list(self._tracked_conda_envs):
-            try:
-                conda_bin = resolve_conda_binary()
-                if conda_bin:
-                    if Path(conda_ident).is_absolute() or "/" in conda_ident or "\\" in conda_ident:
-                        cmd = [conda_bin, "env", "remove", "-y", "-p", conda_ident]
-                    else:
-                        cmd = [conda_bin, "env", "remove", "-y", "-n", conda_ident]
-                    subprocess.run(cmd, capture_output=True, timeout=120.0, check=False)
-            except Exception as exc:
-                self._logger.error(f"Failed to remove tracked conda env {conda_ident}: {exc}")
-        self._tracked_conda_envs.clear()
-
-    # -------------------------------------------------------------------------
-    # Atomic State Persistence
-    # -------------------------------------------------------------------------
-
-    def atomic_write_json(
-        self,
-        target_path: Union[str, Path],
-        data: Union[BaseModel, Dict[str, Any], Sequence[Any], Any],
-        indent: int = 2,
-    ) -> Path:
-        """
-        Atomically write JSON content to target_path using a staged temporary file and os.replace.
-        Guarantees destination file is never left in a partially written or corrupted state.
-        """
-        target = Path(target_path).resolve()
-        target.parent.mkdir(parents=True, exist_ok=True)
-
-        # Stage in same parent directory to ensure single-filesystem atomic replace
-        unique_suffix = f".tmp.{uuid.uuid4().hex[:8]}"
-        staged_file = target.parent / f"{target.name}{unique_suffix}"
-        self.track_temp_file(staged_file)
-
+    async def run_async(self) -> None:
+        """Async daemon worker loop for asyncio-driven execution nodes."""
+        self._running = True
+        logger.info(f"WorkspaceDaemon async loop starting (interval: {self.sweep_interval}s)...")
         try:
-            if isinstance(data, BaseModel):
-                payload = data.model_dump_json(indent=indent)
-            elif isinstance(data, (dict, list, tuple)):
-                payload = json.dumps(data, indent=indent)
-            elif isinstance(data, (str, int, float, bool)) or data is None:
-                payload = json.dumps(data, indent=indent)
-            else:
-                payload = json.dumps(data, indent=indent)
+            while self._running:
+                await asyncio.to_thread(self.run_once)
+                await asyncio.sleep(self.sweep_interval)
+        except asyncio.CancelledError:
+            self._running = False
+            logger.info("WorkspaceDaemon async loop cancelled.")
 
-            with open(staged_file, "w", encoding="utf-8") as f:
-                f.write(payload)
-                f.flush()
-                os.fsync(f.fileno())
-
-            os.replace(staged_file, target)
-            self.untrack_file(staged_file)
-            return target
-        except Exception:
-            # Clean up staged file if serialization or write failed
-            safe_remove_file(staged_file)
-            self.untrack_file(staged_file)
-            raise
-
-    # -------------------------------------------------------------------------
-    # PIP Subprocess Brokering
-    # -------------------------------------------------------------------------
-
-    def run_pip_command(
-        self,
-        args: List[str],
-        python_executable: Optional[Union[str, Path]] = None,
-        cwd: Optional[Union[str, Path]] = None,
-        timeout: float = 300.0,
-        env: Optional[Dict[str, str]] = None,
-        check: bool = False,
-    ) -> PipExecutionResult:
-        """
-        Execute a pip command using the specified Python binary or system python.
-        """
-        py_exe = str(Path(python_executable).resolve()) if python_executable else sys.executable
-        cmd = [py_exe, "-m", "pip"] + args
-
-        exec_env = os.environ.copy()
-        if env:
-            exec_env.update(env)
-
-        start_time = time.perf_counter()
-        try:
-            res = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(cwd) if cwd else None,
-                timeout=timeout,
-                env=exec_env,
-                check=False,
-            )
-            duration = round(time.perf_counter() - start_time, 3)
-            success = res.returncode == 0
-            stdout_str = res.stdout or ""
-            stderr_str = res.stderr or ""
-
-            result = PipExecutionResult(
-                command=cmd,
-                returncode=res.returncode,
-                stdout=stdout_str,
-                stderr=stderr_str,
-                duration_seconds=duration,
-                success=success,
-                executable_path=py_exe,
-            )
-
-            if check and not success:
-                raise PipExecutionError(
-                    f"pip command failed with exit code {res.returncode}:\n"
-                    f"CMD: {' '.join(cmd)}\nSTDERR: {stderr_str}\nSTDOUT: {stdout_str}"
-                )
-
-            return result
-
-        except subprocess.TimeoutExpired as exc:
-            duration = round(time.perf_counter() - start_time, 3)
-            stdout_str = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout.decode() if exc.stdout else "")
-            stderr_str = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr.decode() if exc.stderr else "")
-            stderr_str += f"\n[ERROR] Command timed out after {timeout} seconds."
-
-            result = PipExecutionResult(
-                command=cmd,
-                returncode=-1,
-                stdout=stdout_str,
-                stderr=stderr_str,
-                duration_seconds=duration,
-                success=False,
-                executable_path=py_exe,
-            )
-            if check:
-                raise PipExecutionError(f"pip command timed out after {timeout}s: {' '.join(cmd)}") from exc
-            return result
-
-    def pip_install(
-        self,
-        packages: Union[str, List[str]],
-        python_executable: Optional[Union[str, Path]] = None,
-        flags: Optional[List[str]] = None,
-        find_links: Optional[Union[str, Path]] = None,
-        index_url: Optional[str] = None,
-        extra_index_urls: Optional[List[str]] = None,
-        upgrade: bool = False,
-        no_deps: bool = False,
-        timeout: float = 600.0,
-        check: bool = False,
-    ) -> PipExecutionResult:
-        """
-        Execute `pip install` with configurable repository links and safety flags.
-        """
-        pkg_list = [packages] if isinstance(packages, str) else packages
-        args = ["install"]
-
-        if upgrade:
-            args.append("--upgrade")
-        if no_deps:
-            args.append("--no-deps")
-        if find_links:
-            args.extend(["--find-links", str(find_links)])
-        if index_url:
-            args.extend(["--index-url", index_url])
-        if extra_index_urls:
-            for extra_url in extra_index_urls:
-                args.extend(["--extra-index-url", extra_url])
-        if flags:
-            args.extend(flags)
-
-        args.extend(pkg_list)
-        return self.run_pip_command(
-            args=args,
-            python_executable=python_executable,
-            timeout=timeout,
-            check=check,
-        )
-
-    def pip_uninstall(
-        self,
-        packages: Union[str, List[str]],
-        python_executable: Optional[Union[str, Path]] = None,
-        yes: bool = True,
-        timeout: float = 120.0,
-        check: bool = False,
-    ) -> PipExecutionResult:
-        """Execute `pip uninstall` with automatic confirmation."""
-        pkg_list = [packages] if isinstance(packages, str) else packages
-        args = ["uninstall"]
-        if yes:
-            args.append("-y")
-        args.extend(pkg_list)
-        return self.run_pip_command(
-            args=args,
-            python_executable=python_executable,
-            timeout=timeout,
-            check=check,
-        )
-
-    def pip_list(
-        self,
-        python_executable: Optional[Union[str, Path]] = None,
-        format_type: str = "json",
-        timeout: float = 60.0,
-        check: bool = False,
-    ) -> PipExecutionResult:
-        """Execute `pip list` and optionally format as JSON."""
-        args = ["list"]
-        if format_type:
-            args.extend(["--format", format_type])
-        return self.run_pip_command(
-            args=args,
-            python_executable=python_executable,
-            timeout=timeout,
-            check=check,
-        )
-
-    def pip_check(
-        self,
-        python_executable: Optional[Union[str, Path]] = None,
-        timeout: float = 60.0,
-        check: bool = False,
-    ) -> PipExecutionResult:
-        """Execute `pip check` to verify installed packages have compatible dependencies."""
-        return self.run_pip_command(
-            args=["check"],
-            python_executable=python_executable,
-            timeout=timeout,
-            check=check,
-        )
-
-    # -------------------------------------------------------------------------
-    # CONDA Subprocess Brokering
-    # -------------------------------------------------------------------------
-
-    def run_conda_command(
-        self,
-        args: List[str],
-        conda_executable: Optional[Union[str, Path]] = None,
-        cwd: Optional[Union[str, Path]] = None,
-        timeout: float = 600.0,
-        env: Optional[Dict[str, str]] = None,
-        check: bool = False,
-    ) -> CondaExecutionResult:
-        """
-        Execute a conda/mamba command with output capture and error wrapping.
-        """
-        conda_bin = conda_executable or resolve_conda_binary()
-        if not conda_bin:
-            raise FileNotFoundError(
-                "Conda binary not found in PATH or environment (CONDA_EXE / MAMBA_EXE)."
-            )
-
-        cmd = [str(conda_bin)] + args
-        exec_env = os.environ.copy()
-        if env:
-            exec_env.update(env)
-
-        start_time = time.perf_counter()
-        try:
-            res = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                cwd=str(cwd) if cwd else None,
-                timeout=timeout,
-                env=exec_env,
-                check=False,
-            )
-            duration = round(time.perf_counter() - start_time, 3)
-            success = res.returncode == 0
-
-            result = CondaExecutionResult(
-                command=cmd,
-                returncode=res.returncode,
-                stdout=res.stdout or "",
-                stderr=res.stderr or "",
-                duration_seconds=duration,
-                success=success,
-                executable_path=str(conda_bin),
-            )
-
-            if check and not success:
-                raise CondaExecutionError(
-                    f"conda command failed with exit code {res.returncode}:\n"
-                    f"CMD: {' '.join(cmd)}\nSTDERR: {res.stderr}\nSTDOUT: {res.stdout}"
-                )
-
-            return result
-
-        except subprocess.TimeoutExpired as exc:
-            duration = round(time.perf_counter() - start_time, 3)
-            stdout_str = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout.decode() if exc.stdout else "")
-            stderr_str = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr.decode() if exc.stderr else "")
-            stderr_str += f"\n[ERROR] Conda command timed out after {timeout} seconds."
-
-            result = CondaExecutionResult(
-                command=cmd,
-                returncode=-1,
-                stdout=stdout_str,
-                stderr=stderr_str,
-                duration_seconds=duration,
-                success=False,
-                executable_path=str(conda_bin),
-            )
-            if check:
-                raise CondaExecutionError(
-                    f"conda command timed out after {timeout}s: {' '.join(cmd)}"
-                ) from exc
-            return result
-
-    def conda_create_env(
-        self,
-        name_or_prefix: str,
-        python_version: str = "3.11",
-        packages: Optional[List[str]] = None,
-        channels: Optional[List[str]] = None,
-        conda_executable: Optional[Union[str, Path]] = None,
-        timeout: float = 600.0,
-        check: bool = False,
-    ) -> CondaExecutionResult:
-        """Create a new conda environment with specified python version and packages."""
-        args = ["create", "-y"]
-        if Path(name_or_prefix).is_absolute() or "/" in name_or_prefix or "\\" in name_or_prefix:
-            args.extend(["-p", str(Path(name_or_prefix).resolve())])
-        else:
-            args.extend(["-n", name_or_prefix])
-
-        if channels:
-            for ch in channels:
-                args.extend(["-c", ch])
-
-        args.append(f"python={python_version}")
-        if packages:
-            args.extend(packages)
-
-        res = self.run_conda_command(
-            args=args,
-            conda_executable=conda_executable,
-            timeout=timeout,
-            check=check,
-        )
-        if res.success:
-            self.track_conda_env(name_or_prefix)
-        return res
-
-    def conda_install(
-        self,
-        name_or_prefix: str,
-        packages: Union[str, List[str]],
-        channels: Optional[List[str]] = None,
-        conda_executable: Optional[Union[str, Path]] = None,
-        timeout: float = 600.0,
-        check: bool = False,
-    ) -> CondaExecutionResult:
-        """Install packages into an existing conda environment."""
-        pkg_list = [packages] if isinstance(packages, str) else packages
-        args = ["install", "-y"]
-
-        if Path(name_or_prefix).is_absolute() or "/" in name_or_prefix or "\\" in name_or_prefix:
-            args.extend(["-p", str(Path(name_or_prefix).resolve())])
-        else:
-            args.extend(["-n", name_or_prefix])
-
-        if channels:
-            for ch in channels:
-                args.extend(["-c", ch])
-
-        args.extend(pkg_list)
-        return self.run_conda_command(
-            args=args,
-            conda_executable=conda_executable,
-            timeout=timeout,
-            check=check,
-        )
-
-    def conda_env_create(
-        self,
-        environment_file: Union[str, Path],
-        name_or_prefix: Optional[str] = None,
-        conda_executable: Optional[Union[str, Path]] = None,
-        timeout: float = 900.0,
-        check: bool = False,
-    ) -> CondaExecutionResult:
-        """Create a conda environment from an environment.yml file."""
-        env_file_path = Path(environment_file).resolve()
-        args = ["env", "create", "-f", str(env_file_path)]
-
-        if name_or_prefix:
-            if Path(name_or_prefix).is_absolute() or "/" in name_or_prefix or "\\" in name_or_prefix:
-                args.extend(["-p", str(Path(name_or_prefix).resolve())])
-            else:
-                args.extend(["-n", name_or_prefix])
-
-        res = self.run_conda_command(
-            args=args,
-            conda_executable=conda_executable,
-            timeout=timeout,
-            check=check,
-        )
-        if res.success and name_or_prefix:
-            self.track_conda_env(name_or_prefix)
-        return res
-
-    def conda_remove_env(
-        self,
-        name_or_prefix: str,
-        conda_executable: Optional[Union[str, Path]] = None,
-        timeout: float = 300.0,
-        check: bool = False,
-    ) -> CondaExecutionResult:
-        """Remove a conda environment."""
-        args = ["env", "remove", "-y"]
-        if Path(name_or_prefix).is_absolute() or "/" in name_or_prefix or "\\" in name_or_prefix:
-            args.extend(["-p", str(Path(name_or_prefix).resolve())])
-        else:
-            args.extend(["-n", name_or_prefix])
-
-        res = self.run_conda_command(
-            args=args,
-            conda_executable=conda_executable,
-            timeout=timeout,
-            check=check,
-        )
-        if res.success:
-            self.untrack_conda_env(name_or_prefix)
-        return res
-
-    # -------------------------------------------------------------------------
-    # Dynamic Version Walking & Fallback Engine
-    # -------------------------------------------------------------------------
-
-    def walk_python_versions(
-        self,
-        package_name: str,
-        initial_version: str = "3.11",
-        version_chain: Optional[List[str]] = None,
-        wheel_search_dirs: Optional[List[Union[str, Path]]] = None,
-        install_action: Optional[Callable[[str, Optional[Path]], Tuple[bool, str]]] = None,
-        timeout_per_step: float = 300.0,
-    ) -> DynamicVersionWalkingResult:
-        """
-        Execute Dynamic Version Walking by iteratively stepping down minor Python versions
-        (e.g., 3.12 -> 3.11 -> 3.10 -> 3.9) if compilation, linker, or ABI failures occur.
-        Scans for local pre-compiled wheel/tarball fallbacks before failing.
-        """
-        chain = version_chain or ["3.12", "3.11", "3.10", "3.9"]
-        if initial_version not in chain:
-            chain = [initial_version] + [v for v in chain if v != initial_version]
-
-        steps: List[DynamicVersionWalkStep] = []
-        resolved_version: Optional[str] = None
-        used_local_fallback: bool = False
-        fallback_path_str: Optional[str] = None
-
-        self._logger.info(
-            f"[DYNAMIC VERSION WALKING] Initiating version walk for '{package_name}'. "
-            f"Chain: {' -> '.join(chain)}"
-        )
-
-        for ver in chain:
-            step_start = time.perf_counter()
-            self._logger.info(f"[VERSION WALK STEP] Evaluating Python version '{ver}' for '{package_name}'...")
-
-            # 1. Check for local wheel / archive fallback for this version
-            local_wheel = scan_for_local_wheel_fallback(
-                package_name=package_name,
-                search_dirs=wheel_search_dirs,
-                target_python=ver,
-            )
-
-            # 2. Execute installation callback
-            success = False
-            error_summary: Optional[str] = None
-
-            if install_action is not None:
-                try:
-                    success, error_log = install_action(ver, local_wheel)
-                    if not success:
-                        is_abi_err, cat = is_abi_or_compilation_error(error_log)
-                        error_summary = f"[{cat}] {error_log.splitlines()[0] if error_log else 'Unknown failure'}"
-                    else:
-                        error_summary = None
-                except Exception as exc:
-                    success = False
-                    error_summary = f"[EXCEPTION] {str(exc)}"
-            else:
-                # Default behavior: report local wheel if found
-                if local_wheel:
-                    success = True
-                    error_summary = None
-                else:
-                    success = False
-                    error_summary = f"No compiler or wheel available for version {ver}"
-
-            duration = round(time.perf_counter() - step_start, 3)
-
-            step_record = DynamicVersionWalkStep(
-                attempted_version=ver,
-                success=success,
-                fallback_wheel_found=str(local_wheel) if local_wheel else None,
-                error_summary=error_summary,
-                duration_seconds=duration,
-            )
-            steps.append(step_record)
-
-            if success:
-                resolved_version = ver
-                if local_wheel is not None:
-                    used_local_fallback = True
-                    fallback_path_str = str(local_wheel)
-                self._logger.info(
-                    f"[VERSION WALK RESOLVED] Resolved '{package_name}' on Python {ver} "
-                    f"(Local Fallback: {used_local_fallback})."
-                )
-                break
-            else:
-                self._logger.warning(
-                    f"[VERSION WALK STEP FAILED] Python {ver} failed: {error_summary}. "
-                    f"Stepping down to next minor version..."
-                )
-
-        status_str = "PASSED" if resolved_version is not None else "FAILED"
-
-        return DynamicVersionWalkingResult(
-            initial_version=initial_version,
-            target_version=initial_version,
-            version_chain=chain,
-            resolved_version=resolved_version,
-            used_local_fallback=used_local_fallback,
-            fallback_binary_path=fallback_path_str,
-            steps=steps,
-            status=status_str,
+    def get_status(self) -> DaemonStatus:
+        """Returns Pydantic status model for the daemon."""
+        return DaemonStatus(
+            is_running=self._running,
+            interval_seconds=self.sweep_interval,
+            sweeps_completed=self.sweeps_completed,
+            last_sweep_timestamp=self.last_sweep_timestamp,
+            last_zombies_swept=self.last_zombies_swept,
+            last_disk_quota_metrics=self.last_disk_quota_metrics,
         )
 
 
-def walk_python_versions(
-    package_name: str,
-    initial_version: str = "3.11",
-    version_chain: Optional[List[str]] = None,
-    wheel_search_dirs: Optional[List[Union[str, Path]]] = None,
-    install_action: Optional[Callable[[str, Optional[Path]], Tuple[bool, str]]] = None,
-    timeout_per_step: float = 300.0,
-) -> DynamicVersionWalkingResult:
-    """
-    Convenience functional interface for Dynamic Version Walking.
-    """
-    dm = DependencyManager()
-    return dm.walk_python_versions(
-        package_name=package_name,
-        initial_version=initial_version,
-        version_chain=version_chain,
-        wheel_search_dirs=wheel_search_dirs,
-        install_action=install_action,
-        timeout_per_step=timeout_per_step,
+WorkspaceScaffoldingDaemon = WorkspaceDaemon
+
+
+# =============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTIONS
+# =============================================================================
+
+_default_manager: Optional[WorkspaceManager] = None
+_default_manager_lock: threading.Lock = threading.Lock()
+
+
+def get_default_workspace_manager() -> WorkspaceManager:
+    """Returns or lazily creates the default singleton WorkspaceManager in a thread-safe manner."""
+    global _default_manager
+    if _default_manager is None:
+        with _default_manager_lock:
+            if _default_manager is None:
+                _default_manager = WorkspaceManager()
+    return _default_manager
+
+
+def scaffold_core_directories(
+    additional_dirs: Optional[List[str]] = None,
+    lock_permissions: bool = False,
+) -> bool:
+    """Module-level helper to scaffold core directories with default manager."""
+    return get_default_workspace_manager().scaffold_core_directories(
+        additional_dirs=additional_dirs,
+        lock_permissions=lock_permissions,
     )
 
 
-# =============================================================================
-# 7. TOP-LEVEL MODULE EXPORTS
-# =============================================================================
+def provision_job_workspace(job_id: str, create_job_lock: bool = True) -> Path:
+    """Module-level helper to provision a job workspace with default manager."""
+    return get_default_workspace_manager().provision_job_workspace(
+        job_id=job_id,
+        create_job_lock=create_job_lock,
+    )
+
+
+def get_job_workspace(job_id: str) -> Path:
+    """Module-level helper to get a job workspace path with default manager."""
+    return get_default_workspace_manager().get_job_workspace(job_id=job_id)
+
+
+def is_job_active(job_id: str) -> bool:
+    """Module-level helper to check if a job is active with default manager."""
+    return get_default_workspace_manager().is_job_active(job_id=job_id)
+
+
+def cleanup_job_workspace(job_id: str, force: bool = False) -> bool:
+    """Module-level helper to cleanup a job workspace with default manager."""
+    return get_default_workspace_manager().cleanup_job_workspace(job_id=job_id, force=force)
+
+
+def sweep_zombie_directories(grace_period_seconds: float = 0.0) -> int:
+    """Module-level helper to sweep zombie directories with default manager."""
+    return get_default_workspace_manager().sweep_zombie_directories(
+        grace_period_seconds=grace_period_seconds
+    )
+
+
+def get_directory_status() -> Dict[str, Dict[str, Any]]:
+    """Module-level helper to retrieve directory status with default manager."""
+    return get_default_workspace_manager().get_directory_status()
+
+
+def apply_tripartite_airgap(code_dir: Optional[Path] = None) -> Dict[str, str]:
+    """Module-level helper to apply Tripartite Air-Gap with default manager."""
+    return get_default_workspace_manager().apply_tripartite_airgap(code_dir=code_dir)
+
+
+def apply_bipartite_airgap(code_dir: Optional[Path] = None) -> Dict[str, str]:
+    """Module-level helper to apply Bipartite Air-Gap with default manager."""
+    return get_default_workspace_manager().apply_bipartite_airgap(code_dir=code_dir)
+
+
+def file_lock(
+    lock_file_path: Union[str, Path],
+    exclusive: bool = True,
+    timeout: float = 0.0,
+) -> ContextManager[bool]:
+    """Module-level helper contextmanager for file locking."""
+    return get_default_workspace_manager().file_lock(
+        lock_file_path=lock_file_path,
+        exclusive=exclusive,
+        timeout=timeout,
+    )
+
 
 __all__ = [
-    "DependencyManager",
-    "DependencyManagerError",
-    "RollbackError",
-    "PipExecutionError",
-    "CondaExecutionError",
-    "VersionWalkingError",
-    "PipExecutionResult",
-    "CondaExecutionResult",
-    "DynamicVersionWalkStep",
-    "DynamicVersionWalkingResult",
-    "is_abi_or_compilation_error",
-    "scan_for_local_wheel_fallback",
-    "sweep_intermediate_tmp_files",
-    "safe_remove_file",
-    "safe_remove_dir",
-    "resolve_conda_binary",
-    "walk_python_versions",
+    # Constants
+    "CORE_DIRECTORIES",
+    "DEFAULT_ARTIFACT_ROOT",
+    "MIN_SCRATCH_FREE_GB",
+    # Pydantic Models
+    "DiskQuotaMetrics",
+    "DirectoryInfo",
+    "ScaffoldResult",
+    "AirgapTopology",
+    "BipartiteTopology",
+    "DaemonStatus",
+    # Exceptions
+    "DiskQuotaError",
+    # Core Classes
+    "WorkspaceManager",
+    "WorkspaceDaemon",
+    "WorkspaceScaffoldingDaemon",
+    # Pre-Flight Quota Functions
+    "check_scratch_disk_quota",
+    "assert_scratch_disk_quota",
+    # Permission Utilities
+    "lock_artifact_permissions",
+    "unlock_artifact_permissions",
+    "lock_directory_permissions",
+    # Parsl Scaffolding
+    "scaffold_workspace_parsl",
+    # Module Convenience Functions
+    "get_default_workspace_manager",
+    "scaffold_core_directories",
+    "provision_job_workspace",
+    "get_job_workspace",
+    "is_job_active",
+    "cleanup_job_workspace",
+    "sweep_zombie_directories",
+    "get_directory_status",
+    "apply_tripartite_airgap",
+    "apply_bipartite_airgap",
+    "file_lock",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_dependency_manager.py ---
-"""
-Unit tests for CoChem Stage 0 DependencyManager (orchestrator/dependency_manager.py).
-Adheres strictly to the physical validation mandate. Real filesystem entities,
-virtual environments, subprocess invocations, and Pydantic schemas are validated directly.
-"""
 
-from __future__ import annotations
-
-import json
-import os
-import subprocess
-import sys
-import tempfile
-import time
-import venv
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import pytest
-from pydantic import BaseModel, Field
-
-# Import the module under test
-from orchestrator.dependency_manager import (
-    DependencyManager,
-    DynamicVersionWalkStep,
-    DynamicVersionWalkingResult,
-    PipExecutionResult,
-    CondaExecutionResult,
-    is_abi_or_compilation_error,
-    scan_for_local_wheel_fallback,
-    sweep_intermediate_tmp_files,
-    safe_remove_file,
-    safe_remove_dir,
-    resolve_conda_binary,
-    walk_python_versions,
-    DependencyManagerError,
-    RollbackError,
-    PipExecutionError,
-    CondaExecutionError,
-    VersionWalkingError,
-)
-
-
-class Stage0ExecutionMetadata(BaseModel):
-    name: str = Field(..., description="Stage identifier name")
-    count: int = Field(default=42, description="Execution counter")
-    flags: List[str] = Field(default_factory=lambda: ["opt", "dft"])
-
-
-# =============================================================================
-# 1. CONTEXT MANAGER & TRACKING TESTS
-# =============================================================================
-
-
-def test_dependency_manager_initialization() -> None:
-    dm = DependencyManager()
-    assert len(dm.tracked_temp_files) == 0
-    assert len(dm.tracked_temp_dirs) == 0
-    assert len(dm.tracked_virtualenvs) == 0
-    assert len(dm.tracked_conda_envs) == 0
-
-
-def test_track_and_untrack_temp_file(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    f1 = tmp_path / "test1.tmp"
-    f1.write_text("temporary data", encoding="utf-8")
-
-    tracked = dm.track_temp_file(f1)
-    assert tracked == f1.resolve()
-    assert tracked in dm.tracked_temp_files
-
-    # Duplicate track should not double add
-    dm.track_temp_file(f1)
-    assert len(dm.tracked_temp_files) == 1
-
-    dm.untrack_file(f1)
-    assert f1.resolve() not in dm.tracked_temp_files
-
-
-def test_track_and_untrack_temp_dir(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    d1 = tmp_path / "stage_dir"
-    d1.mkdir(parents=True, exist_ok=True)
-
-    tracked = dm.track_temp_dir(d1)
-    assert tracked == d1.resolve()
-    assert tracked in dm.tracked_temp_dirs
-
-    dm.untrack_dir(d1)
-    assert d1.resolve() not in dm.tracked_temp_dirs
-
-
-def test_create_temp_file_and_dir(tmp_path: Path) -> None:
-    with DependencyManager() as dm:
-        t_file = dm.create_temp_file(suffix=".tmp", prefix="test_cochem_", directory=tmp_path)
-        assert t_file.exists()
-        assert t_file.is_file()
-        assert t_file in dm.tracked_temp_files
-
-        t_dir = dm.create_temp_dir(prefix="test_stage_", directory=tmp_path)
-        assert t_dir.exists()
-        assert t_dir.is_dir()
-        assert t_dir in dm.tracked_temp_dirs
-
-        # Explicitly untrack so they aren't deleted on clean exit
-        dm.untrack_file(t_file)
-        dm.untrack_dir(t_dir)
-
-    assert t_file.exists()
-    assert t_dir.exists()
-
-
-def test_rollback_on_exception(tmp_path: Path) -> None:
-    t_file = None
-    t_dir = None
-
-    with pytest.raises(ValueError, match="Expected phase failure for testing"):
-        with DependencyManager() as dm:
-            t_file = dm.create_temp_file(suffix=".tmp", directory=tmp_path)
-            t_dir = dm.create_temp_dir(prefix="fail_stage_", directory=tmp_path)
-
-            assert t_file.exists()
-            assert t_dir.exists()
-
-            # Trigger exception inside context to test rollback
-            raise ValueError("Expected phase failure for testing")
-
-    # After rollback, tracked temporary files and directories must be destroyed
-    assert t_file is not None and not t_file.exists()
-    assert t_dir is not None and not t_dir.exists()
-
-
-def test_no_rollback_on_successful_exit(tmp_path: Path) -> None:
-    target_file = tmp_path / "permanent.txt"
-    with DependencyManager() as dm:
-        t_file = dm.create_temp_file(suffix=".tmp", directory=tmp_path)
-        t_file.write_text("staged content", encoding="utf-8")
-        # Commit by moving and untracking
-        os.replace(t_file, target_file)
-        dm.untrack_file(t_file)
-
-    assert target_file.exists()
-    assert target_file.read_text(encoding="utf-8") == "staged content"
-
-
-# =============================================================================
-# 2. ATOMIC STATE SERIALIZATION TESTS
-# =============================================================================
-
-
-def test_atomic_write_json_pydantic_and_dict(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    target_json = tmp_path / "Registry" / "p1.json"
-
-    model_data = Stage0ExecutionMetadata(name="Phase1Report", count=100, flags=["orca", "xtb"])
-    result_path = dm.atomic_write_json(target_json, model_data)
-
-    assert result_path.exists()
-    assert result_path == target_json.resolve()
-
-    loaded = json.loads(result_path.read_text(encoding="utf-8"))
-    assert loaded["name"] == "Phase1Report"
-    assert loaded["count"] == 100
-    assert loaded["flags"] == ["orca", "xtb"]
-
-    # Write dictionary
-    dict_target = tmp_path / "Registry" / "dict_state.json"
-    dict_data = {"phase": "p4", "status": "PASSED", "silos": 4}
-    dm.atomic_write_json(dict_target, dict_data)
-
-    loaded_dict = json.loads(dict_target.read_text(encoding="utf-8"))
-    assert loaded_dict["status"] == "PASSED"
-
-
-def test_atomic_write_json_cleans_temporary_on_error(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    target = tmp_path / "corrupted.json"
-
-    class NonSerializableObject:
-        pass
-
-    with pytest.raises(Exception):
-        dm.atomic_write_json(target, NonSerializableObject())
-
-    # Ensure no lingering .tmp files remain in directory
-    tmp_files = list(tmp_path.glob("*.tmp*"))
-    assert len(tmp_files) == 0
-    assert not target.exists()
-
-
-# =============================================================================
-# 3. VIRTUAL ENVIRONMENT TRACKING & ROLLBACK
-# =============================================================================
-
-
-def test_virtualenv_tracking_and_rollback(tmp_path: Path) -> None:
-    venv_dir = tmp_path / "test_silo_env"
-
-    with pytest.raises(RuntimeError, match="Compilation failure encountered"):
-        with DependencyManager() as dm:
-            # Create a real physical venv without pip for execution speed
-            venv.create(venv_dir, with_pip=False, clear=True)
-            assert venv_dir.exists()
-
-            dm.track_virtualenv(venv_dir)
-            assert venv_dir.resolve() in dm.tracked_virtualenvs
-
-            # Trigger downstream failure to test rollback
-            raise RuntimeError("Compilation failure encountered")
-
-    # Post-rollback: venv directory must be completely erased
-    assert not venv_dir.exists()
-
-
-# =============================================================================
-# 4. PIP & CONDA SUBPROCESS CALL WRAPPER TESTS
-# =============================================================================
-
-
-def test_pip_command_execution_real() -> None:
-    dm = DependencyManager()
-
-    # Execute real python -m pip --version via current sys.executable
-    result: PipExecutionResult = dm.run_pip_command(
-        ["--version"],
-        python_executable=sys.executable,
-        timeout=30.0,
-    )
-
-    assert result.success is True
-    assert result.returncode == 0
-    assert "pip" in result.stdout.lower()
-    assert result.duration_seconds >= 0.0
-
-
-def test_pip_list_real() -> None:
-    dm = DependencyManager()
-    result = dm.pip_list(python_executable=sys.executable, timeout=30.0)
-
-    assert result.success is True
-    assert result.returncode == 0
-    assert len(result.stdout) > 0
-
-
-def test_pip_failure_handling() -> None:
-    dm = DependencyManager()
-    # Attempt to run with invalid non-existent argument
-    result = dm.run_pip_command(
-        ["--non-existent-pip-flag-xyz"],
-        python_executable=sys.executable,
-        timeout=15.0,
-    )
-
-    assert result.success is False
-    assert result.returncode != 0
-    assert len(result.stderr) > 0 or len(result.stdout) > 0
-
-
-def test_pip_check_real() -> None:
-    dm = DependencyManager()
-    result = dm.pip_check(python_executable=sys.executable, timeout=30.0)
-    assert isinstance(result, PipExecutionResult)
-    assert result.duration_seconds >= 0.0
-    assert result.executable_path is not None
-
-
-def test_pip_install_uninstall_dry_run_args(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    # Test pip install argument formatting with dry-run/no-deps
-    result = dm.pip_install(
-        packages=["pip"],
-        python_executable=sys.executable,
-        flags=["--dry-run"],
-        upgrade=True,
-        no_deps=True,
-        timeout=30.0,
-    )
-    assert isinstance(result, PipExecutionResult)
-    assert result.success is True
-    assert "--dry-run" in result.command
-    assert "--upgrade" in result.command
-    assert "--no-deps" in result.command
-
-
-def test_pip_check_raise_on_error() -> None:
-    dm = DependencyManager()
-    with pytest.raises(PipExecutionError):
-        dm.run_pip_command(
-            ["--invalid-flag-that-triggers-error"],
-            python_executable=sys.executable,
-            timeout=10.0,
-            check=True,
-        )
-
-
-def test_conda_resolution_and_execution() -> None:
-    dm = DependencyManager()
-    conda_bin = resolve_conda_binary()
-    if conda_bin:
-        result = dm.run_conda_command(["--version"], timeout=15.0)
-        assert result.returncode == 0
-        assert "conda" in result.stdout.lower() or "mamba" in result.stdout.lower()
+if __name__ == "__main__":
+    logger.info("Executing CoChem-CORE Workspace Manager diagnostic sweep...")
+    manager = WorkspaceManager()
+    if manager.scaffold_core_directories(lock_permissions=False):
+        logger.info("Master CoChem-CORE directories generated atomically.")
+        airgap_map = manager.apply_tripartite_airgap()
+        logger.info(f"Airgap layout: {airgap_map}")
+
+        test_job = manager.provision_job_workspace("JOB_PROVISION_001", create_job_lock=True)
+        logger.info(f"Provisioned job path: {test_job}")
+
+        status_dict = manager.get_directory_status()
+        logger.info(f"Directory Status: {list(status_dict.keys())}")
+
+        daemon = WorkspaceDaemon(manager=manager)
+        cycle_res = daemon.run_once()
+        logger.info(f"Daemon single-run status: {cycle_res['zombies_swept']} zombies swept.")
     else:
-        with pytest.raises(FileNotFoundError):
-            dm.run_conda_command(["--version"], conda_executable="non_existent_conda_binary_xyz")
-
-
-def test_conda_env_tracking_and_rollback() -> None:
-    dm = DependencyManager()
-    dm.track_conda_env("test_env_staging")
-    assert "test_env_staging" in dm.tracked_conda_envs
-    dm.untrack_conda_env("test_env_staging")
-    assert "test_env_staging" not in dm.tracked_conda_envs
-
-
-# =============================================================================
-# 5. DYNAMIC VERSION WALKING & COMPILATION / ABI ERROR DETECTION
-# =============================================================================
-
-
-def test_abi_compilation_error_detector() -> None:
-    gcc_error = (
-        "gcc: error: unrecognized command-line option '-mavx512f'\n"
-        "error: command '/usr/bin/gcc' failed with exit code 1"
-    )
-    is_err, cat = is_abi_or_compilation_error(gcc_error)
-    assert is_err is True
-    assert cat == "COMPILATION_ERROR"
-
-    msvc_error = "error: Microsoft Visual C++ 14.0 or greater is required. Get it with Microsoft C++ Build Tools"
-    is_err, cat = is_abi_or_compilation_error(msvc_error)
-    assert is_err is True
-    assert cat == "COMPILATION_ERROR"
-
-    abi_error = "RuntimeError: ABI tag mismatch between PyTorch C++ extension and Python runtime"
-    is_err, cat = is_abi_or_compilation_error(abi_error)
-    assert is_err is True
-    assert cat == "ABI_TAG_MISMATCH"
-
-    clean_log = "Successfully installed mace-torch-0.3.5"
-    is_err, cat = is_abi_or_compilation_error(clean_log)
-    assert is_err is False
-    assert cat == "NONE"
-
-
-def test_all_abi_compilation_error_categories() -> None:
-    test_cases = [
-        ("gcc: error: unrecognized option", "COMPILATION_ERROR"),
-        ("fatal error: Python.h: No such file or directory", "MISSING_PYTHON_HEADER"),
-        ("Microsoft Visual C++ 14.0 or greater is required", "COMPILATION_ERROR"),
-        ("ABI tag mismatch between extensions", "ABI_TAG_MISMATCH"),
-        ("undefined symbol: _Py_NoneStruct", "ABI_TAG_MISMATCH"),
-        ("incompatible C++ ABI detected", "ABI_TAG_MISMATCH"),
-        ("GLIBCXX_3.4.29 not found", "GLIBCXX_MISMATCH"),
-        ("GLIBC_2.34 not found", "GLIBC_MISMATCH"),
-        ("Failed building wheel for scikit-learn", "WHEEL_BUILD_FAILURE"),
-        ("Could not build wheels for scipy", "WHEEL_BUILD_FAILURE"),
-        ("Unsupported Python version 3.14", "UNSUPPORTED_VERSION"),
-        ("Requires-Python >=3.8, <3.12", "UNSUPPORTED_VERSION"),
-        ("No matching distribution found for nonexistent", "NO_DISTRIBUTION_FOUND"),
-    ]
-
-    for log_snippet, expected_cat in test_cases:
-        is_err, cat = is_abi_or_compilation_error(log_snippet)
-        assert is_err is True, f"Failed on snippet: {log_snippet}"
-        assert cat == expected_cat, f"Category mismatch for {log_snippet}: got {cat}, expected {expected_cat}"
-
-
-def test_local_wheel_fallback_scanner(tmp_path: Path) -> None:
-    wheel_dir = tmp_path / "wheel_cache"
-    wheel_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create physical wheel filename
-    test_whl = wheel_dir / "molsym-1.0.0-cp311-cp311-win_amd64.whl"
-    test_whl.write_bytes(b"PK\x03\x04")  # Zip header bytes
-
-    test_tar = wheel_dir / "pyscf-2.6.0.tar.gz"
-    test_tar.write_bytes(b"\x1f\x8b")  # Gzip magic bytes
-
-    found_whl = scan_for_local_wheel_fallback("molsym", [wheel_dir], target_python="3.11")
-    assert found_whl is not None
-    assert found_whl.name == "molsym-1.0.0-cp311-cp311-win_amd64.whl"
-
-    found_tar = scan_for_local_wheel_fallback("pyscf", [wheel_dir], target_python="3.11")
-    assert found_tar is not None
-    assert found_tar.name == "pyscf-2.6.0.tar.gz"
-
-    not_found = scan_for_local_wheel_fallback("nonexistent_pkg", [wheel_dir])
-    assert not_found is None
-
-
-def test_dynamic_version_walking_workflow(tmp_path: Path) -> None:
-    dm = DependencyManager()
-    wheel_dir = tmp_path / "dist"
-    wheel_dir.mkdir(parents=True, exist_ok=True)
-
-    fallback_whl = wheel_dir / "mace_torch-0.3.4-cp310-cp310-win_amd64.whl"
-    fallback_whl.write_bytes(b"PK\x03\x04")
-
-    # Installer callback testing version stepdown to 3.10 where wheel is found
-    def stepdown_installer(version: str, wheel_path: Path | None) -> Tuple[bool, str]:
-        if version in ("3.12", "3.11") and wheel_path is None:
-            return False, "fatal error: Python.h: No such file or directory. command 'gcc' failed"
-        if version == "3.10" or wheel_path is not None:
-            return True, "Successfully installed"
-        return False, "Unsupported version"
-
-    result: DynamicVersionWalkingResult = dm.walk_python_versions(
-        package_name="mace_torch",
-        initial_version="3.12",
-        version_chain=["3.12", "3.11", "3.10"],
-        wheel_search_dirs=[wheel_dir],
-        install_action=stepdown_installer,
-    )
-
-    assert result.status == "PASSED"
-    assert result.resolved_version == "3.10"
-    assert result.used_local_fallback is True
-    assert result.fallback_binary_path is not None
-    assert len(result.steps) == 3
-    assert result.steps[0].attempted_version == "3.12"
-    assert result.steps[0].success is False
-    assert result.steps[1].attempted_version == "3.11"
-    assert result.steps[1].success is False
-    assert result.steps[2].attempted_version == "3.10"
-    assert result.steps[2].success is True
-
-
-def test_dynamic_version_walk_step_validation() -> None:
-    # Valid step
-    step = DynamicVersionWalkStep(
-        attempted_version="3.11",
-        success=True,
-        fallback_wheel_found="/path/to/wheel.whl",
-        duration_seconds=1.23,
-    )
-    assert step.attempted_version == "3.11"
-    assert step.success is True
-
-    # Invalid version should raise ValueError
-    with pytest.raises(ValueError, match="Invalid Python version format"):
-        DynamicVersionWalkStep(attempted_version="python3_invalid", success=False)
-
-
-def test_top_level_walk_python_versions_function(tmp_path: Path) -> None:
-    result = walk_python_versions(
-        package_name="test_pkg",
-        initial_version="3.11",
-        version_chain=["3.11", "3.10"],
-        wheel_search_dirs=[tmp_path],
-    )
-    assert isinstance(result, DynamicVersionWalkingResult)
-    assert len(result.steps) == 2
-
-
-# =============================================================================
-# 6. STERILITY & SWEEP PROTOCOL TESTS
-# =============================================================================
-
-
-def test_workspace_sterility_sweep(tmp_path: Path) -> None:
-    # Create persistent configuration files
-    real_cfg = tmp_path / "config.json"
-    real_cfg.write_text("{}", encoding="utf-8")
-
-    # Create intermediate .tmp files and directories
-    tmp_file1 = tmp_path / "p1.json.tmp.a1b2c3"
-    tmp_file1.write_text("partial", encoding="utf-8")
-
-    tmp_file2 = tmp_path / "sub" / "p2.tmp"
-    tmp_file2.parent.mkdir(parents=True, exist_ok=True)
-    tmp_file2.write_text("partial2", encoding="utf-8")
-
-    purged = sweep_intermediate_tmp_files(tmp_path)
-    assert len(purged) == 2
-    assert not tmp_file1.exists()
-    assert not tmp_file2.exists()
-    assert real_cfg.exists()
-
-
-def test_safe_remove_helpers(tmp_path: Path) -> None:
-    f = tmp_path / "to_delete.txt"
-    f.write_text("content", encoding="utf-8")
-    assert safe_remove_file(f) is True
-    assert not f.exists()
-    # Deleting non-existent should succeed idempotently
-    assert safe_remove_file(f) is True
-
-    d = tmp_path / "to_delete_dir"
-    d.mkdir(parents=True, exist_ok=True)
-    (d / "inner.txt").write_text("inner", encoding="utf-8")
-    assert safe_remove_dir(d) is True
-    assert not d.exists()
-    assert safe_remove_dir(d) is True
+        logger.warning("Scaffolding yielded due to lock collision.")
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

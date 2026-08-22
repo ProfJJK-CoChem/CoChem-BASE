@@ -1,1 +1,55 @@
 # CoChem AI Package
+"""
+CoChem-BASE: Artificial Intelligence, Inference Engine, Hardware Safety,
+and Context Compression Subsystem.
+"""
+
+from cochem_core.ai.context_compression import (
+    ContextCompressor,
+    DEFAULT_CHUNK_MAX_CHARS,
+    DEFAULT_TENSOR_THRESHOLD,
+    DEFAULT_TRACEBACK_MAX_LINES,
+    HDF5PointerModel,
+    MarkdownChunkModel,
+    TensorSummaryModel,
+    TracebackSummaryModel,
+    chunk_literature_by_headers,
+    chunk_markdown_by_headers,
+    compress_tensors_for_llm,
+    create_hdf5_pointer,
+    dumps_rfc8259,
+    extract_hdf5_pointers,
+    is_hdf5_pointer,
+    loads_rfc8259,
+    parse_hdf5_pointer,
+    resolve_hdf5_pointer,
+    sanitize_numerical_values,
+    strip_ansi_escape_codes,
+    to_rfc8259_json,
+    truncate_traceback,
+)
+
+__all__ = [
+    "ContextCompressor",
+    "DEFAULT_CHUNK_MAX_CHARS",
+    "DEFAULT_TENSOR_THRESHOLD",
+    "DEFAULT_TRACEBACK_MAX_LINES",
+    "HDF5PointerModel",
+    "MarkdownChunkModel",
+    "TensorSummaryModel",
+    "TracebackSummaryModel",
+    "chunk_literature_by_headers",
+    "chunk_markdown_by_headers",
+    "compress_tensors_for_llm",
+    "create_hdf5_pointer",
+    "dumps_rfc8259",
+    "extract_hdf5_pointers",
+    "is_hdf5_pointer",
+    "loads_rfc8259",
+    "parse_hdf5_pointer",
+    "resolve_hdf5_pointer",
+    "sanitize_numerical_values",
+    "strip_ansi_escape_codes",
+    "to_rfc8259_json",
+    "truncate_traceback",
+]

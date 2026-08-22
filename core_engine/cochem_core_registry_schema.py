@@ -18,7 +18,7 @@ import re
 import shutil
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -111,7 +111,7 @@ class QuantumSettings(BaseModel):
             if cleaned in ("CPCM", "SMD"):
                 return cleaned
             raise ValueError("implicit_solvation must be 'CPCM' or 'SMD'")
-        return v
+        return cast(Optional[str], v)
 
     @field_validator("integration_grid", mode="before")
     @classmethod
@@ -123,7 +123,7 @@ class QuantumSettings(BaseModel):
             if cleaned in ("defgrid1", "defgrid2", "defgrid3"):
                 return cleaned
             raise ValueError("integration_grid must be one of ('defgrid1', 'defgrid2', 'defgrid3')")
-        return v
+        return cast(Optional[str], v)
 
 
 class HardwareSchema(BaseModel):
@@ -336,7 +336,7 @@ class SiloPathsSchema(BaseModel):
             raise AttributeError(f"Unknown binary configuration '{binary_name}'")
         val = getattr(self, attr)
         if val is None or val in ("BYPASSED", "Not_Found", "missing"):
-            return val
+            return cast(Optional[str], val)
         p = Path(val)
         if self.strict_resolution and not p.exists():
             raise FileNotFoundError(f"Binary '{binary_name}' not found at path '{val}'")
@@ -413,7 +413,7 @@ class HPCConfig(BaseModel):
             if s in ("local", "slurm", "pbs", "sge"):
                 return s
             raise ValueError(f"Invalid HPC scheduler '{v}'. Must be one of ('local', 'slurm', 'pbs', 'sge').")
-        return v
+        raise ValueError(f"HPC scheduler must be a string, got {type(v)}")
 
 
 class CoChemSystemConfig(BaseModel):

@@ -472,14 +472,36 @@ def parse_cgroup_cpu_quota(
 # =============================================================================
 
 
+def get_absolute_physical_ram() -> int:
+    """
+    Define absolute physical RAM bypassing virtualized/swap memory traps.
+    Utilizes POSIX sysconf SC_PHYS_PAGES * SC_PAGE_SIZE when available,
+    falling back to psutil.virtual_memory().total.
+    """
+    if hasattr(os, "sysconf") and hasattr(os, "sysconf_names"):
+        try:
+            if "SC_PHYS_PAGES" in os.sysconf_names and "SC_PAGE_SIZE" in os.sysconf_names:
+                pages = os.sysconf("SC_PHYS_PAGES")
+                page_size = os.sysconf("SC_PAGE_SIZE")
+                if pages > 0 and page_size > 0:
+                    return int(pages * page_size)
+        except (ValueError, OSError, AttributeError):
+            pass
+
+    vmem = psutil.virtual_memory()
+    return int(vmem.total)
+
+
 def audit_memory(cgroup_root: Optional[Path] = None) -> MemoryAudit:
     """
     Audit host physical memory and container cgroup memory limits.
+    Utilizes SC_PHYS_PAGES / psutil to define absolute physical RAM,
+    bypassing virtualized/swap memory traps.
     """
+    total_bytes = get_absolute_physical_ram()
     vmem = psutil.virtual_memory()
     smem = psutil.swap_memory()
 
-    total_bytes = int(vmem.total)
     available_bytes = int(vmem.available)
     swap_total = int(smem.total)
     swap_free = int(smem.free)

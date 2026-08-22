@@ -27,6 +27,7 @@ from orchestrator.cochem_setup_phase_2 import (
     audit_cpu,
     audit_gpus,
     audit_memory,
+    get_absolute_physical_ram,
     main,
     parse_cgroup_cpu_quota,
     parse_cgroup_memory_limit,
@@ -396,6 +397,15 @@ def test_cgroup_corrupted_content(tmp_path: Path) -> None:
 # =============================================================================
 # 3. CPU TOPOLOGY & PSUTIL MEMORY PROBING TESTS
 # =============================================================================
+
+
+def test_get_absolute_physical_ram() -> None:
+    """Verify absolute physical RAM detection returns positive byte count."""
+    ram = get_absolute_physical_ram()
+    assert isinstance(ram, int)
+    assert ram > 0
+    # Physical RAM on standard machines should be at least 1 GB
+    assert ram >= 1024 * 1024 * 1024
 
 
 def test_audit_memory_real_host() -> None:

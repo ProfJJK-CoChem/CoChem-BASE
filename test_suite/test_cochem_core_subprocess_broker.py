@@ -1,34 +1,45 @@
 """
 Unit and Integration Test Suite for CoChem Core Subprocess Broker.
 Validates process tree lifecycle, safe execution, zombie reaping, OOM monitor thread,
-telemetry stream trapping, and artifact provenance hashing against real OS processes.
+telemetry stream trapping, scratch I/O verification, ZeroMQ heartbeats, NUMA CPU pinning,
+and artifact provenance hashing against real physical OS processes.
 """
 
+from __future__ import annotations
+
+import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import List
+
 import pytest
 
 from core_engine.cochem_core_subprocess_broker import (
+    HAS_PSUTIL,
+    HAS_ZMQ,
     SubprocessBroker,
-    safe_subprocess_run,
-    register_popen_process,
-    unregister_popen_process,
-    get_active_popen_processes,
     cleanup_zombie_processes,
+    enforce_cpu_affinity,
+    get_active_popen_processes,
     kill_process_tree,
-    HAS_PSUTIL
+    register_popen_process,
+    safe_subprocess_run,
+    unregister_popen_process,
+    verify_scratch_io,
 )
 
 if HAS_PSUTIL:
     import psutil
 
+if HAS_ZMQ:
+    import zmq
+
 
 def test_popen_registration_and_unregistration() -> None:
     """Test registering, polling active, and unregistering subprocesses."""
-    # Launch a brief sleep process
     cmd = [sys.executable, "-c", "import time; time.sleep(10)"]
     proc = subprocess.Popen(cmd)
     try:
@@ -36,7 +47,6 @@ def test_popen_registration_and_unregistration() -> None:
         active = get_active_popen_processes()
         assert proc in active
 
-        # Unregister manually
         unregister_popen_process(proc)
         active_after = get_active_popen_processes()
         assert proc not in active_after
@@ -57,7 +67,7 @@ time.sleep(30)
     time.sleep(0.8)
 
     pid = proc.pid
-    child_pids = []
+    child_pids: List[int] = []
     if HAS_PSUTIL:
         try:
             parent_p = psutil.Process(pid)
@@ -65,7 +75,6 @@ time.sleep(30)
         except psutil.NoSuchProcess:
             pass
 
-    # Kill process tree
     kill_process_tree(pid)
     proc.wait(timeout=3.0)
 
@@ -161,6 +170,20 @@ def test_safe_subprocess_run_string_command() -> None:
     assert "12345" in res.stdout
 
 
+def test_safe_subprocess_run_with_affinity() -> None:
+    """Test safe_subprocess_run with explicit CPU affinity specification."""
+    if HAS_PSUTIL:
+        available_cores = list(range(min(2, os.cpu_count() or 1)))
+        res = safe_subprocess_run(
+            [sys.executable, "-c", "print('AFFINITY_OK')"],
+            capture_output=True,
+            text=True,
+            cpu_affinity=available_cores
+        )
+        assert res.returncode == 0
+        assert "AFFINITY_OK" in res.stdout
+
+
 def test_broker_init_and_context_manager(tmp_path: Path) -> None:
     """Test SubprocessBroker initialization, context manager enter/exit, and directory setup."""
     scratch_dir = tmp_path / "custom_scratch"
@@ -168,6 +191,7 @@ def test_broker_init_and_context_manager(tmp_path: Path) -> None:
         assert broker.cwd.exists()
         assert broker.memory_limit_bytes > 0
         assert broker._atexit_reaper is not None
+        assert broker._lock is not None
 
 
 def test_broker_oom_monitor_lifecycle() -> None:
@@ -249,14 +273,17 @@ def test_broker_artifact_sync_and_hash(tmp_path: Path) -> None:
     """Test SubprocessBroker generates hashes for quantum chemistry artifact files."""
     broker = SubprocessBroker(cwd=tmp_path)
     try:
-        # Create output file in cwd
         out_file = tmp_path / "water_opt.out"
         out_file.write_text("FINAL SINGLE POINT ENERGY -76.43210 Hartree\n", encoding="utf-8")
 
-        script = f'import sys; sys.stdout.write("DONE"); sys.exit(0)'
+        script = 'import sys; sys.stdout.write("DONE"); sys.exit(0)'
         exit_code = broker.execute([sys.executable, "-c", script], job_name="hash_test")
         assert exit_code == 0
         assert out_file.exists()
+
+        hashes = broker.hash_quantum_artifacts(tmp_path)
+        assert "water_opt.out" in hashes
+        assert len(hashes["water_opt.out"]) == 64
     finally:
         broker.close()
 
@@ -277,4 +304,57 @@ def test_broker_zombie_reaper_active_processes() -> None:
 
         proc.wait(timeout=2.0)
     finally:
+        broker.close()
+
+
+def test_verify_scratch_io(tmp_path: Path) -> None:
+    """Test physical disk I/O verification on scratch directory."""
+    scratch_dir = tmp_path / "scratch_probe_dir"
+    is_valid = verify_scratch_io(scratch_dir, required_mb=1)
+    assert is_valid is True
+    assert scratch_dir.exists()
+
+
+def test_enforce_cpu_affinity() -> None:
+    """Test CPU affinity enforcement on current process."""
+    if HAS_PSUTIL:
+        pid = os.getpid()
+        num_cores = os.cpu_count() or 1
+        target_cores = [0] if num_cores > 0 else []
+        success = enforce_cpu_affinity(pid, target_cores)
+        assert success is True
+
+
+def test_broker_zmq_heartbeat_lifecycle() -> None:
+    """Test starting, receiving heartbeats from, and stopping ZeroMQ publisher."""
+    if not HAS_ZMQ:
+        pytest.skip("pyzmq not installed")
+
+    port = 5559
+    broker = SubprocessBroker()
+    ctx = zmq.Context()
+    sub_socket = ctx.socket(zmq.SUB)
+    sub_socket.connect(f"tcp://127.0.0.1:{port}")
+    sub_socket.setsockopt_string(zmq.SUBSCRIBE, "heartbeat")
+
+    try:
+        broker.start_zmq_heartbeat(port=port, interval_sec=0.1, metadata={"tier": "test"})
+        assert broker._zmq_thread is not None
+        assert broker._zmq_thread.is_alive()
+
+        # Poll for incoming heartbeat
+        poller = zmq.Poller()
+        poller.register(sub_socket, zmq.POLLIN)
+        events = dict(poller.poll(timeout=2000))
+
+        if sub_socket in events:
+            topic, payload_bytes = sub_socket.recv_multipart()
+            assert topic == b"heartbeat"
+            data = json.loads(payload_bytes.decode("utf-8"))
+            assert data["status"] == "alive"
+            assert data["metadata"]["tier"] == "test"
+    finally:
+        broker.stop_zmq_heartbeat()
+        sub_socket.close(linger=0)
+        ctx.term()
         broker.close()

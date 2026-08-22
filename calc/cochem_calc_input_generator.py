@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""
+"\""
 CoChem-CORE Stage 2.1: Input Scaffolder
 Module: calc/cochem_calc_input_generator.py
 Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compiles
          engine-specific inputs with cryptographic provenance and rigorous grid overrides.
-"""
+\"\"\"
 
 import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -28,12 +29,19 @@ class MoleculeInput(BaseModel):
     multiplicity: int = Field(default=1, description="Spin multiplicity")
     is_weak_complex: bool = Field(default=False, description="Is this a weak intermolecular complex?")
     is_opt: bool = Field(default=True, description="Is this a geometry optimization?")
+    frozen_monomer_indices: Optional[List[int]] = Field(default=None, description="0-indexed atom indices to freeze")
+    implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvation model (e.g., CPCM(Water), SMD)")
 
     @model_validator(mode="after")
-    def validate_dispersion(self) -> "MoleculeInput":
+    def validate_method_matrix(self) -> "MoleculeInput":
         if self.is_weak_complex:
             if "D3" not in self.theory_level.upper() and "D4" not in self.theory_level.upper():
                 raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
+        
+        # 4. Hessian Preconditioning Safeguards
+        if self.is_opt and "CALC_HESS TRUE" in self.theory_level.upper():
+            self.theory_level = re.sub(r'(?i)calc_hess\s+true', '', self.theory_level).strip()
+            
         return self
 
     @field_validator("multiplicity")
@@ -44,27 +52,27 @@ class MoleculeInput(BaseModel):
         return v
 
 def get_artifact_base() -> Path:
-    """Enforces the strict air-gap to read-write user data tier."""
+    \"\"\"Enforces the strict air-gap to read-write user data tier.\"\"\"
     artifact_dir = get_artifact_dir() / "Scratch"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return artifact_dir
 
 def load_system_config() -> Dict[str, Any]:
-    """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
+    \"\"\"Loads authoritative hardware and execution parameters from cochem_system_config.json.\"\"\"
     try:
         return load_system_config_dict()
     except Exception as e:
         raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
 
 def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
-    """
+    \"\"\"
     Compiles an ORCA 6.1.1 input file incorporating:
     - defgrid_tight enforcement for transition metals / diffuse functions
     - Ghost atom retention for BSSE
     - Cryptographic SHA-256 header stamping
     - Parameterized charge and spin multiplicity
     - Method Matrix Compliance (Grids, Dispersion, Hessians)
-    """
+    \"\"\"
     config = load_system_config()
     if "hardware" not in config or "maxcore_mb" not in config["hardware"] or "physical_cpu_cores" not in config["hardware"]:
         raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb or physical_cpu_cores.")
@@ -77,8 +85,7 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
                          "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
     needs_tight_grid = any(el in data.elements for el in transition_metals)
 
-    # Method Matrix: start loose, tighten near minimum.
-    # For a static input we might just set defgrid1, or defgrid3 if transition metals.
+    # 2. Dynamic Grid Tightening
     grid_keyword = "defgrid3" if needs_tight_grid else "defgrid1"
 
     coord_block = []
@@ -92,17 +99,32 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
 
     opt_keyword = "Opt" if data.is_opt else ""
 
-    geom_block = ""
-    if data.is_weak_complex and data.is_opt:
-        geom_block = "%geom\n  TolMaxG 1e-5\n  InHess XTB2\nend"
-    elif data.is_opt:
-        geom_block = "%geom\n  InHess XTB2\nend"
+    geom_block_lines = []
+    if data.is_opt or data.frozen_monomer_indices:
+        geom_block_lines.append("%geom")
+        if data.is_weak_complex and data.is_opt:
+            geom_block_lines.append("  TolMaxG 1e-5")
+        if data.is_opt:
+            geom_block_lines.append("  InHess XTB2")
+            
+        # 3. Frozen-Monomer Protocol
+        if data.frozen_monomer_indices:
+            geom_block_lines.append("  Constraints")
+            for idx in data.frozen_monomer_indices:
+                geom_block_lines.append(f"    {{C {idx} C}}")
+            geom_block_lines.append("  end")
+            
+        geom_block_lines.append("end")
+    geom_block = "\n".join(geom_block_lines)
+    
+    # 5. Implicit Solvation Injection
+    solvation_keyword = data.implicit_solvation if data.implicit_solvation else ""
 
-    template_str = """# =====================================================================
+    template_str = \"\"\"# =====================================================================
 # CoChem-CORE Cryptographic Provenance Stamp: {{ sha256 }}
 # Basin ID: {{ basin_id }} | Engine Target: ORCA 6.1.1
 # =====================================================================
-! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} NoSym TightSCF
+! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
 
 %pal
  nprocs {{ nprocs }}
@@ -115,7 +137,7 @@ end
 * xyz {{ charge }} {{ multiplicity }}
 {{ coord_block }}
 *
-"""
+\"\"\"
 
     template = Template(template_str)
     rendered_inp = template.render(
@@ -124,6 +146,7 @@ end
         theory_level=data.theory_level,
         opt_keyword=opt_keyword,
         grid_keyword=grid_keyword,
+        solvation_keyword=solvation_keyword,
         nprocs=nprocs,
         maxcore=maxcore,
         charge=data.charge,

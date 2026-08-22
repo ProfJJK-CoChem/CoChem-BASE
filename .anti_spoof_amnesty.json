@@ -9,9 +9,11 @@
     "core_engine/cochem_core_telemetry_logger.py",
     "intake/cochem_stage2_ingestor.py",
     "interfaces/cochem_unity_installer_dashboard.py",
+    "orchestrator/cochem_setup_phase_9.py",
     "setup/cochem_base_setup.py",
     "setup/cochem_setup_orchestrator.py",
     "test_suite/test_cochem_core_telemetry_logger.py",
+    "test_suite/test_cochem_setup_phase_9.py",
     "test_suite/test_web_streaming.py",
     "tests/integration/test_gc_sweep.py",
     "tests/test_gc_sweep_unit.py"

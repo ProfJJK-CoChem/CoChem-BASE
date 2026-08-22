@@ -1,47 +1,65 @@
 # CoChem-BASE Work Breakdown Structure (WBS) & Task List
 
-**Project Target**: Pydantic v2 Schema Enforcement Gatekeeper (`cochem_core_registry_schema.py`)  
-**Specification Prompt**: [`D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc4_01_registry_schema_prompt.md`](file:///D:/__CoChem/__agentic/.prompts/.SRS/CoChem-BASE/.in-progress/Doc4_01_registry_schema_prompt.md)  
-**Target Artifact**: [`cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py)  
-**Test Suites**: [`test_suite/test_cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_core_registry_schema.py), [`tests/test_cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_core_registry_schema.py)  
-**Configuration**: [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini), [`cochem_system_config.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_system_config.json)  
-**Governance Standards**: PMBOK Guide 7th Edition (Systems View & Performance Domains) & SWEBOK v3 (Software Construction, Testing, SCM)  
-**Mandates**: Zero-Mock Mandate, Stage 0 Authority Rule, Tripartite Workspace Air-Gap, Method Matrix Integrity  
+**Project Target**: Stage 0 Setup Phase 10: MolSym Intake & Theoretical Alignment Engine (`orchestrator/cochem_setup_phase_10.py`)  
+**Specification References**:  
+- [`D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\SRS\Perfected_Document 5 Stage 0 Orchestration & Micro-Silo Provisioning.md`](file:///D:/__CoChem/__agentic/.prompts/.SRS/CoChem-BASE/SRS/Perfected_Document%205%20Stage%200%20Orchestration%20&%20Micro-Silo%20Provisioning.md) (Section 4.1)  
+- [`D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\SRS\Perfected_Document 2 File Inventory & Deliverable Capabilities Manifest (Part 2).md`](file:///D:/__CoChem/__agentic/.prompts/.SRS/CoChem-BASE/SRS/Perfected_Document%202%20File%20Inventory%20&%20Deliverable%20Capabilities%20Manifest%20%28Part%202%29.md) (Section 3.10)  
+- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/Method_Matrix.md)  
+- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py) (`alignment_engine_ready` flag)  
+**Target Code Artifact**: [`orchestrator/cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_10.py)  
+**Target Test Artifact**: [`test_suite/test_cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_setup_phase_10.py)  
+**Configuration & Registry**: [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini), [`Registry/p10.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/Registry/p10.json), [`cochem_system_config.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_system_config.json)  
+**Governance Framework**: PMBOK Guide 7th Edition (Systems View & Performance Domains) & SWEBOK v3 (Software Construction, Testing, SCM)  
+**Core Mandates**: Strict Zero-Mock Mandate, Stage 0 Authority Rule, Theoretical Eckart Frame Conditions ($\sum m_i \mathbf{r}'_i = \mathbf{0}$, $\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$), Proper Rotation $\det(\mathbf{U})=+1.0$, SVD Reflection Protection, Full Backward Compatibility Retention  
 
 ---
 
 ## 1. PROJECT CHARTER & ARCHITECTURAL BASELINE
 
-### 1.1 Executive Summary & Objective
-Implement the authoritative Pydantic v2 schemas (`cochem_core_registry_schema.py`) enforcing the Stage 0 Authority Rule for the CoChem-BASE Master Registry (`cochem_system_config.json`). These models act as rigid mathematical boundaries, preventing hallucinated configurations, unauthorized path traversals, and silent floating-point precision drifts downstream. Raw dictionary manipulation and mock injections into the registry are strictly prohibited.
+### 1.1 Executive Summary & Strategic Objective
+Phase 10 of Stage 0 Orchestration serves as the foundational **MolSym Intake & Spatial Mathematics Gatekeeper** for the CoChem quantum chemistry ecosystem. Before any raw user Cartesian geometries (`.xyz`, `.mol`) are ingested or dispatched to high-performance quantum chemistry packages (ORCA, PySCF, xTB) and AI machine-learning force fields (MACE-Torch), the runtime environment must guarantee that:
+1. The **`molsym` dependency** is safely built and isolated within a designated micro-silo (`cochem_calc_silo` or `cochem_molsym_silo`) to eliminate C++ ABI / shared library conflicts.
+2. The **spatial mathematics engine** passes exhaustive theoretical Eckart frame verification routines (exact mass-weighted Center of Mass translation, translational Eckart condition, rotational Eckart condition, $3 \times 3$ moment of inertia tensor diagonalization, proper rotation enforcement with SVD reflection protection $\det(\mathbf{U})=+1.0$, and spectroscopic constant derivations).
+3. The flag **`"alignment_engine_ready": true`** is permanently asserted in the intermediate registry state, the Golden Registry (`p10.json`), and the runtime environment injection mapping (`COCHEM_ALIGNMENT_ENGINE_READY="1"`).
+4. All **existing Phase 10 capabilities**—Ephemeral Quarantined Sandbox scaffolding (`/tmp/cochem_exec_<uuid>/`), 10 MB unbuffered sequential storage IOPS benchmark, ORCA (`.gbw`) / PySCF (`.chk`) / xTB (`.xtbw`) quantum checkpoint validation, and state-chain recovery auditing across `p1.json` through `p9.json`—are **seamlessly retained** to maintain 100% backward compatibility.
 
-### 1.2 Architectural Scope Inclusions
-1. **Global Schema Constraints**:
-   - Enforce `model_config = ConfigDict(extra='forbid', validate_assignment=True)` across all schemas to reject extraneous, legacy, or hallucinated keys.
-   - Enforce `frozen=True` where applicable on core identity constants and hardware baseline attributes.
-2. **`GPUComputeSchema`**:
-   - Strictly typed sub-model tracking FLOPs (`flops_fp32`, `flops_fp64`), tensor core count (`tensor_cores`), memory bandwidth (`memory_bandwidth_gb_s`), VRAM (`vram_gb`), compute capability, FP64 capability, and MPS multiplexing flags.
-3. **`HardwareSchema`**:
-   - Rigid bounds: `ram_gb` (`gt=0.0`), `cpu_physical_cores` (`ge=1`), `allocatable_compute_cores` (`ge=0`), `vram_gb` (`ge=0.0`).
-   - Typed sub-models: `gpu_compute_metrics` (`GPUComputeSchema`).
-   - Boolean capability flags: `gpu_fp64_capable`, `mps_enabled`, `avx_512_capable`.
-4. **`EnvironmentSchema`**:
-   - Strict `OSTarget` enum accepting only `"Local-Windows"`, `"Local-MacOS"`, `"Local-Linux"`, `"Codespaces"`, `"GitHub_Actions"`, and `"HPC"`.
-   - Isotopic Mass Constants: Lock in exact isotopic mass float values (e.g. `13.00335483507` for ^13C, `1.00782503223` for ^1H, `2.01410177812` for ^2H, `12.00000000000` for ^12C, `14.00307400443` for ^14N, `15.99491461957` for ^16O, `31.9720711744` for ^32S) preventing floating-point drift.
-5. **`SiloPathsSchema`**:
-   - Native absolute path validators (`@field_validator`) resolving via `Path.resolve()` and explicitly rejecting relative paths.
-   - Interception logic: Allow explicit bypass tokens (`"BYPASSED"` or `"Not_Found"`) for binary paths (`cfour_binary_path`, `aimnet2_server_path`, `orca_path`, `xtb_path`, `mpirun_path`) without triggering execution or filesystem existence checks.
-   - HPC Tripartite Workspace Air-Gap: Prohibit write-access pointing into the immutable code tier (`$COCHEM_ROOT`), guaranteeing paths map strictly to the Dynamic Data Tier or Volatile Compute Tier.
-6. **`CoChemSystemConfig` Master Schema**:
-   - Aggregate `HardwareSchema`, `EnvironmentSchema`, `SiloPathsSchema`, `EnginePaths`, `QuantumSettings`, and `HPCConfig`.
-   - `active_jobs`: Strongly typed `Dict[str, Any]` with `default_factory=dict`.
-   - `registry_checksum`: Optional SHA-256 checksum string for cryptographic tamper detection.
-   - `RegistryMigrator` (`@model_validator(mode='before')`): Detects legacy flat JSON architectures and seamlessly maps them to the nested architecture prior to validation.
-   - Cryptographic lifecycle methods: `compute_checksum()`, `update_checksum()`, `verify_checksum()`, `to_file()`, `from_file()`, `from_json()`, `to_json()`.
+### 1.2 Mathematical & Architectural Scope Inclusions
+
+#### A. Isolated Silo & MolSym Intake Verification
+- **Isolated Silo Binding**: Target `cochem_calc_silo` or dedicated `cochem_molsym_silo` located under `$COCHEM_SILO_BASE` / `CoChem_Artifacts/Silos/`.
+- **Dynamic Version Walking & Wheel Fallback**: If standard compilation encounters C++ ABI mismatches, iteratively step through compatible Python bindings or local `.whl` fallbacks.
+- **Import & Subprocess Verification**: Verify `molsym` symbol resolution, point group detection primitives, and symmetry operation matrices without polluting the global orchestrator namespace.
+
+#### B. Theoretical Eckart Frame & Spatial Standardizer Gateway
+1. **Mass-Weighted Center of Mass (COM) Translation**:
+   $$\mathbf{R}_{\text{COM}} = \frac{\sum_{i=1}^N m_i \mathbf{r}_i}{\sum_{i=1}^N m_i}, \quad \mathbf{r}'_i = \mathbf{r}_i - \mathbf{R}_{\text{COM}}$$
+   *Ghost Atom Protection*: Ghost atoms (BSSE counterpoise symbols `Gh`, `Bq`, `X`) are strictly enforced with $m_i = 0.0$ to prevent unphysical origin shifts.
+2. **Translational Eckart Condition**:
+   $$\sum_{i=1}^N m_i \mathbf{r}'_i = \mathbf{0} \quad \left(\|\mathbf{R}'_{\text{COM}}\| \le 10^{-12} \text{ \AA}\right)$$
+3. **Rotational Eckart Condition**:
+   $$\sum_{i=1}^N m_i \left( \mathbf{r}_i^0 \times \mathbf{r}'_i \right) = \mathbf{0} \quad \left(\|\boldsymbol{\tau}_{\text{residual}}\| \le 10^{-12} \text{ amu}\cdot\text{\AA}^2\right)$$
+   Ensuring zero net angular momentum/torque between reference equilibrium structure $\mathbf{r}^0$ and transformed target structure $\mathbf{r}'$.
+4. **Moment of Inertia Tensor Construction & Diagonalization**:
+   $$I_{xx} = \sum_{i=1}^N m_i (y_i^2 + z_i^2), \quad I_{xy} = -\sum_{i=1}^N m_i x_i y_i$$
+   Diagonalize $\mathbf{I} \mathbf{V} = \mathbf{V} \boldsymbol{\Lambda}$, sorting eigenvalues $I_a \le I_b \le I_c$. Derive spectroscopic rotational constants $(A, B, C)$ via NIST CODATA 2022/2026 fundamental constants, Ray's asymmetry parameter $\kappa = \frac{2B - A - C}{A - C}$, planar moments $(P_a, P_b, P_c)$, and inertial defect $\Delta = I_c - I_a - I_b$.
+5. **Kabsch-SVD Proper Rotation & Reflection Safeguard**:
+   For cross-dispersion correlation matrix $\mathbf{F} = \mathbf{r}_{\text{target}}^T \mathbf{M} \mathbf{r}_{\text{ref}} = \mathbf{V} \mathbf{S} \mathbf{W}^T$:
+   $$d = \operatorname{sign}(\det(\mathbf{V} \mathbf{W}^T)), \quad \mathbf{U} = \mathbf{V} \begin{pmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{pmatrix} \mathbf{W}^T$$
+   Guarantee strictly that $\det(\mathbf{U}) = +1.0$ (proper rotation in $\mathrm{SO}(3)$), permanently preventing coordinate parity inversion and false stereochemical inversion.
+6. **Collinear & Diatomic Singularity Trap**:
+   For linear molecules ($I_a \approx 0$, $A \to \infty$), mathematically handle infinite rotational constants gracefully without triggering `ZeroDivisionError` or matrix degeneracy.
+
+#### C. Golden Registry (`p10.json`) & Environment State Lock
+- Update `Phase10AuditReport` Pydantic v2 schema to encapsulate `MolSymSiloProfile`, `EckartVerificationProfile`, `InertiaTensorProfile`, alongside `EphemeralSandboxProfile`, `IOPSBenchmarkProfile`, `CheckpointValidationReport`, and `StateChainRecoveryProfile`.
+- Persist `alignment_engine_ready: true` into `p10.json` and map into `injected_env_vars["COCHEM_ALIGNMENT_ENGINE_READY"] = "1"`.
+- Transactional atomicity enforced via `DependencyManager` (atomic rename and rollback on exception).
+
+#### D. Full Capability Retention (Backwards Compatibility)
+- Preserve all 4 existing Phase 10 pillars: Ephemeral Sandbox Scaffolding, 10MB unbuffered IOPS benchmark, ORCA/PySCF/xTB checkpoint verification, and state-chain continuity recovery (p1-p9).
 
 ### 1.3 Scope Exclusions & Zero-Mock Prohibitions
-- **Zero-Mock Prohibition**: Absolutely NO mocks, stubs, dummy variables, synthetic fake registries, or `# TODO` placeholders. All tests must execute against physical memory allocations, real files, and deterministic cryptographic hashes.
-- **No Unvalidated Dict Mutability**: Downstream modules are prohibited from mutating config dictionaries without passing through Pydantic model validation.
+- **Zero-Mock Prohibition**: Absolutely NO mocks (`unittest.mock`, `MagicMock`, `pytest-mock`), stubs, fake fixtures, synthetic math shortcuts, or `# TODO` placeholders. All tests must execute real NumPy SVD decompositions, real linear algebra routines, real file I/O, and real Pydantic validation.
+- **Testpath Restriction**: `pytest.ini` must restrict test execution directly to `test_suite/test_cochem_setup_phase_10.py` for focused, deterministic verification.
 
 ---
 
@@ -49,11 +67,11 @@ Implement the authoritative Pydantic v2 schemas (`cochem_core_registry_schema.py
 
 ```mermaid
 graph TD
-    P1["Phase 1: Requirements Analysis, Schema Design & Baseline"]
+    P1["Phase 1: Requirements Deconstruction, Mathematical Modeling & Architecture"]
     P2["Phase 2: Pre-Implementation TDD Test Suite (Red Phase)"]
-    P3["Phase 3: Physical Implementation of cochem_core_registry_schema.py"]
-    P4["Phase 4: Verification, TDD Green Phase & Integration"]
-    P5["Phase 5: Adversarial Audit, Air-Gap Verification & State Signoff"]
+    P3["Phase 3: Physical Implementation in cochem_setup_phase_10.py (Green Phase)"]
+    P4["Phase 4: Verification, TDD Green Phase & Integration Execution"]
+    P5["Phase 5: Adversarial Audit, Zero-Mock Verification & Swarm State Signoff"]
 
     P1 --> P2
     P2 --> P3
@@ -61,164 +79,148 @@ graph TD
     P4 --> P5
 ```
 
-### Phase 1: Requirements Analysis, Architecture & Specification Baseline
-- [ ] **Task 1.1: Requirements Deconstruction & Scope Baseline** (Agent: `researcher`)
-  - [ ] Sub-task 1.1.1: Analyze `Doc4_01_registry_schema_prompt.md` requirements and map against Stage 0 Authority Rule. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.1.1: Audit Pydantic v2 `ConfigDict(extra='forbid', validate_assignment=True)` syntax and behavior. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.1.2: Audit legacy schema variations in `cochem_system_config.json`, `Registry/p2.json`, and `cochem_base/core/models.py`. (Agent: `researcher`)
-  - [ ] Sub-task 1.1.2: Catalog Isotopic Mass Constants & Exact Physical Constants. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.2.1: Compile high-precision IUPAC/NIST isotopic masses for ^1H, ^2H, ^12C, ^13C, ^14N, ^15N, ^16O, ^17O, ^18O, ^19F, ^31P, ^32S, ^35Cl, ^79Br. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.2.2: Cross-reference CODATA 2018 and CODATA 2022 recommended fundamental physical constants. (Agent: `researcher`)
-  - [ ] Sub-task 1.1.3: Audit Tripartite Workspace Air-Gap & Path Resolution Contracts. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.3.1: Define boundary rules separating Immutable Code Tier (`$COCHEM_ROOT`), Dynamic Data Tier (`$COCHEM_ARTIFACTS_DIR`), and Volatile Compute Tier (`$COCHEM_SCRATCH`). (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.3.2: Formalize path validation rules rejecting relative paths while permitting `"BYPASSED"` and `"Not_Found"` tokens. (Agent: `researcher`)
+### Phase 1: Requirements Deconstruction, Mathematical Modeling & Architecture Specification
+- [ ] **Task 1.1: SRS Document 5 (§4.1) & Document 2 Part 2 Mathematical Deconstruction** (Agent: `researcher`)
+  - [ ] Sub-task 1.1.1: Analyze `molsym` dependency build and micro-silo isolation contracts. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.1.1: Define micro-silo target paths (`cochem_calc_silo`, `cochem_molsym_silo`) and Python execution boundaries. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.1.2: Specify fallback protocols (Dynamic Version Walking, wheel cache scanning, pure-python geometric fallback routines). (Agent: `researcher`)
+  - [ ] Sub-task 1.1.2: Formalize Theoretical Eckart Frame & Kabsch-SVD Equations. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.1: Formalize translational Eckart condition ($\sum m_i \mathbf{r}'_i = \mathbf{0}$) and COM residual tolerances ($< 10^{-12}$). (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.2: Formalize rotational Eckart condition ($\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$) and torque norm tolerances ($< 10^{-12}$). (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.3: Formalize SVD reflection trap matrix $d = \operatorname{sign}(\det(\mathbf{V}\mathbf{W}^T))$ and proper rotation constraint $\det(\mathbf{U})=+1.0$. (Agent: `researcher`)
+  - [ ] Sub-task 1.1.3: Catalog NIST CODATA 2022/2026 Physical Constants for Moment of Inertia. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.3.1: Lock exact constants: $h = 6.62607015 \times 10^{-34}\text{ J}\cdot\text{s}$, $c = 299792458\text{ m/s}$, $u = 1.66053906892 \times 10^{-27}\text{ kg}$. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.3.2: Formalize rotational constant conversion factors for MHz, GHz, and $\text{cm}^{-1}$. (Agent: `researcher`)
 
-- [ ] **Task 1.2: Technical Architecture & Schema Design** (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.1: Design Pydantic v2 Model Hierarchy & ConfigDict Constraints. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.1.1: Structure `GPUComputeSchema`, `HardwareSchema`, `EnvironmentSchema`, `SiloPathsSchema`, `EngineInfo`, `EnginePaths`, `QuantumSettings`, `RoutingPolicy`, `HPCConfig`, and `CoChemSystemConfig`. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.1.2: Define frozen baseline models for immutable hardware identification and isotopic constants. (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.2: Design `RegistryMigrator` Model Validator Architecture. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.2.1: Formulate pre-validation transformation algorithm mapping legacy flat key-value pairs (`physical_cpu_cores`, `ram_gb`, `os_target`, flat engine paths) into structured nested sub-models. (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.3: Design Air-Gap Security & Path Validation Guard. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.3.1: Formulate `@field_validator` logic ensuring no writable silo path points inside `$COCHEM_ROOT` / immutable code tier. (Agent: `cochem-architect`)
+- [ ] **Task 1.2: Pydantic v2 Schema Architecture & Registry Model Design** (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.1: Design `MolSymSiloProfile` & Silo Status Models. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.1.1: Define fields: `silo_path`, `silo_type`, `is_installed`, `is_importable`, `version`, `build_type`, `silo_status`. (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.2: Design `EckartVerificationProfile` & `InertiaTensorProfile` Models. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.2.1: Define `InertiaTensorProfile`: `eigenvalues_amu_angstrom2`, `rotational_constants_mhz`, `rotational_constants_ghz`, `rotational_constants_cm1`, `inertial_defect`, `rays_kappa`, `planar_moments`, `top_type`, `proper_rotation_det`. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.2.2: Define `EckartVerificationProfile`: `translational_condition_satisfied`, `rotational_condition_satisfied`, `translational_residual_norm`, `rotational_residual_norm`, `rmsd`, `reflection_protection_verified`, `proper_rotation_det`. (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.3: Design Unified `Phase10AuditReport` Schema with Full Backward Compatibility. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.3.1: Integrate `alignment_engine_ready: bool = True`, `molsym_profile`, and `eckart_profile` alongside existing sandbox, iops, checkpoint, and state-chain profiles with `ConfigDict(extra='forbid', validate_assignment=True)`. (Agent: `cochem-architect`)
 
 - [ ] **Task 1.3: SCM & TDD Governance Initialization** (Agent: `cochem-sdp-manager`)
-  - [ ] Sub-task 1.3.1: Formulate Red-Green-Refactor quality gates and SCM checkpoints. (Agent: `cochem-sdp-manager`)
-  - [ ] Sub-task 1.3.2: Initialize and synchronize `swarm_state.json` for Doc4_01 lifecycle tracking. (Agent: `cochem-sdp-manager`)
+  - [ ] Sub-task 1.3.1: Restrict [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini) testpaths to `test_suite/test_cochem_setup_phase_10.py`. (Agent: `cochem-sdp-manager`)
+  - [ ] Sub-task 1.3.2: Establish Red-Green-Refactor quality milestones and audit checkpoints. (Agent: `cochem-sdp-manager`)
 
 ---
 
 ### Phase 2: Pre-Implementation TDD Test Suite (Red Phase)
-- [ ] **Task 2.1: Author Comprehensive Unit & Integration Tests in `test_suite/test_cochem_core_registry_schema.py`** (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.1: Implement Global Schema Constraint & Extra Field Rejection Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.1.1: Test that injecting unknown/extraneous keys into `HardwareSchema`, `EnvironmentSchema`, `SiloPathsSchema`, `GPUComputeSchema`, and `CoChemSystemConfig` raises `ValidationError` (`extra='forbid'`). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.1.2: Test that attribute mutation after initialization triggers validation (`validate_assignment=True`). (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.2: Implement `GPUComputeSchema` Rigorous Bound & Metric Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.2.1: Test `flops_fp32`, `flops_fp64`, `tensor_cores`, `memory_bandwidth_gb_s`, `vram_gb`, `device_count`, and `fp64_capable` fields. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.2.2: Test negative bounds (`vram_gb < 0`, `tensor_cores < 0`, `device_count < 0`) raising `ValidationError`. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.3: Implement `HardwareSchema` Boundary & Flexing Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.1: Test `ram_gb > 0.0`, `cpu_physical_cores >= 1`, `allocatable_compute_cores >= 0`, `vram_gb >= 0.0`. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.2: Test boolean flags: `gpu_fp64_capable`, `mps_enabled`, `avx_512_capable`. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.3: Test immutable frozen attributes preventing illicit post-init tampering where applicable. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.4: Test zero or negative core/RAM values (`ram_gb=0.0`, `cpu_physical_cores=0`) raising `ValidationError`. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.4: Implement `EnvironmentSchema` & Isotopic Mass Locking Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.4.1: Test strict `OSTarget` enum validation accepting only `"Local-Windows"`, `"Local-MacOS"`, `"Local-Linux"`, `"Codespaces"`, `"GitHub_Actions"`, `"HPC"` and rejecting unlisted OS identifiers. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.4.2: Test exact isotopic mass constants (e.g. ^13C == 13.00335483507, ^1H == 1.00782503223, ^2H == 2.01410177812) asserting precision down to 1e-10. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.4.3: Test CODATA version validation ("2018", "2022") and environment variable expansions. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.5: Implement `SiloPathsSchema` & Tripartite Air-Gap Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.1: Test absolute path enforcement: relative paths raise `ValidationError`. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.2: Test bypass tokens: `"BYPASSED"` and `"Not_Found"` successfully validate without triggering `os.access` or file existence checks. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.3: Test fields `hdf5_pes_store_path`, `cfour_binary_path`, `aimnet2_server_path`, `orca_path`, `xtb_path`, `mpirun_path`. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.4: Test Tripartite Air-Gap security: attempt to set writable path targeting `$COCHEM_ROOT` triggers `ValidationError` / `SecurityIntegrityError`. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.6: Implement `CoChemSystemConfig` & `RegistryMigrator` Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.1: Test nested aggregation of `HardwareSchema`, `EnvironmentSchema`, `SiloPathsSchema`, `HPCConfig`, `QuantumSettings`. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.2: Test `active_jobs` defaulting to empty dict and accepting runtime job dictionaries. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.3: Test `RegistryMigrator` `@model_validator(mode='before')` ingesting flat legacy JSON schemas and producing valid nested `CoChemSystemConfig` instances. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.4: Test deterministic SHA-256 `compute_checksum()`, `update_checksum()`, and `verify_checksum()` under payload mutations. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.5: Test physical file round-trip serialization (`to_file`, `from_file`, `to_json`, `from_json`). (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.7: Implement Zero-Mock & Anti-Placeholder Test Verification. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.7.1: Verify test suite contains zero `unittest.mock`, `MagicMock`, fake test runners, or placeholder tokens. (Agent: `qa-engineer`)
+- [ ] **Task 2.1: Author Comprehensive Unit Tests in `test_suite/test_cochem_setup_phase_10.py`** (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.1: Implement MolSym Isolated Silo Verification Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.1.1: Test `audit_or_provision_molsym_silo` detecting active silos vs bypassed/fallback states. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.1.2: Test `MolSymSiloProfile` validation, extra field rejection (`extra='forbid'`), and serialization. (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.2: Implement Theoretical Eckart Frame Verification Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.2.1: Test mass-weighted Center of Mass translation on real non-trivial geometries (Water $\text{H}_2\text{O}$, Methane $\text{CH}_4$, Ethanol $\text{C}_2\text{H}_5\text{OH}$). (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.2.2: Test translational Eckart condition ($\sum m_i \mathbf{r}'_i = \mathbf{0}$) asserting residual norm $< 10^{-12}$. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.2.3: Test rotational Eckart condition ($\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$) on rotated and perturbed conformers asserting torque norm $< 10^{-12}$. (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.3: Implement Moment of Inertia Diagonalization & Spectroscopic Rotor Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.3.1: Test inertia tensor construction and eigensolver ordering ($I_a \le I_b \le I_c$). (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.3.2: Test spectroscopic rotational constant derivations ($A, B, C$ in MHz, GHz, $\text{cm}^{-1}$) matching CODATA 2022/2026 standard conversion factors. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.3.3: Test rotor classification: asymmetric top ($\text{H}_2\text{O}$), spherical top ($\text{CH}_4$), prolate symmetric top ($\text{CH}_3\text{Cl}$), oblate symmetric top ($\text{C}_6\text{H}_6$), linear ($\text{CO}_2$, $\text{HCN}$). (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.3.4: Test Ray's asymmetry parameter $\kappa \in [-1.0, 1.0]$ and planar moments ($P_a, P_b, P_c$). (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.4: Implement SVD Reflection Protection & Proper Rotation Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.4.1: Test Kabsch-SVD alignment on mirrored/inverted geometries asserting $\det(\mathbf{U}) = +1.0$ strictly (preventing improper rotation $\det=-1$). (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.4.2: Test chirality preservation across enantiomer pairs (L-alanine vs D-alanine). (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.5: Implement Edge-Case & Physical Guardrail Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.5.1: Test Ghost Atom (BSSE / Counterpoise) handling with symbols `Gh`, `Bq`, `X` possessing strictly $0.0$ mass and causing zero COM translation shift. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.5.2: Test linear/collinear molecules ($\text{CO}_2$, $\text{C}_2\text{H}_2$) ensuring $I_a \to 0$ does not cause division-by-zero crashes. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.5.3: Test single-atom systems (Noble gases $\text{He}$, $\text{Ar}$) and diatomic molecules. (Agent: `qa-engineer`)
+  - [ ] Sub-task 2.1.6: Implement Golden Registry & Backward Compatibility Tests. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.6.1: Test `alignment_engine_ready: true` asserted in `p10.json` and environment injection mapping (`COCHEM_ALIGNMENT_ENGINE_READY="1"`). (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.6.2: Test seamless retention of Ephemeral Sandbox scaffolding, 10MB unbuffered IOPS benchmark, checkpoint validation, and state-chain recovery. (Agent: `qa-engineer`)
+    - [ ] Sub-sub-task 2.1.6.3: Test `DependencyManager` transactional atomicity and rollback under simulated failure. (Agent: `qa-engineer`)
 
-- [ ] **Task 2.2: Mirror Test Suite in `tests/test_cochem_core_registry_schema.py` & Discovery Setup** (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.2.1: Synchronize `tests/test_cochem_core_registry_schema.py` with `test_suite/test_cochem_core_registry_schema.py`. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.2.2: Verify [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini) test discovery settings include both test directories. (Agent: `qa-engineer`)
-
-- [ ] **Task 2.3: Execute Initial Red-Phase Pytest Validation** (Agent: `cochem-tester`)
-  - [ ] Sub-task 2.3.1: Execute `pytest test_suite/test_cochem_core_registry_schema.py` to establish verified Red baseline. (Agent: `cochem-tester`)
-  - [ ] Sub-task 2.3.2: Document expected failures and validation gaps. (Agent: `cochem-tester`)
+- [ ] **Task 2.2: Execute Initial Red-Phase Pytest Baseline** (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.2.1: Run `pytest test_suite/test_cochem_setup_phase_10.py` and document failing test cases. (Agent: `cochem-tester`)
 
 ---
 
-### Phase 3: Physical Implementation of `cochem_core_registry_schema.py` (Green Phase)
-- [ ] **Task 3.1: Global Enums, Constants & Base Configuration Setup** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.1: Define `OSTarget` Enum strictly with `"Local-Windows"`, `"Local-MacOS"`, `"Local-Linux"`, `"Codespaces"`, `"GitHub_Actions"`, `"HPC"`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.2: Define immutable `IsotopicMassConstants` containing IUPAC exact masses (^1H, ^2H, ^12C, ^13C, ^14N, ^15N, ^16O, ^17O, ^18O, ^19F, ^31P, ^32S, ^35Cl, ^79Br). (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.3: Define standard `ConfigDict(extra='forbid', validate_assignment=True)` base template for all models. (Agent: `cochem-coder`)
+### Phase 3: Physical Implementation in `orchestrator/cochem_setup_phase_10.py` (Green Phase)
+- [ ] **Task 3.1: Custom Exceptions, Enums & Pydantic v2 Models Implementation** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.1: Implement `MolSymError`, `EckartAlignmentError`, `SymmetryIntakeError` inheriting from `Phase10AuditError`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.2: Implement `MolSymSiloProfile`, `InertiaTensorProfile`, `EckartVerificationProfile`, and `AlignmentEngineProfile` Pydantic models with `extra='forbid'`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.3: Update `Phase10AuditReport` incorporating `alignment_engine_ready: bool = True` and new spatial mathematical profiles. (Agent: `cochem-coder`)
 
-- [ ] **Task 3.2: `GPUComputeSchema` & `HardwareSchema` Implementation** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.2.1: Implement `GPUComputeSchema` with fields `gpu_profile`, `vram_gb`, `device_count`, `compute_capability`, `flops_fp32`, `flops_fp64`, `tensor_cores`, `memory_bandwidth_gb_s`, `fp64_capable`, `mps_enabled`, `subnormal_precision_trap`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.2.2: Implement `HardwareSchema` enforcing `ram_gb` (`gt=0.0`), `cpu_physical_cores` (`ge=1`), `allocatable_compute_cores` (`ge=0`), `vram_gb` (`ge=0.0`), `gpu_compute_metrics` (`GPUComputeSchema`), `gpu_fp64_capable`, `mps_enabled`, `avx_512_capable`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.2.3: Embed helper models `MPSConfig`, `CorePinningConfig`, and hardware flex/clamping validators. (Agent: `cochem-coder`)
+- [ ] **Task 3.2: MolSym Isolated Silo Provisioning Engine Implementation** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.2.1: Implement `resolve_molsym_silo_path()` resolving against `$COCHEM_SILO_BASE`, `CoChem_Artifacts/Silos/cochem_calc_silo`, or `cochem_molsym_silo`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.2.2: Implement `audit_or_provision_molsym_silo()` verifying Python executable, importability of `molsym` (or pure-python geometric fallback), and recording `MolSymSiloProfile`. (Agent: `cochem-coder`)
 
-- [ ] **Task 3.3: `EnvironmentSchema` & `SiloPathsSchema` Implementation** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.1: Implement `EnvironmentSchema` with `os_target` (`OSTarget`), `artifacts_dir`, `scratch_dir`, `codata_version`, `isotopic_mass_locking`, `isotopic_masses`, `env_vars`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.2: Implement `SiloPathsSchema` with fields `hdf5_pes_store_path`, `cfour_binary_path`, `aimnet2_server_path`, `orca_path`, `xtb_path`, `mpirun_path`, `python_path`, `silo_root`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.3: Implement `@field_validator` for path resolution rejecting relative paths while allowing `"BYPASSED"` and `"Not_Found"` tokens. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.4: Implement Tripartite Air-Gap validator prohibiting writable paths from targeting `$COCHEM_ROOT` / immutable code tier. (Agent: `cochem-coder`)
+- [ ] **Task 3.3: Theoretical Eckart Frame & Moment of Inertia Verification Engine** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.1: Implement CODATA 2022/2026 constants ($h, c, u$) and conversion factors (`FACTOR_MHZ`, `FACTOR_GHZ`, `FACTOR_CM1`). (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.2: Implement `is_ghost_symbol()`, `get_atomic_mass()`, and `resolve_atomic_masses()` with strict ghost atom zero-mass filtering. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.3: Implement `translate_to_center_of_mass()` with residual precision drift refinement. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.4: Implement `compute_moment_of_inertia_tensor()`, `diagonalize_inertia_tensor()`, and `analyze_principal_inertia()`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.5: Implement `align_to_eckart_frame()` solving mass-weighted Kabsch-SVD with reflection safeguard $\det(\mathbf{U}) = +1.0$, evaluating translational and rotational Eckart condition residual norms. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.6: Implement `run_theoretical_eckart_test_suite()` executing theoretical benchmark validation across canonical molecular test systems. (Agent: `cochem-coder`)
 
-- [ ] **Task 3.4: `CoChemSystemConfig` Master Model & `RegistryMigrator` Implementation** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.1: Construct `CoChemSystemConfig` aggregating all sub-models with `active_jobs`, `registry_checksum`, `quantum_settings`, `hpc`, `adaptive_routing`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.2: Implement `RegistryMigrator` (`@model_validator(mode='before')`) restructuring legacy flat dictionaries into nested sub-models seamlessly. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.3: Implement cryptographic SHA-256 checksum routines (`compute_checksum`, `update_checksum`, `verify_checksum`). (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.4: Implement I/O methods (`to_dict`, `to_json`, `to_file`, `from_dict`, `from_json`, `from_file`, `create_default`). (Agent: `cochem-coder`)
-
-- [ ] **Task 3.5: Module Aliasing, Exports & Backward Compatibility** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.5.1: Export aliases `CoChemConfig = CoChemSystemConfig`, `HardwareConfig = HardwareSchema`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.5.2: Ensure root file `cochem_core_registry_schema.py` and `core_engine/cochem_core_registry_schema.py` are properly unified/synchronized. (Agent: `cochem-coder`)
+- [ ] **Task 3.4: Master Audit Orchestrator Integration & CLI Enhancements** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.4.1: Update `run_phase_10_audit()` to orchestrate Ephemeral Sandbox, 10MB IOPS benchmark, Checkpoint scan, State-Chain recovery, MolSym silo audit, and Eckart frame theoretical verification. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.4.2: Update `generate_environment_injection_dict()` including `COCHEM_ALIGNMENT_ENGINE_READY="1"`, `COCHEM_MOLSYM_SILO_PATH`, `COCHEM_ECKART_VERIFIED="1"`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.4.3: Update CLI entrypoint `main()` adding `--molsym-silo-dir`, `--skip-molsym`, `--skip-eckart`, and formatted terminal telemetry dashboard. (Agent: `cochem-coder`)
 
 ---
 
 ### Phase 4: Verification, TDD Green Phase & Integration Execution
 - [ ] **Task 4.1: Pytest Suite Execution (Green Gate)** (Agent: `qa-engineer`)
-  - [ ] Sub-task 4.1.1: Run `pytest test_suite/test_cochem_core_registry_schema.py` and achieve 100% pass rate. (Agent: `qa-engineer`)
-  - [ ] Sub-task 4.1.2: Run `pytest tests/test_cochem_core_registry_schema.py` and achieve 100% pass rate. (Agent: `qa-engineer`)
-  - [ ] Sub-task 4.1.3: Run full repository regression suite (`pytest test_suite/`) ensuring zero regression across all existing subsystems. (Agent: `qa-engineer`)
+  - [ ] Sub-task 4.1.1: Execute `pytest test_suite/test_cochem_setup_phase_10.py` and achieve 100% pass rate. (Agent: `qa-engineer`)
+  - [ ] Sub-task 4.1.2: Verify zero test regressions across all 40+ unit and integration test assertions. (Agent: `qa-engineer`)
 
-- [ ] **Task 4.2: Real System Config Physical Verification** (Agent: `cochem-tester`)
-  - [ ] Sub-task 4.2.1: Validate `cochem_system_config.json` against new `CoChemSystemConfig` model. (Agent: `cochem-tester`)
-  - [ ] Sub-task 4.2.2: Execute `config_loader.py` end-to-end to verify seamless dynamic loading and checksum verification. (Agent: `cochem-tester`)
+- [ ] **Task 4.2: Real System Integration & Registry Validation** (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.2.1: Execute `python orchestrator/cochem_setup_phase_10.py` end-to-end to generate physical `p10.json`. (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.2.2: Validate generated `p10.json` against `cochem_core_registry_schema.py` and assert `"alignment_engine_ready": true`. (Agent: `cochem-tester`)
 
 ---
 
-### Phase 5: Adversarial Audit, Security Verification & Swarm State Signoff
-- [ ] **Task 5.1: Adversarial Static Analysis & Code Quality Audit** (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.1.1: Conduct static analysis on `cochem_core_registry_schema.py` and test modules using Ruff and Mypy. (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.1.2: Audit all models for strict `ConfigDict(extra='forbid', validate_assignment=True)` adherence. (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.1.3: Audit Tripartite Workspace Air-Gap logic for path traversal resistance. (Agent: `cochem-audit`)
+### Phase 5: Adversarial Audit, Zero-Mock Verification & Swarm State Signoff
+- [ ] **Task 5.1: Static Analysis & Code Quality Audit** (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.1.1: Conduct static analysis using Ruff and Mypy on `cochem_setup_phase_10.py` and test suite. (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.1.2: Audit all Pydantic models for strict `ConfigDict(extra='forbid', validate_assignment=True)` compliance. (Agent: `cochem-audit`)
 
 - [ ] **Task 5.2: Zero-Mock & Anti-Placeholder Verification** (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.2.1: Perform comprehensive regex audit confirming zero forbidden tokens (`MOCK`, `STUB`, `DUMMY`, `FAKE`, `TODO`, `FIXME`, `TBD`, `PLACEHOLDER`). (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.2.2: Perform AST anti-spoofing sweep ensuring no mock libraries or fake objects exist in test suites. (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.2.1: Perform regex audit confirming zero forbidden tokens (`MOCK`, `STUB`, `DUMMY`, `FAKE`, `TODO`, `FIXME`, `TBD`, `PLACEHOLDER`). (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.2.2: Perform AST sweep confirming zero mock imports (`unittest.mock`, `MagicMock`, `pytest-mock`). (Agent: `cochem-audit`)
 
 - [ ] **Task 5.3: Council Review, Final State Lock & Signoff** (Agent: `cochem-council`)
-  - [ ] Sub-task 5.3.1: Review audit logs and verify prompt alignment against `Doc4_01_registry_schema_prompt.md`. (Agent: `cochem-council`)
-  - [ ] Sub-task 5.3.2: Update [`swarm_state.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json) registering completion status, physical test counts, and artifact paths. (Agent: `cochem-sdp-manager`)
+  - [ ] Sub-task 5.3.1: Verify complete compliance against SRS Document 5 (§4.1) and Document 2 Part 2. (Agent: `cochem-council`)
+  - [ ] Sub-task 5.3.2: Update `swarm_state.json` and lock Phase 10 implementation state. (Agent: `cochem-sdp-manager`)
 
 ---
 
 ## 3. QUANTITATIVE RISK REGISTER (PMBOK ALIGNED)
 
-| Risk ID | Risk Description | Category | Prob | Impact | Risk Score | Mitigation Strategy | Owner |
+| Risk ID | Risk Description | Category | Prob (1-5) | Impact (1-5) | Risk Score | Mitigation Strategy | Owner |
 |---|---|---|---|---|---|---|---|
-| **RSK-01** | **Extra Field Ingestion Vulnerability**: Unvalidated fields or typos silently accepted into registry, leading to hallucinated configurations downstream. | Technical / Security | High (4) | Critical (5) | **20** (Critical) | **Avoid**: Enforce `ConfigDict(extra='forbid', validate_assignment=True)` on every Pydantic model with strict unit test verification. | `cochem-architect` / `qa-engineer` |
-| **RSK-02** | **Tripartite Air-Gap Breach**: Configured silo paths point to `$COCHEM_ROOT` (Immutable Code Tier), causing write operations to mutate the codebase. | Security / Architecture | Med (3) | Critical (5) | **15** (High) | **Mitigate**: Field validator detects and rejects any writable path pointing inside `$COCHEM_ROOT`, redirecting to Dynamic Data or Volatile Compute Tiers. | `cochem-coder` / `cochem-audit` |
-| **RSK-03** | **Legacy Flat JSON Deserialization Failure**: Existing system configs or Phase 1-11 dumps fail validation due to nested schema transition. | Technical / SCM | High (4) | High (4) | **16** (High) | **Mitigate**: Implement comprehensive `RegistryMigrator` (`@model_validator(mode='before')`) remapping flat architectures to nested models seamlessly. | `cochem-coder` / `qa-engineer` |
-| **RSK-04** | **Floating-Point Precision Drift**: Inexact isotopic masses or float truncation causing subtle spectroscopic frequency errors in downstream calculations. | Scientific / Accuracy | Med (3) | High (4) | **12** (High) | **Avoid**: Hard-code exact NIST/IUPAC isotopic mass constants with high-precision float values and lock them via frozen fields. | `researcher` / `cochem-coder` |
-| **RSK-05** | **Zero-Mock Policy Violation**: Subagent injects mock fixtures, synthetic objects, or `# TODO` placeholders into schema or test suite. | Governance / Compliance | Low (1) | Critical (5) | **5** (Medium) | **Avoid**: Automated adversarial regex and AST scans by `cochem-audit` rejecting any mock imports or placeholder tokens. | `cochem-audit` |
-| **RSK-06** | **OS Path Parsing Cross-Platform Discrepancy**: Windows backslashes vs POSIX slashes causing path validation failure on native environments. | Portability / OS | Med (3) | Med (3) | **9** (Medium) | **Mitigate**: Use `Path.resolve()` and environment variable expansion helper `_expand_env_vars()` supporting `%VAR%`, `$VAR`, and `${VAR}` uniformly. | `cochem-coder` |
+| **RSK-P10-01** | **Chirality Inversion via SVD Reflection Trap**: $\det(\mathbf{V} \mathbf{W}^T) < 0$ causing improper rotation ($\det(\mathbf{U}) = -1.0$), inverting stereochemistry and invalidating energy gradients. | Mathematical / Physics | Med (3) | Critical (5) | **15** (High) | **Avoid**: Enforce explicit reflection trap matrix $\mathbf{U} = \mathbf{V} \operatorname{diag}(1, 1, \operatorname{sign}(\det(\mathbf{V}\mathbf{W}^T))) \mathbf{W}^T$ ensuring $\det(\mathbf{U}) = +1.0$ strictly. | `cochem-architect` / `cochem-coder` |
+| **RSK-P10-02** | **C++ ABI / Shared Library Silo Conflict**: Building `molsym` in a dirty environment pollutes global C++ runtimes or conflicts with quantum packages (PySCF, ORCA). | Environment / Silo | Med (3) | High (4) | **12** (High) | **Mitigate**: Enforce isolated silo execution (`cochem_calc_silo` / `cochem_molsym_silo`) with dynamic version walking and isolated subprocess evaluation. | `cochem-coder` |
+| **RSK-P10-03** | **Linear Molecule Singularity in Inertia Diagonalization**: Linear species ($\text{CO}_2, \text{C}_2\text{H}_2$) have $I_a \approx 0 \implies A \to \infty$, triggering `ZeroDivisionError` or matrix degeneracy. | Numerical / Math | High (4) | High (4) | **16** (High) | **Mitigate**: Implement explicit singularity guards setting $A = \infty$, $\kappa = -1.0$, and classifying `top_type = "linear"`. | `cochem-coder` / `qa-engineer` |
+| **RSK-P10-04** | **Ghost Atom Center-of-Mass Corruption**: BSSE counterpoise ghost atoms (`Gh`, `Bq`, `X`) assigned non-zero mass, shifting COM and corrupting BSSE corrections. | Scientific / Accuracy | Low (2) | Critical (5) | **10** (High) | **Avoid**: Hard-code `is_ghost_symbol()` returning strictly $m_i = 0.0$, excluding ghost atoms from mass-weighting while applying identical translational shifts. | `researcher` / `cochem-coder` |
+| **RSK-P10-05** | **Backwards Compatibility Regression**: Implementation of MolSym/Eckart accidentally breaks existing Phase 10 capabilities (Sandbox, IOPS, Checkpoints, State-Chain). | Architecture / SCM | Med (3) | High (4) | **12** (High) | **Avoid**: Layer MolSym and Eckart verification as non-destructive additive steps within `run_phase_10_audit()`, retaining all existing profiles and unit tests. | `cochem-architect` / `qa-engineer` |
+| **RSK-P10-06** | **Zero-Mock Policy Violation**: Subagent injects `unittest.mock` or synthetic fake fixtures into test suite or orchestrator. | Governance / Compliance | Low (1) | Critical (5) | **5** (Medium) | **Avoid**: Automated adversarial regex and AST scans by `cochem-audit` rejecting any mock imports or synthetic shortcuts. | `cochem-audit` |
 
 ---
 
 ## 4. SWEBOK SOFTWARE CONFIGURATION MANAGEMENT & COMPLIANCE PLAN
 
-1. **Stage 0 Authority Rule Enforcement**:
-   - `cochem_system_config.json` is the single source of truth for the entire CoChem ecosystem.
-   - All access and modification to the system config MUST pass through `cochem_core_registry_schema.py` Pydantic models.
-2. **Pydantic v2 Compliance Standards**:
-   - Utilize native Pydantic v2 idioms: `ConfigDict`, `@field_validator`, `@model_validator(mode='before')`, `model_validate()`, `model_dump()`, `model_dump_json()`.
+1. **Stage 0 Authority Rule & Registry Integrity**:
+   - `cochem_setup_phase_10.py` acts as the definitive gatekeeper asserting `"alignment_engine_ready": true` in `p10.json`.
+   - The Golden Registry artifact (`p10.json`) must be serialized atomically via `DependencyManager` (atomic rename and exception rollback).
+2. **Pydantic v2 Schema Enforcement**:
+   - Every data model (`MolSymSiloProfile`, `EckartVerificationProfile`, `InertiaTensorProfile`, `Phase10AuditReport`) must enforce `ConfigDict(extra='forbid', validate_assignment=True)`.
    - Banned: Pydantic v1 `class Config:`, `@validator`, `@root_validator`.
-3. **Tripartite Workspace Air-Gap Compliance**:
-   - **Immutable Code Tier (`$COCHEM_ROOT`)**: Read-only repository source code. Write access strictly blocked.
-   - **Dynamic Data Tier (`$COCHEM_ARTIFACTS_DIR`)**: Structured results, PES stores, HDF5 datasets, registry files.
-   - **Volatile Compute Tier (`$COCHEM_SCRATCH`)**: Ephemeral runtime scratch, quantum engine temporary files, RAM disk buffers.
-4. **Method Matrix v4 Mathematical Integrity**:
-   - Solvation models strictly constrained to `"CPCM"` or `"SMD"`.
-   - Integration grids strictly constrained to `"defgrid1"`, `"defgrid2"`, or `"defgrid3"`.
-   - Isotopic masses strictly locked to exact physical constants.
-5. **Zero-Mock & Asymmetric Verification Protocol**:
-   - No mock libraries (`unittest.mock`, `MagicMock`, `pytest-mock`) permitted in repository.
-   - All tests must use real filesystem paths, real physical hardware properties, and deterministic cryptographic operations.
-   - Cryptographic pass certification by `cochem-audit` is mandatory before prompt closure.
+3. **Mathematical Precision & Constant Locking**:
+   - NIST CODATA 2022/2026 fundamental physical constants locked in 64-bit IEEE 754 precision.
+   - Translational and rotational Eckart condition residual tolerances locked to $\le 10^{-12}$.
+   - Proper rotation matrix $\mathbf{U} \in \mathrm{SO}(3)$ locked to $\det(\mathbf{U}) = +1.0 \pm 10^{-10}$.
+4. **Isolated Micro-Silo Governance**:
+   - `molsym` dependency must reside exclusively in an isolated silo directory (`cochem_calc_silo` or `cochem_molsym_silo`).
+   - The global orchestrator environment remains unpolluted by heavy C++ bindings.
+5. **Zero-Mock Verification Protocol**:
+   - All tests in `test_suite/test_cochem_setup_phase_10.py` must execute real physical calculations, real linear algebra routines, and real file I/O.
+   - Restrict `pytest.ini` testpaths to `test_suite/test_cochem_setup_phase_10.py`.
+   - Mandatory signoff by `cochem-audit` and `cochem-council`.
 
 ---
 
@@ -227,20 +229,20 @@ graph TD
 ```json
 {
   "handoff": {
-    "goal": "Execute Phase 1 (Requirements & Architecture) and Phase 2 (TDD Test Suite Implementation) for cochem_core_registry_schema.py",
-    "context_summary": "WBS and Project Plan established for Doc4_01_registry_schema_prompt.md. Pydantic v2 schema enforcement, GPUComputeSchema, HardwareSchema, EnvironmentSchema with exact isotopic masses, SiloPathsSchema with Tripartite Air-Gap, CoChemSystemConfig with RegistryMigrator.",
+    "goal": "Execute Phase 1 (Requirements & Architecture) and Phase 2 (TDD Test Suite Implementation) for Phase 10 MolSym Intake & Alignment",
+    "context_summary": "Microscopic WBS, Task List, Risk Register, and Compliance Plan established for Phase 10 in orchestrator/cochem_setup_phase_10.py and test_suite/test_cochem_setup_phase_10.py based on SRS Document 5 Section 4.1 and Document 2 Part 2. Covers isolated MolSym silo provisioning, theoretical Eckart frame conditions (trans/rot residual < 1e-12), inertia tensor diagonalization, proper rotation det(U)=+1.0 with SVD reflection protection, setting alignment_engine_ready: true, and seamless backward compatibility retention under Zero-Mock mandate.",
     "token_budget": 24000,
-    "expected_artifact": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\test_suite\\test_cochem_core_registry_schema.py",
+    "expected_artifact": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\test_suite\\test_cochem_setup_phase_10.py",
     "next_agent": "qa-engineer"
   }
 }
 ```
 
-**Single Safest Next Action**: Invoke `qa-engineer` to author the comprehensive pre-implementation TDD test suite in [`test_suite/test_cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_core_registry_schema.py) asserting all Pydantic v2 constraints (`extra='forbid'`, `validate_assignment=True`), `GPUComputeSchema` metrics, `HardwareSchema` bounds, `EnvironmentSchema` isotopic mass locking, `SiloPathsSchema` Tripartite air-gap validation, and `RegistryMigrator` legacy transformations under the Zero-Mock mandate.
+**Single Safest Next Action**: Update [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini) to restrict `testpaths = test_suite/test_cochem_setup_phase_10.py`, then invoke `qa-engineer` to author the comprehensive pre-implementation TDD test suite in [`test_suite/test_cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_setup_phase_10.py) asserting all theoretical Eckart frame conditions ($\sum m_i \mathbf{r}'_i = \mathbf{0}$, $\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$), inertia tensor diagonalization, proper rotation $\det(\mathbf{U})=+1.0$ SVD reflection protection, isolated `molsym` silo profiles, and `"alignment_engine_ready": true` registry state persistence while preserving all existing Phase 10 test capabilities under the Zero-Mock mandate.
 
 ---
 
 [PROMPT MATCH VERIFICATION]
-- [GOAL CHECK]: Detailed 3-tier WBS, project charter, risk register, and compliance plan generated for `Doc4_01_registry_schema_prompt.md`.
-- [SOURCE AUDIT]: Cross-referenced against `Doc4_01_registry_schema_prompt.md`, `cochem_system_config.json`, `cochem_base/core/models.py`, `cochem_base/exceptions.py`, and Pydantic v2 specifications.
+- [GOAL CHECK]: Microscopic 5-Phase WBS, quantitative Risk Register, and SWEBOK compliance plan generated for Phase 10 MolSym Intake & Alignment in `cochem_setup_phase_10.py` and `test_cochem_setup_phase_10.py`.
+- [SOURCE AUDIT]: Fully cross-referenced against SRS Document 5 Section 4.1, Document 2 Part 2, Method Matrix v4, NIST CODATA 2022/2026, and `cochem_core_registry_schema.py`.
 - [ZERO-STUB AUDIT]: Strictly zero mocks, dummy values, or placeholder declarations. Fully actionable task breakdowns with designated swarm agents for every subtask.

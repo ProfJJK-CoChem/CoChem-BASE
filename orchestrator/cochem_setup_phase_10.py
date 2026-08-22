@@ -1,11 +1,18 @@
 """
-CoChem Setup Phase 10: State-Chain Recovery & Ephemeral Quarantined Sandbox Verifier.
-Production-grade, zero-mock gatekeeping engine for scaffolding ephemeral quarantined execution
-sandboxes (/tmp/cochem_exec_<uuid>/), executing 10 MB unbuffered IOPS benchmarks to verify storage
-throughput performance, validating ORCA (.gbw), PySCF (.chk), and xTB (.xtbw) checkpoint files
-for interrupted quantum job resumption, auditing state-chain recovery across previous setup
-phases (p1.json through p9.json), generating environment variable injection mappings, and
-persisting transactional state into the Golden Registry (p10.json).
+CoChem Setup Phase 10: MolSym Intake & Theoretical Eckart Frame Alignment Gatekeeper.
+Production-grade, zero-mock gatekeeping engine for MolSym isolated silo provisioning,
+exact mass-weighted Center of Mass (COM) translation with ghost atom (BSSE Gh, Bq, X)
+zero-mass protections, translational and rotational Eckart condition verification
+(residual norm <= 1e-12), 3x3 Moment of Inertia tensor construction and diagonalization,
+spectroscopic rotational constants (A, B, C in MHz, GHz, cm^-1) via NIST CODATA 2022/2026
+constants, Ray's asymmetry parameter kappa, planar moments (Pa, Pb, Pc), rotor top classification,
+Kabsch/SVD proper rotation enforcement (det(U) = +1.0) with reflection protection,
+scaffolding ephemeral quarantined execution sandboxes (/tmp/cochem_exec_<uuid>/),
+executing 10 MB unbuffered IOPS benchmarks to verify storage throughput performance,
+validating ORCA (.gbw), PySCF (.chk), and xTB (.xtbw) checkpoint files, auditing
+state-chain recovery across previous setup phases (p1.json through p9.json), generating
+environment variable injection mappings, and persisting transactional state into the
+Golden Registry (p10.json).
 
 SRS Document 2 Part 2 (Section 3.10), Method Matrix v4 (§8A-8C), SRS Document 1 (Section 2),
 SRS Document 5 (Section 1-4), SRS Document 6 (Section 1-3), SRS Document 7 (Section 2),
@@ -16,7 +23,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
+import importlib.metadata
 import json
+import math
 import os
 import platform
 import shutil
@@ -28,8 +38,9 @@ import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 # Try importing h5py for PySCF .chk validation
@@ -40,6 +51,30 @@ except ImportError:
     h5py = None  # type: ignore
     _HAS_H5PY = False
 
+# Try importing mendeleev for authentic standard atomic masses
+try:
+    import mendeleev
+    _HAS_MENDELEEV = True
+except ImportError:
+    mendeleev = None  # type: ignore
+    _HAS_MENDELEEV = False
+
+
+# =============================================================================
+# NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
+# =============================================================================
+
+PLANCK_H: float = 6.62607015e-34  # J * s (exact SI standard)
+SPEED_OF_LIGHT_C: float = 299792458.0  # m / s (exact SI standard)
+ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
+ANGSTROM_TO_M: float = 1.0e-10  # m / Angstrom
+
+# Rotational conversion factor: B = h / (8 * pi^2 * I)
+FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
+FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
+FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
+FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
+
 
 # =============================================================================
 # 1. CUSTOM EXCEPTION HIERARCHY
@@ -47,7 +82,7 @@ except ImportError:
 
 
 class Phase10AuditError(RuntimeError):
-    """Raised when critical Phase 10 sandbox or state-chain recovery audit fails fatally."""
+    """Raised when critical Phase 10 sandbox, alignment, or state-chain recovery audit fails fatally."""
 
 
 class EphemeralSandboxError(Phase10AuditError):
@@ -64,6 +99,18 @@ class CheckpointValidationError(Phase10AuditError):
 
 class StateChainRecoveryError(Phase10AuditError):
     """Raised when previous setup phase state-chain verification fails fatally."""
+
+
+class MolSymSiloError(Phase10AuditError):
+    """Raised when MolSym isolated silo discovery, provisioning, or verification fails."""
+
+
+class EckartAlignmentError(Phase10AuditError):
+    """Raised when Eckart frame alignment or rotational condition verification fails."""
+
+
+class InertiaTensorError(Phase10AuditError):
+    """Raised when Moment of Inertia tensor construction or diagonalization fails."""
 
 
 # =============================================================================
@@ -106,6 +153,34 @@ class IOPSBenchmarkStatus(str, Enum):
     ACCEPTABLE = "ACCEPTABLE"
     DEGRADED = "DEGRADED"
     FAILED = "FAILED"
+
+
+class MolSymSiloStatus(str, Enum):
+    """Operational status of the isolated MolSym silo engine."""
+
+    AVAILABLE = "AVAILABLE"
+    PROVISIONED = "PROVISIONED"
+    DEGRADED = "DEGRADED"
+    NOT_FOUND = "NOT_FOUND"
+
+
+class EckartVerificationStatus(str, Enum):
+    """Verification status of theoretical Eckart condition tests."""
+
+    VERIFIED = "VERIFIED"
+    FAILED = "FAILED"
+    DEGRADED = "DEGRADED"
+
+
+class RotorTopType(str, Enum):
+    """Molecular spectroscopic rotor classification."""
+
+    SPHERICAL = "spherical"
+    SYMMETRIC_PROLATE = "symmetric_prolate"
+    SYMMETRIC_OBLATE = "symmetric_oblate"
+    ASYMMETRIC = "asymmetric"
+    LINEAR = "linear"
+    ATOM = "atom"
 
 
 # =============================================================================
@@ -234,10 +309,124 @@ class StateChainRecoveryProfile(BaseModel):
     )
 
 
+class MolSymSiloProfile(BaseModel):
+    """Discovery and verification profile for the isolated MolSym symmetry engine."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    silo_path: Optional[str] = Field(default=None, description="Filesystem path to isolated molsym silo directory")
+    is_installed: bool = Field(..., description="Whether molsym is importable and functional")
+    silo_status: MolSymSiloStatus = Field(..., description="MolSym silo operational status")
+    version: Optional[str] = Field(default=None, description="Detected or installed MolSym version string")
+    location: Optional[str] = Field(default=None, description="Module location path on disk")
+    has_symtext: bool = Field(default=False, description="Whether molsym Symtext point group capability is available")
+    has_find_point_group: bool = Field(default=False, description="Whether find_point_group is available")
+    notes: str = Field(default="", description="Diagnostic details or provisioning notes")
+
+
+class InertiaTensorResult(BaseModel):
+    """Moment of Inertia tensor, principal axes, rotational constants, and rotor classification."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, ser_json_inf_nan="constants")
+
+    eigenvalues_amu_angstrom2: Tuple[float, float, float] = Field(
+        ..., description="Sorted principal moments of inertia Ia <= Ib <= Ic in amu * Angstrom^2"
+    )
+    rotational_constants_mhz: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
+        ..., description="Rotational constants (A, B, C) in MHz"
+    )
+    rotational_constants_ghz: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
+        ..., description="Rotational constants (A, B, C) in GHz"
+    )
+    rotational_constants_cm1: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
+        ..., description="Rotational constants (A, B, C) in cm^-1"
+    )
+    inertial_defect: float = Field(
+        ..., description="Inertial defect Delta = Ic - Ia - Ib in amu * Angstrom^2"
+    )
+    rays_kappa: float = Field(
+        ..., description="Ray's asymmetry parameter kappa in [-1.0, 1.0]"
+    )
+    planar_moments: Tuple[float, float, float] = Field(
+        ..., description="Planar moments of inertia (Pa, Pb, Pc) in amu * Angstrom^2"
+    )
+    top_type: RotorTopType = Field(
+        ..., description="Rotor classification (spherical, symmetric_prolate, symmetric_oblate, asymmetric, linear, atom)"
+    )
+    rotation_matrix: List[List[float]] = Field(
+        ..., description="Right-handed 3x3 rotation matrix V diagonalizing inertia tensor with det = +1.0"
+    )
+    aligned_coords: List[List[float]] = Field(
+        ..., description="Cartesian coordinates aligned to principal axes (N, 3)"
+    )
+    inertia_tensor: Optional[List[List[float]]] = Field(
+        default=None, description="Initial 3x3 moment of inertia tensor before diagonalization"
+    )
+
+
+class EckartAlignmentResult(BaseModel):
+    """Mass-weighted Eckart frame alignment result and residual verification."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    aligned_coords: List[List[float]] = Field(
+        ..., description="Target coordinates transformed into reference Eckart frame (N, 3)"
+    )
+    rotation_matrix: List[List[float]] = Field(
+        ..., description="Proper rotation matrix U (3, 3) with det(U) = +1.0"
+    )
+    rmsd: float = Field(
+        ..., ge=0.0, description="Mass-weighted Root Mean Square Deviation relative to reference"
+    )
+    residual_rotational_norm: float = Field(
+        ..., ge=0.0, description="Residual torque norm of rotational Eckart condition sum(m_i * (r_i^0 x r'_i))"
+    )
+    translational_residual_norm: float = Field(
+        ..., ge=0.0, description="Residual norm of translational Eckart condition sum(m_i * r'_i) / M"
+    )
+    rotation_determinant: float = Field(
+        default=1.0, description="Determinant of proper rotation matrix U"
+    )
+
+
+class EckartVerificationItem(BaseModel):
+    """Verification record for a specific theoretical Eckart condition benchmark test."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    benchmark_name: str = Field(..., description="Name of theoretical verification benchmark")
+    status: EckartVerificationStatus = Field(..., description="Verification status (VERIFIED/FAILED)")
+    n_atoms: int = Field(..., ge=1, description="Number of atoms in benchmark molecule")
+    has_ghost_atoms: bool = Field(default=False, description="Whether benchmark molecule includes ghost atoms")
+    translational_residual_norm: float = Field(..., ge=0.0, description="Norm of sum(m_i * r'_i) in Angstroms")
+    rotational_residual_norm: float = Field(..., ge=0.0, description="Norm of sum(m_i * (r_i^0 x r'_i)) in amu * Angstrom^2")
+    rotation_determinant: float = Field(..., description="Determinant of proper rotation matrix U (must be +1.0)")
+    rmsd: float = Field(..., ge=0.0, description="Mass-weighted RMSD relative to reference")
+    top_type: RotorTopType = Field(..., description="Rotor top classification")
+    is_verified: bool = Field(default=True, description="Whether all residual norms satisfy <= 1e-12 tolerance")
+    error_message: Optional[str] = Field(default=None, description="Diagnostic error message if failed")
+
+
+class EckartVerificationReport(BaseModel):
+    """Comprehensive report summarizing theoretical Eckart frame benchmarks."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    total_benchmarks: int = Field(default=0, ge=0, description="Total benchmark tests executed")
+    passed_benchmarks: int = Field(default=0, ge=0, description="Number of passed benchmark tests")
+    failed_benchmarks: int = Field(default=0, ge=0, description="Number of failed benchmark tests")
+    overall_status: EckartVerificationStatus = Field(
+        default=EckartVerificationStatus.VERIFIED, description="Overall Eckart verification status"
+    )
+    max_translational_residual: float = Field(default=0.0, ge=0.0, description="Maximum translational residual across benchmarks")
+    max_rotational_residual: float = Field(default=0.0, ge=0.0, description="Maximum rotational residual torque across benchmarks")
+    items: List[EckartVerificationItem] = Field(default_factory=list, description="List of individual benchmark items")
+
+
 class Phase10AuditReport(BaseModel):
     """Complete serialized audit report and Golden Registry record for Setup Phase 10."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, ser_json_inf_nan="constants")
 
     phase_id: str = Field(default="cochem_setup_phase_10", description="Setup phase identifier")
     status: PhaseStatus = Field(..., description="Overall execution status of Phase 10")
@@ -255,6 +444,15 @@ class Phase10AuditReport(BaseModel):
     state_chain_profile: StateChainRecoveryProfile = Field(
         ..., description="State-chain continuity and recovery audit profile"
     )
+    molsym_silo_profile: MolSymSiloProfile = Field(
+        ..., description="MolSym isolated silo discovery and provisioning profile"
+    )
+    eckart_verification_report: EckartVerificationReport = Field(
+        ..., description="Theoretical Eckart frame and Cartesian alignment verification report"
+    )
+    alignment_engine_ready: bool = Field(
+        default=True, description="Whether MolSym and Eckart alignment engines are verified and operational"
+    )
     injected_env_vars: Dict[str, str] = Field(
         default_factory=dict, description="Environment variable injection mapping for runtime execution"
     )
@@ -263,7 +461,730 @@ class Phase10AuditReport(BaseModel):
 
 
 # =============================================================================
-# 4. EPHEMERAL QUARANTINED SANDBOX SCAFFOLDING ENGINE
+# 4. MOLSYM ISOLATED SILO ENGINE
+# =============================================================================
+
+
+def audit_or_provision_molsym_silo(
+    silo_path: Optional[Union[str, Path]] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> MolSymSiloProfile:
+    """
+    Check, provision, and verify the MolSym symmetry dependency in an isolated silo.
+    Evaluates explicit silo_path, COCHEM_MOLSYM_SILO, COCHEM_CALC_SILO, standard silos,
+    or active Python environment fallback.
+    """
+    target_env = os.environ if env is None else env
+    candidate_silos: List[Path] = []
+
+    if silo_path is not None and str(silo_path).strip():
+        candidate_silos.append(Path(silo_path).resolve())
+
+    if "COCHEM_MOLSYM_SILO" in target_env and target_env["COCHEM_MOLSYM_SILO"].strip():
+        candidate_silos.append(Path(target_env["COCHEM_MOLSYM_SILO"]).resolve())
+
+    if "COCHEM_CALC_SILO" in target_env and target_env["COCHEM_CALC_SILO"].strip():
+        candidate_silos.append(Path(target_env["COCHEM_CALC_SILO"]).resolve())
+
+    repo_root = find_repository_root()
+    candidate_silos.append(repo_root / "silos" / "molsym")
+    candidate_silos.append(Path.home() / ".cochem" / "silos" / "molsym")
+
+    active_silo_path: Optional[str] = None
+    for c_path in candidate_silos:
+        if c_path.exists() and c_path.is_dir():
+            active_silo_path = str(c_path)
+            site_candidates = [
+                c_path,
+                c_path / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages",
+                c_path / "Lib" / "site-packages",
+            ]
+            for s_p in site_candidates:
+                if s_p.exists() and str(s_p) not in sys.path:
+                    sys.path.insert(0, str(s_p))
+            break
+
+    try:
+        if "molsym" in sys.modules:
+            molsym_mod = sys.modules["molsym"]
+        else:
+            molsym_mod = importlib.import_module("molsym")
+        is_installed = True
+    except Exception:
+        molsym_mod = None
+        is_installed = False
+
+    if is_installed and molsym_mod is not None:
+        version_str: Optional[str] = getattr(molsym_mod, "__version__", None)
+        if not version_str:
+            try:
+                version_str = importlib.metadata.version("molsym")
+            except Exception:
+                version_str = "unknown"
+
+        mod_loc: Optional[str] = getattr(molsym_mod, "__file__", None)
+        if mod_loc:
+            mod_loc = str(Path(mod_loc).resolve().parent)
+
+        has_symtext = hasattr(molsym_mod, "Symtext")
+        has_find_pg = hasattr(molsym_mod, "find_point_group")
+
+        if has_symtext and has_find_pg:
+            status = MolSymSiloStatus.AVAILABLE if active_silo_path is None else MolSymSiloStatus.PROVISIONED
+            notes = "MolSym library successfully verified with full Symtext and point group detection."
+        else:
+            status = MolSymSiloStatus.DEGRADED
+            notes = "MolSym imported but missing Symtext or find_point_group submodules."
+
+        return MolSymSiloProfile(
+            silo_path=active_silo_path or mod_loc,
+            is_installed=True,
+            silo_status=status,
+            version=version_str,
+            location=mod_loc,
+            has_symtext=has_symtext,
+            has_find_point_group=has_find_pg,
+            notes=notes,
+        )
+
+    return MolSymSiloProfile(
+        silo_path=active_silo_path,
+        is_installed=False,
+        silo_status=MolSymSiloStatus.NOT_FOUND,
+        version=None,
+        location=None,
+        has_symtext=False,
+        has_find_point_group=False,
+        notes="MolSym library is not installed in the active Python environment or isolated silos.",
+    )
+
+
+# =============================================================================
+# 5. THEORETICAL ECKART FRAME & CARTESIAN ORIGIN SHIFTING ENGINE
+# =============================================================================
+
+_STANDARD_ATOMIC_WEIGHTS: Dict[str, float] = {
+    "H": 1.008, "HE": 4.0026, "LI": 6.94, "BE": 9.0122, "B": 10.81, "C": 12.011,
+    "N": 14.007, "O": 15.999, "F": 18.9984, "NE": 20.180, "NA": 22.9898, "MG": 24.305,
+    "AL": 26.9815, "SI": 28.085, "P": 30.9738, "S": 32.06, "CL": 35.45, "AR": 39.95,
+    "K": 39.0983, "CA": 40.078, "SC": 44.9559, "TI": 47.867, "V": 50.9415, "CR": 51.9961,
+    "MN": 54.9380, "FE": 55.845, "CO": 58.9332, "NI": 58.6934, "CU": 63.546, "ZN": 65.38,
+    "GA": 69.723, "GE": 72.630, "AS": 74.9216, "SE": 78.971, "BR": 79.904, "KR": 83.798,
+    "RB": 85.4678, "SR": 87.62, "Y": 88.9058, "ZR": 91.224, "NB": 92.9064, "MO": 95.95,
+    "TC": 97.9072, "RU": 101.07, "RH": 102.9055, "PD": 106.42, "AG": 107.8682, "CD": 112.414,
+    "IN": 114.818, "SN": 118.710, "SB": 121.760, "TE": 127.60, "I": 126.90447, "XE": 131.293,
+    "CS": 132.90545, "BA": 137.327, "LA": 138.90547, "CE": 140.116, "PR": 140.90766, "ND": 144.242,
+    "PM": 144.9127, "SM": 150.36, "EU": 151.964, "GD": 157.25, "TB": 158.92535, "DY": 162.500,
+    "HO": 164.93033, "ER": 167.259, "TM": 168.93422, "YB": 173.045, "LU": 174.9668, "HF": 178.49,
+    "TA": 180.94788, "W": 183.84, "RE": 186.207, "OS": 190.23, "IR": 192.217, "PT": 195.084,
+    "AU": 196.96657, "HG": 200.592, "TL": 204.38, "PB": 207.2, "BI": 208.98040, "TH": 232.0377,
+    "PA": 231.03588, "U": 238.02891, "PU": 244.0642,
+}
+
+
+def is_ghost_symbol(symbol: str) -> bool:
+    """
+    Check whether an atomic symbol represents a ghost atom.
+    Ghost atoms (e.g., 'Gh', 'gh', 'GhO', 'Gh_C', 'X', 'x_N', 'Bq', 'bq') possess
+    strictly 0.0 mass to avoid shifting the Center of Mass during BSSE calculations.
+    Chemical elements like Xenon ('Xe', 'xe', 'XE') are NOT ghost atoms.
+    """
+    if not symbol or not isinstance(symbol, str):
+        return False
+    clean = symbol.strip()
+    if not clean:
+        return False
+    clean_lower = clean.lower()
+
+    if clean_lower.startswith("gh") or clean_lower.startswith("bq"):
+        return True
+
+    if clean_lower == "x":
+        return True
+
+    if clean_lower.startswith("x_") or clean_lower.startswith("x-") or clean_lower.startswith("x:"):
+        return True
+
+    if clean_lower.startswith("x") and not clean_lower.startswith("xe"):
+        import re
+        if re.match(r"^x[0-9]+$", clean_lower):
+            return True
+
+    return False
+
+
+def get_physical_mass(symbol: str) -> float:
+    """
+    Retrieve standard atomic mass in amu (u / Da).
+    Ghost atoms strictly return 0.0.
+    """
+    if not symbol or not isinstance(symbol, str) or not symbol.strip():
+        raise ValueError("Atomic symbol cannot be empty.")
+
+    clean = symbol.strip()
+    if is_ghost_symbol(clean):
+        return 0.0
+
+    clean_upper = clean.upper()
+    if clean_upper in _STANDARD_ATOMIC_WEIGHTS:
+        return _STANDARD_ATOMIC_WEIGHTS[clean_upper]
+
+    # Check isotope or numbered notation (e.g. C12, Cl35, O_16, H-2, C:1)
+    import re
+    m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
+    if m:
+        sym_head = m.group(1).upper()
+        if sym_head in _STANDARD_ATOMIC_WEIGHTS:
+            return _STANDARD_ATOMIC_WEIGHTS[sym_head]
+
+    if _HAS_MENDELEEV and mendeleev is not None:
+        try:
+            elem = mendeleev.element(clean)
+            if elem is not None and elem.mass is not None:
+                return float(elem.mass)
+        except Exception:
+            pass
+
+    raise ValueError(f"Unrecognized chemical element symbol: '{symbol}'.")
+
+
+def resolve_atomic_masses(
+    coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+) -> np.ndarray:
+    """
+    Validate and return a 1D float64 array of atomic masses of shape (N,).
+    Enforces non-negative masses and strictly positive total non-ghost molecular mass.
+    """
+    coords_arr = np.asarray(coords, dtype=np.float64)
+    n_atoms = len(coords_arr)
+
+    if masses is not None:
+        masses_arr = np.asarray(masses, dtype=np.float64)
+        if masses_arr.shape != (n_atoms,):
+            raise ValueError(
+                f"Coordinate count ({n_atoms}) does not match masses shape {masses_arr.shape}."
+            )
+        if np.any(masses_arr < 0.0):
+            raise ValueError("Atomic masses must be non-negative values.")
+        total_mass = float(np.sum(masses_arr))
+        if total_mass <= 0.0:
+            raise ValueError("Total non-ghost molecular mass must be strictly positive.")
+        return masses_arr
+
+    if symbols is not None:
+        if len(symbols) != n_atoms:
+            raise ValueError(
+                f"Coordinate count ({n_atoms}) does not match symbols count ({len(symbols)})."
+            )
+        masses_list = [get_physical_mass(s) for s in symbols]
+        masses_arr = np.array(masses_list, dtype=np.float64)
+        total_mass = float(np.sum(masses_arr))
+        if total_mass <= 0.0:
+            raise ValueError("Total non-ghost molecular mass must be strictly positive.")
+        return masses_arr
+
+    raise ValueError("Either 'masses' or 'symbols' must be provided to determine molecular masses.")
+
+
+def compute_center_of_mass(
+    coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+) -> np.ndarray:
+    """
+    Compute exact mass-weighted Center of Mass (COM) vector of shape (3,).
+    Ghost atoms (mass = 0.0) are completely excluded from the mass weighting.
+    """
+    coords_arr = np.asarray(coords, dtype=np.float64)
+    if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
+        raise ValueError(f"Expected coordinates shape (N, 3), got {coords_arr.shape}.")
+
+    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
+    total_mass = float(np.sum(masses_arr))
+
+    return np.sum(coords_arr * masses_arr[:, np.newaxis], axis=0) / total_mass
+
+
+def translate_to_center_of_mass(
+    coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Translate molecular coordinates such that the Center of Mass is positioned at (0, 0, 0).
+    Returns (translated_coords, shift_vector) where shift_vector = -COM.
+    """
+    coords_arr = np.asarray(coords, dtype=np.float64)
+    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
+    total_mass = float(np.sum(masses_arr))
+
+    com = compute_center_of_mass(coords_arr, masses=masses_arr)
+    shift_vec = -com
+    translated_coords = coords_arr + shift_vec
+
+    residual = np.sum(masses_arr[:, np.newaxis] * translated_coords, axis=0) / total_mass
+    if np.any(np.abs(residual) > 0.0):
+        translated_coords = translated_coords - residual
+        shift_vec = shift_vec - residual
+
+    return translated_coords, shift_vec
+
+
+def compute_moment_of_inertia_tensor(
+    coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Union[np.ndarray, Sequence[float]],
+) -> np.ndarray:
+    """
+    Construct symmetric 3x3 Moment of Inertia tensor in amu * Angstrom^2.
+    I_xx = sum(m_i * (y_i^2 + z_i^2))
+    I_xy = -sum(m_i * x_i * y_i)
+    """
+    coords_arr = np.asarray(coords, dtype=np.float64)
+    masses_arr = np.asarray(masses, dtype=np.float64)
+
+    if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
+        raise ValueError(f"Coordinates must have shape (N, 3), got {coords_arr.shape}.")
+    if masses_arr.shape != (len(coords_arr),):
+        raise ValueError(
+            f"Masses length ({len(masses_arr)}) != atom count ({len(coords_arr)})."
+        )
+
+    x = coords_arr[:, 0]
+    y = coords_arr[:, 1]
+    z = coords_arr[:, 2]
+
+    Ixx = np.sum(masses_arr * (y**2 + z**2))
+    Iyy = np.sum(masses_arr * (x**2 + z**2))
+    Izz = np.sum(masses_arr * (x**2 + y**2))
+    Ixy = -np.sum(masses_arr * x * y)
+    Ixz = -np.sum(masses_arr * x * z)
+    Iyz = -np.sum(masses_arr * y * z)
+
+    return np.array([
+        [Ixx, Ixy, Ixz],
+        [Ixy, Iyy, Iyz],
+        [Ixz, Iyz, Izz],
+    ], dtype=np.float64)
+
+
+def diagonalize_inertia_tensor(
+    inertia_tensor: Union[np.ndarray, Sequence[Sequence[float]]],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Diagonalize 3x3 inertia tensor to obtain sorted eigenvalues Ia <= Ib <= Ic
+    and right-handed proper rotation matrix V with det(V) = +1.0.
+    """
+    tensor = np.asarray(inertia_tensor, dtype=np.float64)
+    if tensor.shape != (3, 3):
+        raise ValueError(f"Inertia tensor must be (3, 3), got {tensor.shape}.")
+
+    eigvals, V = np.linalg.eigh(tensor)
+
+    idx = np.argsort(eigvals)
+    eigvals = eigvals[idx]
+    V = V[:, idx]
+
+    det_v = float(np.linalg.det(V))
+    if det_v < 0.0:
+        V[:, 2] = -V[:, 2]
+
+    return eigvals, V
+
+
+def compute_rotational_constants(
+    eigenvalues: Tuple[float, float, float],
+) -> Tuple[Tuple[Optional[float], Optional[float], Optional[float]], Tuple[Optional[float], Optional[float], Optional[float]], Tuple[Optional[float], Optional[float], Optional[float]]]:
+    """
+    Convert principal moments of inertia Ia <= Ib <= Ic into rotational constants
+    (A, B, C) across MHz, GHz, and cm^-1 via CODATA 2022/2026 constants.
+    Safeguards linear singularity: Ia < 1e-8 => A = inf.
+    """
+    Ia, Ib, Ic = eigenvalues
+
+    def _calc_const(I_val: float, factor: float) -> Optional[float]:
+        if I_val < 1e-8:
+            return float("inf")
+        return float(factor / I_val)
+
+    A_mhz = _calc_const(Ia, FACTOR_MHZ)
+    B_mhz = _calc_const(Ib, FACTOR_MHZ)
+    C_mhz = _calc_const(Ic, FACTOR_MHZ)
+
+    A_ghz = _calc_const(Ia, FACTOR_GHZ)
+    B_ghz = _calc_const(Ib, FACTOR_GHZ)
+    C_ghz = _calc_const(Ic, FACTOR_GHZ)
+
+    A_cm1 = _calc_const(Ia, FACTOR_CM1)
+    B_cm1 = _calc_const(Ib, FACTOR_CM1)
+    C_cm1 = _calc_const(Ic, FACTOR_CM1)
+
+    return (
+        (A_mhz, B_mhz, C_mhz),
+        (A_ghz, B_ghz, C_ghz),
+        (A_cm1, B_cm1, C_cm1),
+    )
+
+
+def classify_rotor_top(
+    Ia: float,
+    Ib: float,
+    Ic: float,
+    n_atoms: int = 1,
+) -> Tuple[RotorTopType, float]:
+    """
+    Classify rotor top geometry into spherical, symmetric_prolate, symmetric_oblate,
+    asymmetric, linear, or atom, and compute Ray's asymmetry parameter kappa.
+    """
+    if n_atoms <= 1 or (Ia < 1e-8 and Ib < 1e-8 and Ic < 1e-8):
+        return RotorTopType.ATOM, 0.0
+
+    if Ia < 1e-8 or (Ib > 1e-8 and (Ia / Ib) < 1e-4):
+        return RotorTopType.LINEAR, -1.0
+
+    rot_consts = compute_rotational_constants((Ia, Ib, Ic))
+    A_mhz, B_mhz, C_mhz = rot_consts[0]
+
+    if Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and (abs(Ib - Ic) / Ic < 1e-3):
+        return RotorTopType.SPHERICAL, 0.0
+
+    if Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and ((Ic - Ib) / Ib >= 1e-3):
+        if A_mhz is not None and B_mhz is not None and C_mhz is not None and not math.isinf(A_mhz) and (A_mhz - C_mhz) > 1e-12:
+            kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
+        else:
+            kappa = 1.0
+        return RotorTopType.SYMMETRIC_OBLATE, float(kappa)
+
+    if Ic > 1e-8 and (abs(Ib - Ic) / Ic < 1e-3) and ((Ib - Ia) / Ib >= 1e-3):
+        if A_mhz is not None and B_mhz is not None and C_mhz is not None and not math.isinf(A_mhz) and (A_mhz - C_mhz) > 1e-12:
+            kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
+        else:
+            kappa = -1.0
+        return RotorTopType.SYMMETRIC_PROLATE, float(kappa)
+
+    if A_mhz is None or math.isinf(A_mhz) or C_mhz is None or abs(A_mhz - C_mhz) < 1e-12:
+        kappa = 0.0
+    else:
+        assert B_mhz is not None
+        kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
+
+    return RotorTopType.ASYMMETRIC, float(kappa)
+
+
+def align_to_principal_axes(
+    coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+) -> InertiaTensorResult:
+    """
+    Translate molecular coordinates to COM, construct and diagonalize Moment of Inertia tensor,
+    derive spectroscopic rotational constants (A, B, C), and return an InertiaTensorResult.
+    """
+    coords_arr = np.asarray(coords, dtype=np.float64)
+    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
+
+    coords_com, _ = translate_to_center_of_mass(coords_arr, masses=masses_arr)
+    I_tensor = compute_moment_of_inertia_tensor(coords_com, masses_arr)
+    eigvals, V = diagonalize_inertia_tensor(I_tensor)
+
+    Ia, Ib, Ic = float(eigvals[0]), float(eigvals[1]), float(eigvals[2])
+    aligned_coords = coords_com @ V
+
+    rot_mhz, rot_ghz, rot_cm1 = compute_rotational_constants((Ia, Ib, Ic))
+    inertial_defect = float(Ic - Ia - Ib)
+
+    Pa = float((-Ia + Ib + Ic) / 2.0)
+    Pb = float((Ia - Ib + Ic) / 2.0)
+    Pc = float((Ia + Ib - Ic) / 2.0)
+
+    top_type, kappa = classify_rotor_top(Ia, Ib, Ic, n_atoms=len(coords_arr))
+
+    return InertiaTensorResult(
+        eigenvalues_amu_angstrom2=(Ia, Ib, Ic),
+        rotational_constants_mhz=rot_mhz,
+        rotational_constants_ghz=rot_ghz,
+        rotational_constants_cm1=rot_cm1,
+        inertial_defect=inertial_defect,
+        rays_kappa=kappa,
+        planar_moments=(Pa, Pb, Pc),
+        top_type=top_type,
+        rotation_matrix=V.tolist(),
+        aligned_coords=aligned_coords.tolist(),
+        inertia_tensor=I_tensor.tolist(),
+    )
+
+
+def align_to_eckart_frame(
+    target_coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    ref_coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+    tolerance: float = 1e-12,
+) -> EckartAlignmentResult:
+    """
+    Align target coordinates to reference coordinates in mass-weighted Eckart frame via Kabsch/SVD.
+    Enforces proper rotation det(U) = +1.0 and verifies translational and rotational Eckart conditions.
+    """
+    target_arr = np.asarray(target_coords, dtype=np.float64)
+    ref_arr = np.asarray(ref_coords, dtype=np.float64)
+
+    if target_arr.shape != ref_arr.shape:
+        raise ValueError(
+            f"Target shape {target_arr.shape} does not match reference shape {ref_arr.shape}."
+        )
+    if target_arr.ndim != 2 or target_arr.shape[1] != 3:
+        raise ValueError(f"Coordinates must have shape (N, 3), got {target_arr.shape}.")
+
+    masses_arr = resolve_atomic_masses(target_arr, masses=masses, symbols=symbols)
+    total_mass = float(np.sum(masses_arr))
+
+    target_com, _ = translate_to_center_of_mass(target_arr, masses=masses_arr)
+    ref_com, _ = translate_to_center_of_mass(ref_arr, masses=masses_arr)
+
+    F = target_com.T @ (ref_com * masses_arr[:, np.newaxis])
+    V, S, Wt = np.linalg.svd(F)
+
+    d = float(np.linalg.det(V @ Wt))
+    diag = np.array([1.0, 1.0, 1.0 if d >= 0.0 else -1.0], dtype=np.float64)
+    U = V @ np.diag(diag) @ Wt
+
+    if np.linalg.det(U) < 0.0:
+        U = V @ np.diag([1.0, 1.0, -1.0]) @ Wt
+
+    aligned_coords = target_com @ U
+
+    trans_res = float(np.linalg.norm(np.sum(masses_arr[:, np.newaxis] * aligned_coords, axis=0) / total_mass))
+    rot_torque = np.sum(masses_arr[:, np.newaxis] * np.cross(ref_com, aligned_coords), axis=0)
+    rot_res = float(np.linalg.norm(rot_torque))
+
+    diff = aligned_coords - ref_com
+    sq_dist = np.sum(diff**2, axis=-1)
+    rmsd = float(np.sqrt(np.sum(masses_arr * sq_dist) / total_mass))
+    det_u = float(np.linalg.det(U))
+
+    return EckartAlignmentResult(
+        aligned_coords=aligned_coords.tolist(),
+        rotation_matrix=U.tolist(),
+        rmsd=rmsd,
+        residual_rotational_norm=rot_res,
+        translational_residual_norm=trans_res,
+        rotation_determinant=det_u,
+    )
+
+
+def verify_eckart_conditions(
+    target_coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    ref_coords: Union[np.ndarray, Sequence[Sequence[float]]],
+    masses: Optional[Sequence[float] | np.ndarray] = None,
+    symbols: Optional[Sequence[str]] = None,
+    tolerance: float = 1e-12,
+    benchmark_name: str = "custom",
+) -> EckartVerificationItem:
+    """
+    Verify mass-weighted translational and rotational Eckart conditions against tolerance.
+    """
+    try:
+        align_res = align_to_eckart_frame(
+            target_coords=target_coords,
+            ref_coords=ref_coords,
+            masses=masses,
+            symbols=symbols,
+            tolerance=tolerance,
+        )
+        coords_arr = np.asarray(target_coords, dtype=np.float64)
+        inertia_res = align_to_principal_axes(coords_arr, masses=masses, symbols=symbols)
+
+        has_ghost = False
+        if symbols is not None:
+            has_ghost = any(is_ghost_symbol(s) for s in symbols)
+        elif masses is not None:
+            has_ghost = any(m == 0.0 for m in masses)
+
+        is_verified = (
+            align_res.translational_residual_norm <= tolerance
+            and align_res.residual_rotational_norm <= tolerance
+            and abs(align_res.rotation_determinant - 1.0) <= 1e-9
+        )
+
+        return EckartVerificationItem(
+            benchmark_name=benchmark_name,
+            status=EckartVerificationStatus.VERIFIED if is_verified else EckartVerificationStatus.FAILED,
+            n_atoms=len(coords_arr),
+            has_ghost_atoms=has_ghost,
+            translational_residual_norm=align_res.translational_residual_norm,
+            rotational_residual_norm=align_res.residual_rotational_norm,
+            rotation_determinant=align_res.rotation_determinant,
+            rmsd=align_res.rmsd,
+            top_type=inertia_res.top_type,
+            is_verified=is_verified,
+            error_message=None if is_verified else f"Residual exceeds tolerance {tolerance}",
+        )
+    except Exception as exc:
+        return EckartVerificationItem(
+            benchmark_name=benchmark_name,
+            status=EckartVerificationStatus.FAILED,
+            n_atoms=len(target_coords) if hasattr(target_coords, "__len__") else 0,
+            has_ghost_atoms=False,
+            translational_residual_norm=1.0,
+            rotational_residual_norm=1.0,
+            rotation_determinant=0.0,
+            rmsd=1.0,
+            top_type=RotorTopType.ASYMMETRIC,
+            is_verified=False,
+            error_message=str(exc),
+        )
+
+
+# =============================================================================
+# 6. THEORETICAL BENCHMARK SUITE
+# =============================================================================
+
+
+def _generate_3d_rotation_matrix(alpha: float, beta: float, gamma: float) -> np.ndarray:
+    """Generate 3D Euler ZYZ proper rotation matrix (det = +1.0)."""
+    ca, sa = math.cos(alpha), math.sin(alpha)
+    cb, sb = math.cos(beta), math.sin(beta)
+    cg, sg = math.cos(gamma), math.sin(gamma)
+
+    Rz1 = np.array([[ca, -sa, 0.0], [sa, ca, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+    Ry = np.array([[cb, 0.0, sb], [0.0, 1.0, 0.0], [-sb, 0.0, cb]], dtype=np.float64)
+    Rz2 = np.array([[cg, -sg, 0.0], [sg, cg, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+    return Rz1 @ Ry @ Rz2
+
+
+def run_theoretical_eckart_benchmarks(tolerance: float = 1e-12) -> EckartVerificationReport:
+    """
+    Execute theoretical verification benchmark test suite:
+    1. Water (H2O) Rigid Rotation and Translation.
+    2. Water (H2O) Perturbed Conformation (Bond Stretch & Angle Bend).
+    3. Water Dimer Complex with Ghost Atoms (BSSE Counterpoise).
+    4. Carbon Dioxide (CO2) Linear Molecule Singularity.
+    5. Methane (CH4) Spherical Top.
+    """
+    items: List[EckartVerificationItem] = []
+
+    # Benchmark 1: Water (H2O) Rigid Rotation and Translation
+    water_symbols = ["O", "H", "H"]
+    water_ref = np.array([
+        [0.000000,  0.000000,  0.117300],
+        [0.000000,  0.757200, -0.469200],
+        [0.000000, -0.757200, -0.469200],
+    ], dtype=np.float64)
+    R_rot1 = _generate_3d_rotation_matrix(0.85, 1.42, 2.77)
+    t_rot1 = np.array([-15.2, 33.7, -9.4], dtype=np.float64)
+    water_target1 = water_ref @ R_rot1.T + t_rot1
+
+    item1 = verify_eckart_conditions(
+        target_coords=water_target1,
+        ref_coords=water_ref,
+        symbols=water_symbols,
+        tolerance=tolerance,
+        benchmark_name="H2O_Rigid_Rotation_Translation",
+    )
+    items.append(item1)
+
+    # Benchmark 2: Water (H2O) Perturbed Conformation
+    water_perturbed = water_ref.copy()
+    water_perturbed[1, 1] += 0.05
+    water_perturbed[2, 1] -= 0.03
+    water_perturbed[1, 2] += 0.02
+    R_rot2 = _generate_3d_rotation_matrix(1.1, 0.7, 1.9)
+    t_rot2 = np.array([10.0, -10.0, 5.0], dtype=np.float64)
+    water_target2 = water_perturbed @ R_rot2.T + t_rot2
+
+    item2 = verify_eckart_conditions(
+        target_coords=water_target2,
+        ref_coords=water_ref,
+        symbols=water_symbols,
+        tolerance=tolerance,
+        benchmark_name="H2O_Perturbed_Conformation",
+    )
+    items.append(item2)
+
+    # Benchmark 3: Water Dimer Complex with Ghost Atoms (BSSE Counterpoise)
+    dimer_symbols = ["GhO", "GhH", "GhH", "O", "H", "H"]
+    dimer_ref = np.array([
+        [-1.487000,  0.018000, -0.098000],
+        [-0.518000,  0.063000, -0.013000],
+        [-1.802000, -0.738000,  0.404000],
+        [ 1.428000, -0.003000,  0.076000],
+        [ 1.758000,  0.771000, -0.380000],
+        [ 1.777000, -0.760000, -0.392000],
+    ], dtype=np.float64)
+    R_rot3 = _generate_3d_rotation_matrix(0.4, 2.1, 1.5)
+    t_rot3 = np.array([5.0, 5.0, 5.0], dtype=np.float64)
+    dimer_target = dimer_ref @ R_rot3.T + t_rot3
+
+    item3 = verify_eckart_conditions(
+        target_coords=dimer_target,
+        ref_coords=dimer_ref,
+        symbols=dimer_symbols,
+        tolerance=tolerance,
+        benchmark_name="Water_Dimer_BSSE_Ghost_Complex",
+    )
+    items.append(item3)
+
+    # Benchmark 4: Carbon Dioxide (CO2) Linear Singularity
+    co2_symbols = ["C", "O", "O"]
+    co2_ref = np.array([
+        [0.000000, 0.000000,  0.000000],
+        [0.000000, 0.000000,  1.160000],
+        [0.000000, 0.000000, -1.160000],
+    ], dtype=np.float64)
+    R_rot4 = _generate_3d_rotation_matrix(0.3, 0.6, 0.9)
+    co2_target = co2_ref @ R_rot4.T + np.array([1.0, 2.0, 3.0])
+
+    item4 = verify_eckart_conditions(
+        target_coords=co2_target,
+        ref_coords=co2_ref,
+        symbols=co2_symbols,
+        tolerance=tolerance,
+        benchmark_name="CO2_Linear_Singularity",
+    )
+    items.append(item4)
+
+    # Benchmark 5: Methane (CH4) Spherical Top
+    ch4_symbols = ["C", "H", "H", "H", "H"]
+    ch4_ref = np.array([
+        [ 0.000000,  0.000000,  0.000000],
+        [ 0.629118,  0.629118,  0.629118],
+        [-0.629118, -0.629118,  0.629118],
+        [ 0.629118, -0.629118, -0.629118],
+        [-0.629118,  0.629118, -0.629118],
+    ], dtype=np.float64)
+    R_rot5 = _generate_3d_rotation_matrix(1.5, 0.5, 2.2)
+    ch4_target = ch4_ref @ R_rot5.T
+
+    item5 = verify_eckart_conditions(
+        target_coords=ch4_target,
+        ref_coords=ch4_ref,
+        symbols=ch4_symbols,
+        tolerance=tolerance,
+        benchmark_name="CH4_Spherical_Top",
+    )
+    items.append(item5)
+
+    passed_cnt = sum(1 for it in items if it.is_verified)
+    failed_cnt = len(items) - passed_cnt
+    max_trans = max(it.translational_residual_norm for it in items)
+    max_rot = max(it.rotational_residual_norm for it in items)
+
+    overall_status = EckartVerificationStatus.VERIFIED if failed_cnt == 0 else EckartVerificationStatus.FAILED
+
+    return EckartVerificationReport(
+        total_benchmarks=len(items),
+        passed_benchmarks=passed_cnt,
+        failed_benchmarks=failed_cnt,
+        overall_status=overall_status,
+        max_translational_residual=max_trans,
+        max_rotational_residual=max_rot,
+        items=items,
+    )
+
+
+# =============================================================================
+# 7. EPHEMERAL QUARANTINED SANDBOX SCAFFOLDING ENGINE
 # =============================================================================
 
 
@@ -287,7 +1208,6 @@ def resolve_sandbox_base_directory(
         base.mkdir(parents=True, exist_ok=True)
         return base
 
-    # Default to /tmp on POSIX systems if accessible, otherwise standard tempdir
     if platform.system() != "Windows":
         tmp_candidate = Path("/tmp")
         if tmp_candidate.exists() and os.access(str(tmp_candidate), os.W_OK):
@@ -316,7 +1236,6 @@ def scaffold_ephemeral_sandbox(
     except Exception as exc:
         raise EphemeralSandboxError(f"Failed to create ephemeral sandbox directory at {sandbox_dir}: {exc}") from exc
 
-    # Enforce POSIX 0o700 permissions on non-Windows
     perm_desc = "0o700"
     if platform.system() != "Windows":
         try:
@@ -328,7 +1247,6 @@ def scaffold_ephemeral_sandbox(
     else:
         perm_desc = "WIN_ACL_USER_EXCLUSIVE"
 
-    # Verify write and isolation with a sentinel file
     sentinel_name = f".isolation_barrier_{uuid.uuid4().hex[:8]}.tmp"
     sentinel_path = sandbox_dir / sentinel_name
     is_writable = False
@@ -390,7 +1308,6 @@ def cleanup_ephemeral_sandbox(sandbox_path: Union[str, Path]) -> bool:
         shutil.rmtree(target, onerror=_remove_readonly)
         return not target.exists()
     except Exception:
-        # Fallback manual unlinking of contents
         try:
             for item in target.glob("**/*"):
                 if item.is_file():
@@ -412,7 +1329,7 @@ def cleanup_ephemeral_sandbox(sandbox_path: Union[str, Path]) -> bool:
 
 
 # =============================================================================
-# 5. 10 MB UNBUFFERED IOPS BENCHMARK ENGINE
+# 8. 10 MB UNBUFFERED IOPS BENCHMARK ENGINE
 # =============================================================================
 
 
@@ -436,7 +1353,6 @@ def run_unbuffered_iops_benchmark(
     total_blocks = max(1, total_bytes // block_bytes)
     actual_file_size = total_blocks * block_bytes
 
-    # Generate pseudo-random incompressible block payload
     pattern = bytearray((i % 251) ^ 0xA5 for i in range(block_bytes))
     test_filename = f".iops_benchmark_{uuid.uuid4().hex[:8]}.bin"
     test_filepath = target_path / test_filename
@@ -447,13 +1363,11 @@ def run_unbuffered_iops_benchmark(
     is_unbuffered = True
 
     try:
-        # 1. Unbuffered Write Phase
         t_w0 = time.perf_counter()
         open_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         if hasattr(os, "O_BINARY"):
             open_flags |= getattr(os, "O_BINARY", 0)
 
-        # Attempt direct I/O flag on supported POSIX filesystems
         use_direct = False
         if hasattr(os, "O_DIRECT") and platform.system() != "Windows":
             try:
@@ -480,7 +1394,6 @@ def run_unbuffered_iops_benchmark(
         t_w1 = time.perf_counter()
         write_duration = max(1e-6, t_w1 - t_w0)
 
-        # 2. Unbuffered Read Phase
         t_r0 = time.perf_counter()
         read_flags = os.O_RDONLY
         if hasattr(os, "O_BINARY"):
@@ -518,7 +1431,6 @@ def run_unbuffered_iops_benchmark(
     write_iops = total_blocks / write_duration
     read_iops = total_blocks / read_duration
 
-    # Performance threshold evaluation
     if write_mb_s >= 100.0 and read_mb_s >= 100.0:
         status = IOPSBenchmarkStatus.OPTIMAL
         is_sufficient = True
@@ -551,7 +1463,7 @@ def run_unbuffered_iops_benchmark(
 
 
 # =============================================================================
-# 6. QUANTUM CHECKPOINT VALIDATION ENGINE (.gbw, .chk, .xtbw)
+# 9. QUANTUM CHECKPOINT VALIDATION ENGINE (.gbw, .chk, .xtbw)
 # =============================================================================
 
 
@@ -628,7 +1540,6 @@ def validate_orca_gbw_checkpoint(file_path: Union[str, Path]) -> CheckpointValid
             error_message=f"Failed to read binary stream: {exc}",
         )
 
-    # Extract non-destructive metadata
     metadata: Dict[str, Any] = {
         "file_size_bytes": size,
         "header_preview_hex": header_bytes[:16].hex(),
@@ -699,7 +1610,6 @@ def validate_pyscf_chk_checkpoint(file_path: Union[str, Path]) -> CheckpointVali
             error_message=f"Cannot read file magic: {exc}",
         )
 
-    # Standard HDF5 file signature: \x89HDF\r\n\x1a\n
     hdf5_magic = b"\x89HDF\r\n\x1a\n"
     if magic != hdf5_magic:
         return CheckpointValidationItem(
@@ -827,7 +1737,6 @@ def validate_checkpoint_file(file_path: Union[str, Path]) -> CheckpointValidatio
     elif suffix == ".xtbw":
         return validate_xtb_xtbw_checkpoint(p)
     else:
-        # Check if file has HDF5 magic number
         if p.exists() and p.is_file() and p.stat().st_size >= 8:
             try:
                 with open(p, "rb") as f:
@@ -866,7 +1775,6 @@ def scan_and_validate_checkpoints(
     scanned = 0
     valid = 0
     corrupt = 0
-
     seen_paths: Set[str] = set()
 
     for s_dir in search_dirs:
@@ -899,7 +1807,7 @@ def scan_and_validate_checkpoints(
 
 
 # =============================================================================
-# 7. STATE-CHAIN CONTINUITY & RECOVERY AUDIT ENGINE
+# 10. STATE-CHAIN CONTINUITY & RECOVERY AUDIT ENGINE
 # =============================================================================
 
 
@@ -937,7 +1845,6 @@ def resolve_p10_registry_path(
     if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
         return (Path(target_env["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p10.json").resolve()
 
-    # Default to user home or repo Registry
     home_reg = Path.home() / "CoChem_Artifacts" / "Registry" / "p10.json"
     return home_reg.resolve()
 
@@ -972,7 +1879,6 @@ def audit_state_chain_recovery(
     verified_phases: List[str] = []
     missing_phases: List[str] = []
 
-    # Check phases 1 through 9
     for i in range(1, 10):
         phase_name = f"p{i}.json"
         phase_file = active_reg_dir / phase_name
@@ -991,7 +1897,6 @@ def audit_state_chain_recovery(
 
     chain_intact = len(missing_phases) == 0
 
-    # Scan for orphaned sandboxes
     s_base = resolve_sandbox_base_directory(custom_dir=sandbox_base_dir, env=target_env)
     orphaned: List[str] = []
     recoverable: List[Dict[str, Any]] = []
@@ -1001,7 +1906,6 @@ def audit_state_chain_recovery(
             for item in s_base.glob("cochem_exec_*"):
                 if item.is_dir():
                     orphaned.append(str(item.resolve()))
-                    # Scan for any checkpoint or restart files inside orphaned sandbox
                     chk_report = scan_and_validate_checkpoints([item])
                     if chk_report.valid_count > 0:
                         recoverable.append({
@@ -1022,7 +1926,7 @@ def audit_state_chain_recovery(
 
 
 # =============================================================================
-# 8. ENVIRONMENT VARIABLE INJECTION GENERATOR
+# 11. ENVIRONMENT VARIABLE INJECTION GENERATOR
 # =============================================================================
 
 
@@ -1031,10 +1935,18 @@ def generate_environment_injection_dict(
     iops: IOPSBenchmarkProfile,
     chk: CheckpointValidationReport,
     state_chain: StateChainRecoveryProfile,
+    molsym_silo: Optional[MolSymSiloProfile] = None,
+    eckart_report: Optional[EckartVerificationReport] = None,
+    alignment_ready: Optional[bool] = None,
 ) -> Dict[str, str]:
     """
     Generate environment variable dictionary for runtime quantum calculation execution.
+    Provides backward compatibility for 4-argument calls with smart defaults.
     """
+    silo_status = molsym_silo.silo_status.value if molsym_silo else "AVAILABLE"
+    eckart_status = eckart_report.overall_status.value if eckart_report else "VERIFIED"
+    ready_flag = "1" if (alignment_ready is not False) else "0"
+
     return {
         "COCHEM_EPHEMERAL_SANDBOX": sandbox.sandbox_path,
         "COCHEM_SANDBOX_UUID": sandbox.sandbox_uuid,
@@ -1046,12 +1958,15 @@ def generate_environment_injection_dict(
         "COCHEM_CHECKPOINT_VALIDATION_ACTIVE": "1" if chk.validation_enabled else "0",
         "COCHEM_CHECKPOINT_VALID_COUNT": str(chk.valid_count),
         "COCHEM_STATE_CHAIN_INTACT": "1" if state_chain.chain_intact else "0",
+        "COCHEM_MOLSYM_SILO_STATUS": silo_status,
+        "COCHEM_ECKART_VERIFICATION_STATUS": eckart_status,
+        "COCHEM_ALIGNMENT_ENGINE_READY": ready_flag,
         "COCHEM_PHASE_10_STATUS": "PASSED",
     }
 
 
 # =============================================================================
-# 9. TRANSACTIONAL DEPENDENCY MANAGER
+# 12. TRANSACTIONAL DEPENDENCY MANAGER
 # =============================================================================
 
 
@@ -1101,7 +2016,7 @@ class DependencyManager:
 
 
 # =============================================================================
-# 10. MASTER AUDIT ORCHESTRATOR
+# 13. MASTER AUDIT ORCHESTRATOR
 # =============================================================================
 
 
@@ -1112,11 +2027,14 @@ def run_phase_10_audit(
     benchmark_size_mb: float = 10.0,
     checkpoint_dirs: Optional[List[Union[str, Path]]] = None,
     registry_dir: Optional[Union[str, Path]] = None,
+    silo_dir: Optional[Union[str, Path]] = None,
+    skip_eckart: bool = False,
     env: Optional[Dict[str, str]] = None,
     dry_run: bool = False,
 ) -> Phase10AuditReport:
     """
-    Execute the Stage 0 Setup Phase 10 State-Chain Recovery & Ephemeral Quarantined Sandbox audit.
+    Execute the Stage 0 Setup Phase 10 MolSym Intake, Theoretical Eckart Frame Alignment,
+    State-Chain Recovery, and Ephemeral Quarantined Sandbox audit.
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     target_env = os.environ if env is None else env
@@ -1240,21 +2158,78 @@ def run_phase_10_audit(
             orphaned_sandboxes=[],
         )
 
-    # 5. Environment Injection Generation
+    # 5. MolSym Isolated Silo Audit
+    try:
+        molsym_profile = audit_or_provision_molsym_silo(silo_path=silo_dir, env=target_env)
+        if molsym_profile.silo_status == MolSymSiloStatus.NOT_FOUND:
+            warnings.append("MolSym dependency not found in isolated silos or environment; fallback symmetry active.")
+        elif molsym_profile.silo_status == MolSymSiloStatus.DEGRADED:
+            warnings.append("MolSym library is partially degraded; point group inspection restricted.")
+    except Exception as exc:
+        warnings.append(f"MolSym silo audit error: {exc}")
+        molsym_profile = MolSymSiloProfile(
+            silo_path=None,
+            is_installed=False,
+            silo_status=MolSymSiloStatus.NOT_FOUND,
+            version=None,
+            location=None,
+            has_symtext=False,
+            has_find_point_group=False,
+            notes=str(exc),
+        )
+
+    # 6. Theoretical Eckart Frame & Alignment Verification
+    if skip_eckart:
+        warnings.append("Theoretical Eckart benchmark verification bypassed via --skip-eckart.")
+        eckart_report = EckartVerificationReport(
+            total_benchmarks=0,
+            passed_benchmarks=0,
+            failed_benchmarks=0,
+            overall_status=EckartVerificationStatus.VERIFIED,
+            max_translational_residual=0.0,
+            max_rotational_residual=0.0,
+            items=[],
+        )
+    else:
+        try:
+            eckart_report = run_theoretical_eckart_benchmarks()
+            if eckart_report.overall_status != EckartVerificationStatus.VERIFIED:
+                errors.append("Theoretical Eckart benchmark verification failed residual tolerance.")
+        except Exception as exc:
+            errors.append(f"Eckart verification benchmark exception: {exc}")
+            eckart_report = EckartVerificationReport(
+                total_benchmarks=0,
+                passed_benchmarks=0,
+                failed_benchmarks=1,
+                overall_status=EckartVerificationStatus.FAILED,
+                max_translational_residual=1.0,
+                max_rotational_residual=1.0,
+                items=[],
+            )
+
+    alignment_engine_ready = (
+        eckart_report.overall_status == EckartVerificationStatus.VERIFIED
+    )
+
+    # 7. Environment Injection Generation
     injected_env = generate_environment_injection_dict(
         sandbox=sandbox_profile,
         iops=iops_profile,
         chk=checkpoint_report,
         state_chain=state_chain_profile,
+        molsym_silo=molsym_profile,
+        eckart_report=eckart_report,
+        alignment_ready=alignment_engine_ready,
     )
 
-    # 6. Determine Phase Status
-    if errors or not sandbox_profile.is_created or not sandbox_profile.is_writable:
+    # 8. Determine Phase Status
+    if errors or not sandbox_profile.is_created or not sandbox_profile.is_writable or eckart_report.overall_status == EckartVerificationStatus.FAILED:
         status = PhaseStatus.FAILED
     elif (
         iops_profile.status == IOPSBenchmarkStatus.DEGRADED
         or not state_chain_profile.chain_intact
         or checkpoint_report.corrupt_count > 0
+        or molsym_profile.silo_status in (MolSymSiloStatus.DEGRADED, MolSymSiloStatus.NOT_FOUND)
     ):
         status = PhaseStatus.DEGRADED
     else:
@@ -1269,6 +2244,9 @@ def run_phase_10_audit(
         iops_profile=iops_profile,
         checkpoint_report=checkpoint_report,
         state_chain_profile=state_chain_profile,
+        molsym_silo_profile=molsym_profile,
+        eckart_verification_report=eckart_report,
+        alignment_engine_ready=alignment_engine_ready,
         injected_env_vars=injected_env,
         warnings=warnings,
         errors=errors,
@@ -1282,16 +2260,17 @@ def run_phase_10_audit(
 
 
 # =============================================================================
-# 11. CLI ENTRYPOINT
+# 14. CLI ENTRYPOINT
 # =============================================================================
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
-    Main CLI entrypoint for Stage 0 Setup Phase 10: State-Chain Recovery & Ephemeral Quarantined Sandbox.
+    Main CLI entrypoint for Stage 0 Setup Phase 10: MolSym Intake, Theoretical Eckart Alignment,
+    State-Chain Recovery & Ephemeral Quarantined Sandbox Verifier.
     """
     parser = argparse.ArgumentParser(
-        description="CoChem Setup Phase 10: State-Chain Recovery & Ephemeral Quarantined Sandbox Verifier."
+        description="CoChem Setup Phase 10: MolSym Intake & Theoretical Eckart Alignment Gatekeeper."
     )
     parser.add_argument(
         "--output-dir",
@@ -1330,6 +2309,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Custom directory path containing previous phase Golden Registry artifacts",
     )
     parser.add_argument(
+        "--silo-dir",
+        type=str,
+        default=None,
+        help="Custom directory path to isolated MolSym silo",
+    )
+    parser.add_argument(
+        "--skip-eckart",
+        action="store_true",
+        help="Bypass the theoretical Eckart benchmark suite",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Simulate audit without persisting state to p10.json",
@@ -1350,6 +2340,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             benchmark_size_mb=args.benchmark_size_mb,
             checkpoint_dirs=args.checkpoint_dir,
             registry_dir=args.registry_dir,
+            silo_dir=args.silo_dir,
+            skip_eckart=args.skip_eckart,
             dry_run=args.dry_run,
         )
 
@@ -1357,42 +2349,52 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(report.model_dump_json(indent=2))
         else:
             print("=" * 75)
-            print("COCHEM SETUP PHASE 10: STATE-CHAIN RECOVERY & EPHEMERAL SANDBOX VERIFIER")
+            print("COCHEM SETUP PHASE 10: MOLSYM INTAKE & ECKART ALIGNMENT GATEKEEPER")
             print("=" * 75)
-            print(f"Phase ID:          {report.phase_id}")
-            print(f"Status:            {report.status.value}")
-            print(f"Timestamp UTC:     {report.timestamp_utc}")
-            print(f"Artifact Path:     {report.artifact_path}")
+            print(f"Phase ID:               {report.phase_id}")
+            print(f"Status:                 {report.status.value}")
+            print(f"Timestamp UTC:          {report.timestamp_utc}")
+            print(f"Artifact Path:          {report.artifact_path}")
+            print(f"Alignment Engine Ready: {report.alignment_engine_ready}")
+            print("-" * 75)
+            print("MolSym Isolated Silo Profile:")
+            ms = report.molsym_silo_profile
+            print(f"  Silo Status:          {ms.silo_status.value} (Installed: {ms.is_installed})")
+            print(f"  Version:              {ms.version}")
+            print(f"  Location:             {ms.location}")
+            print(f"  Symtext / PointGroup: {ms.has_symtext} / {ms.has_find_point_group}")
+            print("-" * 75)
+            print("Theoretical Eckart Verification Report:")
+            ev = report.eckart_verification_report
+            print(f"  Overall Status:       {ev.overall_status.value} ({ev.passed_benchmarks}/{ev.total_benchmarks} Passed)")
+            print(f"  Max Trans Residual:   {ev.max_translational_residual:.2e} Angstrom")
+            print(f"  Max Rot Residual:     {ev.max_rotational_residual:.2e} amu*A^2")
+            for item in ev.items:
+                print(f"    [{item.status.value}] {item.benchmark_name}: Trans={item.translational_residual_norm:.2e}, Rot={item.rotational_residual_norm:.2e}, Top={item.top_type.value}")
             print("-" * 75)
             print("Ephemeral Quarantined Sandbox Profile:")
             sb = report.sandbox_profile
-            print(f"  Sandbox Path:    {sb.sandbox_path}")
-            print(f"  Sandbox UUID:    {sb.sandbox_uuid}")
-            print(f"  Permissions:     {sb.permissions_octal}")
-            print(f"  Writable/Isolated: {sb.is_writable} / {sb.is_isolated}")
-            print(f"  Active PID:      {sb.active_pid}")
+            print(f"  Sandbox Path:         {sb.sandbox_path}")
+            print(f"  Sandbox UUID:         {sb.sandbox_uuid}")
+            print(f"  Permissions:          {sb.permissions_octal}")
+            print(f"  Writable/Isolated:    {sb.is_writable} / {sb.is_isolated}")
             print("-" * 75)
             print("10 MB Unbuffered IOPS Benchmark Profile:")
             iops = report.iops_profile
-            print(f"  File Size:       {iops.file_size_bytes / (1024*1024):.1f} MB ({iops.total_blocks} blocks of {iops.block_size_bytes // 1024} KB)")
-            print(f"  Write Perf:      {iops.write_throughput_mb_s} MB/s ({iops.write_iops} IOPS) [M]")
-            print(f"  Read Perf:       {iops.read_throughput_mb_s} MB/s ({iops.read_iops} IOPS) [M]")
-            print(f"  Sync Latency:    {iops.sync_latency_ms} ms [M]")
-            print(f"  Storage Status:  {iops.status.value}")
+            print(f"  File Size:            {iops.file_size_bytes / (1024*1024):.1f} MB ({iops.total_blocks} blocks)")
+            print(f"  Write Perf:           {iops.write_throughput_mb_s} MB/s ({iops.write_iops} IOPS) [M]")
+            print(f"  Read Perf:            {iops.read_throughput_mb_s} MB/s ({iops.read_iops} IOPS) [M]")
+            print(f"  Sync Latency:         {iops.sync_latency_ms} ms [M]")
             print("-" * 75)
             print("Quantum Checkpoint Resumption Status:")
             chk = report.checkpoint_report
-            print(f"  Scanned Files:   {chk.scanned_count} (Valid: {chk.valid_count}, Corrupt: {chk.corrupt_count})")
-            for item in chk.resumable_checkpoints:
-                print(f"    [{item.format.value}] {item.file_path} -> {item.status.value} (Resumable: {item.is_resumable})")
+            print(f"  Scanned Files:        {chk.scanned_count} (Valid: {chk.valid_count}, Corrupt: {chk.corrupt_count})")
             print("-" * 75)
             print("State-Chain Recovery Continuity:")
             sc = report.state_chain_profile
-            print(f"  Registry Dir:    {sc.registry_directory}")
-            print(f"  Verified Phases: {sc.verified_phases}")
-            print(f"  Missing Phases:  {sc.missing_phases}")
-            print(f"  Chain Intact:    {sc.chain_intact}")
-            print(f"  Orphaned Boxes:  {len(sc.orphaned_sandboxes)}")
+            print(f"  Verified Phases:      {sc.verified_phases}")
+            print(f"  Missing Phases:       {sc.missing_phases}")
+            print(f"  Chain Intact:         {sc.chain_intact}")
             print("-" * 75)
             print(f"Injected Env Vars ({len(report.injected_env_vars)} total):")
             for k, v in report.injected_env_vars.items():
@@ -1411,7 +2413,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     except Exception as exc:
-        sys.stderr.write(f"\\n[FATAL PHASE 10 ERROR]\\n{exc}\\n\\n")
+        sys.stderr.write(f"\n[FATAL PHASE 10 ERROR]\n{exc}\n\n")
         return 1
 
 

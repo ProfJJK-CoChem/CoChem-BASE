@@ -1,18 +1,18 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part2_05c_orchestrator_phase_7_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part2_05d_orchestrator_phase_8_prompt.md.
 Original prompt:
-﻿# CoChem-BASE Coding Prompt: cochem_setup_phase_7.py
+﻿# CoChem-BASE Coding Prompt: cochem_setup_phase_8.py
 
 ## 1. Goal
-Implement the file `cochem_setup_phase_7.py` based on the Software Requirements Specification (SRS) - CoChem-BASE (Document 2 Part 2).
+Implement the file `cochem_setup_phase_8.py` based on the Software Requirements Specification (SRS) - CoChem-BASE (Document 2 Part 2).
 
 ## 2. Target Filepath
-`D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_7.py`
+`D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_8.py`
 
 ## 3. Context & Ecosystem Role
-HPC Env Injection
+Network Port Allocation
 
 ## 4. Deliverable Functions
-Handles HPC Slurm/PBS Environment Variable Injection (e.g. `SLURM_MEM_PER_NODE`, `$SLURM_TMPDIR`).
+Handles Network Port Allocation & Dynamic Gateway Binding (e.g. TCP 5555 / 8000).
 
 ## 5. Strict Constraints & Anti-Spoofing
 - **Workspace Rules:** Strictly adhere to the Tripartite Workspace Air-Gap and Method Matrix rules.
@@ -195,7 +195,7 @@ from orchestrator.cochem_setup_phase_7 import (
     Phase7AuditReport,
     compute_thread_affinity_profile,
     detect_hpc_scheduler,
-    generate_environment_injection_dict,
+    generate_environment_injection_dict as generate_phase_7_env_vars,
     parse_hpc_memory_limit,
     parse_slurm_nodelist,
     parse_slurm_tasks_per_node,
@@ -205,6 +205,27 @@ from orchestrator.cochem_setup_phase_7 import (
 )
 from orchestrator.cochem_setup_phase_7 import (
     main as phase_7_main,
+)
+from orchestrator.cochem_setup_phase_8 import (
+    BindPolicy,
+    GatewayConfigProfile,
+    GatewayServiceType,
+    Phase8AuditError,
+    Phase8AuditReport,
+    PortAllocationError,
+    PortBindingProfile,
+    PortRangeExhaustedError,
+    ProtocolType,
+    SocketBindingError,
+    allocate_all_gateway_services,
+    allocate_port,
+    generate_environment_injection_dict as generate_phase_8_env_vars,
+    probe_port_availability,
+    resolve_p8_registry_path,
+    run_phase_8_audit,
+)
+from orchestrator.cochem_setup_phase_8 import (
+    main as phase_8_main,
 )
 
 __all__ = [
@@ -348,6 +369,23 @@ __all__ = [
     "run_phase_5_audit",
     "run_phase_6_audit",
     "run_phase_7_audit",
+    "BindPolicy",
+    "GatewayConfigProfile",
+    "GatewayServiceType",
+    "Phase8AuditError",
+    "Phase8AuditReport",
+    "PortAllocationError",
+    "PortBindingProfile",
+    "PortRangeExhaustedError",
+    "ProtocolType",
+    "SocketBindingError",
+    "allocate_all_gateway_services",
+    "allocate_port",
+    "generate_phase_8_env_vars",
+    "phase_8_main",
+    "probe_port_availability",
+    "resolve_p8_registry_path",
+    "run_phase_8_audit",
     "scan_local_fallback_binaries",
     "start_mps_daemon",
     "stop_mps_daemon",
@@ -356,18 +394,16 @@ __all__ = [
     "verify_mendeleev_authority",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_7.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_8.py ---
 """
-CoChem Setup Phase 7: HPC Environment Variable Injection & Execution Topology Gatekeeper.
-Production-grade, zero-mock gatekeeping engine for HPC cluster scheduler detection (Slurm, PBS,
-LSF, SGE, Local Standalone), bracketed node range expansion (e.g. node[01-03,05]), multiplier
-task distribution parsing (e.g. 4(x2),2), memory allocation resolving (SLURM_MEM_PER_NODE,
-SLURM_MEM_PER_CPU, cgroups v1/v2 limits, physical RAM fallback), hierarchical scratch mapping
-($SLURM_TMPDIR, $TMPDIR, $SCRATCH, %TEMP%), thread & process core affinity binding computation
-(OMP, MKL, OpenBLAS, BLIS, KMP_AFFINITY), and transactional atomic persistence into the
-Golden Registry (p7.json).
+CoChem Setup Phase 8: Network Port Allocation & Dynamic Gateway Binding Gatekeeper.
+Production-grade, zero-mock gatekeeping engine for network interface resolution,
+OS port availability probing (TCP/UDP), conflict resolution and collision avoidance,
+gateway configuration profiling (Dock REST API, Gateway IPC ZMQ, UI Dashboard, Telemetry Stream),
+environment variable injection generation, and transactional atomic persistence into
+the Golden Registry (p8.json).
 
-SRS Document 2 Part 2 (Section 3.7), Method Matrix v4, and CoChem User Manual v4.1 Compliant.
+SRS Document 2 Part 2 (Section 3.8), SRS Document 1 (Section 2), Method Matrix v4, and CoChem User Manual v4.1 Compliant.
 """
 
 from __future__ import annotations
@@ -376,42 +412,40 @@ import argparse
 import json
 import os
 import platform
-import re
-import shutil
+import socket
 import sys
 import tempfile
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-import psutil
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-# =============================================================================
-# 1. EXCEPTIONS
-# =============================================================================
-
-
-class Phase7AuditError(RuntimeError):
-    """Raised when critical phase 7 HPC environment audit or setup fails fatally."""
-
-
-class HPCTopologyError(RuntimeError):
-    """Raised when node list, task allocation, or CPU topology parsing fails."""
-
-
-class HPCMemoryParseError(RuntimeError):
-    """Raised when memory specification string or cgroup limit fails to parse."""
-
-
-class HPCScratchAllocationError(RuntimeError):
-    """Raised when scratch directory allocation, validation, or permission fails."""
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # =============================================================================
-# 2. PYDANTIC V2 DATA MODELS & ENUMS
+# 1. CUSTOM EXCEPTION HIERARCHY
+# =============================================================================
+
+
+class Phase8AuditError(RuntimeError):
+    """Raised when critical Phase 8 network audit or gateway setup fails fatally."""
+
+
+class PortAllocationError(RuntimeError):
+    """Raised when dynamic network port allocation fails."""
+
+
+class SocketBindingError(RuntimeError):
+    """Raised when OS socket binding probe or conflict check fails."""
+
+
+class PortRangeExhaustedError(RuntimeError):
+    """Raised when no available ports can be found in the specified range."""
+
+
+# =============================================================================
+# 2. ENUMERATIONS
 # =============================================================================
 
 
@@ -424,904 +458,372 @@ class PhaseStatus(str, Enum):
     BYPASSED = "BYPASSED"
 
 
-class HPCSchedulerType(str, Enum):
-    """Supported High-Performance Computing workload scheduler classification."""
+class GatewayServiceType(str, Enum):
+    """Supported CoChem Gateway service identifiers."""
 
-    SLURM = "SLURM"
-    PBS = "PBS"
-    LSF = "LSF"
-    SGE = "SGE"
-    LOCAL_STANDALONE = "LOCAL_STANDALONE"
-
-
-class HPCTopologyProfile(BaseModel):
-    """Parsed multi-node and multi-core execution topology profile."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    scheduler: HPCSchedulerType = Field(..., description="Active HPC workload scheduler")
-    job_id: Optional[str] = Field(default=None, description="HPC Cluster Job ID if scheduled")
-    num_nodes: int = Field(..., ge=1, description="Total number of physical or virtual nodes allocated")
-    node_list: List[str] = Field(default_factory=list, description="List of unique hostnames in allocation")
-    tasks_per_node: List[int] = Field(
-        default_factory=list, description="Number of parallel worker tasks/processes mapped to each node"
-    )
-    total_tasks: int = Field(..., ge=1, description="Total parallel MPI/worker tasks across all nodes")
-    cpus_per_task: int = Field(
-        default=1, ge=1, description="Number of OpenMP/threading CPU cores assigned per worker task"
-    )
-    cpus_on_node: int = Field(
-        default=1, ge=1, description="Total CPU cores available on primary execution node"
-    )
-    is_heterogeneous: bool = Field(
-        default=False, description="Whether task distribution across nodes is non-uniform"
-    )
+    DOCK_REST_API = "DOCK_REST_API"
+    GATEWAY_IPC_ZMQ = "GATEWAY_IPC_ZMQ"
+    UI_DASHBOARD = "UI_DASHBOARD"
+    TELEMETRY_STREAM = "TELEMETRY_STREAM"
 
 
-class HPCMemoryProfile(BaseModel):
-    """Parsed HPC memory allocation and cgroup threshold profile."""
+class ProtocolType(str, Enum):
+    """Transport layer protocol enumeration."""
+
+    TCP = "TCP"
+    UDP = "UDP"
+
+
+class BindPolicy(str, Enum):
+    """Network interface binding policy classification."""
+
+    LOCALHOST_ONLY = "LOCALHOST_ONLY"
+    ALL_INTERFACES = "ALL_INTERFACES"
+    CUSTOM_IP = "CUSTOM_IP"
+
+
+# =============================================================================
+# 3. PYDANTIC V2 DATA MODELS
+# =============================================================================
+
+
+class PortBindingProfile(BaseModel):
+    """Individual gateway service port binding profile."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    mem_per_node_mb: Optional[float] = Field(
-        default=None, ge=0.0, description="Memory limit allocated per node in Megabytes"
-    )
-    mem_per_cpu_mb: Optional[float] = Field(
-        default=None, ge=0.0, description="Memory limit allocated per CPU core in Megabytes"
-    )
-    cgroup_limit_bytes: Optional[int] = Field(
-        default=None, ge=0, description="Cgroup v1/v2 memory limit in bytes if containerized"
-    )
-    physical_ram_bytes: int = Field(
-        ..., ge=0, description="Total host physical RAM in bytes"
-    )
-    effective_usable_memory_mb: float = Field(
-        ..., ge=0.0, description="Effective usable memory limit in Megabytes for driver budgeting"
-    )
-    source: str = Field(
-        ..., description="Resolution source (e.g. SLURM_MEM_PER_NODE, CGROUP, PHYSICAL_RAM)"
-    )
+    service: GatewayServiceType = Field(..., description="Gateway service type identifier")
+    protocol: ProtocolType = Field(default=ProtocolType.TCP, description="Transport layer protocol")
+    requested_port: int = Field(..., ge=1, le=65535, description="Initial requested port number")
+    allocated_port: int = Field(..., ge=1, le=65535, description="Successfully allocated port number")
+    bind_host: str = Field(default="127.0.0.1", description="Bound network interface host address")
+    is_bound_successfully: bool = Field(default=True, description="Whether port probe was successful")
+    is_conflict_resolved: bool = Field(default=False, description="Whether port conflict resolution was triggered")
+    environment_variable: str = Field(..., description="Injected environment variable name")
+    url: Optional[str] = Field(default=None, description="Constructed service connection endpoint URL")
 
 
-class HPCScratchProfile(BaseModel):
-    """Hierarchically resolved fast ephemeral scratch directory profile."""
+class GatewayConfigProfile(BaseModel):
+    """Aggregated gateway configuration and port allocation profile."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    scratch_directory: str = Field(..., description="Resolved absolute filesystem path to scratch directory")
-    is_accessible: bool = Field(default=True, description="Whether directory exists and is accessible")
-    is_writable: bool = Field(default=True, description="Whether directory is verified writable")
-    free_disk_space_gb: float = Field(
-        default=0.0, ge=0.0, description="Available free disk space on scratch filesystem in GB"
-    )
-    source_variable: str = Field(
-        ..., description="Environment variable source (e.g. SLURM_TMPDIR, TMPDIR, SCRATCH, TEMP, FALLBACK)"
-    )
+    bind_host: str = Field(default="127.0.0.1", description="Global gateway bind host address")
+    bind_policy: BindPolicy = Field(default=BindPolicy.LOCALHOST_ONLY, description="Gateway interface binding policy")
+    dock_api: PortBindingProfile = Field(..., description="Dock REST API service profile")
+    gateway_zmq: PortBindingProfile = Field(..., description="Gateway IPC ZMQ service profile")
+    ui_dashboard: PortBindingProfile = Field(..., description="UI Dashboard service profile")
+    telemetry_stream: PortBindingProfile = Field(..., description="Telemetry Stream UDP service profile")
+    all_services_allocated: bool = Field(default=True, description="Whether all 4 services are successfully allocated")
+    total_services_bound: int = Field(default=4, description="Count of allocated gateway services")
 
 
-class HPCThreadAffinityProfile(BaseModel):
-    """OpenMP, Intel MKL, OpenBLAS, BLIS, and process core binding profile."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    omp_num_threads: int = Field(..., ge=1, description="OMP_NUM_THREADS core allocation count")
-    mkl_num_threads: int = Field(..., ge=1, description="MKL_NUM_THREADS linear algebra thread count")
-    openblas_num_threads: int = Field(..., ge=1, description="OPENBLAS_NUM_THREADS thread count")
-    blis_num_threads: int = Field(default=1, ge=1, description="BLIS_NUM_THREADS thread count")
-    omp_places: str = Field(default="cores", description="OMP_PLACES thread placement hardware policy")
-    omp_proc_bind: str = Field(default="close", description="OMP_PROC_BIND thread binding policy")
-    kmp_affinity: str = Field(
-        default="granularity=fine,compact,1,0", description="Intel KMP_AFFINITY configuration string"
-    )
-    kmp_blocktime: int = Field(
-        default=0, ge=0, description="Intel KMP_BLOCKTIME delay in milliseconds to eliminate CPU spinning"
-    )
-    environment_variables: Dict[str, str] = Field(
-        default_factory=dict, description="Dictionary of thread binding environment variable key-value pairs"
-    )
-
-
-class Phase7AuditReport(BaseModel):
-    """Complete serialized audit report and Golden Registry record for Setup Phase 7."""
+class Phase8AuditReport(BaseModel):
+    """Complete serialized audit report and Golden Registry record for Setup Phase 8."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    phase_id: str = Field(default="cochem_setup_phase_7", description="Unique setup phase identifier")
-    status: PhaseStatus = Field(..., description="Overall execution status of Phase 7")
-    scheduler_detected: HPCSchedulerType = Field(..., description="Detected cluster workload scheduler")
-    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of execution")
-    artifact_path: str = Field(..., description="Absolute path to generated p7.json Golden Registry artifact")
-    topology: HPCTopologyProfile = Field(..., description="Execution node and core allocation topology")
-    memory: HPCMemoryProfile = Field(..., description="Memory ceiling and allocation profile")
-    scratch: HPCScratchProfile = Field(..., description="Resolved ephemeral scratch space profile")
-    affinity: HPCThreadAffinityProfile = Field(..., description="Thread and core affinity bindings profile")
+    phase_id: str = Field(default="cochem_setup_phase_8", description="Setup phase identifier")
+    status: PhaseStatus = Field(..., description="Overall execution status of Phase 8")
+    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of audit execution")
+    artifact_path: str = Field(..., description="Absolute path to generated p8.json registry artifact")
+    gateway_profile: GatewayConfigProfile = Field(..., description="Complete gateway configuration and port bindings")
     injected_env_vars: Dict[str, str] = Field(
-        default_factory=dict, description="Complete environment injection dictionary for subprocess execution"
+        default_factory=dict, description="Environment variable injection mapping"
     )
     warnings: List[str] = Field(default_factory=list, description="Non-fatal diagnostic warnings")
     errors: List[str] = Field(default_factory=list, description="Fatal or recoverable error messages")
 
 
 # =============================================================================
-# 3. HPC SCHEDULER DETECTION ENGINE
+# 4. OS SOCKET PROBING & PORT ALLOCATION ENGINE
 # =============================================================================
 
 
-def detect_hpc_scheduler(env: Optional[Dict[str, str]] = None) -> HPCSchedulerType:
+def probe_port_availability(
+    port: int,
+    host: str = "127.0.0.1",
+    protocol: ProtocolType = ProtocolType.TCP,
+    timeout: float = 1.0,
+) -> bool:
     """
-    Detect the active High-Performance Computing workload scheduler from the environment.
-    Evaluates Slurm, PBS, LSF, SGE, explicit CoChem scheduler override, or Local Standalone.
+    Probe whether a network port is available for binding on the specified host and protocol.
+    Performs real OS socket binding probe.
     """
-    target_env = os.environ if env is None else env
+    if not (1 <= port <= 65535):
+        return False
 
-    # 1. Explicit CoChem override
-    if "COCHEM_HPC_SCHEDULER" in target_env:
-        val = target_env["COCHEM_HPC_SCHEDULER"].strip().upper()
-        if val in HPCSchedulerType.__members__:
-            return HPCSchedulerType[val]
-        for member in HPCSchedulerType:
-            if member.value == val:
-                return member
-
-    # 2. Slurm Workload Manager detection
-    slurm_vars = [
-        "SLURM_JOB_ID",
-        "SLURM_JOBID",
-        "SLURM_NNODES",
-        "SLURM_NODELIST",
-        "SLURM_JOB_NODELIST",
-        "SLURM_TASKS_PER_NODE",
-    ]
-    if any(k in target_env and target_env[k].strip() for k in slurm_vars):
-        return HPCSchedulerType.SLURM
-
-    # 3. PBS Pro / OpenPBS / Torque detection
-    pbs_vars = ["PBS_JOBID", "PBS_NODEFILE", "PBS_NUM_NODES", "PBS_ENVIRONMENT"]
-    if any(k in target_env and target_env[k].strip() for k in pbs_vars):
-        return HPCSchedulerType.PBS
-
-    # 4. IBM Spectrum LSF detection
-    lsf_vars = ["LSB_JOBID", "LSB_HOSTS", "LSB_MCPU_HOSTS", "LSB_DJOB_NUMPROC"]
-    if any(k in target_env and target_env[k].strip() for k in lsf_vars):
-        return HPCSchedulerType.LSF
-
-    # 5. Sun Grid Engine (SGE / UGE / Son of Grid Engine) detection
-    sge_vars = ["PE_HOSTFILE", "SGE_CELL", "SGE_CLUSTER_NAME"]
-    if any(k in target_env and target_env[k].strip() for k in sge_vars):
-        return HPCSchedulerType.SGE
-    if "JOB_ID" in target_env and ("NSLOTS" in target_env or "NHOSTS" in target_env):
-        return HPCSchedulerType.SGE
-
-    return HPCSchedulerType.LOCAL_STANDALONE
-
-
-# =============================================================================
-# 4. TOPOLOGY PARSING: NODES & TASK MULTIPLIERS
-# =============================================================================
-
-
-def _split_top_level_commas(s: str) -> List[str]:
-    """Split string by commas only outside square brackets [...]."""
-    parts: List[str] = []
-    current: List[str] = []
-    depth = 0
-    for char in s:
-        if char == "[":
-            depth += 1
-            current.append(char)
-        elif char == "]":
-            if depth > 0:
-                depth -= 1
-            current.append(char)
-        elif char == "," and depth == 0:
-            part = "".join(current).strip()
-            if part:
-                parts.append(part)
-            current = []
-        else:
-            current.append(char)
-    if current:
-        part = "".join(current).strip()
-        if part:
-            parts.append(part)
-    return parts
-
-
-def _expand_single_node_spec(spec: str) -> List[str]:
-    """
-    Expand a single bracketed or plain node specification, supporting nested or multiple brackets.
-    Examples:
-    'node[01-03,05]' -> ['node01', 'node02', 'node03', 'node05']
-    'c[1-2]n[3-4]' -> ['c1n3', 'c1n4', 'c2n3', 'c2n4']
-    'head01' -> ['head01']
-    """
-    if "[" not in spec:
-        return [spec]
-
-    # Find the first bracket pair: prefix[range_spec]suffix
-    m = re.search(r"^(.*?)\[(.*?)\](.*)$", spec)
-    if not m:
-        raise HPCTopologyError(f"Malformed node expression: '{spec}'")
-
-    prefix, inner, suffix = m.group(1), m.group(2), m.group(3)
-    inner_items = inner.split(",")
-    expanded_current: List[str] = []
-
-    for item in inner_items:
-        item = item.strip()
-        if not item:
-            continue
-        if "-" in item:
-            range_parts = item.split("-")
-            if len(range_parts) != 2:
-                raise HPCTopologyError(f"Invalid range in node expression: '{item}' in '{spec}'")
-            start_str, end_str = range_parts[0].strip(), range_parts[1].strip()
-            if not start_str.isdigit() or not end_str.isdigit():
-                raise HPCTopologyError(f"Non-numeric range in node expression: '{item}' in '{spec}'")
-
-            start_val, end_val = int(start_str), int(end_str)
-            if start_val > end_val:
-                raise HPCTopologyError(
-                    f"Descending range not allowed in node expression: '{item}' in '{spec}'"
-                )
-            width = len(start_str)
-            for num in range(start_val, end_val + 1):
-                expanded_current.append(f"{prefix}{num:0{width}d}")
-        else:
-            expanded_current.append(f"{prefix}{item}")
-
-    # Recursively expand with suffix in case of multiple bracket groups (e.g. c[1-2]n[3-4])
-    result: List[str] = []
-    for base in expanded_current:
-        for full in _expand_single_node_spec(base + suffix):
-            result.append(full)
-
-    return result
-
-
-def parse_slurm_nodelist(nodelist_str: str) -> List[str]:
-    """
-    Parse and expand a Slurm nodelist string into an explicit list of hostnames.
-    Handles bracketed ranges, comma-separated lists, padding, and multi-bracket expressions.
-    Examples:
-    - 'node[01-03,05]' -> ['node01', 'node02', 'node03', 'node05']
-    - 'node[01-02],gpu[05-06],head01' -> ['node01', 'node02', 'gpu05', 'gpu06', 'head01']
-    """
-    raw = nodelist_str.strip()
-    if not raw:
-        return []
-
-    # Check matching brackets
-    if raw.count("[") != raw.count("]"):
-        raise HPCTopologyError(f"Mismatched brackets in Slurm nodelist: '{nodelist_str}'")
-
-    top_level_segments = _split_top_level_commas(raw)
-    nodes: List[str] = []
-    for segment in top_level_segments:
-        nodes.extend(_expand_single_node_spec(segment))
-
-    return nodes
-
-
-def parse_slurm_tasks_per_node(tasks_str: str, num_nodes: Optional[int] = None) -> List[int]:
-    """
-    Parse a Slurm SLURM_TASKS_PER_NODE string containing multipliers into an integer list.
-    Examples:
-    - '4(x2),2' -> [4, 4, 2]
-    - '8(x3),4(x2),2' -> [8, 8, 8, 4, 4, 2]
-    - '16' with num_nodes=3 -> [16, 16, 16]
-    - '4,4,2' -> [4, 4, 2]
-    """
-    raw = tasks_str.strip()
-    if not raw:
-        raise HPCTopologyError("Empty SLURM_TASKS_PER_NODE string provided")
-
-    segments = raw.split(",")
-    result: List[int] = []
-
-    pattern = re.compile(r"^\s*(\d+)(?:\s*\(\s*x\s*(\d+)\s*\))?\s*$")
-    for seg in segments:
-        seg = seg.strip()
-        if not seg:
-            continue
-        m = pattern.match(seg)
-        if not m:
-            raise HPCTopologyError(f"Invalid tasks-per-node expression: '{seg}' in '{tasks_str}'")
-
-        val = int(m.group(1))
-        multiplier = int(m.group(2)) if m.group(2) else 1
-        result.extend([val] * multiplier)
-
-    if not result:
-        raise HPCTopologyError(f"No valid tasks parsed from: '{tasks_str}'")
-
-    # If a single task number was specified (e.g. '16') without multiplier but num_nodes > 1
-    if len(result) == 1 and num_nodes is not None and num_nodes > 1 and "(x" not in raw:
-        result = [result[0]] * num_nodes
-
-    return result
-
-
-def parse_slurm_topology(env: Dict[str, str]) -> HPCTopologyProfile:
-    """Parse complete multi-node execution topology from Slurm environment variables."""
-    job_id = env.get("SLURM_JOB_ID") or env.get("SLURM_JOBID")
-    nodelist_raw = env.get("SLURM_NODELIST") or env.get("SLURM_JOB_NODELIST", "")
-    node_list = parse_slurm_nodelist(nodelist_raw)
-
-    num_nodes_env = env.get("SLURM_NNODES") or env.get("SLURM_STEP_NUM_NODES")
-    num_nodes = int(num_nodes_env) if num_nodes_env and num_nodes_env.isdigit() else len(node_list)
-    if num_nodes < 1:
-        num_nodes = 1
-
-    if not node_list:
-        node_list = [f"node{i+1:02d}" for i in range(num_nodes)]
-
-    tasks_raw = env.get("SLURM_TASKS_PER_NODE", "")
-    if tasks_raw:
-        tasks_per_node = parse_slurm_tasks_per_node(tasks_raw, num_nodes=num_nodes)
-    else:
-        ntasks_env = env.get("SLURM_NTASKS")
-        if ntasks_env and ntasks_env.isdigit():
-            ntasks = int(ntasks_env)
-            base_t = max(1, ntasks // num_nodes)
-            tasks_per_node = [base_t] * num_nodes
-        else:
-            tasks_per_node = [1] * num_nodes
-
-    cpus_per_task_env = env.get("SLURM_CPUS_PER_TASK")
-    cpus_per_task = (
-        int(cpus_per_task_env) if cpus_per_task_env and cpus_per_task_env.isdigit() else 1
-    )
-
-    cpus_on_node_env = env.get("SLURM_CPUS_ON_NODE")
-    cpus_on_node = (
-        int(cpus_on_node_env)
-        if cpus_on_node_env and cpus_on_node_env.isdigit()
-        else (os.cpu_count() or 1)
-    )
-
-    total_tasks = sum(tasks_per_node)
-    is_heterogeneous = len(set(tasks_per_node)) > 1
-
-    return HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SLURM,
-        job_id=job_id,
-        num_nodes=num_nodes,
-        node_list=node_list,
-        tasks_per_node=tasks_per_node,
-        total_tasks=total_tasks,
-        cpus_per_task=cpus_per_task,
-        cpus_on_node=cpus_on_node,
-        is_heterogeneous=is_heterogeneous,
-    )
-
-
-def parse_pbs_topology(env: Dict[str, str]) -> HPCTopologyProfile:
-    """Parse complete multi-node execution topology from PBS environment variables."""
-    job_id = env.get("PBS_JOBID")
-    nodefile = env.get("PBS_NODEFILE")
-
-    node_list: List[str] = []
-    tasks_per_node: List[int] = []
-
-    if nodefile and Path(nodefile).exists():
-        raw_lines = [
-            line.strip()
-            for line in Path(nodefile).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        # Preserve discovery order of unique nodes
-        seen: List[str] = []
-        for line in raw_lines:
-            if line not in seen:
-                seen.append(line)
-        node_list = seen
-        tasks_per_node = [raw_lines.count(n) for n in node_list]
-        num_nodes = len(node_list)
-    else:
-        num_nodes_env = env.get("PBS_NUM_NODES")
-        num_nodes = int(num_nodes_env) if num_nodes_env and num_nodes_env.isdigit() else 1
-        ppn_env = env.get("PBS_NUM_PPN")
-        ppn = int(ppn_env) if ppn_env and ppn_env.isdigit() else 1
-        node_list = [f"pbs_node{i+1:02d}" for i in range(num_nodes)]
-        tasks_per_node = [ppn] * num_nodes
-
-    total_tasks = sum(tasks_per_node) if tasks_per_node else 1
-    cpus_on_node = tasks_per_node[0] if tasks_per_node else (os.cpu_count() or 1)
-    is_heterogeneous = len(set(tasks_per_node)) > 1
-
-    return HPCTopologyProfile(
-        scheduler=HPCSchedulerType.PBS,
-        job_id=job_id,
-        num_nodes=num_nodes,
-        node_list=node_list,
-        tasks_per_node=tasks_per_node,
-        total_tasks=total_tasks,
-        cpus_per_task=1,
-        cpus_on_node=cpus_on_node,
-        is_heterogeneous=is_heterogeneous,
-    )
-
-
-def parse_lsf_topology(env: Dict[str, str]) -> HPCTopologyProfile:
-    """Parse complete multi-node execution topology from LSF environment variables."""
-    job_id = env.get("LSB_JOBID")
-    hosts_str = env.get("LSB_HOSTS", "")
-
-    node_list: List[str] = []
-    tasks_per_node: List[int] = []
-
-    if hosts_str:
-        hosts = hosts_str.split()
-        seen: List[str] = []
-        for h in hosts:
-            if h not in seen:
-                seen.append(h)
-        node_list = seen
-        tasks_per_node = [hosts.count(n) for n in node_list]
-        num_nodes = len(node_list)
-    else:
-        num_nodes = 1
-        node_list = [platform.node() or "localhost"]
-        djob_num = env.get("LSB_DJOB_NUMPROC")
-        t = int(djob_num) if djob_num and djob_num.isdigit() else 1
-        tasks_per_node = [t]
-
-    total_tasks = sum(tasks_per_node)
-    cpus_on_node = tasks_per_node[0] if tasks_per_node else (os.cpu_count() or 1)
-    is_heterogeneous = len(set(tasks_per_node)) > 1
-
-    return HPCTopologyProfile(
-        scheduler=HPCSchedulerType.LSF,
-        job_id=job_id,
-        num_nodes=num_nodes,
-        node_list=node_list,
-        tasks_per_node=tasks_per_node,
-        total_tasks=total_tasks,
-        cpus_per_task=1,
-        cpus_on_node=cpus_on_node,
-        is_heterogeneous=is_heterogeneous,
-    )
-
-
-def parse_sge_topology(env: Dict[str, str]) -> HPCTopologyProfile:
-    """Parse complete multi-node execution topology from SGE environment variables."""
-    job_id = env.get("JOB_ID")
-    pe_hostfile = env.get("PE_HOSTFILE")
-
-    node_list: List[str] = []
-    tasks_per_node: List[int] = []
-
-    if pe_hostfile and Path(pe_hostfile).exists():
-        # SGE PE_HOSTFILE format: <hostname> <slots> <queue> <arch>
-        raw_lines = [
-            line.strip().split()
-            for line in Path(pe_hostfile).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        node_list = [parts[0] for parts in raw_lines]
-        tasks_per_node = [int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 1 for parts in raw_lines]
-        num_nodes = len(node_list)
-    else:
-        nhosts_env = env.get("NHOSTS")
-        num_nodes = int(nhosts_env) if nhosts_env and nhosts_env.isdigit() else 1
-        nslots_env = env.get("NSLOTS")
-        nslots = int(nslots_env) if nslots_env and nslots_env.isdigit() else 1
-        node_list = [f"sge_node{i+1:02d}" for i in range(num_nodes)]
-        tasks_per_node = [max(1, nslots // num_nodes)] * num_nodes
-
-    total_tasks = sum(tasks_per_node)
-    cpus_on_node = tasks_per_node[0] if tasks_per_node else (os.cpu_count() or 1)
-    is_heterogeneous = len(set(tasks_per_node)) > 1
-
-    return HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SGE,
-        job_id=job_id,
-        num_nodes=num_nodes,
-        node_list=node_list,
-        tasks_per_node=tasks_per_node,
-        total_tasks=total_tasks,
-        cpus_per_task=1,
-        cpus_on_node=cpus_on_node,
-        is_heterogeneous=is_heterogeneous,
-    )
-
-
-def parse_standalone_topology(env: Dict[str, str]) -> HPCTopologyProfile:
-    """Parse local standalone workstation/server topology."""
-    host_cpus = os.cpu_count() or 1
-    return HPCTopologyProfile(
-        scheduler=HPCSchedulerType.LOCAL_STANDALONE,
-        job_id=None,
-        num_nodes=1,
-        node_list=[platform.node() or "localhost"],
-        tasks_per_node=[1],
-        total_tasks=1,
-        cpus_per_task=host_cpus,
-        cpus_on_node=host_cpus,
-        is_heterogeneous=False,
-    )
-
-
-def parse_topology(env: Optional[Dict[str, str]] = None) -> HPCTopologyProfile:
-    """Dispatch topology resolution based on detected HPC workload scheduler."""
-    target_env = os.environ if env is None else env
-    scheduler = detect_hpc_scheduler(target_env)
-
-    if scheduler == HPCSchedulerType.SLURM:
-        return parse_slurm_topology(target_env)
-    elif scheduler == HPCSchedulerType.PBS:
-        return parse_pbs_topology(target_env)
-    elif scheduler == HPCSchedulerType.LSF:
-        return parse_lsf_topology(target_env)
-    elif scheduler == HPCSchedulerType.SGE:
-        return parse_sge_topology(target_env)
-    else:
-        return parse_standalone_topology(target_env)
-
-
-# =============================================================================
-# 5. MEMORY ALLOCATION & CGROUP LIMIT ENGINE
-# =============================================================================
-
-CGROUP_V1_UNLIMITED_THRESHOLD = 9223372036854770000
-
-
-def parse_memory_string_to_mb(val_str: str) -> float:
-    """
-    Parse a memory string (e.g. '64000', '64000M', '64G', '128000MB', '128GB', '1T') into Megabytes.
-    Default unit for bare integer (Slurm standard) is Megabytes (MB).
-    """
-    raw = val_str.strip()
-    if not raw:
-        raise HPCMemoryParseError("Empty memory specification string provided")
-
-    m = re.match(r"^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]*)$", raw)
-    if not m:
-        raise HPCMemoryParseError(f"Cannot parse memory specification: '{val_str}'")
-
-    num_val = float(m.group(1))
-    unit = m.group(2).upper()
-
-    if unit in ("", "M", "MB", "MIB"):
-        return num_val
-    elif unit in ("G", "GB", "GIB"):
-        return num_val * 1024.0
-    elif unit in ("T", "TB", "TIB"):
-        return num_val * 1024.0 * 1024.0
-    elif unit in ("K", "KB", "KIB"):
-        return num_val / 1024.0
-    elif unit in ("B", "BYTES"):
-        return num_val / (1024.0 * 1024.0)
-    else:
-        raise HPCMemoryParseError(f"Unknown memory unit: '{unit}' in '{val_str}'")
-
-
-def get_physical_ram_bytes() -> int:
-    """Detect total host physical RAM in bytes."""
+    sock_type = socket.SOCK_STREAM if protocol == ProtocolType.TCP else socket.SOCK_DGRAM
     try:
-        return psutil.virtual_memory().total
-    except Exception:
-        try:
-            return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
-        except Exception:
-            return 8 * 1024 * 1024 * 1024
+        with socket.socket(socket.AF_INET, sock_type) as probe_sock:
+            probe_sock.settimeout(timeout)
+            probe_sock.bind((host, port))
+            return True
+    except (OSError, socket.error):
+        return False
 
 
-def parse_cgroup_memory_limit(cgroup_root: Optional[Path] = None) -> Optional[int]:
+def allocate_port(
+    preferred_port: int,
+    port_range: Tuple[int, int] = (5000, 9000),
+    host: str = "127.0.0.1",
+    protocol: ProtocolType = ProtocolType.TCP,
+    excluded_ports: Optional[Set[int]] = None,
+) -> Tuple[int, bool]:
     """
-    Parse Linux cgroups v1 or v2 memory limit in bytes.
-    Returns None if unlimited, unavailable, or non-Linux.
+    Allocate an available network port, attempting preferred_port first, scanning port_range on conflict.
+    Returns (allocated_port, is_conflict_resolved).
     """
-    root = cgroup_root if cgroup_root is not None else Path("/")
+    excluded = excluded_ports if excluded_ports is not None else set()
+    start_port, end_port = port_range
 
-    # 1. Cgroups v2: memory.max
-    v2_candidates = [
-        root / "sys" / "fs" / "cgroup" / "memory.max",
-        root / "memory.max",
-        root / "sys" / "fs" / "cgroup" / "memory" / "memory.max",
-    ]
-    for p in v2_candidates:
-        if p.exists() and p.is_file():
-            try:
-                content = p.read_text(encoding="utf-8").strip()
-                if content and content != "max":
-                    limit = int(content)
-                    if limit < CGROUP_V1_UNLIMITED_THRESHOLD:
-                        return limit
-            except Exception:
-                pass
+    if start_port > end_port:
+        start_port, end_port = end_port, start_port
 
-    # 2. Cgroups v1: memory.limit_in_bytes
-    v1_candidates = [
-        root / "sys" / "fs" / "cgroup" / "memory" / "memory.limit_in_bytes",
-        root / "memory.limit_in_bytes",
-    ]
-    for p in v1_candidates:
-        if p.exists() and p.is_file():
-            try:
-                content = p.read_text(encoding="utf-8").strip()
-                if content:
-                    limit = int(content)
-                    if limit < CGROUP_V1_UNLIMITED_THRESHOLD:
-                        return limit
-            except Exception:
-                pass
+    if preferred_port not in excluded and probe_port_availability(preferred_port, host=host, protocol=protocol):
+        return preferred_port, False
 
-    return None
+    candidates: List[int] = []
+    if start_port <= preferred_port <= end_port:
+        candidates = list(range(preferred_port + 1, end_port + 1)) + list(range(start_port, preferred_port))
+    else:
+        candidates = list(range(start_port, end_port + 1))
+
+    for port in candidates:
+        if port not in excluded and probe_port_availability(port, host=host, protocol=protocol):
+            return port, True
+
+    raise PortRangeExhaustedError(
+        f"Unable to allocate {protocol.value} port on host '{host}'. Port range [{start_port}, {end_port}] exhausted."
+    )
 
 
-def parse_hpc_memory_limit(
+def resolve_bind_policy(host: str, allow_public_bind: bool = False) -> Tuple[str, BindPolicy]:
+    """
+    Resolve network host binding policy according to air-gap security constraints.
+    """
+    normalized_host = host.strip()
+    if normalized_host in ("127.0.0.1", "localhost", "::1"):
+        return normalized_host, BindPolicy.LOCALHOST_ONLY
+
+    if not allow_public_bind:
+        return "127.0.0.1", BindPolicy.LOCALHOST_ONLY
+
+    if normalized_host in ("0.0.0.0", "::"):
+        return normalized_host, BindPolicy.ALL_INTERFACES
+
+    return normalized_host, BindPolicy.CUSTOM_IP
+
+
+def construct_service_url(
+    protocol: ProtocolType,
+    service_type: GatewayServiceType,
+    host: str,
+    port: int,
+) -> str:
+    """
+    Construct service endpoint connection URL based on protocol and service type.
+    """
+    if service_type in (GatewayServiceType.DOCK_REST_API, GatewayServiceType.UI_DASHBOARD):
+        scheme = "http"
+    elif service_type == GatewayServiceType.GATEWAY_IPC_ZMQ:
+        scheme = "tcp"
+    elif service_type == GatewayServiceType.TELEMETRY_STREAM:
+        scheme = "udp" if protocol == ProtocolType.UDP else "tcp"
+    else:
+        scheme = "http" if protocol == ProtocolType.TCP else "udp"
+
+    return f"{scheme}://{host}:{port}"
+
+
+def allocate_all_gateway_services(
+    bind_host: str = "127.0.0.1",
+    dock_port: Optional[int] = None,
+    gateway_port: Optional[int] = None,
+    ui_port: Optional[int] = None,
+    telemetry_port: Optional[int] = None,
     env: Optional[Dict[str, str]] = None,
-    cgroup_root: Optional[Path] = None,
-    tasks_per_node: Optional[List[int]] = None,
-    cpus_per_task: int = 1,
-) -> HPCMemoryProfile:
+    allow_public_bind: bool = False,
+    port_range: Tuple[int, int] = (5000, 60000),
+    excluded_ports: Optional[Set[int]] = None,
+) -> GatewayConfigProfile:
     """
-    Resolve memory allocation envelope across Slurm/HPC variables, cgroup limits, and physical RAM.
-    """
-    target_env = os.environ if env is None else env
-    physical_ram = get_physical_ram_bytes()
-    physical_ram_mb = physical_ram / (1024.0 * 1024.0)
-
-    # 1. Check SLURM_MEM_PER_NODE
-    if "SLURM_MEM_PER_NODE" in target_env and target_env["SLURM_MEM_PER_NODE"].strip():
-        raw_val = target_env["SLURM_MEM_PER_NODE"].strip()
-        mem_mb = parse_memory_string_to_mb(raw_val)
-        return HPCMemoryProfile(
-            mem_per_node_mb=mem_mb,
-            mem_per_cpu_mb=None,
-            cgroup_limit_bytes=None,
-            physical_ram_bytes=physical_ram,
-            effective_usable_memory_mb=mem_mb,
-            source="SLURM_MEM_PER_NODE",
-        )
-
-    # 2. Check SLURM_MEM_PER_CPU
-    if "SLURM_MEM_PER_CPU" in target_env and target_env["SLURM_MEM_PER_CPU"].strip():
-        raw_val = target_env["SLURM_MEM_PER_CPU"].strip()
-        cpu_mb = parse_memory_string_to_mb(raw_val)
-        tasks_on_node = tasks_per_node[0] if tasks_per_node else 1
-        total_cpus = tasks_on_node * max(1, cpus_per_task)
-        mem_mb = cpu_mb * total_cpus
-        return HPCMemoryProfile(
-            mem_per_node_mb=mem_mb,
-            mem_per_cpu_mb=cpu_mb,
-            cgroup_limit_bytes=None,
-            physical_ram_bytes=physical_ram,
-            effective_usable_memory_mb=mem_mb,
-            source="SLURM_MEM_PER_CPU",
-        )
-
-    # 3. Check Cgroups v1/v2 container memory limit
-    cgroup_bytes = parse_cgroup_memory_limit(cgroup_root)
-    if cgroup_bytes is not None and cgroup_bytes > 0:
-        cgroup_mb = cgroup_bytes / (1024.0 * 1024.0)
-        effective_mb = min(physical_ram_mb, cgroup_mb)
-        return HPCMemoryProfile(
-            mem_per_node_mb=None,
-            mem_per_cpu_mb=None,
-            cgroup_limit_bytes=cgroup_bytes,
-            physical_ram_bytes=physical_ram,
-            effective_usable_memory_mb=round(effective_mb, 2),
-            source="CGROUP",
-        )
-
-    # 4. Fallback to physical host RAM
-    return HPCMemoryProfile(
-        mem_per_node_mb=None,
-        mem_per_cpu_mb=None,
-        cgroup_limit_bytes=None,
-        physical_ram_bytes=physical_ram,
-        effective_usable_memory_mb=round(physical_ram_mb, 2),
-        source="PHYSICAL_RAM",
-    )
-
-
-# =============================================================================
-# 6. HIERARCHICAL SCRATCH DIRECTORY MAPPING
-# =============================================================================
-
-
-def resolve_hpc_scratch_directory(
-    override: Optional[Union[str, Path]] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> HPCScratchProfile:
-    """
-    Hierarchically resolve, scaffold, and validate the fast node-local Ephemeral Scratch directory.
-    Resolution priority:
-    1. Explicit override argument.
-    2. $COCHEM_SCRATCH_DIR
-    3. $SLURM_TMPDIR (HPC Slurm)
-    4. $TMPDIR (PBS / LSF / SGE / Linux)
-    5. $SCRATCH (Cluster shared or local scratch)
-    6. %TEMP% / %TMP% (Windows NT)
-    7. Fallback: Path.home() / "CoChem_Artifacts" / "Scratch"
+    Allocate distinct ports for all four CoChem Gateway services with conflict resolution.
     """
     target_env = os.environ if env is None else env
-    source_var = "FALLBACK"
-    target_path: Optional[Path] = None
 
-    if override:
-        target_path = Path(override).resolve()
-        source_var = "OVERRIDE"
-    elif "COCHEM_SCRATCH_DIR" in target_env and target_env["COCHEM_SCRATCH_DIR"].strip():
-        target_path = Path(target_env["COCHEM_SCRATCH_DIR"]).resolve()
-        source_var = "COCHEM_SCRATCH_DIR"
-    elif "SLURM_TMPDIR" in target_env and target_env["SLURM_TMPDIR"].strip():
-        target_path = Path(target_env["SLURM_TMPDIR"]).resolve()
-        source_var = "SLURM_TMPDIR"
-    elif "TMPDIR" in target_env and target_env["TMPDIR"].strip():
-        target_path = Path(target_env["TMPDIR"]).resolve()
-        source_var = "TMPDIR"
-    elif "SCRATCH" in target_env and target_env["SCRATCH"].strip():
-        scratch_base = Path(target_env["SCRATCH"]).resolve()
-        target_path = scratch_base / "CoChem_Scratch"
-        source_var = "SCRATCH"
-    elif platform.system() == "Windows" and "TEMP" in target_env and target_env["TEMP"].strip():
-        target_path = Path(target_env["TEMP"]).resolve()
-        source_var = "TEMP"
-    elif platform.system() == "Windows" and "TMP" in target_env and target_env["TMP"].strip():
-        target_path = Path(target_env["TMP"]).resolve()
-        source_var = "TMP"
-    else:
-        target_path = (Path.home() / "CoChem_Artifacts" / "Scratch").resolve()
-        source_var = "FALLBACK"
+    raw_host = bind_host
+    if "COCHEM_BIND_HOST" in target_env and target_env["COCHEM_BIND_HOST"].strip() and bind_host == "127.0.0.1":
+        raw_host = target_env["COCHEM_BIND_HOST"].strip()
 
-    # Scaffolding and permission assertion
-    target_path.mkdir(parents=True, exist_ok=True)
+    effective_host, bind_policy = resolve_bind_policy(raw_host, allow_public_bind=allow_public_bind)
 
-    is_accessible = target_path.exists() and target_path.is_dir()
-    is_writable = False
-    probe_file = target_path / f".cochem_scratch_probe_{uuid.uuid4().hex[:8]}"
-
-    try:
-        probe_file.write_text("cochem_scratch_probe", encoding="utf-8")
-        is_writable = True
-    except Exception:
-        is_writable = False
-    finally:
-        if probe_file.exists():
+    def parse_int_env(key: str) -> Optional[int]:
+        if key in target_env and target_env[key].strip():
             try:
-                probe_file.unlink()
-            except Exception:
-                pass
+                return int(target_env[key].strip())
+            except ValueError:
+                return None
+        return None
 
-    free_gb = 0.0
-    try:
-        usage = shutil.disk_usage(str(target_path))
-        free_gb = round(usage.free / (1024.0 ** 3), 3)
-    except Exception:
-        free_gb = 0.0
+    req_dock = dock_port if dock_port is not None else (parse_int_env("COCHEM_DOCK_PORT") or 8000)
+    req_gateway = (
+        gateway_port
+        if gateway_port is not None
+        else (parse_int_env("COCHEM_GATEWAY_PORT") or parse_int_env("COCHEM_ZMQ_PORT") or 5555)
+    )
+    req_ui = ui_port if ui_port is not None else (parse_int_env("COCHEM_UI_PORT") or 8888)
+    req_telem = telemetry_port if telemetry_port is not None else (parse_int_env("COCHEM_TELEMETRY_PORT") or 54321)
 
-    return HPCScratchProfile(
-        scratch_directory=str(target_path),
-        is_accessible=is_accessible,
-        is_writable=is_writable,
-        free_disk_space_gb=free_gb,
-        source_variable=source_var,
+    allocated_tcp: Set[int] = set(excluded_ports) if excluded_ports else set()
+    allocated_udp: Set[int] = set(excluded_ports) if excluded_ports else set()
+
+    # 1. Dock REST API (TCP)
+    dock_allocated, dock_resolved = allocate_port(
+        preferred_port=req_dock,
+        port_range=port_range,
+        host=effective_host,
+        protocol=ProtocolType.TCP,
+        excluded_ports=allocated_tcp,
+    )
+    allocated_tcp.add(dock_allocated)
+    dock_profile = PortBindingProfile(
+        service=GatewayServiceType.DOCK_REST_API,
+        protocol=ProtocolType.TCP,
+        requested_port=req_dock,
+        allocated_port=dock_allocated,
+        bind_host=effective_host,
+        is_bound_successfully=True,
+        is_conflict_resolved=dock_resolved,
+        environment_variable="COCHEM_DOCK_PORT",
+        url=construct_service_url(ProtocolType.TCP, GatewayServiceType.DOCK_REST_API, effective_host, dock_allocated),
+    )
+
+    # 2. Gateway IPC ZMQ (TCP)
+    zmq_allocated, zmq_resolved = allocate_port(
+        preferred_port=req_gateway,
+        port_range=port_range,
+        host=effective_host,
+        protocol=ProtocolType.TCP,
+        excluded_ports=allocated_tcp,
+    )
+    allocated_tcp.add(zmq_allocated)
+    zmq_profile = PortBindingProfile(
+        service=GatewayServiceType.GATEWAY_IPC_ZMQ,
+        protocol=ProtocolType.TCP,
+        requested_port=req_gateway,
+        allocated_port=zmq_allocated,
+        bind_host=effective_host,
+        is_bound_successfully=True,
+        is_conflict_resolved=zmq_resolved,
+        environment_variable="COCHEM_GATEWAY_PORT",
+        url=construct_service_url(ProtocolType.TCP, GatewayServiceType.GATEWAY_IPC_ZMQ, effective_host, zmq_allocated),
+    )
+
+    # 3. UI Dashboard (TCP)
+    ui_allocated, ui_resolved = allocate_port(
+        preferred_port=req_ui,
+        port_range=port_range,
+        host=effective_host,
+        protocol=ProtocolType.TCP,
+        excluded_ports=allocated_tcp,
+    )
+    allocated_tcp.add(ui_allocated)
+    ui_profile = PortBindingProfile(
+        service=GatewayServiceType.UI_DASHBOARD,
+        protocol=ProtocolType.TCP,
+        requested_port=req_ui,
+        allocated_port=ui_allocated,
+        bind_host=effective_host,
+        is_bound_successfully=True,
+        is_conflict_resolved=ui_resolved,
+        environment_variable="COCHEM_UI_PORT",
+        url=construct_service_url(ProtocolType.TCP, GatewayServiceType.UI_DASHBOARD, effective_host, ui_allocated),
+    )
+
+    # 4. Telemetry Stream (UDP)
+    telem_allocated, telem_resolved = allocate_port(
+        preferred_port=req_telem,
+        port_range=port_range,
+        host=effective_host,
+        protocol=ProtocolType.UDP,
+        excluded_ports=allocated_udp,
+    )
+    allocated_udp.add(telem_allocated)
+    telem_profile = PortBindingProfile(
+        service=GatewayServiceType.TELEMETRY_STREAM,
+        protocol=ProtocolType.UDP,
+        requested_port=req_telem,
+        allocated_port=telem_allocated,
+        bind_host=effective_host,
+        is_bound_successfully=True,
+        is_conflict_resolved=telem_resolved,
+        environment_variable="COCHEM_TELEMETRY_PORT",
+        url=construct_service_url(ProtocolType.UDP, GatewayServiceType.TELEMETRY_STREAM, effective_host, telem_allocated),
+    )
+
+    return GatewayConfigProfile(
+        bind_host=effective_host,
+        bind_policy=bind_policy,
+        dock_api=dock_profile,
+        gateway_zmq=zmq_profile,
+        ui_dashboard=ui_profile,
+        telemetry_stream=telem_profile,
+        all_services_allocated=True,
+        total_services_bound=4,
     )
 
 
 # =============================================================================
-# 7. THREAD AFFINITY & CORE BINDINGS ENGINE
+# 5. ENVIRONMENT INJECTION & REGISTRY PATH RESOLUTION
 # =============================================================================
 
 
-def compute_thread_affinity_profile(
-    topology: HPCTopologyProfile,
-    places_policy: str = "cores",
-    proc_bind: str = "close",
-) -> HPCThreadAffinityProfile:
+def generate_environment_injection_dict(gateway_config: GatewayConfigProfile) -> Dict[str, str]:
     """
-    Calculate optimal OpenMP, Intel MKL, OpenBLAS, BLIS, and process core affinity bindings
-    based on the allocated CPU topology and task distribution.
+    Generate the complete dictionary of environment variables injected for downstream subprocesses.
     """
-    cpus_per_task = topology.cpus_per_task
-    tasks_on_node = topology.tasks_per_node[0] if topology.tasks_per_node else 1
-    cpus_on_node = topology.cpus_on_node
-
-    if cpus_per_task > 1:
-        omp_threads = cpus_per_task
-    elif cpus_on_node > 0 and tasks_on_node > 0:
-        omp_threads = max(1, cpus_on_node // tasks_on_node)
-    else:
-        omp_threads = 1
-
-    mkl_threads = omp_threads
-    openblas_threads = omp_threads
-    blis_threads = omp_threads
-
-    valid_binds = ["close", "spread", "master", "compact", "scatter", "true", "false"]
-    chosen_bind = proc_bind.lower() if proc_bind.lower() in valid_binds else "close"
-
-    kmp_bind = chosen_bind
-    if kmp_bind in ["close", "compact"]:
-        kmp_affinity = "granularity=fine,compact,1,0"
-    elif kmp_bind in ["spread", "scatter"]:
-        kmp_affinity = "granularity=fine,scatter"
-    else:
-        kmp_affinity = "granularity=fine,compact,1,0"
-
-    kmp_blocktime = 0
-
-    env_vars: Dict[str, str] = {
-        "OMP_NUM_THREADS": str(omp_threads),
-        "MKL_NUM_THREADS": str(mkl_threads),
-        "OPENBLAS_NUM_THREADS": str(openblas_threads),
-        "BLIS_NUM_THREADS": str(blis_threads),
-        "OMP_PLACES": places_policy,
-        "OMP_PROC_BIND": chosen_bind,
-        "KMP_AFFINITY": kmp_affinity,
-        "KMP_BLOCKTIME": str(kmp_blocktime),
+    return {
+        "COCHEM_BIND_HOST": gateway_config.bind_host,
+        "COCHEM_DOCK_PORT": str(gateway_config.dock_api.allocated_port),
+        "COCHEM_DOCK_URL": gateway_config.dock_api.url or "",
+        "COCHEM_GATEWAY_PORT": str(gateway_config.gateway_zmq.allocated_port),
+        "COCHEM_ZMQ_PORT": str(gateway_config.gateway_zmq.allocated_port),
+        "COCHEM_GATEWAY_URL": gateway_config.gateway_zmq.url or "",
+        "COCHEM_UI_PORT": str(gateway_config.ui_dashboard.allocated_port),
+        "COCHEM_UI_URL": gateway_config.ui_dashboard.url or "",
+        "COCHEM_TELEMETRY_PORT": str(gateway_config.telemetry_stream.allocated_port),
+        "COCHEM_TELEMETRY_URL": gateway_config.telemetry_stream.url or "",
     }
 
-    return HPCThreadAffinityProfile(
-        omp_num_threads=omp_threads,
-        mkl_num_threads=mkl_threads,
-        openblas_num_threads=openblas_threads,
-        blis_num_threads=blis_threads,
-        omp_places=places_policy,
-        omp_proc_bind=chosen_bind,
-        kmp_affinity=kmp_affinity,
-        kmp_blocktime=kmp_blocktime,
-        environment_variables=env_vars,
-    )
 
-
-def generate_environment_injection_dict(
-    topology: HPCTopologyProfile,
-    memory: HPCMemoryProfile,
-    scratch: HPCScratchProfile,
-    affinity: HPCThreadAffinityProfile,
-) -> Dict[str, str]:
+def resolve_p8_registry_path(
+    output_dir: Optional[Union[str, Path]] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Path:
     """
-    Generate the complete production environment variable injection dictionary for subprocess execution.
+    Resolve the target filesystem path for the Phase 8 Golden Registry artifact (p8.json).
     """
-    injected: Dict[str, str] = dict(affinity.environment_variables)
-
-    injected["COCHEM_SCRATCH_DIR"] = scratch.scratch_directory
-    injected["COCHEM_HPC_SCHEDULER"] = topology.scheduler.value
-    injected["COCHEM_NUM_NODES"] = str(topology.num_nodes)
-    injected["COCHEM_TOTAL_TASKS"] = str(topology.total_tasks)
-    injected["COCHEM_CPUS_PER_TASK"] = str(topology.cpus_per_task)
-    injected["COCHEM_CPUS_ON_NODE"] = str(topology.cpus_on_node)
-    injected["COCHEM_MEMORY_PER_NODE_MB"] = f"{memory.effective_usable_memory_mb:.1f}"
-
-    if topology.job_id:
-        injected["COCHEM_JOB_ID"] = str(topology.job_id)
-
-    # Standard HPC scratch compatibility
-    if topology.scheduler == HPCSchedulerType.SLURM:
-        injected["SLURM_TMPDIR"] = scratch.scratch_directory
-    else:
-        injected["TMPDIR"] = scratch.scratch_directory
-
-    return injected
-
-
-# =============================================================================
-# 8. REGISTRY RESOLUTION & TRANSACTIONAL DEPENDENCY MANAGER
-# =============================================================================
-
-
-def resolve_p7_registry_path(output_dir: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Resolve the target filesystem path for the Phase 7 Golden Registry artifact (p7.json).
-    """
-    if output_dir:
+    if output_dir is not None:
         base = Path(output_dir).resolve()
-        if base.name == "p7.json":
+        if base.suffix == ".json" or base.name == "p8.json":
             return base
-        return base / "p7.json"
+        return (base / "p8.json").resolve()
 
-    if "COCHEM_REGISTRY_DIR" in os.environ and os.environ["COCHEM_REGISTRY_DIR"].strip():
-        return (Path(os.environ["COCHEM_REGISTRY_DIR"]) / "p7.json").resolve()
+    target_env = os.environ if env is None else env
 
-    if "COCHEM_ARTIFACT_DIR" in os.environ and os.environ["COCHEM_ARTIFACT_DIR"].strip():
-        return (Path(os.environ["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p7.json").resolve()
+    if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
+        return (Path(target_env["COCHEM_REGISTRY_DIR"]) / "p8.json").resolve()
 
-    return (Path.home() / "CoChem_Artifacts" / "Registry" / "p7.json").resolve()
+    if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
+        return (Path(target_env["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p8.json").resolve()
+
+    return (Path.home() / "CoChem_Artifacts" / "Registry" / "p8.json").resolve()
+
+
+# =============================================================================
+# 6. TRANSACTIONAL DEPENDENCY MANAGER
+# =============================================================================
 
 
 class DependencyManager:
@@ -1375,172 +877,200 @@ class DependencyManager:
 
 
 # =============================================================================
-# 9. MASTER PHASE 7 AUDIT ORCHESTRATOR
+# 7. MASTER AUDIT ORCHESTRATOR
 # =============================================================================
 
 
-def run_phase_7_audit(
+def run_phase_8_audit(
     output_dir: Optional[Union[str, Path]] = None,
-    scratch_dir: Optional[Union[str, Path]] = None,
+    bind_host: str = "127.0.0.1",
+    dock_port: Optional[int] = None,
+    gateway_port: Optional[int] = None,
+    ui_port: Optional[int] = None,
+    telemetry_port: Optional[int] = None,
     env: Optional[Dict[str, str]] = None,
-    cgroup_root: Optional[Union[str, Path]] = None,
-    places_policy: str = "cores",
-    proc_bind: str = "close",
+    allow_public_bind: bool = False,
+    port_range: Tuple[int, int] = (5000, 60000),
     dry_run: bool = False,
-) -> Phase7AuditReport:
+) -> Phase8AuditReport:
     """
-    Execute the Stage 0 Setup Phase 7 HPC environment injection & topology audit.
+    Execute the Stage 0 Setup Phase 8 Network Port Allocation & Dynamic Gateway Binding audit.
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     target_env = os.environ if env is None else env
     warnings: List[str] = []
     errors: List[str] = []
 
-    # 1. Resolve registry artifact path
-    p7_path = resolve_p7_registry_path(output_dir)
+    p8_path = resolve_p8_registry_path(output_dir=output_dir, env=target_env)
 
-    # 2. Detect scheduler & parse topology
     try:
-        scheduler = detect_hpc_scheduler(target_env)
-        topology = parse_topology(target_env)
-    except Exception as exc:
-        errors.append(f"HPC topology parsing failed: {exc}")
-        topology = HPCTopologyProfile(
-            scheduler=HPCSchedulerType.LOCAL_STANDALONE,
-            job_id=None,
-            num_nodes=1,
-            node_list=[platform.node() or "localhost"],
-            tasks_per_node=[1],
-            total_tasks=1,
-            cpus_per_task=1,
-            cpus_on_node=1,
-            is_heterogeneous=False,
-        )
-        scheduler = HPCSchedulerType.LOCAL_STANDALONE
-
-    # 3. Parse memory limits
-    cgroup_path = Path(cgroup_root) if cgroup_root else None
-    try:
-        memory = parse_hpc_memory_limit(
+        gateway_profile = allocate_all_gateway_services(
+            bind_host=bind_host,
+            dock_port=dock_port,
+            gateway_port=gateway_port,
+            ui_port=ui_port,
+            telemetry_port=telemetry_port,
             env=target_env,
-            cgroup_root=cgroup_path,
-            tasks_per_node=topology.tasks_per_node,
-            cpus_per_task=topology.cpus_per_task,
+            allow_public_bind=allow_public_bind,
+            port_range=port_range,
         )
     except Exception as exc:
-        errors.append(f"HPC memory allocation parsing failed: {exc}")
-        memory = HPCMemoryProfile(
-            mem_per_node_mb=None,
-            mem_per_cpu_mb=None,
-            cgroup_limit_bytes=None,
-            physical_ram_bytes=get_physical_ram_bytes(),
-            effective_usable_memory_mb=8192.0,
-            source="PHYSICAL_RAM",
+        errors.append(f"Gateway port allocation failed: {exc}")
+        effective_host, bind_policy = resolve_bind_policy(bind_host, allow_public_bind=allow_public_bind)
+        dock_unbound = PortBindingProfile(
+            service=GatewayServiceType.DOCK_REST_API,
+            protocol=ProtocolType.TCP,
+            requested_port=dock_port or 8000,
+            allocated_port=dock_port or 8000,
+            bind_host=effective_host,
+            is_bound_successfully=False,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_DOCK_PORT",
+        )
+        zmq_unbound = PortBindingProfile(
+            service=GatewayServiceType.GATEWAY_IPC_ZMQ,
+            protocol=ProtocolType.TCP,
+            requested_port=gateway_port or 5555,
+            allocated_port=gateway_port or 5555,
+            bind_host=effective_host,
+            is_bound_successfully=False,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_GATEWAY_PORT",
+        )
+        ui_unbound = PortBindingProfile(
+            service=GatewayServiceType.UI_DASHBOARD,
+            protocol=ProtocolType.TCP,
+            requested_port=ui_port or 8888,
+            allocated_port=ui_port or 8888,
+            bind_host=effective_host,
+            is_bound_successfully=False,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_UI_PORT",
+        )
+        telem_unbound = PortBindingProfile(
+            service=GatewayServiceType.TELEMETRY_STREAM,
+            protocol=ProtocolType.UDP,
+            requested_port=telemetry_port or 54321,
+            allocated_port=telemetry_port or 54321,
+            bind_host=effective_host,
+            is_bound_successfully=False,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_TELEMETRY_PORT",
+        )
+        gateway_profile = GatewayConfigProfile(
+            bind_host=effective_host,
+            bind_policy=bind_policy,
+            dock_api=dock_unbound,
+            gateway_zmq=zmq_unbound,
+            ui_dashboard=ui_unbound,
+            telemetry_stream=telem_unbound,
+            all_services_allocated=False,
+            total_services_bound=0,
         )
 
-    # 4. Resolve scratch directory
-    try:
-        scratch = resolve_hpc_scratch_directory(override=scratch_dir, env=target_env)
-        if not scratch.is_writable:
-            warnings.append(
-                f"Scratch directory '{scratch.scratch_directory}' is not writable; execution may degrade."
-            )
-    except Exception as exc:
-        errors.append(f"Scratch directory resolution failed: {exc}")
-        scratch = HPCScratchProfile(
-            scratch_directory=str(Path.home() / "CoChem_Artifacts" / "Scratch"),
-            is_accessible=False,
-            is_writable=False,
-            free_disk_space_gb=0.0,
-            source_variable="FALLBACK",
+    if gateway_profile.dock_api.is_conflict_resolved:
+        warnings.append(
+            f"Dock REST API port conflict resolved: port {gateway_profile.dock_api.requested_port} -> {gateway_profile.dock_api.allocated_port}"
+        )
+    if gateway_profile.gateway_zmq.is_conflict_resolved:
+        warnings.append(
+            f"Gateway IPC ZMQ port conflict resolved: port {gateway_profile.gateway_zmq.requested_port} -> {gateway_profile.gateway_zmq.allocated_port}"
+        )
+    if gateway_profile.ui_dashboard.is_conflict_resolved:
+        warnings.append(
+            f"UI Dashboard port conflict resolved: port {gateway_profile.ui_dashboard.requested_port} -> {gateway_profile.ui_dashboard.allocated_port}"
+        )
+    if gateway_profile.telemetry_stream.is_conflict_resolved:
+        warnings.append(
+            f"Telemetry Stream port conflict resolved: port {gateway_profile.telemetry_stream.requested_port} -> {gateway_profile.telemetry_stream.allocated_port}"
         )
 
-    # 5. Compute thread & core bindings
-    affinity = compute_thread_affinity_profile(
-        topology=topology,
-        places_policy=places_policy,
-        proc_bind=proc_bind,
-    )
+    injected_env = generate_environment_injection_dict(gateway_profile)
 
-    # 6. Generate environment injection dictionary
-    injected_env = generate_environment_injection_dict(
-        topology=topology,
-        memory=memory,
-        scratch=scratch,
-        affinity=affinity,
-    )
-
-    # 7. Determine status
     if errors:
         status = PhaseStatus.FAILED
-    elif warnings or not scratch.is_writable:
+    elif not gateway_profile.all_services_allocated:
         status = PhaseStatus.DEGRADED
     else:
         status = PhaseStatus.PASSED
 
-    report = Phase7AuditReport(
-        phase_id="cochem_setup_phase_7",
+    report = Phase8AuditReport(
+        phase_id="cochem_setup_phase_8",
         status=status,
-        scheduler_detected=scheduler,
         timestamp_utc=timestamp,
-        artifact_path=str(p7_path),
-        topology=topology,
-        memory=memory,
-        scratch=scratch,
-        affinity=affinity,
+        artifact_path=str(p8_path),
+        gateway_profile=gateway_profile,
         injected_env_vars=injected_env,
         warnings=warnings,
         errors=errors,
     )
 
-    # 8. Transactional persistence into Golden Registry
     if not dry_run and status != PhaseStatus.FAILED:
-        with DependencyManager(p7_path) as dm:
+        with DependencyManager(p8_path) as dm:
             dm.write_payload(report)
 
     return report
 
 
 # =============================================================================
-# 10. CLI ENTRYPOINT
+# 8. CLI ENTRYPOINT
 # =============================================================================
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
-    Main CLI entrypoint for Stage 0 Setup Phase 7: HPC Environment Injection Gatekeeper.
+    Main CLI entrypoint for Stage 0 Setup Phase 8: Dynamic Gateway Binding & Port Allocation Gatekeeper.
     """
     parser = argparse.ArgumentParser(
-        description="CoChem Setup Phase 7: HPC Environment Variable Injection Gatekeeper."
+        description="CoChem Setup Phase 8: Dynamic Gateway Binding & Port Allocation Gatekeeper."
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Custom directory path for Golden Registry artifact (p7.json)",
+        help="Custom directory path for Golden Registry artifact (p8.json)",
     )
     parser.add_argument(
-        "--scratch-dir",
+        "--bind-host",
+        "--host",
         type=str,
+        default="127.0.0.1",
+        help="Bind IP host address (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--dock-port",
+        type=int,
         default=None,
-        help="Custom directory path for node-local scratch ($SLURM_TMPDIR / $TMPDIR)",
+        help="Preferred port for Dock REST API service (default: 8000)",
     )
     parser.add_argument(
-        "--places",
-        type=str,
-        default="cores",
-        help="OMP_PLACES hardware policy (cores, threads, sockets)",
+        "--gateway-port",
+        "--zmq-port",
+        type=int,
+        default=None,
+        help="Preferred port for Gateway IPC ZMQ service (default: 5555)",
     )
     parser.add_argument(
-        "--proc-bind",
-        type=str,
-        default="close",
-        help="OMP_PROC_BIND binding policy (close, spread, master)",
+        "--ui-port",
+        type=int,
+        default=None,
+        help="Preferred port for UI Dashboard service (default: 8888)",
+    )
+    parser.add_argument(
+        "--telemetry-port",
+        type=int,
+        default=None,
+        help="Preferred port for Telemetry Stream UDP service (default: 54321)",
+    )
+    parser.add_argument(
+        "--allow-public-bind",
+        action="store_true",
+        help="Permit binding to 0.0.0.0 or external network interfaces",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Simulate HPC audit without modifying physical registry",
+        help="Simulate port allocation without writing to the physical registry",
     )
     parser.add_argument(
         "--json",
@@ -1551,11 +1081,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        report = run_phase_7_audit(
+        report = run_phase_8_audit(
             output_dir=args.output_dir,
-            scratch_dir=args.scratch_dir,
-            places_policy=args.places,
-            proc_bind=args.proc_bind,
+            bind_host=args.bind_host,
+            dock_port=args.dock_port,
+            gateway_port=args.gateway_port,
+            ui_port=args.ui_port,
+            telemetry_port=args.telemetry_port,
+            allow_public_bind=args.allow_public_bind,
             dry_run=args.dry_run,
         )
 
@@ -1563,34 +1096,32 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(report.model_dump_json(indent=2))
         else:
             print("=" * 75)
-            print("COCHEM SETUP PHASE 7: HPC ENVIRONMENT & TOPOLOGY GATEKEEPER")
+            print("COCHEM SETUP PHASE 8: NETWORK PORT ALLOCATION & GATEWAY BINDING")
             print("=" * 75)
             print(f"Phase ID:          {report.phase_id}")
             print(f"Status:            {report.status.value}")
-            print(f"Scheduler:         {report.scheduler_detected.value}")
             print(f"Timestamp UTC:     {report.timestamp_utc}")
             print(f"Artifact Path:     {report.artifact_path}")
+            print(f"Bind Host:         {report.gateway_profile.bind_host}")
+            print(f"Bind Policy:       {report.gateway_profile.bind_policy.value}")
             print("-" * 75)
-            print("Execution Topology:")
-            print(f"  Job ID:          {report.topology.job_id or 'N/A'}")
-            print(f"  Nodes Allocated: {report.topology.num_nodes} (Nodes: {', '.join(report.topology.node_list[:5])}{'...' if len(report.topology.node_list) > 5 else ''})")
-            print(f"  Total Tasks:     {report.topology.total_tasks} (Tasks/Node: {report.topology.tasks_per_node})")
-            print(f"  CPUs/Task:       {report.topology.cpus_per_task}")
-            print(f"  CPUs on Node:    {report.topology.cpus_on_node}")
-            print(f"  Heterogeneous:   {report.topology.is_heterogeneous}")
-            print("-" * 75)
-            print("Memory & Scratch Architecture:")
-            print(f"  Memory Ceiling:  {report.memory.effective_usable_memory_mb:.1f} MB (Source: {report.memory.source})")
-            print(f"  Scratch Dir:     {report.scratch.scratch_directory}")
-            print(f"  Scratch Source:  {report.scratch.source_variable}")
-            print(f"  Scratch Space:   {report.scratch.free_disk_space_gb:.1f} GB (Writable: {report.scratch.is_writable})")
-            print("-" * 75)
-            print("Thread & Core Bindings:")
-            print(f"  OMP_NUM_THREADS: {report.affinity.omp_num_threads}")
-            print(f"  MKL_NUM_THREADS: {report.affinity.mkl_num_threads}")
-            print(f"  OMP_PLACES:      {report.affinity.omp_places}")
-            print(f"  OMP_PROC_BIND:   {report.affinity.omp_proc_bind}")
-            print(f"  KMP_AFFINITY:    {report.affinity.kmp_affinity}")
+            print("Service Port Allocations:")
+            dock = report.gateway_profile.dock_api
+            print(
+                f"  Dock REST API:    Port {dock.allocated_port} ({dock.protocol.value}) -> {dock.url} [Resolved: {dock.is_conflict_resolved}]"
+            )
+            zmq = report.gateway_profile.gateway_zmq
+            print(
+                f"  Gateway IPC ZMQ:  Port {zmq.allocated_port} ({zmq.protocol.value}) -> {zmq.url} [Resolved: {zmq.is_conflict_resolved}]"
+            )
+            ui = report.gateway_profile.ui_dashboard
+            print(
+                f"  UI Dashboard:     Port {ui.allocated_port} ({ui.protocol.value}) -> {ui.url} [Resolved: {ui.is_conflict_resolved}]"
+            )
+            telem = report.gateway_profile.telemetry_stream
+            print(
+                f"  Telemetry Stream: Port {telem.allocated_port} ({telem.protocol.value}) -> {telem.url} [Resolved: {telem.is_conflict_resolved}]"
+            )
             print("-" * 75)
             print(f"Injected Env Vars ({len(report.injected_env_vars)} total):")
             for k, v in report.injected_env_vars.items():
@@ -1609,22 +1140,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     except Exception as exc:
-        sys.stderr.write(f"\n[FATAL PHASE 7 ERROR]\n{exc}\n\n")
+        sys.stderr.write(f"\n[FATAL PHASE 8 ERROR]\n{exc}\n\n")
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_setup_phase_7.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_setup_phase_8.py ---
 """
-Unit test suite for CoChem Setup Phase 7: HPC Environment Variable Injection & Topology Gatekeeper.
-Strict Zero-Mock Mandate: Real filesystem operations, real temporary directories, real environment
-variable dictionary evaluation, real bracketed nodelist range expansions, real multiplier task
-parsing, real cgroup limit hierarchy evaluation, real thread affinity generation, and transactional
-atomic state persistence into the Golden Registry (p7.json).
+Unit test suite for CoChem Setup Phase 8: Network Port Allocation & Dynamic Gateway Binding Gatekeeper.
+Strict Zero-Mock Mandate: Real socket creation, real OS port binding probes, real TCP/UDP conflict
+resolution, real temporary directory persistence, real environment variable injection dictionaries,
+and transactional atomic state persistence into the Golden Registry (p8.json).
 
-SRS Document 2 Part 2 (Section 3.7), Method Matrix v4, and CoChem User Manual v4.1 Compliant.
+SRS Document 2 Part 2 (Section 3.8), SRS Document 1 (Section 2), Method Matrix v4, and CoChem User Manual v4.1 Compliant.
 """
 
 from __future__ import annotations
@@ -1632,52 +1162,39 @@ from __future__ import annotations
 import json
 import os
 import platform
-import stat
+import socket
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set, Tuple
 
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.cochem_setup_phase_7 import (
+from orchestrator.cochem_setup_phase_8 import (
+    BindPolicy,
     DependencyManager,
-    HPCMemoryParseError,
-    HPCMemoryProfile,
-    HPCSchedulerType,
-    HPCScratchAllocationError,
-    HPCScratchProfile,
-    HPCThreadAffinityProfile,
-    HPCTopologyError,
-    HPCTopologyProfile,
-    Phase7AuditError,
-    Phase7AuditReport,
+    GatewayConfigProfile,
+    GatewayServiceType,
+    Phase8AuditError,
+    Phase8AuditReport,
     PhaseStatus,
-    _expand_single_node_spec,
-    _split_top_level_commas,
-    compute_thread_affinity_profile,
-    detect_hpc_scheduler,
+    PortAllocationError,
+    PortBindingProfile,
+    PortRangeExhaustedError,
+    ProtocolType,
+    SocketBindingError,
+    allocate_all_gateway_services,
+    allocate_port,
+    construct_service_url,
     generate_environment_injection_dict,
-    get_physical_ram_bytes,
     main,
-    parse_cgroup_memory_limit,
-    parse_hpc_memory_limit,
-    parse_lsf_topology,
-    parse_memory_string_to_mb,
-    parse_pbs_topology,
-    parse_sge_topology,
-    parse_slurm_nodelist,
-    parse_slurm_tasks_per_node,
-    parse_slurm_topology,
-    parse_standalone_topology,
-    parse_topology,
-    resolve_hpc_scratch_directory,
-    resolve_p7_registry_path,
-    run_phase_7_audit,
+    probe_port_availability,
+    resolve_bind_policy,
+    resolve_p8_registry_path,
+    run_phase_8_audit,
 )
 
 
-# Helper for Windows temp directory cleanup resilience
 def make_temp_dir() -> tempfile.TemporaryDirectory:
     """Create a temporary directory with Windows cleanup resilience."""
     if hasattr(tempfile.TemporaryDirectory, "_ignore_cleanup_errors") or platform.system() == "Windows":
@@ -1694,14 +1211,14 @@ def make_temp_dir() -> tempfile.TemporaryDirectory:
 
 
 def test_custom_exception_hierarchy() -> None:
-    """Verify custom Phase 7 exception classes inherit from RuntimeError."""
-    err1 = Phase7AuditError("Phase 7 fatal error")
+    """Verify custom Phase 8 exception classes inherit from RuntimeError."""
+    err1 = Phase8AuditError("Phase 8 fatal error")
     assert isinstance(err1, RuntimeError)
-    err2 = HPCTopologyError("HPC topology parsing failed")
+    err2 = PortAllocationError("Port allocation error")
     assert isinstance(err2, RuntimeError)
-    err3 = HPCMemoryParseError("Memory parsing failed")
+    err3 = SocketBindingError("Socket binding error")
     assert isinstance(err3, RuntimeError)
-    err4 = HPCScratchAllocationError("Scratch allocation failed")
+    err4 = PortRangeExhaustedError("Port range exhausted")
     assert isinstance(err4, RuntimeError)
 
 
@@ -1717,17 +1234,31 @@ def test_phase_status_enum() -> None:
         PhaseStatus("INVALID_STATUS")
 
 
-def test_hpc_scheduler_type_enum() -> None:
-    """Verify HPCSchedulerType enum members and string representations."""
-    assert HPCSchedulerType.SLURM.value == "SLURM"
-    assert HPCSchedulerType.PBS.value == "PBS"
-    assert HPCSchedulerType.LSF.value == "LSF"
-    assert HPCSchedulerType.SGE.value == "SGE"
-    assert HPCSchedulerType.LOCAL_STANDALONE.value == "LOCAL_STANDALONE"
-    assert HPCSchedulerType("SLURM") is HPCSchedulerType.SLURM
+def test_gateway_service_type_enum() -> None:
+    """Verify GatewayServiceType enum values."""
+    assert GatewayServiceType.DOCK_REST_API.value == "DOCK_REST_API"
+    assert GatewayServiceType.GATEWAY_IPC_ZMQ.value == "GATEWAY_IPC_ZMQ"
+    assert GatewayServiceType.UI_DASHBOARD.value == "UI_DASHBOARD"
+    assert GatewayServiceType.TELEMETRY_STREAM.value == "TELEMETRY_STREAM"
 
     with pytest.raises(ValueError):
-        HPCSchedulerType("UNKNOWN_SCHEDULER")
+        GatewayServiceType("UNKNOWN_SERVICE")
+
+
+def test_protocol_type_enum() -> None:
+    """Verify ProtocolType enum values."""
+    assert ProtocolType.TCP.value == "TCP"
+    assert ProtocolType.UDP.value == "UDP"
+
+    with pytest.raises(ValueError):
+        ProtocolType("HTTP")
+
+
+def test_bind_policy_enum() -> None:
+    """Verify BindPolicy enum values."""
+    assert BindPolicy.LOCALHOST_ONLY.value == "LOCALHOST_ONLY"
+    assert BindPolicy.ALL_INTERFACES.value == "ALL_INTERFACES"
+    assert BindPolicy.CUSTOM_IP.value == "CUSTOM_IP"
 
 
 # =============================================================================
@@ -1735,961 +1266,736 @@ def test_hpc_scheduler_type_enum() -> None:
 # =============================================================================
 
 
-def test_hpc_topology_profile_validation() -> None:
-    """Test HPCTopologyProfile defaults, constraints, and extra field prohibition."""
-    profile = HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SLURM,
-        job_id="123456",
-        num_nodes=2,
-        node_list=["node01", "node02"],
-        tasks_per_node=[8, 8],
-        total_tasks=16,
-        cpus_per_task=4,
-        cpus_on_node=32,
-        is_heterogeneous=False,
+def test_port_binding_profile_validation() -> None:
+    """Test PortBindingProfile model validation, constraints, and extra field rejection."""
+    profile = PortBindingProfile(
+        service=GatewayServiceType.DOCK_REST_API,
+        protocol=ProtocolType.TCP,
+        requested_port=8000,
+        allocated_port=8000,
+        bind_host="127.0.0.1",
+        is_bound_successfully=True,
+        is_conflict_resolved=False,
+        environment_variable="COCHEM_DOCK_PORT",
+        url="http://127.0.0.1:8000",
     )
-    assert profile.scheduler == HPCSchedulerType.SLURM
-    assert profile.job_id == "123456"
-    assert profile.num_nodes == 2
-    assert profile.total_tasks == 16
-    assert profile.cpus_per_task == 4
-    assert profile.cpus_on_node == 32
-    assert profile.is_heterogeneous is False
+    assert profile.service == GatewayServiceType.DOCK_REST_API
+    assert profile.allocated_port == 8000
+    assert profile.bind_host == "127.0.0.1"
+    assert profile.is_bound_successfully is True
+    assert profile.url == "http://127.0.0.1:8000"
 
-    # Negative num_nodes constraint
+    # Port constraint tests (port must be between 1 and 65535)
     with pytest.raises(ValidationError):
-        HPCTopologyProfile(
-            scheduler=HPCSchedulerType.SLURM,
-            num_nodes=0,
-            total_tasks=1,
+        PortBindingProfile(
+            service=GatewayServiceType.DOCK_REST_API,
+            protocol=ProtocolType.TCP,
+            requested_port=0,
+            allocated_port=0,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_DOCK_PORT",
+        )
+
+    with pytest.raises(ValidationError):
+        PortBindingProfile(
+            service=GatewayServiceType.DOCK_REST_API,
+            protocol=ProtocolType.TCP,
+            requested_port=70000,
+            allocated_port=70000,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_DOCK_PORT",
         )
 
     # Extra fields forbidden
     with pytest.raises(ValidationError):
-        HPCTopologyProfile(
-            scheduler=HPCSchedulerType.SLURM,
-            num_nodes=1,
-            total_tasks=1,
-            unauthorized_field=True,  # type: ignore[call-arg]
+        PortBindingProfile(
+            service=GatewayServiceType.DOCK_REST_API,
+            protocol=ProtocolType.TCP,
+            requested_port=8000,
+            allocated_port=8000,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_DOCK_PORT",
+            unauthorized_key="bad",  # type: ignore[call-arg]
         )
 
 
-def test_hpc_memory_profile_validation() -> None:
-    """Test HPCMemoryProfile field validation and serialization."""
-    profile = HPCMemoryProfile(
-        mem_per_node_mb=64000.0,
-        mem_per_cpu_mb=4000.0,
-        cgroup_limit_bytes=None,
-        physical_ram_bytes=137438953472,
-        effective_usable_memory_mb=64000.0,
-        source="SLURM_MEM_PER_NODE",
+def test_gateway_config_profile_validation() -> None:
+    """Test GatewayConfigProfile validation and nested models."""
+    dock = PortBindingProfile(
+        service=GatewayServiceType.DOCK_REST_API,
+        protocol=ProtocolType.TCP,
+        requested_port=8000,
+        allocated_port=8000,
+        bind_host="127.0.0.1",
+        is_bound_successfully=True,
+        is_conflict_resolved=False,
+        environment_variable="COCHEM_DOCK_PORT",
+        url="http://127.0.0.1:8000",
     )
-    assert profile.mem_per_node_mb == 64000.0
-    assert profile.effective_usable_memory_mb == 64000.0
-    assert profile.source == "SLURM_MEM_PER_NODE"
-
-    # Extra fields forbidden
-    with pytest.raises(ValidationError):
-        HPCMemoryProfile(
-            physical_ram_bytes=1000,
-            effective_usable_memory_mb=1000.0,
-            source="PHYSICAL_RAM",
-            forbidden_attr="test",  # type: ignore[call-arg]
-        )
-
-
-def test_hpc_scratch_profile_validation() -> None:
-    """Test HPCScratchProfile field validation."""
-    profile = HPCScratchProfile(
-        scratch_directory="/tmp/slurm_scratch",
-        is_accessible=True,
-        is_writable=True,
-        free_disk_space_gb=250.5,
-        source_variable="SLURM_TMPDIR",
+    zmq = PortBindingProfile(
+        service=GatewayServiceType.GATEWAY_IPC_ZMQ,
+        protocol=ProtocolType.TCP,
+        requested_port=5555,
+        allocated_port=5555,
+        bind_host="127.0.0.1",
+        is_bound_successfully=True,
+        is_conflict_resolved=False,
+        environment_variable="COCHEM_GATEWAY_PORT",
+        url="tcp://127.0.0.1:5555",
     )
-    assert profile.scratch_directory == "/tmp/slurm_scratch"
-    assert profile.free_disk_space_gb == 250.5
-    assert profile.source_variable == "SLURM_TMPDIR"
-
-    # Extra fields forbidden
-    with pytest.raises(ValidationError):
-        HPCScratchProfile(
-            scratch_directory="/tmp",
-            source_variable="TEMP",
-            invalid_flag=True,  # type: ignore[call-arg]
-        )
-
-
-def test_hpc_thread_affinity_profile_validation() -> None:
-    """Test HPCThreadAffinityProfile field validation and defaults."""
-    profile = HPCThreadAffinityProfile(
-        omp_num_threads=8,
-        mkl_num_threads=8,
-        openblas_num_threads=8,
-        blis_num_threads=8,
-        omp_places="cores",
-        omp_proc_bind="close",
-        kmp_affinity="granularity=fine,compact,1,0",
-        kmp_blocktime=0,
-        environment_variables={"OMP_NUM_THREADS": "8"},
+    ui = PortBindingProfile(
+        service=GatewayServiceType.UI_DASHBOARD,
+        protocol=ProtocolType.TCP,
+        requested_port=8888,
+        allocated_port=8888,
+        bind_host="127.0.0.1",
+        is_bound_successfully=True,
+        is_conflict_resolved=False,
+        environment_variable="COCHEM_UI_PORT",
+        url="http://127.0.0.1:8888",
     )
-    assert profile.omp_num_threads == 8
-    assert profile.kmp_blocktime == 0
-    assert profile.omp_places == "cores"
+    telem = PortBindingProfile(
+        service=GatewayServiceType.TELEMETRY_STREAM,
+        protocol=ProtocolType.UDP,
+        requested_port=54321,
+        allocated_port=54321,
+        bind_host="127.0.0.1",
+        is_bound_successfully=True,
+        is_conflict_resolved=False,
+        environment_variable="COCHEM_TELEMETRY_PORT",
+        url="udp://127.0.0.1:54321",
+    )
+    gateway = GatewayConfigProfile(
+        bind_host="127.0.0.1",
+        bind_policy=BindPolicy.LOCALHOST_ONLY,
+        dock_api=dock,
+        gateway_zmq=zmq,
+        ui_dashboard=ui,
+        telemetry_stream=telem,
+        all_services_allocated=True,
+        total_services_bound=4,
+    )
+    assert gateway.bind_host == "127.0.0.1"
+    assert gateway.total_services_bound == 4
+    assert gateway.dock_api.allocated_port == 8000
 
-    # Constraint violation: negative threads
-    with pytest.raises(ValidationError):
-        HPCThreadAffinityProfile(
-            omp_num_threads=0,
-            mkl_num_threads=1,
-            openblas_num_threads=1,
-        )
 
-
-def test_phase_7_audit_report_roundtrip_serialization() -> None:
-    """Test Phase7AuditReport construction and JSON serialization roundtrip."""
+def test_phase_8_audit_report_roundtrip_serialization() -> None:
+    """Test Phase8AuditReport serialization and deserialization roundtrip."""
     with make_temp_dir() as tmpdir:
-        art_path = Path(tmpdir) / "p7.json"
-        topology = HPCTopologyProfile(
-            scheduler=HPCSchedulerType.SLURM,
-            job_id="998877",
-            num_nodes=2,
-            node_list=["node01", "node02"],
-            tasks_per_node=[4, 4],
-            total_tasks=8,
-            cpus_per_task=2,
-            cpus_on_node=8,
-            is_heterogeneous=False,
+        art_path = Path(tmpdir) / "p8.json"
+        dock = PortBindingProfile(
+            service=GatewayServiceType.DOCK_REST_API,
+            protocol=ProtocolType.TCP,
+            requested_port=8000,
+            allocated_port=8000,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_DOCK_PORT",
+            url="http://127.0.0.1:8000",
         )
-        memory = HPCMemoryProfile(
-            mem_per_node_mb=32000.0,
-            physical_ram_bytes=68719476736,
-            effective_usable_memory_mb=32000.0,
-            source="SLURM_MEM_PER_NODE",
+        zmq = PortBindingProfile(
+            service=GatewayServiceType.GATEWAY_IPC_ZMQ,
+            protocol=ProtocolType.TCP,
+            requested_port=5555,
+            allocated_port=5555,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_GATEWAY_PORT",
+            url="tcp://127.0.0.1:5555",
         )
-        scratch = HPCScratchProfile(
-            scratch_directory=str(Path(tmpdir) / "scratch"),
-            is_accessible=True,
-            is_writable=True,
-            free_disk_space_gb=100.0,
-            source_variable="SLURM_TMPDIR",
+        ui = PortBindingProfile(
+            service=GatewayServiceType.UI_DASHBOARD,
+            protocol=ProtocolType.TCP,
+            requested_port=8888,
+            allocated_port=8888,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_UI_PORT",
+            url="http://127.0.0.1:8888",
         )
-        affinity = HPCThreadAffinityProfile(
-            omp_num_threads=2,
-            mkl_num_threads=2,
-            openblas_num_threads=2,
-            blis_num_threads=2,
-            omp_places="cores",
-            omp_proc_bind="close",
-            kmp_affinity="granularity=fine,compact,1,0",
-            kmp_blocktime=0,
-            environment_variables={"OMP_NUM_THREADS": "2"},
+        telem = PortBindingProfile(
+            service=GatewayServiceType.TELEMETRY_STREAM,
+            protocol=ProtocolType.UDP,
+            requested_port=54321,
+            allocated_port=54321,
+            bind_host="127.0.0.1",
+            is_bound_successfully=True,
+            is_conflict_resolved=False,
+            environment_variable="COCHEM_TELEMETRY_PORT",
+            url="udp://127.0.0.1:54321",
         )
-        report = Phase7AuditReport(
-            phase_id="cochem_setup_phase_7",
+        gateway = GatewayConfigProfile(
+            bind_host="127.0.0.1",
+            bind_policy=BindPolicy.LOCALHOST_ONLY,
+            dock_api=dock,
+            gateway_zmq=zmq,
+            ui_dashboard=ui,
+            telemetry_stream=telem,
+            all_services_allocated=True,
+            total_services_bound=4,
+        )
+        report = Phase8AuditReport(
+            phase_id="cochem_setup_phase_8",
             status=PhaseStatus.PASSED,
-            scheduler_detected=HPCSchedulerType.SLURM,
             timestamp_utc="2026-08-21T00:00:00Z",
             artifact_path=str(art_path),
-            topology=topology,
-            memory=memory,
-            scratch=scratch,
-            affinity=affinity,
-            injected_env_vars={"OMP_NUM_THREADS": "2", "COCHEM_HPC_SCHEDULER": "SLURM"},
+            gateway_profile=gateway,
+            injected_env_vars={"COCHEM_DOCK_PORT": "8000"},
             warnings=[],
             errors=[],
         )
-
         json_str = report.model_dump_json(indent=2)
-        parsed_dict = json.loads(json_str)
-        assert parsed_dict["phase_id"] == "cochem_setup_phase_7"
-        assert parsed_dict["status"] == "PASSED"
-        assert parsed_dict["scheduler_detected"] == "SLURM"
-        assert parsed_dict["topology"]["total_tasks"] == 8
+        parsed = json.loads(json_str)
+        assert parsed["phase_id"] == "cochem_setup_phase_8"
+        assert parsed["status"] == "PASSED"
+        assert parsed["gateway_profile"]["dock_api"]["allocated_port"] == 8000
 
-        # Roundtrip deserialization
-        restored = Phase7AuditReport.model_validate(parsed_dict)
+        # Deserialization test
+        restored = Phase8AuditReport.model_validate(parsed)
         assert restored.status == PhaseStatus.PASSED
-        assert restored.topology.num_nodes == 2
+        assert restored.gateway_profile.ui_dashboard.allocated_port == 8888
 
 
 # =============================================================================
-# 3. HPC SCHEDULER DETECTION ENGINE TESTS
+# 3. REAL OS SOCKET PROBING TESTS
 # =============================================================================
 
 
-def test_detect_hpc_scheduler_explicit_override() -> None:
-    """Verify explicit COCHEM_HPC_SCHEDULER override has top priority."""
-    assert detect_hpc_scheduler({"COCHEM_HPC_SCHEDULER": "SLURM"}) == HPCSchedulerType.SLURM
-    assert detect_hpc_scheduler({"COCHEM_HPC_SCHEDULER": "PBS"}) == HPCSchedulerType.PBS
-    assert detect_hpc_scheduler({"COCHEM_HPC_SCHEDULER": "LSF"}) == HPCSchedulerType.LSF
-    assert detect_hpc_scheduler({"COCHEM_HPC_SCHEDULER": "SGE"}) == HPCSchedulerType.SGE
-    assert (
-        detect_hpc_scheduler({"COCHEM_HPC_SCHEDULER": "LOCAL_STANDALONE"})
-        == HPCSchedulerType.LOCAL_STANDALONE
+def test_probe_port_availability_real_tcp_socket() -> None:
+    """Test TCP port probing on free vs occupied real sockets."""
+    # Find an open port first
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        free_port = s.getsockname()[1]
+
+    # Free port should return True
+    assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.TCP) is True
+
+    # Now bind the port and keep it open
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as active_sock:
+        active_sock.bind(("127.0.0.1", free_port))
+        active_sock.listen(1)
+        # Port is now occupied: probe must return False
+        assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.TCP) is False
+
+    # Once closed, port becomes available again
+    assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.TCP) is True
+
+
+def test_probe_port_availability_real_udp_socket() -> None:
+    """Test UDP port probing on free vs occupied real sockets."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.bind(("127.0.0.1", 0))
+        free_port = s.getsockname()[1]
+
+    assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.UDP) is True
+
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as active_sock:
+        active_sock.bind(("127.0.0.1", free_port))
+        # Port is now occupied: probe must return False
+        assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.UDP) is False
+
+    assert probe_port_availability(free_port, host="127.0.0.1", protocol=ProtocolType.UDP) is True
+
+
+# =============================================================================
+# 4. PORT ALLOCATION & CONFLICT RESOLUTION TESTS
+# =============================================================================
+
+
+def test_allocate_port_preferred_available() -> None:
+    """Test port allocation when preferred port is available."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        free_port = s.getsockname()[1]
+
+    allocated, resolved = allocate_port(
+        preferred_port=free_port,
+        port_range=(free_port, free_port + 10),
+        host="127.0.0.1",
+        protocol=ProtocolType.TCP,
     )
+    assert allocated == free_port
+    assert resolved is False
 
 
-def test_detect_hpc_scheduler_slurm() -> None:
-    """Verify Slurm scheduler detection from standard environment variables."""
-    assert detect_hpc_scheduler({"SLURM_JOB_ID": "12345"}) == HPCSchedulerType.SLURM
-    assert detect_hpc_scheduler({"SLURM_JOBID": "12345"}) == HPCSchedulerType.SLURM
-    assert detect_hpc_scheduler({"SLURM_NNODES": "4"}) == HPCSchedulerType.SLURM
-    assert detect_hpc_scheduler({"SLURM_NODELIST": "node[01-04]"}) == HPCSchedulerType.SLURM
-    assert detect_hpc_scheduler({"SLURM_TASKS_PER_NODE": "4(x4)"}) == HPCSchedulerType.SLURM
+def test_allocate_port_conflict_resolution_with_active_socket() -> None:
+    """Test port allocation sequentially scans when preferred port is actively occupied."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s1:
+        s1.bind(("127.0.0.1", 0))
+        base_port = s1.getsockname()[1]
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
+        blocker.bind(("127.0.0.1", base_port))
+        blocker.listen(1)
+
+        # Allocate starting from base_port; should scan to base_port + 1 or higher
+        allocated, resolved = allocate_port(
+            preferred_port=base_port,
+            port_range=(base_port, base_port + 20),
+            host="127.0.0.1",
+            protocol=ProtocolType.TCP,
+        )
+        assert allocated != base_port
+        assert allocated > base_port
+        assert resolved is True
 
 
-def test_detect_hpc_scheduler_pbs() -> None:
-    """Verify PBS scheduler detection from PBS variables."""
-    assert detect_hpc_scheduler({"PBS_JOBID": "pbs123.cluster"}) == HPCSchedulerType.PBS
-    assert detect_hpc_scheduler({"PBS_NODEFILE": "/var/spool/pbs/aux/123"}) == HPCSchedulerType.PBS
-    assert detect_hpc_scheduler({"PBS_NUM_NODES": "2"}) == HPCSchedulerType.PBS
-    assert detect_hpc_scheduler({"PBS_ENVIRONMENT": "PBS_BATCH"}) == HPCSchedulerType.PBS
+def test_allocate_port_with_excluded_ports() -> None:
+    """Test port allocation bypasses excluded ports."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        free_port = s.getsockname()[1]
+
+    excluded = {free_port, free_port + 1}
+    allocated, resolved = allocate_port(
+        preferred_port=free_port,
+        port_range=(free_port, free_port + 10),
+        host="127.0.0.1",
+        protocol=ProtocolType.TCP,
+        excluded_ports=excluded,
+    )
+    assert allocated not in excluded
+    assert resolved is True
 
 
-def test_detect_hpc_scheduler_lsf() -> None:
-    """Verify LSF scheduler detection from LSB variables."""
-    assert detect_hpc_scheduler({"LSB_JOBID": "lsf9988"}) == HPCSchedulerType.LSF
-    assert detect_hpc_scheduler({"LSB_HOSTS": "hostA hostA hostB"}) == HPCSchedulerType.LSF
-    assert detect_hpc_scheduler({"LSB_MCPU_HOSTS": "hostA 2 hostB 2"}) == HPCSchedulerType.LSF
-    assert detect_hpc_scheduler({"LSB_DJOB_NUMPROC": "4"}) == HPCSchedulerType.LSF
-
-
-def test_detect_hpc_scheduler_sge() -> None:
-    """Verify SGE scheduler detection from SGE variables."""
-    assert detect_hpc_scheduler({"PE_HOSTFILE": "/tmp/pe_hosts"}) == HPCSchedulerType.SGE
-    assert detect_hpc_scheduler({"SGE_CELL": "default"}) == HPCSchedulerType.SGE
-    assert detect_hpc_scheduler({"JOB_ID": "5544", "NSLOTS": "16"}) == HPCSchedulerType.SGE
-
-
-def test_detect_hpc_scheduler_local_standalone() -> None:
-    """Verify Local Standalone fallback when no HPC scheduler variables are present."""
-    assert detect_hpc_scheduler({}) == HPCSchedulerType.LOCAL_STANDALONE
-    assert detect_hpc_scheduler({"PATH": "/usr/bin", "USER": "test"}) == HPCSchedulerType.LOCAL_STANDALONE
-
-
-# =============================================================================
-# 4. SLURM NODELIST & TASK PARSER TESTS
-# =============================================================================
-
-
-def test_split_top_level_commas() -> None:
-    """Test splitting strings by commas outside bracket groups."""
-    assert _split_top_level_commas("node01,node02,node03") == ["node01", "node02", "node03"]
-    assert _split_top_level_commas("node[01-03,05],gpu[01-02],head01") == [
-        "node[01-03,05]",
-        "gpu[01-02]",
-        "head01",
-    ]
-    assert _split_top_level_commas("  node[01-02] ,  node03  ") == ["node[01-02]", "node03"]
-    assert _split_top_level_commas("") == []
-
-
-def test_expand_single_node_spec() -> None:
-    """Test expanding single bracketed specifications."""
-    assert _expand_single_node_spec("node01") == ["node01"]
-    assert _expand_single_node_spec("node[01-03]") == ["node01", "node02", "node03"]
-    assert _expand_single_node_spec("node[01-03,05]") == ["node01", "node02", "node03", "node05"]
-    assert _expand_single_node_spec("gpu[001-002,005-006]") == [
-        "gpu001",
-        "gpu002",
-        "gpu005",
-        "gpu006",
-    ]
-    assert _expand_single_node_spec("c[1-2]n[3-4]") == ["c1n3", "c1n4", "c2n3", "c2n4"]
-    assert _expand_single_node_spec("node[01-02]-ib0") == ["node01-ib0", "node02-ib0"]
-
-
-def test_parse_slurm_nodelist_valid_cases() -> None:
-    """Test complete Slurm nodelist parsing across multiple formats."""
-    # Single node
-    assert parse_slurm_nodelist("node01") == ["node01"]
-
-    # Comma-separated list
-    assert parse_slurm_nodelist("node01,node02,node03") == ["node01", "node02", "node03"]
-
-    # Simple range
-    assert parse_slurm_nodelist("node[01-04]") == ["node01", "node02", "node03", "node04"]
-
-    # Multiple ranges with single nodes in brackets
-    assert parse_slurm_nodelist("node[01-03,05,08-10]") == [
-        "node01",
-        "node02",
-        "node03",
-        "node05",
-        "node08",
-        "node09",
-        "node10",
-    ]
-
-    # Mixed groups with commas outside brackets
-    assert parse_slurm_nodelist("node[01-02],gpu[05-06],head01") == [
-        "node01",
-        "node02",
-        "gpu05",
-        "gpu06",
-        "head01",
-    ]
-
-    # Empty string
-    assert parse_slurm_nodelist("") == []
-    assert parse_slurm_nodelist("   ") == []
-
-
-def test_parse_slurm_nodelist_error_handling() -> None:
-    """Test error handling on malformed nodelist strings."""
-    # Mismatched brackets
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_nodelist("node[01-03")
-
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_nodelist("node01]")
-
-    # Descending range
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_nodelist("node[05-02]")
-
-    # Non-numeric range
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_nodelist("node[ab-cd]")
-
-
-def test_parse_slurm_tasks_per_node_valid() -> None:
-    """Test parsing of Slurm SLURM_TASKS_PER_NODE with multipliers."""
-    # Multipliers
-    assert parse_slurm_tasks_per_node("4(x2),2") == [4, 4, 2]
-    assert parse_slurm_tasks_per_node("8(x3),4(x2),2") == [8, 8, 8, 4, 4, 2]
-    assert parse_slurm_tasks_per_node("4(x2), 2(x2)") == [4, 4, 2, 2]
-
-    # Comma list without multiplier
-    assert parse_slurm_tasks_per_node("4,4,2") == [4, 4, 2]
-
-    # Single value with num_nodes expansion
-    assert parse_slurm_tasks_per_node("16", num_nodes=3) == [16, 16, 16]
-    assert parse_slurm_tasks_per_node("16", num_nodes=1) == [16]
-    assert parse_slurm_tasks_per_node("16") == [16]
-
-
-def test_parse_slurm_tasks_per_node_errors() -> None:
-    """Test error handling for invalid tasks-per-node strings."""
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_tasks_per_node("")
-
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_tasks_per_node("   ")
-
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_tasks_per_node("invalid_string")
-
-    with pytest.raises(HPCTopologyError):
-        parse_slurm_tasks_per_node("4(x)")
-
-
-# =============================================================================
-# 5. SCHEDULER TOPOLOGY PARSERS
-# =============================================================================
-
-
-def test_parse_slurm_topology() -> None:
-    """Test full Slurm topology parsing from environment dictionary."""
-    env = {
-        "SLURM_JOB_ID": "998877",
-        "SLURM_NODELIST": "compute[01-02]",
-        "SLURM_NNODES": "2",
-        "SLURM_TASKS_PER_NODE": "8(x2)",
-        "SLURM_CPUS_PER_TASK": "4",
-        "SLURM_CPUS_ON_NODE": "32",
-    }
-    topo = parse_slurm_topology(env)
-    assert topo.scheduler == HPCSchedulerType.SLURM
-    assert topo.job_id == "998877"
-    assert topo.num_nodes == 2
-    assert topo.node_list == ["compute01", "compute02"]
-    assert topo.tasks_per_node == [8, 8]
-    assert topo.total_tasks == 16
-    assert topo.cpus_per_task == 4
-    assert topo.cpus_on_node == 32
-    assert topo.is_heterogeneous is False
-
-
-def test_parse_slurm_topology_heterogeneous() -> None:
-    """Test heterogeneous Slurm topology detection."""
-    env = {
-        "SLURM_JOB_ID": "112233",
-        "SLURM_NODELIST": "node[01-03]",
-        "SLURM_TASKS_PER_NODE": "8(x2),4",
-        "SLURM_CPUS_PER_TASK": "1",
-    }
-    topo = parse_slurm_topology(env)
-    assert topo.num_nodes == 3
-    assert topo.tasks_per_node == [8, 8, 4]
-    assert topo.total_tasks == 20
-    assert topo.is_heterogeneous is True
-
-
-def test_parse_pbs_topology_with_nodefile() -> None:
-    """Test PBS topology parsing with real filesystem PBS_NODEFILE."""
-    with make_temp_dir() as tmpdir:
-        nodefile = Path(tmpdir) / "pbs_nodefile"
-        nodefile.write_text("pbs_node01\npbs_node01\npbs_node02\npbs_node02\n", encoding="utf-8")
-
-        env = {
-            "PBS_JOBID": "12345.pbs_master",
-            "PBS_NODEFILE": str(nodefile),
-        }
-        topo = parse_pbs_topology(env)
-        assert topo.scheduler == HPCSchedulerType.PBS
-        assert topo.job_id == "12345.pbs_master"
-        assert topo.num_nodes == 2
-        assert topo.node_list == ["pbs_node01", "pbs_node02"]
-        assert topo.tasks_per_node == [2, 2]
-        assert topo.total_tasks == 4
-
-
-def test_parse_pbs_topology_env_fallback() -> None:
-    """Test PBS topology parsing with environment variables fallback."""
-    env = {
-        "PBS_JOBID": "67890.pbs_master",
-        "PBS_NUM_NODES": "3",
-        "PBS_NUM_PPN": "8",
-    }
-    topo = parse_pbs_topology(env)
-    assert topo.scheduler == HPCSchedulerType.PBS
-    assert topo.num_nodes == 3
-    assert topo.tasks_per_node == [8, 8, 8]
-    assert topo.total_tasks == 24
-
-
-def test_parse_lsf_topology() -> None:
-    """Test LSF topology parsing with LSB_HOSTS."""
-    env = {
-        "LSB_JOBID": "887766",
-        "LSB_HOSTS": "lsf_host1 lsf_host1 lsf_host1 lsf_host1 lsf_host2 lsf_host2",
-    }
-    topo = parse_lsf_topology(env)
-    assert topo.scheduler == HPCSchedulerType.LSF
-    assert topo.job_id == "887766"
-    assert topo.num_nodes == 2
-    assert topo.node_list == ["lsf_host1", "lsf_host2"]
-    assert topo.tasks_per_node == [4, 2]
-    assert topo.total_tasks == 6
-    assert topo.is_heterogeneous is True
-
-
-def test_parse_sge_topology_with_pe_hostfile() -> None:
-    """Test SGE topology parsing with real filesystem PE_HOSTFILE."""
-    with make_temp_dir() as tmpdir:
-        pe_file = Path(tmpdir) / "pe_hostfile"
-        pe_file.write_text(
-            "sge_node01 4 all.q lx-amd64\nsge_node02 4 all.q lx-amd64\n",
-            encoding="utf-8",
+def test_allocate_port_range_exhausted_error() -> None:
+    """Test PortRangeExhaustedError when all ports in range are excluded or occupied."""
+    with pytest.raises(PortRangeExhaustedError):
+        allocate_port(
+            preferred_port=8000,
+            port_range=(8000, 8002),
+            host="127.0.0.1",
+            protocol=ProtocolType.TCP,
+            excluded_ports={8000, 8001, 8002},
         )
 
-        env = {
-            "JOB_ID": "443322",
-            "PE_HOSTFILE": str(pe_file),
-        }
-        topo = parse_sge_topology(env)
-        assert topo.scheduler == HPCSchedulerType.SGE
-        assert topo.job_id == "443322"
-        assert topo.num_nodes == 2
-        assert topo.node_list == ["sge_node01", "sge_node02"]
-        assert topo.tasks_per_node == [4, 4]
-        assert topo.total_tasks == 8
-
-
-def test_parse_standalone_topology() -> None:
-    """Test standalone workstation topology parsing."""
-    topo = parse_standalone_topology({})
-    assert topo.scheduler == HPCSchedulerType.LOCAL_STANDALONE
-    assert topo.job_id is None
-    assert topo.num_nodes == 1
-    assert topo.total_tasks == 1
-    assert topo.cpus_per_task == (os.cpu_count() or 1)
-
-
-def test_parse_topology_dispatcher() -> None:
-    """Test parse_topology dispatcher across schedulers."""
-    assert parse_topology({"SLURM_JOB_ID": "123"}).scheduler == HPCSchedulerType.SLURM
-    assert parse_topology({"PBS_JOBID": "123"}).scheduler == HPCSchedulerType.PBS
-    assert parse_topology({"LSB_JOBID": "123"}).scheduler == HPCSchedulerType.LSF
-    assert parse_topology({"PE_HOSTFILE": "/tmp/pe"}).scheduler == HPCSchedulerType.SGE
-    assert parse_topology({}).scheduler == HPCSchedulerType.LOCAL_STANDALONE
-
 
 # =============================================================================
-# 6. MEMORY ALLOCATION & CGROUP LIMIT TESTS
+# 5. GATEWAY SERVICES ALLOCATION TESTS
 # =============================================================================
 
 
-def test_parse_memory_string_to_mb_valid() -> None:
-    """Test memory string parsing to Megabytes."""
-    # Bare integer (MB default)
-    assert parse_memory_string_to_mb("64000") == 64000.0
+def test_allocate_all_gateway_services_defaults() -> None:
+    """Test default gateway allocation across all 4 services."""
+    profile = allocate_all_gateway_services(
+        bind_host="127.0.0.1",
+        allow_public_bind=False,
+    )
+    assert profile.bind_host == "127.0.0.1"
+    assert profile.bind_policy == BindPolicy.LOCALHOST_ONLY
+    assert profile.total_services_bound == 4
+    assert profile.all_services_allocated is True
 
-    # MB
-    assert parse_memory_string_to_mb("64000M") == 64000.0
-    assert parse_memory_string_to_mb("64000MB") == 64000.0
-    assert parse_memory_string_to_mb("64000MiB") == 64000.0
-
-    # GB
-    assert parse_memory_string_to_mb("64G") == 65536.0
-    assert parse_memory_string_to_mb("64GB") == 65536.0
-    assert parse_memory_string_to_mb("128G") == 131072.0
-
-    # TB
-    assert parse_memory_string_to_mb("1T") == 1048576.0
-    assert parse_memory_string_to_mb("1TB") == 1048576.0
-
-    # KB
-    assert parse_memory_string_to_mb("65536K") == 64.0
-    assert parse_memory_string_to_mb("65536KB") == 64.0
-
-    # Bytes
-    assert parse_memory_string_to_mb("1048576B") == 1.0
+    # Check distinct ports for TCP services
+    tcp_ports = {
+        profile.dock_api.allocated_port,
+        profile.gateway_zmq.allocated_port,
+        profile.ui_dashboard.allocated_port,
+    }
+    assert len(tcp_ports) == 3
 
 
-def test_parse_memory_string_to_mb_errors() -> None:
-    """Test error handling on invalid memory strings."""
-    with pytest.raises(HPCMemoryParseError):
-        parse_memory_string_to_mb("")
-
-    with pytest.raises(HPCMemoryParseError):
-        parse_memory_string_to_mb("invalid")
-
-    with pytest.raises(HPCMemoryParseError):
-        parse_memory_string_to_mb("64XYZ")
-
-
-def test_get_physical_ram_bytes() -> None:
-    """Verify physical host RAM probe returns positive byte count."""
-    ram = get_physical_ram_bytes()
-    assert isinstance(ram, int)
-    assert ram > 0
-
-
-def test_parse_cgroup_memory_limit_v2_and_v1() -> None:
-    """Test parsing cgroup v1 and v2 limits using real temporary files."""
-    with make_temp_dir() as tmpdir:
-        root = Path(tmpdir)
-
-        # Cgroups v2: memory.max
-        cgroup_v2_dir = root / "sys" / "fs" / "cgroup"
-        cgroup_v2_dir.mkdir(parents=True, exist_ok=True)
-        (cgroup_v2_dir / "memory.max").write_text("34359738368\n", encoding="utf-8")  # 32 GB
-
-        limit_v2 = parse_cgroup_memory_limit(root)
-        assert limit_v2 == 34359738368
-
-        # When memory.max is "max" (unlimited)
-        (cgroup_v2_dir / "memory.max").write_text("max\n", encoding="utf-8")
-        assert parse_cgroup_memory_limit(root) is None
-
-        # Cgroups v1: memory.limit_in_bytes
-        (cgroup_v2_dir / "memory.max").unlink()
-        cgroup_v1_dir = root / "sys" / "fs" / "cgroup" / "memory"
-        cgroup_v1_dir.mkdir(parents=True, exist_ok=True)
-        (cgroup_v1_dir / "memory.limit_in_bytes").write_text(
-            "17179869184\n", encoding="utf-8"
-        )  # 16 GB
-
-        limit_v1 = parse_cgroup_memory_limit(root)
-        assert limit_v1 == 17179869184
-
-
-def test_parse_hpc_memory_limit_slurm_per_node() -> None:
-    """Test memory limit resolution from SLURM_MEM_PER_NODE."""
-    env = {"SLURM_MEM_PER_NODE": "64G"}
-    profile = parse_hpc_memory_limit(env=env)
-    assert profile.mem_per_node_mb == 65536.0
-    assert profile.effective_usable_memory_mb == 65536.0
-    assert profile.source == "SLURM_MEM_PER_NODE"
-
-
-def test_parse_hpc_memory_limit_slurm_per_cpu() -> None:
-    """Test memory limit resolution from SLURM_MEM_PER_CPU."""
-    env = {"SLURM_MEM_PER_CPU": "4000M"}
-    # 8 tasks on node, 2 cpus per task = 16 total cpus -> 64000 MB
-    profile = parse_hpc_memory_limit(
+def test_allocate_all_gateway_services_env_overrides() -> None:
+    """Test environment variable overrides for gateway services."""
+    env = {
+        "COCHEM_DOCK_PORT": "8020",
+        "COCHEM_GATEWAY_PORT": "5570",
+        "COCHEM_UI_PORT": "8910",
+        "COCHEM_TELEMETRY_PORT": "54330",
+        "COCHEM_BIND_HOST": "127.0.0.1",
+    }
+    profile = allocate_all_gateway_services(
+        bind_host="127.0.0.1",
         env=env,
-        tasks_per_node=[8],
-        cpus_per_task=2,
     )
-    assert profile.mem_per_cpu_mb == 4000.0
-    assert profile.mem_per_node_mb == 64000.0
-    assert profile.effective_usable_memory_mb == 64000.0
-    assert profile.source == "SLURM_MEM_PER_CPU"
+    assert profile.dock_api.requested_port == 8020
+    assert profile.gateway_zmq.requested_port == 5570
+    assert profile.ui_dashboard.requested_port == 8910
+    assert profile.telemetry_stream.requested_port == 54330
 
 
-def test_parse_hpc_memory_limit_cgroup() -> None:
-    """Test memory limit resolution constrained by cgroups."""
-    with make_temp_dir() as tmpdir:
-        root = Path(tmpdir)
-        cgroup_dir = root / "sys" / "fs" / "cgroup"
-        cgroup_dir.mkdir(parents=True, exist_ok=True)
-        (cgroup_dir / "memory.max").write_text("17179869184\n", encoding="utf-8")  # 16 GB
+def test_allocate_all_gateway_services_collision_avoidance() -> None:
+    """Test that requesting identical ports for different services forces conflict resolution."""
+    profile = allocate_all_gateway_services(
+        dock_port=8000,
+        gateway_port=8000,  # Intentional collision with dock_port
+        ui_port=8000,       # Intentional collision with dock_port
+        telemetry_port=54321,
+        bind_host="127.0.0.1",
+    )
+    tcp_ports = [
+        profile.dock_api.allocated_port,
+        profile.gateway_zmq.allocated_port,
+        profile.ui_dashboard.allocated_port,
+    ]
+    # All allocated TCP ports must be unique
+    assert len(set(tcp_ports)) == 3
+    assert profile.gateway_zmq.is_conflict_resolved is True or profile.ui_dashboard.is_conflict_resolved is True
 
-        profile = parse_hpc_memory_limit(env={}, cgroup_root=root)
-        assert profile.cgroup_limit_bytes == 17179869184
-        assert profile.source == "CGROUP"
-        assert abs(profile.effective_usable_memory_mb - 16384.0) < 1.0
 
+def test_allocate_all_gateway_services_public_bind_policy() -> None:
+    """Test public 0.0.0.0 binding policy when allow_public_bind is True vs False."""
+    # When allow_public_bind is False, binding to 0.0.0.0 must degrade or default to 127.0.0.1
+    p_airgap = allocate_all_gateway_services(
+        bind_host="0.0.0.0",
+        allow_public_bind=False,
+    )
+    assert p_airgap.bind_host == "127.0.0.1"
+    assert p_airgap.bind_policy == BindPolicy.LOCALHOST_ONLY
 
-def test_parse_hpc_memory_limit_physical_ram_fallback() -> None:
-    """Test memory limit fallback to host physical RAM."""
-    profile = parse_hpc_memory_limit(env={})
-    assert profile.source == "PHYSICAL_RAM"
-    assert profile.physical_ram_bytes > 0
-    assert profile.effective_usable_memory_mb > 0.0
+    # When allow_public_bind is True, binding to 0.0.0.0 is permitted
+    p_public = allocate_all_gateway_services(
+        bind_host="0.0.0.0",
+        allow_public_bind=True,
+    )
+    assert p_public.bind_host == "0.0.0.0"
+    assert p_public.bind_policy == BindPolicy.ALL_INTERFACES
 
 
 # =============================================================================
-# 7. HIERARCHICAL SCRATCH DIRECTORY MAPPING TESTS
+# 6. ENVIRONMENT INJECTION & REGISTRY PATH RESOLUTION TESTS
 # =============================================================================
-
-
-def test_resolve_hpc_scratch_directory_override() -> None:
-    """Test explicit override parameter for scratch directory."""
-    with make_temp_dir() as tmpdir:
-        custom_scratch = Path(tmpdir) / "custom_scratch"
-        profile = resolve_hpc_scratch_directory(override=custom_scratch)
-        assert profile.scratch_directory == str(custom_scratch.resolve())
-        assert profile.source_variable == "OVERRIDE"
-        assert profile.is_accessible is True
-        assert profile.is_writable is True
-        assert profile.free_disk_space_gb > 0.0
-
-
-def test_resolve_hpc_scratch_directory_env_hierarchy() -> None:
-    """Test priority order across environment variables."""
-    with make_temp_dir() as tmpdir:
-        tmp_path = Path(tmpdir)
-        dir_cochem = tmp_path / "cochem_scratch"
-        dir_slurm = tmp_path / "slurm_scratch"
-        dir_tmpdir = tmp_path / "tmpdir_scratch"
-        dir_scratch = tmp_path / "scratch_base"
-        dir_temp = tmp_path / "temp_scratch"
-
-        # 1. COCHEM_SCRATCH_DIR priority over SLURM_TMPDIR
-        env1 = {
-            "COCHEM_SCRATCH_DIR": str(dir_cochem),
-            "SLURM_TMPDIR": str(dir_slurm),
-        }
-        prof1 = resolve_hpc_scratch_directory(env=env1)
-        assert prof1.source_variable == "COCHEM_SCRATCH_DIR"
-        assert prof1.scratch_directory == str(dir_cochem.resolve())
-
-        # 2. SLURM_TMPDIR priority over TMPDIR
-        env2 = {
-            "SLURM_TMPDIR": str(dir_slurm),
-            "TMPDIR": str(dir_tmpdir),
-        }
-        prof2 = resolve_hpc_scratch_directory(env=env2)
-        assert prof2.source_variable == "SLURM_TMPDIR"
-        assert prof2.scratch_directory == str(dir_slurm.resolve())
-
-        # 3. TMPDIR priority over SCRATCH
-        env3 = {
-            "TMPDIR": str(dir_tmpdir),
-            "SCRATCH": str(dir_scratch),
-        }
-        prof3 = resolve_hpc_scratch_directory(env=env3)
-        assert prof3.source_variable == "TMPDIR"
-        assert prof3.scratch_directory == str(dir_tmpdir.resolve())
-
-        # 4. SCRATCH creates CoChem_Scratch subfolder
-        env4 = {
-            "SCRATCH": str(dir_scratch),
-        }
-        prof4 = resolve_hpc_scratch_directory(env=env4)
-        assert prof4.source_variable == "SCRATCH"
-        assert prof4.scratch_directory == str((dir_scratch / "CoChem_Scratch").resolve())
-
-
-def test_resolve_hpc_scratch_directory_fallback() -> None:
-    """Test default fallback scratch directory resolution."""
-    prof = resolve_hpc_scratch_directory(env={})
-    assert prof.source_variable in ("FALLBACK", "TEMP", "TMP")
-    assert Path(prof.scratch_directory).exists()
-    assert prof.is_accessible is True
-
-
-# =============================================================================
-# 8. THREAD AFFINITY & PROCESS CORE BINDINGS TESTS
-# =============================================================================
-
-
-def test_compute_thread_affinity_profile_multithreaded_task() -> None:
-    """Test thread affinity calculation when cpus_per_task > 1."""
-    topology = HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SLURM,
-        job_id="123",
-        num_nodes=1,
-        node_list=["node01"],
-        tasks_per_node=[2],
-        total_tasks=2,
-        cpus_per_task=8,
-        cpus_on_node=16,
-        is_heterogeneous=False,
-    )
-    affinity = compute_thread_affinity_profile(topology, places_policy="cores", proc_bind="close")
-    assert affinity.omp_num_threads == 8
-    assert affinity.mkl_num_threads == 8
-    assert affinity.openblas_num_threads == 8
-    assert affinity.blis_num_threads == 8
-    assert affinity.omp_places == "cores"
-    assert affinity.omp_proc_bind == "close"
-    assert affinity.kmp_affinity == "granularity=fine,compact,1,0"
-    assert affinity.kmp_blocktime == 0
-    assert affinity.environment_variables["OMP_NUM_THREADS"] == "8"
-    assert affinity.environment_variables["MKL_NUM_THREADS"] == "8"
-
-
-def test_compute_thread_affinity_profile_spread_policy() -> None:
-    """Test thread affinity calculation with spread/scatter binding policy."""
-    topology = HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SLURM,
-        job_id="123",
-        num_nodes=1,
-        node_list=["node01"],
-        tasks_per_node=[1],
-        total_tasks=1,
-        cpus_per_task=16,
-        cpus_on_node=16,
-        is_heterogeneous=False,
-    )
-    affinity = compute_thread_affinity_profile(
-        topology, places_policy="threads", proc_bind="spread"
-    )
-    assert affinity.omp_places == "threads"
-    assert affinity.omp_proc_bind == "spread"
-    assert affinity.kmp_affinity == "granularity=fine,scatter"
 
 
 def test_generate_environment_injection_dict() -> None:
-    """Test generation of complete environment variable injection dictionary."""
-    topology = HPCTopologyProfile(
-        scheduler=HPCSchedulerType.SLURM,
-        job_id="998877",
-        num_nodes=2,
-        node_list=["node01", "node02"],
-        tasks_per_node=[8, 8],
-        total_tasks=16,
-        cpus_per_task=2,
-        cpus_on_node=16,
-        is_heterogeneous=False,
+    """Test generation of environment injection mapping dictionary."""
+    profile = allocate_all_gateway_services(
+        dock_port=8000,
+        gateway_port=5555,
+        ui_port=8888,
+        telemetry_port=54321,
+        bind_host="127.0.0.1",
     )
-    memory = HPCMemoryProfile(
-        mem_per_node_mb=64000.0,
-        physical_ram_bytes=68719476736,
-        effective_usable_memory_mb=64000.0,
-        source="SLURM_MEM_PER_NODE",
-    )
-    scratch = HPCScratchProfile(
-        scratch_directory="/tmp/slurm_scratch",
-        is_accessible=True,
-        is_writable=True,
-        free_disk_space_gb=100.0,
-        source_variable="SLURM_TMPDIR",
-    )
-    affinity = compute_thread_affinity_profile(topology)
+    injected = generate_environment_injection_dict(profile)
+    assert "COCHEM_DOCK_PORT" in injected
+    assert "COCHEM_GATEWAY_PORT" in injected
+    assert "COCHEM_ZMQ_PORT" in injected
+    assert "COCHEM_UI_PORT" in injected
+    assert "COCHEM_TELEMETRY_PORT" in injected
+    assert "COCHEM_BIND_HOST" in injected
+    assert "COCHEM_DOCK_URL" in injected
+    assert "COCHEM_GATEWAY_URL" in injected
+    assert "COCHEM_UI_URL" in injected
+    assert injected["COCHEM_BIND_HOST"] == "127.0.0.1"
 
-    injected = generate_environment_injection_dict(topology, memory, scratch, affinity)
 
-    assert injected["OMP_NUM_THREADS"] == "2"
-    assert injected["MKL_NUM_THREADS"] == "2"
-    assert injected["COCHEM_SCRATCH_DIR"] == "/tmp/slurm_scratch"
-    assert injected["COCHEM_HPC_SCHEDULER"] == "SLURM"
-    assert injected["COCHEM_NUM_NODES"] == "2"
-    assert injected["COCHEM_TOTAL_TASKS"] == "16"
-    assert injected["COCHEM_CPUS_PER_TASK"] == "2"
-    assert injected["COCHEM_CPUS_ON_NODE"] == "16"
-    assert injected["COCHEM_MEMORY_PER_NODE_MB"] == "64000.0"
-    assert injected["COCHEM_JOB_ID"] == "998877"
-    assert injected["SLURM_TMPDIR"] == "/tmp/slurm_scratch"
+def test_resolve_p8_registry_path_override() -> None:
+    """Test resolving p8.json path with override parameter."""
+    with make_temp_dir() as tmpdir:
+        target = Path(tmpdir) / "custom_p8.json"
+        resolved = resolve_p8_registry_path(output_dir=target)
+        assert resolved == target.resolve()
+
+        target_dir = Path(tmpdir) / "registry_sub"
+        resolved_dir = resolve_p8_registry_path(output_dir=target_dir)
+        assert resolved_dir == (target_dir / "p8.json").resolve()
+
+
+def test_resolve_p8_registry_path_env_hierarchy() -> None:
+    """Test resolving p8.json via environment variables."""
+    with make_temp_dir() as tmpdir:
+        env_reg = Path(tmpdir) / "reg_env"
+        env1 = {"COCHEM_REGISTRY_DIR": str(env_reg)}
+        resolved1 = resolve_p8_registry_path(env=env1)
+        assert resolved1 == (env_reg / "p8.json").resolve()
+
+        env_art = Path(tmpdir) / "art_env"
+        env2 = {"COCHEM_ARTIFACT_DIR": str(env_art)}
+        resolved2 = resolve_p8_registry_path(env=env2)
+        assert resolved2 == (env_art / "Registry" / "p8.json").resolve()
 
 
 # =============================================================================
-# 9. REGISTRY PATH & TRANSACTIONAL DEPENDENCY MANAGER TESTS
+# 7. DEPENDENCY MANAGER & TRANSACTIONAL ATOMIC WRITE TESTS
 # =============================================================================
 
 
-def test_resolve_p7_registry_path() -> None:
-    """Test Phase 7 Golden Registry path resolution."""
+def test_dependency_manager_atomic_write_and_commit() -> None:
+    """Test DependencyManager atomic writing and permissions hardening."""
     with make_temp_dir() as tmpdir:
-        tmp_path = Path(tmpdir)
+        target_file = Path(tmpdir) / "Registry" / "p8.json"
+        payload = {"phase": "phase_8", "status": "PASSED"}
 
-        # 1. Custom directory argument
-        p1 = resolve_p7_registry_path(tmp_path)
-        assert p1 == (tmp_path / "p7.json").resolve()
+        with DependencyManager(target_file) as dm:
+            dm.write_payload(payload)
 
-        # Direct file argument
-        p2 = resolve_p7_registry_path(tmp_path / "p7.json")
-        assert p2 == (tmp_path / "p7.json").resolve()
-
-
-def test_dependency_manager_atomic_commit() -> None:
-    """Test transactional commit of p7.json payload via DependencyManager."""
-    with make_temp_dir() as tmpdir:
-        target = Path(tmpdir) / "Registry" / "p7.json"
-
-        with DependencyManager(target) as dm:
-            dm.write_payload({"phase_id": "cochem_setup_phase_7", "status": "PASSED"})
-
-        assert target.exists()
-        content = json.loads(target.read_text(encoding="utf-8"))
-        assert content["phase_id"] == "cochem_setup_phase_7"
-        assert content["status"] == "PASSED"
+        assert target_file.exists()
+        loaded = json.loads(target_file.read_text(encoding="utf-8"))
+        assert loaded["phase"] == "phase_8"
+        assert loaded["status"] == "PASSED"
 
 
 def test_dependency_manager_rollback_on_exception() -> None:
-    """Test that DependencyManager cleans up temporary files when an exception occurs."""
+    """Test DependencyManager safely cleans up temp files if an exception is raised."""
     with make_temp_dir() as tmpdir:
-        target = Path(tmpdir) / "Registry" / "p7.json"
+        target_file = Path(tmpdir) / "Registry" / "p8.json"
 
-        with pytest.raises(RuntimeError):
-            with DependencyManager(target) as dm:
-                dm.write_payload({"status": "CORRUPTED"})
-                raise RuntimeError("Simulated calculation crash")
+        with pytest.raises(ZeroDivisionError):
+            with DependencyManager(target_file) as dm:
+                dm.write_payload({"data": "incomplete"})
+                _ = 1 / 0
 
-        # Destination must not exist
-        assert not target.exists()
-        # No orphan temp files left
-        assert len(list(target.parent.glob("*.tmp_*"))) == 0
+        # Target file must not exist and no temporary files left behind
+        assert not target_file.exists()
+        remaining_files = list(Path(tmpdir).glob("**/*"))
+        assert all(f.is_dir() for f in remaining_files)
 
 
 # =============================================================================
-# 10. MASTER PHASE 7 AUDIT END-TO-END TESTS
+# 8. MASTER AUDIT ORCHESTRATOR & CLI TESTS
 # =============================================================================
 
 
-def test_run_phase_7_audit_slurm_end_to_end() -> None:
-    """Test full Phase 7 audit execution in a Slurm cluster environment."""
+def test_run_phase_8_audit_passed() -> None:
+    """Test run_phase_8_audit end-to-end execution resulting in PASSED status."""
     with make_temp_dir() as tmpdir:
-        out_dir = Path(tmpdir) / "Registry"
-        scratch_dir = Path(tmpdir) / "Scratch"
-
-        env = {
-            "SLURM_JOB_ID": "556677",
-            "SLURM_NODELIST": "gpu_node[01-02]",
-            "SLURM_NNODES": "2",
-            "SLURM_TASKS_PER_NODE": "4(x2)",
-            "SLURM_CPUS_PER_TASK": "4",
-            "SLURM_CPUS_ON_NODE": "16",
-            "SLURM_MEM_PER_NODE": "128G",
-            "SLURM_TMPDIR": str(scratch_dir),
-        }
-
-        report = run_phase_7_audit(
-            output_dir=out_dir,
-            scratch_dir=scratch_dir,
-            env=env,
-            places_policy="cores",
-            proc_bind="close",
-            dry_run=False,
+        art_dir = Path(tmpdir) / "Registry"
+        report = run_phase_8_audit(
+            output_dir=art_dir,
+            bind_host="127.0.0.1",
         )
-
         assert report.status == PhaseStatus.PASSED
-        assert report.scheduler_detected == HPCSchedulerType.SLURM
-        assert report.topology.job_id == "556677"
-        assert report.topology.num_nodes == 2
-        assert report.topology.node_list == ["gpu_node01", "gpu_node02"]
-        assert report.topology.total_tasks == 8
-        assert report.topology.cpus_per_task == 4
-        assert report.affinity.omp_num_threads == 4
-        assert report.memory.mem_per_node_mb == 131072.0
-        assert report.scratch.scratch_directory == str(scratch_dir.resolve())
-        assert report.scratch.is_writable is True
-        assert len(report.errors) == 0
-
-        # Verify registry artifact persistence
-        registry_file = out_dir / "p7.json"
-        assert registry_file.exists()
-        saved = json.loads(registry_file.read_text(encoding="utf-8"))
-        assert saved["scheduler_detected"] == "SLURM"
-        assert saved["topology"]["total_tasks"] == 8
+        assert report.phase_id == "cochem_setup_phase_8"
+        assert Path(report.artifact_path).exists()
+        assert report.gateway_profile.total_services_bound == 4
+        assert len(report.injected_env_vars) >= 6
 
 
-def test_run_phase_7_audit_pbs_end_to_end() -> None:
-    """Test full Phase 7 audit execution in a PBS environment."""
+def test_run_phase_8_audit_dry_run() -> None:
+    """Test run_phase_8_audit with dry_run=True does not create artifacts on disk."""
     with make_temp_dir() as tmpdir:
-        out_dir = Path(tmpdir) / "Registry"
-        nodefile = Path(tmpdir) / "pbs_nodes"
-        nodefile.write_text("pbs_n1\npbs_n1\npbs_n2\npbs_n2\n", encoding="utf-8")
-
-        env = {
-            "PBS_JOBID": "1234.pbs_server",
-            "PBS_NODEFILE": str(nodefile),
-            "TMPDIR": str(Path(tmpdir) / "pbs_scratch"),
-        }
-
-        report = run_phase_7_audit(
-            output_dir=out_dir,
-            env=env,
-            dry_run=False,
-        )
-
-        assert report.status == PhaseStatus.PASSED
-        assert report.scheduler_detected == HPCSchedulerType.PBS
-        assert report.topology.num_nodes == 2
-        assert report.topology.total_tasks == 4
-
-
-def test_run_phase_7_audit_standalone_end_to_end() -> None:
-    """Test full Phase 7 audit execution in local standalone workstation mode."""
-    with make_temp_dir() as tmpdir:
-        out_dir = Path(tmpdir) / "Registry"
-
-        report = run_phase_7_audit(
-            output_dir=out_dir,
-            env={},
-            dry_run=False,
-        )
-
-        assert report.status == PhaseStatus.PASSED
-        assert report.scheduler_detected == HPCSchedulerType.LOCAL_STANDALONE
-        assert report.topology.num_nodes == 1
-        assert report.topology.total_tasks == 1
-        assert (out_dir / "p7.json").exists()
-
-
-def test_run_phase_7_audit_dry_run() -> None:
-    """Test dry-run mode does not create physical registry file."""
-    with make_temp_dir() as tmpdir:
-        out_dir = Path(tmpdir) / "Registry"
-        report = run_phase_7_audit(
-            output_dir=out_dir,
-            env={},
+        art_dir = Path(tmpdir) / "Registry"
+        report = run_phase_8_audit(
+            output_dir=art_dir,
+            bind_host="127.0.0.1",
             dry_run=True,
         )
         assert report.status == PhaseStatus.PASSED
-        assert not (out_dir / "p7.json").exists()
+        # In dry run, the file should not be physically written
+        assert not Path(report.artifact_path).exists()
 
 
-# =============================================================================
-# 11. CLI ENTRYPOINT TESTS
-# =============================================================================
+def test_run_phase_8_audit_custom_parameters() -> None:
+    """Test run_phase_8_audit with custom port overrides."""
+    with make_temp_dir() as tmpdir:
+        art_dir = Path(tmpdir) / "Registry"
+        report = run_phase_8_audit(
+            output_dir=art_dir,
+            dock_port=8040,
+            gateway_port=5590,
+            ui_port=8900,
+            telemetry_port=54340,
+            bind_host="127.0.0.1",
+        )
+        assert report.status == PhaseStatus.PASSED
+        assert report.gateway_profile.dock_api.allocated_port == 8040
+        assert report.gateway_profile.gateway_zmq.allocated_port == 5590
+        assert report.gateway_profile.ui_dashboard.allocated_port == 8900
+        assert report.gateway_profile.telemetry_stream.allocated_port == 54340
 
 
-def test_main_cli_success() -> None:
-    """Test main CLI entrypoint with standard dry-run argument."""
+def test_cli_main_success_and_help(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test main CLI entrypoint with argument passing and stdout."""
     with make_temp_dir() as tmpdir:
         out_dir = str(Path(tmpdir) / "Registry")
-        ret = main(["--output-dir", out_dir, "--dry-run"])
+        ret = main(["--output-dir", out_dir, "--bind-host", "127.0.0.1"])
         assert ret == 0
 
+        captured = capsys.readouterr()
+        assert "PASSED" in captured.out or "Phase 8" in captured.out
 
-def test_main_cli_json_output(capsys: pytest.CaptureFixture[str]) -> None:
+
+def test_probe_port_availability_invalid_port_range() -> None:
+    """Test probe_port_availability rejects invalid port numbers <= 0 or > 65535."""
+    assert probe_port_availability(0) is False
+    assert probe_port_availability(-1) is False
+    assert probe_port_availability(65536) is False
+    assert probe_port_availability(70000) is False
+
+
+def test_allocate_port_inverted_range_and_preferred_out_of_range() -> None:
+    """Test port allocation with inverted range and preferred_port outside the candidate range."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        free_port = s.getsockname()[1]
+
+    # Inverted range: start > end
+    allocated, _ = allocate_port(
+        preferred_port=free_port,
+        port_range=(free_port + 5, free_port),
+        host="127.0.0.1",
+        protocol=ProtocolType.TCP,
+    )
+    assert allocated == free_port
+
+    # preferred_port outside range: candidate list built from range
+    allocated2, resolved2 = allocate_port(
+        preferred_port=100,  # outside range
+        port_range=(free_port, free_port + 5),
+        host="127.0.0.1",
+        protocol=ProtocolType.TCP,
+        excluded_ports={100},
+    )
+    assert free_port <= allocated2 <= free_port + 5
+    assert resolved2 is True
+
+
+def test_resolve_bind_policy_custom_ip_and_public_bind() -> None:
+    """Test resolve_bind_policy with custom IP addresses and public interfaces."""
+    # When allow_public_bind is True and host is custom IP
+    host, policy = resolve_bind_policy("192.168.1.100", allow_public_bind=True)
+    assert host == "192.168.1.100"
+    assert policy == BindPolicy.CUSTOM_IP
+
+    # When allow_public_bind is False and host is custom IP
+    host_airgap, policy_airgap = resolve_bind_policy("192.168.1.100", allow_public_bind=False)
+    assert host_airgap == "127.0.0.1"
+    assert policy_airgap == BindPolicy.LOCALHOST_ONLY
+
+    # When allow_public_bind is True and host is 0.0.0.0 or ::
+    host_all, policy_all = resolve_bind_policy("::", allow_public_bind=True)
+    assert host_all == "::"
+    assert policy_all == BindPolicy.ALL_INTERFACES
+
+
+def test_construct_service_url_edge_cases() -> None:
+    """Test construct_service_url for different protocol and service type combinations."""
+    url_dock = construct_service_url(ProtocolType.TCP, GatewayServiceType.DOCK_REST_API, "127.0.0.1", 8000)
+    assert url_dock == "http://127.0.0.1:8000"
+
+    url_zmq = construct_service_url(ProtocolType.TCP, GatewayServiceType.GATEWAY_IPC_ZMQ, "127.0.0.1", 5555)
+    assert url_zmq == "tcp://127.0.0.1:5555"
+
+    url_ui = construct_service_url(ProtocolType.TCP, GatewayServiceType.UI_DASHBOARD, "127.0.0.1", 8888)
+    assert url_ui == "http://127.0.0.1:8888"
+
+    url_telem_udp = construct_service_url(ProtocolType.UDP, GatewayServiceType.TELEMETRY_STREAM, "127.0.0.1", 54321)
+    assert url_telem_udp == "udp://127.0.0.1:54321"
+
+    url_telem_tcp = construct_service_url(ProtocolType.TCP, GatewayServiceType.TELEMETRY_STREAM, "127.0.0.1", 54321)
+    assert url_telem_tcp == "tcp://127.0.0.1:54321"
+
+
+def test_allocate_all_gateway_services_corrupted_env_ports() -> None:
+    """Test allocate_all_gateway_services handles invalid non-integer environment variables gracefully."""
+    bad_env = {
+        "COCHEM_DOCK_PORT": "invalid_port",
+        "COCHEM_GATEWAY_PORT": "not_an_int",
+        "COCHEM_ZMQ_PORT": "bad_zmq",
+        "COCHEM_UI_PORT": "none",
+        "COCHEM_TELEMETRY_PORT": "err",
+        "COCHEM_BIND_HOST": "127.0.0.1",
+    }
+    profile = allocate_all_gateway_services(env=bad_env)
+    assert profile.all_services_allocated is True
+    assert profile.dock_api.requested_port == 8000
+    assert profile.gateway_zmq.requested_port == 5555
+    assert profile.ui_dashboard.requested_port == 8888
+    assert profile.telemetry_stream.requested_port == 54321
+
+
+def test_resolve_p8_registry_path_default_home_fallback() -> None:
+    """Test resolve_p8_registry_path falls back to user home directory when no env vars or args provided."""
+    resolved = resolve_p8_registry_path(output_dir=None, env={})
+    expected = (Path.home() / "CoChem_Artifacts" / "Registry" / "p8.json").resolve()
+    assert resolved == expected
+
+
+def test_run_phase_8_audit_conflict_warnings() -> None:
+    """Test run_phase_8_audit records diagnostic warnings when port conflicts are resolved across all services."""
+    # Occupy ports for dock and telemetry
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s_dock, \
+         socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s_telem:
+        s_dock.bind(("127.0.0.1", 0))
+        s_telem.bind(("127.0.0.1", 0))
+        occ_dock = s_dock.getsockname()[1]
+        occ_telem = s_telem.getsockname()[1]
+
+        with make_temp_dir() as tmpdir:
+            art_dir = Path(tmpdir) / "Registry"
+            report = run_phase_8_audit(
+                output_dir=art_dir,
+                dock_port=occ_dock,
+                gateway_port=occ_dock,  # collision
+                ui_port=occ_dock,       # collision
+                telemetry_port=occ_telem,
+                bind_host="127.0.0.1",
+            )
+            assert report.status == PhaseStatus.PASSED
+            assert len(report.warnings) >= 3
+
+
+def test_cli_main_exception_failure(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test main CLI entrypoint returns exit code 1 on fatal error."""
+    # Passing an invalid host or argument that raises an exception or causes failure
+    ret = main(["--output-dir", "NUL" if platform.system() == "Windows" else "/dev/null/bad", "--dock-port", "0", "--port-range", "0"]) if hasattr(main, "port_range") else main(["--bind-host", "127.0.0.1", "--dock-port", "-1"])
+    assert ret == 1
+
+
+
+def test_run_phase_8_audit_allocation_failure_branch() -> None:
+    """Test run_phase_8_audit handles allocation failure, records errors, and returns FAILED status."""
+    with make_temp_dir() as tmpdir:
+        art_dir = Path(tmpdir) / "Registry"
+        # Specify an impossible port range (e.g. 0 to 0) which will fail port probing
+        report = run_phase_8_audit(
+            output_dir=art_dir,
+            dock_port=0,
+            port_range=(0, 0),
+            bind_host="127.0.0.1",
+        )
+        assert report.status == PhaseStatus.FAILED
+        assert len(report.errors) > 0
+        assert report.gateway_profile.all_services_allocated is False
+        assert report.gateway_profile.total_services_bound == 0
+        # When failed, artifact should not be created
+        assert not (art_dir / "p8.json").exists()
+
+
+def test_cli_main_json_output(capsys: pytest.CaptureFixture[str]) -> None:
     """Test main CLI entrypoint with --json flag."""
     with make_temp_dir() as tmpdir:
         out_dir = str(Path(tmpdir) / "Registry")
-        ret = main(["--output-dir", out_dir, "--dry-run", "--json"])
+        ret = main(["--output-dir", out_dir, "--bind-host", "127.0.0.1", "--json"])
         assert ret == 0
+
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert data["phase_id"] == "cochem_setup_phase_7"
-        assert "topology" in data
-        assert "memory" in data
-        assert "affinity" in data
+        assert data["phase_id"] == "cochem_setup_phase_8"
+        assert data["status"] == "PASSED"
+        assert "gateway_profile" in data
+
+
+def test_cli_main_port_and_public_bind_flags(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test main CLI entrypoint with custom port and public binding flags."""
+    with make_temp_dir() as tmpdir:
+        out_dir = str(Path(tmpdir) / "Registry")
+        ret = main([
+            "--output-dir", out_dir,
+            "--bind-host", "0.0.0.0",
+            "--dock-port", "8015",
+            "--gateway-port", "5565",
+            "--ui-port", "8895",
+            "--telemetry-port", "54335",
+            "--allow-public-bind",
+            "--dry-run",
+        ])
+        assert ret == 0
+
+        captured = capsys.readouterr()
+        assert "0.0.0.0" in captured.out
+        assert "ALL_INTERFACES" in captured.out
+
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

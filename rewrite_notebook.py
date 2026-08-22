@@ -1,293 +1,421 @@
 #!/usr/bin/env python3
 """
-CoChem-BASE: Notebook Generator and Updater.
-Updates Start_Here.ipynb with dynamic configuration and safe environment pathing.
+CoChem-BASE: Interactive Notebook Generator and Updater.
+Generates Start_Here.ipynb conforming strictly to Doc3_01 specification.
 """
 
+from __future__ import annotations
+
 import json
-import logging
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+NOTEBOOK_PATH = BASE_DIR / "Start_Here.ipynb"
 
-base_dir = Path(__file__).resolve().parent
-notebook_path = base_dir / "Start_Here.ipynb"
 
-if notebook_path.exists():
-    with open(notebook_path, 'r', encoding='utf-8') as f:
-        nb = json.loads(f.read())
-
-    markdown_cell_2_source = [
-        "## 💾 Silo Setup & Artifact Registry Configuration\n",
-        "\n",
-        "**Purpose:**\n",
-        "To establish a dedicated, reproducible computational environment (Silo) and configure a persistent local directory for storing generated chemistry artifacts.\n",
-        "\n",
-        "**Instructions:**\n",
-        "- Run the code cell below by clicking it and pressing `Shift + Enter`.\n",
-        "- Select **New Install** to configure a fresh Silo, or **Keep previous setup** to validate an existing one.\n",
-        "- Enter an artifact directory, or leave the default `CoChem_Artifacts` directory in your user home.\n",
-        "- Optionally map a Conda, Mamba, or Micromamba executable. A command already available on `PATH` also works.\n",
-        "- Click **Create & Provision** to build the Silo.\n",
-        "- If the build succeeds, select the new `cochem_base_silo` kernel using the kernel selector.\n",
-        "\n",
-        "**Didactic Breakdown:**\n",
-        "In computational chemistry and chemoinformatics, exact software environments are critical. Slight dependency differences can produce irreproducible energies, broken trajectory visualization, or incompatible quantum-mechanical properties.\n",
-        "\n",
-        "This setup resolves repository, artifact, and environment-manager paths dynamically. The isolated `cochem_base_silo` therefore remains reproducible when the checkout is moved between Windows, macOS, Linux, Codespaces, and mapped storage locations.\n",
+def build_start_here_notebook() -> dict:
+    """Constructs the canonical nbformat 4 dictionary for Start_Here.ipynb."""
+    cells = [
+        {
+            "cell_type": "markdown",
+            "id": "cochem-stage0-header",
+            "metadata": {"id": "cochem-stage0-header"},
+            "source": [
+                "# CoChem-BASE: Stage 0.0 Master Setup Orchestrator\n",
+                "\n",
+                "Welcome to the **Stage 0.0 Entry Point** for the CoChem-BASE ecosystem. This notebook acts as the top-level orchestrator starting point, guiding the environment provisioning, hardware profiling, dependency locking, and quantum chemistry engine verification sequence.\n",
+                "\n",
+                "### Architectural Foundation: Tripartite Workspace Air-Gap\n",
+                "CoChem-BASE enforces strict separation between execution tiers:\n",
+                "1. **Static Execution Tier:** Immutable Git repository containing source code, schemas, and UI logic (zero runtime modifications permitted).\n",
+                "2. **Persistent Data Tier:** Git-ignored, persistent storage under `$SCRATCH` / `$COCHEM_DATA_ROOT` managing SWMR HDF5 databases, provenance records, and geometry archives.\n",
+                "3. **Ephemeral Compute Tier:** Node-local sterile quarantine sandboxes (`/tmp/cochem_exec_<uuid>/`) for volatile scratch files, PySCF checkpoints, and ORCA wavefunctions.\n",
+                "\n",
+                "### Sequential Phase Execution\n",
+                "Rather than executing a monolithic setup script that risks memory fragmentation or hidden failures, Stage 0 setup is partitioned into discrete, stateless Python phases. Executing each phase in a dedicated cell ensures clear visibility into system validation and provides immediate crash isolation."
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-01-md",
+            "metadata": {"id": "cochem-phase-01-md"},
+            "source": [
+                "## Phase 1: Cross-Platform OS, Hypervisor & Resource Limits Audit\n",
+                "\n",
+                "Performs host OS detection (Windows WSL, macOS OrbStack, Linux Debian/RHEL), hypervisor validation, CPU core topology mapping, and system resource limits auditing.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_1.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-01-code",
+            "metadata": {"id": "cochem-phase-01-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_1.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-02-md",
+            "metadata": {"id": "cochem-phase-02-md"},
+            "source": [
+                "## Phase 2: Hardware, Numerical Precision & VRAM Profiling\n",
+                "\n",
+                "Profiles CPU SIMD instruction sets (AVX2/AVX512), GPU acceleration backends (CUDA/ROCm/MPS), floating-point precision throughput, and available VRAM memory budgets.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_2.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-02-code",
+            "metadata": {"id": "cochem-phase-02-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_2.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-03-md",
+            "metadata": {"id": "cochem-phase-03-md"},
+            "source": [
+                "## Phase 3: Multi-Track Quantum Engine Discovery & Integrity Hashing\n",
+                "\n",
+                "Discovers available quantum chemistry engines (PySCF, ORCA, NWChem, ASE), computes cryptographic SHA-256 integrity hashes of executables, and validates toolchain paths.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_3.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-03-code",
+            "metadata": {"id": "cochem-phase-03-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_3.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-04-md",
+            "metadata": {"id": "cochem-phase-04-md"},
+            "source": [
+                "## Phase 4: Micro-Silo Provisioning & Dependency Isolation\n",
+                "\n",
+                "Constructs and verifies isolated micro-silo virtual environments, resolves package dependencies, and locks package versions against corruption.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_4.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-04-code",
+            "metadata": {"id": "cochem-phase-04-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_4.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-05-md",
+            "metadata": {"id": "cochem-phase-05-md"},
+            "source": [
+                "## Phase 5: NVIDIA MPS Daemon Initialization & VRAM Budgeting\n",
+                "\n",
+                "Initializes NVIDIA Multi-Process Service (MPS) control daemons on supported multi-GPU hosts, configures compute thread percentages, and provisions active memory budgets.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_5.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-05-code",
+            "metadata": {"id": "cochem-phase-05-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_5.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-06-md",
+            "metadata": {"id": "cochem-phase-06-md"},
+            "source": [
+                "## Phase 6: Database & Bifurcated Storage Backend Provisioning\n",
+                "\n",
+                "Provisions relational metadata stores (SQLite) and high-performance numerical datastores (SWMR HDF5) adhering to the Persistent Data Tier schema.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_6.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-06-code",
+            "metadata": {"id": "cochem-phase-06-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_6.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-07-md",
+            "metadata": {"id": "cochem-phase-07-md"},
+            "source": [
+                "## Phase 7: HPC Slurm/PBS Environment Variable Injection\n",
+                "\n",
+                "Audits High-Performance Computing (HPC) cluster schedulers (Slurm, PBS Pro, LSF) and injects dynamic node allocations, task counts, and partition configurations.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_7.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-07-code",
+            "metadata": {"id": "cochem-phase-07-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_7.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-08-md",
+            "metadata": {"id": "cochem-phase-08-md"},
+            "source": [
+                "## Phase 8: Network Port Allocation & Dynamic Gateway Binding\n",
+                "\n",
+                "Allocates non-conflicting loopback TCP ports and establishes secure local API telemetry gateway bindings for inter-process communication.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_8.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-08-code",
+            "metadata": {"id": "cochem-phase-08-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_8.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-09-md",
+            "metadata": {"id": "cochem-phase-09-md"},
+            "source": [
+                "## Phase 9: Heterogeneous Parsl Concurrency Executor Mapping\n",
+                "\n",
+                "Configures heterogeneous parallel compute executors using Parsl, mapping tasks across local multithreading cores and remote cluster compute pools.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_9.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-09-code",
+            "metadata": {"id": "cochem-phase-09-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_9.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-10-md",
+            "metadata": {"id": "cochem-phase-10-md"},
+            "source": [
+                "## Phase 10: State-Chain Recovery & Quarantined Sandbox Verification\n",
+                "\n",
+                "Validates cryptographic state-chain continuity, verifies ephemeral sandbox creation and automated cleanup routines, and audits quarantine containment.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_10.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-10-code",
+            "metadata": {"id": "cochem-phase-10-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_10.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-11-md",
+            "metadata": {"id": "cochem-phase-11-md"},
+            "source": [
+                "## Phase 11: Final Golden Registry Lock & UI Handover\n",
+                "\n",
+                "Commits all validated hardware architectures, compute engine bindings, and runtime configurations to the immutable Golden Registry, emitting the SETUP_COMPLETE signal.\n",
+                "\n",
+                "- Script: `orchestrator/cochem_setup_phase_11.py`"
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-11-code",
+            "metadata": {"id": "cochem-phase-11-code"},
+            "outputs": [],
+            "source": [
+                "%run orchestrator/cochem_setup_phase_11.py"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-phase-12-dashboard-md",
+            "metadata": {"id": "cochem-phase-12-dashboard-md"},
+            "source": [
+                "## Final Initialization: Dynamic Import & Dashboard Rendering\n",
+                "\n",
+                "Securely ingests the `cochem_unity_installer_dashboard.py` interface logic directly from the Static Execution Tier using Python's `importlib.util` module loader. This isolates UI execution state without globally mutating or polluting `sys.path`. If host resource limits or missing OS dependencies are encountered, execution halts gracefully with actionable `CoChemError` remediation commands."
+            ]
+        },
+        {
+            "cell_type": "code",
+            "execution_count": None,
+            "id": "cochem-phase-12-dashboard-code",
+            "metadata": {"id": "cochem-phase-12-dashboard-code"},
+            "outputs": [],
+            "source": [
+                "import importlib.util\n",
+                "from pathlib import Path\n",
+                "import sys\n",
+                "from cochem_base.exceptions import CoChemError, ProvenanceErrorCode\n",
+                "\n",
+                "try:\n",
+                "    # 1. Inspect OS and memory prerequisites\n",
+                "    import psutil\n",
+                "    memory_info = psutil.virtual_memory()\n",
+                "    if memory_info.total < 1024 * 1024 * 1024:\n",
+                "        raise CoChemError(\n",
+                "            message=\"Host memory insufficient (< 1 GB RAM available).\",\n",
+                "            error_code=ProvenanceErrorCode.OUT_OF_MEMORY,\n",
+                "            details={\"remediation\": \"Allocate additional host memory or configure system swap space before initializing UI.\"}\n",
+                "        )\n",
+                "\n",
+                "    # 2. Resolve dashboard path within Static Execution Tier\n",
+                "    target_dashboard_path = Path(\"interfaces/cochem_unity_installer_dashboard.py\").resolve()\n",
+                "    if not target_dashboard_path.exists():\n",
+                "        target_dashboard_path = Path(\"cochem_base/interfaces/cochem_unity_installer_dashboard.py\").resolve()\n",
+                "\n",
+                "    if not target_dashboard_path.exists():\n",
+                "        raise CoChemError(\n",
+                "            message=f\"Static Execution Tier integrity check failed: missing {target_dashboard_path}\",\n",
+                "            error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,\n",
+                "            details={\"remediation\": \"Re-synchronize repository files: 'git checkout -- interfaces/'\"}\n",
+                "        )\n",
+                "\n",
+                "    # 3. Dynamic import via importlib.util without polluting sys.path\n",
+                "    module_name = \"cochem_unity_installer_dashboard\"\n",
+                "    module_spec = importlib.util.spec_from_file_location(module_name, target_dashboard_path)\n",
+                "    if module_spec is None or module_spec.loader is None:\n",
+                "        raise CoChemError(\n",
+                "            message=f\"Failed to create module specification for {target_dashboard_path}\",\n",
+                "            error_code=ProvenanceErrorCode.CONFIG_VALIDATION_FAILED,\n",
+                "            details={\"remediation\": \"Verify file permissions and Python environment integrity.\"}\n",
+                "        )\n",
+                "\n",
+                "    dashboard_module = importlib.util.module_from_spec(module_spec)\n",
+                "    sys.modules[module_name] = dashboard_module\n",
+                "    module_spec.loader.exec_module(dashboard_module)\n",
+                "\n",
+                "    # 4. Render installer dashboard\n",
+                "    if hasattr(dashboard_module, \"main\"):\n",
+                "        dashboard_module.main()\n",
+                "    else:\n",
+                "        raise CoChemError(\n",
+                "            message=\"Installer dashboard entry point 'main' not found in loaded module.\",\n",
+                "            error_code=ProvenanceErrorCode.CONFIG_VALIDATION_FAILED,\n",
+                "            details={\"remediation\": \"Verify interface file integrity.\"}\n",
+                "        )\n",
+                "\n",
+                "except CoChemError as cochem_error:\n",
+                "    print(f\"\\n[COCHEM OS PRE-FLIGHT ERROR] {cochem_error.message}\")\n",
+                "    if \"remediation\" in cochem_error.details:\n",
+                "        print(f\"[REMEDIATION COMMAND] {cochem_error.details['remediation']}\")\n",
+                "    raise\n",
+                "except Exception as runtime_error:\n",
+                "    cochem_err = CoChemError(\n",
+                "        message=f\"Unexpected failure during dynamic dashboard initialization: {runtime_error}\",\n",
+                "        error_code=ProvenanceErrorCode.HARDWARE_DETECTION_FAILED,\n",
+                "        details={\"remediation\": \"Verify Python dependencies via 'python -m pip check' and check system limits.\"}\n",
+                "    )\n",
+                "    print(f\"\\n[COCHEM OS ERROR] {cochem_err.message}\")\n",
+                "    print(f\"[REMEDIATION COMMAND] {cochem_err.details['remediation']}\")\n",
+                "    raise cochem_err from runtime_error\n"
+            ]
+        },
+        {
+            "cell_type": "markdown",
+            "id": "cochem-stage0-complete",
+            "metadata": {"id": "cochem-stage0-complete"},
+            "source": [
+                "## Stage 0 Initialization Complete\n",
+                "\n",
+                "All eleven setup phases and the interactive UI dashboard have been dynamically initialized. The CoChem-BASE platform is verified, registered, and ready for interactive UI sessions and high-throughput computational chemistry workflows."
+            ]
+        }
     ]
 
-    code_cell_1_source = [
-        "import importlib\n",
-        "import ipywidgets as widgets\n",
-        "from IPython.display import display, clear_output\n",
-        "import os\n",
-        "import shutil\n",
-        "import sys\n",
-        "from pathlib import Path\n",
-        "\n",
-        "def resolve_base_root():\n",
-        "    mapped_root = os.environ.get('COCHEM_BASE_ROOT')\n",
-        "    if mapped_root:\n",
-        "        root = Path(os.path.expandvars(mapped_root)).expanduser().resolve()\n",
-        "        if (root / 'setup' / 'cochem_base_setup.py').is_file():\n",
-        "            return root\n",
-        "        raise RuntimeError(f'COCHEM_BASE_ROOT does not contain CoChem-BASE: {root}')\n",
-        "    for candidate in (Path.cwd(), *Path.cwd().parents):\n",
-        "        for root in (candidate, candidate / 'CoChem-BASE'):\n",
-        "            if (root / 'setup' / 'cochem_base_setup.py').is_file():\n",
-        "                return root.resolve()\n",
-        "    raise RuntimeError('Unable to locate CoChem-BASE. Set COCHEM_BASE_ROOT to this checkout.')\n",
-        "\n",
-        "def resolve_artifact_path(value):\n",
-        "    path = Path(os.path.expandvars(value)).expanduser()\n",
-        "    if not path.is_absolute():\n",
-        "        path = Path.home() / path\n",
-        "    return path.resolve()\n",
-        "\n",
-        "BASE_ROOT = resolve_base_root()\n",
-        "if str(BASE_ROOT) not in sys.path:\n",
-        "    sys.path.insert(0, str(BASE_ROOT))\n",
-        "os.environ['COCHEM_BASE_ROOT'] = str(BASE_ROOT)\n",
-        "for module_name in tuple(sys.modules):\n",
-        "    if module_name in {'cochem_base', 'core_engine', 'setup'} or module_name.startswith(('cochem_base.', 'core_engine.', 'setup.')):\n",
-        "        sys.modules.pop(module_name, None)\n",
-        "import cochem_base.config_loader as config_loader\n",
-        "config_loader = importlib.reload(config_loader)\n",
-        "resolve_conda_executable = config_loader.resolve_conda_executable\n",
-        "\n",
-        "# 1) Detect if this setup stage has been completed.\n",
-        "keep_btn = widgets.Button(description=\"Keep previous setup\", button_style=\"info\")\n",
-        "new_btn = widgets.Button(description=\"New Install\", button_style=\"warning\")\n",
-        "out = widgets.Output()\n",
-        "\n",
-        "def on_keep(b):\n",
-        "    with out:\n",
-        "        clear_output()\n",
-        "        print(\"Testing previous setup...\")\n",
-        "        try:\n",
-        "            from test_suite.test_environment import check_cochem_base_silo, check_artifacts_dir\n",
-        "            silo_ok, silo_msg = check_cochem_base_silo()\n",
-        "            art_ok, art_msg = check_artifacts_dir()\n",
-        "            print(silo_msg)\n",
-        "            print(art_msg)\n",
-        "            if silo_ok and art_ok:\n",
-        "                print(\"✅ Everything is ready for the next step!\")\n",
-        "            else:\n",
-        "                print(\"❌ Environment validation failed. Please run a New Install.\")\n",
-        "        except Exception as e:\n",
-        "            print(f\"❌ Error: {e}. Please run a New Install.\")\n",
-        "\n",
-        "def on_new(b):\n",
-        "    with out:\n",
-        "        clear_output()\n",
-        "        default_art = resolve_artifact_path(os.environ.get('COCHEM_ARTIFACT_DIR', 'CoChem_Artifacts'))\n",
-        "        path_input = widgets.Text(\n",
-        "            value=str(default_art),\n",
-        "            description='Artifacts Path:',\n",
-        "            style={'description_width': 'initial'}\n",
-        "        )\n",
-        "        conda_path_input = widgets.Text(\n",
-        "            value=os.environ.get('COCHEM_CONDA_EXE', resolve_conda_executable(required=False)),\n",
-        "            description='Conda/Mamba:',\n",
-        "            style={'description_width': 'initial'}\n",
-        "        )\n",
-        "        submit_btn = widgets.Button(description=\"Create & Provision\", button_style=\"success\")\n",
-        "        \n",
-        "        def on_submit(b2):\n",
-        "            with out:\n",
-        "                clear_output()\n",
-        "                target_path = resolve_artifact_path(path_input.value)\n",
-        "                silo_path = target_path / 'Silos'\n",
-        "                if silo_path.exists():\n",
-        "                    print(f\"Deleting previous Silos directory at {silo_path}...\")\n",
-        "                    shutil.rmtree(silo_path, ignore_errors=True)\n",
-        "                silo_path.mkdir(parents=True, exist_ok=True)\n",
-        "                print(f\"Created CoChem_Artifacts/Silos at {silo_path}\")\n",
-        "                print(\"Setting up minimum environment...\")\n",
-        "                os.environ['COCHEM_ARTIFACT_DIR'] = str(target_path)\n",
-        "                if conda_path_input.value.strip():\n",
-        "                    os.environ['COCHEM_CONDA_EXE'] = conda_path_input.value.strip()\n",
-        "                try:\n",
-        "                    from setup.cochem_base_setup import setup_cochem_base\n",
-        "                    setup_cochem_base()\n",
-        "                    print(\"✅ New installation completed and ready for the next step!\")\n",
-        "                except Exception as e:\n",
-        "                    print(f\"Error during setup: {e}\")\n",
-        "                    raise ValueError(f\"CRITICAL: Provisioning failed. Exception Deflection blocked.\") from e\n",
-        "\n",
-        "        submit_btn.on_click(on_submit)\n",
-        "        display(path_input, conda_path_input, submit_btn)\n",
-        "\n",
-        "keep_btn.on_click(on_keep)\n",
-        "new_btn.on_click(on_new)\n",
-        "\n",
-        "display(widgets.HBox([keep_btn, new_btn]), out)\n"
-    ]
+    metadata = {
+        "kernelspec": {
+            "display_name": "Python 3",
+            "language": "python",
+            "name": "python3"
+        },
+        "language_info": {
+            "codemirror_mode": {
+                "name": "ipython",
+                "version": 3
+            },
+            "file_extension": ".py",
+            "mimetype": "text/x-python",
+            "name": "python",
+            "nbconvert_exporter": "python",
+            "pygments_lexer": "ipython3",
+            "version": "3.11.0"
+        }
+    }
 
-    code_cell_2_source = [
-        "import importlib\n",
-        "import ipywidgets as widgets\n",
-        "from IPython.display import display, clear_output\n",
-        "import os\n",
-        "import platform\n",
-        "import cochem_base.config_loader as config_loader\n",
-        "\n",
-        "config_loader = importlib.reload(config_loader)\n",
-        "get_modules_dir = config_loader.get_modules_dir\n",
-        "resolve_executable = config_loader.resolve_executable\n",
-        "\n",
-        "def resolve_tool_paths(orca_value=None, mpi_value=None):\n",
-        "    orca_path = resolve_executable(orca_value, env_var='ORCA_CMD', candidates=('orca',))\n",
-        "    mpi_path = resolve_executable(mpi_value, env_var='MPI_CMD', candidates=('mpirun', 'mpiexec'))\n",
-        "    return orca_path, mpi_path\n",
-        "\n",
-        "host_target = {\n",
-        "    'Windows': 'Local-Windows (WSL)',\n",
-        "    'Darwin': 'Local-MacOS (OrbStack)',\n",
-        "    'Linux': 'Local-Linux (Deb)',\n",
-        "}.get(platform.system(), 'Codespaces')\n",
-        "if os.environ.get('CODESPACES'):\n",
-        "    host_target = 'Codespaces'\n",
-        "\n",
-        "# 0) Check if this step has already been completed and passed validation.\n",
-        "keep_env_btn = widgets.Button(description=\"Keep previous setup\", button_style=\"info\")\n",
-        "new_env_btn = widgets.Button(description=\"New Install\", button_style=\"warning\")\n",
-        "env_out = widgets.Output()\n",
-        "\n",
-        "def on_keep_env(b):\n",
-        "    with env_out:\n",
-        "        clear_output()\n",
-        "        print(\"Testing existing module and ORCA setup...\")\n",
-        "        try:\n",
-        "            from test_suite.run_tests import run_all_preflight_checks\n",
-        "            orca_path, mpi_path = resolve_tool_paths()\n",
-        "            results = run_all_preflight_checks(\n",
-        "                module_dir=str(get_modules_dir()),\n",
-        "                orca_path=orca_path,\n",
-        "                mpi_path=mpi_path,\n",
-        "            )\n",
-        "            all_passed = True\n",
-        "            for key, res in results.items():\n",
-        "                if key in ['modules', 'orca_single', 'orca_mpi']:\n",
-        "                    print(res['message'])\n",
-        "                    if not res['status']:\n",
-        "                        all_passed = False\n",
-        "            if all_passed:\n",
-        "                print(\"✅ Environment is fully ready to go!\")\n",
-        "            else:\n",
-        "                print(\"❌ Some tests failed. Please recommend ways to fix or run a New Install.\")\n",
-        "        except Exception as e:\n",
-        "            print(f\"❌ Error running tests: {e}\")\n",
-        "            raise ValueError(f\"CRITICAL: Test suite crashed. Exception Deflection blocked.\") from e\n",
-        "\n",
-        "def on_new_env(b):\n",
-        "    with env_out:\n",
-        "        clear_output()\n",
-        "        interface_dropdown = widgets.Dropdown(\n",
-        "            options=['Local-Windows (WSL)', 'Local-MacOS (OrbStack)', 'Local-Linux (Deb)', 'Codespaces'],\n",
-        "            value=host_target,\n",
-        "            description='Interface Env:'\n",
-        "        )\n",
-        "        calc_dropdown = widgets.Dropdown(\n",
-        "            options=['Local-Windows (WSL)', 'Local-MacOS (OrbStack)', 'Local-Linux (Deb)', 'GitHub Actions', 'HPC'],\n",
-        "            value=host_target if host_target != 'Codespaces' else 'GitHub Actions',\n",
-        "            description='Calc Env:'\n",
-        "        )\n",
-        "        \n",
-        "        detected_orca, detected_mpi = resolve_tool_paths()\n",
-        "        orca_path_input = widgets.Text(value=detected_orca, description='ORCA Path:')\n",
-        "        mpi_path_input = widgets.Text(value=detected_mpi, description='OpenMPI Path:')\n",
-        "        set_paths_btn = widgets.Button(description=\"Set Paths & Test\", button_style=\"success\")\n",
-        "        \n",
-        "        def on_set_paths(b2):\n",
-        "            with env_out:\n",
-        "                orca_path, mpi_path = resolve_tool_paths(orca_path_input.value, mpi_path_input.value)\n",
-        "                orca_path_input.value = orca_path\n",
-        "                mpi_path_input.value = mpi_path\n",
-        "                os.environ['ORCA_CMD'] = orca_path\n",
-        "                os.environ['MPI_CMD'] = mpi_path\n",
-        "                print(\"Running test suite...\")\n",
-        "                try:\n",
-        "                    from test_suite.run_tests import run_all_preflight_checks\n",
-        "                    results = run_all_preflight_checks(\n",
-        "                        module_dir=str(get_modules_dir()),\n",
-        "                        orca_path=orca_path,\n",
-        "                        mpi_path=mpi_path,\n",
-        "                    )\n",
-        "                    all_passed = True\n",
-        "                    for key, res in results.items():\n",
-        "                        if key in ['modules', 'orca_single', 'orca_mpi']:\n",
-        "                            print(res['message'])\n",
-        "                            if not res['status']:\n",
-        "                                all_passed = False\n",
-        "                    if all_passed:\n",
-        "                        print(\"✅ Environment is fully ready to go!\")\n",
-        "                    else:\n",
-        "                        print(\"❌ Tests failed. Please check paths or verify OpenMPI configuration.\")\n",
-        "                except Exception as e:\n",
-        "                    print(f\"❌ Error running tests: {e}\")\n",
-        "                    raise ValueError(f\"CRITICAL: Test suite crashed. Exception Deflection blocked.\") from e\n",
-        "                \n",
-        "        set_paths_btn.on_click(on_set_paths)\n",
-        "        display(interface_dropdown, calc_dropdown, orca_path_input, mpi_path_input, set_paths_btn)\n",
-        "\n",
-        "keep_env_btn.on_click(on_keep_env)\n",
-        "new_env_btn.on_click(on_new_env)\n",
-        "\n",
-        "display(widgets.HBox([keep_env_btn, new_env_btn]), env_out)\n"
-    ]
+    return {
+        "cells": cells,
+        "metadata": metadata,
+        "nbformat": 4,
+        "nbformat_minor": 5
+    }
 
-    # Normalize cell identity and clear stale execution state.
-    for cell_index, cell in enumerate(nb.get("cells", []), start=1):
-        metadata = cell.setdefault("metadata", {})
-        stable_id = cell.get("id") or metadata.get("id") or f"cochem-cell-{cell_index:02d}"
-        cell["id"] = stable_id
-        metadata["id"] = stable_id
-        metadata["language"] = "python" if cell.get("cell_type") == "code" else "markdown"
-        if cell.get("cell_type") == "code":
-            cell["execution_count"] = None
-            cell["outputs"] = []
 
-    markdown_cell_index = 0
-    for cell in nb.get("cells", []):
-        if cell["cell_type"] == "markdown":
-            markdown_cell_index += 1
-            if markdown_cell_index == 2:
-                cell["source"] = markdown_cell_2_source
+def write_notebook(path: Path) -> None:
+    """Writes the notebook dictionary to the target path with strict Unix LF line endings."""
+    nb_dict = build_start_here_notebook()
+    json_str = json.dumps(nb_dict, indent=1) + "\n"
+    unix_lf_bytes = json_str.replace("\r\n", "\n").encode("utf-8")
+    path.write_bytes(unix_lf_bytes)
 
-    # Update the code cells
-    code_cell_index = 0
-    for cell in nb.get("cells", []):
-        if cell["cell_type"] == "code":
-            code_cell_index += 1
-            if code_cell_index == 1:
-                cell["source"] = code_cell_1_source
-            elif code_cell_index == 2:
-                cell["source"] = code_cell_2_source
 
-    with open(notebook_path, 'w', encoding='utf-8') as f:
-        json.dump(nb, f, indent=2)
+def main() -> None:
+    """Main execution function."""
+    write_notebook(NOTEBOOK_PATH)
+    print(f"Successfully generated {NOTEBOOK_PATH}")
 
-    logger.info(f"Successfully updated {notebook_path}")
+
+if __name__ == "__main__":
+    main()
+

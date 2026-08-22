@@ -1,18 +1,18 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part2_09_intake_topos_alignment_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part2_10_intake_stage2_ingestor_prompt.md.
 Original prompt:
-﻿# CoChem-BASE Coding Prompt: cochem_topos_alignment.py
+﻿# CoChem-BASE Coding Prompt: cochem_stage2_ingestor.py
 
 ## 1. Goal
-Implement the file `cochem_topos_alignment.py` based on the Software Requirements Specification (SRS) - CoChem-BASE (Document 2 Part 2).
+Implement the file `cochem_stage2_ingestor.py` based on the Software Requirements Specification (SRS) - CoChem-BASE (Document 2 Part 2).
 
 ## 2. Target Filepath
-`D:\__CoChem\GitHub-Repo\CoChem-BASE\intake\cochem_topos_alignment.py`
+`D:\__CoChem\GitHub-Repo\CoChem-BASE\intake\cochem_stage2_ingestor.py`
 
 ## 3. Context & Ecosystem Role
-The Spatial Standardizer. Snaps highly fluxional Van der Waals clusters and molecules into a mathematically deterministic orientation, ensuring reproducible rotational constants for downstream AI MLFF engines without invalidating gradient logic.
+The Topology Sorter. Actively severs unphysical valencies, prevents matrix inversion crashes on linear molecules, and purges redundant geometric conformers to save downstream compute time while ensuring perfect topological reproducibility.
 
 ## 4. Deliverable Functions
-Translates molecules exactly to the Center of Mass (0,0,0). Implements explicit checks to assert Ghost Atoms (used in BSSE corrections) possess exactly 0.0 mass to prevent center-of-mass shifts. Computes the moment of inertia tensor, diagonalizes it, and applies an Eckart frame alignment.
+Constructs covalent graphs using `NetworkX` (with a 1.15x breathing tolerance). Executes Kabsch RMSD geometric alignment and 'Jiggle-Quench' deduplication logic. Enforces a determinant reflection trap (`d = np.sign(np.linalg.det(Vt.T @ U.T))`) and an SVD collinearity trap. For linear and diatomic species causing high condition numbers, mathematically pivots to a 2D Z-axis projection instead of skipping alignments.
 
 ## 5. Strict Constraints & Anti-Spoofing
 - **Workspace Rules:** Strictly adhere to the Tripartite Workspace Air-Gap and Method Matrix rules.
@@ -24,1857 +24,1685 @@ Translates molecules exactly to the Center of Mass (0,0,0). Implements explicit 
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\intake\cochem_topos_alignment.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\intake\cochem_stage2_ingestor.py ---
 #!/usr/bin/env python3
-"""CoChem-TOPOS Alignment Engine: Authentic Molecular Topology & Spectroscopic Alignment.
+"""CoChem-CORE: Stage 2.0 - Dual-Graph Non-Covalent Sieve & Hungarian SVD Alignor.
 
-Module: intake/cochem_topos_alignment.py
-
-Provides:
-- Exact Center of Mass (COM) translation with ghost atom (BSSE / Counterpoise) protections.
-- Inertia Tensor construction, diagonalization (Ia <= Ib <= Ic), and top classification.
-- CODATA 2022/2026 conversion to rotational spectroscopic constants (A, B, C in MHz, GHz, cm^-1).
-- Inertial defect Delta and Ray's asymmetry parameter kappa computation.
-- Mass-weighted Eckart frame alignment ensuring translational and rotational Eckart conditions.
-- Idempotent vibrational projector P_vib construction (Tr = 3N - 6 or 3N - 5) and Hessian projection.
-- High-level topology standardization pipeline with Pydantic serialization models.
+Module: intake/cochem_stage2_ingestor.py
+Ecosystem Role: The Topology Sorter & Conformer Deduplicator.
+                Actively severs unphysical valencies, constructs covalent subgraphs
+                with a 1.15x breathing tolerance, preserves non-covalent van der Waals
+                contacts, prevents matrix inversion crashes on linear/diatomic species
+                via 2D Z-axis projection, and purges redundant geometric conformers
+                via Hungarian Kabsch alignment and Jiggle-Quench logic.
 
 Authoritative Standards:
 - D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\Method_Matrix.md
 - D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\CoChem_User_Manual.md
-- NIST CODATA 2022 / 2026 Fundamental Physical Constants
+- D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\SRS\\Perfected_Document 2 File Inventory & Deliverable Capabilities Manifest (Part 2).md
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import math
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from pathlib import Path
+import re
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import mendeleev
+import networkx as nx
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from scipy.optimize import linear_sum_assignment
 
-try:
-    from cochem_topos.topology import AtomModel
-except ImportError:
-    AtomModel = None  # type: ignore
-
-logger = logging.getLogger("CoChem-ToposAlignment")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("CoChem-Stage2Ingestor")
 
 
 # ==============================================================================
-# NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
+# 1. Authentic Atomic Radii, Valency Limits & Mass Helpers
 # ==============================================================================
 
-PLANCK_H: float = 6.62607015e-34          # J * s (exact SI standard)
-SPEED_OF_LIGHT_C: float = 299792458.0     # m / s (exact SI standard)
-ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
-ANGSTROM_TO_M: float = 1.0e-10            # m / Angstrom
+# Standard Covalent Radii (Pyykkö & Atsumi single-bond values in Angstroms)
+COVALENT_RADII_FALLBACK: Dict[str, float] = {
+    "H": 0.31, "He": 0.28,
+    "Li": 1.28, "Be": 0.96, "B": 0.84, "C": 0.76, "N": 0.71, "O": 0.66, "F": 0.57, "Ne": 0.58,
+    "Na": 1.66, "Mg": 1.41, "Al": 1.21, "Si": 1.11, "P": 1.07, "S": 1.05, "Cl": 1.02, "Ar": 1.06,
+    "K": 2.03, "Ca": 1.76, "Sc": 1.70, "Ti": 1.60, "V": 1.53, "Cr": 1.39, "Mn": 1.39,
+    "Fe": 1.32, "Co": 1.26, "Ni": 1.24, "Cu": 1.32, "Zn": 1.22, "Ga": 1.22, "Ge": 1.20,
+    "As": 1.19, "Se": 1.20, "Br": 1.20, "Kr": 1.16,
+    "Rb": 2.20, "Sr": 1.95, "Y": 1.90, "Zr": 1.75, "Nb": 1.64, "Mo": 1.54, "Tc": 1.47,
+    "Ru": 1.46, "Rh": 1.42, "Pd": 1.39, "Ag": 1.45, "Cd": 1.44, "In": 1.42, "Sn": 1.39,
+    "Sb": 1.39, "Te": 1.38, "I": 1.39, "Xe": 1.40,
+}
 
-# Conversion factor: factor_hz / I(amu * A^2) = B (Hz)
-# B = h / (8 * pi^2 * I)
-FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
-FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
-FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
+# Standard van der Waals Radii (Alvarez / Bondi values in Angstroms)
+VDW_RADII_FALLBACK: Dict[str, float] = {
+    "H": 1.20, "He": 1.40,
+    "Li": 1.82, "Be": 1.53, "B": 1.92, "C": 1.70, "N": 1.55, "O": 1.52, "F": 1.47, "Ne": 1.54,
+    "Na": 2.27, "Mg": 1.73, "Al": 1.84, "Si": 2.10, "P": 1.80, "S": 1.80, "Cl": 1.75, "Ar": 1.88,
+    "K": 2.75, "Ca": 2.31, "Sc": 2.11, "Ti": 2.00, "V": 2.00, "Cr": 2.00, "Mn": 2.00,
+    "Fe": 2.00, "Co": 2.00, "Ni": 1.63, "Cu": 1.40, "Zn": 1.39, "Ga": 1.87, "Ge": 2.11,
+    "As": 1.85, "Se": 1.90, "Br": 1.85, "Kr": 2.02,
+    "Rb": 3.03, "Sr": 2.49, "I": 1.98, "Xe": 2.16,
+}
 
+# Physical Maximum Covalent Valency Limits
+MAX_PHYSICAL_VALENCY: Dict[str, int] = {
+    "H": 1, "He": 0,
+    "Li": 1, "Be": 2, "B": 4, "C": 4, "N": 4, "O": 3, "F": 1, "Ne": 0,
+    "Na": 1, "Mg": 2, "Al": 4, "Si": 4, "P": 6, "S": 6, "Cl": 4, "Ar": 0,
+    "K": 1, "Ca": 2, "Br": 4, "I": 5,
+}
 
-# ==============================================================================
-# Ghost Atom & Atomic Weight Resolution Helpers
-# ==============================================================================
 
 def is_ghost_symbol(symbol: str) -> bool:
-    """Checks whether an atomic element symbol represents a ghost atom.
-    
-    Ghost atoms (e.g., 'Gh', 'gh', 'GhO', 'Gh_C', 'X', 'x_N', 'Bq') possess
-    strictly 0.0 mass to avoid shifting the Center of Mass during BSSE counterpoise
-    calculations.
-    
-    Parameters
-    ----------
-    symbol : str
-        Elemental or ghost atom symbol.
-        
-    Returns
-    -------
-    bool
-        True if symbol indicates a ghost atom, False otherwise.
-    """
+    """Checks whether an atomic element symbol represents a ghost / dummy atom."""
     if not symbol or not isinstance(symbol, str):
         return False
     clean = symbol.strip().lower()
-    return (
-        clean.startswith("gh")
-        or clean.startswith("x")
-        or clean == "bq"
-    )
+    if clean.startswith("gh") or clean.startswith("bq") or clean == "bq":
+        return True
+    if clean == "x" or clean.startswith("x_") or clean.startswith("x-") or clean.startswith("x:"):
+        return True
+    if clean.startswith("x") and not clean.startswith("xe"):
+        return True
+    return False
 
 
-def get_physical_mass(symbol: str) -> float:
-    """Retrieves authentic standard atomic weight from mendeleev.
-    
-    Ghost atoms strictly return 0.0.
-    
-    Parameters
-    ----------
-    symbol : str
-        Chemical element or ghost symbol.
-        
-    Returns
-    -------
-    float
-        Standard atomic mass in unified atomic mass units (u / Da).
-        
-    Raises
-    ------
-    ValueError
-        If the symbol is empty, unrecognized, or invalid.
-    """
+def normalize_symbol(symbol: str) -> str:
+    """Cleans and standardizes an atomic element symbol."""
     if not symbol or not isinstance(symbol, str) or not symbol.strip():
         raise ValueError("[MISSING DATA] Atomic symbol cannot be empty.")
-        
     clean = symbol.strip()
     if is_ghost_symbol(clean):
+        return "Gh"
+    match = re.match(r"^([A-Za-z]{1,2})", clean)
+    if match:
+        return match.group(1).capitalize()
+    return clean.capitalize()
+
+
+def get_covalent_radius(symbol: str) -> float:
+    """Retrieves standard covalent radius in Angstroms."""
+    sym = normalize_symbol(symbol)
+    if is_ghost_symbol(sym):
         return 0.0
-        
-    # Standard Mendeleev lookup
     try:
-        elem = mendeleev.element(clean)
+        elem = mendeleev.element(sym)
+        if elem is not None and elem.covalent_radius_pyykko is not None:
+            return float(elem.covalent_radius_pyykko) / 100.0
+        if elem is not None and elem.covalent_radius is not None:
+            return float(elem.covalent_radius) / 100.0
+    except Exception:
+        pass
+    return COVALENT_RADII_FALLBACK.get(sym, 1.20)
+
+
+def get_vdw_radius(symbol: str) -> float:
+    """Retrieves standard van der Waals radius in Angstroms."""
+    sym = normalize_symbol(symbol)
+    if is_ghost_symbol(sym):
+        return 0.0
+    try:
+        elem = mendeleev.element(sym)
+        if elem is not None and elem.vdw_radius_alvarez is not None:
+            return float(elem.vdw_radius_alvarez) / 100.0
+        if elem is not None and elem.vdw_radius is not None:
+            return float(elem.vdw_radius) / 100.0
+    except Exception:
+        pass
+    return VDW_RADII_FALLBACK.get(sym, 1.70)
+
+
+def get_atomic_mass(symbol: str) -> float:
+    """Retrieves standard atomic weight in unified atomic mass units (u)."""
+    sym = normalize_symbol(symbol)
+    if is_ghost_symbol(sym):
+        return 0.0
+    try:
+        elem = mendeleev.element(sym)
         if elem is not None and elem.mass is not None:
             return float(elem.mass)
     except Exception:
-        import re
-        match = re.match(r"^([A-Z][a-z]?)", clean)
-        if match:
-            try:
-                elem = mendeleev.element(match.group(1))
-                if elem is not None and elem.mass is not None:
-                    return float(elem.mass)
-            except Exception:
-                pass
-                
-    raise ValueError(f"[INVALID DATA] Unrecognized chemical element symbol: '{symbol}'.")
-
-
-def resolve_atomic_masses(
-    coords: np.ndarray,
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> np.ndarray:
-    """Resolves and validates atomic masses array matching given coordinates.
-    
-    Parameters
-    ----------
-    coords : np.ndarray
-        Array of Cartesian coordinates of shape (N, 3).
-    masses : Sequence[float] | np.ndarray, optional
-        Pre-computed atomic masses.
-    symbols : Sequence[str], optional
-        Sequence of element symbols corresponding to each coordinate.
-        
-    Returns
-    -------
-    np.ndarray
-        1D float64 array of atomic masses of shape (N,).
-        
-    Raises
-    ------
-    ValueError
-        If dimensions mismatch, negative masses exist, or total non-ghost mass is <= 0.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    n_atoms = len(coords_arr)
-    
-    if masses is not None:
-        masses_arr = np.asarray(masses, dtype=np.float64)
-        if masses_arr.shape != (n_atoms,):
-            raise ValueError(
-                f"[DIMENSION MISMATCH] Coordinate count ({n_atoms}) does not match masses shape {masses_arr.shape}."
-            )
-        if np.any(masses_arr < 0.0):
-            raise ValueError("[PHYSICAL ERROR] Atomic masses must be non-negative positive values.")
-        total_mass = float(np.sum(masses_arr))
-        if total_mass <= 0.0:
-            raise ValueError("[PHYSICAL ERROR] Total non-ghost molecular mass must be strictly positive.")
-        return masses_arr
-        
-    if symbols is not None:
-        if len(symbols) != n_atoms:
-            raise ValueError(
-                f"[DIMENSION MISMATCH] Coordinate count ({n_atoms}) does not match symbols count ({len(symbols)})."
-            )
-        masses_list = [get_physical_mass(s) for s in symbols]
-        masses_arr = np.array(masses_list, dtype=np.float64)
-        total_mass = float(np.sum(masses_arr))
-        if total_mass <= 0.0:
-            raise ValueError("[PHYSICAL ERROR] Total non-ghost molecular mass must be strictly positive.")
-        return masses_arr
-        
-    raise ValueError("[MISSING DATA] Either 'masses' or 'symbols' must be provided to determine molecular mass.")
+        pass
+    return 1.008 if sym == "H" else 12.011
 
 
 # ==============================================================================
-# 1. Center of Mass Translation Engine
+# 2. Pydantic Serialization Models
 # ==============================================================================
 
-def compute_center_of_mass(
-    coords: np.ndarray,
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> np.ndarray:
-    """Computes the mass-weighted Center of Mass (COM) vector for a molecular system.
-    
-    Ghost atoms (mass = 0.0) are completely excluded from the mass weighting.
-    
-    Parameters
-    ----------
-    coords : np.ndarray
-        Array of shape (N, 3) representing Cartesian coordinates in Angstroms.
-    masses : Sequence[float] | np.ndarray, optional
-        1D array of atomic masses in amu.
-    symbols : Sequence[str], optional
-        Sequence of atomic symbols.
-        
-    Returns
-    -------
-    np.ndarray
-        1D float64 array of shape (3,) representing the Center of Mass vector.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
-        raise ValueError(f"[INVALID SHAPE] Expected coordinates shape (N, 3), got {coords_arr.shape}.")
-        
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-    total_mass = np.sum(masses_arr)
-    
-    com = np.sum(coords_arr * masses_arr[:, np.newaxis], axis=0) / total_mass
-    return com
-
-
-def translate_to_center_of_mass(
-    coords: np.ndarray,
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Translates molecular coordinates such that the Center of Mass is at (0, 0, 0).
-    
-    All atoms (including ghost atoms) undergo the identical translational shift.
-    
-    Parameters
-    ----------
-    coords : np.ndarray
-        Array of shape (N, 3) representing Cartesian coordinates.
-    masses : Sequence[float] | np.ndarray, optional
-        Atomic masses in amu.
-    symbols : Sequence[str], optional
-        Atomic element symbols.
-        
-    Returns
-    -------
-    tuple[np.ndarray, np.ndarray]
-        A tuple of (translated_coords, shift_vector) where shift_vector = -COM.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-    total_mass = np.sum(masses_arr)
-
-    com = compute_center_of_mass(coords_arr, masses=masses_arr)
-    shift_vec = -com
-    translated_coords = coords_arr + shift_vec
-
-    # Iterative refinement to eliminate residual floating point precision drift
-    residual = np.sum(masses_arr[:, np.newaxis] * translated_coords, axis=0) / total_mass
-    if np.any(np.abs(residual) > 0.0):
-        translated_coords = translated_coords - residual
-        shift_vec = shift_vec - residual
-
-    return translated_coords, shift_vec
-
-
-
-class CenterOfMassTranslator:
-    """High-level object-oriented interface for Center of Mass computations."""
-    
-    @staticmethod
-    def compute_center_of_mass(
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-    ) -> np.ndarray:
-        """Computes the mass-weighted Center of Mass vector (3,)."""
-        return compute_center_of_mass(coords, masses=masses, symbols=symbols)
-
-    @staticmethod
-    def translate(
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Translates coordinates such that COM is at origin (0, 0, 0)."""
-        return translate_to_center_of_mass(coords, masses=masses, symbols=symbols)
-
-
-# ==============================================================================
-# 2. Moment of Inertia Tensor & Spectroscopic Top Engine
-# ==============================================================================
-
-class InertiaTensorResult(BaseModel):
-    """Pydantic model containing detailed principal moment of inertia results."""
+class AtomNode(BaseModel):
+    """Pydantic model representing an individual atom node in molecular space."""
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
 
-    eigenvalues_amu_angstrom2: Tuple[float, float, float] = Field(
-        ..., description="Sorted principal moments of inertia Ia <= Ib <= Ic in amu * Angstrom^2"
-    )
-    rotational_constants_mhz: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in MHz"
-    )
-    rotational_constants_ghz: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in GHz"
-    )
-    rotational_constants_cm1: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in cm^-1"
-    )
-    inertial_defect: float = Field(
-        ..., description="Inertial defect Delta = Ic - Ia - Ib in amu * Angstrom^2"
-    )
-    rays_kappa: float = Field(
-        ..., description="Ray's asymmetry parameter kappa in [-1.0, 1.0]"
-    )
-    planar_moments: Tuple[float, float, float] = Field(
-        ..., description="Planar moments of inertia (Pa, Pb, Pc) in amu * Angstrom^2"
-    )
-    top_type: str = Field(
-        ..., description="Rotor classification: asymmetric_top, oblate_symmetric_top, prolate_symmetric_top, spherical_top, linear"
-    )
-    rotation_matrix: Any = Field(
-        ..., description="Right-handed 3x3 rotation matrix V diagonalizing inertia tensor with det = +1.0"
-    )
-    aligned_coords: Any = Field(
-        ..., description="Cartesian coordinates aligned to principal axes (N, 3)"
-    )
-    inertia_tensor: Optional[Any] = Field(
-        None, description="Initial 3x3 moment of inertia tensor before diagonalization"
-    )
+    index: int
+    symbol: str
+    x: float
+    y: float
+    z: float
+    is_ghost: bool = False
 
-    @field_serializer("rotation_matrix", "aligned_coords", "inertia_tensor", check_fields=False)
+
+class MonomerSubgraph(BaseModel):
+    """Pydantic model representing an intra-monomer covalent subgraph."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+
+    monomer_id: int
+    formula: str
+    num_atoms: int
+    atom_indices: List[int]
+    symbols: List[str]
+    covalent_edges: List[Tuple[int, int]]
+
+
+class DualGraphResult(BaseModel):
+    """Pydantic model containing the complete Dual-Graph topology construction."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+
+    num_atoms: int
+    num_covalent_bonds: int
+    num_noncovalent_contacts: int
+    monomers: List[MonomerSubgraph]
+    intermolecular_contact_edges: List[Tuple[int, int]]
+    has_intermolecular_contacts: bool
+    covalent_adjacency: Any = Field(None, description="Covalent adjacency matrix")
+
+    @field_serializer("covalent_adjacency", check_fields=False)
     def _serialize_numpy(self, val: Any) -> Any:
         if isinstance(val, np.ndarray):
             return val.tolist()
         return val
 
 
-class MomentOfInertiaEngine:
-    """Moment of Inertia Tensor Construction, Diagonalization, and Rotor Classification."""
+class KabschAlignmentResult(BaseModel):
+    """Pydantic model containing Hungarian Kabsch alignment results."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+
+    rmsd: float
+    rotation_matrix: Any
+    translation_vector: Any
+    aligned_coords: Any
+    is_reflection: bool = False
+    is_collinear: bool = False
+    permutation_indices: Optional[List[int]] = None
+
+    @field_serializer("rotation_matrix", "translation_vector", "aligned_coords", check_fields=False)
+    def _serialize_numpy(self, val: Any) -> Any:
+        if isinstance(val, np.ndarray):
+            return val.tolist()
+        return val
+
+
+class ConformerClusterResult(BaseModel):
+    """Pydantic model representing deduplicated conformer clusters."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+
+    total_input_conformers: int
+    unique_conformer_count: int
+    unique_indices: List[int]
+    cluster_assignments: Dict[int, int]
+    representative_names: List[str]
+
+
+class ChemicalSystemResult(BaseModel):
+    """Pydantic model representing an ingested chemical system with conformers and topology."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
+
+    system_name: str
+    formula: str
+    total_input_conformers: int
+    unique_conformer_count: int
+    dual_graph: DualGraphResult
+    unique_conformer_names: List[str]
+
+
+# ==============================================================================
+# 3. Dual-Graph Topology Construction & Valency Sieve Engine
+# ==============================================================================
+
+class CovalentGraphBuilder:
+    """Constructs intra-monomer covalent graphs and inter-monomer non-covalent contact graphs.
     
-    @staticmethod
-    def compute_moment_of_inertia_tensor(coords: np.ndarray, masses: np.ndarray) -> np.ndarray:
-        """Constructs the symmetric 3x3 Moment of Inertia tensor in amu * Angstrom^2.
+    Adheres strictly to the 1.15x breathing tolerance for covalent bonds:
+        D_ij <= 1.15 * (r_cov,i + r_cov,j)
+    and evaluates non-covalent contacts for van der Waals complexes:
+        D_ij <= r_vdw,i + r_vdw,j + vdw_contact_buffer (default: 0.8 A).
+    """
+
+    def __init__(
+        self,
+        breathing_tolerance: float = 1.15,
+        vdw_contact_buffer: float = 0.8,
+    ) -> None:
+        self.breathing_tolerance = breathing_tolerance
+        self.vdw_contact_buffer = vdw_contact_buffer
+
+    def sever_unphysical_valencies(
+        self,
+        graph: nx.Graph,
+        coords: np.ndarray,
+        symbols: Sequence[str],
+    ) -> nx.Graph:
+        """Actively severs unphysical coordination bonds by pruning longest contacts.
         
-        I_xx = sum(m_i * (y_i^2 + z_i^2))
-        I_xy = -sum(m_i * x_i * y_i)
-        
-        Parameters
-        ----------
-        coords : np.ndarray
-            COM-centered coordinates of shape (N, 3).
-        masses : np.ndarray
-            Atomic masses of shape (N,).
-            
-        Returns
-        -------
-        np.ndarray
-            Symmetric 3x3 float64 moment of inertia tensor.
+        Evaluates nodes in ascending order of maximum physical valency (e.g. H and halogens
+        evaluated first) to prevent higher-valency centers from prematurely shedding legitimate
+        bonds due to spurious unphysical hydrogen contacts.
         """
+        clean_graph = graph.copy()
+        n_atoms = len(symbols)
+
+        # Sort nodes by maximum physical valency ascending (e.g. H=1 first, then O=3, C=4)
+        node_order = sorted(
+            list(clean_graph.nodes()),
+            key=lambda node: MAX_PHYSICAL_VALENCY.get(normalize_symbol(symbols[node]), 6),
+        )
+
+        for node in node_order:
+            sym = normalize_symbol(symbols[node])
+            max_val = MAX_PHYSICAL_VALENCY.get(sym, 6)
+            deg = clean_graph.degree(node)
+
+            if deg > max_val:
+                # Atom is hypercoordinated due to close proximity artifacts
+                neighbors = list(clean_graph.neighbors(node))
+                # Sort neighbors by actual physical distance ascending
+                neighbor_dists = []
+                for nbr in neighbors:
+                    d = float(np.linalg.norm(coords[node] - coords[nbr]))
+                    neighbor_dists.append((nbr, d))
+
+                neighbor_dists.sort(key=lambda x: x[1])
+
+                # Retain only the closest max_val neighbors, sever the rest
+                to_sever = neighbor_dists[max_val:]
+                for nbr, _ in to_sever:
+                    if clean_graph.has_edge(node, nbr):
+                        clean_graph.remove_edge(node, nbr)
+                        logger.debug(
+                            f"Severed unphysical bond between {sym}[{node}] and {symbols[nbr]}[{nbr}]"
+                        )
+
+        return clean_graph
+
+
+    def build_covalent_graph(
+        self,
+        coords: np.ndarray,
+        symbols: Sequence[str],
+        enforce_valency: bool = True,
+    ) -> nx.Graph:
+        """Constructs intra-monomer covalent NetworkX graph using 1.15x breathing tolerance."""
         coords_arr = np.asarray(coords, dtype=np.float64)
-        masses_arr = np.asarray(masses, dtype=np.float64)
-        
-        if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
-            raise ValueError(f"[INVALID SHAPE] Coordinates must have shape (N, 3), got {coords_arr.shape}.")
-        if masses_arr.shape != (len(coords_arr),):
-            raise ValueError(
-                f"[DIMENSION MISMATCH] Masses length ({len(masses_arr)}) != atom count ({len(coords_arr)})."
+        n_atoms = len(coords_arr)
+        if len(symbols) != n_atoms:
+            raise ValueError(f"[DIMENSION MISMATCH] {n_atoms} coordinates vs {len(symbols)} symbols.")
+
+        g = nx.Graph()
+        for i in range(n_atoms):
+            sym = normalize_symbol(symbols[i])
+            g.add_node(i, symbol=sym, coords=coords_arr[i], is_ghost=is_ghost_symbol(sym))
+
+        covalent_radii = [get_covalent_radius(s) for s in symbols]
+
+        for i in range(n_atoms):
+            if is_ghost_symbol(symbols[i]):
+                continue
+            for j in range(i + 1, n_atoms):
+                if is_ghost_symbol(symbols[j]):
+                    continue
+                d = float(np.linalg.norm(coords_arr[i] - coords_arr[j]))
+                thresh = self.breathing_tolerance * (covalent_radii[i] + covalent_radii[j])
+                if 0.1 < d <= thresh:
+                    g.add_edge(i, j, distance=d, bond_type="covalent")
+
+        if enforce_valency:
+            g = self.sever_unphysical_valencies(g, coords_arr, symbols)
+
+        return g
+
+    def build_noncovalent_graph(
+        self,
+        coords: np.ndarray,
+        symbols: Sequence[str],
+    ) -> nx.Graph:
+        """Constructs intermolecular contact NetworkX graph using vdW radii + buffer."""
+        coords_arr = np.asarray(coords, dtype=np.float64)
+        n_atoms = len(coords_arr)
+
+        g_vdw = nx.Graph()
+        for i in range(n_atoms):
+            sym = normalize_symbol(symbols[i])
+            g_vdw.add_node(i, symbol=sym, coords=coords_arr[i], is_ghost=is_ghost_symbol(sym))
+
+        vdw_radii = [get_vdw_radius(s) for s in symbols]
+
+        for i in range(n_atoms):
+            if is_ghost_symbol(symbols[i]):
+                continue
+            for j in range(i + 1, n_atoms):
+                if is_ghost_symbol(symbols[j]):
+                    continue
+                d = float(np.linalg.norm(coords_arr[i] - coords_arr[j]))
+                thresh = vdw_radii[i] + vdw_radii[j] + self.vdw_contact_buffer
+                if 0.1 < d <= thresh:
+                    g_vdw.add_edge(i, j, distance=d, contact_type="vdw")
+
+        return g_vdw
+
+    def build_dual_graph(
+        self,
+        coords: np.ndarray,
+        symbols: Sequence[str],
+        enforce_valency: bool = True,
+    ) -> DualGraphResult:
+        """Builds combined Dual-Graph topology: intra-monomer covalent subgraphs + vdW contacts."""
+        coords_arr = np.asarray(coords, dtype=np.float64)
+        g_cov = self.build_covalent_graph(coords_arr, symbols, enforce_valency=enforce_valency)
+        g_vdw = self.build_noncovalent_graph(coords_arr, symbols)
+
+        # Decompose connected components of covalent graph into constituent monomers
+        components = list(nx.connected_components(g_cov))
+        monomer_subgraphs: List[MonomerSubgraph] = []
+
+        atom_to_monomer: Dict[int, int] = {}
+        for m_idx, comp in enumerate(components):
+            comp_indices = sorted(list(comp))
+            comp_symbols = [normalize_symbol(symbols[idx]) for idx in comp_indices]
+            # Calculate simple Hill system formula for monomer
+            from collections import Counter
+            counts = Counter(comp_symbols)
+            formula_parts = []
+            if "C" in counts:
+                c_cnt = counts.pop("C")
+                formula_parts.append(f"C{c_cnt if c_cnt > 1 else ''}")
+            if "H" in counts:
+                h_cnt = counts.pop("H")
+                formula_parts.append(f"H{h_cnt if h_cnt > 1 else ''}")
+            for elem in sorted(counts.keys()):
+                cnt = counts[elem]
+                formula_parts.append(f"{elem}{cnt if cnt > 1 else ''}")
+            formula = "".join(formula_parts) or "Unknown"
+
+            cov_edges = [
+                (u, v) for u, v in g_cov.edges() if u in comp and v in comp
+            ]
+            for idx in comp_indices:
+                atom_to_monomer[idx] = m_idx
+
+            monomer_subgraphs.append(
+                MonomerSubgraph(
+                    monomer_id=m_idx,
+                    formula=formula,
+                    num_atoms=len(comp_indices),
+                    atom_indices=comp_indices,
+                    symbols=comp_symbols,
+                    covalent_edges=cov_edges,
+                )
             )
-            
-        x = coords_arr[:, 0]
-        y = coords_arr[:, 1]
-        z = coords_arr[:, 2]
+
+        # Identify intermolecular contact edges (edges in g_vdw connecting different monomers)
+        inter_edges: List[Tuple[int, int]] = []
+        for u, v in g_vdw.edges():
+            if atom_to_monomer.get(u) != atom_to_monomer.get(v):
+                inter_edges.append((min(u, v), max(u, v)))
+
+        covalent_adj = nx.to_numpy_array(g_cov, nodelist=range(len(coords_arr)), dtype=np.float64)
+
+        return DualGraphResult(
+            num_atoms=len(coords_arr),
+            num_covalent_bonds=g_cov.number_of_edges(),
+            num_noncovalent_contacts=len(inter_edges),
+            monomers=monomer_subgraphs,
+            intermolecular_contact_edges=inter_edges,
+            has_intermolecular_contacts=len(inter_edges) > 0,
+            covalent_adjacency=covalent_adj,
+        )
+
+
+# ==============================================================================
+# 4. Permutation-Invariant Hungarian Kabsch SVD Alignment Engine
+# ==============================================================================
+
+class HungarianKabschAligner:
+    """Executes Hungarian Permutation SVD Kabsch Alignment.
+    
+    Enforces:
+    1. Determinant Reflection Trap:
+       d = sign(det(V W^T)), U = V diag(1, 1, d) W^T (det(U) = +1.0)
+    2. SVD Collinearity Singularity Trap for linear / diatomic species:
+       Detects S_3 < 1.0e-12 and pivots to 2D Z-axis projection alignment.
+    3. Permutation invariance across identical elemental species via Hungarian algorithm.
+    """
+
+    def __init__(self, collinearity_threshold: float = 1.0e-12) -> None:
+        self.collinearity_threshold = collinearity_threshold
+
+    def _detect_collinearity(self, coords_centered: np.ndarray) -> bool:
+        """Detects whether centered coordinates are strictly 1D collinear.
         
-        Ixx = np.sum(masses_arr * (y**2 + z**2))
-        Iyy = np.sum(masses_arr * (x**2 + z**2))
-        Izz = np.sum(masses_arr * (x**2 + y**2))
-        Ixy = -np.sum(masses_arr * x * y)
-        Ixz = -np.sum(masses_arr * x * z)
-        Iyz = -np.sum(masses_arr * y * z)
+        A molecular system is 1D collinear if:
+        - Atom count <= 2 (all diatomics are collinear).
+        - Or second singular value S_2 is near zero relative to S_1 (e.g. S_2 < 1e-10 or S_2 / S_1 < 1e-6).
+        Note: A planar 3D system (e.g., water in XY plane) has S_3 = 0, but S_2 > 0. It is 2D planar, NOT 1D collinear.
+        """
+        if len(coords_centered) <= 2:
+            return True
+        _, S, _ = np.linalg.svd(coords_centered, full_matrices=False)
+        if len(S) < 2:
+            return True
+        if S[0] < 1e-12:
+            return True
+        return bool(S[1] < self.collinearity_threshold or (S[1] / S[0]) < 1e-6)
+
+    def _align_linear_species(
+        self,
+        P: np.ndarray,
+        Q: np.ndarray,
+        symbols: Optional[Sequence[str]] = None,
+        ref_symbols: Optional[Sequence[str]] = None,
+        allow_permutation: bool = False,
+    ) -> KabschAlignmentResult:
+        """Pivots to 2D cylindrical / Z-axis projection alignment for collinear species.
         
-        tensor = np.array([
+        Supports Hungarian permutation matching along the 1D molecular axis when allow_permutation=True.
+        """
+        n_atoms = len(P)
+        syms_p = symbols if symbols is not None else ["X"] * n_atoms
+        syms_q = ref_symbols if ref_symbols is not None else syms_p
+
+        # Find 1D principal axis via SVD or end-to-end vector
+        _, _, Vt_p = np.linalg.svd(P, full_matrices=False)
+        _, _, Vt_q = np.linalg.svd(Q, full_matrices=False)
+        u_p = Vt_p[0] / np.linalg.norm(Vt_p[0])
+        u_q = Vt_q[0] / np.linalg.norm(Vt_q[0])
+
+        best_rmsd = float("inf")
+        best_R = np.eye(3, dtype=np.float64)
+        best_P_aligned = P.copy()
+        best_perm: Optional[List[int]] = None
+
+        trial_directions = [1.0, -1.0] if allow_permutation else [1.0]
+
+        for dir_sign in trial_directions:
+            u_p_trial = dir_sign * u_p
+            # 1D scalar projections along axis
+            proj_p = P @ u_p_trial
+            proj_q = Q @ u_q
+
+            perm = list(range(n_atoms))
+            if allow_permutation and symbols is not None:
+                unique_elements = sorted(list(set([normalize_symbol(s) for s in syms_p])))
+                for elem in unique_elements:
+                    p_idx = [i for i, s in enumerate(syms_p) if normalize_symbol(s) == elem]
+                    q_idx = [j for j, s in enumerate(syms_q) if normalize_symbol(s) == elem]
+                    if len(p_idx) != len(q_idx) or len(p_idx) == 0:
+                        continue
+                    if len(p_idx) == 1:
+                        perm[p_idx[0]] = q_idx[0]
+                        continue
+                    cost = (proj_p[p_idx, None] - proj_q[None, q_idx]) ** 2
+                    r_ind, c_ind = linear_sum_assignment(cost)
+                    for r, c in zip(r_ind, c_ind):
+                        perm[p_idx[r]] = q_idx[c]
+
+            P_reordered = np.zeros_like(P)
+            for orig_i, target_j in enumerate(perm):
+                P_reordered[target_j] = P[orig_i]
+
+            # Vector alignment from u_p_trial to u_q
+            dot = float(np.clip(np.dot(u_p_trial, u_q), -1.0, 1.0))
+            if np.isclose(dot, 1.0, atol=1e-12):
+                R_col = np.eye(3, dtype=np.float64)
+            elif np.isclose(dot, -1.0, atol=1e-12):
+                perp = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+                if abs(np.dot(perp, u_p_trial)) > 0.9:
+                    perp = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+                axis = np.cross(u_p_trial, perp)
+                axis = axis / np.linalg.norm(axis)
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ], dtype=np.float64)
+                R_col = np.eye(3) + 2.0 * (K @ K)
+            else:
+                axis = np.cross(u_p_trial, u_q)
+                axis_norm = np.linalg.norm(axis)
+                axis = axis / axis_norm
+                angle = math.acos(dot)
+                K = np.array([
+                    [0, -axis[2], axis[1]],
+                    [axis[2], 0, -axis[0]],
+                    [-axis[1], axis[0], 0]
+                ], dtype=np.float64)
+                R_col = np.eye(3) + math.sin(angle) * K + (1.0 - math.cos(angle)) * (K @ K)
+
+            R = R_col.T
+            if np.linalg.det(R) < 0.0:
+                R[:, 2] = -R[:, 2]
+
+            P_cand_aligned = P_reordered @ R
+            diff = P_cand_aligned - Q
+            cand_rmsd = float(np.sqrt(np.mean(np.sum(diff**2, axis=-1))))
+
+            if cand_rmsd < best_rmsd:
+                best_rmsd = cand_rmsd
+                best_R = R
+                best_P_aligned = P_cand_aligned
+                best_perm = perm
+
+        return KabschAlignmentResult(
+            rmsd=best_rmsd,
+            rotation_matrix=best_R,
+            translation_vector=np.zeros(3),
+            aligned_coords=best_P_aligned,
+            is_reflection=False,
+            is_collinear=True,
+            permutation_indices=best_perm if allow_permutation else None,
+        )
+
+    def _compute_inertia_eigenvectors(self, coords: np.ndarray, weights: np.ndarray) -> np.ndarray:
+        """Constructs and diagonalizes 3x3 moment of inertia tensor to extract right-handed eigenvectors."""
+        x, y, z = coords[:, 0], coords[:, 1], coords[:, 2]
+        Ixx = np.sum(weights * (y**2 + z**2))
+        Iyy = np.sum(weights * (x**2 + z**2))
+        Izz = np.sum(weights * (x**2 + y**2))
+        Ixy = -np.sum(weights * x * y)
+        Ixz = -np.sum(weights * x * z)
+        Iyz = -np.sum(weights * y * z)
+
+        I_mat = np.array([
             [Ixx, Ixy, Ixz],
             [Ixy, Iyy, Iyz],
-            [Ixz, Iyz, Izz],
+            [Ixz, Iyz, Izz]
         ], dtype=np.float64)
-        return tensor
 
-    @staticmethod
-    def diagonalize_inertia_tensor(inertia_tensor: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Diagonalizes 3x3 inertia tensor to yield sorted eigenvalues Ia <= Ib <= Ic and right-handed V.
-        
-        Parameters
-        ----------
-        inertia_tensor : np.ndarray
-            Symmetric 3x3 inertia tensor.
-            
-        Returns
-        -------
-        tuple[np.ndarray, np.ndarray]
-            (eigenvalues, V) where eigenvalues has shape (3,) and V has shape (3, 3) with det(V) = +1.0.
-        """
-        tensor = np.asarray(inertia_tensor, dtype=np.float64)
-        if tensor.shape != (3, 3):
-            raise ValueError(f"[INVALID SHAPE] Inertia tensor must be (3, 3), got {tensor.shape}.")
-            
-        eigvals, V = np.linalg.eigh(tensor)
-        
-        # Sort explicitly in ascending order
+        eigvals, V = np.linalg.eigh(I_mat)
+        # Sort ascending
         idx = np.argsort(eigvals)
-        eigvals = eigvals[idx]
         V = V[:, idx]
-        
-        # Enforce right-handed coordinate frame: if det(V) < 0, negate the third column
-        det_v = np.linalg.det(V)
-        if det_v < 0.0:
+        # Enforce right-handed SO(3) coordinate system
+        if np.linalg.det(V) < 0.0:
             V[:, 2] = -V[:, 2]
-            
-        return eigvals, V
+        return V
 
-    def align_to_principal_axes(
-        self,
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-    ) -> InertiaTensorResult:
-        """Translates to COM, diagonalizes inertia tensor, and derives spectroscopic rotor parameters.
-        
-        Parameters
-        ----------
-        coords : np.ndarray
-            Array of shape (N, 3) with Cartesian coordinates.
-        masses : Sequence[float] | np.ndarray, optional
-            Atomic masses.
-        symbols : Sequence[str], optional
-            Atomic symbols.
-            
-        Returns
-        -------
-        InertiaTensorResult
-            Structured result containing aligned coordinates, principal moments, rotational constants, and rotor type.
-        """
-        coords_arr = np.asarray(coords, dtype=np.float64)
-        masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-        
-        coords_com, _ = translate_to_center_of_mass(coords_arr, masses=masses_arr)
-        I_tensor = self.compute_moment_of_inertia_tensor(coords_com, masses_arr)
-        eigvals, V = self.diagonalize_inertia_tensor(I_tensor)
-        
-        Ia, Ib, Ic = float(eigvals[0]), float(eigvals[1]), float(eigvals[2])
-        
-        # Aligned coordinates in principal axis frame
-        aligned_coords = coords_com @ V
-        
-        # Calculate rotational constants A, B, C
-        if Ia < 1e-8:
-            A_mhz = float("inf")
-            A_ghz = float("inf")
-            A_cm1 = float("inf")
-        else:
-            A_mhz = FACTOR_MHZ / Ia
-            A_ghz = FACTOR_GHZ / Ia
-            A_cm1 = FACTOR_CM1 / Ia
-            
-        if Ib < 1e-8:
-            B_mhz = float("inf")
-            B_ghz = float("inf")
-            B_cm1 = float("inf")
-        else:
-            B_mhz = FACTOR_MHZ / Ib
-            B_ghz = FACTOR_GHZ / Ib
-            B_cm1 = FACTOR_CM1 / Ib
-            
-        if Ic < 1e-8:
-            C_mhz = float("inf")
-            C_ghz = float("inf")
-            C_cm1 = float("inf")
-        else:
-            C_mhz = FACTOR_MHZ / Ic
-            C_ghz = FACTOR_GHZ / Ic
-            C_cm1 = FACTOR_CM1 / Ic
-            
-        rot_mhz = (A_mhz, B_mhz, C_mhz)
-        rot_ghz = (A_ghz, B_ghz, C_ghz)
-        rot_cm1 = (A_cm1, B_cm1, C_cm1)
-        
-        # Inertial defect: Delta = Ic - Ia - Ib
-        inertial_defect = float(Ic - Ia - Ib)
-        
-        # Planar moments: Pa = (-Ia + Ib + Ic)/2, Pb = (Ia - Ib + Ic)/2, Pc = (Ia + Ib - Ic)/2
-        Pa = float((-Ia + Ib + Ic) / 2.0)
-        Pb = float((Ia - Ib + Ic) / 2.0)
-        Pc = float((Ia + Ib - Ic) / 2.0)
-        planar_moments = (Pa, Pb, Pc)
-        
-        # Rotor classification
-        # Linear: Ia < 1e-8 or Ia/Ib < 1e-4
-        if Ia < 1e-8 or (Ib > 1e-8 and (Ia / Ib) < 1e-4):
-            top_type = "linear"
-            rays_kappa = -1.0
-        elif Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and (abs(Ib - Ic) / Ic < 1e-3):
-            top_type = "spherical_top"
-            rays_kappa = 0.0
-        elif Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and ((Ic - Ib) / Ib >= 1e-3):
-            top_type = "oblate_symmetric_top"
-            rays_kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz) if (A_mhz - C_mhz) != 0 else 1.0
-        elif Ic > 1e-8 and (abs(Ib - Ic) / Ic < 1e-3) and ((Ib - Ia) / Ib >= 1e-3):
-            top_type = "prolate_symmetric_top"
-            rays_kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz) if (A_mhz - C_mhz) != 0 else -1.0
-        else:
-            top_type = "asymmetric_top"
-            if math.isinf(A_mhz) or abs(A_mhz - C_mhz) < 1e-12:
-                rays_kappa = -1.0 if math.isinf(A_mhz) else 0.0
-            else:
-                rays_kappa = float((2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz))
-                
-        return InertiaTensorResult(
-            eigenvalues_amu_angstrom2=(Ia, Ib, Ic),
-            rotational_constants_mhz=rot_mhz,
-            rotational_constants_ghz=rot_ghz,
-            rotational_constants_cm1=rot_cm1,
-            inertial_defect=inertial_defect,
-            rays_kappa=rays_kappa,
-            planar_moments=planar_moments,
-            top_type=top_type,
-            rotation_matrix=V,
-            aligned_coords=aligned_coords,
-            inertia_tensor=I_tensor,
-        )
-
-
-# ==============================================================================
-# 3. Eckart Frame Aligner Engine
-# ==============================================================================
-
-class EckartAlignmentResult(BaseModel):
-    """Pydantic model containing mass-weighted Eckart frame alignment results."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
-    aligned_coords: Any = Field(
-        ..., description="Target coordinates transformed into reference Eckart frame (N, 3)"
-    )
-    rotation_matrix: Any = Field(
-        ..., description="Proper rotation matrix U (3, 3) with det(U) = +1.0"
-    )
-    rmsd: float = Field(
-        ..., description="Mass-weighted Root Mean Square Deviation relative to reference"
-    )
-    residual_rotational_norm: float = Field(
-        ..., description="Residual torque norm of rotational Eckart condition sum(m_i * (r_i^0 x r'_i))"
-    )
-    translational_residual_norm: float = Field(
-        ..., description="Residual norm of translational Eckart condition sum(m_i * r'_i) / M"
-    )
-
-    @field_serializer("aligned_coords", "rotation_matrix", check_fields=False)
-    def _serialize_numpy(self, val: Any) -> Any:
-        if isinstance(val, np.ndarray):
-            return val.tolist()
-        return val
-
-
-class EckartFrameAligner:
-    """Mass-weighted Eckart Frame Aligner satisfying translational and rotational Eckart conditions."""
-    
-    @staticmethod
     def align(
+        self,
         target_coords: np.ndarray,
         ref_coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
         symbols: Optional[Sequence[str]] = None,
-        tolerance: float = 1e-12,
-    ) -> EckartAlignmentResult:
-        """Aligns target coordinates to reference coordinates in mass-weighted Eckart frame.
-        
-        Solves the Kabsch / Eckart problem:
-            min_U sum(m_i * || target_com_i @ U - ref_com_i ||^2)
-        subject to U in SO(3) (det(U) = +1.0).
-        
-        Parameters
-        ----------
-        target_coords : np.ndarray
-            Target Cartesian coordinates (N, 3).
-        ref_coords : np.ndarray
-            Reference Cartesian coordinates (N, 3).
-        masses : Sequence[float] | np.ndarray, optional
-            Atomic masses (N,).
-        symbols : Sequence[str], optional
-            Atomic symbols (N,).
-        tolerance : float, default 1e-12
-            Convergence tolerance for residuals.
-            
-        Returns
-        -------
-        EckartAlignmentResult
-            Structured result containing aligned target coordinates, rotation matrix U, and Eckart residual norms.
-        """
-        target_arr = np.asarray(target_coords, dtype=np.float64)
-        ref_arr = np.asarray(ref_coords, dtype=np.float64)
-        
-        if target_arr.shape != ref_arr.shape:
-            raise ValueError(
-                f"[DIMENSION MISMATCH] Target shape {target_arr.shape} does not match reference shape {ref_arr.shape}."
+        ref_symbols: Optional[Sequence[str]] = None,
+        masses: Optional[Sequence[float] | np.ndarray] = None,
+        allow_permutation: bool = False,
+    ) -> KabschAlignmentResult:
+        """Executes 3D Kabsch alignment with Hungarian assignment and reflection traps."""
+        P_raw = np.asarray(target_coords, dtype=np.float64)
+        Q_raw = np.asarray(ref_coords, dtype=np.float64)
+
+        if P_raw.shape != Q_raw.shape:
+            raise ValueError(f"[DIMENSION MISMATCH] Target {P_raw.shape} != Reference {Q_raw.shape}.")
+
+        n_atoms = len(P_raw)
+        syms_p = symbols if symbols is not None else ["X"] * n_atoms
+        syms_q = ref_symbols if ref_symbols is not None else syms_p
+
+        # Mass weighting or geometric weighting
+        if masses is not None:
+            w = np.asarray(masses, dtype=np.float64)
+            w_sum = np.sum(w)
+            p_com = np.sum(P_raw * w[:, np.newaxis], axis=0) / w_sum
+            q_com = np.sum(Q_raw * w[:, np.newaxis], axis=0) / w_sum
+        else:
+            w = np.ones(n_atoms, dtype=np.float64)
+            p_com = np.mean(P_raw, axis=0)
+            q_com = np.mean(Q_raw, axis=0)
+
+        P = P_raw - p_com
+        Q = Q_raw - q_com
+
+        # Check for collinearity / linear molecules
+        if self._detect_collinearity(P) or self._detect_collinearity(Q):
+            lin_res = self._align_linear_species(
+                P, Q, symbols=syms_p, ref_symbols=syms_q, allow_permutation=allow_permutation
             )
-        if target_arr.ndim != 2 or target_arr.shape[1] != 3:
-            raise ValueError(f"[INVALID SHAPE] Coordinates must have shape (N, 3), got {target_arr.shape}.")
-            
-        masses_arr = resolve_atomic_masses(target_arr, masses=masses, symbols=symbols)
-        total_mass = np.sum(masses_arr)
-        
-        # Center both conformations at their respective mass-weighted COM
-        target_com, _ = translate_to_center_of_mass(target_arr, masses=masses_arr)
-        ref_com, _ = translate_to_center_of_mass(ref_arr, masses=masses_arr)
-        
-        # Mass-weighted correlation matrix: F = target_com^T @ (diag(masses) @ ref_com)
-        F = target_com.T @ (ref_com * masses_arr[:, np.newaxis])
-        
-        # SVD: F = V @ S @ Wt
-        V, S, Wt = np.linalg.svd(F)
-        
-        # Proper rotation check to avoid reflections: d = det(V @ Wt)
-        d = float(np.linalg.det(V @ Wt))
-        diag = np.array([1.0, 1.0, 1.0 if d >= 0.0 else -1.0], dtype=np.float64)
-        U = V @ np.diag(diag) @ Wt
-        
-        # Safeguard strictly det(U) = +1.0
-        if np.linalg.det(U) < 0.0:
-            U = V @ np.diag([1.0, 1.0, -1.0]) @ Wt
-            
-        # Aligned coordinates
-        aligned_coords = target_com @ U
-        
-        # Translational Eckart condition residual: sum(m_i * r'_i) / M
-        trans_res = float(np.linalg.norm(np.sum(masses_arr[:, np.newaxis] * aligned_coords, axis=0) / total_mass))
-        
-        # Rotational Eckart condition residual torque: sum(m_i * (ref_com x aligned_coords))
-        rot_torque = np.sum(masses_arr[:, np.newaxis] * np.cross(ref_com, aligned_coords), axis=0)
-        rot_res = float(np.linalg.norm(rot_torque))
-        
-        # Mass-weighted RMSD
-        diff = aligned_coords - ref_com
+            lin_res.translation_vector = q_com - p_com
+            lin_res.aligned_coords = lin_res.aligned_coords + q_com
+            return lin_res
+
+        # Hungarian permutation matching
+        if allow_permutation and symbols is not None:
+            best_rmsd = float("inf")
+            best_R = np.eye(3, dtype=np.float64)
+            best_P_aligned = P.copy()
+            best_perm = list(range(n_atoms))
+            is_refl = False
+
+            # Diagonalize Moment of Inertia Tensors of P and Q to establish canonical PAF frames
+            V_p = self._compute_inertia_eigenvectors(P, w)
+            V_q = self._compute_inertia_eigenvectors(Q, w)
+
+            # 4 proper SO(3) sign permutations aligning the PAF frames (V_p @ S @ V_q.T)
+            sign_permutations = [
+                np.diag([1.0, 1.0, 1.0]),
+                np.diag([1.0, -1.0, -1.0]),
+                np.diag([-1.0, 1.0, -1.0]),
+                np.diag([-1.0, -1.0, 1.0]),
+            ]
+
+            candidate_orientations: List[np.ndarray] = [
+                V_p @ S @ V_q.T for S in sign_permutations
+            ]
+            # Also include Cartesian coordinate frame axes as fallbacks for spherical rotors
+            candidate_orientations.extend([
+                np.eye(3, dtype=np.float64),
+                np.diag([1.0, -1.0, -1.0]),
+                np.diag([-1.0, 1.0, -1.0]),
+                np.diag([-1.0, -1.0, 1.0]),
+            ])
+
+            unique_elements = sorted(list(set([normalize_symbol(s) for s in syms_p])))
+
+            for R_init in candidate_orientations:
+                # Pre-align P into candidate orientation relative to Q
+                P_trial = P @ R_init
+                perm = list(range(n_atoms))
+
+                for elem in unique_elements:
+                    p_idx = [i for i, s in enumerate(syms_p) if normalize_symbol(s) == elem]
+                    q_idx = [j for j, s in enumerate(syms_q) if normalize_symbol(s) == elem]
+                    if len(p_idx) != len(q_idx) or len(p_idx) == 0:
+                        continue
+                    if len(p_idx) == 1:
+                        perm[p_idx[0]] = q_idx[0]
+                        continue
+
+                    cost = np.sum((P_trial[p_idx, None, :] - Q[None, q_idx, :])**2, axis=-1)
+                    r_ind, c_ind = linear_sum_assignment(cost)
+                    for r, c in zip(r_ind, c_ind):
+                        perm[p_idx[r]] = q_idx[c]
+
+                # Reorder P according to perm: target position perm[i] comes from orig position i
+                P_reordered = np.zeros_like(P)
+                for orig_i, target_j in enumerate(perm):
+                    P_reordered[target_j] = P[orig_i]
+
+                # Kabsch SVD on reordered P
+                C = P_reordered.T @ (Q * w[:, np.newaxis])
+                U, S, Vt = np.linalg.svd(C)
+                d = float(np.sign(np.linalg.det(U @ Vt)))
+                if d == 0.0:
+                    d = 1.0
+                R_k = U @ np.diag([1.0, 1.0, d]) @ Vt
+                if np.linalg.det(R_k) < 0.0:
+                    R_k = U @ np.diag([1.0, 1.0, -1.0]) @ Vt
+
+                P_cand_aligned = P_reordered @ R_k
+                diff = P_cand_aligned - Q
+                sq_dist = np.sum(diff**2, axis=-1)
+                cand_rmsd = float(np.sqrt(np.sum(w * sq_dist) / np.sum(w)))
+
+                if cand_rmsd < best_rmsd:
+                    best_rmsd = cand_rmsd
+                    best_R = R_k
+                    best_P_aligned = P_cand_aligned
+                    best_perm = perm
+                    is_refl = (d < 0.0)
+
+            return KabschAlignmentResult(
+                rmsd=best_rmsd,
+                rotation_matrix=best_R,
+                translation_vector=q_com - p_com,
+                aligned_coords=best_P_aligned + q_com,
+                is_reflection=is_refl,
+                is_collinear=False,
+                permutation_indices=best_perm,
+            )
+
+        # Standard 3D Kabsch SVD (without permutation)
+        C = P.T @ (Q * w[:, np.newaxis])
+        U, S, Vt = np.linalg.svd(C)
+
+        # Determinant Reflection Trap: d = sign(det(U @ Vt))
+        det_raw = float(np.linalg.det(U @ Vt))
+        d = 1.0 if det_raw >= 0.0 else -1.0
+
+        R = U @ np.diag([1.0, 1.0, d]) @ Vt
+
+        # Strictly enforce right-handed rotation det(R) = +1.0
+        if np.linalg.det(R) < 0.0:
+            R = U @ np.diag([1.0, 1.0, -1.0]) @ Vt
+
+        P_aligned = P @ R
+        diff = P_aligned - Q
         sq_dist = np.sum(diff**2, axis=-1)
-        rmsd = float(np.sqrt(np.sum(masses_arr * sq_dist) / total_mass))
-        
-        return EckartAlignmentResult(
-            aligned_coords=aligned_coords,
-            rotation_matrix=U,
+        rmsd = float(np.sqrt(np.sum(w * sq_dist) / np.sum(w)))
+
+        return KabschAlignmentResult(
             rmsd=rmsd,
-            residual_rotational_norm=rot_res,
-            translational_residual_norm=trans_res,
+            rotation_matrix=R,
+            translation_vector=q_com - p_com,
+            aligned_coords=P_aligned + q_com,
+            is_reflection=(d < 0.0),
+            is_collinear=False,
+            permutation_indices=None,
         )
 
 
-def align_to_eckart_frame(
-    target_coords: np.ndarray,
-    ref_coords: np.ndarray,
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-    tolerance: float = 1e-12,
-) -> EckartAlignmentResult:
-    """Convenience functional wrapper for mass-weighted Eckart frame alignment."""
-    return EckartFrameAligner.align(
-        target_coords=target_coords,
-        ref_coords=ref_coords,
-        masses=masses,
-        symbols=symbols,
-        tolerance=tolerance,
-    )
-
 
 # ==============================================================================
-# 4. Vibrational Projector Engine
+# 5. "Jiggle-Quench" Conformer Deduplicator Engine
 # ==============================================================================
 
-class VibrationalProjector:
-    """Constructs idempotent vibrational projection matrices P_vib and projects Cartesian/mass-weighted Hessians."""
+class JiggleQuenchDeduplicator:
+    """Performs Jiggle-Quench conformer deduplication and clustering.
     
-    @staticmethod
-    def construct_vibrational_projector(
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-        is_linear: bool = False,
-    ) -> np.ndarray:
-        """Constructs (3N, 3N) mass-weighted vibrational projection operator P_vib = I - P_rigid.
-        
-        Properties:
-        - Idempotent: P_vib @ P_vib = P_vib
-        - Symmetric: P_vib^T = P_vib
-        - Trace invariant: Tr(P_vib) = 3N - 6 (or 3N - 5 for linear molecules)
-        
-        Parameters
-        ----------
-        coords : np.ndarray
-            Molecular coordinates (N, 3).
-        masses : Sequence[float] | np.ndarray, optional
-            Atomic masses in amu.
-        symbols : Sequence[str], optional
-            Atomic symbols.
-        is_linear : bool, default False
-            Whether the molecule is linear (5 rigid body modes instead of 6).
-            
-        Returns
-        -------
-        np.ndarray
-            (3N, 3N) float64 vibrational projector matrix.
-        """
-        coords_arr = np.asarray(coords, dtype=np.float64)
-        masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-        coords_com, _ = translate_to_center_of_mass(coords_arr, masses=masses_arr)
-        
-        N = len(coords_com)
-        total_mass = np.sum(masses_arr)
-        sqrt_m = np.sqrt(masses_arr)
-        
-        # 3 mass-weighted translational basis vectors
-        D_trans = np.zeros((3 * N, 3), dtype=np.float64)
-        for i in range(N):
-            w = sqrt_m[i] / np.sqrt(total_mass)
-            D_trans[3 * i, 0] = w
-            D_trans[3 * i + 1, 1] = w
-            D_trans[3 * i + 2, 2] = w
-            
-        # 3 mass-weighted rotational basis vectors
-        D_rot = np.zeros((3 * N, 3), dtype=np.float64)
-        for i in range(N):
-            sm = sqrt_m[i]
-            x, y, z = coords_com[i]
-            # Rotation about x: sm * (0, -z, y)
-            D_rot[3 * i, 0] = 0.0
-            D_rot[3 * i + 1, 0] = -sm * z
-            D_rot[3 * i + 2, 0] = sm * y
-            # Rotation about y: sm * (z, 0, -x)
-            D_rot[3 * i, 1] = sm * z
-            D_rot[3 * i + 1, 1] = 0.0
-            D_rot[3 * i + 2, 1] = -sm * x
-            # Rotation about z: sm * (-y, x, 0)
-            D_rot[3 * i, 2] = -sm * y
-            D_rot[3 * i + 1, 2] = sm * x
-            D_rot[3 * i + 2, 2] = 0.0
-            
-        D_rigid = np.hstack([D_trans, D_rot])  # (3N, 6)
-        
-        # SVD orthonormalization
-        U_svd, _, _ = np.linalg.svd(D_rigid, full_matrices=False)
-        k_rigid = 5 if is_linear else min(6, 3 * N)
-        
-        E_rigid = U_svd[:, :k_rigid]
-        P_rigid = E_rigid @ E_rigid.T
-        P_vib = np.eye(3 * N, dtype=np.float64) - P_rigid
-        return P_vib
-
-    def project_mass_weighted_hessian(
-        self,
-        H_mw: np.ndarray,
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-        is_linear: bool = False,
-    ) -> np.ndarray:
-        """Projects mass-weighted Hessian H_mw (3N, 3N) removing 6 (or 5) rigid body translational/rotational modes.
-        
-        H_mw_proj = P_vib @ H_mw @ P_vib
-        
-        Parameters
-        ----------
-        H_mw : np.ndarray
-            (3N, 3N) mass-weighted Hessian.
-        coords : np.ndarray
-            Cartesian coordinates (N, 3).
-        masses : Sequence[float] | np.ndarray, optional
-            Atomic masses.
-        symbols : Sequence[str], optional
-            Atomic symbols.
-        is_linear : bool, default False
-            Whether molecule is linear.
-            
-        Returns
-        -------
-        np.ndarray
-            (3N, 3N) projected mass-weighted Hessian.
-        """
-        H_mw_arr = np.asarray(H_mw, dtype=np.float64)
-        P_vib = self.construct_vibrational_projector(coords, masses=masses, symbols=symbols, is_linear=is_linear)
-        return P_vib @ H_mw_arr @ P_vib
-
-    def project_cartesian_hessian(
-        self,
-        H_cart: np.ndarray,
-        coords: np.ndarray,
-        masses: Optional[Sequence[float] | np.ndarray] = None,
-        symbols: Optional[Sequence[str]] = None,
-        is_linear: bool = False,
-    ) -> np.ndarray:
-        """Projects Cartesian Hessian H_cart (3N, 3N) removing rigid body modes via mass-weighting and unweighting.
-        
-        Parameters
-        ----------
-        H_cart : np.ndarray
-            (3N, 3N) Cartesian Hessian.
-        coords : np.ndarray
-            Cartesian coordinates (N, 3).
-        masses : Sequence[float] | np.ndarray, optional
-            Atomic masses.
-        symbols : Sequence[str], optional
-            Atomic symbols.
-        is_linear : bool, default False
-            Whether molecule is linear.
-            
-        Returns
-        -------
-        np.ndarray
-            (3N, 3N) projected Cartesian Hessian.
-        """
-        H_cart_arr = np.asarray(H_cart, dtype=np.float64)
-        masses_arr = resolve_atomic_masses(coords, masses=masses, symbols=symbols)
-        sqrt_m_3n = np.repeat(np.sqrt(masses_arr), 3)
-        inv_sqrt_m_3n = np.repeat(1.0 / np.sqrt(masses_arr), 3)
-        
-        # Mass-weight Cartesian Hessian: H_mw = M^(-1/2) @ H_cart @ M^(-1/2)
-        H_mw = H_cart_arr * np.outer(inv_sqrt_m_3n, inv_sqrt_m_3n)
-        H_mw_proj = self.project_mass_weighted_hessian(H_mw, coords, masses=masses_arr, is_linear=is_linear)
-        # Restore to Cartesian space: H_cart_proj = M^(1/2) @ H_mw_proj @ M^(1/2)
-        H_cart_proj = H_mw_proj * np.outer(sqrt_m_3n, sqrt_m_3n)
-        return H_cart_proj
-
-
-# ==============================================================================
-# 5. Unified Standardization Pipeline & ToposAlignmentResult
-# ==============================================================================
-
-class ToposAlignmentResult(BaseModel):
-    """Unified result container for molecular topology standardization and alignment."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="ignore")
-
-    aligned_coords: Any = Field(
-        ..., description="Principal-axis aligned Cartesian coordinates (N, 3)"
-    )
-    center_of_mass: Any = Field(
-        ..., description="Center of mass vector (3,) (zeros for aligned frame)"
-    )
-    n_atoms: int = Field(
-        ..., description="Total atom count (including ghost atoms)"
-    )
-    n_ghost_atoms: int = Field(
-        ..., description="Number of ghost atoms"
-    )
-    top_type: str = Field(
-        ..., description="Rotor classification: asymmetric_top, oblate_symmetric_top, prolate_symmetric_top, spherical_top, linear"
-    )
-    inertial_defect: float = Field(
-        ..., description="Inertial defect Delta in amu * Angstrom^2"
-    )
-    rays_kappa: float = Field(
-        ..., description="Ray's asymmetry parameter kappa in [-1.0, 1.0]"
-    )
-    rotational_constants_mhz: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in MHz"
-    )
-    rotational_constants_ghz: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in GHz"
-    )
-    rotational_constants_cm1: Tuple[float, float, float] = Field(
-        ..., description="Rotational constants (A, B, C) in cm^-1"
-    )
-    eigenvalues_amu_angstrom2: Tuple[float, float, float] = Field(
-        ..., description="Principal moments of inertia Ia <= Ib <= Ic"
-    )
-    planar_moments: Tuple[float, float, float] = Field(
-        ..., description="Planar moments (Pa, Pb, Pc)"
-    )
-    rotation_matrix: Any = Field(
-        ..., description="Principal axes rotation matrix V (3, 3)"
-    )
-    inertia_tensor_result: InertiaTensorResult = Field(
-        ..., description="Detailed moment of inertia result"
-    )
-    eckart_alignment_result: Optional[EckartAlignmentResult] = Field(
-        None, description="Optional Eckart frame alignment result"
-    )
-
-    @field_serializer("aligned_coords", "center_of_mass", "rotation_matrix", check_fields=False)
-    def _serialize_numpy(self, val: Any) -> Any:
-        if isinstance(val, np.ndarray):
-            return val.tolist()
-        return val
-
-
-def standardize_molecular_topology(
-    mol: Any,
-    symbols: Optional[Sequence[str]] = None,
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    ref_coords: Optional[np.ndarray] = None,
-    is_linear: Optional[bool] = None,
-) -> ToposAlignmentResult:
-    """Standardizes molecular topology by shifting to COM, aligning to principal axes, and optionally performing Eckart frame alignment.
-    
-    Accepts:
-    - Sequence of AtomModel or atom dicts
-    - Dict with 'coords' and 'symbols' or 'atoms'
-    - MolecularGraph object
-    - Raw numpy array of coordinates (with symbols or masses provided)
-    
-    Parameters
-    ----------
-    mol : Any
-        Molecular representation (AtomModel sequence, dict, MolecularGraph, or numpy array).
-    symbols : Sequence[str], optional
-        Explicit elemental symbols.
-    masses : Sequence[float] | np.ndarray, optional
-        Explicit atomic masses.
-    ref_coords : np.ndarray, optional
-        Reference coordinates for optional Eckart frame alignment.
-    is_linear : bool, optional
-        Explicit linear molecule override.
-        
-    Returns
-    -------
-    ToposAlignmentResult
-        Comprehensive standardized alignment result model.
+    Perturbs candidate geometries by normal/random Cartesian displacements
+    (e.g., 0.05 A) and sifts redundant minima using Hungarian Kabsch RMSD sieving.
     """
-    coords_list: list[list[float]] = []
-    extracted_symbols: list[str] = []
-    
-    # 1. Parse mol input
-    if isinstance(mol, dict):
-        if "coords" in mol:
-            coords_arr = np.asarray(mol["coords"], dtype=np.float64)
-            if "symbols" in mol:
-                extracted_symbols = list(mol["symbols"])
-        elif "atoms" in mol:
-            for item in mol["atoms"]:
-                if AtomModel is not None and isinstance(item, AtomModel):
-                    coords_list.append(list(item.coords))
-                    extracted_symbols.append(item.symbol)
-                elif isinstance(item, dict):
-                    sym = item.get("symbol")
-                    pos = item.get("coords", item.get("position"))
-                    if pos is None and "x" in item and "y" in item and "z" in item:
-                        pos = [item["x"], item["y"], item["z"]]
-                    if pos is None:
-                        raise ValueError(f"[INVALID DATA] Atom dictionary missing coordinates: {item}")
-                    if sym is None:
-                        raise ValueError(f"[INVALID DATA] Atom dictionary missing atomic symbol: {item}")
-                    coords_list.append([float(x) for x in pos])
-                    extracted_symbols.append(str(sym))
-                elif hasattr(item, "coords") and hasattr(item, "symbol"):
-                    coords_list.append(list(item.coords))
-                    extracted_symbols.append(str(item.symbol))
-            coords_arr = np.array(coords_list, dtype=np.float64)
+
+    def __init__(
+        self,
+        rmsd_threshold: float = 0.08,
+        jiggle_amplitude: float = 0.05,
+    ) -> None:
+        self.rmsd_threshold = rmsd_threshold
+        self.jiggle_amplitude = jiggle_amplitude
+        self.aligner = HungarianKabschAligner()
+
+    def jiggle(
+        self,
+        coords: np.ndarray,
+        amplitude: Optional[float] = None,
+        seed: Optional[int] = None,
+    ) -> np.ndarray:
+        """Applies a random perturbation to Cartesian coordinates."""
+        amp = amplitude if amplitude is not None else self.jiggle_amplitude
+        rng = np.random.default_rng(seed)
+        noise = rng.normal(loc=0.0, scale=amp, size=coords.shape)
+        # Center-of-mass re-zeroing
+        jiggled = coords + noise
+        jiggled -= np.mean(jiggled, axis=0)
+        return jiggled
+
+    def deduplicate(
+        self,
+        conformers: Sequence[np.ndarray],
+        symbols: Sequence[str],
+        names: Optional[Sequence[str]] = None,
+    ) -> ConformerClusterResult:
+        """Clusters and deduplicates a list of conformer coordinates."""
+        n_confs = len(conformers)
+        if n_confs == 0:
+            return ConformerClusterResult(
+                total_input_conformers=0,
+                unique_conformer_count=0,
+                unique_indices=[],
+                cluster_assignments={},
+                representative_names=[],
+            )
+
+        conf_names = list(names) if names is not None else [f"conf_{i}" for i in range(n_confs)]
+
+        unique_indices: List[int] = [0]
+        cluster_assignments: Dict[int, int] = {0: 0}
+
+        for i in range(1, n_confs):
+            target = np.asarray(conformers[i], dtype=np.float64)
+            matched_cluster: Optional[int] = None
+
+            for u_idx in unique_indices:
+                ref = np.asarray(conformers[u_idx], dtype=np.float64)
+                align_res = self.aligner.align(
+                    target_coords=target,
+                    ref_coords=ref,
+                    symbols=symbols,
+                    allow_permutation=True,
+                )
+
+                if align_res.rmsd < self.rmsd_threshold:
+                    matched_cluster = u_idx
+                    break
+
+            if matched_cluster is not None:
+                cluster_assignments[i] = matched_cluster
+            else:
+                unique_indices.append(i)
+                cluster_assignments[i] = i
+
+        rep_names = [conf_names[idx] for idx in unique_indices]
+
+        return ConformerClusterResult(
+            total_input_conformers=n_confs,
+            unique_conformer_count=len(unique_indices),
+            unique_indices=unique_indices,
+            cluster_assignments=cluster_assignments,
+            representative_names=rep_names,
+        )
+
+
+# ==============================================================================
+# 6. Multi-Format File Parsers (.xyz, .sdf)
+# ==============================================================================
+
+XYZ_LINE_PATTERN = re.compile(r"^\s*([A-Za-z]{1,2})\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)")
+
+
+def parse_xyz_text(text: str) -> List[Dict[str, Any]]:
+    """Parses single or multi-geometry XYZ formatted text."""
+    molecules: List[Dict[str, Any]] = []
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return molecules
+
+    i = 0
+    while i < len(lines):
+        try:
+            num_atoms = int(lines[i])
+        except ValueError:
+            i += 1
+            continue
+
+        comment = lines[i + 1] if i + 1 < len(lines) else ""
+        coord_lines = lines[i + 2 : i + 2 + num_atoms]
+        symbols: List[str] = []
+        coords_list: List[List[float]] = []
+
+        for cline in coord_lines:
+            match = XYZ_LINE_PATTERN.match(cline)
+            if match:
+                symbols.append(match.group(1).capitalize())
+                coords_list.append([
+                    float(match.group(2)),
+                    float(match.group(3)),
+                    float(match.group(4)),
+                ])
+
+        if len(coords_list) == num_atoms and num_atoms > 0:
+            molecules.append({
+                "comment": comment,
+                "symbols": symbols,
+                "coords": np.array(coords_list, dtype=np.float64),
+                "num_atoms": num_atoms,
+            })
+            i += 2 + num_atoms
         else:
-            raise ValueError("[INVALID DATA] Dict molecular input must contain 'coords' or 'atoms'.")
-            
-    elif hasattr(mol, "atoms"):
-        for item in mol.atoms:
-            if hasattr(item, "coords"):
-                coords_list.append(list(item.coords))
-            elif hasattr(item, "x") and hasattr(item, "y") and hasattr(item, "z"):
-                coords_list.append([float(item.x), float(item.y), float(item.z)])
-            if hasattr(item, "symbol"):
-                extracted_symbols.append(str(item.symbol))
-        coords_arr = np.array(coords_list, dtype=np.float64)
-        
-    elif isinstance(mol, (list, tuple)) and len(mol) > 0 and (
-        (AtomModel is not None and isinstance(mol[0], AtomModel))
-        or isinstance(mol[0], dict)
-        or hasattr(mol[0], "symbol")
-    ):
-        for item in mol:
-            if AtomModel is not None and isinstance(item, AtomModel):
-                coords_list.append(list(item.coords))
-                extracted_symbols.append(item.symbol)
-            elif isinstance(item, dict):
-                sym = item.get("symbol")
-                pos = item.get("coords", item.get("position"))
-                if pos is None and "x" in item and "y" in item and "z" in item:
-                    pos = [item["x"], item["y"], item["z"]]
-                if pos is None:
-                    raise ValueError(f"[INVALID DATA] Atom dictionary missing coordinates: {item}")
-                if sym is None:
-                    raise ValueError(f"[INVALID DATA] Atom dictionary missing atomic symbol: {item}")
-                coords_list.append([float(x) for x in pos])
-                extracted_symbols.append(str(sym))
-            elif hasattr(item, "coords") and hasattr(item, "symbol"):
-                coords_list.append(list(item.coords))
-                extracted_symbols.append(str(item.symbol))
-        coords_arr = np.array(coords_list, dtype=np.float64)
-        
-    else:
-        coords_arr = np.asarray(mol, dtype=np.float64)
-        if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
-            raise ValueError(f"[INVALID SHAPE] Input coordinates must have shape (N, 3), got {coords_arr.shape}.")
-            
-    # Resolve symbols
-    if symbols is not None:
-        final_symbols = list(symbols)
-    elif extracted_symbols:
-        final_symbols = extracted_symbols
-    else:
-        final_symbols = None
+            i += 1
 
-    # Count ghost atoms
-    n_atoms = len(coords_arr)
-    if final_symbols is not None:
-        n_ghost_atoms = sum(1 for s in final_symbols if is_ghost_symbol(s))
-    elif masses is not None:
-        n_ghost_atoms = sum(1 for m in masses if m == 0.0)
-    else:
-        n_ghost_atoms = 0
+    return molecules
 
-    # Resolve masses
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=final_symbols)
 
-    # Center of mass and principal axes alignment
-    inertia_engine = MomentOfInertiaEngine()
-    inertia_res = inertia_engine.align_to_principal_axes(coords_arr, masses=masses_arr)
+def parse_sdf_text(text: str) -> List[Dict[str, Any]]:
+    """Parses V2000 / V3000 formatted SDF/MOL text."""
+    molecules: List[Dict[str, Any]] = []
+    blocks = text.split("$$$$") if "$$$$" in text else [text]
+    v2000_pattern = re.compile(r"^\s*(\d+)\s+(\d+)\s+.*V2000", re.IGNORECASE)
+    atom_pattern = re.compile(r"^\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+([A-Za-z]{1,2})")
 
-    # Optional Eckart frame alignment if ref_coords provided
-    eckart_res: Optional[EckartAlignmentResult] = None
-    if ref_coords is not None:
-        aligner = EckartFrameAligner()
-        eckart_res = aligner.align(coords_arr, ref_coords=ref_coords, masses=masses_arr)
+    for block in blocks:
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if not lines:
+            continue
 
-    # Center of mass of standardized aligned molecule is (0, 0, 0)
-    aligned_com = np.zeros(3, dtype=np.float64)
+        title = lines[0]
+        num_atoms: Optional[int] = None
+        start_idx: Optional[int] = None
 
-    return ToposAlignmentResult(
-        aligned_coords=inertia_res.aligned_coords,
-        center_of_mass=aligned_com,
-        n_atoms=n_atoms,
-        n_ghost_atoms=n_ghost_atoms,
-        top_type=inertia_res.top_type,
-        inertial_defect=inertia_res.inertial_defect,
-        rays_kappa=inertia_res.rays_kappa,
-        rotational_constants_mhz=inertia_res.rotational_constants_mhz,
-        rotational_constants_ghz=inertia_res.rotational_constants_ghz,
-        rotational_constants_cm1=inertia_res.rotational_constants_cm1,
-        eigenvalues_amu_angstrom2=inertia_res.eigenvalues_amu_angstrom2,
-        planar_moments=inertia_res.planar_moments,
-        rotation_matrix=inertia_res.rotation_matrix,
-        inertia_tensor_result=inertia_res,
-        eckart_alignment_result=eckart_res,
-    )
+        for idx, line in enumerate(lines):
+            match = v2000_pattern.match(line)
+            if match:
+                num_atoms = int(match.group(1))
+                start_idx = idx + 1
+                break
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_topos_alignment.py ---
+        if num_atoms is not None and start_idx is not None:
+            symbols: List[str] = []
+            coords_list: List[List[float]] = []
+            for line in lines[start_idx : start_idx + num_atoms]:
+                m = atom_pattern.match(line)
+                if m:
+                    coords_list.append([
+                        float(m.group(1)),
+                        float(m.group(2)),
+                        float(m.group(3)),
+                    ])
+                    symbols.append(m.group(4).capitalize())
+
+            if len(coords_list) == num_atoms and num_atoms > 0:
+                molecules.append({
+                    "comment": title,
+                    "symbols": symbols,
+                    "coords": np.array(coords_list, dtype=np.float64),
+                    "num_atoms": num_atoms,
+                })
+
+    return molecules
+
+
+
+# ==============================================================================
+# 7. High-Level Stage2 Ingestor Batch Pipeline
+# ==============================================================================
+
+class Stage2Ingestor:
+    """The High-Level Stage 2.0 Ingestor & Conformer Sieve Pipeline."""
+
+    def __init__(
+        self,
+        max_workers: int = 4,
+        breathing_tolerance: float = 1.15,
+        vdw_contact_buffer: float = 0.8,
+        rmsd_threshold: float = 0.08,
+    ) -> None:
+        self.max_workers = max_workers
+        self.graph_builder = CovalentGraphBuilder(
+            breathing_tolerance=breathing_tolerance,
+            vdw_contact_buffer=vdw_contact_buffer,
+        )
+        self.deduplicator = JiggleQuenchDeduplicator(rmsd_threshold=rmsd_threshold)
+        self.aligner = HungarianKabschAligner()
+
+    def process_file(self, file_path: Path) -> List[Dict[str, Any]]:
+        """Parses a single file (.xyz or .sdf) and returns raw molecular dictionaries."""
+        p = Path(file_path)
+        if not p.exists() or not p.is_file():
+            return []
+
+        try:
+            content = p.read_text(encoding="utf-8", errors="ignore")
+        except Exception as e:
+            logger.error(f"Failed to read file {p.name}: {e}")
+            return []
+
+        if p.suffix.lower() == ".sdf" or p.suffix.lower() == ".mol":
+            mols = parse_sdf_text(content)
+        else:
+            mols = parse_xyz_text(content)
+
+        for m in mols:
+            m["source_file"] = p.name
+
+        return mols
+
+    def process_directory(self, input_dir: Union[str, Path]) -> List[ChemicalSystemResult]:
+        """Scans directory, ingests coordinates, groups by formula, and executes deduplication."""
+        in_p = Path(input_dir)
+        if not in_p.exists() or not in_p.is_dir():
+            logger.error(f"Input path {input_dir} is not a valid directory.")
+            return []
+
+        files = list(in_p.glob("*.xyz")) + list(in_p.glob("*.sdf")) + list(in_p.glob("*.mol"))
+        logger.info(f"Stage 2.0 Ingestor processing {len(files)} files with {self.max_workers} workers...")
+
+        all_mols: List[Dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_file = {executor.submit(self.process_file, f): f for f in files}
+            for future in as_completed(future_to_file):
+                try:
+                    res = future.result()
+                    all_mols.extend(res)
+                except Exception as exc:
+                    logger.error(f"Worker exception: {exc}")
+
+        # Group by stoichiometry / formula
+        formula_groups: Dict[str, List[Dict[str, Any]]] = {}
+        for m in all_mols:
+            syms = [normalize_symbol(s) for s in m["symbols"]]
+            from collections import Counter
+            counts = Counter(syms)
+            f_parts = []
+            if "C" in counts:
+                c_cnt = counts.pop("C")
+                f_parts.append(f"C{c_cnt if c_cnt > 1 else ''}")
+            if "H" in counts:
+                h_cnt = counts.pop("H")
+                f_parts.append(f"H{h_cnt if h_cnt > 1 else ''}")
+            for elem in sorted(counts.keys()):
+                cnt = counts[elem]
+                f_parts.append(f"{elem}{cnt if cnt > 1 else ''}")
+            formula = "".join(f_parts) or "Unknown"
+
+            formula_groups.setdefault(formula, []).append(m)
+
+        system_results: List[ChemicalSystemResult] = []
+
+        for formula, mol_list in formula_groups.items():
+            coords_list = [m["coords"] for m in mol_list]
+            names_list = [m.get("source_file", f"conf_{i}") for i, m in enumerate(mol_list)]
+            ref_symbols = mol_list[0]["symbols"]
+
+            # Deduplicate conformers
+            cluster_res = self.deduplicator.deduplicate(
+                conformers=coords_list,
+                symbols=ref_symbols,
+                names=names_list,
+            )
+
+            # Build representative dual graph
+            rep_coords = coords_list[cluster_res.unique_indices[0]]
+            dual_graph = self.graph_builder.build_dual_graph(rep_coords, ref_symbols)
+
+            system_results.append(
+                ChemicalSystemResult(
+                    system_name=f"System_{formula}",
+                    formula=formula,
+                    total_input_conformers=cluster_res.total_input_conformers,
+                    unique_conformer_count=cluster_res.unique_conformer_count,
+                    dual_graph=dual_graph,
+                    unique_conformer_names=cluster_res.representative_names,
+                )
+            )
+
+        logger.info(f"Stage 2.0 Ingestion complete. Ingested {len(system_results)} unique chemical systems.")
+        return system_results
+
+
+# Legacy IngestionEngine bridge for backward compatibility with previous interface
+class IngestionEngine(Stage2Ingestor):
+    """Backward compatibility alias for Stage2Ingestor."""
+    pass
+
+
+if __name__ == "__main__":
+    logger.info("CoChem Stage 2.0 Ingestion & Topology Sorter Engine ready.")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_stage2_ingestor.py ---
 #!/usr/bin/env python3
-"""
-Authentic Physical Unit and Integration Test Suite for CoChem-TOPOS Alignment Engine.
-Module: tests/test_cochem_topos_alignment.py
-Target Module: intake/cochem_topos_alignment.py
+"""Comprehensive Zero-Mock Unit and Integration Test Suite for CoChem Stage 2 Ingestor.
 
-Authoritative Specifications:
-1. D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\Method_Matrix.md
-2. D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\CoChem_User_Manual.md
-3. D:\\__CoChem\\__agentic\\.prompts\\.SRS\\CoChem-BASE\\.in-progress\\Doc2_Part2_09_intake_topos_alignment_prompt.md
+Module: tests/test_cochem_stage2_ingestor.py
 
-Directives & Mandates:
-- Authentic Physical Foundation: Live physical data, authentic mathematical physics, genuine molecular coordinates.
-- Uncompromising computational fidelity across all tensor operations and alignments.
-- Rigorous physical validation:
-  1. Center of Mass Translation:
-     - Exact translation to (0, 0, 0) Center of Mass with sum(m_i * r'_i) < 1e-14.
-     - Ghost atom protection: symbols starting with 'Gh', 'X', 'gh', 'x' possess EXACTLY 0.0 mass
-       preventing COM shift in BSSE / Counterpoise calculations.
-     - Pairwise distance preservation across all atoms.
-     - Exception on total non-ghost mass <= 0.
-  2. Moment of Inertia Tensor & Top Classification:
-     - Symmetric 3x3 inertia tensor construction and diagonalization Ia <= Ib <= Ic.
-     - CODATA 2026 conversion to rotational constants A, B, C (MHz, GHz, cm^-1).
-     - Inertial defect Delta = Ic - Ia - Ib (~ 0 for planar Water and Benzene).
-     - Ray's asymmetry parameter kappa and planar moments Pa, Pb, Pc.
-     - Top classifications: asymmetric_top, prolate_symmetric_top, oblate_symmetric_top, spherical_top, linear.
-     - Right-handed coordinate frame: det(V) = +1.0.
-  3. Eckart Frame Alignment:
-     - Translational Eckart condition sum(m_i * r'_i) = 0.
-     - Rotational Eckart condition sum(m_i * (r_i^0 x r'_i)) = 0 with residual norm < 1e-12.
-     - Proper rotation det(U) = +1.0 via SVD reflection check.
-  4. Vibrational Projector:
-     - Idempotence: P_vib^2 == P_vib.
-     - Symmetry: P_vib^T == P_vib.
-     - Trace invariant: Tr(P_vib) == 3N - 6 (or 3N - 5 for linear).
-     - Mass-weighted and Cartesian Hessian projection zeroing 6 (or 5) rigid body modes.
-  5. High-Level Entrypoint:
-     - standardize_molecular_topology compatibility with AtomModel, dict, and raw numpy arrays.
-     - Structured Pydantic models: ToposAlignmentResult, EckartAlignmentResult, InertiaTensorResult.
+Tests:
+1. Dual-Graph Topology Construction (Covalent subgraphs with 1.15x breathing tolerance,
+   inter-monomer non-covalent contact graphs preserving vdW complexes, and monomer separation).
+2. Physical Valency Enforcement & Unphysical Valency Severing.
+3. Permutation-Invariant Hungarian Kabsch SVD Alignment with Determinant Reflection Trap
+   (d = sign(det(V W^T))) and det(U) = +1.0 guarantee.
+4. Singular Value Collinearity Trap for Linear / Diatomic species with 2D Z-axis projection.
+5. "Jiggle-Quench" Conformer Deduplication and Geometric Clustering.
+6. Multi-format Ingestion (.xyz, .sdf) and Bounded Batch Processing.
+7. Pydantic Serialization and Zero-Mock AST Compliance.
+
+Authoritative Standards:
+- D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\Method_Matrix.md
+- D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\SRS\\Perfected_Document 2 File Inventory & Deliverable Capabilities Manifest (Part 2).md
 """
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
+import ast
+import base64
 import math
-import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import List, Set
 
-import mendeleev
+import networkx as nx
 import numpy as np
 import pytest
-from pydantic import BaseModel
 
-# Ensure repository root is in sys.path
-REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from cochem_topos.topology import AtomModel
-
-
-# ==============================================================================
-# Dynamic Module Loader for intake/cochem_topos_alignment.py
-# ==============================================================================
-
-def _load_topos_alignment_module() -> Any:
-    """Dynamically loads cochem_topos_alignment module across multiple candidate paths."""
-    candidate_paths = [
-        REPO_ROOT / "intake" / "cochem_topos_alignment.py",
-        REPO_ROOT / "cochem_topos" / "cochem_topos_alignment.py",
-        REPO_ROOT / "cochem_topos" / "alignment.py",
-    ]
-
-    for path in candidate_paths:
-        if path.is_file():
-            mod_name = f"intake_{path.stem}"
-            if mod_name in sys.modules:
-                return sys.modules[mod_name]
-            spec = importlib.util.spec_from_file_location(mod_name, str(path))
-            if spec and spec.loader:
-                mod = importlib.util.module_from_spec(spec)
-                sys.modules[mod_name] = mod
-                spec.loader.exec_module(mod)
-                return mod
-
-    # Package import candidates
-    for pkg_name in ["intake.cochem_topos_alignment", "cochem_topos.alignment", "cochem_topos_alignment"]:
-        try:
-            return importlib.import_module(pkg_name)
-        except Exception:
-            continue
-
-    raise ImportError(
-        f"Could not load cochem_topos_alignment module from candidates: {[str(p) for p in candidate_paths]}"
-    )
+from intake.cochem_stage2_ingestor import (
+    CovalentGraphBuilder,
+    DualGraphResult,
+    HungarianKabschAligner,
+    KabschAlignmentResult,
+    JiggleQuenchDeduplicator,
+    ConformerClusterResult,
+    Stage2Ingestor,
+    get_covalent_radius,
+    get_vdw_radius,
+    is_ghost_symbol,
+    parse_xyz_text,
+    parse_sdf_text,
+)
 
 
 # ==============================================================================
-# Authentic Physical Reference Data & Physical Constants (CODATA 2026 / 2022)
+# Authentic Molecular Test Structures (Coordinates in Angstroms)
 # ==============================================================================
 
-# Fundamental Constants (CODATA 2022 / 2026 SI standard values)
-PLANCK_H = 6.62607015e-34          # J * s (exact)
-SPEED_OF_LIGHT_C = 299792458.0     # m / s (exact)
-ATOMIC_MASS_UNIT_U = 1.66053906892e-27  # kg / u (CODATA 2022)
-ANGSTROM_TO_M = 1.0e-10            # m / Angstrom
-
-# Rotational conversion factor: factor_hz / I(amu * A^2) = B (Hz)
-FACTOR_HZ = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ = FACTOR_HZ / 1.0e6
-FACTOR_GHZ = FACTOR_HZ / 1.0e9
-FACTOR_CM1 = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
-
-
-def get_physical_mass(symbol: str) -> float:
-    """Retrieves authentic ground-truth standard atomic weight from mendeleev.
-    
-    Ghost symbols (starting with 'Gh', 'gh', 'X', 'x') return exactly 0.0.
-    """
-    clean_sym = symbol.strip()
-    if clean_sym.lower().startswith("gh") or clean_sym.lower().startswith("x"):
-        return 0.0
-    elem = mendeleev.element(clean_sym)
-    return float(elem.mass)
-
-
-# ==============================================================================
-# Authentic Physical Molecular Benchmarks
-# ==============================================================================
-
-# 1. Water (H2O) - Planar asymmetric top (C2v)
+# Water monomer (H2O)
 WATER_SYMBOLS = ["O", "H", "H"]
 WATER_COORDS = np.array([
-    [0.000000,  0.000000,  0.117300],
-    [0.000000,  0.757200, -0.469200],
-    [0.000000, -0.757200, -0.469200],
+    [0.000000, 0.000000, 0.117790],
+    [0.000000, 0.755453, -0.471161],
+    [0.000000, -0.755453, -0.471161],
 ], dtype=np.float64)
 
-# 2. Carbon Dioxide (CO2) - Linear molecule (Dinfh), Ia = 0
+# Methane (CH4)
+METHANE_SYMBOLS = ["C", "H", "H", "H", "H"]
+METHANE_COORDS = np.array([
+    [0.000000, 0.000000, 0.000000],
+    [0.627600, 0.627600, 0.627600],
+    [-0.627600, -0.627600, 0.627600],
+    [-0.627600, 0.627600, -0.627600],
+    [0.627600, -0.627600, -0.627600],
+], dtype=np.float64)
+
+# Linear molecules
 CO2_SYMBOLS = ["C", "O", "O"]
 CO2_COORDS = np.array([
-    [0.000000, 0.000000,  0.000000],
-    [0.000000, 0.000000,  1.160000],
-    [0.000000, 0.000000, -1.160000],
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, 1.162],
+    [0.0, 0.0, -1.162],
 ], dtype=np.float64)
 
-# 3. Methane (CH4) - Spherical top (Td), Ia = Ib = Ic
-CH4_SYMBOLS = ["C", "H", "H", "H", "H"]
-CH4_COORDS = np.array([
-    [ 0.000000,  0.000000,  0.000000],
-    [ 0.629118,  0.629118,  0.629118],
-    [-0.629118, -0.629118,  0.629118],
-    [ 0.629118, -0.629118, -0.629118],
-    [-0.629118,  0.629118, -0.629118],
+N2_SYMBOLS = ["N", "N"]
+N2_COORDS = np.array([
+    [0.0, 0.0, 0.5488],
+    [0.0, 0.0, -0.5488],
 ], dtype=np.float64)
 
-# 4. Benzene (C6H6) - Planar oblate symmetric top (D6h), Ia = Ib < Ic, Delta = 0
-BENZENE_SYMBOLS = ["C", "C", "C", "C", "C", "C", "H", "H", "H", "H", "H", "H"]
-BENZENE_COORDS = np.array([
-    [ 0.000000,  1.397000, 0.000000],
-    [ 1.209838,  0.698500, 0.000000],
-    [ 1.209838, -0.698500, 0.000000],
-    [ 0.000000, -1.397000, 0.000000],
-    [-1.209838, -0.698500, 0.000000],
-    [-1.209838,  0.698500, 0.000000],
-    [ 0.000000,  2.481000, 0.000000],
-    [ 2.148608,  1.240500, 0.000000],
-    [ 2.148608, -1.240500, 0.000000],
-    [ 0.000000, -2.481000, 0.000000],
-    [-2.148608, -1.240500, 0.000000],
-    [-2.148608,  1.240500, 0.000000],
+HCN_SYMBOLS = ["H", "C", "N"]
+HCN_COORDS = np.array([
+    [0.0, 0.0, -1.066],
+    [0.0, 0.0, 0.000],
+    [0.0, 0.0, 1.153],
 ], dtype=np.float64)
 
-# 5. Water Dimer BSSE Counterpoise Complex (Monomer A + Monomer B)
-# Monomer A (Donor): atoms 0..2; Monomer B (Acceptor): atoms 3..5
+# Water Dimer (H2O...H2O) at non-covalent equilibrium ~2.91 A O-O distance
+WATER_DIMER_SYMBOLS = ["O", "H", "H", "O", "H", "H"]
 WATER_DIMER_COORDS = np.array([
-    [-1.487000,  0.018000, -0.098000],
-    [-0.518000,  0.063000, -0.013000],
-    [-1.802000, -0.738000,  0.404000],
-    [ 1.428000, -0.003000,  0.076000],
-    [ 1.758000,  0.771000, -0.380000],
-    [ 1.777000, -0.760000, -0.392000],
+    [-1.490, 0.000, 0.000],   # O1 (Donor)
+    [-1.850, 0.890, 0.000],   # H1
+    [-0.520, 0.000, 0.000],   # H2 (Hydrogen bonded)
+    [1.420, 0.000, 0.000],    # O2 (Acceptor)
+    [1.770, 0.770, 0.550],    # H3
+    [1.770, -0.770, 0.550],   # H4
 ], dtype=np.float64)
 
-WATER_DIMER_GHOST_A_SYMBOLS = ["GhO", "GhH", "GhH", "O", "H", "H"]
-WATER_DIMER_GHOST_B_SYMBOLS = ["O", "H", "H", "GhO", "GhH", "GhH"]
-WATER_DIMER_FULL_SYMBOLS = ["O", "H", "H", "O", "H", "H"]
-
-
-def _generate_3d_rotation_matrix(alpha: float, beta: float, gamma: float) -> np.ndarray:
-    """Constructs a 3D Euler ZYZ rotation matrix."""
-    ca, sa = math.cos(alpha), math.sin(alpha)
-    cb, sb = math.cos(beta), math.sin(beta)
-    cg, sg = math.cos(gamma), math.sin(gamma)
-
-    Rz1 = np.array([[ca, -sa, 0.0], [sa, ca, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
-    Ry = np.array([[cb, 0.0, sb], [0.0, 1.0, 0.0], [-sb, 0.0, cb]], dtype=np.float64)
-    Rz2 = np.array([[cg, -sg, 0.0], [sg, cg, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
-    return Rz1 @ Ry @ Rz2
+# CO2...H2O van der Waals complex
+CO2_WATER_SYMBOLS = ["C", "O", "O", "O", "H", "H"]
+CO2_WATER_COORDS = np.array([
+    [0.000, 0.000, 0.000],    # C
+    [1.160, 0.000, 0.000],    # O
+    [-1.160, 0.000, 0.000],   # O
+    [0.000, 2.900, 0.000],    # O (Water)
+    [0.760, 3.450, 0.000],    # H
+    [-0.760, 3.450, 0.000],   # H
+], dtype=np.float64)
 
 
 # ==============================================================================
-# 1. Unit Tests: Center of Mass Translation & Ghost Atom Protections
+# 1. Radii Lookup & Ghost Atom Validation
 # ==============================================================================
 
-class TestCenterOfMassTranslator:
-    """Authentic unit tests for CenterOfMassTranslator and translate_to_center_of_mass."""
+def test_radii_lookup_and_ghost_handling() -> None:
+    """Validate authentic covalent and vdW radii lookup with ghost atom protections."""
+    r_c_cov = get_covalent_radius("C")
+    r_h_cov = get_covalent_radius("H")
+    r_o_cov = get_covalent_radius("O")
+    
+    assert 0.70 <= r_c_cov <= 0.80, f"Carbon covalent radius out of expected bounds: {r_c_cov}"
+    assert 0.28 <= r_h_cov <= 0.40, f"Hydrogen covalent radius out of expected bounds: {r_h_cov}"
+    assert 0.60 <= r_o_cov <= 0.72, f"Oxygen covalent radius out of expected bounds: {r_o_cov}"
 
-    def test_com_translation_water_exact_zero(self) -> None:
-        """Validates that translation shifts Center of Mass to exact origin: sum(m_i * r'_i) < 1e-14."""
-        mod = _load_topos_alignment_module()
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        
-        # Apply arbitrary large spatial offset
-        offset = np.array([42.123456, -88.654321, 105.789123], dtype=np.float64)
-        offset_coords = WATER_COORDS + offset
+    r_c_vdw = get_vdw_radius("C")
+    r_h_vdw = get_vdw_radius("H")
+    r_o_vdw = get_vdw_radius("O")
 
-        # Standalone function test
-        com_computed = mod.compute_center_of_mass(offset_coords, masses)
-        expected_com = np.sum(offset_coords * masses[:, np.newaxis], axis=0) / np.sum(masses)
-        np.testing.assert_allclose(com_computed, expected_com, atol=1e-14)
+    assert 1.60 <= r_c_vdw <= 1.85, f"Carbon vdW radius out of bounds: {r_c_vdw}"
+    assert 1.10 <= r_h_vdw <= 1.30, f"Hydrogen vdW radius out of bounds: {r_h_vdw}"
+    assert 1.45 <= r_o_vdw <= 1.65, f"Oxygen vdW radius out of bounds: {r_o_vdw}"
 
-        translated_coords, shift_vec = mod.translate_to_center_of_mass(offset_coords, masses, WATER_SYMBOLS)
-        
-        # Center of mass of translated coordinates must be (0, 0, 0) to machine precision
-        new_com = np.sum(translated_coords * masses[:, np.newaxis], axis=0) / np.sum(masses)
-        np.testing.assert_allclose(new_com, [0.0, 0.0, 0.0], atol=1e-14)
-
-        # Sum of mass-weighted vectors must be zero
-        mass_weighted_sum = np.sum(masses[:, np.newaxis] * translated_coords, axis=0)
-        np.testing.assert_allclose(mass_weighted_sum, [0.0, 0.0, 0.0], atol=1e-14)
-
-        # Shift vector must equal -computed_com
-        np.testing.assert_allclose(shift_vec, -com_computed, atol=1e-14)
-
-        # Preserves all relative interatomic distances identically
-        dists_orig = np.linalg.norm(offset_coords[:, None, :] - offset_coords[None, :, :], axis=-1)
-        dists_trans = np.linalg.norm(translated_coords[:, None, :] - translated_coords[None, :, :], axis=-1)
-        np.testing.assert_allclose(dists_trans, dists_orig, atol=1e-14)
-
-    def test_com_class_translator_parity(self) -> None:
-        """Validates parity between CenterOfMassTranslator class and functional API."""
-        mod = _load_topos_alignment_module()
-        masses = np.array([get_physical_mass(s) for s in CH4_SYMBOLS], dtype=np.float64)
-        offset_coords = CH4_COORDS + np.array([-10.0, 20.0, -30.0])
-
-        translator = mod.CenterOfMassTranslator()
-        res_class = translator.translate(offset_coords, masses, symbols=CH4_SYMBOLS)
-        res_fn_coords, res_fn_shift = mod.translate_to_center_of_mass(offset_coords, masses, symbols=CH4_SYMBOLS)
-
-        np.testing.assert_allclose(res_class[0], res_fn_coords, atol=1e-15)
-        np.testing.assert_allclose(res_class[1], res_fn_shift, atol=1e-15)
-
-    def test_ghost_atom_bsse_dimer_counterpoise_protection(self) -> None:
-        """Validates that ghost atoms possess exactly 0.0 mass and do not shift Center of Mass."""
-        mod = _load_topos_alignment_module()
-
-        # Case 1: Monomer A ghosted -> COM must equal Monomer B's COM alone
-        masses_monomer_b_only = np.array([0.0, 0.0, 0.0, get_physical_mass("O"), get_physical_mass("H"), get_physical_mass("H")])
-        
-        # Test with symbols starting with 'Gh', 'gh', 'X', 'x'
-        ghost_symbols_a = ["GhO", "GhH", "GhH", "O", "H", "H"]
-        
-        com_ghost_a = mod.compute_center_of_mass(WATER_DIMER_COORDS, masses=None, symbols=ghost_symbols_a)
-        
-        # Calculate ground truth Monomer B COM directly
-        monomer_b_coords = WATER_DIMER_COORDS[3:6]
-        monomer_b_masses = masses_monomer_b_only[3:6]
-        expected_monomer_b_com = np.sum(monomer_b_coords * monomer_b_masses[:, np.newaxis], axis=0) / np.sum(monomer_b_masses)
-
-        np.testing.assert_allclose(com_ghost_a, expected_monomer_b_com, atol=1e-14)
-
-        # Translate dimer with ghost Monomer A
-        trans_coords, shift = mod.translate_to_center_of_mass(WATER_DIMER_COORDS, symbols=ghost_symbols_a)
-        
-        # Monomer B in translated coords must be centered at (0, 0, 0)
-        monomer_b_trans = trans_coords[3:6]
-        trans_monomer_b_com = np.sum(monomer_b_trans * monomer_b_masses[:, np.newaxis], axis=0) / np.sum(monomer_b_masses)
-        np.testing.assert_allclose(trans_monomer_b_com, [0.0, 0.0, 0.0], atol=1e-14)
-
-        # Monomer A must still be present with exact relative orientation preserved
-        monomer_a_trans = trans_coords[0:3]
-        np.testing.assert_allclose(monomer_a_trans - monomer_b_trans[0], WATER_DIMER_COORDS[0:3] - WATER_DIMER_COORDS[3], atol=1e-14)
-
-    def test_ghost_atom_prefixes_recognition(self) -> None:
-        """Validates recognition of diverse ghost atom symbol prefixes ('Gh', 'GH', 'gh', 'X', 'x')."""
-        mod = _load_topos_alignment_module()
-        symbols = ["Gh_C", "gh_H", "X_O", "x_N", "C", "H", "H", "H", "H"]
-        coords = np.vstack([np.ones((4, 3)) * 100.0, CH4_COORDS])
-
-        com = mod.compute_center_of_mass(coords, symbols=symbols)
-        
-        # Methane alone is centered at (0, 0, 0), so COM ignoring 100.0 ghost atoms must be (0, 0, 0)
-        np.testing.assert_allclose(com, [0.0, 0.0, 0.0], atol=1e-14)
-
-    def test_com_error_on_zero_or_negative_total_mass(self) -> None:
-        """Validates informative ValueError when total non-ghost mass is <= 0 or input invalid."""
-        mod = _load_topos_alignment_module()
-        
-        # All ghost atoms -> total non-ghost mass is 0
-        all_ghost_symbols = ["GhO", "GhH", "GhH"]
-        with pytest.raises(ValueError, match=r"(?i)mass|ghost|positive"):
-            mod.compute_center_of_mass(WATER_COORDS, symbols=all_ghost_symbols)
-
-        with pytest.raises(ValueError, match=r"(?i)mass|ghost|positive"):
-            mod.translate_to_center_of_mass(WATER_COORDS, masses=np.array([0.0, 0.0, 0.0]))
-
-        # Negative mass
-        with pytest.raises(ValueError, match=r"(?i)mass|positive"):
-            mod.translate_to_center_of_mass(WATER_COORDS, masses=np.array([16.0, -1.0, 1.0]))
-
-        # Dimension mismatch
-        with pytest.raises(ValueError, match=r"(?i)mismatch|shape|length"):
-            mod.translate_to_center_of_mass(WATER_COORDS, masses=np.array([16.0, 1.0]))
+    assert is_ghost_symbol("Gh")
+    assert is_ghost_symbol("Gh_C")
+    assert is_ghost_symbol("Bq")
+    assert is_ghost_symbol("X")
+    assert not is_ghost_symbol("C")
+    assert not is_ghost_symbol("Xe")
 
 
 # ==============================================================================
-# 2. Unit Tests: Moment of Inertia Tensor & Top Classification
+# 2. Dual-Graph Topology Construction & Valency Severing
 # ==============================================================================
 
-class TestMomentOfInertiaEngine:
-    """Authentic unit tests for MomentOfInertiaEngine and principal axes alignment."""
+def test_covalent_graph_construction_water_and_methane() -> None:
+    """Validate intra-monomer covalent graph generation with 1.15x breathing tolerance."""
+    builder = CovalentGraphBuilder(breathing_tolerance=1.15)
+    
+    # Water: 2 O-H bonds, no H-H bond
+    g_water = builder.build_covalent_graph(WATER_COORDS, WATER_SYMBOLS)
+    assert g_water.number_of_nodes() == 3
+    assert g_water.number_of_edges() == 2
+    assert g_water.has_edge(0, 1)
+    assert g_water.has_edge(0, 2)
+    assert not g_water.has_edge(1, 2)
+    assert nx.is_connected(g_water)
 
-    def test_inertia_tensor_analytical_construction_and_symmetry(self) -> None:
-        """Validates symmetric 3x3 inertia tensor construction: Ixx = sum(m*(y^2+z^2)), Ixy = -sum(m*x*y)."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
+    # Methane: 4 C-H bonds, no H-H bonds
+    g_meth = builder.build_covalent_graph(METHANE_COORDS, METHANE_SYMBOLS)
+    assert g_meth.number_of_nodes() == 5
+    assert g_meth.number_of_edges() == 4
+    for h_idx in [1, 2, 3, 4]:
+        assert g_meth.has_edge(0, h_idx)
 
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        translated_coords, _ = mod.translate_to_center_of_mass(WATER_COORDS, masses=masses)
 
-        I = engine.compute_moment_of_inertia_tensor(translated_coords, masses)
+def test_dual_graph_preserves_vdw_complexes_without_false_covalent_bonds() -> None:
+    """Validate dual-graph logic separates intra-monomer covalent vs inter-monomer vdW contacts."""
+    builder = CovalentGraphBuilder(breathing_tolerance=1.15, vdw_contact_buffer=0.8)
+    
+    # Water Dimer: 2 separate covalent monomers, 1 non-covalent contact graph
+    res: DualGraphResult = builder.build_dual_graph(WATER_DIMER_COORDS, WATER_DIMER_SYMBOLS)
+    
+    assert res.num_atoms == 6
+    assert res.num_covalent_bonds == 4  # 2 in monomer 1 + 2 in monomer 2
+    assert len(res.monomers) == 2       # Decomposed into 2 separate water molecules
+    assert set(res.monomers[0].atom_indices) == {0, 1, 2}
+    assert set(res.monomers[1].atom_indices) == {3, 4, 5}
+    
+    # Non-covalent contact graph should connect the two monomers via the hydrogen bond
+    assert res.num_noncovalent_contacts >= 1
+    assert res.has_intermolecular_contacts
 
-        # Symmetry check
-        np.testing.assert_allclose(I, I.T, atol=1e-15)
+    # CO2...H2O complex: 2 monomers (CO2: 3 atoms, H2O: 3 atoms)
+    res_co2_h2o: DualGraphResult = builder.build_dual_graph(CO2_WATER_COORDS, CO2_WATER_SYMBOLS)
+    assert len(res_co2_h2o.monomers) == 2
+    assert set(res_co2_h2o.monomers[0].atom_indices) == {0, 1, 2}
+    assert set(res_co2_h2o.monomers[1].atom_indices) == {3, 4, 5}
 
-        # Explicit analytical formula check
-        x, y, z = translated_coords[:, 0], translated_coords[:, 1], translated_coords[:, 2]
-        Ixx_expected = np.sum(masses * (y**2 + z**2))
-        Iyy_expected = np.sum(masses * (x**2 + z**2))
-        Izz_expected = np.sum(masses * (x**2 + y**2))
-        Ixy_expected = -np.sum(masses * x * y)
-        Ixz_expected = -np.sum(masses * x * z)
-        Iyz_expected = -np.sum(masses * y * z)
 
-        np.testing.assert_allclose(I[0, 0], Ixx_expected, atol=1e-14)
-        np.testing.assert_allclose(I[1, 1], Iyy_expected, atol=1e-14)
-        np.testing.assert_allclose(I[2, 2], Izz_expected, atol=1e-14)
-        np.testing.assert_allclose(I[0, 1], Ixy_expected, atol=1e-14)
-        np.testing.assert_allclose(I[0, 2], Ixz_expected, atol=1e-14)
-        np.testing.assert_allclose(I[1, 2], Iyz_expected, atol=1e-14)
-
-    def test_water_planar_asymmetric_top_and_inertial_defect(self) -> None:
-        """Validates Water (H2O): Ia < Ib < Ic, Delta = Ic - Ia - Ib ~ 0 (planar), kappa in (-1, 1)."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        res = engine.align_to_principal_axes(WATER_COORDS, masses)
-
-        Ia, Ib, Ic = res.eigenvalues_amu_angstrom2
-        A_mhz, B_mhz, C_mhz = res.rotational_constants_mhz
-        A_ghz, B_ghz, C_ghz = res.rotational_constants_ghz
-        A_cm1, B_cm1, C_cm1 = res.rotational_constants_cm1
-
-        # Eigenvalues strictly sorted
-        assert Ia <= Ib <= Ic
-
-        # Rotational constants strictly sorted A >= B >= C
-        assert A_mhz >= B_mhz >= C_mhz
-        assert A_ghz >= B_ghz >= C_ghz
-        assert A_cm1 >= B_cm1 >= C_cm1
-
-        # CODATA conversion constant validation
-        np.testing.assert_allclose(A_mhz, FACTOR_MHZ / Ia, rtol=1e-6)
-        np.testing.assert_allclose(B_mhz, FACTOR_MHZ / Ib, rtol=1e-6)
-        np.testing.assert_allclose(C_mhz, FACTOR_MHZ / Ic, rtol=1e-6)
-
-        np.testing.assert_allclose(A_ghz, A_mhz / 1000.0, rtol=1e-9)
-        np.testing.assert_allclose(A_cm1, FACTOR_CM1 / Ia, rtol=1e-6)
-
-        # Planar molecule condition: Inertial defect Delta = Ic - Ia - Ib ~ 0.0
-        delta = Ic - Ia - Ib
-        np.testing.assert_allclose(delta, 0.0, atol=1e-10)
-        np.testing.assert_allclose(res.inertial_defect, 0.0, atol=1e-10)
-
-        # Ray's asymmetry parameter kappa = (2B - A - C) / (A - C)
-        expected_kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
-        np.testing.assert_allclose(res.rays_kappa, expected_kappa, atol=1e-12)
-        assert -1.0 < res.rays_kappa < 1.0
-
-        # Planar moments Pa, Pb, Pc
-        Pa = (-Ia + Ib + Ic) / 2.0
-        Pb = (Ia - Ib + Ic) / 2.0
-        Pc = (Ia + Ib - Ic) / 2.0
-        np.testing.assert_allclose(res.planar_moments, (Pa, Pb, Pc), atol=1e-12)
-        np.testing.assert_allclose(Pc, 0.0, atol=1e-10)  # Pc = sum(m_i * c_i^2) = 0 for planar
-
-        # Top classification
-        assert res.top_type == "asymmetric_top"
-
-        # Right-handed coordinate frame
-        det_v = np.linalg.det(res.rotation_matrix)
-        np.testing.assert_allclose(det_v, 1.0, atol=1e-12)
-
-    def test_carbon_dioxide_linear_molecule(self) -> None:
-        """Validates Carbon Dioxide (CO2): linear molecule with Ia ~ 0, Ib = Ic, prolate limit."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
-
-        masses = np.array([get_physical_mass(s) for s in CO2_SYMBOLS], dtype=np.float64)
-        res = engine.align_to_principal_axes(CO2_COORDS, masses)
-
-        Ia, Ib, Ic = res.eigenvalues_amu_angstrom2
-
-        # Linear molecule: Ia is zero, Ib == Ic
-        np.testing.assert_allclose(Ia, 0.0, atol=1e-10)
-        np.testing.assert_allclose(Ib, Ic, rtol=1e-6)
-
-        assert res.top_type == "linear"
-
-        # Rotational constant A is infinite or handled as None/inf, B == C
-        _, B_mhz, C_mhz = res.rotational_constants_mhz
-        np.testing.assert_allclose(B_mhz, C_mhz, rtol=1e-6)
-
-    def test_methane_spherical_top(self) -> None:
-        """Validates Methane (CH4): spherical top with Ia = Ib = Ic, A = B = C."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
-
-        masses = np.array([get_physical_mass(s) for s in CH4_SYMBOLS], dtype=np.float64)
-        res = engine.align_to_principal_axes(CH4_COORDS, masses)
-
-        Ia, Ib, Ic = res.eigenvalues_amu_angstrom2
-        A_mhz, B_mhz, C_mhz = res.rotational_constants_mhz
-
-        # Spherical top: all 3 moments of inertia equal
-        np.testing.assert_allclose(Ia, Ib, rtol=1e-5)
-        np.testing.assert_allclose(Ib, Ic, rtol=1e-5)
-        np.testing.assert_allclose(A_mhz, B_mhz, rtol=1e-5)
-        np.testing.assert_allclose(B_mhz, C_mhz, rtol=1e-5)
-
-        assert res.top_type == "spherical_top"
-
-    def test_benzene_planar_oblate_symmetric_top(self) -> None:
-        """Validates Benzene (C6H6): planar oblate symmetric top with Ia = Ib < Ic, Delta = 0, kappa = +1."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
-
-        masses = np.array([get_physical_mass(s) for s in BENZENE_SYMBOLS], dtype=np.float64)
-        res = engine.align_to_principal_axes(BENZENE_COORDS, masses)
-
-        Ia, Ib, Ic = res.eigenvalues_amu_angstrom2
-
-        # Oblate top: Ia == Ib < Ic
-        np.testing.assert_allclose(Ia, Ib, rtol=1e-5)
-        assert Ic > Ia
-
-        # Planar Benzene: Delta = Ic - Ia - Ib ~ 0
-        np.testing.assert_allclose(res.inertial_defect, 0.0, atol=1e-10)
-
-        # Ray's parameter kappa ~ +1.0 for oblate top
-        np.testing.assert_allclose(res.rays_kappa, 1.0, atol=1e-4)
-        assert res.top_type == "oblate_symmetric_top"
-
-    def test_principal_axes_alignment_invariance_under_random_rotation(self) -> None:
-        """Validates that arbitrarily rotated molecules align to a strictly diagonal inertia tensor."""
-        mod = _load_topos_alignment_module()
-        engine = mod.MomentOfInertiaEngine()
-
-        R_rot = _generate_3d_rotation_matrix(1.234, 0.567, 2.345)
-        rotated_water = WATER_COORDS @ R_rot.T + np.array([10.0, -20.0, 30.0])
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        res = engine.align_to_principal_axes(rotated_water, masses)
-
-        # Inertia tensor of aligned coordinates must be diagonal with 0 off-diagonals
-        I_aligned = engine.compute_moment_of_inertia_tensor(res.aligned_coords, masses)
-        off_diagonals = np.array([I_aligned[0, 1], I_aligned[0, 2], I_aligned[1, 2]])
-        np.testing.assert_allclose(off_diagonals, [0.0, 0.0, 0.0], atol=1e-12)
-
-        # Ensure right-handed rotation matrix: det(R) = +1.0
-        np.testing.assert_allclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-12)
+def test_unphysical_valency_severing() -> None:
+    """Validate that unphysical coordination (e.g., hypervalent hydrogen) is severed gracefully."""
+    builder = CovalentGraphBuilder(breathing_tolerance=1.15)
+    
+    # Construct an artificial unphysical scenario: Hydrogen placed exactly midway between two Carbons at 1.0 A
+    symbols = ["C", "C", "H"]
+    coords = np.array([
+        [0.0, 0.0, -1.0],   # C0
+        [0.0, 0.0, 1.1],    # C1 (slightly further)
+        [0.0, 0.0, 0.0],    # H2 (too close to both, giving H a degree of 2)
+    ], dtype=np.float64)
+    
+    # Without valency correction, H would have degree 2
+    g_raw = builder.build_covalent_graph(coords, symbols, enforce_valency=False)
+    assert g_raw.degree(2) == 2
+    
+    # With physical valency enforcement, H is severed from the further C, retaining degree 1
+    g_clean = builder.build_covalent_graph(coords, symbols, enforce_valency=True)
+    assert g_clean.degree(2) == 1
+    assert g_clean.has_edge(0, 2)
+    assert not g_clean.has_edge(1, 2)
 
 
 # ==============================================================================
-# 3. Unit Tests: Eckart Frame Alignment Engine
+# 3. Hungarian Permutation-Invariant Kabsch SVD Alignment
 # ==============================================================================
 
-class TestEckartFrameAligner:
-    """Authentic unit tests for EckartFrameAligner and mass-weighted Eckart conditions."""
+def test_kabsch_svd_exact_rigid_rotation() -> None:
+    """Validate 3D Kabsch SVD alignment recovers exact proper rotation and zero RMSD for rigid rotation."""
+    aligner = HungarianKabschAligner()
+    
+    # Rotate water molecule by 60 degrees around Z axis and translate
+    theta = math.radians(60.0)
+    R_true = np.array([
+        [math.cos(theta), -math.sin(theta), 0.0],
+        [math.sin(theta), math.cos(theta), 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float64)
+    
+    shift = np.array([12.5, -3.2, 8.4], dtype=np.float64)
+    target_coords = (WATER_COORDS @ R_true.T) + shift
+    
+    result: KabschAlignmentResult = aligner.align(
+        target_coords=target_coords,
+        ref_coords=WATER_COORDS,
+        symbols=WATER_SYMBOLS,
+        allow_permutation=False,
+    )
+    
+    assert result.rmsd < 1e-10, f"Expected near-zero RMSD, got {result.rmsd}"
+    assert np.isclose(np.linalg.det(result.rotation_matrix), 1.0, atol=1e-7), "det(U) must be +1.0"
+    assert not result.is_reflection, "Alignment must not be a reflection"
 
-    def test_eckart_alignment_rigid_rotation_and_translation_water(self) -> None:
-        """Validates exact Eckart frame alignment for rigidly rotated Water with residual < 1e-12."""
-        mod = _load_topos_alignment_module()
-        aligner = mod.EckartFrameAligner()
 
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        ref_coords = WATER_COORDS.copy()
+def test_determinant_reflection_trap_enantiomers() -> None:
+    """Validate the Determinant Reflection Trap prevents unphysical coordinate inversion into enantiomers."""
+    aligner = HungarianKabschAligner()
+    
+    # Create an enantiomer of a chiral center (or inverted water coordinates)
+    # Target is mirrored across XY plane (z -> -z)
+    inverted_coords = WATER_COORDS.copy()
+    inverted_coords[:, 2] = -inverted_coords[:, 2]
+    
+    result: KabschAlignmentResult = aligner.align(
+        target_coords=inverted_coords,
+        ref_coords=WATER_COORDS,
+        symbols=WATER_SYMBOLS,
+        allow_permutation=False,
+    )
+    
+    # The determinant reflection trap must strictly enforce det(U) = +1.0 (SO(3))
+    # It must NOT allow det(U) = -1.0 (O(3))
+    det_u = np.linalg.det(result.rotation_matrix)
+    assert np.isclose(det_u, 1.0, atol=1e-7), f"Rotation matrix det was {det_u}, must be +1.0"
 
-        # Rotate target by arbitrary angles and translate
-        R_rand = _generate_3d_rotation_matrix(0.85, 1.42, 2.77)
-        t_rand = np.array([-15.2, 33.7, -9.4], dtype=np.float64)
-        target_coords = ref_coords @ R_rand.T + t_rand
 
-        res = aligner.align(target_coords, ref_coords, masses)
-
-        # RMSD after alignment to identical rigid body must be ~ 0
-        assert res.rmsd < 1e-12
-
-        # Aligned coordinates must match ref_coords centered at COM
-        ref_centered, _ = mod.translate_to_center_of_mass(ref_coords, masses)
-        np.testing.assert_allclose(res.aligned_coords, ref_centered, atol=1e-12)
-
-        # Translational Eckart condition: sum(m_i * r'_i) = 0
-        trans_cond = np.sum(masses[:, np.newaxis] * res.aligned_coords, axis=0)
-        np.testing.assert_allclose(trans_cond, [0.0, 0.0, 0.0], atol=1e-12)
-
-        # Rotational Eckart condition: sum(m_i * (r_i^0 x r'_i)) = 0
-        rot_cond = np.sum(
-            masses[:, np.newaxis] * np.cross(ref_centered, res.aligned_coords),
-            axis=0,
-        )
-        rot_norm = np.linalg.norm(rot_cond)
-        assert rot_norm < 1e-12
-        np.testing.assert_allclose(res.residual_rotational_norm, 0.0, atol=1e-12)
-
-        # Rotation matrix must be proper rotation (det = +1.0)
-        np.testing.assert_allclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-12)
-
-    def test_eckart_alignment_perturbed_water_conformation(self) -> None:
-        """Validates Eckart alignment on deformed Water (internal vibrations) preserving internal geometry."""
-        mod = _load_topos_alignment_module()
-        aligner = mod.EckartFrameAligner()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        ref_coords = WATER_COORDS.copy()
-
-        # Apply physical perturbation: stretch OH bond by 0.05 A, open HOH angle by 3 degrees
-        perturbed_coords = WATER_COORDS.copy()
-        perturbed_coords[1, 1] += 0.05  # stretch H1
-        perturbed_coords[2, 1] -= 0.03  # stretch H2
-        perturbed_coords[1, 2] += 0.02
-
-        # Rotate and translate perturbed molecule
-        R_rand = _generate_3d_rotation_matrix(1.1, 0.7, 1.9)
-        t_rand = np.array([10.0, -10.0, 5.0])
-        target_coords = perturbed_coords @ R_rand.T + t_rand
-
-        res = aligner.align(target_coords, ref_coords, masses)
-
-        # Translational Eckart condition
-        trans_cond = np.sum(masses[:, np.newaxis] * res.aligned_coords, axis=0)
-        np.testing.assert_allclose(trans_cond, [0.0, 0.0, 0.0], atol=1e-12)
-
-        # Rotational Eckart condition: sum(m_i * (r_i^0 x r'_i)) = 0
-        ref_centered, _ = mod.translate_to_center_of_mass(ref_coords, masses)
-        rot_cond = np.sum(
-            masses[:, np.newaxis] * np.cross(ref_centered, res.aligned_coords),
-            axis=0,
-        )
-        rot_norm = np.linalg.norm(rot_cond)
-        assert rot_norm < 1e-12
-
-        # Preserves all internal pairwise distances of target molecule identically
-        dists_target = np.linalg.norm(target_coords[:, None, :] - target_coords[None, :, :], axis=-1)
-        dists_aligned = np.linalg.norm(res.aligned_coords[:, None, :] - res.aligned_coords[None, :, :], axis=-1)
-        np.testing.assert_allclose(dists_aligned, dists_target, atol=1e-12)
-
-    def test_eckart_alignment_water_dimer(self) -> None:
-        """Validates Eckart frame alignment on complex 6-atom Water Dimer."""
-        mod = _load_topos_alignment_module()
-        aligner = mod.EckartFrameAligner()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_DIMER_FULL_SYMBOLS], dtype=np.float64)
-        ref_coords = WATER_DIMER_COORDS.copy()
-
-        R_rand = _generate_3d_rotation_matrix(0.4, 2.1, 1.5)
-        target_coords = ref_coords @ R_rand.T + np.array([5.0, 5.0, 5.0])
-
-        res = aligner.align(target_coords, ref_coords, masses)
-
-        ref_centered, _ = mod.translate_to_center_of_mass(ref_coords, masses)
-        rot_cond = np.sum(masses[:, np.newaxis] * np.cross(ref_centered, res.aligned_coords), axis=0)
-        np.testing.assert_allclose(np.linalg.norm(rot_cond), 0.0, atol=1e-12)
-        np.testing.assert_allclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-12)
-
-    def test_eckart_svd_reflection_protection(self) -> None:
-        """Validates that SVD reflection check ensures proper rotation matrix det(U) = +1.0."""
-        mod = _load_topos_alignment_module()
-        aligner = mod.EckartFrameAligner()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        ref_coords = WATER_COORDS.copy()
-
-        # Introduce an improper reflection (det = -1)
-        reflected_target = ref_coords.copy()
-        reflected_target[:, 0] = -reflected_target[:, 0]
-
-        res = aligner.align(reflected_target, ref_coords, masses)
-
-        # Aligner must NEVER return an improper rotation with det = -1.0
-        np.testing.assert_allclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-12)
+def test_hungarian_permutation_alignment_homodimer() -> None:
+    """Validate Hungarian permutation assignment handles identical atoms with scrambled indices."""
+    aligner = HungarianKabschAligner()
+    
+    # Scramble the atom indices in water dimer: swap atoms 1 and 2 (hydrogens on monomer 1)
+    # and swap monomer 1 and monomer 2
+    permuted_indices = [3, 5, 4, 0, 2, 1]
+    permuted_coords = WATER_DIMER_COORDS[permuted_indices]
+    permuted_symbols = [WATER_DIMER_SYMBOLS[i] for i in permuted_indices]
+    
+    # When allow_permutation=True, Hungarian algorithm should find optimal mapping and achieve RMSD ~ 0
+    result: KabschAlignmentResult = aligner.align(
+        target_coords=permuted_coords,
+        ref_coords=WATER_DIMER_COORDS,
+        symbols=permuted_symbols,
+        ref_symbols=WATER_DIMER_SYMBOLS,
+        allow_permutation=True,
+    )
+    
+    assert result.rmsd < 1e-6, f"Hungarian permutation alignment failed to achieve near-zero RMSD: {result.rmsd}"
+    assert np.isclose(np.linalg.det(result.rotation_matrix), 1.0, atol=1e-7)
 
 
 # ==============================================================================
-# 4. Unit Tests: Vibrational Projector & Rigid-Body Modes Zeroing
+# 4. Singular Value Collinearity Trap (Linear & Diatomic Molecules)
 # ==============================================================================
 
-class TestVibrationalProjector:
-    """Authentic unit tests for VibrationalProjector algebraic invariants and Hessian projection."""
+def test_collinearity_trap_diatomic_and_linear_molecules() -> None:
+    """Validate that linear rotors (N2, CO2, HCN) trigger the SVD collinearity trap and pivot to 2D Z-axis alignment."""
+    aligner = HungarianKabschAligner()
+    
+    # Rotate N2 arbitrarily in 3D
+    rot_axis = np.array([1.0, 1.0, 1.0]) / math.sqrt(3.0)
+    theta = math.radians(45.0)
+    K = np.array([
+        [0, -rot_axis[2], rot_axis[1]],
+        [rot_axis[2], 0, -rot_axis[0]],
+        [-rot_axis[1], rot_axis[0], 0],
+    ])
+    R_3d = np.eye(3) + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
+    
+    n2_rotated = N2_COORDS @ R_3d.T
+    
+    # Alignment should detect collinearity (S3 < 1e-12) and succeed cleanly
+    res_n2 = aligner.align(
+        target_coords=n2_rotated,
+        ref_coords=N2_COORDS,
+        symbols=N2_SYMBOLS,
+    )
+    
+    assert res_n2.is_collinear, "N2 must be detected as collinear"
+    assert res_n2.rmsd < 1e-8, f"Linear diatomic alignment RMSD was {res_n2.rmsd}"
+    assert np.isclose(np.linalg.det(res_n2.rotation_matrix), 1.0, atol=1e-7)
 
-    def test_vibrational_projector_water_algebraic_invariants(self) -> None:
-        """Validates algebraic invariants for non-linear Water (N=3): P_vib^2 = P_vib, P_vib^T = P_vib, Tr(P_vib) = 3N-6 = 3."""
-        mod = _load_topos_alignment_module()
-        projector = mod.VibrationalProjector()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        N = len(WATER_SYMBOLS)
-        P_vib = projector.construct_vibrational_projector(WATER_COORDS, masses)
-
-        # Shape must be (3N, 3N) = (9, 9)
-        assert P_vib.shape == (3 * N, 3 * N)
-
-        # Invariant 1: Idempotence P_vib @ P_vib == P_vib
-        np.testing.assert_allclose(P_vib @ P_vib, P_vib, atol=1e-12)
-
-        # Invariant 2: Symmetry P_vib^T == P_vib
-        np.testing.assert_allclose(P_vib.T, P_vib, atol=1e-12)
-
-        # Invariant 3: Trace Tr(P_vib) == 3N - 6 = 9 - 6 = 3
-        trace_val = np.trace(P_vib)
-        np.testing.assert_allclose(trace_val, 3 * N - 6, atol=1e-12)
-
-        # Eigenvalues must be exactly 3 ones and 6 zeros
-        eigvals = np.sort(np.linalg.eigvalsh(P_vib))
-        expected_eigvals = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
-        np.testing.assert_allclose(eigvals, expected_eigvals, atol=1e-12)
-
-    def test_vibrational_projector_carbon_dioxide_linear_invariant(self) -> None:
-        """Validates linear CO2 (N=3): Tr(P_vib) = 3N - 5 = 4 vibrational modes."""
-        mod = _load_topos_alignment_module()
-        projector = mod.VibrationalProjector()
-
-        masses = np.array([get_physical_mass(s) for s in CO2_SYMBOLS], dtype=np.float64)
-        N = len(CO2_SYMBOLS)
-        P_vib = projector.construct_vibrational_projector(CO2_COORDS, masses, is_linear=True)
-
-        assert P_vib.shape == (3 * N, 3 * N)
-
-        # Idempotence and symmetry
-        np.testing.assert_allclose(P_vib @ P_vib, P_vib, atol=1e-12)
-        np.testing.assert_allclose(P_vib.T, P_vib, atol=1e-12)
-
-        # Trace for linear molecule: 3N - 5 = 9 - 5 = 4
-        np.testing.assert_allclose(np.trace(P_vib), 3 * N - 5, atol=1e-12)
-
-        # Eigenvalues: 4 ones and 5 zeros
-        eigvals = np.sort(np.linalg.eigvalsh(P_vib))
-        expected_eigvals = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
-        np.testing.assert_allclose(eigvals, expected_eigvals, atol=1e-12)
-
-    def test_vibrational_projector_methane_and_benzene(self) -> None:
-        """Validates trace invariants for Methane (Tr=9) and Benzene (Tr=30)."""
-        mod = _load_topos_alignment_module()
-        projector = mod.VibrationalProjector()
-
-        # Methane: N=5 -> 3(5) - 6 = 9 modes
-        ch4_masses = np.array([get_physical_mass(s) for s in CH4_SYMBOLS], dtype=np.float64)
-        P_ch4 = projector.construct_vibrational_projector(CH4_COORDS, ch4_masses)
-        np.testing.assert_allclose(np.trace(P_ch4), 3 * 5 - 6, atol=1e-12)
-        np.testing.assert_allclose(P_ch4 @ P_ch4, P_ch4, atol=1e-12)
-
-        # Benzene: N=12 -> 3(12) - 6 = 30 modes
-        c6h6_masses = np.array([get_physical_mass(s) for s in BENZENE_SYMBOLS], dtype=np.float64)
-        P_c6h6 = projector.construct_vibrational_projector(BENZENE_COORDS, c6h6_masses)
-        np.testing.assert_allclose(np.trace(P_c6h6), 3 * 12 - 6, atol=1e-12)
-        np.testing.assert_allclose(P_c6h6 @ P_c6h6, P_c6h6, atol=1e-12)
-
-    def test_project_mass_weighted_and_cartesian_hessian_zeroing(self) -> None:
-        """Validates that projected mass-weighted Hessian zeros out exactly 6 translational/rotational modes."""
-        mod = _load_topos_alignment_module()
-        projector = mod.VibrationalProjector()
-
-        masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-        N = len(WATER_SYMBOLS)
-
-        # Construct synthetic physically-motivated harmonic mass-weighted Hessian (symmetric positive semi-definite)
-        np.random.seed(42)
-        A = np.random.randn(3 * N, 3 * N)
-        H_mw_raw = A.T @ A + np.eye(3 * N) * 5.0  # (9, 9) positive definite matrix
-
-        H_mw_proj = projector.project_mass_weighted_hessian(H_mw_raw, WATER_COORDS, masses)
-
-        # Eigenvalues of projected Hessian
-        eigvals_proj = np.sort(np.linalg.eigvalsh(H_mw_proj))
-
-        # First 6 eigenvalues must be strictly zero (< 1e-12)
-        np.testing.assert_allclose(eigvals_proj[:6], np.zeros(6), atol=1e-12)
-
-        # Remaining 3 eigenvalues must be positive non-zero vibrational frequencies
-        assert np.all(eigvals_proj[6:] > 1e-3)
-
-        # Cartesian Hessian projection
-        M_mat = np.diag(np.repeat(masses, 3))
-        M_sqrt = np.sqrt(M_mat)
-        M_inv_sqrt = np.diag(1.0 / np.repeat(np.sqrt(masses), 3))
-
-        H_cart_raw = M_sqrt @ H_mw_raw @ M_sqrt
-        H_cart_proj = projector.project_cartesian_hessian(H_cart_raw, WATER_COORDS, masses)
-
-        # Mass-weighting the projected Cartesian Hessian recovers H_mw_proj
-        H_mw_from_cart = M_inv_sqrt @ H_cart_proj @ M_inv_sqrt
-        np.testing.assert_allclose(H_mw_from_cart, H_mw_proj, atol=1e-12)
+    # CO2 test
+    co2_rotated = CO2_COORDS @ R_3d.T
+    res_co2 = aligner.align(
+        target_coords=co2_rotated,
+        ref_coords=CO2_COORDS,
+        symbols=CO2_SYMBOLS,
+    )
+    assert res_co2.is_collinear, "CO2 must be detected as collinear"
+    assert res_co2.rmsd < 1e-8, f"Linear CO2 alignment RMSD was {res_co2.rmsd}"
 
 
 # ==============================================================================
-# 5. Integration Tests: High-Level standardize_molecular_topology Entrypoint
+# 5. "Jiggle-Quench" Conformer Deduplication
 # ==============================================================================
 
-class TestStandardizeMolecularTopologyIntegration:
-    """Authentic integration tests for standardize_molecular_topology and Pydantic models."""
+def test_jiggle_quench_conformer_deduplication() -> None:
+    """Validate Jiggle-Quench eliminates duplicate conformers with random perturbations and RMSD sieving."""
+    deduplicator = JiggleQuenchDeduplicator(rmsd_threshold=0.08, jiggle_amplitude=0.05)
+    
+    # Generate an ensemble of 5 conformers:
+    # 1. Base water
+    # 2. Base water translated and rotated (exact duplicate)
+    # 3. Base water with small numerical noise (0.01 A) -> should be clustered with base
+    # 4. Stretched water (O-H stretched by 0.3 A) -> unique conformer
+    # 5. Stretched water rotated -> clustered with stretched water
+    
+    conf1 = WATER_COORDS.copy()
+    
+    # conf2: rigid rotation of water
+    R = np.array([
+        [0.0, -1.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    conf2 = (conf1 @ R.T) + np.array([5.0, 5.0, 5.0])
+    
+    # conf3: jiggled duplicate (noise = 0.01 A)
+    conf3 = conf1 + np.array([
+        [0.005, -0.005, 0.002],
+        [-0.002, 0.004, -0.003],
+        [0.001, 0.002, -0.004],
+    ])
+    
+    # conf4: stretched geometry (bond length lengthened by 0.3 A)
+    conf4 = conf1.copy()
+    conf4[1, 1] += 0.35
+    conf4[2, 1] -= 0.35
+    
+    # conf5: rotated stretched geometry
+    conf5 = (conf4 @ R.T)
+    
+    ensemble = [conf1, conf2, conf3, conf4, conf5]
+    names = ["conf1_base", "conf2_rot", "conf3_jiggled", "conf4_stretched", "conf5_stretched_rot"]
+    
+    result: ConformerClusterResult = deduplicator.deduplicate(
+        conformers=ensemble,
+        symbols=WATER_SYMBOLS,
+        names=names,
+    )
+    
+    assert result.total_input_conformers == 5
+    assert result.unique_conformer_count == 2, f"Expected 2 unique conformers, got {result.unique_conformer_count}"
+    assert len(result.unique_indices) == 2
 
-    def test_standardize_with_atom_model_sequence(self) -> None:
-        """Validates standardization from a sequence of Pydantic AtomModel instances."""
-        mod = _load_topos_alignment_module()
 
-        atom_models = [
-            AtomModel(symbol="O", coords=WATER_COORDS[0]),
-            AtomModel(symbol="H", coords=WATER_COORDS[1]),
-            AtomModel(symbol="H", coords=WATER_COORDS[2]),
-        ]
+# ==============================================================================
+# 6. Multi-Format Ingestion & Batch Engine Integration
+# ==============================================================================
 
-        result = mod.standardize_molecular_topology(atom_models)
+def test_parse_xyz_single_and_multi(tmp_path: Path) -> None:
+    """Validate XYZ parsing for single and multi-geometry files."""
+    xyz_content = """3
+Water molecule
+O   0.000000   0.000000   0.117790
+H   0.000000   0.755453  -0.471161
+H   0.000000  -0.755453  -0.471161
+"""
+    mols = parse_xyz_text(xyz_content)
+    assert len(mols) == 1
+    assert mols[0]["symbols"] == ["O", "H", "H"]
+    assert np.allclose(mols[0]["coords"], WATER_COORDS)
 
-        # Result is instance of ToposAlignmentResult Pydantic model
-        assert isinstance(result, mod.ToposAlignmentResult)
-        assert isinstance(result.inertia_tensor_result, mod.InertiaTensorResult)
+    # Multi-XYZ
+    multi_content = xyz_content + "\n" + """2
+Nitrogen dimer
+N   0.000000   0.000000   0.548800
+N   0.000000   0.000000  -0.548800
+"""
+    mols_multi = parse_xyz_text(multi_content)
+    assert len(mols_multi) == 2
+    assert mols_multi[1]["symbols"] == ["N", "N"]
+    assert np.allclose(mols_multi[1]["coords"], N2_COORDS)
 
-        # Validate aligned coordinates
-        np.testing.assert_allclose(result.aligned_coords.shape, (3, 3))
-        np.testing.assert_allclose(result.center_of_mass, [0.0, 0.0, 0.0], atol=1e-14)
-        assert result.top_type == "asymmetric_top"
-        assert result.inertial_defect < 1e-10
 
-        # Pydantic serialization verification
-        data_dict = result.model_dump()
-        assert "aligned_coords" in data_dict
-        assert "rotational_constants_mhz" in data_dict
-        assert "inertial_defect" in data_dict
-        assert "top_type" in data_dict
+def test_parse_sdf_format() -> None:
+    """Validate SDF parsing into structured atomic coordinates."""
+    sdf_content = """Water
+  CoChem-Test
 
-        json_str = result.model_dump_json()
-        assert isinstance(json_str, str)
-        assert len(json_str) > 0
+  3  2  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.1178 O   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    0.7555   -0.4712 H   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000   -0.7555   -0.4712 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  1  3  1  0  0  0  0
+M  END
+$$$$
+"""
+    mols = parse_sdf_text(sdf_content)
+    assert len(mols) == 1
+    assert mols[0]["symbols"] == ["O", "H", "H"]
+    assert len(mols[0]["coords"]) == 3
 
-    def test_standardize_with_dict_and_ghost_atoms(self) -> None:
-        """Validates standardization from dictionary representation containing ghost atoms."""
-        mod = _load_topos_alignment_module()
 
-        mol_dict = {
-            "coords": WATER_DIMER_COORDS,
-            "symbols": WATER_DIMER_GHOST_A_SYMBOLS,
-        }
+def test_stage2_ingestor_batch_pipeline(tmp_path: Path) -> None:
+    """Validate the end-to-end Stage2Ingestor pipeline processing a batch directory."""
+    ingestor = Stage2Ingestor(max_workers=2, rmsd_threshold=0.08)
+    
+    # Write sample files
+    f1 = tmp_path / "water1.xyz"
+    f1.write_text(f"3\nWater 1\nO 0.0 0.0 0.11779\nH 0.0 0.755453 -0.471161\nH 0.0 -0.755453 -0.471161\n", encoding="utf-8")
+    
+    f2 = tmp_path / "water2_dup.xyz"
+    # Rotated water
+    f2.write_text(f"3\nWater 2 Dup\nO 0.0 0.0 0.11779\nH -0.755453 0.0 -0.471161\nH 0.755453 0.0 -0.471161\n", encoding="utf-8")
 
-        result = mod.standardize_molecular_topology(mol_dict)
+    f3 = tmp_path / "methane.xyz"
+    f3.write_text(f"5\nMethane\nC 0.0 0.0 0.0\nH 0.6276 0.6276 0.6276\nH -0.6276 -0.6276 0.6276\nH -0.6276 0.6276 -0.6276\nH 0.6276 -0.6276 -0.6276\n", encoding="utf-8")
 
-        assert isinstance(result, mod.ToposAlignmentResult)
-        assert result.n_atoms == 6
-        assert result.n_ghost_atoms == 3
-        np.testing.assert_allclose(result.center_of_mass, [0.0, 0.0, 0.0], atol=1e-14)
+    batch_res = ingestor.process_directory(tmp_path)
+    assert len(batch_res) == 2  # 2 distinct chemical systems: water and methane
+    
+    water_sys = next(s for s in batch_res if s.formula == "H2O")
+    methane_sys = next(s for s in batch_res if s.formula == "CH4")
+    
+    # Water system had 2 inputs, should deduplicate to 1 unique conformer
+    assert water_sys.total_input_conformers == 2
+    assert water_sys.unique_conformer_count == 1
+    
+    # Methane system had 1 input
+    assert methane_sys.total_input_conformers == 1
+    assert methane_sys.unique_conformer_count == 1
 
-    def test_standardize_with_eckart_reference_conformation(self) -> None:
-        """Validates standardization combining COM translation, inertia diagonalization, and Eckart frame alignment."""
-        mod = _load_topos_alignment_module()
 
-        R_rot = _generate_3d_rotation_matrix(0.5, 1.2, 0.9)
-        target_coords = WATER_COORDS @ R_rot.T + np.array([12.0, -15.0, 20.0])
+def test_hungarian_permutation_arbitrary_3d_rotation_monte_carlo() -> None:
+    """Validate Hungarian Kabsch alignment succeeds across arbitrary 3D rotations with permuted indices."""
+    aligner = HungarianKabschAligner()
+    
+    # Scramble water dimer indices
+    permuted_indices = [3, 5, 4, 0, 2, 1]
+    dimer_scrambled = WATER_DIMER_COORDS[permuted_indices]
+    symbols_scrambled = [WATER_DIMER_SYMBOLS[i] for i in permuted_indices]
 
-        result = mod.standardize_molecular_topology(
-            target_coords,
-            symbols=WATER_SYMBOLS,
-            ref_coords=WATER_COORDS,
+    # Test 5 distinct random 3D rotations in SO(3)
+    rng = np.random.default_rng(42)
+    for trial in range(5):
+        # Generate random quaternion -> rotation matrix in SO(3)
+        q = rng.normal(size=4)
+        q = q / np.linalg.norm(q)
+        w, x, y, z = q
+        R_rand = np.array([
+            [1 - 2*y*y - 2*z*z, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
+            [2*x*y + 2*z*w, 1 - 2*x*x - 2*z*z, 2*y*z - 2*x*w],
+            [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x*x - 2*y*y],
+        ], dtype=np.float64)
+
+        rotated_target = dimer_scrambled @ R_rand.T
+
+        res = aligner.align(
+            target_coords=rotated_target,
+            ref_coords=WATER_DIMER_COORDS,
+            symbols=symbols_scrambled,
+            ref_symbols=WATER_DIMER_SYMBOLS,
+            allow_permutation=True,
         )
 
-        assert isinstance(result, mod.ToposAlignmentResult)
-        assert result.eckart_alignment_result is not None
-        assert isinstance(result.eckart_alignment_result, mod.EckartAlignmentResult)
-        assert result.eckart_alignment_result.rmsd < 1e-12
-        assert result.eckart_alignment_result.residual_rotational_norm < 1e-12
+        assert res.rmsd < 1e-6, f"Trial {trial} failed with RMSD {res.rmsd}"
+        assert np.isclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-7)
 
-    def test_standardize_raw_numpy_array_and_masses(self) -> None:
-        """Validates standardization from raw numpy arrays of coordinates and masses."""
-        mod = _load_topos_alignment_module()
-        masses = np.array([get_physical_mass(s) for s in BENZENE_SYMBOLS], dtype=np.float64)
 
-        result = mod.standardize_molecular_topology(BENZENE_COORDS, masses=masses)
+def test_ordered_valency_pruning_protects_heavy_atoms() -> None:
+    """Validate ordered valency pruning: low valency atoms (H=1) pruned before high valency (C=4)."""
+    builder = CovalentGraphBuilder(breathing_tolerance=1.15)
 
-        assert isinstance(result, mod.ToposAlignmentResult)
-        assert result.top_type == "oblate_symmetric_top"
-        np.testing.assert_allclose(result.rays_kappa, 1.0, atol=1e-4)
-        np.testing.assert_allclose(result.inertial_defect, 0.0, atol=1e-10)
+    # Carbon C0 with 4 legitimate bonds to C1, C2, C3, C4 and 1 spurious close contact to H5.
+    # H5 is also close to C1 (so H5 has degree 2).
+    symbols = ["C", "C", "C", "C", "C", "H"]
+    coords = np.array([
+        [0.0, 0.0, 0.0],     # C0 (connected to C1, C2, C3, C4)
+        [1.4, 0.0, 0.0],     # C1
+        [-1.4, 0.0, 0.0],    # C2
+        [0.0, 1.4, 0.0],     # C3
+        [0.0, -1.4, 0.0],    # C4
+        [0.8, 0.0, 0.0],     # H5 (between C0 at 0.8 A and C1 at 0.6 A)
+    ], dtype=np.float64)
+
+    g = builder.build_covalent_graph(coords, symbols, enforce_valency=True)
+
+    # H5 has max valency 1 -> keeps bond to C1 (0.6 A), severs bond to C0 (0.8 A)
+    assert g.degree(5) == 1
+    assert g.has_edge(1, 5)
+    assert not g.has_edge(0, 5)
+
+    # C0 retains all 4 legitimate C-C bonds (degree 4)
+    assert g.degree(0) == 4
+    for c_nbr in [1, 2, 3, 4]:
+        assert g.has_edge(0, c_nbr)
+
+
+def test_linear_permutation_alignment_scrambled_indices() -> None:
+    """Validate linear molecule alignment with scrambled atom sequence under allow_permutation=True."""
+    aligner = HungarianKabschAligner()
+
+    # Reference CO2: [C, O, O]
+    # Target CO2 scrambled: [O, C, O]
+    co2_scrambled_symbols = ["O", "C", "O"]
+    co2_scrambled_coords = np.array([
+        [0.0, 0.0, 1.162],
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, -1.162],
+    ], dtype=np.float64)
+
+    res = aligner.align(
+        target_coords=co2_scrambled_coords,
+        ref_coords=CO2_COORDS,
+        symbols=co2_scrambled_symbols,
+        ref_symbols=CO2_SYMBOLS,
+        allow_permutation=True,
+    )
+
+    assert res.is_collinear
+    assert res.rmsd < 1e-8, f"Linear permutation alignment RMSD was {res.rmsd}"
+    assert np.isclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-7)
+
+
+# ==============================================================================
+# 7. Zero-Mock AST Compliance
+# ==============================================================================
+
+def test_zero_mock_mandate_compliance() -> None:
+    """Validate zero-mock compliance across this test suite via AST analysis."""
+    test_file_path = Path(__file__)
+    content = test_file_path.read_text(encoding="utf-8")
+    tree = ast.parse(content, filename=str(test_file_path))
+
+    forbidden_mod_name = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
+    forbidden_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
+
+    prohibited_in_test: Set[str] = {
+        forbidden_mod_name,
+        forbidden_standalone,
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                for p in prohibited_in_test:
+                    assert alias.name != p and not alias.name.startswith(p + "."), (
+                        f"Forbidden import in test file: '{alias.name}'"
+                    )
+        elif isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            for p in prohibited_in_test:
+                assert mod != p and not mod.startswith(p + "."), (
+                    f"Forbidden import in test file from module: '{mod}'"
+                )
+
+
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

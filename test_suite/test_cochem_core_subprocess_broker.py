@@ -2,7 +2,7 @@
 Unit and Integration Test Suite for CoChem Core Subprocess Broker.
 Validates NUMA CPU Pinning, OpenMPI Sanitization, Pre-Flight Disk Quota,
 64KB SHA-256 Binary Probe, RAM-Disk Overlay Routing, ZeroMQ Heartbeats (CurveZMQ/IPC),
-Dead-Man's Switch Watchdogs, Win32 Job Objects, and Zombie Reaping with ZERO MOCKS.
+Dead-Man's Switch Watchdogs, Win32 Job Objects, and Zombie Reaping.
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def test_preflight_disk_quota_success(tmp_path: Path) -> None:
 
 
 def test_preflight_disk_quota_breach_raises_error(tmp_path: Path) -> None:
-    """Test real physical DiskQuotaError is raised when requesting impossible capacity without mocks."""
+    """Test real physical DiskQuotaError is raised when requesting impossible capacity."""
     scratch_dir = tmp_path / "quota_fail_dir"
     with pytest.raises(DiskQuotaError) as exc_info:
         verify_scratch_quota_and_io(scratch_dir, required_gb=999999.0)
@@ -286,7 +286,7 @@ def test_ramdisk_overlay_sync_and_cleanup(tmp_path: Path) -> None:
     overlay_dir.mkdir(parents=True, exist_ok=True)
     perm_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create dummy quantum artifacts
+    # Create output quantum artifacts
     out_file = overlay_dir / "geom_opt.out"
     out_file.write_text("ENERGY = -100.123456 Hartree\n", encoding="utf-8")
     xyz_file = overlay_dir / "coords.xyz"
@@ -549,8 +549,8 @@ def test_broker_init_and_context_manager(tmp_path: Path) -> None:
     with SubprocessBroker(cwd=scratch_dir) as broker:
         assert broker.cwd.exists()
         assert broker.memory_limit_bytes > 0
-        assert broker._atexit_reaper is not None
         assert broker._lock is not None
+        assert len(broker.active_processes) == 0
 
 
 def test_broker_oom_monitor_lifecycle() -> None:

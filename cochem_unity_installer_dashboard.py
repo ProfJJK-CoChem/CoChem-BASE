@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
-"""CoChem-UNITY: Stage 0.0 - Legacy and Direct Entrypoint for Installer Dashboard.
+"""CoChem-UNITY: Stage 0.0 - Root Executable Script for Installer Dashboard.
 
-Re-exports canonical symbols from cochem_base.interfaces.cochem_unity_installer_dashboard.
+Canonical entrypoint for launching the interactive GUI or headless deployment.
+Re-exports symbols from cochem_base.interfaces.cochem_unity_installer_dashboard.
 """
 
 from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Ensure repository root is on sys.path
+_BASE_ROOT = Path(__file__).resolve().parent
+if str(_BASE_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BASE_ROOT))
 
 from cochem_base.interfaces.cochem_unity_installer_dashboard import (
     ECOSYSTEM_REGISTRY,

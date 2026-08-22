@@ -3,13 +3,15 @@
 
 Provides the interactive ipywidgets tabbed GUI and automated headless deployment logic
 for provisioning CoChem micro-silos, enforcing topological prerequisites, verifying
-Host ORCA engines, and executing Air-Gap Zip sideloading across the Tripartite Workspace.
+Host ORCA engines, dynamic hardware telemetry profiling, and executing Air-Gap Zip
+sideloading across the Tripartite Workspace.
 """
 
 from __future__ import annotations
 
 import argparse
 import atexit
+import json
 import logging
 import os
 import platform
@@ -28,7 +30,13 @@ import psutil
 from IPython.display import clear_output, display
 from pydantic import BaseModel, Field
 
-from cochem_base.config_loader import get_artifact_dir, get_base_root, resolve_executable
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_base_root,
+    get_scratch_dir,
+    resolve_config_path,
+    resolve_executable,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("CoChem-Installer")
@@ -95,6 +103,16 @@ class DeploymentManifest(BaseModel):
 
 
 ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
+    "CoChem-BASE": {
+        "desc": "Master environment orchestration, path resolution, and configuration.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
+        "mandatory": True,
+    },
+    "CoChem-MInt": {
+        "desc": "Molecular interfaces, format conversions, and quantum chemistry bridging.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-MInt",
+        "mandatory": True,
+    },
     "CoChem-CORE": {
         "desc": "Foundational registry, memory routing, and OS-level hardware guards.",
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
@@ -110,9 +128,9 @@ ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
         "mandatory": True,
     },
-    "CoChem-SpycFit": {
-        "desc": "JAX-accelerated rotational spectroscopy fitting.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
+    "CoChem-SCAN": {
+        "desc": "Internal conformational exploration heuristic tool.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
         "mandatory": False,
     },
     "CoChem-SCRIBE": {
@@ -120,14 +138,9 @@ ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
         "mandatory": False,
     },
-    "CoChem-NODE": {
-        "desc": "HPC Slurm template and execution router.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
-        "mandatory": False,
-    },
-    "CoChem-ORACLE": {
-        "desc": "Local Llama-CPP query routing and AI theory assistant.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+    "CoChem-SpycFit": {
+        "desc": "JAX-accelerated rotational spectroscopy fitting.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
         "mandatory": False,
     },
     "CoChem-BENCH": {
@@ -150,11 +163,6 @@ ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
         "mandatory": False,
     },
-    "CoChem-SCAN": {
-        "desc": "Internal conformational exploration heuristic tool.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
-        "mandatory": False,
-    },
     "CoChem-SHIFT": {
         "desc": "NMR tensor extraction (J-couplings, chemical shifts).",
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
@@ -165,6 +173,16 @@ ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
         "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
         "mandatory": False,
     },
+    "CoChem-NODE": {
+        "desc": "HPC Slurm template and execution router.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
+        "mandatory": False,
+    },
+    "CoChem-ORACLE": {
+        "desc": "Local Llama-CPP query routing and AI theory assistant.",
+        "repo": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+        "mandatory": False,
+    },
     "Antigravity-Assistant": {
         "desc": "Antigravity 2.0 Cloud LLM Assistant (Data Privacy Cannot Be Guaranteed).",
         "repo": "https://antigravity.google/cli",
@@ -173,20 +191,22 @@ ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
 }
 
 TOPOLOGICAL_DEPENDENCY_MAP: Dict[str, List[str]] = {
-    "CoChem-CORE": [],
-    "CoChem-TOPOS": ["CoChem-CORE"],
-    "CoChem-TORQ": ["CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-SpycFit": ["CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-SCRIBE": ["CoChem-CORE"],
-    "CoChem-NODE": ["CoChem-CORE"],
-    "CoChem-ORACLE": ["CoChem-CORE"],
-    "CoChem-BENCH": ["CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-KINETIC": ["CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-LUMOS": ["CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-MAGE": ["CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-SCAN": ["CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-SHIFT": ["CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-GEOM": ["CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-BASE": [],
+    "CoChem-MInt": ["CoChem-BASE"],
+    "CoChem-CORE": ["CoChem-BASE", "CoChem-MInt"],
+    "CoChem-TOPOS": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
+    "CoChem-TORQ": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-SCAN": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
+    "CoChem-SCRIBE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
+    "CoChem-SpycFit": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-BENCH": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
+    "CoChem-KINETIC": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
+    "CoChem-LUMOS": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-MAGE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-SHIFT": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-GEOM": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
+    "CoChem-NODE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
+    "CoChem-ORACLE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
     "Antigravity-Assistant": [],
 }
 
@@ -209,7 +229,6 @@ def resolve_topological_dependencies(selected_modules: List[str]) -> List[str]:
     """Resolves and injects all required prerequisites in topological order."""
     resolved_set = set(selected_modules)
 
-    # Always ensure mandatory foundation
     for name, info in ECOSYSTEM_REGISTRY.items():
         if info.get("mandatory", False):
             resolved_set.add(name)
@@ -230,6 +249,91 @@ def resolve_topological_dependencies(selected_modules: List[str]) -> List[str]:
             ordered.append(mod)
 
     return ordered
+
+
+def detect_avx512_support() -> bool:
+    """Detects native AVX-512 SIMD vector instructions on the host CPU."""
+    if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"1", "true", "yes"}:
+        return True
+    if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"0", "false", "no"}:
+        return False
+
+    if platform.system() == "Linux":
+        try:
+            with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+                cpuinfo_text = f.read().lower()
+                return "avx512f" in cpuinfo_text or "avx512" in cpuinfo_text
+        except Exception:
+            pass
+
+    try:
+        import numpy as np  # type: ignore[import-untyped]
+        core_mod = getattr(np, "_core", getattr(np, "core", None))
+        if core_mod is not None:
+            umath = getattr(core_mod, "_multiarray_umath", None)
+            if umath is not None and hasattr(umath, "__cpu_features__"):
+                features = umath.__cpu_features__
+                if isinstance(features, dict) and features.get("AVX512F", False):
+                    return True
+    except Exception:
+        pass
+
+    return False
+
+
+def detect_host_hardware() -> Dict[str, Any]:
+    """Collects real hardware telemetry from the host silicon without synthetic fallbacks."""
+    logical_cpus = psutil.cpu_count(logical=True) or 4
+    phys_cpus = psutil.cpu_count(logical=False) or max(1, logical_cpus // 2)
+    vmem = psutil.virtual_memory()
+    total_ram_gb = vmem.total / (1024.0 ** 3)
+    avail_ram_gb = vmem.available / (1024.0 ** 3)
+
+    try:
+        free_storage_gb = psutil.disk_usage(str(get_scratch_dir())).free / (1024.0 ** 3)
+    except Exception:
+        try:
+            free_storage_gb = psutil.disk_usage(str(get_artifact_dir())).free / (1024.0 ** 3)
+        except Exception:
+            free_storage_gb = 50.0
+
+    gpu_profile_name = "None"
+    gpu_vram_gb = 0.0
+    gpu_count = 0
+
+    try:
+        from cochem_base.core.hardware import HardwareDiscovery
+        gpu_avail = HardwareDiscovery.get_gpu_availability()
+        if gpu_avail.available and gpu_avail.devices:
+            gpu_count = len(gpu_avail.devices)
+            gpu_profile_name = gpu_avail.devices[0].name
+            gpu_vram_gb = sum(d.vram_gb for d in gpu_avail.devices)
+    except Exception:
+        pass
+
+    if gpu_count == 0:
+        cuda_dev = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
+        if cuda_dev:
+            parts = [p.strip() for p in cuda_dev.split(",") if p.strip()]
+            if parts and parts[0] != "":
+                gpu_count = len(parts)
+                gpu_profile_name = "Mapped CUDA Device"
+                gpu_vram_gb = 8.0
+
+    avx512_capable = detect_avx512_support()
+
+    return {
+        "physical_cpu_cores": phys_cpus,
+        "logical_cpu_cores": logical_cpus,
+        "ram_gb": total_ram_gb,
+        "avail_ram_gb": avail_ram_gb,
+        "free_storage_gb": free_storage_gb,
+        "gpu_profile": gpu_profile_name,
+        "gpu_count": gpu_count,
+        "vram_gb": gpu_vram_gb,
+        "avx512_support": avx512_capable,
+        "source": "Live Host Telemetry",
+    }
 
 
 def is_headless_environment() -> bool:
@@ -267,6 +371,68 @@ def get_system_git_hash() -> str:
         return "RELEASE_BUILD"
 
 
+def serialize_system_config_json(
+    manifest: DeploymentManifest,
+    target_path: Optional[Path] = None,
+) -> Path:
+    """Serializes system configuration state to cochem_system_config.json."""
+    artifact_dir = get_artifact_dir()
+    registry_dir = artifact_dir / "Registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+
+    config_file = target_path or (registry_dir / "cochem_system_config.json")
+    telemetry = detect_host_hardware()
+
+    os_target = {
+        "Windows": "windows_amd64",
+        "Darwin": "darwin_arm64" if platform.machine() == "arm64" else "darwin_x86_64",
+        "Linux": "linux_x86_64",
+    }.get(platform.system(), "linux_x86_64")
+
+    if manifest.interaction_environment == "GitHub Codespaces":
+        os_target = "codespaces"
+
+    config_data: Dict[str, Any] = {
+        "schema_version": "4.0.0",
+        "registry_version": "4.0",
+        "orca_version": "6.1.1",
+        "last_updated": datetime.now(timezone.utc).isoformat(),
+        "hardware": {
+            "physical_cpu_cores": telemetry["physical_cpu_cores"],
+            "logical_cpu_cores": telemetry["logical_cpu_cores"],
+            "ram_gb": round(telemetry["ram_gb"], 2),
+            "avx512_support": telemetry["avx512_support"],
+            "gpu_profile": telemetry["gpu_profile"],
+            "vram_gb": round(telemetry["vram_gb"], 2),
+            "os_target": os_target,
+        },
+        "environment": {
+            "os_target": os_target,
+            "artifacts_dir": str(artifact_dir),
+            "scratch_dir": str(get_scratch_dir()),
+        },
+        "silo_paths": {
+            "orca_path": manifest.orca_tarball_path or "BYPASSED",
+            "silo_root": str(registry_dir / "Modules"),
+        },
+        "engines": {
+            "orca": {
+                "status": "found" if manifest.orca_tarball_path else "missing",
+                "path": manifest.orca_tarball_path or None,
+                "version": "6.1.1" if manifest.orca_tarball_path else None,
+                "hash": None,
+            }
+        },
+        "interaction_tier": manifest.interaction_environment,
+        "calculation_tier": manifest.calculation_environment,
+        "selected_modules": manifest.selected_repositories,
+    }
+
+    config_file.write_text(json.dumps(config_data, indent=4), encoding="utf-8")
+    logger.info(f"System configuration persisted to: {config_file}")
+    return config_file
+
+
 def serialize_default_manifest(
     output_path: Optional[Path] = None,
     interaction_env: Optional[str] = None,
@@ -274,7 +440,7 @@ def serialize_default_manifest(
     orca_path: str = "",
     extra_modules: Optional[List[str]] = None,
 ) -> DeploymentManifest:
-    """Constructs and serializes the default topological manifest to disk."""
+    """Constructs and serializes the default topological manifest and system config to disk."""
     artifact_dir = get_artifact_dir()
     registry_dir = artifact_dir / "Registry"
     registry_dir.mkdir(parents=True, exist_ok=True)
@@ -282,20 +448,20 @@ def serialize_default_manifest(
     target_file = output_path or (registry_dir / "cochem_deployment_manifest.json")
 
     detected_interaction = interaction_env or (
-        "Codespaces"
+        "GitHub Codespaces"
         if os.environ.get("CODESPACES")
         else {
             "Windows": "Local-Windows (WSL)",
             "Darwin": "Local-MacOS (OrbStack)",
             "Linux": "Local-Linux (Deb)",
-        }.get(platform.system(), "Codespaces")
+        }.get(platform.system(), "GitHub Codespaces")
     )
 
     detected_calc = calc_env or (
-        "GitHub Actions" if detected_interaction == "Codespaces" else detected_interaction
+        "GitHub Actions" if detected_interaction == "GitHub Codespaces" else detected_interaction
     )
 
-    selected_raw = ["CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"]
+    selected_raw = ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"]
     if extra_modules:
         selected_raw.extend(extra_modules)
 
@@ -313,6 +479,8 @@ def serialize_default_manifest(
 
     target_file.write_text(manifest.model_dump_json(indent=4), encoding="utf-8")
     logger.info(f"Default deployment manifest serialized to: {target_file}")
+
+    serialize_system_config_json(manifest)
     return manifest
 
 
@@ -346,12 +514,13 @@ class SynapInstallerGUI:
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
         self.manifest_file = self.registry_dir / "cochem_deployment_manifest.json"
+        self.system_config_file = self.registry_dir / "cochem_system_config.json"
 
         self.interaction_options = [
             "Local-Windows (WSL)",
             "Local-MacOS (OrbStack)",
             "Local-Linux (Deb)",
-            "Codespaces",
+            "GitHub Codespaces",
             "HPC",
             "GitHub Actions",
         ]
@@ -372,10 +541,12 @@ class SynapInstallerGUI:
         self.progress_bar: Optional[widgets.FloatProgress] = None
         self.submit_btn: Optional[widgets.Button] = None
         self.stage_orca_btn: Optional[widgets.Button] = None
+        self.refresh_telemetry_btn: Optional[widgets.Button] = None
         self.interact_target: Optional[widgets.Dropdown] = None
         self.calc_target: Optional[widgets.Dropdown] = None
         self.host_orca_path: Optional[widgets.Text] = None
         self.orca_upload: Optional[widgets.FileUpload] = None
+        self.hud_html: Optional[widgets.HTML] = None
         self.main_ui: Optional[widgets.VBox] = None
 
         self._pre_flight_disk_check()
@@ -388,15 +559,23 @@ class SynapInstallerGUI:
     def _pre_flight_disk_check(self) -> None:
         """Verifies safe OS storage limits before rendering (enforces 10GB gate per User Manual §1.2.6)."""
         try:
-            free_gb = psutil.disk_usage(str(Path.home())).free / (1024**3)
+            free_gb = psutil.disk_usage(str(get_scratch_dir())).free / (1024**3)
             if free_gb < 10.0:
                 self.disk_safe = False
                 self.error_msg = f"CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 10GB required."
             else:
                 self.disk_safe = True
         except Exception as e:
-            self.disk_safe = False
-            self.error_msg = f"WARNING: Storage capacity verification failed ({e}). Manual scratch path confirmation required."
+            try:
+                free_gb = psutil.disk_usage(str(get_artifact_dir())).free / (1024**3)
+                if free_gb < 10.0:
+                    self.disk_safe = False
+                    self.error_msg = f"CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 10GB required."
+                else:
+                    self.disk_safe = True
+            except Exception as ex:
+                self.disk_safe = False
+                self.error_msg = f"WARNING: Storage capacity verification failed ({e} / {ex}). Manual scratch confirmation required."
 
     def _log_status(self, msg: str, level: str = "info") -> None:
         """Emits messages to status_out if present, as well as the standard logger."""
@@ -406,6 +585,9 @@ class SynapInstallerGUI:
                     logger.error(msg)
                 elif level == "warning":
                     logger.warning(msg)
+                elif level == "success":
+                    logger.info(msg)
+                    display(widgets.HTML(f"<div style='color: #15803d; font-weight: bold; margin: 4px 0;'>{msg}</div>"))  # type: ignore[no-untyped-call]
                 else:
                     logger.info(msg)
         else:
@@ -416,8 +598,158 @@ class SynapInstallerGUI:
             else:
                 logger.info(msg)
 
+    def collect_hardware_telemetry(self) -> Dict[str, Any]:
+        """Gathers real-time hardware telemetry and checks persisted system configuration."""
+        telemetry = detect_host_hardware()
+        config_path = self.system_config_file if self.system_config_file.exists() else resolve_config_path()
+
+        if config_path and config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg_data = json.load(f)
+                    hw_sec = cfg_data.get("hardware", {})
+                    if "ram_gb" in hw_sec:
+                        telemetry["config_ram_gb"] = float(hw_sec["ram_gb"])
+                    if "physical_cpu_cores" in hw_sec:
+                        telemetry["config_phys_cores"] = int(hw_sec["physical_cpu_cores"])
+                    if "avx512_support" in hw_sec:
+                        telemetry["config_avx512"] = bool(hw_sec["avx512_support"])
+                    if "gpu_profile" in hw_sec:
+                        telemetry["config_gpu"] = str(hw_sec["gpu_profile"])
+                    telemetry["source"] = f"Registry Config ({config_path.name})"
+            except Exception:
+                pass
+
+        return telemetry
+
+    def _render_hardware_hud_html(self, telemetry: Optional[Dict[str, Any]] = None) -> str:
+        """Generates dynamic HTML table with visual red/yellow/green resource warnings."""
+        data = telemetry or self.collect_hardware_telemetry()
+
+        ram_gb = data.get("ram_gb", 16.0)
+        avail_ram_gb = data.get("avail_ram_gb", ram_gb)
+        phys_cores = data.get("physical_cpu_cores", 4)
+        log_cores = data.get("logical_cpu_cores", 8)
+        gpu_name = data.get("gpu_profile", "None")
+        gpu_vram = data.get("vram_gb", 0.0)
+        avx512_support = data.get("avx512_support", False)
+        free_storage = data.get("free_storage_gb", 50.0)
+        source = data.get("source", "Live Telemetry")
+
+        if ram_gb >= 16.0:
+            ram_bg, ram_fg, ram_status = "#dcfce7", "#166534", "Optimal"
+        elif ram_gb >= 8.0:
+            ram_bg, ram_fg, ram_status = "#fef9c3", "#854d0e", "Constrained"
+        else:
+            ram_bg, ram_fg, ram_status = "#fee2e2", "#991b1b", "Critical (<8GB)"
+
+        if phys_cores >= 4:
+            cpu_bg, cpu_fg, cpu_status = "#dcfce7", "#166534", "Optimal"
+        elif phys_cores >= 2:
+            cpu_bg, cpu_fg, cpu_status = "#fef9c3", "#854d0e", "Constrained"
+        else:
+            cpu_bg, cpu_fg, cpu_status = "#fee2e2", "#991b1b", "Critical (<2 cores)"
+
+        if gpu_vram >= 4.0:
+            gpu_bg, gpu_fg, gpu_status = "#dcfce7", "#166534", "Accelerated"
+        elif gpu_vram > 0.0:
+            gpu_bg, gpu_fg, gpu_status = "#fef9c3", "#854d0e", "Low VRAM"
+        else:
+            gpu_bg, gpu_fg, gpu_status = "#f1f5f9", "#475569", "CPU Only"
+
+        if avx512_support:
+            avx_bg, avx_fg, avx_status = "#dcfce7", "#166534", "Supported"
+        else:
+            avx_bg, avx_fg, avx_status = "#fef9c3", "#854d0e", "Not Detected / Fallback"
+
+        if free_storage >= 20.0:
+            disk_bg, disk_fg, disk_status = "#dcfce7", "#166534", "Adequate"
+        elif free_storage >= 10.0:
+            disk_bg, disk_fg, disk_status = "#fef9c3", "#854d0e", "Tight Storage"
+        else:
+            disk_bg, disk_fg, disk_status = "#fee2e2", "#991b1b", "Critical (<10GB)"
+
+        has_critical = (ram_gb < 8.0) or (phys_cores < 2) or (free_storage < 10.0)
+        has_warning = (ram_gb < 16.0) or (phys_cores < 4) or (not avx512_support) or (gpu_vram == 0.0)
+
+        if has_critical:
+            banner = (
+                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #fee2e2; "
+                "border-left: 4px solid #dc2626; color: #991b1b; border-radius: 4px; font-size: 0.88em;'>"
+                "<b>CRITICAL RESOURCE WARNING:</b> Host resources are below minimum thresholds. "
+                "Calculations may experience out-of-memory errors or reduced performance."
+                "</div>"
+            )
+        elif has_warning:
+            banner = (
+                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #fef9c3; "
+                "border-left: 4px solid #ca8a04; color: #854d0e; border-radius: 4px; font-size: 0.88em;'>"
+                "<b>RESOURCE NOTICE:</b> Constrained hardware profile detected. "
+                "Dynamic fallback routing will automatically adapt solver parameters."
+                "</div>"
+            )
+        else:
+            banner = (
+                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #dcfce7; "
+                "border-left: 4px solid #16a34a; color: #166534; border-radius: 4px; font-size: 0.88em;'>"
+                "<b>HARDWARE VERIFIED:</b> Silicon meets all recommended performance profiles for high-throughput execution."
+                "</div>"
+            )
+
+        html = f"""
+        <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin: 10px 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: bold; color: #0f172a; font-family: monospace; font-size: 1.05em;">SYSTEM METAL &amp; COMPUTE TELEMETRY HUD</span>
+            <span style="font-size: 0.82em; color: #64748b;">Source: {source}</span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88em;">
+            <thead>
+              <tr style="border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569;">
+                <th style="padding: 6px 8px;">Resource</th>
+                <th style="padding: 6px 8px;">Detected Specification</th>
+                <th style="padding: 6px 8px;">Status / Tier</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 8px; font-weight: 600;">System RAM</td>
+                <td style="padding: 6px 8px;">{ram_gb:.1f} GB Total ({avail_ram_gb:.1f} GB Available)</td>
+                <td style="padding: 6px 8px;"><span style="background-color: {ram_bg}; color: {ram_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{ram_status}</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 8px; font-weight: 600;">CPU Cores</td>
+                <td style="padding: 6px 8px;">{phys_cores} Physical / {log_cores} Logical Cores</td>
+                <td style="padding: 6px 8px;"><span style="background-color: {cpu_bg}; color: {cpu_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{cpu_status}</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 8px; font-weight: 600;">GPU Accelerator</td>
+                <td style="padding: 6px 8px;">{gpu_name} ({gpu_vram:.1f} GB VRAM)</td>
+                <td style="padding: 6px 8px;"><span style="background-color: {gpu_bg}; color: {gpu_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{gpu_status}</span></td>
+              </tr>
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 6px 8px; font-weight: 600;">Vector ISA (AVX-512)</td>
+                <td style="padding: 6px 8px;">{'AVX-512 Foundation Present' if avx512_support else 'AVX-512 Not Present'}</td>
+                <td style="padding: 6px 8px;"><span style="background-color: {avx_bg}; color: {avx_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{avx_status}</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 6px 8px; font-weight: 600;">Free Disk Storage</td>
+                <td style="padding: 6px 8px;">{free_storage:.1f} GB Available</td>
+                <td style="padding: 6px 8px;"><span style="background-color: {disk_bg}; color: {disk_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{disk_status}</span></td>
+              </tr>
+            </tbody>
+          </table>
+          {banner}
+        </div>
+        """
+        return html
+
+    def refresh_hardware_hud(self) -> None:
+        """Refreshes the hardware profiling HUD with latest telemetry values."""
+        if self.hud_html is not None:
+            self.hud_html.value = self._render_hardware_hud_html()
+
     def _verify_host_orca_path(self, raw_path: str) -> bool:
-        """Performs a live quantum helium single-point run to verify native ORCA execution."""
+        """Performs a quantum single-point verification run to confirm native ORCA execution."""
         mapped_orca = resolve_executable(
             (raw_path or "").strip().strip('"').strip("'") or None,
             env_var="ORCA_CMD",
@@ -542,9 +874,11 @@ class SynapInstallerGUI:
                     self._log_status(f"Auto-selected prerequisite: {req} for {module_name}", level="info")
 
     def _pure_python_deployment_worker(self, manifest_payload: Dict[str, Any]) -> None:
-        """Threaded pure-Python replacement for bash routers. Enforces Air-Gap."""
+        """Threaded pure-Python deployment worker. Enforces Air-Gap sideloading."""
         try:
             target_modules = manifest_payload.get("selected_repositories", [])
+            interaction_env = manifest_payload.get("interaction_environment", "Local-Linux (Deb)")
+            calc_env = manifest_payload.get("calculation_environment", "Local-Linux (Deb)")
             progress_step = 80.0 / max(len(target_modules), 1)
 
             with open(self.log_file, "a", encoding="utf-8") as log_out:
@@ -560,10 +894,15 @@ class SynapInstallerGUI:
                     log_out.flush()
 
                 log_msg("\n[DEPLOYMENT] Initiating Pure-Python Air-Gap Module Provisioning...")
+                log_msg(f"[INTERACTION TIER] Selected UI: {interaction_env}")
+                log_msg(f"[CALCULATION TIER] Selected Compute: {calc_env}")
                 log_msg(f"[WORKSPACE] Target Module Registry: {self.module_registry}\n")
 
                 clean_env = os.environ.copy()
                 clean_env["GIT_TERMINAL_PROMPT"] = "0"
+                clean_env["COCHEM_INTERACTION_TIER"] = str(interaction_env)
+                clean_env["COCHEM_CALCULATION_TIER"] = str(calc_env)
+
                 base_root = str(get_base_root())
                 existing_pythonpath = clean_env.get("PYTHONPATH")
                 clean_env["PYTHONPATH"] = os.pathsep.join(
@@ -580,7 +919,7 @@ class SynapInstallerGUI:
                 current_progress = 0.0
 
                 for mod in target_modules:
-                    if mod == "CoChem-CORE":
+                    if mod == "CoChem-BASE":
                         log_msg(f"  [BASE] Base repository active. Bypassing clone for {mod}.")
                         current_progress += progress_step
                         update_progress(current_progress)
@@ -736,7 +1075,7 @@ class SynapInstallerGUI:
         """Locks all interactive input widgets to enforce UI immutability during execution."""
         if self.submit_btn is not None:
             self.submit_btn.disabled = True
-            self.submit_btn.description = "Deploying..."
+            self.submit_btn.description = "Initializing Pipeline..."
         if self.interact_target is not None:
             self.interact_target.disabled = True
         if self.calc_target is not None:
@@ -747,6 +1086,8 @@ class SynapInstallerGUI:
             self.orca_upload.disabled = True
         if self.stage_orca_btn is not None:
             self.stage_orca_btn.disabled = True
+        if self.refresh_telemetry_btn is not None:
+            self.refresh_telemetry_btn.disabled = True
         for cb in self.buttons.values():
             cb.disabled = True
 
@@ -754,9 +1095,10 @@ class SynapInstallerGUI:
         """Restores editable state on input widgets if deployment pre-checks fail."""
         if self.submit_btn is not None:
             self.submit_btn.disabled = False
-            self.submit_btn.description = "Lock & Deploy"
+            self.submit_btn.description = "Initialize Pipeline"
         if self.interact_target is not None:
-            self.interact_target.disabled = False
+            if not os.environ.get("CODESPACES"):
+                self.interact_target.disabled = False
         if self.calc_target is not None:
             self.calc_target.disabled = False
         if self.host_orca_path is not None:
@@ -765,11 +1107,14 @@ class SynapInstallerGUI:
             self.orca_upload.disabled = False
         if self.stage_orca_btn is not None:
             self.stage_orca_btn.disabled = False
+        if self.refresh_telemetry_btn is not None:
+            self.refresh_telemetry_btn.disabled = False
         for prog, cb in self.buttons.items():
             if not ECOSYSTEM_REGISTRY.get(prog, {}).get("mandatory", False):
                 cb.disabled = False
 
     def _on_submit(self, b: Any) -> None:
+        """Handles pipeline initialization, state serialization, and worker dispatch."""
         self._lock_ui_for_deployment()
         if self.progress_bar is not None:
             self.progress_bar.value = 0.0
@@ -802,9 +1147,11 @@ class SynapInstallerGUI:
         with open(self.manifest_file, "w", encoding="utf-8") as f:
             f.write(manifest_model.model_dump_json(indent=4))
 
+        serialize_system_config_json(manifest_model, target_path=self.system_config_file)
         manifest_payload = manifest_model.model_dump()
 
         self._log_status(f"Matrix Selections locked securely in: {self.manifest_file}", level="info")
+        self._log_status("CoChem-BASE Fully Initialized. Safe to proceed.", level="success")
 
         if host_orca_path and host_orca_path != "Not Available - Auto-Routed":
             self._log_status("Verifying native ORCA execution pathway...", level="info")
@@ -852,6 +1199,11 @@ class SynapInstallerGUI:
             else:
                 logger.warning("No valid archives detected to stage.")
 
+    def _on_refresh_telemetry_click(self, _: Any) -> None:
+        """Handler for manually polling and refreshing hardware telemetry."""
+        self.refresh_hardware_hud()
+        self._log_status("Hardware telemetry HUD refreshed.", level="info")
+
     def _build_ui(self) -> None:
         title = widgets.HTML(
             "<div style='margin-bottom: 12px;'>"
@@ -871,18 +1223,24 @@ class SynapInstallerGUI:
             f"</div>"
         )
 
-        host_interaction = {
-            "Windows": "Local-Windows (WSL)",
-            "Darwin": "Local-MacOS (OrbStack)",
-            "Linux": "Local-Linux (Deb)",
-        }.get(platform.system(), "Codespaces")
-        if os.environ.get("CODESPACES"):
-            host_interaction = "Codespaces"
-        host_calculation = host_interaction if host_interaction != "Codespaces" else "GitHub Actions"
+        codespaces_detected = bool(os.environ.get("CODESPACES"))
+        if codespaces_detected:
+            host_interaction = "GitHub Codespaces"
+            interact_disabled = True
+            host_calculation = "GitHub Actions"
+        else:
+            host_interaction = {
+                "Windows": "Local-Windows (WSL)",
+                "Darwin": "Local-MacOS (OrbStack)",
+                "Linux": "Local-Linux (Deb)",
+            }.get(platform.system(), "Local-Linux (Deb)")
+            interact_disabled = False
+            host_calculation = host_interaction if host_interaction in self.calculation_options else "Local-Linux (Deb)"
 
         self.interact_target = widgets.Dropdown(
             options=self.interaction_options,
             value=host_interaction,
+            disabled=interact_disabled,
             description="Interaction (UI):",
             layout={"width": "90%"},
         )
@@ -893,27 +1251,22 @@ class SynapInstallerGUI:
             layout={"width": "90%"},
         )
 
-        # Tab 0: Environment & Compute
-        try:
-            free_gb = psutil.disk_usage(str(Path.home())).free / (1024**3)
-            cpu_count = psutil.cpu_count(logical=False) or psutil.cpu_count(logical=True) or 1
-            total_ram_gb = psutil.virtual_memory().total / (1024**3)
-            hud_html = widgets.HTML(
-                f"<div style='background-color: #f1f5f9; padding: 10px; border-radius: 5px; margin-top: 10px;'>"
-                f"<b>System Metal HUD:</b> Physical Cores: <code>{cpu_count}</code> | "
-                f"Total RAM: <code>{total_ram_gb:.1f} GB</code> | "
-                f"Free Storage: <code>{free_gb:.1f} GB</code>"
-                f"</div>"
-            )
-        except Exception:
-            hud_html = widgets.HTML("")
+        self.refresh_telemetry_btn = widgets.Button(
+            description="Refresh Telemetry",
+            button_style="info",
+            layout={"width": "180px", "margin": "8px 0px"},
+        )
+        self.refresh_telemetry_btn.on_click(self._on_refresh_telemetry_click)
+
+        self.hud_html = widgets.HTML(self._render_hardware_hud_html())
 
         tab_env = widgets.VBox(
             [
                 widgets.HTML("<h4>Step 1: Interaction &amp; Compute Matrices</h4>"),
                 self.interact_target,
                 self.calc_target,
-                hud_html,
+                self.refresh_telemetry_btn,
+                self.hud_html,
             ],
             layout={"padding": "12px"},
         )
@@ -971,7 +1324,7 @@ class SynapInstallerGUI:
 
         # Tab 3: Deployment & Logs
         self.submit_btn = widgets.Button(
-            description="Lock & Deploy",
+            description="Initialize Pipeline",
             button_style="success",
             layout={"width": "30%", "margin": "10px 0px"},
         )

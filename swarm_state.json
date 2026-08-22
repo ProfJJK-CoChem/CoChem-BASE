@@ -1,17 +1,18 @@
 {
   "agent": "cochem-coder",
-  "prompt": "Doc3_01_jupyter_interactive_prompt.md",
+  "prompt": "Doc3_02_unity_installer_dashboard_prompt.md",
   "status": "COMPLETED",
-  "timestamp": 1787383200.0,
+  "timestamp": 1787384000.0,
   "artifacts": [
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/Start_Here.ipynb",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_start_here_notebook.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_start_here_notebook.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/Task_List.md"
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/interfaces/cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/interfaces/cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini"
   ],
   "audits": {
-    "adversary": "PASSED (40/40 UNIT & INTEGRATION TESTS)",
-    "cochem-audit": "PASSED (40/40 UNIT & INTEGRATION TESTS)"
+    "adversary": "PASSED (33/33 PHYSICAL ZERO-MOCK TESTS)",
+    "cochem-audit": "PASSED (33/33 PHYSICAL ZERO-MOCK TESTS)"
   }
 }

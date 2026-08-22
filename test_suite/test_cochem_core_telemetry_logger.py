@@ -23,6 +23,8 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import logging
+import logging.handlers
 import os
 import platform
 import stat
@@ -37,16 +39,27 @@ import pytest
 from core_engine.cochem_core_telemetry_logger import (
     CRITICAL_SEGFAULT_EXIT_CODES,
     DEFAULT_BACKUP_COUNT,
+    DEFAULT_LOG_BACKUP_COUNT,
+    DEFAULT_MAX_LOG_BYTES,
     DEFAULT_MAX_STREAM_BYTES,
+    DEFAULT_ROTATING_LOG_FILENAME,
     DEFAULT_STREAM_FILENAME,
+    HAS_PSUTIL,
+    HAS_PYNVML,
     HAS_ZMQ,
     RotatingJsonlSink,
     TelemetryIPCListener,
     TelemetryIPCStreamer,
     TelemetryLogger,
+    capture_crash_telemetry_metrics,
     compute_provenance_digest,
+    force_flush_and_close_hdf5_pointers,
     get_default_secret_key,
+    get_plaintext_rotating_handler,
     install_global_excepthook,
+    resolve_telemetry_log_dir,
+    safe_h5py_open,
+    setup_cochem_rotating_logger,
     sign_provenance_block,
     trap_unhandled_exceptions,
     uninstall_global_excepthook,
@@ -297,7 +310,7 @@ def test_json_ld_footer_schema_and_signature(tmp_path: Path) -> None:
 
     assert "# --- COCHEM JSON-LD PROVENANCE FOOTER ---" in footer
     lines = footer.strip().split("\n")
-    json_line = [l for l in lines if l.startswith("# {")][0][2:]
+    json_line = [line for line in lines if line.startswith("# {")][0][2:]
     data = json.loads(json_line)
 
     assert data["@context"] == "https://w3id.org/ro/qcschema"
@@ -508,6 +521,7 @@ def test_global_excepthook_interception(tmp_path: Path) -> None:
         raise ValueError("Simulated catastrophic numerical division error")
     except ValueError:
         exc_type, exc_value, exc_tb = sys.exc_info()
+        assert exc_type is not None and exc_value is not None
         sys.excepthook(exc_type, exc_value, exc_tb)
 
     # Uninstall excepthook
@@ -539,6 +553,7 @@ def test_trap_unhandled_exceptions_context_manager(tmp_path: Path) -> None:
             raise RuntimeError("Out-of-memory Fock builder crash")
         except RuntimeError:
             exc_t, exc_v, exc_tb = sys.exc_info()
+            assert exc_t is not None and exc_v is not None
             sys.excepthook(exc_t, exc_v, exc_tb)
 
     # Must be restored after context exit
@@ -555,50 +570,56 @@ def test_trap_unhandled_exceptions_context_manager(tmp_path: Path) -> None:
 
 def test_secure_ipc_streaming_and_reception() -> None:
     """Test real physical IPC broadcast, receipt, and cryptographic verification of telemetry events."""
-    secret = "ipc_secret_key_4455"
-    
-    # Initialize streamer
-    streamer = TelemetryIPCStreamer(transport="zmq" if HAS_ZMQ else "socket", secret_key=secret)
-    bound_endpoint = streamer.start()
-    assert bound_endpoint is not None
+    transports_to_test = ["socket"]
+    if HAS_ZMQ:
+        transports_to_test.append("zmq")
 
-    # Initialize listener
-    listener = TelemetryIPCListener(endpoint=bound_endpoint, transport="zmq" if HAS_ZMQ else "socket", secret_key=secret)
-    listener.start()
+    for transport in transports_to_test:
+        secret = f"ipc_secret_key_{transport}_9988"
+        
+        # Initialize streamer
+        streamer = TelemetryIPCStreamer(transport=transport, secret_key=secret)
+        bound_endpoint = streamer.start()
+        assert bound_endpoint is not None
 
-    # Small delay for connection handshake
-    time.sleep(0.3)
+        # Initialize listener
+        listener = TelemetryIPCListener(endpoint=bound_endpoint, transport=transport, secret_key=secret)
+        listener.start()
 
-    # Publish an authentic telemetry payload
-    payload = {
-        "job_id": "ipc_benzene_opt",
-        "iteration": 12,
-        "energy": -230.4567,
-    }
-    
-    # Broadcast multiple times to ensure listener receives across OS buffers
-    for _ in range(3):
-        streamer.publish_event("ITERATION_UPDATE", payload, sign=True)
-        time.sleep(0.05)
+        # Small delay for connection handshake
+        time.sleep(0.3)
 
-    # Receive and verify event
-    received = listener.recv_event(timeout=2.0, verify_signature=True)
-    
-    if received is not None:
+        # Publish an authentic telemetry payload
+        payload = {
+            "job_id": f"ipc_job_{transport}",
+            "iteration": 12,
+            "energy": -230.4567,
+        }
+        
+        # Broadcast multiple times to ensure listener receives across OS buffers
+        for _ in range(3):
+            streamer.publish_event("ITERATION_UPDATE", payload, sign=True)
+            time.sleep(0.05)
+
+        # Receive and verify event
+        received = listener.recv_event(timeout=2.0, verify_signature=True)
+        assert received is not None, f"Failed to receive IPC event for transport {transport}"
         assert received["event_type"] == "ITERATION_UPDATE"
-        assert received["payload"]["job_id"] == "ipc_benzene_opt"
+        assert received["payload"]["job_id"] == f"ipc_job_{transport}"
         assert verify_provenance_signature(received, secret_key=secret) is True
 
-    # Test rejection with incorrect secret key
-    bad_listener = TelemetryIPCListener(endpoint=bound_endpoint, transport="zmq" if HAS_ZMQ else "socket", secret_key="wrong_secret")
-    bad_listener.start()
-    streamer.publish_event("PROBE", {"test": 1}, sign=True)
-    tampered_recv = bad_listener.recv_event(timeout=0.5, verify_signature=True)
-    assert tampered_recv is None
+        # Close authentic listener before starting bad_listener
+        listener.close()
 
-    listener.close()
-    bad_listener.close()
-    streamer.close()
+        # Test rejection with incorrect secret key
+        bad_listener = TelemetryIPCListener(endpoint=bound_endpoint, transport=transport, secret_key="wrong_secret")
+        bad_listener.start()
+        streamer.publish_event("PROBE", {"test": 1}, sign=True)
+        tampered_recv = bad_listener.recv_event(timeout=0.5, verify_signature=True)
+        assert tampered_recv is None
+
+        bad_listener.close()
+        streamer.close()
 
 
 # ==============================================================================
@@ -631,7 +652,200 @@ def test_thread_safety_concurrent_chunks(tmp_path: Path) -> None:
 
 
 # ==============================================================================
-# 9. Strict Zero-Mock Mandate AST Compliance
+# 9. Hardware Crash Telemetry (psutil RSS RAM/CPU & pynvml GPU VRAM)
+# ==============================================================================
+
+
+def test_crash_telemetry_metrics_capture() -> None:
+    """Test capturing live process RSS RAM, CPU percent, and NVIDIA GPU VRAM footprint."""
+    metrics = capture_crash_telemetry_metrics()
+    
+    assert "timestamp_iso" in metrics
+    assert "timestamp_epoch_ms" in metrics
+    
+    if HAS_PSUTIL:
+        assert "ram_rss_bytes" in metrics
+        assert "ram_rss_mb" in metrics
+        assert metrics["ram_rss_bytes"] > 0
+        assert metrics["ram_rss_mb"] > 0
+        assert "system_cpu_percent" in metrics
+        assert "system_ram_percent" in metrics
+
+    if HAS_PYNVML:
+        assert "nvidia_gpu_count" in metrics
+        assert "gpus" in metrics
+        assert isinstance(metrics["gpus"], list)
+        if metrics["nvidia_gpu_count"] > 0:
+            gpu0 = metrics["gpus"][0]
+            assert "gpu_index" in gpu0
+            assert "gpu_name" in gpu0
+            assert "vram_used_bytes" in gpu0
+            assert "vram_total_bytes" in gpu0
+            assert "vram_used_mb" in gpu0
+            assert "vram_total_mb" in gpu0
+            assert gpu0["vram_total_bytes"] > 0
+
+
+# ==============================================================================
+# 10. Emergency HDF5 Pointer Flush and Closure & Zero SWMR Enforcement
+# ==============================================================================
+
+
+def test_emergency_hdf5_flush_and_close(tmp_path: Path) -> None:
+    """Test that open HDF5 file pointers are forcibly flushed and closed during emergency crash."""
+    import h5py
+
+    h5_path = tmp_path / "emergency_test.h5"
+    f = h5py.File(str(h5_path), "w")
+    f.create_dataset("test_data", data=[1.0, 2.0, 3.0])
+    
+    # Assert file is open
+    assert bool(f.id.valid) is True
+
+    # Force emergency flush and closure
+    closed_count = force_flush_and_close_hdf5_pointers()
+    assert closed_count >= 1
+
+    # Assert pointer is closed
+    assert bool(f.id.valid) is False
+
+    # Verify file can now be opened without corruption
+    with h5py.File(str(h5_path), "r") as f_reopened:
+        assert "test_data" in f_reopened
+        assert list(f_reopened["test_data"][:]) == [1.0, 2.0, 3.0]
+
+
+def test_safe_h5py_open_context_manager(tmp_path: Path) -> None:
+    """Test safe_h5py_open context manager enforces closure and forbids swmr=True."""
+    h5_path = tmp_path / "safe_ctx_test.h5"
+
+    # 1. Normal context manager execution
+    with safe_h5py_open(h5_path, mode="w") as f:
+        f.create_dataset("values", data=[10, 20, 30])
+        assert bool(f.id.valid) is True
+
+    # After exit, must be closed
+    assert bool(f.id.valid) is False
+
+    # 2. Strict SWMR Prohibition: swmr=True must raise ValueError under all circumstances
+    with pytest.raises(ValueError, match="swmr=True is strictly prohibited for HDF5"):
+        with safe_h5py_open(h5_path, mode="r", swmr=True):
+            pass
+
+    # 3. Strict SWMR Prohibition via kwargs
+    kw: Dict[str, Any] = {"swmr": True}
+    with pytest.raises(ValueError, match="swmr=True is strictly prohibited for HDF5"):
+        with safe_h5py_open(h5_path, mode="r", **kw):
+            pass
+
+
+# ==============================================================================
+# 11. Plaintext RotatingFileHandler (5 MB limit, 3 backups)
+# ==============================================================================
+
+
+def test_plaintext_rotating_file_handler(tmp_path: Path) -> None:
+    """Test plaintext RotatingFileHandler configured with 5 MB size limit and 3 rolling backups."""
+    log_dir = tmp_path / "rotating_logs"
+    handler = get_plaintext_rotating_handler(
+        log_dir=log_dir,
+        filename="cochem_execution.log",
+        max_bytes=400,  # Small size limit to trigger physical file rotation in unit test
+        backup_count=3,
+    )
+    
+    test_logger = logging.getLogger("CoChem-TestRotating")
+    test_logger.setLevel(logging.INFO)
+    test_logger.addHandler(handler)
+
+    # Write multiple lines to trigger rotation
+    for i in range(20):
+        test_logger.info(f"Execution step line #{i}: telemetry payload with verbose logging details.")
+
+    handler.flush()
+    handler.close()
+    test_logger.removeHandler(handler)
+
+    # Verify primary log and rotated backup files exist
+    main_log = log_dir / "cochem_execution.log"
+    rot1 = log_dir / "cochem_execution.log.1"
+    assert main_log.exists()
+    assert rot1.exists()
+
+    # Test setup_cochem_rotating_logger convenience helper
+    cochem_log = setup_cochem_rotating_logger(
+        log_dir=log_dir,
+        filename="cochem_execution.log",
+        max_bytes=DEFAULT_MAX_LOG_BYTES,
+        backup_count=DEFAULT_LOG_BACKUP_COUNT,
+        logger_name="CoChem-TestApp",
+    )
+    assert len(cochem_log.handlers) >= 1
+    assert any(isinstance(h, logging.handlers.RotatingFileHandler) for h in cochem_log.handlers)
+
+
+# ==============================================================================
+# 12. Telemetry Log Directory Resolution Hierarchy
+# ==============================================================================
+
+
+def test_resolve_telemetry_log_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test resolution hierarchy for $COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs."""
+    # 1. Explicit path parameter
+    custom_dir = tmp_path / "my_custom_logs"
+    assert resolve_telemetry_log_dir(custom_dir) == custom_dir.resolve()
+    assert custom_dir.exists()
+
+    # 2. Environment variable COCHEM_SCRATCH_DIR
+    scratch_dir = tmp_path / "scratch_space"
+    monkeypatch.setenv("COCHEM_SCRATCH_DIR", str(scratch_dir))
+    expected = (scratch_dir / "CoChem_Artifacts" / "Logs").resolve()
+    assert resolve_telemetry_log_dir() == expected
+    assert expected.exists()
+
+
+# ==============================================================================
+# 13. Excepthook Traceback Preservation & Diagnostics
+# ==============================================================================
+
+
+def test_excepthook_preserves_jupyter_traceback(tmp_path: Path) -> None:
+    """Test that custom excepthook captures crash telemetry and invokes sys.__excepthook__."""
+    invoked = []
+
+    def spy_jupyter_hook(exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        invoked.append((exc_type, exc_value))
+
+    logger = TelemetryLogger(log_dir=tmp_path)
+    install_global_excepthook(logger_instance=logger, chain=True)
+
+    # Set custom original hook to simulate Jupyter notebook environment
+    import core_engine.cochem_core_telemetry_logger as cochem_mod
+    cochem_mod._GLOBAL_ORIGINAL_EXCEPTHOOK = spy_jupyter_hook
+
+    try:
+        raise ZeroDivisionError("Division by zero in quantum matrix solver")
+    except ZeroDivisionError:
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        cochem_mod._cochem_excepthook_handler(exc_type, exc_val, exc_tb)
+
+    uninstall_global_excepthook()
+
+    assert len(invoked) == 1
+    assert invoked[0][0] is ZeroDivisionError
+    assert logger.errors_count >= 1
+
+    # Verify telemetry stream logged hardware metrics
+    stream_file = tmp_path / DEFAULT_STREAM_FILENAME
+    content = stream_file.read_text(encoding="utf-8")
+    assert "hardware_metrics" in content
+    assert "ZeroDivisionError" in content
+
+    logger.close()
+
+
+# ==============================================================================
+# 14. Strict Zero-Mock Mandate AST Compliance
 # ==============================================================================
 
 

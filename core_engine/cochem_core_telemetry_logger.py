@@ -4,9 +4,15 @@
 """
 CoChem-CORE: Stage 4.0 - Telemetry, Stability, & Provenance Logger
 The Black Box of the CoChem ecosystem.
+
 Implements:
 - Rotating JSON-LD provenance stream handler (Logs/cochem_telemetry_stream.jsonl)
 - Global sys.excepthook interception with structured crash diagnostics & JSON-LD provenance
+- Real-time psutil RAM RSS / CPU load & pynvml NVIDIA GPU VRAM telemetry on crash
+- Emergency .flush() and .close() on all open HDF5 pointers during hard crashes
+- Strict zero-SWMR enforcement (swmr=True prohibited under all circumstances)
+- Original hook (sys.__excepthook__) chaining preserving Jupyter Notebook visual tracebacks
+- Plaintext RotatingFileHandler with strict 5 MB file size limit and 3 rolling backups
 - Exit Code 139 / Segfault / Access Violation recognition with 256-byte stderr hex-dumping
 - Cryptographic HMAC-SHA256 signing of provenance blocks to prevent log spoofing
 - Secure IPC streaming (ZeroMQ PUB/SUB and native IPC sockets/pipes)
@@ -19,10 +25,12 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import gc
 import hashlib
 import hmac
 import json
 import logging
+import logging.handlers
 import os
 import platform
 import re
@@ -44,7 +52,19 @@ try:
 except ImportError:
     HAS_ZMQ = False
 
-from cochem_base.config_loader import get_artifact_dir
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
+try:
+    import pynvml
+    HAS_PYNVML = True
+except ImportError:
+    HAS_PYNVML = False
+
+from cochem_base.config_loader import get_artifact_dir, get_scratch_dir
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TelemetryLogger")
@@ -63,6 +83,10 @@ DEFAULT_STREAM_FILENAME = "cochem_telemetry_stream.jsonl"
 DEFAULT_MAX_STREAM_BYTES = 10 * 1024 * 1024  # 10 MB
 DEFAULT_BACKUP_COUNT = 5
 
+DEFAULT_ROTATING_LOG_FILENAME = "cochem_execution.log"
+DEFAULT_MAX_LOG_BYTES = 5 * 1024 * 1024  # Strict 5 MB limit
+DEFAULT_LOG_BACKUP_COUNT = 3             # Maximum 3 rolling backups (e.g. .log, .log.1, .log.2, .log.3)
+
 # Module-level session secret key for cryptographic log signing
 _MODULE_SESSION_KEY: bytes = secrets.token_bytes(32)
 
@@ -73,6 +97,241 @@ def get_default_secret_key() -> bytes:
     if env_key:
         return env_key.encode("utf-8")
     return _MODULE_SESSION_KEY
+
+
+def resolve_telemetry_log_dir(custom_path: Optional[Union[str, Path]] = None) -> Path:
+    """
+    Resolves the telemetry log directory.
+    Hierarchy:
+    1. Explicit custom_path parameter
+    2. COCHEM_SCRATCH_DIR / COCHEM_SCRATCH environment variable -> $COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs
+    3. get_scratch_dir() / "CoChem_Artifacts" / "Logs"
+    4. Fallback: get_artifact_dir() / "Logs"
+    """
+    if custom_path is not None:
+        p = Path(custom_path).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    env_scratch = os.environ.get("COCHEM_SCRATCH_DIR") or os.environ.get("COCHEM_SCRATCH")
+    if env_scratch:
+        p = (Path(env_scratch).resolve() / "CoChem_Artifacts" / "Logs").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    try:
+        p = (get_scratch_dir() / "CoChem_Artifacts" / "Logs").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except Exception:
+        pass
+
+    try:
+        p = (get_artifact_dir() / "Logs").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except Exception:
+        pass
+
+    fallback = (Path.home() / "CoChem_Artifacts" / "Logs").resolve()
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def capture_crash_telemetry_metrics() -> Dict[str, Any]:
+    """
+    Captures process RSS RAM usage, CPU load (via psutil), and GPU VRAM footprint (via pynvml)
+    at the exact millisecond of failure.
+    Gracefully handles environments without NVIDIA GPU or missing drivers.
+    """
+    metrics: Dict[str, Any] = {
+        "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+        "timestamp_epoch_ms": int(time.time() * 1000),
+    }
+
+    # 1. Process CPU and RAM Telemetry via psutil
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        mem_info = proc.memory_info()
+        metrics["ram_rss_bytes"] = mem_info.rss
+        metrics["ram_rss_mb"] = round(mem_info.rss / (1024 * 1024), 2)
+        metrics["ram_vms_bytes"] = mem_info.vms
+        metrics["ram_vms_mb"] = round(mem_info.vms / (1024 * 1024), 2)
+        metrics["process_cpu_percent"] = proc.cpu_percent(interval=None)
+        metrics["system_cpu_percent"] = psutil.cpu_percent(interval=None)
+        vm = psutil.virtual_memory()
+        metrics["system_ram_total_bytes"] = vm.total
+        metrics["system_ram_used_bytes"] = vm.used
+        metrics["system_ram_percent"] = vm.percent
+    except Exception as psutil_err:
+        metrics["psutil_error"] = str(psutil_err)
+
+    # 2. NVIDIA GPU VRAM Telemetry via pynvml
+    gpu_metrics: List[Dict[str, Any]] = []
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        try:
+            device_count = pynvml.nvmlDeviceGetCount()
+            metrics["nvidia_gpu_count"] = device_count
+            for i in range(device_count):
+                handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+                name = pynvml.nvmlDeviceGetName(handle)
+                if isinstance(name, bytes):
+                    name = name.decode("utf-8")
+                mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                try:
+                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                    gpu_util = util.gpu
+                    mem_util = util.memory
+                except Exception:
+                    gpu_util = 0
+                    mem_util = 0
+                gpu_metrics.append({
+                    "gpu_index": i,
+                    "gpu_name": name,
+                    "vram_used_bytes": mem_info.used,
+                    "vram_total_bytes": mem_info.total,
+                    "vram_free_bytes": mem_info.free,
+                    "vram_used_mb": round(mem_info.used / (1024 * 1024), 2),
+                    "vram_total_mb": round(mem_info.total / (1024 * 1024), 2),
+                    "vram_utilization_percent": gpu_util,
+                    "memory_utilization_percent": mem_util,
+                })
+            metrics["gpus"] = gpu_metrics
+            metrics["pynvml_status"] = "ACTIVE"
+        finally:
+            try:
+                pynvml.nvmlShutdown()
+            except Exception:
+                pass
+    except Exception as nvml_err:
+        metrics["nvidia_gpu_count"] = 0
+        metrics["gpus"] = []
+        metrics["pynvml_status"] = f"Unavailable/Inactive: {nvml_err}"
+
+    return metrics
+
+
+def force_flush_and_close_hdf5_pointers() -> int:
+    """
+    Forces an immediate .flush() and .close() on any open HDF5 file pointers
+    to prevent file corruption during hard crashes.
+    Returns the count of HDF5 pointers successfully closed.
+    """
+    closed_count = 0
+    h5py_mod = sys.modules.get("h5py")
+    if h5py_mod is not None:
+        try:
+            for obj in gc.get_objects():
+                try:
+                    if isinstance(obj, getattr(h5py_mod, "File", ())):
+                        if getattr(obj, "id", None) is not None and getattr(obj.id, "valid", False):
+                            filename_str = str(getattr(obj, "filename", obj))
+                            try:
+                                obj.flush()
+                            except Exception as flush_err:
+                                logger.debug(f"Failed to flush open HDF5 pointer {filename_str}: {flush_err}")
+                            try:
+                                obj.close()
+                                closed_count += 1
+                                logger.warning(f"Enforced emergency crash closure on open HDF5 file: {filename_str}")
+                            except Exception as close_err:
+                                logger.error(f"Failed to close open HDF5 pointer {filename_str}: {close_err}")
+                except Exception:
+                    continue
+        except Exception as exc:
+            logger.error(f"Error inspecting open HDF5 pointers during crash: {exc}")
+    return closed_count
+
+
+@contextlib.contextmanager
+def safe_h5py_open(
+    name: Union[str, Path, os.PathLike[Any]],
+    mode: str = "r",
+    driver: Optional[str] = None,
+    libver: Optional[str] = None,
+    userblock_size: Optional[int] = None,
+    swmr: bool = False,
+    **kwargs: Any,
+) -> Iterator[Any]:
+    """
+    Context manager for HDF5 files enforcing strict closure on exit and crash.
+    Mandates zero SWMR usage: raises ValueError if swmr=True under any circumstances.
+    """
+    if swmr or kwargs.get("swmr", False):
+        raise ValueError(
+            "CRITICAL METHOD MATRIX VIOLATION: swmr=True is strictly prohibited for HDF5 in CoChem under any circumstances. "
+            "Use SQLite WAL or ZeroMQ for concurrent metadata state instead."
+        )
+    import h5py
+    f = h5py.File(str(name), mode=mode, driver=driver, libver=libver, userblock_size=userblock_size, swmr=False, **kwargs)
+    try:
+        yield f
+    finally:
+        if getattr(f, "id", None) is not None and getattr(f.id, "valid", False):
+            try:
+                f.flush()
+            finally:
+                f.close()
+
+
+def get_plaintext_rotating_handler(
+    log_dir: Optional[Union[str, Path]] = None,
+    filename: str = DEFAULT_ROTATING_LOG_FILENAME,
+    max_bytes: int = DEFAULT_MAX_LOG_BYTES,
+    backup_count: int = DEFAULT_LOG_BACKUP_COUNT,
+) -> logging.handlers.RotatingFileHandler:
+    """
+    Creates and returns a plaintext RotatingFileHandler configured with a strict 5 MB
+    file size limit and a maximum of 3 rolling backups.
+    """
+    resolved_dir = resolve_telemetry_log_dir(log_dir)
+    target_file = resolved_dir / filename
+    handler = logging.handlers.RotatingFileHandler(
+        filename=str(target_file),
+        mode="a",
+        maxBytes=max_bytes,
+        backupCount=backup_count,
+        encoding="utf-8",
+        delay=False,
+    )
+    formatter = logging.Formatter(
+        fmt="%(asctime)s [%(levelname)s] [%(name)s:%(process)d:%(threadName)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    handler.setFormatter(formatter)
+    return handler
+
+
+def setup_cochem_rotating_logger(
+    log_dir: Optional[Union[str, Path]] = None,
+    filename: str = DEFAULT_ROTATING_LOG_FILENAME,
+    max_bytes: int = DEFAULT_MAX_LOG_BYTES,
+    backup_count: int = DEFAULT_LOG_BACKUP_COUNT,
+    logger_name: str = "CoChem",
+    level: int = logging.INFO,
+) -> logging.Logger:
+    """
+    Attaches the 5 MB / 3 backup plaintext RotatingFileHandler to the designated logger.
+    """
+    target_logger = logging.getLogger(logger_name)
+    target_logger.setLevel(level)
+    handler = get_plaintext_rotating_handler(
+        log_dir=log_dir,
+        filename=filename,
+        max_bytes=max_bytes,
+        backup_count=backup_count,
+    )
+    # Avoid duplicate handlers for the same target log file
+    for existing_h in list(target_logger.handlers):
+        if isinstance(existing_h, logging.handlers.RotatingFileHandler):
+            if existing_h.baseFilename == handler.baseFilename:
+                target_logger.removeHandler(existing_h)
+    target_logger.addHandler(handler)
+    return target_logger
+
 
 
 def compute_provenance_digest(data: Union[Dict[str, Any], str, bytes]) -> str:
@@ -254,6 +513,25 @@ class TelemetryIPCStreamer:
         self._socket_server: Optional[socket.socket] = None
         self._bound_endpoint: Optional[str] = None
 
+    def __init__(
+        self,
+        endpoint: Optional[str] = None,
+        transport: str = "auto",
+        secret_key: Optional[Union[str, bytes]] = None,
+    ) -> None:
+        self.transport_mode = transport.lower()
+        self.endpoint = endpoint
+        self.secret_key = secret_key
+        self._lock = threading.Lock()
+        self._active = False
+        
+        self._zmq_context: Optional[Any] = None
+        self._zmq_socket: Optional[Any] = None
+        
+        self._socket_server: Optional[socket.socket] = None
+        self._target_port: Optional[int] = None
+        self._bound_endpoint: Optional[str] = None
+
     def start(self) -> str:
         """Initializes and binds the secure IPC streaming channel."""
         with self._lock:
@@ -280,20 +558,28 @@ class TelemetryIPCStreamer:
                     logger.warning(f"Failed to initialize ZeroMQ streamer: {e}. Falling back to native socket.")
 
             # Native Socket Transport Fallback
-            self._socket_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             target_port = 0
             if self.endpoint and ":" in self.endpoint:
                 try:
-                    target_port = int(self.endpoint.split(":")[-1])
+                    target_port = int(self.endpoint.split(":")[-1].replace("/", ""))
                 except ValueError:
                     target_port = 0
-            self._socket_server.bind(("127.0.0.1", target_port))
-            bound_port = self._socket_server.getsockname()[1]
-            self._bound_endpoint = f"udp://127.0.0.1:{bound_port}"
+
+            if target_port == 0:
+                # Pick an available port for the channel
+                temp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                temp_sock.bind(("127.0.0.1", 0))
+                target_port = temp_sock.getsockname()[1]
+                temp_sock.close()
+
+            self._target_port = target_port
+            self._socket_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket_server.bind(("127.0.0.1", 0))  # Sender binds to ephemeral port
+            self._bound_endpoint = f"udp://127.0.0.1:{target_port}"
             self.transport_mode = "socket"
             self._active = True
-            logger.info(f"Telemetry Native IPC Streamer bound to {self._bound_endpoint}")
+            logger.info(f"Telemetry Native IPC Streamer bound to channel {self._bound_endpoint}")
             return self._bound_endpoint
 
     def publish_event(self, event_type: str, payload: Dict[str, Any], sign: bool = True) -> bool:
@@ -321,8 +607,8 @@ class TelemetryIPCStreamer:
                         encoded_json
                     ], flags=getattr(zmq, "NOBLOCK", 0))
                     return True
-                elif self._socket_server is not None:
-                    # UDP datagram broadcast to localhost port if designated
+                elif self._socket_server is not None and self._target_port:
+                    self._socket_server.sendto(encoded_json, ("127.0.0.1", self._target_port))
                     return True
             except Exception as exc:
                 logger.debug(f"IPC publish error: {exc}")
@@ -398,6 +684,7 @@ class TelemetryIPCListener:
                 port_str = self.endpoint.split(":")[-1].replace("/", "")
                 port = int(port_str)
                 self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 self._socket.bind(("127.0.0.1", port))
                 self._socket.settimeout(0.5)
                 self.transport_mode = "socket"
@@ -420,6 +707,8 @@ class TelemetryIPCListener:
                 else:
                     raw_data = parts[0].decode("utf-8")
                 data = json.loads(raw_data)
+                if not isinstance(data, dict):
+                    return None
                 if verify_signature and not verify_provenance_signature(data, self.secret_key):
                     logger.warning("Spoofed or corrupted telemetry event received over IPC! Signature verification failed.")
                     return None
@@ -431,6 +720,8 @@ class TelemetryIPCListener:
                 self._socket.settimeout(timeout or 1.0)
                 raw_bytes, _ = self._socket.recvfrom(65536)
                 data = json.loads(raw_bytes.decode("utf-8"))
+                if not isinstance(data, dict):
+                    return None
                 if verify_signature and not verify_provenance_signature(data, self.secret_key):
                     logger.warning("Spoofed or corrupted telemetry event received over IPC! Signature verification failed.")
                     return None
@@ -466,13 +757,28 @@ class TelemetryIPCListener:
 
 # Global excepthook state
 _GLOBAL_ORIGINAL_EXCEPTHOOK: Optional[Callable[..., Any]] = None
+_GLOBAL_CHAIN_EXCEPTHOOK: bool = True
 _GLOBAL_TELEMETRY_LOGGER: Optional[TelemetryLogger] = None
 _GLOBAL_HOOK_LOCK = threading.Lock()
 
 
 def _cochem_excepthook_handler(exc_type: Any, exc_value: Any, exc_traceback: Any) -> None:
-    """Internal global excepthook handler intercepting uncaught Python crashes."""
-    global _GLOBAL_TELEMETRY_LOGGER, _GLOBAL_ORIGINAL_EXCEPTHOOK
+    """
+    Internal global excepthook handler intercepting uncaught Python crashes:
+    1. Forcibly flushes and closes any open HDF5 pointers to guarantee zero file corruption.
+    2. Captures psutil RAM/CPU and pynvml VRAM metrics at the exact millisecond of failure.
+    3. Records cryptographically signed JSON-LD crash diagnostics to the telemetry stream.
+    4. Invokes the original hook (sys.__excepthook__) to preserve visual tracebacks for Jupyter Notebook users.
+    """
+    global _GLOBAL_TELEMETRY_LOGGER, _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_CHAIN_EXCEPTHOOK
+    
+    # 1. Force flush and close open HDF5 file pointers
+    try:
+        force_flush_and_close_hdf5_pointers()
+    except Exception as h5_err:
+        logger.error(f"Error during emergency HDF5 closure in excepthook: {h5_err}")
+
+    # 2. Record crash diagnostics with full hardware telemetry
     try:
         active_logger = _GLOBAL_TELEMETRY_LOGGER
         if active_logger is None:
@@ -482,11 +788,12 @@ def _cochem_excepthook_handler(exc_type: Any, exc_value: Any, exc_traceback: Any
     except Exception as hook_err:
         logger.error(f"Error executing telemetry crash hook: {hook_err}")
 
-    # Chain to original excepthook if exists
-    if _GLOBAL_ORIGINAL_EXCEPTHOOK and callable(_GLOBAL_ORIGINAL_EXCEPTHOOK):
-        _GLOBAL_ORIGINAL_EXCEPTHOOK(exc_type, exc_value, exc_traceback)
-    elif hasattr(sys, "__excepthook__") and sys.__excepthook__ is not None:
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+    # 3. Chain to original excepthook or sys.__excepthook__ to preserve visual tracebacks for Jupyter Notebook users
+    if _GLOBAL_CHAIN_EXCEPTHOOK:
+        if _GLOBAL_ORIGINAL_EXCEPTHOOK and callable(_GLOBAL_ORIGINAL_EXCEPTHOOK):
+            _GLOBAL_ORIGINAL_EXCEPTHOOK(exc_type, exc_value, exc_traceback)
+        elif hasattr(sys, "__excepthook__") and sys.__excepthook__ is not None:
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
 
 
 def install_global_excepthook(
@@ -497,18 +804,19 @@ def install_global_excepthook(
     Globally intercepts sys.excepthook to trap fatal unhandled Python crashes,
     streaming structured diagnostics & JSON-LD provenance to the telemetry pipeline.
     """
-    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
+    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_CHAIN_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
     with _GLOBAL_HOOK_LOCK:
         _GLOBAL_TELEMETRY_LOGGER = logger_instance
+        _GLOBAL_CHAIN_EXCEPTHOOK = chain
         if sys.excepthook != _cochem_excepthook_handler:
-            _GLOBAL_ORIGINAL_EXCEPTHOOK = sys.excepthook if chain else None
+            _GLOBAL_ORIGINAL_EXCEPTHOOK = sys.excepthook
             sys.excepthook = _cochem_excepthook_handler
             logger.info("Global Telemetry crash excepthook armed.")
 
 
 def uninstall_global_excepthook() -> None:
     """Restores the original system sys.excepthook handler."""
-    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
+    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_CHAIN_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
     with _GLOBAL_HOOK_LOCK:
         if sys.excepthook == _cochem_excepthook_handler:
             if _GLOBAL_ORIGINAL_EXCEPTHOOK is not None:
@@ -516,6 +824,7 @@ def uninstall_global_excepthook() -> None:
             elif hasattr(sys, "__excepthook__"):
                 sys.excepthook = sys.__excepthook__
         _GLOBAL_ORIGINAL_EXCEPTHOOK = None
+        _GLOBAL_CHAIN_EXCEPTHOOK = True
         _GLOBAL_TELEMETRY_LOGGER = None
         logger.info("Global Telemetry crash excepthook unarmed.")
 
@@ -537,8 +846,10 @@ class TelemetryLogger:
     """
     CoChem-CORE Telemetry, Stability, & Provenance Logger (The Black Box).
     Features:
-    - Rotating JSON-LD provenance log handler (cochem_telemetry_stream.jsonl)
-    - Global sys.excepthook interception & structured crash diagnostics
+    - Rotating JSON-LD provenance log handler ($COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs/cochem_telemetry_stream.jsonl)
+    - Plaintext RotatingFileHandler with strict 5 MB file size limit and 3 backups (cochem_execution.log)
+    - Global sys.excepthook interception & structured crash diagnostics (psutil RSS RAM/CPU + pynvml GPU VRAM)
+    - Emergency HDF5 pointer flushing and closure on hard crash with strict zero-SWMR mandate
     - Cross-platform Exit Code 139 / Access Violation 256-byte stderr hex-dumps
     - Cryptographic HMAC-SHA256 signing preventing log tampering
     - Real-time numerical instability regex traps (NaN, Infinity, overlap, saddle points)
@@ -555,14 +866,13 @@ class TelemetryLogger:
         stream_file: Optional[str] = DEFAULT_STREAM_FILENAME,
         max_stream_bytes: int = DEFAULT_MAX_STREAM_BYTES,
         stream_backup_count: int = DEFAULT_BACKUP_COUNT,
+        enable_rotating_handler: bool = True,
+        rotating_log_filename: str = DEFAULT_ROTATING_LOG_FILENAME,
+        max_rotating_log_bytes: int = DEFAULT_MAX_LOG_BYTES,
+        rotating_log_backup_count: int = DEFAULT_LOG_BACKUP_COUNT,
     ) -> None:
-        if log_dir:
-            self.log_dir = Path(log_dir).resolve()
-        else:
-            self.log_dir = (get_artifact_dir() / "Logs").resolve()
-        
+        self.log_dir = resolve_telemetry_log_dir(log_dir)
         self.verbosity = verbosity.lower()
-        self.log_dir.mkdir(parents=True, exist_ok=True)
         self.secret_key = secret_key
 
         self._lock = threading.Lock()
@@ -579,7 +889,7 @@ class TelemetryLogger:
         self.delta_e_pattern = re.compile(r'dE\s*=\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)')
         self.scf_history: deque[float] = deque(maxlen=5)
 
-        # Rotating JSONL provenance stream sink
+        # Rotating JSONL provenance stream sink ($COCHEM_SCRATCH_DIR/CoChem_Artifacts/Logs/cochem_telemetry_stream.jsonl)
         self.stream_path = (self.log_dir / (stream_file or DEFAULT_STREAM_FILENAME)).resolve()
         if enable_stream:
             self.sink: Optional[RotatingJsonlSink] = RotatingJsonlSink(
@@ -590,6 +900,24 @@ class TelemetryLogger:
             )
         else:
             self.sink = None
+
+        # Plaintext RotatingFileHandler (strict 5 MB limit, max 3 rolling backups)
+        self.rotating_log_path = (self.log_dir / rotating_log_filename).resolve()
+        if enable_rotating_handler:
+            self.rotating_handler: Optional[logging.handlers.RotatingFileHandler] = get_plaintext_rotating_handler(
+                log_dir=self.log_dir,
+                filename=rotating_log_filename,
+                max_bytes=max_rotating_log_bytes,
+                backup_count=rotating_log_backup_count,
+            )
+            # Attach handler to module logger
+            if not any(
+                isinstance(h, logging.handlers.RotatingFileHandler) and getattr(h, "baseFilename", "") == str(self.rotating_log_path)
+                for h in logger.handlers
+            ):
+                logger.addHandler(self.rotating_handler)
+        else:
+            self.rotating_handler = None
 
         # Secure IPC Streamer
         self.ipc_streamer: Optional[TelemetryIPCStreamer] = None
@@ -689,6 +1017,7 @@ class TelemetryLogger:
         """
         Builds, cryptographically signs, and logs comprehensive JSON-LD crash diagnostics
         when a fatal unhandled Python crash or memory fault occurs.
+        Captures process RSS RAM usage, CPU load, and NVIDIA GPU VRAM footprint.
         """
         with self._lock:
             self.errors_count += 1
@@ -700,6 +1029,9 @@ class TelemetryLogger:
 
             type_str = exc_type.__name__ if hasattr(exc_type, "__name__") else str(exc_type)
             msg_str = str(exc_value)
+
+            # Capture live hardware metrics (RSS RAM, CPU, VRAM)
+            hw_telemetry = capture_crash_telemetry_metrics()
 
             crash_payload: Dict[str, Any] = {
                 "@context": "https://w3id.org/ro/qcschema",
@@ -713,6 +1045,7 @@ class TelemetryLogger:
                 "exception_message": msg_str,
                 "traceback": tb_lines,
                 "provenance": self._get_hardware_provenance(),
+                "hardware_metrics": hw_telemetry,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -720,9 +1053,15 @@ class TelemetryLogger:
                 "type": "FATAL_UNHANDLED_CRASH",
                 "exception": type_str,
                 "message": msg_str,
+                "hardware_metrics": hw_telemetry,
             })
 
-            logger.critical(f"FATAL UNHANDLED PYTHON CRASH: {type_str} - {msg_str}")
+            logger.critical(
+                f"FATAL UNHANDLED PYTHON CRASH: {type_str} - {msg_str} | "
+                f"RAM RSS: {hw_telemetry.get('ram_rss_mb', 'N/A')} MB | "
+                f"CPU: {hw_telemetry.get('process_cpu_percent', 'N/A')}% | "
+                f"GPU Status: {hw_telemetry.get('pynvml_status', 'OK')}"
+            )
 
             if self.sink:
                 signed_crash = self.sink.write_entry(crash_payload, sign=True)
@@ -917,28 +1256,49 @@ class TelemetryLogger:
         return str(log_path)
 
     def close(self) -> None:
-        """Flushes and closes underlying sink and IPC resources."""
+        """Flushes and closes underlying sink, rotating handler, and IPC resources."""
         if self.sink is not None:
             self.sink.close()
             self.sink = None
+        if self.rotating_handler is not None:
+            try:
+                self.rotating_handler.flush()
+                self.rotating_handler.close()
+                if self.rotating_handler in logger.handlers:
+                    logger.removeHandler(self.rotating_handler)
+            except Exception:
+                pass
+            self.rotating_handler = None
         self.stop_ipc_stream()
 
 
 __all__ = [
     "CRITICAL_SEGFAULT_EXIT_CODES",
-    "DEFAULT_STREAM_FILENAME",
-    "DEFAULT_MAX_STREAM_BYTES",
     "DEFAULT_BACKUP_COUNT",
+    "DEFAULT_LOG_BACKUP_COUNT",
+    "DEFAULT_MAX_LOG_BYTES",
+    "DEFAULT_MAX_STREAM_BYTES",
+    "DEFAULT_ROTATING_LOG_FILENAME",
+    "DEFAULT_STREAM_FILENAME",
+    "HAS_PSUTIL",
+    "HAS_PYNVML",
     "HAS_ZMQ",
     "RotatingJsonlSink",
-    "TelemetryIPCStreamer",
     "TelemetryIPCListener",
+    "TelemetryIPCStreamer",
     "TelemetryLogger",
+    "capture_crash_telemetry_metrics",
     "compute_provenance_digest",
+    "force_flush_and_close_hdf5_pointers",
     "get_default_secret_key",
+    "get_plaintext_rotating_handler",
     "install_global_excepthook",
+    "resolve_telemetry_log_dir",
+    "safe_h5py_open",
+    "setup_cochem_rotating_logger",
     "sign_provenance_block",
     "trap_unhandled_exceptions",
     "uninstall_global_excepthook",
     "verify_provenance_signature",
 ]
+

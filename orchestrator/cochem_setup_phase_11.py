@@ -294,6 +294,21 @@ class OOMShieldScalingProfile(BaseModel):
     )
 
 
+class Phase2AuditFindings(BaseModel):
+    """Audited hardware baseline findings loaded from Phase 2 (p2.json)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    loaded_from: str = Field(..., description="Filesystem path of the loaded p2.json artifact")
+    status: str = Field(..., description="Phase 2 execution status (e.g. PASSED, DEGRADED)")
+    total_physical_ram_bytes: int = Field(..., ge=0, description="Total physical RAM audited in Phase 2")
+    effective_memory_bytes: int = Field(..., ge=0, description="Effective memory accounting for constraints")
+    physical_cores: int = Field(..., ge=1, description="Physical CPU cores audited in Phase 2")
+    logical_cores: int = Field(..., ge=1, description="Logical CPU cores audited in Phase 2")
+    is_cgroup_constrained: bool = Field(default=False, description="Whether cgroups constraint was detected in Phase 2")
+    gpu_available: bool = Field(default=False, description="Whether compute GPU was detected in Phase 2")
+
+
 class Phase11AuditReport(BaseModel):
     """Complete serialized audit report and Golden Registry record for Setup Phase 11."""
 
@@ -304,6 +319,9 @@ class Phase11AuditReport(BaseModel):
     timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of audit execution")
     artifact_path: str = Field(
         ..., description="Absolute path to generated p11.json Golden Registry artifact"
+    )
+    phase_2_findings: Optional[Phase2AuditFindings] = Field(
+        default=None, description="Audited baseline findings loaded from Phase 2 (p2.json)"
     )
     host_memory: HostMemoryProfile = Field(
         ..., description="Host and container bounded physical RAM profile"
@@ -458,15 +476,128 @@ def find_repository_root(start_path: Optional[Union[str, Path]] = None) -> Path:
     return current
 
 
-def resolve_p11_registry_path(output_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolve destination path for Phase 11 Golden Registry artifact (p11.json)."""
-    if output_dir:
-        dest_dir = Path(output_dir).resolve()
+def resolve_p11_registry_path(
+    output_dir: Optional[Union[str, Path]] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Path:
+    """
+    Resolve the absolute target path for the Phase 11 Golden Registry artifact (p11.json).
+    Priority: explicit output_dir -> COCHEM_REGISTRY_DIR -> COCHEM_ARTIFACT_DIR -> fallback.
+    """
+    target_env = os.environ if env is None else env
+
+    if output_dir is not None and str(output_dir).strip():
+        out_p = Path(output_dir).resolve()
+        if out_p.name.endswith(".json"):
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            return out_p
+        out_p.mkdir(parents=True, exist_ok=True)
+        return out_p / "p11.json"
+
+    if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
+        dest = (Path(target_env["COCHEM_REGISTRY_DIR"]) / "p11.json").resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
+        dest = (Path(target_env["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p11.json").resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    repo_root = find_repository_root()
+    dest = (repo_root / "artifacts" / "registry" / "p11.json").resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def get_absolute_physical_ram() -> int:
+    """
+    Define absolute physical RAM bypassing virtualized/swap memory traps.
+    Utilizes POSIX sysconf SC_PHYS_PAGES * SC_PAGE_SIZE when available,
+    falling back to psutil.virtual_memory().total.
+    """
+    if hasattr(os, "sysconf") and hasattr(os, "sysconf_names"):
+        try:
+            sysconf_names = getattr(os, "sysconf_names")
+            if "SC_PHYS_PAGES" in sysconf_names and "SC_PAGE_SIZE" in sysconf_names:
+                sysconf_func = getattr(os, "sysconf")
+                pages = sysconf_func("SC_PHYS_PAGES")
+                page_size = sysconf_func("SC_PAGE_SIZE")
+                if pages > 0 and page_size > 0:
+                    return int(pages * page_size)
+        except (ValueError, OSError, AttributeError):
+            pass
+
+    vmem = psutil.virtual_memory()
+    return int(vmem.total)
+
+
+def load_phase_2_audit_findings(
+    p2_path: Optional[Union[str, Path]] = None,
+    registry_dir: Optional[Union[str, Path]] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Optional[Phase2AuditFindings]:
+    """
+    Dynamically discover and load Phase 2 Hardware & Resource Gatekeeper findings from p2.json.
+    Searches explicit paths, environment variable locations, and standard registry candidate directories.
+    """
+    target_env = os.environ if env is None else env
+    candidates: List[Path] = []
+
+    if p2_path is not None and str(p2_path).strip():
+        candidates.append(Path(p2_path).resolve())
     else:
+        if registry_dir is not None and str(registry_dir).strip():
+            r_dir = Path(registry_dir).resolve()
+            if r_dir.name.endswith(".json"):
+                candidates.append(r_dir)
+            else:
+                candidates.append(r_dir / "p2.json")
+
+        if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
+            candidates.append(Path(target_env["COCHEM_REGISTRY_DIR"]).resolve() / "p2.json")
+
+        if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
+            candidates.append(Path(target_env["COCHEM_ARTIFACT_DIR"]).resolve() / "Registry" / "p2.json")
+
         repo_root = find_repository_root()
-        dest_dir = repo_root / "artifacts" / "registry"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    return dest_dir / "p11.json"
+        candidates.append(repo_root / "artifacts" / "registry" / "p2.json")
+        candidates.append(repo_root / "Registry" / "p2.json")
+        candidates.append(Path.cwd() / "Registry" / "p2.json")
+        candidates.append(Path.cwd() / ".agent_artifacts" / "Registry" / "p2.json")
+        candidates.append(Path.home() / "CoChem_Artifacts" / "Registry" / "p2.json")
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "memory" in data and "cpu" in data:
+                    mem_data = data.get("memory", {})
+                    cpu_data = data.get("cpu", {})
+                    gpu_data = data.get("gpu", {})
+                    status_val = str(data.get("status", "PASSED"))
+
+                    tot_ram = int(mem_data.get("total_bytes") or psutil.virtual_memory().total)
+                    eff_ram = int(mem_data.get("effective_memory_bytes") or tot_ram)
+                    phys_cores = int(cpu_data.get("physical_cores") or psutil.cpu_count(logical=False) or 1)
+                    log_cores = int(cpu_data.get("logical_cores") or psutil.cpu_count(logical=True) or 1)
+                    is_cg = bool(mem_data.get("is_cgroup_constrained", False))
+                    gpu_avail = bool(gpu_data.get("available", False))
+
+                    return Phase2AuditFindings(
+                        loaded_from=str(candidate.resolve()),
+                        status=status_val,
+                        total_physical_ram_bytes=tot_ram,
+                        effective_memory_bytes=eff_ram,
+                        physical_cores=phys_cores,
+                        logical_cores=log_cores,
+                        is_cgroup_constrained=is_cg,
+                        gpu_available=gpu_avail,
+                    )
+            except Exception:
+                continue
+
+    return None
 
 
 def parse_proc_meminfo(proc_root: Optional[Path] = None) -> Dict[str, int]:
@@ -731,15 +862,25 @@ def detect_hpc_memory_limits() -> Tuple[Optional[str], Optional[int]]:
 def audit_host_memory(
     cgroup_root: Optional[Path] = None,
     proc_root: Optional[Path] = None,
+    phase_2_findings: Optional[Phase2AuditFindings] = None,
 ) -> Tuple[HostMemoryProfile, CGroupMemoryProfile]:
     """
     Audit host physical memory, /proc/meminfo statistics, container cgroup bounds,
     and HPC workload constraints to compute strictly bounded total memory.
+    Prioritizes cgroupv2 (/sys/fs/cgroup/memory.max) before falling back to psutil.
     """
+    # 1. Probe cgroups FIRST to prevent hypervisor spoofing
+    cg_profile = parse_cgroup_memory_bounds(cgroup_root=cgroup_root)
+
+    # 2. Determine base physical memory (integrating Phase 2 audit findings if available)
+    if phase_2_findings is not None and phase_2_findings.total_physical_ram_bytes > 0:
+        total_bytes = phase_2_findings.total_physical_ram_bytes
+    else:
+        total_bytes = get_absolute_physical_ram()
+
     vmem = psutil.virtual_memory()
     smem = psutil.swap_memory()
 
-    total_bytes = int(vmem.total)
     available_bytes = int(vmem.available)
     free_bytes = int(vmem.free)
     swap_total = int(smem.total)
@@ -748,7 +889,7 @@ def audit_host_memory(
     # Enhance with /proc/meminfo if available on Linux
     proc_data = parse_proc_meminfo(proc_root=proc_root)
     if proc_data:
-        if "MemTotal" in proc_data:
+        if "MemTotal" in proc_data and phase_2_findings is None:
             total_bytes = proc_data["MemTotal"]
         if "MemAvailable" in proc_data:
             available_bytes = proc_data["MemAvailable"]
@@ -759,7 +900,6 @@ def audit_host_memory(
         if "SwapFree" in proc_data:
             swap_free = proc_data["SwapFree"]
 
-    cg_profile = parse_cgroup_memory_bounds(cgroup_root=cgroup_root)
     hpc_scheduler, hpc_limit_bytes = detect_hpc_memory_limits()
 
     # Determine bounded total RAM
@@ -1150,6 +1290,7 @@ def run_phase_11_audit(
     cgroup_root: Optional[Path] = None,
     proc_root: Optional[Path] = None,
     sys_root: Optional[Path] = None,
+    p2_path: Optional[Union[str, Path]] = None,
     dry_run: bool = False,
 ) -> Phase11AuditReport:
     """
@@ -1161,9 +1302,20 @@ def run_phase_11_audit(
     errors: List[str] = []
     status = PhaseStatus.PASSED
 
+    # 0. Ingest Phase 2 Audit Findings if available
+    p2_findings = load_phase_2_audit_findings(p2_path=p2_path, registry_dir=output_dir)
+    if p2_findings is not None:
+        warnings.append(
+            f"Phase 2 audit findings loaded from {p2_findings.loaded_from} (Status: {p2_findings.status})"
+        )
+
     # 1. Audit Host Memory & CGroup Bounds
     try:
-        host_mem, cg_profile = audit_host_memory(cgroup_root=cgroup_root, proc_root=proc_root)
+        host_mem, cg_profile = audit_host_memory(
+            cgroup_root=cgroup_root,
+            proc_root=proc_root,
+            phase_2_findings=p2_findings,
+        )
     except Exception as exc:
         raise MemoryDiscoveryError(f"Fatal error discovering host/container memory: {exc}") from exc
 
@@ -1194,8 +1346,11 @@ def run_phase_11_audit(
             is_numa_aware=False,
         )
 
-    # 3. Interrogate CPU Physical Cores
-    physical_cores = psutil.cpu_count(logical=False) or os.cpu_count() or 1
+    # 3. Interrogate CPU Physical Cores (utilizing Phase 2 findings if available)
+    if p2_findings is not None and p2_findings.physical_cores > 0:
+        physical_cores = p2_findings.physical_cores
+    else:
+        physical_cores = psutil.cpu_count(logical=False) or os.cpu_count() or 1
 
     # 4. Compute OOM Shield Scaling Profile
     try:
@@ -1234,6 +1389,7 @@ def run_phase_11_audit(
         status=status,
         timestamp_utc=timestamp_now,
         artifact_path=str(artifact_path),
+        phase_2_findings=p2_findings,
         host_memory=host_mem,
         cgroup_profile=cg_profile,
         numa_profile=numa_profile,
@@ -1263,6 +1419,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         type=str,
         default=None,
         help="Custom directory path for Golden Registry artifact (p11.json)",
+    )
+    parser.add_argument(
+        "--p2-path",
+        type=str,
+        default=None,
+        help="Path to Phase 2 audit state artifact (p2.json) to ingest baseline hardware constraints",
     )
     parser.add_argument(
         "--active-cores",
@@ -1319,6 +1481,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             cgroup_root=cg_root,
             proc_root=p_root,
             sys_root=s_root,
+            p2_path=args.p2_path,
             dry_run=args.dry_run,
         )
 

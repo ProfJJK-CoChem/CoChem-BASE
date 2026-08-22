@@ -39,6 +39,7 @@ from orchestrator.cochem_setup_phase_11 import (
     NUMADiscoveryError,
     NumaNodeProfile,
     OOMShieldScalingProfile,
+    Phase2AuditFindings,
     Phase11AuditError,
     Phase11AuditReport,
     PhaseStatus,
@@ -50,6 +51,8 @@ from orchestrator.cochem_setup_phase_11 import (
     discover_numa_topology,
     find_repository_root,
     generate_environment_injection_dict,
+    get_absolute_physical_ram,
+    load_phase_2_audit_findings,
     main,
     parse_cgroup_memory_bounds,
     parse_proc_meminfo,
@@ -166,11 +169,11 @@ def test_cgroup_memory_profile_model() -> None:
 
     # Verify extra="forbid" raises ValidationError
     with pytest.raises(ValidationError):
-        CGroupMemoryProfile(
-            cgroup_version=CGroupVersion.V2,
-            is_cgroup_constrained=False,
-            unauthorized_extra_field=123,
-        )
+        CGroupMemoryProfile.model_validate({
+            "cgroup_version": CGroupVersion.V2,
+            "is_cgroup_constrained": False,
+            "unauthorized_extra_field": 123,
+        })
 
 
 def test_host_memory_profile_model() -> None:
@@ -740,3 +743,201 @@ def test_main_cli_execution_human_readable(tmp_path: Path, capsys: pytest.Captur
     assert "COCHEM SETUP PHASE 11: MEMORY ROUTER & OOM SHIELD GATEKEEPER" in captured.out
     assert "OOM Shield Memory Partitioning Profile:" in captured.out
     assert "Multi-Engine Target Directives:" in captured.out
+
+
+# =============================================================================
+# 8. PHASE 2 AUDIT INGESTION & ZERO-SPOOF CGROUP V2 TESTS
+# =============================================================================
+
+
+def test_phase_2_audit_findings_model() -> None:
+    """Verify Phase2AuditFindings model strict validation and field constraints."""
+    findings = Phase2AuditFindings(
+        loaded_from="/path/to/p2.json",
+        status="PASSED",
+        total_physical_ram_bytes=68719476736,
+        effective_memory_bytes=68719476736,
+        physical_cores=16,
+        logical_cores=32,
+        is_cgroup_constrained=False,
+        gpu_available=True,
+    )
+    assert findings.status == "PASSED"
+    assert findings.physical_cores == 16
+    assert findings.gpu_available is True
+
+    # Forbid extra fields
+    with pytest.raises(ValidationError):
+        Phase2AuditFindings.model_validate({
+            "loaded_from": "/path/to/p2.json",
+            "status": "PASSED",
+            "total_physical_ram_bytes": 68719476736,
+            "effective_memory_bytes": 68719476736,
+            "physical_cores": 16,
+            "logical_cores": 32,
+            "unauthorized_key": 123,
+        })
+
+
+def test_get_absolute_physical_ram_positive() -> None:
+    """Verify get_absolute_physical_ram returns positive integer byte count."""
+    ram = get_absolute_physical_ram()
+    assert isinstance(ram, int)
+    assert ram > 0
+
+
+def test_load_phase_2_audit_findings_valid(tmp_path: Path) -> None:
+    """Verify load_phase_2_audit_findings accurately parses authentic Phase 2 p2.json."""
+    p2_file = tmp_path / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "timestamp_utc": "2026-08-22T00:00:00Z",
+        "memory": {
+            "total_bytes": 137438953472,  # 128 GB
+            "available_bytes": 120000000000,
+            "effective_memory_bytes": 137438953472,
+            "is_cgroup_constrained": False,
+        },
+        "cpu": {
+            "physical_cores": 32,
+            "logical_cores": 64,
+            "architecture": "x86_64",
+        },
+        "gpu": {
+            "available": True,
+            "devices": [],
+        },
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    findings = load_phase_2_audit_findings(p2_path=p2_file)
+    assert findings is not None
+    assert findings.status == "PASSED"
+    assert findings.total_physical_ram_bytes == 137438953472
+    assert findings.physical_cores == 32
+    assert findings.logical_cores == 64
+    assert findings.gpu_available is True
+
+
+def test_load_phase_2_audit_findings_corrupt_or_missing(tmp_path: Path) -> None:
+    """Verify graceful None return on missing or corrupt p2.json files."""
+    missing_path = tmp_path / "nonexistent_p2.json"
+    assert load_phase_2_audit_findings(p2_path=missing_path) is None
+
+    corrupt_path = tmp_path / "corrupt_p2.json"
+    corrupt_path.write_text("{ corrupt json data ...", encoding="utf-8")
+    assert load_phase_2_audit_findings(p2_path=corrupt_path) is None
+
+
+def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify load_phase_2_audit_findings discovers p2.json via COCHEM_REGISTRY_DIR."""
+    reg_dir = tmp_path / "env_registry"
+    reg_dir.mkdir()
+    p2_file = reg_dir / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 68719476736, "effective_memory_bytes": 68719476736},
+        "cpu": {"physical_cores": 8, "logical_cores": 16},
+        "gpu": {"available": False},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+    monkeypatch.setenv("COCHEM_REGISTRY_DIR", str(reg_dir))
+
+    findings = load_phase_2_audit_findings()
+    assert findings is not None
+    assert findings.physical_cores == 8
+    assert findings.total_physical_ram_bytes == 68719476736
+
+
+def test_run_phase_11_audit_with_p2_path(tmp_path: Path) -> None:
+    """Verify run_phase_11_audit integrates Phase 2 findings into report and baseline."""
+    p2_file = tmp_path / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 68719476736, "effective_memory_bytes": 68719476736},
+        "cpu": {"physical_cores": 16, "logical_cores": 32},
+        "gpu": {"available": True},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    out_dir = tmp_path / "p11_out"
+    report = run_phase_11_audit(output_dir=out_dir, p2_path=p2_file, active_cores=4)
+
+    assert report.phase_2_findings is not None
+    assert report.phase_2_findings.physical_cores == 16
+    assert report.phase_2_findings.total_physical_ram_bytes == 68719476736
+    assert report.oom_shield.total_physical_cores == 16
+    assert report.oom_shield.active_job_cores == 4
+
+
+def test_openmpi_dft_constraint_algorithm_exact_20pct_reservation() -> None:
+    """
+    Verify the constraint algorithm for OpenMPI and DFT maximum safe memory allocations:
+      %maxcore = int(((Total_RAM_GB * 1024) * 0.80) / CPU_Physical_Cores)
+    ensuring exactly 20% of system RAM is reserved strictly for OS/Jupyter UI.
+    """
+    # 64 GB RAM, 16 physical cores
+    total_ram_gb = 64.0
+    cpu_cores = 16
+    expected_maxcore = int(((total_ram_gb * 1024.0) * 0.80) / cpu_cores)
+    # int((65536 * 0.80) / 16) = int(52428.8 / 16) = 3276 MB
+
+    host_mem = HostMemoryProfile(
+        total_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        available_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        free_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        swap_total_bytes=0,
+        swap_free_bytes=0,
+        effective_system_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        bounded_total_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        bounded_total_ram_mb=total_ram_gb * 1024.0,
+        bounded_total_ram_gb=total_ram_gb,
+    )
+
+    shield = compute_oom_shield_scaling(host_mem=host_mem, total_physical_cores=cpu_cores)
+    assert shield.baseline_80pct_maxcore_mb == expected_maxcore
+    assert shield.baseline_80pct_maxcore_mb == 3276
+
+
+def test_cgroup_v2_priority_over_psutil_hypervisor_anti_spoof(tmp_path: Path) -> None:
+    """
+    Verify cgroupv2 /sys/fs/cgroup/memory.max strictly bounds total RAM before psutil
+    to prevent hypervisor spoofing and guarantee reliable scaling.
+    """
+    cg_dir = tmp_path / "sys" / "fs" / "cgroup"
+    cg_dir.mkdir(parents=True)
+    # Write a constrained 16 GB limit into cgroups v2 memory.max
+    (cg_dir / "memory.max").write_text("17179869184\n", encoding="utf-8")
+
+    host_mem, cg_prof = audit_host_memory(cgroup_root=cg_dir)
+    assert cg_prof.cgroup_version == CGroupVersion.V2
+    assert cg_prof.memory_max_bytes == 17179869184
+    assert cg_prof.is_cgroup_constrained is True
+    # Bounded total RAM must strictly respect cgroup ceiling
+    assert host_mem.bounded_total_ram_bytes <= 17179869184
+    assert host_mem.bounded_total_ram_gb <= 16.0
+
+
+def test_main_cli_with_p2_path(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Verify CLI --p2-path parameter propagates to JSON output report."""
+    p2_file = tmp_path / "cli_p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 34359738368, "effective_memory_bytes": 34359738368},
+        "cpu": {"physical_cores": 8, "logical_cores": 16},
+        "gpu": {"available": False},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    out_dir = tmp_path / "cli_p2_reg"
+    exit_code = main(["--output-dir", str(out_dir), "--p2-path", str(p2_file), "--dry-run", "--json"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    parsed_json = json.loads(captured.out)
+    assert parsed_json["phase_2_findings"] is not None
+    assert parsed_json["phase_2_findings"]["physical_cores"] == 8

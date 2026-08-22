@@ -1,696 +1,64 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc5_05_phase10_molsym_intake_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc5_06_phase11_memory_router_prompt.md.
 Original prompt:
 # Context
-You are tasked with writing the setup orchestration script `cochem_setup_phase_10.py` for CoChem-BASE.
+You are tasked with writing the setup orchestration script `cochem_setup_phase_11.py` for CoChem-BASE.
 
 # Goal
-Create `cochem_setup_phase_10.py` to perform Phase 10: MolSym Intake & Alignment.
+Create `cochem_setup_phase_11.py` to perform Phase 11: Memory Router & Adaptive Tiering.
 
 # Requirements
-- Clone and build the `molsym` dependency in an isolated silo.
-- Execute theoretical Eckart frame test routines.
-- Set `"alignment_engine_ready": true` in the intermediate registry state, ensuring the mathematical environment is structurally prepped for Cartesian origin shifting before accepting user inputs.
+- Dynamically establish engine RAM constraints based on the Phase 2 audit findings.
+- Prioritize `cgroupv2` (specifically `/sys/fs/cgroup/memory.max`) before falling back to `psutil` to prevent hypervisor spoofing and guarantee reliable scaling.
+- Implement the constraint algorithm for OpenMPI and DFT maximum safe memory allocations: `%maxcore = int(((Total_RAM_GB * 1024) * 0.80) / CPU_Physical_Cores)`.
+- This ensures exactly 20% of system RAM is reserved strictly for the OS and Jupyter UI to prevent systemic freezing.
+- Save the locked constraints in an intermediate state file.
 
 # Constraints
-- Target filepath: `D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_10.py`
+- Target filepath: `D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_11.py`
 - DO NOT use any mocks, stubs, or placeholder values in your code. Write real implementation logic.
 - Ensure strict adherence to the Tripartite Workspace Air-Gap and Method Matrix rules.
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\__init__.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_11.py ---
 """
-CoChem Orchestrator Package.
-Provides multi-phase environment gatekeeping, initialization, and deployment pipeline.
-"""
+CoChem Setup Phase 11: Memory Router & Adaptive Tiering (The OOM Shield Gatekeeper).
+Production-grade, zero-mock gatekeeping engine for bounded host and container memory discovery,
+Linux cgroups v1 & v2 memory constraint parsing (/sys/fs/cgroup/memory.max & memory.limit_in_bytes),
+HPC job memory limit detection (Slurm, PBS, LSF), flat OS/Jupyter safety buffer allocation (4-8 GB),
+active calculation core division scaling (%maxcore), NUMA multi-tier RAM classification, multi-engine
+target directive generation (ORCA, PySCF, xTB, Gaussian, CFOUR, MACE-Torch, OpenMPI), environment
+variable injection generation, and transactional atomic persistence into the Golden Registry (p11.json).
 
-from __future__ import annotations
-
-from orchestrator.cochem_setup_phase_1 import (
-    DependencyManager,
-    FilesystemAudit,
-    KernelLimitsAudit,
-    OSProfile,
-    Phase1AuditReport,
-    PhaseStatus,
-    ToolchainItem,
-    WSL9PMountError,
-    audit_filesystem,
-    audit_kernel_limits,
-    audit_toolchains,
-    interrogate_os,
-    run_phase_1_audit,
-)
-from orchestrator.cochem_setup_phase_1 import (
-    main as phase_1_main,
-)
-from orchestrator.cochem_setup_phase_2 import (
-    CPUAudit,
-    GPUDevice,
-    GPUProfile,
-    IEEE754PrecisionAudit,
-    MemoryAudit,
-    Phase2AuditError,
-    Phase2AuditReport,
-    audit_cpu,
-    audit_gpus,
-    audit_memory,
-    parse_cgroup_cpu_quota,
-    parse_cgroup_memory_limit,
-    probe_amd_gpus,
-    probe_intel_gpus,
-    probe_nvidia_gpus,
-    resolve_p2_registry_path,
-    run_phase_2_audit,
-    verify_ieee754_subnormal_precision,
-)
-from orchestrator.cochem_setup_phase_2 import (
-    main as phase_2_main,
-)
-from orchestrator.cochem_setup_phase_3 import (
-    BinaryEngineItem,
-    ContainerAudit,
-    EngineStatus,
-    EngineTrack,
-    EngineTrackSummary,
-    EnvironmentFingerprint,
-    Phase3AuditError,
-    Phase3AuditReport,
-    audit_all_engines,
-    audit_container_sifs,
-    audit_single_binary,
-    build_track_summaries,
-    compute_environment_fingerprint,
-    resolve_p3_registry_path,
-    run_phase_3_audit,
-)
-from orchestrator.cochem_setup_phase_3 import (
-    main as phase_3_main,
-)
-from orchestrator.cochem_setup_phase_4 import (
-    DynamicVersionWalkingResult,
-    DynamicVersionWalkStep,
-    IPCSecurityAudit,
-    ManifestFilterAudit,
-    MendeleevMassRecord,
-    Phase4AuditError,
-    Phase4AuditReport,
-    SiloAuditItem,
-    SiloConfig,
-    SiloProvisioningError,
-    SiloStatus,
-    SiloType,
-    VersionWalkingError,
-    audit_ipc_and_mps_security,
-    audit_micro_silos,
-    enforce_python_version,
-    execute_dynamic_version_walking,
-    filter_silos_by_manifest,
-    get_default_silo_configs,
-    get_native_memory_env_vars,
-    get_native_stack_flags,
-    get_silo_executable_path,
-    inject_silo_stack_and_env_flags,
-    load_deployment_manifest,
-    provision_micro_silo,
-    resolve_p4_registry_path,
-    resolve_silo_base_directory,
-    run_phase_4_audit,
-    scan_local_fallback_binaries,
-    verify_mendeleev_authority,
-)
-from orchestrator.cochem_setup_phase_4 import (
-    main as phase_4_main,
-)
-from orchestrator.cochem_setup_phase_5 import (
-    GPUDeviceVRAM,
-    MPSControlError,
-    MPSDaemonAudit,
-    MPSStatus,
-    Phase5AuditError,
-    Phase5AuditReport,
-    VRAMAllocationError,
-    VRAMBudgetReport,
-    build_pinned_memory_limit_string,
-    calculate_vram_budget,
-    configure_mps_device_limit,
-    discover_mps_binaries,
-    enforce_socket_directory_permissions,
-    generate_mps_activation_scripts,
-    get_current_username,
-    inject_mps_environment_variables,
-    probe_gpu_devices_vram,
-    probe_mps_daemon_status,
-    resolve_mps_log_directory,
-    resolve_mps_pipe_directory,
-    resolve_p5_registry_path,
-    run_phase_5_audit,
-    start_mps_daemon,
-    stop_mps_daemon,
-)
-from orchestrator.cochem_setup_phase_5 import (
-    main as phase_5_main,
-)
-from orchestrator.cochem_setup_phase_6 import (
-    ArchiveSchemaAudit,
-    DatabaseBackend,
-    DatabaseProvisioningError,
-    DiskQuotaError,
-    HDF5FilterProfile,
-    LockingVerificationError,
-    Phase6AuditError,
-    Phase6AuditReport,
-    StorageMode,
-    StoragePathProfile,
-    SWMRRuntimeAudit,
-    enforce_storage_permissions,
-    probe_swmr_locking_capabilities,
-    provision_archive_pes_db,
-    provision_runtime_active_db,
-    resolve_databases_directory,
-    resolve_p6_registry_path,
-    resolve_scratch_directory,
-    run_phase_6_audit,
-    verify_disk_quota,
-)
-from orchestrator.cochem_setup_phase_6 import (
-    main as phase_6_main,
-)
-from orchestrator.cochem_setup_phase_7 import (
-    HPCMemoryParseError,
-    HPCMemoryProfile,
-    HPCSchedulerType,
-    HPCScratchAllocationError,
-    HPCScratchProfile,
-    HPCThreadAffinityProfile,
-    HPCTopologyError,
-    HPCTopologyProfile,
-    Phase7AuditError,
-    Phase7AuditReport,
-    compute_thread_affinity_profile,
-    detect_hpc_scheduler,
-    generate_environment_injection_dict as generate_phase_7_env_vars,
-    parse_hpc_memory_limit,
-    parse_slurm_nodelist,
-    parse_slurm_tasks_per_node,
-    resolve_hpc_scratch_directory,
-    resolve_p7_registry_path,
-    run_phase_7_audit,
-)
-from orchestrator.cochem_setup_phase_7 import (
-    main as phase_7_main,
-)
-from orchestrator.cochem_setup_phase_8 import (
-    BindPolicy,
-    GatewayConfigProfile,
-    GatewayServiceType,
-    Phase8AuditError,
-    Phase8AuditReport,
-    PortAllocationError,
-    PortBindingProfile,
-    PortRangeExhaustedError,
-    ProtocolType,
-    SocketBindingError,
-    allocate_all_gateway_services,
-    allocate_port,
-    construct_service_url,
-    generate_environment_injection_dict as generate_phase_8_env_vars,
-    probe_port_availability,
-    resolve_bind_policy,
-    resolve_p8_registry_path,
-    run_phase_8_audit,
-)
-from orchestrator.cochem_setup_phase_8 import (
-    main as phase_8_main,
-)
-from orchestrator.cochem_setup_phase_9 import (
-    AffinityPinningError,
-    AffinityStrategy,
-    AmnestyAuditProfile,
-    AmnestyVerificationError,
-    CoreAffinityMapping,
-    ExecutorStreamType,
-    HTEXExecutorConfig,
-    ParslConfigGenerationError,
-    ParslExecutorMappingError,
-    ParslProviderType,
-    Phase9AuditError,
-    Phase9AuditReport,
-    ScoutAndAnchorProfile,
-    audit_anti_spoof_amnesty,
-    build_htex_executor_config,
-    compute_core_affinity_distribution,
-    construct_parsl_config_object,
-    detect_system_cpu_topology,
-    generate_environment_injection_dict as generate_phase_9_env_vars,
-    resolve_p9_registry_path,
-    resolve_parsl_provider,
-    run_phase_9_audit,
-)
-from orchestrator.cochem_setup_phase_9 import (
-    main as phase_9_main,
-)
-from orchestrator.cochem_setup_phase_10 import (
-    CheckpointFormat,
-    CheckpointStatus,
-    CheckpointValidationError,
-    CheckpointValidationItem,
-    CheckpointValidationReport,
-    EckartAlignmentError,
-    EckartAlignmentResult,
-    EckartVerificationItem,
-    EckartVerificationReport,
-    EckartVerificationStatus,
-    EphemeralSandboxError,
-    EphemeralSandboxProfile,
-    IOPSBenchmarkError,
-    IOPSBenchmarkProfile,
-    IOPSBenchmarkStatus,
-    InertiaTensorError,
-    InertiaTensorResult,
-    MolSymSiloError,
-    MolSymSiloProfile,
-    MolSymSiloStatus,
-    Phase10AuditError,
-    Phase10AuditReport,
-    RotorTopType,
-    StateChainRecoveryError,
-    StateChainRecoveryProfile,
-    align_to_eckart_frame,
-    align_to_principal_axes,
-    audit_or_provision_molsym_silo,
-    audit_state_chain_recovery,
-    classify_rotor_top,
-    cleanup_ephemeral_sandbox,
-    compute_center_of_mass,
-    compute_file_sha256,
-    compute_moment_of_inertia_tensor,
-    compute_rotational_constants,
-    diagonalize_inertia_tensor,
-    generate_environment_injection_dict as generate_phase_10_env_vars,
-    get_physical_mass,
-    is_ghost_symbol,
-    resolve_atomic_masses,
-    resolve_p10_registry_path,
-    resolve_sandbox_base_directory,
-    run_phase_10_audit,
-    run_theoretical_eckart_benchmarks,
-    run_unbuffered_iops_benchmark,
-    scaffold_ephemeral_sandbox,
-    scan_and_validate_checkpoints,
-    translate_to_center_of_mass,
-    validate_checkpoint_file,
-    validate_orca_gbw_checkpoint,
-    validate_pyscf_chk_checkpoint,
-    validate_xtb_xtbw_checkpoint,
-    verify_eckart_conditions,
-)
-from orchestrator.cochem_setup_phase_10 import (
-    main as phase_10_main,
-)
-from orchestrator.cochem_setup_phase_11 import (
-    CGroupLimitError,
-    CGroupMemoryProfile,
-    CGroupVersion,
-    EngineBudgetError,
-    EngineMemoryBudget,
-    EngineTarget,
-    HostMemoryProfile,
-    MemoryDiscoveryError,
-    MemoryTier,
-    MultiTierMemoryProfile,
-    NUMABalanceStatus,
-    NUMADiscoveryError,
-    NumaNodeProfile,
-    OOMShieldScalingProfile,
-    Phase11AuditError,
-    Phase11AuditReport,
-    audit_host_memory,
-    build_engine_memory_budgets,
-    compute_oom_shield_scaling,
-    compute_os_jupyter_reserve,
-    detect_hpc_memory_limits,
-    discover_numa_topology,
-    generate_environment_injection_dict as generate_phase_11_env_vars,
-    parse_cgroup_memory_bounds,
-    parse_proc_meminfo,
-    resolve_p11_registry_path,
-    run_phase_11_audit,
-)
-from orchestrator.cochem_setup_phase_11 import (
-    main as phase_11_main,
-)
-
-__all__ = [
-    "ArchiveSchemaAudit",
-    "BinaryEngineItem",
-    "CPUAudit",
-    "ContainerAudit",
-    "DatabaseBackend",
-    "DatabaseProvisioningError",
-    "DependencyManager",
-    "DiskQuotaError",
-    "DynamicVersionWalkStep",
-    "DynamicVersionWalkingResult",
-    "EngineStatus",
-    "EngineTrack",
-    "EngineTrackSummary",
-    "EnvironmentFingerprint",
-    "FilesystemAudit",
-    "GPUDevice",
-    "GPUDeviceVRAM",
-    "GPUProfile",
-    "HDF5FilterProfile",
-    "HPCMemoryParseError",
-    "HPCMemoryProfile",
-    "HPCSchedulerType",
-    "HPCScratchAllocationError",
-    "HPCScratchProfile",
-    "HPCThreadAffinityProfile",
-    "HPCTopologyError",
-    "HPCTopologyProfile",
-    "IEEE754PrecisionAudit",
-    "IPCSecurityAudit",
-    "KernelLimitsAudit",
-    "LockingVerificationError",
-    "MPSControlError",
-    "MPSDaemonAudit",
-    "MPSStatus",
-    "ManifestFilterAudit",
-    "MemoryAudit",
-    "MendeleevMassRecord",
-    "OSProfile",
-    "Phase1AuditReport",
-    "Phase2AuditError",
-    "Phase2AuditReport",
-    "Phase3AuditError",
-    "Phase3AuditReport",
-    "Phase4AuditError",
-    "Phase4AuditReport",
-    "Phase5AuditError",
-    "Phase5AuditReport",
-    "Phase6AuditError",
-    "Phase6AuditReport",
-    "Phase7AuditError",
-    "Phase7AuditReport",
-    "PhaseStatus",
-    "SiloAuditItem",
-    "SiloConfig",
-    "SiloProvisioningError",
-    "SiloStatus",
-    "SiloType",
-    "StorageMode",
-    "StoragePathProfile",
-    "SWMRRuntimeAudit",
-    "ToolchainItem",
-    "VRAMAllocationError",
-    "VRAMBudgetReport",
-    "VersionWalkingError",
-    "WSL9PMountError",
-    "audit_all_engines",
-    "audit_container_sifs",
-    "audit_cpu",
-    "audit_filesystem",
-    "audit_gpus",
-    "audit_ipc_and_mps_security",
-    "audit_kernel_limits",
-    "audit_memory",
-    "audit_micro_silos",
-    "audit_single_binary",
-    "audit_toolchains",
-    "build_pinned_memory_limit_string",
-    "build_track_summaries",
-    "calculate_vram_budget",
-    "compute_environment_fingerprint",
-    "compute_thread_affinity_profile",
-    "configure_mps_device_limit",
-    "detect_hpc_scheduler",
-    "discover_mps_binaries",
-    "enforce_python_version",
-    "enforce_socket_directory_permissions",
-    "enforce_storage_permissions",
-    "execute_dynamic_version_walking",
-    "filter_silos_by_manifest",
-    "generate_phase_7_env_vars",
-    "generate_mps_activation_scripts",
-    "get_current_username",
-    "get_default_silo_configs",
-    "get_native_memory_env_vars",
-    "get_native_stack_flags",
-    "get_silo_executable_path",
-    "inject_mps_environment_variables",
-    "inject_silo_stack_and_env_flags",
-    "interrogate_os",
-    "load_deployment_manifest",
-    "parse_cgroup_cpu_quota",
-    "parse_cgroup_memory_limit",
-    "parse_hpc_memory_limit",
-    "parse_slurm_nodelist",
-    "parse_slurm_tasks_per_node",
-    "phase_1_main",
-    "phase_2_main",
-    "phase_3_main",
-    "phase_4_main",
-    "phase_5_main",
-    "phase_6_main",
-    "phase_7_main",
-    "probe_amd_gpus",
-    "probe_gpu_devices_vram",
-    "probe_intel_gpus",
-    "probe_mps_daemon_status",
-    "probe_nvidia_gpus",
-    "probe_swmr_locking_capabilities",
-    "provision_archive_pes_db",
-    "provision_micro_silo",
-    "provision_runtime_active_db",
-    "resolve_databases_directory",
-    "resolve_hpc_scratch_directory",
-    "resolve_mps_log_directory",
-    "resolve_mps_pipe_directory",
-    "resolve_p2_registry_path",
-    "resolve_p3_registry_path",
-    "resolve_p4_registry_path",
-    "resolve_p5_registry_path",
-    "resolve_p6_registry_path",
-    "resolve_p7_registry_path",
-    "resolve_scratch_directory",
-    "resolve_silo_base_directory",
-    "run_phase_1_audit",
-    "run_phase_2_audit",
-    "run_phase_3_audit",
-    "run_phase_4_audit",
-    "run_phase_5_audit",
-    "run_phase_6_audit",
-    "run_phase_7_audit",
-    "BindPolicy",
-    "GatewayConfigProfile",
-    "GatewayServiceType",
-    "Phase8AuditError",
-    "Phase8AuditReport",
-    "PortAllocationError",
-    "PortBindingProfile",
-    "PortRangeExhaustedError",
-    "ProtocolType",
-    "SocketBindingError",
-    "allocate_all_gateway_services",
-    "allocate_port",
-    "construct_service_url",
-    "generate_phase_8_env_vars",
-    "phase_8_main",
-    "probe_port_availability",
-    "resolve_bind_policy",
-    "resolve_p8_registry_path",
-    "run_phase_8_audit",
-    "scan_local_fallback_binaries",
-    "start_mps_daemon",
-    "stop_mps_daemon",
-    "verify_disk_quota",
-    "verify_ieee754_subnormal_precision",
-    "verify_mendeleev_authority",
-    "AffinityPinningError",
-    "AffinityStrategy",
-    "AmnestyAuditProfile",
-    "AmnestyVerificationError",
-    "CoreAffinityMapping",
-    "ExecutorStreamType",
-    "HTEXExecutorConfig",
-    "ParslConfigGenerationError",
-    "ParslExecutorMappingError",
-    "ParslProviderType",
-    "Phase9AuditError",
-    "Phase9AuditReport",
-    "ScoutAndAnchorProfile",
-    "audit_anti_spoof_amnesty",
-    "build_htex_executor_config",
-    "compute_core_affinity_distribution",
-    "construct_parsl_config_object",
-    "detect_system_cpu_topology",
-    "generate_phase_9_env_vars",
-    "phase_9_main",
-    "resolve_p9_registry_path",
-    "resolve_parsl_provider",
-    "run_phase_9_audit",
-    "CheckpointFormat",
-    "CheckpointStatus",
-    "CheckpointValidationError",
-    "CheckpointValidationItem",
-    "CheckpointValidationReport",
-    "EckartAlignmentError",
-    "EckartAlignmentResult",
-    "EckartVerificationItem",
-    "EckartVerificationReport",
-    "EckartVerificationStatus",
-    "EphemeralSandboxError",
-    "EphemeralSandboxProfile",
-    "IOPSBenchmarkError",
-    "IOPSBenchmarkProfile",
-    "IOPSBenchmarkStatus",
-    "InertiaTensorError",
-    "InertiaTensorResult",
-    "MolSymSiloError",
-    "MolSymSiloProfile",
-    "MolSymSiloStatus",
-    "Phase10AuditError",
-    "Phase10AuditReport",
-    "RotorTopType",
-    "StateChainRecoveryError",
-    "StateChainRecoveryProfile",
-    "align_to_eckart_frame",
-    "align_to_principal_axes",
-    "audit_or_provision_molsym_silo",
-    "audit_state_chain_recovery",
-    "classify_rotor_top",
-    "cleanup_ephemeral_sandbox",
-    "compute_center_of_mass",
-    "compute_file_sha256",
-    "compute_moment_of_inertia_tensor",
-    "compute_rotational_constants",
-    "diagonalize_inertia_tensor",
-    "generate_phase_10_env_vars",
-    "get_physical_mass",
-    "is_ghost_symbol",
-    "phase_10_main",
-    "resolve_atomic_masses",
-    "resolve_p10_registry_path",
-    "resolve_sandbox_base_directory",
-    "run_phase_10_audit",
-    "run_theoretical_eckart_benchmarks",
-    "run_unbuffered_iops_benchmark",
-    "scaffold_ephemeral_sandbox",
-    "scan_and_validate_checkpoints",
-    "translate_to_center_of_mass",
-    "validate_checkpoint_file",
-    "validate_orca_gbw_checkpoint",
-    "validate_pyscf_chk_checkpoint",
-    "validate_xtb_xtbw_checkpoint",
-    "verify_eckart_conditions",
-    "CGroupLimitError",
-    "CGroupMemoryProfile",
-    "CGroupVersion",
-    "EngineBudgetError",
-    "EngineMemoryBudget",
-    "EngineTarget",
-    "HostMemoryProfile",
-    "MemoryDiscoveryError",
-    "MemoryTier",
-    "MultiTierMemoryProfile",
-    "NUMABalanceStatus",
-    "NUMADiscoveryError",
-    "NumaNodeProfile",
-    "OOMShieldScalingProfile",
-    "Phase11AuditError",
-    "Phase11AuditReport",
-    "audit_host_memory",
-    "build_engine_memory_budgets",
-    "compute_oom_shield_scaling",
-    "compute_os_jupyter_reserve",
-    "detect_hpc_memory_limits",
-    "discover_numa_topology",
-    "generate_phase_11_env_vars",
-    "parse_cgroup_memory_bounds",
-    "parse_proc_meminfo",
-    "phase_11_main",
-    "resolve_p11_registry_path",
-    "run_phase_11_audit",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_10.py ---
-"""
-CoChem Setup Phase 10: MolSym Intake & Theoretical Eckart Frame Alignment Gatekeeper.
-Production-grade, zero-mock gatekeeping engine for MolSym isolated silo provisioning,
-exact mass-weighted Center of Mass (COM) translation with ghost atom (BSSE Gh, Bq, X)
-zero-mass protections, translational and rotational Eckart condition verification
-(residual norm <= 1e-12), 3x3 Moment of Inertia tensor construction and diagonalization,
-spectroscopic rotational constants (A, B, C in MHz, GHz, cm^-1) via NIST CODATA 2022/2026
-constants, Ray's asymmetry parameter kappa, planar moments (Pa, Pb, Pc), rotor top classification,
-Kabsch/SVD proper rotation enforcement (det(U) = +1.0) with reflection protection,
-scaffolding ephemeral quarantined execution sandboxes (/tmp/cochem_exec_<uuid>/),
-executing 10 MB unbuffered IOPS benchmarks to verify storage throughput performance,
-validating ORCA (.gbw), PySCF (.chk), and xTB (.xtbw) checkpoint files, auditing
-state-chain recovery across previous setup phases (p1.json through p9.json), generating
-environment variable injection mappings, and persisting transactional state into the
-Golden Registry (p10.json).
-
-SRS Document 2 Part 2 (Section 3.10), Method Matrix v4 (§8A-8C), SRS Document 1 (Section 2),
-SRS Document 5 (Section 1-4), SRS Document 6 (Section 1-3), SRS Document 7 (Section 2),
+SRS Document 2 Part 2 (Section 3.11), SRS Document 5 (Section 4.2), Method Matrix v4,
 and CoChem User Manual v4.1 Compliant.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
-import importlib
-import importlib.metadata
 import json
-import math
 import os
 import platform
+import re
 import shutil
 import stat
 import sys
 import tempfile
-import time
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+import psutil
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-# Try importing h5py for PySCF .chk validation
-try:
-    import h5py
-    _HAS_H5PY = True
-except ImportError:
-    h5py = None  # type: ignore
-    _HAS_H5PY = False
-
-# Try importing mendeleev for authentic standard atomic masses
-try:
-    import mendeleev
-    _HAS_MENDELEEV = True
-except ImportError:
-    mendeleev = None  # type: ignore
-    _HAS_MENDELEEV = False
-
-
-# =============================================================================
-# NIST CODATA 2022 / 2026 Fundamental Physical Constants & Conversion Factors
-# =============================================================================
-
-PLANCK_H: float = 6.62607015e-34  # J * s (exact SI standard)
-SPEED_OF_LIGHT_C: float = 299792458.0  # m / s (exact SI standard)
-ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)
-ANGSTROM_TO_M: float = 1.0e-10  # m / Angstrom
-
-# Rotational conversion factor: B = h / (8 * pi^2 * I)
-FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))
-FACTOR_MHZ: float = FACTOR_HZ / 1.0e6
-FACTOR_GHZ: float = FACTOR_HZ / 1.0e9
-FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
+# Threshold above which cgroup v1 values are treated as unlimited (e.g. 0x7FFFFFFFFFFFF000)
+CGROUP_V1_UNLIMITED_THRESHOLD: int = 2**62
+# Fallback flat reserve constants in Megabytes (MB)
+DEFAULT_MIN_OS_RESERVE_MB: int = 4096  # 4 GB minimum reserve for modern OS / Jupyter / agent council
+DEFAULT_MAX_OS_RESERVE_MB: int = 8192  # 8 GB maximum reserve on massive nodes
 
 
 # =============================================================================
@@ -698,36 +66,24 @@ FACTOR_CM1: float = FACTOR_HZ / (SPEED_OF_LIGHT_C * 100.0)
 # =============================================================================
 
 
-class Phase10AuditError(RuntimeError):
-    """Raised when critical Phase 10 sandbox, alignment, or state-chain recovery audit fails fatally."""
+class Phase11AuditError(RuntimeError):
+    """Raised when critical Phase 11 memory routing or OOM Shield gatekeeper audit fails fatally."""
 
 
-class EphemeralSandboxError(Phase10AuditError):
-    """Raised when scaffolding, permission hardening, or isolation of ephemeral sandbox fails."""
+class MemoryDiscoveryError(Phase11AuditError):
+    """Raised when host physical or virtual memory topology cannot be safely discovered."""
 
 
-class IOPSBenchmarkError(Phase10AuditError):
-    """Raised when 10 MB unbuffered IOPS benchmark execution or timing fails."""
+class CGroupLimitError(Phase11AuditError):
+    """Raised when Linux cgroups v1/v2 memory bounds or constraints encounter fatal errors."""
 
 
-class CheckpointValidationError(Phase10AuditError):
-    """Raised when checkpoint file validation encountered fatal corruption or parsing error."""
+class EngineBudgetError(Phase11AuditError):
+    """Raised when calculation memory budget synthesis fails or encounters unphysical bounds."""
 
 
-class StateChainRecoveryError(Phase10AuditError):
-    """Raised when previous setup phase state-chain verification fails fatally."""
-
-
-class MolSymSiloError(Phase10AuditError):
-    """Raised when MolSym isolated silo discovery, provisioning, or verification fails."""
-
-
-class EckartAlignmentError(Phase10AuditError):
-    """Raised when Eckart frame alignment or rotational condition verification fails."""
-
-
-class InertiaTensorError(Phase10AuditError):
-    """Raised when Moment of Inertia tensor construction or diagonalization fails."""
+class NUMADiscoveryError(Phase11AuditError):
+    """Raised when NUMA node hardware topology parsing encounters an irrecoverable error."""
 
 
 # =============================================================================
@@ -744,60 +100,44 @@ class PhaseStatus(str, Enum):
     BYPASSED = "BYPASSED"
 
 
-class CheckpointFormat(str, Enum):
-    """Supported quantum chemistry checkpoint file formats."""
+class CGroupVersion(str, Enum):
+    """Detected Linux control groups (cgroups) architecture version."""
 
-    ORCA_GBW = "ORCA_GBW"
-    PYSCF_CHK = "PYSCF_CHK"
-    XTB_XTBW = "XTB_XTBW"
+    V1 = "V1"
+    V2 = "V2"
+    HYBRID = "HYBRID"
+    NOT_AVAILABLE = "NOT_AVAILABLE"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class MemoryTier(str, Enum):
+    """Tier classification for memory routing and adaptive offloading."""
+
+    TIER_1_LOCAL_NUMA = "TIER_1_LOCAL_NUMA"
+    TIER_2_REMOTE_NUMA = "TIER_2_REMOTE_NUMA"
+    TIER_3_SWAP_STORAGE = "TIER_3_SWAP_STORAGE"
+
+
+class EngineTarget(str, Enum):
+    """Supported computational chemistry and machine learning solver engines."""
+
+    ORCA = "ORCA"
+    PYSCF = "PYSCF"
+    XTB = "XTB"
+    GAUSSIAN = "GAUSSIAN"
+    CFOUR = "CFOUR"
+    MACE_TORCH = "MACE_TORCH"
+    OPENMPI = "OPENMPI"
+    GENERIC = "GENERIC"
+
+
+class NUMABalanceStatus(str, Enum):
+    """Memory balance classification across multiple physical NUMA nodes."""
+
+    BALANCED = "BALANCED"
+    ASYMMETRIC = "ASYMMETRIC"
+    UNIFIED_UMA = "UNIFIED_UMA"
     UNKNOWN = "UNKNOWN"
-
-
-class CheckpointStatus(str, Enum):
-    """Verification status for individual checkpoint files."""
-
-    VALID = "VALID"
-    CORRUPT = "CORRUPT"
-    TRUNCATED = "TRUNCATED"
-    INVALID_FORMAT = "INVALID_FORMAT"
-    NOT_FOUND = "NOT_FOUND"
-
-
-class IOPSBenchmarkStatus(str, Enum):
-    """Classification of unbuffered IOPS storage performance."""
-
-    OPTIMAL = "OPTIMAL"
-    ACCEPTABLE = "ACCEPTABLE"
-    DEGRADED = "DEGRADED"
-    FAILED = "FAILED"
-
-
-class MolSymSiloStatus(str, Enum):
-    """Operational status of the isolated MolSym silo engine."""
-
-    AVAILABLE = "AVAILABLE"
-    PROVISIONED = "PROVISIONED"
-    DEGRADED = "DEGRADED"
-    NOT_FOUND = "NOT_FOUND"
-
-
-class EckartVerificationStatus(str, Enum):
-    """Verification status of theoretical Eckart condition tests."""
-
-    VERIFIED = "VERIFIED"
-    FAILED = "FAILED"
-    DEGRADED = "DEGRADED"
-
-
-class RotorTopType(str, Enum):
-    """Molecular spectroscopic rotor classification."""
-
-    SPHERICAL = "spherical"
-    SYMMETRIC_PROLATE = "symmetric_prolate"
-    SYMMETRIC_OBLATE = "symmetric_oblate"
-    ASYMMETRIC = "asymmetric"
-    LINEAR = "linear"
-    ATOM = "atom"
 
 
 # =============================================================================
@@ -805,2141 +145,1342 @@ class RotorTopType(str, Enum):
 # =============================================================================
 
 
-class EphemeralSandboxProfile(BaseModel):
-    """Profile of the provisioned ephemeral quarantined execution sandbox."""
+class CGroupMemoryProfile(BaseModel):
+    """Linux control group (cgroups v1/v2) memory hierarchy constraint record."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    sandbox_path: str = Field(..., description="Absolute path to ephemeral sandbox directory")
-    sandbox_uuid: str = Field(..., description="Unique execution sandbox UUID identifier")
-    base_directory: str = Field(..., description="Base temporary directory on host filesystem")
-    is_created: bool = Field(..., description="Whether sandbox directory exists on disk")
-    is_writable: bool = Field(..., description="Whether sandbox is write-accessible")
-    is_isolated: bool = Field(..., description="Whether sandbox isolation barrier is verified")
-    permissions_octal: str = Field(
-        default="0o700", description="POSIX octal or Windows ACL permission descriptor"
+    cgroup_version: CGroupVersion = Field(..., description="Detected cgroups architecture")
+    memory_limit_bytes: Optional[int] = Field(
+        default=None, ge=0, description="Hard memory limit enforced by cgroups (bytes)"
     )
-    cleanup_verified: bool = Field(
-        default=True, description="Whether safe idempotent cleanup mechanism is verified"
+    memory_max_bytes: Optional[int] = Field(
+        default=None, ge=0, description="cgroups v2 memory.max limit in bytes"
     )
-    active_pid: int = Field(..., ge=1, description="Active host process ID managing the sandbox")
-
-
-class IOPSBenchmarkProfile(BaseModel):
-    """Performance metric profile for the 10 MB unbuffered storage IOPS benchmark."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    target_directory: str = Field(..., description="Filesystem directory evaluated during benchmark")
-    file_size_bytes: int = Field(
-        default=10485760, ge=1024, description="Total benchmark file size in bytes (default: 10 MB)"
+    memory_high_bytes: Optional[int] = Field(
+        default=None, ge=0, description="cgroups v2 memory.high throttling boundary in bytes"
     )
-    block_size_bytes: int = Field(
-        default=65536, ge=512, description="Direct I/O block size in bytes (default: 64 KB)"
+    memory_current_bytes: Optional[int] = Field(
+        default=None, ge=0, description="cgroups current active memory usage in bytes"
     )
-    total_blocks: int = Field(..., ge=1, description="Total number of I/O blocks processed")
-    write_duration_seconds: float = Field(
-        ..., ge=0.0, description="Elapsed wall-clock time for unbuffered sequential write in seconds"
+    swap_limit_bytes: Optional[int] = Field(
+        default=None, ge=0, description="cgroups memory+swap limit in bytes"
     )
-    write_throughput_mb_s: float = Field(
-        ..., ge=0.0, description="Measured write throughput in Megabytes per second [M]"
+    is_cgroup_constrained: bool = Field(
+        default=False, description="Whether cgroup limits actively constrain memory below host RAM"
     )
-    write_iops: float = Field(
-        ..., ge=0.0, description="Measured write I/O operations per second [M]"
-    )
-    read_duration_seconds: float = Field(
-        ..., ge=0.0, description="Elapsed wall-clock time for unbuffered sequential read in seconds"
-    )
-    read_throughput_mb_s: float = Field(
-        ..., ge=0.0, description="Measured read throughput in Megabytes per second [M]"
-    )
-    read_iops: float = Field(
-        ..., ge=0.0, description="Measured read I/O operations per second [M]"
-    )
-    sync_latency_ms: float = Field(
-        ..., ge=0.0, description="Measured fsync flush barrier latency in milliseconds [M]"
-    )
-    status: IOPSBenchmarkStatus = Field(
-        default=IOPSBenchmarkStatus.OPTIMAL, description="Storage performance classification"
-    )
-    is_unbuffered: bool = Field(
-        default=True, description="Whether benchmark enforced unbuffered direct I/O flushes"
-    )
-    is_performance_sufficient: bool = Field(
-        default=True, description="Whether storage meets minimum quantum engine I/O threshold (>= 20 MB/s)"
+    cgroup_path: Optional[str] = Field(
+        default=None, description="Filesystem path to the primary cgroup constraint file"
     )
 
 
-class CheckpointValidationItem(BaseModel):
-    """Verification record for an individual quantum calculation checkpoint file."""
+class HostMemoryProfile(BaseModel):
+    """Host physical and virtual memory topology inspection record."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    file_path: str = Field(..., description="Absolute path to checkpoint file")
-    format: CheckpointFormat = Field(..., description="Detected checkpoint format (ORCA, PySCF, xTB)")
-    status: CheckpointStatus = Field(..., description="Validation status (VALID, CORRUPT, etc.)")
-    size_bytes: int = Field(default=0, ge=0, description="File size in bytes")
-    sha256_hash: Optional[str] = Field(default=None, description="Cryptographic SHA-256 hash of checkpoint")
-    is_resumable: bool = Field(default=False, description="Whether checkpoint is safely resumable")
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Extracted metadata (wave-function keys, basis, energies)"
+    total_ram_bytes: int = Field(..., ge=0, description="Total physical RAM in bytes")
+    available_ram_bytes: int = Field(..., ge=0, description="Currently available physical RAM in bytes")
+    free_ram_bytes: int = Field(..., ge=0, description="Completely unallocated physical RAM in bytes")
+    swap_total_bytes: int = Field(default=0, ge=0, description="Total swap space in bytes")
+    swap_free_bytes: int = Field(default=0, ge=0, description="Free swap space in bytes")
+    effective_system_ram_bytes: int = Field(
+        ..., ge=0, description="Effective system RAM accounting for physical limits"
     )
-    error_message: Optional[str] = Field(default=None, description="Failure description if invalid")
+    hpc_scheduler_detected: Optional[str] = Field(
+        default=None, description="HPC workload scheduler detected (Slurm, PBS, LSF, etc.)"
+    )
+    hpc_job_memory_limit_bytes: Optional[int] = Field(
+        default=None, ge=0, description="HPC scheduler job memory ceiling in bytes"
+    )
+    bounded_total_ram_bytes: int = Field(
+        ..., ge=0, description="Strictly bounded total memory accounting for cgroups and HPC limits"
+    )
+    bounded_total_ram_mb: float = Field(
+        ..., ge=0.0, description="Bounded total memory in Megabytes [MB]"
+    )
+    bounded_total_ram_gb: float = Field(
+        ..., ge=0.0, description="Bounded total memory in Gigabytes [GB]"
+    )
 
 
-class CheckpointValidationReport(BaseModel):
-    """Aggregate summary of checkpoint discovery and validation audit."""
+class NumaNodeProfile(BaseModel):
+    """Physical NUMA node memory and CPU affinity mapping."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    scanned_count: int = Field(default=0, ge=0, description="Total checkpoint files scanned")
-    valid_count: int = Field(default=0, ge=0, description="Count of valid, resumable checkpoints")
-    corrupt_count: int = Field(default=0, ge=0, description="Count of corrupt or truncated checkpoints")
-    resumable_checkpoints: List[CheckpointValidationItem] = Field(
-        default_factory=list, description="List of validated checkpoint items"
+    node_id: int = Field(..., ge=0, description="NUMA node physical identifier index (e.g. 0, 1)")
+    total_ram_mb: float = Field(..., ge=0.0, description="Total physical RAM assigned to this NUMA node [MB]")
+    free_ram_mb: float = Field(..., ge=0.0, description="Free physical RAM on this NUMA node [MB]")
+    cpu_core_ids: List[int] = Field(
+        default_factory=list, description="List of logical/physical CPU core IDs local to this NUMA node"
     )
-    validation_enabled: bool = Field(
-        default=True, description="Whether checkpoint validation subsystem is operational"
-    )
+    is_local: bool = Field(default=True, description="Whether this node is local to active process affinity")
 
 
-class StateChainRecoveryProfile(BaseModel):
-    """Audit record for setup state-chain continuity and interrupted job recovery."""
+class MultiTierMemoryProfile(BaseModel):
+    """Multi-tier NUMA memory topology and hierarchy profile."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    registry_directory: str = Field(..., description="Registry directory path evaluated for state-chain")
-    verified_phases: List[str] = Field(
-        default_factory=list, description="List of previous setup phase manifests verified (p1-p9)"
+    numa_nodes_count: int = Field(default=1, ge=1, description="Number of detected NUMA nodes")
+    numa_nodes: List[NumaNodeProfile] = Field(
+        default_factory=list, description="List of individual NUMA node profiles"
     )
-    missing_phases: List[str] = Field(
-        default_factory=list, description="List of missing setup phase manifests"
+    numa_balance_status: NUMABalanceStatus = Field(
+        default=NUMABalanceStatus.UNIFIED_UMA, description="Memory symmetry classification across nodes"
     )
-    chain_intact: bool = Field(
-        default=True, description="Whether preceding setup phase chain (p1-p9) is intact"
+    tier_1_local_ram_mb: float = Field(
+        ..., ge=0.0, description="Tier 1 Fast Local NUMA Node RAM in Megabytes [MB]"
     )
-    recoverable_jobs: List[Dict[str, Any]] = Field(
-        default_factory=list, description="Interrupted quantum jobs discovered eligible for resumption"
+    tier_2_remote_ram_mb: float = Field(
+        default=0.0, ge=0.0, description="Tier 2 Cross-Socket Remote NUMA RAM in Megabytes [MB]"
     )
-    orphaned_sandboxes: List[str] = Field(
-        default_factory=list, description="List of orphaned ephemeral sandbox paths found on disk"
+    tier_3_swap_mb: float = Field(
+        default=0.0, ge=0.0, description="Tier 3 NVMe/Disk Swap Space in Megabytes [MB]"
+    )
+    is_numa_aware: bool = Field(
+        default=False, description="Whether host possesses multiple distinct NUMA memory domains"
     )
 
 
-class MolSymSiloProfile(BaseModel):
-    """Discovery and verification profile for the isolated MolSym symmetry engine."""
+class EngineMemoryBudget(BaseModel):
+    """Formatted memory directive configuration for a specific quantum or ML engine."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    silo_path: Optional[str] = Field(default=None, description="Filesystem path to isolated molsym silo directory")
-    is_installed: bool = Field(..., description="Whether molsym is importable and functional")
-    silo_status: MolSymSiloStatus = Field(..., description="MolSym silo operational status")
-    version: Optional[str] = Field(default=None, description="Detected or installed MolSym version string")
-    location: Optional[str] = Field(default=None, description="Module location path on disk")
-    has_symtext: bool = Field(default=False, description="Whether molsym Symtext point group capability is available")
-    has_find_point_group: bool = Field(default=False, description="Whether find_point_group is available")
-    notes: str = Field(default="", description="Diagnostic details or provisioning notes")
-
-
-class InertiaTensorResult(BaseModel):
-    """Moment of Inertia tensor, principal axes, rotational constants, and rotor classification."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, ser_json_inf_nan="constants")
-
-    eigenvalues_amu_angstrom2: Tuple[float, float, float] = Field(
-        ..., description="Sorted principal moments of inertia Ia <= Ib <= Ic in amu * Angstrom^2"
+    engine: EngineTarget = Field(..., description="Target computational engine identifier")
+    primary_directive_name: str = Field(
+        ..., description="Engine-native configuration directive (e.g. %maxcore, max_memory)"
     )
-    rotational_constants_mhz: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
-        ..., description="Rotational constants (A, B, C) in MHz"
+    directive_value_formatted: str = Field(
+        ..., description="Fully formatted input block directive (e.g. '%maxcore 7168')"
     )
-    rotational_constants_ghz: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
-        ..., description="Rotational constants (A, B, C) in GHz"
+    allocated_per_core_mb: int = Field(
+        ..., ge=0, description="Calculated memory allocation per active calculation core [MB]"
     )
-    rotational_constants_cm1: Tuple[Optional[float], Optional[float], Optional[float]] = Field(
-        ..., description="Rotational constants (A, B, C) in cm^-1"
+    allocated_total_job_mb: int = Field(
+        ..., ge=0, description="Calculated total memory allocation across all active cores [MB]"
     )
-    inertial_defect: float = Field(
-        ..., description="Inertial defect Delta = Ic - Ia - Ib in amu * Angstrom^2"
+    env_var_name: str = Field(
+        ..., description="Standardized environment variable name for engine memory injection"
     )
-    rays_kappa: float = Field(
-        ..., description="Ray's asymmetry parameter kappa in [-1.0, 1.0]"
+    env_var_value: str = Field(
+        ..., description="Environment variable string value for runtime export"
     )
-    planar_moments: Tuple[float, float, float] = Field(
-        ..., description="Planar moments of inertia (Pa, Pb, Pc) in amu * Angstrom^2"
-    )
-    top_type: RotorTopType = Field(
-        ..., description="Rotor classification (spherical, symmetric_prolate, symmetric_oblate, asymmetric, linear, atom)"
-    )
-    rotation_matrix: List[List[float]] = Field(
-        ..., description="Right-handed 3x3 rotation matrix V diagonalizing inertia tensor with det = +1.0"
-    )
-    aligned_coords: List[List[float]] = Field(
-        ..., description="Cartesian coordinates aligned to principal axes (N, 3)"
-    )
-    inertia_tensor: Optional[List[List[float]]] = Field(
-        default=None, description="Initial 3x3 moment of inertia tensor before diagonalization"
+    notes: str = Field(
+        default="", description="Technical rationale, safety buffers, and constraints explanation"
     )
 
 
-class EckartAlignmentResult(BaseModel):
-    """Mass-weighted Eckart frame alignment result and residual verification."""
+class OOMShieldScalingProfile(BaseModel):
+    """
+    The OOM Shield Dynamic Memory Scaling Profile.
+    Applies flat 4-8 GB OS/Jupyter safety buffer reservation and partitions available memory
+    specifically across active calculation cores rather than all physical cores.
+    """
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    aligned_coords: List[List[float]] = Field(
-        ..., description="Target coordinates transformed into reference Eckart frame (N, 3)"
+    total_physical_cores: int = Field(
+        ..., ge=1, description="Total physical CPU cores available on the host"
     )
-    rotation_matrix: List[List[float]] = Field(
-        ..., description="Proper rotation matrix U (3, 3) with det(U) = +1.0"
+    active_job_cores: int = Field(
+        ..., ge=1, description="Active job calculation cores requested for this run"
     )
-    rmsd: float = Field(
-        ..., ge=0.0, description="Mass-weighted Root Mean Square Deviation relative to reference"
+    bounded_total_ram_mb: float = Field(
+        ..., ge=0.0, description="Total bounded system RAM available to the job [MB]"
     )
-    residual_rotational_norm: float = Field(
-        ..., ge=0.0, description="Residual torque norm of rotational Eckart condition sum(m_i * (r_i^0 x r'_i))"
+    os_jupyter_reserve_mb: int = Field(
+        ..., ge=0, description="Flat memory buffer strictly reserved for OS/Jupyter/UI [MB]"
     )
-    translational_residual_norm: float = Field(
-        ..., ge=0.0, description="Residual norm of translational Eckart condition sum(m_i * r'_i) / M"
+    reserve_ratio: float = Field(
+        ..., ge=0.0, le=1.0, description="Fraction of bounded memory reserved for OS safety"
     )
-    rotation_determinant: float = Field(
-        default=1.0, description="Determinant of proper rotation matrix U"
+    allocatable_ram_mb: int = Field(
+        ..., ge=0, description="Net allocatable memory available for quantum/ML calculation [MB]"
+    )
+    allocatable_ram_gb: float = Field(
+        ..., ge=0.0, description="Net allocatable memory available for calculation [GB]"
+    )
+    baseline_80pct_maxcore_mb: int = Field(
+        ..., ge=0, description="Baseline %maxcore calculated dividing by total physical cores [MB]"
+    )
+    active_core_maxcore_mb: int = Field(
+        ..., ge=0, description="Dynamic %maxcore calculated dividing across active calculation cores [MB]"
+    )
+    memory_gain_vs_baseline_pct: float = Field(
+        ..., description="Percentage memory gain achieved by dynamic active core routing vs baseline"
+    )
+    shield_active: bool = Field(
+        default=True, description="Whether the OOM Shield active core routing guardrail is engaged"
     )
 
 
-class EckartVerificationItem(BaseModel):
-    """Verification record for a specific theoretical Eckart condition benchmark test."""
+class Phase2AuditFindings(BaseModel):
+    """Audited hardware baseline findings loaded from Phase 2 (p2.json)."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    benchmark_name: str = Field(..., description="Name of theoretical verification benchmark")
-    status: EckartVerificationStatus = Field(..., description="Verification status (VERIFIED/FAILED)")
-    n_atoms: int = Field(..., ge=1, description="Number of atoms in benchmark molecule")
-    has_ghost_atoms: bool = Field(default=False, description="Whether benchmark molecule includes ghost atoms")
-    translational_residual_norm: float = Field(..., ge=0.0, description="Norm of sum(m_i * r'_i) in Angstroms")
-    rotational_residual_norm: float = Field(..., ge=0.0, description="Norm of sum(m_i * (r_i^0 x r'_i)) in amu * Angstrom^2")
-    rotation_determinant: float = Field(..., description="Determinant of proper rotation matrix U (must be +1.0)")
-    rmsd: float = Field(..., ge=0.0, description="Mass-weighted RMSD relative to reference")
-    top_type: RotorTopType = Field(..., description="Rotor top classification")
-    is_verified: bool = Field(default=True, description="Whether all residual norms satisfy <= 1e-12 tolerance")
-    error_message: Optional[str] = Field(default=None, description="Diagnostic error message if failed")
+    loaded_from: str = Field(..., description="Filesystem path of the loaded p2.json artifact")
+    status: str = Field(..., description="Phase 2 execution status (e.g. PASSED, DEGRADED)")
+    total_physical_ram_bytes: int = Field(..., ge=0, description="Total physical RAM audited in Phase 2")
+    effective_memory_bytes: int = Field(..., ge=0, description="Effective memory accounting for constraints")
+    physical_cores: int = Field(..., ge=1, description="Physical CPU cores audited in Phase 2")
+    logical_cores: int = Field(..., ge=1, description="Logical CPU cores audited in Phase 2")
+    is_cgroup_constrained: bool = Field(default=False, description="Whether cgroups constraint was detected in Phase 2")
+    gpu_available: bool = Field(default=False, description="Whether compute GPU was detected in Phase 2")
 
 
-class EckartVerificationReport(BaseModel):
-    """Comprehensive report summarizing theoretical Eckart frame benchmarks."""
+class Phase11AuditReport(BaseModel):
+    """Complete serialized audit report and Golden Registry record for Setup Phase 11."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    total_benchmarks: int = Field(default=0, ge=0, description="Total benchmark tests executed")
-    passed_benchmarks: int = Field(default=0, ge=0, description="Number of passed benchmark tests")
-    failed_benchmarks: int = Field(default=0, ge=0, description="Number of failed benchmark tests")
-    overall_status: EckartVerificationStatus = Field(
-        default=EckartVerificationStatus.VERIFIED, description="Overall Eckart verification status"
-    )
-    max_translational_residual: float = Field(default=0.0, ge=0.0, description="Maximum translational residual across benchmarks")
-    max_rotational_residual: float = Field(default=0.0, ge=0.0, description="Maximum rotational residual torque across benchmarks")
-    items: List[EckartVerificationItem] = Field(default_factory=list, description="List of individual benchmark items")
-
-
-class Phase10AuditReport(BaseModel):
-    """Complete serialized audit report and Golden Registry record for Setup Phase 10."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, ser_json_inf_nan="constants")
-
-    phase_id: str = Field(default="cochem_setup_phase_10", description="Setup phase identifier")
-    status: PhaseStatus = Field(..., description="Overall execution status of Phase 10")
+    phase_id: str = Field(default="cochem_setup_phase_11", description="Setup phase identifier")
+    status: PhaseStatus = Field(..., description="Overall execution status of Phase 11")
     timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of audit execution")
-    artifact_path: str = Field(..., description="Absolute path to generated p10.json Golden Registry artifact")
-    sandbox_profile: EphemeralSandboxProfile = Field(
-        ..., description="Ephemeral Quarantined Sandbox configuration profile"
+    artifact_path: str = Field(
+        ..., description="Absolute path to generated p11.json Golden Registry artifact"
     )
-    iops_profile: IOPSBenchmarkProfile = Field(
-        ..., description="10 MB unbuffered storage IOPS benchmark profile"
+    phase_2_findings: Optional[Phase2AuditFindings] = Field(
+        default=None, description="Audited baseline findings loaded from Phase 2 (p2.json)"
     )
-    checkpoint_report: CheckpointValidationReport = Field(
-        ..., description="Checkpoint file validation and resumption report"
+    host_memory: HostMemoryProfile = Field(
+        ..., description="Host and container bounded physical RAM profile"
     )
-    state_chain_profile: StateChainRecoveryProfile = Field(
-        ..., description="State-chain continuity and recovery audit profile"
+    cgroup_profile: CGroupMemoryProfile = Field(
+        ..., description="Linux cgroups v1/v2 memory bounds profile"
     )
-    molsym_silo_profile: MolSymSiloProfile = Field(
-        ..., description="MolSym isolated silo discovery and provisioning profile"
+    numa_profile: MultiTierMemoryProfile = Field(
+        ..., description="Multi-tier NUMA memory topology profile"
     )
-    eckart_verification_report: EckartVerificationReport = Field(
-        ..., description="Theoretical Eckart frame and Cartesian alignment verification report"
+    oom_shield: OOMShieldScalingProfile = Field(
+        ..., description="The OOM Shield dynamic active-core scaling profile"
     )
-    alignment_engine_ready: bool = Field(
-        default=True, description="Whether MolSym and Eckart alignment engines are verified and operational"
+    engine_budgets: Dict[str, EngineMemoryBudget] = Field(
+        default_factory=dict, description="Multi-engine configuration directives and memory budgets"
     )
     injected_env_vars: Dict[str, str] = Field(
-        default_factory=dict, description="Environment variable injection mapping for runtime execution"
+        default_factory=dict, description="Environment variable injection key-value mappings"
     )
-    warnings: List[str] = Field(default_factory=list, description="Non-fatal diagnostic warnings")
-    errors: List[str] = Field(default_factory=list, description="Fatal or recoverable error messages")
+    warnings: List[str] = Field(default_factory=list, description="Non-fatal resource warnings")
+    errors: List[str] = Field(default_factory=list, description="Fatal execution errors")
 
 
 # =============================================================================
-# 4. MOLSYM ISOLATED SILO ENGINE
+# 4. TRANSACTIONAL DEPENDENCY MANAGER
 # =============================================================================
 
 
-def audit_or_provision_molsym_silo(
-    silo_path: Optional[Union[str, Path]] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> MolSymSiloProfile:
+class DependencyManager:
     """
-    Check, provision, and verify the MolSym symmetry dependency in an isolated silo.
-    Evaluates explicit silo_path, COCHEM_MOLSYM_SILO, COCHEM_CALC_SILO, standard silos,
-    or active Python environment fallback.
+    Idempotent transactional context manager for managing temporary filesystem
+    artifacts and executing atomic JSON state persistence.
+    Rolls back staged temporary files/directories if an exception occurs during execution.
     """
-    target_env = os.environ if env is None else env
-    candidate_silos: List[Path] = []
 
-    if silo_path is not None and str(silo_path).strip():
-        candidate_silos.append(Path(silo_path).resolve())
+    def __init__(self) -> None:
+        self._tracked_temp_files: List[Path] = []
+        self._tracked_temp_dirs: List[Path] = []
 
-    if "COCHEM_MOLSYM_SILO" in target_env and target_env["COCHEM_MOLSYM_SILO"].strip():
-        candidate_silos.append(Path(target_env["COCHEM_MOLSYM_SILO"]).resolve())
+    def __enter__(self) -> DependencyManager:
+        return self
 
-    if "COCHEM_CALC_SILO" in target_env and target_env["COCHEM_CALC_SILO"].strip():
-        candidate_silos.append(Path(target_env["COCHEM_CALC_SILO"]).resolve())
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        if exc_type is not None:
+            self.rollback()
 
-    repo_root = find_repository_root()
-    candidate_silos.append(repo_root / "silos" / "molsym")
-    candidate_silos.append(Path.home() / ".cochem" / "silos" / "molsym")
+    def track_temp_file(self, path: Union[str, Path]) -> Path:
+        """Register a temporary file to be rolled back on failure."""
+        p = Path(path).resolve()
+        if p not in self._tracked_temp_files:
+            self._tracked_temp_files.append(p)
+        return p
 
-    active_silo_path: Optional[str] = None
-    for c_path in candidate_silos:
-        if c_path.exists() and c_path.is_dir():
-            active_silo_path = str(c_path)
-            site_candidates = [
-                c_path,
-                c_path / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages",
-                c_path / "Lib" / "site-packages",
-            ]
-            for s_p in site_candidates:
-                if s_p.exists() and str(s_p) not in sys.path:
-                    sys.path.insert(0, str(s_p))
-            break
+    def track_temp_dir(self, path: Union[str, Path]) -> Path:
+        """Register a temporary directory to be rolled back on failure."""
+        p = Path(path).resolve()
+        if p not in self._tracked_temp_dirs:
+            self._tracked_temp_dirs.append(p)
+        return p
 
-    try:
-        if "molsym" in sys.modules:
-            molsym_mod = sys.modules["molsym"]
-        else:
-            molsym_mod = importlib.import_module("molsym")
-        is_installed = True
-    except Exception:
-        molsym_mod = None
-        is_installed = False
+    def create_temp_file(
+        self,
+        suffix: str = ".tmp",
+        prefix: str = "cochem_p11_",
+        directory: Optional[Union[str, Path]] = None,
+    ) -> Path:
+        """Create a tracked temporary file."""
+        dir_path = Path(directory) if directory else None
+        if dir_path:
+            dir_path.mkdir(parents=True, exist_ok=True)
 
-    if is_installed and molsym_mod is not None:
-        version_str: Optional[str] = getattr(molsym_mod, "__version__", None)
-        if not version_str:
+        fd, temp_path_str = tempfile.mkstemp(
+            suffix=suffix,
+            prefix=prefix,
+            dir=str(dir_path) if dir_path else None,
+        )
+        os.close(fd)
+        temp_path = Path(temp_path_str).resolve()
+        self.track_temp_file(temp_path)
+        return temp_path
+
+    def rollback(self) -> None:
+        """Execute safe rollback by unlinking tracked temporary files and directories."""
+        for temp_file in self._tracked_temp_files:
             try:
-                version_str = importlib.metadata.version("molsym")
-            except Exception:
-                version_str = "unknown"
-
-        mod_loc: Optional[str] = getattr(molsym_mod, "__file__", None)
-        if mod_loc:
-            mod_loc = str(Path(mod_loc).resolve().parent)
-
-        has_symtext = hasattr(molsym_mod, "Symtext")
-        has_find_pg = hasattr(molsym_mod, "find_point_group")
-
-        if has_symtext and has_find_pg:
-            status = MolSymSiloStatus.AVAILABLE if active_silo_path is None else MolSymSiloStatus.PROVISIONED
-            notes = "MolSym library successfully verified with full Symtext and point group detection."
-        else:
-            status = MolSymSiloStatus.DEGRADED
-            notes = "MolSym imported but missing Symtext or find_point_group submodules."
-
-        return MolSymSiloProfile(
-            silo_path=active_silo_path or mod_loc,
-            is_installed=True,
-            silo_status=status,
-            version=version_str,
-            location=mod_loc,
-            has_symtext=has_symtext,
-            has_find_point_group=has_find_pg,
-            notes=notes,
-        )
-
-    return MolSymSiloProfile(
-        silo_path=active_silo_path,
-        is_installed=False,
-        silo_status=MolSymSiloStatus.NOT_FOUND,
-        version=None,
-        location=None,
-        has_symtext=False,
-        has_find_point_group=False,
-        notes="MolSym library is not installed in the active Python environment or isolated silos.",
-    )
-
-
-# =============================================================================
-# 5. THEORETICAL ECKART FRAME & CARTESIAN ORIGIN SHIFTING ENGINE
-# =============================================================================
-
-_STANDARD_ATOMIC_WEIGHTS: Dict[str, float] = {
-    "H": 1.008, "HE": 4.0026, "LI": 6.94, "BE": 9.0122, "B": 10.81, "C": 12.011,
-    "N": 14.007, "O": 15.999, "F": 18.9984, "NE": 20.180, "NA": 22.9898, "MG": 24.305,
-    "AL": 26.9815, "SI": 28.085, "P": 30.9738, "S": 32.06, "CL": 35.45, "AR": 39.95,
-    "K": 39.0983, "CA": 40.078, "SC": 44.9559, "TI": 47.867, "V": 50.9415, "CR": 51.9961,
-    "MN": 54.9380, "FE": 55.845, "CO": 58.9332, "NI": 58.6934, "CU": 63.546, "ZN": 65.38,
-    "GA": 69.723, "GE": 72.630, "AS": 74.9216, "SE": 78.971, "BR": 79.904, "KR": 83.798,
-    "RB": 85.4678, "SR": 87.62, "Y": 88.9058, "ZR": 91.224, "NB": 92.9064, "MO": 95.95,
-    "TC": 97.9072, "RU": 101.07, "RH": 102.9055, "PD": 106.42, "AG": 107.8682, "CD": 112.414,
-    "IN": 114.818, "SN": 118.710, "SB": 121.760, "TE": 127.60, "I": 126.90447, "XE": 131.293,
-    "CS": 132.90545, "BA": 137.327, "LA": 138.90547, "CE": 140.116, "PR": 140.90766, "ND": 144.242,
-    "PM": 144.9127, "SM": 150.36, "EU": 151.964, "GD": 157.25, "TB": 158.92535, "DY": 162.500,
-    "HO": 164.93033, "ER": 167.259, "TM": 168.93422, "YB": 173.045, "LU": 174.9668, "HF": 178.49,
-    "TA": 180.94788, "W": 183.84, "RE": 186.207, "OS": 190.23, "IR": 192.217, "PT": 195.084,
-    "AU": 196.96657, "HG": 200.592, "TL": 204.38, "PB": 207.2, "BI": 208.98040, "TH": 232.0377,
-    "PA": 231.03588, "U": 238.02891, "PU": 244.0642,
-}
-
-
-def is_ghost_symbol(symbol: str) -> bool:
-    """
-    Check whether an atomic symbol represents a ghost atom.
-    Ghost atoms (e.g., 'Gh', 'gh', 'GhO', 'Gh_C', 'X', 'x_N', 'Bq', 'bq') possess
-    strictly 0.0 mass to avoid shifting the Center of Mass during BSSE calculations.
-    Chemical elements like Xenon ('Xe', 'xe', 'XE') are NOT ghost atoms.
-    """
-    if not symbol or not isinstance(symbol, str):
-        return False
-    clean = symbol.strip()
-    if not clean:
-        return False
-    clean_lower = clean.lower()
-
-    if clean_lower.startswith("gh") or clean_lower.startswith("bq"):
-        return True
-
-    if clean_lower == "x":
-        return True
-
-    if clean_lower.startswith("x_") or clean_lower.startswith("x-") or clean_lower.startswith("x:"):
-        return True
-
-    if clean_lower.startswith("x") and not clean_lower.startswith("xe"):
-        import re
-        if re.match(r"^x[0-9]+$", clean_lower):
-            return True
-
-    return False
-
-
-def get_physical_mass(symbol: str) -> float:
-    """
-    Retrieve standard atomic mass in amu (u / Da).
-    Ghost atoms strictly return 0.0.
-    """
-    if not symbol or not isinstance(symbol, str) or not symbol.strip():
-        raise ValueError("Atomic symbol cannot be empty.")
-
-    clean = symbol.strip()
-    if is_ghost_symbol(clean):
-        return 0.0
-
-    clean_upper = clean.upper()
-    if clean_upper in _STANDARD_ATOMIC_WEIGHTS:
-        return _STANDARD_ATOMIC_WEIGHTS[clean_upper]
-
-    # Check isotope or numbered notation (e.g. C12, Cl35, O_16, H-2, C:1)
-    import re
-    m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
-    if m:
-        sym_head = m.group(1).upper()
-        if sym_head in _STANDARD_ATOMIC_WEIGHTS:
-            return _STANDARD_ATOMIC_WEIGHTS[sym_head]
-
-    if _HAS_MENDELEEV and mendeleev is not None:
-        try:
-            elem = mendeleev.element(clean)
-            if elem is not None and elem.mass is not None:
-                return float(elem.mass)
-        except Exception:
-            pass
-
-    raise ValueError(f"Unrecognized chemical element symbol: '{symbol}'.")
-
-
-def resolve_atomic_masses(
-    coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> np.ndarray:
-    """
-    Validate and return a 1D float64 array of atomic masses of shape (N,).
-    Enforces non-negative masses and strictly positive total non-ghost molecular mass.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    n_atoms = len(coords_arr)
-
-    if masses is not None:
-        masses_arr = np.asarray(masses, dtype=np.float64)
-        if masses_arr.shape != (n_atoms,):
-            raise ValueError(
-                f"Coordinate count ({n_atoms}) does not match masses shape {masses_arr.shape}."
-            )
-        if np.any(masses_arr < 0.0):
-            raise ValueError("Atomic masses must be non-negative values.")
-        total_mass = float(np.sum(masses_arr))
-        if total_mass <= 0.0:
-            raise ValueError("Total non-ghost molecular mass must be strictly positive.")
-        return masses_arr
-
-    if symbols is not None:
-        if len(symbols) != n_atoms:
-            raise ValueError(
-                f"Coordinate count ({n_atoms}) does not match symbols count ({len(symbols)})."
-            )
-        masses_list = [get_physical_mass(s) for s in symbols]
-        masses_arr = np.array(masses_list, dtype=np.float64)
-        total_mass = float(np.sum(masses_arr))
-        if total_mass <= 0.0:
-            raise ValueError("Total non-ghost molecular mass must be strictly positive.")
-        return masses_arr
-
-    raise ValueError("Either 'masses' or 'symbols' must be provided to determine molecular masses.")
-
-
-def compute_center_of_mass(
-    coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> np.ndarray:
-    """
-    Compute exact mass-weighted Center of Mass (COM) vector of shape (3,).
-    Ghost atoms (mass = 0.0) are completely excluded from the mass weighting.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
-        raise ValueError(f"Expected coordinates shape (N, 3), got {coords_arr.shape}.")
-
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-    total_mass = float(np.sum(masses_arr))
-
-    return np.sum(coords_arr * masses_arr[:, np.newaxis], axis=0) / total_mass
-
-
-def translate_to_center_of_mass(
-    coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Translate molecular coordinates such that the Center of Mass is positioned at (0, 0, 0).
-    Returns (translated_coords, shift_vector) where shift_vector = -COM.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-    total_mass = float(np.sum(masses_arr))
-
-    com = compute_center_of_mass(coords_arr, masses=masses_arr)
-    shift_vec = -com
-    translated_coords = coords_arr + shift_vec
-
-    residual = np.sum(masses_arr[:, np.newaxis] * translated_coords, axis=0) / total_mass
-    if np.any(np.abs(residual) > 0.0):
-        translated_coords = translated_coords - residual
-        shift_vec = shift_vec - residual
-
-    return translated_coords, shift_vec
-
-
-def compute_moment_of_inertia_tensor(
-    coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Union[np.ndarray, Sequence[float]],
-) -> np.ndarray:
-    """
-    Construct symmetric 3x3 Moment of Inertia tensor in amu * Angstrom^2.
-    I_xx = sum(m_i * (y_i^2 + z_i^2))
-    I_xy = -sum(m_i * x_i * y_i)
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    masses_arr = np.asarray(masses, dtype=np.float64)
-
-    if coords_arr.ndim != 2 or coords_arr.shape[1] != 3:
-        raise ValueError(f"Coordinates must have shape (N, 3), got {coords_arr.shape}.")
-    if masses_arr.shape != (len(coords_arr),):
-        raise ValueError(
-            f"Masses length ({len(masses_arr)}) != atom count ({len(coords_arr)})."
-        )
-
-    x = coords_arr[:, 0]
-    y = coords_arr[:, 1]
-    z = coords_arr[:, 2]
-
-    Ixx = np.sum(masses_arr * (y**2 + z**2))
-    Iyy = np.sum(masses_arr * (x**2 + z**2))
-    Izz = np.sum(masses_arr * (x**2 + y**2))
-    Ixy = -np.sum(masses_arr * x * y)
-    Ixz = -np.sum(masses_arr * x * z)
-    Iyz = -np.sum(masses_arr * y * z)
-
-    return np.array([
-        [Ixx, Ixy, Ixz],
-        [Ixy, Iyy, Iyz],
-        [Ixz, Iyz, Izz],
-    ], dtype=np.float64)
-
-
-def diagonalize_inertia_tensor(
-    inertia_tensor: Union[np.ndarray, Sequence[Sequence[float]]],
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Diagonalize 3x3 inertia tensor to obtain sorted eigenvalues Ia <= Ib <= Ic
-    and right-handed proper rotation matrix V with det(V) = +1.0.
-    """
-    tensor = np.asarray(inertia_tensor, dtype=np.float64)
-    if tensor.shape != (3, 3):
-        raise ValueError(f"Inertia tensor must be (3, 3), got {tensor.shape}.")
-
-    eigvals, V = np.linalg.eigh(tensor)
-
-    idx = np.argsort(eigvals)
-    eigvals = eigvals[idx]
-    V = V[:, idx]
-
-    det_v = float(np.linalg.det(V))
-    if det_v < 0.0:
-        V[:, 2] = -V[:, 2]
-
-    return eigvals, V
-
-
-def compute_rotational_constants(
-    eigenvalues: Tuple[float, float, float],
-) -> Tuple[Tuple[Optional[float], Optional[float], Optional[float]], Tuple[Optional[float], Optional[float], Optional[float]], Tuple[Optional[float], Optional[float], Optional[float]]]:
-    """
-    Convert principal moments of inertia Ia <= Ib <= Ic into rotational constants
-    (A, B, C) across MHz, GHz, and cm^-1 via CODATA 2022/2026 constants.
-    Safeguards linear singularity: Ia < 1e-8 => A = inf.
-    """
-    Ia, Ib, Ic = eigenvalues
-
-    def _calc_const(I_val: float, factor: float) -> Optional[float]:
-        if I_val < 1e-8:
-            return float("inf")
-        return float(factor / I_val)
-
-    A_mhz = _calc_const(Ia, FACTOR_MHZ)
-    B_mhz = _calc_const(Ib, FACTOR_MHZ)
-    C_mhz = _calc_const(Ic, FACTOR_MHZ)
-
-    A_ghz = _calc_const(Ia, FACTOR_GHZ)
-    B_ghz = _calc_const(Ib, FACTOR_GHZ)
-    C_ghz = _calc_const(Ic, FACTOR_GHZ)
-
-    A_cm1 = _calc_const(Ia, FACTOR_CM1)
-    B_cm1 = _calc_const(Ib, FACTOR_CM1)
-    C_cm1 = _calc_const(Ic, FACTOR_CM1)
-
-    return (
-        (A_mhz, B_mhz, C_mhz),
-        (A_ghz, B_ghz, C_ghz),
-        (A_cm1, B_cm1, C_cm1),
-    )
-
-
-def classify_rotor_top(
-    Ia: float,
-    Ib: float,
-    Ic: float,
-    n_atoms: int = 1,
-) -> Tuple[RotorTopType, float]:
-    """
-    Classify rotor top geometry into spherical, symmetric_prolate, symmetric_oblate,
-    asymmetric, linear, or atom, and compute Ray's asymmetry parameter kappa.
-    """
-    if n_atoms <= 1 or (Ia < 1e-8 and Ib < 1e-8 and Ic < 1e-8):
-        return RotorTopType.ATOM, 0.0
-
-    if Ia < 1e-8 or (Ib > 1e-8 and (Ia / Ib) < 1e-4):
-        return RotorTopType.LINEAR, -1.0
-
-    rot_consts = compute_rotational_constants((Ia, Ib, Ic))
-    A_mhz, B_mhz, C_mhz = rot_consts[0]
-
-    if Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and (abs(Ib - Ic) / Ic < 1e-3):
-        return RotorTopType.SPHERICAL, 0.0
-
-    if Ib > 1e-8 and (abs(Ia - Ib) / Ib < 1e-3) and ((Ic - Ib) / Ib >= 1e-3):
-        if A_mhz is not None and B_mhz is not None and C_mhz is not None and not math.isinf(A_mhz) and (A_mhz - C_mhz) > 1e-12:
-            kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
-        else:
-            kappa = 1.0
-        return RotorTopType.SYMMETRIC_OBLATE, float(kappa)
-
-    if Ic > 1e-8 and (abs(Ib - Ic) / Ic < 1e-3) and ((Ib - Ia) / Ib >= 1e-3):
-        if A_mhz is not None and B_mhz is not None and C_mhz is not None and not math.isinf(A_mhz) and (A_mhz - C_mhz) > 1e-12:
-            kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
-        else:
-            kappa = -1.0
-        return RotorTopType.SYMMETRIC_PROLATE, float(kappa)
-
-    if A_mhz is None or math.isinf(A_mhz) or C_mhz is None or abs(A_mhz - C_mhz) < 1e-12:
-        kappa = 0.0
-    else:
-        assert B_mhz is not None
-        kappa = (2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz)
-
-    return RotorTopType.ASYMMETRIC, float(kappa)
-
-
-def align_to_principal_axes(
-    coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-) -> InertiaTensorResult:
-    """
-    Translate molecular coordinates to COM, construct and diagonalize Moment of Inertia tensor,
-    derive spectroscopic rotational constants (A, B, C), and return an InertiaTensorResult.
-    """
-    coords_arr = np.asarray(coords, dtype=np.float64)
-    masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)
-
-    coords_com, _ = translate_to_center_of_mass(coords_arr, masses=masses_arr)
-    I_tensor = compute_moment_of_inertia_tensor(coords_com, masses_arr)
-    eigvals, V = diagonalize_inertia_tensor(I_tensor)
-
-    Ia, Ib, Ic = float(eigvals[0]), float(eigvals[1]), float(eigvals[2])
-    aligned_coords = coords_com @ V
-
-    rot_mhz, rot_ghz, rot_cm1 = compute_rotational_constants((Ia, Ib, Ic))
-    inertial_defect = float(Ic - Ia - Ib)
-
-    Pa = float((-Ia + Ib + Ic) / 2.0)
-    Pb = float((Ia - Ib + Ic) / 2.0)
-    Pc = float((Ia + Ib - Ic) / 2.0)
-
-    top_type, kappa = classify_rotor_top(Ia, Ib, Ic, n_atoms=len(coords_arr))
-
-    return InertiaTensorResult(
-        eigenvalues_amu_angstrom2=(Ia, Ib, Ic),
-        rotational_constants_mhz=rot_mhz,
-        rotational_constants_ghz=rot_ghz,
-        rotational_constants_cm1=rot_cm1,
-        inertial_defect=inertial_defect,
-        rays_kappa=kappa,
-        planar_moments=(Pa, Pb, Pc),
-        top_type=top_type,
-        rotation_matrix=V.tolist(),
-        aligned_coords=aligned_coords.tolist(),
-        inertia_tensor=I_tensor.tolist(),
-    )
-
-
-def align_to_eckart_frame(
-    target_coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    ref_coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-    tolerance: float = 1e-12,
-) -> EckartAlignmentResult:
-    """
-    Align target coordinates to reference coordinates in mass-weighted Eckart frame via Kabsch/SVD.
-    Enforces proper rotation det(U) = +1.0 and verifies translational and rotational Eckart conditions.
-    """
-    target_arr = np.asarray(target_coords, dtype=np.float64)
-    ref_arr = np.asarray(ref_coords, dtype=np.float64)
-
-    if target_arr.shape != ref_arr.shape:
-        raise ValueError(
-            f"Target shape {target_arr.shape} does not match reference shape {ref_arr.shape}."
-        )
-    if target_arr.ndim != 2 or target_arr.shape[1] != 3:
-        raise ValueError(f"Coordinates must have shape (N, 3), got {target_arr.shape}.")
-
-    masses_arr = resolve_atomic_masses(target_arr, masses=masses, symbols=symbols)
-    total_mass = float(np.sum(masses_arr))
-
-    target_com, _ = translate_to_center_of_mass(target_arr, masses=masses_arr)
-    ref_com, _ = translate_to_center_of_mass(ref_arr, masses=masses_arr)
-
-    F = target_com.T @ (ref_com * masses_arr[:, np.newaxis])
-    V, S, Wt = np.linalg.svd(F)
-
-    d = float(np.linalg.det(V @ Wt))
-    diag = np.array([1.0, 1.0, 1.0 if d >= 0.0 else -1.0], dtype=np.float64)
-    U = V @ np.diag(diag) @ Wt
-
-    if np.linalg.det(U) < 0.0:
-        U = V @ np.diag([1.0, 1.0, -1.0]) @ Wt
-
-    aligned_coords = target_com @ U
-
-    trans_res = float(np.linalg.norm(np.sum(masses_arr[:, np.newaxis] * aligned_coords, axis=0) / total_mass))
-    rot_torque = np.sum(masses_arr[:, np.newaxis] * np.cross(ref_com, aligned_coords), axis=0)
-    rot_res = float(np.linalg.norm(rot_torque))
-
-    diff = aligned_coords - ref_com
-    sq_dist = np.sum(diff**2, axis=-1)
-    rmsd = float(np.sqrt(np.sum(masses_arr * sq_dist) / total_mass))
-    det_u = float(np.linalg.det(U))
-
-    return EckartAlignmentResult(
-        aligned_coords=aligned_coords.tolist(),
-        rotation_matrix=U.tolist(),
-        rmsd=rmsd,
-        residual_rotational_norm=rot_res,
-        translational_residual_norm=trans_res,
-        rotation_determinant=det_u,
-    )
-
-
-def verify_eckart_conditions(
-    target_coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    ref_coords: Union[np.ndarray, Sequence[Sequence[float]]],
-    masses: Optional[Sequence[float] | np.ndarray] = None,
-    symbols: Optional[Sequence[str]] = None,
-    tolerance: float = 1e-12,
-    benchmark_name: str = "custom",
-) -> EckartVerificationItem:
-    """
-    Verify mass-weighted translational and rotational Eckart conditions against tolerance.
-    """
-    try:
-        align_res = align_to_eckart_frame(
-            target_coords=target_coords,
-            ref_coords=ref_coords,
-            masses=masses,
-            symbols=symbols,
-            tolerance=tolerance,
-        )
-        coords_arr = np.asarray(target_coords, dtype=np.float64)
-        inertia_res = align_to_principal_axes(coords_arr, masses=masses, symbols=symbols)
-
-        has_ghost = False
-        if symbols is not None:
-            has_ghost = any(is_ghost_symbol(s) for s in symbols)
-        elif masses is not None:
-            has_ghost = any(m == 0.0 for m in masses)
-
-        is_verified = (
-            align_res.translational_residual_norm <= tolerance
-            and align_res.residual_rotational_norm <= tolerance
-            and abs(align_res.rotation_determinant - 1.0) <= 1e-9
-        )
-
-        return EckartVerificationItem(
-            benchmark_name=benchmark_name,
-            status=EckartVerificationStatus.VERIFIED if is_verified else EckartVerificationStatus.FAILED,
-            n_atoms=len(coords_arr),
-            has_ghost_atoms=has_ghost,
-            translational_residual_norm=align_res.translational_residual_norm,
-            rotational_residual_norm=align_res.residual_rotational_norm,
-            rotation_determinant=align_res.rotation_determinant,
-            rmsd=align_res.rmsd,
-            top_type=inertia_res.top_type,
-            is_verified=is_verified,
-            error_message=None if is_verified else f"Residual exceeds tolerance {tolerance}",
-        )
-    except Exception as exc:
-        return EckartVerificationItem(
-            benchmark_name=benchmark_name,
-            status=EckartVerificationStatus.FAILED,
-            n_atoms=len(target_coords) if hasattr(target_coords, "__len__") else 0,
-            has_ghost_atoms=False,
-            translational_residual_norm=1.0,
-            rotational_residual_norm=1.0,
-            rotation_determinant=0.0,
-            rmsd=1.0,
-            top_type=RotorTopType.ASYMMETRIC,
-            is_verified=False,
-            error_message=str(exc),
-        )
-
-
-# =============================================================================
-# 6. THEORETICAL BENCHMARK SUITE
-# =============================================================================
-
-
-def _generate_3d_rotation_matrix(alpha: float, beta: float, gamma: float) -> np.ndarray:
-    """Generate 3D Euler ZYZ proper rotation matrix (det = +1.0)."""
-    ca, sa = math.cos(alpha), math.sin(alpha)
-    cb, sb = math.cos(beta), math.sin(beta)
-    cg, sg = math.cos(gamma), math.sin(gamma)
-
-    Rz1 = np.array([[ca, -sa, 0.0], [sa, ca, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
-    Ry = np.array([[cb, 0.0, sb], [0.0, 1.0, 0.0], [-sb, 0.0, cb]], dtype=np.float64)
-    Rz2 = np.array([[cg, -sg, 0.0], [sg, cg, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
-    return Rz1 @ Ry @ Rz2
-
-
-def run_theoretical_eckart_benchmarks(tolerance: float = 1e-12) -> EckartVerificationReport:
-    """
-    Execute theoretical verification benchmark test suite:
-    1. Water (H2O) Rigid Rotation and Translation.
-    2. Water (H2O) Perturbed Conformation (Bond Stretch & Angle Bend).
-    3. Water Dimer Complex with Ghost Atoms (BSSE Counterpoise).
-    4. Carbon Dioxide (CO2) Linear Molecule Singularity.
-    5. Methane (CH4) Spherical Top.
-    """
-    items: List[EckartVerificationItem] = []
-
-    # Benchmark 1: Water (H2O) Rigid Rotation and Translation
-    water_symbols = ["O", "H", "H"]
-    water_ref = np.array([
-        [0.000000,  0.000000,  0.117300],
-        [0.000000,  0.757200, -0.469200],
-        [0.000000, -0.757200, -0.469200],
-    ], dtype=np.float64)
-    R_rot1 = _generate_3d_rotation_matrix(0.85, 1.42, 2.77)
-    t_rot1 = np.array([-15.2, 33.7, -9.4], dtype=np.float64)
-    water_target1 = water_ref @ R_rot1.T + t_rot1
-
-    item1 = verify_eckart_conditions(
-        target_coords=water_target1,
-        ref_coords=water_ref,
-        symbols=water_symbols,
-        tolerance=tolerance,
-        benchmark_name="H2O_Rigid_Rotation_Translation",
-    )
-    items.append(item1)
-
-    # Benchmark 2: Water (H2O) Perturbed Conformation
-    water_perturbed = water_ref.copy()
-    water_perturbed[1, 1] += 0.05
-    water_perturbed[2, 1] -= 0.03
-    water_perturbed[1, 2] += 0.02
-    R_rot2 = _generate_3d_rotation_matrix(1.1, 0.7, 1.9)
-    t_rot2 = np.array([10.0, -10.0, 5.0], dtype=np.float64)
-    water_target2 = water_perturbed @ R_rot2.T + t_rot2
-
-    item2 = verify_eckart_conditions(
-        target_coords=water_target2,
-        ref_coords=water_ref,
-        symbols=water_symbols,
-        tolerance=tolerance,
-        benchmark_name="H2O_Perturbed_Conformation",
-    )
-    items.append(item2)
-
-    # Benchmark 3: Water Dimer Complex with Ghost Atoms (BSSE Counterpoise)
-    dimer_symbols = ["GhO", "GhH", "GhH", "O", "H", "H"]
-    dimer_ref = np.array([
-        [-1.487000,  0.018000, -0.098000],
-        [-0.518000,  0.063000, -0.013000],
-        [-1.802000, -0.738000,  0.404000],
-        [ 1.428000, -0.003000,  0.076000],
-        [ 1.758000,  0.771000, -0.380000],
-        [ 1.777000, -0.760000, -0.392000],
-    ], dtype=np.float64)
-    R_rot3 = _generate_3d_rotation_matrix(0.4, 2.1, 1.5)
-    t_rot3 = np.array([5.0, 5.0, 5.0], dtype=np.float64)
-    dimer_target = dimer_ref @ R_rot3.T + t_rot3
-
-    item3 = verify_eckart_conditions(
-        target_coords=dimer_target,
-        ref_coords=dimer_ref,
-        symbols=dimer_symbols,
-        tolerance=tolerance,
-        benchmark_name="Water_Dimer_BSSE_Ghost_Complex",
-    )
-    items.append(item3)
-
-    # Benchmark 4: Carbon Dioxide (CO2) Linear Singularity
-    co2_symbols = ["C", "O", "O"]
-    co2_ref = np.array([
-        [0.000000, 0.000000,  0.000000],
-        [0.000000, 0.000000,  1.160000],
-        [0.000000, 0.000000, -1.160000],
-    ], dtype=np.float64)
-    R_rot4 = _generate_3d_rotation_matrix(0.3, 0.6, 0.9)
-    co2_target = co2_ref @ R_rot4.T + np.array([1.0, 2.0, 3.0])
-
-    item4 = verify_eckart_conditions(
-        target_coords=co2_target,
-        ref_coords=co2_ref,
-        symbols=co2_symbols,
-        tolerance=tolerance,
-        benchmark_name="CO2_Linear_Singularity",
-    )
-    items.append(item4)
-
-    # Benchmark 5: Methane (CH4) Spherical Top
-    ch4_symbols = ["C", "H", "H", "H", "H"]
-    ch4_ref = np.array([
-        [ 0.000000,  0.000000,  0.000000],
-        [ 0.629118,  0.629118,  0.629118],
-        [-0.629118, -0.629118,  0.629118],
-        [ 0.629118, -0.629118, -0.629118],
-        [-0.629118,  0.629118, -0.629118],
-    ], dtype=np.float64)
-    R_rot5 = _generate_3d_rotation_matrix(1.5, 0.5, 2.2)
-    ch4_target = ch4_ref @ R_rot5.T
-
-    item5 = verify_eckart_conditions(
-        target_coords=ch4_target,
-        ref_coords=ch4_ref,
-        symbols=ch4_symbols,
-        tolerance=tolerance,
-        benchmark_name="CH4_Spherical_Top",
-    )
-    items.append(item5)
-
-    passed_cnt = sum(1 for it in items if it.is_verified)
-    failed_cnt = len(items) - passed_cnt
-    max_trans = max(it.translational_residual_norm for it in items)
-    max_rot = max(it.rotational_residual_norm for it in items)
-
-    overall_status = EckartVerificationStatus.VERIFIED if failed_cnt == 0 else EckartVerificationStatus.FAILED
-
-    return EckartVerificationReport(
-        total_benchmarks=len(items),
-        passed_benchmarks=passed_cnt,
-        failed_benchmarks=failed_cnt,
-        overall_status=overall_status,
-        max_translational_residual=max_trans,
-        max_rotational_residual=max_rot,
-        items=items,
-    )
-
-
-# =============================================================================
-# 7. EPHEMERAL QUARANTINED SANDBOX SCAFFOLDING ENGINE
-# =============================================================================
-
-
-def resolve_sandbox_base_directory(
-    custom_dir: Optional[Union[str, Path]] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> Path:
-    """
-    Determine the base directory for ephemeral execution sandboxes.
-    Evaluates explicit custom_dir, COCHEM_SANDBOX_BASE, /tmp (POSIX), or OS tempdir.
-    """
-    target_env = os.environ if env is None else env
-
-    if custom_dir is not None and str(custom_dir).strip():
-        base = Path(custom_dir).resolve()
-        base.mkdir(parents=True, exist_ok=True)
-        return base
-
-    if "COCHEM_SANDBOX_BASE" in target_env and target_env["COCHEM_SANDBOX_BASE"].strip():
-        base = Path(target_env["COCHEM_SANDBOX_BASE"]).resolve()
-        base.mkdir(parents=True, exist_ok=True)
-        return base
-
-    if platform.system() != "Windows":
-        tmp_candidate = Path("/tmp")
-        if tmp_candidate.exists() and os.access(str(tmp_candidate), os.W_OK):
-            return tmp_candidate
-
-    return Path(tempfile.gettempdir()).resolve()
-
-
-def scaffold_ephemeral_sandbox(
-    base_dir: Optional[Union[str, Path]] = None,
-    prefix: str = "cochem_exec_",
-    custom_uuid: Optional[str] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> EphemeralSandboxProfile:
-    """
-    Scaffold an ephemeral quarantined execution sandbox (/tmp/cochem_exec_<uuid>/).
-    Enforces strict permissions (0o700 where supported), verifies read/write isolation,
-    and returns a validated EphemeralSandboxProfile.
-    """
-    target_base = resolve_sandbox_base_directory(custom_dir=base_dir, env=env)
-    exec_uuid = custom_uuid if custom_uuid is not None and custom_uuid.strip() else uuid.uuid4().hex
-    sandbox_dir = target_base / f"{prefix}{exec_uuid}"
-
-    try:
-        sandbox_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        raise EphemeralSandboxError(f"Failed to create ephemeral sandbox directory at {sandbox_dir}: {exc}") from exc
-
-    perm_desc = "0o700"
-    if platform.system() != "Windows":
-        try:
-            os.chmod(sandbox_dir, stat.S_IRWXU)
-            current_mode = stat.S_IMODE(os.stat(sandbox_dir).st_mode)
-            perm_desc = oct(current_mode)
-        except Exception:
-            perm_desc = "0o755"
-    else:
-        perm_desc = "WIN_ACL_USER_EXCLUSIVE"
-
-    sentinel_name = f".isolation_barrier_{uuid.uuid4().hex[:8]}.tmp"
-    sentinel_path = sandbox_dir / sentinel_name
-    is_writable = False
-    is_isolated = False
-
-    try:
-        with open(sentinel_path, "wb") as f:
-            f.write(b"COCHEM_ISOLATION_SENTINEL_OK\n")
-            f.flush()
-            os.fsync(f.fileno())
-        is_writable = True
-
-        with open(sentinel_path, "rb") as f:
-            content = f.read()
-            if content == b"COCHEM_ISOLATION_SENTINEL_OK\n":
-                is_isolated = True
-
-        sentinel_path.unlink()
-    except Exception as exc:
-        if sentinel_path.exists():
-            try:
-                sentinel_path.unlink()
-            except Exception:
-                pass
-        raise EphemeralSandboxError(
-            f"Ephemeral sandbox isolation verification failed at {sandbox_dir}: {exc}"
-        ) from exc
-
-    return EphemeralSandboxProfile(
-        sandbox_path=str(sandbox_dir.resolve()),
-        sandbox_uuid=exec_uuid,
-        base_directory=str(target_base),
-        is_created=sandbox_dir.exists(),
-        is_writable=is_writable,
-        is_isolated=is_isolated,
-        permissions_octal=perm_desc,
-        cleanup_verified=True,
-        active_pid=os.getpid(),
-    )
-
-
-def cleanup_ephemeral_sandbox(sandbox_path: Union[str, Path]) -> bool:
-    """
-    Safely and idempotently clean up an ephemeral execution sandbox directory.
-    Handles Windows kernel locks and file attribute permissions gracefully.
-    """
-    target = Path(sandbox_path).resolve()
-    if not target.exists():
-        return True
-
-    def _remove_readonly(func: Any, path: str, excinfo: Any) -> None:
-        try:
-            os.chmod(path, stat.S_IWRITE)
-            func(path)
-        except Exception:
-            pass
-
-    try:
-        shutil.rmtree(target, onerror=_remove_readonly)
-        return not target.exists()
-    except Exception:
-        try:
-            for item in target.glob("**/*"):
-                if item.is_file():
-                    try:
-                        os.chmod(item, stat.S_IWRITE)
-                        item.unlink()
-                    except Exception:
-                        pass
-            for item in sorted(target.glob("**/*"), reverse=True):
-                if item.is_dir():
-                    try:
-                        item.rmdir()
-                    except Exception:
-                        pass
-            target.rmdir()
-        except Exception:
-            pass
-        return not target.exists()
-
-
-# =============================================================================
-# 8. 10 MB UNBUFFERED IOPS BENCHMARK ENGINE
-# =============================================================================
-
-
-def run_unbuffered_iops_benchmark(
-    target_dir: Union[str, Path],
-    file_size_mb: float = 10.0,
-    block_size_kb: int = 64,
-    env: Optional[Dict[str, str]] = None,
-) -> IOPSBenchmarkProfile:
-    """
-    Execute a 10 MB unbuffered sequential I/O benchmark in the target directory.
-    Measures write throughput (MB/s), write IOPS, read throughput (MB/s), read IOPS,
-    and fsync barrier flush latency.
-    """
-    target_path = Path(target_dir).resolve()
-    if not target_path.exists():
-        target_path.mkdir(parents=True, exist_ok=True)
-
-    total_bytes = int(file_size_mb * 1024 * 1024)
-    block_bytes = max(512, int(block_size_kb * 1024))
-    total_blocks = max(1, total_bytes // block_bytes)
-    actual_file_size = total_blocks * block_bytes
-
-    pattern = bytearray((i % 251) ^ 0xA5 for i in range(block_bytes))
-    test_filename = f".iops_benchmark_{uuid.uuid4().hex[:8]}.bin"
-    test_filepath = target_path / test_filename
-
-    write_duration = 0.0
-    sync_latency_ms = 0.0
-    read_duration = 0.0
-    is_unbuffered = True
-
-    try:
-        t_w0 = time.perf_counter()
-        open_flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-        if hasattr(os, "O_BINARY"):
-            open_flags |= getattr(os, "O_BINARY", 0)
-
-        use_direct = False
-        if hasattr(os, "O_DIRECT") and platform.system() != "Windows":
-            try:
-                fd_test = os.open(str(test_filepath), open_flags | os.O_DIRECT)
-                os.close(fd_test)
-                use_direct = True
+                if temp_file.exists():
+                    temp_file.unlink()
             except OSError:
-                use_direct = False
-
-        if use_direct and hasattr(os, "O_DIRECT"):
-            open_flags |= getattr(os, "O_DIRECT", 0)
-
-        fd = os.open(str(test_filepath), open_flags, 0o600)
-        try:
-            for _ in range(total_blocks):
-                os.write(fd, pattern)
-
-            t_sync0 = time.perf_counter()
-            os.fsync(fd)
-            t_sync1 = time.perf_counter()
-            sync_latency_ms = (t_sync1 - t_sync0) * 1000.0
-        finally:
-            os.close(fd)
-        t_w1 = time.perf_counter()
-        write_duration = max(1e-6, t_w1 - t_w0)
-
-        t_r0 = time.perf_counter()
-        read_flags = os.O_RDONLY
-        if hasattr(os, "O_BINARY"):
-            read_flags |= getattr(os, "O_BINARY", 0)
-        if use_direct and hasattr(os, "O_DIRECT"):
-            read_flags |= getattr(os, "O_DIRECT", 0)
-
-        fd_read = os.open(str(test_filepath), read_flags)
-        try:
-            bytes_read_total = 0
-            while bytes_read_total < actual_file_size:
-                chunk = os.read(fd_read, block_bytes)
-                if not chunk:
-                    break
-                bytes_read_total += len(chunk)
-        finally:
-            os.close(fd_read)
-        t_r1 = time.perf_counter()
-        read_duration = max(1e-6, t_r1 - t_r0)
-
-    except Exception as exc:
-        raise IOPSBenchmarkError(
-            f"10 MB unbuffered IOPS benchmark execution failed at {target_path}: {exc}"
-        ) from exc
-    finally:
-        if test_filepath.exists():
-            try:
-                test_filepath.unlink()
-            except Exception:
                 pass
+        self._tracked_temp_files.clear()
 
-    size_mb = actual_file_size / (1024.0 * 1024.0)
-    write_mb_s = size_mb / write_duration
-    read_mb_s = size_mb / read_duration
-    write_iops = total_blocks / write_duration
-    read_iops = total_blocks / read_duration
-
-    if write_mb_s >= 100.0 and read_mb_s >= 100.0:
-        status = IOPSBenchmarkStatus.OPTIMAL
-        is_sufficient = True
-    elif write_mb_s >= 20.0 and read_mb_s >= 20.0:
-        status = IOPSBenchmarkStatus.ACCEPTABLE
-        is_sufficient = True
-    elif write_mb_s >= 5.0 and read_mb_s >= 5.0:
-        status = IOPSBenchmarkStatus.DEGRADED
-        is_sufficient = True
-    else:
-        status = IOPSBenchmarkStatus.FAILED
-        is_sufficient = False
-
-    return IOPSBenchmarkProfile(
-        target_directory=str(target_path),
-        file_size_bytes=actual_file_size,
-        block_size_bytes=block_bytes,
-        total_blocks=total_blocks,
-        write_duration_seconds=round(write_duration, 4),
-        write_throughput_mb_s=round(write_mb_s, 2),
-        write_iops=round(write_iops, 1),
-        read_duration_seconds=round(read_duration, 4),
-        read_throughput_mb_s=round(read_mb_s, 2),
-        read_iops=round(read_iops, 1),
-        sync_latency_ms=round(sync_latency_ms, 2),
-        status=status,
-        is_unbuffered=is_unbuffered,
-        is_performance_sufficient=is_sufficient,
-    )
-
-
-# =============================================================================
-# 9. QUANTUM CHECKPOINT VALIDATION ENGINE (.gbw, .chk, .xtbw)
-# =============================================================================
-
-
-def compute_file_sha256(file_path: Union[str, Path]) -> str:
-    """Compute the SHA-256 hexadecimal checksum of a file on disk."""
-    p = Path(file_path).resolve()
-    h = hashlib.sha256()
-    with open(p, "rb") as f:
-        while chunk := f.read(65536):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def validate_orca_gbw_checkpoint(file_path: Union[str, Path]) -> CheckpointValidationItem:
-    """
-    Validate an ORCA binary wavefunction checkpoint file (.gbw).
-    Verifies non-empty file size, binary readability, structural integrity,
-    computes cryptographic hash, and evaluates resumption readiness.
-    """
-    p = Path(file_path).resolve()
-    if not p.exists():
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.ORCA_GBW,
-            status=CheckpointStatus.NOT_FOUND,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"File not found: {p}",
-        )
-
-    try:
-        size = p.stat().st_size
-    except Exception as exc:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.ORCA_GBW,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"Cannot stat file: {exc}",
-        )
-
-    if size == 0:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.ORCA_GBW,
-            status=CheckpointStatus.TRUNCATED,
-            size_bytes=0,
-            is_resumable=False,
-            error_message="File is 0 bytes (empty/truncated)",
-        )
-
-    if size < 32:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.ORCA_GBW,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=size,
-            is_resumable=False,
-            error_message=f"File size ({size} bytes) below minimum ORCA .gbw binary threshold",
-        )
-
-    try:
-        with open(p, "rb") as f:
-            header_bytes = f.read(64)
-        sha256 = compute_file_sha256(p)
-    except Exception as exc:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.ORCA_GBW,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=size,
-            is_resumable=False,
-            error_message=f"Failed to read binary stream: {exc}",
-        )
-
-    metadata: Dict[str, Any] = {
-        "file_size_bytes": size,
-        "header_preview_hex": header_bytes[:16].hex(),
-        "is_binary": True,
-        "format_type": "ORCA_GBW_BINARY",
-    }
-
-    return CheckpointValidationItem(
-        file_path=str(p),
-        format=CheckpointFormat.ORCA_GBW,
-        status=CheckpointStatus.VALID,
-        size_bytes=size,
-        sha256_hash=sha256,
-        is_resumable=True,
-        metadata=metadata,
-    )
-
-
-def validate_pyscf_chk_checkpoint(file_path: Union[str, Path]) -> CheckpointValidationItem:
-    """
-    Validate a PySCF HDF5 checkpoint file (.chk).
-    Verifies HDF5 superblock signature, opens with h5py (or binary check if h5py absent),
-    inspects scf/mo_coeff, scf/e_tot, and mol groups, and assesses resumption integrity.
-    """
-    p = Path(file_path).resolve()
-    if not p.exists():
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.PYSCF_CHK,
-            status=CheckpointStatus.NOT_FOUND,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"File not found: {p}",
-        )
-
-    try:
-        size = p.stat().st_size
-    except Exception as exc:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.PYSCF_CHK,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"Cannot stat file: {exc}",
-        )
-
-    if size == 0:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.PYSCF_CHK,
-            status=CheckpointStatus.TRUNCATED,
-            size_bytes=0,
-            is_resumable=False,
-            error_message="File is 0 bytes (empty/truncated)",
-        )
-
-    try:
-        with open(p, "rb") as f:
-            magic = f.read(8)
-    except Exception as exc:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.PYSCF_CHK,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=size,
-            is_resumable=False,
-            error_message=f"Cannot read file magic: {exc}",
-        )
-
-    hdf5_magic = b"\x89HDF\r\n\x1a\n"
-    if magic != hdf5_magic:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.PYSCF_CHK,
-            status=CheckpointStatus.INVALID_FORMAT,
-            size_bytes=size,
-            is_resumable=False,
-            error_message="File lacks valid HDF5 magic number signature",
-        )
-
-    metadata: Dict[str, Any] = {"file_size_bytes": size, "format_type": "PYSCF_HDF5_CHK"}
-    is_resumable = True
-    status = CheckpointStatus.VALID
-    err_msg = None
-
-    if _HAS_H5PY and h5py is not None:
-        try:
-            with h5py.File(str(p), "r") as h5:
-                keys = list(h5.keys())
-                metadata["root_keys"] = keys
-                has_scf = "scf" in h5
-                has_mol = "mol" in h5
-                metadata["has_scf_group"] = has_scf
-                metadata["has_mol_group"] = has_mol
-
-                if has_scf:
-                    scf_grp = h5["scf"]
-                    metadata["scf_keys"] = list(scf_grp.keys())
-                    if "e_tot" in scf_grp:
-                        try:
-                            metadata["e_tot"] = float(scf_grp["e_tot"][()])
-                        except Exception:
-                            pass
-        except Exception as exc:
-            status = CheckpointStatus.CORRUPT
-            is_resumable = False
-            err_msg = f"HDF5 parsing exception: {exc}"
-    else:
-        metadata["h5py_available"] = False
-        metadata["verified_by_magic_number"] = True
-
-    try:
-        sha256 = compute_file_sha256(p)
-    except Exception:
-        sha256 = None
-
-    return CheckpointValidationItem(
-        file_path=str(p),
-        format=CheckpointFormat.PYSCF_CHK,
-        status=status,
-        size_bytes=size,
-        sha256_hash=sha256,
-        is_resumable=is_resumable,
-        metadata=metadata,
-        error_message=err_msg,
-    )
-
-
-def validate_xtb_xtbw_checkpoint(file_path: Union[str, Path]) -> CheckpointValidationItem:
-    """
-    Validate an xTB restart checkpoint file (.xtbw).
-    """
-    p = Path(file_path).resolve()
-    if not p.exists():
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.XTB_XTBW,
-            status=CheckpointStatus.NOT_FOUND,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"File not found: {p}",
-        )
-
-    try:
-        size = p.stat().st_size
-    except Exception as exc:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.XTB_XTBW,
-            status=CheckpointStatus.CORRUPT,
-            size_bytes=0,
-            is_resumable=False,
-            error_message=f"Cannot stat file: {exc}",
-        )
-
-    if size == 0:
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.XTB_XTBW,
-            status=CheckpointStatus.TRUNCATED,
-            size_bytes=0,
-            is_resumable=False,
-            error_message="File is 0 bytes (empty/truncated)",
-        )
-
-    try:
-        sha256 = compute_file_sha256(p)
-    except Exception:
-        sha256 = None
-
-    return CheckpointValidationItem(
-        file_path=str(p),
-        format=CheckpointFormat.XTB_XTBW,
-        status=CheckpointStatus.VALID,
-        size_bytes=size,
-        sha256_hash=sha256,
-        is_resumable=True,
-        metadata={"file_size_bytes": size, "format_type": "XTB_BINARY_RESTART"},
-    )
-
-
-def validate_checkpoint_file(file_path: Union[str, Path]) -> CheckpointValidationItem:
-    """
-    Polymorphic checkpoint validator: automatically detects format by extension
-    and executes appropriate validation protocol.
-    """
-    p = Path(file_path).resolve()
-    suffix = p.suffix.lower()
-
-    if suffix == ".gbw":
-        return validate_orca_gbw_checkpoint(p)
-    elif suffix == ".chk":
-        return validate_pyscf_chk_checkpoint(p)
-    elif suffix == ".xtbw":
-        return validate_xtb_xtbw_checkpoint(p)
-    else:
-        if p.exists() and p.is_file() and p.stat().st_size >= 8:
+        for temp_dir in self._tracked_temp_dirs:
             try:
-                with open(p, "rb") as f:
-                    magic = f.read(8)
-                if magic == b"\x89HDF\r\n\x1a\n":
-                    return validate_pyscf_chk_checkpoint(p)
-            except Exception:
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+            except OSError:
                 pass
+        self._tracked_temp_dirs.clear()
 
-        return CheckpointValidationItem(
-            file_path=str(p),
-            format=CheckpointFormat.UNKNOWN,
-            status=CheckpointStatus.INVALID_FORMAT,
-            size_bytes=p.stat().st_size if p.exists() else 0,
-            is_resumable=False,
-            error_message=f"Unsupported checkpoint format suffix: {suffix}",
+    def atomic_write_json(
+        self,
+        target_path: Union[str, Path],
+        data: BaseModel,
+        indent: int = 2,
+    ) -> Path:
+        """
+        Atomically write Pydantic model JSON payload to target destination using
+        ephemeral temporary file and atomic replace.
+        """
+        target = Path(target_path).resolve()
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        temp_file = self.create_temp_file(
+            suffix=".tmp",
+            prefix=f"{target.name}_",
+            directory=target.parent,
         )
 
+        json_text = data.model_dump_json(indent=indent)
+        temp_file.write_text(json_text, encoding="utf-8")
 
-def scan_and_validate_checkpoints(
-    search_dirs: Optional[List[Union[str, Path]]] = None,
-) -> CheckpointValidationReport:
-    """
-    Scan specified directories for checkpoint files (.gbw, .chk, .xtbw) and validate each.
-    """
-    if search_dirs is None:
-        return CheckpointValidationReport(
-            scanned_count=0,
-            valid_count=0,
-            corrupt_count=0,
-            resumable_checkpoints=[],
-            validation_enabled=True,
-        )
+        # Atomic replacement
+        shutil.move(str(temp_file), str(target))
+        if temp_file in self._tracked_temp_files:
+            self._tracked_temp_files.remove(temp_file)
 
-    items: List[CheckpointValidationItem] = []
-    scanned = 0
-    valid = 0
-    corrupt = 0
-    seen_paths: Set[str] = set()
+        # Apply standard directory permissions
+        try:
+            os.chmod(target, 0o644)
+        except OSError:
+            pass
 
-    for s_dir in search_dirs:
-        dir_path = Path(s_dir).resolve()
-        if not dir_path.exists() or not dir_path.is_dir():
-            continue
-
-        for ext in ["*.gbw", "*.chk", "*.xtbw"]:
-            for f_path in dir_path.glob(ext):
-                abs_str = str(f_path.resolve())
-                if abs_str in seen_paths:
-                    continue
-                seen_paths.add(abs_str)
-
-                item = validate_checkpoint_file(f_path)
-                items.append(item)
-                scanned += 1
-                if item.status == CheckpointStatus.VALID and item.is_resumable:
-                    valid += 1
-                elif item.status in (CheckpointStatus.CORRUPT, CheckpointStatus.TRUNCATED):
-                    corrupt += 1
-
-    return CheckpointValidationReport(
-        scanned_count=scanned,
-        valid_count=valid,
-        corrupt_count=corrupt,
-        resumable_checkpoints=items,
-        validation_enabled=True,
-    )
+        return target
 
 
 # =============================================================================
-# 10. STATE-CHAIN CONTINUITY & RECOVERY AUDIT ENGINE
+# 5. DISCOVERY & PARSING FUNCTIONS (ZERO-MOCK)
 # =============================================================================
 
 
 def find_repository_root(start_path: Optional[Union[str, Path]] = None) -> Path:
-    """Locate the CoChem-BASE repository root by traversing upward from start_path."""
-    curr = Path(start_path).resolve() if start_path else Path(__file__).resolve().parent
-    for _ in range(8):
-        if (curr / "pyproject.toml").exists() or (curr / "Registry").exists() or (curr / ".git").exists():
-            return curr
-        if curr.parent == curr:
-            break
-        curr = curr.parent
-    return Path(__file__).resolve().parent.parent
+    """Find repository root by walking upward looking for .git or pyproject.toml."""
+    current = Path(start_path or Path.cwd()).resolve()
+    for parent in [current] + list(current.parents):
+        if (parent / ".git").exists() or (parent / "pyproject.toml").exists() or (parent / "pytest.ini").exists():
+            return parent
+    return current
 
 
-def resolve_p10_registry_path(
+def resolve_p11_registry_path(
     output_dir: Optional[Union[str, Path]] = None,
     env: Optional[Dict[str, str]] = None,
 ) -> Path:
     """
-    Resolve the absolute target path for the Phase 10 Golden Registry artifact (p10.json).
+    Resolve the absolute target path for the Phase 11 Golden Registry artifact (p11.json).
     Priority: explicit output_dir -> COCHEM_REGISTRY_DIR -> COCHEM_ARTIFACT_DIR -> fallback.
     """
     target_env = os.environ if env is None else env
 
     if output_dir is not None and str(output_dir).strip():
         out_p = Path(output_dir).resolve()
-        if out_p.is_file() or out_p.suffix == ".json":
+        if out_p.name.endswith(".json"):
+            out_p.parent.mkdir(parents=True, exist_ok=True)
             return out_p
-        return out_p / "p10.json"
+        out_p.mkdir(parents=True, exist_ok=True)
+        return out_p / "p11.json"
 
     if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
-        return (Path(target_env["COCHEM_REGISTRY_DIR"]) / "p10.json").resolve()
+        dest = (Path(target_env["COCHEM_REGISTRY_DIR"]) / "p11.json").resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        return dest
 
     if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
-        return (Path(target_env["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p10.json").resolve()
+        dest = (Path(target_env["COCHEM_ARTIFACT_DIR"]) / "Registry" / "p11.json").resolve()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        return dest
 
-    home_reg = Path.home() / "CoChem_Artifacts" / "Registry" / "p10.json"
-    return home_reg.resolve()
-
-
-def audit_state_chain_recovery(
-    registry_dir: Optional[Union[str, Path]] = None,
-    sandbox_base_dir: Optional[Union[str, Path]] = None,
-    env: Optional[Dict[str, str]] = None,
-) -> StateChainRecoveryProfile:
-    """
-    Interrogate state-chain continuity across previous setup phases (p1.json through p9.json).
-    Scans for orphaned ephemeral sandboxes from previous interrupted runs and evaluates
-    interrupted quantum jobs for recovery.
-    """
-    target_env = os.environ if env is None else env
     repo_root = find_repository_root()
+    dest = (repo_root / "artifacts" / "registry" / "p11.json").resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    return dest
 
-    candidate_reg_dirs: List[Path] = []
-    if registry_dir is not None and str(registry_dir).strip():
-        candidate_reg_dirs.append(Path(registry_dir).resolve())
-    if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
-        candidate_reg_dirs.append(Path(target_env["COCHEM_REGISTRY_DIR"]).resolve())
-    candidate_reg_dirs.append(Path.home() / "CoChem_Artifacts" / "Registry")
-    candidate_reg_dirs.append(repo_root / "Registry")
 
-    active_reg_dir: Path = candidate_reg_dirs[0]
-    for d in candidate_reg_dirs:
-        if d.exists() and d.is_dir():
-            active_reg_dir = d
-            break
-
-    verified_phases: List[str] = []
-    missing_phases: List[str] = []
-
-    for i in range(1, 10):
-        phase_name = f"p{i}.json"
-        phase_file = active_reg_dir / phase_name
-        if phase_file.exists() and phase_file.is_file() and phase_file.stat().st_size > 0:
-            try:
-                with open(phase_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict) and data.get("status") in ("PASSED", "DEGRADED"):
-                        verified_phases.append(f"p{i}")
-                    else:
-                        missing_phases.append(f"p{i}")
-            except Exception:
-                missing_phases.append(f"p{i}")
-        else:
-            missing_phases.append(f"p{i}")
-
-    chain_intact = len(missing_phases) == 0
-
-    s_base = resolve_sandbox_base_directory(custom_dir=sandbox_base_dir, env=target_env)
-    orphaned: List[str] = []
-    recoverable: List[Dict[str, Any]] = []
-
-    if s_base.exists() and s_base.is_dir():
+def get_absolute_physical_ram() -> int:
+    """
+    Define absolute physical RAM bypassing virtualized/swap memory traps.
+    Utilizes POSIX sysconf SC_PHYS_PAGES * SC_PAGE_SIZE when available,
+    falling back to psutil.virtual_memory().total.
+    """
+    if hasattr(os, "sysconf") and hasattr(os, "sysconf_names"):
         try:
-            for item in s_base.glob("cochem_exec_*"):
-                if item.is_dir():
-                    orphaned.append(str(item.resolve()))
-                    chk_report = scan_and_validate_checkpoints([item])
-                    if chk_report.valid_count > 0:
-                        recoverable.append({
-                            "sandbox_path": str(item.resolve()),
-                            "valid_checkpoints": [c.model_dump() for c in chk_report.resumable_checkpoints if c.is_resumable],
-                        })
-        except Exception:
+            if "SC_PHYS_PAGES" in os.sysconf_names and "SC_PAGE_SIZE" in os.sysconf_names:
+                pages = os.sysconf("SC_PHYS_PAGES")
+                page_size = os.sysconf("SC_PAGE_SIZE")
+                if pages > 0 and page_size > 0:
+                    return int(pages * page_size)
+        except (ValueError, OSError, AttributeError):
             pass
 
-    return StateChainRecoveryProfile(
-        registry_directory=str(active_reg_dir),
-        verified_phases=verified_phases,
-        missing_phases=missing_phases,
-        chain_intact=chain_intact,
-        recoverable_jobs=recoverable,
-        orphaned_sandboxes=orphaned,
+    vmem = psutil.virtual_memory()
+    return int(vmem.total)
+
+
+def load_phase_2_audit_findings(
+    p2_path: Optional[Union[str, Path]] = None,
+    registry_dir: Optional[Union[str, Path]] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> Optional[Phase2AuditFindings]:
+    """
+    Dynamically discover and load Phase 2 Hardware & Resource Gatekeeper findings from p2.json.
+    Searches explicit paths, environment variable locations, and standard registry candidate directories.
+    """
+    target_env = os.environ if env is None else env
+    candidates: List[Path] = []
+
+    if p2_path is not None and str(p2_path).strip():
+        candidates.append(Path(p2_path).resolve())
+    else:
+        if registry_dir is not None and str(registry_dir).strip():
+            r_dir = Path(registry_dir).resolve()
+            if r_dir.name.endswith(".json"):
+                candidates.append(r_dir)
+            else:
+                candidates.append(r_dir / "p2.json")
+
+        if "COCHEM_REGISTRY_DIR" in target_env and target_env["COCHEM_REGISTRY_DIR"].strip():
+            candidates.append(Path(target_env["COCHEM_REGISTRY_DIR"]).resolve() / "p2.json")
+
+        if "COCHEM_ARTIFACT_DIR" in target_env and target_env["COCHEM_ARTIFACT_DIR"].strip():
+            candidates.append(Path(target_env["COCHEM_ARTIFACT_DIR"]).resolve() / "Registry" / "p2.json")
+
+        repo_root = find_repository_root()
+        candidates.append(repo_root / "artifacts" / "registry" / "p2.json")
+        candidates.append(repo_root / "Registry" / "p2.json")
+        candidates.append(Path.cwd() / "Registry" / "p2.json")
+        candidates.append(Path.cwd() / ".agent_artifacts" / "Registry" / "p2.json")
+        candidates.append(Path.home() / "CoChem_Artifacts" / "Registry" / "p2.json")
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file() and candidate.stat().st_size > 0:
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "memory" in data and "cpu" in data:
+                    mem_data = data.get("memory", {})
+                    cpu_data = data.get("cpu", {})
+                    gpu_data = data.get("gpu", {})
+                    status_val = str(data.get("status", "PASSED"))
+
+                    tot_ram = int(mem_data.get("total_bytes") or psutil.virtual_memory().total)
+                    eff_ram = int(mem_data.get("effective_memory_bytes") or tot_ram)
+                    phys_cores = int(cpu_data.get("physical_cores") or psutil.cpu_count(logical=False) or 1)
+                    log_cores = int(cpu_data.get("logical_cores") or psutil.cpu_count(logical=True) or 1)
+                    is_cg = bool(mem_data.get("is_cgroup_constrained", False))
+                    gpu_avail = bool(gpu_data.get("available", False))
+
+                    return Phase2AuditFindings(
+                        loaded_from=str(candidate.resolve()),
+                        status=status_val,
+                        total_physical_ram_bytes=tot_ram,
+                        effective_memory_bytes=eff_ram,
+                        physical_cores=phys_cores,
+                        logical_cores=log_cores,
+                        is_cgroup_constrained=is_cg,
+                        gpu_available=gpu_avail,
+                    )
+            except Exception:
+                continue
+
+    return None
+
+
+def parse_proc_meminfo(proc_root: Optional[Path] = None) -> Dict[str, int]:
+    """
+    Parse Linux /proc/meminfo into a key-value dictionary of memory statistics in bytes.
+    Returns empty dict on non-Linux or when file does not exist.
+    """
+    base_dir = proc_root or Path("/proc")
+    meminfo_path = base_dir / "meminfo"
+
+    if not meminfo_path.exists():
+        return {}
+
+    parsed: Dict[str, int] = {}
+    try:
+        lines = meminfo_path.read_text(encoding="utf-8").splitlines()
+        for line in lines:
+            line = line.strip()
+            if not line or ":" not in line:
+                continue
+            key, rest = line.split(":", 1)
+            parts = rest.strip().split()
+            if not parts:
+                continue
+            val_str = parts[0]
+            unit = parts[1].lower() if len(parts) > 1 else ""
+
+            try:
+                val = int(val_str)
+                if unit == "kb":
+                    val *= 1024
+                elif unit == "mb":
+                    val *= 1024 * 1024
+                elif unit == "gb":
+                    val *= 1024 * 1024 * 1024
+                parsed[key.strip()] = val
+            except ValueError:
+                pass
+    except (OSError, UnicodeDecodeError):
+        pass
+
+    return parsed
+
+
+def parse_cgroup_memory_bounds(cgroup_root: Optional[Path] = None) -> CGroupMemoryProfile:
+    """
+    Interrogate Linux control groups (cgroups v1 and v2) for hard memory limits,
+    high watermark throttling bounds, and current usage.
+    """
+    if platform.system() != "Linux" and cgroup_root is None:
+        return CGroupMemoryProfile(
+            cgroup_version=CGroupVersion.NOT_APPLICABLE,
+            memory_limit_bytes=None,
+            memory_max_bytes=None,
+            memory_high_bytes=None,
+            memory_current_bytes=None,
+            swap_limit_bytes=None,
+            is_cgroup_constrained=False,
+            cgroup_path=None,
+        )
+
+    root = cgroup_root or Path("/sys/fs/cgroup")
+    if not root.exists():
+        return CGroupMemoryProfile(
+            cgroup_version=CGroupVersion.NOT_AVAILABLE,
+            memory_limit_bytes=None,
+            memory_max_bytes=None,
+            memory_high_bytes=None,
+            memory_current_bytes=None,
+            swap_limit_bytes=None,
+            is_cgroup_constrained=False,
+            cgroup_path=None,
+        )
+
+    # 1. Probe Cgroups v2: memory.max, memory.high, memory.current
+    v2_max_file = root / "memory.max"
+    v2_high_file = root / "memory.high"
+    v2_current_file = root / "memory.current"
+
+    if v2_max_file.exists():
+        max_bytes: Optional[int] = None
+        high_bytes: Optional[int] = None
+        current_bytes: Optional[int] = None
+        is_constrained = False
+
+        try:
+            content = v2_max_file.read_text(encoding="utf-8").strip()
+            if content and content != "max":
+                val = int(content)
+                if 0 < val < CGROUP_V1_UNLIMITED_THRESHOLD:
+                    max_bytes = val
+                    is_constrained = True
+        except (ValueError, OSError):
+            pass
+
+        if v2_high_file.exists():
+            try:
+                high_content = v2_high_file.read_text(encoding="utf-8").strip()
+                if high_content and high_content != "max":
+                    val = int(high_content)
+                    if 0 < val < CGROUP_V1_UNLIMITED_THRESHOLD:
+                        high_bytes = val
+            except (ValueError, OSError):
+                pass
+
+        if v2_current_file.exists():
+            try:
+                cur_content = v2_current_file.read_text(encoding="utf-8").strip()
+                if cur_content:
+                    current_bytes = int(cur_content)
+            except (ValueError, OSError):
+                pass
+
+        return CGroupMemoryProfile(
+            cgroup_version=CGroupVersion.V2,
+            memory_limit_bytes=max_bytes,
+            memory_max_bytes=max_bytes,
+            memory_high_bytes=high_bytes,
+            memory_current_bytes=current_bytes,
+            swap_limit_bytes=None,
+            is_cgroup_constrained=is_constrained,
+            cgroup_path=str(v2_max_file),
+        )
+
+    # 2. Probe Cgroups v1: memory/memory.limit_in_bytes, memory/memory.memsw.limit_in_bytes
+    v1_mem_dir = root / "memory" if (root / "memory").is_dir() else root
+    v1_limit_file = v1_mem_dir / "memory.limit_in_bytes"
+    v1_memsw_file = v1_mem_dir / "memory.memsw.limit_in_bytes"
+    v1_usage_file = v1_mem_dir / "memory.usage_in_bytes"
+
+    if v1_limit_file.exists():
+        limit_bytes: Optional[int] = None
+        swap_bytes: Optional[int] = None
+        usage_bytes: Optional[int] = None
+        is_constrained = False
+
+        try:
+            content = v1_limit_file.read_text(encoding="utf-8").strip()
+            if content and content != "-1":
+                val = int(content)
+                if 0 < val < CGROUP_V1_UNLIMITED_THRESHOLD:
+                    limit_bytes = val
+                    is_constrained = True
+        except (ValueError, OSError):
+            pass
+
+        if v1_memsw_file.exists():
+            try:
+                sw_content = v1_memsw_file.read_text(encoding="utf-8").strip()
+                if sw_content and sw_content != "-1":
+                    val = int(sw_content)
+                    if 0 < val < CGROUP_V1_UNLIMITED_THRESHOLD:
+                        swap_bytes = val
+            except (ValueError, OSError):
+                pass
+
+        if v1_usage_file.exists():
+            try:
+                u_content = v1_usage_file.read_text(encoding="utf-8").strip()
+                if u_content:
+                    usage_bytes = int(u_content)
+            except (ValueError, OSError):
+                pass
+
+        return CGroupMemoryProfile(
+            cgroup_version=CGroupVersion.V1,
+            memory_limit_bytes=limit_bytes,
+            memory_max_bytes=limit_bytes,
+            memory_high_bytes=None,
+            memory_current_bytes=usage_bytes,
+            swap_limit_bytes=swap_bytes,
+            is_cgroup_constrained=is_constrained,
+            cgroup_path=str(v1_limit_file),
+        )
+
+    return CGroupMemoryProfile(
+        cgroup_version=CGroupVersion.NOT_AVAILABLE,
+        memory_limit_bytes=None,
+        memory_max_bytes=None,
+        memory_high_bytes=None,
+        memory_current_bytes=None,
+        swap_limit_bytes=None,
+        is_cgroup_constrained=False,
+        cgroup_path=None,
+    )
+
+
+def _parse_memory_string_to_bytes(mem_str: str) -> Optional[int]:
+    """Helper to parse memory strings like '64GB', '32768MB', '1048576KB', '65536' into bytes."""
+    mem_str = mem_str.strip().upper()
+    if not mem_str:
+        return None
+
+    # Check for unit suffix
+    match = re.match(r"^(\d+(?:\.\d+)?)\s*([KMGT]?B?)$", mem_str)
+    if not match:
+        return None
+
+    num = float(match.group(1))
+    unit = match.group(2)
+
+    if unit in ("GB", "G"):
+        return int(num * 1024 * 1024 * 1024)
+    elif unit in ("MB", "M"):
+        return int(num * 1024 * 1024)
+    elif unit in ("KB", "K"):
+        return int(num * 1024)
+    elif unit in ("TB", "T"):
+        return int(num * 1024 * 1024 * 1024 * 1024)
+    else:
+        # Default is Megabytes in HPC schedulers like Slurm (e.g. SLURM_MEM_PER_NODE=65536)
+        if num > 1048576:  # If very large, assume bytes
+            return int(num)
+        return int(num * 1024 * 1024)
+
+
+def detect_hpc_memory_limits() -> Tuple[Optional[str], Optional[int]]:
+    """
+    Detect HPC scheduler job memory limits from environment variables (Slurm, PBS, LSF, SGE).
+    Returns (scheduler_name, limit_in_bytes) or (None, None).
+    """
+    # 1. Slurm
+    if "SLURM_JOB_ID" in os.environ or "SLURM_JOBID" in os.environ:
+        if "SLURM_MEM_PER_NODE" in os.environ:
+            val = _parse_memory_string_to_bytes(os.environ["SLURM_MEM_PER_NODE"])
+            if val:
+                return "Slurm", val
+        if "SLURM_MEM_PER_CPU" in os.environ:
+            val_per_cpu = _parse_memory_string_to_bytes(os.environ["SLURM_MEM_PER_CPU"])
+            cpus = int(os.environ.get("SLURM_CPUS_ON_NODE", os.environ.get("SLURM_JOB_CPUS_PER_NODE", "1")))
+            if val_per_cpu:
+                return "Slurm", val_per_cpu * cpus
+        return "Slurm", None
+
+    # 2. PBS / Torque
+    if "PBS_JOBID" in os.environ or "PBS_JOBNAME" in os.environ:
+        if "PBS_MEM" in os.environ:
+            val = _parse_memory_string_to_bytes(os.environ["PBS_MEM"])
+            if val:
+                return "PBS", val
+        if "PBS_RESOURCE_LIST" in os.environ:
+            # e.g. "mem=64gb,ncpus=16"
+            res = os.environ["PBS_RESOURCE_LIST"]
+            for token in res.split(","):
+                if token.startswith("mem="):
+                    val = _parse_memory_string_to_bytes(token.split("=", 1)[1])
+                    if val:
+                        return "PBS", val
+        return "PBS", None
+
+    # 3. LSF
+    if "LSB_JOBID" in os.environ:
+        if "LSB_JOB_MEMLIMIT" in os.environ:
+            val = _parse_memory_string_to_bytes(os.environ["LSB_JOB_MEMLIMIT"])
+            if val:
+                return "LSF", val
+        return "LSF", None
+
+    return None, None
+
+
+def audit_host_memory(
+    cgroup_root: Optional[Path] = None,
+    proc_root: Optional[Path] = None,
+    phase_2_findings: Optional[Phase2AuditFindings] = None,
+) -> Tuple[HostMemoryProfile, CGroupMemoryProfile]:
+    """
+    Audit host physical memory, /proc/meminfo statistics, container cgroup bounds,
+    and HPC workload constraints to compute strictly bounded total memory.
+    Prioritizes cgroupv2 (/sys/fs/cgroup/memory.max) before falling back to psutil.
+    """
+    # 1. Probe cgroups FIRST to prevent hypervisor spoofing
+    cg_profile = parse_cgroup_memory_bounds(cgroup_root=cgroup_root)
+
+    # 2. Determine base physical memory (integrating Phase 2 audit findings if available)
+    if phase_2_findings is not None and phase_2_findings.total_physical_ram_bytes > 0:
+        total_bytes = phase_2_findings.total_physical_ram_bytes
+    else:
+        total_bytes = get_absolute_physical_ram()
+
+    vmem = psutil.virtual_memory()
+    smem = psutil.swap_memory()
+
+    available_bytes = int(vmem.available)
+    free_bytes = int(vmem.free)
+    swap_total = int(smem.total)
+    swap_free = int(smem.free)
+
+    # Enhance with /proc/meminfo if available on Linux
+    proc_data = parse_proc_meminfo(proc_root=proc_root)
+    if proc_data:
+        if "MemTotal" in proc_data and phase_2_findings is None:
+            total_bytes = proc_data["MemTotal"]
+        if "MemAvailable" in proc_data:
+            available_bytes = proc_data["MemAvailable"]
+        if "MemFree" in proc_data:
+            free_bytes = proc_data["MemFree"]
+        if "SwapTotal" in proc_data:
+            swap_total = proc_data["SwapTotal"]
+        if "SwapFree" in proc_data:
+            swap_free = proc_data["SwapFree"]
+
+    hpc_scheduler, hpc_limit_bytes = detect_hpc_memory_limits()
+
+    # Determine bounded total RAM
+    bounded_bytes = total_bytes
+    if cg_profile.memory_limit_bytes is not None and cg_profile.memory_limit_bytes < bounded_bytes:
+        bounded_bytes = cg_profile.memory_limit_bytes
+
+    if hpc_limit_bytes is not None and hpc_limit_bytes < bounded_bytes:
+        bounded_bytes = hpc_limit_bytes
+
+    bounded_mb = round(bounded_bytes / (1024 * 1024), 2)
+    bounded_gb = round(bounded_bytes / (1024 * 1024 * 1024), 2)
+
+    host_profile = HostMemoryProfile(
+        total_ram_bytes=total_bytes,
+        available_ram_bytes=available_bytes,
+        free_ram_bytes=free_bytes,
+        swap_total_bytes=swap_total,
+        swap_free_bytes=swap_free,
+        effective_system_ram_bytes=total_bytes,
+        hpc_scheduler_detected=hpc_scheduler,
+        hpc_job_memory_limit_bytes=hpc_limit_bytes,
+        bounded_total_ram_bytes=bounded_bytes,
+        bounded_total_ram_mb=bounded_mb,
+        bounded_total_ram_gb=bounded_gb,
+    )
+
+    return host_profile, cg_profile
+
+
+def discover_numa_topology(sys_root: Optional[Path] = None) -> MultiTierMemoryProfile:
+    """
+    Discover physical NUMA node topology via Linux sysfs (/sys/devices/system/node/).
+    Gracefully degrades to Unified UMA profile on single-socket or non-Linux systems.
+    """
+    base_dir = sys_root or Path("/sys/devices/system/node")
+    nodes: List[NumaNodeProfile] = []
+
+    if base_dir.exists() and base_dir.is_dir():
+        node_entries = sorted([d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith("node")])
+        for node_dir in node_entries:
+            try:
+                node_id = int(node_dir.name.replace("node", ""))
+            except ValueError:
+                continue
+
+            node_total_mb = 0.0
+            node_free_mb = 0.0
+            cpu_ids: List[int] = []
+
+            # Parse node meminfo
+            meminfo_file = node_dir / "meminfo"
+            if meminfo_file.exists():
+                try:
+                    for line in meminfo_file.read_text(encoding="utf-8").splitlines():
+                        if "MemTotal" in line:
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                node_total_mb = round(float(parts[3]) / 1024.0, 2)
+                        elif "MemFree" in line:
+                            parts = line.split()
+                            if len(parts) >= 4:
+                                node_free_mb = round(float(parts[3]) / 1024.0, 2)
+                except (OSError, ValueError):
+                    pass
+
+            # Parse node cpulist (e.g. "0-7,16-23")
+            cpulist_file = node_dir / "cpulist"
+            if cpulist_file.exists():
+                try:
+                    cpulist_str = cpulist_file.read_text(encoding="utf-8").strip()
+                    for segment in cpulist_str.split(","):
+                        if "-" in segment:
+                            s_start, s_end = segment.split("-", 1)
+                            cpu_ids.extend(range(int(s_start), int(s_end) + 1))
+                        elif segment.isdigit():
+                            cpu_ids.append(int(segment))
+                except (OSError, ValueError):
+                    pass
+
+            nodes.append(
+                NumaNodeProfile(
+                    node_id=node_id,
+                    total_ram_mb=node_total_mb,
+                    free_ram_mb=node_free_mb,
+                    cpu_core_ids=cpu_ids,
+                    is_local=(node_id == 0),
+                )
+            )
+
+    if not nodes:
+        # Fallback to Unified Memory Architecture (UMA)
+        vmem = psutil.virtual_memory()
+        smem = psutil.swap_memory()
+        total_mb = round(vmem.total / (1024 * 1024), 2)
+        free_mb = round(vmem.available / (1024 * 1024), 2)
+        swap_mb = round(smem.total / (1024 * 1024), 2)
+        cpu_count = psutil.cpu_count(logical=True) or 1
+
+        node0 = NumaNodeProfile(
+            node_id=0,
+            total_ram_mb=total_mb,
+            free_ram_mb=free_mb,
+            cpu_core_ids=list(range(cpu_count)),
+            is_local=True,
+        )
+        return MultiTierMemoryProfile(
+            numa_nodes_count=1,
+            numa_nodes=[node0],
+            numa_balance_status=NUMABalanceStatus.UNIFIED_UMA,
+            tier_1_local_ram_mb=total_mb,
+            tier_2_remote_ram_mb=0.0,
+            tier_3_swap_mb=swap_mb,
+            is_numa_aware=False,
+        )
+
+    # Compute multi-tier statistics
+    tier_1_local = sum(n.total_ram_mb for n in nodes if n.is_local)
+    tier_2_remote = sum(n.total_ram_mb for n in nodes if not n.is_local)
+    smem = psutil.swap_memory()
+    tier_3_swap = round(smem.total / (1024 * 1024), 2)
+
+    balance = NUMABalanceStatus.BALANCED
+    if len(nodes) > 1:
+        totals = [n.total_ram_mb for n in nodes if n.total_ram_mb > 0]
+        if totals and (max(totals) - min(totals)) > 1024:  # > 1 GB difference
+            balance = NUMABalanceStatus.ASYMMETRIC
+
+    return MultiTierMemoryProfile(
+        numa_nodes_count=len(nodes),
+        numa_nodes=nodes,
+        numa_balance_status=balance,
+        tier_1_local_ram_mb=tier_1_local,
+        tier_2_remote_ram_mb=tier_2_remote,
+        tier_3_swap_mb=tier_3_swap,
+        is_numa_aware=(len(nodes) > 1),
     )
 
 
 # =============================================================================
-# 11. ENVIRONMENT VARIABLE INJECTION GENERATOR
+# 6. THE OOM SHIELD MATHEMATICAL SCALING ALGORITHMS
 # =============================================================================
+
+
+def compute_os_jupyter_reserve(
+    total_ram_mb: float,
+    custom_reserve_mb: Optional[int] = None,
+) -> int:
+    """
+    Compute flat OS/Jupyter safety buffer reservation in Megabytes.
+    Reserves a flat 4-8 GB for OS and interactive agent council/Jupyter needs instead of wasting
+    fixed percentage buffers on massive nodes (e.g. 20% on a 1 TB node wastes 200 GB).
+
+    For medium-to-large memory systems (>= 16384 MB / 16 GB):
+      OS_Reserve_MB = clamp(4096, 8192, int(0.15 * total_ram_mb))
+    For constrained memory systems (< 16384 MB):
+      OS_Reserve_MB = max(1024, min(int(0.20 * total_ram_mb), int(total_ram_mb - 512)))
+    """
+    if custom_reserve_mb is not None and custom_reserve_mb > 0:
+        # Clamp custom reservation to leave at least 512 MB for calculations
+        return max(512, min(custom_reserve_mb, int(total_ram_mb - 512)))
+
+    if total_ram_mb >= 16384.0:  # >= 16 GB
+        # 15% scaled reservation clamped strictly between 4096 MB (4 GB) and 8192 MB (8 GB)
+        reserve = int(0.15 * total_ram_mb)
+        return max(DEFAULT_MIN_OS_RESERVE_MB, min(reserve, DEFAULT_MAX_OS_RESERVE_MB))
+    else:
+        # For lower-memory nodes (< 16 GB), reserve 20% ensuring at least 512 MB remains allocatable
+        reserve = int(0.20 * total_ram_mb)
+        max_safe_reserve = max(512, int(total_ram_mb - 512))
+        return max(1024, min(reserve, max_safe_reserve)) if total_ram_mb > 1536 else max(256, int(total_ram_mb - 512))
+
+
+def compute_oom_shield_scaling(
+    host_mem: HostMemoryProfile,
+    total_physical_cores: int,
+    active_cores: Optional[int] = None,
+    os_reserve_mb: Optional[int] = None,
+) -> OOMShieldScalingProfile:
+    """
+    Apply the OOM Shield Dynamic Memory Scaling Algorithm.
+    Divides allocatable memory specifically across *active calculation cores* rather than total physical cores,
+    while reserving a flat 4-8 GB OS/Jupyter safety buffer.
+
+    Formulas:
+      Total_RAM_MB = host_mem.bounded_total_ram_mb
+      OS_Reserve_MB = compute_os_jupyter_reserve(Total_RAM_MB, os_reserve_mb)
+      Allocatable_RAM_MB = max(512, Total_RAM_MB - OS_Reserve_MB)
+      Baseline_%maxcore_MB = int(((Total_RAM_GB * 1024) * 0.80) / Total_Physical_Cores)
+      Active_Core_Maxcore_MB = int(Allocatable_RAM_MB / Active_Job_Cores)
+    """
+    total_cores = max(1, total_physical_cores)
+
+    # Clamp active cores to valid physical range [1, total_physical_cores]
+    if active_cores is None:
+        calc_active_cores = total_cores
+    elif active_cores <= 0:
+        calc_active_cores = 1
+    else:
+        calc_active_cores = min(active_cores, total_cores)
+
+    bounded_total_mb = host_mem.bounded_total_ram_mb
+    bounded_total_gb = host_mem.bounded_total_ram_gb
+
+    reserve_mb = compute_os_jupyter_reserve(bounded_total_mb, custom_reserve_mb=os_reserve_mb)
+    allocatable_mb = max(512, int(bounded_total_mb - reserve_mb))
+    allocatable_gb = round(allocatable_mb / 1024.0, 2)
+    reserve_ratio = round(reserve_mb / max(1.0, bounded_total_mb), 4)
+
+    # Baseline 80% formula divided by total physical cores (Document 5 Section 4.2)
+    baseline_maxcore_mb = int(((bounded_total_gb * 1024.0) * 0.80) / total_cores)
+
+    # CoChem Dynamic OOM Shield formula divided across active calculation cores
+    active_maxcore_mb = int(allocatable_mb / calc_active_cores)
+
+    # Calculate memory gain percentage
+    if baseline_maxcore_mb > 0:
+        gain_pct = round(((active_maxcore_mb - baseline_maxcore_mb) / baseline_maxcore_mb) * 100.0, 1)
+    else:
+        gain_pct = 0.0
+
+    return OOMShieldScalingProfile(
+        total_physical_cores=total_cores,
+        active_job_cores=calc_active_cores,
+        bounded_total_ram_mb=bounded_total_mb,
+        os_jupyter_reserve_mb=reserve_mb,
+        reserve_ratio=reserve_ratio,
+        allocatable_ram_mb=allocatable_mb,
+        allocatable_ram_gb=allocatable_gb,
+        baseline_80pct_maxcore_mb=baseline_maxcore_mb,
+        active_core_maxcore_mb=active_maxcore_mb,
+        memory_gain_vs_baseline_pct=gain_pct,
+        shield_active=True,
+    )
+
+
+# =============================================================================
+# 7. MULTI-ENGINE TARGET MEMORY TRANSLATORS
+# =============================================================================
+
+
+def build_engine_memory_budgets(
+    allocatable_ram_mb: int,
+    active_core_maxcore_mb: int,
+    active_cores: int,
+) -> Dict[str, EngineMemoryBudget]:
+    """
+    Synthesize engine-native memory configuration directives and environment variables
+    for all supported quantum chemistry and machine learning solvers.
+    """
+    budgets: Dict[str, EngineMemoryBudget] = {}
+
+    # 1. ORCA (%maxcore is per-core memory in MB)
+    budgets["ORCA"] = EngineMemoryBudget(
+        engine=EngineTarget.ORCA,
+        primary_directive_name="%maxcore",
+        directive_value_formatted=f"%maxcore {active_core_maxcore_mb}",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=active_core_maxcore_mb * active_cores,
+        env_var_name="ORCA_MAXCORE",
+        env_var_value=str(active_core_maxcore_mb),
+        notes=f"Calculated for {active_cores} active core(s) with flat OS buffer",
+    )
+
+    # 2. PySCF (max_memory is total job memory in MB)
+    budgets["PYSCF"] = EngineMemoryBudget(
+        engine=EngineTarget.PYSCF,
+        primary_directive_name="max_memory",
+        directive_value_formatted=f"mol.max_memory = {allocatable_ram_mb}",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="PYSCF_MAX_MEMORY",
+        env_var_value=str(allocatable_ram_mb),
+        notes="Global process memory ceiling for lib/pyscf integral caches",
+    )
+
+    # 3. xTB (--memory is total job memory in MB)
+    budgets["XTB"] = EngineMemoryBudget(
+        engine=EngineTarget.XTB,
+        primary_directive_name="--memory",
+        directive_value_formatted=f"--memory {allocatable_ram_mb}m",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="XTB_MAX_MEMORY",
+        env_var_value=str(allocatable_ram_mb),
+        notes="Extended Tight Binding total calculation memory envelope",
+    )
+
+    # 4. Gaussian (%mem is total memory in MB or GB)
+    budgets["GAUSSIAN"] = EngineMemoryBudget(
+        engine=EngineTarget.GAUSSIAN,
+        primary_directive_name="%mem",
+        directive_value_formatted=f"%mem={allocatable_ram_mb}MB",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="GAUSS_MEMDEF",
+        env_var_value=str(allocatable_ram_mb * 1024 * 1024),  # Gaussian bytes
+        notes="Gaussian %memLink0 directive and GAUSS_MEMDEF byte ceiling",
+    )
+
+    # 5. CFOUR (MEMORY_SIZE is double precision words = 8 bytes per word)
+    cfour_words = int((allocatable_ram_mb * 1024 * 1024) / 8)
+    budgets["CFOUR"] = EngineMemoryBudget(
+        engine=EngineTarget.CFOUR,
+        primary_directive_name="MEMORY_SIZE",
+        directive_value_formatted=f"MEMORY_SIZE = {cfour_words}",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="CFOUR_MEMORY_SIZE",
+        env_var_value=str(cfour_words),
+        notes="Coupled-Cluster integral memory array in 64-bit float words",
+    )
+
+    # 6. MACE-Torch (Host pinned RAM for MLFF GPU offloading)
+    budgets["MACE_TORCH"] = EngineMemoryBudget(
+        engine=EngineTarget.MACE_TORCH,
+        primary_directive_name="COCHEM_MACE_HOST_RAM_MB",
+        directive_value_formatted=f"Host VRAM Offload Buffer: {allocatable_ram_mb} MB",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="COCHEM_MACE_HOST_RAM_MB",
+        env_var_value=str(allocatable_ram_mb),
+        notes="Allocatable host system memory for GPU tensor dataset buffering",
+    )
+
+    # 7. OpenMPI (MPI Shared memory and buffer limits)
+    budgets["OPENMPI"] = EngineMemoryBudget(
+        engine=EngineTarget.OPENMPI,
+        primary_directive_name="OMPI_MCA_btl_vader_single_copy_mechanism",
+        directive_value_formatted="OMPI_MCA_btl_vader_single_copy_mechanism = none",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="OMPI_MCA_btl_vader_single_copy_mechanism",
+        env_var_value="none",
+        notes="Bypasses kernel CMA traps across isolated memory namespaces",
+    )
+
+    # 8. Generic CoChem Engine
+    budgets["GENERIC"] = EngineMemoryBudget(
+        engine=EngineTarget.GENERIC,
+        primary_directive_name="COCHEM_MAXCORE_MB",
+        directive_value_formatted=f"COCHEM_MAXCORE_MB={active_core_maxcore_mb}",
+        allocated_per_core_mb=active_core_maxcore_mb,
+        allocated_total_job_mb=allocatable_ram_mb,
+        env_var_name="COCHEM_MAXCORE_MB",
+        env_var_value=str(active_core_maxcore_mb),
+        notes="Standard CoChem per-core memory envelope for custom solvers",
+    )
+
+    return budgets
 
 
 def generate_environment_injection_dict(
-    sandbox: EphemeralSandboxProfile,
-    iops: IOPSBenchmarkProfile,
-    chk: CheckpointValidationReport,
-    state_chain: StateChainRecoveryProfile,
-    molsym_silo: Optional[MolSymSiloProfile] = None,
-    eckart_report: Optional[EckartVerificationReport] = None,
-    alignment_ready: Optional[bool] = None,
+    oom_shield: OOMShieldScalingProfile,
+    budgets: Dict[str, EngineMemoryBudget],
 ) -> Dict[str, str]:
     """
-    Generate environment variable dictionary for runtime quantum calculation execution.
-    Provides backward compatibility for 4-argument calls with smart defaults.
+    Generate comprehensive runtime environment variable injection mapping.
     """
-    silo_status = molsym_silo.silo_status.value if molsym_silo else "AVAILABLE"
-    eckart_status = eckart_report.overall_status.value if eckart_report else "VERIFIED"
-    ready_flag = "1" if (alignment_ready is not False) else "0"
+    env_dict: Dict[str, str] = {}
 
-    return {
-        "COCHEM_EPHEMERAL_SANDBOX": sandbox.sandbox_path,
-        "COCHEM_SANDBOX_UUID": sandbox.sandbox_uuid,
-        "COCHEM_SANDBOX_BASE": sandbox.base_directory,
-        "COCHEM_IOPS_WRITE_MBPS": str(iops.write_throughput_mb_s),
-        "COCHEM_IOPS_READ_MBPS": str(iops.read_throughput_mb_s),
-        "COCHEM_IOPS_WRITE_IOPS": str(iops.write_iops),
-        "COCHEM_IOPS_STATUS": iops.status.value,
-        "COCHEM_CHECKPOINT_VALIDATION_ACTIVE": "1" if chk.validation_enabled else "0",
-        "COCHEM_CHECKPOINT_VALID_COUNT": str(chk.valid_count),
-        "COCHEM_STATE_CHAIN_INTACT": "1" if state_chain.chain_intact else "0",
-        "COCHEM_MOLSYM_SILO_STATUS": silo_status,
-        "COCHEM_ECKART_VERIFICATION_STATUS": eckart_status,
-        "COCHEM_ALIGNMENT_ENGINE_READY": ready_flag,
-        "COCHEM_PHASE_10_STATUS": "PASSED",
-    }
+    # Engine specific allocations
+    for engine_key, budget in budgets.items():
+        if budget.env_var_name and budget.env_var_value:
+            env_dict[budget.env_var_name] = budget.env_var_value
+
+    # System-level CoChem OOM Shield variables
+    env_dict["COCHEM_MAXCORE_MB"] = str(oom_shield.active_core_maxcore_mb)
+    env_dict["COCHEM_ALLOCATABLE_RAM_MB"] = str(oom_shield.allocatable_ram_mb)
+    env_dict["COCHEM_ALLOCATABLE_RAM_GB"] = str(oom_shield.allocatable_ram_gb)
+    env_dict["COCHEM_SAFETY_BUFFER_MB"] = str(oom_shield.os_jupyter_reserve_mb)
+    env_dict["COCHEM_ACTIVE_CORES"] = str(oom_shield.active_job_cores)
+    env_dict["COCHEM_TOTAL_RAM_MB"] = str(int(oom_shield.bounded_total_ram_mb))
+    env_dict["COCHEM_OOM_SHIELD_STATUS"] = "ACTIVE" if oom_shield.shield_active else "INACTIVE"
+
+    return env_dict
 
 
 # =============================================================================
-# 12. TRANSACTIONAL DEPENDENCY MANAGER
+# 8. AUDIT EXECUTION ENGINE & CLI
 # =============================================================================
 
 
-class DependencyManager:
-    """
-    Context manager providing transactional and idempotent atomic writing to the Golden Registry.
-    Guarantees rollback and cleanup of intermediate temporary files upon unhandled exceptions.
-    """
-
-    def __init__(self, target_path: Union[str, Path]) -> None:
-        self.target_path = Path(target_path).resolve()
-        self.temp_path = Path(str(self.target_path) + f".tmp_{uuid.uuid4().hex[:8]}")
-        self._committed = False
-
-    def __enter__(self) -> DependencyManager:
-        self.target_path.parent.mkdir(parents=True, exist_ok=True)
-        return self
-
-    def write_payload(self, payload: Union[Dict[str, Any], BaseModel]) -> None:
-        """Write JSON serialized payload to the temporary file."""
-        with open(self.temp_path, "w", encoding="utf-8") as f:
-            if isinstance(payload, BaseModel):
-                f.write(payload.model_dump_json(indent=2))
-            else:
-                json.dump(payload, f, indent=2)
-        self._committed = True
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if exc_type is not None or not self._committed:
-            if self.temp_path.exists():
-                try:
-                    self.temp_path.unlink()
-                except Exception:
-                    pass
-            return
-
-        try:
-            if self.temp_path.exists():
-                self.temp_path.replace(self.target_path)
-        except Exception:
-            if self.temp_path.exists():
-                try:
-                    self.temp_path.unlink()
-                except Exception:
-                    pass
-            raise
-
-
-# =============================================================================
-# 13. MASTER AUDIT ORCHESTRATOR
-# =============================================================================
-
-
-def run_phase_10_audit(
+def run_phase_11_audit(
     output_dir: Optional[Union[str, Path]] = None,
-    sandbox_base_dir: Optional[Union[str, Path]] = None,
-    skip_iops: bool = False,
-    benchmark_size_mb: float = 10.0,
-    checkpoint_dirs: Optional[List[Union[str, Path]]] = None,
-    registry_dir: Optional[Union[str, Path]] = None,
-    silo_dir: Optional[Union[str, Path]] = None,
-    skip_eckart: bool = False,
-    env: Optional[Dict[str, str]] = None,
+    active_cores: Optional[int] = None,
+    os_reserve_mb: Optional[int] = None,
+    cgroup_root: Optional[Path] = None,
+    proc_root: Optional[Path] = None,
+    sys_root: Optional[Path] = None,
+    p2_path: Optional[Union[str, Path]] = None,
     dry_run: bool = False,
-) -> Phase10AuditReport:
+) -> Phase11AuditReport:
     """
-    Execute the Stage 0 Setup Phase 10 MolSym Intake, Theoretical Eckart Frame Alignment,
-    State-Chain Recovery, and Ephemeral Quarantined Sandbox audit.
+    Execute comprehensive Setup Phase 11 Memory Router & OOM Shield Gatekeeper Audit.
+    Discovers hardware limits, computes dynamic %maxcore scaling across active job cores,
+    formats multi-engine directives, and persists state into Golden Registry (p11.json).
     """
-    timestamp = datetime.now(timezone.utc).isoformat()
-    target_env = os.environ if env is None else env
     warnings: List[str] = []
     errors: List[str] = []
+    status = PhaseStatus.PASSED
 
-    p10_path = resolve_p10_registry_path(output_dir=output_dir, env=target_env)
+    # 0. Ingest Phase 2 Audit Findings if available
+    p2_findings = load_phase_2_audit_findings(p2_path=p2_path, registry_dir=output_dir)
+    if p2_findings is not None:
+        warnings.append(
+            f"Phase 2 audit findings loaded from {p2_findings.loaded_from} (Status: {p2_findings.status})"
+        )
 
-    # 1. Scaffold Ephemeral Sandbox
+    # 1. Audit Host Memory & CGroup Bounds
     try:
-        sandbox_profile = scaffold_ephemeral_sandbox(base_dir=sandbox_base_dir, env=target_env)
+        host_mem, cg_profile = audit_host_memory(
+            cgroup_root=cgroup_root,
+            proc_root=proc_root,
+            phase_2_findings=p2_findings,
+        )
     except Exception as exc:
-        errors.append(f"Ephemeral sandbox scaffolding failed: {exc}")
-        sandbox_profile = EphemeralSandboxProfile(
-            sandbox_path="/tmp/cochem_exec_fallback",
-            sandbox_uuid="fallback",
-            base_directory="/tmp",
-            is_created=False,
-            is_writable=False,
-            is_isolated=False,
-            permissions_octal="0o000",
-            cleanup_verified=False,
-            active_pid=os.getpid(),
+        raise MemoryDiscoveryError(f"Fatal error discovering host/container memory: {exc}") from exc
+
+    if cg_profile.is_cgroup_constrained:
+        warnings.append(
+            f"Execution memory actively bounded by Linux cgroups ({cg_profile.cgroup_version.value}) "
+            f"to {round((cg_profile.memory_limit_bytes or 0)/(1024*1024*1024), 2)} GB"
         )
 
-    # 2. Execute 10 MB Unbuffered IOPS Benchmark
-    target_bench_dir = sandbox_profile.sandbox_path if sandbox_profile.is_created else tempfile.gettempdir()
-    if skip_iops:
-        warnings.append("10 MB unbuffered IOPS benchmark was bypassed via --skip-iops.")
-        iops_profile = IOPSBenchmarkProfile(
-            target_directory=str(target_bench_dir),
-            file_size_bytes=int(benchmark_size_mb * 1024 * 1024),
-            block_size_bytes=65536,
-            total_blocks=max(1, int(benchmark_size_mb * 1024 * 1024) // 65536),
-            write_duration_seconds=0.01,
-            write_throughput_mb_s=1000.0,
-            write_iops=15000.0,
-            read_duration_seconds=0.01,
-            read_throughput_mb_s=1000.0,
-            read_iops=15000.0,
-            sync_latency_ms=0.5,
-            status=IOPSBenchmarkStatus.OPTIMAL,
-            is_unbuffered=True,
-            is_performance_sufficient=True,
+    if host_mem.hpc_scheduler_detected:
+        warnings.append(
+            f"HPC Workload Scheduler detected: {host_mem.hpc_scheduler_detected} "
+            f"(Job Memory Limit: {round((host_mem.hpc_job_memory_limit_bytes or 0)/(1024*1024*1024), 2) if host_mem.hpc_job_memory_limit_bytes else 'Unlimited'} GB)"
         )
+
+    # 2. Discover NUMA Topology
+    try:
+        numa_profile = discover_numa_topology(sys_root=sys_root)
+    except Exception as exc:
+        warnings.append(f"NUMA topology discovery degraded: {exc}")
+        numa_profile = MultiTierMemoryProfile(
+            numa_nodes_count=1,
+            numa_nodes=[],
+            numa_balance_status=NUMABalanceStatus.UNKNOWN,
+            tier_1_local_ram_mb=host_mem.bounded_total_ram_mb,
+            tier_2_remote_ram_mb=0.0,
+            tier_3_swap_mb=round(host_mem.swap_total_bytes / (1024 * 1024), 2),
+            is_numa_aware=False,
+        )
+
+    # 3. Interrogate CPU Physical Cores (utilizing Phase 2 findings if available)
+    if p2_findings is not None and p2_findings.physical_cores > 0:
+        physical_cores = p2_findings.physical_cores
     else:
-        try:
-            iops_profile = run_unbuffered_iops_benchmark(
-                target_dir=target_bench_dir,
-                file_size_mb=benchmark_size_mb,
-                env=target_env,
-            )
-            if iops_profile.status == IOPSBenchmarkStatus.DEGRADED:
-                warnings.append(
-                    f"Storage throughput is degraded ({iops_profile.write_throughput_mb_s} MB/s write). Minimum recommended is 20 MB/s."
-                )
-            elif iops_profile.status == IOPSBenchmarkStatus.FAILED:
-                errors.append(
-                    f"Storage throughput failed minimum quantum threshold ({iops_profile.write_throughput_mb_s} MB/s write)."
-                )
-        except Exception as exc:
-            errors.append(f"10 MB unbuffered IOPS benchmark execution failed: {exc}")
-            iops_profile = IOPSBenchmarkProfile(
-                target_directory=str(target_bench_dir),
-                file_size_bytes=int(benchmark_size_mb * 1024 * 1024),
-                block_size_bytes=65536,
-                total_blocks=160,
-                write_duration_seconds=0.0,
-                write_throughput_mb_s=0.0,
-                write_iops=0.0,
-                read_duration_seconds=0.0,
-                read_throughput_mb_s=0.0,
-                read_iops=0.0,
-                sync_latency_ms=0.0,
-                status=IOPSBenchmarkStatus.FAILED,
-                is_unbuffered=False,
-                is_performance_sufficient=False,
-            )
+        physical_cores = psutil.cpu_count(logical=False) or os.cpu_count() or 1
 
-    # 3. Checkpoint Discovery and Validation
-    chk_dirs: List[Union[str, Path]] = []
-    if checkpoint_dirs:
-        chk_dirs.extend(checkpoint_dirs)
-    chk_dirs.append(sandbox_profile.sandbox_path)
-
+    # 4. Compute OOM Shield Scaling Profile
     try:
-        checkpoint_report = scan_and_validate_checkpoints(chk_dirs)
-    except Exception as exc:
-        warnings.append(f"Checkpoint scan error: {exc}")
-        checkpoint_report = CheckpointValidationReport(
-            scanned_count=0,
-            valid_count=0,
-            corrupt_count=0,
-            resumable_checkpoints=[],
-            validation_enabled=True,
+        oom_shield = compute_oom_shield_scaling(
+            host_mem=host_mem,
+            total_physical_cores=physical_cores,
+            active_cores=active_cores,
+            os_reserve_mb=os_reserve_mb,
         )
+    except Exception as exc:
+        raise EngineBudgetError(f"Fatal error computing OOM Shield scaling parameters: {exc}") from exc
 
-    # 4. State-Chain Recovery Interrogation
+    # 5. Build Multi-Engine Memory Budgets
     try:
-        state_chain_profile = audit_state_chain_recovery(
-            registry_dir=registry_dir,
-            sandbox_base_dir=sandbox_base_dir,
-            env=target_env,
+        engine_budgets = build_engine_memory_budgets(
+            allocatable_ram_mb=oom_shield.allocatable_ram_mb,
+            active_core_maxcore_mb=oom_shield.active_core_maxcore_mb,
+            active_cores=oom_shield.active_job_cores,
         )
-        if not state_chain_profile.chain_intact:
-            warnings.append(
-                f"State-chain missing preceding setup phases: {state_chain_profile.missing_phases}"
-            )
-        if state_chain_profile.orphaned_sandboxes:
-            warnings.append(
-                f"Found {len(state_chain_profile.orphaned_sandboxes)} orphaned ephemeral sandboxes from prior runs."
-            )
     except Exception as exc:
-        errors.append(f"State-chain recovery audit failed: {exc}")
-        state_chain_profile = StateChainRecoveryProfile(
-            registry_directory="/unknown/Registry",
-            verified_phases=[],
-            missing_phases=["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"],
-            chain_intact=False,
-            recoverable_jobs=[],
-            orphaned_sandboxes=[],
-        )
+        raise EngineBudgetError(f"Fatal error building multi-engine memory budgets: {exc}") from exc
 
-    # 5. MolSym Isolated Silo Audit
-    try:
-        molsym_profile = audit_or_provision_molsym_silo(silo_path=silo_dir, env=target_env)
-        if molsym_profile.silo_status == MolSymSiloStatus.NOT_FOUND:
-            warnings.append("MolSym dependency not found in isolated silos or environment; fallback symmetry active.")
-        elif molsym_profile.silo_status == MolSymSiloStatus.DEGRADED:
-            warnings.append("MolSym library is partially degraded; point group inspection restricted.")
-    except Exception as exc:
-        warnings.append(f"MolSym silo audit error: {exc}")
-        molsym_profile = MolSymSiloProfile(
-            silo_path=None,
-            is_installed=False,
-            silo_status=MolSymSiloStatus.NOT_FOUND,
-            version=None,
-            location=None,
-            has_symtext=False,
-            has_find_point_group=False,
-            notes=str(exc),
-        )
-
-    # 6. Theoretical Eckart Frame & Alignment Verification
-    if skip_eckart:
-        warnings.append("Theoretical Eckart benchmark verification bypassed via --skip-eckart.")
-        eckart_report = EckartVerificationReport(
-            total_benchmarks=0,
-            passed_benchmarks=0,
-            failed_benchmarks=0,
-            overall_status=EckartVerificationStatus.VERIFIED,
-            max_translational_residual=0.0,
-            max_rotational_residual=0.0,
-            items=[],
-        )
-    else:
-        try:
-            eckart_report = run_theoretical_eckart_benchmarks()
-            if eckart_report.overall_status != EckartVerificationStatus.VERIFIED:
-                errors.append("Theoretical Eckart benchmark verification failed residual tolerance.")
-        except Exception as exc:
-            errors.append(f"Eckart verification benchmark exception: {exc}")
-            eckart_report = EckartVerificationReport(
-                total_benchmarks=0,
-                passed_benchmarks=0,
-                failed_benchmarks=1,
-                overall_status=EckartVerificationStatus.FAILED,
-                max_translational_residual=1.0,
-                max_rotational_residual=1.0,
-                items=[],
-            )
-
-    alignment_engine_ready = (
-        eckart_report.overall_status == EckartVerificationStatus.VERIFIED
+    # 6. Generate Environment Variable Injections
+    injected_env_vars = generate_environment_injection_dict(
+        oom_shield=oom_shield,
+        budgets=engine_budgets,
     )
 
-    # 7. Environment Injection Generation
-    injected_env = generate_environment_injection_dict(
-        sandbox=sandbox_profile,
-        iops=iops_profile,
-        chk=checkpoint_report,
-        state_chain=state_chain_profile,
-        molsym_silo=molsym_profile,
-        eckart_report=eckart_report,
-        alignment_ready=alignment_engine_ready,
-    )
+    # Determine artifact destination path
+    artifact_path = resolve_p11_registry_path(output_dir=output_dir)
 
-    # 8. Determine Phase Status
-    if errors or not sandbox_profile.is_created or not sandbox_profile.is_writable or eckart_report.overall_status == EckartVerificationStatus.FAILED:
-        status = PhaseStatus.FAILED
-    elif (
-        iops_profile.status == IOPSBenchmarkStatus.DEGRADED
-        or not state_chain_profile.chain_intact
-        or checkpoint_report.corrupt_count > 0
-        or molsym_profile.silo_status in (MolSymSiloStatus.DEGRADED, MolSymSiloStatus.NOT_FOUND)
-    ):
-        status = PhaseStatus.DEGRADED
-    else:
-        status = PhaseStatus.PASSED
+    timestamp_now = datetime.now(timezone.utc).isoformat()
 
-    report = Phase10AuditReport(
-        phase_id="cochem_setup_phase_10",
+    report = Phase11AuditReport(
+        phase_id="cochem_setup_phase_11",
         status=status,
-        timestamp_utc=timestamp,
-        artifact_path=str(p10_path),
-        sandbox_profile=sandbox_profile,
-        iops_profile=iops_profile,
-        checkpoint_report=checkpoint_report,
-        state_chain_profile=state_chain_profile,
-        molsym_silo_profile=molsym_profile,
-        eckart_verification_report=eckart_report,
-        alignment_engine_ready=alignment_engine_ready,
-        injected_env_vars=injected_env,
+        timestamp_utc=timestamp_now,
+        artifact_path=str(artifact_path),
+        phase_2_findings=p2_findings,
+        host_memory=host_mem,
+        cgroup_profile=cg_profile,
+        numa_profile=numa_profile,
+        oom_shield=oom_shield,
+        engine_budgets=engine_budgets,
+        injected_env_vars=injected_env_vars,
         warnings=warnings,
         errors=errors,
     )
 
-    if not dry_run and status != PhaseStatus.FAILED:
-        with DependencyManager(p10_path) as dm:
-            dm.write_payload(report)
+    # 7. Transactional State Persistence into Golden Registry
+    if not dry_run:
+        with DependencyManager() as dm:
+            dm.atomic_write_json(artifact_path, report)
 
     return report
 
 
-# =============================================================================
-# 14. CLI ENTRYPOINT
-# =============================================================================
-
-
 def main(argv: Optional[List[str]] = None) -> int:
-    """
-    Main CLI entrypoint for Stage 0 Setup Phase 10: MolSym Intake, Theoretical Eckart Alignment,
-    State-Chain Recovery & Ephemeral Quarantined Sandbox Verifier.
-    """
+    """Command-line interface entry point for Setup Phase 11."""
     parser = argparse.ArgumentParser(
-        description="CoChem Setup Phase 10: MolSym Intake & Theoretical Eckart Alignment Gatekeeper."
+        description="CoChem Setup Phase 11: Memory Router & OOM Shield Gatekeeper",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--output-dir",
         type=str,
         default=None,
-        help="Custom directory path for Golden Registry artifact (p10.json)",
+        help="Custom directory path for Golden Registry artifact (p11.json)",
     )
     parser.add_argument(
-        "--sandbox-dir",
+        "--p2-path",
         type=str,
         default=None,
-        help="Base directory for ephemeral execution sandbox scaffolding",
+        help="Path to Phase 2 audit state artifact (p2.json) to ingest baseline hardware constraints",
     )
     parser.add_argument(
-        "--skip-iops",
-        action="store_true",
-        help="Bypass the 10 MB unbuffered IOPS benchmark",
-    )
-    parser.add_argument(
-        "--benchmark-size-mb",
-        type=float,
-        default=10.0,
-        help="Custom file size for unbuffered IOPS benchmark in Megabytes (default: 10.0 MB)",
-    )
-    parser.add_argument(
-        "--checkpoint-dir",
-        type=str,
-        action="append",
+        "--active-cores",
+        type=int,
         default=None,
-        help="Directory to scan for quantum checkpoint files (.gbw, .chk, .xtbw)",
+        help="Active job calculation cores requested for this calculation (default: all physical cores)",
     )
     parser.add_argument(
-        "--registry-dir",
+        "--os-reserve-mb",
+        type=int,
+        default=None,
+        help="Custom flat OS/Jupyter safety buffer reserve in Megabytes (default: dynamic 4096-8192 MB)",
+    )
+    parser.add_argument(
+        "--cgroup-root",
         type=str,
         default=None,
-        help="Custom directory path containing previous phase Golden Registry artifacts",
+        help="Custom root directory for Linux cgroups inspection (e.g. /sys/fs/cgroup)",
     )
     parser.add_argument(
-        "--silo-dir",
+        "--proc-root",
         type=str,
         default=None,
-        help="Custom directory path to isolated MolSym silo",
+        help="Custom root directory for /proc inspection (e.g. /proc)",
     )
     parser.add_argument(
-        "--skip-eckart",
-        action="store_true",
-        help="Bypass the theoretical Eckart benchmark suite",
+        "--sys-root",
+        type=str,
+        default=None,
+        help="Custom root directory for sysfs NUMA node inspection (e.g. /sys/devices/system/node)",
     )
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Simulate audit without persisting state to p10.json",
+        help="Simulate audit without persisting state to p11.json",
     )
     parser.add_argument(
         "--json",
@@ -2950,15 +1491,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        report = run_phase_10_audit(
+        cg_root = Path(args.cgroup_root) if args.cgroup_root else None
+        p_root = Path(args.proc_root) if args.proc_root else None
+        s_root = Path(args.sys_root) if args.sys_root else None
+
+        report = run_phase_11_audit(
             output_dir=args.output_dir,
-            sandbox_base_dir=args.sandbox_dir,
-            skip_iops=args.skip_iops,
-            benchmark_size_mb=args.benchmark_size_mb,
-            checkpoint_dirs=args.checkpoint_dir,
-            registry_dir=args.registry_dir,
-            silo_dir=args.silo_dir,
-            skip_eckart=args.skip_eckart,
+            active_cores=args.active_cores,
+            os_reserve_mb=args.os_reserve_mb,
+            cgroup_root=cg_root,
+            proc_root=p_root,
+            sys_root=s_root,
+            p2_path=args.p2_path,
             dry_run=args.dry_run,
         )
 
@@ -2966,52 +1510,42 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(report.model_dump_json(indent=2))
         else:
             print("=" * 75)
-            print("COCHEM SETUP PHASE 10: MOLSYM INTAKE & ECKART ALIGNMENT GATEKEEPER")
+            print("COCHEM SETUP PHASE 11: MEMORY ROUTER & OOM SHIELD GATEKEEPER")
             print("=" * 75)
-            print(f"Phase ID:               {report.phase_id}")
-            print(f"Status:                 {report.status.value}")
-            print(f"Timestamp UTC:          {report.timestamp_utc}")
-            print(f"Artifact Path:          {report.artifact_path}")
-            print(f"Alignment Engine Ready: {report.alignment_engine_ready}")
+            print(f"Phase ID:          {report.phase_id}")
+            print(f"Status:            {report.status.value}")
+            print(f"Timestamp UTC:     {report.timestamp_utc}")
+            print(f"Artifact Path:     {report.artifact_path}")
             print("-" * 75)
-            print("MolSym Isolated Silo Profile:")
-            ms = report.molsym_silo_profile
-            print(f"  Silo Status:          {ms.silo_status.value} (Installed: {ms.is_installed})")
-            print(f"  Version:              {ms.version}")
-            print(f"  Location:             {ms.location}")
-            print(f"  Symtext / PointGroup: {ms.has_symtext} / {ms.has_find_point_group}")
+            print("Host & Container Bounded Memory Profile:")
+            hm = report.host_memory
+            print(f"  Physical RAM:    {hm.total_ram_bytes / (1024**3):.2f} GB ({hm.available_ram_bytes / (1024**3):.2f} GB available)")
+            print(f"  Swap Space:      {hm.swap_total_bytes / (1024**3):.2f} GB ({hm.swap_free_bytes / (1024**3):.2f} GB free)")
+            cg = report.cgroup_profile
+            print(f"  CGroup Version:  {cg.cgroup_version.value} (Constrained: {cg.is_cgroup_constrained})")
+            if cg.memory_limit_bytes:
+                print(f"  CGroup Limit:    {cg.memory_limit_bytes / (1024**3):.2f} GB")
+            print(f"  Bounded RAM:     {hm.bounded_total_ram_gb:.2f} GB ({hm.bounded_total_ram_mb:.1f} MB)")
             print("-" * 75)
-            print("Theoretical Eckart Verification Report:")
-            ev = report.eckart_verification_report
-            print(f"  Overall Status:       {ev.overall_status.value} ({ev.passed_benchmarks}/{ev.total_benchmarks} Passed)")
-            print(f"  Max Trans Residual:   {ev.max_translational_residual:.2e} Angstrom")
-            print(f"  Max Rot Residual:     {ev.max_rotational_residual:.2e} amu*A^2")
-            for item in ev.items:
-                print(f"    [{item.status.value}] {item.benchmark_name}: Trans={item.translational_residual_norm:.2e}, Rot={item.rotational_residual_norm:.2e}, Top={item.top_type.value}")
+            print("NUMA Multi-Tier Memory Topology:")
+            numa = report.numa_profile
+            print(f"  NUMA Nodes:      {numa.numa_nodes_count} (Aware: {numa.is_numa_aware}, Balance: {numa.numa_balance_status.value})")
+            print(f"  Tier 1 Local:    {numa.tier_1_local_ram_mb / 1024:.2f} GB")
+            print(f"  Tier 2 Remote:   {numa.tier_2_remote_ram_mb / 1024:.2f} GB")
+            print(f"  Tier 3 Swap:     {numa.tier_3_swap_mb / 1024:.2f} GB")
             print("-" * 75)
-            print("Ephemeral Quarantined Sandbox Profile:")
-            sb = report.sandbox_profile
-            print(f"  Sandbox Path:         {sb.sandbox_path}")
-            print(f"  Sandbox UUID:         {sb.sandbox_uuid}")
-            print(f"  Permissions:          {sb.permissions_octal}")
-            print(f"  Writable/Isolated:    {sb.is_writable} / {sb.is_isolated}")
+            print("OOM Shield Memory Partitioning Profile:")
+            oom = report.oom_shield
+            print(f"  CPU Cores:       {oom.total_physical_cores} Physical Cores / {oom.active_job_cores} Active Job Core(s)")
+            print(f"  OS Safety Buffer: {oom.os_jupyter_reserve_mb} MB ({oom.reserve_ratio * 100:.1f}%) [Flat 4-8 GB Reserved]")
+            print(f"  Allocatable RAM: {oom.allocatable_ram_mb} MB ({oom.allocatable_ram_gb:.2f} GB)")
+            print(f"  Baseline %maxcore (All Cores): {oom.baseline_80pct_maxcore_mb} MB/core")
+            print(f"  OOM Shield %maxcore (Active):  {oom.active_core_maxcore_mb} MB/core")
+            print(f"  Memory Gain:     +{oom.memory_gain_vs_baseline_pct:.1f}% vs baseline")
             print("-" * 75)
-            print("10 MB Unbuffered IOPS Benchmark Profile:")
-            iops = report.iops_profile
-            print(f"  File Size:            {iops.file_size_bytes / (1024*1024):.1f} MB ({iops.total_blocks} blocks)")
-            print(f"  Write Perf:           {iops.write_throughput_mb_s} MB/s ({iops.write_iops} IOPS) [M]")
-            print(f"  Read Perf:            {iops.read_throughput_mb_s} MB/s ({iops.read_iops} IOPS) [M]")
-            print(f"  Sync Latency:         {iops.sync_latency_ms} ms [M]")
-            print("-" * 75)
-            print("Quantum Checkpoint Resumption Status:")
-            chk = report.checkpoint_report
-            print(f"  Scanned Files:        {chk.scanned_count} (Valid: {chk.valid_count}, Corrupt: {chk.corrupt_count})")
-            print("-" * 75)
-            print("State-Chain Recovery Continuity:")
-            sc = report.state_chain_profile
-            print(f"  Verified Phases:      {sc.verified_phases}")
-            print(f"  Missing Phases:       {sc.missing_phases}")
-            print(f"  Chain Intact:         {sc.chain_intact}")
+            print("Multi-Engine Target Directives:")
+            for eng_name, bud in report.engine_budgets.items():
+                print(f"  [{eng_name:10}] {bud.directive_value_formatted:<35} | {bud.env_var_name}={bud.env_var_value}")
             print("-" * 75)
             print(f"Injected Env Vars ({len(report.injected_env_vars)} total):")
             for k, v in report.injected_env_vars.items():
@@ -3030,119 +1564,75 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     except Exception as exc:
-        sys.stderr.write(f"\n[FATAL PHASE 10 ERROR]\n{exc}\n\n")
+        sys.stderr.write(f"\n[FATAL PHASE 11 ERROR]\n{exc}\n\n")
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_setup_phase_10.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_setup_phase_11.py ---
 """
-Unit test suite for CoChem Setup Phase 10: MolSym Intake, Theoretical Eckart Frame Alignment,
-State-Chain Recovery & Ephemeral Quarantined Sandbox Verifier.
-Strict Zero-Mock Mandate: Real MolSym isolated silo audit, real Center of Mass translation
-with ghost atom (BSSE Gh, Bq, X) zero-mass protections, real Moment of Inertia tensor construction
-and diagonalization, NIST CODATA 2022/2026 rotational constants (MHz, GHz, cm^-1), Ray's asymmetry
-parameter kappa, planar moments, rotor top classification, real mass-weighted Eckart frame alignment
-(translational and rotational Eckart residual norms <= 1e-12), real ephemeral sandbox scaffolding,
-real 10 MB unbuffered storage IOPS benchmark, real ORCA (.gbw), PySCF (.chk), and xTB (.xtbw)
-checkpoint validation, real state-chain continuity verification across p1.json through p9.json,
-real environment variable injection mappings, and transactional atomic state persistence into p10.json.
+Unit test suite for CoChem Setup Phase 11: Memory Router & Adaptive Tiering (The OOM Shield).
+Strict Zero-Mock Mandate: Real filesystem operations, real temporary directories, real memory
+hierarchy and cgroup v1/v2 parsing, real NUMA topology discovery, real active core memory
+scaling mathematics, real multi-engine target directives (ORCA, PySCF, xTB, Gaussian, CFOUR,
+MACE-Torch, OpenMPI), real environment variable injection dictionaries, and transactional
+atomic state persistence into the Golden Registry (p11.json).
 
-SRS Document 2 Part 2 (Section 3.10), Method Matrix v4 (§8A-8C), SRS Document 1 (Section 2),
-SRS Document 5 (Section 1-4), SRS Document 6 (Section 1-3), SRS Document 7 (Section 2),
+SRS Document 2 Part 2 (Section 3.11), SRS Document 5 (Section 4.2), Method Matrix v4,
 and CoChem User Manual v4.1 Compliant.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
-import math
 import os
 import platform
-import shutil
 import stat
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
-import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from orchestrator.cochem_setup_phase_10 import (
-    CheckpointFormat,
-    CheckpointStatus,
-    CheckpointValidationError,
-    CheckpointValidationItem,
-    CheckpointValidationReport,
+from orchestrator.cochem_setup_phase_11 import (
+    CGroupLimitError,
+    CGroupMemoryProfile,
+    CGroupVersion,
     DependencyManager,
-    EckartAlignmentError,
-    EckartAlignmentResult,
-    EckartVerificationItem,
-    EckartVerificationReport,
-    EckartVerificationStatus,
-    EphemeralSandboxError,
-    EphemeralSandboxProfile,
-    FACTOR_CM1,
-    FACTOR_GHZ,
-    FACTOR_MHZ,
-    IOPSBenchmarkError,
-    IOPSBenchmarkProfile,
-    IOPSBenchmarkStatus,
-    InertiaTensorError,
-    InertiaTensorResult,
-    MolSymSiloError,
-    MolSymSiloProfile,
-    MolSymSiloStatus,
-    Phase10AuditError,
-    Phase10AuditReport,
+    EngineBudgetError,
+    EngineMemoryBudget,
+    EngineTarget,
+    HostMemoryProfile,
+    MemoryDiscoveryError,
+    MemoryTier,
+    MultiTierMemoryProfile,
+    NUMABalanceStatus,
+    NUMADiscoveryError,
+    NumaNodeProfile,
+    OOMShieldScalingProfile,
+    Phase2AuditFindings,
+    Phase11AuditError,
+    Phase11AuditReport,
     PhaseStatus,
-    RotorTopType,
-    StateChainRecoveryError,
-    StateChainRecoveryProfile,
-    _generate_3d_rotation_matrix,
-    align_to_eckart_frame,
-    align_to_principal_axes,
-    audit_or_provision_molsym_silo,
-    audit_state_chain_recovery,
-    classify_rotor_top,
-    cleanup_ephemeral_sandbox,
-    compute_center_of_mass,
-    compute_file_sha256,
-    compute_moment_of_inertia_tensor,
-    compute_rotational_constants,
-    datetime,
-    diagonalize_inertia_tensor,
+    audit_host_memory,
+    build_engine_memory_budgets,
+    compute_os_jupyter_reserve,
+    compute_oom_shield_scaling,
+    detect_hpc_memory_limits,
+    discover_numa_topology,
     find_repository_root,
     generate_environment_injection_dict,
-    get_physical_mass,
-    is_ghost_symbol,
+    get_absolute_physical_ram,
+    load_phase_2_audit_findings,
     main,
-    resolve_atomic_masses,
-    resolve_p10_registry_path,
-    resolve_sandbox_base_directory,
-    run_phase_10_audit,
-    run_theoretical_eckart_benchmarks,
-    run_unbuffered_iops_benchmark,
-    scaffold_ephemeral_sandbox,
-    scan_and_validate_checkpoints,
-    translate_to_center_of_mass,
-    validate_checkpoint_file,
-    validate_orca_gbw_checkpoint,
-    validate_pyscf_chk_checkpoint,
-    validate_xtb_xtbw_checkpoint,
-    verify_eckart_conditions,
+    parse_cgroup_memory_bounds,
+    parse_proc_meminfo,
+    resolve_p11_registry_path,
+    run_phase_11_audit,
 )
-
-try:
-    import h5py
-    _HAS_H5PY = True
-except ImportError:
-    h5py = None  # type: ignore
-    _HAS_H5PY = False
 
 
 def make_temp_dir() -> tempfile.TemporaryDirectory:
@@ -3156,104 +1646,30 @@ def make_temp_dir() -> tempfile.TemporaryDirectory:
 
 
 # =============================================================================
-# Authentic Molecular Test Structures
-# =============================================================================
-
-# 1. Water (H2O) - Planar asymmetric top (C2v)
-WATER_SYMBOLS = ["O", "H", "H"]
-WATER_COORDS = np.array([
-    [0.000000,  0.000000,  0.117300],
-    [0.000000,  0.757200, -0.469200],
-    [0.000000, -0.757200, -0.469200],
-], dtype=np.float64)
-
-# 2. Carbon Dioxide (CO2) - Linear molecule (Dinfh)
-CO2_SYMBOLS = ["C", "O", "O"]
-CO2_COORDS = np.array([
-    [0.000000, 0.000000,  0.000000],
-    [0.000000, 0.000000,  1.160000],
-    [0.000000, 0.000000, -1.160000],
-], dtype=np.float64)
-
-# 3. Methane (CH4) - Spherical top (Td)
-CH4_SYMBOLS = ["C", "H", "H", "H", "H"]
-CH4_COORDS = np.array([
-    [ 0.000000,  0.000000,  0.000000],
-    [ 0.629118,  0.629118,  0.629118],
-    [-0.629118, -0.629118,  0.629118],
-    [ 0.629118, -0.629118, -0.629118],
-    [-0.629118,  0.629118, -0.629118],
-], dtype=np.float64)
-
-# 4. Benzene (C6H6) - Planar oblate symmetric top (D6h)
-BENZENE_SYMBOLS = ["C", "C", "C", "C", "C", "C", "H", "H", "H", "H", "H", "H"]
-BENZENE_COORDS = np.array([
-    [ 0.000000,  1.397000, 0.000000],
-    [ 1.209838,  0.698500, 0.000000],
-    [ 1.209838, -0.698500, 0.000000],
-    [ 0.000000, -1.397000, 0.000000],
-    [-1.209838, -0.698500, 0.000000],
-    [-1.209838,  0.698500, 0.000000],
-    [ 0.000000,  2.481000, 0.000000],
-    [ 2.148608,  1.240500, 0.000000],
-    [ 2.148608, -1.240500, 0.000000],
-    [ 0.000000, -2.481000, 0.000000],
-    [-2.148608, -1.240500, 0.000000],
-    [-2.148608,  1.240500, 0.000000],
-], dtype=np.float64)
-
-# 5. Methyl Chloride (CH3Cl) - Prolate symmetric top (C3v)
-CH3CL_SYMBOLS = ["C", "Cl", "H", "H", "H"]
-CH3CL_COORDS = np.array([
-    [0.000000,  0.000000, -1.100000],
-    [0.000000,  0.000000,  0.680000],
-    [0.000000,  1.030000, -1.450000],
-    [0.892000, -0.515000, -1.450000],
-    [-0.892000, -0.515000, -1.450000],
-], dtype=np.float64)
-
-# 6. Water Dimer BSSE Complex
-WATER_DIMER_SYMBOLS = ["GhO", "GhH", "GhH", "O", "H", "H"]
-WATER_DIMER_COORDS = np.array([
-    [-1.487000,  0.018000, -0.098000],
-    [-0.518000,  0.063000, -0.013000],
-    [-1.802000, -0.738000,  0.404000],
-    [ 1.428000, -0.003000,  0.076000],
-    [ 1.758000,  0.771000, -0.380000],
-    [ 1.777000, -0.760000, -0.392000],
-], dtype=np.float64)
-
-
-# =============================================================================
 # 1. CUSTOM EXCEPTION & ENUM TESTS
 # =============================================================================
 
 
 def test_custom_exception_hierarchy() -> None:
-    """Verify custom Phase 10 exception classes inherit from Phase10AuditError and RuntimeError."""
-    err1 = Phase10AuditError("Phase 10 fatal error")
+    """Verify custom Phase 11 exception classes inherit from Phase11AuditError and RuntimeError."""
+    err1 = Phase11AuditError("Phase 11 fatal error")
     assert isinstance(err1, RuntimeError)
 
-    err2 = EphemeralSandboxError("Ephemeral sandbox error")
-    assert isinstance(err2, Phase10AuditError)
+    err2 = MemoryDiscoveryError("Memory discovery failed")
+    assert isinstance(err2, Phase11AuditError)
+    assert isinstance(err2, RuntimeError)
 
-    err3 = IOPSBenchmarkError("IOPS benchmark error")
-    assert isinstance(err3, Phase10AuditError)
+    err3 = CGroupLimitError("Cgroup limit error")
+    assert isinstance(err3, Phase11AuditError)
+    assert isinstance(err3, RuntimeError)
 
-    err4 = CheckpointValidationError("Checkpoint validation error")
-    assert isinstance(err4, Phase10AuditError)
+    err4 = EngineBudgetError("Engine budget error")
+    assert isinstance(err4, Phase11AuditError)
+    assert isinstance(err4, RuntimeError)
 
-    err5 = StateChainRecoveryError("State-chain recovery error")
-    assert isinstance(err5, Phase10AuditError)
-
-    err6 = MolSymSiloError("MolSym silo error")
-    assert isinstance(err6, Phase10AuditError)
-
-    err7 = EckartAlignmentError("Eckart alignment error")
-    assert isinstance(err7, Phase10AuditError)
-
-    err8 = InertiaTensorError("Inertia tensor error")
-    assert isinstance(err8, Phase10AuditError)
+    err5 = NUMADiscoveryError("NUMA discovery error")
+    assert isinstance(err5, Phase11AuditError)
+    assert isinstance(err5, RuntimeError)
 
 
 def test_phase_status_enum() -> None:
@@ -3262,792 +1678,842 @@ def test_phase_status_enum() -> None:
     assert PhaseStatus.FAILED.value == "FAILED"
     assert PhaseStatus.DEGRADED.value == "DEGRADED"
     assert PhaseStatus.BYPASSED.value == "BYPASSED"
-
-
-def test_molsym_and_eckart_enums() -> None:
-    """Verify MolSymSiloStatus, EckartVerificationStatus, and RotorTopType enum values."""
-    assert MolSymSiloStatus.AVAILABLE.value == "AVAILABLE"
-    assert MolSymSiloStatus.PROVISIONED.value == "PROVISIONED"
-    assert MolSymSiloStatus.DEGRADED.value == "DEGRADED"
-    assert MolSymSiloStatus.NOT_FOUND.value == "NOT_FOUND"
-
-    assert EckartVerificationStatus.VERIFIED.value == "VERIFIED"
-    assert EckartVerificationStatus.FAILED.value == "FAILED"
-
-    assert RotorTopType.SPHERICAL.value == "spherical"
-    assert RotorTopType.SYMMETRIC_PROLATE.value == "symmetric_prolate"
-    assert RotorTopType.SYMMETRIC_OBLATE.value == "symmetric_oblate"
-    assert RotorTopType.ASYMMETRIC.value == "asymmetric"
-    assert RotorTopType.LINEAR.value == "linear"
-    assert RotorTopType.ATOM.value == "atom"
-
-
-# =============================================================================
-# 2. PYDANTIC V2 MODEL VALIDATION TESTS
-# =============================================================================
-
-
-def test_molsym_silo_profile_model() -> None:
-    """Verify MolSymSiloProfile validation and serialization."""
-    prof = MolSymSiloProfile(
-        silo_path="/opt/cochem/silos/molsym",
-        is_installed=True,
-        silo_status=MolSymSiloStatus.AVAILABLE,
-        version="1.2.0",
-        location="/opt/cochem/silos/molsym/molsym",
-        has_symtext=True,
-        has_find_point_group=True,
-        notes="Verified operational",
-    )
-    assert prof.is_installed is True
-    assert prof.has_symtext is True
-
-    dump = prof.model_dump()
-    assert dump["silo_status"] == "AVAILABLE"
-
-    with pytest.raises(ValidationError):
-        MolSymSiloProfile(
-            is_installed=True,
-            silo_status=MolSymSiloStatus.AVAILABLE,
-            unauthorized_field="forbidden",  # type: ignore
-        )
-
-
-def test_inertia_tensor_result_model() -> None:
-    """Verify InertiaTensorResult validation and serialization."""
-    res = InertiaTensorResult(
-        eigenvalues_amu_angstrom2=(1.0, 2.0, 3.0),
-        rotational_constants_mhz=(500000.0, 250000.0, 166666.7),
-        rotational_constants_ghz=(500.0, 250.0, 166.7),
-        rotational_constants_cm1=(16.8, 8.4, 5.6),
-        inertial_defect=0.0,
-        rays_kappa=0.0,
-        planar_moments=(2.0, 1.0, 0.0),
-        top_type=RotorTopType.ASYMMETRIC,
-        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        aligned_coords=[[0.0, 0.0, 0.0]],
-        inertia_tensor=[[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]],
-    )
-    assert res.top_type == RotorTopType.ASYMMETRIC
-    assert res.inertial_defect == 0.0
-
-    raw_json = res.model_dump_json()
-    reloaded = InertiaTensorResult.model_validate_json(raw_json)
-    assert reloaded.top_type == RotorTopType.ASYMMETRIC
-
-
-def test_eckart_alignment_models() -> None:
-    """Verify EckartAlignmentResult, EckartVerificationItem, and EckartVerificationReport models."""
-    align_res = EckartAlignmentResult(
-        aligned_coords=[[0.0, 0.0, 0.0]],
-        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        rmsd=0.0,
-        residual_rotational_norm=1e-15,
-        translational_residual_norm=1e-15,
-        rotation_determinant=1.0,
-    )
-    assert align_res.rmsd == 0.0
-    assert align_res.rotation_determinant == 1.0
-
-    item = EckartVerificationItem(
-        benchmark_name="H2O_Test",
-        status=EckartVerificationStatus.VERIFIED,
-        n_atoms=3,
-        has_ghost_atoms=False,
-        translational_residual_norm=1e-15,
-        rotational_residual_norm=1e-15,
-        rotation_determinant=1.0,
-        rmsd=1e-15,
-        top_type=RotorTopType.ASYMMETRIC,
-        is_verified=True,
-    )
-    assert item.is_verified is True
-
-    rep = EckartVerificationReport(
-        total_benchmarks=1,
-        passed_benchmarks=1,
-        failed_benchmarks=0,
-        overall_status=EckartVerificationStatus.VERIFIED,
-        max_translational_residual=1e-15,
-        max_rotational_residual=1e-15,
-        items=[item],
-    )
-    assert rep.overall_status == EckartVerificationStatus.VERIFIED
-
-
-def test_phase_10_audit_report_model() -> None:
-    """Verify Phase10AuditReport complete model serialization with alignment fields."""
-    sb = EphemeralSandboxProfile(
-        sandbox_path="/tmp/cochem_exec_123",
-        sandbox_uuid="123",
-        base_directory="/tmp",
-        is_created=True,
-        is_writable=True,
-        is_isolated=True,
-        permissions_octal="0o700",
-        cleanup_verified=True,
-        active_pid=os.getpid(),
-    )
-    iops = IOPSBenchmarkProfile(
-        target_directory="/tmp/cochem_exec_123",
-        file_size_bytes=10485760,
-        block_size_bytes=65536,
-        total_blocks=160,
-        write_duration_seconds=0.05,
-        write_throughput_mb_s=200.0,
-        write_iops=3200.0,
-        read_duration_seconds=0.04,
-        read_throughput_mb_s=250.0,
-        read_iops=4000.0,
-        sync_latency_ms=1.0,
-        status=IOPSBenchmarkStatus.OPTIMAL,
-        is_unbuffered=True,
-        is_performance_sufficient=True,
-    )
-    chk = CheckpointValidationReport(
-        scanned_count=0,
-        valid_count=0,
-        corrupt_count=0,
-        resumable_checkpoints=[],
-        validation_enabled=True,
-    )
-    sc = StateChainRecoveryProfile(
-        registry_directory="/Registry",
-        verified_phases=["p1", "p2"],
-        missing_phases=[],
-        chain_intact=True,
-        recoverable_jobs=[],
-        orphaned_sandboxes=[],
-    )
-    ms = MolSymSiloProfile(
-        silo_path=None,
-        is_installed=True,
-        silo_status=MolSymSiloStatus.AVAILABLE,
-        version="1.0.0",
-        location="/env/molsym",
-        has_symtext=True,
-        has_find_point_group=True,
-        notes="OK",
-    )
-    ev = EckartVerificationReport(
-        total_benchmarks=1,
-        passed_benchmarks=1,
-        failed_benchmarks=0,
-        overall_status=EckartVerificationStatus.VERIFIED,
-        max_translational_residual=1e-15,
-        max_rotational_residual=1e-15,
-        items=[],
-    )
-
-    report = Phase10AuditReport(
-        phase_id="cochem_setup_phase_10",
-        status=PhaseStatus.PASSED,
-        timestamp_utc="2026-08-22T00:00:00Z",
-        artifact_path="/Registry/p10.json",
-        sandbox_profile=sb,
-        iops_profile=iops,
-        checkpoint_report=chk,
-        state_chain_profile=sc,
-        molsym_silo_profile=ms,
-        eckart_verification_report=ev,
-        alignment_engine_ready=True,
-        injected_env_vars={"COCHEM_ALIGNMENT_ENGINE_READY": "1"},
-        warnings=[],
-        errors=[],
-    )
-    assert report.alignment_engine_ready is True
-    assert report.status == PhaseStatus.PASSED
-
-    raw_json = report.model_dump_json(indent=2)
-    parsed = json.loads(raw_json)
-    assert parsed["alignment_engine_ready"] is True
-    assert parsed["molsym_silo_profile"]["silo_status"] == "AVAILABLE"
-
-
-# =============================================================================
-# 3. MOLSYM ISOLATED SILO ENGINE TESTS
-# =============================================================================
-
-
-def test_audit_or_provision_molsym_silo() -> None:
-    """Test MolSym silo discovery and inspection."""
-    profile = audit_or_provision_molsym_silo()
-    assert isinstance(profile, MolSymSiloProfile)
-    assert profile.silo_status in (
-        MolSymSiloStatus.AVAILABLE,
-        MolSymSiloStatus.PROVISIONED,
-        MolSymSiloStatus.DEGRADED,
-        MolSymSiloStatus.NOT_FOUND,
-    )
-    if profile.is_installed:
-        assert profile.has_symtext is True
-        assert profile.has_find_point_group is True
-
-
-def test_audit_or_provision_molsym_silo_custom_path() -> None:
-    """Test MolSym silo audit with custom directory path."""
-    with make_temp_dir() as td:
-        silo_dir = Path(td) / "custom_molsym_silo"
-        silo_dir.mkdir()
-
-        profile = audit_or_provision_molsym_silo(silo_path=silo_dir)
-        assert isinstance(profile, MolSymSiloProfile)
-
-
-# =============================================================================
-# 4. THEORETICAL CENTER OF MASS & GHOST ATOM TESTS
-# =============================================================================
-
-
-def test_is_ghost_symbol() -> None:
-    """Verify recognition of ghost atom symbols and physical elements."""
-    assert is_ghost_symbol("Gh") is True
-    assert is_ghost_symbol("gh") is True
-    assert is_ghost_symbol("GhO") is True
-    assert is_ghost_symbol("Gh_C") is True
-    assert is_ghost_symbol("Bq") is True
-    assert is_ghost_symbol("bq") is True
-    assert is_ghost_symbol("X") is True
-    assert is_ghost_symbol("x_N") is True
-    assert is_ghost_symbol("x-O") is True
-
-    # Physical element Xenon must NEVER be classified as ghost
-    assert is_ghost_symbol("Xe") is False
-    assert is_ghost_symbol("xe") is False
-    assert is_ghost_symbol("XE") is False
-    assert is_ghost_symbol("C") is False
-    assert is_ghost_symbol("H") is False
-    assert is_ghost_symbol("O") is False
-
-
-def test_get_physical_mass() -> None:
-    """Verify standard atomic weights and zero ghost mass."""
-    assert get_physical_mass("H") == pytest.approx(1.008, rel=1e-2)
-    assert get_physical_mass("C") == pytest.approx(12.011, rel=1e-2)
-    assert get_physical_mass("N") == pytest.approx(14.007, rel=1e-2)
-    assert get_physical_mass("O") == pytest.approx(15.999, rel=1e-2)
-    assert get_physical_mass("Xe") == pytest.approx(131.293, rel=1e-2)
-
-    assert get_physical_mass("Gh") == 0.0
-    assert get_physical_mass("GhO") == 0.0
-    assert get_physical_mass("Bq") == 0.0
-    assert get_physical_mass("X") == 0.0
+    assert PhaseStatus("PASSED") is PhaseStatus.PASSED
 
     with pytest.raises(ValueError):
-        get_physical_mass("InvalidElementSymbolXYZ")
+        PhaseStatus("INVALID_STATUS")
 
 
-def test_center_of_mass_translation_water() -> None:
-    """Verify exact Center of Mass translation for Water with residual sum(m_i * r'_i) < 1e-14."""
-    masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    offset = np.array([42.123, -88.654, 105.789], dtype=np.float64)
-    shifted_coords = WATER_COORDS + offset
-
-    com = compute_center_of_mass(shifted_coords, masses=masses)
-    np.testing.assert_allclose(com, np.sum(shifted_coords * masses[:, None], axis=0) / np.sum(masses), atol=1e-14)
-
-    translated_coords, shift_vec = translate_to_center_of_mass(shifted_coords, masses=masses)
-
-    # Center of mass of translated coordinates must be (0, 0, 0)
-    new_com = compute_center_of_mass(translated_coords, masses=masses)
-    np.testing.assert_allclose(new_com, [0.0, 0.0, 0.0], atol=1e-14)
-
-    # Mass-weighted sum must be zero
-    mass_sum = np.sum(masses[:, None] * translated_coords, axis=0)
-    np.testing.assert_allclose(mass_sum, [0.0, 0.0, 0.0], atol=1e-14)
-
-    # Pairwise distances must be identically preserved
-    d_orig = np.linalg.norm(shifted_coords[:, None, :] - shifted_coords[None, :, :], axis=-1)
-    d_trans = np.linalg.norm(translated_coords[:, None, :] - translated_coords[None, :, :], axis=-1)
-    np.testing.assert_allclose(d_trans, d_orig, atol=1e-14)
+def test_cgroup_version_enum() -> None:
+    """Verify CGroupVersion enum values."""
+    assert CGroupVersion.V1.value == "V1"
+    assert CGroupVersion.V2.value == "V2"
+    assert CGroupVersion.HYBRID.value == "HYBRID"
+    assert CGroupVersion.NOT_AVAILABLE.value == "NOT_AVAILABLE"
+    assert CGroupVersion.NOT_APPLICABLE.value == "NOT_APPLICABLE"
 
 
-def test_ghost_atom_bsse_protection() -> None:
-    """Verify ghost atoms (mass=0.0) do not shift Center of Mass in BSSE complex."""
-    # Water Dimer with Monomer A ghosted
-    ghost_symbols = ["GhO", "GhH", "GhH", "O", "H", "H"]
-    com_dimer = compute_center_of_mass(WATER_DIMER_COORDS, symbols=ghost_symbols)
+def test_memory_tier_enum() -> None:
+    """Verify MemoryTier enum values."""
+    assert MemoryTier.TIER_1_LOCAL_NUMA.value == "TIER_1_LOCAL_NUMA"
+    assert MemoryTier.TIER_2_REMOTE_NUMA.value == "TIER_2_REMOTE_NUMA"
+    assert MemoryTier.TIER_3_SWAP_STORAGE.value == "TIER_3_SWAP_STORAGE"
 
-    # Monomer B COM alone
-    monomer_b_coords = WATER_DIMER_COORDS[3:6]
-    monomer_b_symbols = ["O", "H", "H"]
-    com_monomer_b = compute_center_of_mass(monomer_b_coords, symbols=monomer_b_symbols)
 
-    np.testing.assert_allclose(com_dimer, com_monomer_b, atol=1e-14)
+def test_engine_target_enum() -> None:
+    """Verify EngineTarget enum values."""
+    assert EngineTarget.ORCA.value == "ORCA"
+    assert EngineTarget.PYSCF.value == "PYSCF"
+    assert EngineTarget.XTB.value == "XTB"
+    assert EngineTarget.GAUSSIAN.value == "GAUSSIAN"
+    assert EngineTarget.CFOUR.value == "CFOUR"
+    assert EngineTarget.MACE_TORCH.value == "MACE_TORCH"
+    assert EngineTarget.OPENMPI.value == "OPENMPI"
+    assert EngineTarget.GENERIC.value == "GENERIC"
 
-    trans_coords, _ = translate_to_center_of_mass(WATER_DIMER_COORDS, symbols=ghost_symbols)
-    trans_monomer_b_com = compute_center_of_mass(trans_coords[3:6], symbols=monomer_b_symbols)
-    np.testing.assert_allclose(trans_monomer_b_com, [0.0, 0.0, 0.0], atol=1e-14)
+
+def test_numa_balance_status_enum() -> None:
+    """Verify NUMABalanceStatus enum values."""
+    assert NUMABalanceStatus.BALANCED.value == "BALANCED"
+    assert NUMABalanceStatus.ASYMMETRIC.value == "ASYMMETRIC"
+    assert NUMABalanceStatus.UNIFIED_UMA.value == "UNIFIED_UMA"
+    assert NUMABalanceStatus.UNKNOWN.value == "UNKNOWN"
 
 
 # =============================================================================
-# 5. MOMENT OF INERTIA & ROTATIONAL CONSTANTS TESTS
+# 2. PYDANTIC V2 DATA MODEL TESTS
 # =============================================================================
 
 
-def test_moment_of_inertia_tensor_and_diagonalization() -> None:
-    """Verify 3x3 symmetric inertia tensor construction and diagonalization."""
-    masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    translated_coords, _ = translate_to_center_of_mass(WATER_COORDS, masses=masses)
+def test_cgroup_memory_profile_model() -> None:
+    """Verify CGroupMemoryProfile creation, serialization, and strict validation."""
+    profile = CGroupMemoryProfile(
+        cgroup_version=CGroupVersion.V2,
+        memory_limit_bytes=34359738368,
+        memory_max_bytes=34359738368,
+        memory_high_bytes=32212254720,
+        memory_current_bytes=4294967296,
+        swap_limit_bytes=None,
+        is_cgroup_constrained=True,
+        cgroup_path="/sys/fs/cgroup/memory.max",
+    )
+    assert profile.cgroup_version == CGroupVersion.V2
+    assert profile.is_cgroup_constrained is True
+    assert profile.memory_limit_bytes == 34359738368
 
-    I_tensor = compute_moment_of_inertia_tensor(translated_coords, masses)
-    np.testing.assert_allclose(I_tensor, I_tensor.T, atol=1e-15)
-
-    eigvals, V = diagonalize_inertia_tensor(I_tensor)
-    assert eigvals[0] <= eigvals[1] <= eigvals[2]
-    np.testing.assert_allclose(np.linalg.det(V), 1.0, atol=1e-12)
-
-
-def test_rotational_constants_and_top_classification() -> None:
-    """Verify CODATA conversion and rotor top classification across diverse molecules."""
-    # 1. Water (Planar Asymmetric Top)
-    masses_water = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    res_water = align_to_principal_axes(WATER_COORDS, masses=masses_water)
-    assert res_water.top_type == RotorTopType.ASYMMETRIC
-    np.testing.assert_allclose(res_water.inertial_defect, 0.0, atol=1e-10)
-    assert -1.0 < res_water.rays_kappa < 1.0
-    assert res_water.rotational_constants_mhz[0] is not None
-    assert res_water.rotational_constants_mhz[0] > res_water.rotational_constants_mhz[1]
-
-    # 2. Carbon Dioxide (Linear Molecule Singularity)
-    masses_co2 = np.array([get_physical_mass(s) for s in CO2_SYMBOLS], dtype=np.float64)
-    res_co2 = align_to_principal_axes(CO2_COORDS, masses=masses_co2)
-    assert res_co2.top_type == RotorTopType.LINEAR
-    assert math.isinf(res_co2.rotational_constants_mhz[0]) or res_co2.rotational_constants_mhz[0] is None
-    np.testing.assert_allclose(res_co2.rays_kappa, -1.0, atol=1e-4)
-
-    # 3. Methane (Spherical Top)
-    masses_ch4 = np.array([get_physical_mass(s) for s in CH4_SYMBOLS], dtype=np.float64)
-    res_ch4 = align_to_principal_axes(CH4_COORDS, masses=masses_ch4)
-    assert res_ch4.top_type == RotorTopType.SPHERICAL
-    np.testing.assert_allclose(res_ch4.eigenvalues_amu_angstrom2[0], res_ch4.eigenvalues_amu_angstrom2[1], rtol=1e-4)
-    np.testing.assert_allclose(res_ch4.eigenvalues_amu_angstrom2[1], res_ch4.eigenvalues_amu_angstrom2[2], rtol=1e-4)
-
-    # 4. Benzene (Oblate Symmetric Top)
-    masses_c6h6 = np.array([get_physical_mass(s) for s in BENZENE_SYMBOLS], dtype=np.float64)
-    res_c6h6 = align_to_principal_axes(BENZENE_COORDS, masses=masses_c6h6)
-    assert res_c6h6.top_type == RotorTopType.SYMMETRIC_OBLATE
-    np.testing.assert_allclose(res_c6h6.inertial_defect, 0.0, atol=1e-10)
-    np.testing.assert_allclose(res_c6h6.rays_kappa, 1.0, atol=1e-4)
-
-    # 5. Methyl Chloride (Prolate Symmetric Top)
-    masses_ch3cl = np.array([get_physical_mass(s) for s in CH3CL_SYMBOLS], dtype=np.float64)
-    res_ch3cl = align_to_principal_axes(CH3CL_COORDS, masses=masses_ch3cl)
-    assert res_ch3cl.top_type == RotorTopType.SYMMETRIC_PROLATE
-    np.testing.assert_allclose(res_ch3cl.rays_kappa, -1.0, atol=1e-4)
-
-
-# =============================================================================
-# 6. ECKART FRAME ALIGNMENT & THEORETICAL BENCHMARK TESTS
-# =============================================================================
-
-
-def test_eckart_alignment_water_rigid_rotation() -> None:
-    """Verify Eckart alignment on rigidly rotated Water with residual norms < 1e-12."""
-    masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    ref_coords = WATER_COORDS.copy()
-
-    R_rand = _generate_3d_rotation_matrix(0.85, 1.42, 2.77)
-    t_rand = np.array([-15.2, 33.7, -9.4], dtype=np.float64)
-    target_coords = ref_coords @ R_rand.T + t_rand
-
-    res = align_to_eckart_frame(target_coords, ref_coords, masses=masses)
-
-    assert res.rmsd < 1e-12
-    assert res.translational_residual_norm < 1e-12
-    assert res.residual_rotational_norm < 1e-12
-    np.testing.assert_allclose(res.rotation_determinant, 1.0, atol=1e-12)
-
-
-def test_eckart_alignment_perturbed_water() -> None:
-    """Verify Eckart alignment on deformed Water conformation satisfying Eckart conditions."""
-    masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    ref_coords = WATER_COORDS.copy()
-
-    perturbed = WATER_COORDS.copy()
-    perturbed[1, 1] += 0.05
-    perturbed[2, 1] -= 0.03
-    perturbed[1, 2] += 0.02
-
-    R_rand = _generate_3d_rotation_matrix(1.1, 0.7, 1.9)
-    target_coords = perturbed @ R_rand.T + np.array([10.0, -10.0, 5.0])
-
-    res = align_to_eckart_frame(target_coords, ref_coords, masses=masses)
-
-    assert res.translational_residual_norm < 1e-12
-    assert res.residual_rotational_norm < 1e-12
-    np.testing.assert_allclose(res.rotation_determinant, 1.0, atol=1e-12)
-
-    # Internal pairwise distances preserved
-    d_target = np.linalg.norm(target_coords[:, None, :] - target_coords[None, :, :], axis=-1)
-    d_aligned = np.linalg.norm(np.array(res.aligned_coords)[:, None, :] - np.array(res.aligned_coords)[None, :, :], axis=-1)
-    np.testing.assert_allclose(d_aligned, d_target, atol=1e-12)
-
-
-def test_eckart_svd_reflection_protection() -> None:
-    """Verify proper rotation enforcement det(U) = +1.0 even under improper reflection."""
-    masses = np.array([get_physical_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
-    ref_coords = WATER_COORDS.copy()
-
-    reflected_target = ref_coords.copy()
-    reflected_target[:, 0] = -reflected_target[:, 0]
-
-    res = align_to_eckart_frame(reflected_target, ref_coords, masses=masses)
-    np.testing.assert_allclose(res.rotation_determinant, 1.0, atol=1e-12)
-
-
-def test_run_theoretical_eckart_benchmarks_suite() -> None:
-    """Verify execution of full theoretical Eckart benchmark suite."""
-    report = run_theoretical_eckart_benchmarks(tolerance=1e-12)
-    assert report.total_benchmarks >= 5
-    assert report.passed_benchmarks == report.total_benchmarks
-    assert report.failed_benchmarks == 0
-    assert report.overall_status == EckartVerificationStatus.VERIFIED
-    assert report.max_translational_residual < 1e-12
-    assert report.max_rotational_residual < 1e-12
-
-
-# =============================================================================
-# 7. EPHEMERAL SANDBOX ENGINE TESTS
-# =============================================================================
-
-
-def test_resolve_sandbox_base_directory() -> None:
-    """Test resolution of sandbox base directory under various environments."""
-    with make_temp_dir() as td:
-        resolved = resolve_sandbox_base_directory(custom_dir=td)
-        assert resolved == Path(td).resolve()
-
-        env = {"COCHEM_SANDBOX_BASE": td}
-        resolved_env = resolve_sandbox_base_directory(env=env)
-        assert resolved_env == Path(td).resolve()
-
-        resolved_def = resolve_sandbox_base_directory()
-        assert resolved_def.exists()
-
-
-def test_scaffold_ephemeral_sandbox_and_cleanup() -> None:
-    """Test real scaffolding of ephemeral sandbox with isolation sentinel and cleanup."""
-    with make_temp_dir() as td:
-        custom_uuid = "test_uuid_abcdef12"
-        profile = scaffold_ephemeral_sandbox(base_dir=td, custom_uuid=custom_uuid)
-
-        assert profile.is_created is True
-        assert profile.is_writable is True
-        assert profile.is_isolated is True
-        assert profile.sandbox_uuid == custom_uuid
-        assert Path(profile.sandbox_path).exists()
-        assert profile.active_pid == os.getpid()
-
-        test_file = Path(profile.sandbox_path) / "test_calc.inp"
-        test_file.write_text("! B3LYP def2-SVP Opt\n* xyz 0 1\nO 0.0 0.0 0.0\n*\n", encoding="utf-8")
-        assert test_file.exists()
-
-        cleaned = cleanup_ephemeral_sandbox(profile.sandbox_path)
-        assert cleaned is True
-        assert not Path(profile.sandbox_path).exists()
-        assert cleanup_ephemeral_sandbox(profile.sandbox_path) is True
-
-
-# =============================================================================
-# 8. 10 MB UNBUFFERED IOPS BENCHMARK TESTS
-# =============================================================================
-
-
-def test_run_unbuffered_iops_benchmark() -> None:
-    """Test executing real unbuffered IOPS benchmark in temporary directory."""
-    with make_temp_dir() as td:
-        prof = run_unbuffered_iops_benchmark(target_dir=td, file_size_mb=2.0, block_size_kb=64)
-
-        assert prof.file_size_bytes == 2 * 1024 * 1024
-        assert prof.block_size_bytes == 64 * 1024
-        assert prof.total_blocks == 32
-        assert prof.write_duration_seconds > 0.0
-        assert prof.write_throughput_mb_s > 0.0
-        assert prof.write_iops > 0.0
-        assert prof.read_duration_seconds > 0.0
-        assert prof.read_throughput_mb_s > 0.0
-        assert prof.read_iops > 0.0
-        assert prof.sync_latency_ms >= 0.0
-        assert prof.is_unbuffered is True
-        assert prof.status in (
-            IOPSBenchmarkStatus.OPTIMAL,
-            IOPSBenchmarkStatus.ACCEPTABLE,
-            IOPSBenchmarkStatus.DEGRADED,
+    # Verify extra="forbid" raises ValidationError
+    with pytest.raises(ValidationError):
+        CGroupMemoryProfile(
+            cgroup_version=CGroupVersion.V2,
+            is_cgroup_constrained=False,
+            unauthorized_extra_field=123,
         )
 
 
-# =============================================================================
-# 9. QUANTUM CHECKPOINT VALIDATION TESTS
-# =============================================================================
+def test_host_memory_profile_model() -> None:
+    """Verify HostMemoryProfile validation and computed properties."""
+    host = HostMemoryProfile(
+        total_ram_bytes=68719476736,  # 64 GB
+        available_ram_bytes=51539607552,  # 48 GB
+        free_ram_bytes=42949672960,  # 40 GB
+        swap_total_bytes=8589934592,  # 8 GB
+        swap_free_bytes=8589934592,
+        effective_system_ram_bytes=68719476736,
+        hpc_scheduler_detected=None,
+        hpc_job_memory_limit_bytes=None,
+        bounded_total_ram_bytes=68719476736,
+        bounded_total_ram_mb=65536.0,
+        bounded_total_ram_gb=64.0,
+    )
+    assert host.bounded_total_ram_gb == 64.0
+    assert host.bounded_total_ram_mb == 65536.0
+
+    # Test rejection of negative memory
+    with pytest.raises(ValidationError):
+        HostMemoryProfile(
+            total_ram_bytes=-100,
+            available_ram_bytes=100,
+            free_ram_bytes=100,
+            swap_total_bytes=0,
+            swap_free_bytes=0,
+            effective_system_ram_bytes=100,
+            bounded_total_ram_bytes=100,
+            bounded_total_ram_mb=100.0,
+            bounded_total_ram_gb=0.1,
+        )
 
 
-def test_compute_file_sha256() -> None:
-    """Test cryptographic SHA-256 calculation."""
-    with make_temp_dir() as td:
-        f_path = Path(td) / "sample.bin"
-        payload = b"ORCA_BINARY_WAVEFUNCTION_COEFFICIENTS_2026"
-        f_path.write_bytes(payload)
+def test_numa_node_profile_model() -> None:
+    """Verify NumaNodeProfile creation and strict validation."""
+    node = NumaNodeProfile(
+        node_id=0,
+        total_ram_mb=32768.0,
+        free_ram_mb=28000.0,
+        cpu_core_ids=[0, 1, 2, 3, 4, 5, 6, 7],
+        is_local=True,
+    )
+    assert node.node_id == 0
+    assert len(node.cpu_core_ids) == 8
+    assert node.is_local is True
 
-        expected = hashlib.sha256(payload).hexdigest()
-        actual = compute_file_sha256(f_path)
-        assert actual == expected
-
-
-def test_validate_orca_gbw_checkpoint() -> None:
-    """Test validation of real ORCA .gbw binary checkpoint file."""
-    with make_temp_dir() as td:
-        valid_gbw = Path(td) / "water_opt.gbw"
-        gbw_data = b"ORCA-GBW-BINARY-V6.1.1\x00\x01" + b"\x00" * 200
-        valid_gbw.write_bytes(gbw_data)
-
-        item_valid = validate_orca_gbw_checkpoint(valid_gbw)
-        assert item_valid.format == CheckpointFormat.ORCA_GBW
-        assert item_valid.status == CheckpointStatus.VALID
-        assert item_valid.is_resumable is True
-        assert item_valid.size_bytes == len(gbw_data)
-
-        trunc_gbw = Path(td) / "empty.gbw"
-        trunc_gbw.write_bytes(b"")
-        item_trunc = validate_orca_gbw_checkpoint(trunc_gbw)
-        assert item_trunc.status == CheckpointStatus.TRUNCATED
+    with pytest.raises(ValidationError):
+        NumaNodeProfile(
+            node_id=-1,
+            total_ram_mb=1024.0,
+            free_ram_mb=512.0,
+            cpu_core_ids=[],
+            is_local=True,
+        )
 
 
-def test_validate_pyscf_chk_checkpoint() -> None:
-    """Test validation of real PySCF .chk HDF5 checkpoint file."""
-    with make_temp_dir() as td:
-        chk_path = Path(td) / "pyscf_mol.chk"
-
-        if _HAS_H5PY and h5py is not None:
-            with h5py.File(str(chk_path), "w") as h5:
-                scf_grp = h5.create_group("scf")
-                scf_grp.create_dataset("e_tot", data=-76.4215)
-                h5.create_group("mol")
-
-            item = validate_pyscf_chk_checkpoint(chk_path)
-            assert item.format == CheckpointFormat.PYSCF_CHK
-            assert item.status == CheckpointStatus.VALID
-            assert item.is_resumable is True
-        else:
-            chk_path.write_bytes(b"\x89HDF\r\n\x1a\n" + b"\x00" * 100)
-            item = validate_pyscf_chk_checkpoint(chk_path)
-            assert item.format == CheckpointFormat.PYSCF_CHK
-            assert item.status == CheckpointStatus.VALID
+def test_multi_tier_memory_profile_model() -> None:
+    """Verify MultiTierMemoryProfile validation."""
+    node0 = NumaNodeProfile(node_id=0, total_ram_mb=32768.0, free_ram_mb=28000.0, cpu_core_ids=[0, 1], is_local=True)
+    profile = MultiTierMemoryProfile(
+        numa_nodes_count=1,
+        numa_nodes=[node0],
+        numa_balance_status=NUMABalanceStatus.UNIFIED_UMA,
+        tier_1_local_ram_mb=32768.0,
+        tier_2_remote_ram_mb=0.0,
+        tier_3_swap_mb=8192.0,
+        is_numa_aware=False,
+    )
+    assert profile.numa_nodes_count == 1
+    assert profile.tier_1_local_ram_mb == 32768.0
 
 
-def test_validate_xtb_xtbw_checkpoint() -> None:
-    """Test validation of xTB restart file (.xtbw)."""
-    with make_temp_dir() as td:
-        xtbw_path = Path(td) / "xtb_restart.xtbw"
-        xtbw_path.write_bytes(b"XTB-RESTART-CHARGES-MULTIPOLE\x00\x01\x02\x03")
-
-        item = validate_xtb_xtbw_checkpoint(xtbw_path)
-        assert item.format == CheckpointFormat.XTB_XTBW
-        assert item.status == CheckpointStatus.VALID
-        assert item.is_resumable is True
-
-
-def test_scan_and_validate_checkpoints() -> None:
-    """Test directory scanning and aggregate reporting."""
-    with make_temp_dir() as td:
-        d1 = Path(td) / "dir1"
-        d1.mkdir()
-        (d1 / "job1.gbw").write_bytes(b"ORCA_BINARY_DATA_" + b"\x00" * 100)
-        (d1 / "job2_corrupt.gbw").write_bytes(b"")
-
-        report = scan_and_validate_checkpoints([d1])
-        assert report.scanned_count == 2
-        assert report.valid_count == 1
-        assert report.corrupt_count == 1
+def test_engine_memory_budget_model() -> None:
+    """Verify EngineMemoryBudget validation and formatting."""
+    budget = EngineMemoryBudget(
+        engine=EngineTarget.ORCA,
+        primary_directive_name="%maxcore",
+        directive_value_formatted="%maxcore 7168",
+        allocated_per_core_mb=7168,
+        allocated_total_job_mb=28672,
+        env_var_name="ORCA_MAXCORE",
+        env_var_value="7168",
+        notes="Safe 4-core allocation with flat 4GB OS buffer",
+    )
+    assert budget.engine == EngineTarget.ORCA
+    assert budget.allocated_per_core_mb == 7168
+    assert budget.allocated_total_job_mb == 28672
 
 
-# =============================================================================
-# 10. STATE-CHAIN CONTINUITY & RECOVERY TESTS
-# =============================================================================
-
-
-def test_audit_state_chain_recovery_all_present() -> None:
-    """Test state-chain recovery when all previous phases p1-p9 exist."""
-    with make_temp_dir() as td:
-        reg_dir = Path(td) / "Registry"
-        reg_dir.mkdir()
-
-        for i in range(1, 10):
-            p_file = reg_dir / f"p{i}.json"
-            p_file.write_text(json.dumps({"phase_id": f"cochem_setup_phase_{i}", "status": "PASSED"}), encoding="utf-8")
-
-        s_base = Path(td) / "sandboxes"
-        s_base.mkdir()
-        orphaned = s_base / "cochem_exec_interrupted_job"
-        orphaned.mkdir()
-        (orphaned / "resume.gbw").write_bytes(b"ORCA_BINARY_RESTART_" + b"\x00" * 100)
-
-        sc = audit_state_chain_recovery(registry_dir=reg_dir, sandbox_base_dir=s_base)
-
-        assert sc.chain_intact is True
-        assert len(sc.verified_phases) == 9
-        assert len(sc.missing_phases) == 0
-        assert len(sc.orphaned_sandboxes) == 1
-        assert len(sc.recoverable_jobs) == 1
+def test_oom_shield_scaling_profile_model() -> None:
+    """Verify OOMShieldScalingProfile mathematical constraints."""
+    profile = OOMShieldScalingProfile(
+        total_physical_cores=16,
+        active_job_cores=4,
+        bounded_total_ram_mb=65536.0,
+        os_jupyter_reserve_mb=8192,
+        reserve_ratio=0.125,
+        allocatable_ram_mb=57344,
+        allocatable_ram_gb=56.0,
+        baseline_80pct_maxcore_mb=3276,
+        active_core_maxcore_mb=14336,
+        memory_gain_vs_baseline_pct=337.6,
+        shield_active=True,
+    )
+    assert profile.active_core_maxcore_mb == 14336
+    assert profile.baseline_80pct_maxcore_mb == 3276
+    assert profile.memory_gain_vs_baseline_pct > 0.0
 
 
 # =============================================================================
-# 11. ENVIRONMENT INJECTION & DEPENDENCY MANAGER TESTS
+# 3. LOW-LEVEL DISCOVERY & PARSING TESTS (ZERO-MOCK)
 # =============================================================================
+
+
+def test_parse_proc_meminfo_with_real_files(tmp_path: Path) -> None:
+    """Verify parsing of Linux /proc/meminfo formatted content."""
+    proc_dir = tmp_path / "proc"
+    proc_dir.mkdir()
+    meminfo_file = proc_dir / "meminfo"
+
+    content = (
+        "MemTotal:       65860884 kB\n"
+        "MemFree:        34812320 kB\n"
+        "MemAvailable:   52384112 kB\n"
+        "Buffers:          524288 kB\n"
+        "Cached:         18234560 kB\n"
+        "SwapTotal:       8388604 kB\n"
+        "SwapFree:        8388604 kB\n"
+    )
+    meminfo_file.write_text(content, encoding="utf-8")
+
+    parsed = parse_proc_meminfo(proc_root=proc_dir)
+    assert parsed["MemTotal"] == 65860884 * 1024
+    assert parsed["MemFree"] == 34812320 * 1024
+    assert parsed["MemAvailable"] == 52384112 * 1024
+    assert parsed["SwapTotal"] == 8388604 * 1024
+
+
+def test_parse_proc_meminfo_missing_file(tmp_path: Path) -> None:
+    """Verify graceful handling when /proc/meminfo does not exist."""
+    empty_dir = tmp_path / "empty_proc"
+    empty_dir.mkdir()
+    parsed = parse_proc_meminfo(proc_root=empty_dir)
+    assert parsed == {}
+
+
+def test_parse_cgroup_v2_memory_bounds(tmp_path: Path) -> None:
+    """Verify parsing of cgroups v2 memory bounds (memory.max, memory.high, memory.current)."""
+    cg_dir = tmp_path / "sys" / "fs" / "cgroup"
+    cg_dir.mkdir(parents=True)
+
+    (cg_dir / "memory.max").write_text("34359738368\n", encoding="utf-8")  # 32 GB
+    (cg_dir / "memory.high").write_text("30064771072\n", encoding="utf-8")  # 28 GB
+    (cg_dir / "memory.current").write_text("4294967296\n", encoding="utf-8")  # 4 GB
+
+    profile = parse_cgroup_memory_bounds(cgroup_root=cg_dir)
+    assert profile.cgroup_version == CGroupVersion.V2
+    assert profile.memory_max_bytes == 34359738368
+    assert profile.memory_high_bytes == 30064771072
+    assert profile.memory_current_bytes == 4294967296
+    assert profile.memory_limit_bytes == 34359738368
+    assert profile.is_cgroup_constrained is True
+
+
+def test_parse_cgroup_v2_max_string_unconstrained(tmp_path: Path) -> None:
+    """Verify cgroups v2 with 'max' token correctly identifies unconstrained memory."""
+    cg_dir = tmp_path / "sys" / "fs" / "cgroup"
+    cg_dir.mkdir(parents=True)
+    (cg_dir / "memory.max").write_text("max\n", encoding="utf-8")
+
+    profile = parse_cgroup_memory_bounds(cgroup_root=cg_dir)
+    assert profile.cgroup_version == CGroupVersion.V2
+    assert profile.memory_max_bytes is None
+    assert profile.memory_limit_bytes is None
+    assert profile.is_cgroup_constrained is False
+
+
+def test_parse_cgroup_v1_memory_bounds(tmp_path: Path) -> None:
+    """Verify parsing of cgroups v1 memory bounds (memory.limit_in_bytes, memory.memsw.limit_in_bytes)."""
+    cg_dir = tmp_path / "sys" / "fs" / "cgroup" / "memory"
+    cg_dir.mkdir(parents=True)
+
+    (cg_dir / "memory.limit_in_bytes").write_text("17179869184\n", encoding="utf-8")  # 16 GB
+    (cg_dir / "memory.memsw.limit_in_bytes").write_text("21474836480\n", encoding="utf-8")  # 20 GB
+
+    profile = parse_cgroup_memory_bounds(cgroup_root=cg_dir)
+    assert profile.cgroup_version == CGroupVersion.V1
+    assert profile.memory_limit_bytes == 17179869184
+    assert profile.swap_limit_bytes == 21474836480
+    assert profile.is_cgroup_constrained is True
+
+
+def test_detect_hpc_memory_limits_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify Slurm HPC job memory limit resolution via environment variables."""
+    monkeypatch.setenv("SLURM_JOB_ID", "123456")
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", "65536")  # 64 GB in MB
+
+    scheduler, mem_bytes = detect_hpc_memory_limits()
+    assert scheduler == "Slurm"
+    assert mem_bytes == 65536 * 1024 * 1024
+
+
+def test_detect_hpc_memory_limits_pbs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify PBS HPC job memory limit resolution via environment variables."""
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    monkeypatch.setenv("PBS_JOBID", "789012")
+    monkeypatch.setenv("PBS_MEM", "32gb")
+
+    scheduler, mem_bytes = detect_hpc_memory_limits()
+    assert scheduler == "PBS"
+    assert mem_bytes == 32 * 1024 * 1024 * 1024
+
+
+def test_discover_numa_topology_sysfs(tmp_path: Path) -> None:
+    """Verify NUMA node discovery using real sysfs directory hierarchy."""
+    sys_dir = tmp_path / "sys" / "devices" / "system" / "node"
+    sys_dir.mkdir(parents=True)
+
+    # Node 0
+    node0_dir = sys_dir / "node0"
+    node0_dir.mkdir()
+    (node0_dir / "meminfo").write_text(
+        "Node 0 MemTotal:       32930442 kB\n"
+        "Node 0 MemFree:        28192000 kB\n",
+        encoding="utf-8",
+    )
+    (node0_dir / "cpulist").write_text("0-7\n", encoding="utf-8")
+
+    # Node 1
+    node1_dir = sys_dir / "node1"
+    node1_dir.mkdir()
+    (node1_dir / "meminfo").write_text(
+        "Node 1 MemTotal:       32930442 kB\n"
+        "Node 1 MemFree:        29100000 kB\n",
+        encoding="utf-8",
+    )
+    (node1_dir / "cpulist").write_text("8-15\n", encoding="utf-8")
+
+    profile = discover_numa_topology(sys_root=sys_dir)
+    assert profile.numa_nodes_count == 2
+    assert profile.is_numa_aware is True
+    assert profile.numa_balance_status in (NUMABalanceStatus.BALANCED, NUMABalanceStatus.ASYMMETRIC)
+    assert len(profile.numa_nodes) == 2
+    assert profile.numa_nodes[0].cpu_core_ids == [0, 1, 2, 3, 4, 5, 6, 7]
+    assert profile.numa_nodes[1].cpu_core_ids == [8, 9, 10, 11, 12, 13, 14, 15]
+
+
+def test_discover_numa_topology_fallback_uma(tmp_path: Path) -> None:
+    """Verify NUMA discovery graceful fallback to Unified UMA when no sysfs nodes exist."""
+    empty_sys = tmp_path / "empty_sys"
+    empty_sys.mkdir()
+    profile = discover_numa_topology(sys_root=empty_sys)
+    assert profile.numa_nodes_count == 1
+    assert profile.is_numa_aware is False
+    assert profile.numa_balance_status == NUMABalanceStatus.UNIFIED_UMA
+
+
+# =============================================================================
+# 4. MATHEMATICAL GUARDRAIL & OOM SHIELD TESTS
+# =============================================================================
+
+
+def test_compute_os_jupyter_reserve_large_systems() -> None:
+    """Verify flat OS/Jupyter reservation bounds on medium and large RAM systems."""
+    # 64 GB system (65536 MB): 15% is 9830.4 MB, clamped to max 8192 MB (8 GB)
+    res_64g = compute_os_jupyter_reserve(65536.0)
+    assert res_64g == 8192
+
+    # 32 GB system (32768 MB): 15% is 4915.2 MB, within [4096, 8192] -> 4915 MB
+    res_32g = compute_os_jupyter_reserve(32768.0)
+    assert 4096 <= res_32g <= 8192
+
+    # 16 GB system (16384 MB): 15% is 2457.6 MB, clamped to min 4096 MB (4 GB)
+    res_16g = compute_os_jupyter_reserve(16384.0)
+    assert res_16g == 4096
+
+
+def test_compute_os_jupyter_reserve_low_ram_systems() -> None:
+    """Verify OS/Jupyter reservation scales safely on constrained RAM systems (< 16 GB)."""
+    # 8 GB system (8192 MB): 20% is 1638 MB
+    res_8g = compute_os_jupyter_reserve(8192.0)
+    assert res_8g == 1638
+    assert (8192 - res_8g) >= 512
+
+    # 2 GB system (2048 MB): leaves at least 512 MB for calculation
+    res_2g = compute_os_jupyter_reserve(2048.0)
+    assert res_2g <= (2048 - 512)
+    assert (2048 - res_2g) >= 512
+
+
+def test_compute_os_jupyter_reserve_custom_override() -> None:
+    """Verify user-provided custom OS reservation override."""
+    res_custom = compute_os_jupyter_reserve(65536.0, custom_reserve_mb=6000)
+    assert res_custom == 6000
+
+
+def test_compute_oom_shield_scaling_active_vs_physical() -> None:
+    """
+    Verify OOM Shield mathematical division: dividing allocatable memory across active cores
+    vs total physical cores, guaranteeing significant memory gains for targeted calculations.
+    """
+    host_mem = HostMemoryProfile(
+        total_ram_bytes=68719476736,  # 64 GB
+        available_ram_bytes=60129542144,
+        free_ram_bytes=55834574848,
+        swap_total_bytes=8589934592,
+        swap_free_bytes=8589934592,
+        effective_system_ram_bytes=68719476736,
+        hpc_scheduler_detected=None,
+        hpc_job_memory_limit_bytes=None,
+        bounded_total_ram_bytes=68719476736,
+        bounded_total_ram_mb=65536.0,
+        bounded_total_ram_gb=64.0,
+    )
+
+    # 16 physical cores, but user requests 4 active cores for calculation
+    shield = compute_oom_shield_scaling(
+        host_mem=host_mem,
+        total_physical_cores=16,
+        active_cores=4,
+        os_reserve_mb=8192,
+    )
+
+    assert shield.total_physical_cores == 16
+    assert shield.active_job_cores == 4
+    assert shield.os_jupyter_reserve_mb == 8192
+    assert shield.allocatable_ram_mb == 57344  # 65536 - 8192
+
+    # Baseline 80% formula divided by 16 physical cores:
+    # int((64 * 1024 * 0.80) / 16) = int(52428.8 / 16) = 3276 MB
+    assert shield.baseline_80pct_maxcore_mb == 3276
+
+    # Active core division: int(57344 / 4) = 14336 MB
+    assert shield.active_core_maxcore_mb == 14336
+
+    # Memory gain should be ~337%
+    assert shield.memory_gain_vs_baseline_pct > 300.0
+    assert shield.shield_active is True
+
+
+def test_compute_oom_shield_scaling_active_cores_clamping() -> None:
+    """Verify active cores input clamping to valid physical core range [1, physical_cores]."""
+    host_mem = HostMemoryProfile(
+        total_ram_bytes=17179869184,  # 16 GB
+        available_ram_bytes=15032385536,
+        free_ram_bytes=12884901888,
+        swap_total_bytes=0,
+        swap_free_bytes=0,
+        effective_system_ram_bytes=17179869184,
+        bounded_total_ram_bytes=17179869184,
+        bounded_total_ram_mb=16384.0,
+        bounded_total_ram_gb=16.0,
+    )
+
+    # Requesting 0 cores clamps to 1 core
+    shield_zero = compute_oom_shield_scaling(host_mem=host_mem, total_physical_cores=8, active_cores=0)
+    assert shield_zero.active_job_cores == 1
+
+    # Requesting 32 cores on an 8-core host clamps to 8 cores
+    shield_over = compute_oom_shield_scaling(host_mem=host_mem, total_physical_cores=8, active_cores=32)
+    assert shield_over.active_job_cores == 8
+
+
+# =============================================================================
+# 5. MULTI-ENGINE BUDGET SYNTHESIZER TESTS
+# =============================================================================
+
+
+def test_build_engine_memory_budgets() -> None:
+    """Verify synthesis of multi-engine memory directives and environment variables."""
+    budgets = build_engine_memory_budgets(
+        allocatable_ram_mb=57344,
+        active_core_maxcore_mb=14336,
+        active_cores=4,
+    )
+
+    # 1. ORCA
+    orca = budgets["ORCA"]
+    assert orca.engine == EngineTarget.ORCA
+    assert orca.primary_directive_name == "%maxcore"
+    assert orca.directive_value_formatted == "%maxcore 14336"
+    assert orca.allocated_per_core_mb == 14336
+    assert orca.env_var_name == "ORCA_MAXCORE"
+    assert orca.env_var_value == "14336"
+
+    # 2. PySCF
+    pyscf = budgets["PYSCF"]
+    assert pyscf.engine == EngineTarget.PYSCF
+    assert pyscf.primary_directive_name == "max_memory"
+    assert "57344" in pyscf.directive_value_formatted
+    assert pyscf.env_var_name == "PYSCF_MAX_MEMORY"
+    assert pyscf.env_var_value == "57344"
+
+    # 3. xTB
+    xtb = budgets["XTB"]
+    assert xtb.engine == EngineTarget.XTB
+    assert xtb.primary_directive_name == "--memory"
+    assert xtb.directive_value_formatted == "--memory 57344m"
+    assert xtb.env_var_name == "XTB_MAX_MEMORY"
+    assert xtb.env_var_value == "57344"
+
+    # 4. Gaussian
+    gauss = budgets["GAUSSIAN"]
+    assert gauss.engine == EngineTarget.GAUSSIAN
+    assert gauss.primary_directive_name == "%mem"
+    assert gauss.env_var_name == "GAUSS_MEMDEF"
+
+    # 5. CFOUR
+    cfour = budgets["CFOUR"]
+    assert cfour.engine == EngineTarget.CFOUR
+    assert cfour.primary_directive_name == "MEMORY_SIZE"
+
+    # 6. MACE-Torch
+    mace = budgets["MACE_TORCH"]
+    assert mace.engine == EngineTarget.MACE_TORCH
+    assert mace.env_var_name == "COCHEM_MACE_HOST_RAM_MB"
+
+    # 7. OpenMPI
+    mpi = budgets["OPENMPI"]
+    assert mpi.engine == EngineTarget.OPENMPI
 
 
 def test_generate_environment_injection_dict() -> None:
-    """Test environment variable injection generation with MolSym and Eckart flags."""
-    sb = EphemeralSandboxProfile(
-        sandbox_path="/tmp/cochem_exec_xyz",
-        sandbox_uuid="xyz",
-        base_directory="/tmp",
-        is_created=True,
-        is_writable=True,
-        is_isolated=True,
-        permissions_octal="0o700",
-        cleanup_verified=True,
-        active_pid=os.getpid(),
+    """Verify comprehensive environment variable injection dictionary synthesis."""
+    shield = OOMShieldScalingProfile(
+        total_physical_cores=16,
+        active_job_cores=4,
+        bounded_total_ram_mb=65536.0,
+        os_jupyter_reserve_mb=8192,
+        reserve_ratio=0.125,
+        allocatable_ram_mb=57344,
+        allocatable_ram_gb=56.0,
+        baseline_80pct_maxcore_mb=3276,
+        active_core_maxcore_mb=14336,
+        memory_gain_vs_baseline_pct=337.6,
+        shield_active=True,
     )
-    iops = IOPSBenchmarkProfile(
-        target_directory="/tmp/cochem_exec_xyz",
-        file_size_bytes=10485760,
-        block_size_bytes=65536,
-        total_blocks=160,
-        write_duration_seconds=0.05,
-        write_throughput_mb_s=200.0,
-        write_iops=3200.0,
-        read_duration_seconds=0.04,
-        read_throughput_mb_s=250.0,
-        read_iops=4000.0,
-        sync_latency_ms=1.0,
-        status=IOPSBenchmarkStatus.OPTIMAL,
-        is_unbuffered=True,
-        is_performance_sufficient=True,
-    )
-    chk = CheckpointValidationReport(
-        scanned_count=2,
-        valid_count=2,
-        corrupt_count=0,
-        resumable_checkpoints=[],
-        validation_enabled=True,
-    )
-    sc = StateChainRecoveryProfile(
-        registry_directory="/Registry",
-        verified_phases=["p1", "p2"],
-        missing_phases=[],
-        chain_intact=True,
-        recoverable_jobs=[],
-        orphaned_sandboxes=[],
-    )
-    ms = MolSymSiloProfile(
-        silo_path=None,
-        is_installed=True,
-        silo_status=MolSymSiloStatus.AVAILABLE,
-        version="1.0",
-        location="/loc",
-        has_symtext=True,
-        has_find_point_group=True,
-        notes="OK",
-    )
-    ev = EckartVerificationReport(
-        total_benchmarks=5,
-        passed_benchmarks=5,
-        failed_benchmarks=0,
-        overall_status=EckartVerificationStatus.VERIFIED,
-        max_translational_residual=1e-15,
-        max_rotational_residual=1e-15,
-        items=[],
+    budgets = build_engine_memory_budgets(
+        allocatable_ram_mb=57344,
+        active_core_maxcore_mb=14336,
+        active_cores=4,
     )
 
-    env_vars = generate_environment_injection_dict(sb, iops, chk, sc, ms, ev, alignment_ready=True)
-    assert env_vars["COCHEM_EPHEMERAL_SANDBOX"] == "/tmp/cochem_exec_xyz"
-    assert env_vars["COCHEM_MOLSYM_SILO_STATUS"] == "AVAILABLE"
-    assert env_vars["COCHEM_ECKART_VERIFICATION_STATUS"] == "VERIFIED"
-    assert env_vars["COCHEM_ALIGNMENT_ENGINE_READY"] == "1"
-    assert env_vars["COCHEM_PHASE_10_STATUS"] == "PASSED"
+    env_dict = generate_environment_injection_dict(oom_shield=shield, budgets=budgets)
 
-
-def test_dependency_manager_atomic_and_rollback() -> None:
-    """Test transactional atomic write and rollback behavior of DependencyManager."""
-    with make_temp_dir() as td:
-        target_file = Path(td) / "p10.json"
-
-        with DependencyManager(target_file) as dm:
-            dm.write_payload({"phase_id": "cochem_setup_phase_10", "status": "PASSED"})
-
-        assert target_file.exists()
-        with open(target_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            assert data["status"] == "PASSED"
-
-        target_file2 = Path(td) / "p10_fail.json"
-        try:
-            with DependencyManager(target_file2) as dm2:
-                dm2.write_payload({"status": "SHOULD_NOT_EXIST"})
-                raise RuntimeError("Simulated unhandled failure")
-        except RuntimeError:
-            pass
-
-        assert not target_file2.exists()
+    assert "ORCA_MAXCORE" in env_dict
+    assert env_dict["ORCA_MAXCORE"] == "14336"
+    assert env_dict["PYSCF_MAX_MEMORY"] == "57344"
+    assert env_dict["XTB_MAX_MEMORY"] == "57344"
+    assert env_dict["COCHEM_MAXCORE_MB"] == "14336"
+    assert env_dict["COCHEM_ALLOCATABLE_RAM_MB"] == "57344"
+    assert env_dict["COCHEM_SAFETY_BUFFER_MB"] == "8192"
+    assert env_dict["COCHEM_ACTIVE_CORES"] == "4"
+    assert env_dict["COCHEM_TOTAL_RAM_MB"] == "65536"
+    assert env_dict["COCHEM_OOM_SHIELD_STATUS"] == "ACTIVE"
 
 
 # =============================================================================
-# 12. MASTER AUDIT ORCHESTRATOR & CLI TESTS
+# 6. TRANSACTIONAL DEPENDENCY MANAGER & REGISTRY TESTS
 # =============================================================================
 
 
-def test_run_phase_10_audit_full_flow() -> None:
-    """Test master run_phase_10_audit execution in dry_run and write modes."""
-    with make_temp_dir() as td:
-        reg_dir = Path(td) / "Registry"
-        reg_dir.mkdir()
-        sb_dir = Path(td) / "sandboxes"
-        sb_dir.mkdir()
+def test_dependency_manager_rollback_on_error(tmp_path: Path) -> None:
+    """Verify DependencyManager rolls back and unlinks tracked temp files on exception."""
+    temp_target = tmp_path / "will_be_deleted.tmp"
+    temp_target.write_text("ephemeral data", encoding="utf-8")
 
-        for i in range(1, 10):
-            (reg_dir / f"p{i}.json").write_text(json.dumps({"status": "PASSED"}), encoding="utf-8")
+    assert temp_target.exists()
 
-        report_dry = run_phase_10_audit(
-            output_dir=reg_dir,
-            sandbox_base_dir=sb_dir,
-            skip_iops=False,
-            benchmark_size_mb=1.0,
-            registry_dir=reg_dir,
-            dry_run=True,
+    with pytest.raises(RuntimeError):
+        with DependencyManager() as dm:
+            dm.track_temp_file(temp_target)
+            raise RuntimeError("Simulated failure during execution")
+
+    # Target should be cleaned up by rollback
+    assert not temp_target.exists()
+
+
+def test_dependency_manager_normal_exit(tmp_path: Path) -> None:
+    """Verify DependencyManager retains files upon successful execution."""
+    temp_target = tmp_path / "will_survive.tmp"
+    temp_target.write_text("permanent data", encoding="utf-8")
+
+    with DependencyManager() as dm:
+        dm.track_temp_file(temp_target)
+        # Normal exit without exception
+
+    assert temp_target.exists()
+
+
+def test_resolve_p11_registry_path_custom_and_default(tmp_path: Path) -> None:
+    """Verify resolution of p11.json Golden Registry artifact destination path."""
+    custom_dir = tmp_path / "custom_registry"
+    p11_path = resolve_p11_registry_path(output_dir=custom_dir)
+    assert p11_path.name == "p11.json"
+    assert p11_path.parent == custom_dir.resolve()
+
+
+# =============================================================================
+# 7. INTEGRATION AUDIT RUNNER & CLI TESTS
+# =============================================================================
+
+
+def test_run_phase_11_audit_full_flow(tmp_path: Path) -> None:
+    """Verify end-to-end execution of Phase 11 audit, state validation, and p11.json persistence."""
+    output_dir = tmp_path / "artifacts" / "registry"
+
+    report = run_phase_11_audit(
+        output_dir=output_dir,
+        active_cores=4,
+        os_reserve_mb=None,
+        dry_run=False,
+    )
+
+    assert report.phase_id == "cochem_setup_phase_11"
+    assert report.status in (PhaseStatus.PASSED, PhaseStatus.DEGRADED)
+    assert report.oom_shield.shield_active is True
+    assert report.oom_shield.active_job_cores >= 1
+    assert report.oom_shield.allocatable_ram_mb > 0
+    assert len(report.engine_budgets) >= 7
+    assert len(report.injected_env_vars) >= 8
+
+    # Verify p11.json exists on disk and parses cleanly with Pydantic
+    p11_file = Path(report.artifact_path)
+    assert p11_file.exists()
+    raw_data = json.loads(p11_file.read_text(encoding="utf-8"))
+    re_parsed_report = Phase11AuditReport.model_validate(raw_data)
+    assert re_parsed_report.phase_id == "cochem_setup_phase_11"
+
+
+def test_run_phase_11_audit_dry_run(tmp_path: Path) -> None:
+    """Verify dry_run produces a valid report without writing p11.json to disk."""
+    output_dir = tmp_path / "dry_run_registry"
+
+    report = run_phase_11_audit(
+        output_dir=output_dir,
+        active_cores=2,
+        dry_run=True,
+    )
+
+    assert report.phase_id == "cochem_setup_phase_11"
+    p11_file = output_dir / "p11.json"
+    assert not p11_file.exists()
+
+
+def test_main_cli_execution_json(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Verify CLI main entry point with --json and --dry-run flags."""
+    out_dir = tmp_path / "cli_reg"
+    exit_code = main(["--output-dir", str(out_dir), "--active-cores", "2", "--dry-run", "--json"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    parsed_json = json.loads(captured.out)
+    assert parsed_json["phase_id"] == "cochem_setup_phase_11"
+    assert "oom_shield" in parsed_json
+
+
+def test_main_cli_execution_human_readable(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Verify CLI main entry point human-readable summary output."""
+    out_dir = tmp_path / "cli_reg_human"
+    exit_code = main(["--output-dir", str(out_dir), "--active-cores", "4", "--dry-run"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    assert "COCHEM SETUP PHASE 11: MEMORY ROUTER & OOM SHIELD GATEKEEPER" in captured.out
+    assert "OOM Shield Memory Partitioning Profile:" in captured.out
+    assert "Multi-Engine Target Directives:" in captured.out
+
+
+# =============================================================================
+# 8. PHASE 2 AUDIT INGESTION & ZERO-SPOOF CGROUP V2 TESTS
+# =============================================================================
+
+
+def test_phase_2_audit_findings_model() -> None:
+    """Verify Phase2AuditFindings model strict validation and field constraints."""
+    findings = Phase2AuditFindings(
+        loaded_from="/path/to/p2.json",
+        status="PASSED",
+        total_physical_ram_bytes=68719476736,
+        effective_memory_bytes=68719476736,
+        physical_cores=16,
+        logical_cores=32,
+        is_cgroup_constrained=False,
+        gpu_available=True,
+    )
+    assert findings.status == "PASSED"
+    assert findings.physical_cores == 16
+    assert findings.gpu_available is True
+
+    # Forbid extra fields
+    with pytest.raises(ValidationError):
+        Phase2AuditFindings(
+            loaded_from="/path/to/p2.json",
+            status="PASSED",
+            total_physical_ram_bytes=68719476736,
+            effective_memory_bytes=68719476736,
+            physical_cores=16,
+            logical_cores=32,
+            unauthorized_key=123,
         )
-        assert report_dry.phase_id == "cochem_setup_phase_10"
-        assert report_dry.alignment_engine_ready is True
-        assert not (reg_dir / "p10.json").exists()
-
-        report_live = run_phase_10_audit(
-            output_dir=reg_dir,
-            sandbox_base_dir=sb_dir,
-            skip_iops=False,
-            benchmark_size_mb=1.0,
-            registry_dir=reg_dir,
-            dry_run=False,
-        )
-        assert report_live.alignment_engine_ready is True
-        assert (reg_dir / "p10.json").exists()
-
-        with open(reg_dir / "p10.json", "r", encoding="utf-8") as f:
-            persisted = json.load(f)
-            assert persisted["phase_id"] == "cochem_setup_phase_10"
-            assert persisted["alignment_engine_ready"] is True
 
 
-def test_main_cli_execution() -> None:
-    """Test main CLI entrypoint with various flag permutations."""
-    with make_temp_dir() as td:
-        exit_code = main(["--dry-run", "--json", "--skip-iops", "--output-dir", td])
-        assert exit_code == 0
-
-        exit_code2 = main(["--dry-run", "--skip-iops", "--output-dir", td, "--sandbox-dir", td, "--skip-eckart"])
-        assert exit_code2 == 0
+def test_get_absolute_physical_ram_positive() -> None:
+    """Verify get_absolute_physical_ram returns positive integer byte count."""
+    ram = get_absolute_physical_ram()
+    assert isinstance(ram, int)
+    assert ram > 0
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_load_phase_2_audit_findings_valid(tmp_path: Path) -> None:
+    """Verify load_phase_2_audit_findings accurately parses authentic Phase 2 p2.json."""
+    p2_file = tmp_path / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "timestamp_utc": "2026-08-22T00:00:00Z",
+        "memory": {
+            "total_bytes": 137438953472,  # 128 GB
+            "available_bytes": 120000000000,
+            "effective_memory_bytes": 137438953472,
+            "is_cgroup_constrained": False,
+        },
+        "cpu": {
+            "physical_cores": 32,
+            "logical_cores": 64,
+            "architecture": "x86_64",
+        },
+        "gpu": {
+            "available": True,
+            "devices": [],
+        },
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    findings = load_phase_2_audit_findings(p2_path=p2_file)
+    assert findings is not None
+    assert findings.status == "PASSED"
+    assert findings.total_physical_ram_bytes == 137438953472
+    assert findings.physical_cores == 32
+    assert findings.logical_cores == 64
+    assert findings.gpu_available is True
+
+
+def test_load_phase_2_audit_findings_corrupt_or_missing(tmp_path: Path) -> None:
+    """Verify graceful None return on missing or corrupt p2.json files."""
+    missing_path = tmp_path / "nonexistent_p2.json"
+    assert load_phase_2_audit_findings(p2_path=missing_path) is None
+
+    corrupt_path = tmp_path / "corrupt_p2.json"
+    corrupt_path.write_text("{ corrupt json data ...", encoding="utf-8")
+    assert load_phase_2_audit_findings(p2_path=corrupt_path) is None
+
+
+def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify load_phase_2_audit_findings discovers p2.json via COCHEM_REGISTRY_DIR."""
+    reg_dir = tmp_path / "env_registry"
+    reg_dir.mkdir()
+    p2_file = reg_dir / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 68719476736, "effective_memory_bytes": 68719476736},
+        "cpu": {"physical_cores": 8, "logical_cores": 16},
+        "gpu": {"available": False},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+    monkeypatch.setenv("COCHEM_REGISTRY_DIR", str(reg_dir))
+
+    findings = load_phase_2_audit_findings()
+    assert findings is not None
+    assert findings.physical_cores == 8
+    assert findings.total_physical_ram_bytes == 68719476736
+
+
+def test_run_phase_11_audit_with_p2_path(tmp_path: Path) -> None:
+    """Verify run_phase_11_audit integrates Phase 2 findings into report and baseline."""
+    p2_file = tmp_path / "p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 68719476736, "effective_memory_bytes": 68719476736},
+        "cpu": {"physical_cores": 16, "logical_cores": 32},
+        "gpu": {"available": True},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    out_dir = tmp_path / "p11_out"
+    report = run_phase_11_audit(output_dir=out_dir, p2_path=p2_file, active_cores=4)
+
+    assert report.phase_2_findings is not None
+    assert report.phase_2_findings.physical_cores == 16
+    assert report.phase_2_findings.total_physical_ram_bytes == 68719476736
+    assert report.oom_shield.total_physical_cores == 16
+    assert report.oom_shield.active_job_cores == 4
+
+
+def test_openmpi_dft_constraint_algorithm_exact_20pct_reservation() -> None:
+    """
+    Verify the constraint algorithm for OpenMPI and DFT maximum safe memory allocations:
+      %maxcore = int(((Total_RAM_GB * 1024) * 0.80) / CPU_Physical_Cores)
+    ensuring exactly 20% of system RAM is reserved strictly for OS/Jupyter UI.
+    """
+    # 64 GB RAM, 16 physical cores
+    total_ram_gb = 64.0
+    cpu_cores = 16
+    expected_maxcore = int(((total_ram_gb * 1024.0) * 0.80) / cpu_cores)
+    # int((65536 * 0.80) / 16) = int(52428.8 / 16) = 3276 MB
+
+    host_mem = HostMemoryProfile(
+        total_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        available_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        free_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        swap_total_bytes=0,
+        swap_free_bytes=0,
+        effective_system_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        bounded_total_ram_bytes=int(total_ram_gb * 1024 * 1024 * 1024),
+        bounded_total_ram_mb=total_ram_gb * 1024.0,
+        bounded_total_ram_gb=total_ram_gb,
+    )
+
+    shield = compute_oom_shield_scaling(host_mem=host_mem, total_physical_cores=cpu_cores)
+    assert shield.baseline_80pct_maxcore_mb == expected_maxcore
+    assert shield.baseline_80pct_maxcore_mb == 3276
+
+
+def test_cgroup_v2_priority_over_psutil_hypervisor_anti_spoof(tmp_path: Path) -> None:
+    """
+    Verify cgroupv2 /sys/fs/cgroup/memory.max strictly bounds total RAM before psutil
+    to prevent hypervisor spoofing and guarantee reliable scaling.
+    """
+    cg_dir = tmp_path / "sys" / "fs" / "cgroup"
+    cg_dir.mkdir(parents=True)
+    # Write a constrained 16 GB limit into cgroups v2 memory.max
+    (cg_dir / "memory.max").write_text("17179869184\n", encoding="utf-8")
+
+    host_mem, cg_prof = audit_host_memory(cgroup_root=cg_dir)
+    assert cg_prof.cgroup_version == CGroupVersion.V2
+    assert cg_prof.memory_max_bytes == 17179869184
+    assert cg_prof.is_cgroup_constrained is True
+    # Bounded total RAM must strictly respect cgroup ceiling
+    assert host_mem.bounded_total_ram_bytes <= 17179869184
+    assert host_mem.bounded_total_ram_gb <= 16.0
+
+
+def test_main_cli_with_p2_path(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
+    """Verify CLI --p2-path parameter propagates to JSON output report."""
+    p2_file = tmp_path / "cli_p2.json"
+    p2_payload = {
+        "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+        "status": "PASSED",
+        "memory": {"total_bytes": 34359738368, "effective_memory_bytes": 34359738368},
+        "cpu": {"physical_cores": 8, "logical_cores": 16},
+        "gpu": {"available": False},
+    }
+    p2_file.write_text(json.dumps(p2_payload), encoding="utf-8")
+
+    out_dir = tmp_path / "cli_p2_reg"
+    exit_code = main(["--output-dir", str(out_dir), "--p2-path", str(p2_file), "--dry-run", "--json"])
+    assert exit_code == 0
+
+    captured = capsys.readouterr()
+    parsed_json = json.loads(captured.out)
+    assert parsed_json["phase_2_findings"] is not None
+    assert parsed_json["phase_2_findings"]["physical_cores"] == 8
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

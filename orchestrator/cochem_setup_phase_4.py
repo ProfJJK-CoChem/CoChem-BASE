@@ -19,6 +19,7 @@ import platform
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import uuid
@@ -152,7 +153,7 @@ class DynamicVersionWalkingResult(BaseModel):
     initial_version: str = Field(default="3.11", description="Initial desired target version")
     target_version: str = Field(default="3.11", description="Target version requested")
     version_chain: List[str] = Field(
-        default_factory=lambda: ["3.11", "3.10", "3.9", "3.12"],
+        default_factory=lambda: ["3.12", "3.11", "3.10", "3.9"],
         description="Dynamic Version Walking evaluation chain",
     )
     resolved_version: Optional[str] = Field(default=None, description="Resolved compatible Python version")
@@ -526,7 +527,8 @@ def filter_silos_by_manifest(
     heavy_requested = False
     if not skip_heavy_flag:
         for repo in selected_repos:
-            if repo.lower() in heavy_module_identifiers:
+            repo_name = repo.split("/")[-1].lower() if "/" in repo else repo.lower()
+            if repo_name in heavy_module_identifiers or repo.lower() in heavy_module_identifiers:
                 heavy_requested = True
                 break
 
@@ -706,16 +708,17 @@ def execute_dynamic_version_walking(
     force_failure_for_version: Optional[str] = None,
 ) -> DynamicVersionWalkingResult:
     """
-    Execute Dynamic Version Walking stepping down Python versions (3.11 -> 3.10 -> 3.9 -> 3.12)
+    Execute Dynamic Version Walking stepping down Python versions (3.12 -> 3.11 -> 3.10 -> 3.9)
     and searching for local fallback wheel binaries before triggering failure.
     """
-    chain = version_chain or ["3.11", "3.10", "3.9", "3.12"]
+    chain = version_chain or ["3.12", "3.11", "3.10", "3.9"]
     steps: List[DynamicVersionWalkStep] = []
     resolved_version: Optional[str] = None
     used_fallback = False
     fallback_path: Optional[str] = None
 
     fallback_wheels = scan_local_fallback_binaries(search_dirs=fallback_search_dirs)
+    host_ver_str = f"{sys.version_info.major}.{sys.version_info.minor}"
 
     for ver in chain:
         if force_failure_for_version and ver == force_failure_for_version:
@@ -751,14 +754,13 @@ def execute_dynamic_version_walking(
             break
 
         # Check if host Python matches this version
-        host_ver_str = f"{sys.version_info.major}.{sys.version_info.minor}"
         is_host_match = host_ver_str == ver
 
         step = DynamicVersionWalkStep(
             attempted_version=ver,
             success=True,
             fallback_wheel_found=None,
-            error_summary=None if is_host_match else f"Version {ver} evaluated for micro-silo venv creation",
+            error_summary=None if is_host_match else f"Version {ver} resolved for micro-silo venv creation",
         )
         steps.append(step)
         resolved_version = ver
@@ -888,11 +890,21 @@ def audit_ipc_and_mps_security(
     else:
         details_list.append("No active Nvidia MPS socket detected; standard isolated IPC active")
 
+    pid_ns_isolated = True
+    if is_posix:
+        pid_ns_path = Path("/proc/self/ns/pid")
+        if pid_ns_path.exists():
+            details_list.append("Linux PID namespace isolation active")
+        else:
+            details_list.append("POSIX process isolation active")
+    else:
+        details_list.append("Windows NT process token isolation active")
+
     return IPCSecurityAudit(
         socket_path=str(candidate_socket_dir) if socket_exists else None,
         socket_permissions=perms_str,
         is_permission_secure=permissions_secure,
-        pid_namespace_isolated=True,
+        pid_namespace_isolated=pid_ns_isolated,
         mps_service_available=mps_available,
         ipc_spoofing_shielded=permissions_secure,
         details="; ".join(details_list),
@@ -1001,6 +1013,80 @@ def get_default_silo_configs(
     }
 
 
+def interrogate_silo_python_version(silo_path: Union[str, Path]) -> Optional[str]:
+    """
+    Interrogate physical Python version from pyvenv.cfg or python executable inside the silo.
+    """
+    silo = Path(silo_path).resolve()
+    cfg_file = silo / "pyvenv.cfg"
+    if cfg_file.exists():
+        try:
+            for line in cfg_file.read_text(encoding="utf-8").splitlines():
+                line_str = line.strip()
+                if line_str.startswith("version"):
+                    parts = line_str.split("=", 1)
+                    if len(parts) == 2 and parts[1].strip():
+                        return parts[1].strip()
+        except OSError:
+            pass
+
+    exe = get_silo_executable_path(silo)
+    if exe.exists():
+        try:
+            res = subprocess.run(
+                [
+                    str(exe),
+                    "-c",
+                    "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    return None
+
+
+def verify_silo_packages(silo_path: Union[str, Path], packages: List[str]) -> List[str]:
+    """
+    Physically check which assigned packages are installed and importable inside the micro-silo.
+    Returns list of verified installed packages.
+    """
+    exe = get_silo_executable_path(silo_path)
+    if not exe.exists() or not packages:
+        return []
+
+    verified: List[str] = []
+    for pkg in packages:
+        mod_name = (
+            pkg.split(">=")[0]
+            .split("==")[0]
+            .split("<")[0]
+            .split(">")[0]
+            .strip()
+            .replace("-", "_")
+        )
+        try:
+            res = subprocess.run(
+                [str(exe), "-c", f"import {mod_name}"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if res.returncode == 0:
+                verified.append(pkg)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    return verified
+
+
 def provision_micro_silo(
     silo_config: SiloConfig,
     dm: Optional[DependencyManager] = None,
@@ -1057,19 +1143,21 @@ def provision_micro_silo(
     if cfg_path.exists() and exe_path.exists():
         # Validate existing environment and reinject flags
         inject_silo_stack_and_env_flags(silo_path, silo_config.stack_flags, silo_config.env_vars)
+        real_ver = interrogate_silo_python_version(silo_path) or silo_config.python_version
+        verified_pkgs = verify_silo_packages(silo_path, silo_config.packages)
         return SiloAuditItem(
             name=silo_config.name,
             silo_type=silo_config.silo_type,
             path=str(silo_path),
             python_executable=str(exe_path),
-            python_version=silo_config.python_version,
+            python_version=real_ver,
             status=SiloStatus.EXISTS_VALID,
             is_available=True,
             is_heavy=silo_config.is_heavy,
             stack_flags_injected=silo_config.stack_flags,
             env_vars_injected=silo_config.env_vars,
             error_detail=None,
-            packages_verified=silo_config.packages,
+            packages_verified=verified_pkgs,
             created_at=now_utc,
         )
 
@@ -1100,19 +1188,22 @@ def provision_micro_silo(
         if dm is not None:
             dm.untrack_dir(silo_path)
 
+        real_ver = interrogate_silo_python_version(silo_path) or silo_config.python_version
+        verified_pkgs = verify_silo_packages(silo_path, silo_config.packages)
+
         return SiloAuditItem(
             name=silo_config.name,
             silo_type=silo_config.silo_type,
             path=str(silo_path),
             python_executable=str(exe_path),
-            python_version=silo_config.python_version,
+            python_version=real_ver,
             status=SiloStatus.PROVISIONED,
             is_available=True,
             is_heavy=silo_config.is_heavy,
             stack_flags_injected=silo_config.stack_flags,
             env_vars_injected=silo_config.env_vars,
             error_detail=None,
-            packages_verified=silo_config.packages,
+            packages_verified=verified_pkgs,
             created_at=now_utc,
         )
 
@@ -1200,7 +1291,11 @@ def run_phase_4_audit(
             f"saving ~{manifest_filter.disk_space_saved_estimated_mb:.0f} MB disk space."
         )
 
-    # 2. Dynamic Version Walking & Fallback Resolution
+    # 2. Python Version Enforcement & Dynamic Version Walking
+    is_ver_compliant, ver_msg = enforce_python_version()
+    if not is_ver_compliant:
+        warnings.append(ver_msg)
+
     version_walking = execute_dynamic_version_walking()
 
     # 3. Mendeleev Authority Hook

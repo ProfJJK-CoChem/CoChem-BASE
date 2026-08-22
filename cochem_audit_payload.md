@@ -1,2408 +1,2405 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc3_02_unity_installer_dashboard_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc4_01_registry_schema_prompt.md.
 Original prompt:
-# cochem_unity_installer_dashboard.py Generation Prompt
-
-**Target Filepath:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_unity_installer_dashboard.py`
+# Task: Implement Pydantic Schema Enforcement (`cochem_core_registry_schema.py`)
 
 ## Context
-You are tasked with writing the `cochem_unity_installer_dashboard.py` for CoChem-BASE. This script contains the `ipywidgets` unified dashboard logic that serves as a code-blind graphical frontend when rendered via Voila. It handles user interaction, topological locking, and system state serialization.
+Implement the Pydantic schemas that enforce the Stage 0 Authority Rule for the CoChem-BASE Master Registry. These models act as rigid mathematical boundaries, preventing hallucinated configurations or silent floating-point errors downstream. Raw dictionary manipulation of the registry is forbidden.
 
 ## Instructions
-Write the complete Python script ensuring the following requirements are met:
-1. **Voila Compatibility**: The code must rely purely on `ipywidgets` to render the UI, keeping it clean and standalone for Voila without raw traceback logs leaking to the browser DOM.
-2. **6-Tier Interaction Selection Model**: Provide decoupled dropdown menus to select the interaction environment: `Local-Windows (WSL)`, `Local-MacOS (OrbStack)`, `Local-Linux (Deb)`, `GitHub Codespaces`, `HPC`, and `GitHub Actions`. 
-   - Route the backend orchestrator to execute OS-native bash/Python bindings based on this selection.
-   - If the `$CODESPACES` environment variable is detected, auto-lock this selection.
-3. **Real-Time Hardware Profiling HUD**: Create a dynamic HTML table or widget block that polls `cochem_system_config.json` after Phase 2 completion. Display: Total RAM, Available CPU Cores, GPU VRAM, AVX-512 capability. Visually warn users (red/yellow highlighting) if resources are critically insufficient.
-4. **Topological Prerequisite Locking**: Present a checklist of downstream CoChem modules (`TOPOS`, `TORQ`, `SCAN`, `SCRIBE`). 
-   - Base dependencies (`CoChem-BASE`, `CoChem-MInt`) must be visually rendered but mathematically locked (`disabled=True`, `value=True`).
-   - Enforce rigid dependency graphs: If a heavy module is selected, automatically check its prerequisites.
-   - AI/LLM modules (`SCRIBE`) must remain unselected by default to respect the `RESOURCE_GUARD` mandate.
-5. **Orchestrator Lock (UI Immutability)**: When the "Initialize Pipeline" button is clicked, all `ipywidgets` inputs must instantly shift to `disabled=True` to prevent double-clicking and race conditions.
-6. **State Serialization**: On execution, aggregate all selections into a strict JSON object and save it to the Persistent Data Tier (e.g., `$SCRATCH/CoChem_Artifacts/Registry/cochem_system_config.json` or `$COCHEM_DATA_ROOT/CoChem_Artifacts/Registry/cochem_system_config.json`). All paths must dynamically resolve via these data tier variables.
-   - **Banned**: Hardcoding `$HOME` paths is strictly forbidden.
-   - Render a green success text ("CoChem-BASE Fully Initialized. Safe to proceed.") upon successful serialization.
-7. **Asynchronous Task Management & Error Bubbling**: All background orchestrator processes must use async polling (`asyncio` or `threading`). Long-running tasks must not block the main loop. Runtime errors, warnings, and progress must bubble up natively into an explicit `ipywidgets.Output()` widget without freezing the UI.
+Create the file `cochem_core_registry_schema.py` and implement the following `pydantic v2` models. 
+
+1. **Global Schema Constraints**: 
+   All schemas MUST include `model_config = ConfigDict(extra='forbid', validate_assignment=True)` to prevent legacy or hallucinated key-value pairs.
+
+2. **`GPUComputeSchema`**:
+   A strictly typed sub-model tracking FLOPs, tensor cores, and memory bandwidth.
+
+3. **`HardwareSchema`**:
+   - `ram_gb` (float): Must enforce `Field(gt=0.0)`
+   - `cpu_physical_cores` (int): Must enforce `Field(ge=1)`
+   - `allocatable_compute_cores` (int): Enforce `Field(ge=0)`
+   - `vram_gb` (float): Enforce `Field(ge=0.0)`
+   - `gpu_compute_metrics`: Typed as `GPUComputeSchema`
+   - `gpu_fp64_capable` (bool)
+   - `mps_enabled` (bool)
+   - `avx_512_capable` (bool)
+   - Note: Core attributes defining hardware identity or OS constants should use `frozen=True` where applicable.
+
+4. **`EnvironmentSchema`**:
+   - `os_target` (Enum): Strictly accept only `"Local-Windows"`, `"Local-MacOS"`, `"Local-Linux"`, `"Codespaces"`, `"GitHub_Actions"`, or `"HPC"`.
+   - Isotopic Mass Constants: Lock in exact isotopic mass float values (e.g., `13.00335` for ^13C).
+
+5. **`SiloPathsSchema`**:
+   - Implement absolute path validators (`@field_validator`) that resolve to OS-native paths via `Path.resolve()`. Explicitly reject relative paths.
+   - Interception Logic: Allow the explicit strings `"BYPASSED"` or `"Not_Found"` to be valid values for binary paths (e.g., `cfour_binary_path`, `aimnet2_server_path`) without triggering an `os.access` execution check.
+   - Define fields: `hdf5_pes_store_path`, `cfour_binary_path`, `aimnet2_server_path`.
+   - Prevent write-access pointing to the codebase `$COCHEM_ROOT` (HPC Tripartite - Immutable Code Tier). Paths should map to the Dynamic Data Tier or Volatile Compute Tier.
+
+6. **`CoChemSystemConfig`**:
+   - Aggregate `HardwareSchema`, `EnvironmentSchema`, and `SiloPathsSchema`.
+   - `active_jobs`: Must be typed as `Dict[str, Any]` and default to an empty dictionary (`default_factory=dict`).
+   - `registry_checksum` (str, optional): Stores the SHA-256 checksum of the file contents.
+   - Include a `@model_validator(mode='before')` hook (`RegistryMigrator`) capable of reading legacy flat JSON architectures and remapping them to this nested architecture before validation.
 
 ## Constraints
-- **NO Mocks, Stubs, or Placeholders.** Write the complete logic for the UI, state management, hardware polling, and async execution.
-- Code must be production-ready and accurately implement all architectural requirements.
+- **Target Filepath:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core_registry_schema.py`
+- Absolutely NO mocks, stubs, dummy variables, or `# TODO` placeholders. The future coder agent is explicitly commanded to *not* use mocks.
+- Ensure 100% compliance with `pydantic v2` standards.
+- Must strictly adhere to the Tripartite Workspace Air-Gap and Method Matrix rules.
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\interfaces\cochem_unity_installer_dashboard.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_registry_schema.py ---
 #!/usr/bin/env python3
-"""CoChem-UNITY: Stage 0.0 - Ecosystem Master Installer & Configurator Dashboard.
-
-Provides the interactive ipywidgets tabbed GUI and automated headless deployment logic
-for provisioning CoChem micro-silos, enforcing topological prerequisites, verifying
-Host ORCA engines, dynamic hardware telemetry profiling, and executing Air-Gap Zip
-sideloading across the Tripartite Workspace.
+"""
+CoChem-CORE: Re-exports authoritative schemas from root cochem_core_registry_schema.
 """
 
-from __future__ import annotations
-
-import argparse
-import atexit
-import json
-import logging
-import os
-import platform
-import shutil
-import subprocess
-import sys
-import tempfile
-import threading
-import zipfile
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import ipywidgets as widgets
-import psutil
-from IPython.display import clear_output, display
-from pydantic import BaseModel, Field
-
-from cochem_base.config_loader import (
-    get_artifact_dir,
-    get_base_root,
-    get_scratch_dir,
-    resolve_config_path,
-    resolve_executable,
-)
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("CoChem-Installer")
-
-sys.path.insert(0, str(get_base_root()))
-try:
-    from core_engine.cochem_core_subprocess_broker import (
-        cleanup_zombie_processes,
-        register_popen_process,
-        safe_subprocess_run,
-    )
-except ImportError:
-    safe_subprocess_run = None  # type: ignore
-    register_popen_process = None  # type: ignore
-
-    def cleanup_zombie_processes() -> int:  # type: ignore
-        reaped = 0
-        try:
-            current_process = psutil.Process(os.getpid())
-            children = current_process.children(recursive=True)
-            for child in children:
-                try:
-                    child.terminate()
-                except psutil.NoSuchProcess:
-                    pass
-            gone, alive = psutil.wait_procs(children, timeout=3)
-            for p in alive:
-                try:
-                    p.kill()
-                    reaped += 1
-                except psutil.NoSuchProcess:
-                    pass
-        except Exception as e:
-            logger.warning(f"Fallback zombie sweep warning: {e}")
-        return reaped
-
-
-def _cleanup_zombie_processes() -> int:
-    """Invokes the central zombie reaper safely."""
-    try:
-        return cleanup_zombie_processes()
-    except Exception as e:
-        logger.warning(f"Zombie cleanup encountered error: {e}")
-        return 0
-
-
-atexit.register(_cleanup_zombie_processes)
-
-
-class DeploymentManifest(BaseModel):
-    """Pydantic model validating the Stage 0 deployment manifest."""
-
-    version: str = Field(default="2026.2", description="CoChem-BASE platform release version.")
-    git_provenance_hash: str = Field(description="SHA-1 commit hash of the base repository.")
-    interaction_environment: str = Field(description="Selected UI / interaction execution environment.")
-    calculation_environment: str = Field(description="Selected compute / calculation execution tier.")
-    orca_tarball_path: str = Field(default="", description="Path or binary alias for Host ORCA executable.")
-    selected_repositories: List[str] = Field(description="List of selected ecosystem modules.")
-    headless: bool = Field(default=False, description="Whether deployment was executed in headless mode.")
-    timestamp_utc: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat(),
-        description="UTC timestamp of manifest creation.",
-    )
-
-
-ECOSYSTEM_REGISTRY: Dict[str, Dict[str, Any]] = {
-    "CoChem-BASE": {
-        "desc": "Master environment orchestration, path resolution, and configuration.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
-        "mandatory": True,
-    },
-    "CoChem-MInt": {
-        "desc": "Molecular interfaces, format conversions, and quantum chemistry bridging.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-MInt",
-        "mandatory": True,
-    },
-    "CoChem-CORE": {
-        "desc": "Foundational registry, memory routing, and OS-level hardware guards.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
-        "mandatory": True,
-    },
-    "CoChem-TOPOS": {
-        "desc": "Topological mapping, alignment, and geometry escalation.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS",
-        "mandatory": True,
-    },
-    "CoChem-TORQ": {
-        "desc": "Torsional Discovery and Statistical Mechanics.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
-        "mandatory": True,
-    },
-    "CoChem-SCAN": {
-        "desc": "Internal conformational exploration heuristic tool.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
-        "mandatory": False,
-    },
-    "CoChem-SCRIBE": {
-        "desc": "LLM-driven FAIR publication and LaTeX supplementary generator.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
-        "mandatory": False,
-    },
-    "CoChem-SpycFit": {
-        "desc": "JAX-accelerated rotational spectroscopy fitting.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
-        "mandatory": False,
-    },
-    "CoChem-BENCH": {
-        "desc": "Automated Basis Set Limit & Composite Protocol Extrapolator.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-BENCH",
-        "mandatory": False,
-    },
-    "CoChem-KINETIC": {
-        "desc": "Reaction network and master equation kinetics solver.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC",
-        "mandatory": False,
-    },
-    "CoChem-LUMOS": {
-        "desc": "Open-shell dynamics, AIMNet2, and photochemistry.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS",
-        "mandatory": False,
-    },
-    "CoChem-MAGE": {
-        "desc": "GC-MS fragmentation logic emulation using ML potentials.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
-        "mandatory": False,
-    },
-    "CoChem-SHIFT": {
-        "desc": "NMR tensor extraction (J-couplings, chemical shifts).",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
-        "mandatory": False,
-    },
-    "CoChem-GEOM": {
-        "desc": "Precision molecular structure determination and fitting.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
-        "mandatory": False,
-    },
-    "CoChem-NODE": {
-        "desc": "HPC Slurm template and execution router.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
-        "mandatory": False,
-    },
-    "CoChem-ORACLE": {
-        "desc": "Local Llama-CPP query routing and AI theory assistant.",
-        "repo": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
-        "mandatory": False,
-    },
-    "Antigravity-Assistant": {
-        "desc": "Antigravity 2.0 Cloud LLM Assistant (Data Privacy Cannot Be Guaranteed).",
-        "repo": "https://antigravity.google/cli",
-        "mandatory": False,
-    },
-}
-
-TOPOLOGICAL_DEPENDENCY_MAP: Dict[str, List[str]] = {
-    "CoChem-BASE": [],
-    "CoChem-MInt": ["CoChem-BASE"],
-    "CoChem-CORE": ["CoChem-BASE", "CoChem-MInt"],
-    "CoChem-TOPOS": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
-    "CoChem-TORQ": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-SCAN": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-SCRIBE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
-    "CoChem-SpycFit": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-BENCH": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-KINETIC": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    "CoChem-LUMOS": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-MAGE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-SHIFT": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-GEOM": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS"],
-    "CoChem-NODE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
-    "CoChem-ORACLE": ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE"],
-    "Antigravity-Assistant": [],
-}
-
-
-def validate_topological_prerequisites(selected_modules: List[str]) -> Tuple[bool, List[str]]:
-    """Validates that all topological prerequisites are satisfied for selected modules."""
-    selected_set = set(selected_modules)
-    missing: List[str] = []
-
-    for mod in selected_modules:
-        prereqs = TOPOLOGICAL_DEPENDENCY_MAP.get(mod, [])
-        for req in prereqs:
-            if req not in selected_set and req not in missing:
-                missing.append(req)
-
-    return (len(missing) == 0, missing)
-
-
-def resolve_topological_dependencies(selected_modules: List[str]) -> List[str]:
-    """Resolves and injects all required prerequisites in topological order."""
-    resolved_set = set(selected_modules)
-
-    for name, info in ECOSYSTEM_REGISTRY.items():
-        if info.get("mandatory", False):
-            resolved_set.add(name)
-
-    changed = True
-    while changed:
-        changed = False
-        for mod in list(resolved_set):
-            prereqs = TOPOLOGICAL_DEPENDENCY_MAP.get(mod, [])
-            for req in prereqs:
-                if req not in resolved_set:
-                    resolved_set.add(req)
-                    changed = True
-
-    ordered: List[str] = []
-    for mod in ECOSYSTEM_REGISTRY.keys():
-        if mod in resolved_set:
-            ordered.append(mod)
-
-    return ordered
-
-
-def detect_avx512_support() -> bool:
-    """Detects native AVX-512 SIMD vector instructions on the host CPU."""
-    if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"1", "true", "yes"}:
-        return True
-    if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"0", "false", "no"}:
-        return False
-
-    if platform.system() == "Linux":
-        try:
-            with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
-                cpuinfo_text = f.read().lower()
-                return "avx512f" in cpuinfo_text or "avx512" in cpuinfo_text
-        except Exception:
-            pass
-
-    try:
-        import numpy as np  # type: ignore[import-untyped]
-        core_mod = getattr(np, "_core", getattr(np, "core", None))
-        if core_mod is not None:
-            umath = getattr(core_mod, "_multiarray_umath", None)
-            if umath is not None and hasattr(umath, "__cpu_features__"):
-                features = umath.__cpu_features__
-                if isinstance(features, dict) and features.get("AVX512F", False):
-                    return True
-    except Exception:
-        pass
-
-    return False
-
-
-def detect_host_hardware() -> Dict[str, Any]:
-    """Collects real hardware telemetry from the host silicon without synthetic fallbacks."""
-    logical_cpus = psutil.cpu_count(logical=True) or 4
-    phys_cpus = psutil.cpu_count(logical=False) or max(1, logical_cpus // 2)
-    vmem = psutil.virtual_memory()
-    total_ram_gb = vmem.total / (1024.0 ** 3)
-    avail_ram_gb = vmem.available / (1024.0 ** 3)
-
-    try:
-        free_storage_gb = psutil.disk_usage(str(get_scratch_dir())).free / (1024.0 ** 3)
-    except Exception:
-        try:
-            free_storage_gb = psutil.disk_usage(str(get_artifact_dir())).free / (1024.0 ** 3)
-        except Exception:
-            free_storage_gb = 50.0
-
-    gpu_profile_name = "None"
-    gpu_vram_gb = 0.0
-    gpu_count = 0
-
-    try:
-        from cochem_base.core.hardware import HardwareDiscovery
-        gpu_avail = HardwareDiscovery.get_gpu_availability()
-        if gpu_avail.available and gpu_avail.devices:
-            gpu_count = len(gpu_avail.devices)
-            gpu_profile_name = gpu_avail.devices[0].name
-            gpu_vram_gb = sum(d.vram_gb for d in gpu_avail.devices)
-    except Exception:
-        pass
-
-    if gpu_count == 0:
-        cuda_dev = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
-        if cuda_dev:
-            parts = [p.strip() for p in cuda_dev.split(",") if p.strip()]
-            if parts and parts[0] != "":
-                gpu_count = len(parts)
-                gpu_profile_name = "Mapped CUDA Device"
-                gpu_vram_gb = 8.0
-
-    avx512_capable = detect_avx512_support()
-
-    return {
-        "physical_cpu_cores": phys_cpus,
-        "logical_cpu_cores": logical_cpus,
-        "ram_gb": total_ram_gb,
-        "avail_ram_gb": avail_ram_gb,
-        "free_storage_gb": free_storage_gb,
-        "gpu_profile": gpu_profile_name,
-        "gpu_count": gpu_count,
-        "vram_gb": gpu_vram_gb,
-        "avx512_support": avx512_capable,
-        "source": "Live Host Telemetry",
-    }
-
-
-def is_headless_environment() -> bool:
-    """Detects whether execution is running in unattended or headless CI/CD environment."""
-    if os.environ.get("CI") in ("1", "true", "TRUE", "True"):
-        return True
-    if os.environ.get("GITHUB_ACTIONS") in ("1", "true", "TRUE", "True"):
-        return True
-    if os.environ.get("HEADLESS") in ("1", "true", "TRUE", "True"):
-        return True
-    if os.environ.get("CONTINUOUS_INTEGRATION") in ("1", "true", "TRUE", "True"):
-        return True
-    if os.environ.get("DEBIAN_FRONTEND") == "noninteractive":
-        return True
-    if "--headless" in sys.argv:
-        return True
-    return False
-
-
-def get_system_git_hash() -> str:
-    """Resolves the current Git commit hash or falls back to .build_hash."""
-    try:
-        git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
-        command = [git_executable, "rev-parse", "HEAD"]
-        if safe_subprocess_run is not None:
-            res = safe_subprocess_run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
-        else:
-            res = subprocess.run(command, cwd=get_base_root(), capture_output=True, text=True, check=True, timeout=5)
-        return str(res.stdout).strip()[:16]
-    except Exception as e:
-        logger.warning(f"Git hash lookup failed: {e}")
-        build_hash_file = get_base_root() / ".build_hash"
-        if build_hash_file.exists():
-            return build_hash_file.read_text(encoding="utf-8").strip()[:16]
-        return "RELEASE_BUILD"
-
-
-def serialize_system_config_json(
-    manifest: DeploymentManifest,
-    target_path: Optional[Path] = None,
-) -> Path:
-    """Serializes system configuration state to cochem_system_config.json."""
-    artifact_dir = get_artifact_dir()
-    registry_dir = artifact_dir / "Registry"
-    registry_dir.mkdir(parents=True, exist_ok=True)
-
-    config_file = target_path or (registry_dir / "cochem_system_config.json")
-    telemetry = detect_host_hardware()
-
-    os_target = {
-        "Windows": "windows_amd64",
-        "Darwin": "darwin_arm64" if platform.machine() == "arm64" else "darwin_x86_64",
-        "Linux": "linux_x86_64",
-    }.get(platform.system(), "linux_x86_64")
-
-    if manifest.interaction_environment == "GitHub Codespaces":
-        os_target = "codespaces"
-
-    config_data: Dict[str, Any] = {
-        "schema_version": "4.0.0",
-        "registry_version": "4.0",
-        "orca_version": "6.1.1",
-        "last_updated": datetime.now(timezone.utc).isoformat(),
-        "hardware": {
-            "physical_cpu_cores": telemetry["physical_cpu_cores"],
-            "logical_cpu_cores": telemetry["logical_cpu_cores"],
-            "ram_gb": round(telemetry["ram_gb"], 2),
-            "avx512_support": telemetry["avx512_support"],
-            "gpu_profile": telemetry["gpu_profile"],
-            "vram_gb": round(telemetry["vram_gb"], 2),
-            "os_target": os_target,
-        },
-        "environment": {
-            "os_target": os_target,
-            "artifacts_dir": str(artifact_dir),
-            "scratch_dir": str(get_scratch_dir()),
-        },
-        "silo_paths": {
-            "orca_path": manifest.orca_tarball_path or "BYPASSED",
-            "silo_root": str(registry_dir / "Modules"),
-        },
-        "engines": {
-            "orca": {
-                "status": "found" if manifest.orca_tarball_path else "missing",
-                "path": manifest.orca_tarball_path or None,
-                "version": "6.1.1" if manifest.orca_tarball_path else None,
-                "hash": None,
-            }
-        },
-        "interaction_tier": manifest.interaction_environment,
-        "calculation_tier": manifest.calculation_environment,
-        "selected_modules": manifest.selected_repositories,
-    }
-
-    config_file.write_text(json.dumps(config_data, indent=4), encoding="utf-8")
-    logger.info(f"System configuration persisted to: {config_file}")
-    return config_file
-
-
-def serialize_default_manifest(
-    output_path: Optional[Path] = None,
-    interaction_env: Optional[str] = None,
-    calc_env: Optional[str] = None,
-    orca_path: str = "",
-    extra_modules: Optional[List[str]] = None,
-) -> DeploymentManifest:
-    """Constructs and serializes the default topological manifest and system config to disk."""
-    artifact_dir = get_artifact_dir()
-    registry_dir = artifact_dir / "Registry"
-    registry_dir.mkdir(parents=True, exist_ok=True)
-
-    target_file = output_path or (registry_dir / "cochem_deployment_manifest.json")
-
-    detected_interaction = interaction_env or (
-        "GitHub Codespaces"
-        if os.environ.get("CODESPACES")
-        else {
-            "Windows": "Local-Windows (WSL)",
-            "Darwin": "Local-MacOS (OrbStack)",
-            "Linux": "Local-Linux (Deb)",
-        }.get(platform.system(), "GitHub Codespaces")
-    )
-
-    detected_calc = calc_env or (
-        "GitHub Actions" if detected_interaction == "GitHub Codespaces" else detected_interaction
-    )
-
-    selected_raw = ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"]
-    if extra_modules:
-        selected_raw.extend(extra_modules)
-
-    resolved_modules = resolve_topological_dependencies(selected_raw)
-
-    manifest = DeploymentManifest(
-        version="2026.2",
-        git_provenance_hash=get_system_git_hash(),
-        interaction_environment=detected_interaction,
-        calculation_environment=detected_calc,
-        orca_tarball_path=orca_path,
-        selected_repositories=resolved_modules,
-        headless=True,
-    )
-
-    target_file.write_text(manifest.model_dump_json(indent=4), encoding="utf-8")
-    logger.info(f"Default deployment manifest serialized to: {target_file}")
-
-    serialize_system_config_json(manifest)
-    return manifest
-
-
-def run_headless(manifest: Optional[DeploymentManifest] = None, auto_deploy: bool = False) -> DeploymentManifest:
-    """Executes unattended headless manifest generation and optional provisioning."""
-    active_manifest = manifest or serialize_default_manifest()
-
-    if auto_deploy:
-        logger.info("Executing unattended headless Stage 0 deployment worker...")
-        gui = SynapInstallerGUI()
-        gui._pure_python_deployment_worker(active_manifest.model_dump())
-
-    return active_manifest
-
-
-class SynapInstallerGUI:
-    """CoChem-UNITY Master Installer & Configurator ipywidgets Tabbed Dashboard."""
-
-    def __init__(self) -> None:
-        self.buttons: Dict[str, widgets.Checkbox] = {}
-
-        self.artifact_dir = get_artifact_dir()
-        self.registry_dir = self.artifact_dir / "Registry"
-        self.engine_registry = self.registry_dir / "Engines"
-        self.module_registry = self.registry_dir / "Modules"
-
-        self.engine_registry.mkdir(parents=True, exist_ok=True)
-        self.module_registry.mkdir(parents=True, exist_ok=True)
-
-        self.log_file = self.artifact_dir / "Logs" / "cochem_deploy.log"
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
-
-        self.manifest_file = self.registry_dir / "cochem_deployment_manifest.json"
-        self.system_config_file = self.registry_dir / "cochem_system_config.json"
-
-        self.interaction_options = [
-            "Local-Windows (WSL)",
-            "Local-MacOS (OrbStack)",
-            "Local-Linux (Deb)",
-            "GitHub Codespaces",
-            "HPC",
-            "GitHub Actions",
-        ]
-
-        self.calculation_options = [
-            "Local-Windows (WSL)",
-            "Local-MacOS (OrbStack)",
-            "Local-Linux (Deb)",
-            "GitHub Actions",
-            "HPC",
-        ]
-
-        self.disk_safe = False
-        self.error_msg = ""
-        self.tab_container: Optional[widgets.Tab] = None
-        self.status_out: Optional[widgets.Output] = None
-        self.output_console: Optional[widgets.Output] = None
-        self.progress_bar: Optional[widgets.FloatProgress] = None
-        self.submit_btn: Optional[widgets.Button] = None
-        self.stage_orca_btn: Optional[widgets.Button] = None
-        self.refresh_telemetry_btn: Optional[widgets.Button] = None
-        self.interact_target: Optional[widgets.Dropdown] = None
-        self.calc_target: Optional[widgets.Dropdown] = None
-        self.host_orca_path: Optional[widgets.Text] = None
-        self.orca_upload: Optional[widgets.FileUpload] = None
-        self.hud_html: Optional[widgets.HTML] = None
-        self.main_ui: Optional[widgets.VBox] = None
-
-        self._pre_flight_disk_check()
-        if self.disk_safe:
-            self._build_ui()
-
-    def _get_git_hash(self) -> str:
-        return get_system_git_hash()
-
-    def _pre_flight_disk_check(self) -> None:
-        """Verifies safe OS storage limits before rendering (enforces 10GB gate per User Manual §1.2.6)."""
-        try:
-            free_gb = psutil.disk_usage(str(get_scratch_dir())).free / (1024**3)
-            if free_gb < 10.0:
-                self.disk_safe = False
-                self.error_msg = f"CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 10GB required."
-            else:
-                self.disk_safe = True
-        except Exception as e:
-            try:
-                free_gb = psutil.disk_usage(str(get_artifact_dir())).free / (1024**3)
-                if free_gb < 10.0:
-                    self.disk_safe = False
-                    self.error_msg = f"CRITICAL ERROR: Insufficient disk space ({free_gb:.2f} GB free). Minimum 10GB required."
-                else:
-                    self.disk_safe = True
-            except Exception as ex:
-                self.disk_safe = False
-                self.error_msg = f"WARNING: Storage capacity verification failed ({e} / {ex}). Manual scratch confirmation required."
-
-    def _log_status(self, msg: str, level: str = "info") -> None:
-        """Emits messages to status_out if present, as well as the standard logger."""
-        if self.status_out is not None:
-            with self.status_out:
-                if level == "error":
-                    logger.error(msg)
-                elif level == "warning":
-                    logger.warning(msg)
-                elif level == "success":
-                    logger.info(msg)
-                    display(widgets.HTML(f"<div style='color: #15803d; font-weight: bold; margin: 4px 0;'>{msg}</div>"))  # type: ignore[no-untyped-call]
-                else:
-                    logger.info(msg)
-        else:
-            if level == "error":
-                logger.error(msg)
-            elif level == "warning":
-                logger.warning(msg)
-            else:
-                logger.info(msg)
-
-    def collect_hardware_telemetry(self) -> Dict[str, Any]:
-        """Gathers real-time hardware telemetry and checks persisted system configuration."""
-        telemetry = detect_host_hardware()
-        config_path = self.system_config_file if self.system_config_file.exists() else resolve_config_path()
-
-        if config_path and config_path.exists():
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    cfg_data = json.load(f)
-                    hw_sec = cfg_data.get("hardware", {})
-                    if "ram_gb" in hw_sec:
-                        telemetry["config_ram_gb"] = float(hw_sec["ram_gb"])
-                    if "physical_cpu_cores" in hw_sec:
-                        telemetry["config_phys_cores"] = int(hw_sec["physical_cpu_cores"])
-                    if "avx512_support" in hw_sec:
-                        telemetry["config_avx512"] = bool(hw_sec["avx512_support"])
-                    if "gpu_profile" in hw_sec:
-                        telemetry["config_gpu"] = str(hw_sec["gpu_profile"])
-                    telemetry["source"] = f"Registry Config ({config_path.name})"
-            except Exception:
-                pass
-
-        return telemetry
-
-    def _render_hardware_hud_html(self, telemetry: Optional[Dict[str, Any]] = None) -> str:
-        """Generates dynamic HTML table with visual red/yellow/green resource warnings."""
-        data = telemetry or self.collect_hardware_telemetry()
-
-        ram_gb = data.get("ram_gb", 16.0)
-        avail_ram_gb = data.get("avail_ram_gb", ram_gb)
-        phys_cores = data.get("physical_cpu_cores", 4)
-        log_cores = data.get("logical_cpu_cores", 8)
-        gpu_name = data.get("gpu_profile", "None")
-        gpu_vram = data.get("vram_gb", 0.0)
-        avx512_support = data.get("avx512_support", False)
-        free_storage = data.get("free_storage_gb", 50.0)
-        source = data.get("source", "Live Telemetry")
-
-        if ram_gb >= 16.0:
-            ram_bg, ram_fg, ram_status = "#dcfce7", "#166534", "Optimal"
-        elif ram_gb >= 8.0:
-            ram_bg, ram_fg, ram_status = "#fef9c3", "#854d0e", "Constrained"
-        else:
-            ram_bg, ram_fg, ram_status = "#fee2e2", "#991b1b", "Critical (<8GB)"
-
-        if phys_cores >= 4:
-            cpu_bg, cpu_fg, cpu_status = "#dcfce7", "#166534", "Optimal"
-        elif phys_cores >= 2:
-            cpu_bg, cpu_fg, cpu_status = "#fef9c3", "#854d0e", "Constrained"
-        else:
-            cpu_bg, cpu_fg, cpu_status = "#fee2e2", "#991b1b", "Critical (<2 cores)"
-
-        if gpu_vram >= 4.0:
-            gpu_bg, gpu_fg, gpu_status = "#dcfce7", "#166534", "Accelerated"
-        elif gpu_vram > 0.0:
-            gpu_bg, gpu_fg, gpu_status = "#fef9c3", "#854d0e", "Low VRAM"
-        else:
-            gpu_bg, gpu_fg, gpu_status = "#f1f5f9", "#475569", "CPU Only"
-
-        if avx512_support:
-            avx_bg, avx_fg, avx_status = "#dcfce7", "#166534", "Supported"
-        else:
-            avx_bg, avx_fg, avx_status = "#fef9c3", "#854d0e", "Not Detected / Fallback"
-
-        if free_storage >= 20.0:
-            disk_bg, disk_fg, disk_status = "#dcfce7", "#166534", "Adequate"
-        elif free_storage >= 10.0:
-            disk_bg, disk_fg, disk_status = "#fef9c3", "#854d0e", "Tight Storage"
-        else:
-            disk_bg, disk_fg, disk_status = "#fee2e2", "#991b1b", "Critical (<10GB)"
-
-        has_critical = (ram_gb < 8.0) or (phys_cores < 2) or (free_storage < 10.0)
-        has_warning = (ram_gb < 16.0) or (phys_cores < 4) or (not avx512_support) or (gpu_vram == 0.0)
-
-        if has_critical:
-            banner = (
-                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #fee2e2; "
-                "border-left: 4px solid #dc2626; color: #991b1b; border-radius: 4px; font-size: 0.88em;'>"
-                "<b>CRITICAL RESOURCE WARNING:</b> Host resources are below minimum thresholds. "
-                "Calculations may experience out-of-memory errors or reduced performance."
-                "</div>"
-            )
-        elif has_warning:
-            banner = (
-                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #fef9c3; "
-                "border-left: 4px solid #ca8a04; color: #854d0e; border-radius: 4px; font-size: 0.88em;'>"
-                "<b>RESOURCE NOTICE:</b> Constrained hardware profile detected. "
-                "Dynamic fallback routing will automatically adapt solver parameters."
-                "</div>"
-            )
-        else:
-            banner = (
-                "<div style='margin-top: 10px; padding: 8px 12px; background-color: #dcfce7; "
-                "border-left: 4px solid #16a34a; color: #166534; border-radius: 4px; font-size: 0.88em;'>"
-                "<b>HARDWARE VERIFIED:</b> Silicon meets all recommended performance profiles for high-throughput execution."
-                "</div>"
-            )
-
-        html = f"""
-        <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; margin: 10px 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <span style="font-weight: bold; color: #0f172a; font-family: monospace; font-size: 1.05em;">SYSTEM METAL &amp; COMPUTE TELEMETRY HUD</span>
-            <span style="font-size: 0.82em; color: #64748b;">Source: {source}</span>
-          </div>
-          <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 0.88em;">
-            <thead>
-              <tr style="border-bottom: 2px solid #cbd5e1; text-align: left; color: #475569;">
-                <th style="padding: 6px 8px;">Resource</th>
-                <th style="padding: 6px 8px;">Detected Specification</th>
-                <th style="padding: 6px 8px;">Status / Tier</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 6px 8px; font-weight: 600;">System RAM</td>
-                <td style="padding: 6px 8px;">{ram_gb:.1f} GB Total ({avail_ram_gb:.1f} GB Available)</td>
-                <td style="padding: 6px 8px;"><span style="background-color: {ram_bg}; color: {ram_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{ram_status}</span></td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 6px 8px; font-weight: 600;">CPU Cores</td>
-                <td style="padding: 6px 8px;">{phys_cores} Physical / {log_cores} Logical Cores</td>
-                <td style="padding: 6px 8px;"><span style="background-color: {cpu_bg}; color: {cpu_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{cpu_status}</span></td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 6px 8px; font-weight: 600;">GPU Accelerator</td>
-                <td style="padding: 6px 8px;">{gpu_name} ({gpu_vram:.1f} GB VRAM)</td>
-                <td style="padding: 6px 8px;"><span style="background-color: {gpu_bg}; color: {gpu_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{gpu_status}</span></td>
-              </tr>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 6px 8px; font-weight: 600;">Vector ISA (AVX-512)</td>
-                <td style="padding: 6px 8px;">{'AVX-512 Foundation Present' if avx512_support else 'AVX-512 Not Present'}</td>
-                <td style="padding: 6px 8px;"><span style="background-color: {avx_bg}; color: {avx_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{avx_status}</span></td>
-              </tr>
-              <tr>
-                <td style="padding: 6px 8px; font-weight: 600;">Free Disk Storage</td>
-                <td style="padding: 6px 8px;">{free_storage:.1f} GB Available</td>
-                <td style="padding: 6px 8px;"><span style="background-color: {disk_bg}; color: {disk_fg}; padding: 2px 8px; border-radius: 4px; font-weight: bold;">{disk_status}</span></td>
-              </tr>
-            </tbody>
-          </table>
-          {banner}
-        </div>
-        """
-        return html
-
-    def refresh_hardware_hud(self) -> None:
-        """Refreshes the hardware profiling HUD with latest telemetry values."""
-        if self.hud_html is not None:
-            self.hud_html.value = self._render_hardware_hud_html()
-
-    def _verify_host_orca_path(self, raw_path: str) -> bool:
-        """Performs a quantum single-point verification run to confirm native ORCA execution."""
-        mapped_orca = resolve_executable(
-            (raw_path or "").strip().strip('"').strip("'") or None,
-            env_var="ORCA_CMD",
-            candidates=("orca",),
-        )
-        discovered = shutil.which(mapped_orca)
-        candidate = Path(discovered or mapped_orca).expanduser()
-        if not mapped_orca:
-            return False
-
-        if not candidate.exists():
-            self._log_status(f"ORCA path does not exist at: {candidate}", level="error")
-            return False
-
-        self.artifact_dir.mkdir(parents=True, exist_ok=True)
-        verify_dir = Path(tempfile.mkdtemp(prefix="cochem_orca_verify_", dir=str(self.artifact_dir)))
-        inp = verify_dir / "verify_orca.inp"
-        inp.write_text("! SP STO-3G\n*xyz 0 1\nHe 0 0 0\n*\n", encoding="utf-8")
-        try:
-            if safe_subprocess_run is not None:
-                result = safe_subprocess_run(
-                    [str(candidate), str(inp)],
-                    cwd=str(verify_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=90.0,
-                    check=False,
-                )
-            else:
-                result = subprocess.run(
-                    [str(candidate), str(inp)],
-                    cwd=str(verify_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=90.0,
-                    check=False,
-                )
-            stdout_upper = (result.stdout or "").upper()
-            out_file = verify_dir / "verify_orca.out"
-            out_text = out_file.read_text(errors="replace").upper() if out_file.exists() else ""
-            markers = ["ORCA TERMINATED NORMALLY", "O   R   C   A", "O R C A"]
-            if result.returncode == 0 and any(m in stdout_upper or m in out_text for m in markers):
-                self._log_status(f"ORCA verification passed via: {candidate}", level="info")
-                return True
-            return False
-        except Exception as e:
-            self._log_status(f"ORCA verification exception: {e}", level="error")
-            return False
-        finally:
-            shutil.rmtree(verify_dir, ignore_errors=True)
-
-    def _has_staged_orca_archive(self) -> bool:
-        patterns = ["orca*.tar.xz", "orca*.tz", "orca*.tar.gz", "ORCA*.tar.xz", "ORCA*.tz", "ORCA*.tar.gz"]
-        for pattern in patterns:
-            for candidate in self.engine_registry.glob(pattern):
-                if candidate.is_file():
-                    return True
-        return False
-
-    def _extract_upload_entries(self, files: Any) -> List[Tuple[str, Any]]:
-        if not files:
-            return []
-        if isinstance(files, dict):
-            return [(fname, fdata) for fname, fdata in files.items()]
-        entries: List[Tuple[str, Any]] = []
-        for entry in files:
-            if isinstance(entry, dict):
-                entries.append((entry.get("name", ""), entry))
-            else:
-                entries.append((getattr(entry, "name", ""), entry))
-        return entries
-
-    def _stage_orca_upload(self, files: Any) -> bool:
-        """Stages uploaded binary archives into the designated registry paths."""
-        entries = self._extract_upload_entries(files)
-        if not entries:
-            return False
-
-        staged_any = False
-        for fname, fdata in entries:
-            fname = Path(fname).name
-            if not fname or fname in (".", ".."):
-                continue
-            fname_lower = fname.lower()
-            if not fname_lower.endswith((".tar.xz", ".tz", ".tar.gz", ".zip")):
-                self._log_status(f"Unsupported archive type: {fname or 'unknown'}", level="warning")
-                continue
-
-            target_dir = self.module_registry if fname_lower.endswith(".zip") else self.engine_registry
-            target = target_dir / fname
-            try:
-                if not target.resolve().is_relative_to(target_dir.resolve()):
-                    self._log_status(f"Invalid target path for {fname}", level="error")
-                    continue
-            except (ValueError, RuntimeError):
-                continue
-
-            content = fdata.get("content", b"") if isinstance(fdata, dict) else getattr(fdata, "content", b"")
-            if isinstance(content, memoryview):
-                content = content.tobytes()
-            elif isinstance(content, bytearray):
-                content = bytes(content)
-
-            if not content:
-                continue
-
-            with open(target, "wb") as f:
-                f.write(content)
-            size = target.stat().st_size if target.exists() else 0
-            if size > 0:
-                self._log_status(f"Archive staged to: {target} ({size} bytes)", level="info")
-                staged_any = True
-        return staged_any
-
-    def _on_module_checkbox_change(self, change: Dict[str, Any], module_name: str) -> None:
-        """Handles topological prerequisite updates dynamically when user clicks a module."""
-        if change.get("new", False):
-            prereqs = TOPOLOGICAL_DEPENDENCY_MAP.get(module_name, [])
-            for req in prereqs:
-                if req in self.buttons and not self.buttons[req].value:
-                    self.buttons[req].value = True
-                    self._log_status(f"Auto-selected prerequisite: {req} for {module_name}", level="info")
-
-    def _pure_python_deployment_worker(self, manifest_payload: Dict[str, Any]) -> None:
-        """Threaded pure-Python deployment worker. Enforces Air-Gap sideloading."""
-        try:
-            target_modules = manifest_payload.get("selected_repositories", [])
-            interaction_env = manifest_payload.get("interaction_environment", "Local-Linux (Deb)")
-            calc_env = manifest_payload.get("calculation_environment", "Local-Linux (Deb)")
-            progress_step = 80.0 / max(len(target_modules), 1)
-
-            with open(self.log_file, "a", encoding="utf-8") as log_out:
-
-                def log_msg(msg: str) -> None:
-                    if self.output_console is not None:
-                        try:
-                            self.output_console.append_stdout(f"{msg}\n")
-                        except Exception:
-                            pass
-                    logger.info(msg.strip())
-                    log_out.write(f"{msg}\n")
-                    log_out.flush()
-
-                log_msg("\n[DEPLOYMENT] Initiating Pure-Python Air-Gap Module Provisioning...")
-                log_msg(f"[INTERACTION TIER] Selected UI: {interaction_env}")
-                log_msg(f"[CALCULATION TIER] Selected Compute: {calc_env}")
-                log_msg(f"[WORKSPACE] Target Module Registry: {self.module_registry}\n")
-
-                clean_env = os.environ.copy()
-                clean_env["GIT_TERMINAL_PROMPT"] = "0"
-                clean_env["COCHEM_INTERACTION_TIER"] = str(interaction_env)
-                clean_env["COCHEM_CALCULATION_TIER"] = str(calc_env)
-
-                base_root = str(get_base_root())
-                existing_pythonpath = clean_env.get("PYTHONPATH")
-                clean_env["PYTHONPATH"] = os.pathsep.join(
-                    entry for entry in (base_root, existing_pythonpath) if entry
-                )
-                git_executable = resolve_executable(env_var="GIT_CMD", candidates=("git",))
-
-                def update_progress(val: float, bar_style: Optional[str] = None) -> None:
-                    if self.progress_bar is not None:
-                        self.progress_bar.value = min(100.0, max(0.0, val))
-                        if bar_style:
-                            self.progress_bar.bar_style = bar_style
-
-                current_progress = 0.0
-
-                for mod in target_modules:
-                    if mod == "CoChem-BASE":
-                        log_msg(f"  [BASE] Base repository active. Bypassing clone for {mod}.")
-                        current_progress += progress_step
-                        update_progress(current_progress)
-                        continue
-
-                    if mod == "Antigravity-Assistant":
-                        log_msg("  [CLOUD] Provisioning Antigravity 2.0 Assistant...")
-                        if os.name == "nt":
-                            powershell = resolve_executable(env_var="POWERSHELL_CMD", candidates=("pwsh", "powershell"))
-                            cmd = [powershell, "-NoProfile", "-Command", "irm https://antigravity.google/cli/install.ps1 | iex"]
-                        else:
-                            curl = resolve_executable(env_var="CURL_CMD", candidates=("curl",))
-                            bash = resolve_executable(env_var="BASH_CMD", candidates=("bash",))
-                            cmd = [bash, "-c", f'"{curl}" -fsSL https://antigravity.google/cli/install.sh | "{bash}"']
-                        try:
-                            if safe_subprocess_run is not None:
-                                safe_subprocess_run(cmd, env=clean_env, check=True, timeout=120.0)
-                            else:
-                                subprocess.run(cmd, env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
-                            log_msg("  [SUCCESS] Antigravity 2.0 CLI installed successfully.")
-                        except Exception as e:
-                            log_msg(f"  [ERROR] Failed to install Antigravity 2.0: {e}")
-                        current_progress += progress_step
-                        update_progress(current_progress)
-                        continue
-
-                    repo_url = ECOSYSTEM_REGISTRY[mod]["repo"]
-                    target_dir = self.module_registry / mod
-
-                    if (target_dir / ".git").exists():
-                        log_msg(f"  [UPDATE] Updating existing module: {mod}")
-                        try:
-                            if safe_subprocess_run is not None:
-                                safe_subprocess_run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, timeout=60.0)
-                            else:
-                                subprocess.run([git_executable, "pull", "--ff-only"], cwd=str(target_dir), env=clean_env, check=True, capture_output=True, text=True, timeout=60.0)
-                            log_msg(f"  [SUCCESS] {mod} updated successfully.")
-                        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                            log_msg(f"  [WARNING] Fast-forward failed for {mod}: {e}")
-                    else:
-                        sideload_success = False
-                        possible_zips = [
-                            self.module_registry / f"{mod}.zip",
-                            self.module_registry / f"{mod}-main.zip",
-                            self.module_registry / f"{mod}-master.zip",
-                            self.module_registry / f"{mod.lower()}.zip",
-                            self.module_registry / f"{mod.lower()}-main.zip",
-                            self.engine_registry / f"{mod}.zip",
-                            self.engine_registry / f"{mod}-main.zip",
-                            self.artifact_dir / f"{mod}.zip",
-                            self.artifact_dir / f"{mod}-main.zip",
-                        ]
-
-                        for zpath in possible_zips:
-                            if zpath.exists():
-                                log_msg(f"  [AIR-GAP] Air-Gap Bridge: Sideloading {mod} from {zpath.name}...")
-                                try:
-                                    with zipfile.ZipFile(zpath, "r") as zip_ref:
-                                        target_base = self.module_registry.resolve()
-                                        for member in zip_ref.infolist():
-                                            member_path = (target_base / member.filename).resolve()
-                                            if not member_path.is_relative_to(target_base):
-                                                raise RuntimeError(f"Zip Slip attempt detected: {member.filename}")
-                                        zip_ref.extractall(self.module_registry)
-
-                                    for suffix in ["-main", "-master", f"-{mod.lower()}", f"-{mod}"]:
-                                        extracted_dir = self.module_registry / f"{mod}{suffix}"
-                                        if extracted_dir.exists() and not target_dir.exists():
-                                            extracted_dir.rename(target_dir)
-
-                                    lower_dir = self.module_registry / mod.lower()
-                                    if lower_dir.exists() and not target_dir.exists() and mod.lower() != mod:
-                                        lower_dir.rename(target_dir)
-
-                                    if target_dir.exists():
-                                        log_msg(f"  [SUCCESS] Extracted {mod} via Air-Gap. Network bypassed.")
-                                        sideload_success = True
-                                        break
-                                except (zipfile.BadZipFile, OSError, RuntimeError) as e:
-                                    log_msg(f"  [WARNING] Zip extraction failed: {e}")
-
-                        if not sideload_success:
-                            log_msg(f"  [CLONE] Deep cloning {mod} from {repo_url}...")
-                            try:
-                                if safe_subprocess_run is not None:
-                                    safe_subprocess_run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, timeout=120.0)
-                                else:
-                                    subprocess.run([git_executable, "clone", "--depth", "1", repo_url, str(target_dir)], env=clean_env, check=True, capture_output=True, text=True, timeout=120.0)
-                                log_msg(f"  [SUCCESS] Cloned {mod} successfully.")
-                            except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                                log_msg(f"  [ERROR] Failed to clone {mod}: {e}")
-
-                    current_progress += progress_step
-                    update_progress(current_progress)
-
-                log_msg("\n[COMPLETE] Stage 0.0.2 Module synchronization completed.")
-
-            orchestrator = get_base_root() / "setup" / "cochem_setup_orchestrator.py"
-            if orchestrator.exists():
-                log_msg(f"[HANDOFF] Handing off to CoChem-BASE OS-Native Orchestrator: {orchestrator.name}...")
-                try:
-                    process = subprocess.Popen(
-                        [sys.executable, str(orchestrator)],
-                        cwd=str(orchestrator.parent),
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                        env=clean_env,
-                    )
-                    if register_popen_process is not None:
-                        register_popen_process(process)
-
-                    if process.stdout:
-                        for line in process.stdout:
-                            if self.output_console is not None:
-                                try:
-                                    self.output_console.append_stdout(line)
-                                except Exception:
-                                    pass
-                            log_out.write(line)
-                            log_out.flush()
-                    try:
-                        process.wait(timeout=600.0)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
-                        log_msg("[ERROR] Orchestrator timed out after 600 seconds.")
-                        update_progress(100.0, bar_style="danger")
-                        return
-
-                    if process.returncode == 0:
-                        log_msg("[SUCCESS] Orchestrator completed successfully.")
-                        update_progress(100.0, bar_style="success")
-                    else:
-                        log_msg(f"[ERROR] Orchestrator failed with exit code {process.returncode}.")
-                        update_progress(100.0, bar_style="danger")
-                except Exception as e:
-                    log_msg(f"[ERROR] Failed to launch orchestrator: {e}")
-                    update_progress(100.0, bar_style="danger")
-            else:
-                log_msg(f"[INFO] OS-Native Orchestrator script not present at {orchestrator}. Ready for manual phase runs.")
-                update_progress(100.0, bar_style="success")
-
-            update_progress(100.0)
-        except Exception as e:
-            logger.error(f"Unhandled deployment worker exception: {e}")
-            if self.progress_bar is not None:
-                self.progress_bar.bar_style = "danger"
-            self._unlock_ui_after_failure()
-
-    def _lock_ui_for_deployment(self) -> None:
-        """Locks all interactive input widgets to enforce UI immutability during execution."""
-        if self.submit_btn is not None:
-            self.submit_btn.disabled = True
-            self.submit_btn.description = "Initializing Pipeline..."
-        if self.interact_target is not None:
-            self.interact_target.disabled = True
-        if self.calc_target is not None:
-            self.calc_target.disabled = True
-        if self.host_orca_path is not None:
-            self.host_orca_path.disabled = True
-        if self.orca_upload is not None:
-            self.orca_upload.disabled = True
-        if self.stage_orca_btn is not None:
-            self.stage_orca_btn.disabled = True
-        if self.refresh_telemetry_btn is not None:
-            self.refresh_telemetry_btn.disabled = True
-        for cb in self.buttons.values():
-            cb.disabled = True
-
-    def _unlock_ui_after_failure(self) -> None:
-        """Restores editable state on input widgets if deployment pre-checks fail."""
-        if self.submit_btn is not None:
-            self.submit_btn.disabled = False
-            self.submit_btn.description = "Initialize Pipeline"
-        if self.interact_target is not None:
-            if not os.environ.get("CODESPACES"):
-                self.interact_target.disabled = False
-        if self.calc_target is not None:
-            self.calc_target.disabled = False
-        if self.host_orca_path is not None:
-            self.host_orca_path.disabled = False
-        if self.orca_upload is not None:
-            self.orca_upload.disabled = False
-        if self.stage_orca_btn is not None:
-            self.stage_orca_btn.disabled = False
-        if self.refresh_telemetry_btn is not None:
-            self.refresh_telemetry_btn.disabled = False
-        for prog, cb in self.buttons.items():
-            if not ECOSYSTEM_REGISTRY.get(prog, {}).get("mandatory", False):
-                cb.disabled = False
-
-    def _on_submit(self, b: Any) -> None:
-        """Handles pipeline initialization, state serialization, and worker dispatch."""
-        self._lock_ui_for_deployment()
-        if self.progress_bar is not None:
-            self.progress_bar.value = 0.0
-            self.progress_bar.bar_style = "info"
-            self.progress_bar.layout.display = "block"
-        if self.output_console is not None:
-            self.output_console.clear_output()
-        if self.status_out is not None:
-            self.status_out.clear_output()
-
-        selected_raw = [mod for mod, cb in self.buttons.items() if cb.value]
-        selected_modules = resolve_topological_dependencies(selected_raw)
-
-        host_orca_path = self.host_orca_path.value.strip() if self.host_orca_path is not None else ""
-        host_orca_verified = False
-
-        interact_val = self.interact_target.value if self.interact_target is not None else "Local-Windows (WSL)"
-        calc_val = self.calc_target.value if self.calc_target is not None else "Local-Linux (Deb)"
-
-        manifest_model = DeploymentManifest(
-            version="2026.2",
-            git_provenance_hash=self._get_git_hash(),
-            interaction_environment=interact_val,
-            calculation_environment=calc_val,
-            orca_tarball_path=host_orca_path,
-            selected_repositories=selected_modules,
-            headless=False,
-        )
-
-        with open(self.manifest_file, "w", encoding="utf-8") as f:
-            f.write(manifest_model.model_dump_json(indent=4))
-
-        serialize_system_config_json(manifest_model, target_path=self.system_config_file)
-        manifest_payload = manifest_model.model_dump()
-
-        self._log_status(f"Matrix Selections locked securely in: {self.manifest_file}", level="info")
-        self._log_status("CoChem-BASE Fully Initialized. Safe to proceed.", level="success")
-
-        if host_orca_path and host_orca_path != "Not Available - Auto-Routed":
-            self._log_status("Verifying native ORCA execution pathway...", level="info")
-            host_orca_verified = self._verify_host_orca_path(host_orca_path)
-            if not host_orca_verified and not self._has_staged_orca_archive():
-                self._log_status("ORCA verification failed. Fix path or stage an archive instead.", level="warning")
-                self._unlock_ui_after_failure()
-                return
-
-        staged_now = False
-        if not host_orca_verified and self.orca_upload is not None:
-            staged_now = self._stage_orca_upload(getattr(self.orca_upload, "value", None))
-
-        if host_orca_verified or staged_now or self._has_staged_orca_archive():
-            self._log_status("Dispatching Pure-Python Deployment Thread...", level="info")
-            threading.Thread(
-                target=self._pure_python_deployment_worker,
-                args=(manifest_payload,),
-                daemon=True,
-            ).start()
-        else:
-            self._log_status("Proceeding with module provisioning (Host ORCA not configured)...", level="info")
-            threading.Thread(
-                target=self._pure_python_deployment_worker,
-                args=(manifest_payload,),
-                daemon=True,
-            ).start()
-
-    def _on_stage_orca_click(self, _: Any) -> None:
-        if self.status_out is not None:
-            with self.status_out:
-                try:
-                    clear_output()  # type: ignore[no-untyped-call]
-                except Exception:
-                    pass
-                staged = self._stage_orca_upload(getattr(self.orca_upload, "value", None))
-                if staged:
-                    logger.info("Archives are staged and ready for setup.")
-                else:
-                    logger.warning("No valid archives detected to stage.")
-        else:
-            staged = self._stage_orca_upload(getattr(self.orca_upload, "value", None))
-            if staged:
-                logger.info("Archives are staged and ready for setup.")
-            else:
-                logger.warning("No valid archives detected to stage.")
-
-    def _on_refresh_telemetry_click(self, _: Any) -> None:
-        """Handler for manually polling and refreshing hardware telemetry."""
-        self.refresh_hardware_hud()
-        self._log_status("Hardware telemetry HUD refreshed.", level="info")
-
-    def _build_ui(self) -> None:
-        title = widgets.HTML(
-            "<div style='margin-bottom: 12px;'>"
-            "<h2 style='margin: 0; color: #0f172a;'>CoChem-UNITY: Ecosystem Master Deployer</h2>"
-            "<p style='margin: 4px 0 0 0; color: #475569; font-size: 0.95em;'>"
-            "Stage 0.0 Zero-Code Initialization &amp; Topological Prerequisite Engine"
-            "</p>"
-            "</div>"
-        )
-
-        artifact_hint = widgets.HTML(
-            f"<div style='background-color: #f8fafc; padding: 12px; border-radius: 6px; border-left: 4px solid #0284c7; margin-bottom: 15px; font-family: monospace; font-size: 0.9em;'>"
-            f"<b>Tripartite Artifacts Bridge:</b> {self.artifact_dir}<br>"
-            f"<b>1. ORCA Engine Drop Target:</b> {self.engine_registry}<br>"
-            f"<b>2. Module Archive Drop Target:</b> {self.module_registry}<br>"
-            f"<span style='color: #64748b;'>Air-Gap Sideloading: Drop .zip archives in the targets above to bypass external network calls.</span>"
-            f"</div>"
-        )
-
-        codespaces_detected = bool(os.environ.get("CODESPACES"))
-        if codespaces_detected:
-            host_interaction = "GitHub Codespaces"
-            interact_disabled = True
-            host_calculation = "GitHub Actions"
-        else:
-            host_interaction = {
-                "Windows": "Local-Windows (WSL)",
-                "Darwin": "Local-MacOS (OrbStack)",
-                "Linux": "Local-Linux (Deb)",
-            }.get(platform.system(), "Local-Linux (Deb)")
-            interact_disabled = False
-            host_calculation = host_interaction if host_interaction in self.calculation_options else "Local-Linux (Deb)"
-
-        self.interact_target = widgets.Dropdown(
-            options=self.interaction_options,
-            value=host_interaction,
-            disabled=interact_disabled,
-            description="Interaction (UI):",
-            layout={"width": "90%"},
-        )
-        self.calc_target = widgets.Dropdown(
-            options=self.calculation_options,
-            value=host_calculation,
-            description="Calculation (Compute):",
-            layout={"width": "90%"},
-        )
-
-        self.refresh_telemetry_btn = widgets.Button(
-            description="Refresh Telemetry",
-            button_style="info",
-            layout={"width": "180px", "margin": "8px 0px"},
-        )
-        self.refresh_telemetry_btn.on_click(self._on_refresh_telemetry_click)
-
-        self.hud_html = widgets.HTML(self._render_hardware_hud_html())
-
-        tab_env = widgets.VBox(
-            [
-                widgets.HTML("<h4>Step 1: Interaction &amp; Compute Matrices</h4>"),
-                self.interact_target,
-                self.calc_target,
-                self.refresh_telemetry_btn,
-                self.hud_html,
-            ],
-            layout={"padding": "12px"},
-        )
-
-        # Tab 1: Binaries & Archives
-        self.host_orca_path = widgets.Text(
-            value="",
-            description="Host ORCA:",
-            layout={"width": "90%"},
-        )
-        self.orca_upload = widgets.FileUpload(
-            accept=".tar.xz,.tz,.tar.gz,.zip",
-            multiple=True,
-            description="Drop Archives",
-        )
-        self.stage_orca_btn = widgets.Button(description="Stage Uploads", button_style="primary")
-        self.stage_orca_btn.on_click(self._on_stage_orca_click)
-
-        tab_binaries = widgets.VBox(
-            [
-                widgets.HTML("<h4>Step 2: External Quantum Chemistry Binaries &amp; Archives</h4>"),
-                self.host_orca_path,
-                widgets.HBox([self.orca_upload, self.stage_orca_btn], layout={"margin": "10px 0px"}),
-            ],
-            layout={"padding": "12px"},
-        )
-
-        # Tab 2: Ecosystem Modules
-        checks = [
-            widgets.HTML(
-                "<div style='margin-bottom: 8px;'>"
-                "<b>Topological Prerequisite Locking:</b> Mandatory base modules are permanently locked. "
-                "Selecting dependent tools automatically verifies and activates required prerequisites."
-                "</div>"
-            )
-        ]
-        for prog, info in ECOSYSTEM_REGISTRY.items():
-            is_mandatory = info.get("mandatory", False)
-            cb = widgets.Checkbox(
-                value=is_mandatory,
-                description=prog,
-                disabled=is_mandatory,
-                layout={"width": "260px"},
-            )
-            if not is_mandatory:
-                cb.observe(
-                    lambda change, name=prog: self._on_module_checkbox_change(change, name),
-                    names="value",
-                )
-            desc = widgets.HTML(f"<span style='color: #475569; font-size: 0.9em;'><i>{info['desc']}</i></span>")
-            self.buttons[prog] = cb
-            checks.append(widgets.HBox([cb, desc], layout={"align_items": "center", "margin": "0px 0px 4px 0px"}))
-
-        tab_modules = widgets.VBox(checks, layout={"padding": "12px"})
-
-        # Tab 3: Deployment & Logs
-        self.submit_btn = widgets.Button(
-            description="Initialize Pipeline",
-            button_style="success",
-            layout={"width": "30%", "margin": "10px 0px"},
-        )
-        self.submit_btn.on_click(self._on_submit)
-
-        self.progress_bar = widgets.FloatProgress(
-            value=0.0,
-            min=0.0,
-            max=100.0,
-            description="Deploying:",
-            bar_style="info",
-            layout={"width": "95%"},
-        )
-        self.progress_bar.layout.display = "none"
-
-        self.status_out = widgets.Output(
-            layout={"border": "1px solid #cbd5e1", "padding": "8px", "height": "140px", "margin": "10px 0px"}
-        )
-        self.output_console = widgets.Output(
-            layout={
-                "border": "1px solid #334155",
-                "padding": "10px",
-                "height": "280px",
-            }
-        )
-
-        tab_deploy = widgets.VBox(
-            [
-                widgets.HTML("<h4>Step 4: Lock Topology &amp; Dispatch Provisioning</h4>"),
-                self.submit_btn,
-                self.progress_bar,
-                self.status_out,
-                widgets.HTML("<h4>Live Subprocess Execution Log</h4>"),
-                self.output_console,
-            ],
-            layout={"padding": "12px"},
-        )
-
-        self.tab_container = widgets.Tab(children=[tab_env, tab_binaries, tab_modules, tab_deploy])
-        self.tab_container.set_title(0, "1. Environment Matrices")
-        self.tab_container.set_title(1, "2. External Binaries")
-        self.tab_container.set_title(2, "3. Ecosystem Modules")
-        self.tab_container.set_title(3, "4. Deployment & Logs")
-
-        self.main_ui = widgets.VBox([title, artifact_hint, self.tab_container])
-
-    def build_ui(self) -> Any:
-        """Returns the completed ipywidgets tabbed dashboard or storage error block."""
-        if not self.disk_safe:
-            return widgets.VBox([widgets.HTML(f"<h3 style='color: #b91c1c;'>{self.error_msg}</h3>")])
-        return self.main_ui
-
-
-def main() -> None:
-    """CLI / Execution entry point supporting both interactive GUI and automated headless runs."""
-    parser = argparse.ArgumentParser(description="CoChem-BASE Stage 0.0 Master Installer Dashboard")
-    parser.add_argument("--headless", action="store_true", help="Bypass GUI and serialize default topology manifest.")
-    parser.add_argument("--deploy", action="store_true", help="Execute unattended deployment after manifest serialization.")
-    args, _ = parser.parse_known_args()
-
-    if args.headless or is_headless_environment():
-        logger.info("[HEADLESS] Headless detection protocol triggered.")
-        manifest = run_headless(auto_deploy=args.deploy)
-        print(f"[HEADLESS] Manifest written successfully to: {get_artifact_dir() / 'Registry' / 'cochem_deployment_manifest.json'}")
-        print(manifest.model_dump_json(indent=2))
-    else:
-        installer = SynapInstallerGUI()
-        ui = installer.build_ui()
-        display(ui)  # type: ignore[no-untyped-call]
-
-
-if __name__ == "__main__":
-    main()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\interfaces\cochem_unity_installer_dashboard.py ---
-#!/usr/bin/env python3
-"""CoChem-UNITY: Stage 0.0 - Legacy and Direct Entrypoint for Installer Dashboard.
-
-Re-exports canonical symbols from cochem_base.interfaces.cochem_unity_installer_dashboard.
-"""
-
-from __future__ import annotations
-
-from cochem_base.interfaces.cochem_unity_installer_dashboard import (
-    ECOSYSTEM_REGISTRY,
-    TOPOLOGICAL_DEPENDENCY_MAP,
-    DeploymentManifest,
-    SynapInstallerGUI,
-    detect_avx512_support,
-    detect_host_hardware,
-    get_system_git_hash,
-    is_headless_environment,
-    logger,
-    main,
-    resolve_topological_dependencies,
-    run_headless,
-    serialize_default_manifest,
-    serialize_system_config_json,
-    validate_topological_prerequisites,
+from cochem_core_registry_schema import (
+    BYPASS_TOKENS,
+    CARBON_13_ISOTOPIC_MASS,
+    ISOTOPIC_MASSES,
+    CoChemConfig,
+    CoChemSystemConfig,
+    CorePinningConfig,
+    EngineInfo,
+    EnginePaths,
+    EnvironmentSchema,
+    GPUComputeSchema,
+    HPCConfig,
+    HardwareConfig,
+    HardwareSchema,
+    MPSConfig,
+    OSTarget,
+    QuantumSettings,
+    RoutingPolicy,
+    SiloConfig,
+    SiloPathsSchema,
+    discover_engine,
+    discover_host_hardware,
+    validate_system_config,
 )
 
 __all__ = [
-    "ECOSYSTEM_REGISTRY",
-    "TOPOLOGICAL_DEPENDENCY_MAP",
-    "DeploymentManifest",
-    "SynapInstallerGUI",
-    "detect_avx512_support",
-    "detect_host_hardware",
-    "get_system_git_hash",
-    "is_headless_environment",
-    "logger",
-    "main",
-    "resolve_topological_dependencies",
-    "run_headless",
-    "serialize_default_manifest",
-    "serialize_system_config_json",
-    "validate_topological_prerequisites",
+    "BYPASS_TOKENS",
+    "CARBON_13_ISOTOPIC_MASS",
+    "ISOTOPIC_MASSES",
+    "CoChemConfig",
+    "CoChemSystemConfig",
+    "CorePinningConfig",
+    "EngineInfo",
+    "EnginePaths",
+    "EnvironmentSchema",
+    "GPUComputeSchema",
+    "HPCConfig",
+    "HardwareConfig",
+    "HardwareSchema",
+    "MPSConfig",
+    "OSTarget",
+    "QuantumSettings",
+    "RoutingPolicy",
+    "SiloConfig",
+    "SiloPathsSchema",
+    "discover_engine",
+    "discover_host_hardware",
+    "validate_system_config",
 ]
 
-if __name__ == "__main__":
-    main()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_unity_installer_dashboard.py ---
-"""Physical Zero-Mock Test Suite for CoChem-BASE Unity Installer Dashboard.
-
-Validates:
-- LF line endings & standard UTF-8 encoding (no BOM).
-- Zero personal path leakage across codebase.
-- Pydantic DeploymentManifest validation & serialization.
-- Ecosystem registry invariants (5 mandatory modules, 17 total ecosystem modules).
-- SynapInstallerGUI pre-flight disk check and widget tree construction.
-- Real-time Hardware Profiling HUD, AVX-512 detection, and telemetry rendering.
-- 6-Tier interaction & compute selection model with Codespaces auto-lock.
-- UI Immutability Orchestrator Lock on pipeline initialization.
-- State serialization to cochem_system_config.json and cochem_deployment_manifest.json.
-- ORCA binary verification and archive staging logic.
-- Air-Gap ZIP sideloading and deployment worker execution.
-- Zombie process cleanup handler execution.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_registry_schema.py ---
+"""
+CoChem-BASE Stage 0.0: Golden Registry Schema Gatekeeper Test Suite.
+Strict Zero-Mock Mandate: Real physical file I/O, deterministic SHA-256 hashing,
+and rigorous Pydantic V2 model validations across POSIX and Windows platforms.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
-import zipfile
+import os
 from pathlib import Path
+import platform
+import sys
 from typing import Any, Dict
 
-import ipywidgets as widgets
 import pytest
 from pydantic import ValidationError
 
-from cochem_base.config_loader import get_base_root
-from cochem_base.interfaces.cochem_unity_installer_dashboard import (
-    ECOSYSTEM_REGISTRY,
-    TOPOLOGICAL_DEPENDENCY_MAP,
-    DeploymentManifest,
-    SynapInstallerGUI,
-    _cleanup_zombie_processes,
-    detect_avx512_support,
-    detect_host_hardware,
-    resolve_topological_dependencies,
-    serialize_default_manifest,
-    serialize_system_config_json,
-    validate_topological_prerequisites,
+from cochem_core_registry_schema import (
+    BYPASS_TOKENS,
+    CARBON_13_ISOTOPIC_MASS,
+    ISOTOPIC_MASSES,
+    CoChemConfig,
+    CoChemSystemConfig,
+    CorePinningConfig,
+    EngineInfo,
+    EnginePaths,
+    EnvironmentSchema,
+    GPUComputeSchema,
+    HardwareConfig,
+    HardwareSchema,
+    HPCConfig,
+    MPSConfig,
+    OSTarget,
+    QuantumSettings,
+    RoutingPolicy,
+    SiloConfig,
+    SiloPathsSchema,
+    discover_engine,
+    discover_host_hardware,
+    validate_system_config,
 )
-from cochem_base.path_sanitization import leak_patterns
 
 
-@pytest.fixture
-def target_file_path() -> Path:
-    """Return the absolute path to cochem_base/interfaces/cochem_unity_installer_dashboard.py."""
-    path = get_base_root() / "cochem_base" / "interfaces" / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Target file does not exist: {path}"
-    return path
+# =============================================================================
+# 1. GLOBAL SCHEMA CONSTRAINTS: EXTRA FORBIDDEN & VALIDATE ASSIGNMENT
+# =============================================================================
+
+def test_global_schema_constraints_extra_fields_forbidden():
+    """Verify that all schemas strictly forbid extra/hallucinated fields."""
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        GPUComputeSchema(gpu_profile="NVIDIA", hallucinated_field="forbidden")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        MPSConfig(enabled=True, fake_field=123)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        CorePinningConfig(anchor_p_cores=4, ghost_core=1)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        QuantumSettings(charge=0, invalid_flag=True)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, invalid_hw_key="bad")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        EnvironmentSchema(os_target=OSTarget.LOCAL_LINUX, hallucinated_env="bad")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        SiloPathsSchema(cfour_binary_path="BYPASSED", rogue_path="/opt/rogue")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        EngineInfo(status="found", bogus="data")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        RoutingPolicy(max_concurrent_mace_threads=2, extra_policy="strict")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HPCConfig(scheduler="slurm", imaginary_queue="gpu_long")
 
 
-@pytest.fixture
-def root_file_path() -> Path:
-    """Return the absolute path to cochem_unity_installer_dashboard.py."""
-    path = get_base_root() / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Root file does not exist: {path}"
-    return path
+def test_global_schema_constraints_validate_assignment():
+    """Verify that attribute mutation on instances triggers strict Pydantic validation."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8)
+    assert hw.ram_gb == 32.0
 
+    # Valid mutation
+    hw.ram_gb = 64.0
+    assert hw.ram_gb == 64.0
 
-@pytest.fixture
-def legacy_file_path() -> Path:
-    """Return the absolute path to interfaces/cochem_unity_installer_dashboard.py."""
-    path = get_base_root() / "interfaces" / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Legacy file does not exist: {path}"
-    return path
-
-
-def test_file_encoding_and_lf_line_endings(
-    target_file_path: Path, root_file_path: Path, legacy_file_path: Path
-) -> None:
-    """Verify strictly Unix LF line endings (\\n), standard UTF-8 encoding, and no BOM."""
-    for p in (target_file_path, root_file_path, legacy_file_path):
-        raw = p.read_bytes()
-        assert b"\r\n" not in raw, f"Found Windows CRLF line endings in {p.name}"
-        assert b"\n" in raw, f"Missing newline characters in {p.name}"
-        assert not raw.startswith(b"\xef\xbb\xbf"), f"Found UTF-8 BOM marker in {p.name}"
-
-        content = p.read_text(encoding="utf-8")
-        assert len(content) > 500, f"File {p.name} content is unexpectedly small."
-
-
-def test_zero_personal_path_leaks(
-    target_file_path: Path, root_file_path: Path, legacy_file_path: Path
-) -> None:
-    """Verify zero personal machine or local user path leakage in target files."""
-    patterns = leak_patterns()
-    for p in (target_file_path, root_file_path, legacy_file_path):
-        lines = p.read_text(encoding="utf-8").splitlines()
-        leaks = []
-        for lineno, line in enumerate(lines, 1):
-            for pattern, placeholder in patterns:
-                if pattern.search(line):
-                    leaks.append((lineno, placeholder, line.strip()))
-
-        assert len(leaks) == 0, f"Detected personal path leaks in {p.name}: {leaks}"
-
-
-def test_deployment_manifest_valid() -> None:
-    """Verify DeploymentManifest validates properly with required and optional fields."""
-    manifest = DeploymentManifest(
-        version="2026.2",
-        git_provenance_hash="abcdef0123456789",
-        interaction_environment="Local-Windows (WSL)",
-        calculation_environment="Local-Windows (WSL)",
-        orca_tarball_path="",
-        selected_repositories=["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"],
-    )
-    assert manifest.version == "2026.2"
-    assert manifest.git_provenance_hash == "abcdef0123456789"
-    assert "CoChem-BASE" in manifest.selected_repositories
-    assert "CoChem-CORE" in manifest.selected_repositories
-
-    dumped = manifest.model_dump()
-    assert isinstance(dumped, dict)
-    assert dumped["git_provenance_hash"] == "abcdef0123456789"
-
-    json_str = manifest.model_dump_json()
-    assert "abcdef0123456789" in json_str
-
-
-def test_deployment_manifest_validation_error() -> None:
-    """Verify DeploymentManifest raises ValidationError when required fields are missing."""
+    # Invalid mutations must raise ValidationError
     with pytest.raises(ValidationError):
-        DeploymentManifest.model_validate({"version": "2026.2"})
-
-
-def test_ecosystem_registry_invariants() -> None:
-    """Verify ECOSYSTEM_REGISTRY contains all expected repositories with mandatory flags."""
-    mandatory_repos = {"CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"}
-    for repo in mandatory_repos:
-        assert repo in ECOSYSTEM_REGISTRY, f"Mandatory repository '{repo}' missing from registry."
-        assert ECOSYSTEM_REGISTRY[repo]["mandatory"] is True, (
-            f"Repository '{repo}' must be marked mandatory."
-        )
-
-    assert len(ECOSYSTEM_REGISTRY) == 17, f"Expected 17 ecosystem modules, found {len(ECOSYSTEM_REGISTRY)}"
-
-    for _name, data in ECOSYSTEM_REGISTRY.items():
-        assert "desc" in data and len(data["desc"]) > 5
-        assert "repo" in data and data["repo"].startswith("https://")
-        assert "mandatory" in data and isinstance(data["mandatory"], bool)
-
-
-def test_synap_installer_gui_initialization(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify SynapInstallerGUI initializes correctly and creates necessary directories."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-
-    gui = SynapInstallerGUI()
-    assert gui.disk_safe is True
-    assert gui.engine_registry.exists()
-    assert gui.module_registry.exists()
-    assert len(gui.interaction_options) == 6
-    assert len(gui.calculation_options) == 5
-    assert "GitHub Codespaces" in gui.interaction_options
-    assert "Local-Windows (WSL)" in gui.interaction_options
-
-    ui = gui.build_ui()
-    assert isinstance(ui, widgets.Widget)
-
-
-def test_hardware_hud_and_avx512_detection(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify hardware telemetry collection and dynamic HUD table rendering."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-
-    # Test AVX-512 detection functions
-    avx512 = detect_avx512_support()
-    assert isinstance(avx512, bool)
-
-    monkeypatch.setenv("COCHEM_FORCE_AVX512", "1")
-    assert detect_avx512_support() is True
-
-    monkeypatch.setenv("COCHEM_FORCE_AVX512", "0")
-    assert detect_avx512_support() is False
-
-    monkeypatch.delenv("COCHEM_FORCE_AVX512", raising=False)
-
-    # Test Hardware telemetry collection
-    telemetry = detect_host_hardware()
-    assert "physical_cpu_cores" in telemetry
-    assert "logical_cpu_cores" in telemetry
-    assert "ram_gb" in telemetry
-    assert "vram_gb" in telemetry
-    assert "avx512_support" in telemetry
-    assert telemetry["physical_cpu_cores"] >= 1
-    assert telemetry["ram_gb"] > 0.0
-
-    gui = SynapInstallerGUI()
-    hud_content = gui._render_hardware_hud_html(telemetry)
-    assert "SYSTEM METAL &amp; COMPUTE TELEMETRY HUD" in hud_content
-    assert "System RAM" in hud_content
-    assert "CPU Cores" in hud_content
-    assert "GPU Accelerator" in hud_content
-    assert "Vector ISA (AVX-512)" in hud_content
-
-    gui.refresh_hardware_hud()
-    assert gui.hud_html is not None
-    assert len(gui.hud_html.value) > 100
-
-
-def test_codespaces_interaction_autolock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify Codespaces auto-lock sets value to 'GitHub Codespaces' and disabled=True."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    monkeypatch.setenv("CODESPACES", "true")
-
-    gui = SynapInstallerGUI()
-    assert gui.interact_target is not None
-    assert gui.interact_target.value == "GitHub Codespaces"
-    assert gui.interact_target.disabled is True
-    assert gui.calc_target is not None
-    assert gui.calc_target.value == "GitHub Actions"
-
-
-def test_orchestrator_lock_ui_immutability(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify all ipywidgets inputs shift to disabled=True upon pipeline initialization."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-
-    gui = SynapInstallerGUI()
-    assert gui.submit_btn is not None
-    assert gui.submit_btn.disabled is False
-
-    gui._lock_ui_for_deployment()
-
-    assert gui.submit_btn.disabled is True
-    assert "Initializing" in gui.submit_btn.description
-    assert gui.interact_target.disabled is True
-    assert gui.calc_target.disabled is True
-    assert gui.host_orca_path.disabled is True
-    assert gui.orca_upload.disabled is True
-    assert gui.stage_orca_btn.disabled is True
-    assert gui.refresh_telemetry_btn.disabled is True
-    for cb in gui.buttons.values():
-        assert cb.disabled is True
-
-
-def test_state_serialization_system_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify state serialization creates strict cochem_system_config.json without hardcoded home."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-
-    target_manifest = scratch / "Registry" / "cochem_deployment_manifest.json"
-    manifest = serialize_default_manifest(output_path=target_manifest)
-
-    assert target_manifest.exists()
-    system_config_file = scratch / "Registry" / "cochem_system_config.json"
-    assert system_config_file.exists()
-
-    config_data = json.loads(system_config_file.read_text(encoding="utf-8"))
-    assert config_data["schema_version"] == "4.0.0"
-    assert "hardware" in config_data
-    assert "ram_gb" in config_data["hardware"]
-    assert "physical_cpu_cores" in config_data["hardware"]
-    assert "avx512_support" in config_data["hardware"]
-    assert "interaction_tier" in config_data
-    assert "calculation_tier" in config_data
-    assert "selected_modules" in config_data
-    assert "CoChem-BASE" in config_data["selected_modules"]
-
-
-def test_git_hash_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify _get_git_hash returns a valid hash string."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    gui = SynapInstallerGUI()
-
-    git_hash = gui._get_git_hash()
-    assert isinstance(git_hash, str)
-    assert len(git_hash) > 0
-    assert len(git_hash) <= 16
-
-
-def test_has_staged_orca_archive(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify _has_staged_orca_archive accurately detects staged tarballs."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    gui = SynapInstallerGUI()
-
-    assert gui._has_staged_orca_archive() is False
-
-    test_archive = gui.engine_registry / "orca_5_0_4_linux_x86-64.tar.xz"
-    test_archive.write_bytes(b"sample archive payload bytes")
-
-    assert gui._has_staged_orca_archive() is True
-
-
-def test_extract_upload_entries_and_stage_orca(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify archive staging from file upload structures."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    gui = SynapInstallerGUI()
-
-    # Test dict input format
-    files_dict = {
-        "orca_5_0_3.tar.gz": {"content": b"tarball_content_payload"},
-        "CoChem-MAGE.zip": {"content": b"zip_content_payload"},
-    }
-    staged = gui._stage_orca_upload(files_dict)
-    assert staged is True
-    assert (gui.engine_registry / "orca_5_0_3.tar.gz").exists()
-    assert (gui.module_registry / "CoChem-MAGE.zip").exists()
-
-
-def test_verify_host_orca_path_nonexistent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify _verify_host_orca_path returns False for invalid or missing executable paths."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    gui = SynapInstallerGUI()
-
-    # Explicitly invalid path must always return False
-    assert gui._verify_host_orca_path("/non/existent/custom/path/orca_xyz_123") is False
-    assert gui._verify_host_orca_path("C:\\non_existent_orca_binary.exe") is False
-
-
-def test_pure_python_deployment_airgap_zip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify Air-Gap Zip Sideloading extracts target module without network calls."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    gui = SynapInstallerGUI()
-
-    target_mod = "CoChem-BENCH"
-    zip_path = gui.module_registry / f"{target_mod}.zip"
-
-    # Create a real zip archive with valid payload
-    with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.writestr(f"{target_mod}/__init__.py", "# Bench module init\n")
-        zf.writestr(f"{target_mod}/bench_core.py", "def run(): pass\n")
-
-    manifest_payload: Dict[str, Any] = {
-        "version": "2026.2",
-        "git_provenance_hash": "test_hash",
-        "interaction_environment": "Local-Linux (Deb)",
-        "calculation_environment": "Local-Linux (Deb)",
-        "orca_tarball_path": "",
-        "selected_repositories": [target_mod],
-    }
-
-    gui._pure_python_deployment_worker(manifest_payload)
-
-    extracted_dir = gui.module_registry / target_mod
-    assert extracted_dir.is_dir()
-    assert (extracted_dir / "__init__.py").exists()
-    assert (extracted_dir / "bench_core.py").exists()
-
-    log_content = gui.log_file.read_text(encoding="utf-8")
-    assert "Air-Gap Bridge: Sideloading" in log_content
-    assert "Extracted CoChem-BENCH via Air-Gap" in log_content
-
-
-def test_zombie_cleanup_callable() -> None:
-    """Verify _cleanup_zombie_processes executes safely without throwing exceptions."""
-    _cleanup_zombie_processes()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_unity_installer_dashboard.py ---
-"""Comprehensive Zero-Mock test suite for cochem_unity_installer_dashboard.py.
-
-Validates:
-1. File structure, Unix LF line endings, standard UTF-8 encoding, and zero BOM.
-2. Zero personal path leaks (using cochem_base.path_sanitization.leak_patterns).
-3. Zero banned anti-spoofing terms (mock, dummy, stub, placeholder, fake, TODO, NotImplementedError).
-4. Pydantic DeploymentManifest schema validation, default attributes, and serialization.
-5. Topological prerequisite definitions, validation, and auto-resolution algorithms.
-6. 6-Tier interaction & compute selection model with Codespaces auto-locking.
-7. Real-Time Hardware Profiling HUD, AVX-512 vector detection, and color-coded status evaluation.
-8. UI Immutability Orchestrator Lock on pipeline initialization.
-9. State serialization to cochem_system_config.json and cochem_deployment_manifest.json.
-10. Headless detection protocols (CI, GITHUB_ACTIONS, HEADLESS, CLI flag) and automatic manifest serialization.
-11. SynapInstallerGUI ipywidgets Tabbed Dashboard construction, tab titles, and prerequisite UI locking.
-12. Air-gap archive detection, staging mechanics, and pre-flight disk check rules.
-13. Parity and re-exports between root, interfaces/, and cochem_base/interfaces/.
-"""
-
-from __future__ import annotations
-
-import json
-import re
-from pathlib import Path
-
-import pytest
-
-import cochem_base.interfaces.cochem_unity_installer_dashboard as canonical_dashboard
-import cochem_unity_installer_dashboard as root_dashboard
-import interfaces.cochem_unity_installer_dashboard as legacy_dashboard
-from cochem_base.interfaces.cochem_unity_installer_dashboard import (
-    ECOSYSTEM_REGISTRY,
-    TOPOLOGICAL_DEPENDENCY_MAP,
-    DeploymentManifest,
-    SynapInstallerGUI,
-    detect_avx512_support,
-    detect_host_hardware,
-    is_headless_environment,
-    resolve_topological_dependencies,
-    run_headless,
-    serialize_default_manifest,
-    serialize_system_config_json,
-    validate_topological_prerequisites,
-)
-from cochem_base.path_sanitization import leak_patterns
-
-
-@pytest.fixture
-def root_py_path() -> Path:
-    """Return the absolute path to cochem_unity_installer_dashboard.py."""
-    path = Path(__file__).resolve().parent.parent / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Target file does not exist: {path}"
-    return path
-
-
-@pytest.fixture
-def interfaces_py_path() -> Path:
-    """Return the absolute path to interfaces/cochem_unity_installer_dashboard.py."""
-    path = Path(__file__).resolve().parent.parent / "interfaces" / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Target file does not exist: {path}"
-    return path
-
-
-@pytest.fixture
-def cochem_base_py_path() -> Path:
-    """Return the absolute path to cochem_base/interfaces/cochem_unity_installer_dashboard.py."""
-    path = Path(__file__).resolve().parent.parent / "cochem_base" / "interfaces" / "cochem_unity_installer_dashboard.py"
-    assert path.is_file(), f"Target file does not exist: {path}"
-    return path
-
-
-def test_file_existence_and_structure(
-    root_py_path: Path, interfaces_py_path: Path, cochem_base_py_path: Path
-) -> None:
-    """Verify that cochem_unity_installer_dashboard.py exists in all designated locations."""
-    for p in (root_py_path, interfaces_py_path, cochem_base_py_path):
-        assert p.exists(), f"File missing at {p}"
-        content = p.read_text(encoding="utf-8")
-        assert len(content) > 200, f"File at {p} is suspiciously small: {len(content)} bytes"
-
-
-def test_unix_lf_and_encoding(
-    root_py_path: Path, interfaces_py_path: Path, cochem_base_py_path: Path
-) -> None:
-    """Verify strictly Unix LF line endings (\\n), standard UTF-8 encoding, and no BOM."""
-    for p in (root_py_path, interfaces_py_path, cochem_base_py_path):
-        raw = p.read_bytes()
-        assert b"\r\n" not in raw, f"Found Windows CRLF line endings in {p.name}"
-        assert b"\n" in raw, f"Missing newline characters in {p.name}"
-        assert not raw.startswith(b"\xef\xbb\xbf"), f"Found UTF-8 BOM marker in {p.name}"
-
-
-def test_zero_personal_path_leaks(
-    root_py_path: Path, interfaces_py_path: Path, cochem_base_py_path: Path
-) -> None:
-    """Verify zero personal machine or local user path leakage in dashboard files."""
-    patterns = leak_patterns()
-    for p in (root_py_path, interfaces_py_path, cochem_base_py_path):
-        lines = p.read_text(encoding="utf-8").splitlines()
-        leaks = []
-        for lineno, line in enumerate(lines, 1):
-            for pattern, placeholder in patterns:
-                if pattern.search(line):
-                    leaks.append((lineno, placeholder, line.strip()))
-        assert len(leaks) == 0, f"Detected personal path leaks in {p.name}: {leaks}"
-
-
-def test_zero_mock_anti_spoofing_banned_terms(
-    root_py_path: Path, interfaces_py_path: Path, cochem_base_py_path: Path
-) -> None:
-    """Verify zero banned anti-spoofing terms exist in deliverable source files."""
-    banned = [
-        r"\bmock\b",
-        r"\bdummy\b",
-        r"\bstub\b",
-        r"\bplaceholder\b",
-        r"\bfake\b",
-        r"#\s*TODO",
-        r"NotImplementedError",
-    ]
-    for p in (root_py_path, interfaces_py_path, cochem_base_py_path):
-        content = p.read_text(encoding="utf-8")
-        for term in banned:
-            matches = list(re.finditer(term, content, flags=re.IGNORECASE))
-            assert len(matches) == 0, f"Found banned anti-spoofing term '{term}' in {p.name}: {matches}"
-
-
-def test_reexports_and_symbol_parity() -> None:
-    """Verify interfaces and root re-export canonical symbols faithfully."""
-    for mod in (root_dashboard, legacy_dashboard):
-        assert mod.DeploymentManifest is canonical_dashboard.DeploymentManifest
-        assert mod.SynapInstallerGUI is canonical_dashboard.SynapInstallerGUI
-        assert mod.ECOSYSTEM_REGISTRY is canonical_dashboard.ECOSYSTEM_REGISTRY
-        assert mod.TOPOLOGICAL_DEPENDENCY_MAP is canonical_dashboard.TOPOLOGICAL_DEPENDENCY_MAP
-        assert mod.is_headless_environment is canonical_dashboard.is_headless_environment
-        assert mod.run_headless is canonical_dashboard.run_headless
-        assert mod.serialize_default_manifest is canonical_dashboard.serialize_default_manifest
-        assert mod.detect_avx512_support is canonical_dashboard.detect_avx512_support
-        assert mod.detect_host_hardware is canonical_dashboard.detect_host_hardware
-
-
-def test_deployment_manifest_model_validation(tmp_path: Path) -> None:
-    """Verify Pydantic DeploymentManifest schema integrity and JSON serialization."""
-    manifest = DeploymentManifest(
-        version="2026.2",
-        git_provenance_hash="a1b2c3d4e5f60718",
-        interaction_environment="Local-Windows (WSL)",
-        calculation_environment="Local-Linux (Deb)",
-        orca_tarball_path="/opt/orca_6_1_1.tar.xz",
-        selected_repositories=["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ", "CoChem-SCAN"],
-        headless=False,
+        hw.ram_gb = 0.0  # ram_gb must be > 0.0
+
+    with pytest.raises(ValidationError):
+        hw.ram_gb = -16.0
+
+    with pytest.raises(ValidationError):
+        hw.cpu_physical_cores = 0  # cpu_physical_cores must be >= 1
+
+    with pytest.raises(ValidationError):
+        hw.allocatable_compute_cores = -1  # allocatable_compute_cores must be >= 0
+
+    gpu = GPUComputeSchema(vram_gb=12.0)
+    with pytest.raises(ValidationError):
+        gpu.vram_gb = -4.0
+
+    with pytest.raises(ValidationError):
+        gpu.device_count = -1
+
+
+# =============================================================================
+# 2. GPU COMPUTE SCHEMA TESTS
+# =============================================================================
+
+def test_gpu_compute_schema_comprehensive():
+    """Verify GPUComputeSchema metrics, flags, TFLOPS, and Tensor Cores."""
+    gpu_default = GPUComputeSchema()
+    assert gpu_default.gpu_profile == "None"
+    assert gpu_default.vram_gb == 0.0
+    assert gpu_default.device_count == 0
+    assert gpu_default.compute_capability is None
+    assert gpu_default.fp64_capable is False
+    assert gpu_default.subnormal_precision_trap is False
+    assert gpu_default.mps_enabled is False
+    assert gpu_default.tflops is None
+    assert gpu_default.fp32_tflops is None
+    assert gpu_default.fp16_tflops is None
+    assert gpu_default.fp64_tflops is None
+    assert gpu_default.tensor_cores is None
+    assert gpu_default.memory_bandwidth_gb_s is None
+
+    gpu_custom = GPUComputeSchema(
+        gpu_profile="NVIDIA H100 SXM5 80GB",
+        vram_gb=80.0,
+        device_count=8,
+        compute_capability="9.0",
+        fp64_capable=True,
+        subnormal_precision_trap=False,
+        mps_enabled=True,
+        tflops=67.0,
+        fp32_tflops=67.0,
+        fp16_tflops=1979.0,
+        fp64_tflops=34.0,
+        tensor_cores=528,
+        memory_bandwidth_gb_s=3350.0,
     )
-    assert manifest.version == "2026.2"
-    assert manifest.headless is False
-    assert len(manifest.selected_repositories) == 6
-
-    out_json = tmp_path / "manifest.json"
-    out_json.write_text(manifest.model_dump_json(indent=4), encoding="utf-8")
-
-    loaded_raw = json.loads(out_json.read_text(encoding="utf-8"))
-    reloaded = DeploymentManifest.model_validate(loaded_raw)
-    assert reloaded.git_provenance_hash == "a1b2c3d4e5f60718"
-    assert reloaded.selected_repositories == manifest.selected_repositories
-
-
-def test_topological_prerequisites_and_validation() -> None:
-    """Verify topological prerequisite rules and auto-resolution logic."""
-    # Mandatory modules must always be valid together
-    mandatory_only = ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"]
-    valid, missing = validate_topological_prerequisites(mandatory_only)
-    assert valid is True
-    assert len(missing) == 0
-
-    # Incomplete set (missing TOPOS)
-    invalid_set = ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TORQ", "CoChem-SCAN"]
-    valid, missing = validate_topological_prerequisites(invalid_set)
-    assert valid is False
-    assert "CoChem-TOPOS" in missing
-
-    # Auto-resolution should inject all missing prerequisites
-    resolved = resolve_topological_dependencies(["CoChem-SCAN"])
-    assert "CoChem-BASE" in resolved
-    assert "CoChem-MInt" in resolved
-    assert "CoChem-CORE" in resolved
-    assert "CoChem-TOPOS" in resolved
-    assert "CoChem-TORQ" in resolved
-    assert "CoChem-SCAN" in resolved
-
-    # Mandatory modules are locked in ECOSYSTEM_REGISTRY
-    assert ECOSYSTEM_REGISTRY["CoChem-BASE"]["mandatory"] is True
-    assert ECOSYSTEM_REGISTRY["CoChem-MInt"]["mandatory"] is True
-    assert ECOSYSTEM_REGISTRY["CoChem-CORE"]["mandatory"] is True
-    assert ECOSYSTEM_REGISTRY["CoChem-TOPOS"]["mandatory"] is True
-    assert ECOSYSTEM_REGISTRY["CoChem-TORQ"]["mandatory"] is True
-
-    # SCRIBE is non-mandatory per RESOURCE_GUARD mandate
-    assert ECOSYSTEM_REGISTRY["CoChem-SCRIBE"]["mandatory"] is False
+    assert gpu_custom.gpu_profile == "NVIDIA H100 SXM5 80GB"
+    assert gpu_custom.vram_gb == 80.0
+    assert gpu_custom.device_count == 8
+    assert gpu_custom.compute_capability == "9.0"
+    assert gpu_custom.fp64_capable is True
+    assert gpu_custom.mps_enabled is True
+    assert gpu_custom.tflops == 67.0
+    assert gpu_custom.fp32_tflops == 67.0
+    assert gpu_custom.fp16_tflops == 1979.0
+    assert gpu_custom.fp64_tflops == 34.0
+    assert gpu_custom.tensor_cores == 528
+    assert gpu_custom.memory_bandwidth_gb_s == 3350.0
 
 
-def test_hardware_hud_and_status_styling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify dynamic HTML table rendering and visual resource status styling."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
+def test_gpu_compute_schema_negative_bounds():
+    """Verify negative validation on GPU parameters."""
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(vram_gb=-1.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(device_count=-1)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(tflops=-10.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp32_tflops=-5.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp16_tflops=-1.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp64_tflops=-0.1)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(tensor_cores=-10)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(memory_bandwidth_gb_s=-100.0)
 
-    gui = SynapInstallerGUI()
 
-    # Case 1: Optimal Profile
-    optimal_telemetry = {
-        "physical_cpu_cores": 8,
-        "logical_cpu_cores": 16,
-        "ram_gb": 32.0,
-        "avail_ram_gb": 24.0,
-        "free_storage_gb": 100.0,
-        "gpu_profile": "NVIDIA RTX 4090",
+# =============================================================================
+# 3. HARDWARE SCHEMA & ALIAS TESTS
+# =============================================================================
+
+def test_hardware_schema_alias():
+    """Verify that HardwareConfig is a direct alias of HardwareSchema."""
+    assert HardwareConfig is HardwareSchema
+
+
+def test_hardware_schema_required_bounds():
+    """Test HardwareSchema bounds: ram_gb > 0.0, cpu_physical_cores >= 1, allocatable >= 0."""
+    hw = HardwareSchema(
+        ram_gb=16.0,
+        cpu_physical_cores=8,
+        allocatable_compute_cores=6,
+        vram_gb=8.0,
+        gpu_fp64_capable=True,
+        mps_enabled=True,
+        avx_512_capable=True,
+        os_target=OSTarget.LOCAL_WINDOWS,
+    )
+    assert hw.ram_gb == 16.0
+    assert hw.cpu_physical_cores == 8
+    assert hw.allocatable_compute_cores == 6
+    assert hw.vram_gb == 8.0
+    assert hw.gpu_fp64_capable is True
+    assert hw.mps_enabled is True
+    assert hw.avx_512_capable is True
+    assert hw.avx512_support is True
+    assert hw.physical_cpu_cores == 8
+    assert hw.ram_mb == 16384
+    assert isinstance(hw.gpu_compute_metrics, GPUComputeSchema)
+
+
+def test_hardware_schema_negative_bounds():
+    """Verify rejection of invalid RAM, CPU cores, and VRAM bounds."""
+    # ram_gb <= 0.0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=0.0, cpu_physical_cores=4)
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=-8.0, cpu_physical_cores=4)
+
+    # cpu_physical_cores < 1
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=0)
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=-2)
+
+    # allocatable_compute_cores < 0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, allocatable_compute_cores=-1)
+
+    # vram_gb < 0.0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, vram_gb=-1.0)
+
+
+def test_hardware_schema_flex_validation():
+    """Test flex validation: auto-populating cpu_cores, ram_mb, ram_gb, and gpu fields."""
+    # Case 1: physical_cpu_cores provided -> cpu_physical_cores & cpu_cores populated
+    hw1 = HardwareSchema(
+        physical_cpu_cores=12,
+        logical_cpu_cores=24,
+        ram_gb=64.0,
+        os_target="windows_x86_64",
+    )
+    assert hw1.cpu_physical_cores == 12
+    assert hw1.cpu_cores == 12
+    assert hw1.ram_mb == 65536
+
+    # Case 2: ram_mb provided, ram_gb missing -> ram_gb computed
+    hw2 = HardwareSchema(
+        cpu_cores=16,
+        logical_cpu_cores=32,
+        ram_mb=32768,
+        os_target="linux_x86_64",
+    )
+    assert hw2.cpu_physical_cores == 16
+    assert hw2.ram_gb == 32.0
+
+    # Case 3: String representation of numbers coerced properly
+    hw3 = HardwareSchema(
+        cpu_physical_cores="4",  # type: ignore
+        logical_cpu_cores="8",  # type: ignore
+        ram_gb="16.5",  # type: ignore
+        vram_gb="8.0",  # type: ignore
+        os_target="Local-MacOS",
+    )
+    assert hw3.cpu_physical_cores == 4
+    assert hw3.logical_cpu_cores == 8
+    assert hw3.ram_gb == 16.5
+    assert hw3.ram_mb == int(16.5 * 1024)
+    assert hw3.vram_gb == 8.0
+    assert hw3.gpu_compute_metrics.vram_gb == 8.0
+
+
+def test_hardware_maxcore_oom_clamping():
+    """Verify that maxcore_mb is safely clamped when exceeding total physical RAM."""
+    hw = HardwareSchema(
+        cpu_physical_cores=4,
+        logical_cpu_cores=8,
+        ram_gb=8.0,
+        maxcore_mb=16000,  # Exceeds 8192 MB RAM -> must clamp safely
+        os_target=OSTarget.LOCAL_LINUX,
+    )
+    assert hw.maxcore_mb <= hw.ram_mb
+    assert hw.maxcore_mb >= 500
+
+
+# =============================================================================
+# 4. ENVIRONMENT SCHEMA & OS TARGET TESTS
+# =============================================================================
+
+def test_ostarget_enum_canonical_values():
+    """Test OSTarget enum canonical values and aliases."""
+    assert OSTarget.LOCAL_WINDOWS.value == "Local-Windows"
+    assert OSTarget.LOCAL_MACOS.value == "Local-MacOS"
+    assert OSTarget.LOCAL_LINUX.value == "Local-Linux"
+    assert OSTarget.CODESPACES.value == "Codespaces"
+    assert OSTarget.GITHUB_ACTIONS.value == "GitHub_Actions"
+    assert OSTarget.HPC.value == "HPC"
+
+
+def test_environment_schema_canonical_os_targets():
+    """Verify that all canonical OS targets pass validation."""
+    canonical_targets = [
+        "Local-Windows",
+        "Local-MacOS",
+        "Local-Linux",
+        "Codespaces",
+        "GitHub_Actions",
+        "HPC",
+    ]
+    for target in canonical_targets:
+        env = EnvironmentSchema(os_target=target)
+        assert env.os_target == target
+
+        hw = HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, os_target=target)
+        assert hw.os_target == target
+
+
+def test_environment_schema_isotopic_mass_locking():
+    """Verify strict isotopic mass float locking (e.g. ^13C = 13.00335483507)."""
+    env = EnvironmentSchema()
+    assert env.isotopic_mass_locking is True
+    assert env.isotopic_mass_13c == CARBON_13_ISOTOPIC_MASS
+    assert abs(env.isotopic_mass_13c - 13.00335483507) < 1e-9
+    assert env.get_isotopic_mass("13C") == CARBON_13_ISOTOPIC_MASS
+    assert env.get_isotopic_mass("12C") == 12.0
+    assert env.get_isotopic_mass("1H") == 1.00782503223
+    assert env.get_isotopic_mass("14N") == 14.00307400443
+    assert env.get_isotopic_mass("16O") == 15.99491461957
+
+    with pytest.raises(KeyError):
+        env.get_isotopic_mass("999Unobtainium")
+
+
+def test_environment_schema_path_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Test cross-platform path resolution and strict relative path rejection."""
+    test_dir = tmp_path / "cochem_env_dir"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCHEM_TEST_VAR", str(test_dir))
+
+    env = EnvironmentSchema(
+        artifacts_dir="$COCHEM_TEST_VAR/artifacts" if os.name != "nt" else "%COCHEM_TEST_VAR%\\artifacts",
+        scratch_dir="$COCHEM_TEST_VAR/scratch" if os.name != "nt" else "%COCHEM_TEST_VAR%\\scratch",
+    )
+    assert str(test_dir) in str(env.artifacts_dir)
+    assert str(test_dir) in str(env.scratch_dir)
+
+    # Resolve absolute path
+    resolved = env.resolve_path(str(test_dir / "target.txt"))
+    assert resolved.name == "target.txt"
+
+    # Strict path resolution rejecting relative paths
+    env_strict = EnvironmentSchema(strict_path_resolution=True)
+    with pytest.raises(ValueError, match="Strict path resolution enabled"):
+        env_strict.resolve_path("relative/path/not/absolute.txt")
+
+    # Empty path rejection
+    with pytest.raises(ValueError, match="Cannot resolve empty path"):
+        env.resolve_path("")
+
+
+def test_environment_schema_invalid_os_target():
+    """Verify rejection of hallucinated OS target."""
+    with pytest.raises(ValidationError, match="Invalid OS target"):
+        EnvironmentSchema(os_target="AmigaOS_68k")
+
+
+# =============================================================================
+# 5. SILO PATHS SCHEMA TESTS: ABSOLUTE RESOLUTION, BYPASS & AIR-GAP
+# =============================================================================
+
+def test_silo_paths_schema_absolute_resolution(tmp_path: Path):
+    """Verify SiloPathsSchema enforces absolute path resolution and bypass tokens."""
+    real_orca = tmp_path / ("orca.exe" if sys.platform == "win32" else "orca")
+    real_orca.write_text("#!/bin/sh\necho orca\n", encoding="utf-8")
+
+    real_cfour = tmp_path / ("cfour.exe" if sys.platform == "win32" else "cfour")
+    real_cfour.write_text("#!/bin/sh\necho cfour\n", encoding="utf-8")
+
+    real_store = tmp_path / "pes_store.h5"
+    real_store.write_bytes(b"HDF5_DATA")
+
+    silo = SiloPathsSchema(
+        orca_binary_path=str(real_orca),
+        cfour_binary_path=str(real_cfour),
+        aimnet2_server_path="BYPASSED",
+        xtb_binary_path="Not_Found",
+        mpirun_binary_path="missing",
+        hdf5_pes_store_path=str(real_store),
+    )
+
+    # Bypass check
+    assert silo.is_bypassed("aimnet2") is True
+    assert silo.is_bypassed("cfour") is False
+    assert silo.is_bypassed("orca") is False
+
+    # Found check
+    assert silo.is_found("orca") is True
+    assert silo.is_found("cfour") is True
+    assert silo.is_found("aimnet2") is False
+    assert silo.is_found("xtb") is False
+
+    # Resolution
+    assert silo.resolve_binary("orca") == str(real_orca.resolve())
+    assert silo.resolve_binary("cfour") == str(real_cfour.resolve())
+    assert silo.resolve_binary("aimnet2") == "BYPASSED"
+    assert silo.resolve_binary("xtb") == "Not_Found"
+
+
+def test_silo_paths_schema_rejects_relative_paths():
+    """Verify SiloPathsSchema explicitly rejects relative paths."""
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(orca_binary_path="./bin/orca")
+
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(cfour_binary_path="tools/cfour")
+
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(hdf5_pes_store_path="data/store.h5")
+
+
+def test_silo_paths_schema_rejects_cochem_root_write_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Verify write stores targeting immutable $COCHEM_ROOT are rejected."""
+    cochem_root = tmp_path / "cochem_codebase_root"
+    cochem_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCHEM_ROOT", str(cochem_root))
+
+    # Path inside COCHEM_ROOT must be rejected for write store
+    forbidden_store = cochem_root / "forbidden_pes.h5"
+    with pytest.raises(ValidationError, match="targets immutable codebase"):
+        SiloPathsSchema(hdf5_pes_store_path=str(forbidden_store))
+
+    # Path outside COCHEM_ROOT is valid
+    dynamic_data_dir = tmp_path / "cochem_dynamic_data"
+    dynamic_data_dir.mkdir(parents=True, exist_ok=True)
+    valid_store = dynamic_data_dir / "valid_pes.h5"
+    silo_valid = SiloPathsSchema(hdf5_pes_store_path=str(valid_store))
+    assert silo_valid.hdf5_pes_store_path == str(valid_store.resolve())
+
+
+# =============================================================================
+# 6. COCHEM SYSTEM CONFIG & REGISTRY MIGRATOR TESTS
+# =============================================================================
+
+def test_cochem_system_config_alias():
+    """Verify CoChemConfig is an alias of CoChemSystemConfig."""
+    assert CoChemConfig is CoChemSystemConfig
+
+
+def test_cochem_system_config_defaults():
+    """Test CoChemSystemConfig defaults, aggregation, and active_jobs default_factory."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_WINDOWS)
+    cfg = CoChemSystemConfig(hardware=hw)
+
+    assert cfg.schema_version == "4.0.0"
+    assert isinstance(cfg.hardware, HardwareSchema)
+    assert isinstance(cfg.environment, EnvironmentSchema)
+    assert isinstance(cfg.silo_paths, SiloPathsSchema)
+    assert isinstance(cfg.active_jobs, dict)
+    assert cfg.active_jobs == {}
+    assert cfg.registry_checksum == ""
+
+
+def test_registry_migrator_legacy_flat_config(tmp_path: Path):
+    """Verify RegistryMigrator transforms legacy flat config dictionary into nested structure."""
+    legacy_flat_data = {
+        "schema_version": "1.0.0",
+        "physical_cpu_cores": 16,
+        "logical_cpu_cores": 32,
+        "ram_gb": 64.0,
         "vram_gb": 24.0,
         "avx512_support": True,
-        "source": "Test Telemetry",
+        "gpu_profile": "NVIDIA RTX 4090",
+        "os_target": "Local-Linux",
+        "codata_version": "2022",
+        "orca_path": str(tmp_path.resolve()),
+        "cfour_binary_path": "BYPASSED",
+        "active_jobs": {"job_101": {"status": "running"}},
     }
-    optimal_html = gui._render_hardware_hud_html(optimal_telemetry)
-    assert "SYSTEM METAL &amp; COMPUTE TELEMETRY HUD" in optimal_html
-    assert "Optimal" in optimal_html
-    assert "Accelerated" in optimal_html
-    assert "Supported" in optimal_html
-    assert "HARDWARE VERIFIED" in optimal_html
 
-    # Case 2: Constrained Profile
-    constrained_telemetry = {
-        "physical_cpu_cores": 3,
-        "logical_cpu_cores": 6,
-        "ram_gb": 12.0,
-        "avail_ram_gb": 6.0,
-        "free_storage_gb": 15.0,
-        "gpu_profile": "None",
-        "vram_gb": 0.0,
-        "avx512_support": False,
-        "source": "Test Telemetry",
-    }
-    constrained_html = gui._render_hardware_hud_html(constrained_telemetry)
-    assert "Constrained" in constrained_html
-    assert "RESOURCE NOTICE" in constrained_html
+    cfg = CoChemSystemConfig.model_validate(legacy_flat_data)
 
-    # Case 3: Critical Profile
-    critical_telemetry = {
-        "physical_cpu_cores": 1,
-        "logical_cpu_cores": 2,
-        "ram_gb": 4.0,
-        "avail_ram_gb": 2.0,
-        "free_storage_gb": 5.0,
-        "gpu_profile": "None",
-        "vram_gb": 0.0,
-        "avx512_support": False,
-        "source": "Test Telemetry",
-    }
-    critical_html = gui._render_hardware_hud_html(critical_telemetry)
-    assert "Critical" in critical_html
-    assert "CRITICAL RESOURCE WARNING" in critical_html
+    # Verified migration into hardware
+    assert cfg.hardware.cpu_physical_cores == 16
+    assert cfg.hardware.logical_cpu_cores == 32
+    assert cfg.hardware.ram_gb == 64.0
+    assert cfg.hardware.vram_gb == 24.0
+    assert cfg.hardware.avx_512_capable is True
+
+    # Verified migration into environment
+    assert cfg.environment.os_target == "Local-Linux"
+    assert cfg.environment.codata_version == "2022"
+
+    # Verified migration into silo_paths
+    assert cfg.silo_paths.orca_binary_path == str(tmp_path.resolve())
+    assert cfg.silo_paths.cfour_binary_path == "BYPASSED"
+
+    # Verified active_jobs
+    assert cfg.active_jobs["job_101"]["status"] == "running"
 
 
-def test_codespaces_interaction_autolock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify Codespaces environment auto-locks interaction dropdown to 'GitHub Codespaces' and disabled=True."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-    monkeypatch.setenv("CODESPACES", "1")
+def test_checksum_calculation_and_verification():
+    """Verify cryptographic SHA-256 checksum calculation, update, and tamper detection."""
+    hw = HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, os_target=OSTarget.LOCAL_WINDOWS)
+    config = CoChemSystemConfig(hardware=hw)
 
-    gui = SynapInstallerGUI()
-    assert gui.interact_target is not None
-    assert gui.interact_target.value == "GitHub Codespaces"
-    assert gui.interact_target.disabled is True
-    assert gui.calc_target is not None
-    assert gui.calc_target.value == "GitHub Actions"
+    assert config.registry_checksum == ""
+    assert config.verify_checksum() is False
 
+    cs1 = config.compute_checksum()
+    assert isinstance(cs1, str)
+    assert len(cs1) == 64
+    assert all(c in "0123456789abcdef" for c in cs1)
 
-def test_ui_immutability_lock(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify all interactive input widgets shift to disabled=True when pipeline initializes."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
+    # Invariance to last_updated
+    config.last_updated = "2026-08-22T00:00:00+00:00"
+    assert config.compute_checksum() == cs1
 
-    gui = SynapInstallerGUI()
-    assert gui.submit_btn is not None
-    assert gui.submit_btn.disabled is False
+    # Update in place
+    updated_cs = config.update_checksum()
+    assert updated_cs == cs1
+    assert config.registry_checksum == cs1
+    assert config.verify_checksum() is True
 
-    gui._lock_ui_for_deployment()
+    # Tampering payload invalidates checksum
+    config.hardware.ram_gb = 64.0
+    assert config.verify_checksum() is False
 
-    assert gui.submit_btn.disabled is True
-    assert "Initializing" in gui.submit_btn.description
-    assert gui.interact_target.disabled is True
-    assert gui.calc_target.disabled is True
-    assert gui.host_orca_path.disabled is True
-    assert gui.orca_upload.disabled is True
-    assert gui.stage_orca_btn.disabled is True
-    assert gui.refresh_telemetry_btn.disabled is True
-    for cb in gui.buttons.values():
-        assert cb.disabled is True
+    # Re-updating restores verification
+    new_cs = config.update_checksum()
+    assert new_cs != cs1
+    assert config.verify_checksum() is True
 
 
-def test_state_serialization_system_config_and_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify state serialization creates strict cochem_system_config.json and cochem_deployment_manifest.json."""
-    scratch = tmp_path / "CoChem_Artifacts"
-    scratch.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(scratch))
-
-    target_manifest = scratch / "Registry" / "cochem_deployment_manifest.json"
-    manifest = serialize_default_manifest(
-        output_path=target_manifest,
-        interaction_env="Local-Linux (Deb)",
-        calc_env="Local-Linux (Deb)",
-        extra_modules=["CoChem-SCAN"],
+def test_cochem_system_config_io_lifecycle(tmp_path: Path):
+    """Test full serialization, deserialization, and physical file I/O."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_LINUX)
+    env = EnvironmentSchema(os_target=OSTarget.LOCAL_LINUX, codata_version="2018")
+    cfg = CoChemSystemConfig(
+        hardware=hw,
+        environment=env,
+        engines={
+            "orca": {"status": "found", "path": str(tmp_path.resolve()), "version": "6.1.1", "hash": "abc"}
+        },
+        quantum_settings=QuantumSettings(implicit_solvation="CPCM", integration_grid="defgrid2"),
+        hpc=HPCConfig(scheduler="slurm", default_partition="gpu-node", max_walltime_hours=12),
     )
-    assert target_manifest.is_file()
 
-    target_config = scratch / "Registry" / "cochem_system_config.json"
-    assert target_config.is_file()
+    # to_dict & to_json
+    d = cfg.to_dict()
+    assert d["schema_version"] == "4.0.0"
+    json_str = cfg.to_json()
+    assert isinstance(json_str, str)
 
-    cfg = json.loads(target_config.read_text(encoding="utf-8"))
-    assert cfg["schema_version"] == "4.0.0"
-    assert "hardware" in cfg
-    assert "physical_cpu_cores" in cfg["hardware"]
-    assert "ram_gb" in cfg["hardware"]
-    assert "avx512_support" in cfg["hardware"]
-    assert "interaction_tier" in cfg
-    assert cfg["interaction_tier"] == "Local-Linux (Deb)"
-    assert "calculation_tier" in cfg
-    assert cfg["calculation_tier"] == "Local-Linux (Deb)"
-    assert "selected_modules" in cfg
-    assert "CoChem-BASE" in cfg["selected_modules"]
-    assert "CoChem-SCAN" in cfg["selected_modules"]
+    # from_json
+    restored = CoChemSystemConfig.from_json(json_str)
+    assert restored.hardware.ram_gb == 32.0
+    assert restored.quantum_settings.implicit_solvation == "CPCM"
 
+    # to_file & from_file
+    out_file = tmp_path / "exported_config.json"
+    cfg.to_file(out_file)
+    assert out_file.exists()
 
-def test_headless_environment_detection_and_manifest_serialization(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Verify headless detection protocols and automatic manifest serialization."""
-    # Test CI env var detection
-    monkeypatch.setenv("CI", "true")
-    assert is_headless_environment() is True
+    loaded = CoChemSystemConfig.from_file(out_file)
+    assert loaded.hardware.cpu_physical_cores == 8
+    assert loaded.hpc.scheduler == "slurm"
 
-    # Test GITHUB_ACTIONS detection
-    monkeypatch.delenv("CI", raising=False)
-    monkeypatch.setenv("GITHUB_ACTIONS", "1")
-    assert is_headless_environment() is True
-
-    # Test HEADLESS detection
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
-    monkeypatch.setenv("HEADLESS", "1")
-    assert is_headless_environment() is True
-
-    # Test serialization in headless mode
-    target_manifest_path = tmp_path / "cochem_deployment_manifest.json"
-    manifest = serialize_default_manifest(
-        output_path=target_manifest_path,
-        interaction_env="GitHub Codespaces",
-        calc_env="GitHub Actions",
-        extra_modules=["CoChem-BENCH"],
-    )
-    assert target_manifest_path.is_file()
-    data = json.loads(target_manifest_path.read_text(encoding="utf-8"))
-    assert data["interaction_environment"] == "GitHub Codespaces"
-    assert data["calculation_environment"] == "GitHub Actions"
-    assert "CoChem-BASE" in data["selected_repositories"]
-    assert "CoChem-BENCH" in data["selected_repositories"]
-    assert data["headless"] is True
-
-    # Test run_headless execution
-    run_result = run_headless(manifest=manifest, auto_deploy=False)
-    assert run_result.interaction_environment == "GitHub Codespaces"
+    # create_default
+    default_cfg = CoChemSystemConfig.create_default(auto_detect_hardware=False)
+    assert default_cfg.hardware.cpu_physical_cores == 4
+    assert default_cfg.silos.torq_silo_active is True
 
 
-def test_tabbed_dashboard_gui_construction_and_layout() -> None:
-    """Verify ipywidgets Tab structure, tab titles, and prerequisite UI locking."""
-    gui = SynapInstallerGUI()
+# =============================================================================
+# 7. GATEKEEPER & DISCOVERY HELPER TESTS
+# =============================================================================
 
-    # Verify tabbed container exists
-    assert hasattr(gui, "tab_container")
-    tab = gui.tab_container
-    assert tab is not None
+def test_gatekeeper_validate_system_config(tmp_path: Path):
+    """Test gatekeeper validate_system_config with various source formats."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_LINUX)
+    cfg_inst = CoChemSystemConfig(hardware=hw)
 
-    # Check tab titles count (should have 4 tabs)
-    assert len(tab.children) == 4
-    tab_titles = [tab.get_title(i) for i in range(len(tab.children))]
-    assert any("Environment" in t or "1." in t for t in tab_titles)
-    assert any("Binaries" in t or "2." in t for t in tab_titles)
-    assert any("Modules" in t or "3." in t for t in tab_titles)
-    assert any("Deploy" in t or "4." in t for t in tab_titles)
+    # Source: CoChemSystemConfig instance
+    res1 = validate_system_config(cfg_inst)
+    assert res1 is cfg_inst
 
-    # Verify 5 mandatory buttons are checked and disabled
-    mandatory_keys = ["CoChem-BASE", "CoChem-MInt", "CoChem-CORE", "CoChem-TOPOS", "CoChem-TORQ"]
-    for key in mandatory_keys:
-        assert key in gui.buttons
-        assert gui.buttons[key].value is True
-        assert gui.buttons[key].disabled is True
+    # Source: Dict
+    raw_dict = cfg_inst.to_dict()
+    res2 = validate_system_config(raw_dict)
+    assert res2.hardware.cpu_physical_cores == 8
 
-    # Verify optional modules are enabled for toggling and default False
-    assert "CoChem-SCRIBE" in gui.buttons
-    assert gui.buttons["CoChem-SCRIBE"].disabled is False
-    assert gui.buttons["CoChem-SCRIBE"].value is False
+    # Source: Path
+    file_path = tmp_path / "valid_gatekeeper.json"
+    cfg_inst.to_file(file_path)
+    res3 = validate_system_config(file_path)
+    assert res3.hardware.ram_gb == 32.0
 
-    # Verify submit button
-    assert gui.submit_btn is not None
-    assert "Initialize Pipeline" in gui.submit_btn.description
+    # Source: str file path
+    res4 = validate_system_config(str(file_path))
+    assert res4.hardware.ram_gb == 32.0
 
-    # Verify UI build method returns container
-    rendered_ui = gui.build_ui()
-    assert rendered_ui is not None
+    # Source: json string
+    res5 = validate_system_config(cfg_inst.to_json())
+    assert res5.hardware.cpu_physical_cores == 8
 
-
-def test_archive_staging_and_extraction_logic(tmp_path: Path) -> None:
-    """Verify archive staging extracts multi-format upload structures safely."""
-    gui = SynapInstallerGUI()
-    gui.module_registry = tmp_path / "Modules"
-    gui.engine_registry = tmp_path / "Engines"
-    gui.module_registry.mkdir(parents=True, exist_ok=True)
-    gui.engine_registry.mkdir(parents=True, exist_ok=True)
-
-    # Test dict-based upload entry (ipywidgets file upload schema)
-    test_zip_content = b"PK\x05\x06" + b"\x00" * 18  # valid empty zip header
-    upload_dict = {
-        "test_module.zip": {
-            "content": test_zip_content,
-            "metadata": {"name": "test_module.zip", "size": len(test_zip_content)},
-        }
-    }
-    staged = gui._stage_orca_upload(upload_dict)
-    assert staged is True
-    assert (gui.module_registry / "test_module.zip").exists()
+    # Unsupported types
+    with pytest.raises(TypeError):
+        validate_system_config(12345)  # type: ignore
 
 
-def test_preflight_disk_check_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify preflight disk check adheres strictly to 10GB threshold logic."""
-    class FakeUsage:
-        def __init__(self, free_bytes: int):
-            self.free = free_bytes
+def test_discover_engine_physical():
+    """Test discover_engine using physically present and non-existent binaries."""
+    py_engine = discover_engine("python" if sys.platform != "win32" else "python.exe")
+    assert py_engine.status == "found"
+    assert py_engine.path is not None
+    assert Path(py_engine.path).exists()
 
-    gui = SynapInstallerGUI()
-
-    # Case 1: < 10GB free space
-    monkeypatch.setattr("psutil.disk_usage", lambda _: FakeUsage(5 * 1024**3))
-    gui._pre_flight_disk_check()
-    assert gui.disk_safe is False
-    assert "Insufficient disk space" in gui.error_msg
-
-    # Case 2: >= 10GB free space
-    monkeypatch.setattr("psutil.disk_usage", lambda _: FakeUsage(15 * 1024**3))
-    gui._pre_flight_disk_check()
-    assert gui.disk_safe is True
+    missing_engine = discover_engine("non_existent_binary_never_present_12345")
+    assert missing_engine.status == "missing"
+    assert missing_engine.path is None
 
 
-def test_defensive_status_and_headless_deploy(tmp_path: Path) -> None:
-    """Verify SynapInstallerGUI defensive status logging and headless execution safety."""
-    gui = SynapInstallerGUI()
-    gui.status_out = None
-    gui._log_status("Test info message", level="info")
-    gui._log_status("Test warning message", level="warning")
-    gui._log_status("Test error message", level="error")
-    gui._log_status("Test success message", level="success")
+def test_discover_host_hardware_physical():
+    """Test discover_host_hardware retrieving physical CPU and RAM."""
+    hw = discover_host_hardware()
+    assert isinstance(hw, HardwareSchema)
+    assert hw.cpu_physical_cores >= 1
+    assert hw.allocatable_compute_cores >= 1
+    assert hw.ram_gb > 0.0
+    assert isinstance(hw.os_target, str)
 
-    gui.module_registry = tmp_path / "Modules"
-    gui.engine_registry = tmp_path / "Engines"
-    gui.log_file = tmp_path / "Logs" / "cochem_deploy.log"
-    gui.module_registry.mkdir(parents=True, exist_ok=True)
-    gui.engine_registry.mkdir(parents=True, exist_ok=True)
-    gui.log_file.parent.mkdir(parents=True, exist_ok=True)
-
-    manifest_dict = {
-        "selected_repositories": ["CoChem-BASE", "CoChem-CORE"],
-        "interaction_environment": "GitHub Codespaces",
-        "calculation_environment": "GitHub Actions",
-    }
-    gui._pure_python_deployment_worker(manifest_dict)
-    assert gui.log_file.exists()
-    log_content = gui.log_file.read_text(encoding="utf-8")
-    assert "Initiating Pure-Python Air-Gap Module Provisioning" in log_content
-    assert "Base repository active. Bypassing clone for CoChem-BASE" in log_content
-
-
-def test_path_traversal_sanitization(tmp_path: Path) -> None:
-    """Verify path traversal attempts in uploads are stripped safely."""
-    gui = SynapInstallerGUI()
-    gui.registry_dir = tmp_path / "Registry"
-    gui.module_registry = gui.registry_dir / "Modules"
-    gui.engine_registry = gui.registry_dir / "Engines"
-    gui.module_registry.mkdir(parents=True, exist_ok=True)
-    gui.engine_registry.mkdir(parents=True, exist_ok=True)
-
-    content = b"PK\x05\x06" + b"\x00" * 18
-    traversal_upload = {
-        "../../evil_module.zip": {
-            "content": content,
-            "metadata": {"name": "../../evil_module.zip", "size": len(content)},
-        }
-    }
-    staged = gui._stage_orca_upload(traversal_upload)
-    assert staged is True
-    # Verify file was written inside module_registry and NOT outside
-    assert (gui.module_registry / "evil_module.zip").exists()
-    assert not (tmp_path / "evil_module.zip").exists()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_unity_installer_dashboard.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core_registry_schema.py ---
 #!/usr/bin/env python3
-"""CoChem-UNITY: Stage 0.0 - Root Executable Script for Installer Dashboard.
-
-Canonical entrypoint for launching the interactive GUI or headless deployment.
-Re-exports symbols from cochem_base.interfaces.cochem_unity_installer_dashboard.
+"""
+CoChem-BASE: Stage 0 Authority Rule - Golden Master Registry Schema
+Defines rigid Pydantic v2 models for `cochem_system_config.json`.
+Acts as a mathematical boundary preventing hallucinated configurations,
+silent floating-point drift, relative path vulnerabilities, and OOM thread allocation.
+All schemas strictly forbid extra fields and enforce validation on assignment.
 """
 
 from __future__ import annotations
 
-import sys
+import hashlib
+import json
+import logging
+import os
+from datetime import datetime, timezone
+from enum import Enum
 from pathlib import Path
+import platform
+import re
+import shutil
+from typing import Any, Dict, List, Optional, Set, Union, cast
 
-# Ensure repository root is on sys.path
-_BASE_ROOT = Path(__file__).resolve().parent
-if str(_BASE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_BASE_ROOT))
-
-from cochem_base.interfaces.cochem_unity_installer_dashboard import (
-    ECOSYSTEM_REGISTRY,
-    TOPOLOGICAL_DEPENDENCY_MAP,
-    DeploymentManifest,
-    SynapInstallerGUI,
-    detect_avx512_support,
-    detect_host_hardware,
-    get_system_git_hash,
-    is_headless_environment,
-    logger,
-    main,
-    resolve_topological_dependencies,
-    run_headless,
-    serialize_default_manifest,
-    serialize_system_config_json,
-    validate_topological_prerequisites,
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
 )
 
-__all__ = [
-    "ECOSYSTEM_REGISTRY",
-    "TOPOLOGICAL_DEPENDENCY_MAP",
-    "DeploymentManifest",
-    "SynapInstallerGUI",
-    "detect_avx512_support",
-    "detect_host_hardware",
-    "get_system_git_hash",
-    "is_headless_environment",
-    "logger",
-    "main",
-    "resolve_topological_dependencies",
-    "run_headless",
-    "serialize_default_manifest",
-    "serialize_system_config_json",
-    "validate_topological_prerequisites",
-]
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
-if __name__ == "__main__":
-    main()
+
+# =============================================================================
+# CONSTANTS AND ENVIRONMENT EXPANSION
+# =============================================================================
+
+CARBON_13_ISOTOPIC_MASS: float = 13.00335483507
+
+ISOTOPIC_MASSES: Dict[str, float] = {
+    "1H": 1.00782503223,
+    "2H": 2.01410177812,
+    "3H": 3.01604928132,
+    "12C": 12.00000000000,
+    "13C": CARBON_13_ISOTOPIC_MASS,
+    "14N": 14.00307400443,
+    "15N": 15.00010889888,
+    "16O": 15.99491461957,
+    "17O": 16.99913175650,
+    "18O": 17.99915961286,
+    "19F": 18.99840316273,
+    "31P": 30.97376199842,
+    "32S": 31.97207117440,
+    "35Cl": 34.96885268200,
+    "37Cl": 36.96590260200,
+    "79Br": 78.91833760000,
+    "81Br": 80.91629100000,
+    "127I": 126.9044719000,
+}
+
+BYPASS_TOKENS: Set[str] = {"BYPASSED", "Not_Found", "missing"}
+
+
+def _expand_env_vars(path_str: str) -> str:
+    """Uniformly expands %VAR%, $VAR, and ${VAR} across Windows and POSIX."""
+    if not path_str:
+        return path_str
+
+    def replace_percent(match: re.Match[str]) -> str:
+        var = match.group(1)
+        return os.environ.get(var, f"%{var}%")
+
+    s = re.sub(r"%([A-Za-z0-9_]+)%", replace_percent, path_str)
+    s = os.path.expandvars(s)
+    return os.path.expanduser(s)
+
+
+def _default_mps_pipe_dir() -> str:
+    try:
+        from cochem_base.config_loader import get_mps_directories
+        return str(get_mps_directories()[0])
+    except Exception:
+        return "/tmp/nvidia-mps"
+
+
+def _default_mps_log_dir() -> str:
+    try:
+        from cochem_base.config_loader import get_mps_directories
+        return str(get_mps_directories()[1])
+    except Exception:
+        return "/tmp/nvidia-log"
+
+
+def _default_os_target() -> str:
+    sys_name = platform.system().lower()
+    if "windows" in sys_name:
+        return OSTarget.LOCAL_WINDOWS.value
+    if "darwin" in sys_name:
+        return OSTarget.LOCAL_MACOS.value
+    if os.getenv("GITHUB_ACTIONS") == "true":
+        return OSTarget.GITHUB_ACTIONS.value
+    if os.getenv("CODESPACES") == "true":
+        return OSTarget.CODESPACES.value
+    return OSTarget.LOCAL_LINUX.value
+
+
+def _default_artifacts_dir() -> str:
+    return os.getenv("COCHEM_ARTIFACTS_DIR", str(Path.home() / "cochem_artifacts"))
+
+
+# =============================================================================
+# ENUMS
+# =============================================================================
+
+class OSTarget(str, Enum):
+    """
+    Authoritative Operating System and Architecture Targets for the CoChem Ecosystem.
+    Canonical 6-tier values: Local-Windows, Local-MacOS, Local-Linux, Codespaces, GitHub_Actions, HPC.
+    """
+    LOCAL_WINDOWS = "Local-Windows"
+    LOCAL_MACOS = "Local-MacOS"
+    LOCAL_LINUX = "Local-Linux"
+    CODESPACES = "Codespaces"
+    GITHUB_ACTIONS = "GitHub_Actions"
+    HPC = "HPC"
+
+    # Direct ecosystem aliases
+    LINUX_X86_64 = "linux_x86_64"
+    LINUX_AARCH64 = "linux_aarch64"
+    WINDOWS_X86_64 = "windows_x86_64"
+    WINDOWS_AMD64 = "windows_amd64"
+    DARWIN_ARM64 = "darwin_arm64"
+    DARWIN_X86_64 = "darwin_x86_64"
+    GENERIC_POSIX = "posix"
+    GENERIC_NT = "nt"
+
+
+_OS_TARGET_NORMALIZATION_MAP: Dict[str, str] = {
+    "local-windows": OSTarget.LOCAL_WINDOWS.value,
+    "local-windows_native": OSTarget.LOCAL_WINDOWS.value,
+    "local-windows_wsl": OSTarget.LOCAL_WINDOWS.value,
+    "windows": OSTarget.LOCAL_WINDOWS.value,
+    "windows_x86_64": OSTarget.WINDOWS_X86_64.value,
+    "windows_amd64": OSTarget.WINDOWS_AMD64.value,
+    "nt": OSTarget.GENERIC_NT.value,
+
+    "local-macos": OSTarget.LOCAL_MACOS.value,
+    "local-macos_darwin": OSTarget.LOCAL_MACOS.value,
+    "darwin": OSTarget.LOCAL_MACOS.value,
+    "darwin_arm64": OSTarget.DARWIN_ARM64.value,
+    "darwin_x86_64": OSTarget.DARWIN_X86_64.value,
+
+    "local-linux": OSTarget.LOCAL_LINUX.value,
+    "local-linux_deb": OSTarget.LOCAL_LINUX.value,
+    "linux": OSTarget.LOCAL_LINUX.value,
+    "linux_x86_64": OSTarget.LINUX_X86_64.value,
+    "linux_amd64": OSTarget.LINUX_X86_64.value,
+    "linux_aarch64": OSTarget.LINUX_AARCH64.value,
+    "posix": OSTarget.GENERIC_POSIX.value,
+
+    "codespaces": OSTarget.CODESPACES.value,
+    "github_codespaces": OSTarget.CODESPACES.value,
+    "github_actions": OSTarget.GITHUB_ACTIONS.value,
+    "hpc": OSTarget.HPC.value,
+    "hpc_slurm_linux": OSTarget.HPC.value,
+}
+
+
+# =============================================================================
+# 1. GPU COMPUTE SCHEMA
+# =============================================================================
+
+class GPUComputeSchema(BaseModel):
+    """
+    GPU Compute Metrics and Hardware Topology.
+    Tracks peak theoretical/measured TFLOPS, Tensor Cores count, Memory Bandwidth, and CUDA features.
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    gpu_profile: str = Field(default="None", description="Detected GPU model or 'None'")
+    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
+    device_count: int = Field(default=0, ge=0, description="Number of detected GPU devices")
+    compute_capability: Optional[str] = Field(default=None, description="CUDA Compute capability, e.g. '8.9'")
+    fp64_capable: bool = Field(default=False, description="Whether device supports native double-precision FP64")
+    subnormal_precision_trap: bool = Field(default=False, description="Whether subnormal precision traps are enabled")
+    mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
+    tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak TFLOPS compute metric")
+    fp32_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP32 TFLOPS")
+    fp16_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP16 TFLOPS")
+    fp64_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP64 TFLOPS")
+    tensor_cores: Optional[int] = Field(default=None, ge=0, description="Number of hardware Tensor Cores")
+    memory_bandwidth_gb_s: Optional[float] = Field(default=None, ge=0.0, description="GPU memory bandwidth in GB/s")
+
+
+# =============================================================================
+# 2. MPS & CORE PINNING CONFIGURATIONS
+# =============================================================================
+
+class MPSConfig(BaseModel):
+    """CUDA Multi-Process Service (MPS) configuration."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    enabled: bool = Field(default=True, description="Enable CUDA MPS daemon multiplexing")
+    max_workers: int = Field(default=4, gt=0, le=64, description="Max concurrent MPS worker tasks per GPU")
+    thread_percentage: int = Field(default=25, ge=1, le=100, description="CUDA MPS active thread percentage ceiling")
+    pipe_dir: str = Field(default_factory=_default_mps_pipe_dir, description="MPS pipe directory")
+    log_dir: str = Field(default_factory=_default_mps_log_dir, description="MPS log directory")
+
+
+class CorePinningConfig(BaseModel):
+    """Core Pinning and CPU Topology Configuration."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    kmp_hw_subset: str = Field(default="8c:intel_core,1t", description="OpenMP core pinning HW subset spec")
+    anchor_p_cores: int = Field(default=7, ge=0, description="Number of P-cores assigned to CPU anchor tasks")
+    scout_p_cores: int = Field(default=1, ge=0, description="Number of P-cores assigned to GPU scout tasks")
+    background_e_cores: int = Field(default=8, ge=0, description="E-cores reserved for OS/background tasks")
+
+
+# =============================================================================
+# 3. QUANTUM SOLVER SETTINGS
+# =============================================================================
+
+class QuantumSettings(BaseModel):
+    """Quantum chemical solver settings."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvent model (CPCM, SMD) or None")
+    integration_grid: Optional[str] = Field(default="defgrid2", description="Integration grid size (defgrid1, defgrid2, defgrid3)")
+    charge: int = Field(default=0)
+    multiplicity: int = Field(default=1, ge=1)
+
+    @field_validator("implicit_solvation", mode="before")
+    @classmethod
+    def validate_implicit_solvation(cls, v: Any) -> Optional[str]:
+        if v is None or v == "" or v == "[MISSING DATA]":
+            return None
+        if isinstance(v, str):
+            cleaned = v.strip().upper()
+            if cleaned in ("CPCM", "SMD"):
+                return cleaned
+            raise ValueError("implicit_solvation must be 'CPCM' or 'SMD'")
+        return cast(Optional[str], v)
+
+    @field_validator("integration_grid", mode="before")
+    @classmethod
+    def validate_integration_grid(cls, v: Any) -> Optional[str]:
+        if v is None or v == "" or v == "[MISSING DATA]":
+            return None
+        if isinstance(v, str):
+            cleaned = v.strip().lower()
+            if cleaned in ("defgrid1", "defgrid2", "defgrid3"):
+                return cleaned
+            raise ValueError("integration_grid must be one of ('defgrid1', 'defgrid2', 'defgrid3')")
+        return cast(Optional[str], v)
+
+
+# =============================================================================
+# 4. HARDWARE SCHEMA
+# =============================================================================
+
+class HardwareSchema(BaseModel):
+    """
+    Rigid bounds for physical compute resources to prevent OOM and thread contention.
+    Enforces positive RAM (gt=0.0), at least 1 physical core (ge=1), non-negative allocatable cores (ge=0),
+    and non-negative VRAM (ge=0.0).
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    ram_gb: float = Field(..., gt=0.0, description="Total accessible memory in GB")
+    cpu_physical_cores: int = Field(default=1, ge=1, description="Actual physical silicon cores")
+    allocatable_compute_cores: int = Field(default=1, ge=0, description="Allocatable compute cores for scientific jobs")
+    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
+    gpu_compute_metrics: GPUComputeSchema = Field(default_factory=GPUComputeSchema, description="GPU compute metrics and capabilities")
+    gpu_fp64_capable: bool = Field(default=False, description="Whether GPU supports native FP64 precision")
+    mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
+    avx_512_capable: bool = Field(default=False, description="Whether CPU supports AVX-512 vector instructions")
+
+    # Ecosystem & compatibility aliases
+    physical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Alias for cpu_physical_cores")
+    logical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Hyperthreaded threads count")
+    cpu_cores: Optional[int] = Field(default=None, ge=1, description="Legacy CPU cores alias")
+    ram_mb: Optional[int] = Field(default=None, ge=1, description="Total system RAM in MB")
+    maxcore_mb: Optional[int] = Field(default=3000, ge=0, description="Max core memory per process in MB")
+    avx512_support: bool = Field(default=False, description="Legacy alias for avx_512_capable")
+    gpu_profile: str = Field(default="None", description="Detected GPU model name")
+    subnormal_precision_trap: bool = Field(default=False, description="Subnormal floating-point trap")
+    os_target: Union[OSTarget, str] = Field(default=OSTarget.LOCAL_WINDOWS, description="Target execution environment")
+    host_id: Optional[str] = Field(default=None, description="Host identity identifier")
+    mps: Optional[MPSConfig] = Field(default_factory=MPSConfig, description="MPS daemon configuration")
+    core_pinning: Optional[CorePinningConfig] = Field(default_factory=CorePinningConfig, description="CPU core pinning topology")
+    gpu: Optional[GPUComputeSchema] = Field(default=None, description="Legacy alias for gpu_compute_metrics")
+
+    @field_validator("os_target", mode="before")
+    @classmethod
+    def validate_os_target(cls, v: Any) -> str:
+        if isinstance(v, OSTarget):
+            return v.value
+        if isinstance(v, str):
+            v_str = v.strip()
+            if v_str == "[MISSING DATA]":
+                return v_str
+            normalized = _OS_TARGET_NORMALIZATION_MAP.get(v_str.lower())
+            if normalized:
+                return normalized
+            valid_targets = {t.value for t in OSTarget}
+            if v_str in valid_targets:
+                return v_str
+            raise ValueError(f"Invalid OS target '{v}'. Must be a valid OS platform identifier.")
+        raise ValueError(f"OS target must be a string or OSTarget enum, got {type(v)}")
+
+    @model_validator(mode="before")
+    @classmethod
+    def flex_hardware_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        d = dict(data)
+
+        # String-to-number coercions
+        for float_field in ["ram_gb", "vram_gb"]:
+            if float_field in d and isinstance(d[float_field], str):
+                try:
+                    d[float_field] = float(d[float_field])
+                except ValueError:
+                    pass
+
+        for int_field in ["cpu_physical_cores", "physical_cpu_cores", "logical_cpu_cores", "cpu_cores", "allocatable_compute_cores", "ram_mb", "maxcore_mb"]:
+            if int_field in d and isinstance(d[int_field], str):
+                try:
+                    d[int_field] = int(float(d[int_field]))
+                except ValueError:
+                    pass
+
+        # Synchronize physical cores
+        phys = d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or d.get("cpu_cores")
+        if phys is not None:
+            try:
+                phys_int = int(phys)
+                d["cpu_physical_cores"] = phys_int
+                d["physical_cpu_cores"] = phys_int
+                if "cpu_cores" not in d:
+                    d["cpu_cores"] = phys_int
+            except (ValueError, TypeError):
+                pass
+
+        if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
+            if phys is not None:
+                try:
+                    d["logical_cpu_cores"] = int(phys)
+                except (ValueError, TypeError):
+                    pass
+
+        if "allocatable_compute_cores" not in d or d["allocatable_compute_cores"] is None:
+            if phys is not None:
+                try:
+                    d["allocatable_compute_cores"] = int(phys)
+                except (ValueError, TypeError):
+                    pass
+
+        # Synchronize RAM
+        if "ram_mb" not in d and "ram_gb" in d:
+            try:
+                d["ram_mb"] = int(float(d["ram_gb"]) * 1024)
+            except (ValueError, TypeError):
+                pass
+        elif "ram_gb" not in d and "ram_mb" in d:
+            try:
+                d["ram_gb"] = float(d["ram_mb"]) / 1024.0
+            except (ValueError, TypeError):
+                pass
+
+        # Maxcore OOM clamping guard
+        if "maxcore_mb" in d and "ram_mb" in d:
+            try:
+                maxcore = int(d["maxcore_mb"])
+                ram_mb = int(d["ram_mb"])
+                if maxcore > ram_mb:
+                    phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
+                    d["maxcore_mb"] = max(500, int(ram_mb * 0.75 / max(1, phys_count)))
+            except (ValueError, TypeError):
+                pass
+
+        # Synchronize AVX-512 capabilities
+        if "avx_512_capable" in d and "avx512_support" not in d:
+            d["avx512_support"] = bool(d["avx_512_capable"])
+        elif "avx512_support" in d and "avx_512_capable" not in d:
+            d["avx_512_capable"] = bool(d["avx512_support"])
+        elif "avx_512_capable" not in d and "avx512_support" not in d:
+            d["avx_512_capable"] = False
+            d["avx512_support"] = False
+
+        # Synchronize GPU compute metrics
+        gpu_data = d.get("gpu_compute_metrics") or d.get("gpu")
+        if gpu_data is None:
+            gpu_prof = d.get("gpu_profile", "None")
+            vram = d.get("vram_gb", 0.0)
+            trap = d.get("subnormal_precision_trap", False)
+            fp64 = d.get("gpu_fp64_capable", False)
+            mps_en = d.get("mps_enabled", False)
+            built_gpu = {
+                "gpu_profile": gpu_prof,
+                "vram_gb": float(vram) if isinstance(vram, (int, float, str)) else 0.0,
+                "subnormal_precision_trap": trap,
+                "fp64_capable": fp64,
+                "mps_enabled": mps_en,
+            }
+            d["gpu_compute_metrics"] = built_gpu
+            d["gpu"] = built_gpu
+        else:
+            if isinstance(gpu_data, dict):
+                d["gpu_compute_metrics"] = gpu_data
+                d["gpu"] = gpu_data
+                if "fp64_capable" in gpu_data and "gpu_fp64_capable" not in d:
+                    d["gpu_fp64_capable"] = bool(gpu_data["fp64_capable"])
+                if "mps_enabled" in gpu_data and "mps_enabled" not in d:
+                    d["mps_enabled"] = bool(gpu_data["mps_enabled"])
+            elif isinstance(gpu_data, GPUComputeSchema):
+                d["gpu_compute_metrics"] = gpu_data
+                d["gpu"] = gpu_data
+                if "gpu_fp64_capable" not in d:
+                    d["gpu_fp64_capable"] = gpu_data.fp64_capable
+                if "mps_enabled" not in d:
+                    d["mps_enabled"] = gpu_data.mps_enabled
+
+        return d
+
+
+HardwareConfig = HardwareSchema
+
+
+# =============================================================================
+# 5. ENVIRONMENT SCHEMA
+# =============================================================================
+
+class EnvironmentSchema(BaseModel):
+    """
+    Operating environment configuration, OS target validation, and isotopic mass locking.
+    Enforces exact isotopic mass float values (e.g., ^13C = 13.00335483507).
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    os_target: Union[OSTarget, str] = Field(
+        default_factory=_default_os_target,
+        description="Target OS tier",
+    )
+    artifacts_dir: Union[str, Path] = Field(
+        default_factory=_default_artifacts_dir,
+        description="Path to artifacts directory",
+    )
+    scratch_dir: Optional[Union[str, Path]] = Field(default=None, description="Path to fast scratch directory")
+    codata_version: str = Field(default="2018", description="CODATA constant version (e.g. '2018')")
+    isotopic_mass_locking: bool = Field(default=True, description="Strict lock on atomic/isotopic masses")
+    isotopic_mass_13c: float = Field(
+        default=CARBON_13_ISOTOPIC_MASS,
+        description="Locked isotopic mass for Carbon-13 (^13C = 13.00335483507)",
+    )
+    isotopic_masses: Dict[str, float] = Field(
+        default_factory=lambda: dict(ISOTOPIC_MASSES),
+        description="Exact isotopic mass registry",
+    )
+    env_vars: Dict[str, str] = Field(default_factory=dict, description="Custom environment variable overrides")
+    strict_path_resolution: bool = Field(default=False, description="Reject unresolvable relative paths if True")
+
+    @field_validator("os_target", mode="before")
+    @classmethod
+    def validate_os_target(cls, v: Any) -> str:
+        if isinstance(v, OSTarget):
+            return v.value
+        if isinstance(v, str):
+            v_str = v.strip()
+            if v_str == "[MISSING DATA]":
+                return v_str
+            normalized = _OS_TARGET_NORMALIZATION_MAP.get(v_str.lower())
+            if normalized:
+                return normalized
+            valid_targets = {t.value for t in OSTarget}
+            if v_str in valid_targets:
+                return v_str
+            raise ValueError(f"Invalid OS target '{v}'. Must be a valid OS platform identifier.")
+        raise ValueError(f"OS target must be a string or OSTarget enum, got {type(v)}")
+
+    @field_validator("codata_version")
+    @classmethod
+    def validate_codata(cls, v: str) -> str:
+        valid = {"2014", "2018", "2022"}
+        if v not in valid:
+            raise ValueError(f"codata_version must be one of {sorted(valid)}, got '{v}'")
+        return v
+
+    @field_validator("artifacts_dir", "scratch_dir", mode="before")
+    @classmethod
+    def expand_and_normalize_path(cls, v: Any) -> Any:
+        if v is None or v == "[MISSING DATA]":
+            return None
+        return _expand_env_vars(str(v))
+
+    def resolve_path(self, raw_path: Union[str, Path]) -> Path:
+        """Cross-platform path resolution with environment variable expansion."""
+        if not raw_path:
+            raise ValueError("Cannot resolve empty path.")
+        expanded = _expand_env_vars(str(raw_path))
+        p = Path(expanded)
+        if self.strict_path_resolution and not p.is_absolute():
+            raise ValueError(f"Strict path resolution enabled: relative path '{raw_path}' is rejected.")
+        return p.resolve()
+
+    def get_isotopic_mass(self, isotope: str) -> float:
+        """Retrieve authoritative locked isotopic mass float."""
+        if isotope in self.isotopic_masses:
+            return self.isotopic_masses[isotope]
+        if isotope == "13C":
+            return self.isotopic_mass_13c
+        raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix.")
+
+
+# =============================================================================
+# 6. SILO PATHS SCHEMA
+# =============================================================================
+
+class SiloPathsSchema(BaseModel):
+    """
+    Paths configuration for isolated silos and scientific binaries.
+    Enforces absolute path resolution (rejects relative paths), intercepting 'BYPASSED' and 'Not_Found'
+    tokens, and preventing write stores (like HDF5 PES stores) from targeting immutable $COCHEM_ROOT.
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    hdf5_pes_store_path: Optional[str] = Field(default=None, description="Path to centralized HDF5 PES store")
+    cfour_binary_path: Optional[str] = Field(default=None, description="Path to CFOUR binary or 'BYPASSED'")
+    aimnet2_server_path: Optional[str] = Field(default=None, description="Path to AIMNet2 server script or 'BYPASSED'")
+    orca_binary_path: Optional[str] = Field(default=None, description="Path to ORCA executable or 'BYPASSED'")
+    xtb_binary_path: Optional[str] = Field(default=None, description="Path to xTB executable or 'BYPASSED'")
+    mpirun_binary_path: Optional[str] = Field(default=None, description="Path to mpirun executable or 'BYPASSED'")
+
+    # Aliases
+    orca_path: Optional[str] = Field(default=None, description="Alias for orca_binary_path")
+    xtb_path: Optional[str] = Field(default=None, description="Alias for xtb_binary_path")
+    mpirun_path: Optional[str] = Field(default=None, description="Alias for mpirun_binary_path")
+    cfour_path: Optional[str] = Field(default=None, description="Alias for cfour_binary_path")
+    aimnet2_path: Optional[str] = Field(default=None, description="Alias for aimnet2_server_path")
+    python_path: Optional[str] = Field(default=None, description="Path to silo Python interpreter")
+    silo_root: Optional[str] = Field(default=None, description="Root directory for micro-environments")
+    strict_resolution: bool = Field(default=False, description="Enforce binary presence verification")
+
+    @field_validator(
+        "hdf5_pes_store_path",
+        "cfour_binary_path",
+        "aimnet2_server_path",
+        "orca_binary_path",
+        "xtb_binary_path",
+        "mpirun_binary_path",
+        "orca_path",
+        "xtb_path",
+        "mpirun_path",
+        "cfour_path",
+        "aimnet2_path",
+        "python_path",
+        "silo_root",
+        mode="before",
+    )
+    @classmethod
+    def validate_and_expand_path(cls, v: Any, info: ValidationInfo) -> Optional[str]:
+        if v is None or v == "" or v == "[MISSING DATA]":
+            return None
+        if isinstance(v, (str, Path)):
+            s = str(v).strip()
+            if s in BYPASS_TOKENS:
+                return s
+
+            expanded = _expand_env_vars(s)
+            p = Path(expanded)
+
+            # Reject relative paths strictly
+            if not p.is_absolute():
+                raise ValueError(
+                    f"Relative paths are forbidden in SiloPathsSchema for '{info.field_name}': '{s}'. "
+                    "Path must be absolute or a bypass token ('BYPASSED', 'Not_Found', 'missing')."
+                )
+
+            resolved = p.resolve()
+
+            # HPC Tripartite Air-Gap Check: Prevent write stores from targeting immutable $COCHEM_ROOT
+            if info.field_name == "hdf5_pes_store_path":
+                cochem_root_env = os.environ.get("COCHEM_ROOT")
+                if cochem_root_env:
+                    resolved_root = Path(os.path.expandvars(cochem_root_env)).resolve()
+                    try:
+                        if resolved == resolved_root or resolved.is_relative_to(resolved_root):
+                            raise ValueError(
+                                f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
+                                "Paths should map to the Dynamic Data Tier or Volatile Compute Tier."
+                            )
+                    except AttributeError:
+                        try:
+                            resolved.relative_to(resolved_root)
+                            raise ValueError(
+                                f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
+                                "Paths should map to the Dynamic Data Tier or Volatile Compute Tier."
+                            )
+                        except ValueError:
+                            pass
+
+            return str(resolved)
+        raise ValueError(f"Invalid path type '{type(v)}' for '{info.field_name}'. Expected string or Path.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def sync_path_aliases(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
+        alias_pairs = [
+            ("orca_binary_path", "orca_path"),
+            ("xtb_binary_path", "xtb_path"),
+            ("mpirun_binary_path", "mpirun_path"),
+            ("cfour_binary_path", "cfour_path"),
+            ("aimnet2_server_path", "aimnet2_path"),
+        ]
+        for canonical, alias in alias_pairs:
+            if canonical in d and alias not in d:
+                d[alias] = d[canonical]
+            elif alias in d and canonical not in d:
+                d[canonical] = d[alias]
+        return d
+
+    def is_bypassed(self, binary_name: str) -> bool:
+        """Check if binary execution is marked as BYPASSED."""
+        norm_name = binary_name.lower().replace(".exe", "")
+        for candidate in (
+            f"{norm_name}_binary_path",
+            f"{norm_name}_path",
+            f"{norm_name}_server_path",
+            norm_name,
+        ):
+            if hasattr(self, candidate):
+                val = getattr(self, candidate)
+                return val == "BYPASSED"
+        return False
+
+    def is_found(self, binary_name: str) -> bool:
+        """Check if binary exists on filesystem and is not bypassed/missing."""
+        norm_name = binary_name.lower().replace(".exe", "")
+        for candidate in (
+            f"{norm_name}_binary_path",
+            f"{norm_name}_path",
+            f"{norm_name}_server_path",
+            norm_name,
+        ):
+            if hasattr(self, candidate):
+                val = getattr(self, candidate)
+                if not val or val in BYPASS_TOKENS:
+                    return False
+                return Path(val).exists()
+        return False
+
+    def resolve_binary(self, binary_name: str) -> Optional[str]:
+        """Resolve executable path or return bypass token."""
+        norm_name = binary_name.lower().replace(".exe", "")
+        for candidate in (
+            f"{norm_name}_binary_path",
+            f"{norm_name}_path",
+            f"{norm_name}_server_path",
+            norm_name,
+        ):
+            if hasattr(self, candidate):
+                val = getattr(self, candidate)
+                if val is None or val in BYPASS_TOKENS:
+                    return cast(Optional[str], val)
+                p = Path(val)
+                if self.strict_resolution and not p.exists():
+                    raise FileNotFoundError(f"Binary '{binary_name}' not found at path '{val}'")
+                return str(p.resolve())
+        raise AttributeError(f"Unknown binary configuration '{binary_name}' in SiloPathsSchema")
+
+
+# =============================================================================
+# 7. COMPUTATIONAL BINARY PROVENANCE & SILO CONFIGS
+# =============================================================================
+
+class EngineInfo(BaseModel):
+    """Pathing and cryptographic provenance for computational binaries."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    status: str = Field(..., description="found, missing, permission_denied, or bypassed")
+    path: Optional[str] = Field(None, description="Absolute path to executable, or 'BYPASSED', or 'Not_Found'")
+    version: Optional[str] = Field(None, description="Semantic version of the engine")
+    hash: Optional[str] = Field(None, description="SHA-256 binary hash")
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, v: Any) -> str:
+        if v is None or v == "[MISSING DATA]":
+            return "missing"
+        if isinstance(v, str):
+            cleaned = v.strip().lower()
+            if cleaned in ("found", "missing", "permission_denied", "bypassed"):
+                return cleaned
+            raise ValueError(f"Invalid engine status '{v}'. Must be one of ('found', 'missing', 'permission_denied', 'bypassed').")
+        raise ValueError(f"Invalid engine status type '{type(v)}'. Expected string.")
+
+    @field_validator("path", "version", "hash", mode="before")
+    @classmethod
+    def clean_missing_data(cls, v: Any) -> Optional[str]:
+        if v is None or v == "" or v == "[MISSING DATA]":
+            return None
+        return str(v)
+
+
+class EnginePaths(BaseModel):
+    """Aggregated binary path specifications."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    orca: Optional[EngineInfo] = Field(default=None)
+    mpirun: Optional[EngineInfo] = Field(default=None)
+    xtb: Optional[EngineInfo] = Field(default=None)
+    cfour: Optional[EngineInfo] = Field(default=None)
+    aimnet2: Optional[EngineInfo] = Field(default=None)
+    mace: Optional[EngineInfo] = Field(default=None)
+
+
+class SiloConfig(BaseModel):
+    """Micro-environment deployment status."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    torq_silo_active: bool = Field(default=False)
+    gpu_silo_active: bool = Field(default=False)
+
+
+class RoutingPolicy(BaseModel):
+    """Dynamically assigned execution constraints."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    max_concurrent_mace_threads: int = Field(default=4, gt=0)
+    max_dft_basis_functions: int = Field(default=2000, gt=0)
+    recommend_ccsdt: bool = Field(default=False)
+    classification: str = Field(default="STANDARD")
+
+
+class HPCConfig(BaseModel):
+    """Cluster integration parameters."""
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    scheduler: str = Field(default="local", description="local, slurm, pbs, or sge")
+    default_partition: str = Field(default="compute")
+    max_walltime_hours: Optional[int] = Field(default=24, gt=0)
+    partition: Optional[str] = Field(default="compute")
+    cluster_hostname: Optional[str] = Field(default="localhost")
+    ssh_key_path: Optional[str] = Field(default="")
+    username: Optional[str] = Field(default="localuser")
+    execution_mode: Optional[str] = Field(default="local")
+    walltime_budgets: Optional[Dict[str, str]] = Field(default_factory=dict)
+
+    @field_validator("scheduler", mode="before")
+    @classmethod
+    def validate_scheduler(cls, v: Any) -> str:
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("local", "slurm", "pbs", "sge"):
+                return s
+            raise ValueError(f"Invalid HPC scheduler '{v}'. Must be one of ('local', 'slurm', 'pbs', 'sge').")
+        raise ValueError(f"HPC scheduler must be a string, got {type(v)}")
+
+
+# =============================================================================
+# 8. MASTER COCHEM SYSTEM CONFIG
+# =============================================================================
+
+class CoChemSystemConfig(BaseModel):
+    """
+    The CoChem Master System Configuration Schema.
+    Rigid mathematical boundary enforcing Stage 0 Authority Rule.
+    Aggregates HardwareSchema, EnvironmentSchema, SiloPathsSchema, and live execution jobs.
+    """
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    schema_version: str = Field(default="4.0.0")
+    registry_version: Optional[str] = Field(default="4.0")
+    orca_version: Optional[str] = Field(default="6.1.1")
+    rdkit_random_seed: Optional[int] = Field(default=42)
+    registry_checksum: Optional[str] = Field(default="", description="SHA-256 checksum of registry payload")
+    last_updated: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    hardware: HardwareSchema = Field(..., description="Rigid compute hardware bounds and topology")
+    environment: EnvironmentSchema = Field(default_factory=EnvironmentSchema, description="Operating environment settings")
+    silo_paths: SiloPathsSchema = Field(default_factory=SiloPathsSchema, description="Silo and binary path mappings")
+    engines: Union[Dict[str, Any], EnginePaths] = Field(default_factory=dict)
+    silos: Optional[SiloConfig] = Field(default=None, description="Micro-environment deployment status")
+    quantum_settings: Optional[QuantumSettings] = Field(default_factory=QuantumSettings)
+    adaptive_routing: Optional[RoutingPolicy] = None
+    hpc: HPCConfig = Field(default_factory=HPCConfig)
+    alignment_engine_ready: bool = Field(default=False)
+    active_jobs: Dict[str, Any] = Field(default_factory=dict, description="Live execution pointers")
+
+    @model_validator(mode="before")
+    @classmethod
+    def registry_migrator(cls, data: Any) -> Any:
+        """
+        RegistryMigrator: Transforms legacy flat configuration dictionaries
+        into the authoritative nested schema architecture before validation.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        d = dict(data)
+
+        # 1. Migrate flat Hardware fields
+        hw_keys = {
+            "physical_cpu_cores", "cpu_physical_cores", "logical_cpu_cores",
+            "cpu_cores", "ram_gb", "ram_mb", "maxcore_mb", "avx512_support",
+            "avx_512_capable", "gpu_profile", "vram_gb", "subnormal_precision_trap",
+            "allocatable_compute_cores", "gpu_compute_metrics", "gpu_fp64_capable",
+            "mps_enabled", "core_pinning", "mps", "gpu", "host_id"
+        }
+        extracted_hw: Dict[str, Any] = {}
+        for k in list(d.keys()):
+            if k in hw_keys:
+                extracted_hw[k] = d.pop(k)
+
+        if "hardware" not in d or d["hardware"] is None:
+            if extracted_hw:
+                d["hardware"] = extracted_hw
+        elif isinstance(d["hardware"], dict):
+            for k, v in extracted_hw.items():
+                if k not in d["hardware"]:
+                    d["hardware"][k] = v
+
+        # 2. Migrate flat Environment fields
+        env_keys = {
+            "codata_version", "isotopic_mass_locking", "isotopic_mass_13c",
+            "isotopic_masses", "artifacts_dir", "scratch_dir",
+            "strict_path_resolution", "env_vars"
+        }
+        extracted_env: Dict[str, Any] = {}
+        for k in list(d.keys()):
+            if k in env_keys:
+                extracted_env[k] = d.pop(k)
+
+        if "os_target" in d:
+            os_target_val = d.pop("os_target")
+            extracted_env["os_target"] = os_target_val
+            if "hardware" in d and isinstance(d["hardware"], dict) and "os_target" not in d["hardware"]:
+                d["hardware"]["os_target"] = os_target_val
+
+        if "environment" not in d or d["environment"] is None:
+            if extracted_env:
+                d["environment"] = extracted_env
+        elif isinstance(d["environment"], dict):
+            for k, v in extracted_env.items():
+                if k not in d["environment"]:
+                    d["environment"][k] = v
+
+        # 3. Migrate flat Silo fields
+        silo_keys = {
+            "orca_path", "xtb_path", "mpirun_path", "cfour_path", "aimnet2_server_path",
+            "aimnet2_path", "cfour_binary_path", "orca_binary_path", "xtb_binary_path",
+            "mpirun_binary_path", "hdf5_pes_store_path", "silo_root", "python_path", "strict_resolution"
+        }
+        extracted_silo: Dict[str, Any] = {}
+        for k in list(d.keys()):
+            if k in silo_keys:
+                extracted_silo[k] = d.pop(k)
+
+        if "silo_paths" not in d or d["silo_paths"] is None:
+            if extracted_silo:
+                d["silo_paths"] = extracted_silo
+        elif isinstance(d["silo_paths"], dict):
+            for k, v in extracted_silo.items():
+                if k not in d["silo_paths"]:
+                    d["silo_paths"][k] = v
+
+        # 4. Default active_jobs
+        if "active_jobs" not in d or d["active_jobs"] is None:
+            d["active_jobs"] = {}
+
+        return d
+
+    @field_validator("adaptive_routing", mode="before")
+    @classmethod
+    def clean_adaptive_routing(cls, v: Any) -> Any:
+        if v is None or v == "" or v == "[MISSING DATA]":
+            return None
+        return v
+
+    @field_validator("engines", mode="before")
+    @classmethod
+    def validate_engines(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            validated: Dict[str, Any] = {}
+            for engine_name, engine_val in v.items():
+                if isinstance(engine_val, dict):
+                    validated[engine_name] = EngineInfo.model_validate(engine_val)
+                else:
+                    validated[engine_name] = engine_val
+            return validated
+        return v
+
+    def compute_checksum(self) -> str:
+        """Calculates deterministic SHA-256 checksum of configuration payload."""
+        d = self.model_dump(exclude={"registry_checksum", "last_updated"})
+        serialized = json.dumps(d, sort_keys=True, default=str)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    def update_checksum(self) -> str:
+        """Calculates and updates registry_checksum in place."""
+        cs = self.compute_checksum()
+        self.registry_checksum = cs
+        return cs
+
+    def verify_checksum(self) -> bool:
+        """Verifies whether registry_checksum matches the current configuration payload."""
+        if not self.registry_checksum:
+            return False
+        return self.registry_checksum == self.compute_checksum()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.model_dump()
+
+    def to_json(self) -> str:
+        return self.model_dump_json(indent=2)
+
+    def to_file(self, path: Union[str, Path]) -> None:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(self.to_json(), encoding="utf-8")
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> CoChemSystemConfig:
+        return cls.model_validate(d)
+
+    @classmethod
+    def from_json(cls, json_str: str) -> CoChemSystemConfig:
+        return cls.model_validate_json(json_str)
+
+    @classmethod
+    def from_file(cls, path: Union[str, Path]) -> CoChemSystemConfig:
+        p = Path(path)
+        return cls.model_validate_json(p.read_text(encoding="utf-8"))
+
+    @classmethod
+    def create_default(cls, auto_detect_hardware: bool = False) -> CoChemSystemConfig:
+        hw = discover_host_hardware() if auto_detect_hardware else HardwareSchema(
+            cpu_physical_cores=4,
+            physical_cpu_cores=4,
+            logical_cpu_cores=8,
+            ram_gb=16.0,
+            os_target=OSTarget.LOCAL_WINDOWS if os.name == "nt" else OSTarget.LOCAL_LINUX,
+        )
+        return cls(
+            hardware=hw,
+            quantum_settings=QuantumSettings(implicit_solvation="CPCM", integration_grid="defgrid2"),
+            silos=SiloConfig(torq_silo_active=True),
+        )
+
+
+CoChemConfig = CoChemSystemConfig
+
+
+# =============================================================================
+# 9. DISCOVERY & CONVENIENCE FUNCTIONS
+# =============================================================================
+
+def discover_engine(binary_name: str) -> EngineInfo:
+    """Check physical presence and provenance of a scientific binary."""
+    p = shutil.which(binary_name)
+    if p:
+        return EngineInfo(status="found", path=str(p), version="auto", hash="auto")
+    return EngineInfo(status="missing", path=None, version=None, hash=None)
+
+
+def discover_host_hardware() -> HardwareSchema:
+    """Discover host hardware configuration safely."""
+    try:
+        import psutil  # type: ignore[import-untyped]
+        total_ram_gb = psutil.virtual_memory().total / (1024**3)
+        phys_cores = psutil.cpu_count(logical=False) or 1
+        log_cores = psutil.cpu_count(logical=True) or 1
+    except ImportError:
+        total_ram_gb = 16.0
+        phys_cores = os.cpu_count() or 1
+        log_cores = os.cpu_count() or 1
+
+    os_target = _default_os_target()
+
+    return HardwareSchema(
+        cpu_physical_cores=phys_cores,
+        physical_cpu_cores=phys_cores,
+        logical_cpu_cores=log_cores,
+        allocatable_compute_cores=phys_cores,
+        ram_gb=round(total_ram_gb, 2),
+        avx_512_capable=False,
+        gpu_profile="None",
+        vram_gb=0.0,
+        os_target=os_target,
+    )
+
+
+def validate_system_config(source: Union[str, Path, Dict[str, Any], CoChemSystemConfig]) -> CoChemSystemConfig:
+    """Authoritative gatekeeper validating system configuration from any source."""
+    if isinstance(source, CoChemSystemConfig):
+        return source
+    if isinstance(source, dict):
+        return CoChemSystemConfig.model_validate(source)
+    if isinstance(source, Path):
+        return CoChemSystemConfig.from_file(source)
+    if isinstance(source, str):
+        if os.path.exists(source):
+            return CoChemSystemConfig.from_file(source)
+        try:
+            return CoChemSystemConfig.from_json(source)
+        except Exception:
+            try:
+                raw_dict = json.loads(source)
+                return CoChemSystemConfig.model_validate(raw_dict)
+            except Exception:
+                pass
+    raise TypeError(f"Unsupported configuration source type: {type(source)}")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_core_registry_schema.py ---
+"""
+CoChem-BASE Stage 0.0: Golden Registry Schema Gatekeeper Test Suite.
+Strict Zero-Mock Mandate: Real physical file I/O, deterministic SHA-256 hashing,
+and rigorous Pydantic V2 model validations across POSIX and Windows platforms.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import sys
+from typing import Any, Dict
+
+import pytest
+from pydantic import ValidationError
+
+from cochem_core_registry_schema import (
+    BYPASS_TOKENS,
+    CARBON_13_ISOTOPIC_MASS,
+    ISOTOPIC_MASSES,
+    CoChemConfig,
+    CoChemSystemConfig,
+    CorePinningConfig,
+    EngineInfo,
+    EnginePaths,
+    EnvironmentSchema,
+    GPUComputeSchema,
+    HardwareConfig,
+    HardwareSchema,
+    HPCConfig,
+    MPSConfig,
+    OSTarget,
+    QuantumSettings,
+    RoutingPolicy,
+    SiloConfig,
+    SiloPathsSchema,
+    discover_engine,
+    discover_host_hardware,
+    validate_system_config,
+)
+
+
+# =============================================================================
+# 1. GLOBAL SCHEMA CONSTRAINTS: EXTRA FORBIDDEN & VALIDATE ASSIGNMENT
+# =============================================================================
+
+def test_global_schema_constraints_extra_fields_forbidden():
+    """Verify that all schemas strictly forbid extra/hallucinated fields."""
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        GPUComputeSchema(gpu_profile="NVIDIA", hallucinated_field="forbidden")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        MPSConfig(enabled=True, fake_field=123)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        CorePinningConfig(anchor_p_cores=4, ghost_core=1)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        QuantumSettings(charge=0, invalid_flag=True)
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, invalid_hw_key="bad")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        EnvironmentSchema(os_target=OSTarget.LOCAL_LINUX, hallucinated_env="bad")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        SiloPathsSchema(cfour_binary_path="BYPASSED", rogue_path="/opt/rogue")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        EngineInfo(status="found", bogus="data")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        RoutingPolicy(max_concurrent_mace_threads=2, extra_policy="strict")
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        HPCConfig(scheduler="slurm", imaginary_queue="gpu_long")
+
+
+def test_global_schema_constraints_validate_assignment():
+    """Verify that attribute mutation on instances triggers strict Pydantic validation."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8)
+    assert hw.ram_gb == 32.0
+
+    # Valid mutation
+    hw.ram_gb = 64.0
+    assert hw.ram_gb == 64.0
+
+    # Invalid mutations must raise ValidationError
+    with pytest.raises(ValidationError):
+        hw.ram_gb = 0.0  # ram_gb must be > 0.0
+
+    with pytest.raises(ValidationError):
+        hw.ram_gb = -16.0
+
+    with pytest.raises(ValidationError):
+        hw.cpu_physical_cores = 0  # cpu_physical_cores must be >= 1
+
+    with pytest.raises(ValidationError):
+        hw.allocatable_compute_cores = -1  # allocatable_compute_cores must be >= 0
+
+    gpu = GPUComputeSchema(vram_gb=12.0)
+    with pytest.raises(ValidationError):
+        gpu.vram_gb = -4.0
+
+    with pytest.raises(ValidationError):
+        gpu.device_count = -1
+
+
+# =============================================================================
+# 2. GPU COMPUTE SCHEMA TESTS
+# =============================================================================
+
+def test_gpu_compute_schema_comprehensive():
+    """Verify GPUComputeSchema metrics, flags, TFLOPS, and Tensor Cores."""
+    gpu_default = GPUComputeSchema()
+    assert gpu_default.gpu_profile == "None"
+    assert gpu_default.vram_gb == 0.0
+    assert gpu_default.device_count == 0
+    assert gpu_default.compute_capability is None
+    assert gpu_default.fp64_capable is False
+    assert gpu_default.subnormal_precision_trap is False
+    assert gpu_default.mps_enabled is False
+    assert gpu_default.tflops is None
+    assert gpu_default.fp32_tflops is None
+    assert gpu_default.fp16_tflops is None
+    assert gpu_default.fp64_tflops is None
+    assert gpu_default.tensor_cores is None
+    assert gpu_default.memory_bandwidth_gb_s is None
+
+    gpu_custom = GPUComputeSchema(
+        gpu_profile="NVIDIA H100 SXM5 80GB",
+        vram_gb=80.0,
+        device_count=8,
+        compute_capability="9.0",
+        fp64_capable=True,
+        subnormal_precision_trap=False,
+        mps_enabled=True,
+        tflops=67.0,
+        fp32_tflops=67.0,
+        fp16_tflops=1979.0,
+        fp64_tflops=34.0,
+        tensor_cores=528,
+        memory_bandwidth_gb_s=3350.0,
+    )
+    assert gpu_custom.gpu_profile == "NVIDIA H100 SXM5 80GB"
+    assert gpu_custom.vram_gb == 80.0
+    assert gpu_custom.device_count == 8
+    assert gpu_custom.compute_capability == "9.0"
+    assert gpu_custom.fp64_capable is True
+    assert gpu_custom.mps_enabled is True
+    assert gpu_custom.tflops == 67.0
+    assert gpu_custom.fp32_tflops == 67.0
+    assert gpu_custom.fp16_tflops == 1979.0
+    assert gpu_custom.fp64_tflops == 34.0
+    assert gpu_custom.tensor_cores == 528
+    assert gpu_custom.memory_bandwidth_gb_s == 3350.0
+
+
+def test_gpu_compute_schema_negative_bounds():
+    """Verify negative validation on GPU parameters."""
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(vram_gb=-1.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(device_count=-1)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(tflops=-10.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp32_tflops=-5.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp16_tflops=-1.0)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(fp64_tflops=-0.1)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(tensor_cores=-10)
+    with pytest.raises(ValidationError):
+        GPUComputeSchema(memory_bandwidth_gb_s=-100.0)
+
+
+# =============================================================================
+# 3. HARDWARE SCHEMA & ALIAS TESTS
+# =============================================================================
+
+def test_hardware_schema_alias():
+    """Verify that HardwareConfig is a direct alias of HardwareSchema."""
+    assert HardwareConfig is HardwareSchema
+
+
+def test_hardware_schema_required_bounds():
+    """Test HardwareSchema bounds: ram_gb > 0.0, cpu_physical_cores >= 1, allocatable >= 0."""
+    hw = HardwareSchema(
+        ram_gb=16.0,
+        cpu_physical_cores=8,
+        allocatable_compute_cores=6,
+        vram_gb=8.0,
+        gpu_fp64_capable=True,
+        mps_enabled=True,
+        avx_512_capable=True,
+        os_target=OSTarget.LOCAL_WINDOWS,
+    )
+    assert hw.ram_gb == 16.0
+    assert hw.cpu_physical_cores == 8
+    assert hw.allocatable_compute_cores == 6
+    assert hw.vram_gb == 8.0
+    assert hw.gpu_fp64_capable is True
+    assert hw.mps_enabled is True
+    assert hw.avx_512_capable is True
+    assert hw.avx512_support is True
+    assert hw.physical_cpu_cores == 8
+    assert hw.ram_mb == 16384
+    assert isinstance(hw.gpu_compute_metrics, GPUComputeSchema)
+
+
+def test_hardware_schema_negative_bounds():
+    """Verify rejection of invalid RAM, CPU cores, and VRAM bounds."""
+    # ram_gb <= 0.0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=0.0, cpu_physical_cores=4)
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=-8.0, cpu_physical_cores=4)
+
+    # cpu_physical_cores < 1
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=0)
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=-2)
+
+    # allocatable_compute_cores < 0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, allocatable_compute_cores=-1)
+
+    # vram_gb < 0.0
+    with pytest.raises(ValidationError):
+        HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, vram_gb=-1.0)
+
+
+def test_hardware_schema_flex_validation():
+    """Test flex validation: auto-populating cpu_cores, ram_mb, ram_gb, and gpu fields."""
+    # Case 1: physical_cpu_cores provided -> cpu_physical_cores & cpu_cores populated
+    hw1 = HardwareSchema(
+        physical_cpu_cores=12,
+        logical_cpu_cores=24,
+        ram_gb=64.0,
+        os_target="windows_x86_64",
+    )
+    assert hw1.cpu_physical_cores == 12
+    assert hw1.cpu_cores == 12
+    assert hw1.ram_mb == 65536
+
+    # Case 2: ram_mb provided, ram_gb missing -> ram_gb computed
+    hw2 = HardwareSchema(
+        cpu_cores=16,
+        logical_cpu_cores=32,
+        ram_mb=32768,
+        os_target="linux_x86_64",
+    )
+    assert hw2.cpu_physical_cores == 16
+    assert hw2.ram_gb == 32.0
+
+    # Case 3: String representation of numbers coerced properly
+    hw3 = HardwareSchema(
+        cpu_physical_cores="4",  # type: ignore
+        logical_cpu_cores="8",  # type: ignore
+        ram_gb="16.5",  # type: ignore
+        vram_gb="8.0",  # type: ignore
+        os_target="Local-MacOS",
+    )
+    assert hw3.cpu_physical_cores == 4
+    assert hw3.logical_cpu_cores == 8
+    assert hw3.ram_gb == 16.5
+    assert hw3.ram_mb == int(16.5 * 1024)
+    assert hw3.vram_gb == 8.0
+    assert hw3.gpu_compute_metrics.vram_gb == 8.0
+
+
+def test_hardware_maxcore_oom_clamping():
+    """Verify that maxcore_mb is safely clamped when exceeding total physical RAM."""
+    hw = HardwareSchema(
+        cpu_physical_cores=4,
+        logical_cpu_cores=8,
+        ram_gb=8.0,
+        maxcore_mb=16000,  # Exceeds 8192 MB RAM -> must clamp safely
+        os_target=OSTarget.LOCAL_LINUX,
+    )
+    assert hw.maxcore_mb <= hw.ram_mb
+    assert hw.maxcore_mb >= 500
+
+
+# =============================================================================
+# 4. ENVIRONMENT SCHEMA & OS TARGET TESTS
+# =============================================================================
+
+def test_ostarget_enum_canonical_values():
+    """Test OSTarget enum canonical values and aliases."""
+    assert OSTarget.LOCAL_WINDOWS.value == "Local-Windows"
+    assert OSTarget.LOCAL_MACOS.value == "Local-MacOS"
+    assert OSTarget.LOCAL_LINUX.value == "Local-Linux"
+    assert OSTarget.CODESPACES.value == "Codespaces"
+    assert OSTarget.GITHUB_ACTIONS.value == "GitHub_Actions"
+    assert OSTarget.HPC.value == "HPC"
+
+
+def test_environment_schema_canonical_os_targets():
+    """Verify that all canonical OS targets pass validation."""
+    canonical_targets = [
+        "Local-Windows",
+        "Local-MacOS",
+        "Local-Linux",
+        "Codespaces",
+        "GitHub_Actions",
+        "HPC",
+    ]
+    for target in canonical_targets:
+        env = EnvironmentSchema(os_target=target)
+        assert env.os_target == target
+
+        hw = HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, os_target=target)
+        assert hw.os_target == target
+
+
+def test_environment_schema_isotopic_mass_locking():
+    """Verify strict isotopic mass float locking (e.g. ^13C = 13.00335483507)."""
+    env = EnvironmentSchema()
+    assert env.isotopic_mass_locking is True
+    assert env.isotopic_mass_13c == CARBON_13_ISOTOPIC_MASS
+    assert abs(env.isotopic_mass_13c - 13.00335483507) < 1e-9
+    assert env.get_isotopic_mass("13C") == CARBON_13_ISOTOPIC_MASS
+    assert env.get_isotopic_mass("12C") == 12.0
+    assert env.get_isotopic_mass("1H") == 1.00782503223
+    assert env.get_isotopic_mass("14N") == 14.00307400443
+    assert env.get_isotopic_mass("16O") == 15.99491461957
+
+    with pytest.raises(KeyError):
+        env.get_isotopic_mass("999Unobtainium")
+
+
+def test_environment_schema_path_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Test cross-platform path resolution and strict relative path rejection."""
+    test_dir = tmp_path / "cochem_env_dir"
+    test_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCHEM_TEST_VAR", str(test_dir))
+
+    env = EnvironmentSchema(
+        artifacts_dir="$COCHEM_TEST_VAR/artifacts" if os.name != "nt" else "%COCHEM_TEST_VAR%\\artifacts",
+        scratch_dir="$COCHEM_TEST_VAR/scratch" if os.name != "nt" else "%COCHEM_TEST_VAR%\\scratch",
+    )
+    assert str(test_dir) in str(env.artifacts_dir)
+    assert str(test_dir) in str(env.scratch_dir)
+
+    # Resolve absolute path
+    resolved = env.resolve_path(str(test_dir / "target.txt"))
+    assert resolved.name == "target.txt"
+
+    # Strict path resolution rejecting relative paths
+    env_strict = EnvironmentSchema(strict_path_resolution=True)
+    with pytest.raises(ValueError, match="Strict path resolution enabled"):
+        env_strict.resolve_path("relative/path/not/absolute.txt")
+
+    # Empty path rejection
+    with pytest.raises(ValueError, match="Cannot resolve empty path"):
+        env.resolve_path("")
+
+
+def test_environment_schema_invalid_os_target():
+    """Verify rejection of hallucinated OS target."""
+    with pytest.raises(ValidationError, match="Invalid OS target"):
+        EnvironmentSchema(os_target="AmigaOS_68k")
+
+
+# =============================================================================
+# 5. SILO PATHS SCHEMA TESTS: ABSOLUTE RESOLUTION, BYPASS & AIR-GAP
+# =============================================================================
+
+def test_silo_paths_schema_absolute_resolution(tmp_path: Path):
+    """Verify SiloPathsSchema enforces absolute path resolution and bypass tokens."""
+    real_orca = tmp_path / ("orca.exe" if sys.platform == "win32" else "orca")
+    real_orca.write_text("#!/bin/sh\necho orca\n", encoding="utf-8")
+
+    real_cfour = tmp_path / ("cfour.exe" if sys.platform == "win32" else "cfour")
+    real_cfour.write_text("#!/bin/sh\necho cfour\n", encoding="utf-8")
+
+    real_store = tmp_path / "pes_store.h5"
+    real_store.write_bytes(b"HDF5_DATA")
+
+    silo = SiloPathsSchema(
+        orca_binary_path=str(real_orca),
+        cfour_binary_path=str(real_cfour),
+        aimnet2_server_path="BYPASSED",
+        xtb_binary_path="Not_Found",
+        mpirun_binary_path="missing",
+        hdf5_pes_store_path=str(real_store),
+    )
+
+    # Bypass check
+    assert silo.is_bypassed("aimnet2") is True
+    assert silo.is_bypassed("cfour") is False
+    assert silo.is_bypassed("orca") is False
+
+    # Found check
+    assert silo.is_found("orca") is True
+    assert silo.is_found("cfour") is True
+    assert silo.is_found("aimnet2") is False
+    assert silo.is_found("xtb") is False
+
+    # Resolution
+    assert silo.resolve_binary("orca") == str(real_orca.resolve())
+    assert silo.resolve_binary("cfour") == str(real_cfour.resolve())
+    assert silo.resolve_binary("aimnet2") == "BYPASSED"
+    assert silo.resolve_binary("xtb") == "Not_Found"
+
+
+def test_silo_paths_schema_rejects_relative_paths():
+    """Verify SiloPathsSchema explicitly rejects relative paths."""
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(orca_binary_path="./bin/orca")
+
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(cfour_binary_path="tools/cfour")
+
+    with pytest.raises(ValidationError, match="Relative paths are forbidden"):
+        SiloPathsSchema(hdf5_pes_store_path="data/store.h5")
+
+
+def test_silo_paths_schema_rejects_cochem_root_write_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Verify write stores targeting immutable $COCHEM_ROOT are rejected."""
+    cochem_root = tmp_path / "cochem_codebase_root"
+    cochem_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCHEM_ROOT", str(cochem_root))
+
+    # Path inside COCHEM_ROOT must be rejected for write store
+    forbidden_store = cochem_root / "forbidden_pes.h5"
+    with pytest.raises(ValidationError, match="targets immutable codebase"):
+        SiloPathsSchema(hdf5_pes_store_path=str(forbidden_store))
+
+    # Path outside COCHEM_ROOT is valid
+    dynamic_data_dir = tmp_path / "cochem_dynamic_data"
+    dynamic_data_dir.mkdir(parents=True, exist_ok=True)
+    valid_store = dynamic_data_dir / "valid_pes.h5"
+    silo_valid = SiloPathsSchema(hdf5_pes_store_path=str(valid_store))
+    assert silo_valid.hdf5_pes_store_path == str(valid_store.resolve())
+
+
+# =============================================================================
+# 6. COCHEM SYSTEM CONFIG & REGISTRY MIGRATOR TESTS
+# =============================================================================
+
+def test_cochem_system_config_alias():
+    """Verify CoChemConfig is an alias of CoChemSystemConfig."""
+    assert CoChemConfig is CoChemSystemConfig
+
+
+def test_cochem_system_config_defaults():
+    """Test CoChemSystemConfig defaults, aggregation, and active_jobs default_factory."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_WINDOWS)
+    cfg = CoChemSystemConfig(hardware=hw)
+
+    assert cfg.schema_version == "4.0.0"
+    assert isinstance(cfg.hardware, HardwareSchema)
+    assert isinstance(cfg.environment, EnvironmentSchema)
+    assert isinstance(cfg.silo_paths, SiloPathsSchema)
+    assert isinstance(cfg.active_jobs, dict)
+    assert cfg.active_jobs == {}
+    assert cfg.registry_checksum == ""
+
+
+def test_registry_migrator_legacy_flat_config(tmp_path: Path):
+    """Verify RegistryMigrator transforms legacy flat config dictionary into nested structure."""
+    legacy_flat_data = {
+        "schema_version": "1.0.0",
+        "physical_cpu_cores": 16,
+        "logical_cpu_cores": 32,
+        "ram_gb": 64.0,
+        "vram_gb": 24.0,
+        "avx512_support": True,
+        "gpu_profile": "NVIDIA RTX 4090",
+        "os_target": "Local-Linux",
+        "codata_version": "2022",
+        "orca_path": str(tmp_path.resolve()),
+        "cfour_binary_path": "BYPASSED",
+        "active_jobs": {"job_101": {"status": "running"}},
+    }
+
+    cfg = CoChemSystemConfig.model_validate(legacy_flat_data)
+
+    # Verified migration into hardware
+    assert cfg.hardware.cpu_physical_cores == 16
+    assert cfg.hardware.logical_cpu_cores == 32
+    assert cfg.hardware.ram_gb == 64.0
+    assert cfg.hardware.vram_gb == 24.0
+    assert cfg.hardware.avx_512_capable is True
+
+    # Verified migration into environment
+    assert cfg.environment.os_target == "Local-Linux"
+    assert cfg.environment.codata_version == "2022"
+
+    # Verified migration into silo_paths
+    assert cfg.silo_paths.orca_binary_path == str(tmp_path.resolve())
+    assert cfg.silo_paths.cfour_binary_path == "BYPASSED"
+
+    # Verified active_jobs
+    assert cfg.active_jobs["job_101"]["status"] == "running"
+
+
+def test_checksum_calculation_and_verification():
+    """Verify cryptographic SHA-256 checksum calculation, update, and tamper detection."""
+    hw = HardwareSchema(ram_gb=16.0, cpu_physical_cores=4, os_target=OSTarget.LOCAL_WINDOWS)
+    config = CoChemSystemConfig(hardware=hw)
+
+    assert config.registry_checksum == ""
+    assert config.verify_checksum() is False
+
+    cs1 = config.compute_checksum()
+    assert isinstance(cs1, str)
+    assert len(cs1) == 64
+    assert all(c in "0123456789abcdef" for c in cs1)
+
+    # Invariance to last_updated
+    config.last_updated = "2026-08-22T00:00:00+00:00"
+    assert config.compute_checksum() == cs1
+
+    # Update in place
+    updated_cs = config.update_checksum()
+    assert updated_cs == cs1
+    assert config.registry_checksum == cs1
+    assert config.verify_checksum() is True
+
+    # Tampering payload invalidates checksum
+    config.hardware.ram_gb = 64.0
+    assert config.verify_checksum() is False
+
+    # Re-updating restores verification
+    new_cs = config.update_checksum()
+    assert new_cs != cs1
+    assert config.verify_checksum() is True
+
+
+def test_cochem_system_config_io_lifecycle(tmp_path: Path):
+    """Test full serialization, deserialization, and physical file I/O."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_LINUX)
+    env = EnvironmentSchema(os_target=OSTarget.LOCAL_LINUX, codata_version="2018")
+    cfg = CoChemSystemConfig(
+        hardware=hw,
+        environment=env,
+        engines={
+            "orca": {"status": "found", "path": str(tmp_path.resolve()), "version": "6.1.1", "hash": "abc"}
+        },
+        quantum_settings=QuantumSettings(implicit_solvation="CPCM", integration_grid="defgrid2"),
+        hpc=HPCConfig(scheduler="slurm", default_partition="gpu-node", max_walltime_hours=12),
+    )
+
+    # to_dict & to_json
+    d = cfg.to_dict()
+    assert d["schema_version"] == "4.0.0"
+    json_str = cfg.to_json()
+    assert isinstance(json_str, str)
+
+    # from_json
+    restored = CoChemSystemConfig.from_json(json_str)
+    assert restored.hardware.ram_gb == 32.0
+    assert restored.quantum_settings.implicit_solvation == "CPCM"
+
+    # to_file & from_file
+    out_file = tmp_path / "exported_config.json"
+    cfg.to_file(out_file)
+    assert out_file.exists()
+
+    loaded = CoChemSystemConfig.from_file(out_file)
+    assert loaded.hardware.cpu_physical_cores == 8
+    assert loaded.hpc.scheduler == "slurm"
+
+    # create_default
+    default_cfg = CoChemSystemConfig.create_default(auto_detect_hardware=False)
+    assert default_cfg.hardware.cpu_physical_cores == 4
+    assert default_cfg.silos.torq_silo_active is True
+
+
+# =============================================================================
+# 7. GATEKEEPER & DISCOVERY HELPER TESTS
+# =============================================================================
+
+def test_gatekeeper_validate_system_config(tmp_path: Path):
+    """Test gatekeeper validate_system_config with various source formats."""
+    hw = HardwareSchema(ram_gb=32.0, cpu_physical_cores=8, os_target=OSTarget.LOCAL_LINUX)
+    cfg_inst = CoChemSystemConfig(hardware=hw)
+
+    # Source: CoChemSystemConfig instance
+    res1 = validate_system_config(cfg_inst)
+    assert res1 is cfg_inst
+
+    # Source: Dict
+    raw_dict = cfg_inst.to_dict()
+    res2 = validate_system_config(raw_dict)
+    assert res2.hardware.cpu_physical_cores == 8
+
+    # Source: Path
+    file_path = tmp_path / "valid_gatekeeper.json"
+    cfg_inst.to_file(file_path)
+    res3 = validate_system_config(file_path)
+    assert res3.hardware.ram_gb == 32.0
+
+    # Source: str file path
+    res4 = validate_system_config(str(file_path))
+    assert res4.hardware.ram_gb == 32.0
+
+    # Source: json string
+    res5 = validate_system_config(cfg_inst.to_json())
+    assert res5.hardware.cpu_physical_cores == 8
+
+    # Unsupported types
+    with pytest.raises(TypeError):
+        validate_system_config(12345)  # type: ignore
+
+
+def test_discover_engine_physical():
+    """Test discover_engine using physically present and non-existent binaries."""
+    py_engine = discover_engine("python" if sys.platform != "win32" else "python.exe")
+    assert py_engine.status == "found"
+    assert py_engine.path is not None
+    assert Path(py_engine.path).exists()
+
+    missing_engine = discover_engine("non_existent_binary_never_present_12345")
+    assert missing_engine.status == "missing"
+    assert missing_engine.path is None
+
+
+def test_discover_host_hardware_physical():
+    """Test discover_host_hardware retrieving physical CPU and RAM."""
+    hw = discover_host_hardware()
+    assert isinstance(hw, HardwareSchema)
+    assert hw.cpu_physical_cores >= 1
+    assert hw.allocatable_compute_cores >= 1
+    assert hw.ram_gb > 0.0
+    assert isinstance(hw.os_target, str)
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

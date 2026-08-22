@@ -1,18 +1,17 @@
 {
   "agent": "cochem-coder",
-  "prompt": "Doc3_02_unity_installer_dashboard_prompt.md",
+  "prompt": "Doc4_01_registry_schema_prompt.md",
   "status": "COMPLETED",
-  "timestamp": 1787384000.0,
+  "timestamp": 1787385000.0,
   "artifacts": [
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_unity_installer_dashboard.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/interfaces/cochem_unity_installer_dashboard.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/interfaces/cochem_unity_installer_dashboard.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_unity_installer_dashboard.py",
-    "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_unity_installer_dashboard.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/core_engine/cochem_core_registry_schema.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_core_registry_schema.py",
+    "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_core_registry_schema.py",
     "D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini"
   ],
   "audits": {
-    "adversary": "PASSED (33/33 PHYSICAL ZERO-MOCK TESTS)",
-    "cochem-audit": "PASSED (33/33 PHYSICAL ZERO-MOCK TESTS)"
+    "adversary": "PASSED (50/50 PHYSICAL ZERO-MOCK TESTS)",
+    "cochem-audit": "PASSED (50/50 PHYSICAL ZERO-MOCK TESTS)"
   }
 }

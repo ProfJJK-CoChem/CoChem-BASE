@@ -895,3 +895,46 @@ def test_run_phase_1_audit_all_passed(tmp_path: Path, monkeypatch: pytest.Monkey
     assert report.status == PhaseStatus.PASSED
     assert len(report.warnings) == 0
     assert len(report.errors) == 0
+
+
+def test_parse_mount_table_entry_octal_unescaping() -> None:
+    """Verify parse_mount_table_entry unescapes octal sequences in paths."""
+    line = "/dev/sda1 /mnt/my\\040workspace ext4 rw,relatime 0 0"
+    entry = parse_mount_table_entry(line)
+    assert entry is not None
+    dev, mount_pt, fs_type, opts = entry
+    assert mount_pt == "/mnt/my workspace"
+    assert fs_type == "ext4"
+
+
+def test_audit_toolchain_binary_nonzero_returncode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify audit_toolchain_binary flags binary as unavailable if returncode != 0."""
+    import subprocess
+    from orchestrator import cochem_setup_phase_1 as p1
+
+    monkeypatch.setattr(p1.shutil, "which", lambda name: "/usr/bin/broken_gcc")
+
+    class MockCompletedProcess:
+        returncode = 127
+        stdout = ""
+        stderr = "broken_gcc: error while loading shared libraries: libmpc.so.3"
+
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: MockCompletedProcess())
+
+    item = p1.audit_toolchain_binary("broken_gcc")
+    assert item.is_available is False
+    assert "exit code 127" in (item.error_detail or "")
+
+
+def test_check_wsl_9p_mount_ext4_under_mnt() -> None:
+    """Verify that ext4 partition mounted under /mnt/ is NOT falsely flagged as 9P."""
+    mount_table = (
+        "rootfs / rootfs rw 0 0\n"
+        "/dev/sdb /mnt/c/fast ext4 rw,relatime 0 0\n"
+        "C:\\134 /mnt/c 9p rw,relatime,dir_mode=0777,file_mode=0777,aname=drvfs 0 0\n"
+    )
+    is_9p, mount_pt, fs_type = check_wsl_9p_mount("/mnt/c/fast/subproject", mount_table_content=mount_table)
+    assert is_9p is False
+    assert mount_pt == "/mnt/c/fast"
+    assert fs_type == "ext4"
+

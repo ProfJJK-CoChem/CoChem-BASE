@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -355,8 +356,12 @@ def parse_mount_table_entry(line: str) -> Optional[Tuple[str, str, str, str]]:
     if not (parts[4].isdigit() and parts[5].isdigit()):
         return None
 
-    device = parts[0]
-    mount_point = parts[1]
+    # Unescape octal escape sequences (e.g. \040 for spaces) in mount paths
+    def _unescape_mount_field(field: str) -> str:
+        return re.sub(r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), field)
+
+    device = _unescape_mount_field(parts[0])
+    mount_point = _unescape_mount_field(parts[1])
     fs_type = parts[2]
     options = parts[3]
     return device, mount_point, fs_type, options
@@ -428,14 +433,13 @@ def check_wsl_9p_mount(
     ):
         is_9p = True
 
-    # Fallback heuristic for WSL /mnt/<drive>
-    if not is_9p and (
+    # Fallback heuristic for WSL /mnt/<drive> when no mount table entry was matched
+    if matched_fs_type is None and not is_9p and (
         posix_candidate.startswith("/mnt/")
         and (len(posix_candidate) == 6 or (len(posix_candidate) > 6 and posix_candidate[6] == "/"))
     ):
         is_9p = True
-        if matched_fs_type is None:
-            matched_fs_type = "drvfs"
+        matched_fs_type = "drvfs"
         if matched_mount is None:
             matched_mount = posix_candidate[:6]
 
@@ -592,12 +596,20 @@ def audit_toolchain_binary(name: str, timeout_seconds: float = 5.0) -> Toolchain
         )
         output = res.stdout if res.stdout else res.stderr
         version_line = output.splitlines()[0].strip() if output else "Version output empty"
+        if res.returncode == 0:
+            return ToolchainItem(
+                name=name,
+                path=str(Path(binary_path).resolve()),
+                version=version_line,
+                is_available=True,
+                error_detail=None,
+            )
         return ToolchainItem(
             name=name,
             path=str(Path(binary_path).resolve()),
-            version=version_line,
-            is_available=True,
-            error_detail=None,
+            version=None,
+            is_available=False,
+            error_detail=f"Binary '{name}' execution failed (exit code {res.returncode}): {version_line}",
         )
     except subprocess.TimeoutExpired:
         return ToolchainItem(

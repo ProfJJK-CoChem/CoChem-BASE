@@ -5,10 +5,10 @@ and Context Compression Subsystem.
 """
 
 from cochem_core.ai.context_compression import (
-    ContextCompressor,
     DEFAULT_CHUNK_MAX_CHARS,
     DEFAULT_TENSOR_THRESHOLD,
     DEFAULT_TRACEBACK_MAX_LINES,
+    ContextCompressor,
     HDF5PointerModel,
     MarkdownChunkModel,
     TensorSummaryModel,
@@ -28,13 +28,25 @@ from cochem_core.ai.context_compression import (
     to_rfc8259_json,
     truncate_traceback,
 )
+from cochem_core.ai.lttb_downsampling import (
+    DEFAULT_LTTB_THRESHOLD,
+    LTTBDownsampler,
+    LTTBResult,
+    lttb_downsample,
+    lttb_downsample_1d,
+    lttb_downsample_indices,
+    lttb_downsample_xy,
+)
 
 __all__ = [
     "ContextCompressor",
     "DEFAULT_CHUNK_MAX_CHARS",
+    "DEFAULT_LTTB_THRESHOLD",
     "DEFAULT_TENSOR_THRESHOLD",
     "DEFAULT_TRACEBACK_MAX_LINES",
     "HDF5PointerModel",
+    "LTTBDownsampler",
+    "LTTBResult",
     "MarkdownChunkModel",
     "TensorSummaryModel",
     "TracebackSummaryModel",
@@ -46,6 +58,10 @@ __all__ = [
     "extract_hdf5_pointers",
     "is_hdf5_pointer",
     "loads_rfc8259",
+    "lttb_downsample",
+    "lttb_downsample_1d",
+    "lttb_downsample_indices",
+    "lttb_downsample_xy",
     "parse_hdf5_pointer",
     "resolve_hdf5_pointer",
     "sanitize_numerical_values",
@@ -53,3 +69,4 @@ __all__ = [
     "to_rfc8259_json",
     "truncate_traceback",
 ]
+

@@ -716,3 +716,93 @@ def test_discover_host_hardware_physical():
     assert hw.ram_gb > 0.0
     assert isinstance(hw.os_target, str)
     assert len(hw.os_target) > 0
+
+
+# =============================================================================
+# 7. REMEDIATED ECOSYSTEM & OOM GUARD TESTS
+# =============================================================================
+
+def test_canonical_ecosystem_os_targets():
+    """Verify that all canonical ecosystem tier strings pass validation."""
+    ecosystem_targets = [
+        "Local-Windows", "Local-Windows_Native", "Local-Windows_WSL",
+        "Local-MacOS", "Local-MacOS_Darwin", "Local-Linux", "Local-Linux_Deb",
+        "Codespaces", "GitHub_Codespaces", "GitHub_Actions", "HPC", "HPC_Slurm_Linux"
+    ]
+    for target in ecosystem_targets:
+        hw = HardwareSchema(
+            physical_cpu_cores=4,
+            logical_cpu_cores=8,
+            ram_gb=16.0,
+            os_target=target,
+        )
+        assert hw.os_target == target
+
+        env = EnvironmentSchema(os_target=target)
+        assert env.os_target == target
+
+
+def test_silo_paths_extended_fields():
+    """Verify aimnet2_server_path and hdf5_pes_store_path in SiloPathsSchema."""
+    silo = SiloPathsSchema(
+        aimnet2_server_path="BYPASSED",
+        hdf5_pes_store_path="/scratch/pes_store.h5",
+    )
+    assert silo.aimnet2_server_path == "BYPASSED"
+    assert silo.is_bypassed("aimnet2_server") is True
+    assert silo.hdf5_pes_store_path == "/scratch/pes_store.h5"
+
+
+def test_hardware_maxcore_oom_clamping():
+    """Verify that maxcore_mb is safely clamped when exceeding total physical RAM."""
+    hw = HardwareSchema(
+        physical_cpu_cores=4,
+        logical_cpu_cores=8,
+        ram_gb=8.0,
+        maxcore_mb=16000,  # Exceeds 8192 MB RAM -> must clamp safely
+        os_target="linux_x86_64",
+    )
+    assert hw.maxcore_mb <= hw.ram_mb
+    assert hw.maxcore_mb >= 500
+
+
+def test_env_vars_expansion_multi_and_special(monkeypatch: pytest.MonkeyPatch):
+    """Verify expansion of multiple environment variables and fallback for unset vars."""
+    monkeypatch.setenv("COCHEM_ROOT", "/opt/cochem")
+    monkeypatch.setenv("COCHEM_DATA", "data_store")
+    from core_engine.cochem_core_registry_schema import _expand_env_vars
+
+    res1 = _expand_env_vars("%COCHEM_ROOT%/%COCHEM_DATA%/sub")
+    assert "/opt/cochem/data_store/sub" in res1 or "\\opt\\cochem\\data_store\\sub" in res1
+
+    # Empty string handling
+    assert _expand_env_vars("") == ""
+
+
+def test_cochem_system_config_engines_coercion():
+    """Verify coercion of engine dictionaries into EngineInfo models inside CoChemSystemConfig."""
+    raw_payload = {
+        "hardware": {
+            "physical_cpu_cores": 4,
+            "logical_cpu_cores": 8,
+            "ram_gb": 16.0,
+            "os_target": "linux_x86_64",
+        },
+        "engines": {
+            "orca": {"status": "found", "path": "/bin/orca", "version": "6.0", "hash": "abc"},
+            "xtb": {"status": "bypassed", "path": "BYPASSED"},
+        },
+        "adaptive_routing": {
+            "max_concurrent_mace_threads": 6,
+            "max_dft_basis_functions": 3000,
+            "recommend_ccsdt": True,
+            "classification": "HIGH_PRECISION",
+        },
+    }
+    cfg = CoChemSystemConfig.from_dict(raw_payload)
+    assert isinstance(cfg.engines["orca"], EngineInfo)
+    assert cfg.engines["orca"].status == "found"
+    assert cfg.engines["orca"].path == "/bin/orca"
+    assert isinstance(cfg.adaptive_routing, RoutingPolicy)
+    assert cfg.adaptive_routing.max_concurrent_mace_threads == 6
+

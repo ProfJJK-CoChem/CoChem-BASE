@@ -38,9 +38,11 @@ _B64_PROHIBITED: List[bytes] = [
     b"bW9jaw==",
 ]
 
-PROHIBITED_MODULES: Set[str] = {
+MOCK_MODULES: Set[str] = {
     base64.b64decode(item).decode("utf-8") for item in _B64_PROHIBITED
-} | {
+}
+
+CONCURRENCY_MODULES: Set[str] = {
     "multiprocessing",
     "concurrent.futures",
     "parsl",
@@ -49,6 +51,8 @@ PROHIBITED_MODULES: Set[str] = {
     "mpi4py",
     "threading",
 }
+
+PROHIBITED_MODULES = MOCK_MODULES | CONCURRENCY_MODULES
 
 # Directories excluded from repository-wide AST sweep
 EXCLUDED_DIRS: Set[str] = {
@@ -93,8 +97,8 @@ def normalize_amnesty_entry(entry: str) -> Tuple[str, ...]:
     norm = entry.replace("\\", "/").strip("/")
     lowered = norm.lower()
     variants = [lowered]
-    if lowered.startswith("cochem-base/"):
-        variants.append(lowered[len("cochem-base/"):])
+    if lowered.startswith("cochem_base/"):
+        variants.append(lowered[len("cochem_base/"):])
     return tuple(variants)
 
 
@@ -389,15 +393,20 @@ def test_physical_ast_sweep_execution(normalized_amnesty_set: Set[str]) -> None:
 
             posix_rel_norm = posix_rel.lower()
 
-            # Skip amnestied files
-            if posix_rel_norm in normalized_amnesty_set:
-                continue
+            prohibited_for_file = set(MOCK_MODULES)
+            if posix_rel_norm not in normalized_amnesty_set:
+                prohibited_for_file.update(CONCURRENCY_MODULES)
+            
+            if posix_rel_norm not in normalized_amnesty_set:
+                scanned_count += 1
+            else:
+                # We still scan amnestied files for mocks, but don't count them towards the 50 non-amnestied files check
+                pass
 
-            scanned_count += 1
             file_violations = scan_file_ast_for_violations(
                 file_path=file_path,
                 rel_path_str=posix_rel,
-                prohibited=PROHIBITED_MODULES,
+                prohibited=prohibited_for_file,
             )
             violations.extend(file_violations)
 

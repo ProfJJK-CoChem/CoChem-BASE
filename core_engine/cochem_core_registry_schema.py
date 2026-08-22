@@ -128,10 +128,10 @@ class QuantumSettings(BaseModel):
 
 class HardwareSchema(BaseModel):
     """Rigid bounds for physical compute resources to prevent OOM/Thread crashes."""
-    cpu_cores: Optional[int] = Field(default=8, gt=0, description="Available CPU compute cores")
+    cpu_cores: Optional[int] = Field(default=None, gt=0, description="Available CPU cores alias")
     physical_cpu_cores: int = Field(..., gt=0, description="Actual silicon cores")
     logical_cpu_cores: int = Field(..., gt=0, description="Hyperthreaded threads")
-    ram_mb: Optional[int] = Field(default=32000, gt=0, description="Total allocated system RAM in MB")
+    ram_mb: Optional[int] = Field(default=None, gt=0, description="Total allocated system RAM in MB")
     ram_gb: float = Field(..., gt=0.0, description="Total accessible memory in GB")
     maxcore_mb: Optional[int] = Field(default=3000, gt=0, description="Max core memory in MB per process")
     avx512_support: bool = Field(default=False, description="CPU vector extension capability")
@@ -155,7 +155,10 @@ class HardwareSchema(BaseModel):
                 return v_str
             valid_targets = {t.value for t in OSTarget} | {
                 "windows", "linux", "darwin", "linux_x86_64", "windows_x86_64",
-                "windows_amd64", "linux_amd64", "darwin_arm64", "darwin_x86_64", "posix", "nt"
+                "windows_amd64", "linux_amd64", "darwin_arm64", "darwin_x86_64", "posix", "nt",
+                "local-windows", "local-windows_native", "local-windows_wsl",
+                "local-macos", "local-macos_darwin", "local-linux", "local-linux_deb",
+                "codespaces", "github_codespaces", "github_actions", "hpc", "hpc_slurm_linux"
             }
             if v_str.lower() in valid_targets:
                 return v_str
@@ -203,6 +206,16 @@ class HardwareSchema(BaseModel):
                 except (ValueError, TypeError):
                     pass
 
+            if "maxcore_mb" in data and "ram_mb" in data:
+                try:
+                    maxcore = int(data["maxcore_mb"])
+                    ram_mb = int(data["ram_mb"])
+                    if maxcore > ram_mb:
+                        phys = int(data.get("physical_cpu_cores") or data.get("cpu_cores") or 1)
+                        data["maxcore_mb"] = max(500, int(ram_mb * 0.75 / max(1, phys)))
+                except (ValueError, TypeError):
+                    pass
+
             if "gpu" not in data or data["gpu"] is None:
                 gpu_prof = data.get("gpu_profile", "None")
                 vram = data.get("vram_gb", 0.0)
@@ -245,7 +258,10 @@ class EnvironmentSchema(BaseModel):
                 return v_str
             valid_targets = {t.value for t in OSTarget} | {
                 "windows", "linux", "darwin", "linux_x86_64", "windows_x86_64",
-                "windows_amd64", "linux_amd64", "darwin_arm64", "darwin_x86_64", "posix", "nt"
+                "windows_amd64", "linux_amd64", "darwin_arm64", "darwin_x86_64", "posix", "nt",
+                "local-windows", "local-windows_native", "local-windows_wsl",
+                "local-macos", "local-macos_darwin", "local-linux", "local-linux_deb",
+                "codespaces", "github_codespaces", "github_actions", "hpc", "hpc_slurm_linux"
             }
             if v_str.lower() in valid_targets:
                 return v_str
@@ -284,11 +300,13 @@ class SiloPathsSchema(BaseModel):
     xtb_path: Optional[str] = Field(default=None, description="Path to xTB executable or 'BYPASSED'")
     mpirun_path: Optional[str] = Field(default=None, description="Path to mpirun executable or 'BYPASSED'")
     cfour_path: Optional[str] = Field(default=None, description="Path to CFOUR executable or 'BYPASSED'")
+    aimnet2_server_path: Optional[str] = Field(default=None, description="Path to AIMNet2 server script or 'BYPASSED'")
     python_path: Optional[str] = Field(default=None, description="Path to silo Python interpreter")
     silo_root: Optional[str] = Field(default=None, description="Root directory for micro-environments")
+    hdf5_pes_store_path: Optional[str] = Field(default=None, description="Path to centralized HDF5 PES store")
     strict_resolution: bool = Field(default=False, description="Enforce binary presence verification")
 
-    @field_validator("orca_path", "xtb_path", "mpirun_path", "cfour_path", "python_path", "silo_root", mode="before")
+    @field_validator("orca_path", "xtb_path", "mpirun_path", "cfour_path", "aimnet2_server_path", "python_path", "silo_root", "hdf5_pes_store_path", mode="before")
     @classmethod
     def validate_and_expand_path(cls, v: Any) -> Optional[str]:
         if v is None or v == "" or v == "[MISSING DATA]":

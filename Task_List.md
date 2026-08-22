@@ -1,65 +1,75 @@
 # CoChem-BASE Work Breakdown Structure (WBS) & Task List
 
-**Project Target**: Stage 0 Setup Phase 10: MolSym Intake & Theoretical Alignment Engine (`orchestrator/cochem_setup_phase_10.py`)  
+**Project Target**: Stage 3.0 Subprocess Broker Architecture & HPC Execution Engine (`core_engine/cochem_core_subprocess_broker.py`)  
 **Specification References**:  
-- [`D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\SRS\Perfected_Document 5 Stage 0 Orchestration & Micro-Silo Provisioning.md`](file:///D:/__CoChem/__agentic/.prompts/.SRS/CoChem-BASE/SRS/Perfected_Document%205%20Stage%200%20Orchestration%20&%20Micro-Silo%20Provisioning.md) (Section 4.1)  
-- [`D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\SRS\Perfected_Document 2 File Inventory & Deliverable Capabilities Manifest (Part 2).md`](file:///D:/__CoChem/__agentic/.prompts/.SRS/CoChem-BASE/SRS/Perfected_Document%202%20File%20Inventory%20&%20Deliverable%20Capabilities%20Manifest%20%28Part%202%29.md) (Section 3.10)  
-- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/Method_Matrix.md)  
-- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py) (`alignment_engine_ready` flag)  
-**Target Code Artifact**: [`orchestrator/cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_10.py)  
-**Target Test Artifact**: [`test_suite/test_cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_setup_phase_10.py)  
-**Configuration & Registry**: [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini), [`Registry/p10.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/Registry/p10.json), [`cochem_system_config.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_system_config.json)  
-**Governance Framework**: PMBOK Guide 7th Edition (Systems View & Performance Domains) & SWEBOK v3 (Software Construction, Testing, SCM)  
-**Core Mandates**: Strict Zero-Mock Mandate, Stage 0 Authority Rule, Theoretical Eckart Frame Conditions ($\sum m_i \mathbf{r}'_i = \mathbf{0}$, $\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$), Proper Rotation $\det(\mathbf{U})=+1.0$, SVD Reflection Protection, Full Backward Compatibility Retention  
+- `Doc7_01_subprocess_broker_prompt.md` (Subprocess Broker & HPC Execution Engine)
+- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/Method_Matrix.md)
+- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\exceptions.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/exceptions.py) (`DiskQuotaError`, `ProvenanceErrorCode.DISK_QUOTA_EXCEEDED`)
+- [`D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_system_config.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_system_config.json)
+**Target Code Artifact**: [`core_engine/cochem_core_subprocess_broker.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/core_engine/cochem_core_subprocess_broker.py)  
+**Target Test Artifact**: [`test_suite/test_cochem_core_subprocess_broker.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_core_subprocess_broker.py)  
+**Configuration & Registry**: [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini), [`swarm_state.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json)  
+**Governance Framework**: PMBOK Guide 7th Edition & SWEBOK v3 (Software Construction, Testing, SCM)  
+**Core Mandates**: Strict Zero-Mock Mandate, Cross-Platform Hardware Pinning, Pre-Flight Quota Gate (>50GB), Autonomous RAM-Disk Routing (>128GB), CurveZMQ Loopback Security, Dead-Man's Switch (60s), Win32 Job Object & POSIX Process Group Zombie Reaper  
 
 ---
 
 ## 1. PROJECT CHARTER & ARCHITECTURAL BASELINE
 
 ### 1.1 Executive Summary & Strategic Objective
-Phase 10 of Stage 0 Orchestration serves as the foundational **MolSym Intake & Spatial Mathematics Gatekeeper** for the CoChem quantum chemistry ecosystem. Before any raw user Cartesian geometries (`.xyz`, `.mol`) are ingested or dispatched to high-performance quantum chemistry packages (ORCA, PySCF, xTB) and AI machine-learning force fields (MACE-Torch), the runtime environment must guarantee that:
-1. The **`molsym` dependency** is safely built and isolated within a designated micro-silo (`cochem_calc_silo` or `cochem_molsym_silo`) to eliminate C++ ABI / shared library conflicts.
-2. The **spatial mathematics engine** passes exhaustive theoretical Eckart frame verification routines (exact mass-weighted Center of Mass translation, translational Eckart condition, rotational Eckart condition, $3 \times 3$ moment of inertia tensor diagonalization, proper rotation enforcement with SVD reflection protection $\det(\mathbf{U})=+1.0$, and spectroscopic constant derivations).
-3. The flag **`"alignment_engine_ready": true`** is permanently asserted in the intermediate registry state, the Golden Registry (`p10.json`), and the runtime environment injection mapping (`COCHEM_ALIGNMENT_ENGINE_READY="1"`).
-4. All **existing Phase 10 capabilities**—Ephemeral Quarantined Sandbox scaffolding (`/tmp/cochem_exec_<uuid>/`), 10 MB unbuffered sequential storage IOPS benchmark, ORCA (`.gbw`) / PySCF (`.chk`) / xTB (`.xtbw`) quantum checkpoint validation, and state-chain recovery auditing across `p1.json` through `p9.json`—are **seamlessly retained** to maintain 100% backward compatibility.
+The CoChem Subprocess Broker serves as the central **High-Performance Computing (HPC) & Computational Quantum Chemistry Subprocess Orchestrator** across the CoChem platform. It isolates, executes, monitors, and cleans up complex multi-threaded quantum chemistry engines (ORCA, PySCF, xTB, Gaussian, Q-Chem, MACE-Torch). The objective of this project increment is to engineer, harden, and validate the enterprise-grade capabilities of [`cochem_core_subprocess_broker.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/core_engine/cochem_core_subprocess_broker.py) in strict compliance with `Doc7_01_subprocess_broker_prompt.md`.
 
-### 1.2 Mathematical & Architectural Scope Inclusions
+### 1.2 Core Architectural Requirements & Scope Inclusions
 
-#### A. Isolated Silo & MolSym Intake Verification
-- **Isolated Silo Binding**: Target `cochem_calc_silo` or dedicated `cochem_molsym_silo` located under `$COCHEM_SILO_BASE` / `CoChem_Artifacts/Silos/`.
-- **Dynamic Version Walking & Wheel Fallback**: If standard compilation encounters C++ ABI mismatches, iteratively step through compatible Python bindings or local `.whl` fallbacks.
-- **Import & Subprocess Verification**: Verify `molsym` symbol resolution, point group detection primitives, and symmetry operation matrices without polluting the global orchestrator namespace.
+#### A. NUMA-Aware Hardware Thread-Pinning & Oversubscription Prevention
+1. **Dynamic Topology Evaluation**: Inspect host CPU topology (physical vs. logical cores, NUMA nodes, socket distribution) using `psutil`, `/sys/devices/system/node`, and platform-native introspection.
+2. **CPU Affinity Abstraction**: Provide robust `enforce_cpu_affinity(pid, cpu_cores)` binding with support for multi-socket NUMA domains and processor groups on Windows (>64 cores).
+3. **Cross-Platform Guards**:
+   - **Linux**: Kernel `sched_setaffinity` via `psutil.Process().cpu_affinity()`.
+   - **Windows**: `SetProcessAffinityMask` / `psutil.Process().cpu_affinity()` with processor group resilience.
+   - **macOS (Darwin)**: Graceful degradation with informational telemetry logging since the XNU/Darwin kernel does not expose user-space thread affinity binding.
+4. **Multi-Rank OpenMPI Detection & Thread Guarding**:
+   - Detect MPI environments via `OMPI_COMM_WORLD_SIZE`, `PMI_SIZE`, `MPI_LOCALRANKID`, `SLURM_NTASKS`, etc.
+   - When multi-rank execution is detected ($N_{\text{rank}} > 1$), automatically inject and force `OMP_NUM_THREADS="1"`, `MKL_NUM_THREADS="1"`, `OPENBLAS_NUM_THREADS="1"`, `VECLIB_MAXIMUM_THREADS="1"`, and `NUMEXPR_NUM_THREADS="1"` unless explicitly overridden, eliminating $N_{\text{rank}} \times N_{\text{threads}}$ CPU oversubscription and cache thrashing.
 
-#### B. Theoretical Eckart Frame & Spatial Standardizer Gateway
-1. **Mass-Weighted Center of Mass (COM) Translation**:
-   $$\mathbf{R}_{\text{COM}} = \frac{\sum_{i=1}^N m_i \mathbf{r}_i}{\sum_{i=1}^N m_i}, \quad \mathbf{r}'_i = \mathbf{r}_i - \mathbf{R}_{\text{COM}}$$
-   *Ghost Atom Protection*: Ghost atoms (BSSE counterpoise symbols `Gh`, `Bq`, `X`) are strictly enforced with $m_i = 0.0$ to prevent unphysical origin shifts.
-2. **Translational Eckart Condition**:
-   $$\sum_{i=1}^N m_i \mathbf{r}'_i = \mathbf{0} \quad \left(\|\mathbf{R}'_{\text{COM}}\| \le 10^{-12} \text{ \AA}\right)$$
-3. **Rotational Eckart Condition**:
-   $$\sum_{i=1}^N m_i \left( \mathbf{r}_i^0 \times \mathbf{r}'_i \right) = \mathbf{0} \quad \left(\|\boldsymbol{\tau}_{\text{residual}}\| \le 10^{-12} \text{ amu}\cdot\text{\AA}^2\right)$$
-   Ensuring zero net angular momentum/torque between reference equilibrium structure $\mathbf{r}^0$ and transformed target structure $\mathbf{r}'$.
-4. **Moment of Inertia Tensor Construction & Diagonalization**:
-   $$I_{xx} = \sum_{i=1}^N m_i (y_i^2 + z_i^2), \quad I_{xy} = -\sum_{i=1}^N m_i x_i y_i$$
-   Diagonalize $\mathbf{I} \mathbf{V} = \mathbf{V} \boldsymbol{\Lambda}$, sorting eigenvalues $I_a \le I_b \le I_c$. Derive spectroscopic rotational constants $(A, B, C)$ via NIST CODATA 2022/2026 fundamental constants, Ray's asymmetry parameter $\kappa = \frac{2B - A - C}{A - C}$, planar moments $(P_a, P_b, P_c)$, and inertial defect $\Delta = I_c - I_a - I_b$.
-5. **Kabsch-SVD Proper Rotation & Reflection Safeguard**:
-   For cross-dispersion correlation matrix $\mathbf{F} = \mathbf{r}_{\text{target}}^T \mathbf{M} \mathbf{r}_{\text{ref}} = \mathbf{V} \mathbf{S} \mathbf{W}^T$:
-   $$d = \operatorname{sign}(\det(\mathbf{V} \mathbf{W}^T)), \quad \mathbf{U} = \mathbf{V} \begin{pmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{pmatrix} \mathbf{W}^T$$
-   Guarantee strictly that $\det(\mathbf{U}) = +1.0$ (proper rotation in $\mathrm{SO}(3)$), permanently preventing coordinate parity inversion and false stereochemical inversion.
-6. **Collinear & Diatomic Singularity Trap**:
-   For linear molecules ($I_a \approx 0$, $A \to \infty$), mathematically handle infinite rotational constants gracefully without triggering `ZeroDivisionError` or matrix degeneracy.
+#### B. Pre-Flight Disk Quota & RAM-Disk Routing
+1. **Pre-Flight Disk Quota Gate**:
+   - Evaluate scratch directory capacity via `shutil.disk_usage()`.
+   - Enforce a strict pre-flight requirement of $>50\,\text{GB}$ free scratch space.
+   - If free disk space is $<50\,\text{GB}$, immediately abort and raise `DiskQuotaError` from `cochem_base.exceptions` with detailed metadata (`required_gb=50.0`, `available_gb`, `path`).
+   - Execute a 64 KB unbuffered binary read/write probe with SHA-256 validation and `os.fsync()` to verify physical disk responsiveness.
+2. **Autonomous RAM-Disk Overlay Routing**:
+   - Check total system RAM via `psutil.virtual_memory().total`.
+   - When $\text{Total\_RAM\_GB} > 128\,\text{GB}$, automatically allocate an ephemeral, high-speed RAM-disk overlay for heavy scratch operations (integrals, density matrices):
+     - **Linux**: `/dev/shm` or autonomous `tmpfs` mount.
+     - **macOS Darwin**: `hdiutil attach -nomount ram://<sectors>` / ephemeral HFS+/APFS RAM volume.
+     - **Windows**: Windows Dev Drive (ReFS) / high-speed memory-backed scratch.
+   - Automatically sync and copy valid quantum artifacts back to permanent workspace before scratch cleanup.
+3. **User/Job-Specific Directory Lockdown**:
+   - Create isolated job directories: `cochem_exec_<job_id>_<timestamp>`.
+   - **POSIX**: Enforce `chmod 700` (`0o700`) restricting access strictly to process owner.
+   - **Windows**: Apply `icacls <dir> /inheritance:r /grant:r "%USERNAME%:(OI)(CI)F"` or DACL hardening to prevent unauthorized multi-user access.
 
-#### C. Golden Registry (`p10.json`) & Environment State Lock
-- Update `Phase10AuditReport` Pydantic v2 schema to encapsulate `MolSymSiloProfile`, `EckartVerificationProfile`, `InertiaTensorProfile`, alongside `EphemeralSandboxProfile`, `IOPSBenchmarkProfile`, `CheckpointValidationReport`, and `StateChainRecoveryProfile`.
-- Persist `alignment_engine_ready: true` into `p10.json` and map into `injected_env_vars["COCHEM_ALIGNMENT_ENGINE_READY"] = "1"`.
-- Transactional atomicity enforced via `DependencyManager` (atomic rename and rollback on exception).
+#### C. ZeroMQ Heartbeat Integration & Dead-Man's Switch
+1. **ZeroMQ Transport Abstraction & CurveZMQ Security**:
+   - **POSIX**: Bind to local IPC socket `ipc:///tmp/cochem_heartbeat_<job_id>.ipc`.
+   - **Windows**: Bind to loopback TCP socket `tcp://127.0.0.1:*` with CurveZMQ (`zmq.curve_keypair()`, public/private key authentication) to ensure encrypted, authenticated, tamper-proof loopback telemetry.
+   - Background publisher thread broadcasting JSON telemetry frames (timestamp, PID, CPU affinity mask, memory RSS/VMS, child process count, job status, dispatch audit hash).
+2. **Dead-Man's Switch Watchdog**:
+   - Monitor heartbeat signal frequency.
+   - Enforce a 60-second timeout threshold.
+   - If no heartbeat is received within 60 seconds, trip the switch: transition job state into `DAEMON` detached mode or execute safe emergency termination/checkpointing.
+3. **Advanced Zombie Process Reaper**:
+   - **Windows**: Win32 Job Objects integration (`CreateJobObjectW`, `SetInformationJobObject` with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`), ensuring that if the parent Python process is terminated, the Windows kernel atomically kills all child processes.
+   - **POSIX**: Process group isolation (`os.setsid()`) and group termination (`os.killpg(os.getpgid(pid), signal.SIGTERM/SIGKILL)`).
+   - Global `atexit` registration and instance-level teardown ensuring zero leaked child processes.
 
-#### D. Full Capability Retention (Backwards Compatibility)
-- Preserve all 4 existing Phase 10 pillars: Ephemeral Sandbox Scaffolding, 10MB unbuffered IOPS benchmark, ORCA/PySCF/xTB checkpoint verification, and state-chain continuity recovery (p1-p9).
-
-### 1.3 Scope Exclusions & Zero-Mock Prohibitions
-- **Zero-Mock Prohibition**: Absolutely NO mocks (`unittest.mock`, `MagicMock`, `pytest-mock`), stubs, fake fixtures, synthetic math shortcuts, or `# TODO` placeholders. All tests must execute real NumPy SVD decompositions, real linear algebra routines, real file I/O, and real Pydantic validation.
-- **Testpath Restriction**: `pytest.ini` must restrict test execution directly to `test_suite/test_cochem_setup_phase_10.py` for focused, deterministic verification.
+#### D. Professional Pytest Test Suite & Zero-Mock Compliance
+1. **Targeted Test Execution**:
+   - Restrict `pytest.ini` to `testpaths = test_suite/test_cochem_core_subprocess_broker.py`.
+2. **Zero-Mock Mandate**:
+   - Strictly 0 mocks, 0 `unittest.mock`, 0 `MagicMock`, 0 stubs.
+   - Real physical subprocess spawns, real file I/O, real permission ACLs, real ZeroMQ sockets, real CPU affinity binding, real Win32 Job Objects / POSIX process groups.
 
 ---
 
@@ -67,10 +77,10 @@ Phase 10 of Stage 0 Orchestration serves as the foundational **MolSym Intake & S
 
 ```mermaid
 graph TD
-    P1["Phase 1: Requirements Deconstruction, Mathematical Modeling & Architecture"]
+    P1["Phase 1: Requirements Deconstruction & Architectural Design"]
     P2["Phase 2: Pre-Implementation TDD Test Suite (Red Phase)"]
-    P3["Phase 3: Physical Implementation in cochem_setup_phase_10.py (Green Phase)"]
-    P4["Phase 4: Verification, TDD Green Phase & Integration Execution"]
+    P3["Phase 3: Physical Implementation in cochem_core_subprocess_broker.py"]
+    P4["Phase 4: Verification, TDD Green Phase & Tool Validation"]
     P5["Phase 5: Adversarial Audit, Zero-Mock Verification & Swarm State Signoff"]
 
     P1 --> P2
@@ -79,170 +89,143 @@ graph TD
     P4 --> P5
 ```
 
-### Phase 1: Requirements Deconstruction, Mathematical Modeling & Architecture Specification
-- [ ] **Task 1.1: SRS Document 5 (§4.1) & Document 2 Part 2 Mathematical Deconstruction** (Agent: `researcher`)
-  - [ ] Sub-task 1.1.1: Analyze `molsym` dependency build and micro-silo isolation contracts. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.1.1: Define micro-silo target paths (`cochem_calc_silo`, `cochem_molsym_silo`) and Python execution boundaries. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.1.2: Specify fallback protocols (Dynamic Version Walking, wheel cache scanning, pure-python geometric fallback routines). (Agent: `researcher`)
-  - [ ] Sub-task 1.1.2: Formalize Theoretical Eckart Frame & Kabsch-SVD Equations. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.2.1: Formalize translational Eckart condition ($\sum m_i \mathbf{r}'_i = \mathbf{0}$) and COM residual tolerances ($< 10^{-12}$). (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.2.2: Formalize rotational Eckart condition ($\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$) and torque norm tolerances ($< 10^{-12}$). (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.2.3: Formalize SVD reflection trap matrix $d = \operatorname{sign}(\det(\mathbf{V}\mathbf{W}^T))$ and proper rotation constraint $\det(\mathbf{U})=+1.0$. (Agent: `researcher`)
-  - [ ] Sub-task 1.1.3: Catalog NIST CODATA 2022/2026 Physical Constants for Moment of Inertia. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.3.1: Lock exact constants: $h = 6.62607015 \times 10^{-34}\text{ J}\cdot\text{s}$, $c = 299792458\text{ m/s}$, $u = 1.66053906892 \times 10^{-27}\text{ kg}$. (Agent: `researcher`)
-    - [ ] Sub-sub-task 1.1.3.2: Formalize rotational constant conversion factors for MHz, GHz, and $\text{cm}^{-1}$. (Agent: `researcher`)
+### Phase 1: Requirements Deconstruction, Architecture & Interface Specification
+- [ ] **Task 1.1: Requirements & SCM Baseline Deconstruction** (Agent: `researcher`)
+  - [ ] Sub-task 1.1.1: NUMA & Thread-Pinning Hardware Specification (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.1.1: Detail `psutil` affinity mechanics, `/sys/devices/system/node` Linux topology, and Windows processor groups. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.1.2: Specify MPI environment variables (`OMPI_COMM_WORLD_SIZE`, `PMI_SIZE`, `SLURM_NTASKS`, `MPI_LOCALRANKID`) and `OMP_NUM_THREADS=1` override rules. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.1.3: Specify macOS Darwin graceful degradation protocol for thread affinity. (Agent: `researcher`)
+  - [ ] Sub-task 1.1.2: Scratch Quota & Autonomous RAM-Disk Overlay Specification (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.1: Specify 50 GB pre-flight capacity assertion via `shutil.disk_usage()` and `DiskQuotaError` schema. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.2: Specify 128 GB Total RAM threshold and OS-specific RAM-disk mounting (`tmpfs` on Linux, `hdiutil` on macOS, Windows Dev Drive). (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.2.3: Specify security permissions (`chmod 700` POSIX, `icacls` Windows) for isolated job subdirectories. (Agent: `researcher`)
+  - [ ] Sub-task 1.1.3: ZeroMQ Heartbeat, CurveZMQ Security & Dead-Man's Switch Specification (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.3.1: Specify `ipc://` (POSIX) vs `tcp://127.0.0.1:*` with CurveZMQ keypair exchange (Windows). (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.3.2: Specify 60-second Dead-Man's Switch watchdog timeout and `DAEMON` state transition protocol. (Agent: `researcher`)
+  - [ ] Sub-task 1.1.4: Win32 Job Object & POSIX Process Group Kernel Reaper Specification (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.4.1: Specify Win32 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` integration via `ctypes` / `win32job`. (Agent: `researcher`)
+    - [ ] Sub-sub-task 1.1.4.2: Specify POSIX `os.setsid()` process group creation and `os.killpg()` termination. (Agent: `researcher`)
 
-- [ ] **Task 1.2: Pydantic v2 Schema Architecture & Registry Model Design** (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.1: Design `MolSymSiloProfile` & Silo Status Models. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.1.1: Define fields: `silo_path`, `silo_type`, `is_installed`, `is_importable`, `version`, `build_type`, `silo_status`. (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.2: Design `EckartVerificationProfile` & `InertiaTensorProfile` Models. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.2.1: Define `InertiaTensorProfile`: `eigenvalues_amu_angstrom2`, `rotational_constants_mhz`, `rotational_constants_ghz`, `rotational_constants_cm1`, `inertial_defect`, `rays_kappa`, `planar_moments`, `top_type`, `proper_rotation_det`. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.2.2: Define `EckartVerificationProfile`: `translational_condition_satisfied`, `rotational_condition_satisfied`, `translational_residual_norm`, `rotational_residual_norm`, `rmsd`, `reflection_protection_verified`, `proper_rotation_det`. (Agent: `cochem-architect`)
-  - [ ] Sub-task 1.2.3: Design Unified `Phase10AuditReport` Schema with Full Backward Compatibility. (Agent: `cochem-architect`)
-    - [ ] Sub-sub-task 1.2.3.1: Integrate `alignment_engine_ready: bool = True`, `molsym_profile`, and `eckart_profile` alongside existing sandbox, iops, checkpoint, and state-chain profiles with `ConfigDict(extra='forbid', validate_assignment=True)`. (Agent: `cochem-architect`)
-
-- [ ] **Task 1.3: SCM & TDD Governance Initialization** (Agent: `cochem-sdp-manager`)
-  - [ ] Sub-task 1.3.1: Restrict [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini) testpaths to `test_suite/test_cochem_setup_phase_10.py`. (Agent: `cochem-sdp-manager`)
-  - [ ] Sub-task 1.3.2: Establish Red-Green-Refactor quality milestones and audit checkpoints. (Agent: `cochem-sdp-manager`)
-
----
+- [ ] **Task 1.2: Architectural Design & Interface Definition** (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.1: `SubprocessBroker` Core Class Architecture Design (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.1.1: Design class attributes, lifecycle context managers (`__enter__`, `__exit__`, `close()`), and thread pools. (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.2: `DiskQuotaError` Integration & Scratch Verification Engine (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.2.1: Define `verify_scratch_quota_and_io(path, required_gb=50.0)` function contract. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.2.2: Design `RAMDiskOverlayManager` class for autonomous RAM-disk allocation, syncing, and teardown. (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.3: `CurveZMQManager` & `ZMQDeadMansSwitchWatchdog` Protocol Design (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.3.1: Design CurveZMQ key generation, certificate persistence, and socket security setup. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.3.2: Design `DeadMansSwitchWatchdog` thread with 60-second timer and status callbacks. (Agent: `cochem-architect`)
+  - [ ] Sub-task 1.2.4: `CPUTopologyManager` & MPI Environment Sanitizer Design (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.4.1: Design `CPUTopologyManager` for NUMA inspection and core affinity mapping. (Agent: `cochem-architect`)
+    - [ ] Sub-sub-task 1.2.4.2: Design `sanitize_mpi_environment(env)` for automatic `OMP_NUM_THREADS=1` injection. (Agent: `cochem-architect`)
 
 ### Phase 2: Pre-Implementation TDD Test Suite (Red Phase)
-- [ ] **Task 2.1: Author Comprehensive Unit Tests in `test_suite/test_cochem_setup_phase_10.py`** (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.1: Implement MolSym Isolated Silo Verification Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.1.1: Test `audit_or_provision_molsym_silo` detecting active silos vs bypassed/fallback states. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.1.2: Test `MolSymSiloProfile` validation, extra field rejection (`extra='forbid'`), and serialization. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.2: Implement Theoretical Eckart Frame Verification Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.2.1: Test mass-weighted Center of Mass translation on real non-trivial geometries (Water $\text{H}_2\text{O}$, Methane $\text{CH}_4$, Ethanol $\text{C}_2\text{H}_5\text{OH}$). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.2.2: Test translational Eckart condition ($\sum m_i \mathbf{r}'_i = \mathbf{0}$) asserting residual norm $< 10^{-12}$. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.2.3: Test rotational Eckart condition ($\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$) on rotated and perturbed conformers asserting torque norm $< 10^{-12}$. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.3: Implement Moment of Inertia Diagonalization & Spectroscopic Rotor Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.1: Test inertia tensor construction and eigensolver ordering ($I_a \le I_b \le I_c$). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.2: Test spectroscopic rotational constant derivations ($A, B, C$ in MHz, GHz, $\text{cm}^{-1}$) matching CODATA 2022/2026 standard conversion factors. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.3: Test rotor classification: asymmetric top ($\text{H}_2\text{O}$), spherical top ($\text{CH}_4$), prolate symmetric top ($\text{CH}_3\text{Cl}$), oblate symmetric top ($\text{C}_6\text{H}_6$), linear ($\text{CO}_2$, $\text{HCN}$). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.3.4: Test Ray's asymmetry parameter $\kappa \in [-1.0, 1.0]$ and planar moments ($P_a, P_b, P_c$). (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.4: Implement SVD Reflection Protection & Proper Rotation Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.4.1: Test Kabsch-SVD alignment on mirrored/inverted geometries asserting $\det(\mathbf{U}) = +1.0$ strictly (preventing improper rotation $\det=-1$). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.4.2: Test chirality preservation across enantiomer pairs (L-alanine vs D-alanine). (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.5: Implement Edge-Case & Physical Guardrail Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.1: Test Ghost Atom (BSSE / Counterpoise) handling with symbols `Gh`, `Bq`, `X` possessing strictly $0.0$ mass and causing zero COM translation shift. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.2: Test linear/collinear molecules ($\text{CO}_2$, $\text{C}_2\text{H}_2$) ensuring $I_a \to 0$ does not cause division-by-zero crashes. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.5.3: Test single-atom systems (Noble gases $\text{He}$, $\text{Ar}$) and diatomic molecules. (Agent: `qa-engineer`)
-  - [ ] Sub-task 2.1.6: Implement Golden Registry & Backward Compatibility Tests. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.1: Test `alignment_engine_ready: true` asserted in `p10.json` and environment injection mapping (`COCHEM_ALIGNMENT_ENGINE_READY="1"`). (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.2: Test seamless retention of Ephemeral Sandbox scaffolding, 10MB unbuffered IOPS benchmark, checkpoint validation, and state-chain recovery. (Agent: `qa-engineer`)
-    - [ ] Sub-sub-task 2.1.6.3: Test `DependencyManager` transactional atomicity and rollback under simulated failure. (Agent: `qa-engineer`)
+- [ ] **Task 2.1: Author Physical Test Suite in `test_suite/test_cochem_core_subprocess_broker.py`** (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.1: Implement NUMA & Hardware CPU Affinity Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.1.1: Author `test_cpu_affinity_enforcement_real_cores` verifying affinity assignment on host cores. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.1.2: Author `test_cpu_affinity_darwin_graceful_fallback` verifying no crash on macOS Darwin. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.2: Implement OpenMPI Multi-Rank & OMP_NUM_THREADS Injection Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.2.1: Author `test_openmpi_detection_and_thread_forcing` asserting `OMP_NUM_THREADS="1"` injected when `OMPI_COMM_WORLD_SIZE="4"`. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.2.2: Author `test_single_rank_thread_override_allowed` verifying explicit thread override retention when MPI size is 1. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.3: Implement Scratch Quota & DiskQuotaError Enforcement Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.3.1: Author `test_scratch_quota_assertion_success` verifying quota check on valid scratch volume. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.3.2: Author `test_scratch_quota_assertion_raises_disk_quota_error` asserting `DiskQuotaError` with `required_gb=50.0` when free space is insufficient. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.3.3: Author `test_scratch_64kb_physical_probe_integrity` validating SHA-256 binary read/write verification with `os.fsync`. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.4: Implement RAM-Disk Overlay Allocation & Artifact Sync Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.4.1: Author `test_ramdisk_overlay_allocation_threshold` checking RAM-disk creation when RAM > 128 GB. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.4.2: Author `test_ramdisk_artifact_sync_and_cleanup` checking automatic artifact sync to persistent storage and rmtree cleanup. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.5: Implement Directory Permissions & Access Lockdown Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.5.1: Author `test_directory_lockdown_posix_chmod_700` checking `0o700` file permissions on POSIX. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.5.2: Author `test_directory_lockdown_windows_icacls` checking ACL restrictions on Windows. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.6: Implement CurveZMQ & IPC Heartbeat Exchange Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.6.1: Author `test_zmq_heartbeat_curvezmq_loopback_windows` testing CurveZMQ authenticated TCP telemetry on Windows. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.6.2: Author `test_zmq_heartbeat_ipc_posix` testing IPC socket heartbeat on POSIX. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.7: Implement Dead-Man's Switch Timeout & Daemon Transition Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.7.1: Author `test_dead_mans_switch_timeout_trips_daemon_mode` testing 60-second watchdog state transition. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.7.2: Author `test_dead_mans_switch_reset_on_heartbeat` testing watchdog timer refresh on active pulse. (Agent: `cochem-tester`)
+  - [ ] Sub-task 2.1.8: Implement Win32 Job Object & POSIX Process Tree Termination Tests (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.8.1: Author `test_win32_job_object_kill_on_close` verifying atomic child termination on Windows. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.8.2: Author `test_posix_process_group_killpg` verifying process group signal delivery on POSIX. (Agent: `cochem-tester`)
+    - [ ] Sub-sub-task 2.1.8.3: Author `test_zombie_reaper_global_and_instance_cleanup` verifying complete zero-leak process reaping. (Agent: `cochem-tester`)
 
-- [ ] **Task 2.2: Execute Initial Red-Phase Pytest Baseline** (Agent: `cochem-tester`)
-  - [ ] Sub-task 2.2.1: Run `pytest test_suite/test_cochem_setup_phase_10.py` and document failing test cases. (Agent: `cochem-tester`)
+### Phase 3: Physical Implementation in `core_engine/cochem_core_subprocess_broker.py`
+- [ ] **Task 3.1: Hardware Pinning, NUMA & OpenMPI Engine Implementation** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.1: Implement `CPUTopologyManager` & dynamic CPU affinity abstraction (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.1.1: Extract topology via `psutil` and OS APIs. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.1.2: Implement `enforce_cpu_affinity(pid, cpu_cores)` with cross-platform handling. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.2: Implement OpenMPI Multi-Rank Detection & Thread Oversubscription Guard (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.2.1: Implement `detect_mpi_environment()` checking MPI variables. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.2.2: Implement `sanitize_mpi_environment(env)` injecting `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`, `OPENBLAS_NUM_THREADS=1`, `VECLIB_MAXIMUM_THREADS=1`, `NUMEXPR_NUM_THREADS=1`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.1.3: Implement Cross-Platform Affinity Guards (Linux, Windows, macOS Darwin) (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.3.1: Handle macOS Darwin graceful degradation without throwing exceptions. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.1.3.2: Handle Windows processor groups for >64 cores. (Agent: `cochem-coder`)
 
----
+- [ ] **Task 3.2: Disk Quota, RAM-Disk Overlay & Security Engine Implementation** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.2.1: Implement `verify_scratch_quota_and_io` & `DiskQuotaError` Assertion (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.1.1: Implement 50 GB threshold check via `shutil.disk_usage()`. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.1.2: Raise `DiskQuotaError(required_gb=50.0, available_gb=..., path=...)` on violation. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.1.3: Implement 64 KB unbuffered binary read/write probe with SHA-256 and `os.fsync()`. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.2.2: Implement `RAMDiskOverlayManager` for Total_RAM_GB > 128GB (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.2.1: Implement RAM threshold inspection (`Total_RAM_GB > 128GB`). (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.2.2: Implement OS-specific overlay provisioning (Linux `tmpfs`, macOS `hdiutil`, Windows Dev Drive). (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.2.3: Implement post-run artifact synchronization and scratch cleanup. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.2.3: Implement Directory Permissions & Access Lockdown (`chmod 700` / `icacls`) (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.3.1: Implement `lock_directory_permissions(target_dir)` with `chmod 0o700` on POSIX. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.2.3.2: Implement `icacls` DACL hardening on Windows. (Agent: `cochem-coder`)
 
-### Phase 3: Physical Implementation in `orchestrator/cochem_setup_phase_10.py` (Green Phase)
-- [ ] **Task 3.1: Custom Exceptions, Enums & Pydantic v2 Models Implementation** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.1: Implement `MolSymError`, `EckartAlignmentError`, `SymmetryIntakeError` inheriting from `Phase10AuditError`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.2: Implement `MolSymSiloProfile`, `InertiaTensorProfile`, `EckartVerificationProfile`, and `AlignmentEngineProfile` Pydantic models with `extra='forbid'`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.1.3: Update `Phase10AuditReport` incorporating `alignment_engine_ready: bool = True` and new spatial mathematical profiles. (Agent: `cochem-coder`)
+- [ ] **Task 3.3: ZeroMQ Heartbeat, CurveZMQ & Dead-Man's Switch Implementation** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.1: Implement ZeroMQ Transport & CurveZMQ Loopback Security (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.1.1: Implement `ipc://` transport for POSIX platforms. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.1.2: Implement CurveZMQ authenticated `tcp://127.0.0.1:*` transport for Windows platforms. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.1.3: Implement structured JSON heartbeat telemetry publishing loop. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.2: Implement Dead-Man's Switch Watchdog & Daemon State Transition (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.2.1: Implement `DeadMansSwitchWatchdog` background monitor with 60s timeout. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.2.2: Implement `DAEMON` mode detachment and emergency cleanup hooks upon trip. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.3.3: Implement Advanced Win32 Job Object & POSIX Process Group Reaper (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.3.1: Implement `WindowsJobObject` using `ctypes` Win32 API (`CreateJobObjectW`, `SetInformationJobObject`, `AssignProcessToJobObject`). (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.3.2: Implement POSIX `os.setsid()` and `os.killpg()` signal delivery. (Agent: `cochem-coder`)
+    - [ ] Sub-sub-task 3.3.3.3: Implement unified `kill_process_tree(pid)` with psutil traversal and kernel fallback. (Agent: `cochem-coder`)
 
-- [ ] **Task 3.2: MolSym Isolated Silo Provisioning Engine Implementation** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.2.1: Implement `resolve_molsym_silo_path()` resolving against `$COCHEM_SILO_BASE`, `CoChem_Artifacts/Silos/cochem_calc_silo`, or `cochem_molsym_silo`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.2.2: Implement `audit_or_provision_molsym_silo()` verifying Python executable, importability of `molsym` (or pure-python geometric fallback), and recording `MolSymSiloProfile`. (Agent: `cochem-coder`)
+- [ ] **Task 3.4: SubprocessBroker Refactoring & Module Export Integration** (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.4.1: Refactor `SubprocessBroker.execute()` to integrate all pre-flight gates and monitors. (Agent: `cochem-coder`)
+  - [ ] Sub-task 3.4.2: Update `safe_subprocess_run()` and export all public interfaces in `__all__`. (Agent: `cochem-coder`)
 
-- [ ] **Task 3.3: Theoretical Eckart Frame & Moment of Inertia Verification Engine** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.1: Implement CODATA 2022/2026 constants ($h, c, u$) and conversion factors (`FACTOR_MHZ`, `FACTOR_GHZ`, `FACTOR_CM1`). (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.2: Implement `is_ghost_symbol()`, `get_atomic_mass()`, and `resolve_atomic_masses()` with strict ghost atom zero-mass filtering. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.3: Implement `translate_to_center_of_mass()` with residual precision drift refinement. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.4: Implement `compute_moment_of_inertia_tensor()`, `diagonalize_inertia_tensor()`, and `analyze_principal_inertia()`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.5: Implement `align_to_eckart_frame()` solving mass-weighted Kabsch-SVD with reflection safeguard $\det(\mathbf{U}) = +1.0$, evaluating translational and rotational Eckart condition residual norms. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.3.6: Implement `run_theoretical_eckart_test_suite()` executing theoretical benchmark validation across canonical molecular test systems. (Agent: `cochem-coder`)
-
-- [ ] **Task 3.4: Master Audit Orchestrator Integration & CLI Enhancements** (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.1: Update `run_phase_10_audit()` to orchestrate Ephemeral Sandbox, 10MB IOPS benchmark, Checkpoint scan, State-Chain recovery, MolSym silo audit, and Eckart frame theoretical verification. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.2: Update `generate_environment_injection_dict()` including `COCHEM_ALIGNMENT_ENGINE_READY="1"`, `COCHEM_MOLSYM_SILO_PATH`, `COCHEM_ECKART_VERIFIED="1"`. (Agent: `cochem-coder`)
-  - [ ] Sub-task 3.4.3: Update CLI entrypoint `main()` adding `--molsym-silo-dir`, `--skip-molsym`, `--skip-eckart`, and formatted terminal telemetry dashboard. (Agent: `cochem-coder`)
-
----
-
-### Phase 4: Verification, TDD Green Phase & Integration Execution
-- [ ] **Task 4.1: Pytest Suite Execution (Green Gate)** (Agent: `qa-engineer`)
-  - [ ] Sub-task 4.1.1: Execute `pytest test_suite/test_cochem_setup_phase_10.py` and achieve 100% pass rate. (Agent: `qa-engineer`)
-  - [ ] Sub-task 4.1.2: Verify zero test regressions across all 40+ unit and integration test assertions. (Agent: `qa-engineer`)
-
-- [ ] **Task 4.2: Real System Integration & Registry Validation** (Agent: `cochem-tester`)
-  - [ ] Sub-task 4.2.1: Execute `python orchestrator/cochem_setup_phase_10.py` end-to-end to generate physical `p10.json`. (Agent: `cochem-tester`)
-  - [ ] Sub-task 4.2.2: Validate generated `p10.json` against `cochem_core_registry_schema.py` and assert `"alignment_engine_ready": true`. (Agent: `cochem-tester`)
-
----
+### Phase 4: Test Suite Execution, Coverage & Static Verification
+- [ ] **Task 4.1: Pytest Configuration & Test Execution** (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.1.1: Restrict `pytest.ini` to `testpaths = test_suite/test_cochem_core_subprocess_broker.py`. (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.1.2: Execute test suite with `pytest -v` asserting 100% pass rate. (Agent: `cochem-tester`)
+- [ ] **Task 4.2: Static Typing & Linting Checks** (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.2.1: Run `ruff check core_engine/cochem_core_subprocess_broker.py` and fix lints. (Agent: `cochem-tester`)
+  - [ ] Sub-task 4.2.2: Run `mypy --strict core_engine/cochem_core_subprocess_broker.py` asserting zero type errors. (Agent: `cochem-tester`)
 
 ### Phase 5: Adversarial Audit, Zero-Mock Verification & Swarm State Signoff
-- [ ] **Task 5.1: Static Analysis & Code Quality Audit** (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.1.1: Conduct static analysis using Ruff and Mypy on `cochem_setup_phase_10.py` and test suite. (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.1.2: Audit all Pydantic models for strict `ConfigDict(extra='forbid', validate_assignment=True)` compliance. (Agent: `cochem-audit`)
-
-- [ ] **Task 5.2: Zero-Mock & Anti-Placeholder Verification** (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.2.1: Perform regex audit confirming zero forbidden tokens (`MOCK`, `STUB`, `DUMMY`, `FAKE`, `TODO`, `FIXME`, `TBD`, `PLACEHOLDER`). (Agent: `cochem-audit`)
-  - [ ] Sub-task 5.2.2: Perform AST sweep confirming zero mock imports (`unittest.mock`, `MagicMock`, `pytest-mock`). (Agent: `cochem-audit`)
-
-- [ ] **Task 5.3: Council Review, Final State Lock & Signoff** (Agent: `cochem-council`)
-  - [ ] Sub-task 5.3.1: Verify complete compliance against SRS Document 5 (§4.1) and Document 2 Part 2. (Agent: `cochem-council`)
-  - [ ] Sub-task 5.3.2: Update `swarm_state.json` and lock Phase 10 implementation state. (Agent: `cochem-sdp-manager`)
+- [ ] **Task 5.1: Zero-Mock & Quality Audit** (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.1.1: Conduct AST scan of test suite confirming 0 occurrences of `unittest.mock`, `MagicMock`, `monkeypatch`, or synthetic stubs. (Agent: `cochem-audit`)
+  - [ ] Sub-task 5.1.2: Verify complete physical compliance with `Doc7_01_subprocess_broker_prompt.md`. (Agent: `cochem-audit`)
+- [ ] **Task 5.2: Adversarial Stress & Anti-Spoofing Verification** (Agent: `adversary`)
+  - [ ] Sub-task 5.2.1: Execute fault injection tests for process tree leaks, Dead-Man's Switch triggers, and quota rejections. (Agent: `adversary`)
+  - [ ] Sub-task 5.2.2: Update and sign off `swarm_state.json` with status `SUCCESS`. (Agent: `adversary`)
 
 ---
 
-## 3. QUANTITATIVE RISK REGISTER (PMBOK ALIGNED)
+## 3. RACI MATRIX & AGENT RESPONSIBILITY ASSIGNMENTS
 
-| Risk ID | Risk Description | Category | Prob (1-5) | Impact (1-5) | Risk Score | Mitigation Strategy | Owner |
-|---|---|---|---|---|---|---|---|
-| **RSK-P10-01** | **Chirality Inversion via SVD Reflection Trap**: $\det(\mathbf{V} \mathbf{W}^T) < 0$ causing improper rotation ($\det(\mathbf{U}) = -1.0$), inverting stereochemistry and invalidating energy gradients. | Mathematical / Physics | Med (3) | Critical (5) | **15** (High) | **Avoid**: Enforce explicit reflection trap matrix $\mathbf{U} = \mathbf{V} \operatorname{diag}(1, 1, \operatorname{sign}(\det(\mathbf{V}\mathbf{W}^T))) \mathbf{W}^T$ ensuring $\det(\mathbf{U}) = +1.0$ strictly. | `cochem-architect` / `cochem-coder` |
-| **RSK-P10-02** | **C++ ABI / Shared Library Silo Conflict**: Building `molsym` in a dirty environment pollutes global C++ runtimes or conflicts with quantum packages (PySCF, ORCA). | Environment / Silo | Med (3) | High (4) | **12** (High) | **Mitigate**: Enforce isolated silo execution (`cochem_calc_silo` / `cochem_molsym_silo`) with dynamic version walking and isolated subprocess evaluation. | `cochem-coder` |
-| **RSK-P10-03** | **Linear Molecule Singularity in Inertia Diagonalization**: Linear species ($\text{CO}_2, \text{C}_2\text{H}_2$) have $I_a \approx 0 \implies A \to \infty$, triggering `ZeroDivisionError` or matrix degeneracy. | Numerical / Math | High (4) | High (4) | **16** (High) | **Mitigate**: Implement explicit singularity guards setting $A = \infty$, $\kappa = -1.0$, and classifying `top_type = "linear"`. | `cochem-coder` / `qa-engineer` |
-| **RSK-P10-04** | **Ghost Atom Center-of-Mass Corruption**: BSSE counterpoise ghost atoms (`Gh`, `Bq`, `X`) assigned non-zero mass, shifting COM and corrupting BSSE corrections. | Scientific / Accuracy | Low (2) | Critical (5) | **10** (High) | **Avoid**: Hard-code `is_ghost_symbol()` returning strictly $m_i = 0.0$, excluding ghost atoms from mass-weighting while applying identical translational shifts. | `researcher` / `cochem-coder` |
-| **RSK-P10-05** | **Backwards Compatibility Regression**: Implementation of MolSym/Eckart accidentally breaks existing Phase 10 capabilities (Sandbox, IOPS, Checkpoints, State-Chain). | Architecture / SCM | Med (3) | High (4) | **12** (High) | **Avoid**: Layer MolSym and Eckart verification as non-destructive additive steps within `run_phase_10_audit()`, retaining all existing profiles and unit tests. | `cochem-architect` / `qa-engineer` |
-| **RSK-P10-06** | **Zero-Mock Policy Violation**: Subagent injects `unittest.mock` or synthetic fake fixtures into test suite or orchestrator. | Governance / Compliance | Low (1) | Critical (5) | **5** (Medium) | **Avoid**: Automated adversarial regex and AST scans by `cochem-audit` rejecting any mock imports or synthetic shortcuts. | `cochem-audit` |
-
----
-
-## 4. SWEBOK SOFTWARE CONFIGURATION MANAGEMENT & COMPLIANCE PLAN
-
-1. **Stage 0 Authority Rule & Registry Integrity**:
-   - `cochem_setup_phase_10.py` acts as the definitive gatekeeper asserting `"alignment_engine_ready": true` in `p10.json`.
-   - The Golden Registry artifact (`p10.json`) must be serialized atomically via `DependencyManager` (atomic rename and exception rollback).
-2. **Pydantic v2 Schema Enforcement**:
-   - Every data model (`MolSymSiloProfile`, `EckartVerificationProfile`, `InertiaTensorProfile`, `Phase10AuditReport`) must enforce `ConfigDict(extra='forbid', validate_assignment=True)`.
-   - Banned: Pydantic v1 `class Config:`, `@validator`, `@root_validator`.
-3. **Mathematical Precision & Constant Locking**:
-   - NIST CODATA 2022/2026 fundamental physical constants locked in 64-bit IEEE 754 precision.
-   - Translational and rotational Eckart condition residual tolerances locked to $\le 10^{-12}$.
-   - Proper rotation matrix $\mathbf{U} \in \mathrm{SO}(3)$ locked to $\det(\mathbf{U}) = +1.0 \pm 10^{-10}$.
-4. **Isolated Micro-Silo Governance**:
-   - `molsym` dependency must reside exclusively in an isolated silo directory (`cochem_calc_silo` or `cochem_molsym_silo`).
-   - The global orchestrator environment remains unpolluted by heavy C++ bindings.
-5. **Zero-Mock Verification Protocol**:
-   - All tests in `test_suite/test_cochem_setup_phase_10.py` must execute real physical calculations, real linear algebra routines, and real file I/O.
-   - Restrict `pytest.ini` testpaths to `test_suite/test_cochem_setup_phase_10.py`.
-   - Mandatory signoff by `cochem-audit` and `cochem-council`.
+| WBS Phase / Component | Responsible (R) | Accountable (A) | Consulted (C) | Informed (I) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Phase 1: Architecture & Specs** | `researcher`, `cochem-architect` | `cochem-sdp-manager` | `cochem-coder`, `cochem-audit` | Swarm Leader |
+| **Phase 2: Pre-Implementation TDD** | `cochem-tester` | `cochem-sdp-manager` | `cochem-architect`, `cochem-coder` | `cochem-audit` |
+| **Phase 3: Physical Implementation** | `cochem-coder` | `cochem-sdp-manager` | `cochem-architect`, `researcher` | `cochem-tester` |
+| **Phase 4: Verification & Tooling** | `cochem-tester` | `cochem-sdp-manager` | `cochem-coder` | `cochem-audit` |
+| **Phase 5: Audit & Signoff** | `cochem-audit`, `adversary` | `cochem-sdp-manager` | `cochem-coder`, `cochem-tester` | Swarm Leader |
 
 ---
 
-## 5. SWARM TASK HANDOFF & SAFEST NEXT ACTION
+## 4. RISK REGISTER & MITIGATION STRATEGY
 
-```json
-{
-  "handoff": {
-    "goal": "Execute Phase 1 (Requirements & Architecture) and Phase 2 (TDD Test Suite Implementation) for Phase 10 MolSym Intake & Alignment",
-    "context_summary": "Microscopic WBS, Task List, Risk Register, and Compliance Plan established for Phase 10 in orchestrator/cochem_setup_phase_10.py and test_suite/test_cochem_setup_phase_10.py based on SRS Document 5 Section 4.1 and Document 2 Part 2. Covers isolated MolSym silo provisioning, theoretical Eckart frame conditions (trans/rot residual < 1e-12), inertia tensor diagonalization, proper rotation det(U)=+1.0 with SVD reflection protection, setting alignment_engine_ready: true, and seamless backward compatibility retention under Zero-Mock mandate.",
-    "token_budget": 24000,
-    "expected_artifact": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\test_suite\\test_cochem_setup_phase_10.py",
-    "next_agent": "qa-engineer"
-  }
-}
-```
-
-**Single Safest Next Action**: Update [`pytest.ini`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/pytest.ini) to restrict `testpaths = test_suite/test_cochem_setup_phase_10.py`, then invoke `qa-engineer` to author the comprehensive pre-implementation TDD test suite in [`test_suite/test_cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_setup_phase_10.py) asserting all theoretical Eckart frame conditions ($\sum m_i \mathbf{r}'_i = \mathbf{0}$, $\sum m_i (\mathbf{r}_i^0 \times \mathbf{r}'_i) = \mathbf{0}$), inertia tensor diagonalization, proper rotation $\det(\mathbf{U})=+1.0$ SVD reflection protection, isolated `molsym` silo profiles, and `"alignment_engine_ready": true` registry state persistence while preserving all existing Phase 10 test capabilities under the Zero-Mock mandate.
-
----
-
-[PROMPT MATCH VERIFICATION]
-- [GOAL CHECK]: Microscopic 5-Phase WBS, quantitative Risk Register, and SWEBOK compliance plan generated for Phase 10 MolSym Intake & Alignment in `cochem_setup_phase_10.py` and `test_cochem_setup_phase_10.py`.
-- [SOURCE AUDIT]: Fully cross-referenced against SRS Document 5 Section 4.1, Document 2 Part 2, Method Matrix v4, NIST CODATA 2022/2026, and `cochem_core_registry_schema.py`.
-- [ZERO-STUB AUDIT]: Strictly zero mocks, dummy values, or placeholder declarations. Fully actionable task breakdowns with designated swarm agents for every subtask.
+| Risk ID | Risk Description | Severity | Probability | Mitigation Strategy |
+| :--- | :--- | :---: | :---: | :--- |
+| **RSK-01** | `psutil.Process().cpu_affinity()` raises `NotImplementedError` or `AttributeError` on macOS Darwin. | High | High | Wrap CPU affinity calls in platform checks; log informational warning on Darwin without interrupting execution. |
+| **RSK-02** | RAM-disk creation requires elevated privileges (root / admin) on certain operating systems. | High | Medium | Check privilege level dynamically; gracefully fall back to local high-speed NVMe scratch directory if mounting fails. |
+| **RSK-03** | Windows Job Object fails if process is already assigned to a Job Object in certain nested CI environments. | Medium | Medium | Handle `ERROR_ACCESS_DENIED` (5) or existing job object errors gracefully using `JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK` where permissible, falling back to process tree traversal. |
+| **RSK-04** | Dead-Man's Switch 60s timeout causes unit tests to run too slowly if tested synchronously. | Medium | Low | Expose configurable watchdog timeout parameter (`timeout_sec=60.0` default, allow 0.5s in fast test fixtures) while retaining 60.0s production default. |
+| **RSK-05** | `DiskQuotaError` test fails if host disk has $>50\,\text{GB}$ free during positive check or cannot simulate $<50\,\text{GB}$ without mocking. | High | Low | Test quota logic with configurable threshold parameters (e.g. testing `required_gb=999999.0` to trigger genuine quota rejection on physical drive without mocks). |

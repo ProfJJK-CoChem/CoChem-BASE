@@ -1,2507 +1,2182 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc6_03_hdf5_data_architecture_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc7_01_subprocess_broker_prompt.md.
 Original prompt:
-# Prompt: Distributed IPC and Single-Master HDF5 Data Architecture
+# CoChem-BASE Subprocess Broker Prompt
 
-**Target File:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\core\cochem_core_hdf5_manager.py`
+**Target Filepath:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_subprocess_broker.py`
 
-## Goal
-Implement the HDF5 Data Architecture and IPC manager. This module handles all heavy physics data serialization and real-time streaming, strictly avoiding filesystem-based concurrent writes.
+## Context & Objective
+You are tasked with implementing the Hardware Integration & Subprocess Brokering subsystem for CoChem-BASE. This subsystem safely interacts with bare-metal OS hardware, maximizing physical computational speed while isolating heavy computational threads (e.g., ORCA, OpenMPI) from the parent Python orchestrator. It guarantees secure concurrency natively across Windows, Linux, and macOS.
 
-## Requirements
+## Strict Constraints & Rules
+- NO mocks, stubs, or placeholder instructions. Fully implement the requested logic.
+- Target output directory: `D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine`
+- Adhere strictly to the Tripartite Workspace Air-Gap and Method Matrix rules.
 
-1. **Real-Time IPC vs. SWMR Deprecation**
-   - All references to HDF5 Single-Writer/Multiple-Reader (SWMR) on NFS/Lustre are explicitly eradicated.
-   - Mandate SQLite WAL (Write-Ahead Logging) on local scratch space, ZeroMQ, or Redis for all real-time Inter-Process Communication (IPC) to isolate real-time data streaming from persistent storage bottlenecks.
+## Required Features & Deliverables
 
-2. **Single Master Node & Rigorous HDF5 Filtering**
-   - The final structural and wavefunction data must be aggregated and permanently serialized into `D:\__CoChem\CoChem_Artifacts\Databases\landscape.h5`.
-   - HDF5 writing is strictly delegated to a single master node to prevent distributed write corruption.
-   - All serialized HDF5 datasets must strictly mandate `gzip+shuffle+fletcher32` filters.
-   - All dataset schemas must achieve full QCSchema compliance.
+1. **NUMA-Aware Hardware Thread-Pinning & Oversubscription Prevention:**
+   - Dynamically evaluate physical host topology and abstract NUMA thread pinning using `psutil.Process().cpu_affinity()`.
+   - Guard against non-Linux platforms (e.g., macOS Darwin where `cpu_affinity` is unsupported).
+   - Prevent OS scheduler thread migration across CPU sockets during dense matrix diagonalization.
+   - Force `OMP_NUM_THREADS=1` in the execution environment whenever multi-rank OpenMPI jobs (e.g., ORCA `%pal nprocs 7 end`) are spawned to eliminate thread oversubscription.
 
-3. **VRAM Offloading Preservation**
-   - To protect AI MLFF workflows, strip all PyTorch tensors or JAX autograd variables, converting them to native NumPy arrays (scalars and floats) *before* processing or transmission.
-   - Ensure the master node strictly interacts with system RAM, keeping GPU VRAM clear.
+2. **Pre-Flight Disk Quota & RAM-Disk Routing:**
+   - Execute `shutil.disk_usage()` to assert >50GB of free `$SCRATCH` space is available before job dispatch; raise `DiskQuotaError` if breached.
+   - If `Total_RAM_GB` > 128GB (from Golden Registry), autonomously provision a high-speed RAM-disk overlay utilizing Linux `tmpfs` (`/dev/shm`), Windows Dev Drives/RAM-disk equivalents, or macOS `hdiutil`.
+   - Use user- and job-specific subdirectories locked with `chmod 700` (or Windows ACL equivalents via `icacls`) for RAM-disks to bypass NVMe write-bottlenecks securely.
 
-## Constraints & Rules
-- **NO MOCKS, STUBS, OR PLACEHOLDERS.** Write complete, production-ready logic.
-- Ensure strict compliance with all constraints and requirements.
+3. **ZeroMQ (ZMQ) Heartbeat Integration & Dead-Man's Switch:**
+   - Expose a lightweight, asynchronous ZMQ socket to track UI/Jupyter kernel health securely.
+   - Bind ZeroMQ to `ipc://` within the ephemeral compute directory (`chmod 700`) on POSIX, or `tcp://127.0.0.1:*` (with CurveZMQ security) on Windows.
+   - Implement a "Dead-Man's Switch": If the kernel ping times out for 60 seconds, transition the active job to a daemon state using `DETACHED_PROCESS` on Windows or `nohup`/detached session on POSIX to allow background completion without interrupting the physics engine.
+   - Register the Zombie Reaper (`atexit` and `signal` cleanup handlers) utilizing Win32 Job Objects on Windows and `os.killpg` on POSIX to terminate orphaned processes on abnormal parent exit.
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\core\cochem_core_hdf5_manager.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_subprocess_broker.py ---
 #!/usr/bin/env python3
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
 """
-CoChem-BASE: Distributed IPC and Single-Master HDF5 Data Architecture.
-
-This module provides:
-1. SWMR Eradication: Strict elimination of HDF5 SWMR on NFS/Lustre distributed filesystems.
-2. Real-Time IPC: Local scratch SQLite Write-Ahead Logging (WAL) and ZeroMQ streaming.
-3. Single Master Node Enforcement: Writes to landscape.h5 are strictly gatekept to Rank 0 / Master.
-4. Rigorous HDF5 Filtering: Mandatory gzip+shuffle+fletcher32 filters on all serialized datasets.
-5. Full QCSchema Compliance: Lossless round-trip serialization of QCSchema v1/v2 records (AtomicResult, Wavefunction, OptimizationResult).
-6. VRAM Offloading & Tensor Stripping: Automatic detachment and conversion of PyTorch/JAX tensors to pure host-RAM NumPy arrays and Python scalars.
-7. Landscape Database Management: Comprehensive basin, calculation, and trajectory persistence in Databases/landscape.h5.
-
-Zero-Mock Policy: 100% genuine OS processes, genuine atomic file locks, real SQLite WAL, and real HDF5 operations.
+CoChem-CORE: Stage 3.0 - The Subprocess Broker
+Implements: Non-blocking IPC Execution, Win32 Job Objects / POSIX Process Group Reaper,
+OOM Preemption Polling, ZeroMQ Heartbeat Publisher with CurveZMQ / IPC, NUMA-Aware CPU Pinning,
+Pre-Flight Disk Quota & 64KB SHA-256 Binary Probe, RAM-Disk Overlay Routing, Directory Lockdown,
+and Dead-Man's Switch Daemon Transition.
+Provides `safe_subprocess_run`, `register_popen_process`, `CPUTopologyManager`,
+`RAMDiskOverlayManager`, `ZMQHeartbeatManager`, `DeadMansSwitchWatchdog`, and `SubprocessBroker`.
 """
 
 from __future__ import annotations
 
-import ast
-import io
+import atexit
+import ctypes
+import hashlib
 import json
 import logging
 import os
-import sqlite3
+import platform
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
 import threading
 import time
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Union
 
-import h5py
-import numpy as np
-import zmq
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+if platform.system() == "Windows":
+    from ctypes import wintypes
 
-# Optional deep learning & chemistry imports
 try:
-    import torch
+    import psutil
+    HAS_PSUTIL = True
 except ImportError:
-    torch = None
+    HAS_PSUTIL = False
 
 try:
-    import jax
-    import jax.numpy as jnp
+    import zmq
+    HAS_ZMQ = True
 except ImportError:
-    jax = None
-    jnp = None
+    HAS_ZMQ = False
 
 try:
-    import qcelemental as qcel
+    from cochem_base.exceptions import DiskQuotaError
+except ImportError:
+    class DiskQuotaError(OSError):  # type: ignore
+        """Fallback definition for DiskQuotaError if cochem_base.exceptions is unavailable."""
+        default_error_code = "DISK_QUOTA_EXCEEDED"
+
+        def __init__(
+            self,
+            message: Optional[Union[str, float]] = None,
+            error_code: Optional[str] = None,
+            details: Optional[Dict[str, Any]] = None,
+            timestamp: Optional[str] = None,
+            *,
+            required_gb: Optional[float] = None,
+            available_gb: Optional[float] = None,
+            path: Optional[Union[str, Path]] = None,
+            **kwargs: Any,
+        ) -> None:
+            self.required_gb: float = float(required_gb) if required_gb is not None else 50.0
+            self.available_gb: float = float(available_gb) if available_gb is not None else 0.0
+            self.path: Optional[Path] = Path(path) if path is not None else None
+            p_str = str(self.path) if self.path is not None else "workspace"
+            msg = message if isinstance(message, str) else (
+                f"Insufficient scratch disk quota at {p_str}: "
+                f"required {self.required_gb:.2f} GB, available {self.available_gb:.2f} GB"
+            )
+            super().__init__(msg)
+
+from cochem_base.config_loader import get_artifact_dir, get_ramdisk_dir, resolve_mapped_path
+
+try:
+    from core_engine.cochem_core_telemetry_logger import TelemetryLogger
+except ImportError:
     try:
-        from qcelemental.models.v2 import AtomicResult as QCElAtomicResult
-        from qcelemental.models.v2 import Molecule as QCElMolecule
-        from qcelemental.models.v2 import OptimizationResult as QCElOptimizationResult
-    except (ImportError, RuntimeError):
-        from qcelemental.models import AtomicResult as QCElAtomicResult  # type: ignore
-        from qcelemental.models import Molecule as QCElMolecule  # type: ignore
-        from qcelemental.models import OptimizationResult as QCElOptimizationResult  # type: ignore
-except ImportError:
-    qcel = None
-    QCElAtomicResult = None
-    QCElMolecule = None
-    QCElOptimizationResult = None
+        from cochem_core_telemetry_logger import TelemetryLogger  # type: ignore
+    except ImportError:
+        TelemetryLogger = None  # type: ignore
 
-from cochem_base.config_loader import (
-    get_artifact_dir,
-    get_scratch_dir,
-    resolve_mapped_path,
-)
-from cochem_base.core.cochem_core_registry_manager import AtomicFileLock
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-Broker")
 
-logger = logging.getLogger("CoChem-HDF5Manager")
+# Global Popen process tracking for zombie sweeping
+_GLOBAL_ACTIVE_POPEN_PROCESSES: List[subprocess.Popen] = []
+_GLOBAL_TRACKING_LOCK = threading.Lock()
 
 
-# =============================================================================
-# TYPED EXCEPTIONS
-# =============================================================================
+# =====================================================================
+# Win32 Job Object Definitions (Windows-only)
+# =====================================================================
 
-class HDF5ManagerError(Exception):
-    """Base exception for all HDF5 data architecture and IPC operations."""
-
-
-class NonMasterWriteRejectionError(HDF5ManagerError, PermissionError):
-    """Raised when a non-master compute node attempts direct HDF5 writes."""
-
-
-class HDF5FilterViolationError(HDF5ManagerError, ValueError):
-    """Raised when a dataset is created without mandatory gzip+shuffle+fletcher32 filters."""
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+JobObjectExtendedLimitInformation = 9
+PROCESS_SET_QUOTA = 0x0100
+PROCESS_TERMINATE = 0x0001
+PROCESS_ALL_ACCESS = 0x1F0FFF
 
 
-class QCSchemaValidationError(HDF5ManagerError, ValueError):
-    """Raised when a payload fails QCSchema validation."""
+class _IO_COUNTERS(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_uint64),
+        ("WriteOperationCount", ctypes.c_uint64),
+        ("OtherOperationCount", ctypes.c_uint64),
+        ("ReadTransferCount", ctypes.c_uint64),
+        ("WriteTransferCount", ctypes.c_uint64),
+        ("OtherTransferCount", ctypes.c_uint64),
+    ]
 
 
-class IPCRuntimeError(HDF5ManagerError, RuntimeError):
-    """Raised when real-time IPC streaming or queueing encounters an error."""
+class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
 
 
-class DatasetNotFoundError(HDF5ManagerError, KeyError):
-    """Raised when a requested dataset or record is not found in HDF5."""
+class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+        ("IoInfo", _IO_COUNTERS),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryLimit", ctypes.c_size_t),
+        ("PeakJobMemoryLimit", ctypes.c_size_t),
+    ]
 
 
-# =============================================================================
-# 1. SWMR ERADICATION & AUDIT VERIFICATION
-# =============================================================================
+class WindowsJobObject:
+    """Encapsulates a Win32 Job Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
 
-def verify_no_swmr_usage(module_or_obj: Any = None) -> bool:
-    """Audits the module AST and runtime flags to ensure HDF5 SWMR mode is completely eradicated."""
-    if module_or_obj is None:
-        import cochem_base.core.cochem_core_hdf5_manager as current_mod
-        module_or_obj = current_mod
-
-    if isinstance(module_or_obj, Path):
-        src = module_or_obj.read_text(encoding="utf-8")
-    elif isinstance(module_or_obj, str):
-        if "\n" in module_or_obj or not os.path.exists(module_or_obj):
-            src = module_or_obj
-        else:
-            src = Path(module_or_obj).read_text(encoding="utf-8")
-    elif hasattr(module_or_obj, "__file__") and module_or_obj.__file__:
-        src = Path(module_or_obj.__file__).read_text(encoding="utf-8")
-    else:
-        import inspect
-        src = inspect.getsource(module_or_obj)
-
-    parsed = ast.parse(src)
-    for node in ast.walk(parsed):
-        if isinstance(node, ast.Call):
-            for kw in node.keywords:
-                if kw.arg == "swmr" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
-                    raise HDF5ManagerError("SWMR Violation: swmr activation flag detected in codebase.")
-                if kw.arg == "libver" and isinstance(kw.value, ast.Constant) and kw.value.value == "latest":
-                    raise HDF5ManagerError("SWMR Violation: libver latest flag detected in codebase.")
-        elif isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Attribute) and target.attr == "swmr_mode":
-                    raise HDF5ManagerError("SWMR Violation: swmr_mode assignment detected in codebase.")
-
-    return True
-
-
-# =============================================================================
-# 2. VRAM OFFLOADING & TENSOR STRIPPING
-# =============================================================================
-
-def strip_tensor_to_numpy(val: Any) -> Any:
-    """Recursively converts PyTorch and JAX autograd variables to pure host RAM NumPy arrays or Python scalars.
-
-    Ensures the master node strictly interacts with system RAM, keeping GPU VRAM clear.
-    """
-    if val is None:
-        return None
-
-    # 1. PyTorch Tensor stripping
-    if torch is not None and isinstance(val, torch.Tensor):
-        cpu_tensor = val.detach().cpu()
-        if cpu_tensor.ndim == 0:
-            item = cpu_tensor.item()
-            return int(item) if isinstance(item, int) else float(item)
-        return np.ascontiguousarray(cpu_tensor.numpy())
-
-    # 2. JAX Array stripping
-    if jax is not None and jnp is not None:
-        if isinstance(val, (jax.Array, jnp.ndarray)):
-            arr = np.asarray(val)
-            if arr.ndim == 0:
-                item = arr.item()
-                return int(item) if isinstance(item, int) else float(item)
-            return np.ascontiguousarray(arr)
-
-    # 3. NumPy arrays
-    if isinstance(val, np.ndarray):
-        if val.ndim == 0:
-            item = val.item()
-            return int(item) if isinstance(item, int) else float(item)
-        return np.ascontiguousarray(val)
-
-    if isinstance(val, np.generic):
-        return val.item()
-
-    # 4. Standard Python primitives
-    if isinstance(val, (int, float, str, bool, bytes)):
-        return val
-
-    # 5. Pydantic models
-    if isinstance(val, BaseModel):
-        dumped = val.model_dump()
-        return sanitize_for_host_ram(dumped)
-
-    # 6. Containers
-    if isinstance(val, dict):
-        return {str(k): strip_tensor_to_numpy(v) for k, v in val.items()}
-
-    if isinstance(val, (list, tuple, set)):
-        converted = [strip_tensor_to_numpy(item) for item in val]
-        return type(val)(converted) if not isinstance(val, set) else set(converted)
-
-    return val
-
-
-def sanitize_for_host_ram(payload: Any) -> Any:
-    """Deeply sanitizes any payload structure to guarantee complete VRAM offloading."""
-    return strip_tensor_to_numpy(payload)
-
-
-# =============================================================================
-# 3. REAL-TIME IPC: SQLITE WAL ON LOCAL SCRATCH
-# =============================================================================
-
-class SQLiteWALQueue:
-    """High-throughput, process-safe real-time IPC queue using SQLite in Write-Ahead Logging (WAL) mode.
-
-    Isolates real-time data streaming and IPC from persistent storage bottlenecks on shared filesystems.
+    Guarantees OS-level atomic termination of all child and spawned grandchild
+    processes when the job object handle is closed or the parent crashes.
     """
 
-    def __init__(self, db_path: Optional[Union[str, Path]] = None) -> None:
-        if db_path is not None:
-            self.db_path = resolve_mapped_path(db_path)
-        else:
-            self.db_path = get_scratch_dir() / "cochem_ipc_wal.db"
-
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._local = threading.local()
-        self._init_database()
-
-    def _get_connection(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            conn = sqlite3.connect(
-                str(self.db_path),
-                timeout=30.0,
-                isolation_level=None,  # Autocommit / fine-grained transactions
-                check_same_thread=False,
-            )
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA synchronous=NORMAL;")
-            conn.execute("PRAGMA busy_timeout=10000;")
-            conn.execute("PRAGMA foreign_keys=ON;")
-            self._local.conn = conn
-        return cast(sqlite3.Connection, self._local.conn)
-
-    def _init_database(self) -> None:
-        conn = self._get_connection()
-        with conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ipc_stream_records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    stream_id TEXT NOT NULL,
-                    topic TEXT NOT NULL,
-                    sender_node TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    binary_payload BLOB,
-                    status TEXT NOT NULL DEFAULT 'pending',
-                    created_at REAL NOT NULL,
-                    processed_at REAL
-                );
-                """
-            )
-            conn.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_ipc_topic_status
-                ON ipc_stream_records(topic, status, created_at);
-                """
-            )
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ipc_wavefunction_staging (
-                    record_id TEXT PRIMARY KEY,
-                    molecule_hash TEXT NOT NULL,
-                    schema_version TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
-                    binary_arrays BLOB,
-                    created_at REAL NOT NULL
-                );
-                """
-            )
-
-    def get_journal_mode(self) -> str:
-        """Returns active SQLite journal mode."""
-        conn = self._get_connection()
-        cursor = conn.execute("PRAGMA journal_mode;")
-        row = cursor.fetchone()
-        return str(row[0]) if row else "unknown"
-
-    def push(
-        self,
-        topic: str,
-        payload: Any,
-        sender: str = "worker",
-        stream_id: Optional[str] = None,
-        binary_data: Optional[bytes] = None,
-    ) -> int:
-        """Pushes a sanitized record onto the IPC stream."""
-        clean_payload = sanitize_for_host_ram(payload)
-        json_str = json.dumps(clean_payload)
-        s_id = stream_id or f"stream_{time.time_ns()}"
-        now = time.time()
-
-        conn = self._get_connection()
-        with conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO ipc_stream_records
-                (stream_id, topic, sender_node, payload_json, binary_payload, status, created_at)
-                VALUES (?, ?, ?, ?, ?, 'pending', ?);
-                """,
-                (s_id, topic, sender, json_str, binary_data, now),
-            )
-            return cursor.lastrowid or 0
-
-    def pop_pending(self, topic: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        """Atomically retrieves and marks pending records as processed."""
-        conn = self._get_connection()
-        with conn:
-            if topic is not None:
-                cursor = conn.execute(
-                    """
-                    SELECT id, stream_id, topic, sender_node, payload_json, binary_payload, created_at
-                    FROM ipc_stream_records
-                    WHERE status = 'pending' AND topic = ?
-                    ORDER BY id ASC LIMIT ?;
-                    """,
-                    (topic, limit),
-                )
-            else:
-                cursor = conn.execute(
-                    """
-                    SELECT id, stream_id, topic, sender_node, payload_json, binary_payload, created_at
-                    FROM ipc_stream_records
-                    WHERE status = 'pending'
-                    ORDER BY id ASC LIMIT ?;
-                    """,
-                    (limit,),
-                )
-
-            rows = cursor.fetchall()
-            if not rows:
-                return []
-
-            ids = [r[0] for r in rows]
-            now = time.time()
-            placeholders = ",".join("?" * len(ids))
-            conn.execute(
-                f"""
-                UPDATE ipc_stream_records
-                SET status = 'processed', processed_at = ?
-                WHERE id IN ({placeholders});
-                """,
-                [now, *ids],
-            )
-
-            records: List[Dict[str, Any]] = []
-            for r in rows:
-                records.append({
-                    "id": r[0],
-                    "stream_id": r[1],
-                    "topic": r[2],
-                    "sender_node": r[3],
-                    "payload": json.loads(r[4]),
-                    "binary_payload": r[5],
-                    "created_at": r[6],
-                })
-            return records
-
-    def drain_all(self, topic: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Drains all pending records in batches."""
-        all_records: List[Dict[str, Any]] = []
-        while True:
-            batch = self.pop_pending(topic=topic, limit=500)
-            if not batch:
-                break
-            all_records.extend(batch)
-        return all_records
-
-    def count_pending(self, topic: Optional[str] = None) -> int:
-        """Returns the number of pending records in the queue."""
-        conn = self._get_connection()
-        if topic is not None:
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM ipc_stream_records WHERE status = 'pending' AND topic = ?;",
-                (topic,),
-            )
-        else:
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM ipc_stream_records WHERE status = 'pending';"
-            )
-        row = cursor.fetchone()
-        return int(row[0]) if row else 0
-
-    def clear(self) -> None:
-        """Clears all records from the queue."""
-        conn = self._get_connection()
-        with conn:
-            conn.execute("DELETE FROM ipc_stream_records;")
-            conn.execute("DELETE FROM ipc_wavefunction_staging;")
-
-    def close(self) -> None:
-        if hasattr(self._local, "conn") and self._local.conn is not None:
-            try:
-                self._local.conn.close()
-            except Exception:
-                pass
-            self._local.conn = None
-
-
-# =============================================================================
-# 4. REAL-TIME IPC: ZEROMQ STREAMING
-# =============================================================================
-
-class ZMQRealTimeStreamer:
-    """Low-latency ZeroMQ real-time streaming endpoint for physics & wavefunction telemetry."""
-
-    def __init__(self, host: str = "127.0.0.1", port: int = 5577) -> None:
-        self.host = host
-        self.port = port
-        self._ctx: Optional[zmq.Context[Any]] = None
-        self._socket: Optional[zmq.Socket[Any]] = None
-        self._lock = threading.Lock()
-
-    def _get_context(self) -> zmq.Context[Any]:
-        if self._ctx is None:
-            self._ctx = zmq.Context.instance()
-        return self._ctx
-
-    def bind_pull(self, ready_event: Optional[threading.Event] = None) -> None:
-        """Binds a PULL socket on master to collect streams from worker nodes."""
-        with self._lock:
-            ctx = self._get_context()
-            sock = ctx.socket(zmq.PULL)
-            sock.setsockopt(zmq.LINGER, 1000)
-            sock.bind(f"tcp://{self.host}:{self.port}")
-            self._socket = sock
-            if ready_event is not None:
-                ready_event.set()
-
-    def connect_push(self) -> None:
-        """Connects a PUSH socket on a worker node to stream to the master collector."""
-        with self._lock:
-            ctx = self._get_context()
-            sock = ctx.socket(zmq.PUSH)
-            sock.setsockopt(zmq.LINGER, 1000)
-            sock.connect(f"tcp://{self.host}:{self.port}")
-            self._socket = sock
-
-    def send_record(
-        self,
-        topic: str,
-        metadata: Dict[str, Any],
-        array: Optional[np.ndarray] = None,
-        timeout_ms: int = 5000,
-    ) -> None:
-        """Sends a multipart frame: topic, metadata JSON, and optional binary NumPy buffer."""
-        if self._socket is None:
-            raise IPCRuntimeError("ZMQ socket is not connected or bound.")
-
-        clean_meta = sanitize_for_host_ram(metadata)
-        json_bytes = json.dumps(clean_meta).encode("utf-8")
-        topic_bytes = topic.encode("utf-8")
-
-        frames: List[bytes] = [topic_bytes, json_bytes]
-        if array is not None:
-            clean_arr = strip_tensor_to_numpy(array)
-            buf = io.BytesIO()
-            np.save(buf, clean_arr, allow_pickle=False)
-            frames.append(buf.getvalue())
-        else:
-            frames.append(b"")
-
-        self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
-        try:
-            self._socket.send_multipart(frames)
-        except zmq.error.Again as e:
-            raise IPCRuntimeError(f"ZMQ send timed out after {timeout_ms}ms") from e
-
-    def recv_record(self, timeout_ms: int = 5000) -> Optional[Dict[str, Any]]:
-        """Receives a multipart frame with topic, metadata, and optional NumPy array."""
-        if self._socket is None:
-            raise IPCRuntimeError("ZMQ socket is not connected or bound.")
-
-        self._socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        try:
-            parts = self._socket.recv_multipart()
-            if len(parts) < 3:
-                return None
-
-            topic = parts[0].decode("utf-8")
-            metadata = json.loads(parts[1].decode("utf-8"))
-            array: Optional[np.ndarray] = None
-
-            if parts[2] and len(parts[2]) > 0:
-                buf = io.BytesIO(parts[2])
-                array = np.load(buf, allow_pickle=False)
-
-            return {
-                "topic": topic,
-                "metadata": metadata,
-                "array": array,
-            }
-        except zmq.error.Again:
-            return None
-
-    def close(self) -> None:
-        """Closes the active socket with a brief linger to ensure in-flight messages flush."""
-        with self._lock:
-            if self._socket is not None:
-                try:
-                    self._socket.close(linger=1000)
-                except Exception:
-                    pass
-                self._socket = None
-
-
-# =============================================================================
-# 5. SINGLE MASTER NODE DETECTION & WRITE GATEKEEPER
-# =============================================================================
-
-def is_master_node() -> bool:
-    """Determines whether the current execution process is the designated master node (Rank 0 / Standalone)."""
-    override = os.environ.get("COCHEM_IS_MASTER")
-    if override is not None:
-        return override.strip().lower() in ("1", "true", "yes")
-
-    slurm_procid = os.environ.get("SLURM_PROCID")
-    if slurm_procid is not None:
-        return slurm_procid.strip() == "0"
-
-    for rank_var in ["OMPI_COMM_WORLD_RANK", "PMI_RANK", "RANK", "MV2_COMM_WORLD_RANK"]:
-        val = os.environ.get(rank_var)
-        if val is not None:
-            return val.strip() == "0"
-
-    return True
-
-
-# =============================================================================
-# 6. RIGOROUS HDF5 FILTERING (gzip + shuffle + fletcher32)
-# =============================================================================
-
-def verify_dataset_filters(dset: h5py.Dataset) -> Tuple[bool, Dict[str, Any]]:
-    """Verifies that an HDF5 dataset strictly enforces chunking, gzip compression, shuffle, and fletcher32."""
-    compression = getattr(dset, "compression", None)
-    compression_opts = getattr(dset, "compression_opts", None)
-    shuffle = getattr(dset, "shuffle", False)
-    fletcher32 = getattr(dset, "fletcher32", False)
-    chunks = getattr(dset, "chunks", None)
-
-    details = {
-        "compression": compression,
-        "compression_opts": compression_opts,
-        "shuffle": shuffle,
-        "fletcher32": fletcher32,
-        "chunks": chunks,
-    }
-
-    is_valid = (
-        compression == "gzip"
-        and shuffle is True
-        and fletcher32 is True
-        and chunks is not None
-    )
-    return is_valid, details
-
-
-def _normalize_dataset_for_filters(data: Any) -> np.ndarray:
-    """Normalizes input data into fixed-size atomic NumPy types suitable for HDF5 shuffle filter."""
-    clean_data = strip_tensor_to_numpy(data)
-    if isinstance(clean_data, (list, tuple)):
-        if len(clean_data) > 0 and all(isinstance(x, str) for x in clean_data):
-            max_len = max(len(s.encode("utf-8")) for s in clean_data) if clean_data else 1
-            str_dtype = f"S{max(8, max_len + 1)}"
-            return np.array([s.encode("utf-8") for s in clean_data], dtype=str_dtype)
-
-    if not isinstance(clean_data, np.ndarray):
-        clean_data = np.asarray(clean_data)
-
-    if clean_data.dtype.kind == "U":
-        max_item_len = max(len(str(x).encode("utf-8")) for x in clean_data.flat) if clean_data.size > 0 else 1
-        str_dtype = f"S{max(8, max_item_len + 1)}"
-        clean_data = np.array([str(x).encode("utf-8") for x in clean_data.flat], dtype=str_dtype).reshape(clean_data.shape)
-
-    if clean_data.ndim == 0:
-        clean_data = clean_data.reshape((1,))
-
-    return clean_data
-
-
-def write_dataset_filtered(
-    group: Union[h5py.Group, h5py.File],
-    dataset_name: str,
-    data: Any,
-    compression: Optional[str] = "gzip",
-    compression_opts: int = 6,
-    shuffle: bool = True,
-    fletcher32: bool = True,
-    chunks: Optional[Any] = True,
-    attrs: Optional[Dict[str, Any]] = None,
-    strict: bool = True,
-) -> h5py.Dataset:
-    """Creates or overwrites an HDF5 dataset enforcing mandatory gzip+shuffle+fletcher32 filters.
-
-    Raises HDF5FilterViolationError if filters are missing or bypassed when strict=True.
-    """
-    clean_data = _normalize_dataset_for_filters(data)
-
-    if strict:
-        if compression != "gzip":
-            raise HDF5FilterViolationError(
-                f"Dataset '{dataset_name}' must use gzip compression (got: {compression})"
-            )
-        if not shuffle:
-            raise HDF5FilterViolationError(
-                f"Dataset '{dataset_name}' must have shuffle=True"
-            )
-        if not fletcher32:
-            raise HDF5FilterViolationError(
-                f"Dataset '{dataset_name}' must have fletcher32=True checksum filter"
-            )
-
-    if dataset_name in group:
-        del group[dataset_name]
-
-    dset = group.create_dataset(
-        dataset_name,
-        data=clean_data,
-        compression="gzip" if compression == "gzip" else None,
-        compression_opts=compression_opts if compression == "gzip" else None,
-        shuffle=shuffle,
-        fletcher32=fletcher32,
-        chunks=chunks,
-    )
-
-    if attrs:
-        for k, v in attrs.items():
-            clean_v = strip_tensor_to_numpy(v)
-            if isinstance(clean_v, (int, float, str, bool)):
-                dset.attrs[k] = clean_v
-            else:
-                dset.attrs[k] = json.dumps(clean_v)
-
-    return dset
-
-
-# =============================================================================
-# 7. FULL QCSCHEMA SPECIFICATION MODELS
-# =============================================================================
-
-class QCSchemaDriver(str, Enum):
-    ENERGY = "energy"
-    GRADIENT = "gradient"
-    HESSIAN = "hessian"
-    PROPERTIES = "properties"
-
-
-class QCSchemaModel(BaseModel):
-    """QCSchema quantum chemistry model specification."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    method: str = Field(..., description="Electronic structure method, e.g., r2SCAN-3c, B3LYP, CCSD(T)")
-    basis: Optional[str] = Field(None, description="Primary orbital basis set")
-
-
-class QCSchemaMolecule(BaseModel):
-    """QCSchema v1/v2 Molecular specification."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    symbols: List[str] = Field(..., description="Atomic element symbols")
-    geometry: List[float] = Field(..., description="Flattened Cartesian atomic coordinates in Bohr")
-    molecular_charge: float = Field(default=0.0, description="Total molecular charge")
-    molecular_multiplicity: int = Field(default=1, ge=1, description="Total spin multiplicity")
-    mass_numbers: Optional[List[int]] = Field(default=None, description="Optional mass numbers for isotopes")
-    real: Optional[List[bool]] = Field(default=None, description="Ghost atom indicators")
-    connectivity: Optional[List[Tuple[int, int, float]]] = Field(default=None, description="Connectivity graph")
-
-    @field_validator("geometry", mode="before")
-    @classmethod
-    def validate_geometry(cls, v: Any) -> List[float]:
-        cleaned = strip_tensor_to_numpy(v)
-        if isinstance(cleaned, np.ndarray):
-            return cleaned.flatten().tolist()
-        if isinstance(cleaned, list):
-            flat: List[float] = []
-            for item in cleaned:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend(float(x) for x in item)
-                else:
-                    flat.append(float(item))
-            return flat
-        raise ValueError("Invalid geometry format")
-
-
-class QCSchemaProperties(BaseModel):
-    """QCSchema output properties specification."""
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-
-    return_energy: Optional[float] = Field(default=None, description="Final return energy in Hartrees")
-    scf_total_energy: Optional[float] = Field(default=None, description="Total SCF energy in Hartrees")
-    nuclear_repulsion_energy: Optional[float] = Field(default=None, description="Nuclear repulsion energy")
-    scf_iterations: Optional[int] = Field(default=None, description="Number of SCF cycles")
-    dipole: Optional[List[float]] = Field(default=None, description="Dipole moment components in Debye")
-
-
-class QCSchemaWavefunction(BaseModel):
-    """QCSchema Wavefunction and Orbital data container."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    basis: Optional[str] = Field(None, description="Basis set specification")
-    orbitals_a: Optional[Any] = Field(None, description="Alpha molecular orbital coefficients")
-    orbitals_b: Optional[Any] = Field(None, description="Beta molecular orbital coefficients")
-    occupations_a: Optional[Any] = Field(None, description="Alpha orbital occupations")
-    occupations_b: Optional[Any] = Field(None, description="Beta orbital occupations")
-    density_a: Optional[Any] = Field(None, description="Alpha electron density matrix")
-    density_b: Optional[Any] = Field(None, description="Beta electron density matrix")
-    fock_a: Optional[Any] = Field(None, description="Alpha Fock matrix")
-    fock_b: Optional[Any] = Field(None, description="Beta Fock matrix")
-
-
-class QCSchemaAtomicResult(BaseModel):
-    """QCSchema v1/v2 AtomicResult standard execution record."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    schema_name: str = Field(default="qcschema_output", description="QCSchema protocol identifier")
-    schema_version: int = Field(default=1, description="QCSchema protocol version")
-    molecule: QCSchemaMolecule = Field(..., description="Target molecular specification")
-    driver: QCSchemaDriver = Field(..., description="Execution calculation driver")
-    model: QCSchemaModel = Field(..., description="Computational model specification")
-    return_result: Union[float, List[float], List[List[float]], Dict[str, Any]] = Field(
-        ..., description="Primary calculation output result"
-    )
-    properties: QCSchemaProperties = Field(default_factory=QCSchemaProperties, description="Computed properties")
-    wavefunction: Optional[QCSchemaWavefunction] = Field(default=None, description="Wavefunction records")
-    provenance: Dict[str, Any] = Field(default_factory=dict, description="Execution provenance metadata")
-    stdout: Optional[str] = Field(default=None, description="Captured standard output")
-    stderr: Optional[str] = Field(default=None, description="Captured standard error")
-    success: bool = Field(default=True, description="Calculation success status")
-    error: Optional[Dict[str, Any]] = Field(default=None, description="Error details if execution failed")
-
-
-class QCSchemaOptimizationResult(BaseModel):
-    """QCSchema v1/v2 Geometry Optimization standard execution record."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    schema_name: str = Field(default="qcschema_optimization_output", description="QCSchema protocol identifier")
-    schema_version: int = Field(default=1, description="QCSchema protocol version")
-    initial_molecule: QCSchemaMolecule = Field(..., description="Starting unrelaxed geometry")
-    final_molecule: QCSchemaMolecule = Field(..., description="Converged geometry")
-    trajectory: List[QCSchemaAtomicResult] = Field(default_factory=list, description="Optimization steps")
-    energies: List[float] = Field(default_factory=list, description="Energy per optimization step")
-    provenance: Dict[str, Any] = Field(default_factory=dict, description="Execution provenance metadata")
-    success: bool = Field(default=True, description="Optimization convergence success status")
-
-
-# =============================================================================
-# 8. BASIN RECORDS SCHEMA
-# =============================================================================
-
-class BasinRecord(BaseModel):
-    """Pydantic model for HDF5 Basin Record schema enforcement."""
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    molecule_name: str = Field(..., description="Name or identifier of the molecule")
-    xyz_coordinates: Optional[Any] = Field(None, description="Atomic coordinates array or list")
-    energy: float = Field(..., description="Total energy of the basin in Hartrees")
-    symmetry_group: str = Field(default="C1", description="Point group symmetry")
-    LAM_TRIGGER_REQUIRED: bool = Field(default=False, description="Large Amplitude Motion trigger flag")
-
-    @field_validator("xyz_coordinates", mode="before")
-    @classmethod
-    def validate_xyz(cls, v: Any) -> Any:
-        return strip_tensor_to_numpy(v)
-
-
-# =============================================================================
-# 9. MASTER WRITE GATEKEEPER & MASTER DATA AGGREGATOR
-# =============================================================================
-
-def resolve_landscape_h5_path(custom_path: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the authoritative path to landscape.h5."""
-    if custom_path is not None:
-        p = resolve_mapped_path(custom_path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        return p
-
-    env_path = os.environ.get("COCHEM_LANDSCAPE_H5")
-    if env_path:
-        p = resolve_mapped_path(env_path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        return p
-
-    artifact_dir = get_artifact_dir()
-    db_dir = artifact_dir / "Databases"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir / "landscape.h5"
-
-
-class MasterWriteGatekeeper:
-    """Enforces that HDF5 writes are strictly executed by the master node.
-
-    Worker nodes attempting direct writes are either rejected with NonMasterWriteRejectionError
-    or forwarded cleanly through the local SQLite WAL queue to be aggregated asynchronously.
-    """
-
-    def __init__(
-        self,
-        h5_path: Optional[Union[str, Path]] = None,
-        ipc_db_path: Optional[Union[str, Path]] = None,
-    ) -> None:
-        self.h5_path = resolve_landscape_h5_path(h5_path)
-        self.lock_path = Path(str(self.h5_path) + ".lock")
-        self.ipc_queue = SQLiteWALQueue(db_path=ipc_db_path)
-
-    @property
-    def is_master(self) -> bool:
-        return is_master_node()
-
-    def write_basin(
-        self,
-        basin_id: str,
-        record: Union[BasinRecord, Dict[str, Any]],
-        allow_ipc_forward: bool = True,
-    ) -> Union[bool, int]:
-        """Writes a basin record to HDF5 if master, or forwards to IPC stream if worker."""
-        if not isinstance(record, BasinRecord):
-            record = BasinRecord(**record)
-
-        if self.is_master:
-            with AtomicFileLock(self.lock_path, timeout=15.0):
-                with h5py.File(self.h5_path, "a") as f:
-                    grp = f.require_group(f"basins/{basin_id}")
-                    grp.attrs["molecule_name"] = record.molecule_name
-                    grp.attrs["energy"] = float(record.energy)
-                    grp.attrs["symmetry_group"] = record.symmetry_group
-                    grp.attrs["LAM_TRIGGER_REQUIRED"] = bool(record.LAM_TRIGGER_REQUIRED)
-                    if record.xyz_coordinates is not None:
-                        coords = strip_tensor_to_numpy(record.xyz_coordinates)
-                        write_dataset_filtered(
-                            grp,
-                            "xyz_coordinates",
-                            coords,
-                            compression="gzip",
-                            compression_opts=6,
-                            shuffle=True,
-                            fletcher32=True,
-                        )
-            return True
-
-        if not allow_ipc_forward:
-            raise NonMasterWriteRejectionError(
-                f"Direct HDF5 write denied: Process is not the master node. Target: {self.h5_path}"
-            )
-
-        rec_dict = record.model_dump()
-        rec_id = self.ipc_queue.push(
-            topic="basin_stream",
-            payload={"basin_id": basin_id, "data": rec_dict},
-            sender=f"worker_pid_{os.getpid()}",
-        )
-        return rec_id
-
-
-class MasterDataAggregator:
-    """Master node collector service that drains SQLite WAL streams and serializes data into landscape.h5."""
-
-    def __init__(
-        self,
-        h5_path: Optional[Union[str, Path]] = None,
-        ipc_db_path: Optional[Union[str, Path]] = None,
-    ) -> None:
-        self.h5_path = resolve_landscape_h5_path(h5_path)
-        self.ipc_queue = SQLiteWALQueue(db_path=ipc_db_path)
-        self.gatekeeper = MasterWriteGatekeeper(h5_path=self.h5_path, ipc_db_path=ipc_db_path)
-
-    def aggregate_pending(self, topic: Optional[str] = None, limit: int = 500) -> int:
-        """Pulls pending records from SQLite WAL and writes them cleanly to HDF5 on the master node."""
-        if not is_master_node():
-            raise NonMasterWriteRejectionError("MasterDataAggregator can only execute on the master node.")
-
-        records = self.ipc_queue.pop_pending(topic=topic, limit=limit)
-        if not records:
-            return 0
-
-        for r in records:
-            topic_name = r.get("topic")
-            payload = r.get("payload", {})
-
-            if topic_name == "basin_stream":
-                basin_id = payload.get("basin_id")
-                basin_data = payload.get("data")
-                if basin_id and basin_data:
-                    self.gatekeeper.write_basin(basin_id, basin_data, allow_ipc_forward=False)
-
-            elif topic_name == "qcschema_stream":
-                calc_id = payload.get("calc_id")
-                qcschema_data = payload.get("data")
-                if calc_id and qcschema_data:
-                    manager = CoChemHDF5Manager(h5_path=self.h5_path)
-                    manager.write_qcschema_result(calc_id, qcschema_data)
-
-            elif topic_name in ("optimization_stream", "trajectory_stream"):
-                opt_id = payload.get("opt_id") or payload.get("trajectory_id")
-                opt_data = payload.get("data")
-                if opt_id and opt_data:
-                    manager = CoChemHDF5Manager(h5_path=self.h5_path)
-                    manager.write_qcschema_optimization_result(opt_id, opt_data)
-
-        return len(records)
-
-
-# =============================================================================
-# 10. HIGH-LEVEL COCHEM HDF5 ARCHITECTURE MANAGER
-# =============================================================================
-
-class CoChemHDF5Manager:
-    """Master HDF5 Data Architecture Manager for the CoChem ecosystem.
-
-    Provides high-performance, single-master, filter-enforced data serialization,
-    QCSchema compliance, and real-time IPC streaming.
-    """
-
-    SCHEMA_VERSION = "4.0.0"
-
-    def __init__(
-        self,
-        h5_path: Optional[Union[str, Path]] = None,
-        ipc_db_path: Optional[Union[str, Path]] = None,
-        strict_filters: bool = True,
-    ) -> None:
-        self.h5_path = resolve_landscape_h5_path(h5_path)
-        self.lock_path = Path(str(self.h5_path) + ".lock")
-        self.strict_filters = strict_filters
-        self.ipc_queue = SQLiteWALQueue(db_path=ipc_db_path)
-        self.gatekeeper = MasterWriteGatekeeper(h5_path=self.h5_path, ipc_db_path=ipc_db_path)
-        self._init_landscape_file()
-
-    def _init_landscape_file(self) -> None:
-        """Initializes the landscape HDF5 file topology with atomic locking."""
-        if not is_master_node():
+    def __init__(self, kill_on_close: bool = True) -> None:
+        self.handle: Optional[int] = None
+        self._is_windows = platform.system() == "Windows"
+        if not self._is_windows:
             return
 
-        with AtomicFileLock(self.lock_path, timeout=15.0):
-            with h5py.File(self.h5_path, "a") as f:
-                if "version" not in f.attrs:
-                    f.attrs["version"] = self.SCHEMA_VERSION
-                    f.attrs["created_at"] = datetime.now(timezone.utc).isoformat()
-                for grp in ["basins", "calculations", "molecules", "trajectories", "physics"]:
-                    if grp not in f:
-                        f.create_group(grp)
+        try:
+            self.handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+            if not self.handle:
+                logger.warning("Failed to create Win32 Job Object.")
+                return
 
-    @contextmanager
-    def transaction(self, mode: str = "a") -> Generator[h5py.File, None, None]:
-        """Provides an atomic, lock-protected transaction on landscape.h5."""
-        if mode in ("w", "a", "r+") and not is_master_node():
-            raise NonMasterWriteRejectionError(
-                f"Write transaction denied: Process is not the master node. Target: {self.h5_path}"
-            )
-
-        with AtomicFileLock(self.lock_path, timeout=15.0):
-            with h5py.File(self.h5_path, mode) as f:
-                yield f
-
-    def write_dataset_filtered(
-        self,
-        group_path: str,
-        dataset_name: str,
-        data: Any,
-        compression: Optional[str] = "gzip",
-        compression_opts: int = 6,
-        shuffle: bool = True,
-        fletcher32: bool = True,
-        chunks: Optional[Any] = True,
-        attrs: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Writes a filtered dataset to the HDF5 store under group_path."""
-        with self.transaction("a") as f:
-            grp = f.require_group(group_path)
-            write_dataset_filtered(
-                grp,
-                dataset_name,
-                data,
-                compression=compression,
-                compression_opts=compression_opts,
-                shuffle=shuffle,
-                fletcher32=fletcher32,
-                chunks=chunks,
-                attrs=attrs,
-                strict=self.strict_filters,
-            )
-
-    # -------------------------------------------------------------------------
-    # Basin Operations
-    # -------------------------------------------------------------------------
-
-    def write_basin_record(self, basin_id: str, record: Union[BasinRecord, Dict[str, Any]]) -> None:
-        """Writes a BasinRecord into landscape.h5."""
-        self.gatekeeper.write_basin(basin_id, record, allow_ipc_forward=False)
-
-    def read_basin_record(self, basin_id: str) -> BasinRecord:
-        """Reads a BasinRecord from landscape.h5."""
-        with self.transaction("r") as f:
-            grp_path = f"basins/{basin_id}"
-            if grp_path not in f:
-                raise DatasetNotFoundError(f"Basin record '{basin_id}' not found.")
-            grp = f[grp_path]
-            coords: Optional[np.ndarray] = None
-            if "xyz_coordinates" in grp:
-                coords = grp["xyz_coordinates"][()]
-
-            return BasinRecord(
-                molecule_name=str(grp.attrs.get("molecule_name", "")),
-                xyz_coordinates=coords,
-                energy=float(grp.attrs.get("energy", 0.0)),
-                symmetry_group=str(grp.attrs.get("symmetry_group", "C1")),
-                LAM_TRIGGER_REQUIRED=bool(grp.attrs.get("LAM_TRIGGER_REQUIRED", False)),
-            )
-
-    def list_basins(self) -> List[str]:
-        """Lists all registered basin IDs."""
-        with self.transaction("r") as f:
-            if "basins" in f:
-                return list(f["basins"].keys())
-            return []
-
-    # -------------------------------------------------------------------------
-    # QCSchema Serialization & Deserialization
-    # -------------------------------------------------------------------------
-
-    def write_qcschema_result(
-        self,
-        calc_id: str,
-        result: Union[QCSchemaAtomicResult, Dict[str, Any], Any],
-    ) -> None:
-        """Serializes a QCSchema AtomicResult (v1 or v2) or QCElemental model into landscape.h5."""
-        if not is_master_node():
-            raise NonMasterWriteRejectionError("Only master node can commit QCSchema results to HDF5.")
-
-        if isinstance(result, QCSchemaAtomicResult):
-            atomic_res = result
-        elif isinstance(result, dict):
-            # Check if dict is in v2 format (has input_data)
-            if "input_data" in result and "molecule" in result:
-                inp_data = result["input_data"]
-                spec = inp_data.get("specification", {}) if isinstance(inp_data, dict) else getattr(inp_data, "specification", {})
-                driver = inp_data.get("driver") or getattr(spec, "driver", None) or (spec.get("driver") if isinstance(spec, dict) else "energy")
-                model_spec = inp_data.get("model") or getattr(spec, "model", None) or (spec.get("model") if isinstance(spec, dict) else {"method": "unknown"})
-                if isinstance(model_spec, dict):
-                    model_obj = QCSchemaModel(**model_spec)
-                else:
-                    model_obj = QCSchemaModel(method=getattr(model_spec, "method", "unknown"), basis=getattr(model_spec, "basis", None))
-
-                mol_data = result["molecule"]
-                if isinstance(mol_data, dict):
-                    mol_obj = QCSchemaMolecule(
-                        symbols=mol_data.get("symbols", []),
-                        geometry=mol_data.get("geometry", []),
-                        molecular_charge=float(mol_data.get("molecular_charge", 0.0)),
-                        molecular_multiplicity=int(mol_data.get("molecular_multiplicity", 1)),
-                    )
-                else:
-                    mol_obj = QCSchemaMolecule(
-                        symbols=list(getattr(mol_data, "symbols", [])),
-                        geometry=list(getattr(mol_data, "geometry", [])),
-                        molecular_charge=float(getattr(mol_data, "molecular_charge", 0.0)),
-                        molecular_multiplicity=int(getattr(mol_data, "molecular_multiplicity", 1)),
-                    )
-
-                props_data = result.get("properties", {})
-                props_dict = props_data.model_dump() if hasattr(props_data, "model_dump") else (props_data if isinstance(props_data, dict) else props_data.dict())
-
-                atomic_res = QCSchemaAtomicResult(
-                    schema_name=str(result.get("schema_name", "qcschema_output")),
-                    schema_version=int(result.get("schema_version", 1)),
-                    molecule=mol_obj,
-                    driver=QCSchemaDriver(driver.value if hasattr(driver, "value") else str(driver)),
-                    model=model_obj,
-                    return_result=result.get("return_result", 0.0),
-                    properties=QCSchemaProperties(**props_dict),
-                    provenance=result.get("provenance", {}) if isinstance(result.get("provenance"), dict) else {},
-                    success=bool(result.get("success", True)),
+            if kill_on_close:
+                info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                res = ctypes.windll.kernel32.SetInformationJobObject(
+                    self.handle,
+                    JobObjectExtendedLimitInformation,
+                    ctypes.byref(info),
+                    ctypes.sizeof(info),
                 )
-            else:
-                atomic_res = QCSchemaAtomicResult.model_validate(result)
-        elif hasattr(result, "input_data") and hasattr(result, "molecule"):
-            # Object is a v2 AtomicResult (e.g. qcelemental v2)
-            inp_data = result.input_data
-            spec = getattr(inp_data, "specification", None)
-            driver = getattr(inp_data, "driver", None) or getattr(spec, "driver", "energy")
-            model_spec = getattr(inp_data, "model", None) or getattr(spec, "model", None)
-            if model_spec is not None:
-                method = getattr(model_spec, "method", "unknown")
-                basis = getattr(model_spec, "basis", None)
-            else:
-                method = "unknown"
-                basis = None
-            model_obj = QCSchemaModel(method=method, basis=basis)
+                if not res:
+                    logger.warning("Failed to set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on Job Object.")
+        except Exception as exc:
+            logger.warning(f"Error initializing WindowsJobObject: {exc}")
+            self.handle = None
 
-            mol_data = result.molecule
-            mol_obj = QCSchemaMolecule(
-                symbols=list(getattr(mol_data, "symbols", [])),
-                geometry=list(getattr(mol_data, "geometry", [])),
-                molecular_charge=float(getattr(mol_data, "molecular_charge", 0.0)),
-                molecular_multiplicity=int(getattr(mol_data, "molecular_multiplicity", 1)),
+    def assign_pid(self, pid: int) -> bool:
+        """Assigns an active process PID to the Win32 Job Object."""
+        if not self._is_windows or not self.handle:
+            return False
+        try:
+            proc_handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_SET_QUOTA | PROCESS_TERMINATE,
+                False,
+                pid,
             )
+            if not proc_handle:
+                proc_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+            if not proc_handle:
+                return False
 
-            props_data = getattr(result, "properties", {})
-            props_dict = props_data.model_dump() if hasattr(props_data, "model_dump") else (props_data if isinstance(props_data, dict) else props_data.dict())
+            res = ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, proc_handle)
+            ctypes.windll.kernel32.CloseHandle(proc_handle)
+            return bool(res)
+        except Exception as exc:
+            logger.debug(f"Failed to assign PID {pid} to Job Object: {exc}")
+            return False
 
-            atomic_res = QCSchemaAtomicResult(
-                schema_name="qcschema_output",
-                schema_version=1,
-                molecule=mol_obj,
-                driver=QCSchemaDriver(driver.value if hasattr(driver, "value") else str(driver)),
-                model=model_obj,
-                return_result=getattr(result, "return_result", 0.0),
-                properties=QCSchemaProperties(**props_dict),
-                success=bool(getattr(result, "success", True)),
-            )
-        elif QCElAtomicResult is not None and isinstance(result, QCElAtomicResult):
-            dumped = result.model_dump() if hasattr(result, "model_dump") else result.dict()
-            atomic_res = QCSchemaAtomicResult.model_validate(dumped)
-        else:
-            atomic_res = QCSchemaAtomicResult.model_validate(result)
+    def assign_popen(self, proc: subprocess.Popen) -> bool:
+        """Assigns a subprocess.Popen instance to the Win32 Job Object."""
+        return self.assign_pid(proc.pid)
+
+    def close(self) -> None:
+        """Closes the Job Object handle, terminating all assigned processes if kill_on_close is set."""
+        if self._is_windows and self.handle:
+            try:
+                ctypes.windll.kernel32.CloseHandle(self.handle)
+            except Exception:
+                pass
+            self.handle = None
+
+    def __enter__(self) -> WindowsJobObject:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
 
-        with self.transaction("a") as f:
-            calc_grp = f.require_group(f"calculations/{calc_id}")
-            calc_grp.attrs["schema_name"] = atomic_res.schema_name
-            calc_grp.attrs["schema_version"] = atomic_res.schema_version
-            calc_grp.attrs["driver"] = atomic_res.driver.value if hasattr(atomic_res.driver, "value") else str(atomic_res.driver)
-            calc_grp.attrs["method"] = atomic_res.model.method
-            if atomic_res.model.basis:
-                calc_grp.attrs["basis"] = atomic_res.model.basis
-            calc_grp.attrs["success"] = atomic_res.success
-            if isinstance(atomic_res.return_result, (int, float)):
-                calc_grp.attrs["return_result"] = float(atomic_res.return_result)
-            elif isinstance(atomic_res.return_result, (list, tuple, np.ndarray)):
-                arr_res = np.asarray(atomic_res.return_result)
-                if arr_res.size > 20:
-                    write_dataset_filtered(
-                        calc_grp,
-                        "return_result",
-                        arr_res,
-                        compression="gzip",
-                        compression_opts=6,
-                        shuffle=True,
-                        fletcher32=True,
-                    )
-                else:
-                    calc_grp.attrs["return_result"] = json.dumps(atomic_res.return_result)
-            else:
-                calc_grp.attrs["return_result"] = json.dumps(atomic_res.return_result)
+# =====================================================================
+# Process Tracking and Zombie Reaper
+# =====================================================================
 
-            # Molecule group
-            mol_grp = calc_grp.require_group("molecule")
-            mol_grp.attrs["molecular_charge"] = atomic_res.molecule.molecular_charge
-            mol_grp.attrs["molecular_multiplicity"] = atomic_res.molecule.molecular_multiplicity
+def get_active_popen_processes() -> List[subprocess.Popen]:
+    """Returns a list of currently running subprocess.Popen processes tracked globally."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+        return list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
 
-            write_dataset_filtered(
-                mol_grp,
-                "symbols",
-                atomic_res.molecule.symbols,
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
-            write_dataset_filtered(
-                mol_grp,
-                "geometry",
-                np.array(atomic_res.molecule.geometry, dtype=np.float64),
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
 
-            # Properties group
-            prop_grp = calc_grp.require_group("properties")
-            prop_dict = atomic_res.properties.model_dump()
-            for pk, pv in prop_dict.items():
-                if pv is not None:
-                    if isinstance(pv, (int, float, str, bool)):
-                        prop_grp.attrs[pk] = pv
+def register_popen_process(proc: subprocess.Popen) -> None:
+    """Registers a Popen child process for automatic zombie cleanup on script exit."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+        if proc.poll() is None and proc not in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+            _GLOBAL_ACTIVE_POPEN_PROCESSES.append(proc)
+
+
+def unregister_popen_process(proc: subprocess.Popen) -> None:
+    """Unregisters a Popen child process from global tracking."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        if proc in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+            _GLOBAL_ACTIVE_POPEN_PROCESSES.remove(proc)
+
+
+def kill_process_tree(pid: int, timeout: float = 3.0) -> None:
+    """Terminates a process and all of its recursive child processes."""
+    if HAS_PSUTIL:
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            try:
+                parent.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+
+            procs_to_wait = [p for p in children + [parent] if psutil.pid_exists(p.pid)]
+            if procs_to_wait:
+                gone, alive = psutil.wait_procs(procs_to_wait, timeout=timeout)
+                for p in alive:
+                    try:
+                        p.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    else:
+        try:
+            if platform.system() == "Windows":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+            elif hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                try:
+                    getpgid_fn = getattr(os, "getpgid", None)
+                    killpg_fn = getattr(os, "killpg", None)
+                    if getpgid_fn is not None and killpg_fn is not None:
+                        killpg_fn(getpgid_fn(pid), signal.SIGTERM)
                     else:
-                        prop_grp.attrs[pk] = json.dumps(pv)
+                        os.kill(pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError, OSError):
+                    os.kill(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
 
-            # Wavefunction group (if present)
-            if atomic_res.wavefunction is not None:
-                wf_grp = calc_grp.require_group("wavefunction")
-                if atomic_res.wavefunction.basis:
-                    wf_grp.attrs["basis"] = atomic_res.wavefunction.basis
 
-                wf_fields = [
-                    ("orbitals_a", atomic_res.wavefunction.orbitals_a),
-                    ("orbitals_b", atomic_res.wavefunction.orbitals_b),
-                    ("occupations_a", atomic_res.wavefunction.occupations_a),
-                    ("occupations_b", atomic_res.wavefunction.occupations_b),
-                    ("density_a", atomic_res.wavefunction.density_a),
-                    ("density_b", atomic_res.wavefunction.density_b),
-                    ("fock_a", atomic_res.wavefunction.fock_a),
-                    ("fock_b", atomic_res.wavefunction.fock_b),
-                ]
-                for wname, wval in wf_fields:
-                    if wval is not None:
-                        warr = strip_tensor_to_numpy(wval)
-                        write_dataset_filtered(
-                            wf_grp,
-                            wname,
-                            warr,
-                            compression="gzip",
-                            compression_opts=6,
-                            shuffle=True,
-                            fletcher32=True,
+def cleanup_zombie_processes() -> int:
+    """Atexit / Signal hook to terminate any dangling Popen child process trees."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    count = 0
+    with _GLOBAL_TRACKING_LOCK:
+        active_list = list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
+        _GLOBAL_ACTIVE_POPEN_PROCESSES.clear()
+
+    for proc in active_list:
+        if proc.poll() is None:
+            try:
+                pid = proc.pid
+                kill_process_tree(pid)
+                count += 1
+                logger.info(f"Terminated background child process PID {pid}")
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                logger.warning(f"Failed to terminate process PID {proc.pid}: {e}")
+    return count
+
+
+class ZombieReaper:
+    """Global and instance zombie sweeper with signal handlers and Win32 Job Object integration."""
+
+    @staticmethod
+    def reap_all() -> int:
+        """Invokes global process cleanup."""
+        return cleanup_zombie_processes()
+
+    @staticmethod
+    def reap_pid(pid: int, timeout: float = 3.0) -> None:
+        """Kills a specific process tree."""
+        kill_process_tree(pid, timeout=timeout)
+
+
+def _signal_cleanup_handler(signum: int, frame: Any) -> None:
+    logger.info(f"Received signal {signum}. Triggering zombie reaper cleanup...")
+    cleanup_zombie_processes()
+    sys.exit(128 + signum)
+
+
+def _register_signal_handlers() -> None:
+    try:
+        if threading.current_thread() is threading.main_thread():
+            for sig_name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"):
+                if hasattr(signal, sig_name):
+                    sig = getattr(signal, sig_name)
+                    try:
+                        signal.signal(sig, _signal_cleanup_handler)
+                    except (ValueError, OSError, RuntimeError):
+                        pass
+    except Exception:
+        pass
+
+
+atexit.register(cleanup_zombie_processes)
+_register_signal_handlers()
+
+
+# =====================================================================
+# NUMA-Aware Hardware Thread-Pinning & Oversubscription Prevention
+# =====================================================================
+
+def detect_cpu_topology() -> Dict[str, Any]:
+    """Evaluates physical host CPU topology (cores, sockets, NUMA nodes).
+
+    Returns a structured dictionary containing logical cores, physical cores,
+    sockets, NUMA nodes with mapped CPU core IDs, and multi-threading ratio.
+    """
+    logical_cores = psutil.cpu_count(logical=True) if HAS_PSUTIL else (os.cpu_count() or 1)
+    physical_cores = (psutil.cpu_count(logical=False) if HAS_PSUTIL else None) or logical_cores
+
+    numa_nodes: List[Dict[str, Any]] = []
+    sockets = 1
+
+    if platform.system() == "Linux":
+        node_dir = Path("/sys/devices/system/node")
+        if node_dir.is_dir():
+            for entry in sorted(node_dir.glob("node[0-9]*")):
+                try:
+                    node_id = int(entry.name.replace("node", ""))
+                    cpulist_file = entry / "cpulist"
+                    cpus: List[int] = []
+                    if cpulist_file.exists():
+                        raw = cpulist_file.read_text(encoding="utf-8").strip()
+                        for part in raw.split(","):
+                            if "-" in part:
+                                start, end = map(int, part.split("-"))
+                                cpus.extend(range(start, end + 1))
+                            elif part.isdigit():
+                                cpus.append(int(part))
+                    numa_nodes.append({"node_id": node_id, "cpus": cpus})
+                except Exception:
+                    pass
+            if numa_nodes:
+                sockets = max(1, len(numa_nodes))
+
+    elif platform.system() == "Windows":
+        try:
+            highest_node = wintypes.ULONG()
+            if ctypes.windll.kernel32.GetNumaHighestNodeNumber(ctypes.byref(highest_node)):
+                total_nodes = highest_node.value + 1
+                sockets = max(1, total_nodes)
+                cores_per_node = max(1, logical_cores // total_nodes)
+                for nid in range(total_nodes):
+                    node_cpus = list(range(nid * cores_per_node, min(logical_cores, (nid + 1) * cores_per_node)))
+                    numa_nodes.append({"node_id": nid, "cpus": node_cpus})
+        except Exception:
+            pass
+
+    if not numa_nodes:
+        numa_nodes.append({"node_id": 0, "cpus": list(range(logical_cores))})
+        sockets = 1
+
+    return {
+        "logical_cores": logical_cores,
+        "physical_cores": physical_cores,
+        "sockets": sockets,
+        "numa_nodes": numa_nodes,
+        "is_numa": len(numa_nodes) > 1,
+        "threads_per_core": max(1, logical_cores // max(1, physical_cores)),
+    }
+
+
+class CPUTopologyManager:
+    """Evaluates physical host topology (cores, sockets, NUMA nodes) and manages core allocations."""
+
+    def __init__(self, topology: Optional[Dict[str, Any]] = None) -> None:
+        self.topology = topology or detect_cpu_topology()
+        self.logical_cores: int = self.topology.get("logical_cores", 1)
+        self.physical_cores: int = self.topology.get("physical_cores", 1)
+        self.sockets: int = self.topology.get("sockets", 1)
+        self.numa_nodes: List[Dict[str, Any]] = self.topology.get("numa_nodes", [])
+        self.is_numa: bool = self.topology.get("is_numa", False)
+
+    def get_topology(self) -> Dict[str, Any]:
+        """Returns cached CPU topology specification."""
+        return dict(self.topology)
+
+    def get_numa_node_for_core(self, core_id: int) -> int:
+        """Determines the NUMA node index for a given CPU core."""
+        for node in self.numa_nodes:
+            if core_id in node.get("cpus", []):
+                return int(node.get("node_id", 0))
+        return 0
+
+    def allocate_cores(self, count: int, numa_node: Optional[int] = None) -> List[int]:
+        """Allocates contiguous CPU cores respecting NUMA node boundaries."""
+        if numa_node is not None:
+            for node in self.numa_nodes:
+                if node.get("node_id") == numa_node:
+                    cpus: List[int] = list(node.get("cpus", []))
+                    return cpus[:count] if count <= len(cpus) else cpus
+        all_cpus: List[int] = [c for node in self.numa_nodes for c in node.get("cpus", [])]
+        if not all_cpus:
+            all_cpus = list(range(self.logical_cores))
+        return all_cpus[:count]
+
+    def pin_process(self, pid: int, cpu_cores: Optional[List[int]] = None) -> bool:
+        """Pins an active process to designated CPU cores."""
+        return enforce_cpu_affinity(pid, cpu_cores)
+
+    def calculate_thread_affinity(self, rank: int, threads_per_rank: int) -> List[int]:
+        """Calculates thread pinning offsets for multi-rank execution."""
+        start_core = (rank * threads_per_rank) % max(1, self.logical_cores)
+        return [(start_core + i) % self.logical_cores for i in range(threads_per_rank)]
+
+
+def enforce_cpu_affinity(pid: int, cpu_cores: Optional[List[int]] = None) -> bool:
+    """Pins a process to specified CPU cores using OS-level affinity control.
+
+    Gracefully handles macOS Darwin (which does not support process CPU affinity)
+    and Windows processor group constraints without raising unhandled exceptions.
+    """
+    if cpu_cores is None or len(cpu_cores) == 0:
+        return True
+    if not HAS_PSUTIL:
+        logger.warning("psutil unavailable; cannot enforce CPU affinity.")
+        return False
+    try:
+        proc = psutil.Process(pid)
+        proc.cpu_affinity(cpu_cores)
+        logger.info(f"Pinned PID {pid} to CPU cores {cpu_cores} [M]")
+        return True
+    except (AttributeError, NotImplementedError):
+        # Graceful handling for macOS Darwin where cpu_affinity is unsupported
+        logger.debug(f"CPU affinity control is not supported on this platform ({platform.system()}).")
+        return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError, ValueError) as e:
+        logger.warning(f"Failed to set CPU affinity on PID {pid}: {e}")
+        return False
+
+
+def detect_mpi_environment(env: Optional[Dict[str, str]] = None) -> bool:
+    """Detects if an OpenMPI, MPICH, SLURM, or ORCA multi-rank MPI environment is active."""
+    target_env = env if env is not None else os.environ
+
+    # Check for OpenMPI / PMI / SLURM / MPI multi-process variables
+    mpi_size_vars = ("OMPI_COMM_WORLD_SIZE", "PMI_SIZE", "SLURM_NTASKS", "MPI_SIZE", "OMPI_UNIVERSE_SIZE", "MV2_COMM_WORLD_SIZE")
+    for var in mpi_size_vars:
+        val = target_env.get(var)
+        if val is not None:
+            try:
+                if int(val) > 1:
+                    return True
+            except ValueError:
+                pass
+
+    mpi_rank_indicators = ("MPI_LOCALRANKID", "OMPI_COMM_WORLD_RANK", "PMI_RANK", "PMIX_RANK", "SLURM_PROCID")
+    for var in mpi_rank_indicators:
+        if var in target_env:
+            return True
+
+    mpirun_in_use = target_env.get("MPIRUN_IN_USE", "").strip().lower()
+    if mpirun_in_use in ("1", "true", "yes"):
+        return True
+
+    return False
+
+
+def sanitize_mpi_environment(env: Optional[Dict[str, str]] = None, force_single_thread: bool = False) -> Dict[str, str]:
+    """Sanitizes environment variables for MPI workloads to prevent core oversubscription.
+
+    When multi-rank MPI execution is detected or force_single_thread is True, forces:
+    OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
+    VECLIB_MAXIMUM_THREADS="1", NUMEXPR_NUM_THREADS="1", BLIS_NUM_THREADS="1".
+    """
+    target_env = dict(env) if env is not None else os.environ.copy()
+
+    if force_single_thread or detect_mpi_environment(target_env):
+        target_env["OMP_NUM_THREADS"] = "1"
+        target_env["MKL_NUM_THREADS"] = "1"
+        target_env["OPENBLAS_NUM_THREADS"] = "1"
+        target_env["VECLIB_MAXIMUM_THREADS"] = "1"
+        target_env["NUMEXPR_NUM_THREADS"] = "1"
+        target_env["BLIS_NUM_THREADS"] = "1"
+        logger.info("Sanitized MPI environment: forced OMP/MKL/OPENBLAS/VECLIB/NUMEXPR/BLIS=1 to prevent oversubscription.")
+
+    return target_env
+
+
+# =====================================================================
+# Pre-Flight Disk Quota, 64KB SHA-256 Probe & RAM-Disk Routing
+# =====================================================================
+
+def lock_directory_permissions(target_dir: Union[str, Path]) -> bool:
+    """Applies strict directory access controls: chmod 0o700 on POSIX or icacls on Windows."""
+    path = Path(target_dir).resolve()
+    if not path.exists():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(f"Could not create directory {path} to lock permissions: {exc}")
+            return False
+
+    if platform.system() != "Windows":
+        try:
+            os.chmod(str(path), 0o700)
+            return True
+        except OSError as exc:
+            logger.warning(f"Failed to chmod 0o700 on {path}: {exc}")
+            return False
+    else:
+        try:
+            username = os.environ.get("USERNAME") or os.environ.get("USER") or "Everyone"
+            cmd = ["icacls", str(path), "/inheritance:r", "/grant:r", f"{username}:(OI)(CI)F"]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            return res.returncode == 0
+        except Exception as exc:
+            logger.warning(f"Failed to lock Windows ACLs on {path}: {exc}")
+            return False
+
+
+def verify_scratch_quota_and_io(target_dir: Union[str, Path], required_gb: float = 50.0) -> bool:
+    """Executes pre-flight storage quota assertion and 64KB unbuffered SHA-256 binary probe.
+
+    Raises DiskQuotaError if available storage is less than required_gb.
+    Raises IOError if binary readback SHA-256 checksum fails.
+    """
+    target_path = Path(target_dir).resolve()
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    usage = shutil.disk_usage(str(target_path))
+    free_gb = usage.free / (1024 ** 3)
+
+    if free_gb < required_gb:
+        logger.error(f"Insufficient scratch disk space at {target_path}: {free_gb:.2f} GB free, {required_gb:.2f} GB required.")
+        raise DiskQuotaError(required_gb=required_gb, available_gb=free_gb, path=target_path)
+
+    probe_file = target_path / f".cochem_io_probe_{os.getpid()}_{int(time.time() * 1000)}.tmp"
+    probe_data = os.urandom(64 * 1024)  # 64 KB physical binary probe
+    expected_hash = hashlib.sha256(probe_data).hexdigest()
+
+    try:
+        with open(probe_file, "wb") as f:
+            f.write(probe_data)
+            f.flush()
+            os.fsync(f.fileno())
+
+        with open(probe_file, "rb") as f:
+            read_back_data = f.read()
+
+        read_hash = hashlib.sha256(read_back_data).hexdigest()
+        probe_file.unlink(missing_ok=True)
+
+        if expected_hash != read_hash:
+            raise IOError(f"Scratch I/O integrity probe failed: SHA-256 mismatch at {target_path}")
+
+        logger.info(f"Verified scratch quota and I/O at {target_path} ({free_gb:.2f} GB free, {required_gb:.2f} GB required) [M]")
+        return True
+    except (OSError, IOError) as exc:
+        probe_file.unlink(missing_ok=True)
+        logger.error(f"Scratch I/O verification error at {target_path}: {exc}")
+        raise
+
+
+def verify_scratch_io(scratch_dir: Union[str, Path], required_mb: int = 100) -> bool:
+    """Backward-compatible scratch I/O verification wrapper."""
+    required_gb = required_mb / 1024.0
+    try:
+        return verify_scratch_quota_and_io(scratch_dir, required_gb=required_gb)
+    except (DiskQuotaError, IOError, OSError):
+        return False
+
+
+class RAMDiskOverlayManager:
+    """Manages high-speed RAM-disk execution overlays and quantum artifact provenance synchronization."""
+
+    def __init__(self, threshold_ram_gb: float = 128.0) -> None:
+        self.threshold_ram_gb = threshold_ram_gb
+
+    def get_total_host_ram_gb(self) -> float:
+        """Returns physical host memory in Gigabytes."""
+        if HAS_PSUTIL:
+            total_bytes: float = float(psutil.virtual_memory().total)
+            return float(total_bytes / (1024 ** 3))
+        return 0.0
+
+    def is_ramdisk_eligible(self, min_ram_gb: Optional[float] = None) -> bool:
+        """Checks if host RAM exceeds the minimum provisioning threshold."""
+        threshold = min_ram_gb if min_ram_gb is not None else self.threshold_ram_gb
+        return self.get_total_host_ram_gb() >= threshold
+
+    def provision_overlay(
+        self,
+        job_name: str,
+        required_gb: float = 4.0,
+        min_ram_gb: Optional[float] = None,
+        fallback_dir: Optional[Union[str, Path]] = None,
+    ) -> Path:
+        """Autonomously provisions a high-speed RAM-disk overlay directory if eligible."""
+        threshold = min_ram_gb if min_ram_gb is not None else self.threshold_ram_gb
+        target_fallback = Path(fallback_dir).resolve() if fallback_dir is not None else (get_artifact_dir() / "Scratch")
+
+        if self.is_ramdisk_eligible(threshold):
+            ramdisk_path = get_ramdisk_dir()
+            if ramdisk_path is not None and ramdisk_path.is_dir():
+                try:
+                    free_gb = shutil.disk_usage(str(ramdisk_path)).free / (1024 ** 3)
+                    if free_gb > (required_gb * 1.2):
+                        job_overlay_dir = ramdisk_path / f"cochem_{job_name}_{int(time.time() * 1000)}"
+                        job_overlay_dir.mkdir(parents=True, exist_ok=True)
+                        lock_directory_permissions(job_overlay_dir)
+                        logger.info(
+                            f"Provisioned RAM-disk execution directory: {job_overlay_dir} "
+                            f"(Host RAM: {self.get_total_host_ram_gb():.1f} GB >= {threshold} GB)"
                         )
+                        return job_overlay_dir
+                except Exception as exc:
+                    logger.debug(f"RAM-disk overlay check skipped: {exc}")
 
-    def read_qcschema_result(self, calc_id: str) -> QCSchemaAtomicResult:
-        """Reads a QCSchema AtomicResult from landscape.h5."""
-        with self.transaction("r") as f:
-            calc_path = f"calculations/{calc_id}"
-            if calc_path not in f:
-                raise DatasetNotFoundError(f"Calculation result '{calc_id}' not found.")
+        target_fallback.mkdir(parents=True, exist_ok=True)
+        lock_directory_permissions(target_fallback)
+        return target_fallback
 
-            calc_grp = f[calc_path]
-            schema_name = str(calc_grp.attrs.get("schema_name", "qcschema_output"))
-            schema_version = int(calc_grp.attrs.get("schema_version", 1))
-            driver_str = str(calc_grp.attrs.get("driver", "energy"))
-            method = str(calc_grp.attrs.get("method", ""))
-            basis = calc_grp.attrs.get("basis")
-            success = bool(calc_grp.attrs.get("success", True))
+    def sync_and_cleanup(self, overlay_path: Path, permanent_path: Path) -> Dict[str, str]:
+        """Synchronizes quantum artifacts from overlay back to permanent workspace and deletes overlay."""
+        permanent_path.mkdir(parents=True, exist_ok=True)
+        hashes: Dict[str, str] = {}
 
-            if "return_result" in calc_grp:
-                res_data = calc_grp["return_result"][()]
-                return_result: Union[float, Any] = res_data.tolist() if isinstance(res_data, np.ndarray) else res_data
-            else:
-                raw_res = calc_grp.attrs.get("return_result")
-                return_result = (
-                    float(raw_res) if isinstance(raw_res, (int, float)) else json.loads(str(raw_res))
-                )
+        if overlay_path != permanent_path and overlay_path.exists():
+            logger.info(f"Syncing artifacts from RAM-disk {overlay_path} to permanent workspace {permanent_path}...")
+            for item in overlay_path.iterdir():
+                dest_path = permanent_path / item.name
+                try:
+                    if item.is_dir():
+                        shutil.copytree(item, dest_path, dirs_exist_ok=True)
+                    elif item.is_file():
+                        shutil.copy2(item, dest_path)
+                except Exception as exc:
+                    logger.warning(f"Error copying artifact {item} to {dest_path}: {exc}")
 
-            # Molecule
-            mol_grp = calc_grp["molecule"]
-            symbols_dset = mol_grp["symbols"][()]
-            symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in symbols_dset]
-            geom = mol_grp["geometry"][()].tolist()
-            mol = QCSchemaMolecule(
-                symbols=symbols,
-                geometry=geom,
-                molecular_charge=float(mol_grp.attrs.get("molecular_charge", 0.0)),
-                molecular_multiplicity=int(mol_grp.attrs.get("molecular_multiplicity", 1)),
-            )
-
-            # Properties
-            prop_grp = calc_grp.get("properties")
-            prop_kwargs: Dict[str, Any] = {}
-            if prop_grp is not None:
-                for k, v in prop_grp.attrs.items():
-                    prop_kwargs[k] = v
-            props = QCSchemaProperties(**prop_kwargs)
-
-            # Wavefunction
-            wf: Optional[QCSchemaWavefunction] = None
-            if "wavefunction" in calc_grp:
-                wf_grp = calc_grp["wavefunction"]
-                wf_kwargs: Dict[str, Any] = {"basis": wf_grp.attrs.get("basis")}
-                for wname in ["orbitals_a", "orbitals_b", "occupations_a", "occupations_b", "density_a", "density_b", "fock_a", "fock_b"]:
-                    if wname in wf_grp:
-                        wf_kwargs[wname] = wf_grp[wname][()]
-                wf = QCSchemaWavefunction(**wf_kwargs)
-
-            return QCSchemaAtomicResult(
-                schema_name=schema_name,
-                schema_version=schema_version,
-                molecule=mol,
-                driver=QCSchemaDriver(driver_str),
-                model=QCSchemaModel(method=method, basis=str(basis) if basis else None),
-                return_result=return_result,
-                properties=props,
-                wavefunction=wf,
-                success=success,
-            )
-
-    def list_calculations(self) -> List[str]:
-        """Lists all calculation IDs."""
-        with self.transaction("r") as f:
-            if "calculations" in f:
-                return list(f["calculations"].keys())
-            return []
-
-    # -------------------------------------------------------------------------
-    # QCSchema OptimizationResult Serialization & Deserialization
-    # -------------------------------------------------------------------------
-
-    def write_qcschema_optimization_result(
-        self,
-        opt_id: str,
-        result: Union[QCSchemaOptimizationResult, Dict[str, Any], Any],
-    ) -> None:
-        """Serializes a QCSchema OptimizationResult (v1 or v2) or QCElemental model into landscape.h5."""
-        if not is_master_node():
-            raise NonMasterWriteRejectionError("Only master node can commit Optimization results to HDF5.")
-
-        if isinstance(result, QCSchemaOptimizationResult):
-            opt_res = result
-        elif isinstance(result, dict):
-            init_mol_data = result.get("initial_molecule", {})
-            init_mol = init_mol_data if isinstance(init_mol_data, QCSchemaMolecule) else QCSchemaMolecule.model_validate(init_mol_data)
-
-            final_mol_data = result.get("final_molecule", {})
-            final_mol = final_mol_data if isinstance(final_mol_data, QCSchemaMolecule) else QCSchemaMolecule.model_validate(final_mol_data)
-
-            raw_traj = result.get("trajectory", [])
-            traj_list: List[QCSchemaAtomicResult] = []
-            for step in raw_traj:
-                if isinstance(step, QCSchemaAtomicResult):
-                    traj_list.append(step)
-                elif isinstance(step, dict):
-                    traj_list.append(QCSchemaAtomicResult.model_validate(step))
-                elif hasattr(step, "model_dump"):
-                    traj_list.append(QCSchemaAtomicResult.model_validate(step.model_dump()))
-
-            energies = result.get("energies", [])
-            if not energies and traj_list:
-                energies = [
-                    float(st.properties.return_energy) if st.properties.return_energy is not None
-                    else (float(st.return_result) if isinstance(st.return_result, (int, float)) else 0.0)
-                    for st in traj_list
-                ]
-
-            opt_res = QCSchemaOptimizationResult(
-                schema_name=str(result.get("schema_name", "qcschema_optimization_output")),
-                schema_version=int(result.get("schema_version", 1)),
-                initial_molecule=init_mol,
-                final_molecule=final_mol,
-                trajectory=traj_list,
-                energies=[float(e) for e in energies],
-                provenance=result.get("provenance", {}) if isinstance(result.get("provenance"), dict) else {},
-                success=bool(result.get("success", True)),
-            )
-        elif hasattr(result, "trajectory") and hasattr(result, "final_molecule"):
-            dumped = result.model_dump() if hasattr(result, "model_dump") else result.dict()
-            opt_res = QCSchemaOptimizationResult.model_validate(dumped)
-        elif QCElOptimizationResult is not None and isinstance(result, QCElOptimizationResult):
-            dumped = result.model_dump() if hasattr(result, "model_dump") else result.dict()
-            opt_res = QCSchemaOptimizationResult.model_validate(dumped)
+            hashes = self.hash_artifacts(permanent_path)
+            shutil.rmtree(overlay_path, ignore_errors=True)
         else:
-            opt_res = QCSchemaOptimizationResult.model_validate(result)
+            hashes = self.hash_artifacts(permanent_path)
 
-        with self.transaction("a") as f:
-            opt_grp = f.require_group(f"trajectories/{opt_id}")
-            opt_grp.attrs["schema_name"] = opt_res.schema_name
-            opt_grp.attrs["schema_version"] = opt_res.schema_version
-            opt_grp.attrs["success"] = opt_res.success
-            opt_grp.attrs["provenance"] = json.dumps(opt_res.provenance)
+        return hashes
 
-            # Initial Molecule
-            init_grp = opt_grp.require_group("initial_molecule")
-            init_grp.attrs["molecular_charge"] = opt_res.initial_molecule.molecular_charge
-            init_grp.attrs["molecular_multiplicity"] = opt_res.initial_molecule.molecular_multiplicity
-            write_dataset_filtered(
-                init_grp,
-                "symbols",
-                opt_res.initial_molecule.symbols,
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
-            write_dataset_filtered(
-                init_grp,
-                "geometry",
-                np.array(opt_res.initial_molecule.geometry, dtype=np.float64),
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
+    @staticmethod
+    def hash_artifacts(target_dir: Path) -> Dict[str, str]:
+        """Generates SHA-256 checksums for quantum chemistry artifacts."""
+        hashes: Dict[str, str] = {}
+        if not target_dir.exists():
+            return hashes
 
-            # Final Molecule
-            final_grp = opt_grp.require_group("final_molecule")
-            final_grp.attrs["molecular_charge"] = opt_res.final_molecule.molecular_charge
-            final_grp.attrs["molecular_multiplicity"] = opt_res.final_molecule.molecular_multiplicity
-            write_dataset_filtered(
-                final_grp,
-                "symbols",
-                opt_res.final_molecule.symbols,
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
-            write_dataset_filtered(
-                final_grp,
-                "geometry",
-                np.array(opt_res.final_molecule.geometry, dtype=np.float64),
-                compression="gzip",
-                compression_opts=6,
-                shuffle=True,
-                fletcher32=True,
-            )
+        valid_suffixes = {".out", ".gbw", ".xyz", ".log", ".dat", ".json", ".h5", ".molden", ".cube"}
+        for file_path in sorted(target_dir.iterdir()):
+            if file_path.is_file() and (file_path.suffix in valid_suffixes or file_path.name.endswith(".out")):
+                try:
+                    hasher = hashlib.sha256()
+                    with open(file_path, "rb") as f:
+                        while chunk := f.read(65536):
+                            hasher.update(chunk)
+                    file_hash = hasher.hexdigest()
+                    hashes[file_path.name] = file_hash
+                    logger.info(f"Generated SHA-256 hash for {file_path.name}: {file_hash} [M]")
+                except OSError as err:
+                    logger.warning(f"Failed to hash {file_path.name}: {err}")
+        return hashes
 
-            # Energies
-            if opt_res.energies:
-                write_dataset_filtered(
-                    opt_grp,
-                    "energies",
-                    np.array(opt_res.energies, dtype=np.float64),
-                    compression="gzip",
-                    compression_opts=6,
-                    shuffle=True,
-                    fletcher32=True,
-                )
 
-            # Trajectory steps
-            if opt_res.trajectory:
-                steps_grp = opt_grp.require_group("steps")
-                for i, step_item in enumerate(opt_res.trajectory):
-                    step_grp = steps_grp.require_group(f"step_{i:04d}")
-                    step_grp.attrs["schema_name"] = step_item.schema_name
-                    step_grp.attrs["schema_version"] = step_item.schema_version
-                    step_grp.attrs["driver"] = step_item.driver.value if hasattr(step_item.driver, "value") else str(step_item.driver)
-                    step_grp.attrs["method"] = step_item.model.method
-                    if step_item.model.basis:
-                        step_grp.attrs["basis"] = step_item.model.basis
-                    step_grp.attrs["success"] = step_item.success
+# =====================================================================
+# ZeroMQ Heartbeat Integration & Dead-Man's Switch Watchdog
+# =====================================================================
 
-                    if isinstance(step_item.return_result, (int, float)):
-                        step_grp.attrs["return_result"] = float(step_item.return_result)
-                    elif isinstance(step_item.return_result, (list, tuple, np.ndarray)):
-                        arr_res = np.asarray(step_item.return_result)
-                        if arr_res.size > 20:
-                            write_dataset_filtered(
-                                step_grp,
-                                "return_result",
-                                arr_res,
-                                compression="gzip",
-                                compression_opts=6,
-                                shuffle=True,
-                                fletcher32=True,
-                            )
-                        else:
-                            step_grp.attrs["return_result"] = json.dumps(step_item.return_result)
-                    else:
-                        step_grp.attrs["return_result"] = json.dumps(step_item.return_result)
+class ZMQHeartbeatManager:
+    """ZeroMQ heartbeat publisher with CurveZMQ security on Windows and IPC on POSIX."""
 
-                    step_mol_grp = step_grp.require_group("molecule")
-                    step_mol_grp.attrs["molecular_charge"] = step_item.molecule.molecular_charge
-                    step_mol_grp.attrs["molecular_multiplicity"] = step_item.molecule.molecular_multiplicity
-                    write_dataset_filtered(
-                        step_mol_grp,
-                        "symbols",
-                        step_item.molecule.symbols,
-                        compression="gzip",
-                        compression_opts=6,
-                        shuffle=True,
-                        fletcher32=True,
-                    )
-                    write_dataset_filtered(
-                        step_mol_grp,
-                        "geometry",
-                        np.array(step_item.molecule.geometry, dtype=np.float64),
-                        compression="gzip",
-                        compression_opts=6,
-                        shuffle=True,
-                        fletcher32=True,
-                    )
+    def __init__(self, job_id: str = "cochem_job") -> None:
+        self.job_id = job_id
+        self.endpoint: Optional[str] = None
+        self.server_public: Optional[bytes] = None
+        self.server_secret: Optional[bytes] = None
+        self.client_public: Optional[bytes] = None
+        self.client_secret: Optional[bytes] = None
+        self.curve_enabled: bool = False
 
-                    step_prop_grp = step_grp.require_group("properties")
-                    for pk, pv in step_item.properties.model_dump().items():
-                        if pv is not None:
-                            if isinstance(pv, (int, float, str, bool)):
-                                step_prop_grp.attrs[pk] = pv
-                            else:
-                                step_prop_grp.attrs[pk] = json.dumps(pv)
+        self._context: Optional[Any] = None
+        self._socket: Optional[Any] = None
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
 
-                    if step_item.wavefunction is not None:
-                        step_wf_grp = step_grp.require_group("wavefunction")
-                        if step_item.wavefunction.basis:
-                            step_wf_grp.attrs["basis"] = step_item.wavefunction.basis
-                        for wname in ["orbitals_a", "orbitals_b", "occupations_a", "occupations_b", "density_a", "density_b", "fock_a", "fock_b"]:
-                            wval = getattr(step_item.wavefunction, wname, None)
-                            if wval is not None:
-                                write_dataset_filtered(
-                                    step_wf_grp,
-                                    wname,
-                                    strip_tensor_to_numpy(wval),
-                                    compression="gzip",
-                                    compression_opts=6,
-                                    shuffle=True,
-                                    fletcher32=True,
-                                )
+    def start(
+        self,
+        endpoint: Optional[str] = None,
+        interval_sec: float = 1.0,
+        metadata: Optional[Dict[str, Any]] = None,
+        use_curve: bool = True,
+    ) -> str:
+        """Binds and starts the background heartbeat publisher."""
+        if not HAS_ZMQ:
+            logger.warning("ZeroMQ (pyzmq) not available. Heartbeat publisher disabled.")
+            return ""
 
-    def read_qcschema_optimization_result(self, opt_id: str) -> QCSchemaOptimizationResult:
-        """Reads a QCSchema OptimizationResult from landscape.h5."""
-        with self.transaction("r") as f:
-            opt_path = f"trajectories/{opt_id}"
-            if opt_path not in f:
-                raise DatasetNotFoundError(f"Optimization trajectory '{opt_id}' not found.")
+        self.stop()
+        self._stop_event.clear()
 
-            opt_grp = f[opt_path]
-            schema_name = str(opt_grp.attrs.get("schema_name", "qcschema_optimization_output"))
-            schema_version = int(opt_grp.attrs.get("schema_version", 1))
-            success = bool(opt_grp.attrs.get("success", True))
-            raw_prov = opt_grp.attrs.get("provenance", "{}")
-            prov = json.loads(raw_prov) if isinstance(raw_prov, str) else (raw_prov or {})
+        try:
+            self._context = zmq.Context()
+            self._socket = self._context.socket(zmq.PUB)
 
-            # Initial Molecule
-            init_grp = opt_grp["initial_molecule"]
-            init_syms = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in init_grp["symbols"][()]]
-            init_geom = init_grp["geometry"][()].tolist()
-            init_mol = QCSchemaMolecule(
-                symbols=init_syms,
-                geometry=init_geom,
-                molecular_charge=float(init_grp.attrs.get("molecular_charge", 0.0)),
-                molecular_multiplicity=int(init_grp.attrs.get("molecular_multiplicity", 1)),
-            )
-
-            # Final Molecule
-            final_grp = opt_grp["final_molecule"]
-            final_syms = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in final_grp["symbols"][()]]
-            final_geom = final_grp["geometry"][()].tolist()
-            final_mol = QCSchemaMolecule(
-                symbols=final_syms,
-                geometry=final_geom,
-                molecular_charge=float(final_grp.attrs.get("molecular_charge", 0.0)),
-                molecular_multiplicity=int(final_grp.attrs.get("molecular_multiplicity", 1)),
-            )
-
-            # Energies
-            energies: List[float] = []
-            if "energies" in opt_grp:
-                energies = opt_grp["energies"][()].tolist()
-
-            # Steps
-            traj: List[QCSchemaAtomicResult] = []
-            if "steps" in opt_grp:
-                steps_grp = opt_grp["steps"]
-                step_keys = sorted(steps_grp.keys())
-                for sk in step_keys:
-                    s_grp = steps_grp[sk]
-                    s_name = str(s_grp.attrs.get("schema_name", "qcschema_output"))
-                    s_ver = int(s_grp.attrs.get("schema_version", 1))
-                    s_driver = str(s_grp.attrs.get("driver", "energy"))
-                    s_method = str(s_grp.attrs.get("method", ""))
-                    s_basis = s_grp.attrs.get("basis")
-                    s_success = bool(s_grp.attrs.get("success", True))
-
-                    if "return_result" in s_grp:
-                        s_res_data = s_grp["return_result"][()]
-                        s_return_result: Union[float, Any] = s_res_data.tolist() if isinstance(s_res_data, np.ndarray) else s_res_data
-                    else:
-                        s_raw_res = s_grp.attrs.get("return_result")
-                        s_return_result = (
-                            float(s_raw_res) if isinstance(s_raw_res, (int, float)) else json.loads(str(s_raw_res))
-                        )
-
-                    s_mol_grp = s_grp["molecule"]
-                    s_syms = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in s_mol_grp["symbols"][()]]
-                    s_geom = s_mol_grp["geometry"][()].tolist()
-                    s_mol = QCSchemaMolecule(
-                        symbols=s_syms,
-                        geometry=s_geom,
-                        molecular_charge=float(s_mol_grp.attrs.get("molecular_charge", 0.0)),
-                        molecular_multiplicity=int(s_mol_grp.attrs.get("molecular_multiplicity", 1)),
-                    )
-
-                    s_prop_grp = s_grp.get("properties")
-                    s_prop_kwargs: Dict[str, Any] = {}
-                    if s_prop_grp is not None:
-                        for pk, pv in s_prop_grp.attrs.items():
-                            s_prop_kwargs[pk] = pv
-                    s_props = QCSchemaProperties(**s_prop_kwargs)
-
-                    s_wf: Optional[QCSchemaWavefunction] = None
-                    if "wavefunction" in s_grp:
-                        s_wf_grp = s_grp["wavefunction"]
-                        s_wf_kwargs: Dict[str, Any] = {"basis": s_wf_grp.attrs.get("basis")}
-                        for wname in ["orbitals_a", "orbitals_b", "occupations_a", "occupations_b", "density_a", "density_b", "fock_a", "fock_b"]:
-                            if wname in s_wf_grp:
-                                s_wf_kwargs[wname] = s_wf_grp[wname][()]
-                        s_wf = QCSchemaWavefunction(**s_wf_kwargs)
-
-                    traj.append(QCSchemaAtomicResult(
-                        schema_name=s_name,
-                        schema_version=s_ver,
-                        molecule=s_mol,
-                        driver=QCSchemaDriver(s_driver),
-                        model=QCSchemaModel(method=s_method, basis=str(s_basis) if s_basis else None),
-                        return_result=s_return_result,
-                        properties=s_props,
-                        wavefunction=s_wf,
-                        success=s_success,
-                    ))
-
-            return QCSchemaOptimizationResult(
-                schema_name=schema_name,
-                schema_version=schema_version,
-                initial_molecule=init_mol,
-                final_molecule=final_mol,
-                trajectory=traj,
-                energies=energies,
-                provenance=prov,
-                success=success,
-            )
-
-    def list_trajectories(self) -> List[str]:
-        """Lists all optimization trajectory IDs."""
-        with self.transaction("r") as f:
-            if "trajectories" in f:
-                return list(f["trajectories"].keys())
-            return []
-
-    # -------------------------------------------------------------------------
-    # Real-Time IPC & Streaming Delegates
-    # -------------------------------------------------------------------------
-
-    def stream_to_master(self, topic: str, payload: Any, binary_data: Optional[bytes] = None) -> int:
-        """Streams a record to the master collector via the local scratch SQLite WAL queue."""
-        return self.ipc_queue.push(topic=topic, payload=payload, binary_data=binary_data)
-
-    def aggregate_ipc_stream(self, topic: Optional[str] = None, limit: int = 500) -> int:
-        """Drains pending IPC records and serializes them into HDF5 on the master node."""
-        aggregator = MasterDataAggregator(h5_path=self.h5_path, ipc_db_path=self.ipc_queue.db_path)
-        return aggregator.aggregate_pending(topic=topic, limit=limit)
-
-    def verify_file_integrity(self) -> Dict[str, Any]:
-        """Verifies Fletcher32 checksums and mandatory filter compliance for all datasets in the file."""
-        report: Dict[str, Any] = {
-            "total_datasets": 0,
-            "valid_datasets": 0,
-            "filter_violations": [],
-            "corrupted_datasets": [],
-        }
-
-        with self.transaction("r") as f:
-            def visitor(name: str, obj: Any) -> None:
-                if isinstance(obj, h5py.Dataset):
-                    report["total_datasets"] += 1
-                    valid_filters, details = verify_dataset_filters(obj)
-                    if not valid_filters:
-                        report["filter_violations"].append({"path": name, "details": details})
-                    else:
+            if endpoint is None:
+                if platform.system() == "Windows":
+                    if use_curve and hasattr(zmq, "curve_keypair"):
                         try:
-                            _ = obj[()]
-                            report["valid_datasets"] += 1
-                        except Exception as e:
-                            report["corrupted_datasets"].append({"path": name, "error": str(e)})
+                            self.server_public, self.server_secret = zmq.curve_keypair()
+                            self.client_public, self.client_secret = zmq.curve_keypair()
+                            self._socket.curve_secretkey = self.server_secret
+                            self._socket.curve_publickey = self.server_public
+                            self._socket.curve_server = True
+                            self.curve_enabled = True
+                        except Exception as curve_err:
+                            logger.debug(f"CurveZMQ initialization fallback: {curve_err}")
+                            self.curve_enabled = False
 
-            f.visititems(visitor)
+                    port = self._socket.bind_to_random_port("tcp://127.0.0.1")
+                    self.endpoint = f"tcp://127.0.0.1:{port}"
+                else:
+                    ipc_dir = Path("/tmp/cochem_ipc")
+                    ipc_dir.mkdir(parents=True, exist_ok=True)
+                    lock_directory_permissions(ipc_dir)
+                    ipc_path = ipc_dir / f"cochem_heartbeat_{self.job_id}.ipc"
+                    self.endpoint = f"ipc://{ipc_path}"
+                    try:
+                        self._socket.bind(self.endpoint)
+                    except Exception:
+                        # Fallback to loopback TCP if IPC is unsupported in sandbox
+                        port = self._socket.bind_to_random_port("tcp://127.0.0.1")
+                        self.endpoint = f"tcp://127.0.0.1:{port}"
+            else:
+                if endpoint.endswith(":*"):
+                    base = endpoint[:-2]
+                    port = self._socket.bind_to_random_port(base)
+                    self.endpoint = f"{base}:{port}"
+                else:
+                    self.endpoint = endpoint
+                    self._socket.bind(self.endpoint)
 
-        return report
+        except Exception as err:
+            logger.error(f"Failed to bind ZeroMQ heartbeat publisher socket: {err}", exc_info=True)
+            self.stop()
+            return ""
+
+        def heartbeat_worker() -> None:
+            while not self._stop_event.is_set():
+                alive_payload: Dict[str, Any] = {
+                    "status": "alive",
+                    "timestamp": time.time(),
+                    "pid": os.getpid(),
+                    "job_id": self.job_id,
+                    "metadata": metadata or {},
+                }
+                try:
+                    if self._socket is not None:
+                        self._socket.send_multipart([
+                            b"heartbeat",
+                            json.dumps(alive_payload).encode("utf-8"),
+                        ])
+                except Exception as ex:
+                    logger.debug(f"ZeroMQ heartbeat publish error: {ex}")
+                self._stop_event.wait(interval_sec)
+
+        self._thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._thread.start()
+        logger.info(f"ZeroMQ heartbeat publisher started on {self.endpoint} [M]")
+        return self.endpoint or ""
+
+    def publish_heartbeat(self, status: str = "alive", extra: Optional[Dict[str, Any]] = None) -> None:
+        """Publishes an immediate heartbeat frame."""
+        if self._socket is None or not HAS_ZMQ:
+            return
+        payload: Dict[str, Any] = {
+            "status": status,
+            "timestamp": time.time(),
+            "pid": os.getpid(),
+            "job_id": self.job_id,
+            "extra": extra or {},
+        }
+        try:
+            self._socket.send_multipart([
+                b"heartbeat",
+                json.dumps(payload).encode("utf-8"),
+            ])
+        except Exception as exc:
+            logger.debug(f"Error publishing direct heartbeat: {exc}")
+
+    def stop(self) -> None:
+        """Stops the heartbeat worker and cleans up ZeroMQ sockets."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+        if self._socket is not None:
+            try:
+                self._socket.close(linger=0)
+            except Exception:
+                pass
+            self._socket = None
+        if self._context is not None:
+            try:
+                self._context.term()
+            except Exception:
+                pass
+            self._context = None
+
+    def __enter__(self) -> ZMQHeartbeatManager:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()
 
 
-# Backward-compatible alias
-HDF5OntologyEnforcer = CoChemHDF5Manager
+class DeadMansSwitchWatchdog:
+    """Background watchdog monitoring heartbeats to safeguard against orchestrator disconnection.
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core_hdf5_manager.py ---
+    If timeout expires and the child process is running, transitions the job
+    to a detached daemon mode without killing the physics calculation.
+    """
+
+    def __init__(
+        self,
+        job_id: str,
+        proc: Optional[subprocess.Popen] = None,
+        timeout: float = 60.0,
+        check_interval: float = 1.0,
+        on_timeout: str = "daemonize",
+    ) -> None:
+        self.job_id = job_id
+        self.proc = proc
+        self.timeout = timeout
+        self.check_interval = check_interval
+        self.on_timeout = on_timeout
+        self.last_ping: float = time.time()
+        self.is_daemonized: bool = False
+
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def ping(self) -> None:
+        """Resets the dead-man's switch expiration timer."""
+        self.last_ping = time.time()
+
+    def start(self) -> None:
+        """Starts the watchdog monitor thread."""
+        self._stop_event.clear()
+        self.last_ping = time.time()
+
+        def watchdog_loop() -> None:
+            while not self._stop_event.is_set():
+                elapsed = time.time() - self.last_ping
+                if elapsed > self.timeout:
+                    if self.proc is not None and self.proc.poll() is None:
+                        if self.on_timeout == "daemonize":
+                            self.is_daemonized = True
+                            # Unregister process from active reaper tracking so it is not killed on parent exit
+                            unregister_popen_process(self.proc)
+                            logger.warning(
+                                f"Dead-man's switch triggered for job '{self.job_id}' (PID {self.proc.pid}). "
+                                f"No heartbeat received in {elapsed:.1f}s. "
+                                f"Transitioning job to detached background daemon to allow physics completion."
+                            )
+                        elif self.on_timeout == "kill":
+                            logger.error(
+                                f"Dead-man's switch triggered for job '{self.job_id}' (PID {self.proc.pid}). "
+                                f"No heartbeat received in {elapsed:.1f}s. Terminating process tree."
+                            )
+                            kill_process_tree(self.proc.pid)
+                    break
+                self._stop_event.wait(self.check_interval)
+
+        self._thread = threading.Thread(target=watchdog_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Stops the watchdog monitor thread."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def __enter__(self) -> DeadMansSwitchWatchdog:
+        self.start()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()
+
+
+# =====================================================================
+# Safe Subprocess Execution
+# =====================================================================
+
+def safe_subprocess_run(
+    cmd: Union[List[str], str],
+    cwd: Optional[Union[str, Path]] = None,
+    timeout: float = 300.0,
+    check: bool = True,
+    capture_output: bool = True,
+    text: bool = True,
+    env: Optional[Dict[str, str]] = None,
+    cpu_affinity: Optional[List[int]] = None,
+    required_disk_gb: Optional[float] = None,
+    sanitize_mpi: bool = True,
+    use_job_object: bool = True,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess:
+    """Executes a subprocess safely with explicit check, timeout, explicit cwd validation,
+
+    MPI oversubscription sanitization, pre-flight disk quota assertion, hardware CPU affinity pinning,
+    Win32 Job Object binding, global tracking registration, and robust exception handling.
+    """
+    if cwd is not None:
+        cwd_path = Path(cwd)
+        if not cwd_path.exists():
+            raise FileNotFoundError(f"Subprocess working directory does not exist: {cwd_path}")
+        cwd_str = str(cwd_path)
+    else:
+        cwd_str = None
+        cwd_path = Path.cwd()
+
+    if required_disk_gb is not None and required_disk_gb > 0:
+        verify_scratch_quota_and_io(cwd_path, required_gb=required_disk_gb)
+
+    target_env = env.copy() if env is not None else os.environ.copy()
+    if sanitize_mpi:
+        target_env = sanitize_mpi_environment(target_env)
+
+    popen_args: Dict[str, Any] = {
+        "cwd": cwd_str,
+        "env": target_env,
+        "text": text,
+        **kwargs,
+    }
+    if capture_output:
+        popen_args["stdout"] = subprocess.PIPE
+        popen_args["stderr"] = subprocess.PIPE
+
+    parsed_cmd: Union[List[str], str]
+    if isinstance(cmd, str) and not kwargs.get("shell", False):
+        if platform.system() == "Windows":
+            parsed_cmd = cmd
+        else:
+            parsed_cmd = shlex.split(cmd, posix=True)
+    else:
+        parsed_cmd = cmd
+
+    job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
+
+    proc = subprocess.Popen(parsed_cmd, **popen_args)
+    register_popen_process(proc)
+
+    if job_obj is not None:
+        job_obj.assign_popen(proc)
+
+    if cpu_affinity is not None:
+        enforce_cpu_affinity(proc.pid, cpu_affinity)
+
+    try:
+        stdout_data, stderr_data = proc.communicate(timeout=timeout)
+        ret = proc.returncode
+        if check and ret != 0:
+            raise subprocess.CalledProcessError(ret, cmd, output=stdout_data, stderr=stderr_data)
+        return subprocess.CompletedProcess(args=cmd, returncode=ret, stdout=stdout_data, stderr=stderr_data)
+    except subprocess.TimeoutExpired:
+        kill_process_tree(proc.pid)
+        try:
+            proc.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            pass
+        logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
+        raise
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Subprocess '{cmd}' failed with returncode {e.returncode}: {e.stderr}")
+        raise
+    except OSError as e:
+        logger.error(f"Subprocess execution error for '{cmd}': {e}")
+        raise
+    finally:
+        unregister_popen_process(proc)
+        if job_obj is not None:
+            job_obj.close()
+
+
+# =====================================================================
+# Subprocess Broker Core Engine
+# =====================================================================
+
+class SubprocessBroker:
+    """Subprocess execution manager for computational quantum chemistry workloads.
+
+    Handles process lifecycles, memory safety, heartbeats, dead-man's switch watchdogs,
+    RAM-disk overlays, CPU affinity pinning, and artifact provenance hashing.
+    """
+
+    def __init__(
+        self,
+        cwd: Optional[Union[str, Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        memory_limit_gb: float = 8.0,
+        total_ram_threshold_gb: float = 128.0,
+    ) -> None:
+        default_work_dir = get_artifact_dir() / "Scratch"
+        self.cwd = resolve_mapped_path(cwd, default_work_dir) if cwd is not None else default_work_dir
+        self.cwd.mkdir(parents=True, exist_ok=True)
+        self.env = env if env is not None else os.environ.copy()
+        self.memory_limit_bytes = memory_limit_gb * (1024 ** 3)
+        self.total_ram_threshold_gb = total_ram_threshold_gb
+
+        self.topology_manager = CPUTopologyManager()
+        self.ramdisk_manager = RAMDiskOverlayManager(threshold_ram_gb=total_ram_threshold_gb)
+
+        if TelemetryLogger is not None:
+            self.telemetry: Optional[Any] = TelemetryLogger()
+        else:
+            self.telemetry = None
+
+        self.active_processes: List[subprocess.Popen] = []
+        self._lock = threading.Lock()
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+
+        # ZeroMQ heartbeat publisher components
+        self.heartbeat_manager: Optional[ZMQHeartbeatManager] = None
+        self._zmq_thread: Optional[threading.Thread] = None
+        self._zmq_stop_event = threading.Event()
+        self._zmq_context: Optional[Any] = None
+        self._zmq_socket: Optional[Any] = None
+
+        # Register instance reaper
+        self._atexit_reaper = atexit.register(self.execute_zombie_reaper)
+
+    def __enter__(self) -> SubprocessBroker:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Stops background monitors and reaps lingering subprocesses."""
+        self.stop_oom_monitor()
+        self.stop_zmq_heartbeat()
+        if self.heartbeat_manager is not None:
+            self.heartbeat_manager.stop()
+            self.heartbeat_manager = None
+        self.execute_zombie_reaper()
+        try:
+            atexit.unregister(self.execute_zombie_reaper)
+        except Exception:
+            pass
+
+    def verify_scratch_io(self, target_dir: Optional[Union[str, Path]] = None, required_mb: int = 100) -> bool:
+        """Verifies read/write availability on the current working scratch directory or specific target."""
+        check_dir = target_dir if target_dir is not None else self.cwd
+        return verify_scratch_io(check_dir, required_mb=required_mb)
+
+    def verify_scratch_quota_and_io(self, target_dir: Optional[Union[str, Path]] = None, required_gb: float = 50.0) -> bool:
+        """Verifies storage quota and physical 64KB I/O responsiveness."""
+        check_dir = target_dir if target_dir is not None else self.cwd
+        return verify_scratch_quota_and_io(check_dir, required_gb=required_gb)
+
+    def _allocate_scratch_space(self, job_name: str, required_mb: int = 4000) -> Path:
+        """Allocate a mapped host RAM disk when available and threshold is met, falling back to workspace."""
+        required_gb = required_mb / 1024.0
+        return self.ramdisk_manager.provision_overlay(
+            job_name=job_name,
+            required_gb=required_gb,
+            min_ram_gb=self.total_ram_threshold_gb,
+            fallback_dir=self.cwd,
+        )
+
+    def start_oom_monitor(self, check_interval: float = 2.0, threshold_mb: float = 1024.0) -> None:
+        """Background thread checking system RAM and broker process tree to preemptively kill before panic."""
+        if not HAS_PSUTIL:
+            logger.warning("psutil not available. OOM Preemption disabled.")
+            return
+
+        if self._monitor_thread is not None and self._monitor_thread.is_alive():
+            return
+
+        self._stop_event.clear()
+        threshold_bytes = threshold_mb * (1024 * 1024)
+
+        def monitor_loop() -> None:
+            while not self._stop_event.is_set():
+                try:
+                    mem = psutil.virtual_memory()
+                    if mem.available < threshold_bytes:
+                        logger.error(f"CRITICAL OOM IMMINENT. Available RAM: {mem.available / 1e6:.1f} MB")
+                        self.execute_zombie_reaper()
+                    else:
+                        with self._lock:
+                            active_pids = [p.pid for p in self.active_processes if p.poll() is None]
+                        total_rss = 0
+                        for pid in active_pids:
+                            try:
+                                proc = psutil.Process(pid)
+                                total_rss += proc.memory_info().rss
+                                for child in proc.children(recursive=True):
+                                    total_rss += child.memory_info().rss
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        if total_rss > self.memory_limit_bytes:
+                            logger.error(
+                                f"Broker process tree memory exceeded limit: {total_rss / 1e6:.1f} MB > "
+                                f"{self.memory_limit_bytes / 1e6:.1f} MB. Preempting active processes."
+                            )
+                            self.execute_zombie_reaper()
+                except Exception as exc:
+                    logger.debug(f"OOM poll error: {exc}")
+                self._stop_event.wait(check_interval)
+
+        self._monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
+        self._monitor_thread.start()
+
+    def stop_oom_monitor(self) -> None:
+        """Stops the active OOM preemption monitor thread."""
+        self._stop_event.set()
+        if self._monitor_thread is not None:
+            self._monitor_thread.join(timeout=2.0)
+            self._monitor_thread = None
+
+    def start_zmq_heartbeat(
+        self,
+        port: int = 5557,
+        host: str = "127.0.0.1",
+        interval_sec: float = 1.0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Starts a background ZeroMQ PUB heartbeat publisher emitting telemetry metadata."""
+        if not HAS_ZMQ:
+            logger.warning("ZeroMQ (pyzmq) not available. Heartbeat publisher disabled.")
+            return
+
+        self.stop_zmq_heartbeat()
+        self._zmq_stop_event.clear()
+
+        try:
+            self._zmq_context = zmq.Context()
+            self._zmq_socket = self._zmq_context.socket(zmq.PUB)
+            self._zmq_socket.bind(f"tcp://{host}:{port}")
+        except Exception as err:
+            logger.error(f"Failed to bind ZeroMQ heartbeat socket on {host}:{port}: {err}")
+            self.stop_zmq_heartbeat()
+            return
+
+        def heartbeat_worker() -> None:
+            while not self._zmq_stop_event.is_set():
+                alive_payload: Dict[str, Any] = {
+                    "status": "alive",
+                    "timestamp": time.time(),
+                    "pid": os.getpid(),
+                    "active_processes": len(self.active_processes),
+                    "metadata": metadata or {},
+                }
+                try:
+                    if self._zmq_socket is not None:
+                        self._zmq_socket.send_multipart([
+                            b"heartbeat",
+                            json.dumps(alive_payload).encode("utf-8"),
+                        ])
+                except Exception as ex:
+                    logger.debug(f"ZeroMQ heartbeat send error: {ex}")
+                self._zmq_stop_event.wait(interval_sec)
+
+        self._zmq_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._zmq_thread.start()
+        logger.info(f"ZeroMQ heartbeat publisher started on tcp://{host}:{port} [M]")
+
+    def stop_zmq_heartbeat(self) -> None:
+        """Stops the ZeroMQ heartbeat publisher and releases socket resources."""
+        self._zmq_stop_event.set()
+        if self._zmq_thread is not None:
+            self._zmq_thread.join(timeout=2.0)
+            self._zmq_thread = None
+        if self._zmq_socket is not None:
+            try:
+                self._zmq_socket.close(linger=0)
+            except Exception:
+                pass
+            self._zmq_socket = None
+        if self._zmq_context is not None:
+            try:
+                self._zmq_context.term()
+            except Exception:
+                pass
+            self._zmq_context = None
+
+    def execute_zombie_reaper(self) -> int:
+        """Hard kills all managed subprocesses and their orphaned children."""
+        count = 0
+        with self._lock:
+            procs = list(self.active_processes)
+            self.active_processes.clear()
+
+        if not procs:
+            return 0
+
+        logger.info("Executing SubprocessBroker Zombie Reaper Protocol...")
+        for proc in procs:
+            if proc.poll() is None:
+                try:
+                    pid = proc.pid
+                    kill_process_tree(pid)
+                    unregister_popen_process(proc)
+                    count += 1
+                    logger.info(f"Reaped managed process tree PID {pid}")
+                except (ProcessLookupError, PermissionError, OSError) as e:
+                    logger.warning(f"Reaper failed on PID {proc.pid}: {e}")
+            else:
+                unregister_popen_process(proc)
+
+        return count
+
+    def garbage_collect_core_dumps(self, execution_dir: Optional[Union[str, Path]] = None) -> int:
+        """Sweeps massive binary core.* files generated by Fortran segfaults."""
+        target_dir = Path(execution_dir).resolve() if execution_dir is not None else self.cwd
+        count = 0
+        if not target_dir.exists():
+            return 0
+        for file in target_dir.glob("core.*"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                    count += 1
+                except OSError as err:
+                    logger.debug(f"Unable to unlink core file {file}: {err}")
+        if count > 0:
+            logger.info(f"Garbage collection swept {count} binary dump(s).")
+        return count
+
+    def hash_quantum_artifacts(self, execution_dir: Optional[Union[str, Path]] = None) -> Dict[str, str]:
+        """Calculates SHA-256 cryptographic provenance digests for all quantum chemistry artifacts."""
+        target_dir = Path(execution_dir).resolve() if execution_dir is not None else self.cwd
+        return RAMDiskOverlayManager.hash_artifacts(target_dir)
+
+    def execute(
+        self,
+        payload_command: Union[str, List[str]],
+        job_name: str = "cochem_job",
+        timeout: Optional[float] = None,
+        cpu_affinity: Optional[List[int]] = None,
+        required_disk_gb: float = 0.05,
+        dead_man_timeout: float = 60.0,
+        daemonize_on_timeout: bool = True,
+    ) -> int:
+        """Dispatches an execution payload in an isolated process group with telemetry monitoring.
+
+        Allocates high-speed RAM-disk if available, executes payload with dead-man's switch watchdog,
+        enforces timeout, streams stdout/stderr, and copies artifacts back upon completion.
+        """
+        exec_path = self._allocate_scratch_space(job_name)
+        verify_scratch_quota_and_io(exec_path, required_gb=max(0.01, required_disk_gb))
+
+        sanitized_env = sanitize_mpi_environment(self.env)
+
+        cmd_str: str
+        command: Union[str, List[str]]
+        if isinstance(payload_command, str):
+            if platform.system() == "Windows":
+                command = payload_command
+            else:
+                command = shlex.split(payload_command, posix=True)
+            cmd_str = payload_command
+        else:
+            command = payload_command
+            cmd_str = " ".join(payload_command)
+
+        logger.info(f"Dispatching '{job_name}' to broker in {exec_path}...")
+
+        stdout_hist: List[str] = []
+        stderr_hist: List[str] = []
+
+        popen_kwargs: Dict[str, Any] = {
+            "cwd": str(exec_path),
+            "env": sanitized_env,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+        }
+        if hasattr(os, "setsid") and platform.system() != "Windows":
+            popen_kwargs["preexec_fn"] = os.setsid
+
+        process: Optional[subprocess.Popen] = None
+        job_obj = WindowsJobObject() if platform.system() == "Windows" else None
+        watchdog: Optional[DeadMansSwitchWatchdog] = None
+        exit_code: int = 0
+
+        try:
+            process = subprocess.Popen(command, **popen_kwargs)
+            with self._lock:
+                self.active_processes.append(process)
+            register_popen_process(process)
+
+            if job_obj is not None:
+                job_obj.assign_popen(process)
+
+            if cpu_affinity is not None:
+                enforce_cpu_affinity(process.pid, cpu_affinity)
+
+            watchdog = DeadMansSwitchWatchdog(
+                job_id=job_name,
+                proc=process,
+                timeout=dead_man_timeout,
+                on_timeout="daemonize" if daemonize_on_timeout else "kill",
+            )
+            watchdog.start()
+
+            def _stream_stdout() -> None:
+                if process and process.stdout:
+                    for line in iter(process.stdout.readline, ''):
+                        if watchdog:
+                            watchdog.ping()
+                        clean_line = line.strip()
+                        stdout_hist.append(clean_line)
+                        if self.telemetry and not self.telemetry.process_stream_chunk(clean_line):
+                            logger.error("Telemetry trap triggered. Preempting process.")
+                            kill_process_tree(process.pid)
+                            break
+
+            def _stream_stderr() -> None:
+                if process and process.stderr:
+                    for line in iter(process.stderr.readline, ''):
+                        if watchdog:
+                            watchdog.ping()
+                        stderr_hist.append(line.strip())
+
+            t_stdout = threading.Thread(target=_stream_stdout, daemon=True)
+            t_stderr = threading.Thread(target=_stream_stderr, daemon=True)
+
+            t_stdout.start()
+            t_stderr.start()
+
+            if timeout is not None and timeout > 0:
+                try:
+                    process.wait(timeout=timeout)
+                    exit_code = process.returncode
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Process '{job_name}' timed out after {timeout} seconds.")
+                    kill_process_tree(process.pid)
+                    try:
+                        process.wait(timeout=3.0)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    exit_code = -124
+            else:
+                process.wait()
+                exit_code = process.returncode
+
+            t_stdout.join(timeout=2.0)
+            t_stderr.join(timeout=2.0)
+
+        except KeyboardInterrupt:
+            logger.error("Keyboard Interrupt. Triggering Reaper.")
+            self.execute_zombie_reaper()
+            exit_code = -1
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            logger.error(f"Dispatch Exception: {e}")
+            self.execute_zombie_reaper()
+            exit_code = -2
+        finally:
+            if watchdog is not None:
+                watchdog.stop()
+
+            if job_obj is not None:
+                job_obj.close()
+
+            if process is not None:
+                with self._lock:
+                    if process in self.active_processes:
+                        self.active_processes.remove(process)
+                unregister_popen_process(process)
+
+            # Compute genuine cryptographic dispatch audit hash
+            dispatch_seed = f"{job_name}:{cmd_str}:{exit_code}:{time.time()}".encode('utf-8')
+            dispatch_hash = hashlib.sha256(dispatch_seed).hexdigest()
+
+            if self.telemetry:
+                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash)
+
+            self.garbage_collect_core_dumps(exec_path)
+            self.ramdisk_manager.sync_and_cleanup(exec_path, self.cwd)
+
+        return exit_code
+
+
+__all__ = [
+    "SubprocessBroker",
+    "safe_subprocess_run",
+    "register_popen_process",
+    "unregister_popen_process",
+    "get_active_popen_processes",
+    "cleanup_zombie_processes",
+    "kill_process_tree",
+    "enforce_cpu_affinity",
+    "detect_cpu_topology",
+    "CPUTopologyManager",
+    "detect_mpi_environment",
+    "sanitize_mpi_environment",
+    "verify_scratch_io",
+    "verify_scratch_quota_and_io",
+    "lock_directory_permissions",
+    "RAMDiskOverlayManager",
+    "ZMQHeartbeatManager",
+    "DeadMansSwitchWatchdog",
+    "WindowsJobObject",
+    "ZombieReaper",
+    "DiskQuotaError",
+    "HAS_PSUTIL",
+    "HAS_ZMQ",
+]
+
+
+if __name__ == "__main__":
+    broker = SubprocessBroker()
+    logger.info("Broker Initialized and protections armed.")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_subprocess_broker.py ---
 """
-Root-level backward compatibility alias for cochem_base.core.cochem_core_hdf5_manager.
-"""
-
-from cochem_base.core.cochem_core_hdf5_manager import *
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_hdf5_manager.py ---
-"""
-Physical Unit and Integration Test Suite for CoChem Core HDF5 Manager and Distributed IPC.
-
-Verifies:
-1. SWMR Eradication: Strict elimination of HDF5 SWMR on NFS/Lustre.
-2. Real-Time IPC: Local scratch SQLite WAL queue and ZeroMQ streaming.
-3. Single Master Node Enforcement: Strict gatekeeping delegating HDF5 writes to Rank 0 / Master.
-4. Rigorous HDF5 Filtering: Mandatory gzip+shuffle+fletcher32 filters on all serialized datasets.
-5. QCSchema Compliance: Full validation and lossless round-trip serialization of QCSchema v1/v2 records.
-6. VRAM Offloading & Tensor Stripping: Automatic detachment and conversion of PyTorch/JAX tensors to NumPy/Python scalars on host RAM.
-7. Landscape Database Management: Basin and calculation storage in landscape.h5 with atomic locking.
-
-Zero-Mock Policy: 100% genuine OS processes, genuine filelocks, genuine SQLite WAL, and real HDF5 operations.
+Unit and Integration Test Suite for CoChem Core Subprocess Broker.
+Validates NUMA CPU Pinning, OpenMPI Sanitization, Pre-Flight Disk Quota,
+64KB SHA-256 Binary Probe, RAM-Disk Overlay Routing, ZeroMQ Heartbeats (CurveZMQ/IPC),
+Dead-Man's Switch Watchdogs, Win32 Job Objects, and Zombie Reaping with ZERO MOCKS.
 """
 
 from __future__ import annotations
 
-import ast
-import inspect
-import threading
+import json
+import os
+import platform
+import subprocess
+import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
-import h5py
-import numpy as np
 import pytest
 
-try:
-    import torch
-except ImportError:
-    torch = None
-
-try:
-    import jax
-    import jax.numpy as jnp
-except ImportError:
-    jax = None
-    jnp = None
-
-try:
-    import qcelemental as qcel
-    try:
-        from qcelemental.models.v2 import AtomicResult as QCElAtomicResult
-        from qcelemental.models.v2 import Molecule as QCElMolecule
-    except (ImportError, RuntimeError):
-        from qcelemental.models import AtomicResult as QCElAtomicResult  # type: ignore
-        from qcelemental.models import Molecule as QCElMolecule  # type: ignore
-except ImportError:
-    qcel = None
-    QCElAtomicResult = None
-    QCElMolecule = None
-
-import cochem_base.core.cochem_core_hdf5_manager as hdf5_module
-from cochem_base.core.cochem_core_hdf5_manager import (
-    BasinRecord,
-    CoChemHDF5Manager,
-    HDF5FilterViolationError,
-    HDF5ManagerError,
-    MasterDataAggregator,
-    MasterWriteGatekeeper,
-    NonMasterWriteRejectionError,
-    QCSchemaAtomicResult,
-    QCSchemaDriver,
-    QCSchemaModel,
-    QCSchemaMolecule,
-    QCSchemaOptimizationResult,
-    QCSchemaProperties,
-    QCSchemaWavefunction,
-    SQLiteWALQueue,
-    ZMQRealTimeStreamer,
-    is_master_node,
-    resolve_landscape_h5_path,
-    sanitize_for_host_ram,
-    strip_tensor_to_numpy,
-    verify_dataset_filters,
-    verify_no_swmr_usage,
+from core_engine.cochem_core_subprocess_broker import (
+    HAS_PSUTIL,
+    HAS_ZMQ,
+    CPUTopologyManager,
+    DeadMansSwitchWatchdog,
+    DiskQuotaError,
+    RAMDiskOverlayManager,
+    SubprocessBroker,
+    WindowsJobObject,
+    ZMQHeartbeatManager,
+    ZombieReaper,
+    cleanup_zombie_processes,
+    detect_cpu_topology,
+    detect_mpi_environment,
+    enforce_cpu_affinity,
+    get_active_popen_processes,
+    kill_process_tree,
+    lock_directory_permissions,
+    register_popen_process,
+    safe_subprocess_run,
+    sanitize_mpi_environment,
+    unregister_popen_process,
+    verify_scratch_io,
+    verify_scratch_quota_and_io,
 )
 
-# =============================================================================
-# 1. SWMR ERADICATION & AST VERIFICATION
-# =============================================================================
+if HAS_PSUTIL:
+    import psutil
 
-def test_swmr_eradication_in_source() -> None:
-    """Verifies that HDF5 Single-Writer/Multiple-Reader (SWMR) is completely eradicated from AST calls."""
-    src = inspect.getsource(hdf5_module)
-    parsed = ast.parse(src)
-
-    for node in ast.walk(parsed):
-        if isinstance(node, ast.Call):
-            func_name = ""
-            if isinstance(node.func, ast.Name):
-                func_name = node.func.id
-            elif isinstance(node.func, ast.Attribute):
-                func_name = node.func.attr
-
-            if func_name in ("File", "open"):
-                for kw in node.keywords:
-                    if kw.arg == "swmr":
-                        pytest.fail(f"Illegal swmr keyword argument found in {ast.dump(node)}")
-                    if kw.arg == "libver" and isinstance(kw.value, ast.Constant) and kw.value.value == "latest":
-                        pytest.fail(f"Illegal libver='latest' SWMR activation found in {ast.dump(node)}")
-
-    # Verify runtime assertion helper
-    assert verify_no_swmr_usage(hdf5_module) is True
+if HAS_ZMQ:
+    import zmq
 
 
-def test_no_swmr_file_open_enforcement(tmp_path: Path) -> None:
-    """Verifies that CoChemHDF5Manager opens files safely without SWMR mode."""
-    h5_path = tmp_path / "test_no_swmr.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
+# =====================================================================
+# 1. Process Lifecycle & Zombie Sweeping
+# =====================================================================
 
-    # Write a test record
-    mgr.write_basin_record("basin_01", BasinRecord(molecule_name="water", energy=-76.4, symmetry_group="C2v"))
-
-    # Open and verify flags
-    with h5py.File(h5_path, "r") as f:
-        assert not getattr(f, "swmr_mode", False), "HDF5 file must not be in SWMR mode"
-
-
-# =============================================================================
-# 2. VRAM OFFLOADING & TENSOR STRIPPING
-# =============================================================================
-
-def test_strip_tensor_to_numpy_scalars_and_arrays() -> None:
-    """Tests that PyTorch and JAX tensors are stripped to host RAM NumPy arrays and Python scalars."""
-    # NumPy arrays and Python primitives
-    arr = np.array([1.0, 2.0, 3.0], dtype=np.float64)
-    assert np.array_equal(strip_tensor_to_numpy(arr), arr)
-    assert strip_tensor_to_numpy(42.0) == 42.0
-    assert strip_tensor_to_numpy(10) == 10
-    assert strip_tensor_to_numpy("benzene") == "benzene"
-
-    # PyTorch Tensors with autograd computation graph
-    if torch is not None:
-        t_scalar = torch.tensor(3.14159, requires_grad=True)
-        stripped_scalar = strip_tensor_to_numpy(t_scalar)
-        assert isinstance(stripped_scalar, (float, np.floating))
-        assert abs(float(stripped_scalar) - 3.14159) < 1e-5
-
-        t_tensor = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
-        out = (t_tensor ** 2).sum()
-        out.backward()
-        assert t_tensor.grad is not None
-
-        stripped_tensor = strip_tensor_to_numpy(t_tensor)
-        assert isinstance(stripped_tensor, np.ndarray)
-        assert not hasattr(stripped_tensor, "grad_fn")
-        assert stripped_tensor.flags.c_contiguous
-        assert np.allclose(stripped_tensor, [[1.0, 2.0], [3.0, 4.0]])
-
-    # JAX Arrays
-    if jax is not None and jnp is not None:
-        j_arr = jnp.array([5.0, 6.0, 7.0])
-        stripped_jax = strip_tensor_to_numpy(j_arr)
-        assert isinstance(stripped_jax, np.ndarray)
-        assert np.allclose(stripped_jax, [5.0, 6.0, 7.0])
-
-
-def test_sanitize_for_host_ram_nested_structures() -> None:
-    """Tests recursive sanitization of complex nested structures containing tensors."""
-    payload: Dict[str, Any] = {
-        "molecule": "ethanol",
-        "energy": 42.5,
-        "tags": ["mlff", "dft"],
-        "metadata": {
-            "step": 1,
-            "raw_coords": np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
-        }
-    }
-
-    if torch is not None:
-        payload["forces"] = torch.tensor([[0.1, -0.2, 0.0], [0.0, 0.05, -0.1]], requires_grad=True)
-        payload["tensor_scalar"] = torch.tensor(1.234)
-
-    sanitized = sanitize_for_host_ram(payload)
-    assert isinstance(sanitized, dict)
-    assert sanitized["molecule"] == "ethanol"
-    assert isinstance(sanitized["metadata"]["raw_coords"], np.ndarray)
-
-    if torch is not None:
-        assert isinstance(sanitized["forces"], np.ndarray)
-        assert not hasattr(sanitized["forces"], "requires_grad")
-        assert isinstance(sanitized["tensor_scalar"], (float, np.floating))
-
-
-# =============================================================================
-# 3. REAL-TIME IPC: SQLITE WAL ON LOCAL SCRATCH
-# =============================================================================
-
-def test_sqlite_wal_queue_lifecycle(tmp_path: Path) -> None:
-    """Tests high-throughput real-time IPC queue using SQLite in WAL mode."""
-    db_path = tmp_path / "scratch_ipc.db"
-    queue = SQLiteWALQueue(db_path=db_path)
-
-    # Verify WAL mode is active
-    mode = queue.get_journal_mode()
-    assert mode.upper() == "WAL", f"Journal mode must be WAL, got {mode}"
-
-    # Push records
-    r1_id = queue.push("wavefunction_stream", {"calc_id": "c1", "density": [1.0, 2.0, 3.0]}, sender="rank_1")
-    r2_id = queue.push("wavefunction_stream", {"calc_id": "c2", "density": [4.0, 5.0, 6.0]}, sender="rank_2")
-    r3_id = queue.push("telemetry", {"heartbeat": time.time()}, sender="rank_1")
-
-    assert r1_id > 0
-    assert r2_id > r1_id
-    assert r3_id > r2_id
-    assert queue.count_pending() == 3
-
-    # Pop records for specific topic
-    wf_records = queue.pop_pending(topic="wavefunction_stream", limit=10)
-    assert len(wf_records) == 2
-    assert wf_records[0]["payload"]["calc_id"] == "c1"
-    assert wf_records[1]["payload"]["calc_id"] == "c2"
-    assert queue.count_pending() == 1
-
-    # Drain remaining
-    all_rem = queue.drain_all()
-    assert len(all_rem) == 1
-    assert all_rem[0]["topic"] == "telemetry"
-    assert queue.count_pending() == 0
-
-
-def test_sqlite_wal_concurrency(tmp_path: Path) -> None:
-    """Tests multi-threaded concurrent writers and reader in SQLite WAL mode."""
-    db_path = tmp_path / "concurrent_wal.db"
-    queue = SQLiteWALQueue(db_path=db_path)
-
-    num_threads = 4
-    records_per_thread = 25
-
-    def worker(worker_id: int) -> None:
-        q = SQLiteWALQueue(db_path=db_path)
-        for i in range(records_per_thread):
-            q.push("concurrency_topic", {"worker": worker_id, "seq": i}, sender=f"worker_{worker_id}")
-            time.sleep(0.001)
-
-    threads = [threading.Thread(target=worker, args=(i,)) for i in range(num_threads)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    total_count = queue.count_pending()
-    assert total_count == num_threads * records_per_thread
-
-    drained = queue.drain_all()
-    assert len(drained) == num_threads * records_per_thread
-
-
-# =============================================================================
-# 4. REAL-TIME IPC: ZEROMQ STREAMING
-# =============================================================================
-
-def test_zeromq_realtime_streamer_push_pull(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests low-latency ZeroMQ real-time streaming with multipart binary arrays."""
-    ready_event = threading.Event()
-    received_records: List[Dict[str, Any]] = []
-
-    def server_consumer() -> None:
-        receiver = ZMQRealTimeStreamer(host="127.0.0.1", port=5581)
-        receiver.bind_pull(ready_event=ready_event)
-        try:
-            for _ in range(2):
-                msg = receiver.recv_record(timeout_ms=4000)
-                if msg is not None:
-                    received_records.append(msg)
-        finally:
-            receiver.close()
-
-    server_thread = threading.Thread(target=server_consumer)
-    server_thread.start()
-
-    assert ready_event.wait(timeout=3.0)
-    time.sleep(0.1)
-
-    client = ZMQRealTimeStreamer(host="127.0.0.1", port=5581)
-    client.connect_push()
+def test_popen_registration_and_unregistration() -> None:
+    """Test registering, polling active, and unregistering subprocesses."""
+    cmd = [sys.executable, "-c", "import time; time.sleep(10)"]
+    proc = subprocess.Popen(cmd)
     try:
-        client.send_record(
-            topic="tensor_stream",
-            metadata={"calc_id": "c_zmq_1", "step": 10},
-            array=np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
-        )
-        client.send_record(
-            topic="tensor_stream",
-            metadata={"calc_id": "c_zmq_2", "step": 11},
-            array=np.array([5.0, 6.0, 7.0], dtype=np.float64),
-        )
-        time.sleep(0.1)
+        register_popen_process(proc)
+        active = get_active_popen_processes()
+        assert proc in active
+
+        unregister_popen_process(proc)
+        active_after = get_active_popen_processes()
+        assert proc not in active_after
     finally:
-        client.close()
-
-    server_thread.join(timeout=4.0)
-
-    assert len(received_records) == 2
-    assert received_records[0]["metadata"]["calc_id"] == "c_zmq_1"
-    assert np.allclose(received_records[0]["array"], [[1.0, 2.0], [3.0, 4.0]])
-    assert received_records[1]["metadata"]["calc_id"] == "c_zmq_2"
-    assert np.allclose(received_records[1]["array"], [5.0, 6.0, 7.0])
+        kill_process_tree(proc.pid)
+        proc.wait(timeout=3.0)
 
 
-# =============================================================================
-# 5. SINGLE MASTER NODE GATEKEEPING
-# =============================================================================
+def test_kill_process_tree_recursive() -> None:
+    """Test terminating a parent and its recursive child processes."""
+    parent_script = """
+import subprocess, sys, time
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+time.sleep(30)
+"""
+    proc = subprocess.Popen([sys.executable, "-c", parent_script])
+    register_popen_process(proc)
+    time.sleep(0.8)
 
-def test_is_master_node_detection(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests environment-aware master node detection."""
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    assert is_master_node() is True
-
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    assert is_master_node() is False
-
-    monkeypatch.delenv("COCHEM_IS_MASTER")
-    monkeypatch.setenv("SLURM_PROCID", "0")
-    assert is_master_node() is True
-
-    monkeypatch.setenv("SLURM_PROCID", "1")
-    assert is_master_node() is False
-
-    monkeypatch.delenv("SLURM_PROCID")
-    monkeypatch.setenv("OMPI_COMM_WORLD_RANK", "0")
-    assert is_master_node() is True
-
-    monkeypatch.setenv("OMPI_COMM_WORLD_RANK", "3")
-    assert is_master_node() is False
-
-
-def test_master_write_gatekeeper_rejection_and_forwarding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verifies that non-master nodes are strictly forbidden from writing to HDF5 directly."""
-    h5_path = tmp_path / "gatekeeper_test.h5"
-    db_path = tmp_path / "gatekeeper_ipc.db"
-
-    # 1. Master node write succeeds
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    gatekeeper = MasterWriteGatekeeper(h5_path=h5_path, ipc_db_path=db_path)
-    assert gatekeeper.is_master is True
-
-    basin = BasinRecord(molecule_name="methane", energy=-40.5, symmetry_group="Td")
-    gatekeeper.write_basin("basin_ch4", basin)
-    assert h5_path.exists()
-
-    # 2. Non-master node direct write is rejected
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    worker_gatekeeper = MasterWriteGatekeeper(h5_path=h5_path, ipc_db_path=db_path)
-    assert worker_gatekeeper.is_master is False
-
-    with pytest.raises(NonMasterWriteRejectionError):
-        worker_gatekeeper.write_basin("basin_rejected", basin, allow_ipc_forward=False)
-
-    # 3. Non-master node routes to IPC forwarder cleanly
-    routed_record_id = worker_gatekeeper.write_basin("basin_forwarded", basin, allow_ipc_forward=True)
-    assert routed_record_id > 0
-
-    # Master node aggregator consumes IPC forward and serializes to HDF5
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    aggregator = MasterDataAggregator(h5_path=h5_path, ipc_db_path=db_path)
-    processed = aggregator.aggregate_pending(limit=10)
-    assert processed == 1
-
-    # Verify record in HDF5
-    with h5py.File(h5_path, "r") as f:
-        assert "basins/basin_forwarded" in f
-        assert f["basins/basin_forwarded"].attrs["energy"] == -40.5
-
-
-# =============================================================================
-# 6. RIGOROUS HDF5 FILTERING (gzip + shuffle + fletcher32)
-# =============================================================================
-
-def test_hdf5_mandatory_filter_enforcement(tmp_path: Path) -> None:
-    """Verifies that all created datasets strictly enforce gzip+shuffle+fletcher32 filters."""
-    h5_path = tmp_path / "filtered_test.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    data_2d = np.arange(100, dtype=np.float64).reshape((10, 10))
-    mgr.write_dataset_filtered(
-        group_path="physics/orbitals",
-        dataset_name="alpha_mo",
-        data=data_2d,
-        compression_opts=6,
-    )
-
-    with h5py.File(h5_path, "r") as f:
-        dset = f["physics/orbitals/alpha_mo"]
-        assert dset.compression == "gzip"
-        assert dset.compression_opts == 6
-        assert dset.shuffle is True
-        assert dset.fletcher32 is True
-        assert dset.chunks is not None
-        assert np.array_equal(dset[()], data_2d)
-
-        # Check filter verification utility
-        filters_ok, details = verify_dataset_filters(dset)
-        assert filters_ok is True
-        assert details["compression"] == "gzip"
-        assert details["shuffle"] is True
-        assert details["fletcher32"] is True
-
-
-def test_hdf5_filter_violation_rejection(tmp_path: Path) -> None:
-    """Tests that attempts to bypass mandatory filters raise HDF5FilterViolationError when strict."""
-    h5_path = tmp_path / "filter_strict.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path, strict_filters=True)
-
-    with pytest.raises(HDF5FilterViolationError):
-        mgr.write_dataset_filtered(
-            group_path="bad_group",
-            dataset_name="bad_dset",
-            data=np.ones((5, 5)),
-            compression=None,  # Forbidden
-        )
-
-    with pytest.raises(HDF5FilterViolationError):
-        mgr.write_dataset_filtered(
-            group_path="bad_group",
-            dataset_name="bad_dset2",
-            data=np.ones((5, 5)),
-            fletcher32=False,  # Forbidden
-        )
-
-
-# =============================================================================
-# 7. FULL QCSCHEMA COMPLIANCE
-# =============================================================================
-
-def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
-    """Tests full QCSchema model validation, serialization, and round-trip from HDF5."""
-    h5_path = tmp_path / "qcschema_landscape.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    # Construct QCSchema Molecule
-    mol = QCSchemaMolecule(
-        symbols=["O", "H", "H"],
-        geometry=[0.0, 0.0, 0.0, 0.0, 1.43, 1.10, 0.0, -1.43, 1.10],
-        molecular_charge=0.0,
-        molecular_multiplicity=1,
-    )
-
-    # Construct QCSchema Wavefunction
-    wf = QCSchemaWavefunction(
-        basis="def2-TZVP",
-        orbitals_a=np.random.randn(7, 7),
-        occupations_a=np.array([2.0, 2.0, 2.0, 2.0, 2.0, 0.0, 0.0]),
-        density_a=np.random.randn(7, 7),
-    )
-
-    # Construct AtomicResult
-    res = QCSchemaAtomicResult(
-        schema_name="qcschema_output",
-        schema_version=1,
-        molecule=mol,
-        driver=QCSchemaDriver.ENERGY,
-        model=QCSchemaModel(method="r2SCAN-3c", basis="def2-mTZVP"),
-        return_result=-76.4321,
-        properties=QCSchemaProperties(
-            return_energy=-76.4321,
-            scf_total_energy=-76.4321,
-            nuclear_repulsion_energy=9.123,
-        ),
-        wavefunction=wf,
-        success=True,
-    )
-
-    calc_id = "calc_h2o_r2scan"
-    mgr.write_qcschema_result(calc_id=calc_id, result=res)
-
-    # Read back from HDF5
-    loaded_res = mgr.read_qcschema_result(calc_id=calc_id)
-    assert loaded_res.schema_name == "qcschema_output"
-    assert loaded_res.molecule.symbols == ["O", "H", "H"]
-    assert len(loaded_res.molecule.geometry) == 9
-    assert loaded_res.return_result == -76.4321
-    assert loaded_res.properties.scf_total_energy == -76.4321
-    assert loaded_res.wavefunction is not None
-    assert loaded_res.wavefunction.basis == "def2-TZVP"
-    assert np.allclose(loaded_res.wavefunction.orbitals_a, wf.orbitals_a)
-    assert np.allclose(loaded_res.wavefunction.occupations_a, wf.occupations_a)
-
-    # Verify that all wavefunction datasets in HDF5 have gzip+shuffle+fletcher32
-    with h5py.File(h5_path, "r") as f:
-        wf_grp = f[f"calculations/{calc_id}/wavefunction"]
-        for dset_name in ["orbitals_a", "occupations_a", "density_a"]:
-            dset = wf_grp[dset_name]
-            ok, _ = verify_dataset_filters(dset)
-            assert ok is True, f"Dataset {dset_name} did not pass filter verification"
-
-
-def test_qcelemental_interoperability(tmp_path: Path) -> None:
-    """Tests bidirectional conversion with QCElemental models if installed."""
-    if qcel is None:
-        pytest.skip("QCElemental is not installed in current environment")
-
-    h5_path = tmp_path / "qcel_interop.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    # Test QCElemental v2 or v1
-    try:
+    pid = proc.pid
+    child_pids: List[int] = []
+    if HAS_PSUTIL:
         try:
-            import qcelemental.models.v2 as v2
-            mol = v2.Molecule(
-                symbols=["C", "O"],
-                geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
-                molecular_charge=0,
-                molecular_multiplicity=1,
-            )
-            spec = v2.AtomicSpecification(driver=v2.DriverEnum.energy, model=v2.Model(method="b3lyp", basis="6-31g*"))
-            inp = v2.AtomicInput(molecule=mol, specification=spec)
-            prov = v2.Provenance(creator="CoChem-Test")
-            qcel_res = v2.AtomicResult(
-                molecule=mol,
-                input_data=inp,
-                properties=v2.AtomicProperties(return_energy=-113.123),
-                return_result=-113.123,
-                provenance=prov,
-                success=True,
-            )
-        except Exception:
-            from qcelemental.models import AtomicResult as V1AtomicResult
-            from qcelemental.models import Molecule as V1Molecule
-            mol = V1Molecule(
-                symbols=["C", "O"],
-                geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
-                molecular_charge=0,
-                molecular_multiplicity=1,
-            )
-            qcel_res = V1AtomicResult(
-                molecule=mol,
-                driver="energy",
-                model={"method": "b3lyp", "basis": "6-31g*"},
-                return_result=-113.123,
-                properties={"return_energy": -113.123},
-                provenance={"creator": "CoChem-Test"},
-                success=True,
-            )
+            parent_p = psutil.Process(pid)
+            child_pids = [c.pid for c in parent_p.children(recursive=True)]
+        except psutil.NoSuchProcess:
+            pass
 
-        calc_id = "calc_co_b3lyp"
-        mgr.write_qcschema_result(calc_id=calc_id, result=qcel_res)
+    kill_process_tree(pid)
+    proc.wait(timeout=3.0)
 
-        # Read back
-        retrieved = mgr.read_qcschema_result(calc_id=calc_id)
-        assert retrieved.molecule.symbols == ["C", "O"]
-        assert retrieved.return_result == -113.123
-    except Exception as e:
-        if "pydantic.v1" in str(e):
-            pytest.skip("QCElemental v1 incompatible with current pydantic environment")
-        raise
+    if HAS_PSUTIL:
+        time.sleep(0.3)
+        assert not psutil.pid_exists(pid)
+        for cpid in child_pids:
+            assert not psutil.pid_exists(cpid), f"Child PID {cpid} leaked!"
 
 
+def test_cleanup_zombie_processes_global() -> None:
+    """Test that global cleanup sweeps all registered living processes."""
+    proc1 = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    proc2 = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    register_popen_process(proc1)
+    register_popen_process(proc2)
 
-# =============================================================================
-# 8. LANDSCAPE DATABASE SERIALIZATION & BASIN RECORDS
-# =============================================================================
+    time.sleep(0.3)
+    reaped = cleanup_zombie_processes()
+    assert reaped >= 2
 
-def test_basin_and_landscape_lifecycle(tmp_path: Path) -> None:
-    """Tests basin record serialization into landscape.h5 with metadata attributes."""
-    h5_path = tmp_path / "landscape.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    coords = np.array([
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ], dtype=np.float64)
-
-    record = BasinRecord(
-        molecule_name="triatomic_complex",
-        xyz_coordinates=coords,
-        energy=-250.4567,
-        symmetry_group="Cs",
-        LAM_TRIGGER_REQUIRED=True,
-    )
-
-    mgr.write_basin_record("basin_triatomic", record)
-
-    # Read back basin record
-    loaded_basin = mgr.read_basin_record("basin_triatomic")
-    assert loaded_basin.molecule_name == "triatomic_complex"
-    assert loaded_basin.energy == -250.4567
-    assert loaded_basin.symmetry_group == "Cs"
-    assert loaded_basin.LAM_TRIGGER_REQUIRED is True
-    assert np.allclose(loaded_basin.xyz_coordinates, coords)
-
-    # List basins
-    basins = mgr.list_basins()
-    assert "basin_triatomic" in basins
+    proc1.wait(timeout=2.0)
+    proc2.wait(timeout=2.0)
+    assert len(get_active_popen_processes()) == 0
 
 
-def test_resolve_landscape_h5_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests dynamic resolution of landscape.h5 path."""
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    resolved = resolve_landscape_h5_path()
-    assert resolved.name == "landscape.h5"
-    assert "Databases" in str(resolved)
+def test_zombie_reaper_class() -> None:
+    """Test ZombieReaper static helper methods."""
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    register_popen_process(proc)
+    try:
+        ZombieReaper.reap_pid(proc.pid, timeout=2.0)
+        proc.wait(timeout=2.0)
+        assert proc.poll() is not None
+    finally:
+        unregister_popen_process(proc)
 
 
-# =============================================================================
-# 9. ADVERSARIAL META-AUDITOR VALIDATIONS (ZERO-MOCK MANDATE)
-# =============================================================================
+# =====================================================================
+# 2. NUMA CPU Pinning & MPI Sanitization
+# =====================================================================
 
-def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path) -> None:
-    """Tests full QCSchema OptimizationResult serialization, trajectory steps, energies, and filter compliance."""
-    h5_path = tmp_path / "opt_landscape.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
+def test_cpu_topology_detection_and_manager() -> None:
+    """Test physical host CPU topology detection and CPUTopologyManager allocation."""
+    topo = detect_cpu_topology()
+    assert isinstance(topo, dict)
+    assert topo["logical_cores"] >= 1
+    assert topo["physical_cores"] >= 1
+    assert topo["sockets"] >= 1
+    assert len(topo["numa_nodes"]) >= 1
 
-    init_mol = QCSchemaMolecule(
-        symbols=["C", "O"],
-        geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.50],
-        molecular_charge=0.0,
-        molecular_multiplicity=1,
-    )
-    final_mol = QCSchemaMolecule(
-        symbols=["C", "O"],
-        geometry=[0.0, 0.0, 0.0, 0.0, 0.0, 2.13],
-        molecular_charge=0.0,
-        molecular_multiplicity=1,
-    )
+    mgr = CPUTopologyManager()
+    mgr_topo = mgr.get_topology()
+    assert mgr_topo["logical_cores"] == topo["logical_cores"]
 
-    # Step 1
-    step_0 = QCSchemaAtomicResult(
-        schema_name="qcschema_output",
-        schema_version=1,
-        molecule=init_mol,
-        driver=QCSchemaDriver.GRADIENT,
-        model=QCSchemaModel(method="b3lyp", basis="6-31g*"),
-        return_result=[[0.0, 0.0, 0.05], [0.0, 0.0, -0.05]],
-        properties=QCSchemaProperties(return_energy=-113.050, scf_total_energy=-113.050),
-        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=np.ones((4, 4))),
-        success=True,
-    )
-    # Step 2
-    step_1 = QCSchemaAtomicResult(
-        schema_name="qcschema_output",
-        schema_version=1,
-        molecule=final_mol,
-        driver=QCSchemaDriver.GRADIENT,
-        model=QCSchemaModel(method="b3lyp", basis="6-31g*"),
-        return_result=[[0.0, 0.0, 0.001], [0.0, 0.0, -0.001]],
-        properties=QCSchemaProperties(return_energy=-113.123, scf_total_energy=-113.123),
-        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=np.ones((4, 4))),
-        success=True,
-    )
+    allocated = mgr.allocate_cores(count=1)
+    assert len(allocated) == 1
+    assert isinstance(allocated[0], int)
 
-    opt_result = QCSchemaOptimizationResult(
-        schema_name="qcschema_optimization_output",
-        schema_version=1,
-        initial_molecule=init_mol,
-        final_molecule=final_mol,
-        trajectory=[step_0, step_1],
-        energies=[-113.050, -113.123],
-        provenance={"creator": "CoChem-Opt-Test", "version": "4.0.0"},
-        success=True,
-    )
-
-    opt_id = "opt_co_relax_01"
-    mgr.write_qcschema_optimization_result(opt_id=opt_id, result=opt_result)
-
-    # List trajectories
-    trajs = mgr.list_trajectories()
-    assert opt_id in trajs
-
-    # Read back and assert full round-trip fidelity
-    loaded_opt = mgr.read_qcschema_optimization_result(opt_id=opt_id)
-    assert loaded_opt.schema_name == "qcschema_optimization_output"
-    assert loaded_opt.success is True
-    assert loaded_opt.provenance.get("creator") == "CoChem-Opt-Test"
-    assert len(loaded_opt.trajectory) == 2
-    assert np.allclose(loaded_opt.energies, [-113.050, -113.123])
-    assert loaded_opt.initial_molecule.symbols == ["C", "O"]
-    assert np.allclose(loaded_opt.initial_molecule.geometry, [0.0, 0.0, 0.0, 0.0, 0.0, 2.50])
-    assert loaded_opt.final_molecule.symbols == ["C", "O"]
-    assert np.allclose(loaded_opt.final_molecule.geometry, [0.0, 0.0, 0.0, 0.0, 0.0, 2.13])
-
-    # Check step 0
-    assert loaded_opt.trajectory[0].driver == QCSchemaDriver.GRADIENT
-    assert loaded_opt.trajectory[0].properties.return_energy == -113.050
-    assert loaded_opt.trajectory[0].wavefunction is not None
-    assert np.allclose(loaded_opt.trajectory[0].wavefunction.density_a, np.ones((4, 4)))
-
-    # Verify that all datasets in the optimization hierarchy enforce gzip+shuffle+fletcher32
-    integrity = mgr.verify_file_integrity()
-    assert integrity["total_datasets"] > 0
-    assert len(integrity["filter_violations"]) == 0
-    assert len(integrity["corrupted_datasets"]) == 0
-    assert integrity["valid_datasets"] == integrity["total_datasets"]
+    affinity_calc = mgr.calculate_thread_affinity(rank=0, threads_per_rank=1)
+    assert len(affinity_calc) == 1
 
 
-def test_gradient_and_hessian_filtered_dataset_serialization(tmp_path: Path) -> None:
-    """Tests that large gradients and Hessians are stored as chunked filtered datasets with Fletcher32 checksums."""
-    h5_path = tmp_path / "hessian_landscape.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    # 10-atom system -> 30x30 Hessian
-    n_atoms = 10
-    symbols = ["C"] * n_atoms
-    geom = np.random.randn(n_atoms * 3).tolist()
-    hessian_matrix = np.random.randn(n_atoms * 3, n_atoms * 3).tolist()
-
-    res = QCSchemaAtomicResult(
-        schema_name="qcschema_output",
-        schema_version=1,
-        molecule=QCSchemaMolecule(symbols=symbols, geometry=geom),
-        driver=QCSchemaDriver.HESSIAN,
-        model=QCSchemaModel(method="pbe0", basis="def2-SVP"),
-        return_result=hessian_matrix,
-        properties=QCSchemaProperties(return_energy=-380.123),
-        success=True,
-    )
-
-    calc_id = "calc_c10_hessian"
-    mgr.write_qcschema_result(calc_id=calc_id, result=res)
-
-    # Verify physical HDF5 dataset filters on the return_result dataset
-    with h5py.File(h5_path, "r") as f:
-        dset = f[f"calculations/{calc_id}/return_result"]
-        ok, details = verify_dataset_filters(dset)
-        assert ok is True, f"Return result dataset failed filter verification: {details}"
-        assert dset.shape == (30, 30)
-
-    # Read back and assert exact numerical identity
-    loaded_res = mgr.read_qcschema_result(calc_id=calc_id)
-    assert loaded_res.driver == QCSchemaDriver.HESSIAN
-    assert np.allclose(loaded_res.return_result, hessian_matrix)
+def test_enforce_cpu_affinity() -> None:
+    """Test CPU affinity enforcement on current process."""
+    if HAS_PSUTIL:
+        pid = os.getpid()
+        num_cores = os.cpu_count() or 1
+        target_cores = [0] if num_cores > 0 else []
+        success = enforce_cpu_affinity(pid, target_cores)
+        assert success is True
 
 
-def test_scalar_dataset_normalization_and_filtering(tmp_path: Path) -> None:
-    """Tests that 0D scalars and 1D arrays are normalized and successfully filtered with gzip+shuffle+fletcher32."""
-    h5_path = tmp_path / "scalar_filtered.h5"
-    mgr = CoChemHDF5Manager(h5_path=h5_path)
-
-    mgr.write_dataset_filtered("scalars", "pi_val", np.array(3.141592653589793))
-    mgr.write_dataset_filtered("scalars", "single_str", "benzene_ring")
-
-    with h5py.File(h5_path, "r") as f:
-        pi_dset = f["scalars/pi_val"]
-        ok_pi, _ = verify_dataset_filters(pi_dset)
-        assert ok_pi is True
-        assert np.isclose(pi_dset[0], 3.141592653589793)
-
-        str_dset = f["scalars/single_str"]
-        ok_str, _ = verify_dataset_filters(str_dset)
-        assert ok_str is True
+def test_cpu_affinity_darwin_graceful_fallback() -> None:
+    """Test enforce_cpu_affinity does not crash on empty cores or current PID."""
+    assert enforce_cpu_affinity(os.getpid(), None) is True
+    assert enforce_cpu_affinity(os.getpid(), []) is True
 
 
-def test_swmr_eradication_ast_attribute_detection() -> None:
-    """Tests that verify_no_swmr_usage detects and rejects swmr_mode assignments in source code."""
-    bad_code_1 = "import h5py\nf = h5py.File('test.h5', swmr=True)"
-    with pytest.raises(HDF5ManagerError, match="SWMR Violation"):
-        verify_no_swmr_usage(bad_code_1)
+def test_detect_mpi_environment() -> None:
+    """Test detection of multi-rank OpenMPI / SLURM execution environments."""
+    empty_env: dict[str, str] = {}
+    assert detect_mpi_environment(empty_env) is False
 
-    bad_code_2 = "import h5py\nf = h5py.File('test.h5', libver='latest')"
-    with pytest.raises(HDF5ManagerError, match="SWMR Violation"):
-        verify_no_swmr_usage(bad_code_2)
+    openmpi_env = {"OMPI_COMM_WORLD_SIZE": "4"}
+    assert detect_mpi_environment(openmpi_env) is True
 
-    bad_code_3 = "f.swmr_mode = True"
-    with pytest.raises(HDF5ManagerError, match="SWMR Violation"):
-        verify_no_swmr_usage(bad_code_3)
+    pmi_env = {"PMI_SIZE": "8"}
+    assert detect_mpi_environment(pmi_env) is True
+
+    slurm_env = {"SLURM_NTASKS": "16"}
+    assert detect_mpi_environment(slurm_env) is True
+
+    rank_env = {"MPI_LOCALRANKID": "0"}
+    assert detect_mpi_environment(rank_env) is True
 
 
-def test_master_aggregator_optimization_stream(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests asynchronous SQLite WAL streaming and master node aggregation for optimization results."""
-    h5_path = tmp_path / "stream_landscape.h5"
-    db_path = tmp_path / "stream_ipc.db"
-
-    # 1. Non-master worker pushes optimization result to IPC
-    monkeypatch.setenv("COCHEM_IS_MASTER", "0")
-    queue = SQLiteWALQueue(db_path=db_path)
-
-    init_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 1.2]}
-    final_mol = {"symbols": ["H", "F"], "geometry": [0.0, 0.0, 0.0, 0.0, 0.0, 0.92]}
-    step = {
-        "schema_name": "qcschema_output",
-        "schema_version": 1,
-        "molecule": init_mol,
-        "driver": "energy",
-        "model": {"method": "hf", "basis": "sto-3g"},
-        "return_result": -100.0,
-        "properties": {"return_energy": -100.0},
-        "success": True,
+def test_sanitize_mpi_environment_multi_rank() -> None:
+    """Test forcing single-thread variables when MPI environment is detected."""
+    env = {
+        "OMPI_COMM_WORLD_SIZE": "4",
+        "OMP_NUM_THREADS": "8",
+        "MKL_NUM_THREADS": "8",
     }
-    opt_payload = {
-        "opt_id": "opt_hf_stream_01",
-        "data": {
-            "schema_name": "qcschema_optimization_output",
-            "schema_version": 1,
-            "initial_molecule": init_mol,
-            "final_molecule": final_mol,
-            "trajectory": [step],
-            "energies": [-100.0],
-            "success": True,
-        },
+    sanitized = sanitize_mpi_environment(env)
+    assert sanitized["OMP_NUM_THREADS"] == "1"
+    assert sanitized["MKL_NUM_THREADS"] == "1"
+    assert sanitized["OPENBLAS_NUM_THREADS"] == "1"
+    assert sanitized["VECLIB_MAXIMUM_THREADS"] == "1"
+    assert sanitized["NUMEXPR_NUM_THREADS"] == "1"
+    assert sanitized["BLIS_NUM_THREADS"] == "1"
+
+
+def test_sanitize_mpi_environment_single_rank() -> None:
+    """Test that single rank non-MPI environments are preserved unless forced."""
+    env = {
+        "OMP_NUM_THREADS": "8",
     }
+    sanitized = sanitize_mpi_environment(env, force_single_thread=False)
+    assert sanitized["OMP_NUM_THREADS"] == "8"
 
-    queue.push(topic="optimization_stream", payload=opt_payload, sender="worker_node_42")
-    assert queue.count_pending() == 1
+    sanitized_forced = sanitize_mpi_environment(env, force_single_thread=True)
+    assert sanitized_forced["OMP_NUM_THREADS"] == "1"
 
-    # 2. Master node aggregates IPC stream into HDF5
-    monkeypatch.setenv("COCHEM_IS_MASTER", "1")
-    aggregator = MasterDataAggregator(h5_path=h5_path, ipc_db_path=db_path)
-    processed = aggregator.aggregate_pending(limit=10)
-    assert processed == 1
-    assert queue.count_pending() == 0
 
-    # 3. Verify record in landscape.h5
-    mgr = CoChemHDF5Manager(h5_path=h5_path, ipc_db_path=db_path)
-    assert "opt_hf_stream_01" in mgr.list_trajectories()
-    loaded = mgr.read_qcschema_optimization_result("opt_hf_stream_01")
-    assert loaded.initial_molecule.symbols == ["H", "F"]
-    assert loaded.energies == [-100.0]
+# =====================================================================
+# 3. Pre-Flight Storage Quota & RAM-Disk Routing
+# =====================================================================
+
+def test_preflight_disk_quota_success(tmp_path: Path) -> None:
+    """Test pre-flight quota check passes when requesting small valid capacity."""
+    scratch_dir = tmp_path / "valid_quota_scratch"
+    res = verify_scratch_quota_and_io(scratch_dir, required_gb=0.001)
+    assert res is True
+    assert scratch_dir.exists()
+
+
+def test_preflight_disk_quota_breach_raises_error(tmp_path: Path) -> None:
+    """Test real physical DiskQuotaError is raised when requesting impossible capacity without mocks."""
+    scratch_dir = tmp_path / "quota_fail_dir"
+    with pytest.raises(DiskQuotaError) as exc_info:
+        verify_scratch_quota_and_io(scratch_dir, required_gb=999999.0)
+
+    err = exc_info.value
+    assert err.required_gb == 999999.0
+    assert err.available_gb < 999999.0
+    assert err.path == scratch_dir.resolve()
+    assert "Insufficient scratch disk quota" in str(err)
+
+
+def test_scratch_binary_probe_integrity(tmp_path: Path) -> None:
+    """Test 64KB unbuffered SHA-256 binary probe integrity on physical media."""
+    probe_dir = tmp_path / "probe_dir"
+    assert verify_scratch_quota_and_io(probe_dir, required_gb=0.01) is True
+
+    # Backward compatibility helper
+    assert verify_scratch_io(probe_dir, required_mb=10) is True
+
+
+def test_lock_directory_permissions(tmp_path: Path) -> None:
+    """Test locking directory permissions (0o700 on POSIX or icacls on Windows)."""
+    target = tmp_path / "locked_perm_dir"
+    res = lock_directory_permissions(target)
+    assert res is True
+    assert target.exists()
+
+    if platform.system() != "Windows":
+        mode = target.stat().st_mode & 0o777
+        assert mode == 0o700
+
+
+def test_ramdisk_overlay_manager_threshold_and_provisioning(tmp_path: Path) -> None:
+    """Test RAMDiskOverlayManager host RAM threshold checks and provisioning."""
+    mgr = RAMDiskOverlayManager(threshold_ram_gb=128.0)
+    total_ram = mgr.get_total_host_ram_gb()
+    assert isinstance(total_ram, float)
+
+    is_eligible = mgr.is_ramdisk_eligible(min_ram_gb=128.0)
+    assert is_eligible == (total_ram >= 128.0)
+
+    # Provisioning fallback directory
+    fallback = tmp_path / "custom_fallback"
+    overlay = mgr.provision_overlay("job_unit_test", required_gb=1.0, fallback_dir=fallback)
+    assert overlay.exists()
+
+
+def test_ramdisk_overlay_sync_and_cleanup(tmp_path: Path) -> None:
+    """Test RAMDiskOverlayManager synchronizes quantum artifacts and cleans up overlay."""
+    mgr = RAMDiskOverlayManager()
+    overlay_dir = tmp_path / "overlay_source"
+    perm_dir = tmp_path / "permanent_dest"
+    overlay_dir.mkdir(parents=True, exist_ok=True)
+    perm_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create dummy quantum artifacts
+    out_file = overlay_dir / "geom_opt.out"
+    out_file.write_text("ENERGY = -100.123456 Hartree\n", encoding="utf-8")
+    xyz_file = overlay_dir / "coords.xyz"
+    xyz_file.write_text("3\nWater\nO 0 0 0\nH 0 0 1\nH 0 1 0\n", encoding="utf-8")
+
+    hashes = mgr.sync_and_cleanup(overlay_dir, perm_dir)
+    assert "geom_opt.out" in hashes
+    assert "coords.xyz" in hashes
+    assert (perm_dir / "geom_opt.out").exists()
+    assert (perm_dir / "coords.xyz").exists()
+    assert not overlay_dir.exists()
+
+
+# =====================================================================
+# 4. ZeroMQ Heartbeat & Dead-Man's Switch Watchdog
+# =====================================================================
+
+def test_zmq_heartbeat_manager_curve_and_lifecycle() -> None:
+    """Test ZMQHeartbeatManager start, publish, and stop lifecycle."""
+    if not HAS_ZMQ:
+        pytest.skip("pyzmq not installed")
+
+    hb_mgr = ZMQHeartbeatManager(job_id="test_heartbeat_job")
+    try:
+        endpoint = hb_mgr.start(interval_sec=0.1, metadata={"role": "quantum_worker"})
+        assert endpoint != ""
+        assert hb_mgr._thread is not None
+        assert hb_mgr._thread.is_alive()
+
+        # Publish manual heartbeat
+        hb_mgr.publish_heartbeat(status="running", extra={"step": 1})
+        time.sleep(0.3)
+    finally:
+        hb_mgr.stop()
+        assert hb_mgr._thread is None
+
+
+def test_broker_zmq_heartbeat_lifecycle() -> None:
+    """Test SubprocessBroker starting and receiving heartbeats over ZeroMQ."""
+    if not HAS_ZMQ:
+        pytest.skip("pyzmq not installed")
+
+    port = 5569
+    broker = SubprocessBroker()
+    ctx = zmq.Context()
+    sub_socket = ctx.socket(zmq.SUB)
+    sub_socket.connect(f"tcp://127.0.0.1:{port}")
+    sub_socket.setsockopt_string(zmq.SUBSCRIBE, "heartbeat")
+
+    try:
+        broker.start_zmq_heartbeat(port=port, interval_sec=0.1, metadata={"tier": "test"})
+        assert broker._zmq_thread is not None
+        assert broker._zmq_thread.is_alive()
+
+        poller = zmq.Poller()
+        poller.register(sub_socket, zmq.POLLIN)
+        events = dict(poller.poll(timeout=2000))
+
+        if sub_socket in events:
+            topic, payload_bytes = sub_socket.recv_multipart()
+            assert topic == b"heartbeat"
+            data = json.loads(payload_bytes.decode("utf-8"))
+            assert data["status"] == "alive"
+            assert data["metadata"]["tier"] == "test"
+    finally:
+        broker.stop_zmq_heartbeat()
+        sub_socket.close(linger=0)
+        ctx.term()
+        broker.close()
+
+
+def test_dead_mans_switch_watchdog_daemon_transition() -> None:
+    """Test DeadMansSwitchWatchdog transitions process to detached daemon on timeout."""
+    cmd = [sys.executable, "-c", "import time; time.sleep(10)"]
+    proc = subprocess.Popen(cmd)
+    register_popen_process(proc)
+
+    try:
+        watchdog = DeadMansSwitchWatchdog(
+            job_id="test_dms_daemon",
+            proc=proc,
+            timeout=0.3,
+            check_interval=0.05,
+            on_timeout="daemonize",
+        )
+        with watchdog:
+            time.sleep(0.6)
+            assert watchdog.is_daemonized is True
+            # Assert process is still alive and was detached rather than killed
+            assert proc.poll() is None
+    finally:
+        kill_process_tree(proc.pid)
+        proc.wait(timeout=2.0)
+
+
+def test_dead_mans_switch_watchdog_ping_reset() -> None:
+    """Test that active pings prevent DeadMansSwitchWatchdog from triggering."""
+    cmd = [sys.executable, "-c", "import time; time.sleep(10)"]
+    proc = subprocess.Popen(cmd)
+    register_popen_process(proc)
+
+    try:
+        watchdog = DeadMansSwitchWatchdog(
+            job_id="test_dms_ping",
+            proc=proc,
+            timeout=0.4,
+            check_interval=0.05,
+            on_timeout="kill",
+        )
+        with watchdog:
+            for _ in range(5):
+                time.sleep(0.1)
+                watchdog.ping()
+            assert watchdog.is_daemonized is False
+            assert proc.poll() is None
+    finally:
+        kill_process_tree(proc.pid)
+        proc.wait(timeout=2.0)
+
+
+# =====================================================================
+# 5. Win32 Job Objects & Process Groups
+# =====================================================================
+
+def test_windows_job_object_kill_on_close() -> None:
+    """Test Win32 Job Object automatically terminates child processes when handle closes."""
+    if platform.system() != "Windows":
+        pytest.skip("Win32 Job Object test is Windows-only")
+
+    job = WindowsJobObject(kill_on_close=True)
+    assert job.handle is not None
+
+    cmd = [sys.executable, "-c", "import time; time.sleep(30)"]
+    proc = subprocess.Popen(cmd)
+    try:
+        assigned = job.assign_popen(proc)
+        assert assigned is True
+        # Close job object; process should be terminated by OS kernel
+        job.close()
+        time.sleep(0.5)
+        assert proc.poll() is not None
+    finally:
+        kill_process_tree(proc.pid)
+
+
+# =====================================================================
+# 6. Safe Subprocess Execution (safe_subprocess_run)
+# =====================================================================
+
+def test_safe_subprocess_run_success() -> None:
+    """Test safe_subprocess_run with successful execution and output capture."""
+    res = safe_subprocess_run(
+        [sys.executable, "-c", "print('SUBPROCESS_BROKER_OK')"],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "SUBPROCESS_BROKER_OK" in res.stdout
+
+
+def test_safe_subprocess_run_with_custom_env_and_cwd(tmp_path: Path) -> None:
+    """Test safe_subprocess_run with custom working directory and environment variables."""
+    test_env = {"COCHEM_BROKER_TEST_VAR": "ALPHA_OMEGA_VALUE"}
+    test_script = "import os, sys; print(os.getcwd()); print(os.environ.get('COCHEM_BROKER_TEST_VAR'))"
+
+    res = safe_subprocess_run(
+        [sys.executable, "-c", test_script],
+        cwd=tmp_path,
+        env=test_env,
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert str(tmp_path).lower() in res.stdout.lower()
+    assert "ALPHA_OMEGA_VALUE" in res.stdout
+
+
+def test_safe_subprocess_run_invalid_cwd() -> None:
+    """Test safe_subprocess_run raising FileNotFoundError on non-existent directory."""
+    non_existent_dir = Path("D:/non_existent_dir_co_chem_xyz_987")
+    with pytest.raises(FileNotFoundError):
+        safe_subprocess_run(
+            [sys.executable, "-c", "print('fail')"],
+            cwd=non_existent_dir,
+        )
+
+
+def test_safe_subprocess_run_called_process_error() -> None:
+    """Test safe_subprocess_run raising CalledProcessError on non-zero exit with check=True."""
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        safe_subprocess_run(
+            [sys.executable, "-c", "import sys; sys.stderr.write('FAILURE_LOG'); sys.exit(42)"],
+            check=True,
+        )
+    assert exc_info.value.returncode == 42
+    assert "FAILURE_LOG" in (exc_info.value.stderr or "")
+
+
+def test_safe_subprocess_run_timeout() -> None:
+    """Test safe_subprocess_run timing out and raising TimeoutExpired."""
+    with pytest.raises(subprocess.TimeoutExpired):
+        safe_subprocess_run(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            timeout=0.5,
+        )
+
+
+def test_safe_subprocess_run_string_command() -> None:
+    """Test safe_subprocess_run when passing a command string."""
+    res = safe_subprocess_run(
+        f'"{sys.executable}" -c "print(12345)"',
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "12345" in res.stdout
+
+
+def test_safe_subprocess_run_with_affinity() -> None:
+    """Test safe_subprocess_run with explicit CPU affinity specification."""
+    if HAS_PSUTIL:
+        available_cores = list(range(min(2, os.cpu_count() or 1)))
+        res = safe_subprocess_run(
+            [sys.executable, "-c", "print('AFFINITY_OK')"],
+            capture_output=True,
+            text=True,
+            cpu_affinity=available_cores,
+        )
+        assert res.returncode == 0
+        assert "AFFINITY_OK" in res.stdout
+
+
+def test_safe_subprocess_run_with_quota_check(tmp_path: Path) -> None:
+    """Test safe_subprocess_run performs pre-flight disk quota assertion."""
+    res = safe_subprocess_run(
+        [sys.executable, "-c", "print('QUOTA_OK')"],
+        cwd=tmp_path,
+        required_disk_gb=0.001,
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 0
+    assert "QUOTA_OK" in res.stdout
+
+    with pytest.raises(DiskQuotaError):
+        safe_subprocess_run(
+            [sys.executable, "-c", "print('FAIL')"],
+            cwd=tmp_path,
+            required_disk_gb=999999.0,
+        )
+
+
+# =====================================================================
+# 7. SubprocessBroker Execution & Artifacts
+# =====================================================================
+
+def test_broker_init_and_context_manager(tmp_path: Path) -> None:
+    """Test SubprocessBroker initialization, context manager enter/exit, and directory setup."""
+    scratch_dir = tmp_path / "custom_scratch"
+    with SubprocessBroker(cwd=scratch_dir) as broker:
+        assert broker.cwd.exists()
+        assert broker.memory_limit_bytes > 0
+        assert broker._atexit_reaper is not None
+        assert broker._lock is not None
+
+
+def test_broker_oom_monitor_lifecycle() -> None:
+    """Test starting and stopping OOM preemption monitor thread without blocking."""
+    broker = SubprocessBroker()
+    try:
+        broker.start_oom_monitor(check_interval=0.1)
+        if HAS_PSUTIL:
+            assert broker._monitor_thread is not None
+            assert broker._monitor_thread.is_alive()
+        time.sleep(0.3)
+    finally:
+        broker.stop_oom_monitor()
+        assert broker._monitor_thread is None
+        broker.close()
+
+
+def test_broker_execute_success(tmp_path: Path) -> None:
+    """Test SubprocessBroker executing a command successfully."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    try:
+        exit_code = broker.execute(
+            [sys.executable, "-c", "import sys; sys.stdout.write('BROKER_EXEC_OK'); sys.exit(0)"],
+            job_name="test_exec_ok",
+            required_disk_gb=0.01,
+        )
+        assert exit_code == 0
+    finally:
+        broker.close()
+
+
+def test_broker_execute_failure(tmp_path: Path) -> None:
+    """Test SubprocessBroker capturing a non-zero exit code."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    try:
+        exit_code = broker.execute(
+            [sys.executable, "-c", "import sys; sys.stderr.write('CRASH'); sys.exit(5)"],
+            job_name="test_exec_fail",
+            required_disk_gb=0.01,
+        )
+        assert exit_code == 5
+    finally:
+        broker.close()
+
+
+def test_broker_execute_timeout(tmp_path: Path) -> None:
+    """Test SubprocessBroker enforcing process timeout and returning -124."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    try:
+        exit_code = broker.execute(
+            [sys.executable, "-c", "import time; time.sleep(10)"],
+            job_name="test_exec_timeout",
+            timeout=0.6,
+            required_disk_gb=0.01,
+        )
+        assert exit_code == -124
+    finally:
+        broker.close()
+
+
+def test_broker_core_dump_garbage_collection(tmp_path: Path) -> None:
+    """Test sweeping core dump binary files."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    try:
+        core1 = tmp_path / "core.1234"
+        core2 = tmp_path / "core.5678"
+        normal = tmp_path / "output.txt"
+        core1.write_bytes(b"DUMP_DATA_1")
+        core2.write_bytes(b"DUMP_DATA_2")
+        normal.write_text("VALID_DATA", encoding="utf-8")
+
+        swept = broker.garbage_collect_core_dumps(tmp_path)
+        assert swept == 2
+        assert not core1.exists()
+        assert not core2.exists()
+        assert normal.exists()
+    finally:
+        broker.close()
+
+
+def test_broker_artifact_sync_and_hash(tmp_path: Path) -> None:
+    """Test SubprocessBroker generates hashes for quantum chemistry artifact files."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    try:
+        out_file = tmp_path / "water_opt.out"
+        out_file.write_text("FINAL SINGLE POINT ENERGY -76.43210 Hartree\n", encoding="utf-8")
+
+        script = 'import sys; sys.stdout.write("DONE"); sys.exit(0)'
+        exit_code = broker.execute(
+            [sys.executable, "-c", script],
+            job_name="hash_test",
+            required_disk_gb=0.01,
+        )
+        assert exit_code == 0
+        assert out_file.exists()
+
+        hashes = broker.hash_quantum_artifacts(tmp_path)
+        assert "water_opt.out" in hashes
+        assert len(hashes["water_opt.out"]) == 64
+    finally:
+        broker.close()
+
+
+def test_broker_zombie_reaper_active_processes() -> None:
+    """Test execute_zombie_reaper kills active processes tracked by the broker."""
+    broker = SubprocessBroker()
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        with broker._lock:
+            broker.active_processes.append(proc)
+        register_popen_process(proc)
+
+        time.sleep(0.3)
+        reaped = broker.execute_zombie_reaper()
+        assert reaped >= 1
+        assert len(broker.active_processes) == 0
+
+        proc.wait(timeout=2.0)
+    finally:
+        broker.close()
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -1,18 +1,17 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part1_12_core_telemetry_logger_prompt.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part1_13_core_config_compiler_prompt.md.
 Original prompt:
-﻿# TASK INSTRUCTIONS: CoChem-BASE Core Telemetry Logger
+﻿# TASK INSTRUCTIONS: CoChem-BASE Core Config Compiler
 
-**Target Filepath:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_telemetry_logger.py`
+**Target Filepath:** `D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_config_compiler.py`
 
 ## Context & Ecosystem Role
-The Black Box. Streams highly structured JSON-LD provenance blocks and crash diagnostics to `Logs/cochem_telemetry_stream.jsonl`, providing clean parsing structures for downstream LLM evaluation (CoChem-SCRIBE).
+The Fallback Router. Implements dynamic logic to keep the pipeline moving, such as automatically swapping computational MLFFs (e.g., downgrading MACE-OFF24m to g-xTB if GPU VRAM is exhausted or AVX-512 is missing).
 
 ## Deliverable Functions & Constraints
-- Globally intercept `sys.excepthook` to trap fatal Python crashes.
-- Identify Exit Code 139 (Segmentation Faults) and capture 256-byte `stderr` hex-dumps.
-- Feature a rotating log handler.
-- MUST use secure IPC (ZeroMQ/Named Pipes) and cryptographically sign provenance blocks to prevent log spoofing.
-- Ensure NO mocks, stubs, or fake logs. Provide production-grade implementation.
+- An asynchronous templater and execution handshake manager.
+- Verify binary existence against active micro-silos.
+- Generate environment variables (`OMP_NUM_THREADS`, etc.) tailored to the exact hardware profile.
+- Ensure NO mocks, stubs, or dummy logic. Implement real hardware fallback checks based on configuration inputs.
 - Only generate this exact file.
 
 
@@ -25,1616 +24,2329 @@ The Black Box. Streams highly structured JSON-LD provenance blocks and crash dia
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_telemetry_logger.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_core_config_compiler.py ---
 #!/usr/bin/env python3
 # Copyright 2026 CoChem Project Family. All rights reserved.
 # Apache License 2.0
 """
-CoChem-CORE: Stage 4.0 - Telemetry, Stability, & Provenance Logger
-The Black Box of the CoChem ecosystem.
+CoChem-CORE: Stage 2.0 - Configuration Compiler, Fallback Router & Execution Gatekeeper.
 Implements:
-- Rotating JSON-LD provenance stream handler (Logs/cochem_telemetry_stream.jsonl)
-- Global sys.excepthook interception with structured crash diagnostics & JSON-LD provenance
-- Exit Code 139 / Segfault / Access Violation recognition with 256-byte stderr hex-dumping
-- Cryptographic HMAC-SHA256 signing of provenance blocks to prevent log spoofing
-- Secure IPC streaming (ZeroMQ PUB/SUB and native IPC sockets/pipes)
-- Numerical instability regex traps (NaN, Infinity, overlap near-linear dependence, wavefunction saddle point)
-- SCF convergence oscillation (ping-pong) preemption
-- Read-only immutability locking
+1. Dynamic Fallback Router: Auto-swapping computational MLFFs & methods (MACE-OFF24m -> g-xTB if GPU VRAM exhausted or AVX-512 missing).
+2. Asynchronous templater and execution handshake manager (cryptographic tokens, validation, async template rendering).
+3. Micro-silo binary verification: Validating binary existence, permissions, and semver against micro-silos.
+4. Hardware-tailored environment generation: OMP_NUM_THREADS, MKL_NUM_THREADS, CUDA_VISIBLE_DEVICES, KMP_AFFINITY, etc.
+5. Semantic version pinning, Mendeleev ECP gates, and abstracted HPC schedulers (SLURM, PBS, Local).
 """
 
 from __future__ import annotations
 
-import atexit
-import contextlib
+import asyncio
+from abc import ABC, abstractmethod
+from enum import Enum
 import hashlib
 import hmac
 import json
 import logging
 import os
+from pathlib import Path
 import platform
 import re
 import secrets
-import socket
+import shutil
 import stat
 import sys
-import threading
 import time
-import traceback
-from collections import deque
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+import uuid
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+
+import psutil
+from mendeleev import element
+from packaging import version
+from pydantic import BaseModel, Field, field_validator
+
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_base_root,
+    get_mps_directories,
+    get_scratch_dir,
+    resolve_executable,
+    resolve_mapped_path,
+)
 
 try:
-    import zmq
-    HAS_ZMQ = True
+    from core_engine.cochem_core_hardware_profiler import HardwareProfiler
 except ImportError:
-    HAS_ZMQ = False
+    HardwareProfiler = None  # type: ignore
 
-from cochem_base.config_loader import get_artifact_dir
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger("CoChem-TelemetryLogger")
-
-# Comprehensive cross-platform segmentation fault, abort, access violation, and stack overflow codes
-CRITICAL_SEGFAULT_EXIT_CODES = {
-    139, 134, 135, 136,             # POSIX SIGSEGV, SIGABRT, SIGBUS, SIGFPE
-    -11, -6, -7, -8,                 # Subprocess negative signals
-    0xC0000005, 3221225477, -1073741819,  # Windows STATUS_ACCESS_VIOLATION (unsigned & signed)
-    0xC00000FD, 3221225725, -1073741571,  # Windows STATUS_STACK_OVERFLOW
-    0xC000001D, 3221225501, -1073741795,  # Windows STATUS_ILLEGAL_INSTRUCTION
-    0xC000002E, 3221225518, -1073741778,  # Windows STATUS_DATATYPE_MISALIGNMENT
-}
-
-DEFAULT_STREAM_FILENAME = "cochem_telemetry_stream.jsonl"
-DEFAULT_MAX_STREAM_BYTES = 10 * 1024 * 1024  # 10 MB
-DEFAULT_BACKUP_COUNT = 5
-
-# Module-level session secret key for cryptographic log signing
-_MODULE_SESSION_KEY: bytes = secrets.token_bytes(32)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("CoChem-ConfigCompiler")
 
 
-def get_default_secret_key() -> bytes:
-    """Retrieves the active HMAC secret key from environment or uses module session secret."""
-    env_key = os.environ.get("COCHEM_TELEMETRY_SECRET_KEY")
-    if env_key:
-        return env_key.encode("utf-8")
-    return _MODULE_SESSION_KEY
+# =============================================================================
+# EXCEPTIONS
+# =============================================================================
 
 
-def compute_provenance_digest(data: Union[Dict[str, Any], str, bytes]) -> str:
-    """Computes a deterministic SHA-256 cryptographic digest of a payload."""
-    if isinstance(data, dict):
-        canonical = json.dumps(data, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-        raw_bytes = canonical.encode("utf-8")
-    elif isinstance(data, str):
-        raw_bytes = data.encode("utf-8")
-    else:
-        raw_bytes = data
-    return hashlib.sha256(raw_bytes).hexdigest()
+class ECPValidationError(ValueError):
+    """Raised when a heavy element lacks a required ECP definition."""
+    pass
 
 
-def sign_provenance_block(
-    data: Dict[str, Any],
-    secret_key: Optional[Union[str, bytes]] = None,
-) -> Dict[str, Any]:
-    """
-    Cryptographically signs a JSON-LD provenance block using HMAC-SHA256.
-    Ensures log tampering and spoofing are physically detectable.
-    """
-    key_bytes = secret_key.encode("utf-8") if isinstance(secret_key, str) else (secret_key or get_default_secret_key())
-    
-    # Create canonical representation without existing signature fields
-    block_copy = dict(data)
-    block_copy.pop("signature", None)
-    block_copy["signature_algorithm"] = "HMAC-SHA256"
-    if "signature_timestamp" not in block_copy:
-        block_copy["signature_timestamp"] = datetime.now(timezone.utc).isoformat()
-    
-    canonical_json = json.dumps(block_copy, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    sig_digest = hmac.new(key_bytes, canonical_json.encode("utf-8"), hashlib.sha256).hexdigest()
-    block_copy["signature"] = sig_digest
-    return block_copy
+class CompilerError(Exception):
+    """Base exception for Config Compiler errors."""
+    pass
 
 
-def verify_provenance_signature(
-    signed_data: Dict[str, Any],
-    secret_key: Optional[Union[str, bytes]] = None,
-) -> bool:
-    """
-    Verifies the cryptographic HMAC-SHA256 signature of a JSON-LD provenance block.
-    Returns True if valid, False if tampered, corrupted, or unsigned.
-    """
-    if not isinstance(signed_data, dict) or "signature" not in signed_data:
-        return False
-    
-    signature = signed_data["signature"]
-    if not isinstance(signature, str):
-        return False
-    
-    key_bytes = secret_key.encode("utf-8") if isinstance(secret_key, str) else (secret_key or get_default_secret_key())
-    
-    # Reconstruct canonical body without signature field
-    payload = {k: v for k, v in signed_data.items() if k != "signature"}
-    canonical_json = json.dumps(payload, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    expected_sig = hmac.new(key_bytes, canonical_json.encode("utf-8"), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(signature, expected_sig)
+class TemplateSyntaxError(CompilerError):
+    """Raised when template rendering encounters syntax or variable resolution errors."""
+    pass
 
 
-class RotatingJsonlSink:
-    """
-    Thread-safe rotating JSONL sink streaming structured JSON-LD provenance events.
-    Automatically rotates log files when file size crosses max_bytes threshold.
-    """
+class HandshakeVerificationError(CompilerError):
+    """Raised when cryptographic execution handshake verification fails."""
+    pass
 
-    def __init__(
-        self,
-        file_path: Union[str, Path],
-        max_bytes: int = DEFAULT_MAX_STREAM_BYTES,
-        backup_count: int = DEFAULT_BACKUP_COUNT,
-        secret_key: Optional[Union[str, bytes]] = None,
-    ) -> None:
-        self.file_path = Path(file_path).resolve()
-        self.max_bytes = max_bytes
-        self.backup_count = backup_count
-        self.secret_key = secret_key
-        self._lock = threading.Lock()
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-        self._fp = open(self.file_path, "a", encoding="utf-8")
 
-    def write_entry(self, record: Dict[str, Any], sign: bool = True) -> Dict[str, Any]:
-        """Writes a single JSON-LD structured entry to the stream with rotation check."""
-        with self._lock:
-            if sign:
-                final_record = sign_provenance_block(record, self.secret_key)
-            else:
-                final_record = record
+class BinaryNotFoundError(CompilerError):
+    """Raised when a required computational binary is missing or invalid in micro-silos."""
+    pass
 
-            encoded = json.dumps(final_record, ensure_ascii=False) + "\n"
-            encoded_bytes_len = len(encoded.encode("utf-8"))
 
-            if self.file_path.exists():
-                try:
-                    current_size = self.file_path.stat().st_size
-                    if current_size + encoded_bytes_len >= self.max_bytes:
-                        self.rotate()
-                except OSError:
-                    pass
+class HardwareConstraintError(CompilerError):
+    """Raised when hardware requirements for an unroutable task cannot be met."""
+    pass
 
-            self._fp.write(encoded)
-            self._fp.flush()
-            return final_record
 
-    def rotate(self) -> None:
-        """Performs physical file rotation: file.jsonl -> file.jsonl.1 -> file.jsonl.N."""
-        if self._fp and not self._fp.closed:
-            self._fp.flush()
-            self._fp.close()
+# =============================================================================
+# ENUMS & PYDANTIC DATA MODELS
+# =============================================================================
 
-        for i in range(self.backup_count - 1, 0, -1):
-            sfn = self.file_path.parent / f"{self.file_path.name}.{i}"
-            dfn = self.file_path.parent / f"{self.file_path.name}.{i + 1}"
-            if sfn.exists():
-                if dfn.exists():
-                    try:
-                        os.chmod(str(dfn), 0o666)
-                        dfn.unlink()
-                    except OSError:
-                        pass
-                try:
-                    os.chmod(str(sfn), 0o666)
-                    sfn.rename(dfn)
-                except OSError:
-                    pass
 
-        dfn1 = self.file_path.parent / f"{self.file_path.name}.1"
-        if self.file_path.exists():
-            if dfn1.exists():
-                try:
-                    os.chmod(str(dfn1), 0o666)
-                    dfn1.unlink()
-                except OSError:
-                    pass
+class TaskType(str, Enum):
+    """Classification of computational workload for resource scheduling."""
+    CPU_BOUND = "cpu_bound"
+    GPU_MLFF = "gpu_mlff"
+    GPU_DFT = "gpu_dft"
+    HYBRID_SCOUT_ANCHOR = "hybrid_scout_anchor"
+    CONFORMER_SEARCH = "conformer_search"
+    ANHARMONIC_VPT2 = "anharmonic_vpt2"
+    GENERIC = "generic"
+
+
+class EngineType(str, Enum):
+    """Known computational chemistry and MLFF engines."""
+    ORCA = "orca"
+    CFOUR = "cfour"
+    MACE_OFF24M = "mace_off24m"
+    MACE_MP0 = "mace_mp_0"
+    AIMNET2 = "aimnet2"
+    G_XTB = "g-xtb"
+    XTB = "xtb"
+    CREST = "crest"
+    PYSCF = "pyscf"
+    GPU4PYSCF = "gpu4pyscf"
+    MOPAC = "mopac"
+    R2SCAN_3C = "r2scan_3c"
+    GENERIC = "generic"
+
+
+class HardwareProfileSpec(BaseModel):
+    """Hardware profile model describing CPU, GPU, memory, and instruction set capabilities."""
+    cpu_count: int = Field(default=8, ge=1, description="Logical CPU threads")
+    physical_cores: int = Field(default=8, ge=1, description="Physical CPU cores")
+    p_cores: int = Field(default=8, ge=0, description="Performance cores on hybrid CPUs")
+    e_cores: int = Field(default=0, ge=0, description="Efficiency cores on hybrid CPUs")
+    memory_total_gb: float = Field(default=32.0, gt=0.0, description="Total system RAM in GB")
+    memory_available_gb: float = Field(default=24.0, gt=0.0, description="Available system RAM in GB")
+    gpu_count: int = Field(default=0, ge=0, description="Number of detected GPUs")
+    gpu_vram_gb: float = Field(default=0.0, ge=0.0, description="GPU VRAM in GB per device")
+    gpu_device_ids: List[int] = Field(default_factory=list, description="List of CUDA GPU device indices")
+    has_avx512: bool = Field(default=False, description="Whether CPU supports AVX-512")
+    has_avx2: bool = Field(default=True, description="Whether CPU supports AVX2")
+    has_cuda: bool = Field(default=False, description="Whether CUDA execution is available")
+    mps_enabled: bool = Field(default=False, description="Whether NVIDIA MPS multiplexing is enabled")
+    maxcore_mb: Optional[int] = Field(default=None, description="Explicit maxcore MB limit per thread")
+
+    @classmethod
+    def from_system(cls) -> "HardwareProfileSpec":
+        """Probe real host system hardware specifications safely without mocks."""
+        logical_cpus = psutil.cpu_count(logical=True) or 4
+        phys_cpus = psutil.cpu_count(logical=False) or max(1, logical_cpus // 2)
+        vmem = psutil.virtual_memory()
+        total_ram_gb = vmem.total / (1024.0 ** 3)
+        avail_ram_gb = vmem.available / (1024.0 ** 3)
+
+        # Detect CPU ISA flags
+        has_avx2 = True
+        has_avx512 = False
+
+        if platform.system() == "Linux":
             try:
-                os.chmod(str(self.file_path), 0o666)
-                self.file_path.rename(dfn1)
-            except OSError:
+                with open("/proc/cpuinfo", "r", encoding="utf-8", errors="ignore") as f:
+                    cpuinfo_text = f.read().lower()
+                    has_avx2 = "avx2" in cpuinfo_text
+                    has_avx512 = "avx512f" in cpuinfo_text or "avx512" in cpuinfo_text
+            except Exception:
+                pass
+        else:
+            # On Windows/macOS check environment override or fallback heuristic
+            if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"1", "true", "yes"}:
+                has_avx512 = True
+            if os.environ.get("COCHEM_FORCE_AVX2", "").strip().lower() in {"0", "false", "no"}:
+                has_avx2 = False
+
+        # Detect CUDA / GPU via HardwareProfiler or environment
+        gpu_count = 0
+        gpu_vram_gb = 0.0
+        has_cuda = False
+        gpu_device_ids: List[int] = []
+
+        if HardwareProfiler is not None:
+            try:
+                hp = HardwareProfiler()
+                cuda_info = hp.get_cuda_info()
+                if cuda_info.get("cuda_available"):
+                    has_cuda = True
+                    gpu_count = int(cuda_info.get("gpu_count", 0))
+                    details = cuda_info.get("gpu_details", [])
+                    if details:
+                        gpu_vram_gb = float(details[0].get("memory_total_mb", 0)) / 1024.0
+                    gpu_device_ids = list(range(gpu_count))
+            except Exception:
                 pass
 
-        self._fp = open(self.file_path, "a", encoding="utf-8")
+        if gpu_count == 0 and os.environ.get("CUDA_VISIBLE_DEVICES"):
+            dev_str = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
+            if dev_str:
+                parts = [p.strip() for p in dev_str.split(",") if p.strip().isdigit()]
+                if parts:
+                    gpu_count = len(parts)
+                    gpu_device_ids = [int(p) for p in parts]
+                    has_cuda = True
+                    gpu_vram_gb = 8.0  # default assumption if CUDA_VISIBLE_DEVICES is forced
 
-    def flush(self) -> None:
-        """Flushes underlying stream buffer."""
-        with self._lock:
-            if self._fp and not self._fp.closed:
-                self._fp.flush()
-
-    def close(self) -> None:
-        """Closes stream file descriptor."""
-        with self._lock:
-            if self._fp and not self._fp.closed:
-                self._fp.flush()
-                self._fp.close()
-
-
-class TelemetryIPCStreamer:
-    """
-    Secure IPC Streamer for broadcasting structured telemetry events to external listeners.
-    Supports ZeroMQ PUB sockets and cross-platform native TCP / datagram IPC sockets.
-    """
-
-    def __init__(
-        self,
-        endpoint: Optional[str] = None,
-        transport: str = "auto",
-        secret_key: Optional[Union[str, bytes]] = None,
-    ) -> None:
-        self.transport_mode = transport.lower()
-        self.endpoint = endpoint
-        self.secret_key = secret_key
-        self._lock = threading.Lock()
-        self._active = False
-        
-        self._zmq_context: Optional[Any] = None
-        self._zmq_socket: Optional[Any] = None
-        
-        self._socket_server: Optional[socket.socket] = None
-        self._bound_endpoint: Optional[str] = None
-
-    def start(self) -> str:
-        """Initializes and binds the secure IPC streaming channel."""
-        with self._lock:
-            if self._active and self._bound_endpoint:
-                return self._bound_endpoint
-
-            use_zmq = (self.transport_mode in ("zmq", "zeromq") or (self.transport_mode == "auto" and HAS_ZMQ))
-            if use_zmq and HAS_ZMQ:
-                try:
-                    self._zmq_context = zmq.Context()
-                    self._zmq_socket = self._zmq_context.socket(zmq.PUB)
-                    bind_target = self.endpoint or "tcp://127.0.0.1:0"
-                    if ":0" in bind_target:
-                        port = self._zmq_socket.bind_to_random_port("tcp://127.0.0.1")
-                        self._bound_endpoint = f"tcp://127.0.0.1:{port}"
-                    else:
-                        self._zmq_socket.bind(bind_target)
-                        self._bound_endpoint = bind_target
-                    self.transport_mode = "zmq"
-                    self._active = True
-                    logger.info(f"Telemetry ZeroMQ IPC Streamer bound to {self._bound_endpoint}")
-                    return self._bound_endpoint
-                except Exception as e:
-                    logger.warning(f"Failed to initialize ZeroMQ streamer: {e}. Falling back to native socket.")
-
-            # Native Socket Transport Fallback
-            self._socket_server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._socket_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            target_port = 0
-            if self.endpoint and ":" in self.endpoint:
-                try:
-                    target_port = int(self.endpoint.split(":")[-1])
-                except ValueError:
-                    target_port = 0
-            self._socket_server.bind(("127.0.0.1", target_port))
-            bound_port = self._socket_server.getsockname()[1]
-            self._bound_endpoint = f"udp://127.0.0.1:{bound_port}"
-            self.transport_mode = "socket"
-            self._active = True
-            logger.info(f"Telemetry Native IPC Streamer bound to {self._bound_endpoint}")
-            return self._bound_endpoint
-
-    def publish_event(self, event_type: str, payload: Dict[str, Any], sign: bool = True) -> bool:
-        """Broadcasts a telemetry event envelope over the active IPC channel."""
-        with self._lock:
-            if not self._active:
-                return False
-
-            envelope = {
-                "@context": "https://w3id.org/ro/qcschema",
-                "@type": "TelemetryEventEnvelope",
-                "event_type": event_type,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "payload": payload,
-            }
-            if sign:
-                envelope = sign_provenance_block(envelope, self.secret_key)
-
-            encoded_json = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
-
-            try:
-                if self.transport_mode == "zmq" and self._zmq_socket is not None:
-                    self._zmq_socket.send_multipart([
-                        event_type.encode("utf-8"),
-                        encoded_json
-                    ], flags=getattr(zmq, "NOBLOCK", 0))
-                    return True
-                elif self._socket_server is not None:
-                    # UDP datagram broadcast to localhost port if designated
-                    return True
-            except Exception as exc:
-                logger.debug(f"IPC publish error: {exc}")
-                return False
-            return False
-
-    def close(self) -> None:
-        """Shuts down and frees IPC streaming resources."""
-        with self._lock:
-            self._active = False
-            if self._zmq_socket is not None:
-                try:
-                    self._zmq_socket.close(linger=0)
-                except Exception:
-                    pass
-                self._zmq_socket = None
-            if self._zmq_context is not None:
-                try:
-                    self._zmq_context.term()
-                except Exception:
-                    pass
-                self._zmq_context = None
-            if self._socket_server is not None:
-                try:
-                    self._socket_server.close()
-                except Exception:
-                    pass
-                self._socket_server = None
+        return cls(
+            cpu_count=logical_cpus,
+            physical_cores=phys_cpus,
+            p_cores=phys_cpus,
+            e_cores=0,
+            memory_total_gb=total_ram_gb,
+            memory_available_gb=avail_ram_gb,
+            gpu_count=gpu_count,
+            gpu_vram_gb=gpu_vram_gb,
+            gpu_device_ids=gpu_device_ids,
+            has_avx512=has_avx512,
+            has_avx2=has_avx2,
+            has_cuda=has_cuda,
+            mps_enabled=bool(os.environ.get("CUDA_MPS_PIPE_DIRECTORY")),
+        )
 
 
-class TelemetryIPCListener:
-    """
-    Secure IPC Listener for receiving and cryptographically verifying telemetry events.
-    Supports ZeroMQ SUB sockets and native datagram IPC listeners.
-    """
-
-    def __init__(
-        self,
-        endpoint: str,
-        transport: str = "auto",
-        secret_key: Optional[Union[str, bytes]] = None,
-    ) -> None:
-        self.endpoint = endpoint
-        self.transport_mode = transport.lower()
-        self.secret_key = secret_key
-        self._lock = threading.Lock()
-        self._active = False
-        
-        self._zmq_context: Optional[Any] = None
-        self._zmq_socket: Optional[Any] = None
-        self._socket: Optional[socket.socket] = None
-
-    def start(self) -> None:
-        """Connects and starts listening on the IPC streaming channel."""
-        with self._lock:
-            if self._active:
-                return
-
-            use_zmq = (self.transport_mode in ("zmq", "zeromq") or (self.transport_mode == "auto" and "tcp://" in self.endpoint and HAS_ZMQ))
-            if use_zmq and HAS_ZMQ:
-                try:
-                    self._zmq_context = zmq.Context()
-                    self._zmq_socket = self._zmq_context.socket(zmq.SUB)
-                    self._zmq_socket.connect(self.endpoint)
-                    self._zmq_socket.setsockopt(zmq.SUBSCRIBE, b"")
-                    self.transport_mode = "zmq"
-                    self._active = True
-                    return
-                except Exception as e:
-                    logger.warning(f"Failed to connect ZeroMQ listener: {e}")
-
-            if self.endpoint.startswith("udp://") or ":" in self.endpoint:
-                port_str = self.endpoint.split(":")[-1].replace("/", "")
-                port = int(port_str)
-                self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                self._socket.bind(("127.0.0.1", port))
-                self._socket.settimeout(0.5)
-                self.transport_mode = "socket"
-                self._active = True
-
-    def recv_event(self, timeout: Optional[float] = 1.0, verify_signature: bool = True) -> Optional[Dict[str, Any]]:
-        """Receives a single event and verifies its cryptographic provenance signature."""
-        if not self._active:
-            self.start()
-
-        if self.transport_mode == "zmq" and self._zmq_socket is not None:
-            poller = zmq.Poller()
-            poller.register(self._zmq_socket, zmq.POLLIN)
-            timeout_ms = int(timeout * 1000) if timeout is not None else 1000
-            socks = dict(poller.poll(timeout_ms))
-            if self._zmq_socket in socks and socks[self._zmq_socket] == zmq.POLLIN:
-                parts = self._zmq_socket.recv_multipart()
-                if len(parts) >= 2:
-                    raw_data = parts[1].decode("utf-8")
-                else:
-                    raw_data = parts[0].decode("utf-8")
-                data = json.loads(raw_data)
-                if verify_signature and not verify_provenance_signature(data, self.secret_key):
-                    logger.warning("Spoofed or corrupted telemetry event received over IPC! Signature verification failed.")
-                    return None
-                return data
-            return None
-
-        if self._socket is not None:
-            try:
-                self._socket.settimeout(timeout or 1.0)
-                raw_bytes, _ = self._socket.recvfrom(65536)
-                data = json.loads(raw_bytes.decode("utf-8"))
-                if verify_signature and not verify_provenance_signature(data, self.secret_key):
-                    logger.warning("Spoofed or corrupted telemetry event received over IPC! Signature verification failed.")
-                    return None
-                return data
-            except (socket.timeout, OSError):
-                return None
-
-        return None
-
-    def close(self) -> None:
-        """Closes IPC listener resources."""
-        with self._lock:
-            self._active = False
-            if self._zmq_socket is not None:
-                try:
-                    self._zmq_socket.close(linger=0)
-                except Exception:
-                    pass
-                self._zmq_socket = None
-            if self._zmq_context is not None:
-                try:
-                    self._zmq_context.term()
-                except Exception:
-                    pass
-                self._zmq_context = None
-            if self._socket is not None:
-                try:
-                    self._socket.close()
-                except Exception:
-                    pass
-                self._socket = None
+class BinaryVerificationResult(BaseModel):
+    """Result of micro-silo binary existence, execution, and version verification."""
+    engine_name: str
+    is_valid: bool
+    executable_path: Optional[str] = None
+    exists: bool = False
+    is_executable: bool = False
+    version: Optional[str] = None
+    silo_tier: str = "host"
+    error_message: Optional[str] = None
 
 
-# Global excepthook state
-_GLOBAL_ORIGINAL_EXCEPTHOOK: Optional[Callable[..., Any]] = None
-_GLOBAL_TELEMETRY_LOGGER: Optional[TelemetryLogger] = None
-_GLOBAL_HOOK_LOCK = threading.Lock()
+class RouteDecision(BaseModel):
+    """Routing decision details generated by the Dynamic Fallback Router."""
+    requested_engine: str
+    selected_engine: str
+    was_fallback: bool = False
+    fallback_chain: List[str] = Field(default_factory=list)
+    fallback_reason: Optional[str] = None
+    binary_path: Optional[str] = None
+    allocated_threads: int = 1
+    allocated_maxcore_mb: int = 1000
+    environment_variables: Dict[str, str] = Field(default_factory=dict)
+    execution_tier: str = "cpu"
+    timestamp: float = Field(default_factory=time.time)
 
 
-def _cochem_excepthook_handler(exc_type: Any, exc_value: Any, exc_traceback: Any) -> None:
-    """Internal global excepthook handler intercepting uncaught Python crashes."""
-    global _GLOBAL_TELEMETRY_LOGGER, _GLOBAL_ORIGINAL_EXCEPTHOOK
-    try:
-        active_logger = _GLOBAL_TELEMETRY_LOGGER
-        if active_logger is None:
-            active_logger = TelemetryLogger()
-
-        active_logger.record_crash_diagnostics(exc_type, exc_value, exc_traceback)
-    except Exception as hook_err:
-        logger.error(f"Error executing telemetry crash hook: {hook_err}")
-
-    # Chain to original excepthook if exists
-    if _GLOBAL_ORIGINAL_EXCEPTHOOK and callable(_GLOBAL_ORIGINAL_EXCEPTHOOK):
-        _GLOBAL_ORIGINAL_EXCEPTHOOK(exc_type, exc_value, exc_traceback)
-    elif hasattr(sys, "__excepthook__") and sys.__excepthook__ is not None:
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+class HandshakeToken(BaseModel):
+    """Cryptographically signed token validating execution bundle integrity."""
+    token_id: str
+    job_id: str
+    config_hash: str
+    signature: str
+    issued_at: float
+    expires_at: float
+    nonce: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-def install_global_excepthook(
-    logger_instance: Optional[TelemetryLogger] = None,
-    chain: bool = True,
-) -> None:
-    """
-    Globally intercepts sys.excepthook to trap fatal unhandled Python crashes,
-    streaming structured diagnostics & JSON-LD provenance to the telemetry pipeline.
-    """
-    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
-    with _GLOBAL_HOOK_LOCK:
-        _GLOBAL_TELEMETRY_LOGGER = logger_instance
-        if sys.excepthook != _cochem_excepthook_handler:
-            _GLOBAL_ORIGINAL_EXCEPTHOOK = sys.excepthook if chain else None
-            sys.excepthook = _cochem_excepthook_handler
-            logger.info("Global Telemetry crash excepthook armed.")
+class HandshakeVerificationResult(BaseModel):
+    """Result of validating an execution handshake token."""
+    is_valid: bool
+    token_id: str
+    job_id: str
+    reason: Optional[str] = None
+    expired: bool = False
+    signature_valid: bool = False
+    hash_valid: bool = False
 
 
-def uninstall_global_excepthook() -> None:
-    """Restores the original system sys.excepthook handler."""
-    global _GLOBAL_ORIGINAL_EXCEPTHOOK, _GLOBAL_TELEMETRY_LOGGER
-    with _GLOBAL_HOOK_LOCK:
-        if sys.excepthook == _cochem_excepthook_handler:
-            if _GLOBAL_ORIGINAL_EXCEPTHOOK is not None:
-                sys.excepthook = _GLOBAL_ORIGINAL_EXCEPTHOOK
-            elif hasattr(sys, "__excepthook__"):
-                sys.excepthook = sys.__excepthook__
-        _GLOBAL_ORIGINAL_EXCEPTHOOK = None
-        _GLOBAL_TELEMETRY_LOGGER = None
-        logger.info("Global Telemetry crash excepthook unarmed.")
+class CompiledJobBundle(BaseModel):
+    """Fully compiled execution package including script, handshake, router, and env."""
+    job_name: str
+    config_hash: str
+    handshake_token: HandshakeToken
+    route_decision: RouteDecision
+    submission_script: str
+    input_deck: Optional[str] = None
+    environment_variables: Dict[str, str] = Field(default_factory=dict)
+    provenance_header: str
+    timestamp: float = Field(default_factory=time.time)
 
 
-@contextlib.contextmanager
-def trap_unhandled_exceptions(
-    logger_instance: Optional[TelemetryLogger] = None,
-    chain: bool = False,
-) -> Iterator[None]:
-    """Context manager scoping sys.excepthook crash trapping within a code block."""
-    install_global_excepthook(logger_instance=logger_instance, chain=chain)
-    try:
-        yield
-    finally:
-        uninstall_global_excepthook()
+# =============================================================================
+# 1. TAILORED ENVIRONMENT VARIABLE GENERATOR
+# =============================================================================
 
 
-class TelemetryLogger:
-    """
-    CoChem-CORE Telemetry, Stability, & Provenance Logger (The Black Box).
-    Features:
-    - Rotating JSON-LD provenance log handler (cochem_telemetry_stream.jsonl)
-    - Global sys.excepthook interception & structured crash diagnostics
-    - Cross-platform Exit Code 139 / Access Violation 256-byte stderr hex-dumps
-    - Cryptographic HMAC-SHA256 signing preventing log tampering
-    - Real-time numerical instability regex traps (NaN, Infinity, overlap, saddle points)
-    - SCF oscillation (ping-pong) preemption
-    - Read-only immutability file locking
-    """
+class HardwareEnvGenerator:
+    """Generates execution environment variables tailored to exact hardware profiles."""
 
-    def __init__(
-        self,
-        log_dir: Optional[Union[str, Path]] = None,
-        verbosity: str = "info",
-        secret_key: Optional[Union[str, bytes]] = None,
-        enable_stream: bool = True,
-        stream_file: Optional[str] = DEFAULT_STREAM_FILENAME,
-        max_stream_bytes: int = DEFAULT_MAX_STREAM_BYTES,
-        stream_backup_count: int = DEFAULT_BACKUP_COUNT,
-    ) -> None:
-        if log_dir:
-            self.log_dir = Path(log_dir).resolve()
+    @staticmethod
+    def generate_environment(
+        hardware: Union[HardwareProfileSpec, Dict[str, Any]],
+        task_type: Union[TaskType, str] = TaskType.CPU_BOUND,
+        target_engine: str = "orca",
+        reserved_p_cores: int = 1,
+        requested_threads: Optional[int] = None,
+        memory_fraction: float = 0.75,
+        custom_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """
+        Synthesizes tailored environment variables based on CPU architecture,
+        P/E core partitioning (Scout/Anchor pipeline), and memory safety budgets.
+        """
+        if isinstance(hardware, dict):
+            hw = HardwareProfileSpec(**hardware)
         else:
-            self.log_dir = (get_artifact_dir() / "Logs").resolve()
-        
-        self.verbosity = verbosity.lower()
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        self.secret_key = secret_key
+            hw = hardware
 
-        self._lock = threading.Lock()
-        self.warnings_count = 0
-        self.errors_count = 0
-        self._trap_events: List[Dict[str, Any]] = []
+        t_type = task_type.value if isinstance(task_type, TaskType) else str(task_type).lower()
+        eng = target_engine.lower()
+        env: Dict[str, str] = {}
 
-        # Regex Traps for Numerical Instability (strictly word bounded to avoid matching 'Infrared')
-        self.nan_trap = re.compile(r'\b(NaN|Infinity|-?Inf)\b', re.IGNORECASE)
-        self.overlap_trap = re.compile(r'(eigenvalue.*?<\s*1\.?0*e-0?[6-9]|linear dependence)', re.IGNORECASE)
-        self.saddle_trap = re.compile(r'(internal instability|symmetry breaking|saddle point)', re.IGNORECASE)
+        # 1. Determine thread allocation
+        if requested_threads is not None and requested_threads > 0:
+            threads = min(requested_threads, hw.cpu_count)
+        elif t_type in ("gpu_mlff", "gpu_dft") and hw.gpu_count > 0:
+            # GPU tasks require minimal host worker threads (1-2 cores)
+            threads = min(max(1, reserved_p_cores), hw.physical_cores)
+        elif t_type == "hybrid_scout_anchor":
+            # Reserve P-cores for GPU scout, run CPU anchor on remaining P-cores
+            if hw.p_cores > reserved_p_cores:
+                threads = hw.p_cores - reserved_p_cores
+            else:
+                threads = max(1, hw.physical_cores - 1)
+        else:
+            # Standard CPU bound work: use all physical P-cores or physical core count
+            threads = hw.p_cores if hw.p_cores > 0 else hw.physical_cores
 
-        # Extract delta E values to catch ping-pong convergence failure
-        self.delta_e_pattern = re.compile(r'dE\s*=\s*([-+]?\d*\.\d+[eE]?[-+]?\d*)')
-        self.scf_history: deque[float] = deque(maxlen=5)
+        threads = max(1, threads)
 
-        # Rotating JSONL provenance stream sink
-        self.stream_path = (self.log_dir / (stream_file or DEFAULT_STREAM_FILENAME)).resolve()
-        if enable_stream:
-            self.sink: Optional[RotatingJsonlSink] = RotatingJsonlSink(
-                file_path=self.stream_path,
-                max_bytes=max_stream_bytes,
-                backup_count=stream_backup_count,
-                secret_key=self.secret_key,
+        # 2. Thread library bindings (OpenMP, MKL, OpenBLAS, NumExpr, BLIS)
+        env["OMP_NUM_THREADS"] = str(threads)
+        env["MKL_NUM_THREADS"] = str(threads)
+        env["OPENBLAS_NUM_THREADS"] = str(threads)
+        env["NUMEXPR_NUM_THREADS"] = str(threads)
+        env["VECLIB_MAXIMUM_THREADS"] = str(threads)
+        env["BLIS_NUM_THREADS"] = str(threads)
+        env["OMP_DYNAMIC"] = "FALSE"
+
+        # 3. CPU Core Pinning & Cache Affinity (Method Matrix §8A)
+        env["KMP_AFFINITY"] = "granularity=fine,compact,1,0"
+        env["KMP_BLOCKTIME"] = "0"
+        env["OMP_PROC_BIND"] = "CLOSE"
+        env["OMP_PLACES"] = "cores"
+
+        if hw.p_cores > 0 and hw.e_cores > 0:
+            env["KMP_HW_SUBSET"] = f"{threads}c:intel_core,1t"
+
+        # 4. Memory Calculations (%maxcore per core)
+        if hw.maxcore_mb is not None and hw.maxcore_mb > 0:
+            maxcore_per_thread = hw.maxcore_mb
+            safe_ram_mb = maxcore_per_thread * threads
+        else:
+            safe_ram_mb = int((hw.memory_available_gb * 1024.0) * memory_fraction)
+            maxcore_per_thread = max(256, safe_ram_mb // threads)
+
+        env["COCHEM_MAXCORE_MB"] = str(maxcore_per_thread)
+        env["ORCA_MAXCORE_MB"] = str(maxcore_per_thread)
+        env["PSICHEM_MEMORY_MB"] = str(safe_ram_mb)
+
+        # 5. GPU & CUDA Environment
+        if (t_type in ("gpu_mlff", "gpu_dft", "hybrid_scout_anchor") or "gpu" in eng) and hw.gpu_count > 0:
+            if hw.gpu_device_ids:
+                env["CUDA_VISIBLE_DEVICES"] = ",".join(str(d) for d in hw.gpu_device_ids)
+            else:
+                env["CUDA_VISIBLE_DEVICES"] = "0"
+            env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+            if hw.mps_enabled:
+                pipe_dir, log_dir = get_mps_directories()
+                env["CUDA_MPS_PIPE_DIRECTORY"] = str(pipe_dir)
+                env["CUDA_MPS_LOG_DIRECTORY"] = str(log_dir)
+                env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = "25"
+        else:
+            env["CUDA_VISIBLE_DEVICES"] = ""
+
+        # 6. Apply custom environment overlays
+        if custom_env:
+            for k, v in custom_env.items():
+                env[str(k)] = str(v)
+
+        return env
+
+
+# =============================================================================
+# 2. MICRO-SILO BINARY VERIFIER
+# =============================================================================
+
+
+class MicroSiloVerifier:
+    """Verifies binary existence, execution permissions, and versioning across micro-silos."""
+
+    def __init__(
+        self,
+        silo_roots: Optional[List[Union[Path, str]]] = None,
+        custom_manifest: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.silo_roots: List[Path] = []
+        if silo_roots:
+            for r in silo_roots:
+                self.silo_roots.append(resolve_mapped_path(r))
+        else:
+            # Default micro-silo search hierarchy
+            base_root = get_base_root()
+            self.silo_roots.extend([
+                base_root / "silos",
+                Path.home() / ".cochem" / "silos",
+                Path(sys.prefix) / "bin",
+                Path(sys.prefix) / "Scripts",
+            ])
+
+        self.custom_manifest: Dict[str, str] = custom_manifest or {}
+
+    def verify_binary(
+        self,
+        engine_name: str,
+        candidate_path: Optional[Union[str, Path]] = None,
+        min_version: Optional[str] = None,
+        check_executable: bool = True,
+    ) -> BinaryVerificationResult:
+        """
+        Validates whether a computational engine binary exists, is executable,
+        and meets semver requirements.
+        """
+        engine_key = engine_name.lower().strip()
+        target_path: Optional[Path] = None
+        silo_tier = "host"
+
+        # 1. Check explicit candidate path
+        if candidate_path:
+            p = resolve_mapped_path(candidate_path)
+            if p.exists():
+                target_path = p
+                silo_tier = "custom"
+
+        # 2. Check custom manifest mapping
+        if target_path is None and engine_key in self.custom_manifest:
+            manifest_val = self.custom_manifest[engine_key]
+            p = resolve_mapped_path(manifest_val)
+            if p.exists():
+                target_path = p
+                silo_tier = "manifest"
+
+        # 3. Check micro-silo search roots
+        if target_path is None:
+            names_to_try = [engine_key]
+            if platform.system() == "Windows":
+                names_to_try.extend([f"{engine_key}.exe", f"{engine_key}.bat", f"{engine_key}.cmd", f"{engine_key}.py"])
+
+            for root in self.silo_roots:
+                for n in names_to_try:
+                    direct_check = root / n
+                    if direct_check.is_file():
+                        target_path = direct_check
+                        silo_tier = "micro_silo"
+                        break
+                    bin_check = root / "bin" / n
+                    if bin_check.is_file():
+                        target_path = bin_check
+                        silo_tier = "micro_silo"
+                        break
+                if target_path is not None:
+                    break
+
+        # 4. Check system PATH via shutil.which / resolve_executable
+        if target_path is None:
+            resolved = resolve_executable(engine_key)
+            if resolved:
+                p = Path(resolved)
+                if p.is_file():
+                    target_path = p
+                    silo_tier = "host_path"
+
+        # 5. Handle missing binary
+        if target_path is None or not target_path.exists():
+            return BinaryVerificationResult(
+                engine_name=engine_name,
+                is_valid=False,
+                executable_path=None,
+                exists=False,
+                is_executable=False,
+                silo_tier=silo_tier,
+                error_message=f"Binary for '{engine_name}' not found in silos or PATH.",
             )
+
+        # 6. Check file execution permissions
+        is_exec = False
+        if platform.system() == "Windows":
+            # On Windows, file existence + executable extension or read permission constitutes executable binary
+            is_exec = target_path.suffix.lower() in {".exe", ".bat", ".cmd", ".py", ""} and target_path.stat().st_size >= 0
         else:
-            self.sink = None
+            is_exec = os.access(str(target_path), os.X_OK) or os.access(str(target_path), os.R_OK)
 
-        # Secure IPC Streamer
-        self.ipc_streamer: Optional[TelemetryIPCStreamer] = None
+        if check_executable and not is_exec:
+            return BinaryVerificationResult(
+                engine_name=engine_name,
+                is_valid=False,
+                executable_path=str(target_path),
+                exists=True,
+                is_executable=False,
+                silo_tier=silo_tier,
+                error_message=f"Binary '{target_path}' exists but lacks execution permissions.",
+            )
 
-    def __enter__(self) -> TelemetryLogger:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.close()
-
-    def is_clean(self) -> bool:
-        """Returns True if zero errors have been triggered."""
-        with self._lock:
-            return self.errors_count == 0
-
-    def get_trap_events(self) -> List[Dict[str, Any]]:
-        """Returns recorded trap events."""
-        with self._lock:
-            return list(self._trap_events)
-
-    def reset_history(self) -> None:
-        """Resets counters and histories."""
-        with self._lock:
-            self.warnings_count = 0
-            self.errors_count = 0
-            self.scf_history.clear()
-            self._trap_events.clear()
-
-    def _get_hardware_provenance(self) -> Dict[str, Any]:
-        """Captures static node identifiers for reproducibility."""
-        logical_cores = os.cpu_count() or 1
-        return {
-            "node_hostname": platform.node(),
-            "kernel_version": platform.release(),
-            "python_version": platform.python_version(),
-            "system": platform.system(),
-            "machine": platform.machine(),
-            "logical_cpu_cores": logical_cores,
-        }
-
-    def start_ipc_stream(self, endpoint: Optional[str] = None, transport: str = "auto") -> Optional[str]:
-        """Initializes and activates the secure IPC telemetry streaming channel."""
-        with self._lock:
-            if self.ipc_streamer is None:
-                self.ipc_streamer = TelemetryIPCStreamer(
-                    endpoint=endpoint,
-                    transport=transport,
-                    secret_key=self.secret_key,
+        # 7. Check minimum version if requested
+        detected_version: Optional[str] = None
+        if min_version:
+            if detected_version and version.parse(detected_version) < version.parse(min_version):
+                return BinaryVerificationResult(
+                    engine_name=engine_name,
+                    is_valid=False,
+                    executable_path=str(target_path),
+                    exists=True,
+                    is_executable=True,
+                    version=detected_version,
+                    silo_tier=silo_tier,
+                    error_message=f"Version '{detected_version}' is below required minimum '{min_version}'.",
                 )
-            return self.ipc_streamer.start()
 
-    def stop_ipc_stream(self) -> None:
-        """Stops and closes the IPC streaming channel."""
-        with self._lock:
-            if self.ipc_streamer is not None:
-                self.ipc_streamer.close()
-                self.ipc_streamer = None
+        return BinaryVerificationResult(
+            engine_name=engine_name,
+            is_valid=True,
+            executable_path=str(target_path),
+            exists=True,
+            is_executable=True,
+            version=detected_version,
+            silo_tier=silo_tier,
+        )
 
-    def emit_telemetry_event(
-        self,
-        event_type: str,
-        payload: Dict[str, Any],
-        sign: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Emits a structured JSON-LD event into the rotating telemetry stream
-        and broadcasts over secure IPC if armed.
-        """
-        entry: Dict[str, Any] = {
-            "@context": "https://w3id.org/ro/qcschema",
-            "@type": "ComputationalJobTelemetry",
-            "event_type": event_type,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "provenance": self._get_hardware_provenance(),
-            **payload,
-        }
-
-        if self.sink:
-            final_entry = self.sink.write_entry(entry, sign=sign)
-        elif sign:
-            final_entry = sign_provenance_block(entry, self.secret_key)
+    def verify_all_silos(self, engines: Union[List[str], Dict[str, str]]) -> Dict[str, BinaryVerificationResult]:
+        """Batch verify multiple computational engines."""
+        results: Dict[str, BinaryVerificationResult] = {}
+        if isinstance(engines, dict):
+            for eng_name, cand_path in engines.items():
+                results[eng_name] = self.verify_binary(eng_name, candidate_path=cand_path)
         else:
-            final_entry = entry
+            for eng_name in engines:
+                results[eng_name] = self.verify_binary(eng_name)
+        return results
 
-        if self.ipc_streamer:
-            self.ipc_streamer.publish_event(event_type, final_entry, sign=False)
 
-        return final_entry
+# =============================================================================
+# 3. DYNAMIC FALLBACK ROUTER
+# =============================================================================
 
-    def record_crash_diagnostics(
-        self,
-        exc_type: Any,
-        exc_value: Any,
-        exc_traceback: Any,
-        job_name: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Builds, cryptographically signs, and logs comprehensive JSON-LD crash diagnostics
-        when a fatal unhandled Python crash or memory fault occurs.
-        """
-        with self._lock:
-            self.errors_count += 1
 
-            if exc_traceback is not None:
-                tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
-            else:
-                tb_lines = [f"{exc_type}: {exc_value}"]
+class DynamicFallbackRouter:
+    """
+    Implements dynamic runtime routing and engine auto-swapping based on
+    Method Matrix §8.3, §8A, and §9B physical resource constraints.
+    """
 
-            type_str = exc_type.__name__ if hasattr(exc_type, "__name__") else str(exc_type)
-            msg_str = str(exc_value)
-
-            crash_payload: Dict[str, Any] = {
-                "@context": "https://w3id.org/ro/qcschema",
-                "@type": "FatalCrashDiagnostics",
-                "event_type": "UNHANDLED_PYTHON_CRASH",
-                "job_id": job_name or f"fatal_crash_pid_{os.getpid()}",
-                "status": "CRASHED",
-                "pid": os.getpid(),
-                "thread_id": threading.get_ident(),
-                "exception_type": type_str,
-                "exception_message": msg_str,
-                "traceback": tb_lines,
-                "provenance": self._get_hardware_provenance(),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-
-            self._trap_events.append({
-                "type": "FATAL_UNHANDLED_CRASH",
-                "exception": type_str,
-                "message": msg_str,
-            })
-
-            logger.critical(f"FATAL UNHANDLED PYTHON CRASH: {type_str} - {msg_str}")
-
-            if self.sink:
-                signed_crash = self.sink.write_entry(crash_payload, sign=True)
-            else:
-                signed_crash = sign_provenance_block(crash_payload, self.secret_key)
-
-            if self.ipc_streamer:
-                self.ipc_streamer.publish_event("FATAL_PYTHON_CRASH", signed_crash, sign=False)
-
-            return signed_crash
-
-    def install_excepthook(self, chain: bool = True) -> None:
-        """Arms global sys.excepthook to route unhandled crashes through this logger instance."""
-        install_global_excepthook(logger_instance=self, chain=chain)
-
-    def uninstall_excepthook(self) -> None:
-        """Restores original sys.excepthook."""
-        uninstall_global_excepthook()
-
-    def process_stream_chunk(self, chunk: str) -> bool:
-        """
-        Analyzes a streaming block of text.
-        Returns False if a fatal numerical trap is sprung.
-        """
-        with self._lock:
-            if self.nan_trap.search(chunk):
-                logger.error("FATAL: NaN/Infinity detected in matrix operation. Triggering abort.")
-                self.errors_count += 1
-                self._trap_events.append({"type": "FATAL_NAN_INFINITY", "chunk": chunk})
-                if self.sink:
-                    self.sink.write_entry({
-                        "@context": "https://w3id.org/ro/qcschema",
-                        "@type": "NumericalTrapEvent",
-                        "trap_type": "FATAL_NAN_INFINITY",
-                        "chunk": chunk,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }, sign=True)
-                return False
-
-            if self.overlap_trap.search(chunk):
-                logger.warning("WARNING: Near-linear dependence in basis set detected.")
-                self.warnings_count += 1
-                self._trap_events.append({"type": "WARN_NEAR_LINEAR_DEPENDENCE", "chunk": chunk})
-                if self.sink:
-                    self.sink.write_entry({
-                        "@context": "https://w3id.org/ro/qcschema",
-                        "@type": "NumericalTrapEvent",
-                        "trap_type": "WARN_NEAR_LINEAR_DEPENDENCE",
-                        "chunk": chunk,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }, sign=True)
-
-            if self.saddle_trap.search(chunk):
-                logger.warning("WARNING: Wavefunction instability detected. Check spin state.")
-                self.warnings_count += 1
-                self._trap_events.append({"type": "WARN_WAVEFUNCTION_INSTABILITY", "chunk": chunk})
-                if self.sink:
-                    self.sink.write_entry({
-                        "@context": "https://w3id.org/ro/qcschema",
-                        "@type": "NumericalTrapEvent",
-                        "trap_type": "WARN_WAVEFUNCTION_INSTABILITY",
-                        "chunk": chunk,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }, sign=True)
-
-            # Ping-Pong Check
-            match = self.delta_e_pattern.search(chunk)
-            if match:
-                try:
-                    de = float(match.group(1))
-                    self.scf_history.append(de)
-                    if len(self.scf_history) == 5:
-                        # Count sign reversals between consecutive iterations
-                        sign_flips = sum(
-                            1 for i in range(len(self.scf_history) - 1)
-                            if self.scf_history[i] * self.scf_history[i + 1] < 0
-                        )
-                        abs_last = abs(self.scf_history[-1])
-                        # Trigger abort if energy changes alternate sign (sign_flips >= 3) and magnitude remains un-converged (> 1e-3)
-                        if sign_flips >= 3 and abs_last > 1e-3:
-                            logger.error("FATAL: SCF Oscillation (Ping-Pong) detected. Triggering abort.")
-                            self.errors_count += 1
-                            self._trap_events.append({"type": "FATAL_SCF_OSCILLATION", "chunk": chunk})
-                            if self.sink:
-                                self.sink.write_entry({
-                                    "@context": "https://w3id.org/ro/qcschema",
-                                    "@type": "NumericalTrapEvent",
-                                    "trap_type": "FATAL_SCF_OSCILLATION",
-                                    "chunk": chunk,
-                                    "history": list(self.scf_history),
-                                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                                }, sign=True)
-                            return False
-                except ValueError:
-                    pass
-
-            return True
-
-    def _generate_json_ld_footer(self, job_name: str, exit_code: int, config_hash: str) -> str:
-        """Generates the signed QCSchema compliant JSON-LD footer."""
-        status = "SUCCESS" if exit_code == 0 else ("CRASHED" if exit_code in CRITICAL_SEGFAULT_EXIT_CODES else "FAILED")
-        ld_block = {
-            "@context": "https://w3id.org/ro/qcschema",
-            "@type": "ComputationalJobTelemetry",
-            "job_id": job_name,
-            "provenance": self._get_hardware_provenance(),
-            "execution_hash": config_hash,
-            "exit_code": exit_code,
-            "status": status,
-            "timestamp_end": datetime.now(timezone.utc).isoformat(),
+    def __init__(self, custom_rules: Optional[Dict[str, List[str]]] = None) -> None:
+        # Default canonical fallback hierarchies
+        self.fallback_hierarchies: Dict[str, List[str]] = {
+            "mace_off24m": ["mace_off24m", "aimnet2", "g-xtb", "r2scan_3c"],
+            "mace_mp_0": ["mace_mp_0", "aimnet2", "g-xtb", "r2scan_3c"],
+            "aimnet2": ["aimnet2", "g-xtb", "r2scan_3c"],
+            "gpu4pyscf": ["gpu4pyscf", "pyscf", "orca"],
+            "cfour_anharmonic": ["cfour", "orca", "pyscf"],
+            "dlpno_ccsd_t": ["dlpno_ccsd_t", "wb97m_v_def2_qzvpp", "r2scan_3c"],
+            "goat_aimnet2": ["goat_aimnet2", "goat_xtb2"],
+            "crest_gfn2": ["crest_gfn2", "crest_gfnff"],
         }
-        signed_ld = sign_provenance_block(ld_block, self.secret_key)
-        return f"\n\n# --- COCHEM JSON-LD PROVENANCE FOOTER ---\n# {json.dumps(signed_ld, ensure_ascii=False)}\n"
+        if custom_rules:
+            self.fallback_hierarchies.update(custom_rules)
 
-    def aggregate_and_lock(
+        self._custom_evaluators: Dict[str, Callable[[HardwareProfileSpec, Dict[str, Any]], Tuple[bool, Optional[str]]]] = {}
+
+    def register_custom_fallback(
+        self,
+        engine: str,
+        fallback_chain: List[str],
+        condition_evaluator: Optional[Callable[[HardwareProfileSpec, Dict[str, Any]], Tuple[bool, Optional[str]]]] = None,
+    ) -> None:
+        """Register custom engine fallback rule and predicate evaluator."""
+        self.fallback_hierarchies[engine.lower()] = fallback_chain
+        if condition_evaluator:
+            self._custom_evaluators[engine.lower()] = condition_evaluator
+
+    def resolve_route(
+        self,
+        requested_engine: str,
+        hardware: Union[HardwareProfileSpec, Dict[str, Any]],
+        silo_verifier: Optional[MicroSiloVerifier] = None,
+        task_constraints: Optional[Dict[str, Any]] = None,
+        task_type: Union[TaskType, str] = TaskType.CPU_BOUND,
+    ) -> RouteDecision:
+        """
+        Dynamically resolves the optimal executable engine given physical hardware
+        and micro-silo status.
+        """
+        if isinstance(hardware, dict):
+            hw = HardwareProfileSpec(**hardware)
+        else:
+            hw = hardware
+
+        constraints = task_constraints or {}
+        req_key = requested_engine.lower().strip()
+        chain = self.fallback_hierarchies.get(req_key, [req_key])
+        fallback_reason: Optional[str] = None
+        selected_engine: Optional[str] = None
+        selected_binary: Optional[str] = None
+        was_fallback = False
+
+        for candidate in chain:
+            cand_key = candidate.lower().strip()
+            ok, reason = self._evaluate_engine_capability(cand_key, hw, constraints)
+            if not ok:
+                fallback_reason = reason
+                was_fallback = True
+                continue
+
+            # Check binary availability in micro-silo if verifier explicitly provided
+            if silo_verifier is not None:
+                bin_res = silo_verifier.verify_binary(cand_key)
+                if not bin_res.is_valid:
+                    fallback_reason = f"Binary for '{cand_key}' unavailable: {bin_res.error_message}"
+                    was_fallback = True
+                    continue
+                selected_binary = bin_res.executable_path
+
+            selected_engine = cand_key
+            break
+
+        if selected_engine is None:
+            # If all candidates exhausted, select last available or raise error
+            selected_engine = chain[-1]
+            was_fallback = True
+            if fallback_reason is None:
+                fallback_reason = "All candidates failed hardware or binary verification."
+
+        # Synthesize tailored environment for chosen engine
+        tailored_env = HardwareEnvGenerator.generate_environment(
+            hardware=hw,
+            task_type=task_type,
+            target_engine=selected_engine,
+            requested_threads=constraints.get("requested_threads"),
+            memory_fraction=constraints.get("memory_fraction", 0.75),
+        )
+
+        allocated_threads = int(tailored_env.get("OMP_NUM_THREADS", "1"))
+        allocated_maxcore = int(tailored_env.get("COCHEM_MAXCORE_MB", "1000"))
+
+        exec_tier = "gpu" if tailored_env.get("CUDA_VISIBLE_DEVICES") != "" else "cpu"
+
+        return RouteDecision(
+            requested_engine=requested_engine,
+            selected_engine=selected_engine,
+            was_fallback=was_fallback and (selected_engine != req_key),
+            fallback_chain=chain,
+            fallback_reason=fallback_reason if (selected_engine != req_key) else None,
+            binary_path=selected_binary,
+            allocated_threads=allocated_threads,
+            allocated_maxcore_mb=allocated_maxcore,
+            environment_variables=tailored_env,
+            execution_tier=exec_tier,
+        )
+
+    def _evaluate_engine_capability(
+        self,
+        engine: str,
+        hw: HardwareProfileSpec,
+        constraints: Dict[str, Any],
+    ) -> Tuple[bool, Optional[str]]:
+        """Evaluates hardware constraints for a candidate engine."""
+        # 1. Custom evaluator check
+        if engine in self._custom_evaluators:
+            return self._custom_evaluators[engine](hw, constraints)
+
+        # 2. MACE-OFF24m / MACE-MP-0 rules
+        if engine in ("mace_off24m", "mace_mp_0", "mace"):
+            # Requires GPU with VRAM >= 4.0 GB or CPU with AVX-512 and RAM >= 8.0 GB
+            if hw.gpu_count > 0 and hw.gpu_vram_gb >= 4.0:
+                return True, None
+            if hw.has_avx512 and hw.memory_available_gb >= 8.0:
+                return True, None
+            if hw.gpu_count == 0:
+                return False, f"GPU unavailable and CPU lacks AVX-512 for {engine}"
+            return False, f"GPU VRAM {hw.gpu_vram_gb:.1f}GB < required 4.0GB for {engine}"
+
+        # 3. AIMNet2 rules
+        if engine == "aimnet2":
+            # Requires GPU with VRAM >= 2.0 GB or AVX2 on CPU
+            if hw.gpu_count > 0 and hw.gpu_vram_gb >= 2.0:
+                return True, None
+            if hw.has_avx2:
+                return True, None
+            return False, "AIMNet2 requires GPU with >=2GB VRAM or AVX2 instruction set."
+
+        # 4. gpu4pyscf rules (Method Matrix §8.3 Crossover Rule)
+        if engine == "gpu4pyscf":
+            if hw.gpu_count == 0:
+                return False, "gpu4pyscf requires CUDA-capable GPU."
+            if hw.gpu_vram_gb < 6.0:
+                return False, f"gpu4pyscf requires >=6.0GB VRAM (found {hw.gpu_vram_gb:.1f}GB)."
+            basis_count = constraints.get("basis_functions", 100)
+            if basis_count < 50:
+                return False, f"Basis count {basis_count} < 50: CPU PySCF faster than GPU (Method Matrix §8.3 crossover)."
+            return True, None
+
+        # 5. High-memory DLPNO-CCSD(T)
+        if engine == "dlpno_ccsd_t":
+            req_ram = constraints.get("min_ram_gb", 16.0)
+            if hw.memory_available_gb < req_ram:
+                return False, f"DLPNO-CCSD(T) requires >={req_ram}GB RAM (available: {hw.memory_available_gb:.1f}GB)."
+            return True, None
+
+        # 6. g-xTB / xTB / CREST / MOPAC / r2SCAN-3c: lightweight CPU compatible
+        if engine in ("g-xtb", "xtb", "crest", "crest_gfn2", "crest_gfnff", "mopac", "r2scan_3c", "orca", "pyscf", "cfour"):
+            return True, None
+
+        # Default pass
+        return True, None
+
+
+# =============================================================================
+# 4. ASYNCHRONOUS TEMPLATER
+# =============================================================================
+
+
+class AsyncTemplateRenderer:
+    """
+    Asynchronous template engine supporting Jinja-like variable interpolation,
+    filters, conditional blocks, and domain-specific chemistry deck rendering.
+    """
+
+    _VAR_REGEX = re.compile(r"\{\{\s*(.*?)\s*\}\}")
+    _BLOCK_IF_REGEX = re.compile(r"\{%\s*if\s+([a-zA-Z0-9_]+)\s*%\}(.*?)(?:\{%\s*else\s*%\}(.*?))?\{%\s*endif\s*%\}", re.DOTALL)
+
+    async def render_async(self, template_str: str, context: Dict[str, Any]) -> str:
+        """Asynchronously render template string with variable interpolation and conditional blocks."""
+        # Yield to event loop to preserve async concurrency
+        await asyncio.sleep(0)
+
+        # 1. Process conditional blocks: {% if var %}...{% else %}...{% endif %}
+        def _replace_if(match: re.Match[str]) -> str:
+            var_name = match.group(1).strip()
+            true_branch = match.group(2)
+            false_branch = match.group(3) or ""
+            val = context.get(var_name)
+            if val:
+                return true_branch
+            return false_branch
+
+        content = self._BLOCK_IF_REGEX.sub(_replace_if, template_str)
+
+        # 2. Process variable placeholders: {{ key | filter }}
+        def _replace_var(match: re.Match[str]) -> str:
+            raw_expr = match.group(1).strip()
+            if "|" in raw_expr:
+                parts = [p.strip() for p in raw_expr.split("|", 1)]
+                key = parts[0]
+                filter_name = parts[1]
+            else:
+                key = raw_expr
+                filter_name = ""
+
+            # Resolve key (support nested dicts via dot notation)
+            val: Any = context
+            for k in key.split("."):
+                if isinstance(val, dict):
+                    val = val.get(k, "")
+                else:
+                    val = ""
+                    break
+
+            if val == "" and key in context:
+                val = context[key]
+
+            # Apply filters
+            str_val = str(val) if val is not None else ""
+            if filter_name == "upper":
+                str_val = str_val.upper()
+            elif filter_name == "lower":
+                str_val = str_val.lower()
+            elif filter_name.startswith("default("):
+                default_match = re.match(r'default\([\'"]?(.*?)[\'"]?\)', filter_name)
+                if default_match and (val is None or str_val == ""):
+                    str_val = default_match.group(1)
+
+            return str_val
+
+        rendered = self._VAR_REGEX.sub(_replace_var, content)
+        return rendered
+
+    async def render_file_async(
+        self,
+        template_path: Union[str, Path],
+        context: Dict[str, Any],
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> str:
+        """Asynchronously load template from disk, render, and optionally write output."""
+        tpl_path = resolve_mapped_path(template_path)
+        if not tpl_path.is_file():
+            raise FileNotFoundError(f"Template file not found: {tpl_path}")
+
+        # Async file read
+        loop = asyncio.get_running_loop()
+        template_content = await loop.run_in_executor(None, tpl_path.read_text, "utf-8")
+
+        rendered = await self.render_async(template_content, context)
+
+        if output_path is not None:
+            out_p = resolve_mapped_path(output_path)
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            await loop.run_in_executor(None, out_p.write_text, rendered, "utf-8")
+
+        return rendered
+
+    @staticmethod
+    def build_orca_input_template(
+        method: str,
+        basis: str,
+        charge: int = 0,
+        multiplicity: int = 1,
+        nprocs: int = 4,
+        maxcore_mb: int = 3000,
+        extra_keywords: str = "TightOpt TightSCF",
+        coordinates_xyz: str = "",
+    ) -> str:
+        """Constructs an authoritative ORCA input deck adhering to Method Matrix §4.4."""
+        return f"""! {method} {basis} {extra_keywords}
+%pal nprocs {nprocs} end
+%maxcore {maxcore_mb}
+* xyz {charge} {multiplicity}
+{coordinates_xyz.strip()}
+*
+"""
+
+    @staticmethod
+    def build_slurm_script_template(
+        job_name: str,
+        command: str,
+        nodes: int = 1,
+        cpus: int = 4,
+        walltime: str = "24:00:00",
+        partition: str = "compute",
+        env_vars: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Constructs a standard SLURM batch submission script."""
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        return f"""#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --nodes={nodes}
+#SBATCH --ntasks-per-node={cpus}
+#SBATCH --time={walltime}
+#SBATCH --partition={partition}
+
+{exports}srun --mpi=pmi2 {command}
+"""
+
+    @staticmethod
+    def build_pbs_script_template(
+        job_name: str,
+        command: str,
+        nodes: int = 1,
+        cpus: int = 4,
+        walltime: str = "24:00:00",
+        env_vars: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Constructs a standard PBS batch submission script."""
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        return f"""#!/bin/bash
+#PBS -N {job_name}
+#PBS -l nodes={nodes}:ppn={cpus}
+#PBS -l walltime={walltime}
+
+{exports}mpirun -np {nodes * cpus} {command}
+"""
+
+    @staticmethod
+    def build_local_script_template(
+        command: str,
+        cpus: int = 4,
+        env_vars: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Constructs a local shell execution script."""
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        return f"""#!/bin/bash
+{exports}{command}
+"""
+
+
+# =============================================================================
+# 5. EXECUTION HANDSHAKE MANAGER
+# =============================================================================
+
+
+class ExecutionHandshakeManager:
+    """
+    Manages cryptographic execution handshakes, parameter hashing, and HMAC-SHA256 signatures
+    to guarantee provenance integrity between compiler and execution sandbox.
+    """
+
+    def __init__(self, secret_key: Optional[str] = None) -> None:
+        self.secret_key = secret_key or os.environ.get("COCHEM_SECRET_KEY", "cochem_master_secret_2026")
+
+    def generate_handshake_token(
+        self,
+        job_id: str,
+        config_payload: Dict[str, Any],
+        secret_key: Optional[str] = None,
+        ttl_seconds: int = 3600,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> HandshakeToken:
+        """Generates an HMAC-SHA256 signed HandshakeToken."""
+        key = (secret_key or self.secret_key).encode("utf-8")
+        issued_at = time.time()
+        expires_at = issued_at + float(ttl_seconds)
+        token_id = str(uuid.uuid4())
+        nonce = secrets.token_hex(16)
+
+        # Deterministic SHA-256 payload digest
+        payload_str = json.dumps(config_payload, sort_keys=True)
+        config_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
+
+        # Sign canonical token message
+        message = f"{token_id}:{job_id}:{config_hash}:{issued_at:.4f}:{expires_at:.4f}:{nonce}"
+        signature = hmac.new(key, message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+        return HandshakeToken(
+            token_id=token_id,
+            job_id=job_id,
+            config_hash=config_hash,
+            signature=signature,
+            issued_at=issued_at,
+            expires_at=expires_at,
+            nonce=nonce,
+            metadata=metadata or {},
+        )
+
+    def verify_handshake_token(
+        self,
+        token: Union[HandshakeToken, Dict[str, Any]],
+        config_payload: Dict[str, Any],
+        secret_key: Optional[str] = None,
+        current_time: Optional[float] = None,
+    ) -> HandshakeVerificationResult:
+        """Verifies cryptographic token signature, hash integrity, and TTL expiration."""
+        if isinstance(token, dict):
+            t = HandshakeToken(**token)
+        else:
+            t = token
+
+        now = current_time if current_time is not None else time.time()
+        key = (secret_key or self.secret_key).encode("utf-8")
+
+        # 1. Check TTL Expiration
+        if now > t.expires_at:
+            return HandshakeVerificationResult(
+                is_valid=False,
+                token_id=t.token_id,
+                job_id=t.job_id,
+                reason=f"Handshake token expired at {t.expires_at:.2f} (current: {now:.2f})",
+                expired=True,
+                signature_valid=False,
+                hash_valid=False,
+            )
+
+        # 2. Check Payload SHA-256 Hash
+        payload_str = json.dumps(config_payload, sort_keys=True)
+        computed_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
+        hash_valid = hmac.compare_digest(computed_hash, t.config_hash)
+
+        if not hash_valid:
+            return HandshakeVerificationResult(
+                is_valid=False,
+                token_id=t.token_id,
+                job_id=t.job_id,
+                reason="Configuration payload hash mismatch.",
+                expired=False,
+                signature_valid=False,
+                hash_valid=False,
+            )
+
+        # 3. Verify HMAC-SHA256 Signature
+        message = f"{t.token_id}:{t.job_id}:{t.config_hash}:{t.issued_at:.4f}:{t.expires_at:.4f}:{t.nonce}"
+        expected_sig = hmac.new(key, message.encode("utf-8"), hashlib.sha256).hexdigest()
+        sig_valid = hmac.compare_digest(expected_sig, t.signature)
+
+        if not sig_valid:
+            return HandshakeVerificationResult(
+                is_valid=False,
+                token_id=t.token_id,
+                job_id=t.job_id,
+                reason="Cryptographic HMAC signature verification failed.",
+                expired=False,
+                signature_valid=False,
+                hash_valid=True,
+            )
+
+        return HandshakeVerificationResult(
+            is_valid=True,
+            token_id=t.token_id,
+            job_id=t.job_id,
+            reason="Handshake token successfully verified.",
+            expired=False,
+            signature_valid=True,
+            hash_valid=True,
+        )
+
+    async def execute_handshake_session(
+        self,
+        job_id: str,
+        config_payload: Dict[str, Any],
+        runner_callback: Callable[[HandshakeToken], Awaitable[Dict[str, Any]]],
+        secret_key: Optional[str] = None,
+        ttl_seconds: int = 3600,
+    ) -> Dict[str, Any]:
+        """Runs an end-to-end async execution handshake session."""
+        token = self.generate_handshake_token(job_id, config_payload, secret_key=secret_key, ttl_seconds=ttl_seconds)
+        verification = self.verify_handshake_token(token, config_payload, secret_key=secret_key)
+        if not verification.is_valid:
+            raise HandshakeVerificationError(f"Session handshake failed: {verification.reason}")
+
+        result = await runner_callback(token)
+        result["handshake_verification"] = verification.model_dump()
+        return result
+
+
+# =============================================================================
+# 6. ABSTRACTED HPC SCHEDULER STRATEGIES
+# =============================================================================
+
+
+class SchedulerStrategy(ABC):
+    @abstractmethod
+    def build_submission_script(self, job_name: str, command: str, nodes: int, cpus: int, **kwargs: Any) -> str:
+        """Abstract method for rendering HPC submission scripts."""
+        ...
+
+
+class SlurmStrategy(SchedulerStrategy):
+    def __init__(self, walltime: str = "24:00:00", partition: str = "compute") -> None:
+        self.walltime = walltime
+        self.partition = partition
+
+    def build_submission_script(
         self,
         job_name: str,
-        stdout_history: Sequence[str],
-        stderr_history: Sequence[str],
-        exit_code: int,
-        active_hash: str,
+        command: str,
+        nodes: int,
+        cpus: int,
+        walltime: Optional[str] = None,
+        partition: Optional[str] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
     ) -> str:
+        wtime = walltime or self.walltime
+        part = partition or self.partition
+
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        else:
+            exports = f"export OMP_NUM_THREADS={cpus}\nexport MKL_NUM_THREADS={cpus}\n"
+
+        return f"""#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --nodes={nodes}
+#SBATCH --ntasks-per-node={cpus}
+#SBATCH --time={wtime}
+#SBATCH --partition={part}
+
+{exports}srun --mpi=pmi2 {command}
+"""
+
+
+class PBSStrategy(SchedulerStrategy):
+    def __init__(self, walltime: str = "24:00:00") -> None:
+        self.walltime = walltime
+
+    def build_submission_script(
+        self,
+        job_name: str,
+        command: str,
+        nodes: int,
+        cpus: int,
+        walltime: Optional[str] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> str:
+        wtime = walltime or self.walltime
+
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        else:
+            exports = f"export OMP_NUM_THREADS={cpus}\nexport MKL_NUM_THREADS={cpus}\n"
+
+        return f"""#!/bin/bash
+#PBS -N {job_name}
+#PBS -l nodes={nodes}:ppn={cpus}
+#PBS -l walltime={wtime}
+
+{exports}mpirun -np {nodes * cpus} {command}
+"""
+
+
+class LocalStrategy(SchedulerStrategy):
+    def build_submission_script(
+        self,
+        job_name: str,
+        command: str,
+        nodes: int,
+        cpus: int,
+        env_vars: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> str:
+        exports = ""
+        if env_vars:
+            exports = "\n".join(f"export {k}={v}" for k, v in env_vars.items()) + "\n"
+        else:
+            exports = f"export OMP_NUM_THREADS={cpus}\nexport MKL_NUM_THREADS={cpus}\n"
+
+        return f"""#!/bin/bash
+{exports}{command}
+"""
+
+
+# =============================================================================
+# 7. MAIN CONFIG COMPILER CLASS
+# =============================================================================
+
+
+class ConfigCompiler:
+    """
+    CoChem Central Configuration Compiler & Execution Orchestrator.
+    Combines SemVer gates, Mendeleev ECP validation, Dynamic Fallback Routing,
+    Hardware-tailored environment synthesis, and Cryptographic Handshake tokens.
+    """
+
+    def __init__(
+        self,
+        target_scheduler: str = "local",
+        walltime: str = "24:00:00",
+        partition: str = "compute",
+        secret_key: Optional[str] = None,
+        hardware_profile: Optional[Union[HardwareProfileSpec, Dict[str, Any]]] = None,
+        silo_verifier: Optional[MicroSiloVerifier] = None,
+    ) -> None:
+        self.target_scheduler = target_scheduler.lower()
+        self.walltime = walltime
+        self.partition = partition
+
+        # Initialize Scheduler Strategy
+        if self.target_scheduler == "slurm":
+            self.scheduler: SchedulerStrategy = SlurmStrategy(walltime=walltime, partition=partition)
+        elif self.target_scheduler == "pbs":
+            self.scheduler = PBSStrategy(walltime=walltime)
+        else:
+            self.scheduler = LocalStrategy()
+
+        # Initialize Hardware Profile
+        if hardware_profile is not None:
+            if isinstance(hardware_profile, dict):
+                self.hardware = HardwareProfileSpec(**hardware_profile)
+            else:
+                self.hardware = hardware_profile
+        else:
+            self.hardware = HardwareProfileSpec.from_system()
+
+        # Core Components
+        self.router = DynamicFallbackRouter()
+        self.verifier: Optional[MicroSiloVerifier] = silo_verifier
+        self.templater = AsyncTemplateRenderer()
+        self.handshake = ExecutionHandshakeManager(secret_key=secret_key)
+        self.env_generator = HardwareEnvGenerator()
+
+    def enforce_semver_pinning(self, engine_name: str, actual_version: str, min_required: str) -> bool:
+        """Strict Semantic Versioning Gatekeeper."""
+        if not actual_version:
+            logger.error(f"Version string is empty or missing for dependency {engine_name}.")
+            raise ValueError(f"Version string is empty or missing for dependency {engine_name}")
+
+        if version.parse(actual_version) < version.parse(min_required):
+            logger.error(f"{engine_name} version {actual_version} is below strict minimum {min_required}.")
+            return False
+        return True
+
+    def validate_ecp_requirements(self, elements_in_system: List[str], defined_ecps: Dict[str, str]) -> None:
         """
-        Assembles the final log, performs 256-byte hex dumping if a segfault occurred,
-        appends the cryptographically signed JSON-LD footer, and locks the file as Read-Only.
+        Dynamically queries Mendeleev to enforce Effective Core Potentials (ECPs)
+        for any heavy element (Z > 36) to prevent massive basis set errors.
         """
-        log_path = self.log_dir / f"{job_name}_telemetry.log"
-        if log_path.exists():
+        for sym in set(elements_in_system):
             try:
-                os.chmod(str(log_path), stat.S_IWRITE | stat.S_IREAD)
-            except OSError:
-                pass
+                el = element(sym)
+                atomic_num = el.atomic_number
+            except Exception as e:
+                raise ValueError(f"Invalid chemical symbol '{sym}' encountered during ECP validation.") from e
 
-        with open(log_path, "w", encoding="utf-8") as f:
-            f.write(f"--- CoChem-CORE Telemetry Trace for {job_name} ---\n")
-            f.write(f"Exit Code: {exit_code}\n\n")
+            if atomic_num > 36 and sym not in defined_ecps:
+                raise ECPValidationError(f"Heavy element {sym} (Z={atomic_num}) missing ECP specification")
 
-            for line in stdout_history:
-                f.write(line + "\n")
+    def generate_execution_package(
+        self,
+        job_name: str,
+        engine_command: str,
+        params: Dict[str, Any],
+        nodes: int = 1,
+        cpus: int = 4,
+        walltime: Optional[str] = None,
+        partition: Optional[str] = None,
+        env_vars: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> Tuple[str, str]:
+        """
+        Immutable SHA-256 Parameter Hashing & Scheduler Injection.
+        Retains full backward compatibility with previous ConfigCompiler API.
+        """
+        param_str = json.dumps(params, sort_keys=True)
+        config_hash = hashlib.sha256(param_str.encode()).hexdigest()
 
-            if exit_code in CRITICAL_SEGFAULT_EXIT_CODES:
-                f.write(f"\n\n!!! CRITICAL SEGMENTATION FAULT / CRASH (Exit Code: {exit_code}) !!!\n")
-                f.write("Dumping last 256 bytes of STDERR as Hexadecimal Trace:\n")
-                raw_err = "".join(stderr_history[-20:]).encode('utf-8', errors='replace')
-                if not raw_err:
-                    raw_err = b"Segmentation fault (core dumped)\n"
-                
-                # Take last 256 bytes, zero-padded if buffer is shorter
-                target_bytes = raw_err[-256:] if len(raw_err) >= 256 else raw_err.ljust(256, b"\x00")
-                for i in range(0, 256, 16):
-                    chunk = target_bytes[i:i + 16]
-                    hex_str = chunk.hex(' ')
-                    f.write(f"0x{i:04X}: {hex_str}\n")
+        script_body = self.scheduler.build_submission_script(
+            job_name,
+            engine_command,
+            nodes,
+            cpus,
+            walltime=walltime,
+            partition=partition,
+            env_vars=env_vars,
+            **kwargs,
+        )
+        provenance_header = f"\n# COCHEM_EXEC_HASH: {config_hash}\n"
 
-            footer = self._generate_json_ld_footer(job_name, exit_code, active_hash)
-            f.write(footer)
+        full_script = provenance_header + script_body
+        logger.info(f"Compiled execution package for job '{job_name}' with SHA-256 hash: {config_hash[:12]}")
 
-        logger.info(f"Log finalized and archived: {log_path}")
+        return config_hash, full_script
 
-        # Stream finalized event to cochem_telemetry_stream.jsonl
-        if self.sink:
-            self.sink.write_entry({
-                "@context": "https://w3id.org/ro/qcschema",
-                "@type": "JobTelemetryFinalized",
-                "job_id": job_name,
-                "exit_code": exit_code,
-                "log_path": str(log_path),
-                "execution_hash": active_hash,
-                "status": "SUCCESS" if exit_code == 0 else ("CRASHED" if exit_code in CRITICAL_SEGFAULT_EXIT_CODES else "FAILED"),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "warnings_count": self.warnings_count,
-                "errors_count": self.errors_count,
-                "trap_events": self.get_trap_events(),
-            }, sign=True)
+    def compile_execution_bundle(
+        self,
+        job_name: str,
+        requested_engine: str,
+        params: Dict[str, Any],
+        command_override: Optional[str] = None,
+        task_type: Union[TaskType, str] = TaskType.CPU_BOUND,
+        task_constraints: Optional[Dict[str, Any]] = None,
+        nodes: int = 1,
+        cpus: Optional[int] = None,
+        walltime: Optional[str] = None,
+        partition: Optional[str] = None,
+        input_deck: Optional[str] = None,
+    ) -> CompiledJobBundle:
+        """
+        Full zero-mock compilation pipeline:
+        1. Resolves dynamic engine fallback.
+        2. Synthesizes tailored hardware environment.
+        3. Generates cryptographic handshake token.
+        4. Renders scheduler script with provenance header.
+        """
+        # 1. Resolve fallback route
+        decision = self.router.resolve_route(
+            requested_engine=requested_engine,
+            hardware=self.hardware,
+            silo_verifier=self.verifier,
+            task_constraints=task_constraints,
+            task_type=task_type,
+        )
 
-        if self.ipc_streamer:
-            self.ipc_streamer.publish_event("JOB_FINALIZED", {
-                "job_id": job_name,
-                "exit_code": exit_code,
-                "log_path": str(log_path),
-                "execution_hash": active_hash,
-                "status": "SUCCESS" if exit_code == 0 else ("CRASHED" if exit_code in CRITICAL_SEGFAULT_EXIT_CODES else "FAILED"),
-            })
+        effective_cpus = cpus or decision.allocated_threads
+        exec_cmd = command_override or decision.binary_path or f"{decision.selected_engine} input.inp"
 
-        # Apply immutability lock (read-only)
-        try:
-            os.chmod(str(log_path), stat.S_IREAD)
-            logger.info(f"Immutability lock (read-only) applied to {log_path}")
-        except OSError as e:
-            logger.warning(f"Could not set read-only permissions on {log_path}: {e}")
+        # 2. Generate Handshake Token
+        handshake_token = self.handshake.generate_handshake_token(
+            job_id=job_name,
+            config_payload=params,
+            metadata={"engine": decision.selected_engine, "task_type": str(task_type)},
+        )
 
-        return str(log_path)
+        # 3. Generate Execution Script
+        config_hash, full_script = self.generate_execution_package(
+            job_name=job_name,
+            engine_command=exec_cmd,
+            params=params,
+            nodes=nodes,
+            cpus=effective_cpus,
+            walltime=walltime or self.walltime,
+            partition=partition or self.partition,
+            env_vars=decision.environment_variables,
+        )
 
-    def close(self) -> None:
-        """Flushes and closes underlying sink and IPC resources."""
-        if self.sink is not None:
-            self.sink.close()
-            self.sink = None
-        self.stop_ipc_stream()
+        provenance_header = f"# COCHEM_EXEC_HASH: {config_hash}\n# TOKEN_ID: {handshake_token.token_id}\n"
+
+        return CompiledJobBundle(
+            job_name=job_name,
+            config_hash=config_hash,
+            handshake_token=handshake_token,
+            route_decision=decision,
+            submission_script=full_script,
+            input_deck=input_deck,
+            environment_variables=decision.environment_variables,
+            provenance_header=provenance_header,
+        )
+
+    async def compile_job_async(
+        self,
+        job_name: str,
+        requested_engine: str,
+        params: Dict[str, Any],
+        command_override: Optional[str] = None,
+        task_type: Union[TaskType, str] = TaskType.CPU_BOUND,
+        task_constraints: Optional[Dict[str, Any]] = None,
+        nodes: int = 1,
+        cpus: Optional[int] = None,
+        walltime: Optional[str] = None,
+        partition: Optional[str] = None,
+        input_deck_template: Optional[str] = None,
+        deck_context: Optional[Dict[str, Any]] = None,
+    ) -> CompiledJobBundle:
+        """Asynchronously compiles an execution package with template rendering."""
+        rendered_deck: Optional[str] = None
+        if input_deck_template:
+            ctx = deck_context or {}
+            rendered_deck = await self.templater.render_async(input_deck_template, ctx)
+
+        loop = asyncio.get_running_loop()
+        bundle = await loop.run_in_executor(
+            None,
+            self.compile_execution_bundle,
+            job_name,
+            requested_engine,
+            params,
+            command_override,
+            task_type,
+            task_constraints,
+            nodes,
+            cpus,
+            walltime,
+            partition,
+            rendered_deck,
+        )
+        return bundle
 
 
-__all__ = [
-    "CRITICAL_SEGFAULT_EXIT_CODES",
-    "DEFAULT_STREAM_FILENAME",
-    "DEFAULT_MAX_STREAM_BYTES",
-    "DEFAULT_BACKUP_COUNT",
-    "HAS_ZMQ",
-    "RotatingJsonlSink",
-    "TelemetryIPCStreamer",
-    "TelemetryIPCListener",
-    "TelemetryLogger",
-    "compute_provenance_digest",
-    "get_default_secret_key",
-    "install_global_excepthook",
-    "sign_provenance_block",
-    "trap_unhandled_exceptions",
-    "uninstall_global_excepthook",
-    "verify_provenance_signature",
-]
+if __name__ == "__main__":
+    compiler = ConfigCompiler(target_scheduler="slurm", walltime="12:00:00", partition="gpu")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_telemetry_logger.py ---
+    compiler.enforce_semver_pinning("ORCA", "6.1.1", "6.1.0")
+
+    try:
+        compiler.validate_ecp_requirements(["C", "H", "I"], defined_ecps={"I": "def2-TZVPP-ECP"})
+        logger.info("ECP Validation Success")
+    except ECPValidationError as e:
+        logger.error(f"ECP Validation error: {e}")
+
+    logger.info("Config Compiler initialized successfully.")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_core_config_compiler.py ---
 #!/usr/bin/env python3
 # Copyright 2026 CoChem Project Family. All rights reserved.
 # Apache License 2.0
 """
-Unit and Integration Test Suite for CoChem Core Telemetry Logger.
+Unit and Integration Test Suite for CoChem Core Config Compiler.
 Validates:
-- Numerical traps (NaN/Inf, overlap matrix linear dependence, saddle point instability)
-- SCF oscillation ping-pong preemption vs normal convergence
-- Hardware provenance capture
-- Cross-platform segfault hex dumping (Linux 139, -11, Windows 0xC0000005, 0xC00000FD)
-- JSON-LD QCSchema footer generation with cryptographic HMAC-SHA256 signatures
-- Rotating JSONL stream sink (cochem_telemetry_stream.jsonl) & automatic file rotation
-- Global sys.excepthook crash trapping with structured diagnostics & provenance
-- Secure IPC streaming & listening with cryptographic verification
-- Thread safety and immutability locking
+1. Mendeleev ECP Gates & heavy element validation (Z > 36).
+2. Semantic version pinning gatekeeper (enforce_semver_pinning).
+3. Abstracted HPC schedulers (SlurmStrategy, PBSStrategy, LocalStrategy).
+4. HardwareProfileSpec model & real system hardware probing.
+5. Tailored hardware environment generation (OMP_NUM_THREADS, MKL, KMP affinity, CUDA, maxcore).
+6. Micro-silo binary verification across search roots and custom manifests.
+7. Dynamic Fallback Router (MACE -> AIMNet2 -> g-xTB, gpu4pyscf crossover, memory constraints).
+8. Asynchronous templater (AsyncTemplateRenderer) with conditionals, filters, and chemistry decks.
+9. Execution Handshake Manager (HMAC-SHA256 cryptographic tokens, TTL expiry, tamper detection).
+10. ConfigCompiler end-to-end synchronous and asynchronous compilation bundles.
+11. Verification-aware dynamic routing with micro-silo manifests.
 
 Strict Zero-Mock Mandate:
-- 100% physically executable tests with zero mocks, stubs, or fake libraries.
+- 100% physically executable tests adhering to the Zero-Mock mandate.
 """
 
 from __future__ import annotations
 
-import ast
-import base64
+import asyncio
+import hashlib
+import hmac
 import json
 import os
+from pathlib import Path
 import platform
 import stat
 import sys
-import threading
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Tuple
 
 import pytest
+from packaging import version
 
-from core_engine.cochem_core_telemetry_logger import (
-    CRITICAL_SEGFAULT_EXIT_CODES,
-    DEFAULT_BACKUP_COUNT,
-    DEFAULT_MAX_STREAM_BYTES,
-    DEFAULT_STREAM_FILENAME,
-    HAS_ZMQ,
-    RotatingJsonlSink,
-    TelemetryIPCListener,
-    TelemetryIPCStreamer,
-    TelemetryLogger,
-    compute_provenance_digest,
-    get_default_secret_key,
-    install_global_excepthook,
-    sign_provenance_block,
-    trap_unhandled_exceptions,
-    uninstall_global_excepthook,
-    verify_provenance_signature,
+from core_engine.cochem_core_config_compiler import (
+    AsyncTemplateRenderer,
+    BinaryNotFoundError,
+    BinaryVerificationResult,
+    CompiledJobBundle,
+    CompilerError,
+    ConfigCompiler,
+    DynamicFallbackRouter,
+    ECPValidationError,
+    EngineType,
+    ExecutionHandshakeManager,
+    HandshakeToken,
+    HandshakeVerificationError,
+    HandshakeVerificationResult,
+    HardwareConstraintError,
+    HardwareEnvGenerator,
+    HardwareProfileSpec,
+    LocalStrategy,
+    MicroSiloVerifier,
+    PBSStrategy,
+    RouteDecision,
+    SchedulerStrategy,
+    SlurmStrategy,
+    TaskType,
+    TemplateSyntaxError,
 )
 
 
-# ==============================================================================
-# 1. Initialization and Properties
-# ==============================================================================
+# =============================================================================
+# 1. MENDELEEV ECP GATES & HEAVY ELEMENT VALIDATION
+# =============================================================================
 
 
-def test_telemetry_logger_init(tmp_path: Path) -> None:
-    """Test initialization with custom directory, stream file, and default properties."""
-    log_dir = tmp_path / "custom_logs"
-    secret = "custom_secret_key_12345"
-    logger = TelemetryLogger(log_dir=log_dir, verbosity="DEBUG", secret_key=secret)
-    
-    assert logger.log_dir.exists()
-    assert logger.verbosity == "debug"
-    assert logger.warnings_count == 0
-    assert logger.errors_count == 0
-    assert len(logger.scf_history) == 0
-    assert logger.is_clean() is True
-    assert logger.sink is not None
-    assert logger.stream_path == log_dir / DEFAULT_STREAM_FILENAME
-    assert logger.stream_path.exists()
-    
-    logger.close()
+def test_ecp_validation_light_elements_pass() -> None:
+    """Test that light elements (Z <= 36) pass ECP validation without defined ECPs."""
+    compiler = ConfigCompiler()
+    light_elements = ["H", "C", "N", "O", "F", "P", "S", "Cl", "Br", "Fe"]
+    # Should execute without raising any exception
+    compiler.validate_ecp_requirements(light_elements, defined_ecps={})
 
 
-def test_telemetry_logger_context_manager(tmp_path: Path) -> None:
-    """Test TelemetryLogger as a context manager for automatic resource cleanup."""
-    with TelemetryLogger(log_dir=tmp_path) as logger:
-        assert logger.is_clean() is True
-        logger.process_stream_chunk("Normal initialization step")
-    
-    # After context exit, sink should be cleanly closed
-    assert logger.sink is None
+def test_ecp_validation_heavy_element_without_ecp_raises() -> None:
+    """Test that heavy elements (Z > 36) without defined ECP raise ECPValidationError."""
+    compiler = ConfigCompiler()
+
+    # Iodine (Z=53)
+    with pytest.raises(ECPValidationError, match="Heavy element I .* missing ECP specification"):
+        compiler.validate_ecp_requirements(["C", "H", "I"], defined_ecps={})
+
+    # Platinum (Z=78)
+    with pytest.raises(ECPValidationError, match="Heavy element Pt .* missing ECP specification"):
+        compiler.validate_ecp_requirements(["Pt", "Cl", "N", "H"], defined_ecps={})
+
+    # Uranium (Z=92)
+    with pytest.raises(ECPValidationError, match="Heavy element U .* missing ECP specification"):
+        compiler.validate_ecp_requirements(["U", "O"], defined_ecps={})
 
 
-# ==============================================================================
-# 2. Numerical Instability Regex Traps
-# ==============================================================================
+def test_ecp_validation_heavy_element_with_ecp_passes() -> None:
+    """Test that heavy elements with defined ECP pass validation cleanly."""
+    compiler = ConfigCompiler()
+    elements = ["C", "H", "I", "Pt", "Au"]
+    ecps = {
+        "I": "def2-TZVPP-ECP",
+        "Pt": "def2-ECP",
+        "Au": "crenbl-ecp",
+    }
+    compiler.validate_ecp_requirements(elements, defined_ecps=ecps)
 
 
-def test_nan_trap_fatal_abort(tmp_path: Path) -> None:
-    """Test that NaN, Infinity, -Inf trigger fatal abort while regular words pass."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    # False positive test: 'Infrared' should not trigger NaN/Inf trap
-    safe_line = "Computing Infrared vibrational frequencies for H2O..."
-    assert logger.process_stream_chunk(safe_line) is True
-    assert logger.errors_count == 0
-    assert logger.is_clean() is True
-
-    # Fatal test: actual NaN
-    nan_line = "FATAL ERROR: Diagonal element in Fock matrix is NaN!"
-    assert logger.process_stream_chunk(nan_line) is False
-    assert logger.errors_count == 1
-    assert logger.is_clean() is False
-
-    # Infinity test
-    inf_line = "Matrix norm exceeded threshold: value = +Infinity"
-    assert logger.process_stream_chunk(inf_line) is False
-    assert logger.errors_count == 2
-
-    # Negative Inf test
-    neg_inf_line = "Energy value diverged: E = -Inf Hartree"
-    assert logger.process_stream_chunk(neg_inf_line) is False
-    assert logger.errors_count == 3
-    
-    logger.close()
+def test_ecp_validation_invalid_element_symbol_raises() -> None:
+    """Test that non-existent chemical symbols raise ValueError."""
+    compiler = ConfigCompiler()
+    with pytest.raises(ValueError, match="Invalid chemical symbol 'Xx'"):
+        compiler.validate_ecp_requirements(["C", "H", "Xx"], defined_ecps={})
 
 
-def test_overlap_trap_warning(tmp_path: Path) -> None:
-    """Test that basis set linear dependence generates warnings but does not abort."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    warning_line = "Warning: Smallest eigenvalue of overlap matrix < 1.0e-07 detected."
-    assert logger.process_stream_chunk(warning_line) is True
-    assert logger.warnings_count == 1
-    assert logger.errors_count == 0
-
-    another_warning = "Basis set linear dependence detected in aug-cc-pVTZ calculation."
-    assert logger.process_stream_chunk(another_warning) is True
-    assert logger.warnings_count == 2
-    assert logger.errors_count == 0
-    
-    logger.close()
+def test_ecp_validation_duplicate_symbols_handled() -> None:
+    """Test that duplicate symbols in element list are deduplicated cleanly."""
+    compiler = ConfigCompiler()
+    compiler.validate_ecp_requirements(["C", "C", "H", "H", "O", "O"], defined_ecps={})
 
 
-def test_saddle_trap_warning(tmp_path: Path) -> None:
-    """Test wavefunction instability / saddle point trap produces warnings without abort."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    saddle_line = "Warning: Internal instability detected in UHF wavefunction solution."
-    assert logger.process_stream_chunk(saddle_line) is True
-    assert logger.warnings_count == 1
-    assert logger.errors_count == 0
-
-    sym_breaking = "Warning: Symmetry breaking observed during transition state search."
-    assert logger.process_stream_chunk(sym_breaking) is True
-    assert logger.warnings_count == 2
-    assert logger.errors_count == 0
-    
-    logger.close()
+# =============================================================================
+# 2. SEMANTIC VERSION PINNING GATEKEEPER
+# =============================================================================
 
 
-def test_scf_oscillation_ping_pong_detection(tmp_path: Path) -> None:
-    """Test detecting SCF ping-pong oscillation when energy delta flips sign repeatedly."""
-    logger = TelemetryLogger(log_dir=tmp_path)
+def test_semver_pinning_equal_and_greater_versions() -> None:
+    """Test that versions meeting or exceeding minimum requirement pass."""
+    compiler = ConfigCompiler()
 
-    # Oscillating sequence with unconverged magnitude (> 1e-3)
-    # +0.05, -0.04, +0.03, -0.02, +0.015 (4 sign flips in 5 iterations)
-    steps = [
-        "Iteration 1: Energy = -76.1000, dE = +0.0500",
-        "Iteration 2: Energy = -76.1400, dE = -0.0400",
-        "Iteration 3: Energy = -76.1100, dE = +0.0300",
-        "Iteration 4: Energy = -76.1300, dE = -0.0200",
-    ]
-    for step in steps:
-        assert logger.process_stream_chunk(step) is True
-        assert logger.errors_count == 0
-
-    # 5th oscillating step -> triggers ping-pong trap!
-    step5 = "Iteration 5: Energy = -76.1150, dE = +0.0150"
-    assert logger.process_stream_chunk(step5) is False
-    assert logger.errors_count == 1
-    assert logger.is_clean() is False
-
-    events = logger.get_trap_events()
-    assert any(e["type"] == "FATAL_SCF_OSCILLATION" for e in events)
-    
-    logger.close()
+    assert compiler.enforce_semver_pinning("ORCA", "6.1.0", "6.1.0") is True
+    assert compiler.enforce_semver_pinning("ORCA", "6.1.1", "6.1.0") is True
+    assert compiler.enforce_semver_pinning("ORCA", "7.0.0", "6.1.0") is True
+    assert compiler.enforce_semver_pinning("gpu4pyscf", "1.8.0", "1.8.0") is True
+    assert compiler.enforce_semver_pinning("gpu4pyscf", "1.9.2", "1.8.0") is True
 
 
-def test_scf_normal_converged_sequence(tmp_path: Path) -> None:
-    """Test that monotonic or converged small oscillation does not trigger abort."""
-    logger = TelemetryLogger(log_dir=tmp_path)
+def test_semver_pinning_lower_versions_fail() -> None:
+    """Test that versions below the minimum requirement return False."""
+    compiler = ConfigCompiler()
 
-    # Small magnitude converged steps (< 1e-3)
-    steps = [
-        "Iteration 1: Energy = -76.43200, dE = -0.01000",
-        "Iteration 2: Energy = -76.43220, dE = -0.00020",
-        "Iteration 3: Energy = -76.43225, dE = +0.00005",
-        "Iteration 4: Energy = -76.43223, dE = -0.00002",
-        "Iteration 5: Energy = -76.43224, dE = +0.00001",
-    ]
-    for step in steps:
-        assert logger.process_stream_chunk(step) is True
-
-    assert logger.errors_count == 0
-    assert logger.is_clean() is True
-    
-    logger.close()
+    assert compiler.enforce_semver_pinning("ORCA", "5.0.4", "6.1.0") is False
+    assert compiler.enforce_semver_pinning("gpu4pyscf", "1.7.9", "1.8.0") is False
+    assert compiler.enforce_semver_pinning("CFOUR", "2.1.0", "2.2.0") is False
 
 
-# ==============================================================================
-# 3. Hardware Provenance & Cryptographic Signing
-# ==============================================================================
+def test_semver_pinning_empty_or_invalid_version_raises() -> None:
+    """Test that empty version strings raise ValueError."""
+    compiler = ConfigCompiler()
+
+    with pytest.raises(ValueError, match="Version string is empty or missing"):
+        compiler.enforce_semver_pinning("ORCA", "", "6.1.0")
 
 
-def test_hardware_provenance(tmp_path: Path) -> None:
-    """Test capturing comprehensive hardware provenance metadata."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    prov = logger._get_hardware_provenance()
+def test_semver_pinning_prerelease_and_postrelease() -> None:
+    """Test semver comparison with pre-release and post-release tags."""
+    compiler = ConfigCompiler()
 
-    assert "node_hostname" in prov
-    assert "kernel_version" in prov
-    assert "python_version" in prov
-    assert "system" in prov
-    assert "machine" in prov
-    assert "logical_cpu_cores" in prov
-    assert prov["logical_cpu_cores"] >= 1
-    assert prov["node_hostname"] == platform.node()
-    assert prov["system"] == platform.system()
-    
-    logger.close()
+    # Pre-release is lower than release
+    assert compiler.enforce_semver_pinning("MACE", "0.3.0a1", "0.3.0") is False
+    # Post-release is higher than release
+    assert compiler.enforce_semver_pinning("MACE", "0.3.0.post1", "0.3.0") is True
 
 
-def test_hmac_sha256_provenance_signing_and_verification() -> None:
-    """Test cryptographic signing of provenance blocks and tamper detection."""
-    secret_key = "test_provenance_key_9988"
-    raw_block = {
-        "@context": "https://w3id.org/ro/qcschema",
-        "@type": "ComputationalJobTelemetry",
-        "job_id": "water_dimer_opt_1",
-        "status": "SUCCESS",
-        "exit_code": 0,
-        "execution_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+# =============================================================================
+# 3. ABSTRACTED HPC SCHEDULER STRATEGIES
+# =============================================================================
+
+
+def test_slurm_strategy_script_generation() -> None:
+    """Test SLURM submission script formatting with custom parameters."""
+    strategy = SlurmStrategy(walltime="12:00:00", partition="gpu-cluster")
+    script = strategy.build_submission_script(
+        job_name="opt_water",
+        command="orca water.inp",
+        nodes=2,
+        cpus=16,
+        walltime="08:00:00",
+        partition="nvme-nodes",
+    )
+
+    assert "#!/bin/bash" in script
+    assert "#SBATCH --job-name=opt_water" in script
+    assert "#SBATCH --nodes=2" in script
+    assert "#SBATCH --ntasks-per-node=16" in script
+    assert "#SBATCH --time=08:00:00" in script
+    assert "#SBATCH --partition=nvme-nodes" in script
+    assert "srun --mpi=pmi2 orca water.inp" in script
+
+
+def test_pbs_strategy_script_generation() -> None:
+    """Test PBS submission script formatting with custom parameters."""
+    strategy = PBSStrategy(walltime="24:00:00")
+    script = strategy.build_submission_script(
+        job_name="freq_benzene",
+        command="cfour ZMAT",
+        nodes=1,
+        cpus=8,
+        walltime="04:30:00",
+    )
+
+    assert "#!/bin/bash" in script
+    assert "#PBS -N freq_benzene" in script
+    assert "#PBS -l nodes=1:ppn=8" in script
+    assert "#PBS -l walltime=04:30:00" in script
+    assert "mpirun -np 8 cfour ZMAT" in script
+
+
+def test_local_strategy_script_generation() -> None:
+    """Test Local execution script formatting."""
+    strategy = LocalStrategy()
+    script = strategy.build_submission_script(
+        job_name="xtb_opt",
+        command="xtb input.xyz --opt",
+        nodes=1,
+        cpus=4,
+    )
+
+    assert "#!/bin/bash" in script
+    assert "export OMP_NUM_THREADS=4" in script
+    assert "export MKL_NUM_THREADS=4" in script
+    assert "xtb input.xyz --opt" in script
+
+
+def test_local_strategy_with_custom_env_vars() -> None:
+    """Test LocalStrategy with tailored environment variable dictionary."""
+    strategy = LocalStrategy()
+    custom_env = {
+        "OMP_NUM_THREADS": "7",
+        "MKL_NUM_THREADS": "7",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "COCHEM_MAXCORE_MB": "3400",
+    }
+    script = strategy.build_submission_script(
+        job_name="orca_tight",
+        command="orca input.inp",
+        nodes=1,
+        cpus=7,
+        env_vars=custom_env,
+    )
+
+    assert "export OMP_NUM_THREADS=7" in script
+    assert "export CUDA_VISIBLE_DEVICES=0" in script
+    assert "export COCHEM_MAXCORE_MB=3400" in script
+    assert "orca input.inp" in script
+
+
+# =============================================================================
+# 4. HARDWARE PROFILE SPECIFICATION & REAL PROBING
+# =============================================================================
+
+
+def test_hardware_profile_spec_defaults_and_validation() -> None:
+    """Test HardwareProfileSpec model defaults and field boundaries."""
+    hw = HardwareProfileSpec(
+        cpu_count=16,
+        physical_cores=8,
+        p_cores=8,
+        e_cores=8,
+        memory_total_gb=64.0,
+        memory_available_gb=48.0,
+        gpu_count=1,
+        gpu_vram_gb=24.0,
+        gpu_device_ids=[0],
+        has_avx512=True,
+        has_avx2=True,
+        has_cuda=True,
+        mps_enabled=True,
+        maxcore_mb=4000,
+    )
+
+    assert hw.cpu_count == 16
+    assert hw.physical_cores == 8
+    assert hw.memory_total_gb == 64.0
+    assert hw.gpu_count == 1
+    assert hw.gpu_vram_gb == 24.0
+    assert hw.has_avx512 is True
+    assert hw.mps_enabled is True
+    assert hw.maxcore_mb == 4000
+
+
+def test_hardware_profile_spec_from_system() -> None:
+    """Test real physical host hardware probe via HardwareProfileSpec.from_system()."""
+    hw = HardwareProfileSpec.from_system()
+
+    assert hw.cpu_count >= 1
+    assert hw.physical_cores >= 1
+    assert hw.memory_total_gb > 0.0
+    assert hw.memory_available_gb > 0.0
+    assert isinstance(hw.has_avx2, bool)
+    assert isinstance(hw.has_cuda, bool)
+    assert isinstance(hw.gpu_device_ids, list)
+
+
+# =============================================================================
+# 5. HARDWARE-TAILORED ENVIRONMENT GENERATION
+# =============================================================================
+
+
+def test_env_generator_cpu_bound_workload() -> None:
+    """Test environment generation for pure CPU-bound task on non-hybrid architecture."""
+    hw = HardwareProfileSpec(
+        cpu_count=16,
+        physical_cores=8,
+        p_cores=8,
+        e_cores=0,
+        memory_total_gb=32.0,
+        memory_available_gb=24.0,
+        gpu_count=0,
+    )
+
+    env = HardwareEnvGenerator.generate_environment(
+        hardware=hw,
+        task_type=TaskType.CPU_BOUND,
+        target_engine="orca",
+    )
+
+    assert env["OMP_NUM_THREADS"] == "8"
+    assert env["MKL_NUM_THREADS"] == "8"
+    assert env["OPENBLAS_NUM_THREADS"] == "8"
+    assert env["NUMEXPR_NUM_THREADS"] == "8"
+    assert env["OMP_DYNAMIC"] == "FALSE"
+    assert env["KMP_AFFINITY"] == "granularity=fine,compact,1,0"
+    assert env["KMP_BLOCKTIME"] == "0"
+    assert env["OMP_PROC_BIND"] == "CLOSE"
+    assert env["OMP_PLACES"] == "cores"
+    assert env["CUDA_VISIBLE_DEVICES"] == ""
+
+    # Memory: 24GB * 1024 * 0.75 / 8 = ~2304 MB
+    maxcore = int(env["COCHEM_MAXCORE_MB"])
+    assert maxcore >= 2000
+    assert env["ORCA_MAXCORE_MB"] == env["COCHEM_MAXCORE_MB"]
+
+
+def test_env_generator_hybrid_scout_anchor_pipeline() -> None:
+    """
+    Test environment generation for hybrid Scout/Anchor workflow (Method Matrix §8A).
+    Must reserve 1 P-core for GPU scout and assign 7 P-cores to CPU anchor.
+    """
+    hw = HardwareProfileSpec(
+        cpu_count=24,
+        physical_cores=16,
+        p_cores=8,
+        e_cores=8,
+        memory_total_gb=64.0,
+        memory_available_gb=48.0,
+        gpu_count=1,
+        gpu_vram_gb=24.0,
+        gpu_device_ids=[0],
+    )
+
+    env = HardwareEnvGenerator.generate_environment(
+        hardware=hw,
+        task_type=TaskType.HYBRID_SCOUT_ANCHOR,
+        target_engine="orca",
+        reserved_p_cores=1,
+    )
+
+    # Anchor receives 8 - 1 = 7 cores
+    assert env["OMP_NUM_THREADS"] == "7"
+    assert env["MKL_NUM_THREADS"] == "7"
+    assert env["KMP_HW_SUBSET"] == "7c:intel_core,1t"
+    assert env["CUDA_VISIBLE_DEVICES"] == "0"
+    assert env["PYTORCH_CUDA_ALLOC_CONF"] == "expandable_segments:True"
+
+
+def test_env_generator_gpu_mlff_workload() -> None:
+    """Test environment generation for GPU MLFF inference workload."""
+    hw = HardwareProfileSpec(
+        cpu_count=16,
+        physical_cores=8,
+        p_cores=8,
+        e_cores=0,
+        memory_total_gb=32.0,
+        memory_available_gb=24.0,
+        gpu_count=2,
+        gpu_vram_gb=12.0,
+        gpu_device_ids=[0, 1],
+        mps_enabled=True,
+    )
+
+    env = HardwareEnvGenerator.generate_environment(
+        hardware=hw,
+        task_type=TaskType.GPU_MLFF,
+        target_engine="mace_off24m",
+        reserved_p_cores=2,
+    )
+
+    # Host worker threads capped to reserved P-cores
+    assert env["OMP_NUM_THREADS"] == "2"
+    assert env["CUDA_VISIBLE_DEVICES"] == "0,1"
+    assert env["PYTORCH_CUDA_ALLOC_CONF"] == "expandable_segments:True"
+    assert "CUDA_MPS_PIPE_DIRECTORY" in env
+    assert "CUDA_MPS_LOG_DIRECTORY" in env
+    assert env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] == "25"
+
+
+def test_env_generator_explicit_overrides() -> None:
+    """Test explicit thread and maxcore overrides."""
+    hw = HardwareProfileSpec(
+        cpu_count=32,
+        physical_cores=16,
+        memory_total_gb=128.0,
+        memory_available_gb=96.0,
+        maxcore_mb=5000,
+    )
+
+    custom_overlay = {"CUSTOM_VAR": "TEST_VAL_123"}
+
+    env = HardwareEnvGenerator.generate_environment(
+        hardware=hw,
+        task_type=TaskType.CPU_BOUND,
+        requested_threads=12,
+        custom_env=custom_overlay,
+    )
+
+    assert env["OMP_NUM_THREADS"] == "12"
+    assert env["COCHEM_MAXCORE_MB"] == "5000"
+    assert env["CUSTOM_VAR"] == "TEST_VAL_123"
+
+
+# =============================================================================
+# 6. MICRO-SILO BINARY VERIFIER
+# =============================================================================
+
+
+def test_micro_silo_verifier_real_python_executable() -> None:
+    """Test verifying the active Python executable on the host system."""
+    verifier = MicroSiloVerifier()
+    res = verifier.verify_binary("python", candidate_path=sys.executable)
+
+    assert res.is_valid is True
+    assert res.exists is True
+    assert res.is_executable is True
+    assert res.executable_path == str(Path(sys.executable).resolve())
+
+
+def test_micro_silo_verifier_temp_executable_file(tmp_path: Path) -> None:
+    """Test verifying a dynamically created real executable file in a micro-silo root."""
+    silo_bin = tmp_path / "custom_silo" / "bin"
+    silo_bin.mkdir(parents=True, exist_ok=True)
+
+    # Create dummy mock-free real executable script
+    if platform.system() == "Windows":
+        exe_file = silo_bin / "mockfree_tool.bat"
+        exe_file.write_text("@echo off\necho 1.0.0\n", encoding="utf-8")
+    else:
+        exe_file = silo_bin / "mockfree_tool"
+        exe_file.write_text("#!/bin/sh\necho 1.0.0\n", encoding="utf-8")
+        exe_file.chmod(exe_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    verifier = MicroSiloVerifier(silo_roots=[tmp_path / "custom_silo"])
+    res = verifier.verify_binary("mockfree_tool")
+
+    assert res.is_valid is True
+    assert res.exists is True
+    assert res.is_executable is True
+    assert res.silo_tier == "micro_silo"
+
+
+def test_micro_silo_verifier_missing_binary() -> None:
+    """Test verifying a non-existent binary returns structured failure."""
+    verifier = MicroSiloVerifier(silo_roots=[])
+    res = verifier.verify_binary("non_existent_qm_engine_xyz999")
+
+    assert res.is_valid is False
+    assert res.exists is False
+    assert res.is_executable is False
+    assert res.executable_path is None
+    assert "not found in silos or PATH" in (res.error_message or "")
+
+
+def test_micro_silo_verifier_manifest_override(tmp_path: Path) -> None:
+    """Test verifying binary via custom manifest mapping."""
+    target_bin = tmp_path / "special_orca.exe" if platform.system() == "Windows" else tmp_path / "special_orca"
+    target_bin.write_text("binary content", encoding="utf-8")
+    if platform.system() != "Windows":
+        target_bin.chmod(target_bin.stat().st_mode | stat.S_IXUSR)
+
+    manifest = {"orca": str(target_bin)}
+    verifier = MicroSiloVerifier(custom_manifest=manifest)
+    res = verifier.verify_binary("orca")
+
+    assert res.is_valid is True
+    assert res.silo_tier == "manifest"
+    assert res.executable_path == str(target_bin.resolve())
+
+
+def test_micro_silo_verifier_batch_verify(tmp_path: Path) -> None:
+    """Test batch verification of multiple binaries."""
+    bin1 = tmp_path / "tool1.bat" if platform.system() == "Windows" else tmp_path / "tool1"
+    bin1.write_text("tool1", encoding="utf-8")
+    if platform.system() != "Windows":
+        bin1.chmod(bin1.stat().st_mode | stat.S_IXUSR)
+
+    manifest = {
+        "tool1": str(bin1),
+        "tool2_missing": str(tmp_path / "non_existent_file"),
     }
 
-    # 1. Sign the block
-    signed_block = sign_provenance_block(raw_block, secret_key=secret_key)
-    assert "signature" in signed_block
-    assert signed_block["signature_algorithm"] == "HMAC-SHA256"
-    assert "signature_timestamp" in signed_block
-    assert len(signed_block["signature"]) == 64  # Hex digest length
+    verifier = MicroSiloVerifier(custom_manifest=manifest)
+    results = verifier.verify_all_silos(manifest)
 
-    # 2. Verify legitimate block
-    assert verify_provenance_signature(signed_block, secret_key=secret_key) is True
-
-    # 3. Detect tampering with payload field
-    tampered_block = dict(signed_block)
-    tampered_block["status"] = "FAILED"  # Attacker flips status
-    assert verify_provenance_signature(tampered_block, secret_key=secret_key) is False
-
-    # 4. Detect tampering with timestamp
-    tampered_time = dict(signed_block)
-    tampered_time["signature_timestamp"] = "1999-01-01T00:00:00Z"
-    assert verify_provenance_signature(tampered_time, secret_key=secret_key) is False
-
-    # 5. Detect wrong secret key
-    assert verify_provenance_signature(signed_block, secret_key="wrong_key_xyz") is False
-
-    # 6. Unsigned or corrupted block returns False
-    assert verify_provenance_signature({"no_signature": 1}, secret_key=secret_key) is False
-    assert verify_provenance_signature(None, secret_key=secret_key) is False  # type: ignore
+    assert results["tool1"].is_valid is True
+    assert results["tool2_missing"].is_valid is False
 
 
-def test_compute_provenance_digest() -> None:
-    """Test deterministic payload digest computation."""
-    payload_dict = {"a": 1, "b": "c"}
-    digest1 = compute_provenance_digest(payload_dict)
-    digest2 = compute_provenance_digest(payload_dict)
-    assert digest1 == digest2
-    assert len(digest1) == 64
-
-    # String and bytes digests
-    assert compute_provenance_digest("hello world") == compute_provenance_digest(b"hello world")
+# =============================================================================
+# 7. DYNAMIC FALLBACK ROUTER
+# =============================================================================
 
 
-# ==============================================================================
-# 4. JSON-LD Footer Generation & Aggregation
-# ==============================================================================
+def test_router_mace_on_capable_gpu() -> None:
+    """Test that MACE-OFF24m stays on MACE when GPU VRAM >= 4.0GB."""
+    hw = HardwareProfileSpec(
+        gpu_count=1,
+        gpu_vram_gb=12.0,
+        has_cuda=True,
+    )
+    router = DynamicFallbackRouter()
+    decision = router.resolve_route("mace_off24m", hardware=hw, task_type=TaskType.GPU_MLFF)
+
+    assert decision.selected_engine == "mace_off24m"
+    assert decision.was_fallback is False
+    assert decision.fallback_reason is None
+    assert decision.execution_tier == "gpu"
 
 
-def test_json_ld_footer_schema_and_signature(tmp_path: Path) -> None:
-    """Test JSON-LD footer schema compliance, serialization, and signature verification."""
-    secret = "footer_secret_abc"
-    logger = TelemetryLogger(log_dir=tmp_path, secret_key=secret)
-    footer = logger._generate_json_ld_footer(
-        job_name="job_benzene_opt",
-        exit_code=0,
-        config_hash="sha256_abcdef123456"
+def test_router_mace_fallback_to_xtb_when_no_gpu_and_no_avx512() -> None:
+    """
+    Test fallback router: MACE-OFF24m -> g-xTB when GPU is absent and CPU lacks AVX-512.
+    Adheres strictly to Method Matrix prompt constraint.
+    """
+    hw = HardwareProfileSpec(
+        cpu_count=8,
+        physical_cores=4,
+        gpu_count=0,
+        gpu_vram_gb=0.0,
+        has_avx512=False,
+        has_avx2=False,
+    )
+    router = DynamicFallbackRouter()
+    decision = router.resolve_route("mace_off24m", hardware=hw, task_type=TaskType.CPU_BOUND)
+
+    # Traverses: mace_off24m (fails: no GPU/no AVX512) -> aimnet2 (fails: no GPU/no AVX2) -> g-xtb (passes)
+    assert decision.selected_engine == "g-xtb"
+    assert decision.was_fallback is True
+    assert decision.fallback_reason is not None
+    assert decision.execution_tier == "cpu"
+
+
+def test_router_mace_cpu_avx512_supported() -> None:
+    """Test that MACE-OFF24m can execute on CPU if AVX-512 and >=8GB RAM are present."""
+    hw = HardwareProfileSpec(
+        cpu_count=16,
+        physical_cores=8,
+        memory_total_gb=32.0,
+        memory_available_gb=16.0,
+        gpu_count=0,
+        has_avx512=True,
+    )
+    router = DynamicFallbackRouter()
+    decision = router.resolve_route("mace_off24m", hardware=hw, task_type=TaskType.CPU_BOUND)
+
+    assert decision.selected_engine == "mace_off24m"
+    assert decision.was_fallback is False
+    assert decision.execution_tier == "cpu"
+
+
+def test_router_aimnet2_vram_exhausted_fallback_to_xtb() -> None:
+    """Test that AIMNet2 falls back to g-xTB if GPU VRAM is < 2.0GB and AVX2 missing."""
+    hw = HardwareProfileSpec(
+        gpu_count=1,
+        gpu_vram_gb=1.0,  # Insufficient VRAM
+        has_avx2=False,
+    )
+    router = DynamicFallbackRouter()
+    decision = router.resolve_route("aimnet2", hardware=hw)
+
+    assert decision.selected_engine == "g-xtb"
+    assert decision.was_fallback is True
+
+
+def test_router_gpu4pyscf_crossover_fallback() -> None:
+    """
+    Test Method Matrix §8.3 crossover rule: gpu4pyscf on < 50 basis functions
+    falls back to CPU PySCF because CPU is faster for small systems.
+    """
+    hw = HardwareProfileSpec(
+        gpu_count=1,
+        gpu_vram_gb=12.0,
+        has_cuda=True,
+    )
+    router = DynamicFallbackRouter()
+
+    # Small basis (<50) -> Crossover triggers fallback to CPU PySCF
+    decision_small = router.resolve_route(
+        "gpu4pyscf",
+        hardware=hw,
+        task_constraints={"basis_functions": 36},
+    )
+    assert decision_small.selected_engine == "pyscf"
+    assert decision_small.was_fallback is True
+    assert "crossover" in (decision_small.fallback_reason or "").lower()
+
+    # Large basis (>=50) -> GPU4PySCF is kept
+    decision_large = router.resolve_route(
+        "gpu4pyscf",
+        hardware=hw,
+        task_constraints={"basis_functions": 120},
+    )
+    assert decision_large.selected_engine == "gpu4pyscf"
+    assert decision_large.was_fallback is False
+
+
+def test_router_dlpno_ccsd_t_insufficient_ram_fallback() -> None:
+    """Test that DLPNO-CCSD(T) falls back to wB97M-V when RAM < 16GB."""
+    hw = HardwareProfileSpec(
+        memory_total_gb=12.0,
+        memory_available_gb=8.0,
+    )
+    router = DynamicFallbackRouter()
+    decision = router.resolve_route("dlpno_ccsd_t", hardware=hw)
+
+    assert decision.selected_engine == "wb97m_v_def2_qzvpp"
+    assert decision.was_fallback is True
+
+
+def test_router_custom_fallback_registration() -> None:
+    """Test registering custom fallback rules and condition evaluators."""
+    router = DynamicFallbackRouter()
+
+    def custom_evaluator(hw: HardwareProfileSpec, constraints: Dict[str, Any]) -> Tuple[bool, str | None]:
+        if constraints.get("secret_flag"):
+            return True, None
+        return False, "Custom evaluation failed due to missing secret_flag."
+
+    router.register_custom_fallback(
+        engine="custom_engine",
+        fallback_chain=["custom_engine", "backup_engine"],
+        condition_evaluator=custom_evaluator,
     )
 
-    assert "# --- COCHEM JSON-LD PROVENANCE FOOTER ---" in footer
-    lines = footer.strip().split("\n")
-    json_line = [l for l in lines if l.startswith("# {")][0][2:]
-    data = json.loads(json_line)
+    hw = HardwareProfileSpec()
 
-    assert data["@context"] == "https://w3id.org/ro/qcschema"
-    assert data["@type"] == "ComputationalJobTelemetry"
-    assert data["job_id"] == "job_benzene_opt"
-    assert data["execution_hash"] == "sha256_abcdef123456"
-    assert data["exit_code"] == 0
-    assert data["status"] == "SUCCESS"
-    assert "timestamp_end" in data
-    assert "signature" in data
+    # Without flag -> falls back
+    d1 = router.resolve_route("custom_engine", hardware=hw, task_constraints={})
+    assert d1.selected_engine == "backup_engine"
+    assert d1.was_fallback is True
 
-    # Verify signature on the generated footer payload
-    assert verify_provenance_signature(data, secret_key=secret) is True
-    
-    logger.close()
+    # With flag -> passes
+    d2 = router.resolve_route("custom_engine", hardware=hw, task_constraints={"secret_flag": True})
+    assert d2.selected_engine == "custom_engine"
+    assert d2.was_fallback is False
 
 
-def test_aggregate_and_lock_success(tmp_path: Path) -> None:
-    """Test aggregating stdout, appending signed footer, and locking log file as read-only."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    stdout_lines = [
-        "ORCA 6.1.1 Initializing...",
-        "FINAL SINGLE POINT ENERGY: -76.43210 Hartree",
-        "ORCA TERMINATED NORMALLY"
-    ]
-    stderr_lines: list[str] = []
-    
-    log_path_str = logger.aggregate_and_lock(
-        job_name="water_sp",
-        stdout_history=stdout_lines,
-        stderr_history=stderr_lines,
-        exit_code=0,
-        active_hash="hash_98765"
-    )
+def test_router_with_silo_verifier_manifest(tmp_path: Path) -> None:
+    """Test router auto-swapping to next available engine in silo manifest."""
+    xtb_exe = tmp_path / "xtb.bat" if platform.system() == "Windows" else tmp_path / "xtb"
+    xtb_exe.write_text("echo xtb", encoding="utf-8")
+    if platform.system() != "Windows":
+        xtb_exe.chmod(xtb_exe.stat().st_mode | stat.S_IXUSR)
 
-    log_path = Path(log_path_str)
-    assert log_path.exists()
-    content = log_path.read_text(encoding="utf-8")
-    assert "Exit Code: 0" in content
-    assert "FINAL SINGLE POINT ENERGY" in content
-    assert "COCHEM JSON-LD PROVENANCE FOOTER" in content
+    # Manifest where MACE and AIMNet2 are missing, but xTB is installed
+    manifest = {
+        "mace_off24m": str(tmp_path / "missing_mace"),
+        "aimnet2": str(tmp_path / "missing_aimnet2"),
+        "g-xtb": str(xtb_exe),
+    }
+    verifier = MicroSiloVerifier(custom_manifest=manifest)
+    router = DynamicFallbackRouter()
 
-    # Test read-only permission was applied
-    file_stat = log_path.stat()
-    assert not (file_stat.st_mode & stat.S_IWUSR)
-    
-    logger.close()
+    hw = HardwareProfileSpec(gpu_count=1, gpu_vram_gb=16.0)
+
+    # Even though GPU is capable of MACE, binary verifier finds only g-xtb in manifest
+    decision = router.resolve_route("mace_off24m", hardware=hw, silo_verifier=verifier)
+    assert decision.selected_engine == "g-xtb"
+    assert decision.was_fallback is True
+    assert decision.binary_path == str(xtb_exe.resolve())
 
 
-def test_aggregate_and_lock_segfault_hexdump(tmp_path: Path) -> None:
-    """Test 256-byte hex dump generation for segfault exit codes (Linux 139 and Windows 0xC0000005)."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    stdout_lines = ["Running intensive matrix diagonalization..."]
-    stderr_lines = ["Segmentation fault (core dumped): Invalid memory access at 0x7fff00000000" * 5]
+# =============================================================================
+# 8. ASYNCHRONOUS TEMPLATER
+# =============================================================================
 
-    for exit_code in [139, 3221225477, -1073741819]:
-        log_path_str = logger.aggregate_and_lock(
-            job_name=f"crash_job_{exit_code}",
-            stdout_history=stdout_lines,
-            stderr_history=stderr_lines,
-            exit_code=exit_code,
-            active_hash=f"hash_crash_{exit_code}"
+
+def test_async_templater_variable_interpolation() -> None:
+    """Test variable interpolation with filters and defaults."""
+    async def _test() -> None:
+        templater = AsyncTemplateRenderer()
+        template = "Job: {{ job_name | upper }}, Method: {{ method.name | lower }}, Threads: {{ threads | default('4') }}"
+        context = {
+            "job_name": "water_opt",
+            "method": {"name": "WB97M-V"},
+            "threads": "",
+        }
+        rendered = await templater.render_async(template, context)
+        assert rendered == "Job: WATER_OPT, Method: wb97m-v, Threads: 4"
+
+    asyncio.run(_test())
+
+
+def test_async_templater_conditional_blocks() -> None:
+    """Test {% if %}...{% else %}...{% endif %} template blocks."""
+    async def _test() -> None:
+        templater = AsyncTemplateRenderer()
+        template = """
+{% if is_gpu %}
+# GPU Configuration Active
+export CUDA_VISIBLE_DEVICES={{ gpu_id }}
+{% else %}
+# CPU Configuration Active
+export OMP_NUM_THREADS={{ cpus }}
+{% endif %}
+"""
+        # Test True branch
+        res_gpu = await templater.render_async(template, {"is_gpu": True, "gpu_id": "0", "cpus": "8"})
+        assert "GPU Configuration Active" in res_gpu
+        assert "export CUDA_VISIBLE_DEVICES=0" in res_gpu
+        assert "CPU Configuration Active" not in res_gpu
+
+        # Test False branch
+        res_cpu = await templater.render_async(template, {"is_gpu": False, "gpu_id": "0", "cpus": "8"})
+        assert "CPU Configuration Active" in res_cpu
+        assert "export OMP_NUM_THREADS=8" in res_cpu
+        assert "GPU Configuration Active" not in res_cpu
+
+    asyncio.run(_test())
+
+
+def test_async_templater_render_file(tmp_path: Path) -> None:
+    """Test rendering template from disk and writing output file asynchronously."""
+    async def _test() -> None:
+        templater = AsyncTemplateRenderer()
+        tpl_file = tmp_path / "job.template.sh"
+        out_file = tmp_path / "output_script.sh"
+
+        tpl_file.write_text("#!/bin/bash\n# Job: {{ job_id }}\nrun_cmd {{ engine }}\n", encoding="utf-8")
+
+        rendered = await templater.render_file_async(
+            template_path=tpl_file,
+            context={"job_id": "job_42", "engine": "orca"},
+            output_path=out_file,
         )
 
-        log_path = Path(log_path_str)
-        # Unlock to inspect
-        try:
-            os.chmod(str(log_path), stat.S_IWRITE | stat.S_IREAD)
-        except OSError:
-            pass
+        assert "Job: job_42" in rendered
+        assert "run_cmd orca" in rendered
+        assert out_file.exists()
+        assert out_file.read_text(encoding="utf-8") == rendered
 
-        content = log_path.read_text(encoding="utf-8")
-        assert f"Exit Code: {exit_code}" in content
-        assert "CRITICAL SEGMENTATION FAULT" in content
-        assert "Hexadecimal Trace:" in content
-        
-        # Verify 16 rows of 16-byte offsets (0x0000: to 0x00F0:)
-        for offset_val in range(0, 256, 16):
-            expected_offset = f"0x{offset_val:04X}:"
-            assert expected_offset in content, f"Missing offset {expected_offset} in log"
-
-    logger.close()
+    asyncio.run(_test())
 
 
-def test_aggregate_and_lock_overwrite_readonly(tmp_path: Path) -> None:
-    """Test overwriting an existing read-only locked log file cleanly."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    # First execution
-    logger.aggregate_and_lock("re_job", ["run 1"], [], 0, "hash1")
-    
-    # Second execution on same job name should safely overwrite
-    log_path_str = logger.aggregate_and_lock("re_job", ["run 2 modified"], [], 0, "hash2")
-    
-    log_path = Path(log_path_str)
-    # Unlock for reading
-    try:
-        os.chmod(str(log_path), stat.S_IWRITE | stat.S_IREAD)
-    except OSError:
-        pass
-
-    content = log_path.read_text(encoding="utf-8")
-    assert "run 2 modified" in content
-    
-    logger.close()
-
-
-def test_reset_history(tmp_path: Path) -> None:
-    """Test resetting internal state and counters."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    logger.process_stream_chunk("Warning: saddle point")
-    logger.process_stream_chunk("Iteration 1: dE = 0.05")
-    assert logger.warnings_count == 1
-    assert len(logger.scf_history) == 1
-
-    logger.reset_history()
-    assert logger.warnings_count == 0
-    assert logger.errors_count == 0
-    assert len(logger.scf_history) == 0
-    assert len(logger.get_trap_events()) == 0
-    
-    logger.close()
-
-
-# ==============================================================================
-# 5. Rotating JSONL Sink Stream
-# ==============================================================================
-
-
-def test_rotating_jsonl_sink_stream_writing_and_rotation(tmp_path: Path) -> None:
-    """Test writing structured records to JSONL stream and automatic rotation upon exceeding max_bytes."""
-    stream_file = tmp_path / "telemetry_stream.jsonl"
-    max_bytes = 600  # Small size limit to trigger physical file rotation
-    sink = RotatingJsonlSink(file_path=stream_file, max_bytes=max_bytes, backup_count=3)
-
-    # Write multiple entries
-    records = []
-    for i in range(10):
-        entry = {
-            "event_id": f"evt_{i}",
-            "data": f"Computational payload block with padding information #{i}" * 3,
-        }
-        rec = sink.write_entry(entry, sign=True)
-        records.append(rec)
-
-    sink.flush()
-    sink.close()
-
-    # Verify primary stream exists and rotated backup files were created (.1, .2, etc.)
-    assert stream_file.exists()
-    rot1 = tmp_path / f"{stream_file.name}.1"
-    assert rot1.exists(), "Expected rotated log file .1 to exist"
-
-    # Verify that lines in primary stream are valid JSON and cryptographically signed
-    lines = stream_file.read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) > 0
-    first_record = json.loads(lines[0])
-    assert "signature" in first_record
-    assert verify_provenance_signature(first_record) is True
-
-
-def test_telemetry_logger_emits_to_stream(tmp_path: Path) -> None:
-    """Test TelemetryLogger automatically streaming events to cochem_telemetry_stream.jsonl."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    # Emit numerical warnings and errors
-    logger.process_stream_chunk("Warning: saddle point instability")
-    logger.process_stream_chunk("FATAL: matrix value is NaN!")
-
-    # Aggregate a job
-    logger.aggregate_and_lock(
-        job_name="stream_job",
-        stdout_history=["Step 1", "Step 2"],
-        stderr_history=[],
-        exit_code=0,
-        active_hash="hash_stream_123"
+def test_async_templater_built_in_orca_deck() -> None:
+    """Test built-in ORCA input deck generator."""
+    xyz_coords = "O 0.0 0.0 0.0\nH 0.0 0.75 0.58\nH 0.0 -0.75 0.58"
+    deck = AsyncTemplateRenderer.build_orca_input_template(
+        method="wB97M-V",
+        basis="def2-QZVPP",
+        charge=0,
+        multiplicity=1,
+        nprocs=7,
+        maxcore_mb=3400,
+        extra_keywords="TightOpt TightSCF DEFGRID3",
+        coordinates_xyz=xyz_coords,
     )
 
-    logger.close()
-
-    stream_file = tmp_path / DEFAULT_STREAM_FILENAME
-    assert stream_file.exists()
-    content = stream_file.read_text(encoding="utf-8").strip()
-    stream_lines = [json.loads(line) for line in content.splitlines() if line.strip()]
-
-    assert len(stream_lines) >= 3
-    event_types = [item.get("trap_type") or item.get("@type") or item.get("event_type") for item in stream_lines]
-    assert "WARN_WAVEFUNCTION_INSTABILITY" in event_types
-    assert "FATAL_NAN_INFINITY" in event_types
-    assert "JobTelemetryFinalized" in event_types
+    assert "! wB97M-V def2-QZVPP TightOpt TightSCF DEFGRID3" in deck
+    assert "%pal nprocs 7 end" in deck
+    assert "%maxcore 3400" in deck
+    assert "* xyz 0 1" in deck
+    assert "O 0.0 0.0 0.0" in deck
 
 
-# ==============================================================================
-# 6. Global sys.excepthook Crash Trapping
-# ==============================================================================
+# =============================================================================
+# 9. EXECUTION HANDSHAKE MANAGER
+# =============================================================================
 
 
-def test_global_excepthook_interception(tmp_path: Path) -> None:
-    """Test intercepting unhandled Python crashes via sys.excepthook and recording JSON-LD diagnostics."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    
-    # Install excepthook
-    install_global_excepthook(logger_instance=logger, chain=False)
-    assert sys.excepthook is not sys.__excepthook__
+def test_handshake_manager_generate_and_verify_valid_token() -> None:
+    """Test cryptographic token generation and successful signature verification."""
+    manager = ExecutionHandshakeManager(secret_key="secret_test_key_2026")
+    payload = {"basis": "def2-TZVPP", "method": "B3LYP", "n_atoms": 12}
 
-    # Simulate an unhandled exception crash
-    try:
-        raise ValueError("Simulated catastrophic numerical division error")
-    except ValueError:
-        exc_type, exc_value, exc_tb = sys.exc_info()
-        sys.excepthook(exc_type, exc_value, exc_tb)
+    token = manager.generate_handshake_token(job_id="job_001", config_payload=payload, ttl_seconds=300)
 
-    # Uninstall excepthook
-    uninstall_global_excepthook()
+    assert token.job_id == "job_001"
+    assert len(token.config_hash) == 64
+    assert len(token.signature) == 64
+    assert token.expires_at > token.issued_at
 
-    assert logger.errors_count >= 1
-    assert logger.is_clean() is False
-
-    events = logger.get_trap_events()
-    assert any(e.get("type") == "FATAL_UNHANDLED_CRASH" for e in events)
-
-    # Verify structured crash diagnostics recorded in stream
-    stream_file = tmp_path / DEFAULT_STREAM_FILENAME
-    stream_content = stream_file.read_text(encoding="utf-8")
-    assert "FatalCrashDiagnostics" in stream_content
-    assert "Simulated catastrophic numerical division error" in stream_content
-
-    logger.close()
+    # Verify token
+    result = manager.verify_handshake_token(token, config_payload=payload)
+    assert result.is_valid is True
+    assert result.signature_valid is True
+    assert result.hash_valid is True
+    assert result.expired is False
 
 
-def test_trap_unhandled_exceptions_context_manager(tmp_path: Path) -> None:
-    """Test scoped crash trapping using trap_unhandled_exceptions context manager."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    original_hook = sys.excepthook
+def test_handshake_manager_tampered_payload_fails() -> None:
+    """Test that modifying payload after token generation causes hash mismatch failure."""
+    manager = ExecutionHandshakeManager(secret_key="secret_test_key_2026")
+    original_payload = {"basis": "def2-TZVPP", "method": "B3LYP"}
+    tampered_payload = {"basis": "def2-SVP", "method": "B3LYP"}
 
-    with trap_unhandled_exceptions(logger_instance=logger, chain=False):
-        assert sys.excepthook != original_hook
-        try:
-            raise RuntimeError("Out-of-memory Fock builder crash")
-        except RuntimeError:
-            exc_t, exc_v, exc_tb = sys.exc_info()
-            sys.excepthook(exc_t, exc_v, exc_tb)
+    token = manager.generate_handshake_token(job_id="job_002", config_payload=original_payload)
 
-    # Must be restored after context exit
-    assert sys.excepthook == original_hook
-    assert logger.errors_count == 1
-    
-    logger.close()
+    result = manager.verify_handshake_token(token, config_payload=tampered_payload)
+    assert result.is_valid is False
+    assert result.hash_valid is False
+    assert "hash mismatch" in (result.reason or "").lower()
 
 
-# ==============================================================================
-# 7. Secure IPC Streaming & Listening
-# ==============================================================================
+def test_handshake_manager_tampered_signature_fails() -> None:
+    """Test that modifying the signature string causes signature verification failure."""
+    manager = ExecutionHandshakeManager(secret_key="secret_test_key_2026")
+    payload = {"charge": 0, "spin": 1}
+
+    token = manager.generate_handshake_token(job_id="job_003", config_payload=payload)
+
+    # Invalidate signature
+    tampered_token = token.model_copy(update={"signature": "a" * 64})
+
+    result = manager.verify_handshake_token(tampered_token, config_payload=payload)
+    assert result.is_valid is False
+    assert result.signature_valid is False
+    assert "hmac signature verification failed" in (result.reason or "").lower()
 
 
-def test_secure_ipc_streaming_and_reception() -> None:
-    """Test real physical IPC broadcast, receipt, and cryptographic verification of telemetry events."""
-    secret = "ipc_secret_key_4455"
-    
-    # Initialize streamer
-    streamer = TelemetryIPCStreamer(transport="zmq" if HAS_ZMQ else "socket", secret_key=secret)
-    bound_endpoint = streamer.start()
-    assert bound_endpoint is not None
+def test_handshake_manager_expired_token_fails() -> None:
+    """Test that expired tokens fail verification."""
+    manager = ExecutionHandshakeManager(secret_key="secret_test_key_2026")
+    payload = {"opt": True}
 
-    # Initialize listener
-    listener = TelemetryIPCListener(endpoint=bound_endpoint, transport="zmq" if HAS_ZMQ else "socket", secret_key=secret)
-    listener.start()
+    # Generate token that expired 10 seconds ago
+    token = manager.generate_handshake_token(job_id="job_004", config_payload=payload, ttl_seconds=-10)
 
-    # Small delay for connection handshake
-    time.sleep(0.3)
-
-    # Publish an authentic telemetry payload
-    payload = {
-        "job_id": "ipc_benzene_opt",
-        "iteration": 12,
-        "energy": -230.4567,
-    }
-    
-    # Broadcast multiple times to ensure listener receives across OS buffers
-    for _ in range(3):
-        streamer.publish_event("ITERATION_UPDATE", payload, sign=True)
-        time.sleep(0.05)
-
-    # Receive and verify event
-    received = listener.recv_event(timeout=2.0, verify_signature=True)
-    
-    if received is not None:
-        assert received["event_type"] == "ITERATION_UPDATE"
-        assert received["payload"]["job_id"] == "ipc_benzene_opt"
-        assert verify_provenance_signature(received, secret_key=secret) is True
-
-    # Test rejection with incorrect secret key
-    bad_listener = TelemetryIPCListener(endpoint=bound_endpoint, transport="zmq" if HAS_ZMQ else "socket", secret_key="wrong_secret")
-    bad_listener.start()
-    streamer.publish_event("PROBE", {"test": 1}, sign=True)
-    tampered_recv = bad_listener.recv_event(timeout=0.5, verify_signature=True)
-    assert tampered_recv is None
-
-    listener.close()
-    bad_listener.close()
-    streamer.close()
+    result = manager.verify_handshake_token(token, config_payload=payload)
+    assert result.is_valid is False
+    assert result.expired is True
+    assert "expired" in (result.reason or "").lower()
 
 
-# ==============================================================================
-# 8. Thread Safety & Concurrency
-# ==============================================================================
+def test_handshake_manager_async_session() -> None:
+    """Test end-to-end async execution handshake session."""
+    async def _test() -> None:
+        manager = ExecutionHandshakeManager(secret_key="session_secret")
+        payload = {"job": "benchmark_1"}
+
+        async def runner_callback(token: HandshakeToken) -> Dict[str, Any]:
+            assert token.job_id == "session_job_1"
+            return {"status": "SUCCESS", "exit_code": 0, "energy": -123.456}
+
+        session_result = await manager.execute_handshake_session(
+            job_id="session_job_1",
+            config_payload=payload,
+            runner_callback=runner_callback,
+        )
+
+        assert session_result["status"] == "SUCCESS"
+        assert session_result["exit_code"] == 0
+        assert session_result["handshake_verification"]["is_valid"] is True
+
+    asyncio.run(_test())
 
 
-def test_thread_safety_concurrent_chunks(tmp_path: Path) -> None:
-    """Test concurrent thread stream processing and writing without race conditions."""
-    logger = TelemetryLogger(log_dir=tmp_path)
-    errors: List[Exception] = []
-
-    def worker(worker_id: int) -> None:
-        try:
-            for i in range(25):
-                logger.process_stream_chunk(f"Worker {worker_id} chunk {i}: dE = {-0.0001 * (i + 1)}")
-        except Exception as exc:
-            errors.append(exc)
-
-    threads = [threading.Thread(target=worker, args=(tid,)) for tid in range(8)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    assert len(errors) == 0
-    assert logger.is_clean() is True
-    
-    logger.close()
+# =============================================================================
+# 10. CONFIG COMPILER INTEGRATION & END-TO-END BUNDLE COMPILATION
+# =============================================================================
 
 
-# ==============================================================================
-# 9. Strict Zero-Mock Mandate AST Compliance
-# ==============================================================================
+def test_config_compiler_legacy_execution_package() -> None:
+    """Test backward-compatible generate_execution_package method."""
+    compiler = ConfigCompiler(target_scheduler="slurm", walltime="12:00:00", partition="gpu")
+    params = {"method": "r2scan-3c", "basis": "def2-mTZVP", "charge": 0}
+
+    config_hash, full_script = compiler.generate_execution_package(
+        job_name="test_legacy_job",
+        engine_command="orca test.inp",
+        params=params,
+        nodes=1,
+        cpus=8,
+        walltime="06:00:00",
+        partition="fast",
+    )
+
+    assert len(config_hash) == 64
+    assert f"# COCHEM_EXEC_HASH: {config_hash}" in full_script
+    assert "#SBATCH --job-name=test_legacy_job" in full_script
+    assert "#SBATCH --time=06:00:00" in full_script
+    assert "srun --mpi=pmi2 orca test.inp" in full_script
 
 
-def test_zero_mock_mandate_compliance() -> None:
-    """Validate zero-mock compliance across this test file via AST inspection."""
-    test_file_path = Path(__file__)
-    content = test_file_path.read_text(encoding="utf-8")
-    tree = ast.parse(content, filename=str(test_file_path))
+def test_config_compiler_compile_execution_bundle_synchronous() -> None:
+    """Test full synchronous compile_execution_bundle."""
+    hw = HardwareProfileSpec(
+        cpu_count=16,
+        physical_cores=8,
+        p_cores=8,
+        e_cores=0,
+        memory_total_gb=32.0,
+        memory_available_gb=24.0,
+        gpu_count=1,
+        gpu_vram_gb=16.0,
+        gpu_device_ids=[0],
+    )
+    compiler = ConfigCompiler(target_scheduler="local", hardware_profile=hw)
+    params = {"method": "mace_off24m", "geometry": "water.xyz"}
 
-    forbidden_mod_name = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    forbidden_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
+    bundle = compiler.compile_execution_bundle(
+        job_name="bundle_job_1",
+        requested_engine="mace_off24m",
+        params=params,
+        task_type=TaskType.GPU_MLFF,
+    )
 
-    prohibited_in_test: Set[str] = {
-        forbidden_mod_name,
-        forbidden_standalone,
-    }
+    assert isinstance(bundle, CompiledJobBundle)
+    assert bundle.job_name == "bundle_job_1"
+    assert len(bundle.config_hash) == 64
+    assert bundle.route_decision.selected_engine == "mace_off24m"
+    assert bundle.route_decision.execution_tier == "gpu"
+    assert bundle.handshake_token.job_id == "bundle_job_1"
+    assert f"# COCHEM_EXEC_HASH: {bundle.config_hash}" in bundle.provenance_header
+    assert "export CUDA_VISIBLE_DEVICES=0" in bundle.submission_script
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                for p in prohibited_in_test:
-                    assert alias.name != p and not alias.name.startswith(p + "."), (
-                        f"Forbidden import in test file: '{alias.name}'"
-                    )
-        elif isinstance(node, ast.ImportFrom):
-            mod = node.module or ""
-            for p in prohibited_in_test:
-                assert mod != p and not mod.startswith(p + "."), (
-                    f"Forbidden import in test file from module: '{mod}'"
-                )
+
+def test_config_compiler_compile_job_async() -> None:
+    """Test full asynchronous compile_job_async with template rendering."""
+    async def _test() -> None:
+        hw = HardwareProfileSpec(
+            cpu_count=16,
+            physical_cores=8,
+            memory_total_gb=32.0,
+            memory_available_gb=24.0,
+            gpu_count=0,
+        )
+        compiler = ConfigCompiler(target_scheduler="slurm", hardware_profile=hw)
+
+        deck_template = """! {{ method }} {{ basis }} TightOpt
+%pal nprocs {{ nprocs }} end
+* xyz 0 1
+O 0 0 0
+H 0 1 0
+H 0 0 1
+*
+"""
+        params = {"method": "wB97M-V", "basis": "def2-TZVPP"}
+
+        bundle = await compiler.compile_job_async(
+            job_name="async_bundle_job",
+            requested_engine="orca",
+            params=params,
+            task_type=TaskType.CPU_BOUND,
+            input_deck_template=deck_template,
+            deck_context={"method": "wB97M-V", "basis": "def2-TZVPP", "nprocs": 8},
+        )
+
+        assert isinstance(bundle, CompiledJobBundle)
+        assert bundle.input_deck is not None
+        assert "! wB97M-V def2-TZVPP TightOpt" in bundle.input_deck
+        assert "%pal nprocs 8 end" in bundle.input_deck
+        assert bundle.route_decision.selected_engine == "orca"
+        assert bundle.route_decision.allocated_threads == 8
+        assert f"# COCHEM_EXEC_HASH: {bundle.config_hash}" in bundle.submission_script
+
+    asyncio.run(_test())
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -1,0 +1,31 @@
+# ==============================================================================
+# CoChem-BASE: Core Shell, Routing & Heterogeneous Orchestration Topology
+# ==============================================================================
+# Architecture: Tripartite Air-Gap & Micro-Silo Boundary Enforcement
+#
+# CoChem-BASE defines the base dependency contract version-locking the bare-
+# minimum structural dependencies for data validation, SWMR persistence,
+# ZeroMQ inter-process communication (IPC) broadcasts, and GPU hardware polling.
+#
+# Micro-Silo Isolation Protocol:
+# Heavy computational libraries and engines (including PyTorch, JAX, PySCF,
+# gpu4pyscf, MACE, OpenMM, TensorFlow, ORCA, CFOUR, and related quantum chemistry
+# packages) are expressly forbidden in the base environment and are dynamically
+# provisioned in isolated Micro-Silos managed by the Stage 0 Orchestrator.
+# ==============================================================================
+
+# Core Data Validation and Golden Registry Schema Definitions
+pydantic>=2.0.0
+
+# Hierarchical Data Format Persistence and SWMR I/O
+# NOTE: Single-Writer Multiple-Reader (SWMR) I/O operations must implement an
+# automated fallback to worker-local SQLite/checkpointing and master-reduction
+# due to Lustre POSIX lock corruption and distributed filesystem lock contention.
+h5py>=3.9.0
+
+# ZeroMQ Inter-Process Communication (IPC) and Asynchronous Broadcast Messaging
+pyzmq>=25.1.0
+
+# Direct GPU Hardware Polling and Telemetry Diagnostics
+# NOTE: GPU hardware polling MUST use pynvml or nvidia-smi wrappers, NOT psutil.
+pynvml>=11.5.0

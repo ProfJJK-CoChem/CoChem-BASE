@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cochem-base"
+name = "CoChem-BASE"
 version = "0.1.0"
 description = "Core shell and hardware orchestrator for CoChem-Studio"
 authors = [
     {name = "CoChem Team"}
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PySide6",
     "pluggy",
@@ -37,7 +37,7 @@ testpaths = ["test_suite"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = [".venv", ".conda", "build", "dist"]
 
 [tool.ruff.lint]
@@ -45,7 +45,7 @@ select = ["E", "F", "W", "I", "B"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 explicit_package_bases = true
@@ -54,8 +54,8 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
 no_implicit_optional = true
-exclude = ["build/", "dist/", "rdkit-stubs", "site-packages"]
-mypy_path = "stubs"
+exclude = ["build/", "dist/", "site-packages"]
+mypy_path = "typings"
 
 [[tool.mypy.overrides]]
 module = [

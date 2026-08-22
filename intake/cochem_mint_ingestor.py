@@ -1,28 +1,34 @@
 #!/usr/bin/env python3
-"""
-CoChem-CORE: Stage 1.x - Consolidated Molecular Intake Backend
-Module: intake/CoChem-MInt.py
-Purpose: Jupyter-native unified GUI for directory scanning, structural
+"""CoChem-CORE: Stage 1.x - Consolidated Molecular Intake Backend.
+
+Module: intake/cochem_mint_ingestor.py
+Purpose: Jupyter-native unified GUI and backend for directory scanning, structural
          canonicalization, and real-time watchdog monitoring.
          STRICT AIR-GAP: Forcibly routes all workspaces to CoChem_Artifacts.
 """
 
+from __future__ import annotations
+
 import importlib
+import json
 import logging
+import os
+from pathlib import Path
+import re
 import site
 import subprocess
 import sys
+from typing import Any, Dict, List, Optional, Tuple, Union
+import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
-from typing import Any
 
 import ipywidgets as widgets
 from IPython.display import display
 
 from cochem_base.config_loader import get_artifact_dir
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("CoChem-MInt")
 
 try:
@@ -30,13 +36,19 @@ try:
 except ImportError:
     safe_subprocess_run: Any = None  # type: ignore
 
-# --- Dynamic Dependency Trap ---
 try:
     from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
     HAS_WATCHDOG = True
 except ImportError:
-    logger.info("'watchdog' library missing. Triggering inline installation...")
+    HAS_WATCHDOG = False
+
+
+def bootstrap_watchdog() -> bool:
+    """Attempts dynamic installation and import of the watchdog library."""
+    global HAS_WATCHDOG, FileSystemEventHandler, Observer
+    if HAS_WATCHDOG:
+        return True
     try:
         cmd = [sys.executable, "-m", "pip", "install", "watchdog"]
         if safe_subprocess_run is not None:
@@ -46,52 +58,217 @@ except ImportError:
         importlib.invalidate_caches()
         importlib.reload(site)
 
-        watchdog_events = importlib.import_module('watchdog.events')
-        watchdog_observers = importlib.import_module('watchdog.observers')
-        globals()['FileSystemEventHandler'] = watchdog_events.FileSystemEventHandler
-        globals()['Observer'] = watchdog_observers.Observer
-
+        watchdog_events = importlib.import_module("watchdog.events")
+        watchdog_observers = importlib.import_module("watchdog.observers")
+        globals()["FileSystemEventHandler"] = watchdog_events.FileSystemEventHandler
+        globals()["Observer"] = watchdog_observers.Observer
         HAS_WATCHDOG = True
-        logger.info("Watchdog bootstrap completed.")
+        return True
     except Exception as e:
-        HAS_WATCHDOG = False
-        logger.warning(f"Watchdog bootstrap failed: {e}. Running in degraded mode.")
-
-
+        logger.warning(f"Watchdog bootstrap failed: {e}")
+        return False
 
 
 def print_status(msg: str, status: str = "info") -> None:
     """Jupyter-safe HTML status printer."""
     colors = {"success": "green", "warning": "orange", "fail": "red", "info": "blue"}
     color = colors.get(status, "black")
-    display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {msg}"))
+    try:
+        display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {msg}"))
+    except Exception:
+        pass
+
+
+def sanitize_project_name(name: str) -> str:
+    """Sanitizes user input project name against path traversals and invalid characters."""
+    if not name or not name.strip():
+        return "New_Project"
+
+    clean_base = Path(name).name.strip()
+    clean_base = re.sub(r'[\.\/\\]+', '', clean_base)
+    clean_name = re.sub(r'[^A-Za-z0-9_\-]+', '_', clean_base).strip('_')
+
+    if not clean_name:
+        return "New_Project"
+    return clean_name
+
+
+def validate_xyz_content(content: Union[str, bytes]) -> Tuple[bool, int, str]:
+    """Validates XYZ formatted text or bytes, returning (is_valid, atom_count, comment)."""
+    text = content.decode("utf-8") if isinstance(content, (bytes, memoryview)) else str(content)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return False, 0, ""
+
+    try:
+        atom_count = int(lines[0])
+        if atom_count <= 0:
+            return False, 0, ""
+    except ValueError:
+        return False, 0, ""
+
+    comment = lines[1]
+    coord_lines = lines[2:]
+    if len(coord_lines) != atom_count:
+        return False, 0, ""
+
+    for line in coord_lines:
+        tokens = line.split()
+        if len(tokens) < 4:
+            return False, 0, ""
+        try:
+            float(tokens[1])
+            float(tokens[2])
+            float(tokens[3])
+        except ValueError:
+            return False, 0, ""
+
+    return True, atom_count, comment
+
+
+def resolve_smiles(query: str) -> Tuple[Optional[str], Optional[str]]:
+    """Resolves a molecule query either directly as SMILES or via PubChem API."""
+    if not query or not query.strip():
+        return None, None
+
+    q = query.strip()
+    if any(char in q for char in ["=", "#", "(", ")", "[", "]", "1", "2", "3", "4", "5", "6", "7", "8", "9", "c", "n", "o", "s"]):
+        return q, "direct_smiles"
+
+    try:
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(q)}/property/IsomericSMILES/JSON"
+        req = urllib.request.Request(url, headers={"User-Agent": "CoChem/1.0"})
+        with urllib.request.urlopen(req, timeout=10.0) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                smiles = data["PropertyTable"]["Properties"][0]["IsomericSMILES"]
+                return smiles, "pubchem"
+    except Exception as e:
+        logger.debug(f"PubChem lookup failed for '{q}': {e}")
+
+    return q, "direct_smiles"
+
+
+def generate_3d_geometry(
+    smiles_or_name: str, output_path: Optional[Path] = None, optimize_mmff: bool = True
+) -> Path:
+    """Generates 3D coordinates using RDKit and saves them to an XYZ file."""
+    smiles, _ = resolve_smiles(smiles_or_name)
+    if not smiles:
+        raise ValueError(f"Could not resolve SMILES for '{smiles_or_name}'")
+
+    try:
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+    except ImportError as e:
+        raise RuntimeError("RDKit is required for generate_3d_geometry") from e
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"RDKit could not mathematically parse the SMILES string: {smiles}")
+
+    mol = Chem.AddHs(mol)
+    params = AllChem.ETKDGv3()
+    params.useRandomCoords = False
+    AllChem.EmbedMolecule(mol, params)
+
+    if optimize_mmff:
+        try:
+            AllChem.MMFFOptimizeMolecule(mol)
+        except Exception:
+            pass
+
+    out_p = Path(output_path) if output_path is not None else Path(f"{sanitize_project_name(smiles_or_name)}.xyz")
+    out_p.parent.mkdir(parents=True, exist_ok=True)
+    Chem.MolToXYZFile(mol, str(out_p))
+    return out_p
+
+
+def scan_workspace_geometries(workspace_dir: Path) -> List[Dict[str, Any]]:
+    """Scans workspace directory for .xyz files and parses validation metadata."""
+    results = []
+    p = Path(workspace_dir)
+    if not p.exists():
+        return results
+
+    for f in sorted(p.glob("*.xyz")):
+        try:
+            content = f.read_text(encoding="utf-8")
+            is_valid, count, comment = validate_xyz_content(content)
+            results.append({
+                "name": f.name,
+                "path": str(f),
+                "valid": is_valid,
+                "atom_count": count,
+                "comment": comment,
+            })
+        except Exception as e:
+            results.append({
+                "name": f.name,
+                "path": str(f),
+                "valid": False,
+                "atom_count": 0,
+                "comment": f"Error: {e}",
+            })
+    return results
+
+
+def save_uploaded_geometries(uploaded_files: Any, target_dir: Path) -> List[Path]:
+    """Extracts and writes uploaded geometries supporting ipywidgets v7 and v8 schemas."""
+    target_p = Path(target_dir).resolve()
+    target_p.mkdir(parents=True, exist_ok=True)
+    saved_paths = []
+
+    if isinstance(uploaded_files, dict):
+        for fname, item in uploaded_files.items():
+            content = item.get("content", b"")
+            if isinstance(content, memoryview):
+                content = content.tobytes()
+            safe_name = Path(fname).name
+            dest = target_p / safe_name
+            dest.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            saved_paths.append(dest)
+    elif isinstance(uploaded_files, (list, tuple)):
+        for item in uploaded_files:
+            fname = getattr(item, "name", None) or (item.get("name") if isinstance(item, dict) else "geometry.xyz")
+            content = getattr(item, "content", None) or (item.get("content") if isinstance(item, dict) else b"")
+            if isinstance(content, memoryview):
+                content = content.tobytes()
+            safe_name = Path(fname).name
+            dest = target_p / safe_name
+            dest.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+            saved_paths.append(dest)
+
+    return saved_paths
 
 
 if not HAS_WATCHDOG:
     class FileSystemEventHandler:  # type: ignore
-        """Implementation pending"""
+        pass
+
+
 class IngestionWatchdog(FileSystemEventHandler):
     """Monitors the active Project directory for new .xyz submissions."""
 
     def __init__(self, ui_callback: Any) -> None:
-        if HAS_WATCHDOG:
-            super().__init__()
+        super().__init__()
         self.ui_callback = ui_callback
 
     def on_created(self, event: Any) -> None:
-        if HAS_WATCHDOG and not event.is_directory and event.src_path.endswith('.xyz'):
+        if not getattr(event, "is_directory", False) and str(event.src_path).endswith(".xyz"):
             logger.info(f"Watchdog detected new geometry: {event.src_path}")
             self.ui_callback(f"Detected: {Path(event.src_path).name}")
 
 
+
 class CoChemMIntUI:
-    def __init__(self) -> None:
+    def __init__(self, default_project: str = "New_Project") -> None:
         if not HAS_WATCHDOG:
             print_status("CRITICAL: 'watchdog' library missing from main environment. Cannot build data bridge.", "fail")
 
         self.artifact_dir = self._enforce_airgap_path()
         self.observer = None
-        self._build_ui()
+        self._build_ui(default_project=default_project)
 
     def _enforce_airgap_path(self) -> Path:
         """Strictly locates or creates the CoChem_Artifacts air-gapped directory."""
@@ -102,22 +279,19 @@ class CoChemMIntUI:
     @property
     def current_workspace(self) -> Path:
         """Dynamically generates and returns the active project workspace path."""
-        proj_name = self.project_name.value.strip().replace(" ", "_")
-        if not proj_name:
-            proj_name = "Unnamed_Project"
-
+        proj_name = sanitize_project_name(self.project_name.value)
         workspace_path = self.artifact_dir / proj_name
         workspace_path.mkdir(parents=True, exist_ok=True)
-        return workspace_path  # type: ignore
+        return workspace_path
 
-    def _build_ui(self) -> None:
+    def _build_ui(self, default_project: str = "New_Project") -> None:
         """Constructs the Jupyter VBox interface."""
         self.out = widgets.Output(layout={'border': '1px solid #ccc', 'padding': '10px', 'height': '200px', 'overflow_y': 'auto'})
 
         self.title = widgets.HTML("<h2>🧪 CoChem-MInt: Molecular Intake & Canonicalization</h2>")
 
         self.project_name = widgets.Text(
-            value='New_Project',
+            value=default_project,
             description='Project Name:',
             style={'description_width': 'initial'},
             tooltip='This creates a dedicated workspace inside CoChem_Artifacts/'
@@ -180,23 +354,9 @@ class CoChemMIntUI:
             return
 
         workspace = self.current_workspace
-
-        for item in change.new:
-            try:
-                if isinstance(item, dict):
-                    f_name = item['name']
-                    content = item['content']
-                else:
-                    f_name = item.name
-                    content = item.content
-
-                f_path = workspace / f_name
-                with open(f_path, "wb") as f:
-                    f.write(content)
-                self._ui_log(f"📥 Saved geometry: {f_name} -> {workspace}/")
-
-            except (IOError, OSError, KeyError, AttributeError) as e:
-                self._ui_log(f"❌ Error saving file: {e}")
+        saved = save_uploaded_geometries(change.new, workspace)
+        for s in saved:
+            self._ui_log(f"📥 Saved geometry: {s.name} -> {workspace}/")
 
         self.file_upload.value = ()
 
@@ -204,7 +364,7 @@ class CoChemMIntUI:
         workspace = self.current_workspace
         self._ui_log(f"Scanning {workspace} for raw geometries...")
 
-        files = list(workspace.glob("*.xyz"))
+        files = scan_workspace_geometries(workspace)
         if not files:
             self._ui_log("No .xyz files found in the active workspace.")
             return
@@ -218,67 +378,15 @@ class CoChemMIntUI:
             return
 
         try:
-            import typing
-            if typing.TYPE_CHECKING:
-                from typing import Any
-                Chem: Any = None
-                AllChem: Any = None
-            else:
-                from rdkit import Chem  # type: ignore
-                from rdkit.Chem import AllChem  # type: ignore
-        except ImportError:
-            self._ui_log("❌ Error: RDKit is not installed in the active micro-silo.")
-            self._ui_log("   Please execute 'conda install -c conda-forge rdkit' or route through the PLAY environment.")
-            return
-
-        self._ui_log(f"⚙️ Building 3D geometry for: {target_name}...")
-        smiles = target_name
-
-        if not any(char in target_name for char in ['=', '#', '(', ')', '[', ']', '1', '2']):
-            self._ui_log(f"🔍 Attempting to resolve common name '{target_name}' to SMILES via PubChem...")
-            try:
-                import json
-                import urllib.error
-                import urllib.parse
-                import urllib.request
-                url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{urllib.parse.quote(target_name)}/property/IsomericSMILES/JSON"
-                req = urllib.request.Request(url, headers={'User-Agent': 'CoChem/1.0'})
-                with urllib.request.urlopen(req, timeout=15.0) as response:
-                    if response.status == 200:
-                        data = json.loads(response.read().decode('utf-8'))
-                        smiles = data['PropertyTable']['Properties'][0]['IsomericSMILES']
-                        self._ui_log(f"✅ Resolved to SMILES: {smiles}")
-                    else:
-                        raise ValueError(f"PubChem returned status {response.status}")
-            except (urllib.error.URLError, json.JSONDecodeError, ValueError, KeyError) as e:
-                self._ui_log(f"❌ API Fetch Failed for '{target_name}': {e}. Please manually enter a valid SMILES string.")
-                return
-
-        mol = Chem.MolFromSmiles(smiles)
-        if not mol:
-            self._ui_log(f"❌ Error: RDKit could not mathematically parse the SMILES string: {smiles}")
-            return
-
-        self._ui_log("➡️ Saturating valencies with Hydrogens (Isotopic Overdrive enabled)...")
-        mol = Chem.AddHs(mol)
-
-        self._ui_log("➡️ Generating 3D spatial conformer (ETKDGv3)...")
-        params = AllChem.ETKDGv3()
-        params.useRandomCoords = False
-        AllChem.EmbedMolecule(mol, params)
-
-        self._ui_log("➡️ Relaxing initial geometry (MMFF94)...")
-        # RDKit MMFF94 is used strictly as an initial embedding guess prior to CREST/ORCA GOAT
-        AllChem.MMFFOptimizeMolecule(mol)
-
-        ws = self.current_workspace
-        safe_name = "".join([c if c.isalnum() else "_" for c in target_name])
-        out_path = ws / f"{safe_name}_rdkit.xyz"
-
-        Chem.MolToXYZFile(mol, str(out_path))
-        self._ui_log("✅ 3D Molecule successfully built and saved to the air-gapped vault:")
-        self._ui_log(f"   {out_path}")
-        self._ui_log("➡️ You can now proceed to [Scan & Canonicalize].")
+            ws = self.current_workspace
+            safe_name = sanitize_project_name(target_name)
+            out_path = ws / f"{safe_name}_rdkit.xyz"
+            generated = generate_3d_geometry(target_name, output_path=out_path, optimize_mmff=True)
+            self._ui_log("✅ 3D Molecule successfully built and saved to the air-gapped vault:")
+            self._ui_log(f"   {generated}")
+            self._ui_log("➡️ You can now proceed to [Scan & Canonicalize].")
+        except Exception as e:
+            self._ui_log(f"❌ Error: {e}")
 
     def _on_watch_clicked(self, b: Any) -> None:
         if not HAS_WATCHDOG:
@@ -302,6 +410,11 @@ class CoChemMIntUI:
             self.btn_watch.description = "Stop Watchdog"
             self.btn_watch.button_style = "danger"
 
+    def close(self) -> None:
+        if self.observer and self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
+
     def display(self) -> None:
         display(self.main_ui)
 
@@ -309,3 +422,4 @@ class CoChemMIntUI:
 if __name__ == "__main__":
     logger.info("CoChem-MInt Backend initialized.")
     logger.info("To launch the GUI, import CoChemMIntUI into a Jupyter Notebook cell and call .display()")
+

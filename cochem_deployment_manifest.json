@@ -1,4 +1,479 @@
 {
-  "interaction_environment": "[MISSING DATA]",
-  "calculation_environment": "[MISSING DATA]"
+  "schema_version": "1.0.0",
+  "version": "2026.2",
+  "git_provenance_hash": "RELEASE_BUILD",
+  "hash_algorithm": "SHA-256",
+  "integrity_algorithm": "SHA-256",
+  "interaction_environment": "Local-Windows (WSL)",
+  "calculation_environment": "Local-Windows (WSL)",
+  "selected_repositories": [
+    "CoChem-CORE",
+    "CoChem-TOPOS",
+    "CoChem-TORQ"
+  ],
+  "CORE": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
+  "TOPOS": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS",
+  "TORQ": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
+  "SCRIBE": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
+  "SPYCFIT": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
+  "NODE": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
+  "ORACLE": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+  "BENCH": "https://github.com/ProfJJK-CoChem/CoChem-BENCH",
+  "KINETIC": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC",
+  "LUMOS": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS",
+  "MAGE": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
+  "SCAN": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
+  "SHIFT": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
+  "GEOM": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
+  "COUNCIL": "https://github.com/ProfJJK-CoChem/CoChem-COUNCIL",
+  "CURE": "https://github.com/ProfJJK-CoChem/CoChem-CURE",
+  "EHS": "https://github.com/ProfJJK-CoChem/CoChem-EHS",
+  "EVAL": "https://github.com/ProfJJK-CoChem/CoChem-EVAL",
+  "LABS": "https://github.com/ProfJJK-CoChem/CoChem-LABS",
+  "PLAY": "https://github.com/ProfJJK-CoChem/CoChem-PLAY",
+  "PULSE": "https://github.com/ProfJJK-CoChem/CoChem-PULSE",
+  "SEED": "https://github.com/ProfJJK-CoChem/CoChem-SEED",
+  "BASE": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
+  "CoChem-CORE": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
+  "CoChem-TOPOS": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS",
+  "CoChem-TORQ": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
+  "CoChem-SCRIBE": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
+  "CoChem-SpycFit": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
+  "CoChem-NODE": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
+  "CoChem-ORACLE": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+  "CoChem-BENCH": "https://github.com/ProfJJK-CoChem/CoChem-BENCH",
+  "CoChem-KINETIC": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC",
+  "CoChem-LUMOS": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS",
+  "CoChem-MAGE": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
+  "CoChem-SCAN": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
+  "CoChem-SHIFT": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
+  "CoChem-GEOM": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
+  "CoChem-COUNCIL": "https://github.com/ProfJJK-CoChem/CoChem-COUNCIL",
+  "CoChem-CURE": "https://github.com/ProfJJK-CoChem/CoChem-CURE",
+  "CoChem-EHS": "https://github.com/ProfJJK-CoChem/CoChem-EHS",
+  "CoChem-EVAL": "https://github.com/ProfJJK-CoChem/CoChem-EVAL",
+  "CoChem-LABS": "https://github.com/ProfJJK-CoChem/CoChem-LABS",
+  "CoChem-PLAY": "https://github.com/ProfJJK-CoChem/CoChem-PLAY",
+  "CoChem-PULSE": "https://github.com/ProfJJK-CoChem/CoChem-PULSE",
+  "CoChem-SEED": "https://github.com/ProfJJK-CoChem/CoChem-SEED",
+  "CoChem-BASE": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
+  "repositories": {
+    "CoChem-CORE": {
+      "desc": "Foundational registry, memory routing, and OS-level hardware guards.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "0ffe0dd9f3d0ead4396730ed225d1dbe3c327e3eecd88167e2821da1188c03b8",
+      "topology_tier": "Foundational Core"
+    },
+    "CoChem-TOPOS": {
+      "desc": "Topological mapping, alignment, and geometry escalation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "4170a8a2b0e13f1ce48abf6cafbae983ad83615a05d560631988293a96d1b21b",
+      "topology_tier": "Foundational Core"
+    },
+    "CoChem-TORQ": {
+      "desc": "Torsional Discovery and Statistical Mechanics.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "e6ada9fffbbfa19f4e1a0d579dd96f23d8a36a2a054cf2c1c81fe04282dbe75c",
+      "topology_tier": "Foundational Core"
+    },
+    "CoChem-SCRIBE": {
+      "desc": "LLM-driven FAIR publication and LaTeX supplementary generator.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "995e13893e56d722b7bb7137ea0e5fa8eddaadaeae74259cb721670d408ea641",
+      "topology_tier": "Publication & Archival"
+    },
+    "CoChem-SpycFit": {
+      "desc": "JAX-accelerated rotational spectroscopy fitting.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "c79f31ce11eb1566c538921c082b306006ec1ddf47ff6eae7fc89e08525b763c",
+      "topology_tier": "Spectroscopic Analysis"
+    },
+    "CoChem-NODE": {
+      "desc": "HPC Slurm template and execution router.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "6545970633a4f8d81c88adc047251a7a7912279b4532335f9b323bd202047be0",
+      "topology_tier": "HPC Orchestration"
+    },
+    "CoChem-ORACLE": {
+      "desc": "Local Llama-CPP query routing and AI theory assistant.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "cab69ed3e409952d5d1c9ba3c023367c587d2e148cfe4c788c099ad752c91ea7",
+      "topology_tier": "AI Theory Assistant"
+    },
+    "CoChem-BENCH": {
+      "desc": "Automated Basis Set Limit & Composite Protocol Extrapolator.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-BENCH",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "f12a4b92f93de2842890f4aaf531f201880757dbf69e89a1b00bf1182b34db88",
+      "topology_tier": "Quantum Chemistry Benchmark"
+    },
+    "CoChem-KINETIC": {
+      "desc": "Reaction network and master equation kinetics solver.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "699cab7b845fd21d337be0bf460b8059c378fd0fb76c1f0741f349f8a47a5bd6",
+      "topology_tier": "Chemical Kinetics"
+    },
+    "CoChem-LUMOS": {
+      "desc": "Open-shell dynamics, AIMNet2, and photochemistry.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "6b5ffb8719872fd80ff611ae6ce92f2bd8469b03a89f99faef201958d9917f0f",
+      "topology_tier": "Photochemistry & Dynamics"
+    },
+    "CoChem-MAGE": {
+      "desc": "GC-MS fragmentation logic emulation using ML potentials.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "84dd5cd4b20ec57fe51e05391866d2b8eb8054bdaaeb396c460c1f9c9e08f981",
+      "topology_tier": "Mass Spectrometry"
+    },
+    "CoChem-SCAN": {
+      "desc": "Internal conformational exploration heuristic tool.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "f3d37e868f769a735f2f8e0f1fc7d25494602fcf2930878832e02322bc3bfce0",
+      "topology_tier": "Conformer Exploration"
+    },
+    "CoChem-SHIFT": {
+      "desc": "NMR tensor extraction (J-couplings, chemical shifts).",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "ec8688b9cb8aa1204b465379b5f2bc957aef40ef21c9c89d0f9ed280ba2931bc",
+      "topology_tier": "Magnetic Resonance"
+    },
+    "CoChem-GEOM": {
+      "desc": "Precision molecular structure determination and fitting.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "8004f0e7d11dcef7b73a536dd057af26c3086b3a286d62a7e4f5944cab2a55eb",
+      "topology_tier": "Molecular Geometry"
+    },
+    "CoChem-COUNCIL": {
+      "desc": "Multi-agent consensus arbitration, voting, and decision orchestration.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-COUNCIL",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "8d55b19c96e6a0d23d6643d8ab2637362fe937c82616ac5fe209176a1af27f63",
+      "topology_tier": "Agent Orchestration"
+    },
+    "CoChem-CURE": {
+      "desc": "Automated self-healing, error diagnostic recovery, and syntax repair.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-CURE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "4a5c68385b45da87a2455b669be3089e103d09c60d135447f982148df555a59e",
+      "topology_tier": "Self-Healing & Diagnostics"
+    },
+    "CoChem-EHS": {
+      "desc": "Environmental health, safety screening, and toxicity modeling.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-EHS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "c69478cae994ef223ab91221c241f17bff27fa78739d8641d141d6196429c666",
+      "topology_tier": "Safety & Toxicity Screening"
+    },
+    "CoChem-EVAL": {
+      "desc": "Automated benchmark validation, quality assessment, and regression evaluation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-EVAL",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "df1ef742be861b7e084037a643b6ea632d682465920a619b00940342e265a5d5",
+      "topology_tier": "Validation & Evaluation"
+    },
+    "CoChem-LABS": {
+      "desc": "Experimental robotics, automated laboratory execution, and hardware interfacing.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-LABS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "d72b3ffc375f19ee6c185cd57ad5854dd1aced1e8f495f45456d1fd806b97e79",
+      "topology_tier": "Robotics & Lab Execution"
+    },
+    "CoChem-PLAY": {
+      "desc": "Interactive molecular simulation sandbox, exploration, and visualization playground.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-PLAY",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "db906e3293df0815524f1e35dce3555d5192011330dbecd12adc4998b34909cc",
+      "topology_tier": "Interactive Simulation"
+    },
+    "CoChem-PULSE": {
+      "desc": "Time-resolved spectroscopy, pulse simulation, and quantum state propagation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-PULSE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "d63a4ed42ed724f591dce0aae9b12ba908b6d57b8c882614006ba0e0eb270dd6",
+      "topology_tier": "Time-Resolved Spectroscopy"
+    },
+    "CoChem-SEED": {
+      "desc": "Initial structure generation, automated conformer seeding, and SMILES orchestration.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SEED",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "ef22824412f24b064e4f769b4caf7a9c88d1eb8f98d328804cfcb2a1043b2e13",
+      "topology_tier": "Conformer Seeding"
+    },
+    "CoChem-BASE": {
+      "desc": "Monorepo foundation, environment orchestration, interface dashboard, and execution kernel.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "a815176c6acd6f11ef72f895c3f949f44ca14b27a72459bf4b9b939fd3529f71",
+      "topology_tier": "Foundation Kernel"
+    }
+  },
+  "downstream_modules": {
+    "CORE": {
+      "desc": "Foundational registry, memory routing, and OS-level hardware guards.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "0ffe0dd9f3d0ead4396730ed225d1dbe3c327e3eecd88167e2821da1188c03b8",
+      "topology_tier": "Foundational Core"
+    },
+    "TOPOS": {
+      "desc": "Topological mapping, alignment, and geometry escalation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "4170a8a2b0e13f1ce48abf6cafbae983ad83615a05d560631988293a96d1b21b",
+      "topology_tier": "Foundational Core"
+    },
+    "TORQ": {
+      "desc": "Torsional Discovery and Statistical Mechanics.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "e6ada9fffbbfa19f4e1a0d579dd96f23d8a36a2a054cf2c1c81fe04282dbe75c",
+      "topology_tier": "Foundational Core"
+    },
+    "SCRIBE": {
+      "desc": "LLM-driven FAIR publication and LaTeX supplementary generator.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCRIBE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "995e13893e56d722b7bb7137ea0e5fa8eddaadaeae74259cb721670d408ea641",
+      "topology_tier": "Publication & Archival"
+    },
+    "SPYCFIT": {
+      "desc": "JAX-accelerated rotational spectroscopy fitting.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SpycFit",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "c79f31ce11eb1566c538921c082b306006ec1ddf47ff6eae7fc89e08525b763c",
+      "topology_tier": "Spectroscopic Analysis"
+    },
+    "NODE": {
+      "desc": "HPC Slurm template and execution router.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-NODE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "6545970633a4f8d81c88adc047251a7a7912279b4532335f9b323bd202047be0",
+      "topology_tier": "HPC Orchestration"
+    },
+    "ORACLE": {
+      "desc": "Local Llama-CPP query routing and AI theory assistant.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-ORACLE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "cab69ed3e409952d5d1c9ba3c023367c587d2e148cfe4c788c099ad752c91ea7",
+      "topology_tier": "AI Theory Assistant"
+    },
+    "BENCH": {
+      "desc": "Automated Basis Set Limit & Composite Protocol Extrapolator.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-BENCH",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "f12a4b92f93de2842890f4aaf531f201880757dbf69e89a1b00bf1182b34db88",
+      "topology_tier": "Quantum Chemistry Benchmark"
+    },
+    "KINETIC": {
+      "desc": "Reaction network and master equation kinetics solver.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-KINETIC",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "699cab7b845fd21d337be0bf460b8059c378fd0fb76c1f0741f349f8a47a5bd6",
+      "topology_tier": "Chemical Kinetics"
+    },
+    "LUMOS": {
+      "desc": "Open-shell dynamics, AIMNet2, and photochemistry.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-LUMOS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "6b5ffb8719872fd80ff611ae6ce92f2bd8469b03a89f99faef201958d9917f0f",
+      "topology_tier": "Photochemistry & Dynamics"
+    },
+    "MAGE": {
+      "desc": "GC-MS fragmentation logic emulation using ML potentials.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-MAGE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "84dd5cd4b20ec57fe51e05391866d2b8eb8054bdaaeb396c460c1f9c9e08f981",
+      "topology_tier": "Mass Spectrometry"
+    },
+    "SCAN": {
+      "desc": "Internal conformational exploration heuristic tool.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SCAN",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "f3d37e868f769a735f2f8e0f1fc7d25494602fcf2930878832e02322bc3bfce0",
+      "topology_tier": "Conformer Exploration"
+    },
+    "SHIFT": {
+      "desc": "NMR tensor extraction (J-couplings, chemical shifts).",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SHIFT",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "ec8688b9cb8aa1204b465379b5f2bc957aef40ef21c9c89d0f9ed280ba2931bc",
+      "topology_tier": "Magnetic Resonance"
+    },
+    "GEOM": {
+      "desc": "Precision molecular structure determination and fitting.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-GEOM",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "8004f0e7d11dcef7b73a536dd057af26c3086b3a286d62a7e4f5944cab2a55eb",
+      "topology_tier": "Molecular Geometry"
+    },
+    "COUNCIL": {
+      "desc": "Multi-agent consensus arbitration, voting, and decision orchestration.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-COUNCIL",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "8d55b19c96e6a0d23d6643d8ab2637362fe937c82616ac5fe209176a1af27f63",
+      "topology_tier": "Agent Orchestration"
+    },
+    "CURE": {
+      "desc": "Automated self-healing, error diagnostic recovery, and syntax repair.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-CURE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "4a5c68385b45da87a2455b669be3089e103d09c60d135447f982148df555a59e",
+      "topology_tier": "Self-Healing & Diagnostics"
+    },
+    "EHS": {
+      "desc": "Environmental health, safety screening, and toxicity modeling.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-EHS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "c69478cae994ef223ab91221c241f17bff27fa78739d8641d141d6196429c666",
+      "topology_tier": "Safety & Toxicity Screening"
+    },
+    "EVAL": {
+      "desc": "Automated benchmark validation, quality assessment, and regression evaluation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-EVAL",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "df1ef742be861b7e084037a643b6ea632d682465920a619b00940342e265a5d5",
+      "topology_tier": "Validation & Evaluation"
+    },
+    "LABS": {
+      "desc": "Experimental robotics, automated laboratory execution, and hardware interfacing.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-LABS",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "d72b3ffc375f19ee6c185cd57ad5854dd1aced1e8f495f45456d1fd806b97e79",
+      "topology_tier": "Robotics & Lab Execution"
+    },
+    "PLAY": {
+      "desc": "Interactive molecular simulation sandbox, exploration, and visualization playground.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-PLAY",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "db906e3293df0815524f1e35dce3555d5192011330dbecd12adc4998b34909cc",
+      "topology_tier": "Interactive Simulation"
+    },
+    "PULSE": {
+      "desc": "Time-resolved spectroscopy, pulse simulation, and quantum state propagation.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-PULSE",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "d63a4ed42ed724f591dce0aae9b12ba908b6d57b8c882614006ba0e0eb270dd6",
+      "topology_tier": "Time-Resolved Spectroscopy"
+    },
+    "SEED": {
+      "desc": "Initial structure generation, automated conformer seeding, and SMILES orchestration.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-SEED",
+      "mandatory": false,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "ef22824412f24b064e4f769b4caf7a9c88d1eb8f98d328804cfcb2a1043b2e13",
+      "topology_tier": "Conformer Seeding"
+    },
+    "BASE": {
+      "desc": "Monorepo foundation, environment orchestration, interface dashboard, and execution kernel.",
+      "repo": "https://github.com/ProfJJK-CoChem/CoChem-BASE",
+      "mandatory": true,
+      "branch": "main",
+      "hash_algorithm": "SHA-256",
+      "checksum_sha256": "a815176c6acd6f11ef72f895c3f949f44ca14b27a72459bf4b9b939fd3529f71",
+      "topology_tier": "Foundation Kernel"
+    }
+  },
+  "root_checksum_sha256": "9302b8724c3592a8532947a3174bdcc13e91f2aee704b91c45f9bc1a49b56c81"
 }

@@ -1,3 +1,11 @@
-from .hpc_dispatcher import HPCDispatcher
+"""CoChem-BASE Engine Subsystem.
 
-__all__ = ["HPCDispatcher"]
+Provides asynchronous computing dispatchers, task state lifecycle models,
+and multiprocessing bridges.
+"""
+
+from __future__ import annotations
+
+from cochem_base.engine.hpc_dispatcher import HPCDispatcher, TaskStatus
+
+__all__ = ["HPCDispatcher", "TaskStatus"]

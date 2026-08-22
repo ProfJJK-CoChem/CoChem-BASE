@@ -110,12 +110,75 @@ def get_ramdisk_dir() -> Optional[Path]:
 
 def get_base_root() -> Path:
     """Return the CoChem-BASE checkout containing this module."""
+    configured = os.environ.get("COCHEM_BASE_ROOT")
+    if configured:
+        return resolve_mapped_path(configured)
     return BASE_ROOT
 
 
 def get_repo_root() -> Path:
     """Return the workspace root containing the CoChem repositories."""
+    configured = os.environ.get("COCHEM_WORKSPACE_ROOT") or os.environ.get("COCHEM_ROOT")
+    if configured:
+        return resolve_mapped_path(configured)
     return WORKSPACE_ROOT
+
+
+def get_cochem_root() -> Path:
+    """Return the repository workspace root or ~/.cochem fallback."""
+    configured = os.environ.get("COCHEM_ROOT") or os.environ.get("COCHEM_WORKSPACE_ROOT")
+    if configured:
+        return resolve_mapped_path(configured)
+    try:
+        current_file = Path(__file__).resolve()
+        base_dir = current_file.parent.parent
+        if (base_dir / "cochem_base").is_dir():
+            ws = base_dir.parent
+            if ws.exists():
+                return ws
+            return base_dir
+    except Exception:
+        pass
+    return (Path.home() / ".cochem").resolve()
+
+
+def get_scratch_dir(custom_path: Optional[Union[str, Path]] = None) -> Path:
+    """5-Tier scratch directory resolution hierarchy:
+    Tier 1: Explicit custom_path parameter
+    Tier 2: COCHEM_SCRATCH or COCHEM_SCRATCH_DIR environment variable
+    Tier 3: XDG_CACHE_HOME / cochem / scratch
+    Tier 4: tempfile.gettempdir() / cochem_scratch
+    Tier 5: Path.home() / .cochem / scratch
+    """
+    if custom_path is not None:
+        p = resolve_mapped_path(custom_path)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    env_scratch = os.environ.get("COCHEM_SCRATCH") or os.environ.get("COCHEM_SCRATCH_DIR")
+    if env_scratch:
+        p = resolve_mapped_path(env_scratch)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    xdg_cache = os.environ.get("XDG_CACHE_HOME")
+    if xdg_cache:
+        p = (resolve_mapped_path(xdg_cache) / "cochem" / "scratch").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    try:
+        tempdir = Path(tempfile.gettempdir())
+        p = (tempdir / "cochem_scratch").resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+    except Exception:
+        pass
+    p = (Path.home() / ".cochem" / "scratch").resolve()
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def get_cochem_scratch(custom_path: Optional[Union[str, Path]] = None) -> Path:
+    """Alias for get_scratch_dir."""
+    return get_scratch_dir(custom_path=custom_path)
 
 
 def resolve_executable(

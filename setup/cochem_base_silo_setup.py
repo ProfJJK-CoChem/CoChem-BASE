@@ -122,7 +122,7 @@ def setup_conda_silo() -> None:
         "-c", "conda-forge", "python=3.10", "numpy", "pandas",
         "scipy", "matplotlib", "jupyter", "ipywidgets",
         "openbabel", "rdkit", "ase", "pyyaml", "requests",
-        "pydantic >=2",
+        "pydantic>=2", "h5py", "psutil", "filelock", "rich",
         "--yes"
     ]
 
@@ -130,7 +130,7 @@ def setup_conda_silo() -> None:
 
     install_cmd = [
         conda_executable, "install", "--prefix", str(silo_dir),
-        "-c", "conda-forge", "mypy", "black", "flake8",
+        "-c", "conda-forge", "mypy", "black", "flake8", "pytest",
         "--yes"
     ]
 
@@ -140,7 +140,9 @@ def setup_conda_silo() -> None:
     pip_install = [
         conda_executable, "run", "--prefix", str(silo_dir),
         "python", "-m", "pip", "install",
-        "chemformula", "periodictable"
+        "chemformula", "periodictable", "mendeleev",
+        "PySide6", "pyqtgraph", "pyvista", "pyvistaqt", "vtk",
+        "qcelemental", "pluggy", "fastapi", "uvicorn", "watchdog"
     ]
 
     logger.info("Installing pip packages...")

@@ -30,19 +30,31 @@ logger = logging.getLogger("CoChem-Installer")
 
 sys.path.insert(0, str(get_base_root()))
 from core_engine.cochem_core_subprocess_broker import (
+    cleanup_zombie_processes,
     register_popen_process,
     safe_subprocess_run,
 )
+
+
+def _cleanup_zombie_processes() -> int:
+    """Invokes the central zombie reaper safely."""
+    try:
+        return cleanup_zombie_processes()
+    except Exception as e:
+        logger.warning(f"Zombie cleanup encountered error: {e}")
+        return 0
+
 
 class DeploymentManifest(BaseModel):
     version: str = Field(default="2026.2")
     git_provenance_hash: str
     interaction_environment: str
     calculation_environment: str
-    orca_tarball_path: str
+    orca_tarball_path: str = Field(default="")
     selected_repositories: List[str]
 
 ECOSYSTEM_REGISTRY = {
+
     "CoChem-CORE": {"desc": "Foundational registry, memory routing, and OS-level hardware guards.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-CORE", "mandatory": True},
     "CoChem-TOPOS": {"desc": "Topological mapping, alignment, and geometry escalation.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-TOPOS", "mandatory": True},
     "CoChem-TORQ": {"desc": "Torsional Discovery and Statistical Mechanics.", "repo": "https://github.com/ProfJJK-CoChem/CoChem-TORQ", "mandatory": True},

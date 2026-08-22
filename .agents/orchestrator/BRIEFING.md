@@ -1,18 +1,18 @@
 # BRIEFING — 2026-08-11T13:07:05Z
 
 ## Mission
-Orchestrate fixing the CoChem-Antigravity sanitized agents in CoChem-BASE/.agents by copying fixed agent configs from C:\Users\ansac\.gemini\config\agents, replacing absolute paths with placeholders (<USER_HOME>, <COCHEM_WORKSPACE>), and verifying zero remaining personal absolute paths.
+Orchestrate fixing the CoChem-Antigravity sanitized agents in CoChem-BASE/.agents by copying fixed agent configs from <USER_HOME>\.gemini\config\agents, replacing absolute paths with placeholders (<USER_HOME>, <COCHEM_WORKSPACE>), and verifying zero remaining personal absolute paths.
 
 ## 🔒 My Identity
 - Archetype: Project Orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
-- Working directory: D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator
+- Working directory: <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator
 - Original parent: parent
 - Original parent conversation ID: 365f1c85-8ebc-4cc4-bb90-b3cc4085b03e
 
 ## 🔒 My Workflow
 - **Pattern**: Project Pattern
-- **Scope document**: D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator\PROJECT.md
+- **Scope document**: <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator\PROJECT.md
 1. **Decompose**: Survey codebase & source config, create PROJECT.md milestones.
 2. **Dispatch & Execute**:
    - Iteration loop per milestone: Explorer -> Worker -> Reviewer + Challenger -> Forensic Auditor -> Gate.
@@ -67,7 +67,7 @@ Orchestrate fixing the CoChem-Antigravity sanitized agents in CoChem-BASE/.agent
 - Safety timer: none
 
 ## Artifact Index
-- D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator\PROJECT.md — Project plan and milestones
-- D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator\progress.md — Liveness & progress tracker
-- D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator\GATE_STATUS.md — Gate iteration status
-- D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents\orchestrator\handoff.md — Orchestrator handoff report
+- <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator\PROJECT.md — Project plan and milestones
+- <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator\progress.md — Liveness & progress tracker
+- <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator\GATE_STATUS.md — Gate iteration status
+- <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents\orchestrator\handoff.md — Orchestrator handoff report

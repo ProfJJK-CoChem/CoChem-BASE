@@ -45,6 +45,13 @@ logger = logging.getLogger("CoChem-Broker")
 _GLOBAL_ACTIVE_POPEN_PROCESSES: List[subprocess.Popen] = []
 
 
+def get_active_popen_processes() -> List[subprocess.Popen]:
+    """Returns a list of currently running subprocess.Popen processes tracked globally."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+    return list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
+
+
 def register_popen_process(proc: subprocess.Popen) -> None:
     """Registers a Popen child process for automatic zombie cleanup on script exit."""
     global _GLOBAL_ACTIVE_POPEN_PROCESSES
@@ -53,30 +60,65 @@ def register_popen_process(proc: subprocess.Popen) -> None:
         _GLOBAL_ACTIVE_POPEN_PROCESSES.append(proc)
 
 
-def cleanup_zombie_processes() -> None:
+def unregister_popen_process(proc: subprocess.Popen) -> None:
+    """Unregisters a Popen child process from global tracking."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    if proc in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+        _GLOBAL_ACTIVE_POPEN_PROCESSES.remove(proc)
+
+
+
+def kill_process_tree(pid: int, timeout: float = 3.0) -> None:
+    """Terminates a process and all of its recursive child processes."""
+    if HAS_PSUTIL:
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except psutil.NoSuchProcess:
+                    pass
+            parent.terminate()
+            gone, alive = psutil.wait_procs(children + [parent], timeout=timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except psutil.NoSuchProcess:
+                    pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    else:
+        try:
+            if hasattr(os, "killpg") and hasattr(os, "getpgid"):
+                os.killpg(os.getpgid(pid), signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+
+
+def cleanup_zombie_processes() -> int:
     """Atexit hook to terminate any dangling Popen child process trees (e.g. ORCA / OpenMPI)."""
+    count = 0
     for proc in list(_GLOBAL_ACTIVE_POPEN_PROCESSES):
         if proc.poll() is None:  # Still running
             try:
                 pid = proc.pid
-                if HAS_PSUTIL:
-                    try:
-                        parent = psutil.Process(pid)
-                        for child in parent.children(recursive=True):
-                            child.terminate()
-                        parent.terminate()
-                    except psutil.NoSuchProcess:
-                        pass
-                else:
-                    proc.terminate()
+                kill_process_tree(pid)
+                count += 1
                 logger.info(f"Terminated background child process PID {pid}")
             except (ProcessLookupError, PermissionError, OSError) as e:
                 logger.warning(f"Failed to terminate process PID {proc.pid}: {e}")
     _GLOBAL_ACTIVE_POPEN_PROCESSES.clear()
+    return count
 
 
 # Register zombie process cleanup hook at module import
 atexit.register(cleanup_zombie_processes)
+
 
 
 def safe_subprocess_run(

@@ -12,8 +12,8 @@ Fix CoChem-Antigravity sanitized agents by overwriting with fixed code files fro
 ## 🔒 Key Constraints
 - No technical decisions — relay only
 - Victory Audit is MANDATORY before reporting completion
-- Overwrite existing agent files in D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents with C:\Users\ansac\.gemini\config\agents
-- Sanitize absolute paths C:\Users\ansac -> <USER_HOME> and D:\Gdrive\__CoChem -> <COCHEM_WORKSPACE>
+- Overwrite existing agent files in <COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents with <USER_HOME>\.gemini\config\agents
+- Sanitize absolute paths to <USER_HOME> and <COCHEM_WORKSPACE>
 
 ## User Context
 - **Last user request**: Fix CoChem-Antigravity sanitized agents by overwriting with fixed files and sanitizing absolute paths.

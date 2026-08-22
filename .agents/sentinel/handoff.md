@@ -1,7 +1,7 @@
 # Handoff Report — Project Sentinel Final Completion
 
 ## Observation
-All 15 CoChem-Antigravity agent configuration files in `D:\Gdrive\__CoChem\GitHub-Repo\CoChem-BASE\.agents` have been completely overwritten with fixed code files from `C:\Users\ansac\.gemini\config\agents` and sanitized to remove all personal absolute directory paths.
+All 15 CoChem-Antigravity agent configuration files in `<COCHEM_WORKSPACE>\GitHub-Repo\CoChem-BASE\.agents` have been completely overwritten with fixed code files from `<USER_HOME>\.gemini\config\agents` and sanitized to remove all personal absolute directory paths.
 
 ## Logic Chain
 1. Project Orchestrator dispatched and coordinated 9 subagent workers/explorers/reviewers to overwrite files and sanitize absolute paths (`C:\Users\ansac` -> `<USER_HOME>`, `D:\Gdrive\__CoChem` -> `<COCHEM_WORKSPACE>`, `D:\Gdrive` -> `<GDRIVE_ROOT>`).

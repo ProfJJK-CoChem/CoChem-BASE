@@ -1,0 +1,21 @@
+Metadata-Version: 2.4
+Name: CoChem-BASE
+Version: 0.1.0
+Summary: Core shell and hardware orchestrator for CoChem-Studio
+Author: CoChem Team
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE.conda_trash
+Requires-Dist: PySide6
+Requires-Dist: pluggy
+Requires-Dist: pydantic>=2
+Requires-Dist: pyqtgraph
+Requires-Dist: pyvista
+Requires-Dist: pyvistaqt
+Requires-Dist: vtk
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-qt; extra == "dev"
+Requires-Dist: ruff>=0.1.0; extra == "dev"
+Requires-Dist: mypy>=1.8.0; extra == "dev"
+Dynamic: license-file

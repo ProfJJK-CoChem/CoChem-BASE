@@ -1,0 +1,514 @@
+"""Unit, integration, and concurrency tests for CoChem-SCRIBE logging subsystem.
+
+Tests verify:
+- StreamSignals Qt signal dispatching.
+- OutputStream and SafeStreamTee standard I/O redirection, standard methods, and teeing.
+- ScribeDock initialization, UI layout, and default configurations.
+- Level-specific logging: DEBUG, INFO, WARNING, ERROR, SUCCESS, AUDIT, PROVENANCE.
+- Bounded ring buffer FIFO eviction and capacity limits.
+- Real-time searching, level filtering, and dynamic console refreshing.
+- Cryptographic log export (.txt, .json, .log, .html) with SHA-256 integrity hashes.
+- Standard Python logging.Handler (ScribeLogHandler) integration.
+- Stream interception lifecycle and exception-safe RAII restoration.
+- Multi-threaded concurrent logging stress testing with zero deadlocks.
+- Clean widget destruction and closeEvent teardown.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import logging
+from pathlib import Path
+import sys
+import threading
+from typing import Any, List
+
+import pytest
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtWidgets import QApplication, QPlainTextEdit
+
+from cochem_base.gui.scribe import (
+    LEVEL_COLOR_MAP,
+    LogRecordEntry,
+    LogRingBuffer,
+    OutputStream,
+    SafeStreamTee,
+    ScribeConsole,
+    ScribeDock,
+    ScribeLogHandler,
+    StreamSignals,
+    ansi_to_html,
+    capture_context,
+    intercept_context,
+    strip_ansi,
+)
+
+
+@pytest.fixture(scope="session")
+def qapp() -> QApplication:
+    """Ensure QApplication instance is initialized for GUI tests."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app
+
+
+def test_stream_signals(qapp: QApplication) -> None:
+    """Verify StreamSignals emission and slot reception for all defined signals."""
+    signals = StreamSignals()
+
+    received_text: list[str] = []
+    received_records: list[Any] = []
+    received_batches: list[list[Any]] = []
+    cleared_count: list[int] = []
+
+    signals.text_written.connect(lambda t: received_text.append(t))
+    signals.record_emitted.connect(lambda r: received_records.append(r))
+    signals.records_batch.connect(lambda b: received_batches.append(b))
+    signals.cleared.connect(lambda: cleared_count.append(1))
+
+    # Emit
+    signals.text_written.emit("Hello Stream")
+    entry = LogRecordEntry(level="INFO", message="Sample log", source="test")
+    signals.record_emitted.emit(entry)
+    signals.records_batch.emit([entry])
+    signals.cleared.emit()
+
+    assert received_text == ["Hello Stream"]
+    assert received_records == [entry]
+    assert received_batches == [[entry]]
+    assert len(cleared_count) == 1
+
+
+def test_output_stream_io_methods(qapp: QApplication) -> None:
+    """Verify OutputStream file-like IO methods, properties, and teeing."""
+    signals = StreamSignals()
+    emitted: list[str] = []
+    signals.text_written.connect(lambda s: emitted.append(s))
+
+    mem_buffer = io.StringIO()
+    stream = OutputStream(signals, original_stream=mem_buffer, stream_name="stdout", tee=True)
+
+    # Properties
+    assert stream.isatty() is False
+    assert stream.readable() is False
+    assert stream.writable() is True
+    assert stream.seekable() is False
+    assert stream.closed is False
+    assert isinstance(stream.encoding, str)
+    assert isinstance(stream.errors, str)
+
+    # Write
+    written_len = stream.write("Quantum execution started.\n")
+    assert written_len == len("Quantum execution started.\n")
+
+    # Writelines
+    stream.writelines(["Stage 1 complete.\n", "Stage 2 complete.\n"])
+    stream.flush()
+
+    # Verify tee wrote to memory buffer
+    tee_content = mem_buffer.getvalue()
+    assert "Quantum execution started.\n" in tee_content
+    assert "Stage 1 complete.\n" in tee_content
+    assert "Stage 2 complete.\n" in tee_content
+
+    # Verify signal emitted
+    assert len(emitted) == 3
+
+    # Close
+    stream.close()
+    assert stream.closed is True
+    assert stream.writable() is False
+    assert stream.write("Ignored write") == 0
+
+
+def test_scribe_dock_init_and_defaults(qapp: QApplication) -> None:
+    """Verify ScribeDock instantiation, widget properties, and default state."""
+    dock = ScribeDock(max_lines=500, intercept_stdio=False)
+
+    assert dock.windowTitle() == "CoChem-SCRIBE (Data Provenance)"
+    assert dock.max_lines == 500
+    assert dock.ring_buffer.maxlen == 500
+    assert isinstance(dock.console, (QPlainTextEdit, ScribeConsole))
+    assert dock.console.isReadOnly() is True
+
+    assert dock.level_combo.currentText() == "ALL"
+    assert dock.search_edit.text() == ""
+    assert dock.autoscroll_checkbox.isChecked() is True
+    assert isinstance(dock.signals, StreamSignals)
+
+    # Verify initial banner entry
+    records = dock.ring_buffer.get_all()
+    assert len(records) == 1
+    assert "CoChem-Studio started" in records[0].message
+    assert records[0].level == "PROVENANCE"
+
+    dock.close()
+
+
+def test_scribe_dock_logging_levels(qapp: QApplication) -> None:
+    """Verify level-specific logging methods and correct record creation."""
+    dock = ScribeDock(intercept_stdio=False)
+    dock.clear()
+
+    dock.log("Plain message")
+    dock.log_info("Info message", source="engine", run_id="calc_1", metadata={"step": 1})
+    dock.log_warning("Warning message", source="engine")
+    dock.log_error("Error message", source="engine")
+    dock.log_success("Success message", source="engine")
+    dock.log_debug("Debug message", source="engine")
+    dock.log_audit("Audit message", source="auth")
+    dock.log_provenance("Provenance message", source="scribe", run_id="calc_1")
+
+    dock.flush()
+
+    records = dock.ring_buffer.get_all()
+    assert len(records) == 8
+
+    levels = [r.level for r in records]
+    assert levels == [
+        "INFO",
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "SUCCESS",
+        "DEBUG",
+        "AUDIT",
+        "PROVENANCE",
+    ]
+
+    # Verify metadata and run_id propagation
+    assert records[1].run_id == "calc_1"
+    assert records[1].metadata == {"step": 1}
+    assert records[7].run_id == "calc_1"
+
+    # Verify text present in console
+    console_text = dock.console.toPlainText()
+    assert "Info message" in console_text
+    assert "Error message" in console_text
+    assert "Success message" in console_text
+
+    dock.close()
+
+
+def test_scribe_dock_buffer_capacity_and_eviction(qapp: QApplication) -> None:
+    """Verify bounded ring buffer deterministic FIFO eviction when exceeding capacity."""
+    dock = ScribeDock(max_lines=5, intercept_stdio=False)
+    dock.clear()
+
+    for i in range(12):
+        dock.log(f"Message #{i}")
+
+    dock.flush()
+
+    records = dock.ring_buffer.get_all()
+    assert len(records) == 5
+
+    # Oldest 7 messages evicted; remaining are #7, #8, #9, #10, #11
+    messages = [r.message for r in records]
+    assert messages == [
+        "Message #7",
+        "Message #8",
+        "Message #9",
+        "Message #10",
+        "Message #11",
+    ]
+
+    dock.close()
+
+
+def test_scribe_dock_search_and_filter(qapp: QApplication) -> None:
+    """Verify real-time level filtering and query substring search."""
+    dock = ScribeDock(intercept_stdio=False)
+    dock.clear()
+
+    dock.log_info("Pipeline stage 1 initialized successfully.")
+    dock.log_warning("Hardware thermal warning on GPU 0.")
+    dock.log_error("Convergence error during SCF iteration.")
+    dock.log_provenance("Provenance record signed and verified.")
+
+    dock.flush()
+    assert len(dock.ring_buffer) == 4
+
+    # 1. Level Filter: ERROR
+    dock.set_level_filter("ERROR")
+    text_error = dock.console.toPlainText()
+    assert "Convergence error" in text_error
+    assert "thermal warning" not in text_error
+    assert "stage 1" not in text_error
+
+    # 2. Search Filter: "thermal"
+    dock.set_level_filter("ALL")
+    dock.set_search_filter("thermal")
+    text_search = dock.console.toPlainText()
+    assert "thermal warning" in text_search
+    assert "Convergence error" not in text_search
+    assert "stage 1" not in text_search
+
+    # 3. Reset Filter
+    dock.set_search_filter("")
+    text_all = dock.console.toPlainText()
+    assert "stage 1" in text_all
+    assert "thermal warning" in text_all
+    assert "Convergence error" in text_all
+    assert "Provenance record" in text_all
+
+    dock.close()
+
+
+def test_scribe_dock_export_logs(qapp: QApplication, tmp_path: Path) -> None:
+    """Verify log export to .txt, .json, .log, and .html with SHA-256 provenance hashes."""
+    dock = ScribeDock(intercept_stdio=False)
+    dock.clear()
+
+    dock.log_info("Calculation task #1 started.", run_id="run_42")
+    dock.log_success("Calculation task #1 finished.", run_id="run_42")
+    dock.log_provenance("Export snapshot verified.", run_id="run_42")
+
+    # 1. Export TXT
+    txt_path = tmp_path / "logs.txt"
+    sha_txt = dock.export_logs(txt_path)
+    assert len(sha_txt) == 64
+    assert txt_path.is_file()
+    txt_content = txt_path.read_text(encoding="utf-8")
+    assert sha_txt in txt_content
+    assert "Calculation task #1 started." in txt_content
+
+    # 2. Export JSON
+    json_path = tmp_path / "logs.json"
+    sha_json = dock.export_logs(json_path)
+    assert len(sha_json) == 64
+    assert json_path.is_file()
+    json_data = json.loads(json_path.read_text(encoding="utf-8"))
+    assert json_data["schema_version"] == "1.0"
+    assert json_data["sha256_integrity_hash"] == sha_json
+    assert json_data["record_count"] == 3
+    assert len(json_data["records"]) == 3
+
+    # 3. Export HTML
+    html_path = tmp_path / "logs.html"
+    sha_html = dock.export_logs(html_path)
+    assert len(sha_html) == 64
+    assert html_path.is_file()
+    html_content = html_path.read_text(encoding="utf-8")
+    assert sha_html in html_content
+    assert "<table" in html_content
+
+    # 4. Export LOG
+    log_path = tmp_path / "logs.log"
+    sha_log = dock.export_logs(log_path)
+    assert len(sha_log) == 64
+    assert log_path.is_file()
+
+    dock.close()
+
+
+def test_scribe_log_handler_integration(qapp: QApplication) -> None:
+    """Verify standard Python logging.Handler (ScribeLogHandler) routing."""
+    dock = ScribeDock(intercept_stdio=False)
+    dock.clear()
+
+    test_logger = logging.getLogger("cochem.test.handler")
+    test_logger.setLevel(logging.DEBUG)
+
+    handler = ScribeLogHandler(scribe_dock=dock)
+    test_logger.addHandler(handler)
+
+    test_logger.debug("Debug event from logger")
+    test_logger.info("Info event from logger")
+    test_logger.warning("Warning event from logger")
+    test_logger.error("Error event from logger")
+
+    dock.flush()
+
+    records = dock.ring_buffer.get_all()
+    assert len(records) == 4
+
+    messages = [r.message for r in records]
+    assert "Debug event from logger" in messages
+    assert "Info event from logger" in messages
+    assert "Warning event from logger" in messages
+    assert "Error event from logger" in messages
+
+    assert all(r.source == "cochem.test.handler" for r in records)
+
+    test_logger.removeHandler(handler)
+    handler.close()
+    dock.close()
+
+
+def test_stream_interception_and_restoration(qapp: QApplication) -> None:
+    """Verify sys.stdout and sys.stderr interception and exception-safe restoration."""
+    orig_stdout = sys.stdout
+    orig_stderr = sys.stderr
+
+    dock = ScribeDock(intercept_stdio=True, tee=False)
+    assert sys.stdout is not orig_stdout
+    assert sys.stderr is not orig_stderr
+    assert isinstance(sys.stdout, OutputStream)
+    assert isinstance(sys.stderr, OutputStream)
+
+    # Direct print interception
+    sys.stdout.write("Direct stream interception test\n")
+    dock.flush()
+
+    assert any("Direct stream interception test" in r.message for r in dock.ring_buffer)
+
+    # Stop interception
+    dock.stop_interception()
+    assert sys.stdout is orig_stdout
+    assert sys.stderr is orig_stderr
+
+    # Test intercept_context
+    with intercept_context() as sig:
+        assert sys.stdout is not orig_stdout
+        sys.stdout.write("Context interception test\n")
+    assert sys.stdout is orig_stdout
+
+    # Test capture_context alias
+    with capture_context():
+        assert sys.stdout is not orig_stdout
+    assert sys.stdout is orig_stdout
+
+    dock.close()
+
+
+def test_multi_threaded_logging_stress(qapp: QApplication) -> None:
+    """Verify thread-safety and bounded buffer consistency under high-frequency concurrency."""
+    dock = ScribeDock(max_lines=2000, intercept_stdio=False)
+    dock.clear()
+
+    num_threads = 6
+    messages_per_thread = 30
+
+    def worker(worker_id: int) -> None:
+        for i in range(messages_per_thread):
+            dock.log_info(
+                f"Worker {worker_id} - Iteration {i}",
+                source=f"thread_{worker_id}",
+                run_id=f"run_thread_{worker_id}",
+                metadata={"worker_id": worker_id, "idx": i},
+            )
+
+    threads = [threading.Thread(target=worker, args=(t,)) for t in range(num_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    dock.flush()
+
+    total_expected = num_threads * messages_per_thread
+    records = dock.ring_buffer.get_all()
+    assert len(records) == total_expected
+
+    # Verify no corruption in entries
+    for r in records:
+        assert r.level == "INFO"
+        assert "Worker" in r.message
+        assert r.source.startswith("thread_")
+
+    dock.close()
+
+
+def test_scribe_dock_close_event_cleanup(qapp: QApplication) -> None:
+    """Verify closeEvent cleans up streams, stops timers, and flushes gracefully."""
+    orig_stdout = sys.stdout
+    dock = ScribeDock(intercept_stdio=True)
+
+    assert dock._intercepting is True
+    assert dock._batch_timer.isActive() is True
+
+    event = QCloseEvent()
+    dock.closeEvent(event)
+
+    assert event.isAccepted() is True
+    assert dock._intercepting is False
+    assert dock._batch_timer.isActive() is False
+    assert sys.stdout is orig_stdout
+
+
+def test_scribe_dock_clear_and_copy(qapp: QApplication) -> None:
+    """Verify console clear and clipboard copy operations."""
+    dock = ScribeDock(intercept_stdio=False)
+    dock.clear()
+
+    dock.log("Entry to copy and clear")
+    dock.flush()
+
+    assert len(dock.ring_buffer) == 1
+    assert "Entry to copy and clear" in dock.console.toPlainText()
+
+    dock.copy_all()
+    clipboard = QApplication.clipboard()
+    if clipboard is not None:
+        assert "Entry to copy and clear" in clipboard.text()
+
+    dock.clear()
+    assert len(dock.ring_buffer) == 0
+    assert dock.console.toPlainText() == ""
+
+    dock.close()
+
+
+def test_log_record_entry_and_ring_buffer() -> None:
+    """Verify LogRecordEntry formatting and LogRingBuffer operations."""
+    entry = LogRecordEntry(
+        level="warning",
+        message="High memory usage",
+        source="telemetry",
+        run_id="run_99",
+        metadata={"mem_gb": 32},
+    )
+    assert entry.level == "WARNING"
+    assert "WARNING" in entry.to_formatted_string()
+    assert "High memory usage" in entry.to_formatted_string()
+    assert "telemetry" in entry.to_formatted_string()
+
+    dict_repr = entry.to_dict()
+    assert dict_repr["level"] == "WARNING"
+    assert dict_repr["run_id"] == "run_99"
+
+    json_str = entry.to_json()
+    assert '"mem_gb": 32' in json_str
+
+    html_str = entry.to_html(highlight_query="memory")
+    assert "<div" in html_str
+    assert "background-color" in html_str
+
+    # LogRingBuffer tests
+    buf = LogRingBuffer(maxlen=3)
+    assert buf.maxlen == 3
+    assert len(buf) == 0
+
+    with pytest.raises(ValueError):
+        LogRingBuffer(maxlen=0)
+
+    buf.append(LogRecordEntry(level="INFO", message="A"))
+    buf.append(LogRecordEntry(level="INFO", message="B"))
+    buf.append(LogRecordEntry(level="ERROR", message="C"))
+    assert len(buf) == 3
+
+    buf.append(LogRecordEntry(level="INFO", message="D"))
+    assert len(buf) == 3
+    assert [r.message for r in buf] == ["B", "C", "D"]
+
+    filtered_error = buf.filter(level="ERROR")
+    assert len(filtered_error) == 1
+    assert filtered_error[0].message == "C"
+
+    buf.clear()
+    assert len(buf) == 0
+
+
+def test_ansi_and_html_utilities() -> None:
+    """Verify ANSI escape code stripping and HTML styling conversion."""
+    raw_ansi = "\033[31mRed Error\033[0m and \033[32mGreen Success\033[0m"
+    clean_text = strip_ansi(raw_ansi)
+    assert clean_text == "Red Error and Green Success"
+
+    converted_html = ansi_to_html(raw_ansi)
+    assert "<span style=" in converted_html
+    assert "Red Error" in converted_html
+    assert "Green Success" in converted_html

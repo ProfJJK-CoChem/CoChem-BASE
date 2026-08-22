@@ -1,0 +1,54 @@
+# ==============================================================================
+# CoChem-BASE Strict Air-Gap Constraints
+# ==============================================================================
+# 1. Python Cache & Virtual Environments
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.cochem_env/
+
+# 2. Absolute blocking of the Artifacts Workspace & Local Compute Overlap
+CoChem_Artifacts/
+*/CoChem_Artifacts/*
+cochem_exec_*/
+
+# 3. Heavy Databases & Quantum Arrays (Prevents repository bloat)
+*.h5
+*.hdf5
+*.parquet
+*.npy
+*.npz
+*.db
+*.sqlite
+
+# 4. Execution Scratch, Telemetry Logs, & HPC Residue
+# ORCA wavefunctions
+*.gbw
+*.tmp
+*.chk
+*.opt
+*.lock
+*.log
+*.out
+*.err
+# Core dumps from segfaults
+core.*
+# Slurm batch logs
+slurm-*.out
+# Parsl execution logs
+runinfo/
+# Parsl state tracking files
+*.parsl
+
+# 5. User Chemical Inputs (Protects proprietary user data)
+*.xyz
+*.mol
+*.smi
+*.pdb
+*.cif
+
+# 6. Local Registries & States (Prevents cross-machine configuration poisoning)
+*config.json
+cochem_system_config.json
+cochem_audit_log.json
+TOPOS_Runtime_State.json

@@ -1,0 +1,306 @@
+"""Comprehensive unit tests for CoChem-BASE System Dashboard & Hardware Telemetry Subsystem.
+
+Validates:
+- Hardware telemetry data models (CpuMetrics, RamMetrics, GpuMetrics, DiskMetrics, TelemetrySnapshot).
+- Dynamic progress bar styling with threshold transitions (get_progress_bar_style).
+- HardwareTelemetryCollector safe metric sampling across CPU, RAM, GPU, and Disk storage.
+- PipelineWorker initialization, stage definitions, signal propagation, and graceful cancellation.
+- DashboardTab instantiation, telemetry timers, environment status, manual refresh, and clean teardown.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import numpy  # Initialize BLAS FPE before Qt alters FPU control word
+try:
+    import torch
+except ImportError:
+    torch = None
+
+import pytest
+from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
+
+from calc.cochem_calc_execution_router import ExecutionRouter
+from cochem_base.core.hardware import HardwareProfile
+from cochem_base.gui.dashboard import (
+    CpuMetrics,
+    DashboardTab,
+    DiskMetrics,
+    GpuMetrics,
+    HardwareTelemetryCollector,
+    PipelineStage,
+    PipelineWorker,
+    RamMetrics,
+    StageResult,
+    TelemetrySnapshot,
+    get_progress_bar_style,
+)
+
+
+@pytest.fixture(scope="module")
+def qapp() -> QApplication:
+    """Ensure a singleton QApplication instance is active for Qt GUI tests."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    return app
+
+
+# =============================================================================
+# 1. Telemetry Data Models & Styling Tests
+# =============================================================================
+
+
+def test_cpu_metrics_dataclass():
+    """Verify CpuMetrics dataclass instantiation and attribute access."""
+    metrics = CpuMetrics(
+        percent=45.2,
+        physical_cores=8,
+        logical_cores=16,
+        frequency_mhz=3600.0,
+        load_avg=(1.5, 1.2, 0.9),
+    )
+    assert metrics.percent == 45.2
+    assert metrics.physical_cores == 8
+    assert metrics.logical_cores == 16
+    assert metrics.frequency_mhz == 3600.0
+    assert metrics.load_avg == (1.5, 1.2, 0.9)
+
+
+def test_ram_metrics_dataclass():
+    """Verify RamMetrics dataclass instantiation and attribute access."""
+    metrics = RamMetrics(
+        percent=62.5,
+        used_gb=10.0,
+        total_gb=16.0,
+        available_gb=6.0,
+    )
+    assert metrics.percent == 62.5
+    assert metrics.used_gb == 10.0
+    assert metrics.total_gb == 16.0
+    assert metrics.available_gb == 6.0
+
+
+def test_gpu_metrics_dataclass():
+    """Verify GpuMetrics dataclass defaults and custom attributes."""
+    # Defaults
+    default_gpu = GpuMetrics(available=False)
+    assert default_gpu.available is False
+    assert default_gpu.name == "N/A"
+    assert default_gpu.utilization_percent == 0
+    assert default_gpu.vram_used_gb == 0.0
+
+    # Custom
+    custom_gpu = GpuMetrics(
+        available=True,
+        name="NVIDIA RTX 4090",
+        utilization_percent=85,
+        vram_used_gb=12.5,
+        vram_total_gb=24.0,
+        compute_capability="8.9",
+        fp64_capable=True,
+        device_index=0,
+    )
+    assert custom_gpu.available is True
+    assert custom_gpu.name == "NVIDIA RTX 4090"
+    assert custom_gpu.utilization_percent == 85
+    assert custom_gpu.vram_used_gb == 12.5
+    assert custom_gpu.vram_total_gb == 24.0
+    assert custom_gpu.compute_capability == "8.9"
+    assert custom_gpu.fp64_capable is True
+
+
+def test_disk_metrics_dataclass():
+    """Verify DiskMetrics dataclass instantiation."""
+    metrics = DiskMetrics(
+        path="C:\\artifacts",
+        percent=55.0,
+        used_gb=110.0,
+        total_gb=200.0,
+        free_gb=90.0,
+    )
+    assert metrics.path == "C:\\artifacts"
+    assert metrics.percent == 55.0
+    assert metrics.used_gb == 110.0
+    assert metrics.total_gb == 200.0
+    assert metrics.free_gb == 90.0
+
+
+def test_pipeline_stage_dataclass_as_tuple():
+    """Verify PipelineStage instantiation and as_tuple conversion."""
+    stage = PipelineStage(
+        name="Stage 1: System Check",
+        module="calc.cochem_setup_1_sys",
+        job_name="stage1_job",
+        prog_start=0,
+        prog_end=50,
+    )
+    assert stage.as_tuple() == (
+        "Stage 1: System Check",
+        "calc.cochem_setup_1_sys",
+        "stage1_job",
+        0,
+        50,
+    )
+
+
+def test_stage_result_dataclass():
+    """Verify StageResult dataclass representation."""
+    res = StageResult(
+        stage_name="Stage 1",
+        success=True,
+        exit_code=0,
+        elapsed_seconds=1.42,
+        detail="Completed nominally",
+    )
+    assert res.stage_name == "Stage 1"
+    assert res.success is True
+    assert res.exit_code == 0
+    assert res.elapsed_seconds == 1.42
+    assert res.detail == "Completed nominally"
+
+
+def test_get_progress_bar_style_thresholds():
+    """Verify that get_progress_bar_style applies correct threshold-based colors."""
+    # Normal (< 70%) -> custom accent or default #89b4fa
+    style_normal = get_progress_bar_style(50, accent_color="#94e2d5")
+    assert "#94e2d5" in style_normal
+
+    # Warning (70% - 89%) -> #f9e2af (Yellow)
+    style_warning = get_progress_bar_style(75)
+    assert "#f9e2af" in style_warning
+
+    # Critical (>= 90%) -> #f38ba8 (Red)
+    style_critical = get_progress_bar_style(95)
+    assert "#f38ba8" in style_critical
+
+
+# =============================================================================
+# 2. HardwareTelemetryCollector Unit Tests
+# =============================================================================
+
+
+def test_collector_cpu():
+    """Verify HardwareTelemetryCollector.collect_cpu returns valid physical telemetry."""
+    cpu = HardwareTelemetryCollector.collect_cpu()
+    assert isinstance(cpu, CpuMetrics)
+    assert 0.0 <= cpu.percent <= 100.0
+    assert cpu.physical_cores >= 1
+    assert cpu.logical_cores >= cpu.physical_cores
+
+
+def test_collector_ram():
+    """Verify HardwareTelemetryCollector.collect_ram returns valid memory telemetry."""
+    ram = HardwareTelemetryCollector.collect_ram()
+    assert isinstance(ram, RamMetrics)
+    assert 0.0 <= ram.percent <= 100.0
+    assert ram.total_gb > 0.0
+    assert ram.used_gb <= ram.total_gb
+    assert ram.available_gb <= ram.total_gb
+
+
+def test_collector_gpu_safe_execution():
+    """Verify HardwareTelemetryCollector.collect_gpu executes safely without raising exceptions."""
+    gpu = HardwareTelemetryCollector.collect_gpu()
+    assert isinstance(gpu, GpuMetrics)
+    assert 0 <= gpu.utilization_percent <= 100
+
+
+def test_collector_disk_safe_execution(tmp_path: Path):
+    """Verify HardwareTelemetryCollector.collect_disk inspects directory storage accurately."""
+    disk = HardwareTelemetryCollector.collect_disk(tmp_path)
+    assert isinstance(disk, DiskMetrics)
+    assert 0.0 <= disk.percent <= 100.0
+    assert disk.total_gb > 0.0
+    assert disk.free_gb <= disk.total_gb
+
+
+def test_collector_snapshot():
+    """Verify HardwareTelemetryCollector.collect_snapshot aggregates all subsystems."""
+    snap = HardwareTelemetryCollector.collect_snapshot()
+    assert isinstance(snap, TelemetrySnapshot)
+    assert snap.timestamp > 0
+    assert isinstance(snap.cpu, CpuMetrics)
+    assert isinstance(snap.ram, RamMetrics)
+    assert isinstance(snap.gpu, GpuMetrics)
+    assert isinstance(snap.disk, DiskMetrics)
+
+
+# =============================================================================
+# 3. PipelineWorker & DashboardTab Widget Tests
+# =============================================================================
+
+
+def test_pipeline_worker_initialization():
+    """Verify that PipelineWorker initializes properly with default or custom router."""
+    router = ExecutionRouter()
+    worker = PipelineWorker(router)
+    assert worker.router is router
+    assert len(worker.STAGES) >= 2
+
+
+def test_dashboard_tab_instantiation(qapp: QApplication):
+    """Verify that DashboardTab initializes all telemetry widgets, labels, and timers."""
+    tab = DashboardTab()
+    assert tab.cpu_bar is not None
+    assert tab.ram_bar is not None
+    assert tab.gpu_bar is not None
+    assert tab.disk_bar is not None
+    assert tab.start_btn is not None
+    assert tab.cancel_btn is not None
+    assert tab.refresh_btn is not None
+    assert tab.task_label is not None
+    assert tab.log_display is not None
+
+    # Telemetry should be active
+    assert tab.timer.isActive() is True
+
+    # Test manual refresh
+    tab.manual_refresh()
+
+    # Clean teardown
+    tab.cleanup()
+    assert tab.timer.isActive() is False
+
+
+def test_dashboard_tab_metrics_update(qapp: QApplication):
+    """Verify that live hardware metrics query runs safely without exception."""
+    tab = DashboardTab()
+    tab.update_hw_metrics()
+
+    # Values should be bounded within [0, 100]
+    assert 0 <= tab.cpu_bar.value() <= 100
+    assert 0 <= tab.ram_bar.value() <= 100
+    assert 0 <= tab.gpu_bar.value() <= 100
+    assert 0 <= tab.disk_bar.value() <= 100
+
+    tab.update_env_status()
+    assert (
+        "Online" in tab.lbl_network_status.text()
+        or "Air-Gapped" in tab.lbl_network_status.text()
+        or "Status" in tab.lbl_network_status.text()
+    )
+
+    tab.cleanup()
+
+
+def test_pipeline_worker_cancellation(qapp: QApplication):
+    """Verify that PipelineWorker handles interruption/cancellation requests gracefully."""
+    worker = PipelineWorker()
+    worker.cancel()
+    assert worker.is_cancelled() is True
+
+    finished_called = []
+
+    def on_finished(success, msg):
+        finished_called.append((success, msg))
+
+    worker.finished.connect(on_finished)
+    worker.run()
+
+    assert len(finished_called) == 1
+    assert finished_called[0][0] is False
+    assert "cancelled" in finished_called[0][1].lower()

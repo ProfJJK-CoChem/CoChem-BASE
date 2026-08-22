@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cochem-base"
+version = "0.1.0"
+description = "Core shell and hardware orchestrator for CoChem-Studio"
+authors = [
+    {name = "CoChem Team"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6",
+    "pluggy",
+    "pydantic>=2",
+    "pyqtgraph",
+    "pyvista",
+    "pyvistaqt",
+    "vtk"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-qt",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["cochem_base*", "cochem_topos*"]
+
+[tool.pytest.ini_options]
+testpaths = ["test_suite"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = [".venv", ".conda", "build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_configs = true
+explicit_package_bases = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
+no_implicit_optional = true
+exclude = ["build/", "dist/", "rdkit-stubs", "site-packages"]
+mypy_path = "stubs"
+
+[[tool.mypy.overrides]]
+module = [
+    "PySide6.*",
+    "pluggy.*",
+    "pyqtgraph.*",
+    "pyvista.*",
+    "pyvistaqt.*",
+    "vtk.*",
+    "h5py.*",
+    "rich.*",
+    "scipy.*",
+    "rdkit.*",
+    "psutil.*",
+    "mendeleev.*",
+    "ipywidgets.*",
+    "networkx.*",
+    "pynvml.*",
+    "cochem.*",
+    "Libraries.*",
+    "cochem_bench.*",
+    "bench_core.*",
+    "cochem_geom_ingest_math.*",
+    "cochem_geom_fitter_optim.*",
+    "core_engine.cochem_topos_crusher.*",
+    "cochem_topos_crusher.*",
+    "cochem_torq_grid.*",
+    "cochem_torq_orca.*"
+]
+ignore_missing_imports = true

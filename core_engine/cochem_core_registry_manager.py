@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
-"""CoChem-CORE: Re-exports authoritative registry manager from root cochem_core_registry_manager."""
+"""CoChem-CORE: Re-exports authoritative registry manager from cochem_base.core.cochem_core_registry_manager."""
 
-from cochem_core_registry_manager import (
+from __future__ import annotations
+
+from cochem_base.core.cochem_core_registry_manager import (
     AtomicFileLock,
+    BaseMetadataServer,
     BasisSetNotFoundError,
     CoChemLockTimeoutError,
+    FilesystemMetadataServer,
     IsotopeStabilityError,
+    MetadataBackendType,
+    MetadataServerManager,
+    PostgresMetadataServer,
     RecordNotFoundError,
+    RedisMetadataServer,
     RegistryCorruptionError,
     RegistryError,
     RegistryLockError,
@@ -18,6 +26,7 @@ from cochem_core_registry_manager import (
     _sanitize_path_leakages,
     atomic_write_json,
     broadcast_system_config,
+    default_metadata_manager,
     get_active_job,
     get_default_config_path,
     hash_environment,
@@ -26,6 +35,7 @@ from cochem_core_registry_manager import (
     list_active_jobs,
     load_system_config,
     migrate_schema,
+    nfs_atomic_directory_rename,
     receive_system_config_broadcast,
     register_active_job,
     remove_active_job,
@@ -36,10 +46,16 @@ from cochem_core_registry_manager import (
 
 __all__ = [
     "AtomicFileLock",
+    "BaseMetadataServer",
     "BasisSetNotFoundError",
     "CoChemLockTimeoutError",
+    "FilesystemMetadataServer",
     "IsotopeStabilityError",
+    "MetadataBackendType",
+    "MetadataServerManager",
+    "PostgresMetadataServer",
     "RecordNotFoundError",
+    "RedisMetadataServer",
     "RegistryCorruptionError",
     "RegistryError",
     "RegistryLockError",
@@ -51,6 +67,7 @@ __all__ = [
     "_sanitize_path_leakages",
     "atomic_write_json",
     "broadcast_system_config",
+    "default_metadata_manager",
     "get_active_job",
     "get_default_config_path",
     "hash_environment",
@@ -59,6 +76,7 @@ __all__ = [
     "list_active_jobs",
     "load_system_config",
     "migrate_schema",
+    "nfs_atomic_directory_rename",
     "receive_system_config_broadcast",
     "register_active_job",
     "remove_active_job",

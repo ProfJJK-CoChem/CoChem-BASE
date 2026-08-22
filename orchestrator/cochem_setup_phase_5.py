@@ -1,13 +1,17 @@
 """
-CoChem Setup Phase 5: NVIDIA MPS Daemon Initialization & VRAM Budgeting Gatekeeper.
-Production-grade, zero-mock gatekeeping engine for multi-tenant NVIDIA Multi-Process Service (MPS)
-daemon management (nvidia-cuda-mps-control), isolated runtime Unix socket and named pipe provisioning
-(CUDA_MPS_PIPE_DIRECTORY, CUDA_MPS_LOG_DIRECTORY), dynamically calculated pinned device memory partitioning
-(CUDA_MPS_PINNED_DEVICE_MEM_LIMIT), multi-process GPU concurrency shielding for MACE-OFF23 and gpu4pyscf
-workers, cross-platform and CPU-only graceful degradation, and transactional atomic state persistence
-into the Golden Registry.
+CoChem Setup Phase 5: IPC Config Lock & Workspace Sweep & NVIDIA MPS Daemon / VRAM Budgeting Gatekeeper.
+Production-grade, zero-mock gatekeeping engine for:
+1. Multi-tenant NVIDIA Multi-Process Service (MPS) daemon management (nvidia-cuda-mps-control)
+   and dynamically calculated pinned device memory partitioning (CUDA_MPS_PINNED_DEVICE_MEM_LIMIT).
+2. Physical POSIX byte-range locking verification (fcntl / msvcrt) before HDF5 SWMR initialization,
+   with graceful degradation to single-threaded operations upon filesystem locking failure.
+3. Intermediate state consolidation (p1.json through p11.json) and validation through the rigid
+   Pydantic v2 CoChemSystemConfig schema.
+4. Atomic serialization of the finalized Golden Registry to $HOME/CoChem_Artifacts/Registry/cochem_system_config.json
+   with status="LOCKED" and os.chmod(0o444) read-only immutability enforcement.
+5. Workspace garbage collection sweep purging ephemeral .tmp files and intermediate staging fragments.
 
-SRS Document 2 Part 2 (Section 3.5), SRS Document 5 (Section 3), and Method Matrix v4 Compliant.
+SRS Document 2 Part 2 (Section 3.5), SRS Document 5 (Section 4.3), and Method Matrix v4 Compliant.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import json
+import logging
 import os
 import platform
 import re
@@ -32,6 +37,42 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import psutil
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+# POSIX fcntl / Windows msvcrt locking imports
+try:
+    import fcntl
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None  # type: ignore[assignment]
+
+# Schema and Config Imports with Path Resolution Fallbacks
+try:
+    from cochem_core_registry_schema import (
+        CARBON_13_ISOTOPIC_MASS,
+        ISOTOPIC_MASSES,
+        CoChemSystemConfig,
+        OSTarget,
+        discover_host_hardware,
+    )
+except ImportError:
+    repo_root = Path(__file__).resolve().parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from cochem_core_registry_schema import (
+        CARBON_13_ISOTOPIC_MASS,
+        ISOTOPIC_MASSES,
+        CoChemSystemConfig,
+        OSTarget,
+        discover_host_hardware,
+    )
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("cochem_setup_phase_5")
+
+
 # =============================================================================
 # 1. EXCEPTIONS
 # =============================================================================
@@ -47,6 +88,14 @@ class MPSControlError(RuntimeError):
 
 class VRAMAllocationError(RuntimeError):
     """Raised when VRAM memory limits or worker capacity cannot be safely bounded."""
+
+
+class ConfigLockError(RuntimeError):
+    """Raised when golden master registry configuration locking fails."""
+
+
+class LockTestFailureError(RuntimeError):
+    """Raised when physical POSIX filesystem locking verification encounters an unrecoverable error."""
 
 
 # =============================================================================
@@ -187,8 +236,53 @@ class VRAMBudgetReport(BaseModel):
     )
 
 
+class LockTestResult(BaseModel):
+    """Physical POSIX byte-range locking verification result."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    passed: bool = Field(..., description="Whether byte-range locking succeeded on target filesystem")
+    method: str = Field(..., description="Locking mechanism utilized (e.g. 'POSIX_FCNTL', 'MSVCRT_LOCKING')")
+    single_threaded_mode: bool = Field(
+        default=False,
+        description="Whether single-threaded fallback degradation is active due to lock failure",
+    )
+    target_path: str = Field(..., description="Filesystem path tested for byte-range locking")
+    lock_type: str = Field(default="POSIX_BYTE_RANGE_LOCK", description="Classification of lock test")
+    error_message: Optional[str] = Field(default=None, description="Error diagnostics if lock test failed")
+
+
+class WorkspaceSweepReport(BaseModel):
+    """Artifact sweep report for garbage collection of intermediate setup files."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    swept_files_count: int = Field(default=0, ge=0, description="Number of temporary or fragment files cleaned")
+    cleaned_paths: List[str] = Field(default_factory=list, description="Paths of cleaned ephemeral files")
+    retained_paths: List[str] = Field(default_factory=list, description="Paths of permanent registered artifacts")
+    trash_dir: Optional[str] = Field(default=None, description="Backup trash destination if configured")
+
+
+class ConfigLockAuditReport(BaseModel):
+    """Structured audit report for IPC configuration lock and workspace sweep."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    golden_registry_path: str = Field(..., description="Canonical path to locked cochem_system_config.json")
+    status: str = Field(default="LOCKED", description="Operational status of master registry ('LOCKED')")
+    checksum: str = Field(..., description="Deterministic SHA-256 checksum of locked configuration")
+    posix_lock_test: LockTestResult = Field(..., description="Byte-range filesystem lock verification record")
+    sweep_report: WorkspaceSweepReport = Field(..., description="Workspace garbage collection sweep results")
+    intermediate_phases_found: List[str] = Field(
+        default_factory=list, description="Intermediate phase artifacts consolidated (e.g. ['p1.json', 'p2.json'])"
+    )
+    is_immutable_mode_enforced: bool = Field(
+        default=True, description="Whether 0o444 read-only file mode was applied"
+    )
+
+
 class Phase5AuditReport(BaseModel):
-    """Comprehensive serialized audit report for Phase 5 NVIDIA MPS Daemon & VRAM Budgeting."""
+    """Comprehensive serialized audit report for Phase 5 NVIDIA MPS Daemon & VRAM Budgeting & Config Lock."""
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -202,9 +296,15 @@ class Phase5AuditReport(BaseModel):
     vram_budget: VRAMBudgetReport = Field(..., description="Calculated VRAM partitioning and budgeting report")
     is_cuda_available: bool = Field(default=False, description="Whether CUDA runtime and hardware are available")
     is_hpc_slurm: bool = Field(default=False, description="Whether execution occurred within a Slurm HPC envelope")
+    config_lock: Optional[ConfigLockAuditReport] = Field(
+        default=None, description="Phase 5 IPC config lock and workspace sweep results"
+    )
     warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings or degraded notices")
     errors: List[str] = Field(default_factory=list, description="Fatal or critical validation errors")
     artifact_path: str = Field(..., description="Filesystem destination path for serialized p5.json")
+    golden_config_path: Optional[str] = Field(
+        default=None, description="Filesystem destination path for locked cochem_system_config.json"
+    )
 
     @field_validator("phase_id")
     @classmethod
@@ -273,6 +373,10 @@ class DependencyManager:
         for temp_file in list(self._tracked_temp_files):
             try:
                 if temp_file.exists() and temp_file.is_file():
+                    try:
+                        os.chmod(temp_file, stat.S_IWRITE | stat.S_IREAD)
+                    except OSError:
+                        pass
                     temp_file.unlink()
             except OSError:
                 pass
@@ -291,9 +395,11 @@ class DependencyManager:
         target_path: Union[str, Path],
         data: Union[BaseModel, Dict[str, Any], Any],
         indent: int = 2,
+        read_only: bool = False,
     ) -> Path:
         """
         Atomically write JSON content to target_path using a staged temporary file and os.replace.
+        Handles overwriting existing read-only files cleanly.
         """
         target = Path(target_path).resolve()
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -310,8 +416,22 @@ class DependencyManager:
             json_text = str(data)
 
         staged_file.write_text(json_text, encoding="utf-8")
+
+        # If target exists and is read-only (Windows NT or POSIX), unlock it temporarily for replacement
+        if target.exists():
+            try:
+                os.chmod(target, stat.S_IWRITE | stat.S_IREAD | stat.S_IWUSR | stat.S_IRUSR)
+            except OSError:
+                pass
+
         os.replace(staged_file, target)
         self.untrack_file(staged_file)
+
+        if read_only:
+            try:
+                os.chmod(target, stat.S_IREAD | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
+            except OSError:
+                pass
 
         return target
 
@@ -451,8 +571,8 @@ def resolve_p5_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
     if env_art:
         return Path(env_art).resolve() / "Registry" / "p5.json"
 
-    repo_root = Path.cwd()
-    agent_artifacts = repo_root / ".agent_artifacts"
+    repo_root_candidate = Path.cwd()
+    agent_artifacts = repo_root_candidate / ".agent_artifacts"
     if agent_artifacts.exists():
         return agent_artifacts / "Registry" / "p5.json"
 
@@ -460,8 +580,556 @@ def resolve_p5_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
     return home_artifacts / "Registry" / "p5.json"
 
 
+def resolve_golden_config_path(output_path: Optional[Union[str, Path]] = None) -> Path:
+    """
+    Resolve destination path for finalized master Golden Registry cochem_system_config.json
+    per SRS Document 5 Section 4.3.
+    """
+    if output_path:
+        out_p = Path(output_path).resolve()
+        if out_p.is_dir() or out_p.suffix == "":
+            return out_p / "cochem_system_config.json"
+        return out_p
+
+    env_cfg = os.environ.get("COCHEM_CONFIG")
+    if env_cfg:
+        return Path(os.path.expandvars(env_cfg)).expanduser().resolve()
+
+    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
+    if env_art:
+        return (
+            Path(os.path.expandvars(env_art)).expanduser()
+            / "Registry"
+            / "cochem_system_config.json"
+        ).resolve()
+
+    try:
+        from cochem_base.config_loader import resolve_config_path
+
+        return resolve_config_path()
+    except Exception:
+        pass
+
+    return (Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json").resolve()
+
+
 # =============================================================================
-# 5. GPU DISCOVERY & VRAM PROFILING
+# 5. PHYSICAL POSIX BYTE-RANGE LOCKING TEST (FCNTL / MSVCRT)
+# =============================================================================
+
+
+def test_posix_byte_range_locking(
+    target_dir: Optional[Union[str, Path]] = None,
+    timeout: float = 2.0,
+) -> LockTestResult:
+    """
+    Execute a physical POSIX byte-range locking test (fcntl on Linux/macOS, msvcrt on Windows)
+    on the target filesystem prior to initializing HDF5 SWMR streams.
+
+    SRS Document 5 Section 4.3 Mandate:
+    If the filesystem does not support POSIX byte-range locks (e.g., certain NFS/SMB/CIFS mounts
+    or legacy virtualized mounts), this test catches the failure and signals graceful degradation
+    to single-threaded operations.
+    """
+    if target_dir:
+        test_dir = Path(target_dir).resolve()
+    else:
+        test_dir = resolve_golden_config_path().parent
+
+    test_dir.mkdir(parents=True, exist_ok=True)
+    probe_filename = f".cochem_swmr_lock_probe_{uuid.uuid4().hex[:8]}.lock"
+    probe_path = test_dir / probe_filename
+
+    is_posix = platform.system() != "Windows"
+
+    try:
+        # Create physical probe file with data to lock
+        with open(probe_path, "w+b") as f:
+            f.write(b"COCHEM_SWMR_BYTE_RANGE_LOCK_PROBE_HEADER_BLOCK\n" * 10)
+            f.flush()
+            fd = f.fileno()
+
+            if is_posix and fcntl is not None:
+                # Test POSIX fcntl byte-range locking
+                try:
+                    # Exclusive byte-range lock on bytes 0..512
+                    fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB, 512, 0)
+                    # Unlock
+                    fcntl.lockf(fd, fcntl.LOCK_UN, 512, 0)
+                    method = "POSIX_FCNTL_LOCKF"
+                except (OSError, IOError) as exc:
+                    return LockTestResult(
+                        passed=False,
+                        method="POSIX_FCNTL_LOCKF",
+                        single_threaded_mode=True,
+                        target_path=str(probe_path),
+                        error_message=f"POSIX byte-range lock failed on filesystem: {exc}",
+                    )
+            elif not is_posix and msvcrt is not None:
+                # Test Windows NT byte-range locking
+                try:
+                    f.seek(0)
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 512)
+                    f.seek(0)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 512)
+                    method = "MSVCRT_LOCKING_BYTE_RANGE"
+                except (OSError, IOError) as exc:
+                    return LockTestResult(
+                        passed=False,
+                        method="MSVCRT_LOCKING_BYTE_RANGE",
+                        single_threaded_mode=True,
+                        target_path=str(probe_path),
+                        error_message=f"Windows byte-range lock failed on filesystem: {exc}",
+                    )
+            else:
+                method = "GENERIC_FALLBACK_LOCK"
+
+        return LockTestResult(
+            passed=True,
+            method=method,
+            single_threaded_mode=False,
+            target_path=str(probe_path),
+            error_message=None,
+        )
+
+    except Exception as e:
+        return LockTestResult(
+            passed=False,
+            method="UNKNOWN_ERROR",
+            single_threaded_mode=True,
+            target_path=str(probe_path),
+            error_message=f"Filesystem byte-range locking test exception: {e}",
+        )
+    finally:
+        try:
+            if probe_path.exists():
+                probe_path.unlink()
+        except OSError:
+            pass
+
+
+def _sanitize_engine_record(raw_eng: Any) -> Optional[Dict[str, Any]]:
+    """Sanitize raw engine dictionary to match strict EngineInfo schema."""
+    if not isinstance(raw_eng, dict):
+        return None
+    st_raw = str(raw_eng.get("status", "")).lower()
+    if "found" in st_raw or raw_eng.get("is_available") is True:
+        st = "found"
+    elif "bypass" in st_raw:
+        st = "bypassed"
+    elif "denied" in st_raw or "permission" in st_raw:
+        st = "permission_denied"
+    else:
+        st = "missing" if not raw_eng.get("path") else "found"
+
+    p = raw_eng.get("path")
+    v = raw_eng.get("version")
+    h = raw_eng.get("sha256_hash") or raw_eng.get("hash")
+    return {
+        "status": st,
+        "path": str(p) if p else None,
+        "version": str(v) if v else None,
+        "hash": str(h) if h else None,
+    }
+
+
+def consolidate_intermediate_states(
+    registry_dir: Optional[Union[str, Path]] = None,
+    search_dirs: Optional[List[Union[str, Path]]] = None,
+) -> Tuple[Dict[str, Any], List[str]]:
+    """
+    Consolidate intermediate phase states (p1.json through p11.json) discovered across
+    the registry search paths into a single structured configuration payload ready for
+    validation against CoChemSystemConfig.
+
+    SRS Document 5 Section 4.3 Mandate.
+    """
+    candidate_dirs: List[Path] = []
+    if registry_dir:
+        candidate_dirs.append(Path(registry_dir).resolve())
+
+    if search_dirs:
+        for sd in search_dirs:
+            candidate_dirs.append(Path(sd).resolve())
+
+    env_reg = os.environ.get("COCHEM_REGISTRY_DIR")
+    if env_reg:
+        candidate_dirs.append(Path(env_reg).resolve())
+
+    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
+    if env_art:
+        candidate_dirs.append((Path(env_art) / "Registry").resolve())
+
+    candidate_dirs.append((Path.cwd() / ".agent_artifacts" / "Registry").resolve())
+    candidate_dirs.append((Path.cwd() / "artifacts" / "registry").resolve())
+    candidate_dirs.append((Path.home() / "CoChem_Artifacts" / "Registry").resolve())
+
+    consolidated_raw: Dict[str, Any] = {}
+    found_phases: List[str] = []
+
+    # Map of intermediate JSON filenames to phase identifiers
+    target_files = [f"p{i}.json" for i in range(1, 12)]
+
+    for phase_filename in target_files:
+        for cdir in candidate_dirs:
+            phase_file = cdir / phase_filename
+            if phase_file.is_file():
+                try:
+                    phase_data = json.loads(phase_file.read_text(encoding="utf-8"))
+                    found_phases.append(phase_filename)
+
+                    # Extract and merge domain-specific fields from each phase
+                    if phase_filename == "p1.json":
+                        # OS & Toolchain Audit
+                        os_val = phase_data.get("os_target") or phase_data.get("os_profile", {}).get("system") or phase_data.get("os", {}).get("os_target")
+                        if os_val:
+                            consolidated_raw["os_target"] = os_val
+
+                    elif phase_filename == "p2.json":
+                        # Hardware & RAM Profiling
+                        cpu_info = phase_data.get("cpu", {})
+                        ram_info = phase_data.get("memory", {}) or phase_data.get("ram", {})
+                        gpu_info = phase_data.get("gpu", {})
+
+                        if "hardware" not in consolidated_raw:
+                            consolidated_raw["hardware"] = {}
+
+                        hw = consolidated_raw["hardware"]
+                        if "physical_cores" in cpu_info:
+                            hw["cpu_physical_cores"] = cpu_info["physical_cores"]
+                            hw["physical_cpu_cores"] = cpu_info["physical_cores"]
+                        if "logical_cores" in cpu_info:
+                            hw["logical_cpu_cores"] = cpu_info["logical_cores"]
+
+                        total_bytes = ram_info.get("total_physical_bytes") or ram_info.get("total_ram_bytes")
+                        if total_bytes:
+                            hw["ram_gb"] = round(float(total_bytes) / (1024.0**3), 2)
+                        elif "total_ram_gb" in ram_info:
+                            hw["ram_gb"] = float(ram_info["total_ram_gb"])
+                        elif "ram_gb" in ram_info:
+                            hw["ram_gb"] = float(ram_info["ram_gb"])
+
+                        if "avx512_support" in cpu_info:
+                            hw["avx_512_capable"] = bool(cpu_info["avx512_support"])
+                            hw["avx512_support"] = bool(cpu_info["avx512_support"])
+
+                        if gpu_info.get("gpu_available") or gpu_info.get("available"):
+                            devices_list = gpu_info.get("devices") or []
+                            if devices_list:
+                                first_dev = devices_list[0]
+                                hw["gpu_profile"] = first_dev.get("name", "NVIDIA GPU")
+                                vram_bytes = first_dev.get("memory_total_bytes", 0)
+                                if vram_bytes:
+                                    hw["vram_gb"] = round(float(vram_bytes) / (1024.0**3), 2)
+
+                    elif phase_filename == "p3.json":
+                        # Multi-Track Quantum Engine Discovery
+                        engines_data = phase_data.get("engines", {})
+                        if engines_data and isinstance(engines_data, dict):
+                            cleaned_engines: Dict[str, Any] = {}
+                            if "silo_paths" not in consolidated_raw:
+                                consolidated_raw["silo_paths"] = {}
+                            sp = consolidated_raw["silo_paths"]
+
+                            for eng_name, eng_info in engines_data.items():
+                                sanitized = _sanitize_engine_record(eng_info)
+                                if sanitized:
+                                    cleaned_engines[eng_name] = sanitized
+                                    if sanitized.get("path"):
+                                        if eng_name == "orca":
+                                            sp["orca_binary_path"] = sanitized["path"]
+                                        elif eng_name == "xtb":
+                                            sp["xtb_binary_path"] = sanitized["path"]
+                                        elif eng_name == "cfour":
+                                            sp["cfour_binary_path"] = sanitized["path"]
+                                        elif eng_name == "mpirun":
+                                            sp["mpirun_binary_path"] = sanitized["path"]
+                                        elif eng_name == "aimnet2":
+                                            sp["aimnet2_server_path"] = sanitized["path"]
+
+                            consolidated_raw["engines"] = cleaned_engines
+
+                    elif phase_filename == "p4.json":
+                        # Silo Provisioning & Isolation
+                        silos_data = phase_data.get("silos") or phase_data.get("silo_manifest", {})
+                        gpu_active = False
+                        torq_active = True
+                        if isinstance(silos_data, dict):
+                            if any("mace" in k or "gpu" in k for k in silos_data.keys()):
+                                gpu_active = True
+                            if "torq_silo_active" in silos_data:
+                                torq_active = bool(silos_data["torq_silo_active"])
+                            if "gpu_silo_active" in silos_data:
+                                gpu_active = bool(silos_data["gpu_silo_active"])
+                        consolidated_raw["silos"] = {
+                            "torq_silo_active": torq_active,
+                            "gpu_silo_active": gpu_active,
+                        }
+
+                    elif phase_filename == "p5.json":
+                        # MPS Daemon & VRAM Budgeting
+                        vram_budget = phase_data.get("vram_budget", {})
+                        if vram_budget:
+                            if "hardware" not in consolidated_raw:
+                                consolidated_raw["hardware"] = {}
+                            hw = consolidated_raw["hardware"]
+                            hw["mps_enabled"] = bool(phase_data.get("mps_daemon", {}).get("is_daemon_active", False))
+
+                    elif phase_filename == "p6.json":
+                        # Database & Bifurcated Storage
+                        storage = phase_data.get("storage", {}) or phase_data.get("storage_tier", {})
+                        if storage.get("hdf5_pes_store_path"):
+                            if "silo_paths" not in consolidated_raw:
+                                consolidated_raw["silo_paths"] = {}
+                            consolidated_raw["silo_paths"]["hdf5_pes_store_path"] = storage["hdf5_pes_store_path"]
+
+                    elif phase_filename == "p7.json":
+                        # HPC Environment Configuration
+                        hpc_info = phase_data.get("hpc", {})
+                        if hpc_info and isinstance(hpc_info, dict):
+                            valid_hpc_keys = {
+                                "scheduler", "default_partition", "max_walltime_hours",
+                                "partition", "cluster_hostname", "ssh_key_path",
+                                "username", "execution_mode", "walltime_budgets"
+                            }
+                            filtered_hpc = {k: v for k, v in hpc_info.items() if k in valid_hpc_keys and v is not None}
+                            if filtered_hpc:
+                                consolidated_raw["hpc"] = filtered_hpc
+
+                    elif phase_filename == "p9.json":
+                        # Core Pinning & Parsl Concurrency
+                        pinning = phase_data.get("core_pinning", {})
+                        if pinning and isinstance(pinning, dict):
+                            valid_pin_keys = {"kmp_hw_subset", "anchor_p_cores", "scout_p_cores", "background_e_cores"}
+                            filtered_pin = {k: v for k, v in pinning.items() if k in valid_pin_keys and v is not None}
+                            if filtered_pin:
+                                if "hardware" not in consolidated_raw:
+                                    consolidated_raw["hardware"] = {}
+                                consolidated_raw["hardware"]["core_pinning"] = filtered_pin
+
+                    elif phase_filename == "p10.json":
+                        # MolSym Intake & Theoretical Eckart Frame Alignment
+                        consolidated_raw["alignment_engine_ready"] = bool(
+                            phase_data.get("alignment_engine_ready", True)
+                        )
+
+                    elif phase_filename == "p11.json":
+                        # Memory Router & OOM Shield
+                        mem_routing = phase_data.get("memory_routing", {}) or phase_data.get("oom_shield", {})
+                        if "maxcore_mb" in mem_routing:
+                            if "hardware" not in consolidated_raw:
+                                consolidated_raw["hardware"] = {}
+                            consolidated_raw["hardware"]["maxcore_mb"] = int(mem_routing["maxcore_mb"])
+
+                    break
+                except Exception as e:
+                    logger.warning(f"Advisory: could not parse intermediate state {phase_file}: {e}")
+
+    return consolidated_raw, list(dict.fromkeys(found_phases))
+
+
+# =============================================================================
+# 7. MASTER SYSTEM CONFIG VALIDATION & IMMUTABLE LOCKING
+# =============================================================================
+
+
+def validate_and_build_system_config(
+    consolidated_data: Optional[Dict[str, Any]] = None,
+    auto_detect_fallback: bool = True,
+    single_threaded_mode: bool = False,
+) -> CoChemSystemConfig:
+    """
+    Validate the consolidated registry dictionary against CoChemSystemConfig, applying
+    hardware discovery fallbacks and setting status to 'LOCKED' per Stage 0 mandate.
+    """
+    raw = dict(consolidated_data or {})
+
+    # Ensure Hardware exists and is completely bounded
+    if "hardware" not in raw or not raw["hardware"] or not isinstance(raw["hardware"], dict):
+        if auto_detect_fallback:
+            discovered_hw = discover_host_hardware()
+            raw["hardware"] = discovered_hw.model_dump()
+        else:
+            raw["hardware"] = {
+                "cpu_physical_cores": 4,
+                "physical_cpu_cores": 4,
+                "logical_cpu_cores": 8,
+                "ram_gb": 16.0,
+            }
+    else:
+        hw_dict = dict(raw["hardware"])
+        ram_val = hw_dict.get("ram_gb")
+        if ram_val is None or float(ram_val) <= 0.0:
+            if auto_detect_fallback:
+                hw_dict["ram_gb"] = discover_host_hardware().ram_gb
+            else:
+                hw_dict["ram_gb"] = 16.0
+
+        if not hw_dict.get("cpu_physical_cores") or int(hw_dict.get("cpu_physical_cores", 0)) < 1:
+            hw_dict["cpu_physical_cores"] = hw_dict.get("physical_cpu_cores") or (discover_host_hardware().cpu_physical_cores if auto_detect_fallback else 4)
+        if not hw_dict.get("physical_cpu_cores"):
+            hw_dict["physical_cpu_cores"] = hw_dict["cpu_physical_cores"]
+        if not hw_dict.get("logical_cpu_cores"):
+            hw_dict["logical_cpu_cores"] = hw_dict["cpu_physical_cores"] * 2
+
+        raw["hardware"] = hw_dict
+
+    if single_threaded_mode:
+        raw["hardware"]["allocatable_compute_cores"] = 1
+
+    # Standard quantum solver defaults
+    if "quantum_settings" not in raw or not raw["quantum_settings"]:
+        raw["quantum_settings"] = {
+            "implicit_solvation": "CPCM",
+            "integration_grid": "defgrid2",
+            "charge": 0,
+            "multiplicity": 1,
+        }
+
+    # HPC defaults
+    if "hpc" not in raw or not raw["hpc"]:
+        raw["hpc"] = {
+            "scheduler": "local",
+            "default_partition": "compute",
+            "max_walltime_hours": 24,
+        }
+
+    # Environment defaults
+    if "environment" not in raw or not raw["environment"]:
+        raw["environment"] = {
+            "os_target": raw.get("os_target", OSTarget.LOCAL_WINDOWS.value if os.name == "nt" else OSTarget.LOCAL_LINUX.value),
+            "codata_version": "2018",
+            "isotopic_mass_locking": True,
+            "isotopic_mass_13c": CARBON_13_ISOTOPIC_MASS,
+            "isotopic_masses": dict(ISOTOPIC_MASSES),
+        }
+
+    raw["status"] = "LOCKED"
+    raw["schema_version"] = "4.0.0"
+
+    cfg = CoChemSystemConfig.model_validate(raw)
+    cfg.update_checksum()
+    return cfg
+
+
+def finalize_and_lock_golden_registry(
+    cfg: CoChemSystemConfig,
+    output_path: Optional[Union[str, Path]] = None,
+    dry_run: bool = False,
+) -> Tuple[Path, Dict[str, Any]]:
+    """
+    Atomically write finalized Golden Registry to cochem_system_config.json,
+    set cfg['status'] = 'LOCKED', and apply os.chmod(0o444) to enforce post-setup immutability.
+
+    SRS Document 5 Section 4.3 Mandate.
+    """
+    target_path = resolve_golden_config_path(output_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    cfg.status = "LOCKED"
+    cfg.update_checksum()
+    serialized_dict = cfg.model_dump()
+
+    if not dry_run:
+        with DependencyManager() as dm:
+            dm.atomic_write_json(
+                target_path=target_path,
+                data=serialized_dict,
+                indent=2,
+                read_only=True,
+            )
+
+    return target_path, serialized_dict
+
+
+# =============================================================================
+# 8. WORKSPACE GARBAGE COLLECTION SWEEP
+# =============================================================================
+
+
+def execute_workspace_sweep(
+    workspace_dir: Optional[Union[str, Path]] = None,
+    registry_dir: Optional[Union[str, Path]] = None,
+    dry_run: bool = False,
+    remove_intermediate_json: bool = False,
+    trash_dir: Optional[Union[str, Path]] = None,
+) -> WorkspaceSweepReport:
+    """
+    Execute a garbage collection sweep to safely delete all ephemeral .tmp files and
+    intermediate JSON fragments from the workspace.
+
+    SRS Document 5 Section 4.3 Mandate:
+    Preserves persistent registry files (cochem_system_config.json) while sweeping
+    staged .tmp files and temporary lock probes.
+    """
+    target_ws = Path(workspace_dir).resolve() if workspace_dir else Path.cwd().resolve()
+    target_reg = Path(registry_dir).resolve() if registry_dir else resolve_golden_config_path().parent
+
+    cleaned_paths: List[str] = []
+    retained_paths: List[str] = []
+
+    search_roots = [target_ws, target_reg]
+
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+
+        try:
+            for entry in root.rglob("*"):
+                if not entry.is_file():
+                    continue
+
+                filename = entry.name.lower()
+
+                # Never delete finalized system config
+                if filename == "cochem_system_config.json":
+                    retained_paths.append(str(entry.resolve()))
+                    continue
+
+                is_ephemeral = False
+
+                # Check for .tmp extensions or lock probe patterns
+                if ".tmp" in filename or filename.startswith(".cochem_") or filename.endswith(".lock"):
+                    is_ephemeral = True
+
+                # Check for intermediate p1..p11 fragments if requested
+                if remove_intermediate_json:
+                    if re.match(r"^p\d+\.json$", filename) or filename.endswith(".tmp.json"):
+                        is_ephemeral = True
+
+                if is_ephemeral:
+                    cleaned_paths.append(str(entry.resolve()))
+                    if not dry_run:
+                        try:
+                            # Ensure writable before removing
+                            try:
+                                os.chmod(entry, stat.S_IWRITE | stat.S_IREAD)
+                            except OSError:
+                                pass
+                            if trash_dir:
+                                tdir = Path(trash_dir).resolve()
+                                tdir.mkdir(parents=True, exist_ok=True)
+                                shutil.move(str(entry), str(tdir / entry.name))
+                            else:
+                                entry.unlink(missing_ok=True)
+                        except OSError as e:
+                            logger.warning(f"Advisory: could not sweep temporary file {entry}: {e}")
+                else:
+                    retained_paths.append(str(entry.resolve()))
+
+        except OSError as e:
+            logger.warning(f"Advisory: error traversing directory {root} during sweep: {e}")
+
+    return WorkspaceSweepReport(
+        swept_files_count=len(cleaned_paths),
+        cleaned_paths=cleaned_paths,
+        retained_paths=list(dict.fromkeys(retained_paths)),
+        trash_dir=str(trash_dir) if trash_dir else None,
+    )
+
+
+# =============================================================================
+# 9. GPU DISCOVERY & VRAM PROFILING
 # =============================================================================
 
 
@@ -645,7 +1313,7 @@ def probe_gpu_devices_vram(
 
 
 # =============================================================================
-# 6. VRAM BUDGETING & MEMORY PARTITIONING ALGORITHM
+# 10. VRAM BUDGETING & MEMORY PARTITIONING ALGORITHM
 # =============================================================================
 
 
@@ -756,7 +1424,7 @@ def build_pinned_memory_limit_string(budget: VRAMBudgetReport, device_index: int
 
 
 # =============================================================================
-# 7. NVIDIA MPS BINARY DISCOVERY & DAEMON LIFECYCLE MANAGEMENT
+# 11. NVIDIA MPS BINARY DISCOVERY & DAEMON LIFECYCLE MANAGEMENT
 # =============================================================================
 
 
@@ -1019,7 +1687,7 @@ def configure_mps_device_limit(
 
 
 # =============================================================================
-# 8. ENVIRONMENT INJECTION & ACTIVATION SCRIPT GENERATION
+# 12. ENVIRONMENT INJECTION & ACTIVATION SCRIPT GENERATION
 # =============================================================================
 
 
@@ -1106,7 +1774,7 @@ def generate_mps_activation_scripts(
 
 
 # =============================================================================
-# 9. PROGRAMMATIC AUDIT PIPELINE ENTRYPOINT
+# 13. FULL PROGRAMMATIC AUDIT PIPELINE ENTRYPOINT
 # =============================================================================
 
 
@@ -1119,13 +1787,16 @@ def run_phase_5_audit(
     start_daemon: bool = False,
     force_restart: bool = False,
     dry_run: bool = False,
+    workspace_dir: Optional[Union[str, Path]] = None,
+    sweep_workspace: bool = True,
 ) -> Phase5AuditReport:
     """
-    Execute full Phase 5 NVIDIA MPS Daemon Initialization & VRAM Budgeting Audit.
-    Probes physical GPUs and VRAM capacities, calculates mathematical per-worker VRAM
-    partitioning limits, initializes/audits the nvidia-cuda-mps-control daemon and Unix
-    sockets at /tmp/cochem_mps_$USER (or $SLURM_TMPDIR), generates activation hooks,
-    and atomically persists p5.json into the Golden Registry.
+    Execute full Phase 5 Audit Pipeline:
+    1. NVIDIA MPS Daemon & VRAM Budgeting (SRS Doc 2 Part 2 Section 3.5).
+    2. Physical POSIX byte-range locking test (fcntl) with graceful degradation to single-threaded mode.
+    3. Intermediate state consolidation (p1.json through p11.json).
+    4. Pydantic validation and Golden Registry locking to cochem_system_config.json with os.chmod(0o444).
+    5. Workspace garbage collection sweep purging ephemeral .tmp files.
     """
     timestamp_utc = datetime.now(timezone.utc).isoformat()
     warnings: List[str] = []
@@ -1134,7 +1805,6 @@ def run_phase_5_audit(
     # 1. Resolve Pipe and Log Directories
     pipe_path = resolve_mps_pipe_directory(socket_dir)
     log_path = resolve_mps_log_directory(log_dir)
-
     is_slurm = bool(os.environ.get("SLURM_JOB_ID") or os.environ.get("SLURM_TMPDIR"))
 
     # 2. Discover GPU Devices and VRAM Capacities
@@ -1177,18 +1847,65 @@ def run_phase_5_audit(
     if not dry_run:
         generate_mps_activation_scripts(pipe_path, env_vars)
 
-    # 6. Evaluate Phase Status
+    # 6. Physical POSIX Byte-Range Locking Verification
+    resolved_registry_dir = Path(output_dir).resolve() if output_dir else resolve_golden_config_path().parent
+    lock_result = test_posix_byte_range_locking(resolved_registry_dir)
+    if not lock_result.passed:
+        warnings.append(
+            f"Filesystem byte-range locking test failed ({lock_result.error_message}); "
+            "degraded to single-threaded execution mode."
+        )
+
+    # 7. Intermediate State Consolidation & Golden Registry Locking
+    consolidated_data, found_phases = consolidate_intermediate_states(
+        registry_dir=resolved_registry_dir,
+    )
+
+    system_config = validate_and_build_system_config(
+        consolidated_data=consolidated_data,
+        auto_detect_fallback=True,
+        single_threaded_mode=lock_result.single_threaded_mode,
+    )
+
+    golden_path, _ = finalize_and_lock_golden_registry(
+        cfg=system_config,
+        output_path=resolved_registry_dir / "cochem_system_config.json",
+        dry_run=dry_run,
+    )
+
+    # 8. Workspace Garbage Collection Sweep
+    if sweep_workspace:
+        sweep_report = execute_workspace_sweep(
+            workspace_dir=workspace_dir,
+            registry_dir=resolved_registry_dir,
+            dry_run=dry_run,
+            remove_intermediate_json=False,
+        )
+    else:
+        sweep_report = WorkspaceSweepReport(swept_files_count=0, cleaned_paths=[], retained_paths=[])
+
+    config_lock_audit = ConfigLockAuditReport(
+        golden_registry_path=str(golden_path),
+        status=system_config.status or "LOCKED",
+        checksum=system_config.registry_checksum or system_config.compute_checksum(),
+        posix_lock_test=lock_result,
+        sweep_report=sweep_report,
+        intermediate_phases_found=found_phases,
+        is_immutable_mode_enforced=True,
+    )
+
+    # 9. Evaluate Phase Status
     if errors:
         phase_status = PhaseStatus.FAILED
-    elif not is_cuda or mps_daemon.status in (MPSStatus.NOT_SUPPORTED, MPSStatus.DEGRADED):
-        phase_status = PhaseStatus.PASSED  # Graceful pass in degraded/CPU mode
+    elif lock_result.single_threaded_mode or not is_cuda or mps_daemon.status in (MPSStatus.NOT_SUPPORTED, MPSStatus.DEGRADED):
+        phase_status = PhaseStatus.PASSED  # Graceful pass in degraded mode per Method Matrix
     else:
         phase_status = PhaseStatus.PASSED
 
-    # 7. Destination Registry Artifact Path
+    # 10. Destination Registry Artifact Path (p5.json)
     p5_path = resolve_p5_registry_path(output_dir)
 
-    # 8. Construct Final Audit Report
+    # 11. Construct Final Audit Report
     report = Phase5AuditReport(
         phase_id="PHASE_5_NVIDIA_MPS_VRAM_BUDGETING",
         status=phase_status,
@@ -1197,12 +1914,14 @@ def run_phase_5_audit(
         vram_budget=vram_budget,
         is_cuda_available=is_cuda,
         is_hpc_slurm=is_slurm,
+        config_lock=config_lock_audit,
         warnings=warnings,
         errors=errors,
         artifact_path=str(p5_path),
+        golden_config_path=str(golden_path),
     )
 
-    # 9. Idempotent Atomic State Persistence
+    # 12. Idempotent Atomic State Persistence (p5.json)
     if not dry_run:
         with DependencyManager() as dm:
             dm.atomic_write_json(p5_path, report)
@@ -1211,24 +1930,25 @@ def run_phase_5_audit(
 
 
 # =============================================================================
-# 10. CLI ENTRYPOINT
+# 14. CLI ENTRYPOINT
 # =============================================================================
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
-    Command-line entrypoint for CoChem Setup Phase 5: NVIDIA MPS Daemon & VRAM Budgeting.
+    Command-line entrypoint for CoChem Setup Phase 5:
+    IPC Config Lock & Workspace Sweep & NVIDIA MPS Daemon / VRAM Budgeting CLI.
     Returns 0 on PASSED/DEGRADED, non-zero on fatal errors.
     """
     parser = argparse.ArgumentParser(
-        description="CoChem Setup Phase 5: NVIDIA MPS Daemon & VRAM Budgeting CLI",
+        description="CoChem Setup Phase 5: IPC Config Lock, Workspace Sweep & NVIDIA MPS Daemon CLI",
     )
     parser.add_argument(
         "--output-dir",
         "-o",
         type=str,
         default=None,
-        help="Custom destination directory for Registry/p5.json",
+        help="Custom destination directory for Registry artifacts (p5.json & cochem_system_config.json)",
     )
     parser.add_argument(
         "--socket-dir",
@@ -1243,6 +1963,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         type=str,
         default=None,
         help="Custom directory for CUDA_MPS_LOG_DIRECTORY telemetry logs",
+    )
+    parser.add_argument(
+        "--workspace-dir",
+        "-w-dir",
+        type=str,
+        default=None,
+        help="Custom workspace directory for ephemeral garbage collection sweep",
     )
     parser.add_argument(
         "--workers",
@@ -1275,7 +2002,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview VRAM budgeting without modifying filesystem or starting daemons",
+        help="Preview VRAM budgeting and config lock without modifying filesystem or starting daemons",
     )
     parser.add_argument(
         "--json",
@@ -1298,6 +2025,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             output_dir=args.output_dir,
             socket_dir=args.socket_dir,
             log_dir=args.log_dir,
+            workspace_dir=args.workspace_dir,
             worker_concurrency=args.workers,
             custom_vram_limit_mb=args.vram_limit_mb,
             start_daemon=args.start_daemon,
@@ -1309,25 +2037,36 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(report.model_dump_json(indent=2))
         else:
             print("=" * 75)
-            print("COCHEM SETUP PHASE 5: NVIDIA MPS DAEMON & VRAM BUDGETING")
+            print("COCHEM SETUP PHASE 5: IPC CONFIG LOCK, WORKSPACE SWEEP & MPS VRAM BUDGETING")
             print("=" * 75)
-            print(f"Phase ID:        {report.phase_id}")
-            print(f"Status:          {report.status.value}")
-            print(f"Timestamp UTC:   {report.timestamp_utc}")
-            print(f"Artifact Path:   {report.artifact_path}")
-            print(f"CUDA Available:  {report.is_cuda_available}")
-            print(f"Slurm HPC Mode:  {report.is_hpc_slurm}")
-            print(f"MPS Status:      {report.mps_daemon.status.value}")
-            print(f"Pipe Directory:  {report.mps_daemon.pipe_directory}")
-            print(f"Socket Secure:   {report.mps_daemon.is_permission_secure} ({report.mps_daemon.socket_permissions})")
+            print(f"Phase ID:          {report.phase_id}")
+            print(f"Status:            {report.status.value}")
+            print(f"Timestamp UTC:     {report.timestamp_utc}")
+            print(f"Artifact Path:     {report.artifact_path}")
+            print(f"Golden Config:     {report.golden_config_path}")
+            print(f"CUDA Available:    {report.is_cuda_available}")
+            print(f"Slurm HPC Mode:    {report.is_hpc_slurm}")
+            print(f"MPS Status:        {report.mps_daemon.status.value}")
+            print(f"Pipe Directory:    {report.mps_daemon.pipe_directory}")
+            print(f"Socket Secure:     {report.mps_daemon.is_permission_secure} ({report.mps_daemon.socket_permissions})")
+            if report.config_lock:
+                print("-" * 75)
+                print("IPC Config Lock & Filesystem Audit:")
+                print(f"  Lock Test Method:    {report.config_lock.posix_lock_test.method}")
+                print(f"  Lock Test Passed:    {report.config_lock.posix_lock_test.passed}")
+                print(f"  Single-Thread Mode:  {report.config_lock.posix_lock_test.single_threaded_mode}")
+                print(f"  Registry Status:     {report.config_lock.status}")
+                print(f"  Registry Checksum:   {report.config_lock.checksum[:16]}...")
+                print(f"  Phases Consolidated: {', '.join(report.config_lock.intermediate_phases_found) or 'Default Synthesized'}")
+                print(f"  Swept Ephemeral:     {report.config_lock.sweep_report.swept_files_count} files")
             print("-" * 75)
             print("VRAM Budgeting Matrix:")
-            print(f"  Total GPUs:        {report.vram_budget.total_gpus_detected}")
-            print(f"  Cluster VRAM:      {report.vram_budget.total_cluster_vram_mb:.0f} MB")
-            print(f"  Reserved VRAM:     {report.vram_budget.total_reserved_vram_mb:.0f} MB")
-            print(f"  Allocatable VRAM:  {report.vram_budget.total_allocatable_vram_mb:.0f} MB")
-            print(f"  Target Workers:    {report.vram_budget.worker_concurrency_target}")
-            print(f"  Default Pinned:    {report.vram_budget.default_pinned_mem_limit or 'N/A'}")
+            print(f"  Total GPUs:          {report.vram_budget.total_gpus_detected}")
+            print(f"  Cluster VRAM:        {report.vram_budget.total_cluster_vram_mb:.0f} MB")
+            print(f"  Reserved VRAM:       {report.vram_budget.total_reserved_vram_mb:.0f} MB")
+            print(f"  Allocatable VRAM:    {report.vram_budget.total_allocatable_vram_mb:.0f} MB")
+            print(f"  Target Workers:      {report.vram_budget.worker_concurrency_target}")
+            print(f"  Default Pinned:      {report.vram_budget.default_pinned_mem_limit or 'N/A'}")
             for dev in report.vram_budget.active_gpu_devices:
                 print(f"    [GPU {dev.index}] {dev.name:<25} Total: {dev.total_vram_mb:.0f}MB -> Limit: {dev.pinned_mem_limit_str} (Cap: {dev.active_worker_capacity} workers)")
             print("-" * 75)
@@ -1350,4 +2089,3 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

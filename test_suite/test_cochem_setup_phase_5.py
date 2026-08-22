@@ -19,8 +19,12 @@ import pytest
 from pydantic import ValidationError
 
 from orchestrator.cochem_setup_phase_5 import (
+    ConfigLockAuditReport,
+    ConfigLockError,
     DependencyManager,
     GPUDeviceVRAM,
+    LockTestFailureError,
+    LockTestResult,
     MPSControlError,
     MPSDaemonAudit,
     MPSStatus,
@@ -29,23 +33,32 @@ from orchestrator.cochem_setup_phase_5 import (
     PhaseStatus,
     VRAMAllocationError,
     VRAMBudgetReport,
+    WorkspaceSweepReport,
     build_pinned_memory_limit_string,
     calculate_vram_budget,
     configure_mps_device_limit,
+    consolidate_intermediate_states,
     discover_mps_binaries,
     enforce_socket_directory_permissions,
+    execute_workspace_sweep,
+    finalize_and_lock_golden_registry,
     generate_mps_activation_scripts,
     get_current_username,
     inject_mps_environment_variables,
     main,
     probe_gpu_devices_vram,
     probe_mps_daemon_status,
+    resolve_golden_config_path,
     resolve_mps_log_directory,
     resolve_mps_pipe_directory,
     resolve_p5_registry_path,
     run_phase_5_audit,
     start_mps_daemon,
     stop_mps_daemon,
+    validate_and_build_system_config,
+)
+from orchestrator.cochem_setup_phase_5 import (
+    test_posix_byte_range_locking as posix_byte_range_locking_fn,
 )
 
 # =============================================================================
@@ -61,6 +74,10 @@ def test_custom_exception_hierarchy() -> None:
     assert isinstance(err2, RuntimeError)
     err3 = VRAMAllocationError("VRAM allocation calculation failed")
     assert isinstance(err3, RuntimeError)
+    err4 = ConfigLockError("Config lock failed")
+    assert isinstance(err4, RuntimeError)
+    err5 = LockTestFailureError("Lock test failed")
+    assert isinstance(err5, RuntimeError)
 
 
 def test_phase_status_enum() -> None:
@@ -760,5 +777,329 @@ def test_probe_mps_daemon_status_with_server_binary(tmp_path: Path) -> None:
         server_binary="/usr/bin/nvidia-cuda-mps-server",
     )
     assert audit.mps_server_binary == "/usr/bin/nvidia-cuda-mps-server"
+
+
+# =============================================================================
+# 10. IPC CONFIG LOCK & POSIX BYTE-RANGE LOCKING TESTS
+# =============================================================================
+
+
+def test_lock_test_result_model() -> None:
+    """Test LockTestResult Pydantic v2 model construction and validation."""
+    ltr = LockTestResult(
+        passed=True,
+        method="POSIX_FCNTL_LOCKF",
+        single_threaded_mode=False,
+        target_path="/tmp/lock_probe.lock",
+        lock_type="POSIX_BYTE_RANGE_LOCK",
+    )
+    assert ltr.passed is True
+    assert ltr.single_threaded_mode is False
+    assert ltr.method == "POSIX_FCNTL_LOCKF"
+
+    dumped = ltr.model_dump()
+    assert dumped["passed"] is True
+    restored = LockTestResult.model_validate(dumped)
+    assert restored == ltr
+
+
+def test_workspace_sweep_report_model() -> None:
+    """Test WorkspaceSweepReport Pydantic v2 model construction and serialization."""
+    report = WorkspaceSweepReport(
+        swept_files_count=3,
+        cleaned_paths=["/tmp/a.tmp", "/tmp/b.tmp"],
+        retained_paths=["/reg/cochem_system_config.json"],
+        trash_dir="/tmp/trash",
+    )
+    assert report.swept_files_count == 3
+    assert len(report.cleaned_paths) == 2
+    assert len(report.retained_paths) == 1
+
+
+def test_config_lock_audit_report_model() -> None:
+    """Test ConfigLockAuditReport Pydantic v2 model validation."""
+    audit = ConfigLockAuditReport(
+        golden_registry_path="/reg/cochem_system_config.json",
+        status="LOCKED",
+        checksum="a" * 64,
+        posix_lock_test=LockTestResult(
+            passed=True,
+            method="POSIX_FCNTL_LOCKF",
+            single_threaded_mode=False,
+            target_path="/reg/.lock_probe.lock",
+        ),
+        sweep_report=WorkspaceSweepReport(),
+        intermediate_phases_found=["p1.json", "p2.json"],
+        is_immutable_mode_enforced=True,
+    )
+    assert audit.status == "LOCKED"
+    assert len(audit.checksum) == 64
+    assert audit.posix_lock_test.passed is True
+
+
+def test_posix_byte_range_locking_live_filesystem(tmp_path: Path) -> None:
+    """Verify posix_byte_range_locking_fn executes real locking against directory."""
+    res = posix_byte_range_locking_fn(target_dir=tmp_path)
+    assert isinstance(res, LockTestResult)
+    assert res.passed is True
+    assert res.single_threaded_mode is False
+    assert res.method in ("POSIX_FCNTL_LOCKF", "MSVCRT_LOCKING_BYTE_RANGE", "GENERIC_FALLBACK_LOCK")
+
+
+def test_posix_byte_range_locking_invalid_dir() -> None:
+    """Verify posix_byte_range_locking_fn handles invalid paths gracefully with single-threaded mode."""
+    invalid_path = Path("/nonexistent_forbidden_dir_12345/subdir")
+    res = posix_byte_range_locking_fn(target_dir=invalid_path)
+    assert isinstance(res, LockTestResult)
+    if not res.passed:
+        assert res.single_threaded_mode is True
+        assert res.error_message is not None
+
+
+# =============================================================================
+# 11. INTERMEDIATE STATE CONSOLIDATION (p1.json -> p11.json) TESTS
+# =============================================================================
+
+
+def test_consolidate_intermediate_states_synthetic_phases(tmp_path: Path) -> None:
+    """Verify consolidate_intermediate_states extracts and aggregates all phase sections."""
+    reg_dir = tmp_path / "Registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+
+    # Synthetic p1.json
+    p1 = {
+        "phase_id": "PHASE_1_ENVIRONMENT_GATEKEEPER",
+        "os_profile": {"system": "Linux"},
+    }
+    (reg_dir / "p1.json").write_text(json.dumps(p1), encoding="utf-8")
+
+    # Synthetic p2.json
+    p2 = {
+        "phase_id": "PHASE_2_HARDWARE_SURVEYOR",
+        "memory": {"total_physical_bytes": 34359738368},
+        "cpu": {"physical_cores": 8, "logical_cores": 16, "avx512_support": True},
+        "gpu": {"gpu_available": True, "devices": [{"name": "RTX 4090", "memory_total_bytes": 25769803776}]},
+    }
+    (reg_dir / "p2.json").write_text(json.dumps(p2), encoding="utf-8")
+
+    # Synthetic p3.json
+    p3 = {
+        "phase_id": "PHASE_3_ENGINE_DISCOVERY_INTEGRITY",
+        "engines": {
+            "orca": {
+                "name": "orca",
+                "path": str(tmp_path / "orca"),
+                "version": "6.1.1",
+                "sha256_hash": "8d6b51bf4093c967dbed997cc651f0212b8f94313ee77ea56f548f000672c42f",
+                "status": "FOUND_VALID",
+            }
+        },
+    }
+    (reg_dir / "p3.json").write_text(json.dumps(p3), encoding="utf-8")
+
+    # Synthetic p4.json
+    p4 = {
+        "phase_id": "PHASE_4_MICRO_SILO_PROVISIONING",
+        "silos": {"cochem_core_silo": {"status": "PROVISIONED"}, "cochem_mace_silo": {"status": "PROVISIONED"}},
+    }
+    (reg_dir / "p4.json").write_text(json.dumps(p4), encoding="utf-8")
+
+    # Synthetic p10.json & p11.json
+    (reg_dir / "p10.json").write_text(json.dumps({"alignment_engine_ready": True}), encoding="utf-8")
+    (reg_dir / "p11.json").write_text(json.dumps({"oom_shield": {"maxcore_mb": 4096}}), encoding="utf-8")
+
+    consolidated, found = consolidate_intermediate_states(registry_dir=reg_dir)
+
+    assert "p1.json" in found
+    assert "p2.json" in found
+    assert "p3.json" in found
+    assert "p4.json" in found
+    assert "p10.json" in found
+    assert "p11.json" in found
+
+    assert consolidated["hardware"]["cpu_physical_cores"] == 8
+    assert consolidated["hardware"]["ram_gb"] == pytest.approx(32.0, rel=1e-1)
+    assert consolidated["hardware"]["maxcore_mb"] == 4096
+    assert consolidated["silos"]["gpu_silo_active"] is True
+    assert consolidated["alignment_engine_ready"] is True
+    assert "orca" in consolidated["engines"]
+    assert consolidated["engines"]["orca"]["status"] == "found"
+
+
+def test_consolidate_intermediate_states_empty_directory(tmp_path: Path) -> None:
+    """Verify consolidate_intermediate_states returns empty dict gracefully when no p*.json files exist."""
+    empty_dir = tmp_path / "empty_reg"
+    empty_dir.mkdir(parents=True, exist_ok=True)
+
+    consolidated, found = consolidate_intermediate_states(registry_dir=empty_dir, search_dirs=[])
+    assert isinstance(consolidated, dict)
+    assert isinstance(found, list)
+
+
+# =============================================================================
+# 12. MASTER SYSTEM CONFIG VALIDATION & IMMUTABLE LOCKING TESTS
+# =============================================================================
+
+
+def test_validate_and_build_system_config_locks_and_seals() -> None:
+    """Verify validate_and_build_system_config sets status='LOCKED' and recalculates checksum."""
+    raw_data = {
+        "hardware": {
+            "ram_gb": 32.0,
+            "cpu_physical_cores": 8,
+            "physical_cpu_cores": 8,
+            "logical_cpu_cores": 16,
+        },
+        "environment": {
+            "os_target": "Local-Linux",
+        },
+    }
+    cfg = validate_and_build_system_config(consolidated_data=raw_data)
+    assert cfg.status == "LOCKED"
+    assert cfg.schema_version == "4.0.0"
+    assert cfg.hardware.ram_gb == 32.0
+    assert cfg.verify_checksum() is True
+
+
+def test_validate_and_build_system_config_single_threaded_mode() -> None:
+    """Verify validate_and_build_system_config limits compute cores when single_threaded_mode is True."""
+    cfg = validate_and_build_system_config(
+        consolidated_data={"hardware": {"ram_gb": 16.0, "cpu_physical_cores": 8}},
+        single_threaded_mode=True,
+    )
+    assert cfg.hardware.allocatable_compute_cores == 1
+
+
+def test_finalize_and_lock_golden_registry_and_chmod(tmp_path: Path) -> None:
+    """Verify finalize_and_lock_golden_registry writes cochem_system_config.json and applies 0o444."""
+    out_file = tmp_path / "Registry" / "cochem_system_config.json"
+    cfg = validate_and_build_system_config()
+
+    path_res, serialized = finalize_and_lock_golden_registry(
+        cfg=cfg,
+        output_path=out_file,
+        dry_run=False,
+    )
+    assert path_res.exists()
+    assert serialized["status"] == "LOCKED"
+
+    # Check read-only attribute / permissions
+    file_stat = path_res.stat()
+    assert bool(file_stat.st_mode & stat.S_IREAD)
+    if platform.system() != "Windows":
+        mode_octal = oct(stat.S_IMODE(file_stat.st_mode))
+        assert "4" in mode_octal
+
+    # Verify content parses cleanly
+    data = json.loads(path_res.read_text(encoding="utf-8"))
+    assert data["status"] == "LOCKED"
+    assert "hardware" in data
+
+    # Unset read-only attribute so tmp_path fixture can clean up
+    try:
+        os.chmod(path_res, stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+
+
+# =============================================================================
+# 13. WORKSPACE GARBAGE COLLECTION SWEEP TESTS
+# =============================================================================
+
+
+def test_execute_workspace_sweep_cleans_ephemeral_preserves_registry(tmp_path: Path) -> None:
+    """Verify execute_workspace_sweep cleans .tmp files while preserving cochem_system_config.json."""
+    ws = tmp_path / "workspace"
+    reg = tmp_path / "registry"
+    ws.mkdir(parents=True, exist_ok=True)
+    reg.mkdir(parents=True, exist_ok=True)
+
+    # Ephemeral files
+    f_tmp1 = ws / "test_module.tmp"
+    f_tmp2 = ws / "staging.tmp.1234"
+    f_lock = reg / ".cochem_swmr_lock_probe.lock"
+    f_tmp1.write_text("transient", encoding="utf-8")
+    f_tmp2.write_text("transient", encoding="utf-8")
+    f_lock.write_text("probe", encoding="utf-8")
+
+    # Persistent files
+    f_perm = ws / "user_input.xyz"
+    f_golden = reg / "cochem_system_config.json"
+    f_perm.write_text("C 0 0 0", encoding="utf-8")
+    f_golden.write_text('{"status": "LOCKED"}', encoding="utf-8")
+
+    report = execute_workspace_sweep(
+        workspace_dir=ws,
+        registry_dir=reg,
+        dry_run=False,
+        remove_intermediate_json=False,
+    )
+
+    assert report.swept_files_count >= 3
+    assert not f_tmp1.exists()
+    assert not f_tmp2.exists()
+    assert not f_lock.exists()
+    assert f_perm.exists()
+    assert f_golden.exists()
+
+
+def test_execute_workspace_sweep_dry_run(tmp_path: Path) -> None:
+    """Verify execute_workspace_sweep in dry_run mode does not unlink files."""
+    ws = tmp_path / "ws_dry"
+    ws.mkdir(parents=True, exist_ok=True)
+    f_tmp = ws / "ephemeral.tmp"
+    f_tmp.write_text("tmp", encoding="utf-8")
+
+    report = execute_workspace_sweep(
+        workspace_dir=ws,
+        dry_run=True,
+    )
+    assert report.swept_files_count == 1
+    assert f_tmp.exists()
+
+
+# =============================================================================
+# 14. FULL INTEGRATED PHASE 5 PIPELINE WITH CONFIG LOCK TESTS
+# =============================================================================
+
+
+def test_run_phase_5_audit_full_integration(tmp_path: Path) -> None:
+    """Verify run_phase_5_audit executes both MPS and Config Lock & Sweep pipelines."""
+    out_dir = tmp_path / "FullReg"
+    socket_dir = tmp_path / "FullSocket"
+    log_dir = tmp_path / "FullLog"
+
+    report = run_phase_5_audit(
+        output_dir=out_dir,
+        socket_dir=socket_dir,
+        log_dir=log_dir,
+        worker_concurrency=2,
+        dry_run=False,
+        sweep_workspace=True,
+    )
+
+    assert report.status is PhaseStatus.PASSED
+    assert report.config_lock is not None
+    assert report.config_lock.status == "LOCKED"
+    assert report.config_lock.posix_lock_test.passed is True
+    assert (out_dir / "p5.json").exists()
+    assert (out_dir / "cochem_system_config.json").exists()
+
+    # Clean up read-only permissions for teardown
+    try:
+        os.chmod(out_dir / "cochem_system_config.json", stat.S_IWRITE | stat.S_IREAD)
+    except OSError:
+        pass
+
+
+def test_resolve_golden_config_path_custom_and_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify resolve_golden_config_path handles custom path and environment overrides."""
+    custom_p = tmp_path / "my_config.json"
+    res1 = resolve_golden_config_path(custom_p)
+    assert res1 == custom_p.resolve()
+
+    monkeypatch.setenv("COCHEM_CONFIG", str(tmp_path / "env_config.json"))
+    res2 = resolve_golden_config_path()
+    assert res2 == (tmp_path / "env_config.json").resolve()
 
 

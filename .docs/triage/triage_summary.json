@@ -1,0 +1,22 @@
+{
+  "scan_timestamp": "2026-08-22T09:04:41.653743+00:00",
+  "target_dir": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE",
+  "total_files_walked": 473,
+  "global_counts": {
+    "KEEP": 230,
+    "PURGE": 1,
+    "TRIAGE": 239,
+    "TRASH": 3
+  },
+  "per_module_counts": {
+    "__ROOT__": {
+      "KEEP": 230,
+      "PURGE": 1,
+      "TRIAGE": 239,
+      "TRASH": 3
+    }
+  },
+  "manifests": [
+    "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.docs\\triage\\_ROOT__triage_manifest.json"
+  ]
+}

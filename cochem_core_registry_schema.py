@@ -779,6 +779,7 @@ class CoChemSystemConfig(BaseModel):
 
     schema_version: str = Field(default="4.0.0")
     registry_version: Optional[str] = Field(default="4.0")
+    status: Optional[str] = Field(default="LOCKED", description="Registry operational status ('LOCKED', 'INITIALIZED', 'ACTIVE')")
     orca_version: Optional[str] = Field(default="6.1.1")
     rdkit_random_seed: Optional[int] = Field(default=42)
     registry_checksum: Optional[str] = Field(default="", description="SHA-256 checksum of registry payload")

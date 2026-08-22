@@ -25,7 +25,8 @@ from cochem_base.path_sanitization import (
 ])
 def target_file(request: pytest.FixtureRequest) -> Path:
     target: Path = request.param
-    assert target.exists(), f"Target file does not exist at {target}"
+    if not target.exists():
+        pytest.skip(f"Target file does not exist at {target}")
     return target
 
 

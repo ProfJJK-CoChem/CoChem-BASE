@@ -112,7 +112,7 @@ Three workflows cover most of what this document is for. Each is a numbered reci
    GPU, concurrently, from the same seed (start the server first — `~/bin/oet-aimnet2/oet_server aimnet2 --nthreads 4 -d cuda &`):
    ```
    ! GOAT-EXPLORE ExtOpt TightOpt PAL1
-   %method ProgExt "/home/user/bin/oet-aimnet2/oet_client" Ext_Params "-b localhost:8888" end
+   %method ProgExt "<USER_HOME>/bin/oet-aimnet2/oet_client" Ext_Params "-b localhost:8888" end
    %scf TolE 1e-5 end
    %goat maxen 12.0 conftemp 298.15 confdegen auto end
    * xyzfile 0 1 seed01.xyz
@@ -2108,7 +2108,7 @@ if __name__ == "__main__":
 
 ---
 
-## **4\. Analytical Hessian CC Mandate: 3-Tier Routing Protocol**
+## 8D. Analytical Hessian CC Mandate: 3-Tier Routing Protocol
 
 Chapter 9 of the Method Matrix (Codes and Acquisition) is updated to reflect the new Graceful Fallback Protocol for coupled-cluster VPT2 force fields.  
 **Routing Logic Update:**
@@ -2523,7 +2523,7 @@ Three conclusions. (a) **CREST's dominance in this literature is sociological, n
 ```text
 ! GOAT-EXPLORE ExtOpt TightOpt PAL8
 %method
-  ProgExt "/home/user/bin/oet-aimnet2/oet_client"
+  ProgExt "<USER_HOME>/bin/oet-aimnet2/oet_client"
   Ext_Params "-b localhost:8888"
 end
 %scf TolE 1e-5 end

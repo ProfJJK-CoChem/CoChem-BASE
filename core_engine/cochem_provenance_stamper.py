@@ -1,24 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc8_04_provenance_stamper_prompt.md.
-Original prompt:
-# Target File: D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_provenance_stamper.py
-
-## Context
-This script ensures Cryptographic Provenance & Artifact Immutability. Every successfully completed run must carry an immutable, cryptographic paper trail detailing exactly how it was produced, ensuring 100% FAIR compliance.
-
-## Instructions
-1. Implement a JSON-LD Provenance Footer function. Upon successful completion of an engine run, dynamically construct a Linked Data JSON block (`JSON-LD`).
-2. This JSON-LD block must contain the SHA-256 hash of `cochem_system_config.json`, exact software version hashes (e.g., by executing and parsing `pip freeze`), and hardware microarchitecture flags (AVX-512, BLAS links).
-3. Append this structured JSON block directly into the footer of the target plaintext `.out` file.
-4. Implement a Final Immutability Lock: Execute `os.chmod(filepath, 0o444)` (Read-Only) on the finalized logs and database entries to mathematically lock the provenance state across the host OS, preventing tampering or accidental overwrites.
-
-## Constraints
-- NO mocks, stubs, or dummy logic. Implement actual cryptographic hashing using `hashlib` and correct filesystem permission modes using `os`.
-- Adhere strictly to the Tripartite Workspace Air-Gap and Method Matrix rules. All code modifications must strictly target "D:\__CoChem\GitHub-Repo\CoChem-BASE".
-- Handle potential file I/O locks gracefully.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\core_engine\cochem_provenance_stamper.py ---
 #!/usr/bin/env python3
 # Copyright 2026 CoChem Project Family. All rights reserved.
 # Apache License 2.0
@@ -39,6 +18,7 @@ tampering or accidental overwrites across host operating systems.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.metadata
 import json
 import logging
@@ -170,8 +150,6 @@ def get_system_config_sha256(config_path: Optional[Union[str, Path]] = None) -> 
     Raises:
         FileNotFoundError: If the resolved configuration file does not exist on disk.
     """
-    import hashlib
-
     resolved = resolve_config_path(Path(config_path) if config_path is not None else None)
     if not resolved.is_file():
         raise FileNotFoundError(f"Configuration file not found at: {resolved}")
@@ -190,8 +168,6 @@ def get_software_version_hashes(timeout_seconds: float = 30.0) -> Dict[str, Any]
     Returns:
         Dict containing pip_freeze_sha256, package_count, packages mapping, python_version, etc.
     """
-    import hashlib
-
     packages: Dict[str, str] = {}
     raw_lines: List[str] = []
 
@@ -249,7 +225,9 @@ def get_software_version_hashes(timeout_seconds: float = 30.0) -> Dict[str, Any]
 # =============================================================================
 
 
-def _detect_avx512() -> Tuple[bool, Dict[str, Any]]:
+def _detect_avx512(
+    config_path: Optional[Union[str, Path]] = None,
+) -> Tuple[bool, Dict[str, Any]]:
     """Detects AVX-512 CPU support and instruction set flags across architectures."""
     details: Dict[str, Any] = {
         "detection_method": "none",
@@ -295,7 +273,9 @@ def _detect_avx512() -> Tuple[bool, Dict[str, Any]]:
     # Check Windows processor features or config file
     if not avx512_found:
         try:
-            cfg_path = resolve_config_path()
+            cfg_path = resolve_config_path(
+                Path(config_path) if config_path is not None else None
+            )
             if cfg_path.is_file():
                 cfg_data = json.loads(cfg_path.read_text(encoding="utf-8"))
                 hw = cfg_data.get("hardware", {})
@@ -387,7 +367,7 @@ def get_hardware_microarchitecture_flags(
         except Exception:
             pass
 
-    avx512_support, avx512_details = _detect_avx512()
+    avx512_support, avx512_details = _detect_avx512(config_path=config_path)
     blas_info = _detect_blas_lapack()
 
     return {
@@ -424,8 +404,6 @@ def construct_jsonld_provenance(
     Returns:
         Fully structured JSON-LD dictionary.
     """
-    import hashlib
-
     # Compute target file pre-stamp hash if provided and exists
     pre_stamp_info: Optional[Dict[str, Any]] = None
     if target_file is not None:
@@ -488,6 +466,7 @@ def append_provenance_footer(
     provenance_block: Optional[Dict[str, Any]] = None,
     config_path: Optional[Union[str, Path]] = None,
     extra_metadata: Optional[Dict[str, Any]] = None,
+    allow_re_stamp: bool = False,
 ) -> Dict[str, Any]:
     """Appends a structured JSON-LD Provenance block directly to the footer of a plaintext output file.
 
@@ -496,6 +475,7 @@ def append_provenance_footer(
         provenance_block: Optional pre-constructed JSON-LD dictionary.
         config_path: Optional path to cochem_system_config.json.
         extra_metadata: Optional metadata to embed if generating provenance.
+        allow_re_stamp: If False, raises ValueError if file is already stamped.
 
     Returns:
         The JSON-LD provenance dictionary appended to the file.
@@ -503,6 +483,7 @@ def append_provenance_footer(
     Raises:
         FileNotFoundError: If output_file does not exist.
         PermissionError: If file permissions cannot be adjusted for appending.
+        ValueError: If file already contains a provenance footer and allow_re_stamp is False.
     """
     target = Path(output_file).resolve()
     if not target.is_file():
@@ -514,6 +495,13 @@ def append_provenance_footer(
         unlock_immutability(target)
 
     try:
+        content_preview = target.read_text(encoding="utf-8", errors="replace")
+        if not allow_re_stamp and FOOTER_DELIMITER_START in content_preview:
+            raise ValueError(
+                f"Target file {target} already contains a provenance footer. "
+                "Re-stamping is forbidden to preserve cryptographic immutability."
+            )
+
         # Generate block if not supplied
         if provenance_block is None:
             provenance_block = construct_jsonld_provenance(
@@ -525,8 +513,8 @@ def append_provenance_footer(
         serialized_json = json.dumps(provenance_block, indent=2, sort_keys=True)
         footer_text = f"\n\n{FOOTER_DELIMITER_START}\n{serialized_json}\n{FOOTER_DELIMITER_END}\n"
 
-        # Append to target file
-        with open(target, "a", encoding="utf-8") as f:
+        # Append to target file with explicit LF newline handling
+        with open(target, "a", encoding="utf-8", newline="\n") as f:
             f.write(footer_text)
             f.flush()
             os.fsync(f.fileno())
@@ -540,18 +528,22 @@ def append_provenance_footer(
             apply_immutability_lock(target)
 
 
-def extract_provenance_footer(output_file: Union[str, Path]) -> Dict[str, Any]:
+def extract_provenance_footer(
+    output_file: Union[str, Path],
+    validate_schema: bool = True,
+) -> Dict[str, Any]:
     """Extracts and parses the JSON-LD provenance block from a stamped output file.
 
     Args:
         output_file: Path to the stamped file.
+        validate_schema: Whether to validate parsed JSON-LD against ProvenanceRecordModel.
 
     Returns:
         Parsed JSON-LD dictionary.
 
     Raises:
         FileNotFoundError: If output_file does not exist.
-        ValueError: If delimiters are missing or JSON parsing fails.
+        ValueError: If delimiters are missing, corrupted, or JSON parsing fails.
     """
     target = Path(output_file).resolve()
     if not target.is_file():
@@ -564,16 +556,28 @@ def extract_provenance_footer(output_file: Union[str, Path]) -> Dict[str, Any]:
     start_idx = content.find(FOOTER_DELIMITER_START) + len(FOOTER_DELIMITER_START)
     end_idx = content.find(FOOTER_DELIMITER_END, start_idx)
 
+    if end_idx == -1 or end_idx <= start_idx:
+        raise ValueError(
+            f"Malformed provenance footer in {target}: closing delimiter not found after opening delimiter."
+        )
+
     json_str = content[start_idx:end_idx].strip()
     try:
-        data = json.loads(json_str)
-        return data  # type: ignore[no-any-return]
+        data: Dict[str, Any] = json.loads(json_str)
     except json.JSONDecodeError as e:
         raise ValueError(f"Failed to parse JSON-LD provenance from {target}: {e}") from e
 
+    if validate_schema:
+        try:
+            ProvenanceRecordModel.model_validate(data)
+        except Exception as e:
+            raise ValueError(f"Provenance JSON-LD schema validation failed for {target}: {e}") from e
+
+    return data
+
 
 def verify_provenance_footer(output_file: Union[str, Path]) -> Tuple[bool, List[str]]:
-    """Cryptographically validates the pre-stamp payload of a stamped file against its footer.
+    """Cryptographically validates the pre-stamp payload and JSON-LD schema of a stamped file.
 
     Args:
         output_file: Path to the stamped output file.
@@ -581,8 +585,6 @@ def verify_provenance_footer(output_file: Union[str, Path]) -> Tuple[bool, List[
     Returns:
         Tuple of (is_valid: bool, issues: List[str]).
     """
-    import hashlib
-
     target = Path(output_file).resolve()
     if not target.is_file():
         return False, [f"File not found: {target}"]
@@ -593,7 +595,7 @@ def verify_provenance_footer(output_file: Union[str, Path]) -> Tuple[bool, List[
         return False, ["Missing provenance delimiter start tag"]
 
     try:
-        prov = extract_provenance_footer(target)
+        prov = extract_provenance_footer(target, validate_schema=True)
     except Exception as e:
         return False, [f"Failed to extract/parse provenance footer: {e}"]
 
@@ -799,286 +801,3 @@ __all__ = [
     "is_immutable",
     "stamp_run_provenance",
 ]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_provenance_stamper.py ---
-"""Unit and Integration Tests for Cryptographic Provenance Stamper and Immutability Lock.
-
-Validates:
-- Real SHA-256 calculation of cochem_system_config.json.
-- Real pip freeze software version extraction and manifest hashing.
-- Hardware microarchitecture detection (AVX-512 flags, BLAS/LAPACK linking).
-- Construction of FAIR-compliant JSON-LD provenance records.
-- Appending structured JSON-LD footers directly to plaintext .out files.
-- Parsing and cryptographic verification of stamped footers.
-- Tamper detection on modified pre-footer payload.
-- OS-level read-only immutability locking (os.chmod 0o444).
-- Graceful handling of file I/O locks and permission boundaries.
-"""
-
-from __future__ import annotations
-
-import json
-import stat
-from pathlib import Path
-
-import pytest
-
-from core_engine.cochem_provenance_stamper import (
-    FOOTER_DELIMITER_END,
-    FOOTER_DELIMITER_START,
-    append_provenance_footer,
-    apply_immutability_lock,
-    construct_jsonld_provenance,
-    extract_provenance_footer,
-    get_hardware_microarchitecture_flags,
-    get_software_version_hashes,
-    get_system_config_sha256,
-    is_immutable,
-    stamp_run_provenance,
-    unlock_immutability,
-    verify_provenance_footer,
-)
-
-
-def test_system_config_sha256_real(tmp_path: Path) -> None:
-    """Verifies that system config SHA-256 hash is computed accurately and deterministically."""
-    config_file = tmp_path / "cochem_system_config.json"
-    content = '{\n  "schema_version": "1.0.0",\n  "hardware": {"ram_gb": 32.0}\n}\n'
-    config_file.write_text(content, encoding="utf-8")
-
-    hash_val = get_system_config_sha256(config_path=config_file)
-    assert len(hash_val) == 64
-    assert isinstance(hash_val, str)
-
-    # Determinism check
-    hash_val_2 = get_system_config_sha256(config_path=config_file)
-    assert hash_val == hash_val_2
-
-    # Modification detection
-    config_file.write_text('{\n  "schema_version": "2.0.0"\n}\n', encoding="utf-8")
-    hash_val_mod = get_system_config_sha256(config_path=config_file)
-    assert hash_val_mod != hash_val
-
-
-def test_system_config_sha256_missing(tmp_path: Path) -> None:
-    """Verifies that missing configuration file raises FileNotFoundError without faking."""
-    missing_file = tmp_path / "non_existent_config.json"
-    with pytest.raises(FileNotFoundError):
-        get_system_config_sha256(config_path=missing_file)
-
-
-def test_software_version_hashes_real() -> None:
-    """Verifies execution and parsing of pip freeze and environment manifest hashing."""
-    sw_record = get_software_version_hashes()
-
-    assert "pip_freeze_sha256" in sw_record
-    assert len(sw_record["pip_freeze_sha256"]) == 64
-    assert sw_record["package_count"] > 0
-    assert isinstance(sw_record["packages"], dict)
-
-    # Core dependencies should be detected in the active environment
-    packages = sw_record["packages"]
-    assert "pytest" in packages or "pydantic" in packages or len(packages) > 5
-    assert sw_record["python_version"] != ""
-    assert sw_record["python_implementation"] != ""
-
-
-def test_hardware_microarchitecture_flags_real() -> None:
-    """Verifies dynamic profiling of hardware microarchitecture flags (AVX-512, BLAS)."""
-    hw_flags = get_hardware_microarchitecture_flags()
-
-    assert "cpu_arch" in hw_flags
-    assert "physical_cores" in hw_flags
-    assert "logical_cores" in hw_flags
-    assert "total_ram_gb" in hw_flags
-    assert "avx512_support" in hw_flags
-    assert isinstance(hw_flags["avx512_support"], bool)
-    assert "avx512_details" in hw_flags
-
-    assert "blas_info" in hw_flags
-    blas_info = hw_flags["blas_info"]
-    assert isinstance(blas_info, dict)
-    assert "blas_libraries" in blas_info or "blas_detected" in blas_info
-
-
-def test_construct_jsonld_provenance(tmp_path: Path) -> None:
-    """Verifies that JSON-LD provenance block conforms to Linked Data standards."""
-    target_out = tmp_path / "calculation_run.out"
-    target_out.write_text("FINAL ENERGY: -154.238492 Hartree\nCONVERGED: YES\n", encoding="utf-8")
-
-    config_file = tmp_path / "cochem_system_config.json"
-    config_file.write_text('{"schema_version": "1.0.0"}\n', encoding="utf-8")
-
-    prov_doc = construct_jsonld_provenance(
-        target_file=target_out,
-        config_path=config_file,
-        run_id="run-test-uuid-1234",
-        extra_metadata={"calculation_type": "B3LYP-D4/def2-TZVP", "charge": 0},
-    )
-
-    assert prov_doc["@context"] is not None
-    assert "https://schema.org/" in str(prov_doc["@context"]) or "prov" in prov_doc["@context"]
-    assert prov_doc["@type"] == ["prov:Entity", "cochem:ComputationalRunProvenance"]
-    assert prov_doc["@id"] == "urn:cochem:run:run-test-uuid-1234"
-    assert "prov:generatedAtTime" in prov_doc
-    assert "cochem:systemConfigSha256" in prov_doc
-    assert len(prov_doc["cochem:systemConfigSha256"]) == 64
-    assert "cochem:softwareEnvironment" in prov_doc
-    assert "cochem:hardwareMicroarchitecture" in prov_doc
-    assert "cochem:targetFilePreStamp" in prov_doc
-    assert prov_doc["cochem:targetFilePreStamp"]["sha256"] != ""
-    assert prov_doc["cochem:metadata"]["calculation_type"] == "B3LYP-D4/def2-TZVP"
-
-    # Verify JSON serializability
-    serialized = json.dumps(prov_doc, indent=2)
-    assert "run-test-uuid-1234" in serialized
-
-
-def test_append_and_extract_provenance_footer(tmp_path: Path) -> None:
-    """Verifies appending structured JSON-LD directly to .out file and extracting it."""
-    out_file = tmp_path / "orca_output.out"
-    original_text = (
-        "************************************************************\n"
-        "*                       ORCA RUN                           *\n"
-        "************************************************************\n"
-        "FINAL SINGLE POINT ENERGY: -382.4920194821\n"
-    )
-    out_file.write_text(original_text, encoding="utf-8")
-
-    config_file = tmp_path / "cochem_system_config.json"
-    config_file.write_text('{"schema_version": "1.0.0"}\n', encoding="utf-8")
-
-    # Append footer
-    stamped_record = append_provenance_footer(
-        output_file=out_file,
-        config_path=config_file,
-    )
-
-    assert out_file.exists()
-    stamped_content = out_file.read_text(encoding="utf-8")
-
-    # Header and body must remain preserved
-    assert stamped_content.startswith(original_text)
-    assert FOOTER_DELIMITER_START in stamped_content
-    assert FOOTER_DELIMITER_END in stamped_content
-
-    # Extract footer
-    extracted_record = extract_provenance_footer(out_file)
-    assert extracted_record["@type"] == ["prov:Entity", "cochem:ComputationalRunProvenance"]
-    assert (
-        extracted_record["cochem:systemConfigSha256"] == stamped_record["cochem:systemConfigSha256"]
-    )
-
-
-def test_verify_provenance_footer_integrity(tmp_path: Path) -> None:
-    """Verifies cryptographic validation of pre-stamp payload and detects tampering."""
-    out_file = tmp_path / "mace_mlff.out"
-    original_text = "Step 1: Energy -42.0\nStep 2: Energy -43.5\nOptimization converged.\n"
-    out_file.write_text(original_text, encoding="utf-8")
-
-    config_file = tmp_path / "cochem_system_config.json"
-    config_file.write_text('{"schema_version": "1.0.0"}\n', encoding="utf-8")
-
-    append_provenance_footer(output_file=out_file, config_path=config_file)
-
-    # Initial verification should pass
-    is_valid, issues = verify_provenance_footer(out_file)
-    assert is_valid is True
-    assert len(issues) == 0
-
-    # Tamper with the calculation content before footer
-    full_content = out_file.read_text(encoding="utf-8")
-    tampered_content = full_content.replace("-43.5", "-999.9")
-    out_file.write_text(tampered_content, encoding="utf-8")
-
-    is_valid_tampered, issues_tampered = verify_provenance_footer(out_file)
-    assert is_valid_tampered is False
-    assert any(
-        "hash mismatch" in iss.lower() or "tampered" in iss.lower() for iss in issues_tampered
-    )
-
-
-def test_apply_and_unlock_immutability_lock(tmp_path: Path) -> None:
-    """Verifies that os.chmod(0o444) enforces OS-level read-only status and unlocks cleanly."""
-    target_file = tmp_path / "final_run.out"
-    target_file.write_text("IMMUTABLE DATA ENTRY\n", encoding="utf-8")
-
-    assert is_immutable(target_file) is False
-
-    # Apply lock
-    apply_immutability_lock(target_file)
-    assert is_immutable(target_file) is True
-
-    # Check file mode
-    mode = target_file.stat().st_mode
-    assert not (mode & stat.S_IWUSR)
-
-    # Attempt write should fail with PermissionError
-    with pytest.raises(PermissionError):
-        with open(target_file, "a", encoding="utf-8") as f:
-            f.write("UNAUTHORIZED OVERWRITE\n")
-
-    # Unlock for teardown/lifecycle
-    unlock_immutability(target_file)
-    assert is_immutable(target_file) is False
-
-    # Write should now succeed
-    with open(target_file, "a", encoding="utf-8") as f:
-        f.write("AUTHORIZED APPEND AFTER UNLOCK\n")
-
-    assert "AUTHORIZED APPEND" in target_file.read_text(encoding="utf-8")
-
-
-def test_stamp_run_provenance_end_to_end(tmp_path: Path) -> None:
-    """Verifies complete end-to-end stamp_run_provenance workflow with immutability locking."""
-    out_file = tmp_path / "complete_engine_run.out"
-    out_file.write_text(
-        "COCHEM COMPLETE ENGINE RUN LOG\nALL ENERGIES COMPUTED.\n", encoding="utf-8"
-    )
-
-    config_file = tmp_path / "cochem_system_config.json"
-    config_file.write_text(
-        '{"schema_version": "1.0.0", "hardware": {"avx512_support": true}}\n', encoding="utf-8"
-    )
-
-    prov = stamp_run_provenance(
-        output_file=out_file,
-        config_path=config_file,
-        lock_file=True,
-        extra_metadata={"job_name": "phenol_dimer_opt"},
-    )
-
-    assert prov["cochem:metadata"]["job_name"] == "phenol_dimer_opt"
-    assert is_immutable(out_file) is True
-
-    # Verify integrity while locked
-    is_valid, issues = verify_provenance_footer(out_file)
-    assert is_valid is True
-    assert len(issues) == 0
-
-    # Cleanup unlock
-    unlock_immutability(out_file)
-    assert is_immutable(out_file) is False
-
-
-def test_graceful_handling_already_locked_file(tmp_path: Path) -> None:
-    """Verifies that appending to a locked file handles permissions gracefully."""
-    locked_file = tmp_path / "pre_locked.out"
-    locked_file.write_text("INITIAL STAGE OUTPUT\n", encoding="utf-8")
-    apply_immutability_lock(locked_file)
-
-    config_file = tmp_path / "cochem_system_config.json"
-    config_file.write_text('{"schema_version": "1.0.0"}\n', encoding="utf-8")
-
-    # Should handle unlocking temporarily or gracefully appending and re-locking
-    prov = stamp_run_provenance(
-        output_file=locked_file,
-        config_path=config_file,
-        lock_file=True,
-    )
-
-    assert prov is not None
-    assert is_immutable(locked_file) is True
-    unlock_immutability(locked_file)
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

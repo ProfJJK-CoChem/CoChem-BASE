@@ -1,30 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc9_01_resource_guard_prompt.md.
-Original prompt:
-# CoChem-BASE AI Integrations - Resource Guard Prompt
-
-## Task Context
-You are tasked with implementing the AI hardware safety measures for the CoChem ecosystem. Because computational chemistry engines demand extreme physical memory, AI modules must be constrained so they never threaten the OS or scientific calculations.
-
-## Target Filepath
-`D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_core\ai\resource_guard.py`
-
-## Exact Instructions
-1. Implement the `evaluate_resource_guard` function.
-2. Dynamically check the OS and poll the `HardwareSchema` in `$HOME/CoChem_Artifacts/Registry/cochem_system_config.json`.
-3. If on Linux/Container, read `cgroups` (`/sys/fs/cgroup/memory.max`) for container RAM limits.
-4. If on Windows, use the Windows API (e.g., `psutil` or `GlobalMemoryStatusEx`).
-5. On both OS paths, poll `pynvml` for VRAM limits to verify real-time available memory.
-6. If `Total_RAM_GB < 8GB` or VRAM is currently allocated to an active calculation engine, forcefully intercept the request and override the local LLM toggle to `False`.
-7. Ensure the function fails over seamlessly to either an external API or "Dry-Run" mode without raising a fatal exception.
-
-## Constraints
-1. **NO MOCKS, STUBS, OR PLACEHOLDER INSTRUCTIONS.** You must write the actual working Python code.
-2. Ensure strict adherence to physical limits; do not hallucinate hardware specs.
-3. This is a single script task. Do not create auxiliary files.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_resource_guard.py ---
 # cochem_canvas_target: test_suite/test_resource_guard.py
 """
 CoChem-BASE AI Hardware Safety Resource Guard Unit and Integration Test Suite.
@@ -561,5 +534,3 @@ def test_fatal_exception_failover_safety() -> None:
     assert isinstance(decision, ResourceGuardDecision)
     assert decision.total_ram_gb >= 0.0
 
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

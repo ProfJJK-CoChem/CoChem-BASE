@@ -1,30 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BASE\.in-progress\Doc2_Part2_01_orchestrator_phase_1_prompt.md.
-Original prompt:
-﻿# CoChem-BASE Coding Prompt: cochem_setup_phase_1.py
-
-## 1. Goal
-Implement the file `cochem_setup_phase_1.py` based on the Software Requirements Specification (SRS) - CoChem-BASE (Document 2 Part 2).
-
-## 2. Target Filepath
-`D:\__CoChem\GitHub-Repo\CoChem-BASE\orchestrator\cochem_setup_phase_1.py`
-
-## 3. Context & Ecosystem Role
-The Environment Gatekeeper. Prevents deep wave-function (e.g., Coupled-Cluster) segmentation faults by ensuring the environment is safely configured before any quantum engines are invoked, respecting OS-specific constraints.
-
-## 4. Deliverable Functions
-Programmatically interrogates the host operating system. Verifies the existence of system-level compilers (`gcc`, `make`, `git`). Avoids dynamic modifications of OS limits (like `ulimit -s`) that trigger security vectors on Windows PE headers. Instead, memory and stack configurations are mandated via localized build flags during silo creation or passed explicitly as flags to quantum binaries. Implementations must define abstract OS profiling protocols that degrade gracefully without unsafe system calls.
-
-## 5. Strict Constraints & Anti-Spoofing
-- **Workspace Rules:** Strictly adhere to the Tripartite Workspace Air-Gap and Method Matrix rules.
-- **No Mocks or Stubs:** Do NOT use placeholders, mock data, or stub logic (e.g., `pass`, `NotImplementedError`, or fake hardcoded values).
-- **Fully Functional:** The code must be production-ready and fully implement the deliverables.
-- **Error Handling:** Must degrade gracefully and handle errors according to the SRS without crashing silently.
-- **Autonomy:** Do not delegate to the user. Execute the complete implementation.
-- **Verification:** Ensure your code runs in the physical constraints as defined.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_setup_phase_1.py ---
 """
 Unit test suite for CoChem Setup Phase 1: Environment Gatekeeper.
 Strict Zero-Mock Mandate: Real filesystem operations, live OS interrogations,
@@ -922,5 +895,3 @@ def test_run_phase_1_audit_all_passed(tmp_path: Path, monkeypatch: pytest.Monkey
     assert report.status == PhaseStatus.PASSED
     assert len(report.warnings) == 0
     assert len(report.errors) == 0
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

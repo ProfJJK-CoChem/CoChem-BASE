@@ -55,6 +55,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger("CoChem-ConfigCompiler")
 
 
+import atexit
+def _reap_zombies() -> None:
+    try:
+        current_proc = psutil.Process()
+        for child in current_proc.children(recursive=True):
+            try:
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    child.wait(timeout=1)
+                else:
+                    child.terminate()
+                    child.wait(timeout=1)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception:
+        pass
+
+atexit.register(_reap_zombies)
+
 # =============================================================================
 # EXCEPTIONS
 # =============================================================================
@@ -519,6 +537,7 @@ class MicroSiloVerifier:
                     capture_output=True,
                     text=True,
                     timeout=2.0,
+                    check=True,
                 )
                 out = proc.stdout + " " + proc.stderr
                 v_match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out)

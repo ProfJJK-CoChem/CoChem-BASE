@@ -45,7 +45,7 @@ select = ["E", "F", "W", "I", "B"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 explicit_package_bases = true
@@ -83,6 +83,7 @@ module = [
     "core_engine.cochem_topos_crusher.*",
     "cochem_topos_crusher.*",
     "cochem_torq_grid.*",
+    "parsl.*",
     "cochem_torq_orca.*"
 ]
 ignore_missing_imports = true

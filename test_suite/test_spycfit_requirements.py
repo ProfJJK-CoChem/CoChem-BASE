@@ -1,35 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SpycFit\.in-progress\Task1_Prompt2_requirements.md.
-Original prompt:
-# Task 1: Master Repository Map & Tripartite Topology - requirements.txt
-
-**Objective:**
-Create the `requirements.txt` file for the CoChem-SpycFit repository. This defines the strictly version-locked dependencies for the project.
-
-**Target File:**
-`D:\__CoChem\GitHub-Repo\CoChem-SpycFit\requirements.txt`
-
-**Instructions:**
-You are the `cochem-coder` agent. Implement the `requirements.txt` file at the root of the Execution Tier. It MUST include the specified packages and strictly exclude legacy Fortran binaries. No placeholders, mocks, or synthetic bypasses are allowed.
-
-**Proposed Dependencies Snippet:**
-```text
-jax==0.4.13
-jaxlib==0.4.13
-cupy-cuda12x==12.2.0
-h5py==3.9.0
-zarr==2.16.1
-pyarrow==13.0.0
-plotly==5.17.0
-ipywidgets==8.1.1
-mendeleev==0.14.0
-platformdirs==3.10.0
-filelock==3.12.2
-pyzmq==25.1.1
-```
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_spycfit_requirements.py ---
 """Zero-Mock Production Test Suite for CoChem-SpycFit requirements.txt Specifications.
 
 Defends the Execution Tier dependency locking and Tripartite Architecture by validating:
@@ -221,5 +189,3 @@ def test_zero_mock_or_synthetic_directives_ast() -> None:
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             assert "mock" not in module.lower(), f"Forbidden import from module: {module}"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -1,49 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SpycFit\.in-progress\Task1_Prompt3_pyproject.md.
-Original prompt:
-# Task 1: Master Repository Map & Tripartite Topology - pyproject.toml
-
-**Objective:**
-Create the `pyproject.toml` file for the CoChem-SpycFit repository. This defines the build system, versioning, and core project metadata.
-
-**Target File:**
-`D:\__CoChem\GitHub-Repo\CoChem-SpycFit\pyproject.toml`
-
-**Instructions:**
-You are the `cochem-coder` agent. Implement the `pyproject.toml` file at the root of the Execution Tier. No placeholders, mocks, or synthetic bypasses are allowed. Use a robust structure for a modern Python package.
-
-**Proposed Snippet:**
-```toml
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "CoChem-SpycFit"
-version = "0.1.0"
-description = "Tripartite Workspace Air-Gap enabled computational spectroscopy fitter."
-authors = [{name = "CoChem Swarm"}]
-dependencies = [
-    "jax",
-    "jaxlib",
-    "cupy-cuda12x",
-    "h5py",
-    "zarr",
-    "pyarrow",
-    "plotly",
-    "ipywidgets",
-    "mendeleev",
-    "platformdirs",
-    "filelock",
-    "pyzmq"
-]
-
-[project.optional-dependencies]
-dev = ["pytest", "flake8"]
-```
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_spycfit_pyproject.py ---
 """Zero-Mock Production Test Suite for CoChem-SpycFit pyproject.toml Specifications.
 
 Defends the Execution Tier build system and Tripartite Architecture metadata by validating:
@@ -363,5 +317,3 @@ def test_test_suite_zero_mock_ast_inspection() -> None:
             assert "mock" not in mod.lower(), (
                 f"Forbidden mock import in test suite from module: '{mod}'"
             )
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

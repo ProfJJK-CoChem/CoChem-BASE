@@ -1,4 +1,4 @@
-﻿"""
+"""
 Unit and integration tests for fix_scripts2.py
 """
 

@@ -30,17 +30,22 @@ from cochem_base.exceptions import (
 )
 from cochem_spcat_bridge import (
     CONSTANTS,
+    PartitionFunctionResult,
     SPCATPayload,
+    TorqSpcatBridge,
     apply_symmetry_divisors,
     build_complete_spcat_payload,
     calculate_rotational_partition_function,
     calculate_vibrational_partition_function,
+    compute_coupled_partition_functions,
     format_fortran_double,
     fortran_double_precision_formatter,
     fortran_overflow_guard,
     generate_spcat_int,
     generate_spcat_var,
     low_frequency_lam_trap,
+    low_frequency_trap,
+    route_3tier_abinitio_payload,
     validate_airgap_boundary,
     vibrational_partition_coupling,
 )
@@ -50,17 +55,20 @@ from cochem_spcat_bridge import (
 # =============================================================================
 
 # Real experimental / ab initio Cartesian geometry for Water (H2O in Angstroms)
-H2O_GEOMETRY = np.array([
-    [0.000000,  0.000000,  0.117300],  # Oxygen (O)
-    [0.000000,  0.757200, -0.469200],  # Hydrogen (H1)
-    [0.000000, -0.757200, -0.469200],  # Hydrogen (H2)
-], dtype=np.float64)
+H2O_GEOMETRY = np.array(
+    [
+        [0.000000, 0.000000, 0.117300],  # Oxygen (O)
+        [0.000000, 0.757200, -0.469200],  # Hydrogen (H1)
+        [0.000000, -0.757200, -0.469200],  # Hydrogen (H2)
+    ],
+    dtype=np.float64,
+)
 H2O_SYMBOLS = ["O", "H", "H"]
 
 # Real rotational constants for H2O (MHz)
-H2O_A_MHZ = 825360.0   # ~ 27.877 cm^-1
-H2O_B_MHZ = 435360.0   # ~ 14.522 cm^-1
-H2O_C_MHZ = 278130.0   # ~ 9.277 cm^-1
+H2O_A_MHZ = 825360.0  # ~ 27.877 cm^-1
+H2O_B_MHZ = 435360.0  # ~ 14.522 cm^-1
+H2O_C_MHZ = 278130.0  # ~ 9.277 cm^-1
 
 # Real normal mode harmonic vibrational frequencies for H2O (cm^-1)
 H2O_HARMONIC_FREQUENCIES = [1594.75, 3657.05, 3755.93]  # Bend, sym stretch, asym stretch
@@ -81,6 +89,7 @@ H2O_WATSON_A = {
 # =============================================================================
 # 2. Test Low-Frequency LAM Trap (Physical Guardrail against RRHO Failure)
 # =============================================================================
+
 
 def test_low_frequency_lam_trap_triggers_on_low_mode() -> None:
     """Pass test frequency array containing [3100.0, 1500.0, 105.0, 24.5] cm^-1 to low_frequency_lam_trap.
@@ -125,6 +134,7 @@ def test_low_frequency_lam_trap_multiple_lam_modes() -> None:
 # 3. Test MolSym Point-Group & Nuclear Spin Statistical Weights
 # =============================================================================
 
+
 def test_molsym_spin_and_divisor_validation_h2o() -> None:
     """Feed aligned Cartesian coordinates of Water (H2O) to apply_symmetry_divisors().
 
@@ -157,7 +167,9 @@ def test_symmetry_double_counting_guardrail_selection() -> None:
     res_spin = apply_symmetry_divisors(H2O_GEOMETRY, H2O_SYMBOLS, use_nuclear_spin=True)
     assert res_spin.sigma == 2
     assert res_spin.effective_divisor == 1.0
-    assert res_spin.guardrail_status == "GUARDRAIL_ENFORCED_EXACT_NUCLEAR_SPIN_APPLIED_SIGMA_BYPASSED"
+    assert (
+        res_spin.guardrail_status == "GUARDRAIL_ENFORCED_EXACT_NUCLEAR_SPIN_APPLIED_SIGMA_BYPASSED"
+    )
 
 
 def test_molsym_symmetry_ammonia_c3v() -> None:
@@ -168,12 +180,15 @@ def test_molsym_symmetry_ammonia_c3v() -> None:
     cos_beta = math.sqrt(1.0 - sin_beta**2)
     r_xy = r_nh * sin_beta
     z_h = -r_nh * cos_beta
-    coords_nh3 = np.array([
-        [0.0, 0.0, 0.0],
-        [r_xy, 0.0, z_h],
-        [-r_xy * 0.5, r_xy * math.sqrt(3) / 2.0, z_h],
-        [-r_xy * 0.5, -r_xy * math.sqrt(3) / 2.0, z_h],
-    ], dtype=float)
+    coords_nh3 = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [r_xy, 0.0, z_h],
+            [-r_xy * 0.5, r_xy * math.sqrt(3) / 2.0, z_h],
+            [-r_xy * 0.5, -r_xy * math.sqrt(3) / 2.0, z_h],
+        ],
+        dtype=float,
+    )
     symbols_nh3 = ["N", "H", "H", "H"]
 
     res = apply_symmetry_divisors(coords_nh3, symbols_nh3)
@@ -185,6 +200,7 @@ def test_molsym_symmetry_ammonia_c3v() -> None:
 # =============================================================================
 # 4. Test Fortran Double Precision Formatter & String Alignment
 # =============================================================================
+
 
 def test_fortran_string_alignment_and_type() -> None:
     """Pass quartic centrifugal distortion parameter (DJ = 0.00001567 MHz) to fortran_double_precision_formatter().
@@ -230,6 +246,7 @@ def test_format_fortran_double_various_scales() -> None:
 # 5. Test Fortran Double Precision Overflow Guard
 # =============================================================================
 
+
 def test_fortran_overflow_guard_intercepts_unphysical_value() -> None:
     """Intentionally feed an unphysically massive parameter (1.5e310) representing a failed perturbation calculation.
 
@@ -247,7 +264,10 @@ def test_fortran_overflow_guard_intercepts_unphysical_value() -> None:
         fortran_overflow_guard(corrupt_params)
 
     err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.FORTRAN_OVERFLOW or str(err.error_code) == "FORTRAN_OVERFLOW"
+    assert (
+        err.error_code == ProvenanceErrorCode.FORTRAN_OVERFLOW
+        or str(err.error_code) == "FORTRAN_OVERFLOW"
+    )
     assert "DJ" in str(err.details.get("parameter", ""))
     val_str = str(err.details.get("value", "")).lower()
     assert "inf" in val_str or "310" in val_str or "1.5" in val_str
@@ -270,6 +290,7 @@ def test_fortran_overflow_guard_valid_dictionary() -> None:
 # =============================================================================
 # 6. Test Partition Functions & Vibrational Partition Coupling
 # =============================================================================
+
 
 def test_exact_codata_2022_constants() -> None:
     """Validate exact CODATA 2022 constants used throughout the bridge."""
@@ -315,7 +336,9 @@ def test_vibrational_partition_coupling_drops_lam_frequency() -> None:
     )
 
     q_vib_with_lam = calculate_vibrational_partition_function(all_freqs, 298.15)
-    q_vib_without_lam = calculate_vibrational_partition_function(all_freqs, 298.15, exclude_frequencies=[lam_mode])
+    q_vib_without_lam = calculate_vibrational_partition_function(
+        all_freqs, 298.15, exclude_frequencies=[lam_mode]
+    )
 
     assert q_vib_without_lam < q_vib_with_lam
     expected_q_total_298 = q_rot_dvr[298.15] * q_vib_without_lam
@@ -325,6 +348,7 @@ def test_vibrational_partition_coupling_drops_lam_frequency() -> None:
 # =============================================================================
 # 7. Test Pickett SPCAT .var and .int ASCII Generation
 # =============================================================================
+
 
 def test_generate_spcat_var_content(tmp_path: Path) -> None:
     """Verify complete Pickett SPCAT .var file formatting, parameter codes, and control cards."""
@@ -396,6 +420,7 @@ def test_generate_spcat_int_content(tmp_path: Path) -> None:
 # 8. Test Tripartite Air-Gap Compliance & Provenance Manifest
 # =============================================================================
 
+
 def test_tripartite_airgap_boundary_enforcement() -> None:
     """Assert validate_airgap_boundary blocks direct runtime writes to Ring 1 static repository root."""
     base_root = get_base_root().resolve()
@@ -405,7 +430,10 @@ def test_tripartite_airgap_boundary_enforcement() -> None:
         validate_airgap_boundary(forbidden_target)
 
     err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.AIRGAP_VIOLATION or str(err.error_code) == "AIRGAP_VIOLATION"
+    assert (
+        err.error_code == ProvenanceErrorCode.AIRGAP_VIOLATION
+        or str(err.error_code) == "AIRGAP_VIOLATION"
+    )
     assert "Ring 1" in str(err.details.get("ring", "")) or "Air-Gap violation" in err.message
 
 
@@ -463,14 +491,194 @@ def test_cochem_base_reexport_parity() -> None:
     import cochem_base.cochem_spcat_bridge as csb
 
     assert hasattr(csb, "low_frequency_lam_trap")
+    assert hasattr(csb, "low_frequency_trap")
     assert hasattr(csb, "apply_symmetry_divisors")
     assert hasattr(csb, "calculate_rotational_partition_function")
     assert hasattr(csb, "calculate_vibrational_partition_function")
     assert hasattr(csb, "vibrational_partition_coupling")
+    assert hasattr(csb, "compute_coupled_partition_functions")
     assert hasattr(csb, "fortran_overflow_guard")
     assert hasattr(csb, "fortran_double_precision_formatter")
     assert hasattr(csb, "generate_spcat_var")
     assert hasattr(csb, "generate_spcat_int")
+    assert hasattr(csb, "generate_spcat_provenance_manifest")
     assert hasattr(csb, "build_complete_spcat_payload")
+    assert hasattr(csb, "route_3tier_abinitio_payload")
     assert csb.CONSTANTS.H == CONSTANTS.H
+    assert csb.PLANCK_CONSTANT_JS == CONSTANTS.H
+    assert csb.BOLTZMANN_CONSTANT_JK == CONSTANTS.K_B
+    assert csb.SPEED_OF_LIGHT_CMS == CONSTANTS.C_CM_S
+    assert csb.C_ROT == CONSTANTS.C_ROT
 
+
+def test_low_frequency_trap_alias() -> None:
+    """Verify low_frequency_trap is a direct alias of low_frequency_lam_trap."""
+    assert low_frequency_trap is low_frequency_lam_trap
+    stiff = low_frequency_trap([100.0, 500.0, 1000.0])
+    assert stiff == [100.0, 500.0, 1000.0]
+
+    with pytest.raises(LAMTriggerError) as exc_info:
+        low_frequency_trap([49.9, 1000.0])
+    assert exc_info.value.error_code == ProvenanceErrorCode.LAM_TRIGGER
+
+
+def test_vibrational_partition_coupling_gradient_forms() -> None:
+    """Verify vibrational_partition_coupling with callable, dict, and sequence q_rot_dvr across T gradient."""
+    temps = [5.0, 50.0, 150.0, 300.0]
+    freqs = [1595.0, 3657.0, 3756.0]
+
+    # Form 1: Callable q_rot_dvr
+    def dvr_func(t: float) -> float:
+        return float(0.5 * (t**1.5))
+
+    res_callable = vibrational_partition_coupling(dvr_func, freqs, temps)
+    assert len(res_callable) == 4
+    for t in temps:
+        expected_rot = dvr_func(t)
+        expected_vib = calculate_vibrational_partition_function(freqs, t)
+        assert math.isclose(res_callable[t], expected_rot * expected_vib, rel_tol=1e-6)
+
+    # Form 2: Sequence q_rot_dvr
+    rot_seq = [dvr_func(t) for t in temps]
+    res_seq = vibrational_partition_coupling(rot_seq, freqs, temps)
+    for t in temps:
+        assert math.isclose(res_seq[t], res_callable[t], rel_tol=1e-6)
+
+
+def test_route_3tier_abinitio_payload_hierarchy() -> None:
+    """Verify 3-Tier Ab Initio Routing Protocol prioritizes MPQC primary and ORCA for analytic VPT2."""
+    mpqc_payload = {
+        "energy_hartree": -76.438512,
+        "frequencies": [1600.0, 3660.0, 3760.0],
+        "dipoles": {"mu_a": 0.0, "mu_b": 1.85, "mu_c": 0.0},
+    }
+    orca_payload = {
+        "energy_hartree": -76.425000,
+        "frequencies": [1595.0, 3655.0, 3755.0],
+        "dipoles": {"mu_a": 0.0, "mu_b": 1.85, "mu_c": 0.0},
+        "x_matrix": [[-15.0, -5.0, -2.0], [-5.0, -40.0, -10.0], [-2.0, -10.0, -45.0]],
+    }
+    cfour_payload = {
+        "energy_hartree": -76.410000,
+        "frequencies": [1590.0, 3650.0, 3750.0],
+        "dipoles": {"mu_a": 0.0, "mu_b": 1.84, "mu_c": 0.0},
+    }
+
+    # Tier 1 selected when standard energy benchmark
+    res_t1 = route_3tier_abinitio_payload(mpqc_data=mpqc_payload, orca_data=orca_payload)
+    assert res_t1.selected_tier == 1
+    assert res_t1.primary_engine == "MPQC"
+    assert res_t1.electronic_energy_hartree == -76.438512
+
+    # Tier 2 selected when analytic VPT2 is strictly required
+    res_t2 = route_3tier_abinitio_payload(
+        mpqc_data=mpqc_payload, orca_data=orca_payload, require_analytic_vpt2=True
+    )
+    assert res_t2.selected_tier == 2
+    assert res_t2.primary_engine == "ORCA"
+    assert res_t2.is_analytic_vpt2_active is True
+    assert res_t2.vpt2_x_matrix is not None
+
+    # Tier 3 selected when only CFOUR is available
+    res_t3 = route_3tier_abinitio_payload(cfour_data=cfour_payload)
+    assert res_t3.selected_tier == 3
+    assert res_t3.primary_engine == "CFOUR"
+
+
+def test_fortran_overflow_guard_clamp_mode() -> None:
+    """Verify fortran_overflow_guard clamp mode for arrays and scalars."""
+    unphysical_arr = np.array([1.0, 1.5e310, -2.0e310])
+    clamped_arr = fortran_overflow_guard(unphysical_arr, max_limit=1e308, clamp_on_overflow=True)
+    assert clamped_arr[0] == 1.0
+    assert clamped_arr[1] == 1e308
+    assert clamped_arr[2] == -1e308
+
+    clamped_scalar = fortran_overflow_guard(5e315, max_limit=1e308, clamp_on_overflow=True)
+    assert clamped_scalar == 1e308
+
+
+def test_molsym_symmetry_ethylene_d2h() -> None:
+    """Verify point group detection and rotational symmetry divisor for Ethylene (C2H4, D2h, sigma=4)."""
+    # Planar Ethylene (C2H4) geometry in Angstroms
+    c2h4_coords = np.array(
+        [
+            [0.0000, 0.0000, 0.6695],  # C1
+            [0.0000, 0.0000, -0.6695],  # C2
+            [0.0000, 0.9289, 1.2321],  # H1
+            [0.0000, -0.9289, 1.2321],  # H2
+            [0.0000, 0.9289, -1.2321],  # H3
+            [0.0000, -0.9289, -1.2321],  # H4
+        ],
+        dtype=float,
+    )
+    c2h4_symbols = ["C", "C", "H", "H", "H", "H"]
+
+    res = apply_symmetry_divisors(c2h4_coords, c2h4_symbols)
+    assert res.point_group in ("D2h", "D2")
+    assert res.sigma == 4
+
+
+def test_compute_coupled_partition_functions_dataclass() -> None:
+    """Verify compute_coupled_partition_functions populates PartitionFunctionResult structure cleanly."""
+    res = compute_coupled_partition_functions(
+        a_mhz=H2O_A_MHZ,
+        b_mhz=H2O_B_MHZ,
+        c_mhz=H2O_C_MHZ,
+        frequencies_cm1=[1594.75, 3657.05, 3755.93, 30.0],
+        temp_array=[10.0, 100.0, 298.15],
+        sigma=2.0,
+        lam_frequency=30.0,
+        is_dvr=True,
+    )
+    assert isinstance(res, PartitionFunctionResult)
+    assert res.is_dvr_coupled is True
+    assert 30.0 in res.dropped_lam_frequencies
+    assert len(res.stiff_frequencies) == 3
+    assert len(res.temperatures) == 3
+    assert res.q_total[298.15] == res.q_rot[298.15] * res.q_vib[298.15]
+    as_d = res.to_dict()
+    assert "q_total" in as_d
+
+
+def test_torq_spcat_bridge_lifecycle(tmp_path: Path) -> None:
+    """Verify TorqSpcatBridge class initialization, parsing, partition functions, and export."""
+    tensor_data = {
+        "point_id": "001",
+        "is_linear": False,
+        "symbols": ["O", "H", "H"],
+        "coordinates": H2O_GEOMETRY.tolist(),
+        "tensors": {
+            "rotational_constants_MHz": {
+                "A": H2O_A_MHZ,
+                "B": H2O_B_MHZ,
+                "C": H2O_C_MHZ,
+            }
+        },
+    }
+    tensor_file = tmp_path / "tensor.json"
+    tensor_file.write_text(json.dumps(tensor_data), encoding="utf-8")
+
+    mpqc_content = (
+        "Total Dipole Moment : 0.0000 1.8546 0.0000\n\n"
+        "VIBRATIONAL FREQUENCIES\n"
+        "-----------------------\n"
+        "  1: 1594.75 cm**-1\n"
+        "  2: 3657.05 cm**-1\n"
+        "  3: 3755.93 cm**-1\n"
+    )
+    mpqc_file = tmp_path / "mpqc.out"
+    mpqc_file.write_text(mpqc_content, encoding="utf-8")
+
+    bridge = TorqSpcatBridge(tensor_file, mpqc_file, temperature_k=298.15)
+    assert bridge.point_id == "001"
+    assert bridge.sigma == 2
+    assert bridge.rot_A_MHz == H2O_A_MHZ
+
+    bridge.parse_mpqc_observables()
+    assert len(bridge.frequencies_cm1) == 3
+    assert bridge.dipole_moments["b"] == 1.8546
+
+    q_rot, q_vib, q_total = bridge.calculate_partition_functions()
+    assert 40.0 < q_rot < 50.0
+    assert q_vib >= 1.0
+    assert q_total == q_rot * q_vib

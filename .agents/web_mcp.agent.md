@@ -1,4 +1,4 @@
-﻿---
+---
 name: web-mcp
 description: Expert web scraping agent. DOM sanitization, timeout monitoring, external data gathering.
 argument-hint: "A target query, URL, or data requirement to scrape from the web"

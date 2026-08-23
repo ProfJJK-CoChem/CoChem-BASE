@@ -1,4 +1,4 @@
-﻿"""Physical Zero-Mock Test Suite for cochem-audit.agent.md Refactoring.
+"""Physical Zero-Mock Test Suite for cochem-audit.agent.md Refactoring.
 
 Verifies strict Unix LF line endings, UTF-8 encoding without BOM, zero personal path leakage,
 YAML frontmatter schema compliance, Method Matrix invariants, anti-spoofing protocols, and structural integrity.

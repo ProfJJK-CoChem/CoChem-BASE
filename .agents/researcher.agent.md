@@ -1,4 +1,4 @@
-﻿---
+---
 name: researcher
 description: Central truth-finder for the agent swarm. Compiles research documents with verified citations.
 argument-hint: "A topic, manual, or dataset to thoroughly research"

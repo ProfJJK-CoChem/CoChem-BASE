@@ -1,5 +1,9 @@
 """CoChem-BASE core package."""
 
+from __future__ import annotations
+
+from typing import Any
+
 from .config_loader import (
     get_artifact_dir,
     get_base_root,
@@ -48,7 +52,7 @@ _SUBMODULES = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in _SUBMODULES:
         import importlib
         module = importlib.import_module(f".{name}", __name__)

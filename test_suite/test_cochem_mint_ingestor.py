@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Zero-Mock Physical Test Suite for CoChem-MInt Consolidated Intake Backend.
 Module: test_suite/test_cochem_mint_ingestor.py

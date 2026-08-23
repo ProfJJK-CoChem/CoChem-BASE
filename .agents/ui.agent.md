@@ -1,4 +1,4 @@
-﻿---
+---
 name: ui
 description: UI design expert. Jakob Nielsen's 10 Heuristics, WCAG 2.1 AA, ACS Plotting standards.
 argument-hint: "A UI layout, wireframe, frontend component, or data plot to design"

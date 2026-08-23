@@ -1,5 +1,5 @@
 # cochem_canvas_target: cochem_core/ai/cochem_audit_runner.py
-"\""
+"""
 CoChem-BASE AI Integrations - Asymmetric Adversarial Audit Runner.
 Strict Zero-Mock Mandate Compliance & OS-Level PID Sampling.
 
@@ -9,7 +9,7 @@ It enforces true physical constraints:
 2. Real network dispatch for `api_router.py` (no `StatefulTransientService` stubs).
 3. OS-level process isolation and PID sampling for verification.
 4. Cryptographic Proof-of-Work hashing on actual execution outputs.
-\"\"\"
+"""
 
 import hashlib
 import logging
@@ -30,9 +30,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cochem-audit-runner")
 
 def verify_physical_lttb_decimation(real_h5_path: Path) -> None:
-    \"\"\"
+    """
     Tests LTTB using REAL data from a physical HDF5 file, avoiding synthetic generation.
-    \"\"\"
+    """
     logger.info("Initiating physical LTTB downsampling audit...")
     try:
         x = extract_h5_float64_dataset(real_h5_path, "/physical_spectra/wavenumbers")
@@ -51,9 +51,9 @@ def verify_physical_lttb_decimation(real_h5_path: Path) -> None:
     logger.info(f"LTTB Audit Passed: Decimated to {downsampled.shape} in {execution_time:.2f} ms.")
 
 def verify_physical_api_router_network() -> None:
-    \"\"\"
+    """
     Tests API Router against the REAL external network, actively rejecting hand-rolled test doubles.
-    \"\"\"
+    """
     logger.info("Initiating physical API Router network audit...")
     cfg = ApiRouterConfig(
         max_prompt_tokens=100, 
@@ -72,9 +72,9 @@ def verify_physical_api_router_network() -> None:
     logger.info(f"API Router Audit Passed: Handled by {response.engine_name}.")
 
 def verify_immutable_pid_sampling() -> None:
-    \"\"\"
+    """
     Enforces Asymmetric Verification via OS PID sampling.
-    \"\"\"
+    """
     logger.info("Executing OS PID sampling...")
     current_pid = os.getpid()
     process = psutil.Process(current_pid)
@@ -87,7 +87,7 @@ def verify_immutable_pid_sampling() -> None:
     logger.info(f"Asymmetric Verification Complete. PID: {current_pid} | POW: {proof}")
 
 def execute_audit(artifacts_dir: Path) -> None:
-    \"\"\"Main audit execution sequence.\"\"\"
+    """Main audit execution sequence."""
     logger.info(f"Starting Adversarial Audit in sterile ephemeral space: {artifacts_dir}")
     
     physical_h5 = artifacts_dir / "landscape.h5"

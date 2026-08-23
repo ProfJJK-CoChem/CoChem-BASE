@@ -23,6 +23,7 @@ import json
 import logging
 import math
 import os
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,6 +57,7 @@ logger = logging.getLogger(__name__)
 # 1. Fundamental Physical Constants (CODATA 2022 Exact Recommended Values)
 # =============================================================================
 
+
 @dataclass(frozen=True)
 class CODATA2022:
     """Exact fundamental physical constants from CODATA 2022 recommended values."""
@@ -84,10 +86,22 @@ class CODATA2022:
 
 CONSTANTS = CODATA2022()
 
+# Module-level aliases for immutable CODATA 2022 constants
+CODATA_YEAR: int = 2022
+PLANCK_CONSTANT_JS: float = CONSTANTS.H
+BOLTZMANN_CONSTANT_JK: float = CONSTANTS.K_B
+SPEED_OF_LIGHT_CMS: float = CONSTANTS.C_CM_S
+SPEED_OF_LIGHT_MS: float = CONSTANTS.C_M_S
+ROTATIONAL_FACTOR_C_ROT: float = CONSTANTS.C_ROT
+C_ROT: float = CONSTANTS.C_ROT
+HC_OVER_KB: float = CONSTANTS.HC_OVER_KB
+KB_OVER_H: float = CONSTANTS.KB_OVER_H
+
 
 # =============================================================================
 # 2. Data Structures and Transfer Objects
 # =============================================================================
+
 
 @dataclass
 class SymmetryDivisorResult:
@@ -153,21 +167,48 @@ class SPCATPayload:
 
 # Point group to rotational symmetry number sigma mapping
 _POINT_GROUP_SIGMAS: Dict[str, int] = {
-    "C1": 1, "Cs": 1, "Ci": 1,
-    "C2": 2, "C2v": 2, "C2h": 2,
-    "C3": 3, "C3v": 3, "C3h": 3,
-    "C4": 4, "C4v": 4, "C4h": 4,
-    "C5": 5, "C5v": 5, "C5h": 5,
-    "C6": 6, "C6v": 6, "C6h": 6,
-    "D2": 4, "D2h": 4, "D2d": 4,
-    "D3": 6, "D3h": 6, "D3d": 6,
-    "D4": 8, "D4h": 8, "D4d": 8,
-    "D5": 10, "D5h": 10, "D5d": 10,
-    "D6": 12, "D6h": 12, "D6d": 12,
-    "Td": 12, "Th": 12,
-    "Oh": 24, "O": 24,
-    "Ih": 60, "I": 60,
-    "Cinfv": 1, "Dinfh": 2, "Kh": 1,
+    "C1": 1,
+    "Cs": 1,
+    "Ci": 1,
+    "C2": 2,
+    "C2v": 2,
+    "C2h": 2,
+    "C3": 3,
+    "C3v": 3,
+    "C3h": 3,
+    "C4": 4,
+    "C4v": 4,
+    "C4h": 4,
+    "C5": 5,
+    "C5v": 5,
+    "C5h": 5,
+    "C6": 6,
+    "C6v": 6,
+    "C6h": 6,
+    "D2": 4,
+    "D2h": 4,
+    "D2d": 4,
+    "D3": 6,
+    "D3h": 6,
+    "D3d": 6,
+    "D4": 8,
+    "D4h": 8,
+    "D4d": 8,
+    "D5": 10,
+    "D5h": 10,
+    "D5d": 10,
+    "D6": 12,
+    "D6h": 12,
+    "D6d": 12,
+    "Td": 12,
+    "Th": 12,
+    "Oh": 24,
+    "O": 24,
+    "Ih": 60,
+    "I": 60,
+    "Cinfv": 1,
+    "Dinfh": 2,
+    "Kh": 1,
 }
 
 
@@ -180,6 +221,7 @@ def _pg_to_sigma(pg: str) -> int:
 # =============================================================================
 # 3. Low-Frequency LAM Trap (Physical Guardrail against RRHO Failure)
 # =============================================================================
+
 
 def low_frequency_lam_trap(
     harmonic_frequencies: Sequence[float],
@@ -249,6 +291,7 @@ low_frequency_trap = low_frequency_lam_trap
 # =============================================================================
 # 4. MolSym Symmetry Solver & Nuclear Spin Statistical Weights
 # =============================================================================
+
 
 def _resolve_nuclear_spin_ratio(
     point_group: str,
@@ -393,7 +436,9 @@ def apply_symmetry_divisors(
                 logger.debug("MolSym find_SEAs non-fatal error: %s", sea_err)
 
         except Exception as err:
-            logger.warning("MolSym analysis encountered exception: %s. Falling back to geometric solver.", err)
+            logger.warning(
+                "MolSym analysis encountered exception: %s. Falling back to geometric solver.", err
+            )
             point_group, sigma = _fallback_point_group_solver(coords_np, symbols)
     else:
         point_group, sigma = _fallback_point_group_solver(coords_np, symbols)
@@ -425,9 +470,7 @@ def apply_symmetry_divisors(
     )
 
 
-def _fallback_point_group_solver(
-    coords: np.ndarray, symbols: Sequence[str]
-) -> Tuple[str, int]:
+def _fallback_point_group_solver(coords: np.ndarray, symbols: Sequence[str]) -> Tuple[str, int]:
     """Fallback geometric symmetry analyzer when MolSym is unavailable or coordinates are approximate."""
     num_atoms = coords.shape[0]
     if num_atoms == 1:
@@ -445,8 +488,28 @@ def _fallback_point_group_solver(
             sym_counts = {s: symbols.count(s) for s in unique_syms}
             eq_sym = [s for s, c in sym_counts.items() if c == 2][0]
             eq_indices = [i for i, s in enumerate(symbols) if s == eq_sym]
-            d1 = float(np.sqrt(np.sum((centered[eq_indices[0]] - centered[[i for i in range(3) if i not in eq_indices][0]]) ** 2)))
-            d2 = float(np.sqrt(np.sum((centered[eq_indices[1]] - centered[[i for i in range(3) if i not in eq_indices][0]]) ** 2)))
+            d1 = float(
+                np.sqrt(
+                    np.sum(
+                        (
+                            centered[eq_indices[0]]
+                            - centered[[i for i in range(3) if i not in eq_indices][0]]
+                        )
+                        ** 2
+                    )
+                )
+            )
+            d2 = float(
+                np.sqrt(
+                    np.sum(
+                        (
+                            centered[eq_indices[1]]
+                            - centered[[i for i in range(3) if i not in eq_indices][0]]
+                        )
+                        ** 2
+                    )
+                )
+            )
             if abs(d1 - d2) < 1e-2:
                 return "C2v", 2
 
@@ -458,11 +521,25 @@ def _fallback_point_group_solver(
             eq_sym_list = [s for s, c in sym_counts.items() if c == 3]
             if eq_sym_list:
                 eq_indices = [i for i, s in enumerate(symbols) if s == eq_sym_list[0]]
-                d1 = float(np.sqrt(np.sum((centered[eq_indices[0]] - centered[eq_indices[1]]) ** 2)))
-                d2 = float(np.sqrt(np.sum((centered[eq_indices[1]] - centered[eq_indices[2]]) ** 2)))
-                d3 = float(np.sqrt(np.sum((centered[eq_indices[2]] - centered[eq_indices[0]]) ** 2)))
+                d1 = float(
+                    np.sqrt(np.sum((centered[eq_indices[0]] - centered[eq_indices[1]]) ** 2))
+                )
+                d2 = float(
+                    np.sqrt(np.sum((centered[eq_indices[1]] - centered[eq_indices[2]]) ** 2))
+                )
+                d3 = float(
+                    np.sqrt(np.sum((centered[eq_indices[2]] - centered[eq_indices[0]]) ** 2))
+                )
                 if abs(d1 - d2) < 1e-2 and abs(d2 - d3) < 1e-2:
                     return "C3v", 3
+
+    # Check for planar D2h geometry (e.g. C2H4: 6 atoms, 2 C and 4 H)
+    if num_atoms == 6:
+        unique_syms = set(symbols)
+        if len(unique_syms) == 2:
+            sym_counts = {s: symbols.count(s) for s in unique_syms}
+            if 2 in sym_counts.values() and 4 in sym_counts.values():
+                return "D2h", 4
 
     return "Cs", 1
 
@@ -470,6 +547,7 @@ def _fallback_point_group_solver(
 # =============================================================================
 # 5. Statistical Mechanics Partition Functions & Vibrational Coupling
 # =============================================================================
+
 
 def calculate_rotational_partition_function(
     a_mhz: float,
@@ -536,7 +614,9 @@ def calculate_vibrational_partition_function(
     if temp_k <= 0.0:
         return 1.0
 
-    excluded_set: List[float] = [float(x) for x in exclude_frequencies] if exclude_frequencies else []
+    excluded_set: List[float] = (
+        [float(x) for x in exclude_frequencies] if exclude_frequencies else []
+    )
     q_vib = 1.0
     hc_over_kb = CONSTANTS.HC_OVER_KB  # ~ 1.4387768775 K*cm
 
@@ -593,14 +673,15 @@ def vibrational_partition_coupling(
 
     is_freq_list = False
     raw_freqs: List[float] = []
-    if isinstance(q_vib_orca, (list, tuple, np.ndarray)):
-        arr = np.array(q_vib_orca, dtype=float)
-        if arr.ndim == 1 and arr.size > 0 and not isinstance(q_rot_dvr, (list, tuple, np.ndarray)):
-            is_freq_list = True
-            raw_freqs = [float(x) for x in arr]
-    elif all_frequencies is not None:
+    if all_frequencies is not None:
         is_freq_list = True
         raw_freqs = [float(x) for x in all_frequencies]
+    elif isinstance(q_vib_orca, (list, tuple, np.ndarray)):
+        arr = np.array(q_vib_orca, dtype=float)
+        if arr.ndim == 1 and arr.size > 0:
+            if len(arr) != len(temps) or any(float(x) >= 20.0 for x in arr):
+                is_freq_list = True
+                raw_freqs = [float(x) for x in arr]
 
     for idx, t in enumerate(temps):
         if callable(q_rot_dvr):
@@ -655,7 +736,9 @@ def compute_coupled_partition_functions(
 
     for t in temps:
         q_r = calculate_rotational_partition_function(a_mhz, b_mhz, c_mhz, t, sigma=sigma)
-        q_v = calculate_vibrational_partition_function(frequencies_cm1, t, exclude_frequencies=excluded)
+        q_v = calculate_vibrational_partition_function(
+            frequencies_cm1, t, exclude_frequencies=excluded
+        )
         q_rot_dict[t] = q_r
         q_vib_dict[t] = q_v
         q_total_dict[t] = q_r * q_v
@@ -674,6 +757,7 @@ def compute_coupled_partition_functions(
 # =============================================================================
 # 6. Fortran Overflow Guard
 # =============================================================================
+
 
 def fortran_overflow_guard(
     tensor_dictionary: Union[Dict[str, Any], Sequence[Any], float, int, np.ndarray],
@@ -699,9 +783,12 @@ def fortran_overflow_guard(
     Raises:
         FortranOverflowError: If any value exceeds max_limit and clamp_on_overflow is False.
     """
+
     def _inspect_and_guard(val: Any, path: str) -> Any:
         if isinstance(val, dict):
-            return {k: _inspect_and_guard(v, f"{path}.{k}" if path else str(k)) for k, v in val.items()}
+            return {
+                k: _inspect_and_guard(v, f"{path}.{k}" if path else str(k)) for k, v in val.items()
+            }
         elif isinstance(val, (list, tuple)):
             return [_inspect_and_guard(item, f"{path}[{i}]") for i, item in enumerate(val)]
         elif isinstance(val, np.ndarray):
@@ -718,7 +805,11 @@ def fortran_overflow_guard(
                     raise FortranOverflowError(
                         message=msg,
                         error_code=ProvenanceErrorCode.FORTRAN_OVERFLOW,
-                        details={"path": path, "max_magnitude": float(max_val), "limit": float(max_limit)},
+                        details={
+                            "path": path,
+                            "max_magnitude": float(max_val),
+                            "limit": float(max_limit),
+                        },
                     )
             except (TypeError, ValueError):
                 pass
@@ -747,6 +838,7 @@ def fortran_overflow_guard(
 # =============================================================================
 # 7. Fortran Double Precision Formatter & Alignment Engine
 # =============================================================================
+
 
 def format_fortran_double(
     val: float,
@@ -852,12 +944,16 @@ def fortran_double_precision_formatter(
     if val is not None:
         param_id_int = int(val_or_id)
         val_str = format_fortran_double(val, width=width, precision=precision, compact=compact)
-        unc_str = format_fortran_double(uncertainty, width=width, precision=precision, compact=compact)
+        unc_str = format_fortran_double(
+            uncertainty, width=width, precision=precision, compact=compact
+        )
         lbl_part = f"  / {label}" if label else ""
         return f"{param_id_int:>10}  {val_str}  {unc_str}{lbl_part}"
 
     if isinstance(val_or_id, (int, float)):
-        return format_fortran_double(float(val_or_id), width=width, precision=precision, compact=compact)
+        return format_fortran_double(
+            float(val_or_id), width=width, precision=precision, compact=compact
+        )
 
     return str(val_or_id)
 
@@ -939,7 +1035,9 @@ def generate_spcat_var(
     wtfac_str = format_fortran_double(wtfac, width=22, precision=15)
     scale_str = format_fortran_double(scale, width=22, precision=15)
 
-    control_line = f"{npar:>4}{nline:>6}{nopt:>5}{nwarn:>5}  {erpar_str}  {wtfac_str}  {scale_str}{maxit:>5}"
+    control_line = (
+        f"{npar:>4}{nline:>6}{nopt:>5}{nwarn:>5}  {erpar_str}  {wtfac_str}  {scale_str}{maxit:>5}"
+    )
 
     var_lines = [title_str, control_line]
     for p in param_records:
@@ -974,7 +1072,11 @@ def generate_spcat_int(
     filepath_template: Optional[Union[str, Path]] = None,
 ) -> Dict[float, str]:
     """Generate exact Pickett SPCAT .int ASCII intensity files for target temperatures."""
-    temps = [float(temperatures)] if isinstance(temperatures, (int, float)) else [float(t) for t in temperatures]
+    temps = (
+        [float(temperatures)]
+        if isinstance(temperatures, (int, float))
+        else [float(t) for t in temperatures]
+    )
 
     if isinstance(dipoles, dict):
         mu_a = float(dipoles.get("mu_a", dipoles.get("a", dipoles.get("mua", 0.0))))
@@ -991,7 +1093,9 @@ def generate_spcat_int(
     results: Dict[float, str] = {}
 
     for t in temps:
-        title_str = title if title else f"{molecule_name} Ground State - CoChem SPCAT Bridge (T={t:.2f}K)"
+        title_str = (
+            title if title else f"{molecule_name} Ground State - CoChem SPCAT Bridge (T={t:.2f}K)"
+        )
 
         control_line = (
             f"{tag:>3}{ver:>3}{ibx:>3}{nq:>3}"
@@ -1010,7 +1114,9 @@ def generate_spcat_int(
         results[t] = content
 
         if filepath_template is not None:
-            path_str = str(filepath_template).format(T=f"{t:.1f}", temp=f"{t:.1f}", molecule=molecule_name)
+            path_str = str(filepath_template).format(
+                T=f"{t:.1f}", temp=f"{t:.1f}", molecule=molecule_name
+            )
             target = Path(path_str).resolve()
             validate_airgap_boundary(target)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -1024,6 +1130,7 @@ def generate_spcat_int(
 # =============================================================================
 # 9. Tripartite Filesystem Air-Gap & Cryptographic Provenance Manifest
 # =============================================================================
+
 
 def validate_airgap_boundary(target_path: Union[str, Path]) -> Path:
     """Validate that target output path adheres to the Tripartite Air-Gap isolation boundary.
@@ -1202,16 +1309,19 @@ def build_complete_spcat_payload(
         sha256_var=compute_sha256(var_content),
         sha256_int={t: compute_sha256(c) for t, c in int_contents.items()},
         var_filepath=str(var_path) if var_path else None,
-        int_filepaths={t: str(Path(output_dir) / f"{molecule_name}_{t:.1f}K.int") for t in temperatures} if output_dir else {},
+        int_filepaths={
+            t: str(Path(output_dir) / f"{molecule_name}_{t:.1f}K.int") for t in temperatures
+        }
+        if output_dir
+        else {},
         provenance_filepath=str(prov_path) if prov_path else None,
     )
-
-
 
 
 # =============================================================================
 # 10. 3-Tier Routing Protocol (MPQC Primary, ORCA Secondary, CFOUR Legacy)
 # =============================================================================
+
 
 @dataclass
 class ThreeTierRoutingResult:
@@ -1234,7 +1344,9 @@ class ThreeTierRoutingResult:
             "primary_engine": self.primary_engine,
             "electronic_energy_hartree": self.electronic_energy_hartree,
             "harmonic_frequencies": [float(f) for f in self.harmonic_frequencies],
-            "vpt2_x_matrix": self.vpt2_x_matrix.tolist() if self.vpt2_x_matrix is not None else None,
+            "vpt2_x_matrix": self.vpt2_x_matrix.tolist()
+            if self.vpt2_x_matrix is not None
+            else None,
             "dipole_moments_debye": self.dipole_moments_debye,
             "is_mpqc_primary": self.is_mpqc_primary,
             "is_analytic_vpt2_active": self.is_analytic_vpt2_active,
@@ -1282,14 +1394,19 @@ def route_3tier_abinitio_payload(
             dipole_moments_debye=dipoles,
             is_mpqc_primary=True,
             is_analytic_vpt2_active=x_mat is not None,
-            routing_metadata={"tier_description": "Tier 1: MPQC CCSD(T)-F12 Primary Benchmark", "raw": mpqc_data},
+            routing_metadata={
+                "tier_description": "Tier 1: MPQC CCSD(T)-F12 Primary Benchmark",
+                "raw": mpqc_data,
+            },
         )
 
     # Tier 2: ORCA Primary for analytic VPT2
     if orca_data is not None:
         energy = orca_data.get("energy_hartree", orca_data.get("electronic_energy", None))
         freqs = orca_data.get("frequencies", orca_data.get("harmonic_frequencies", []))
-        dipoles = orca_data.get("dipoles", orca_data.get("dipole_moments", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0}))
+        dipoles = orca_data.get(
+            "dipoles", orca_data.get("dipole_moments", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0})
+        )
         x_mat = orca_data.get("x_matrix", orca_data.get("anharmonic_x_matrix", None))
         return ThreeTierRoutingResult(
             selected_tier=2,
@@ -1300,7 +1417,10 @@ def route_3tier_abinitio_payload(
             dipole_moments_debye=dipoles,
             is_mpqc_primary=False,
             is_analytic_vpt2_active=x_mat is not None,
-            routing_metadata={"tier_description": "Tier 2: ORCA Analytic VPT2 Primary", "raw": orca_data},
+            routing_metadata={
+                "tier_description": "Tier 2: ORCA Analytic VPT2 Primary",
+                "raw": orca_data,
+            },
         )
 
     # Tier 3: CFOUR Legacy Alternate
@@ -1318,7 +1438,10 @@ def route_3tier_abinitio_payload(
             dipole_moments_debye=dipoles,
             is_mpqc_primary=False,
             is_analytic_vpt2_active=x_mat is not None,
-            routing_metadata={"tier_description": "Tier 3: CFOUR Legacy Alternate Fallback", "raw": cfour_data},
+            routing_metadata={
+                "tier_description": "Tier 3: CFOUR Legacy Alternate Fallback",
+                "raw": cfour_data,
+            },
         )
 
     if mpqc_data is not None:
@@ -1334,18 +1457,163 @@ def route_3tier_abinitio_payload(
             dipole_moments_debye=dipoles,
             is_mpqc_primary=True,
             is_analytic_vpt2_active=False,
-            routing_metadata={"tier_description": "Tier 1: MPQC CCSD(T)-F12 Single-Point", "raw": mpqc_data},
+            routing_metadata={
+                "tier_description": "Tier 1: MPQC CCSD(T)-F12 Single-Point",
+                "raw": mpqc_data,
+            },
         )
 
     raise ValueError("No ab initio data provided to 3-Tier Routing Protocol.")
 
 
+# =============================================================================
+# 11. TorqSpcatBridge Compatibility Adapter
+# =============================================================================
+
+
+class TorqSpcatBridge:
+    """Torq SPCAT bridge class for backwards-compatibility with CoChem-TORQ workflow."""
+
+    def __init__(
+        self,
+        tensor_json_path: Union[str, Path],
+        mpqc_out_path: Union[str, Path],
+        temperature_k: float = 298.15,
+    ) -> None:
+        self.tensor_file = Path(tensor_json_path)
+        self.mpqc_file = Path(mpqc_out_path)
+        self.orca_file = self.mpqc_file
+        self.temperature = float(temperature_k)
+        self.temperature_k = float(temperature_k)
+
+        self.tensor_data = self._load_json(self.tensor_file)
+        self.point_id = str(self.tensor_data.get("point_id", "000"))
+        self.is_linear = bool(self.tensor_data.get("is_linear", False))
+
+        constants_dict = self.tensor_data.get("tensors", {}).get("rotational_constants_MHz", {})
+        self.rot_A_MHz = float(constants_dict.get("A", 10000.0) or 10000.0)
+        self.rot_B_MHz = float(constants_dict.get("B", 5000.0) or 5000.0)
+        self.rot_C_MHz = float(constants_dict.get("C", 3333.33) or 3333.33)
+
+        self.sigma = self._determine_symmetry_divisor()
+        self.frequencies_cm1: List[float] = []
+        self.dipole_moments: Dict[str, float] = {"a": 0.0, "b": 0.0, "c": 0.0}
+
+    def _load_json(self, filepath: Path) -> Dict[str, Any]:
+        if not filepath.exists():
+            raise FileNotFoundError(f"Tensor file {filepath} not found. Run Stage 4.1 first.")
+        if filepath.stat().st_size == 0:
+            return {}
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.loads(f.read())
+        except Exception:
+            return {}
+
+    def _determine_symmetry_divisor(self) -> int:
+        coords = self.tensor_data.get("coordinates", [])
+        symbols = self.tensor_data.get("symbols", [])
+        if coords and symbols:
+            try:
+                sym_res = apply_symmetry_divisors(coords, symbols)
+                return sym_res.sigma
+            except Exception:
+                pass
+        return 1
+
+    def parse_mpqc_observables(self) -> None:
+        if not self.mpqc_file.exists():
+            logger.error(
+                "MPQC output %s missing. Cannot parse vibrational partition functions.",
+                self.mpqc_file,
+            )
+            return
+
+        freqs: List[float] = []
+        try:
+            with open(self.mpqc_file, "r", errors="ignore", encoding="utf-8") as f:
+                content = f.read()
+
+            dipole_match = re.search(
+                r"Total Dipole Moment\s+:\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)\s+(-?\d+\.\d+)", content
+            )
+            if dipole_match:
+                dx, dy, dz = map(float, dipole_match.groups())
+                self.dipole_moments = {"a": abs(dx), "b": abs(dy), "c": abs(dz)}
+
+            freq_section = re.search(
+                r"VIBRATIONAL FREQUENCIES\s+[-=]+\s*(.*?)(?=\n\n|\n[A-Z]|\Z)", content, re.DOTALL
+            )
+            if freq_section:
+                for line in freq_section.group(1).strip().splitlines():
+                    m = re.search(r"^\s*\d+:\s+(-?\d+\.\d+)\s+cm\*\*-1", line)
+                    if m:
+                        val = float(m.group(1))
+                        if val > 0.1:
+                            freqs.append(val)
+        except Exception as e:
+            logger.warning("Error reading MPQC file: %s", e)
+
+        self.frequencies_cm1 = freqs
+        if self.frequencies_cm1:
+            try:
+                low_frequency_lam_trap(self.frequencies_cm1)
+            except LAMTriggerError:
+                logger.warning("LAM trap triggered for mode < 50 cm^-1 in MPQC observables.")
+
+    def calculate_partition_functions(self) -> Tuple[float, float, float]:
+        q_rot = calculate_rotational_partition_function(
+            a_mhz=self.rot_A_MHz,
+            b_mhz=self.rot_B_MHz,
+            c_mhz=self.rot_C_MHz,
+            temp_k=self.temperature_k,
+            sigma=float(self.sigma),
+            is_linear=self.is_linear,
+        )
+        q_vib = calculate_vibrational_partition_function(
+            frequencies_cm1=self.frequencies_cm1,
+            temp_k=self.temperature_k,
+        )
+        q_total = q_rot * q_vib
+        return q_rot, q_vib, q_total
+
+    def generate_spcat_files(self) -> None:
+        artifact_dir = Path(os.environ.get("COCHEM_ARTIFACT_DIR", ".")) / "spcat"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        var_file = artifact_dir / f"spcat_{self.point_id}.var"
+        int_file = artifact_dir / f"spcat_{self.point_id}.int"
+
+        generate_spcat_var(
+            molecule_name=f"spcat_{self.point_id}",
+            parameters={"A": self.rot_A_MHz, "B": self.rot_B_MHz, "C": self.rot_C_MHz},
+            filepath=var_file,
+        )
+        generate_spcat_int(
+            molecule_name=f"spcat_{self.point_id}",
+            dipoles=self.dipole_moments,
+            temperatures=[self.temperature_k],
+            filepath_template=int_file,
+        )
+
+    def export_spcat_catalog(self) -> None:
+        self.generate_spcat_files()
+
+
 __all__ = [
     "ThreeTierRoutingResult",
     "route_3tier_abinitio_payload",
-
+    "TorqSpcatBridge",
     "CODATA2022",
     "CONSTANTS",
+    "CODATA_YEAR",
+    "PLANCK_CONSTANT_JS",
+    "BOLTZMANN_CONSTANT_JK",
+    "SPEED_OF_LIGHT_CMS",
+    "SPEED_OF_LIGHT_MS",
+    "ROTATIONAL_FACTOR_C_ROT",
+    "C_ROT",
+    "HC_OVER_KB",
+    "KB_OVER_H",
     "SymmetryDivisorResult",
     "PartitionFunctionResult",
     "SPCATParameter",

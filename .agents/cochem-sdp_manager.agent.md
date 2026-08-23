@@ -1,4 +1,4 @@
-﻿---
+---
 name: cochem-sdp-manager
 description: Software Development Project Manager. Applies PMBOK and SWEBOK to establish project plans and compliance procedures.
 argument-hint: "A high-level project goal requiring planning and task breakdown"

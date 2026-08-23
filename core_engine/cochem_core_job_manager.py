@@ -27,6 +27,10 @@ class JobConfig(BaseModel):
     atom_count: Optional[int] = None
     n_atoms: Optional[int] = None
     temporal_tier_override: Optional[int] = None
+    max_duration_override: Optional[int] = None
+    job_name: Optional[str] = None
+    cwd: Optional[str] = None
+    env: Optional[Dict[str, str]] = None
 
 class JobInfo(BaseModel):
     config: JobConfig
@@ -41,6 +45,7 @@ class JobInfo(BaseModel):
     stdout: Optional[str] = None
     stderr: Optional[str] = None
     duration: Optional[float] = None
+    error: Optional[str] = None
 
 
 class JobManager:
@@ -115,6 +120,12 @@ class JobManager:
         logger.info(f"📤 Submitting job {job_id}")
 
         temporal_tier = self._assign_temporal_tier(job_config)
+        max_duration = job_config.max_duration_override if job_config.max_duration_override is not None else self.TEMPORAL_TIERS[temporal_tier - 1]
+
+        # Enforce max_job_history
+        while len(self.jobs) >= self.max_job_history:
+            oldest_key = next(iter(self.jobs))
+            del self.jobs[oldest_key]
 
         self.jobs[job_id] = JobInfo(
             config=job_config,
@@ -122,7 +133,7 @@ class JobManager:
             created_at=time.time(),
             job_id=job_id,
             temporal_tier=temporal_tier,
-            max_duration=self.TEMPORAL_TIERS[temporal_tier - 1]
+            max_duration=max_duration
         )
 
         return job_id
@@ -142,6 +153,8 @@ class JobManager:
         atom_count = job_config.n_atoms if job_config.n_atoms is not None else (job_config.atom_count if job_config.atom_count is not None else 10)
 
         if product_class in ('Product_D_ActiveLearning', 'Class_D'):
+            if atom_count > 50:
+                return 10
             return 9
 
         if product_class in ('Product_C_Differences', 'Class_C') or is_isotopologue:
@@ -175,11 +188,18 @@ class JobManager:
         now = time.time()
         to_delete = []
         for job_id, info in self.jobs.items():
-            if info.status in ('completed', 'failed', 'cancelled'):
+            if info.status in ('completed', 'failed', 'cancelled', 'timed_out'):
                 completed_at = info.completed_at if info.completed_at else info.created_at
                 if (now - completed_at) >= max_age_seconds:
                     to_delete.append(job_id)
 
+        for jid in to_delete:
+            del self.jobs[jid]
+        return len(to_delete)
+
+    def clear_history(self) -> int:
+        """Clear all finished jobs from history."""
+        to_delete = [jid for jid, info in self.jobs.items() if info.status in ('completed', 'failed', 'cancelled', 'timed_out')]
         for jid in to_delete:
             del self.jobs[jid]
         return len(to_delete)
@@ -189,8 +209,29 @@ class JobManager:
         return self.jobs.get(job_id)
 
     def get_completed_jobs(self) -> List[JobInfo]:
-        """Get all completed, failed, or cancelled jobs."""
-        return [job for job in self.jobs.values() if job.status in ('completed', 'failed', 'cancelled')]
+        """Get all completed, failed, timed out, or cancelled jobs."""
+        return [job for job in self.jobs.values() if job.status in ('completed', 'failed', 'cancelled', 'timed_out')]
+
+    def get_failed_jobs(self) -> List[JobInfo]:
+        """Get all failed jobs."""
+        return [job for job in self.jobs.values() if job.status in ('failed', 'timed_out')]
+
+    def get_running_jobs(self) -> List[JobInfo]:
+        """Get all currently running jobs."""
+        return [job for job in self.jobs.values() if job.status == 'running']
+
+    async def wait_for_job(self, job_id: str, timeout: Optional[float] = None) -> Optional[JobInfo]:
+        """Wait for a job to finish and return its JobInfo."""
+        start_wait = time.time()
+        while True:
+            job = self.jobs.get(job_id)
+            if not job:
+                return None
+            if job.status in ('completed', 'failed', 'cancelled', 'timed_out'):
+                return job
+            if timeout is not None and (time.time() - start_wait) > timeout:
+                return job
+            await asyncio.sleep(0.05)
 
     async def run_job(self, config: Union[Dict[str, Any], JobConfig], timeout: Optional[float] = None) -> JobInfo:
         """Submits, executes, and waits for a job to finish, returning JobInfo with stdout/stderr."""
@@ -213,7 +254,8 @@ class JobManager:
                     self._kill_process_tree(proc.pid)
                 await proc.wait()
                 job.return_code = -1
-                job.status = 'failed'
+                job.status = 'timed_out'
+                job.error = f"Job {job_id} exceeded temporal maximum duration ({job.max_duration}s)"
             finally:
                 job.completed_at = time.time()
                 job.duration = job.completed_at - (job.started_at or job.created_at)
@@ -229,11 +271,30 @@ class JobManager:
         job = self.jobs[job_id]
         logger.info(f"▶️  Starting job {job_id} with temporal tier {job.temporal_tier}")
 
+        command = job.config.command
+        if not command:
+            job.status = 'failed'
+            job.error = 'Job command list cannot be empty'
+            job.completed_at = time.time()
+            return
+
+        import os
+        if job.config.cwd and not os.path.isdir(job.config.cwd):
+            job.status = 'failed'
+            job.error = 'Specified working directory does not exist'
+            job.completed_at = time.time()
+            return
+
         try:
-            command = job.config.command
+            merged_env = None
+            if job.config.env:
+                merged_env = os.environ.copy()
+                merged_env.update(job.config.env)
 
             process = await asyncio.create_subprocess_exec(
                 *command,
+                cwd=job.config.cwd,
+                env=merged_env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -254,6 +315,8 @@ class JobManager:
         except Exception as e:
             logger.error(f"Failed to start job {job_id}: {e}")
             job.status = 'failed'
+            job.error = str(e)
+            job.completed_at = time.time()
 
     async def _enforce_timeout(self, job_id: str) -> None:
         """Enforce timeout with asyncio.wait_for and platform-safe termination."""
@@ -265,7 +328,10 @@ class JobManager:
         max_duration = process_info['max_duration']
 
         try:
-            await asyncio.wait_for(process.wait(), timeout=max_duration)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=max_duration)
+            if job_id in self.jobs:
+                self.jobs[job_id].stdout = stdout_bytes.decode('utf-8', errors='replace')
+                self.jobs[job_id].stderr = stderr_bytes.decode('utf-8', errors='replace')
             logger.info(f"Job {job_id} completed with return code {process.returncode}")
             self._complete_job(job_id, process.returncode or 0)
 
@@ -278,19 +344,26 @@ class JobManager:
                 logger.error(f"Error terminating job {job_id}: {sig_error}")
 
             await process.wait()
-            self._complete_job(job_id, process.returncode or -1)
+            if job_id in self.jobs:
+                self.jobs[job_id].status = 'timed_out'
+                self.jobs[job_id].error = f"Job {job_id} exceeded temporal maximum duration ({max_duration}s)"
+            self._complete_job(job_id, process.returncode or -1, timed_out=True)
 
         except Exception as e:
             logger.error(f"Error in timeout enforcement for job {job_id}: {e}")
             self._complete_job(job_id, -1)
 
-    def _complete_job(self, job_id: str, return_code: int) -> None:
+    def _complete_job(self, job_id: str, return_code: int, timed_out: bool = False) -> None:
         """Mark a job as completed or failed and clean up resources."""
         if job_id in self.jobs:
             logger.info(f"✅ Completing job {job_id} with return code {return_code}")
-            self.jobs[job_id].status = 'completed' if return_code == 0 else 'failed'
+            if timed_out:
+                self.jobs[job_id].status = 'timed_out'
+            elif self.jobs[job_id].status != 'cancelled':
+                self.jobs[job_id].status = 'completed' if return_code == 0 else 'failed'
             self.jobs[job_id].completed_at = time.time()
             self.jobs[job_id].return_code = return_code
+            self.jobs[job_id].duration = self.jobs[job_id].completed_at - (self.jobs[job_id].started_at or self.jobs[job_id].created_at)
 
         if job_id in self.active_processes:
             del self.active_processes[job_id]
@@ -307,6 +380,7 @@ class JobManager:
         if job_id in self.jobs:
             logger.info(f"❌ Cancelling job {job_id}")
             self.jobs[job_id].status = 'cancelled'
+            self.jobs[job_id].completed_at = time.time()
 
             if job_id in self.active_processes:
                 try:
@@ -319,9 +393,12 @@ class JobManager:
             return True
         return False
 
-    def list_jobs(self) -> List[Dict[str, Any]]:
-        """List all current jobs."""
-        return [job.model_dump() if hasattr(job, "model_dump") else job.dict() for job in self.jobs.values()]
+    def list_jobs(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List all current jobs with optional status filter."""
+        jobs_list = self.jobs.values()
+        if status is not None:
+            jobs_list = [j for j in jobs_list if j.status == status]
+        return [job.model_dump() if hasattr(job, "model_dump") else job.dict() for job in jobs_list]
 
     async def monitor_active_jobs(self) -> None:
         """Monitor and report on active jobs."""

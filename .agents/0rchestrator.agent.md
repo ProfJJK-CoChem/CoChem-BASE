@@ -1,4 +1,4 @@
-﻿---
+---
 name: 0rchestrator
 description: Master orchestrator for all agent swarm tasks. Routes, plans, audits, and maintains swarm state.
 argument-hint: "A user goal or complex task to plan and orchestrate"

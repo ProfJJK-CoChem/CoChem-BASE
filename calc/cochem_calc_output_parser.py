@@ -167,6 +167,12 @@ class QuantumParser:
         if not self.verify_scf_convergence(log_path):
             return False
 
+        if not self.check_spin_contamination(log_path):
+            return False
+
+        if not self.check_spin_contamination(log_path):
+            return False
+
         self.verify_basis_saturation(log_path)
 
         # Compute SHA-256 for provenance

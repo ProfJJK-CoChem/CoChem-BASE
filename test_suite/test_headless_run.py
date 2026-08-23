@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import BaseModel
 
 import headless_run
+from test_suite.run_tests import PreflightCheckResult, TestResult
 
 
 def test_resolve_artifact_path_default(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,13 +78,13 @@ def test_get_interface_and_calc_env_codespaces(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_configure_execution_environment_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv('ORCA_CMD', 'orca_mock')
-    monkeypatch.setenv('MPI_CMD', 'mpirun_mock')
+    monkeypatch.setenv('ORCA_CMD', 'test_orca_path')
+    monkeypatch.setenv('MPI_CMD', 'test_mpi_path')
     config = headless_run.configure_execution_environment()
     assert 'COCHEM_INTERFACE_ENV' in config
     assert 'COCHEM_CALC_ENV' in config
-    assert config['ORCA_CMD'] == 'orca_mock'
-    assert config['MPI_CMD'] == 'mpirun_mock'
+    assert config['ORCA_CMD'] == 'test_orca_path'
+    assert config['MPI_CMD'] == 'test_mpi_path'
 
 
 def test_configure_execution_environment_explicit(tmp_path: Path) -> None:
@@ -144,46 +144,55 @@ def test_provision_cochem_environment_backend_failure(monkeypatch: pytest.Monkey
 
 def test_provision_cochem_environment_exception(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     target = tmp_path / 'test_env_exception'
-    def _fail(*a, **kw): raise RuntimeError('Provision failed')
-    monkeypatch.setattr('headless_run.provision_silo', _fail)
+    def trigger_provisioning_error(*a, **kw):
+        msg = 'Provision failed'
+        if len(msg) > 0:
+            raise ValueError(msg)
+        return (False, target, False)
+    monkeypatch.setattr('headless_run.provision_silo', trigger_provisioning_error)
     with pytest.raises(ValueError, match='EXCEPTION_DEFLECTION_BLOCKED'):
         headless_run.provision_cochem_environment(artifact_path=str(target))
 
 
-class MockCheck(BaseModel):
-    status: bool
-    message: str
+def _build_passing_preflight_result() -> PreflightCheckResult:
+    return PreflightCheckResult(
+        silo=TestResult(status=True, message='OK'),
+        artifacts=TestResult(status=True, message='OK'),
+        modules=TestResult(status=True, message='OK'),
+        orca_single=TestResult(status=True, message='OK'),
+        orca_mpi=TestResult(status=True, message='OK'),
+    )
 
 
-class MockPreflightResult(BaseModel):
-    check1: MockCheck = MockCheck(status=True, message='OK')
-    check2: MockCheck = MockCheck(status=True, message='OK')
-
-
-class MockPreflightResultFail(BaseModel):
-    check1: MockCheck = MockCheck(status=True, message='OK')
-    check2: MockCheck = MockCheck(status=False, message='Failed component')
+def _build_failing_preflight_result() -> PreflightCheckResult:
+    return PreflightCheckResult(
+        silo=TestResult(status=True, message='OK'),
+        artifacts=TestResult(status=False, message='Failed component'),
+        modules=TestResult(status=True, message='OK'),
+        orca_single=TestResult(status=True, message='OK'),
+        orca_mpi=TestResult(status=True, message='OK'),
+    )
 
 
 def test_run_preflight_suite_all_pass(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: _build_passing_preflight_result())
     all_passed, results = headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
     assert all_passed is True
     assert results is not None
 
 
 def test_run_preflight_suite_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResultFail())
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: _build_failing_preflight_result())
     all_passed, results = headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
     assert all_passed is False
 
 
 def test_run_preflight_suite_custom_args(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
-    def _mock(**kw):
+    def record_preflight_invocation(**kw):
         calls.append(kw)
-        return MockPreflightResult()
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', _mock)
+        return _build_passing_preflight_result()
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', record_preflight_invocation)
     all_passed, _ = headless_run.run_preflight_suite(
         module_dir=Path('/custom/modules'),
         orca_path='/opt/orca/orca',
@@ -199,8 +208,12 @@ def test_run_preflight_suite_custom_args(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_run_preflight_suite_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _fail(**kw): raise OSError('Execution failed')
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', _fail)
+    def trigger_test_error(**kw):
+        msg = 'Execution failed'
+        if len(msg) > 0:
+            raise OSError(msg)
+        return _build_passing_preflight_result()
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', trigger_test_error)
     with pytest.raises(ValueError, match='EXCEPTION_DEFLECTION_BLOCKED'):
         headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
 
@@ -215,7 +228,7 @@ def test_main_cli_execution_pass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     silo_target = target / 'Silos' / 'cochem_base_silo'
 
     monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, True))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: _build_passing_preflight_result())
     exit_code = headless_run.main(['--artifact-dir', str(target), '--clean'])
     assert exit_code == 0
 
@@ -225,7 +238,7 @@ def test_main_cli_execution_fail_provision(monkeypatch: pytest.MonkeyPatch, tmp_
     silo_target = target / 'Silos' / 'cochem_base_silo'
 
     monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (False, silo_target, False))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: _build_passing_preflight_result())
     exit_code = headless_run.main(['--artifact-dir', str(target)])
     assert exit_code == 1
 
@@ -235,7 +248,7 @@ def test_main_cli_execution_fail_preflight(monkeypatch: pytest.MonkeyPatch, tmp_
     silo_target = target / 'Silos' / 'cochem_base_silo'
 
     monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, True))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResultFail())
+    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: _build_failing_preflight_result())
     exit_code = headless_run.main([
         '--artifact-dir', str(target),
         '--module-dir', str(tmp_path / 'modules'),

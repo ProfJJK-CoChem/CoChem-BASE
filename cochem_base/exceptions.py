@@ -663,12 +663,40 @@ class AirGapViolationError(CoChemError, PermissionError):
     )
 
 
+class CoChemIntegrityError(SecurityIntegrityError):
+    """Raised when cryptographic hash verification fails or payload bytes have been tampered with."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+class KraitchmanSingularityError(SingularityError):
+    """Raised when Kraitchman substitution coordinate calculation encounters an unhandled singularity."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SINGULARITY_DETECTED
+    )
+
+
 # =====================================================================
 # Warnings
 # =====================================================================
 
 class CoChemWarning(UserWarning):
     """Base warning category for the CoChem ecosystem."""
+
+    pass
+
+
+class KraitchmanZPVEWarning(CoChemWarning):
+    """Issued when Kraitchman calculation encounters an imaginary radicand due to ZPVE shifts."""
+
+    pass
+
+
+class TelemetryNetworkExhaustedWarning(CoChemWarning):
+    """Issued when webhook telemetry retries are exhausted and payloads are spooled to disk."""
 
     pass
 
@@ -989,8 +1017,12 @@ __all__ = [
     "FortranOverflowError",
     "SPCATBridgeError",
     "AirGapViolationError",
+    "CoChemIntegrityError",
+    "KraitchmanSingularityError",
     # Warnings
     "CoChemWarning",
+    "KraitchmanZPVEWarning",
+    "TelemetryNetworkExhaustedWarning",
     "MethodMatrixWarning",
     "ConvergenceWarning",
     "CoChemDeprecationWarning",

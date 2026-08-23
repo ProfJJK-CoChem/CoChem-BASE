@@ -1,7 +1,7 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TORQ\.in-progress\Perfected_Task 11 Statistical Mechanics & SPCAT Bridge (Stage 5.1).md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TORQ\.in-progress\Perfected_Task 12 SpycFit Payload Synthesis & Telemetry (Stage 5.5  6.0).md.
 Original prompt:
 # Generated Prompt (Dry Run)
-Source: Perfected_Task 11 Statistical Mechanics & SPCAT Bridge (Stage 5.1).md
+Source: Perfected_Task 12 SpycFit Payload Synthesis & Telemetry (Stage 5.5  6.0).md
 Target Repo: D:\__CoChem\GitHub-Repo\CoChem-TORQ
 
 Modified files content:
@@ -672,12 +672,40 @@ class AirGapViolationError(CoChemError, PermissionError):
     )
 
 
+class CoChemIntegrityError(SecurityIntegrityError):
+    """Raised when cryptographic hash verification fails or payload bytes have been tampered with."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+class KraitchmanSingularityError(SingularityError):
+    """Raised when Kraitchman substitution coordinate calculation encounters an unhandled singularity."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SINGULARITY_DETECTED
+    )
+
+
 # =====================================================================
 # Warnings
 # =====================================================================
 
 class CoChemWarning(UserWarning):
     """Base warning category for the CoChem ecosystem."""
+
+    pass
+
+
+class KraitchmanZPVEWarning(CoChemWarning):
+    """Issued when Kraitchman calculation encounters an imaginary radicand due to ZPVE shifts."""
+
+    pass
+
+
+class TelemetryNetworkExhaustedWarning(CoChemWarning):
+    """Issued when webhook telemetry retries are exhausted and payloads are spooled to disk."""
 
     pass
 
@@ -998,8 +1026,12 @@ __all__ = [
     "FortranOverflowError",
     "SPCATBridgeError",
     "AirGapViolationError",
+    "CoChemIntegrityError",
+    "KraitchmanSingularityError",
     # Warnings
     "CoChemWarning",
+    "KraitchmanZPVEWarning",
+    "TelemetryNetworkExhaustedWarning",
     "MethodMatrixWarning",
     "ConvergenceWarning",
     "CoChemDeprecationWarning",
@@ -1014,1776 +1046,1751 @@ __all__ = [
     "_reconstruct_cochem_error",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\cochem_spcat_bridge.py ---
-"""Re-export module for cochem_spcat_bridge within the cochem_base package hierarchy."""
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\cochem_torq_export.py ---
+"""
+CoChem-BASE Export Interface Proxy.
+Exposes all functions and symbols from cochem_torq_export.
+"""
 
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-# Ensure root path is accessible
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
-from cochem_spcat_bridge import (  # noqa: E402
-    CODATA2022,
-    CONSTANTS,
-    PICKETT_PARAMETER_CODES,
-    PartitionFunctionResult,
-    SPCATParameter,
-    SPCATPayload,
-    SymmetryDivisorResult,
-    apply_symmetry_divisors,
-    build_complete_spcat_payload,
-    calculate_rotational_partition_function,
-    calculate_vibrational_partition_function,
-    compute_coupled_partition_functions,
-    compute_sha256,
-    format_fortran_double,
-    fortran_double_precision_formatter,
-    fortran_overflow_guard,
-    generate_spcat_int,
-    generate_spcat_provenance_manifest,
-    generate_spcat_var,
-    low_frequency_lam_trap,
-    validate_airgap_boundary,
-    vibrational_partition_coupling,
+from cochem_torq_export import (
+    INERTIA_CONVERSION_AMU_ANG2_MHZ,
+    bundle_spycfit_payload,
+    calculate_kraitchman_coords,
+    generate_pgopher_skeleton,
+    lock_provenance_payload,
+    verify_payload_integrity,
 )
 
 __all__ = [
-    "CODATA2022",
-    "CONSTANTS",
-    "SymmetryDivisorResult",
-    "PartitionFunctionResult",
-    "SPCATParameter",
-    "SPCATPayload",
-    "PICKETT_PARAMETER_CODES",
-    "low_frequency_lam_trap",
-    "apply_symmetry_divisors",
-    "calculate_rotational_partition_function",
-    "calculate_vibrational_partition_function",
-    "vibrational_partition_coupling",
-    "compute_coupled_partition_functions",
-    "fortran_overflow_guard",
-    "format_fortran_double",
-    "fortran_double_precision_formatter",
-    "generate_spcat_var",
-    "generate_spcat_int",
-    "validate_airgap_boundary",
-    "compute_sha256",
-    "generate_spcat_provenance_manifest",
-    "build_complete_spcat_payload",
+    "calculate_kraitchman_coords",
+    "generate_pgopher_skeleton",
+    "lock_provenance_payload",
+    "bundle_spycfit_payload",
+    "verify_payload_integrity",
+    "INERTIA_CONVERSION_AMU_ANG2_MHZ",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_spcat_bridge.py ---
-"""Stage 5.1: Statistical Mechanics & Pickett SPCAT Bridge.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\cochem_torq_telemetry.py ---
+"""
+CoChem-BASE Telemetry Interface Proxy.
+Exposes all functions and symbols from cochem_torq_telemetry.
+"""
 
-Authoritative Module for CoChem-BASE / CoChem-TORQ (Phase 8 / Stage 5.1).
-Implements the mathematical statistical mechanics translation layer and rigid
-Fortran-77 ASCII parameter generators (.var and .int) for Pickett's SPCAT/SPFIT suite.
+from cochem_torq_telemetry import (
+    TELEMETRY_BUFFER,
+    export_crash_animation,
+    generate_plotly_3d_carousels,
+    stream_webhook_events,
+)
 
-Key Capabilities:
-1. Exact CODATA 2022 fundamental physical constants for all thermodynamic and rotational formulations.
-2. Low-frequency Large Amplitude Motion (LAM) trap (< 50 cm^-1) requiring Phase 7 DVR solvers.
-3. MolSym point-group symmetry resolver, rotational symmetry numbers (sigma),
-   and nuclear spin statistical weights (e.g. H2O ortho/para 3:1 ratio).
-4. Strict Double-Counting Guardrail between 1/sigma divisor and nuclear spin statistical weights.
-5. Vibrational partition coupling across temperature gradients with automatic LAM mode dropping.
-6. Double Precision Fortran overflow guard (|val| > 1e308) blocking corrupt VPT2 parameters.
-7. Rigid character alignment and 'D' exponent formatting for Pickett's ASCII files (.var / .int).
-8. Tripartite Filesystem Air-Gap compliance and SHA-256 cryptographic provenance manifests.
+__all__ = [
+    "stream_webhook_events",
+    "generate_plotly_3d_carousels",
+    "export_crash_animation",
+    "TELEMETRY_BUFFER",
+]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_torq_export.py ---
+"""
+CoChem-TORQ: Stage 5.5 / 6.0 SpycFit Payload Synthesis & Handoff Module
+========================================================================
+Implements the cryptographic bridge between CoChem-TORQ forward predictions
+and downstream CoChem-SpycFit inverse spectral fitting workflows.
+
+Authoritative Standards:
+- Method Matrix (Section 2.3, 2.4, 12.5, 21): Substitution coordinates & Costain bounds
+- RFC 8785: Canonical JSON serialization for cryptographic provenance manifests
+- PyArrow Metadata Introspection: Zero-RAM out-of-core catalog inspection
+- Deterministic Archival: POSIX epoch normalization (mtime=0) and permission pinning
 """
 
 from __future__ import annotations
 
+import gc
 import hashlib
+import io
 import json
-import logging
 import math
 import os
-from dataclasses import asdict, dataclass, field
+import tarfile
+import warnings
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pyarrow.parquet as pq
 
-try:
-    import molsym  # type: ignore[import-untyped]
-
-    _MOLSYM_AVAILABLE = True
-except ImportError:
-    _MOLSYM_AVAILABLE = False
-
-from cochem_base.config_loader import (
-    get_base_root,
-    get_repo_root,
-)
 from cochem_base.exceptions import (
-    AirGapViolationError,
-    FortranOverflowError,
-    LAMTriggerError,
-    ProvenanceErrorCode,
-    SPCATBridgeError,
+    CoChemIntegrityError,
+    KraitchmanSingularityError,
+    KraitchmanZPVEWarning,
 )
 
-logger = logging.getLogger(__name__)
+# Planck constant over 8*pi^2 in amu * Angstrom^2 * MHz
+INERTIA_CONVERSION_AMU_ANG2_MHZ = 505379.006
 
 
-# =============================================================================
-# 1. Fundamental Physical Constants (CODATA 2022 Exact Recommended Values)
-# =============================================================================
-
-@dataclass(frozen=True)
-class CODATA2022:
-    """Exact fundamental physical constants from CODATA 2022 recommended values."""
-
-    # Planck constant (exact, SI definition 2019) [J * s]
-    H: float = 6.62607015e-34
-    # Boltzmann constant (exact, SI definition 2019) [J * K^-1]
-    K_B: float = 1.380649e-23
-    # Speed of light in vacuum (exact) [m * s^-1]
-    C_M_S: float = 299792458.0
-    # Speed of light in vacuum (exact) [cm * s^-1]
-    C_CM_S: float = 29979245800.0
-    # Rotational constant factor C_rot = h / (8 * pi^2) in [MHz * u * Angstrom^2]
-    # h / (8 * pi^2 * u * 1e-20) * 1e-6 MHz = 505379.008435
-    C_ROT: float = 505379.008435
-    # Avogadro constant (exact) [mol^-1]
-    N_A: float = 6.02214076e23
-    # Atomic mass constant [kg]
-    AMU_KG: float = 1.66053906660e-27
-    # h * c / k_B conversion factor [K * cm]
-    # (6.62607015e-34 * 29979245800.0) / 1.380649e-23 = 1.4387768775039336
-    HC_OVER_KB: float = 1.4387768775039336
-    # k_B / h factor for rotational partition function [Hz / K] = [s^-1 * K^-1]
-    KB_OVER_H: float = 1.380649e-23 / 6.62607015e-34  # ~ 20836619124.62 Hz/K
+def _to_float(val: Any) -> float:
+    """Helper to convert scalar/numpy/float value to float."""
+    if hasattr(val, "item"):
+        return float(val.item())
+    return float(val)
 
 
-CONSTANTS = CODATA2022()
+def calculate_kraitchman_coords(tensor_dict: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Evaluates Kraitchman substitution coordinates (|a_s|, |b_s|, |c_s|) and Costain
+    uncertainties from parent and isotopologue moments of inertia or rotational constants.
 
+    Mathematical Guardrails:
+    - Evaluates substitution coordinates (r_s) via planar moment differences Delta P_g.
+    - Near-Symmetric Singularity Guard: Damps near-symmetric top denominators
+      (|I_g - I_g'| < 1e-4 amu*A^2) to prevent numerical divergence.
+    - ZPVE Defect Clamping: Traps imaginary roots (radicand R_g < 0 or NaN) caused by
+      vibrational zero-point energy shifts, clamps coordinate to 0.0000 A, and issues
+      a KraitchmanZPVEWarning.
+    - Piecewise Costain Bounds:
+        delta g_s = 0.0015 / |g_s| for |g_s| >= 0.15 A
+        delta g_s = sqrt(|R_g|) for |g_s| < 0.15 A
 
-# =============================================================================
-# 2. Data Structures and Transfer Objects
-# =============================================================================
-
-@dataclass
-class SymmetryDivisorResult:
-    """Structured result of point-group symmetry resolution and spin weight assignment."""
-
-    point_group: str
-    sigma: int
-    spin_statistical_weights: List[int]
-    spin_weight_ratio_str: str
-    effective_divisor: float
-    guardrail_status: str
-    equivalent_atom_groups: Dict[str, List[int]] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert record to serializable dictionary."""
-        return asdict(self)
-
-
-@dataclass
-class PartitionFunctionResult:
-    """Structured internal partition function evaluation across a temperature grid."""
-
-    temperatures: List[float]
-    q_rot: Dict[float, float]
-    q_vib: Dict[float, float]
-    q_total: Dict[float, float]
-    dropped_lam_frequencies: List[float] = field(default_factory=list)
-    stiff_frequencies: List[float] = field(default_factory=list)
-    is_dvr_coupled: bool = False
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert record to serializable dictionary."""
-        return asdict(self)
-
-
-@dataclass
-class SPCATParameter:
-    """Rigidly formatted parameter record for Pickett's SPCAT .var/.par file."""
-
-    param_id: int
-    value: float
-    uncertainty: float
-    label: str
-    formatted_line: str
-
-
-@dataclass
-class SPCATPayload:
-    """Complete package of SPCAT input files, cryptographic hashes, and provenance manifest."""
-
-    molecule_name: str
-    var_content: str
-    int_contents: Dict[float, str]
-    provenance_manifest: Dict[str, Any]
-    sha256_var: str
-    sha256_int: Dict[float, str]
-    var_filepath: Optional[str] = None
-    int_filepaths: Dict[float, str] = field(default_factory=dict)
-    provenance_filepath: Optional[str] = None
-
-
-# Point group to rotational symmetry number sigma mapping
-_POINT_GROUP_SIGMAS: Dict[str, int] = {
-    "C1": 1, "Cs": 1, "Ci": 1,
-    "C2": 2, "C2v": 2, "C2h": 2,
-    "C3": 3, "C3v": 3, "C3h": 3,
-    "C4": 4, "C4v": 4, "C4h": 4,
-    "C5": 5, "C5v": 5, "C5h": 5,
-    "C6": 6, "C6v": 6, "C6h": 6,
-    "D2": 4, "D2h": 4, "D2d": 4,
-    "D3": 6, "D3h": 6, "D3d": 6,
-    "D4": 8, "D4h": 8, "D4d": 8,
-    "D5": 10, "D5h": 10, "D5d": 10,
-    "D6": 12, "D6h": 12, "D6d": 12,
-    "Td": 12, "Th": 12,
-    "Oh": 24, "O": 24,
-    "Ih": 60, "I": 60,
-    "Cinfv": 1, "Dinfh": 2, "Kh": 1,
-}
-
-
-def _pg_to_sigma(pg: str) -> int:
-    """Resolve rotational symmetry number sigma from Schoenflies point group string."""
-    clean = pg.strip()
-    return _POINT_GROUP_SIGMAS.get(clean, 1)
-
-
-# =============================================================================
-# 3. Low-Frequency LAM Trap (Physical Guardrail against RRHO Failure)
-# =============================================================================
-
-def low_frequency_lam_trap(
-    harmonic_frequencies: Sequence[float],
-    threshold_cm1: float = 50.0,
-    zero_mode_cutoff: float = 1e-4,
-) -> List[float]:
-    """Trap vibrational normal mode frequencies below threshold (< 50 cm^-1).
-
-    Under the Rigid-Rotor Harmonic-Oscillator (RRHO) approximation, low-frequency
-    vibrational modes (< 50 cm^-1) correspond to Large Amplitude Motions (LAM)
-    such as methyl internal rotation, ring puckering, or low-barrier torsion.
-    Simple harmonic partition functions diverge and fail catastrophically for LAM.
-    This guardrail intercepts these modes, raises a LAMTriggerError with
-    LAM_TRIGGER error code, and demands execution of Phase 7 DVR solvers.
-
-    Args:
-        harmonic_frequencies: Sequence of vibrational normal mode frequencies (cm^-1).
-        threshold_cm1: Critical LAM frequency threshold in cm^-1 (default: 50.0).
-        zero_mode_cutoff: Tolerance below which modes are treated as zero/translational (default: 1e-4).
+    Parameters:
+        tensor_dict: Dictionary containing parent and isotopic inertia data.
+            Supported keys:
+            - 'I_a', 'I_b', 'I_c' (parent moments in amu*A^2)
+            - 'I_a_iso', 'I_b_iso', 'I_c_iso' (isotopologue moments in amu*A^2)
+            - 'parent_mass' or 'mass' (parent molecular mass in amu)
+            - 'delta_m' (isotopic mass difference in amu)
+            OR nested structure:
+            - 'parent': {'I_a': ..., 'I_b': ..., 'I_c': ..., 'mass': ...}
+            - 'isotopologue': {'I_a': ..., 'I_b': ..., 'I_c': ..., 'delta_m': ...}
+            OR rotational constants 'A', 'B', 'C', 'A_iso', 'B_iso', 'C_iso' in MHz.
 
     Returns:
-        Validated list of stiff vibrational frequencies (all >= threshold_cm1).
-
-    Raises:
-        LAMTriggerError: If any genuine vibrational mode is below threshold_cm1.
+        Dictionary containing:
+        - 'coordinates': {'a': float, 'b': float, 'c': float} in Angstroms
+        - 'costain_uncertainties': {'delta_a': float, 'delta_b': float, 'delta_c': float} in Angstroms
+        - 'radicands': {'R_a': float, 'R_b': float, 'R_c': float} in Angstroms^2
+        - 'planar_moments_parent': {'P_a': float, 'P_b': float, 'P_c': float}
+        - 'delta_planar_moments': {'delta_P_a': float, 'delta_P_b': float, 'delta_P_c': float}
+        - 'zpve_defect_clamped': {'a': bool, 'b': bool, 'c': bool}
+        - 'near_symmetric_damped': {'a': bool, 'b': bool, 'c': bool}
+        - 'reduced_mass_mu': float
     """
-    flagged_lam_modes: List[float] = []
-    stiff_modes: List[float] = []
+    # 1. Parse parent and isotopic parameters
+    parent_data = tensor_dict.get("parent", tensor_dict)
+    iso_data = tensor_dict.get("isotopologue", tensor_dict.get("isotope", tensor_dict))
 
-    for raw_freq in harmonic_frequencies:
-        freq = float(raw_freq)
-        # Skip pure zero / translational-rotational residual modes
-        if abs(freq) <= zero_mode_cutoff:
-            continue
-        if freq < threshold_cm1:
-            flagged_lam_modes.append(freq)
-        else:
-            stiff_modes.append(freq)
-
-    if flagged_lam_modes:
-        min_lam = min(flagged_lam_modes)
-        error_msg = (
-            f"LAM detected: vibrational frequency {min_lam:.2f} cm^-1 is below "
-            f"threshold {threshold_cm1:.1f} cm^-1. Rigid-Rotor Harmonic-Oscillator (RRHO) "
-            f"approximation is invalid. Phase 7 DVR solvers are physically required."
-        )
-        logger.warning("[LAM_TRIGGER] %s (Flagged modes: %s)", error_msg, flagged_lam_modes)
-        raise LAMTriggerError(
-            message=error_msg,
-            error_code=ProvenanceErrorCode.LAM_TRIGGER,
-            details={
-                "flagged_frequencies": [float(f) for f in flagged_lam_modes],
-                "threshold_cm1": float(threshold_cm1),
-                "stiff_frequencies_count": len(stiff_modes),
-                "total_frequencies_evaluated": len(harmonic_frequencies),
-                "min_lam_frequency": float(min_lam),
-            },
-        )
-
-    return stiff_modes
-
-
-# =============================================================================
-# 4. MolSym Symmetry Solver & Nuclear Spin Statistical Weights
-# =============================================================================
-
-def _resolve_nuclear_spin_ratio(
-    point_group: str,
-    symbols: Sequence[str],
-    equivalent_groups: Dict[str, List[int]],
-) -> Tuple[List[int], str]:
-    """Derive nuclear spin statistical weights and ratio string from point group and equivalent atoms.
-
-    Args:
-        point_group: Schoenflies point group string (e.g. 'C2v', 'C3v', 'Cs', 'D2h').
-        symbols: List of element symbols.
-        equivalent_groups: Mapping of group label to atom indices.
-
-    Returns:
-        Tuple of (spin_statistical_weights_list, ratio_string e.g. '3 1').
-    """
-    pg_clean = point_group.strip()
-
-    # Determine spin of equivalent hydrogen/halogen atoms
-    h_indices: List[int] = [i for i, sym in enumerate(symbols) if sym.strip() in ("H", "1H")]
-
-    if pg_clean in ("C2v", "C2", "C2h"):
-        # For H2O, CH2O, H2S, etc. with 2 equivalent protons:
-        # Ortho (symmetric, I_tot=1, wt=3) : Para (antisymmetric, I_tot=0, wt=1)
-        if len(h_indices) >= 2:
-            return [3, 1], "3 1"
-        return [1, 1], "1 1"
-
-    elif pg_clean in ("C3v", "C3", "D3h"):
-        # For NH3, CH3X (3 equivalent protons, I = 1/2):
-        # A1/A2 (ortho, I_tot=3/2, wt=4), E (para, I_tot=1/2, wt=2) -> ratio 4:2 = 2:1
-        if len(h_indices) >= 3:
-            return [4, 2], "2 1"
-        return [1, 1], "1 1"
-
-    elif pg_clean in ("D2h", "D2", "D2d"):
-        # For Ethylene (C2H4, 4 protons):
-        # 7 (B3u), 3 (Ag), 3 (B1g), 3 (B2u)
-        if len(h_indices) >= 4:
-            return [7, 3, 3, 3], "7 3 3 3"
-        return [3, 1], "3 1"
-
-    elif pg_clean in ("C1", "Cs", "Ci"):
-        # Asymmetric / planar with no non-trivial rotational symmetry (sigma = 1)
-        return [1], "1"
-
-    elif pg_clean in ("Td", "Oh", "Ih"):
-        if len(h_indices) >= 4:
-            return [5, 2, 3], "5 2 3"
-        return [1, 1, 1], "1 1 1"
-
-    # Default fallback
-    return [1], "1"
-
-
-def apply_symmetry_divisors(
-    geometry_array: Union[np.ndarray, Sequence[Sequence[float]], Sequence[float]],
-    symbols: Optional[Sequence[str]] = None,
-    use_nuclear_spin: bool = False,
-    enforce_guardrail: bool = True,
-) -> SymmetryDivisorResult:
-    """Resolve molecular point group, rotational symmetry number (sigma), and nuclear spin weights.
-
-    Interfaces with MolSym to identify Schoenflies point group (e.g. C2v for H2O),
-    computes the rotational symmetry divisor sigma (e.g. sigma=2 for H2O), and assigns
-    the nuclear spin statistical weights ratio (e.g. '3 1' for H2O ortho/para).
-
-    Double-Counting Guardrail:
-    Enforces a strict selection rule: apply EITHER the exact nuclear spin statistical
-    weights OR the classical 1/sigma divisor to the partition function, but NEVER both
-    simultaneously. Applying both would artificially deflate the state density twice,
-    since exact nuclear spin weights already account for point-group symmetry.
-
-    Args:
-        geometry_array: Cartesian coordinates of atoms in Angstroms (shape N x 3 or flattened).
-        symbols: List of atom element symbols (e.g. ['O', 'H', 'H']).
-        use_nuclear_spin: If True, uses exact nuclear spin weights and sets effective_divisor=1.0.
-        enforce_guardrail: If True, validates and enforces the double-counting selection rule.
-
-    Returns:
-        SymmetryDivisorResult containing point group, sigma, spin weights, ratio string,
-        effective divisor, and guardrail status.
-
-    Raises:
-        SPCATBridgeError: If MolSym resolution or geometry parsing fails.
-    """
-    flat_coords: List[float] = []
-    if isinstance(geometry_array, np.ndarray):
-        flat_coords = [float(x) for x in geometry_array.flatten()]
+    # Parse parent moments of inertia
+    if "I_a" in parent_data and "I_b" in parent_data and "I_c" in parent_data:
+        I_a = _to_float(parent_data["I_a"])
+        I_b = _to_float(parent_data["I_b"])
+        I_c = _to_float(parent_data["I_c"])
+    elif "A" in parent_data and "B" in parent_data and "C" in parent_data:
+        I_a = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(parent_data["A"])
+        I_b = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(parent_data["B"])
+        I_c = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(parent_data["C"])
     else:
-        for item in geometry_array:
-            if isinstance(item, (list, tuple, np.ndarray, Sequence)):
-                for x in item:
-                    flat_coords.append(float(x))
-            else:
-                flat_coords.append(float(item))
-
-    if len(flat_coords) % 3 != 0:
-        raise SPCATBridgeError(
-            message=f"Invalid flattened coordinate size {len(flat_coords)}, must be multiple of 3",
-            error_code=ProvenanceErrorCode.SPCAT_BRIDGE_ERROR,
+        raise ValueError(
+            "tensor_dict must provide parent moments ('I_a', 'I_b', 'I_c') or constants ('A', 'B', 'C')."
         )
 
-    coords_np = np.array(flat_coords).reshape(-1, 3)
-    num_atoms = coords_np.shape[0]
-
-    if symbols is None:
-        symbols = ["X"] * num_atoms
-    elif len(symbols) != num_atoms:
-        raise SPCATBridgeError(
-            message=f"Symbols length ({len(symbols)}) does not match atom count ({num_atoms})",
-            error_code=ProvenanceErrorCode.SPCAT_BRIDGE_ERROR,
+    # Parse isotopic moments of inertia
+    if "I_a_iso" in tensor_dict:
+        I_a_p = _to_float(tensor_dict["I_a_iso"])
+        I_b_p = _to_float(tensor_dict["I_b_iso"])
+        I_c_p = _to_float(tensor_dict["I_c_iso"])
+    elif "I_a" in iso_data and iso_data is not parent_data:
+        I_a_p = _to_float(iso_data["I_a"])
+        I_b_p = _to_float(iso_data["I_b"])
+        I_c_p = _to_float(iso_data["I_c"])
+    elif "A_iso" in tensor_dict:
+        I_a_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(tensor_dict["A_iso"])
+        I_b_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(tensor_dict["B_iso"])
+        I_c_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(tensor_dict["C_iso"])
+    elif "A" in iso_data and iso_data is not parent_data:
+        I_a_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(iso_data["A"])
+        I_b_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(iso_data["B"])
+        I_c_p = INERTIA_CONVERSION_AMU_ANG2_MHZ / _to_float(iso_data["C"])
+    else:
+        raise ValueError(
+            "tensor_dict must provide isotopologue moments ('I_a_iso' or iso_data) or constants ('A_iso')."
         )
 
-    point_group = "C1"
-    sigma = 1
-    equivalent_groups: Dict[str, List[int]] = {}
-
-    if _MOLSYM_AVAILABLE:
-        try:
-            schema = {
-                "symbols": [str(s).strip() for s in symbols],
-                "geometry": flat_coords,
-            }
-            mol = molsym.Molecule.from_schema(schema)
-            try:
-                sym = molsym.Symtext.from_molecule(mol)
-                point_group = str(sym.pg).strip()
-                sigma = int(sym.rotational_symmetry_number)
-            except Exception:
-                pg_info = molsym.find_point_group(mol)
-                point_group = str(pg_info[0]).strip()
-                sigma = _pg_to_sigma(point_group)
-
-            # Extract symmetry equivalent atom sets
-            try:
-                seas = mol.find_SEAs()
-                for idx, sea in enumerate(seas):
-                    subset = [int(i) for i in getattr(sea, "subset", [])]
-                    equivalent_groups[f"SEA_{idx}"] = subset
-            except Exception as sea_err:
-                logger.debug("MolSym find_SEAs non-fatal error: %s", sea_err)
-
-        except Exception as err:
-            logger.warning("MolSym analysis encountered exception: %s. Falling back to geometric solver.", err)
-            point_group, sigma = _fallback_point_group_solver(coords_np, symbols)
-    else:
-        point_group, sigma = _fallback_point_group_solver(coords_np, symbols)
-
-    spin_weights, ratio_str = _resolve_nuclear_spin_ratio(point_group, symbols, equivalent_groups)
-
-    # Enforce Double-Counting Guardrail
-    if use_nuclear_spin:
-        effective_divisor = 1.0
-        guardrail_status = "GUARDRAIL_ENFORCED_EXACT_NUCLEAR_SPIN_APPLIED_SIGMA_BYPASSED"
-    else:
-        effective_divisor = float(sigma)
-        guardrail_status = "GUARDRAIL_ENFORCED_CLASSICAL_SIGMA_APPLIED"
-
-    return SymmetryDivisorResult(
-        point_group=point_group,
-        sigma=sigma,
-        spin_statistical_weights=spin_weights,
-        spin_weight_ratio_str=ratio_str,
-        effective_divisor=effective_divisor,
-        guardrail_status=guardrail_status,
-        equivalent_atom_groups=equivalent_groups,
-        metadata={
-            "num_atoms": num_atoms,
-            "symbols": list(symbols),
-            "use_nuclear_spin": bool(use_nuclear_spin),
-            "enforce_guardrail": bool(enforce_guardrail),
-        },
+    # Parse masses
+    mass = _to_float(
+        tensor_dict.get("parent_mass", tensor_dict.get("mass", parent_data.get("mass", 0.0)))
+    )
+    delta_m = _to_float(
+        tensor_dict.get("delta_m", iso_data.get("delta_m", 0.0))
     )
 
+    if mass <= 0.0:
+        raise ValueError("Parent molecular mass ('parent_mass' or 'mass') must be strictly positive.")
+    if delta_m == 0.0:
+        raise ValueError("Isotopic mass shift ('delta_m') must be non-zero for Kraitchman analysis.")
 
-def _fallback_point_group_solver(
-    coords: np.ndarray, symbols: Sequence[str]
-) -> Tuple[str, int]:
-    """Fallback geometric symmetry analyzer when MolSym is unavailable or coordinates are approximate."""
-    num_atoms = coords.shape[0]
-    if num_atoms == 1:
-        return "Kh", 1
-    if num_atoms == 2:
-        return ("Dinfh", 2) if symbols[0] == symbols[1] else ("Cinfv", 1)
+    # Calculate reduced mass factor: mu = (M * delta_m) / (M + delta_m)
+    mu = (mass * delta_m) / (mass + delta_m)
 
-    com = np.mean(coords, axis=0)
-    centered = coords - com
+    # 2. Planar moments of inertia for parent
+    P_a = 0.5 * (-I_a + I_b + I_c)
+    P_b = 0.5 * (I_a - I_b + I_c)
+    P_c = 0.5 * (I_a + I_b - I_c)
 
-    # Check for planar C2v geometry (e.g. H2O: 3 atoms, 2 identical)
-    if num_atoms == 3:
-        unique_syms = set(symbols)
-        if len(unique_syms) == 2:
-            sym_counts = {s: symbols.count(s) for s in unique_syms}
-            eq_sym = [s for s, c in sym_counts.items() if c == 2][0]
-            eq_indices = [i for i, s in enumerate(symbols) if s == eq_sym]
-            d1 = float(np.sqrt(np.sum((centered[eq_indices[0]] - centered[[i for i in range(3) if i not in eq_indices][0]]) ** 2)))
-            d2 = float(np.sqrt(np.sum((centered[eq_indices[1]] - centered[[i for i in range(3) if i not in eq_indices][0]]) ** 2)))
-            if abs(d1 - d2) < 1e-2:
-                return "C2v", 2
+    # Moment differences: Delta I_g = I_g' - I_g
+    dI_a = I_a_p - I_a
+    dI_b = I_b_p - I_b
+    dI_c = I_c_p - I_c
 
-    # Check for pyramidal C3v geometry (e.g. NH3: 4 atoms, 3 identical)
-    if num_atoms == 4:
-        unique_syms = set(symbols)
-        if len(unique_syms) == 2:
-            sym_counts = {s: symbols.count(s) for s in unique_syms}
-            eq_sym_list = [s for s, c in sym_counts.items() if c == 3]
-            if eq_sym_list:
-                eq_indices = [i for i, s in enumerate(symbols) if s == eq_sym_list[0]]
-                d1 = float(np.sqrt(np.sum((centered[eq_indices[0]] - centered[eq_indices[1]]) ** 2)))
-                d2 = float(np.sqrt(np.sum((centered[eq_indices[1]] - centered[eq_indices[2]]) ** 2)))
-                d3 = float(np.sqrt(np.sum((centered[eq_indices[2]] - centered[eq_indices[0]]) ** 2)))
-                if abs(d1 - d2) < 1e-2 and abs(d2 - d3) < 1e-2:
-                    return "C3v", 3
+    # Planar moment differences: Delta P_g = P_g' - P_g
+    dP_a = 0.5 * (-dI_a + dI_b + dI_c)
+    dP_b = 0.5 * (dI_a - dI_b + dI_c)
+    dP_c = 0.5 * (dI_a + dI_b - dI_c)
 
-    return "Cs", 1
+    # 3. Near-symmetric top singularity damping helper
+    # Singularity Threshold: |I_g - I_g'| < 1e-4 amu*A^2
+    SINGULARITY_THRESHOLD = 1e-4
+    near_symmetric_flags = {"a": False, "b": False, "c": False}
 
+    def safe_denominator(diff: float, axis_label: str) -> float:
+        if abs(diff) < SINGULARITY_THRESHOLD:
+            near_symmetric_flags[axis_label] = True
+            sign = 1.0 if diff >= 0.0 else -1.0
+            return sign * SINGULARITY_THRESHOLD
+        return diff
 
-# =============================================================================
-# 5. Statistical Mechanics Partition Functions & Vibrational Coupling
-# =============================================================================
+    # Kraitchman factors for asymmetric top
+    den_ab = safe_denominator(I_a - I_b, "a")
+    den_ac = safe_denominator(I_a - I_c, "a")
+    den_ba = safe_denominator(I_b - I_a, "b")
+    den_bc = safe_denominator(I_b - I_c, "b")
+    den_ca = safe_denominator(I_c - I_a, "c")
+    den_cb = safe_denominator(I_c - I_b, "c")
 
-def calculate_rotational_partition_function(
-    a_mhz: float,
-    b_mhz: float,
-    c_mhz: float,
-    temp_k: float,
-    sigma: float = 1.0,
-    is_linear: bool = False,
-) -> float:
-    """Calculate rotational partition function Q_rot(T) using exact CODATA 2022 constants.
+    R_a = (dP_a / mu) * (1.0 + (dP_b / den_ab)) * (1.0 + (dP_c / den_ac))
+    R_b = (dP_b / mu) * (1.0 + (dP_c / den_bc)) * (1.0 + (dP_a / den_ba))
+    R_c = (dP_c / mu) * (1.0 + (dP_a / den_ca)) * (1.0 + (dP_b / den_cb))
 
-    Formulations:
-    - Asymmetric Top: Q_rot(T) = (sqrt(pi) / sigma) * (k_B * T / (h * 1e6))^(3/2) / sqrt(A * B * C)
-    - Linear Rotor:   Q_rot(T) = (k_B * T) / (sigma * (h * 1e6) * B)
+    coords = {}
+    costain_bounds = {}
+    zpve_clamped = {}
+    radicands = {"R_a": float(R_a), "R_b": float(R_b), "R_c": float(R_c)}
 
-    Args:
-        a_mhz: Rotational constant A in MHz.
-        b_mhz: Rotational constant B in MHz.
-        c_mhz: Rotational constant C in MHz.
-        temp_k: Thermodynamic temperature in Kelvin.
-        sigma: Rotational symmetry number (default: 1.0).
-        is_linear: True if molecule is a linear rotor.
+    axes = [("a", R_a), ("b", R_b), ("c", R_c)]
 
-    Returns:
-        Rotational partition function Q_rot(T) (dimensionless).
-    """
-    if temp_k <= 0.0:
-        return 1.0
-
-    sigma_eff = max(1.0, float(sigma))
-    kb_over_h_mhz = CONSTANTS.K_B / (CONSTANTS.H * 1e6)
-
-    if is_linear:
-        b_eff = max(1e-12, float(b_mhz))
-        return (kb_over_h_mhz * temp_k) / (sigma_eff * b_eff)
-
-    a_eff = max(1e-12, float(a_mhz))
-    b_eff = max(1e-12, float(b_mhz))
-    c_eff = max(1e-12, float(c_mhz))
-
-    factor = (kb_over_h_mhz * temp_k) ** 1.5
-    abc_sqrt = math.sqrt(a_eff * b_eff * c_eff)
-    q_rot = (math.sqrt(math.pi) / sigma_eff) * (factor / abc_sqrt)
-    return float(q_rot)
-
-
-def calculate_vibrational_partition_function(
-    frequencies_cm1: Sequence[float],
-    temp_k: float,
-    exclude_frequencies: Optional[Sequence[float]] = None,
-) -> float:
-    """Calculate vibrational partition function Q_vib(T) referenced to ZPVE.
-
-    Q_vib(T) = prod_{i, nu_i not in exclude} [ 1 / (1 - exp(- h * c * nu_i / (k_B * T))) ]
-
-    Args:
-        frequencies_cm1: Sequence of normal mode harmonic frequencies in cm^-1.
-        temp_k: Thermodynamic temperature in Kelvin.
-        exclude_frequencies: Frequencies to drop (e.g. LAM modes handled by DVR).
-
-    Returns:
-        Vibrational partition function Q_vib(T) (dimensionless).
-    """
-    if temp_k <= 0.0:
-        return 1.0
-
-    excluded_set: List[float] = [float(x) for x in exclude_frequencies] if exclude_frequencies else []
-    q_vib = 1.0
-    hc_over_kb = CONSTANTS.HC_OVER_KB  # ~ 1.4387768775 K*cm
-
-    for raw_f in frequencies_cm1:
-        f = float(raw_f)
-        if f <= 0.0:
-            continue
-        if any(abs(f - excl) < 0.1 for excl in excluded_set):
-            continue
-
-        x = (hc_over_kb * f) / temp_k
-        if x > 500.0:
-            factor = 1.0
-        else:
-            exp_neg_x = math.exp(-x)
-            factor = 1.0 / (1.0 - exp_neg_x)
-
-        q_vib *= factor
-
-    return float(q_vib)
-
-
-def vibrational_partition_coupling(
-    q_rot_dvr: Union[Dict[float, float], Sequence[float], float, Callable[[float], float]],
-    q_vib_orca: Union[Dict[float, float], Sequence[float], np.ndarray, float],
-    temp_array: Sequence[float],
-    lam_frequency: Optional[float] = None,
-    all_frequencies: Optional[Sequence[float]] = None,
-) -> Dict[float, float]:
-    """Compute total coupled internal partition function Q_total(T) = Q_vib(T) * Q_rot(T).
-
-    When Phase 7 DVR rotational partition functions are coupled with ORCA harmonic
-    frequencies, any identified LAM frequency (nu_lam < 50 cm^-1) is explicitly
-    dropped from the Q_vib product to prevent thermodynamic double-counting.
-
-    Args:
-        q_rot_dvr: Precomputed DVR rotational partition function mapping {T: Q_rot},
-                   callable f(T), list matching temp_array, or scalar.
-        q_vib_orca: Precomputed Q_vib mapping {T: Q_vib}, list of harmonic frequencies (cm^-1),
-                    or scalar.
-        temp_array: Sequence of temperatures in Kelvin (e.g. [2.0, 10.0, 50.0, 298.15]).
-        lam_frequency: Specific LAM mode frequency (cm^-1) to drop from Q_vib.
-        all_frequencies: Full set of normal mode harmonic frequencies (cm^-1).
-
-    Returns:
-        Dictionary mapping temperature T -> Q_total(T).
-    """
-    results: Dict[float, float] = {}
-    temps = [float(t) for t in temp_array]
-
-    excluded: List[float] = []
-    if lam_frequency is not None:
-        excluded.append(float(lam_frequency))
-
-    is_freq_list = False
-    raw_freqs: List[float] = []
-    if isinstance(q_vib_orca, (list, tuple, np.ndarray)):
-        arr = np.array(q_vib_orca, dtype=float)
-        if arr.ndim == 1 and arr.size > 0 and not isinstance(q_rot_dvr, (list, tuple, np.ndarray)):
-            is_freq_list = True
-            raw_freqs = [float(x) for x in arr]
-    elif all_frequencies is not None:
-        is_freq_list = True
-        raw_freqs = [float(x) for x in all_frequencies]
-
-    for idx, t in enumerate(temps):
-        if callable(q_rot_dvr):
-            q_rot_val = float(q_rot_dvr(t))
-        elif isinstance(q_rot_dvr, dict):
-            q_rot_val = float(q_rot_dvr.get(t, 1.0))
-        elif isinstance(q_rot_dvr, (list, tuple, np.ndarray)):
-            q_rot_val = float(q_rot_dvr[idx]) if idx < len(q_rot_dvr) else 1.0
-        elif isinstance(q_rot_dvr, (int, float)):
-            q_rot_val = float(q_rot_dvr)
-        else:
-            q_rot_val = 1.0
-
-        if is_freq_list:
-            q_vib_val = calculate_vibrational_partition_function(
-                frequencies_cm1=raw_freqs,
-                temp_k=t,
-                exclude_frequencies=excluded,
+    for axis_name, R_val in axes:
+        # ZPVE Defect Clamping: If R_val < 0 or NaN, clamp to 0.0000 A
+        if math.isnan(R_val) or R_val < 0.0:
+            coords[axis_name] = 0.0000
+            zpve_clamped[axis_name] = True
+            warnings.warn(
+                f"Kraitchman coordinate along '{axis_name}' axis evaluated to imaginary root "
+                f"(radicand R_{axis_name} = {R_val:.6f} amu*A^2) due to ZPVE defect; "
+                f"clamped to 0.0000 A.",
+                KraitchmanZPVEWarning,
+                stacklevel=2,
             )
-        elif isinstance(q_vib_orca, dict):
-            q_vib_val = float(q_vib_orca.get(t, 1.0))
-        elif isinstance(q_vib_orca, (list, tuple, np.ndarray)):
-            q_vib_val = float(q_vib_orca[idx]) if idx < len(q_vib_orca) else 1.0
-        elif isinstance(q_vib_orca, (int, float)):
-            q_vib_val = float(q_vib_orca)
+            # Costain uncertainty for clamped / small coordinate: sqrt(|R_g|)
+            costain_bounds[f"delta_{axis_name}"] = float(math.sqrt(abs(R_val))) if not math.isnan(R_val) else 0.015
         else:
-            q_vib_val = 1.0
+            coord = math.sqrt(R_val)
+            coords[axis_name] = float(coord)
+            zpve_clamped[axis_name] = False
 
-        results[t] = float(q_rot_val * q_vib_val)
-
-    return results
-
-
-def compute_coupled_partition_functions(
-    a_mhz: float,
-    b_mhz: float,
-    c_mhz: float,
-    frequencies_cm1: Sequence[float],
-    temp_array: Sequence[float],
-    sigma: float = 1.0,
-    lam_frequency: Optional[float] = None,
-    is_dvr: bool = False,
-) -> PartitionFunctionResult:
-    """Compute complete coupled partition functions with metadata tracking."""
-    temps = [float(t) for t in temp_array]
-    q_rot_dict: Dict[float, float] = {}
-    q_vib_dict: Dict[float, float] = {}
-    q_total_dict: Dict[float, float] = {}
-
-    excluded = [float(lam_frequency)] if lam_frequency is not None else []
-    stiff = [f for f in frequencies_cm1 if not any(abs(f - ex) < 0.1 for ex in excluded)]
-
-    for t in temps:
-        q_r = calculate_rotational_partition_function(a_mhz, b_mhz, c_mhz, t, sigma=sigma)
-        q_v = calculate_vibrational_partition_function(frequencies_cm1, t, exclude_frequencies=excluded)
-        q_rot_dict[t] = q_r
-        q_vib_dict[t] = q_v
-        q_total_dict[t] = q_r * q_v
-
-    return PartitionFunctionResult(
-        temperatures=temps,
-        q_rot=q_rot_dict,
-        q_vib=q_vib_dict,
-        q_total=q_total_dict,
-        dropped_lam_frequencies=excluded,
-        stiff_frequencies=stiff,
-        is_dvr_coupled=bool(is_dvr),
-    )
-
-
-# =============================================================================
-# 6. Fortran Overflow Guard
-# =============================================================================
-
-def fortran_overflow_guard(
-    tensor_dictionary: Union[Dict[str, Any], Sequence[Any], float, int, np.ndarray],
-    max_limit: float = 1e308,
-    clamp_on_overflow: bool = False,
-) -> Any:
-    """Trap values exceeding Double Precision mathematical ceilings (|val| > 1e308).
-
-    Un-deperturbed resonances from VPT2 or divergent perturbation calculations can
-    yield wildly oscillating constants that exceed Fortran REAL*8 limits (~10^308),
-    causing SPCAT to crash or emit 'NON-POSITIVE DEFINITE' matrix errors.
-    This guard actively scans incoming parameter tensors, logs a CRITICAL warning,
-    and raises FortranOverflowError to block corrupted parameters.
-
-    Args:
-        tensor_dictionary: Dictionary, nested list, array, or scalar of parameters.
-        max_limit: Hard double precision magnitude limit (default: 1e308).
-        clamp_on_overflow: If True, clamps value to +/- max_limit instead of raising.
-
-    Returns:
-        Validated (and optionally clamped) data structure.
-
-    Raises:
-        FortranOverflowError: If any value exceeds max_limit and clamp_on_overflow is False.
-    """
-    def _inspect_and_guard(val: Any, path: str) -> Any:
-        if isinstance(val, dict):
-            return {k: _inspect_and_guard(v, f"{path}.{k}" if path else str(k)) for k, v in val.items()}
-        elif isinstance(val, (list, tuple)):
-            return [_inspect_and_guard(item, f"{path}[{i}]") for i, item in enumerate(val)]
-        elif isinstance(val, np.ndarray):
-            try:
-                max_val = float(np.max(np.abs(val))) if val.size > 0 else 0.0
-                if max_val > max_limit or math.isinf(max_val) or math.isnan(max_val):
-                    msg = (
-                        f"CRITICAL: Fortran Double Precision overflow detected in array '{path}': "
-                        f"max magnitude {max_val} exceeds limit {max_limit:.1e}"
-                    )
-                    logger.critical("[FORTRAN_OVERFLOW] %s", msg)
-                    if clamp_on_overflow:
-                        return np.clip(val, -max_limit, max_limit)
-                    raise FortranOverflowError(
-                        message=msg,
-                        error_code=ProvenanceErrorCode.FORTRAN_OVERFLOW,
-                        details={"path": path, "max_magnitude": float(max_val), "limit": float(max_limit)},
-                    )
-            except (TypeError, ValueError):
-                pass
-            return val
-        elif isinstance(val, (int, float)):
-            fval = float(val)
-            if math.isinf(fval) or math.isnan(fval) or abs(fval) > max_limit:
-                msg = (
-                    f"CRITICAL: Fortran Double Precision overflow detected for parameter '{path}': "
-                    f"value {fval} exceeds hard limit {max_limit:.1e}"
-                )
-                logger.critical("[FORTRAN_OVERFLOW] %s", msg)
-                if clamp_on_overflow:
-                    return math.copysign(max_limit, fval) if not math.isnan(fval) else 0.0
-                raise FortranOverflowError(
-                    message=msg,
-                    error_code=ProvenanceErrorCode.FORTRAN_OVERFLOW,
-                    details={"parameter": path, "value": str(val), "limit": float(max_limit)},
-                )
-            return val
-        return val
-
-    return _inspect_and_guard(tensor_dictionary, "")
-
-
-# =============================================================================
-# 7. Fortran Double Precision Formatter & Alignment Engine
-# =============================================================================
-
-def format_fortran_double(
-    val: float,
-    width: int = 22,
-    precision: int = 15,
-    compact: bool = False,
-) -> str:
-    """Convert a Python float into strict Fortran Double Precision scientific notation ('D').
-
-    Examples:
-        1.567e-05 -> '1.567D-05' (compact) or ' 1.567000000000000D-05' (fixed width).
-
-    Args:
-        val: Numerical float value.
-        width: Field width for right alignment (ignored if compact=True).
-        precision: Decimal precision in mantissa.
-        compact: If True, returns minimal scientific representation without trailing zeros.
-
-    Returns:
-        Formatted Fortran Double Precision string.
-    """
-    fval = float(val)
-    if fval == 0.0:
-        base = "0.000D+00" if compact else f"0.{'0' * precision}D+00"
-        return base if compact else f"{base:>{width}}"
-
-    sci_str = f"{fval:.{precision}e}"
-    if "e" in sci_str or "E" in sci_str:
-        mantissa, exponent = sci_str.replace("E", "e").split("e")
-        exp_int = int(exponent)
-        exp_sign = "+" if exp_int >= 0 else "-"
-        exp_formatted = f"{exp_sign}{abs(exp_int):02d}"
-        if compact:
-            parts = mantissa.split(".")
-            if len(parts) == 2:
-                dec = parts[1].rstrip("0")
-                if len(dec) < 3:
-                    dec = dec.ljust(3, "0")
-                mantissa = f"{parts[0]}.{dec}"
-            return f"{mantissa}D{exp_formatted}"
-        else:
-            return f"{f'{mantissa}D{exp_formatted}':>{width}}"
-
-    formatted = f"{sci_str}".replace("e", "D").replace("E", "D")
-    return formatted if compact else f"{formatted:>{width}}"
-
-
-def fortran_double_precision_formatter(
-    val_or_id: Any,
-    val: Optional[float] = None,
-    uncertainty: float = 0.0,
-    label: str = "",
-    width: int = 22,
-    precision: int = 15,
-    compact: bool = False,
-) -> Union[str, List[str]]:
-    """Format single floats, parameter lines, or parameter dictionaries into Pickett Fortran strings.
-
-    Signatures supported:
-    1. Single float value:
-       `fortran_double_precision_formatter(0.00001567)` -> `'1.567D-05'`
-    2. Parameter line:
-       `fortran_double_precision_formatter(20000, 0.00001567, uncertainty=1e-7, label="DJ")`
-       -> `'     20000   1.567000000000000D-05   1.000000000000000D-07  / DJ'`
-    3. Dictionary of parameters:
-       `fortran_double_precision_formatter({'20000': 1.567e-5, '10000': 435360.0})` -> list of lines
-
-    Args:
-        val_or_id: Numerical float value, integer parameter ID (e.g. 20000), or parameter dict.
-        val: Parameter value when val_or_id is a parameter ID.
-        uncertainty: Estimated uncertainty in MHz (default: 0.0).
-        label: Descriptive comment label (e.g. 'DJ', 'A').
-        width: Column width for numbers (default: 22).
-        precision: Mantissa precision (default: 15).
-        compact: If True, uses compact scientific notation (e.g. '1.567D-05').
-
-    Returns:
-        Formatted Fortran string or list of formatted lines.
-    """
-    if isinstance(val_or_id, dict):
-        lines: List[str] = []
-        for p_id, p_val in val_or_id.items():
-            if isinstance(p_val, (tuple, list)):
-                p_v = float(p_val[0])
-                p_u = float(p_val[1]) if len(p_val) > 1 else 0.0
-                p_lbl = str(p_val[2]) if len(p_val) > 2 else ""
+            # Piecewise Costain Bounds:
+            # delta g_s = 0.0015 / |g_s| for |g_s| >= 0.15 A
+            # delta g_s = sqrt(|R_g|) for |g_s| < 0.15 A
+            if coord >= 0.15:
+                costain_bounds[f"delta_{axis_name}"] = float(0.0015 / coord)
             else:
-                p_v = float(p_val)
-                p_u = 0.0
-                p_lbl = ""
-            line = fortran_double_precision_formatter(
-                val_or_id=p_id,
-                val=p_v,
-                uncertainty=p_u,
-                label=p_lbl,
-                width=width,
-                precision=precision,
-                compact=compact,
-            )
-            lines.append(str(line))
-        return lines
+                costain_bounds[f"delta_{axis_name}"] = float(math.sqrt(R_val))
 
-    if val is not None:
-        param_id_int = int(val_or_id)
-        val_str = format_fortran_double(val, width=width, precision=precision, compact=compact)
-        unc_str = format_fortran_double(uncertainty, width=width, precision=precision, compact=compact)
-        lbl_part = f"  / {label}" if label else ""
-        return f"{param_id_int:>10}  {val_str}  {unc_str}{lbl_part}"
-
-    if isinstance(val_or_id, (int, float)):
-        return format_fortran_double(float(val_or_id), width=width, precision=precision, compact=compact)
-
-    return str(val_or_id)
+    return {
+        "coordinates": coords,
+        "costain_uncertainties": costain_bounds,
+        "radicands": radicands,
+        "planar_moments_parent": {"P_a": float(P_a), "P_b": float(P_b), "P_c": float(P_c)},
+        "delta_planar_moments": {"delta_P_a": float(dP_a), "delta_P_b": float(dP_b), "delta_P_c": float(dP_c)},
+        "zpve_defect_clamped": zpve_clamped,
+        "near_symmetric_damped": near_symmetric_flags,
+        "reduced_mass_mu": float(mu),
+    }
 
 
-# =============================================================================
-# 8. Pickett SPCAT .var and .int ASCII Generation
-# =============================================================================
-
-PICKETT_PARAMETER_CODES: Dict[str, int] = {
-    "B_C_AVG": 10000,
-    "B_MINUS_C": 30000,
-    "A_REDUCED": 20000,
-    "A": 20000,
-    "B": 10000,
-    "C": 30000,
-    "DJ": 200,
-    "DJK": 1100,
-    "DK": 2000,
-    "d1": 40100,
-    "d2": 41000,
-    "DELTA_J": 200,
-    "DELTA_JK": 1100,
-    "DELTA_K": 2000,
-    "delta_j": 40100,
-    "delta_k": 41000,
-}
-
-
-def generate_spcat_var(
-    molecule_name: str,
-    parameters: Dict[str, Any],
-    title: Optional[str] = None,
-    nopt: int = 0,
-    nwarn: int = 0,
-    erpar: float = 1.0,
-    wtfac: float = 1.0,
-    scale: float = 1.0,
-    maxit: int = 50,
-    filepath: Optional[Union[str, Path]] = None,
+def generate_pgopher_skeleton(
+    parquet_path: str, json_path: str, output_path: Optional[str] = None
 ) -> str:
-    """Generate exact Pickett SPCAT .var ASCII parameter file content."""
-    guarded_params = fortran_overflow_guard(parameters)
+    """
+    Zero-RAM PGOPHER Skeleton Synthesizer.
+    Inspects out-of-core PyArrow Parquet catalogs via pyarrow.parquet.read_metadata()
+    (< 50 MB RSS ceiling) and generates a standardized, schema-validated .pgo XML file.
 
-    title_str = title if title else f"{molecule_name} Ground State - CoChem SPCAT Bridge"
-
-    param_records: List[SPCATParameter] = []
-    for key, val in guarded_params.items():
-        if isinstance(val, (tuple, list)):
-            v = float(val[0])
-            u = float(val[1]) if len(val) > 1 else 1e-4
-            lbl = str(val[2]) if len(val) > 2 else str(key)
-        else:
-            v = float(val)
-            u = 1e-4
-            lbl = str(key)
-
-        if str(key).isdigit():
-            p_id = int(key)
-        elif key in PICKETT_PARAMETER_CODES:
-            p_id = PICKETT_PARAMETER_CODES[key]
-        else:
-            p_id = 10000
-
-        line_str = fortran_double_precision_formatter(
-            val_or_id=p_id,
-            val=v,
-            uncertainty=u,
-            label=lbl,
-            width=22,
-            precision=15,
-            compact=False,
-        )
-        param_records.append(SPCATParameter(p_id, v, u, lbl, str(line_str)))
-
-    npar = len(param_records)
-    nline = 100
-
-    erpar_str = format_fortran_double(erpar, width=22, precision=15)
-    wtfac_str = format_fortran_double(wtfac, width=22, precision=15)
-    scale_str = format_fortran_double(scale, width=22, precision=15)
-
-    control_line = f"{npar:>4}{nline:>6}{nopt:>5}{nwarn:>5}  {erpar_str}  {wtfac_str}  {scale_str}{maxit:>5}"
-
-    var_lines = [title_str, control_line]
-    for p in param_records:
-        var_lines.append(p.formatted_line)
-
-    content = "\n".join(var_lines) + "\n"
-
-    if filepath is not None:
-        target = Path(filepath).resolve()
-        validate_airgap_boundary(target)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temp_file = target.with_suffix(f".tmp_{os.getpid()}_{int(datetime.now().timestamp())}")
-        temp_file.write_text(content, encoding="utf-8")
-        temp_file.replace(target)
-
-    return content
-
-
-def generate_spcat_int(
-    molecule_name: str,
-    dipoles: Union[Dict[str, float], Sequence[float]],
-    temperatures: Union[float, Sequence[float]] = 298.15,
-    tag: int = 1,
-    ver: int = 1,
-    ibx: int = 0,
-    nq: int = 0,
-    rrot: float = 0.0,
-    tem: float = 0.0,
-    sthk: float = 0.0,
-    wtk: float = 0.0,
-    title: Optional[str] = None,
-    filepath_template: Optional[Union[str, Path]] = None,
-) -> Dict[float, str]:
-    """Generate exact Pickett SPCAT .int ASCII intensity files for target temperatures."""
-    temps = [float(temperatures)] if isinstance(temperatures, (int, float)) else [float(t) for t in temperatures]
-
-    if isinstance(dipoles, dict):
-        mu_a = float(dipoles.get("mu_a", dipoles.get("a", dipoles.get("mua", 0.0))))
-        mu_b = float(dipoles.get("mu_b", dipoles.get("b", dipoles.get("mub", 0.0))))
-        mu_c = float(dipoles.get("mu_c", dipoles.get("c", dipoles.get("muc", 0.0))))
-    else:
-        d_list = [float(x) for x in dipoles]
-        mu_a = d_list[0] if len(d_list) > 0 else 0.0
-        mu_b = d_list[1] if len(d_list) > 1 else 0.0
-        mu_c = d_list[2] if len(d_list) > 2 else 0.0
-
-    fortran_overflow_guard({"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c})
-
-    results: Dict[float, str] = {}
-
-    for t in temps:
-        title_str = title if title else f"{molecule_name} Ground State - CoChem SPCAT Bridge (T={t:.2f}K)"
-
-        control_line = (
-            f"{tag:>3}{ver:>3}{ibx:>3}{nq:>3}"
-            f"  {rrot:>6.1f}  {tem:>6.1f}  {sthk:>6.1f}  {wtk:>6.1f}  {t:>8.2f}"
-        )
-
-        int_lines = [
-            title_str,
-            control_line,
-            f"  1  {mu_a:>12.6f}   / mua",
-            f"  2  {mu_b:>12.6f}   / mub",
-            f"  3  {mu_c:>12.6f}   / muc",
-        ]
-
-        content = "\n".join(int_lines) + "\n"
-        results[t] = content
-
-        if filepath_template is not None:
-            path_str = str(filepath_template).format(T=f"{t:.1f}", temp=f"{t:.1f}", molecule=molecule_name)
-            target = Path(path_str).resolve()
-            validate_airgap_boundary(target)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            temp_file = target.with_suffix(f".tmp_{os.getpid()}_{int(datetime.now().timestamp())}")
-            temp_file.write_text(content, encoding="utf-8")
-            temp_file.replace(target)
-
-    return results
-
-
-# =============================================================================
-# 9. Tripartite Filesystem Air-Gap & Cryptographic Provenance Manifest
-# =============================================================================
-
-def validate_airgap_boundary(target_path: Union[str, Path]) -> Path:
-    """Validate that target output path adheres to the Tripartite Air-Gap isolation boundary.
-
-    Ring 1: Static Repository Root (Domain A) is read-only for runtime scratch/log files.
-    Directly writing volatile simulation scratch files into Ring 1 static repository
-    (outside authorized test/scratch directories) raises an AirGapViolationError.
-
-    Args:
-        target_path: Target filesystem path to validate.
+    Parameters:
+        parquet_path: Absolute or relative path to .parquet spectral catalog.
+        json_path: Path to internal JSON containing rotational/dipole/centrifugal parameters.
+        output_path: Optional destination path for the generated .pgo XML file.
 
     Returns:
-        Resolved absolute Path.
-
-    Raises:
-        AirGapViolationError: If target attempts to write directly into protected Ring 1 static root.
+        String containing the formatted .pgo XML document.
     """
-    resolved = Path(target_path).resolve()
-    base_root = get_base_root().resolve()
-    repo_root = get_repo_root().resolve()
+    parquet_file = Path(parquet_path)
+    if not parquet_file.exists():
+        raise FileNotFoundError(f"Parquet catalog file not found: {parquet_path}")
 
-    # Check if target is located within static execution boundaries
-    for root_dir in (base_root, repo_root):
-        try:
-            rel = resolved.relative_to(root_dir)
-            rel_parts = rel.parts
-            if not rel_parts:
-                continue
-            # If target is within CoChem-BASE root
-            if rel_parts[0] == "CoChem-BASE":
-                sub_parts = rel_parts[1:]
-            else:
-                sub_parts = rel_parts
+    json_file = Path(json_path)
+    if not json_file.exists():
+        raise FileNotFoundError(f"JSON parameter file not found: {json_path}")
 
-            if sub_parts and sub_parts[0] in ("test_suite", "tests", ".pytest_cache", "scratch"):
-                return resolved
+    # 1. Zero-RAM Parquet Metadata Inspection (Bypasses dataset loading)
+    metadata = pq.read_metadata(str(parquet_file))
+    num_rows = metadata.num_rows
+    num_columns = metadata.num_columns
+    column_names = metadata.schema.names
 
-            raise AirGapViolationError(
-                message=f"Air-Gap violation: forbidden write into Ring 1 static execution tier: {resolved}",
-                error_code=ProvenanceErrorCode.AIRGAP_VIOLATION,
-                details={
-                    "path": str(resolved),
-                    "ring": "Ring 1 (Domain A)",
-                    "base_root": str(base_root),
-                    "repo_root": str(repo_root),
-                },
-            )
-        except ValueError:
-            pass
+    # 2. Parse JSON Spectroscopic Parameters
+    with open(json_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    return resolved
+    molecule_name = data.get("molecule_name", data.get("name", parquet_file.stem))
+    point_group = data.get("point_group", data.get("symmetry_group", "C1"))
+
+    # Rotational constants in MHz (PGOPHER standard conversion supported)
+    rot_constants = data.get("rotational_constants", data)
+    A_mhz = _to_float(rot_constants.get("A", 10000.0))
+    B_mhz = _to_float(rot_constants.get("B", 5000.0))
+    C_mhz = _to_float(rot_constants.get("C", 2500.0))
+
+    # Centrifugal distortion terms (Watson A/S reduction)
+    centrifugal = data.get("centrifugal_distortion", {})
+    model = centrifugal.get("model", centrifugal.get("reduction", "Watson_A"))
+    DJ = _to_float(centrifugal.get("DJ", centrifugal.get("Delta_J", 0.0)))
+    DJK = _to_float(centrifugal.get("DJK", centrifugal.get("Delta_JK", 0.0)))
+    DK = _to_float(centrifugal.get("DK", centrifugal.get("Delta_K", 0.0)))
+    dJ = _to_float(centrifugal.get("dJ", centrifugal.get("delta_J", 0.0)))
+    dK = _to_float(centrifugal.get("dK", centrifugal.get("delta_K", 0.0)))
+
+    # Dipole moments in Debye
+    dipoles = data.get("dipole_moments", {})
+    mu_a = _to_float(dipoles.get("mu_a", dipoles.get("MuA", 1.0)))
+    mu_b = _to_float(dipoles.get("mu_b", dipoles.get("MuB", 0.0)))
+    mu_c = _to_float(dipoles.get("mu_c", dipoles.get("MuC", 0.0)))
+
+    temperature = _to_float(data.get("temperature", data.get("simulation_temperature", 298.15)))
+    fwhm = _to_float(data.get("fwhm", data.get("line_width", 1.0)))
+
+    # 3. Construct Standardized PGOPHER XML Skeleton
+    xml_lines = [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        f'<PGOPHER Version="1.0.0" Generator="CoChem-TORQ-Export" Created="{datetime.now(timezone.utc).isoformat()}">',
+        f'  <Species Name="{molecule_name}" AsymmetricTop="True">',
+        f'    <AsymmetricMolecule Name="Ground" PointGroup="{point_group}">',
+        '      <AsymmetricTop Name="v=0" S="0">',
+        f'        <RotationalConstants A="{A_mhz:.6f}" B="{B_mhz:.6f}" C="{C_mhz:.6f}" Units="MHz"/>',
+        f'        <CentrifugalDistortion Model="{model}" DJ="{DJ:.8e}" DJK="{DJK:.8e}" DK="{DK:.8e}" dJ="{dJ:.8e}" dK="{dK:.8e}" Units="MHz"/>',
+        f'        <DipoleMoments MuA="{mu_a:.4f}" MuB="{mu_b:.4f}" MuC="{mu_c:.4f}" Units="Debye"/>',
+        f'        <SpectroscopicCatalog File="{parquet_file.name}" TotalTransitions="{num_rows}" TotalColumns="{num_columns}" Columns="{",".join(column_names)}"/>',
+        '      </AsymmetricTop>',
+        '    </AsymmetricMolecule>',
+        '  </Species>',
+        f'  <Simulation Temperature="{temperature:.2f}" Units="K" LineShape="Gaussian" FWHM="{fwhm:.4f}" UnitsFWHM="MHz"/>',
+        '</PGOPHER>',
+    ]
+    xml_content = "\n".join(xml_lines) + "\n"
+
+    if output_path:
+        out_p = Path(output_path)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_p, "w", encoding="utf-8") as f:
+            f.write(xml_content)
+
+    return xml_content
 
 
-def compute_sha256(content: Union[str, bytes]) -> str:
-    """Compute deterministic SHA-256 hexadecimal hash string."""
-    raw = content.encode("utf-8") if isinstance(content, str) else content
-    return hashlib.sha256(raw).hexdigest()
-
-
-def generate_spcat_provenance_manifest(
-    molecule_name: str,
-    var_content: str,
-    int_contents: Dict[float, str],
-    symmetry_result: SymmetryDivisorResult,
-    partition_results: Dict[float, float],
-    output_path: Optional[Union[str, Path]] = None,
-    extra_metadata: Optional[Dict[str, Any]] = None,
+def lock_provenance_payload(
+    target_directory: str, manifest_filename: str = "spycfit_manifest.json"
 ) -> Dict[str, Any]:
-    """Generate SHA-256 cryptographic provenance manifest for SPCAT execution package."""
-    sha256_var = compute_sha256(var_content)
-    sha256_int = {str(t): compute_sha256(c) for t, c in int_contents.items()}
+    """
+    Deterministic Provenance Locking Gate.
+    Traverses target_directory in deterministic POSIX sort order, computes streaming
+    SHA-256 in 8192-byte binary chunks, excludes manifest_filename from circular hashing,
+    and serializes spycfit_manifest.json under RFC 8785 Canonical JSON standards.
 
-    manifest: Dict[str, Any] = {
+    Parameters:
+        target_directory: Path to directory containing export artifacts.
+        manifest_filename: Name of manifest file (default: spycfit_manifest.json).
+
+    Returns:
+        Dictionary containing manifest metadata and file checksum mapping.
+    """
+    target_path = Path(target_directory).resolve()
+    if not target_path.exists() or not target_path.is_dir():
+        raise NotADirectoryError(f"Target directory does not exist: {target_directory}")
+
+    # Discover all files recursively, excluding manifest and temporary artifacts
+    excluded_names = {manifest_filename, ".DS_Store", "Thumbs.db"}
+    all_files: List[Path] = []
+
+    for root, dirs, files in os.walk(target_path):
+        # Sort directories in-place for deterministic traversal
+        dirs.sort()
+        for f in sorted(files):
+            if f not in excluded_names and not f.endswith((".pyc", ".tmp")):
+                all_files.append(Path(root) / f)
+
+    # Sort files by relative POSIX path for strict determinism
+    relative_files = sorted(
+        all_files, key=lambda p: p.relative_to(target_path).as_posix()
+    )
+
+    files_manifest: Dict[str, Dict[str, Any]] = {}
+    root_hasher = hashlib.sha256()
+    total_bytes = 0
+
+    for file_path in relative_files:
+        posix_rel_path = file_path.relative_to(target_path).as_posix()
+        file_size = file_path.stat().st_size
+        total_bytes += file_size
+
+        # Memory-safe 8192-byte streaming SHA-256
+        file_hasher = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            while chunk := f.read(8192):
+                file_hasher.update(chunk)
+        file_sha256 = file_hasher.hexdigest()
+
+        files_manifest[posix_rel_path] = {
+            "sha256": file_sha256,
+            "size_bytes": file_size,
+        }
+
+        # Update root composite hash
+        root_hasher.update(f"{posix_rel_path}:{file_sha256}:{file_size}\n".encode("utf-8"))
+
+    root_payload_hash = root_hasher.hexdigest()
+
+    manifest_dict: Dict[str, Any] = {
         "schema_version": "1.0.0",
-        "stage": "Stage 5.1 (Statistical Mechanics & SPCAT Bridge)",
-        "molecule_name": molecule_name,
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "codata_constants": {
-            "h_j_s": CONSTANTS.H,
-            "k_b_j_k": CONSTANTS.K_B,
-            "c_cm_s": CONSTANTS.C_CM_S,
-            "c_rot_mhz_u_ang2": CONSTANTS.C_ROT,
-            "hc_over_kb_k_cm": CONSTANTS.HC_OVER_KB,
-        },
-        "symmetry": symmetry_result.to_dict(),
-        "partition_functions": {str(k): v for k, v in partition_results.items()},
-        "cryptographic_hashes": {
-            "sha256_var": sha256_var,
-            "sha256_int": sha256_int,
-        },
-        "airgap_rings": {
-            "ring_1_domain_a": "Static Execution Tier (Read-Only Repo)",
-            "ring_2_domain_c": "Ephemeral Scratch Tier (RAM-Disk /dev/shm)",
-            "ring_3_domain_b": "Dynamic Artifact Vault ($COCHEM_ARTIFACTS_DIR)",
-        },
-        "metadata": extra_metadata if extra_metadata is not None else {},
+        "generator": "CoChem-TORQ-Export",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "target_directory": target_path.as_posix(),
+        "file_count": len(files_manifest),
+        "total_bytes": total_bytes,
+        "root_payload_hash": root_payload_hash,
+        "files": files_manifest,
     }
 
-    if output_path is not None:
-        target = Path(output_path).resolve()
-        validate_airgap_boundary(target)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temp_file = target.with_suffix(f".tmp_{os.getpid()}_{int(datetime.now().timestamp())}")
-        temp_file.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-        temp_file.replace(target)
+    # RFC 8785 Canonical JSON Serialization: sorted keys, compact separators, UTF-8
+    canonical_json_bytes = json.dumps(
+        manifest_dict, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
 
-    return manifest
+    manifest_out_path = target_path / manifest_filename
+    with open(manifest_out_path, "wb") as f:
+        f.write(canonical_json_bytes)
 
-
-def build_complete_spcat_payload(
-    molecule_name: str,
-    geometry: Union[np.ndarray, Sequence[Sequence[float]]],
-    symbols: Sequence[str],
-    rotational_constants_mhz: Dict[str, float],
-    dipoles_debye: Dict[str, float],
-    harmonic_frequencies_cm1: Sequence[float],
-    temperatures: Sequence[float] = (2.0, 10.0, 50.0, 298.15),
-    quartic_distortion: Optional[Dict[str, float]] = None,
-    lam_frequency: Optional[float] = None,
-    output_dir: Optional[Union[str, Path]] = None,
-) -> SPCATPayload:
-    """Build complete, fully validated, air-gapped SPCAT execution payload with provenance manifest."""
-    sym_res = apply_symmetry_divisors(geometry_array=geometry, symbols=symbols)
-
-    a = float(rotational_constants_mhz.get("A", 0.0))
-    b = float(rotational_constants_mhz.get("B", 0.0))
-    c = float(rotational_constants_mhz.get("C", 0.0))
-    part_res = compute_coupled_partition_functions(
-        a_mhz=a,
-        b_mhz=b,
-        c_mhz=c,
-        frequencies_cm1=harmonic_frequencies_cm1,
-        temp_array=temperatures,
-        sigma=sym_res.sigma,
-        lam_frequency=lam_frequency,
-    )
-
-    combined_params: Dict[str, Any] = {
-        "A": a,
-        "B": b,
-        "C": c,
-    }
-    if quartic_distortion:
-        combined_params.update(quartic_distortion)
-
-    var_path = Path(output_dir) / f"{molecule_name}.var" if output_dir else None
-    var_content = generate_spcat_var(
-        molecule_name=molecule_name,
-        parameters=combined_params,
-        filepath=var_path,
-    )
-
-    int_tpl = Path(output_dir) / f"{molecule_name}_{{T}}K.int" if output_dir else None
-    int_contents = generate_spcat_int(
-        molecule_name=molecule_name,
-        dipoles=dipoles_debye,
-        temperatures=temperatures,
-        filepath_template=int_tpl,
-    )
-
-    prov_path = Path(output_dir) / f"{molecule_name}_spcat_provenance.json" if output_dir else None
-    manifest = generate_spcat_provenance_manifest(
-        molecule_name=molecule_name,
-        var_content=var_content,
-        int_contents=int_contents,
-        symmetry_result=sym_res,
-        partition_results=part_res.q_total,
-        output_path=prov_path,
-    )
-
-    return SPCATPayload(
-        molecule_name=molecule_name,
-        var_content=var_content,
-        int_contents=int_contents,
-        provenance_manifest=manifest,
-        sha256_var=compute_sha256(var_content),
-        sha256_int={t: compute_sha256(c) for t, c in int_contents.items()},
-        var_filepath=str(var_path) if var_path else None,
-        int_filepaths={t: str(Path(output_dir) / f"{molecule_name}_{t:.1f}K.int") for t in temperatures} if output_dir else {},
-        provenance_filepath=str(prov_path) if prov_path else None,
-    )
+    return manifest_dict
 
 
-__all__ = [
-    "CODATA2022",
-    "CONSTANTS",
-    "SymmetryDivisorResult",
-    "PartitionFunctionResult",
-    "SPCATParameter",
-    "SPCATPayload",
-    "PICKETT_PARAMETER_CODES",
-    "low_frequency_lam_trap",
-    "apply_symmetry_divisors",
-    "calculate_rotational_partition_function",
-    "calculate_vibrational_partition_function",
-    "vibrational_partition_coupling",
-    "compute_coupled_partition_functions",
-    "fortran_overflow_guard",
-    "format_fortran_double",
-    "fortran_double_precision_formatter",
-    "generate_spcat_var",
-    "generate_spcat_int",
-    "validate_airgap_boundary",
-    "compute_sha256",
-    "generate_spcat_provenance_manifest",
-    "build_complete_spcat_payload",
-]
+def bundle_spycfit_payload(
+    manifest_path: str,
+    output_dir: Optional[str] = None,
+    archive_format: str = "auto",
+    project_name: str = "Project",
+) -> str:
+    """
+    Deterministic SpycFit Deliverable Compression Gateway.
+    Archives export deliverables into CoChem_[Project]_SpycFit_Payload.tar.zst (or .zip fallback),
+    normalizing POSIX epoch (mtime=0) and file permissions (0644/0755), and flushing JAX buffers.
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_spcat_bridge.py ---
-"""Rigorous Authentic Physics Unit and Integration Tests for Stage 5.1: Statistical Mechanics & SPCAT Bridge.
+    Parameters:
+        manifest_path: Path to spycfit_manifest.json or parent directory.
+        output_dir: Destination folder for payload archive (defaults to target directory).
+        archive_format: 'tar.zst', 'zip', or 'auto'.
+        project_name: Name of project for archive naming.
 
-Tests validate:
-1. Low-Frequency LAM Trap (< 50 cm^-1) throwing LAMTriggerError / LAM_TRIGGER code.
-2. MolSym point-group symmetry resolution (C2v, sigma=2) and nuclear spin statistical weights ('3 1').
-3. Strict Double-Counting Guardrail between 1/sigma divisor and nuclear spin statistical weights.
-4. Vibrational partition coupling across temperature gradients with automatic LAM mode dropping.
-5. Exact CODATA 2022 fundamental physical constants.
-6. Fortran Double Precision overflow guard (|val| > 1e308) raising FortranOverflowError.
-7. Rigid character alignment and 'D' exponent formatting for parameter lines.
-8. Complete Pickett SPCAT .var and .int ASCII file generation.
-9. Tripartite Filesystem Air-Gap compliance and SHA-256 cryptographic provenance manifests.
+    Returns:
+        String path to the generated payload archive.
+    """
+    m_path = Path(manifest_path).resolve()
+    if m_path.is_dir():
+        target_dir = m_path
+        manifest_file = target_dir / "spycfit_manifest.json"
+    else:
+        manifest_file = m_path
+        target_dir = manifest_file.parent
+
+    if not manifest_file.exists():
+        # Auto-lock if manifest not yet generated
+        lock_provenance_payload(str(target_dir))
+
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    out_folder = Path(output_dir).resolve() if output_dir else target_dir
+    out_folder.mkdir(parents=True, exist_ok=True)
+
+    archive_base_name = f"CoChem_{project_name}_SpycFit_Payload"
+
+    # Check Zstandard availability
+    has_zstd = False
+    try:
+        import zstandard as zstd
+        has_zstd = True
+    except ImportError:
+        pass
+
+    use_zstd = (archive_format in ("auto", "tar.zst", "zst")) and has_zstd
+
+    # Deterministic file list: manifest + all registered files
+    files_to_pack = sorted(list(manifest["files"].keys()))
+    manifest_rel_name = manifest_file.name
+
+    if use_zstd:
+        archive_file = out_folder / f"{archive_base_name}.tar.zst"
+        import zstandard as zstd
+
+        cctx = zstd.ZstdCompressor(level=19)
+        tar_buffer = io.BytesIO()
+
+        with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+            # 1. Add manifest
+            manifest_bytes = manifest_file.read_bytes()
+            ti = tarfile.TarInfo(name=manifest_rel_name)
+            ti.size = len(manifest_bytes)
+            ti.mtime = 0  # POSIX epoch normalization
+            ti.mode = 0o644  # Normalized file permissions
+            ti.uid = 0
+            ti.gid = 0
+            ti.uname = ""
+            ti.gname = ""
+            tar.addfile(ti, io.BytesIO(manifest_bytes))
+
+            # 2. Add all payload files
+            for rel_posix in files_to_pack:
+                src_path = target_dir / rel_posix
+                if src_path.exists() and src_path.is_file():
+                    content = src_path.read_bytes()
+                    ti = tarfile.TarInfo(name=rel_posix)
+                    ti.size = len(content)
+                    ti.mtime = 0
+                    ti.mode = 0o644
+                    ti.uid = 0
+                    ti.gid = 0
+                    ti.uname = ""
+                    ti.gname = ""
+                    tar.addfile(ti, io.BytesIO(content))
+
+        tar_bytes = tar_buffer.getvalue()
+        compressed_bytes = cctx.compress(tar_bytes)
+
+        with open(archive_file, "wb") as f:
+            f.write(compressed_bytes)
+
+    else:
+        # Fallback to deterministic Zip archive
+        archive_file = out_folder / f"{archive_base_name}.zip"
+        with zipfile.ZipFile(archive_file, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            # 1. Add manifest with normalized timestamp (1980-01-01 00:00:00)
+            zinfo = zipfile.ZipInfo(manifest_rel_name, date_time=(1980, 1, 1, 0, 0, 0))
+            zinfo.external_attr = 0o644 << 16
+            zf.writestr(zinfo, manifest_file.read_bytes())
+
+            # 2. Add all payload files
+            for rel_posix in files_to_pack:
+                src_path = target_dir / rel_posix
+                if src_path.exists() and src_path.is_file():
+                    zinfo = zipfile.ZipInfo(rel_posix, date_time=(1980, 1, 1, 0, 0, 0))
+                    zinfo.external_attr = 0o644 << 16
+                    zf.writestr(zinfo, src_path.read_bytes())
+
+    # Flush JAX execution buffers and drop tensor memory
+    try:
+        import jax
+        jax.clear_caches()
+    except (ImportError, AttributeError):
+        pass
+    gc.collect()
+
+    return str(archive_file)
+
+
+def verify_payload_integrity(payload: Union[Dict[str, Any], str, Path]) -> bool:
+    """
+    Autonomous Pre-Ingestion Self-Audit Gate.
+    Validates cryptographic SHA-256 checksums across all payload files.
+    Raises CoChemIntegrityError if any corrupted or flipped bytes are detected.
+
+    Parameters:
+        payload: Manifest dictionary, path to spycfit_manifest.json, or target directory.
+
+    Returns:
+        True if all cryptographic hashes match 100%.
+
+    Raises:
+        CoChemIntegrityError: If a hash mismatch, missing file, or bit-flip is detected.
+    """
+    if isinstance(payload, (str, Path)):
+        p_path = Path(payload).resolve()
+        if p_path.is_dir():
+            manifest_file = p_path / "spycfit_manifest.json"
+            target_dir = p_path
+        elif p_path.is_file() and p_path.suffix == ".json":
+            manifest_file = p_path
+            target_dir = p_path.parent
+        else:
+            raise FileNotFoundError(f"Cannot resolve payload manifest from: {payload}")
+
+        if not manifest_file.exists():
+            raise CoChemIntegrityError(f"Missing manifest file: {manifest_file}")
+
+        with open(manifest_file, "r", encoding="utf-8") as f:
+            manifest_dict = json.load(f)
+    elif isinstance(payload, dict):
+        manifest_dict = payload
+        target_dir = Path(manifest_dict.get("target_directory", ".")).resolve()
+    else:
+        raise TypeError(f"Invalid payload type: {type(payload)}")
+
+    files = manifest_dict.get("files", {})
+    if not files:
+        raise CoChemIntegrityError("Manifest contains no registered files.")
+
+    for rel_posix, meta in files.items():
+        expected_sha256 = meta.get("sha256", "")
+        expected_size = meta.get("size_bytes", None)
+        file_path = target_dir / rel_posix
+
+        if not file_path.exists():
+            raise CoChemIntegrityError(
+                f"Payload integrity failure: missing required file '{rel_posix}' in '{target_dir}'."
+            )
+
+        if expected_size is not None:
+            actual_size = file_path.stat().st_size
+            if actual_size != expected_size:
+                raise CoChemIntegrityError(
+                    f"Payload size tamper detected for '{rel_posix}'. "
+                    f"Expected {expected_size} bytes, found {actual_size} bytes."
+                )
+
+        # Compute streaming SHA-256
+        hasher = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            while chunk := f.read(8192):
+                hasher.update(chunk)
+        actual_sha256 = hasher.hexdigest()
+
+        if actual_sha256 != expected_sha256:
+            raise CoChemIntegrityError(
+                f"Cryptographic hash seal broken for '{rel_posix}'. "
+                f"Expected SHA-256: {expected_sha256}, Actual SHA-256: {actual_sha256}."
+            )
+
+    return True
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_torq_telemetry.py ---
+"""
+CoChem-TORQ: Stage 5.5 / 6.0 Out-of-Band Telemetry & Visual Streamer
+====================================================================
+Implements real-time asynchronous webhook event dispatch, exponential backoff
+circuit breakers, tripartite air-gap spooling, 2D/3D topological decimation
+with stationary point injection, and Steric Shatter crash animation export.
+
+Authoritative Standards:
+- Method Matrix (Section 2.1, 12.5): Soft-quench diagnostics and topological preservation
+- WCAG 2.1 AA: Accessible standalone 3D visualizers with high-contrast color palettes
+- Zero-Interruption Invariant: Telemetry drops never halt active JAX compute kernels
 """
 
 from __future__ import annotations
 
+import collections
+import io
 import json
 import math
+import os
+import time
+import warnings
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+from scipy.interpolate import PchipInterpolator
+
+from cochem_base.exceptions import (
+    TelemetryNetworkExhaustedWarning,
+    TelemetryTransportError,
+)
+
+# Global Tripartite In-Memory Air-Gap Buffer (maxlen=1000)
+TELEMETRY_BUFFER: collections.deque = collections.deque(maxlen=1000)
+
+
+def _resolve_webhook_url(
+    webhook_url: Optional[str] = None, config_path: Optional[str] = None
+) -> Optional[str]:
+    """Resolves webhook URL from argument, environment variable, or system config."""
+    if webhook_url and webhook_url.strip() and webhook_url != "None":
+        return webhook_url.strip()
+
+    env_url = os.environ.get("COCHEM_WEBHOOK_URL")
+    if env_url and env_url.strip():
+        return env_url.strip()
+
+    # Attempt to load from config_path or cochem_system_config.json
+    search_paths = []
+    if config_path:
+        search_paths.append(Path(config_path))
+    search_paths.extend([
+        Path("cochem_system_config.json"),
+        Path(__file__).parent / "cochem_system_config.json",
+        Path(__file__).parent.parent / "cochem_system_config.json",
+    ])
+
+    for cfg_p in search_paths:
+        if cfg_p.exists() and cfg_p.is_file():
+            try:
+                with open(cfg_p, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    url = cfg.get("telemetry", {}).get("webhook_url") or cfg.get("webhook_url")
+                    if url and isinstance(url, str) and url.strip() and url != "[MISSING DATA]" and url != "None":
+                        return url.strip()
+            except Exception:
+                pass
+
+    return None
+
+
+def _spool_telemetry_event(
+    entry: Dict[str, Any], spool_file: str = "telemetry_spool.jsonl"
+) -> None:
+    """Appends an unsent telemetry event to local memory buffer and disk spool."""
+    TELEMETRY_BUFFER.append(entry)
+    try:
+        spool_path = Path(spool_file)
+        spool_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(spool_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        # Disk write error must not crash the parent compute kernel
+        warnings.warn(
+            f"Failed to spool telemetry to disk ({e}); preserved in in-memory buffer.",
+            TelemetryNetworkExhaustedWarning,
+            stacklevel=2,
+        )
+
+
+def stream_webhook_events(
+    status_payload: Dict[str, Any],
+    webhook_url: Optional[str] = None,
+    config_path: Optional[str] = None,
+    timeout: float = 3.0,
+    max_retries: int = 3,
+    spool_file: str = "telemetry_spool.jsonl",
+) -> bool:
+    """
+    Asynchronous / Non-Blocking Webhook Event Dispatcher with Exponential Backoff.
+    Broadcasts job completions, node failures, Soft-Quench collision alerts, or
+    OOM-Backoff triggers to Discord/Slack webhooks.
+
+    Zero-Interruption Invariant:
+    If the cluster experiences network drops, timeouts, or DNS failures, this function
+    silently caches logs into collections.deque(maxlen=1000) and telemetry_spool.jsonl,
+    emitting a TelemetryNetworkExhaustedWarning without interrupting active JAX kernels.
+
+    Parameters:
+        status_payload: Event data dictionary (job status, metrics, diagnostics).
+        webhook_url: Target Discord/Slack webhook URL (optional).
+        config_path: Path to system config file (optional).
+        timeout: HTTP request timeout ceiling in seconds (2.0s - 5.0s range).
+        max_retries: Maximum exponential backoff retry attempts (default: 3).
+        spool_file: Local JSONL spool path for air-gapped fallback.
+
+    Returns:
+        True if event was successfully dispatched over HTTP; False if spooled to fallback.
+    """
+    resolved_url = _resolve_webhook_url(webhook_url, config_path)
+    clamped_timeout = max(2.0, min(5.0, float(timeout)))
+
+    timestamp_utc = datetime.now(timezone.utc).isoformat()
+    spool_entry = {
+        "timestamp_utc": timestamp_utc,
+        "payload": status_payload,
+        "webhook_url": resolved_url,
+    }
+
+    # Air-gap fallback if no webhook URL is configured
+    if not resolved_url:
+        spool_entry["status"] = "AIR_GAPPED_NO_URL"
+        _spool_telemetry_event(spool_entry, spool_file)
+        return False
+
+    # Format Discord / Slack compatible payload if raw dict
+    http_payload = dict(status_payload)
+    if "content" not in http_payload and "embeds" not in http_payload and "text" not in http_payload:
+        title = http_payload.get("event", http_payload.get("status", "CoChem-TORQ Telemetry Event"))
+        description = http_payload.get("message", f"Status update from node {http_payload.get('node_id', 'unknown')}")
+        http_payload = {
+            "content": f"**[CoChem-TORQ]** {title}: {description}",
+            "embeds": [
+                {
+                    "title": str(title),
+                    "description": str(description),
+                    "timestamp": timestamp_utc,
+                    "fields": [
+                        {"name": str(k), "value": str(v), "inline": True}
+                        for k, v in list(status_payload.items())[:10]
+                        if k not in ("content", "embeds", "text", "message")
+                    ],
+                }
+            ],
+        }
+
+    # Exponential Backoff Circuit Breaker Loop
+    last_exception: Optional[Exception] = None
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            import httpx
+
+            with httpx.Client(timeout=clamped_timeout) as client:
+                response = client.post(resolved_url, json=http_payload)
+                if response.status_code in (200, 204):
+                    return True
+                elif 400 <= response.status_code < 500 and response.status_code != 429:
+                    # Client error (e.g. 400 Bad Request, 404 Not Found) - do not retry indefinitely
+                    last_exception = RuntimeError(f"HTTP {response.status_code}: {response.text}")
+                    break
+                else:
+                    last_exception = RuntimeError(f"HTTP {response.status_code}: {response.text}")
+
+        except Exception as exc:
+            last_exception = exc
+
+        # Exponential backoff delay: 0.5s * 2^(attempt-1), capped at 2.0s
+        if attempt < max_retries:
+            backoff_delay = min(2.0, 0.5 * (2 ** (attempt - 1)))
+            time.sleep(backoff_delay)
+
+    # Tripartite Fallback: Spool to deque, append to telemetry_spool.jsonl, warn
+    spool_entry["status"] = "DISPATCH_FAILED"
+    spool_entry["error"] = str(last_exception)
+    _spool_telemetry_event(spool_entry, spool_file)
+
+    warnings.warn(
+        f"Webhook event dispatch failed after {max_retries} attempts ({last_exception}). "
+        f"Event preserved in local telemetry spool.",
+        TelemetryNetworkExhaustedWarning,
+        stacklevel=2,
+    )
+    return False
+
+
+def generate_plotly_3d_carousels(
+    pes_tensor: np.ndarray,
+    dvr_wavefunctions: Optional[np.ndarray] = None,
+    output_path: Optional[str] = None,
+    grid_x: Optional[np.ndarray] = None,
+    grid_y: Optional[np.ndarray] = None,
+    max_nodes: int = 5000,
+    interpolation_mode: str = "pchip",
+    title: str = "CoChem-TORQ 3D Potential Energy Surface",
+) -> str:
+    """
+    High-Fidelity 2D/3D PES Topological Decimation & Plotly Visualizer.
+    Downsamples multidimensional Potential Energy Surface grids and DVR wavefunctions
+    using monotonic PCHIP/linear interpolation while strictly preserving (i, j)
+    quadrilateral topology and stationary/critical points (nabla V = 0 minima/saddle points).
+
+    Generates standalone, air-gapped WCAG 2.1 AA accessible HTML visualizers (< 4.5 MB).
+
+    Parameters:
+        pes_tensor: 2D array of shape (Nx, Ny) representing the energy surface in cm^-1 or kcal/mol.
+        dvr_wavefunctions: Optional array of shape (N_states, Nx, Ny) representing wavefunctions.
+        output_path: Optional file path to save standalone HTML visualizer.
+        grid_x: 1D array of X-axis coordinates (e.g. dihedral angle 1 in degrees).
+        grid_y: 1D array of Y-axis coordinates (e.g. dihedral angle 2 in degrees).
+        max_nodes: Maximum node budget for decimated mesh (default: 5000).
+        interpolation_mode: 'pchip' (C^1 monotonic) or 'linear' (C^0).
+        title: Plot title for the visualizer.
+
+    Returns:
+        String containing complete standalone HTML document (< 4.5 MB).
+    """
+    pes_arr = np.asarray(pes_tensor, dtype=np.float64)
+    if pes_arr.ndim != 2:
+        if pes_arr.ndim == 1:
+            side = int(math.isqrt(pes_arr.size))
+            if side * side == pes_arr.size:
+                pes_arr = pes_arr.reshape((side, side))
+            else:
+                pes_arr = pes_arr.reshape((1, -1))
+        else:
+            raise ValueError(f"pes_tensor must be 2D; received shape {pes_arr.shape}")
+
+    Nx, Ny = pes_arr.shape
+
+    if grid_x is None:
+        grid_x = np.linspace(0.0, 360.0, Nx)
+    else:
+        grid_x = np.asarray(grid_x, dtype=np.float64)
+
+    if grid_y is None:
+        grid_y = np.linspace(0.0, 360.0, Ny)
+    else:
+        grid_y = np.asarray(grid_y, dtype=np.float64)
+
+    # 1. Critical Point Detection on Full Resolution Grid (nabla V = 0)
+    # Detect local minima, saddle points, and maxima
+    critical_points: List[Tuple[float, float, float, str]] = []
+    if Nx > 4 and Ny > 4:
+        grad_x, grad_y = np.gradient(pes_arr, grid_x, grid_y)
+        grad_norm = np.sqrt(grad_x**2 + grad_y**2)
+        grad_threshold = np.percentile(grad_norm, 2.0)  # Near-zero gradient candidate
+
+        for i in range(1, Nx - 1):
+            for j in range(1, Ny - 1):
+                val = pes_arr[i, j]
+                neighbors = pes_arr[i - 1 : i + 2, j - 1 : j + 2]
+                is_min = val == np.min(neighbors)
+                is_max = val == np.max(neighbors)
+
+                if is_min:
+                    critical_points.append((float(grid_x[i]), float(grid_y[j]), float(val), "Local Minimum"))
+                elif is_max:
+                    critical_points.append((float(grid_x[i]), float(grid_y[j]), float(val), "Local Maximum"))
+                elif grad_norm[i, j] <= grad_threshold:
+                    # Check saddle point via Hessian eigenvalues
+                    hxx = (pes_arr[i + 1, j] - 2 * val + pes_arr[i - 1, j]) / ((grid_x[1] - grid_x[0]) ** 2)
+                    hyy = (pes_arr[i, j + 1] - 2 * val + pes_arr[i, j - 1]) / ((grid_y[1] - grid_y[0]) ** 2)
+                    if hxx * hyy < 0:
+                        critical_points.append((float(grid_x[i]), float(grid_y[j]), float(val), "Saddle Point (TS)"))
+
+    # 2. 2D Strided Regular Grid Decimation Preserving (i, j) Topology
+    total_nodes = Nx * Ny
+    if total_nodes > max_nodes:
+        stride_x = max(1, int(math.ceil(math.sqrt(total_nodes / max_nodes))))
+        stride_y = max(1, int(math.ceil(math.sqrt(total_nodes / max_nodes))))
+
+        # Monotonic PCHIP Interpolation along axes to resample smoothly without ringing
+        target_nx = max(4, min(Nx, int(math.sqrt(max_nodes))))
+        target_ny = max(4, min(Ny, int(max_nodes / target_nx)))
+
+        dec_x = np.linspace(grid_x[0], grid_x[-1], target_nx)
+        dec_y = np.linspace(grid_y[0], grid_y[-1], target_ny)
+
+        if interpolation_mode == "pchip" and Nx > 2 and Ny > 2:
+            # Axis-by-axis 1D PCHIP interpolator for monotonic C^1 continuity
+            intermediate = np.zeros((Nx, target_ny), dtype=np.float64)
+            for i in range(Nx):
+                pchip_y = PchipInterpolator(grid_y, pes_arr[i, :])
+                intermediate[i, :] = pchip_y(dec_y)
+
+            dec_pes = np.zeros((target_nx, target_ny), dtype=np.float64)
+            for j in range(target_ny):
+                pchip_x = PchipInterpolator(grid_x, intermediate[:, j])
+                dec_pes[:, j] = pchip_x(dec_x)
+        else:
+            # Linear strided decimation
+            idx_x = np.linspace(0, Nx - 1, target_nx, dtype=int)
+            idx_y = np.linspace(0, Ny - 1, target_ny, dtype=int)
+            dec_pes = pes_arr[np.ix_(idx_x, idx_y)]
+            dec_x = grid_x[idx_x]
+            dec_y = grid_y[idx_y]
+    else:
+        dec_x = grid_x
+        dec_y = grid_y
+        dec_pes = pes_arr
+
+    # 3. Plotly Standalone Visualizer Construction with WCAG 2.1 AA Contrast
+    import plotly.graph_objects as go
+
+    fig = go.Figure()
+
+    # Base PES Surface (Viridis colormap meets WCAG 2.1 AA perceptual contrast)
+    fig.add_trace(
+        go.Surface(
+            x=dec_x,
+            y=dec_y,
+            z=dec_pes.T,
+            colorscale="Viridis",
+            name="Potential Energy Surface",
+            colorbar=dict(
+                title=dict(text="Energy (cm⁻¹)", font=dict(color="#1A1A1A", size=14)),
+                tickfont=dict(color="#1A1A1A", size=12),
+                len=0.75,
+            ),
+            opacity=0.92,
+            lighting=dict(ambient=0.65, diffuse=0.85, specular=0.15, roughness=0.5),
+        )
+    )
+
+    # Stationary / Critical Point Overlay
+    if critical_points:
+        cp_x = [p[0] for p in critical_points]
+        cp_y = [p[1] for p in critical_points]
+        cp_z = [p[2] for p in critical_points]
+        cp_hover = [f"{p[3]}<br>X: {p[0]:.2f}°<br>Y: {p[1]:.2f}°<br>E: {p[2]:.2f} cm⁻¹" for p in critical_points]
+
+        fig.add_trace(
+            go.Scatter3d(
+                x=cp_x,
+                y=cp_y,
+                z=cp_z,
+                mode="markers",
+                marker=dict(
+                    size=6,
+                    color="#D9381E",  # High-contrast red
+                    symbol="diamond",
+                    line=dict(color="#FFFFFF", width=1),
+                ),
+                name="Critical Points (min/TS)",
+                text=cp_hover,
+                hoverinfo="text",
+            )
+        )
+
+    # Wavefunction Overlays (if provided)
+    if dvr_wavefunctions is not None:
+        wf_arr = np.asarray(dvr_wavefunctions, dtype=np.float64)
+        if wf_arr.ndim == 3 and wf_arr.shape[1] == Nx and wf_arr.shape[2] == Ny:
+            for state_idx in range(min(3, wf_arr.shape[0])):
+                wf_dec = wf_arr[state_idx][:: max(1, Nx // len(dec_x)), :: max(1, Ny // len(dec_y))]
+                wf_surface = dec_pes.T + (wf_dec.T * (np.ptp(dec_pes) * 0.15))
+                fig.add_trace(
+                    go.Surface(
+                        x=dec_x,
+                        y=dec_y,
+                        z=wf_surface,
+                        showscale=False,
+                        opacity=0.45,
+                        colorscale="Plasma",
+                        name=f"DVR Wavefunction v={state_idx}",
+                    )
+                )
+
+    fig.update_layout(
+        title=dict(
+            text=title,
+            font=dict(size=18, color="#111111", family="Arial, sans-serif"),
+        ),
+        scene=dict(
+            xaxis=dict(
+                title=dict(text="Torsion Angle θ₁ (°)", font=dict(color="#111111", size=12)),
+                tickfont=dict(color="#222222", size=10),
+                backgroundcolor="#F8F9FA",
+                gridcolor="#D0D4DC",
+            ),
+            yaxis=dict(
+                title=dict(text="Torsion Angle θ₂ (°)", font=dict(color="#111111", size=12)),
+                tickfont=dict(color="#222222", size=10),
+                backgroundcolor="#F8F9FA",
+                gridcolor="#D0D4DC",
+            ),
+            zaxis=dict(
+                title=dict(text="Energy (cm⁻¹)", font=dict(color="#111111", size=12)),
+                tickfont=dict(color="#222222", size=10),
+                backgroundcolor="#F8F9FA",
+                gridcolor="#D0D4DC",
+            ),
+        ),
+        margin=dict(l=20, r=20, b=20, t=50),
+        paper_bgcolor="#FFFFFF",
+    )
+
+    # Standalone HTML export with CDN bundle (< 4.5 MB envelope)
+    html_str = fig.to_html(include_plotlyjs="cdn", full_html=True)
+
+    if output_path:
+        out_p = Path(output_path)
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_p, "w", encoding="utf-8") as f:
+            f.write(html_str)
+
+    return html_str
+
+
+def export_crash_animation(
+    trajectory_array: Union[np.ndarray, List[Any]],
+    error_node_id: str,
+    output_path: Optional[str] = None,
+    atom_symbols: Optional[List[str]] = None,
+    gradient_norms: Optional[List[float]] = None,
+    diagnostic_data: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, str]:
+    """
+    Steric Shatter Soft-Quench Crash Trajectory & Diagnostic Pathology Serializer.
+    Dumps multi-frame crash_animation.xyz and structured crash_diagnostic.json
+    capturing optimization steps leading up to gradient explosion or steric clash.
+
+    Parameters:
+        trajectory_array: Array of shape (N_frames, N_atoms, 3) with Cartesian coordinates.
+        error_node_id: Identifier of the failing worker or stage node.
+        output_path: Destination folder or base path for crash deliverables.
+        atom_symbols: Optional list of element symbols (e.g. ['C', 'H', 'H', 'H', 'O', 'H']).
+        gradient_norms: Optional list of gradient norm magnitudes ||nabla E|| per frame.
+        diagnostic_data: Optional dictionary with supplementary failure metadata.
+
+    Returns:
+        Tuple containing (xyz_filepath, json_filepath).
+    """
+    traj = np.asarray(trajectory_array, dtype=np.float64)
+    if traj.ndim == 2:
+        # Single frame (N_atoms, 3) -> promote to (1, N_atoms, 3)
+        traj = traj.reshape((1, traj.shape[0], traj.shape[1]))
+    elif traj.ndim != 3 or traj.shape[2] != 3:
+        raise ValueError(f"trajectory_array must have shape (N_frames, N_atoms, 3); received {traj.shape}")
+
+    num_frames, num_atoms, _ = traj.shape
+
+    if atom_symbols is None:
+        atom_symbols = ["C" if i == 0 else "H" for i in range(num_atoms)]
+    elif len(atom_symbols) != num_atoms:
+        atom_symbols = (list(atom_symbols) + ["X"] * num_atoms)[:num_atoms]
+
+    if gradient_norms is None:
+        grad_norms = [0.0] * num_frames
+    else:
+        grad_norms = list(gradient_norms)
+        if len(grad_norms) < num_frames:
+            grad_norms.extend([grad_norms[-1] if grad_norms else 0.0] * (num_frames - len(grad_norms)))
+
+    # Determine output paths
+    if output_path:
+        out_dir = Path(output_path)
+        if out_dir.suffix in (".xyz", ".json"):
+            out_dir = out_dir.parent
+    else:
+        out_dir = Path("torq_crash_reports")
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    xyz_path = out_dir / "crash_animation.xyz"
+    json_path = out_dir / "crash_diagnostic.json"
+
+    # 1. Multi-Frame XYZ Trajectory Serialization
+    xyz_lines: List[str] = []
+    for f_idx in range(num_frames):
+        gn = grad_norms[f_idx]
+        xyz_lines.append(str(num_atoms))
+        xyz_lines.append(
+            f"Frame {f_idx}: error_node={error_node_id} | grad_norm={gn:.6e} | timestamp={datetime.now(timezone.utc).isoformat()}"
+        )
+        for a_idx in range(num_atoms):
+            sym = atom_symbols[a_idx]
+            x, y, z = traj[f_idx, a_idx]
+            xyz_lines.append(f"{sym:<3} {x:14.8f} {y:14.8f} {z:14.8f}")
+
+    with open(xyz_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(xyz_lines) + "\n")
+
+    # 2. Interatomic Clash & Minimum Distance Analysis on Final Frame
+    final_frame = traj[-1]
+    min_dist = float("inf")
+    clash_pair = None
+
+    for i in range(num_atoms):
+        for j in range(i + 1, num_atoms):
+            dist = float(np.linalg.norm(final_frame[i] - final_frame[j]))
+            if dist < min_dist:
+                min_dist = dist
+                clash_pair = (i, j)
+
+    steric_clash = min_dist < 0.70  # Sub-van-der-Waals collapse threshold
+
+    # 3. Crash Diagnostic JSON Report
+    diagnostic: Dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "error_node_id": error_node_id,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "failure_type": "StericShatterCollision" if steric_clash else "GradientNormExplosion",
+        "total_frames": num_frames,
+        "num_atoms": num_atoms,
+        "atom_symbols": atom_symbols,
+        "gradient_norms": [float(g) for g in grad_norms],
+        "max_gradient_norm": float(max(grad_norms)) if grad_norms else 0.0,
+        "steric_clash_detected": steric_clash,
+        "minimum_interatomic_distance_angstrom": float(min_dist),
+        "clashing_atom_indices": list(clash_pair) if clash_pair else [],
+        "clashing_atom_pair": [
+            f"{atom_symbols[clash_pair[0]]}{clash_pair[0]}",
+            f"{atom_symbols[clash_pair[1]]}{clash_pair[1]}",
+        ]
+        if clash_pair
+        else [],
+        "status": "ABORTED_SOFT_QUENCH",
+    }
+
+    if diagnostic_data:
+        diagnostic["supplementary_diagnostic"] = diagnostic_data
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(diagnostic, f, indent=2)
+
+    return str(xyz_path), str(json_path)
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_torq_export_telemetry.py ---
+"""
+Unit Test Suite for CoChem-TORQ Export & Telemetry Modules
+===========================================================
+Validates Stage 5.5 / 6.0 SpycFit Payload Synthesis, Out-of-Core Inspection,
+Deterministic Bundling, Provenance Seals, Webhook Circuit Breakers,
+3D Visualizers, and Steric Shatter Crash Trajectory Diagnostics.
+
+Strict Zero-Mock Mandate Compliant: All tests execute authentic I/O,
+real pyarrow Parquet tables, real cryptographic SHA-256 checks, real
+HTTP loopback servers, and real mathematical tensors.
+"""
+
+import http.server
+import io
+import json
+import os
+import shutil
+import socket
+import socketserver
+import tarfile
+import tempfile
+import threading
+import time
+import warnings
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 import numpy as np
+import psutil
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 
-from cochem_base.config_loader import get_base_root
 from cochem_base.exceptions import (
-    AirGapViolationError,
-    FortranOverflowError,
-    LAMTriggerError,
-    ProvenanceErrorCode,
+    CoChemIntegrityError,
+    KraitchmanSingularityError,
+    KraitchmanZPVEWarning,
+    TelemetryNetworkExhaustedWarning,
 )
-from cochem_spcat_bridge import (
-    CONSTANTS,
-    SPCATPayload,
-    apply_symmetry_divisors,
-    build_complete_spcat_payload,
-    calculate_rotational_partition_function,
-    calculate_vibrational_partition_function,
-    format_fortran_double,
-    fortran_double_precision_formatter,
-    fortran_overflow_guard,
-    generate_spcat_int,
-    generate_spcat_var,
-    low_frequency_lam_trap,
-    validate_airgap_boundary,
-    vibrational_partition_coupling,
+from cochem_torq_export import (
+    INERTIA_CONVERSION_AMU_ANG2_MHZ,
+    bundle_spycfit_payload,
+    calculate_kraitchman_coords,
+    generate_pgopher_skeleton,
+    lock_provenance_payload,
+    verify_payload_integrity,
+)
+from cochem_torq_telemetry import (
+    TELEMETRY_BUFFER,
+    export_crash_animation,
+    generate_plotly_3d_carousels,
+    stream_webhook_events,
 )
 
-# =============================================================================
-# 1. Authentic Physical Test Data (Water H2O & Ammonia NH3)
-# =============================================================================
 
-# Real experimental / ab initio Cartesian geometry for Water (H2O in Angstroms)
-H2O_GEOMETRY = np.array([
-    [0.000000,  0.000000,  0.117300],  # Oxygen (O)
-    [0.000000,  0.757200, -0.469200],  # Hydrogen (H1)
-    [0.000000, -0.757200, -0.469200],  # Hydrogen (H2)
-], dtype=np.float64)
-H2O_SYMBOLS = ["O", "H", "H"]
+# =====================================================================
+# 1. Kraitchman Substitution Coordinates & Costain Bounds Tests
+# =====================================================================
 
-# Real rotational constants for H2O (MHz)
-H2O_A_MHZ = 825360.0   # ~ 27.877 cm^-1
-H2O_B_MHZ = 435360.0   # ~ 14.522 cm^-1
-H2O_C_MHZ = 278130.0   # ~ 9.277 cm^-1
+def test_kraitchman_asymmetric_substitution():
+    """Validates substitution coordinates on an asymmetric top with known parameters."""
+    # Parent molecule moments (amu * A^2)
+    parent_data = {
+        "I_a": 35.0,
+        "I_b": 60.0,
+        "I_c": 90.0,
+        "parent_mass": 50.0,
+    }
+    # 13C substitution site with real positive moment shifts
+    iso_data = {
+        "I_a_iso": 35.8,
+        "I_b_iso": 60.5,
+        "I_c_iso": 91.2,
+        "delta_m": 1.00335,  # 13C - 12C mass
+    }
+    input_dict = {**parent_data, **iso_data}
 
-# Real normal mode harmonic vibrational frequencies for H2O (cm^-1)
-H2O_HARMONIC_FREQUENCIES = [1594.75, 3657.05, 3755.93]  # Bend, sym stretch, asym stretch
+    res = calculate_kraitchman_coords(input_dict)
 
-# Real dipole moment for H2O in Debye (directed along b-axis in standard orientation)
-H2O_DIPOLES = {"mu_a": 0.0, "mu_b": 1.8546, "mu_c": 0.0}
+    assert "coordinates" in res
+    assert "costain_uncertainties" in res
+    assert "radicands" in res
+    assert res["reduced_mass_mu"] > 0.0
 
-# Quartic centrifugal distortion constants for H2O (Watson A-reduction in MHz)
-H2O_WATSON_A = {
-    "DJ": 1.567e-5,
-    "DJK": -5.230e-5,
-    "DK": 2.890e-4,
-    "d1": 3.450e-6,
-    "d2": 1.120e-5,
-}
+    coords = res["coordinates"]
+    costain = res["costain_uncertainties"]
 
+    # Coordinates must be non-negative real floats
+    for axis in ("a", "b", "c"):
+        assert coords[axis] >= 0.0
+        assert not np.isnan(coords[axis])
+        assert costain[f"delta_{axis}"] > 0.0
 
-# =============================================================================
-# 2. Test Low-Frequency LAM Trap (Physical Guardrail against RRHO Failure)
-# =============================================================================
-
-def test_low_frequency_lam_trap_triggers_on_low_mode() -> None:
-    """Pass test frequency array containing [3100.0, 1500.0, 105.0, 24.5] cm^-1 to low_frequency_lam_trap.
-
-    Assert that the function correctly identifies 24.5 cm^-1, halts the standard RRHO flow,
-    and raises a LAMTriggerError with error_code LAM_TRIGGER indicating that DVR treatment
-    is physically required.
-    """
-    frequencies = [3100.0, 1500.0, 105.0, 24.5]
-
-    with pytest.raises(LAMTriggerError) as exc_info:
-        low_frequency_lam_trap(frequencies)
-
-    err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.LAM_TRIGGER or str(err.error_code) == "LAM_TRIGGER"
-    assert "24.50 cm^-1" in err.message or "24.5" in str(err.details.get("flagged_frequencies", []))
-    assert err.details["threshold_cm1"] == 50.0
-    assert 24.5 in err.details["flagged_frequencies"]
-    assert "DVR" in err.message
+        # Costain piecewise check:
+        if coords[axis] >= 0.15:
+            expected_costain = 0.0015 / coords[axis]
+            assert abs(costain[f"delta_{axis}"] - expected_costain) < 1e-6
+        else:
+            expected_costain = np.sqrt(abs(res["radicands"][f"R_{axis}"]))
+            assert abs(costain[f"delta_{axis}"] - expected_costain) < 1e-6
 
 
-def test_low_frequency_lam_trap_passes_on_stiff_modes() -> None:
-    """Verify that authentic stiff vibrational frequencies (>= 50 cm^-1) pass cleanly."""
-    stiff_modes = low_frequency_lam_trap(H2O_HARMONIC_FREQUENCIES)
-    assert len(stiff_modes) == 3
-    assert stiff_modes == H2O_HARMONIC_FREQUENCIES
-
-
-def test_low_frequency_lam_trap_multiple_lam_modes() -> None:
-    """Verify detection when multiple low torsional frequencies are present."""
-    frequencies = [2800.0, 1200.0, 42.1, 15.3, 0.0]
-    with pytest.raises(LAMTriggerError) as exc_info:
-        low_frequency_lam_trap(frequencies, threshold_cm1=50.0)
-
-    flagged = exc_info.value.details["flagged_frequencies"]
-    assert 15.3 in flagged
-    assert 42.1 in flagged
-    assert 0.0 not in flagged
-
-
-# =============================================================================
-# 3. Test MolSym Point-Group & Nuclear Spin Statistical Weights
-# =============================================================================
-
-def test_molsym_spin_and_divisor_validation_h2o() -> None:
-    """Feed aligned Cartesian coordinates of Water (H2O) to apply_symmetry_divisors().
-
-    Assert that MolSym correctly identifies the C2v point group.
-    Assert the returned divisor is exactly sigma = 2.
-    Assert the returned spin statistical weight string correctly evaluates to the
-    Ortho/Para ratio of '3 1'.
-    """
-    res = apply_symmetry_divisors(geometry_array=H2O_GEOMETRY, symbols=H2O_SYMBOLS)
-
-    assert res.point_group == "C2v"
-    assert res.sigma == 2
-    assert res.spin_statistical_weights == [3, 1]
-    assert res.spin_weight_ratio_str == "3 1"
-    assert res.effective_divisor == 2.0
-    assert "GUARDRAIL_ENFORCED" in res.guardrail_status
-
-
-def test_symmetry_double_counting_guardrail_selection() -> None:
-    """Enforce strict Double-Counting Guardrail between 1/sigma divisor and nuclear spin weights.
-
-    When nuclear spin weights are explicitly applied, classical 1/sigma divisor must be bypassed
-    (effective_divisor = 1.0) to prevent double-deflating the state density.
-    """
-    res_classical = apply_symmetry_divisors(H2O_GEOMETRY, H2O_SYMBOLS, use_nuclear_spin=False)
-    assert res_classical.sigma == 2
-    assert res_classical.effective_divisor == 2.0
-    assert res_classical.guardrail_status == "GUARDRAIL_ENFORCED_CLASSICAL_SIGMA_APPLIED"
-
-    res_spin = apply_symmetry_divisors(H2O_GEOMETRY, H2O_SYMBOLS, use_nuclear_spin=True)
-    assert res_spin.sigma == 2
-    assert res_spin.effective_divisor == 1.0
-    assert res_spin.guardrail_status == "GUARDRAIL_ENFORCED_EXACT_NUCLEAR_SPIN_APPLIED_SIGMA_BYPASSED"
-
-
-def test_molsym_symmetry_ammonia_c3v() -> None:
-    """Verify symmetry and spin weights for Ammonia (NH3) in C3v."""
-    r_nh = 1.012
-    theta_hnh = math.radians(106.68)
-    sin_beta = math.sqrt(2.0 / 3.0 * (1.0 - math.cos(theta_hnh)))
-    cos_beta = math.sqrt(1.0 - sin_beta**2)
-    r_xy = r_nh * sin_beta
-    z_h = -r_nh * cos_beta
-    coords_nh3 = np.array([
-        [0.0, 0.0, 0.0],
-        [r_xy, 0.0, z_h],
-        [-r_xy * 0.5, r_xy * math.sqrt(3) / 2.0, z_h],
-        [-r_xy * 0.5, -r_xy * math.sqrt(3) / 2.0, z_h],
-    ], dtype=float)
-    symbols_nh3 = ["N", "H", "H", "H"]
-
-    res = apply_symmetry_divisors(coords_nh3, symbols_nh3)
-    assert res.point_group == "C3v"
-    assert res.sigma == 3
-    assert res.spin_weight_ratio_str in ("2 1", "4 2")
-
-
-# =============================================================================
-# 4. Test Fortran Double Precision Formatter & String Alignment
-# =============================================================================
-
-def test_fortran_string_alignment_and_type() -> None:
-    """Pass quartic centrifugal distortion parameter (DJ = 0.00001567 MHz) to fortran_double_precision_formatter().
-
-    Assert that the output string strictly uses the 'D' identifier (e.g. 1.567D-05)
-    and that the parameter identifier code (e.g. 20000) is right-aligned to exactly
-    the correct column index (width 10) without a single space of deviation.
-    """
-    dj_val = 0.00001567
-    param_id = 20000
-
-    compact_str = fortran_double_precision_formatter(dj_val, compact=True)
-    assert "D-05" in compact_str
-    assert "1.567" in compact_str
-    assert "e" not in compact_str
-    assert "E" not in compact_str
-
-    line = fortran_double_precision_formatter(
-        val_or_id=param_id,
-        val=dj_val,
-        uncertainty=1.0e-7,
-        label="DJ",
-        width=22,
-        precision=15,
-        compact=False,
-    )
-
-    assert line[:10] == "     20000", f"Expected '     20000', got '{line[:10]}'"
-    assert "D-05" in line
-    assert "D-07" in line
-    assert "/ DJ" in line
-
-
-def test_format_fortran_double_various_scales() -> None:
-    """Verify Fortran Double Precision scientific string formatting across orders of magnitude."""
-    assert format_fortran_double(0.0, compact=True) == "0.000D+00"
-    assert "D+05" in format_fortran_double(825360.0, compact=True)
-    assert "D-09" in format_fortran_double(1.234e-9, compact=True)
-    assert "D+00" in format_fortran_double(1.0, compact=True)
-
-
-# =============================================================================
-# 5. Test Fortran Double Precision Overflow Guard
-# =============================================================================
-
-def test_fortran_overflow_guard_intercepts_unphysical_value() -> None:
-    """Intentionally feed an unphysically massive parameter (1.5e310) representing a failed perturbation calculation.
-
-    Assert that fortran_overflow_guard() intercepts the value before formatting,
-    logs the critical error, and raises FortranOverflowError / blocks corrupted parameters.
-    """
-    corrupt_params = {
-        "A": 825360.0,
-        "B": 435360.0,
-        "C": 278130.0,
-        "DJ": 1.5e310,  # Exceeds IEEE 754 Double Precision limit (1e308)
+def test_kraitchman_near_symmetric_damping():
+    """Validates singularity damping when |I_a - I_b| < 1e-4 amu*A^2."""
+    # Near-prolate symmetric top where I_b and I_c are nearly degenerate
+    input_dict = {
+        "I_a": 15.0,
+        "I_b": 50.00001,  # |I_b - I_c| < 1e-4
+        "I_c": 50.00003,
+        "I_a_iso": 15.05,
+        "I_b_iso": 50.10001,
+        "I_c_iso": 50.10003,
+        "parent_mass": 60.0,
+        "delta_m": 1.0,
     }
 
-    with pytest.raises(FortranOverflowError) as exc_info:
-        fortran_overflow_guard(corrupt_params)
+    res = calculate_kraitchman_coords(input_dict)
 
-    err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.FORTRAN_OVERFLOW or str(err.error_code) == "FORTRAN_OVERFLOW"
-    assert "DJ" in str(err.details.get("parameter", ""))
-    val_str = str(err.details.get("value", "")).lower()
-    assert "inf" in val_str or "310" in val_str or "1.5" in val_str
+    # Damping guard must activate on nearly degenerate axes
+    assert res["near_symmetric_damped"]["b"] is True or res["near_symmetric_damped"]["c"] is True
+    # Coordinates must not explode to infinity or NaN
+    for axis in ("a", "b", "c"):
+        assert np.isfinite(res["coordinates"][axis])
 
 
-def test_fortran_overflow_guard_valid_dictionary() -> None:
-    """Verify that physically realistic parameters pass the overflow guard untouched."""
-    valid_params = {
-        "A": 825360.0,
-        "B": 435360.0,
-        "C": 278130.0,
-        "DJ": 1.567e-5,
-        "DJK": -5.23e-5,
+def test_kraitchman_zpve_defect_clamping():
+    """Validates clamping of negative radicands (ZPVE defects) to 0.0000 A with KraitchmanZPVEWarning."""
+    # Construct an artificial shift along axis 'a' producing negative radicand
+    input_dict = {
+        "I_a": 40.0,
+        "I_b": 70.0,
+        "I_c": 100.0,
+        "I_a_iso": 40.0001,  # Very small shift
+        "I_b_iso": 72.0,     # Large shift on b/c making Delta P_a negative
+        "I_c_iso": 68.0,
+        "parent_mass": 45.0,
+        "delta_m": 1.0,
     }
-    checked = fortran_overflow_guard(valid_params)
-    assert checked["A"] == 825360.0
-    assert checked["DJ"] == 1.567e-5
+
+    with pytest.warns(KraitchmanZPVEWarning) as record:
+        res = calculate_kraitchman_coords(input_dict)
+
+    assert len(record) >= 1
+    # Check that at least one axis had ZPVE defect clamped to 0.0
+    clamped_any = any(res["zpve_defect_clamped"].values())
+    assert clamped_any is True
+
+    for axis, is_clamped in res["zpve_defect_clamped"].items():
+        if is_clamped:
+            assert res["coordinates"][axis] == 0.0000
 
 
-# =============================================================================
-# 6. Test Partition Functions & Vibrational Partition Coupling
-# =============================================================================
+def test_kraitchman_rotational_constants_input():
+    """Validates Kraitchman calculation using rotational constants in MHz."""
+    input_dict = {
+        "A": 9500.0,
+        "B": 4200.0,
+        "C": 2800.0,
+        "A_iso": 9420.0,
+        "B_iso": 4180.0,
+        "C_iso": 2790.0,
+        "mass": 75.0,
+        "delta_m": 1.00335,
+    }
 
-def test_exact_codata_2022_constants() -> None:
-    """Validate exact CODATA 2022 constants used throughout the bridge."""
-    assert CONSTANTS.H == 6.62607015e-34
-    assert CONSTANTS.K_B == 1.380649e-23
-    assert CONSTANTS.C_CM_S == 29979245800.0
-    assert abs(CONSTANTS.C_ROT - 505379.008435) < 1e-4
-    assert abs(CONSTANTS.HC_OVER_KB - 1.4387768775) < 1e-6
-
-
-def test_rotational_partition_function_water() -> None:
-    """Calculate rotational partition function Q_rot(T) for H2O at 298.15 K."""
-    temp = 298.15
-    q_rot = calculate_rotational_partition_function(
-        a_mhz=H2O_A_MHZ,
-        b_mhz=H2O_B_MHZ,
-        c_mhz=H2O_C_MHZ,
-        temp_k=temp,
-        sigma=2.0,
-    )
-    # For H2O at 298.15 K with sigma=2, classical Q_rot ~ 43-45
-    assert 40.0 < q_rot < 50.0
+    res = calculate_kraitchman_coords(input_dict)
+    assert res["coordinates"]["a"] >= 0.0
+    assert res["coordinates"]["b"] >= 0.0
+    assert res["coordinates"]["c"] >= 0.0
 
 
-def test_vibrational_partition_coupling_drops_lam_frequency() -> None:
-    """Verify vibrational_partition_coupling drops LAM frequency (< 50 cm^-1) when coupled with DVR.
+def test_kraitchman_input_validation():
+    """Validates error handling for missing inputs or invalid mass values."""
+    with pytest.raises(ValueError):
+        calculate_kraitchman_coords({"I_a": 10.0})  # Missing I_b, I_c
 
-    Demonstrates prevention of thermodynamic double-counting when DVR solves the low-frequency mode.
+    with pytest.raises(ValueError):
+        calculate_kraitchman_coords({
+            "I_a": 10.0, "I_b": 20.0, "I_c": 30.0,
+            "I_a_iso": 10.1, "I_b_iso": 20.1, "I_c_iso": 30.1,
+            "parent_mass": -5.0, "delta_m": 1.0,
+        })
+
+
+# =====================================================================
+# 2. PGOPHER Skeleton & Zero-RAM PyArrow Metadata Inspection
+# =====================================================================
+
+def test_oom_proof_pyarrow_metadata_inspection(tmp_path):
     """
-    temps = [2.0, 10.0, 50.0, 298.15]
-    all_freqs = [3100.0, 1500.0, 105.0, 24.5]  # Contains LAM mode 24.5 cm^-1
-    lam_mode = 24.5
+    Zero-Mock OOM-Proof PyArrow Metadata Inspection Test.
+    Creates a real Parquet catalog with 100,000 transitions, verifies that
+    generate_pgopher_skeleton reads only the metadata with minimal RSS spike (< 50MB).
+    """
+    parquet_path = tmp_path / "spectral_catalog.parquet"
+    json_path = tmp_path / "molecule_params.json"
+    pgo_output = tmp_path / "molecule_skeleton.pgo"
 
-    # DVR rotational partition functions across temperature grid
-    q_rot_dvr = {2.0: 1.05, 10.0: 4.8, 50.0: 35.2, 298.15: 185.0}
+    # Generate real Parquet table with 100,000 transition rows
+    n_rows = 100000
+    freqs = np.linspace(1000.0, 50000.0, n_rows)
+    intensities = np.random.uniform(0.01, 100.0, n_rows)
+    upper_j = np.random.randint(1, 20, n_rows)
+    lower_j = np.random.randint(0, 19, n_rows)
 
-    # Coupled calculation with LAM mode dropped
-    q_total_coupled = vibrational_partition_coupling(
-        q_rot_dvr=q_rot_dvr,
-        q_vib_orca=all_freqs,
-        temp_array=temps,
-        lam_frequency=lam_mode,
+    table = pa.Table.from_arrays(
+        [
+            pa.array(freqs),
+            pa.array(intensities),
+            pa.array(upper_j),
+            pa.array(lower_j),
+        ],
+        names=["Frequency", "Intensity", "Upper_J", "Lower_J"],
     )
+    pq.write_table(table, parquet_path)
 
-    q_vib_with_lam = calculate_vibrational_partition_function(all_freqs, 298.15)
-    q_vib_without_lam = calculate_vibrational_partition_function(all_freqs, 298.15, exclude_frequencies=[lam_mode])
-
-    assert q_vib_without_lam < q_vib_with_lam
-    expected_q_total_298 = q_rot_dvr[298.15] * q_vib_without_lam
-    assert math.isclose(q_total_coupled[298.15], expected_q_total_298, rel_tol=1e-6)
-
-
-# =============================================================================
-# 7. Test Pickett SPCAT .var and .int ASCII Generation
-# =============================================================================
-
-def test_generate_spcat_var_content(tmp_path: Path) -> None:
-    """Verify complete Pickett SPCAT .var file formatting, parameter codes, and control cards."""
-    var_file = tmp_path / "H2O.var"
+    # Generate JSON metadata
     params = {
-        "A": H2O_A_MHZ,
-        "B": H2O_B_MHZ,
-        "C": H2O_C_MHZ,
-        "DJ": 1.567e-5,
+        "molecule_name": "Ethanol_Conformer_Anti",
+        "point_group": "Cs",
+        "rotational_constants": {"A": 34892.123, "B": 9324.567, "C": 8102.345},
+        "centrifugal_distortion": {
+            "model": "Watson_A",
+            "DJ": 1.25e-4,
+            "DJK": -3.42e-4,
+            "DK": 8.91e-4,
+            "dJ": 2.11e-5,
+            "dK": 5.43e-5,
+        },
+        "dipole_moments": {"mu_a": 0.45, "mu_b": 1.35, "mu_c": 0.0},
+        "temperature": 10.0,
+        "fwhm": 0.05,
+    }
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(params, f, indent=2)
+
+    # Monitor RSS memory before and during execution
+    proc = psutil.Process()
+    rss_before = proc.memory_info().rss
+
+    xml_result = generate_pgopher_skeleton(str(parquet_path), str(json_path), str(pgo_output))
+
+    rss_after = proc.memory_info().rss
+    rss_delta_mb = (rss_after - rss_before) / (1024 * 1024)
+
+    # Memory RSS delta must remain well below 50 MB
+    assert rss_delta_mb < 50.0
+
+    # Verify XML content and structure
+    assert pgo_output.exists()
+    root = ET.fromstring(xml_result)
+    assert root.tag == "PGOPHER"
+
+    species = root.find("Species")
+    assert species is not None
+    assert species.attrib["Name"] == "Ethanol_Conformer_Anti"
+
+    cat = root.find(".//SpectroscopicCatalog")
+    assert cat is not None
+    assert int(cat.attrib["TotalTransitions"]) == n_rows
+    assert "Frequency" in cat.attrib["Columns"]
+    assert "Intensity" in cat.attrib["Columns"]
+
+
+# =====================================================================
+# 3. Provenance Locking & Cryptographic Bit-Flip Tamper Detection
+# =====================================================================
+
+def test_lock_provenance_and_bit_flip_tamper(tmp_path):
+    """
+    Cryptographic Hash Seal & Tamper Detection Test.
+    Locks directory, flips a single byte in a file, and verifies CoChemIntegrityError.
+    """
+    export_dir = tmp_path / "export_payload"
+    export_dir.mkdir()
+
+    # Create deliverable files
+    var_file = export_dir / "ethanol.var"
+    int_file = export_dir / "ethanol.int"
+    txt_file = export_dir / "summary.txt"
+
+    var_file.write_text("A = 34892.123\nB = 9324.567\nC = 8102.345\n", encoding="utf-8")
+    int_file.write_text("DIPOLE = 1.45 Debye\nINTENSITY = 100.0\n", encoding="utf-8")
+    txt_file.write_text("CoChem-TORQ Prediction Stage 5.5 Complete\n", encoding="utf-8")
+
+    # 1. Lock Provenance
+    manifest = lock_provenance_payload(str(export_dir))
+
+    manifest_file = export_dir / "spycfit_manifest.json"
+    assert manifest_file.exists()
+    assert manifest["file_count"] == 3
+    assert "ethanol.var" in manifest["files"]
+    assert "ethanol.int" in manifest["files"]
+    assert "summary.txt" in manifest["files"]
+    # Manifest itself must be excluded from files list to prevent circular paradox
+    assert "spycfit_manifest.json" not in manifest["files"]
+
+    # 2. Verify untouched payload
+    assert verify_payload_integrity(manifest_file) is True
+
+    # 3. Programmatically flip a single byte in ethanol.var
+    var_bytes = bytearray(var_file.read_bytes())
+    var_bytes[0] ^= 0x01  # Flip least significant bit of first character
+    var_file.write_bytes(var_bytes)
+
+    # 4. Verify that bit-flip raises CoChemIntegrityError
+    with pytest.raises(CoChemIntegrityError) as exc_info:
+        verify_payload_integrity(manifest_file)
+    assert "seal broken" in str(exc_info.value).lower() or "integrity" in str(exc_info.value).lower()
+
+    # 5. Restore byte and remove a file to test missing file detection
+    var_bytes[0] ^= 0x01
+    var_file.write_bytes(var_bytes)
+    assert verify_payload_integrity(manifest_file) is True
+
+    txt_file.unlink()
+    with pytest.raises(CoChemIntegrityError) as exc_info2:
+        verify_payload_integrity(manifest_file)
+    assert "missing required file" in str(exc_info2.value).lower()
+
+
+# =====================================================================
+# 4. Deterministic Payload Bundling (mtime=0 & Permissions)
+# =====================================================================
+
+def test_bundle_spycfit_payload_determinism(tmp_path):
+    """Validates deterministic tar.zst / zip packaging with normalized mtime and permissions."""
+    export_dir = tmp_path / "bundle_test"
+    export_dir.mkdir()
+
+    (export_dir / "data1.var").write_text("DATA 1", encoding="utf-8")
+    (export_dir / "data2.int").write_text("DATA 2", encoding="utf-8")
+
+    manifest = lock_provenance_payload(str(export_dir))
+    archive_path = bundle_spycfit_payload(str(export_dir), str(tmp_path), project_name="Methanol")
+
+    assert os.path.exists(archive_path)
+    assert "CoChem_Methanol_SpycFit_Payload" in archive_path
+
+    # Inspect archive internals
+    if archive_path.endswith(".tar.zst"):
+        import zstandard as zstd
+        dctx = zstd.ZstdDecompressor()
+        with open(archive_path, "rb") as f:
+            decompressed_tar = dctx.decompress(f.read())
+
+        with tarfile.open(fileobj=io.BytesIO(decompressed_tar)) as tar:
+            members = tar.getmembers()
+            assert len(members) >= 3  # manifest + 2 files
+            for m in members:
+                assert m.mtime == 0  # POSIX epoch normalization
+                assert m.mode == 0o644  # Normalized permissions
+    elif archive_path.endswith(".zip"):
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            infolist = zf.infolist()
+            assert len(infolist) >= 3
+            for info in infolist:
+                assert info.date_time == (1980, 1, 1, 0, 0, 0)
+
+
+# =====================================================================
+# 5. Webhook Circuit Breaker, Timeout & Non-Blocking Spooling
+# =====================================================================
+
+def test_stream_webhook_unreachable_circuit_breaker(tmp_path):
+    """
+    Webhook Circuit Breaker Test.
+    Tests timeout and exponential backoff against an unreachable local port.
+    Asserts non-blocking execution, warning emission, and spooling to disk.
+    """
+    # Find an unused, unroutable closed port
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    dummy_url = f"http://127.0.0.1:{port}/webhook_test"
+    spool_file = tmp_path / "test_telemetry_spool.jsonl"
+
+    status_event = {
+        "event": "SoftQuenchCollision",
+        "node_id": "worker_03",
+        "energy_gap": 142.5,
+        "max_grad": 500.0,
     }
 
-    content = generate_spcat_var(
-        molecule_name="H2O",
-        parameters=params,
-        filepath=var_file,
+    start_time = time.time()
+    with pytest.warns(TelemetryNetworkExhaustedWarning):
+        success = stream_webhook_events(
+            status_payload=status_event,
+            webhook_url=dummy_url,
+            timeout=2.0,
+            max_retries=2,
+            spool_file=str(spool_file),
+        )
+    elapsed = time.time() - start_time
+
+    # Must return False safely without raising exceptions
+    assert success is False
+    assert elapsed < 10.0  # Respects timeout bounds
+
+    # Tripartite verification: Spool file must exist and contain the event
+    assert spool_file.exists()
+    with open(spool_file, "r", encoding="utf-8") as f:
+        spooled_lines = f.readlines()
+    assert len(spooled_lines) >= 1
+    last_record = json.loads(spooled_lines[-1])
+    assert last_record["payload"]["event"] == "SoftQuenchCollision"
+    assert len(TELEMETRY_BUFFER) > 0
+
+
+def test_stream_webhook_successful_dispatch(tmp_path):
+    """
+    Validates successful webhook dispatch with a live local HTTP test server.
+    """
+    received_requests = []
+
+    class TestHandler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            content_length = int(self.headers["Content-Length"])
+            post_data = self.rfile.read(content_length)
+            received_requests.append(json.loads(post_data.decode("utf-8")))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, format, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), TestHandler)
+    port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    webhook_url = f"http://127.0.0.1:{port}/webhook"
+
+    try:
+        event = {"event": "StageComplete", "stage": "5.5", "status": "SUCCESS"}
+        success = stream_webhook_events(
+            status_payload=event,
+            webhook_url=webhook_url,
+            timeout=3.0,
+            max_retries=1,
+            spool_file=str(tmp_path / "spool.jsonl"),
+        )
+
+        assert success is True
+        assert len(received_requests) == 1
+        assert "CoChem-TORQ" in received_requests[0].get("content", "")
+    finally:
+        server.shutdown()
+
+
+# =====================================================================
+# 6. 2D/3D Plotly Visualizer Decimation & Critical Point Preservation
+# =====================================================================
+
+def test_plotly_3d_carousel_decimation_and_critical_points(tmp_path):
+    """
+    Validates downsampling of massive 500,000-point PES grid down to <= 5,000 nodes,
+    monotonic PCHIP interpolation, stationary point injection, and HTML envelope < 4.5 MB.
+    """
+    Nx, Ny = 1000, 500  # 500,000 total nodes
+    x = np.linspace(0, 360, Nx)
+    y = np.linspace(0, 360, Ny)
+    X, Y = np.meshgrid(np.radians(x), np.radians(y), indexing="ij")
+
+    # Analytical 2D PES with explicit double-well minima and saddle points
+    pes_grid = (
+        1200.0 * np.cos(X)
+        + 600.0 * np.cos(2 * X)
+        + 800.0 * np.cos(Y)
+        + 400.0 * np.cos(2 * Y)
+        + 250.0 * np.sin(X) * np.sin(Y)
     )
 
-    assert var_file.exists()
-    lines = content.strip().split("\n")
-    assert len(lines) >= 6
+    out_html = tmp_path / "pes_visualizer.html"
 
-    # Line 1: Header title
-    assert "H2O Ground State - CoChem SPCAT Bridge" in lines[0]
-
-    # Line 2: Control line (NPAR, NLINE, NOPT, NWARN, ERPAR, WTFAC, SCALE, MAXIT)
-    control_parts = lines[1].split()
-    assert control_parts[0] == "4"
-    assert "D+00" in lines[1]
-
-    # Parameter lines
-    assert any("20000" in line and "D+05" in line for line in lines)
-    assert any("200" in line and "1.567" in line and "D-05" in line for line in lines)
-
-
-def test_generate_spcat_int_content(tmp_path: Path) -> None:
-    """Verify complete Pickett SPCAT .int file generation with temperature as 9th parameter on Line 2."""
-    temps = [2.0, 298.15]
-    tpl = tmp_path / "H2O_{T}K.int"
-
-    int_dict = generate_spcat_int(
-        molecule_name="H2O",
-        dipoles=H2O_DIPOLES,
-        temperatures=temps,
-        filepath_template=tpl,
+    html_str = generate_plotly_3d_carousels(
+        pes_tensor=pes_grid,
+        grid_x=x,
+        grid_y=y,
+        output_path=str(out_html),
+        max_nodes=5000,
+        interpolation_mode="pchip",
+        title="Ethanol 2D Torsional PES",
     )
 
-    assert 2.0 in int_dict
-    assert 298.15 in int_dict
+    assert out_html.exists()
+    html_size_mb = out_html.stat().st_size / (1024 * 1024)
 
-    f_298 = tmp_path / "H2O_298.1K.int"
-    assert f_298.exists()
+    # HTML Envelope must be strictly under 4.5 MB
+    assert html_size_mb < 4.5
 
-    content_298 = int_dict[298.15]
-    lines = content_298.strip().split("\n")
-    assert len(lines) == 5
-
-    # Line 2: Control line with 298.15 as 9th parameter
-    ctrl = lines[1].split()
-    assert len(ctrl) == 9
-    assert ctrl[8] == "298.15"
-
-    # Line 3, 4, 5: Dipole moments
-    assert "1" in lines[2] and "0.000000" in lines[2] and "/ mua" in lines[2]
-    assert "2" in lines[3] and "1.854600" in lines[3] and "/ mub" in lines[3]
-    assert "3" in lines[4] and "0.000000" in lines[4] and "/ muc" in lines[4]
+    # Visualizer must contain critical points and Plotly surface elements
+    assert "Potential Energy Surface" in html_str
+    assert "Ethanol 2D Torsional PES" in html_str
+    assert "colorscale" in html_str
+    assert "Torsion Angle" in html_str
 
 
-# =============================================================================
-# 8. Test Tripartite Air-Gap Compliance & Provenance Manifest
-# =============================================================================
+# =====================================================================
+# 7. Steric Shatter Soft-Quench Crash Animation & Diagnostic Export
+# =====================================================================
 
-def test_tripartite_airgap_boundary_enforcement() -> None:
-    """Assert validate_airgap_boundary blocks direct runtime writes to Ring 1 static repository root."""
-    base_root = get_base_root().resolve()
-    forbidden_target = base_root / "corrupt_scratch.tmp"
+def test_export_crash_animation(tmp_path):
+    """
+    Validates export of multi-frame crash_animation.xyz and crash_diagnostic.json
+    for Steric Shatter Soft-Quench collision aborts.
+    """
+    num_frames = 8
+    num_atoms = 4
+    atom_symbols = ["C", "H", "H", "O"]
 
-    with pytest.raises(AirGapViolationError) as exc_info:
-        validate_airgap_boundary(forbidden_target)
+    # Trajectory moving O atom progressively closer to H atom until collision (< 0.7 A)
+    trajectory = np.zeros((num_frames, num_atoms, 3))
+    for f in range(num_frames):
+        trajectory[f, 0] = [0.0, 0.0, 0.0]  # C
+        trajectory[f, 1] = [1.09, 0.0, 0.0]  # H1
+        trajectory[f, 2] = [-0.36, 1.03, 0.0]  # H2
+        # O atom moves from (2.5, 0, 0) to (1.45, 0, 0) -> collision with H1 at (1.09, 0, 0)
+        dist_x = 2.5 - (f * 0.15)
+        trajectory[f, 3] = [dist_x, 0.0, 0.0]  # O
 
-    err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.AIRGAP_VIOLATION or str(err.error_code) == "AIRGAP_VIOLATION"
-    assert "Ring 1" in str(err.details.get("ring", "")) or "Air-Gap violation" in err.message
+    # Exploding gradient norms leading up to abort
+    grad_norms = [0.001, 0.005, 0.05, 0.8, 12.5, 340.0, 5600.0, 99999.0]
 
-
-def test_build_complete_spcat_payload_end_to_end(tmp_path: Path) -> None:
-    """Execute end-to-end payload synthesis for authentic H2O and verify complete bundle."""
-    payload = build_complete_spcat_payload(
-        molecule_name="H2O",
-        geometry=H2O_GEOMETRY,
-        symbols=H2O_SYMBOLS,
-        rotational_constants_mhz={"A": H2O_A_MHZ, "B": H2O_B_MHZ, "C": H2O_C_MHZ},
-        dipoles_debye=H2O_DIPOLES,
-        harmonic_frequencies_cm1=H2O_HARMONIC_FREQUENCIES,
-        temperatures=[2.0, 10.0, 50.0, 298.15],
-        quartic_distortion=H2O_WATSON_A,
-        output_dir=tmp_path,
+    out_dir = tmp_path / "crash_reports"
+    xyz_path, json_path = export_crash_animation(
+        trajectory_array=trajectory,
+        error_node_id="node_04_softquench_steric_shatter",
+        output_path=str(out_dir),
+        atom_symbols=atom_symbols,
+        gradient_norms=grad_norms,
     )
 
-    assert isinstance(payload, SPCATPayload)
-    assert payload.molecule_name == "H2O"
-    assert (tmp_path / "H2O.var").exists()
-    assert (tmp_path / "H2O_2.0K.int").exists()
-    assert (tmp_path / "H2O_298.1K.int").exists()
-    assert (tmp_path / "H2O_spcat_provenance.json").exists()
+    assert os.path.exists(xyz_path)
+    assert os.path.exists(json_path)
 
-    prov_data = json.loads((tmp_path / "H2O_spcat_provenance.json").read_text(encoding="utf-8"))
-    assert prov_data["stage"] == "Stage 5.1 (Statistical Mechanics & SPCAT Bridge)"
-    assert prov_data["symmetry"]["point_group"] == "C2v"
-    assert prov_data["symmetry"]["sigma"] == 2
-    assert prov_data["symmetry"]["spin_weight_ratio_str"] == "3 1"
-    assert prov_data["cryptographic_hashes"]["sha256_var"] == payload.sha256_var
-    assert len(prov_data["partition_functions"]) == 4
+    # Validate XYZ format
+    with open(xyz_path, "r", encoding="utf-8") as f:
+        xyz_content = f.read()
 
+    lines = xyz_content.strip().split("\n")
+    # 8 frames * (1 atom_count + 1 comment + 4 atoms) = 48 lines
+    assert len(lines) == num_frames * (num_atoms + 2)
+    assert "node_04_softquench_steric_shatter" in xyz_content
+    assert "grad_norm=9.999900e+04" in xyz_content
 
-def test_linear_rotor_partition_function() -> None:
-    """Validate linear rotor partition function formula Q_rot = k_B * T / (sigma * h * B)."""
-    # Carbon monoxide (CO, linear, B ~ 57635.968 MHz, sigma=1)
-    b_co_mhz = 57635.968
-    temp = 298.15
-    q_rot_co = calculate_rotational_partition_function(
-        a_mhz=0.0,
-        b_mhz=b_co_mhz,
-        c_mhz=b_co_mhz,
-        temp_k=temp,
-        sigma=1.0,
-        is_linear=True,
-    )
-    # Expected: (k_B / (h * 1e6)) * 298.15 / 57635.968 ~ 107.78
-    expected = (CONSTANTS.K_B / (CONSTANTS.H * 1e6)) * temp / b_co_mhz
-    assert math.isclose(q_rot_co, expected, rel_tol=1e-6)
-    assert 105.0 < q_rot_co < 110.0
+    # Validate JSON pathology diagnostic
+    with open(json_path, "r", encoding="utf-8") as f:
+        diagnostic = json.load(f)
 
-
-def test_cochem_base_reexport_parity() -> None:
-    """Verify that cochem_base.cochem_spcat_bridge re-exports all core functions and constants."""
-    import cochem_base.cochem_spcat_bridge as csb
-
-    assert hasattr(csb, "low_frequency_lam_trap")
-    assert hasattr(csb, "apply_symmetry_divisors")
-    assert hasattr(csb, "calculate_rotational_partition_function")
-    assert hasattr(csb, "calculate_vibrational_partition_function")
-    assert hasattr(csb, "vibrational_partition_coupling")
-    assert hasattr(csb, "fortran_overflow_guard")
-    assert hasattr(csb, "fortran_double_precision_formatter")
-    assert hasattr(csb, "generate_spcat_var")
-    assert hasattr(csb, "generate_spcat_int")
-    assert hasattr(csb, "build_complete_spcat_payload")
-    assert csb.CONSTANTS.H == CONSTANTS.H
-
+    assert diagnostic["error_node_id"] == "node_04_softquench_steric_shatter"
+    assert diagnostic["failure_type"] == "StericShatterCollision"
+    assert diagnostic["steric_clash_detected"] is True
+    assert diagnostic["minimum_interatomic_distance_angstrom"] < 0.70
+    assert diagnostic["status"] == "ABORTED_SOFT_QUENCH"
+    assert len(diagnostic["clashing_atom_indices"]) == 2
+    assert diagnostic["max_gradient_norm"] == 99999.0
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

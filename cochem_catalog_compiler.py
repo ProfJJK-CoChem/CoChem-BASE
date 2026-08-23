@@ -316,7 +316,13 @@ def apply_readonly_chmod(path: Union[str, Path], recursive: bool = True) -> None
     for item in items:
         try:
             if sys.platform == "win32":
-                os.chmod(str(item), stat.S_IREAD)
+                try:
+                    import ctypes
+                    # FILE_ATTRIBUTE_READONLY = 0x00000001
+                    if ctypes.windll.kernel32.SetFileAttributesW(str(item), 1) == 0:
+                        os.chmod(str(item), stat.S_IREAD)
+                except Exception:
+                    os.chmod(str(item), stat.S_IREAD)
             else:
                 if item.is_dir():
                     mode = (
@@ -360,7 +366,13 @@ def remove_readonly_seal(path: Union[str, Path], recursive: bool = True) -> None
     for item in items:
         try:
             if sys.platform == "win32":
-                os.chmod(str(item), stat.S_IREAD | stat.S_IWRITE)
+                try:
+                    import ctypes
+                    # FILE_ATTRIBUTE_NORMAL = 0x00000080
+                    if ctypes.windll.kernel32.SetFileAttributesW(str(item), 0x80) == 0:
+                        os.chmod(str(item), stat.S_IREAD | stat.S_IWRITE)
+                except Exception:
+                    os.chmod(str(item), stat.S_IREAD | stat.S_IWRITE)
             else:
                 if item.is_dir():
                     mode = (
@@ -928,9 +940,9 @@ def pyarrow_chunked_serializer(
                 return
 
             arrays: List[pa.Array] = []
-            for field in target_schema:
-                col_data = buffer[field.name]
-                arr = pa.array(col_data, type=field.type)
+            for schema_field in target_schema:
+                col_data = buffer[schema_field.name]
+                arr = pa.array(col_data, type=schema_field.type)
                 arrays.append(arr)
 
             batch_table = pa.Table.from_arrays(arrays, schema=target_schema)
@@ -1378,8 +1390,6 @@ def deduplicate_bibtex(
             unique_entries.append(full_entry)
 
     return "\n\n".join(unique_entries) + ("\n" if unique_entries else "")
-
-
 
 
 # =============================================================================

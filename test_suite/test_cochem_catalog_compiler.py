@@ -18,7 +18,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterator
 
-import numpy as np
 import psutil
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
@@ -32,9 +31,11 @@ from cochem_base.exceptions import (
     ProvenanceErrorCode,
 )
 from cochem_catalog_compiler import (
+    BannedMethodsAuditResult,
     CoChemPathManager,
     InactiveRotorError,
     apply_readonly_chmod,
+    audit_banned_methods,
     buffer_lock_sync,
     deduplicate_bibtex,
     generate_methods_latex,
@@ -598,3 +599,42 @@ def test_cochem_base_submodule_reexport_parity() -> None:
     for symbol in root_module.__all__:
         assert hasattr(base_module, symbol), f"Missing symbol {symbol} in cochem_base re-export"
 
+
+# =============================================================================
+# 15. Banned Methods Auditor Test
+# =============================================================================
+
+def test_banned_methods_auditor() -> None:
+    """Validate audit_banned_methods detection of additive diffuse and unpreconditioned hessians."""
+    # Valid metadata
+    valid_meta = {
+        "basis_set": "ma-def2-TZVPP",
+        "keywords": "InHess XTB2 opt freq",
+        "is_non_covalent": True,
+        "counterpoise": True,
+        "frozen_monomer": True,
+    }
+    res = audit_banned_methods(valid_meta, raise_on_violation=True)
+    assert isinstance(res, BannedMethodsAuditResult)
+    assert res.passed is True
+    assert res.is_frozen_monomer_verified is True
+    assert res.is_bsse_counterpoise_verified is True
+    assert res.is_valid_hessian_preconditioned is True
+
+    # Banned additive diffuse
+    bad_meta_diffuse = {
+        "basis_set": "def2-TZVP",
+        "keywords": "additive_diffuse opt",
+    }
+    with pytest.raises(MethodMatrixViolationError) as exc_info:
+        audit_banned_methods(bad_meta_diffuse, raise_on_violation=True)
+    assert "BANNED_ADDITIVE_DIFFUSE" in str(exc_info.value)
+
+    # Banned unpreconditioned calc_hess
+    bad_meta_hess = {
+        "basis_set": "def2-TZVP",
+        "keywords": "Calc_Hess true opt",
+    }
+    with pytest.raises(MethodMatrixViolationError) as exc_info:
+        audit_banned_methods(bad_meta_hess, raise_on_violation=True)
+    assert "BANNED_UNPRECONDITIONED_HESSIAN" in str(exc_info.value)

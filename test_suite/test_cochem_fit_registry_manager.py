@@ -175,6 +175,6 @@ def test_base_fit_registry_manager_lifecycle(base_test_env):
     test_arr = np.linspace(0.0, 100.0, 128)
     mgr.save_spectral_tensor("freq_grid", test_arr, metadata={"unit": "GHz"})
     loaded_arr, meta = mgr.load_spectral_tensor("freq_grid")
-    np.testing.assert_array_almost_equal(loaded_arr, test_arr)
+    np.testing.assert_allclose(loaded_arr, test_arr)
     assert meta["unit"] == "GHz"
     assert mgr.verify_registry_integrity() is True

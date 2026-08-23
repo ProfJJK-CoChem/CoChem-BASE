@@ -18,11 +18,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import sys
-from typing import Any, Dict, List, Set
 import warnings
+from pathlib import Path
+from typing import Any, List
 
 import jax
 import pytest
@@ -36,13 +36,9 @@ if str(SPYCFIT_SRC) not in sys.path:
 if str(SPYCFIT_ROOT) not in sys.path:
     sys.path.insert(0, str(SPYCFIT_ROOT))
 
-from cochem_base.exceptions import CoChemIntegrityError, HardwareWarning
-from cochem_spycfit.core_engine.cochem_spycfit_init import (
-    CANONICAL_BINARY_HASHES,
-    DEFAULT_CHUNK_SIZE,
+from cochem_spycfit.core_engine.cochem_spycfit_init import (  # noqa: E402
     MIN_GPU_VRAM_GB,
     TIER_BINARY_MAP,
-    BinaryRouteResult,
     BinaryVerificationResult,
     HardwareGateResult,
     JAXPrecisionConfig,
@@ -54,12 +50,11 @@ from cochem_spycfit.core_engine.cochem_spycfit_init import (
     enforce_jax_precision,
     evaluate_hardware_fallback_gate,
     initialize_spycfit_gatekeeper,
-    query_physical_gpu_vram,
-    resolve_cochem_system_config_path,
     route_6tier_fortran_binary,
     verify_binary_checksum,
 )
 
+from cochem_base.exceptions import CoChemIntegrityError  # noqa: E402
 
 # =============================================================================
 # 1. FILE ENCODING AND LF LINE ENDING TESTS

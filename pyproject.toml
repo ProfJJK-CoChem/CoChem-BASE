@@ -66,6 +66,7 @@ module = [
     "pyvistaqt.*",
     "vtk.*",
     "h5py.*",
+    "numpy.*",
     "rich.*",
     "scipy.*",
     "rdkit.*",
@@ -84,6 +85,7 @@ module = [
     "cochem_topos_crusher.*",
     "cochem_torq_grid.*",
     "parsl.*",
+    "molsym.*",
     "cochem_torq_orca.*"
 ]
 ignore_missing_imports = true

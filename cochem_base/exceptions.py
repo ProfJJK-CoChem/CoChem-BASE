@@ -64,6 +64,10 @@ class ProvenanceErrorCode(str, Enum):
     HARDWARE_DETECTION_FAILED = "HARDWARE_DETECTION_FAILED"
     SINGULARITY_DETECTED = "SINGULARITY_DETECTED"
     PRECISION_VIOLATION = "PRECISION_VIOLATION"
+    LAM_TRIGGER = "LAM_TRIGGER"
+    FORTRAN_OVERFLOW = "FORTRAN_OVERFLOW"
+    SPCAT_BRIDGE_ERROR = "SPCAT_BRIDGE_ERROR"
+    AIRGAP_VIOLATION = "AIRGAP_VIOLATION"
 
     @classmethod
     def from_str(cls, code: Union[str, ProvenanceErrorCode]) -> ProvenanceErrorCode:
@@ -627,6 +631,38 @@ class CoChemPrecisionError(ProvenanceError):
     )
 
 
+class LAMTriggerError(CoChemError):
+    """Raised when a fundamental vibrational frequency is below 50 cm^-1, triggering Phase 7 DVR solvers."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.LAM_TRIGGER
+    )
+
+
+class FortranOverflowError(CoChemError, ValueError):
+    """Raised when a parameter value exceeds Double Precision limits (|val| > 1e308) for SPCAT."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.FORTRAN_OVERFLOW
+    )
+
+
+class SPCATBridgeError(CoChemError):
+    """Raised when SPCAT formatting, parameter validation, or .var/.int file generation fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SPCAT_BRIDGE_ERROR
+    )
+
+
+class AirGapViolationError(CoChemError, PermissionError):
+    """Raised when runtime code attempts to write scratch/log artifacts into Ring 1 static repository."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.AIRGAP_VIOLATION
+    )
+
+
 # =====================================================================
 # Warnings
 # =====================================================================
@@ -949,6 +985,10 @@ __all__ = [
     "HardwareDetectionError",
     "DispatcherError",
     "CoChemPrecisionError",
+    "LAMTriggerError",
+    "FortranOverflowError",
+    "SPCATBridgeError",
+    "AirGapViolationError",
     # Warnings
     "CoChemWarning",
     "MethodMatrixWarning",

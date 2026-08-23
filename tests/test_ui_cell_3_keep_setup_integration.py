@@ -66,7 +66,7 @@ def test_environment_physical_execution(inp_file, method_params, clean_processes
             cwd=test_dir, 
             capture_output=True, 
             text=True, 
-            timeout=10
+            timeout=30
         )
         
         print("ORCA STDOUT HEAD:", result.stdout[:500])

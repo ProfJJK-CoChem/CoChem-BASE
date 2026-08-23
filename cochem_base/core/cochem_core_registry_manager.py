@@ -1254,7 +1254,7 @@ def update_active_job(
 class RegistryManager:
     """Consolidated state registry manager using HDF5, Atomic File Locks, and ZeroMQ Broadcasts."""
 
-    SCHEMA_VERSION = "1.0.0"
+    SCHEMA_VERSION = "4.0.0"
 
     def __init__(
         self, config_path: Optional[str] = None, registry_path: Optional[str] = None
@@ -1572,6 +1572,7 @@ class RegistryManager:
                     for iso in elem.isotopes:
                         isotopes.append(
                             {
+                                "symbol": formatted_sym,
                                 "mass_number": int(iso.mass_number),
                                 "mass": float(iso.mass) if iso.mass is not None else None,
                                 "abundance": float(iso.abundance)
@@ -1600,6 +1601,7 @@ class RegistryManager:
                         if mat:
                             isotopes.append(
                                 {
+                                    "symbol": formatted_sym,
                                     "mass_number": int(mat.group(1)),
                                     "mass": float(m),
                                     "abundance": None,
@@ -1891,28 +1893,56 @@ class RegistryManager:
                     clean_label, data=raw_text, dtype=h5py.string_dtype(encoding="utf-8")
                 )
 
-    def has_embedded_basis_set(self, label: str) -> bool:
+    def has_embedded_basis_set(self, label: str, h5_path: Optional[str] = None) -> bool:
         """Checks if a basis set label exists in the registry."""
+        if h5_path:
+            mapped_h5 = Path(h5_path)
+            with AtomicFileLock(str(mapped_h5) + ".lock", timeout=10.0):
+                with h5py.File(mapped_h5, "r") as h5:
+                    return "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]
         with self.transaction("r") as h5:
             return "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]
 
-    def get_embedded_basis_set(self, label: str) -> str:
+    def get_embedded_basis_set(self, label: str, h5_path: Optional[str] = None) -> str:
         """Retrieves embedded basis set content."""
+        if h5_path:
+            mapped_h5 = Path(h5_path)
+            with AtomicFileLock(str(mapped_h5) + ".lock", timeout=10.0):
+                with h5py.File(mapped_h5, "r") as h5:
+                    if "embedded_basis_sets" not in h5 or label not in h5["embedded_basis_sets"]:
+                        raise BasisSetNotFoundError(f"Basis set '{label}' not found in registry.")
+                    val = h5["embedded_basis_sets"][label][()]
+                    return val.decode("utf-8") if isinstance(val, bytes) else str(val)
         with self.transaction("r") as h5:
             if "embedded_basis_sets" not in h5 or label not in h5["embedded_basis_sets"]:
                 raise BasisSetNotFoundError(f"Basis set '{label}' not found in registry.")
             val = h5["embedded_basis_sets"][label][()]
             return val.decode("utf-8") if isinstance(val, bytes) else str(val)
 
-    def list_embedded_basis_sets(self) -> List[str]:
+    def list_embedded_basis_sets(self, h5_path: Optional[str] = None) -> List[str]:
         """Lists all embedded basis set labels."""
+        if h5_path:
+            mapped_h5 = Path(h5_path)
+            with AtomicFileLock(str(mapped_h5) + ".lock", timeout=10.0):
+                with h5py.File(mapped_h5, "r") as h5:
+                    if "embedded_basis_sets" in h5:
+                        return list(h5["embedded_basis_sets"].keys())
+                    return []
         with self.transaction("r") as h5:
             if "embedded_basis_sets" in h5:
                 return list(h5["embedded_basis_sets"].keys())
             return []
 
-    def delete_embedded_basis_set(self, label: str) -> bool:
+    def delete_embedded_basis_set(self, label: str, h5_path: Optional[str] = None) -> bool:
         """Deletes an embedded basis set."""
+        if h5_path:
+            mapped_h5 = Path(h5_path)
+            with AtomicFileLock(str(mapped_h5) + ".lock", timeout=10.0):
+                with h5py.File(mapped_h5, "a") as h5:
+                    if "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]:
+                        del h5["embedded_basis_sets"][label]
+                        return True
+                    return False
         with self.transaction("a") as h5:
             if "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]:
                 del h5["embedded_basis_sets"][label]
@@ -1920,7 +1950,7 @@ class RegistryManager:
             return False
 
     def migrate_legacy_schema(self) -> Dict[str, Any]:
-        """Upgrades legacy HDF5 schema files to 1.0.0."""
+        """Upgrades legacy HDF5 schema files to 4.0.0."""
         with self.transaction("a") as h5:
             prev_ver = h5.attrs.get("version", "0.1")
             if isinstance(prev_ver, bytes):
@@ -1943,6 +1973,7 @@ class RegistryManager:
             return {
                 "previous_version": str(prev_ver),
                 "current_version": self.SCHEMA_VERSION,
+                "registry_path": str(self.registry_path),
                 "status": "migrated",
             }
 

@@ -114,9 +114,22 @@ def setup_conda_silo() -> None:
         return
 
     logger.info("Environment not found or invalid, proceeding with creation...")
-    logger.info("Creating new conda environment...")
 
     conda_executable = resolve_conda_executable()
+
+    primary_silo = Path("d:/__CoChem/.agent_artifacts/Silos/cochem_base_silo")
+    if primary_silo.exists() and (primary_silo / "conda-meta").exists() and primary_silo.resolve() != silo_dir.resolve():
+        logger.info(f"Cloning from primary valid silo cache at {primary_silo}...")
+        clone_cmd = [conda_executable, "create", "--prefix", str(silo_dir), "--clone", str(primary_silo), "--yes"]
+        try:
+            run_cmd(clone_cmd)
+            logger.info("Successfully cloned silo from primary cache.")
+            logger.info(f"Conda environment created successfully at: {silo_dir}")
+            return
+        except Exception as e:
+            logger.warning(f"Silo clone failed ({e}), falling back to fresh installation...")
+
+    logger.info("Creating new conda environment...")
     create_cmd = [
         conda_executable, "create", "--prefix", str(silo_dir),
         "-c", "conda-forge", "python=3.10", "numpy", "pandas",

@@ -1,7 +1,7 @@
 # BRIEFING — 2026-08-11T13:07:05Z
 
 ## Mission
-Orchestrate fixing the CoChem-Antigravity sanitized agents in CoChem-BASE/.agents by copying fixed agent configs from <USER_HOME>\.gemini\config\agents, replacing absolute paths with placeholders (<USER_HOME>, <COCHEM_WORKSPACE>), and verifying zero remaining personal absolute paths.
+Orchestrate fixing the CoChem-Antigravity sanitized agents in CoChem-BASE/.agents by copying fixed agent configs from <USER_HOME>\.gemini\config\agents, replacing absolute paths with placeholders (<USER_HOME>, <COCHEM_WORKSPACE>, <GDRIVE_ROOT>), and verifying zero remaining personal absolute paths.
 
 ## 🔒 My Identity
 - Archetype: Project Orchestrator

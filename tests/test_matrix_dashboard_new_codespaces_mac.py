@@ -76,7 +76,7 @@ def test_matrix_dashboard_new_codespaces_mac(codespaces_mac_ephemeral_env: Path,
     assert installer.module_registry.exists()
     
     # Simulate User Interaction for Codespaces + Local-MacOS (OrbStack)
-    installer.interact_target.value = "Codespaces"
+    installer.interact_target.value = "GitHub Codespaces"
     installer.calc_target.value = "Local-MacOS (OrbStack)"
     
     # Physically resolve ORCA

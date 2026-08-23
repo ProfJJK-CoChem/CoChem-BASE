@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"\""
+"""
 CoChem-CORE Stage 2.1: Input Scaffolder
 Module: calc/cochem_calc_input_generator.py
 Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compiles
          engine-specific inputs with cryptographic provenance and rigorous grid overrides.
-\"\"\"
+"""
 
 import hashlib
 import logging
@@ -52,27 +52,27 @@ class MoleculeInput(BaseModel):
         return v
 
 def get_artifact_base() -> Path:
-    \"\"\"Enforces the strict air-gap to read-write user data tier.\"\"\"
+    """Enforces the strict air-gap to read-write user data tier."""
     artifact_dir = get_artifact_dir() / "Scratch"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     return artifact_dir
 
 def load_system_config() -> Dict[str, Any]:
-    \"\"\"Loads authoritative hardware and execution parameters from cochem_system_config.json.\"\"\"
+    """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
     try:
         return load_system_config_dict()
     except Exception as e:
         raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
 
 def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
-    \"\"\"
+    """
     Compiles an ORCA 6.1.1 input file incorporating:
     - defgrid_tight enforcement for transition metals / diffuse functions
     - Ghost atom retention for BSSE
     - Cryptographic SHA-256 header stamping
     - Parameterized charge and spin multiplicity
     - Method Matrix Compliance (Grids, Dispersion, Hessians)
-    \"\"\"
+    """
     config = load_system_config()
     if "hardware" not in config or "maxcore_mb" not in config["hardware"] or "physical_cpu_cores" not in config["hardware"]:
         raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb or physical_cpu_cores.")
@@ -120,7 +120,7 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     # 5. Implicit Solvation Injection
     solvation_keyword = data.implicit_solvation if data.implicit_solvation else ""
 
-    template_str = \"\"\"# =====================================================================
+    template_str = """# =====================================================================
 # CoChem-CORE Cryptographic Provenance Stamp: {{ sha256 }}
 # Basin ID: {{ basin_id }} | Engine Target: ORCA 6.1.1
 # =====================================================================
@@ -137,7 +137,7 @@ end
 * xyz {{ charge }} {{ multiplicity }}
 {{ coord_block }}
 *
-\"\"\"
+"""
 
     template = Template(template_str)
     rendered_inp = template.render(

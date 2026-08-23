@@ -36,6 +36,7 @@ cochem_base/gui/torq.py
 cochem_base/interfaces/__init__.py
 cochem_base/interfaces/cochem_dock_main.py
 cochem_base/interfaces/cochem_dock_visuals_api.py
+cochem_base/interfaces/cochem_topos_quench.py
 cochem_base/interfaces/cochem_unity_fast_pass_widget.py
 cochem_base/interfaces/cochem_unity_installer_dashboard.py
 cochem_base/interfaces/web_matrices.py
@@ -53,6 +54,7 @@ cochem_base/math/assertions.py
 cochem_base/math/autograd.py
 cochem_base/math/c_bindings.py
 cochem_base/math/geometry.py
+cochem_base/mechanics/cochem_topos_quench.py
 cochem_base/plugins/__init__.py
 cochem_base/plugins/internal.py
 cochem_base/plugins/loader.py

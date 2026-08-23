@@ -509,7 +509,7 @@ def get_ase_calculator(
     # 1. g-xTB engines (GFN2-xTB / GFN-FF)
     if "gfn2" in engine_norm or "gfn-ff" in engine_norm or "xtb" in engine_norm:
         try:
-            from xtb.ase.calculator import XTB
+            from tblite.ase import TBLite as XTB
             method_str = "GFN-FF" if "ff" in engine_norm else "GFN2-xTB"
             calc = XTB(method=method_str, charge=charge, uhf=uhf)
             return calc, f"xtb-python ({method_str})", f"Loaded xtb-python with {method_str} on CPU."

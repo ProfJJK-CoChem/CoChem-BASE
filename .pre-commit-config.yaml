@@ -24,8 +24,8 @@ repos:
 
   - repo: local
     hooks:
-      - id: zero-mock-audit
-        name: Zero-Mock AST Anti-Spoofing Sweep
+      - id: anti-spoof-audit
+        name: Anti-Spoofing AST Integrity Sweep
         entry: pytest test_suite/test_anti_spoof_amnesty.py
         language: system
         pass_filenames: false

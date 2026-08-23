@@ -63,6 +63,7 @@ class ProvenanceErrorCode(str, Enum):
     OUT_OF_MEMORY = "OUT_OF_MEMORY"
     HARDWARE_DETECTION_FAILED = "HARDWARE_DETECTION_FAILED"
     SINGULARITY_DETECTED = "SINGULARITY_DETECTED"
+    PRECISION_VIOLATION = "PRECISION_VIOLATION"
 
     @classmethod
     def from_str(cls, code: Union[str, ProvenanceErrorCode]) -> ProvenanceErrorCode:
@@ -618,6 +619,14 @@ class DispatcherError(CoChemError, RuntimeError):
     )
 
 
+class CoChemPrecisionError(ProvenanceError):
+    """Raised when JAX or numerical float precision is violated (e.g. non-float64 execution or precision downgrade)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.PRECISION_VIOLATION
+    )
+
+
 # =====================================================================
 # Warnings
 # =====================================================================
@@ -939,6 +948,7 @@ __all__ = [
     "OutOfMemoryGateError",
     "HardwareDetectionError",
     "DispatcherError",
+    "CoChemPrecisionError",
     # Warnings
     "CoChemWarning",
     "MethodMatrixWarning",

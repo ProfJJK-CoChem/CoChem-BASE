@@ -60,14 +60,15 @@ class ExecutionRouter:
         Stage 1.0: Registry Polling & Execution Path Resolution.
         Determines the safest path for the incoming computational payload.
         """
-        exec_config = self.registry.get("execution", {})
-        engines_config = self.registry.get("engines", {})
+        exec_config = self.registry.get("execution") or {}
+        engines_config = self.registry.get("engines") or {}
 
         default_path = exec_config.get("default_engine", "subprocess")
 
         if target_engine in engines_config:
-            engine_status = engines_config[target_engine].get("status", "unknown")
-            if engine_status != "ready":
+            engine_info = engines_config[target_engine]
+            engine_status = engine_info.get("status", "unknown") if isinstance(engine_info, dict) else getattr(engine_info, "status", "unknown")
+            if engine_status not in ("ready", "found"):
                 logger.warning(f"Engine '{target_engine}' status is '{engine_status}'. Proceeding with caution.")
         else:
             logger.warning(f"Engine '{target_engine}' not found in registry. Using default path.")

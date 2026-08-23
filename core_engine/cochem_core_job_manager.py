@@ -11,7 +11,7 @@ import sys
 import time
 import atexit
 import psutil
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, ValidationError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -26,6 +26,7 @@ class JobConfig(BaseModel):
     floppy_monomer: bool = False
     atom_count: Optional[int] = None
     n_atoms: Optional[int] = None
+    temporal_tier_override: Optional[int] = None
 
 class JobInfo(BaseModel):
     config: JobConfig
@@ -37,6 +38,9 @@ class JobInfo(BaseModel):
     started_at: Optional[float] = None
     completed_at: Optional[float] = None
     return_code: Optional[int] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    duration: Optional[float] = None
 
 
 class JobManager:
@@ -74,7 +78,7 @@ class JobManager:
             process = process_info.get('process')
             if process and process.pid:
                 self._kill_process_tree(process.pid)
-        logger.info("Swept all zombie processes on exit.")
+            logger.info("Swept all zombie processes on exit.")
 
     def _kill_process_tree(self, pid: int) -> None:
         """Kill a process and all its children to prevent zombie processes."""
@@ -93,13 +97,16 @@ class JobManager:
         except psutil.NoSuchProcess:
             pass
 
-    async def submit_job(self, job_config_dict: Dict[str, Any]) -> str:
+    async def submit_job(self, job_config_input: Union[Dict[str, Any], JobConfig]) -> str:
         """Submit a new job to the system with temporal tier assignment."""
-        try:
-            job_config = JobConfig(**job_config_dict)
-        except ValidationError as e:
-            logger.error(f"Invalid job configuration: {e}")
-            raise ValueError(f"Invalid job configuration: {e}")
+        if isinstance(job_config_input, JobConfig):
+            job_config = job_config_input
+        else:
+            try:
+                job_config = JobConfig(**job_config_input)
+            except ValidationError as e:
+                logger.error(f"Invalid job configuration: {e}")
+                raise ValueError(f"Invalid job configuration: {e}")
 
         self.purge_completed_jobs(max_age_seconds=86400.0)
         job_id = f"job_{self.job_counter}"
@@ -125,11 +132,17 @@ class JobManager:
         Assign a temporal tier based on v4 Product Class decision tree & target accuracy windows (§1.1-1.5).
         Returns 1-based tier index (1 to 10).
         """
+        if job_config.temporal_tier_override is not None:
+            return job_config.temporal_tier_override
+
         product_class = job_config.product_class
         is_isotopologue = job_config.is_isotopologue
         has_parent_anchor = job_config.has_parent_anchor
         floppy_monomer = job_config.floppy_monomer
         atom_count = job_config.n_atoms if job_config.n_atoms is not None else (job_config.atom_count if job_config.atom_count is not None else 10)
+
+        if product_class in ('Product_D_ActiveLearning', 'Class_D'):
+            return 9
 
         if product_class in ('Product_C_Differences', 'Class_C') or is_isotopologue:
             if atom_count < 20:
@@ -164,12 +177,48 @@ class JobManager:
         for job_id, info in self.jobs.items():
             if info.status in ('completed', 'failed', 'cancelled'):
                 completed_at = info.completed_at if info.completed_at else info.created_at
-                if (now - completed_at) > max_age_seconds:
+                if (now - completed_at) >= max_age_seconds:
                     to_delete.append(job_id)
 
         for jid in to_delete:
             del self.jobs[jid]
         return len(to_delete)
+
+    def get_job(self, job_id: str) -> Optional[JobInfo]:
+        """Get the JobInfo instance for a specific job."""
+        return self.jobs.get(job_id)
+
+    def get_completed_jobs(self) -> List[JobInfo]:
+        """Get all completed, failed, or cancelled jobs."""
+        return [job for job in self.jobs.values() if job.status in ('completed', 'failed', 'cancelled')]
+
+    async def run_job(self, config: Union[Dict[str, Any], JobConfig], timeout: Optional[float] = None) -> JobInfo:
+        """Submits, executes, and waits for a job to finish, returning JobInfo with stdout/stderr."""
+        job_id = await self.submit_job(config)
+        job = self.jobs[job_id]
+        if timeout is not None:
+            job.max_duration = int(timeout)
+        await self.start_job(job_id)
+        proc_info = self.active_processes.get(job_id)
+        if proc_info:
+            proc = proc_info['process']
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=job.max_duration)
+                job.stdout = stdout_bytes.decode('utf-8', errors='replace')
+                job.stderr = stderr_bytes.decode('utf-8', errors='replace')
+                job.return_code = proc.returncode
+                job.status = 'completed' if proc.returncode == 0 else 'failed'
+            except asyncio.TimeoutError:
+                if proc.pid:
+                    self._kill_process_tree(proc.pid)
+                await proc.wait()
+                job.return_code = -1
+                job.status = 'failed'
+            finally:
+                job.completed_at = time.time()
+                job.duration = job.completed_at - (job.started_at or job.created_at)
+                self.active_processes.pop(job_id, None)
+        return job
 
     async def start_job(self, job_id: str) -> None:
         """Start a submitted job using asyncio subprocess execution."""
@@ -236,10 +285,10 @@ class JobManager:
             self._complete_job(job_id, -1)
 
     def _complete_job(self, job_id: str, return_code: int) -> None:
-        """Mark a job as completed and clean up resources."""
+        """Mark a job as completed or failed and clean up resources."""
         if job_id in self.jobs:
             logger.info(f"✅ Completing job {job_id} with return code {return_code}")
-            self.jobs[job_id].status = 'completed'
+            self.jobs[job_id].status = 'completed' if return_code == 0 else 'failed'
             self.jobs[job_id].completed_at = time.time()
             self.jobs[job_id].return_code = return_code
 
@@ -253,8 +302,8 @@ class JobManager:
             return job.model_dump() if hasattr(job, "model_dump") else job.dict()
         return None
 
-    def cancel_job(self, job_id: str) -> None:
-        """Cancel a running or pending job."""
+    def cancel_job(self, job_id: str) -> bool:
+        """Cancel a running or pending job. Returns True if found and cancelled."""
         if job_id in self.jobs:
             logger.info(f"❌ Cancelling job {job_id}")
             self.jobs[job_id].status = 'cancelled'
@@ -262,11 +311,13 @@ class JobManager:
             if job_id in self.active_processes:
                 try:
                     process = self.active_processes[job_id]['process']
-                    if process.pid:
+                    if process and process.pid:
                         self._kill_process_tree(process.pid)
                     del self.active_processes[job_id]
                 except Exception as e:
                     logger.error(f"Error cancelling job {job_id}: {e}")
+            return True
+        return False
 
     def list_jobs(self) -> List[Dict[str, Any]]:
         """List all current jobs."""

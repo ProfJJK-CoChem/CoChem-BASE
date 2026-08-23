@@ -216,17 +216,18 @@ class Molecule(BaseModel):
                 matrix[j][i] = d
         return matrix
 
-    def to_xyz(self) -> str:
+    def to_xyz(self, comment: Optional[str] = None) -> str:
         """Serializes the molecule to standard XYZ format."""
-        lines = [str(len(self.atoms)), self.name or "Molecule"]
+        comment_line = comment if comment is not None else (self.name or "Molecule")
+        lines = [str(len(self.atoms)), comment_line]
         for a in self.atoms:
             lines.append(f"{a.symbol:<2} {a.x:14.6f} {a.y:14.6f} {a.z:14.6f}")
         return "\n".join(lines) + "\n"
 
-    def to_file(self, file_path: Union[str, Path]) -> None:
+    def to_file(self, file_path: Union[str, Path], comment: Optional[str] = None) -> None:
         """Saves molecule to an XYZ file."""
         p = Path(file_path)
-        p.write_text(self.to_xyz(), encoding="utf-8")
+        p.write_text(self.to_xyz(comment=comment), encoding="utf-8")
 
     @classmethod
     def from_file(cls, file_path: Union[str, Path]) -> Molecule:

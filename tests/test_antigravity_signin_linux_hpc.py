@@ -128,7 +128,7 @@ except ValueError as e:
 except Exception as e:
     logging.error("ERROR:" + str(e))
 """
-    result = run_script_in_subprocess(script, stdin_data="\\n")
+    result = run_script_in_subprocess(script, stdin_data="\n")
     assert isinstance(result, subprocess.CompletedProcess), f"Subprocess did not complete successfully: {getattr(result, 'stderr', result)}"
     assert "VALUE_ERROR:[MISSING DATA] Token cannot be empty." in result.stderr
 

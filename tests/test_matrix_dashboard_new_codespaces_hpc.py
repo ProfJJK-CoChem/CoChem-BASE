@@ -68,7 +68,7 @@ atexit.register(sweep_zombie_processes)
 def main():
     dashboard = SynapInstallerGUI()
 
-    assert dashboard.interact_target.value == "Codespaces"
+    assert dashboard.interact_target.value == "GitHub Codespaces"
     assert dashboard.calc_target.value in ("GitHub Actions", "HPC")
 
     git_hash = dashboard._get_git_hash()

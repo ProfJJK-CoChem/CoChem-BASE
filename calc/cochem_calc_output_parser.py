@@ -94,6 +94,27 @@ class QuantumParser:
             if n_aux <= n_primary:
                 logger.warning(f"[CROWN WARNING] Auxiliary Basis Under-saturation! N_aux ({n_aux}) <= N_primary ({n_primary}). Risk of severe Density Fitting accuracy loss.")
 
+    def check_spin_contamination(self, log_path: Path, threshold: float = 0.1) -> bool:
+        """
+        Verifies spin contamination (<S**2> vs S*(S+1)) in open/closed shell calculations.
+        Returns True if spin contamination is within acceptable limits (diff <= threshold).
+        """
+        s2_pat = re.compile(r"Expectation value of <S\*\*2>\s*:\s*([-+]?\d*\.\d+)")
+        ideal_pat = re.compile(r"Ideal value S\*\(S\+1\)\s*:\s*([-+]?\d*\.\d+)")
+        s2_val = None
+        ideal_val = None
+        with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+            for line in f:
+                m1 = s2_pat.search(line)
+                if m1:
+                    s2_val = float(m1.group(1))
+                m2 = ideal_pat.search(line)
+                if m2:
+                    ideal_val = float(m2.group(1))
+        if s2_val is not None and ideal_val is not None:
+            return abs(s2_val - ideal_val) <= threshold
+        return True
+
     def parse_to_qcschema(self, log_path: Path, basin_id: str, log_sha256: str, gbw_sha256: Optional[str] = None) -> QCSchemaMolecule:
         final_energy = None
         scf_iterations = None

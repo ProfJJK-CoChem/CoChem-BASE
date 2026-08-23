@@ -70,7 +70,7 @@ def test_matrix_dashboard_new_codespaces_actions(codespaces_actions_ephemeral_en
     gui = SynapInstallerGUI()
     
     # Verify the env variables influenced the initial GUI states properly
-    assert gui.interact_target.value == "Codespaces"
+    assert gui.interact_target.value == "GitHub Codespaces"
     
     gui.calc_target.value = "GitHub Actions"
     
@@ -111,7 +111,7 @@ def test_matrix_dashboard_new_codespaces_actions(codespaces_actions_ephemeral_en
         
     manifest = ManifestValidator(**manifest_data)
     
-    assert manifest.interaction_environment == "Codespaces"
+    assert manifest.interaction_environment == "GitHub Codespaces"
     assert manifest.calculation_environment == "GitHub Actions"
     
     git_hash = manifest.git_provenance_hash

@@ -43,7 +43,7 @@ def test_matrix_dashboard_codespaces_linux_deployment(test_env):
     gui = SynapInstallerGUI()
     
     # Emulate the 'Codespaces' default
-    assert gui.interact_target.value == "Codespaces"
+    assert gui.interact_target.value == "GitHub Codespaces"
     
     # We simulate setting the calculation target to Local-Linux (Deb)
     gui.calc_target.value = "Local-Linux (Deb)"
@@ -70,7 +70,7 @@ def test_matrix_dashboard_codespaces_linux_deployment(test_env):
         
     manifest = ManifestValidator(**manifest_data)
         
-    assert manifest.interaction_environment == "Codespaces"
+    assert manifest.interaction_environment == "GitHub Codespaces"
     assert manifest.calculation_environment == "Local-Linux (Deb)"
     
     # Verify git hash is real (not RELEASE_BUILD or dummy)

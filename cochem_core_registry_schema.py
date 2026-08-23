@@ -284,7 +284,7 @@ class HardwareSchema(BaseModel):
     logical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Hyperthreaded threads count")
     cpu_cores: Optional[int] = Field(default=None, ge=1, description="Legacy CPU cores alias")
     ram_mb: Optional[int] = Field(default=None, ge=1, description="Total system RAM in MB")
-    maxcore_mb: Optional[int] = Field(default=3000, ge=0, description="Max core memory per process in MB")
+    maxcore_mb: Optional[int] = Field(default=None, ge=0, description="Max core memory per process in MB")
     avx512_support: bool = Field(default=False, description="Legacy alias for avx_512_capable")
     gpu_profile: str = Field(default="None", description="Detected GPU model name")
     subnormal_precision_trap: bool = Field(default=False, description="Subnormal floating-point trap")
@@ -348,12 +348,12 @@ class HardwareSchema(BaseModel):
                 pass
 
         if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
-            if phys is not None:
-                try:
-                    d["logical_cpu_cores"] = int(phys)
-                except (ValueError, TypeError):
-                    pass
+            if "cpu_cores" in d and d["cpu_cores"] is not None:
+                d["logical_cpu_cores"] = int(d["cpu_cores"])
+            elif "cpu_physical_cores" in d and d["cpu_physical_cores"] is not None:
+                d["logical_cpu_cores"] = int(d["cpu_physical_cores"]) * 2
 
+        # Synchronize allocatable compute cores
         if "allocatable_compute_cores" not in d or d["allocatable_compute_cores"] is None:
             if phys is not None:
                 try:
@@ -373,16 +373,22 @@ class HardwareSchema(BaseModel):
             except (ValueError, TypeError):
                 pass
 
-        # Maxcore OOM clamping guard
-        if "maxcore_mb" in d and "ram_mb" in d:
-            try:
-                maxcore = int(d["maxcore_mb"])
-                ram_mb = int(d["ram_mb"])
-                if maxcore > ram_mb:
-                    phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
-                    d["maxcore_mb"] = max(500, int(ram_mb * 0.75 / max(1, phys_count)))
-            except (ValueError, TypeError):
-                pass
+        # Maxcore calculation / OOM clamping guard
+        phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
+        ram_mb_val = d.get("ram_mb")
+        if ram_mb_val is not None:
+            calc_maxcore = max(500, int(int(ram_mb_val) * 0.75 / max(1, phys_count)))
+            if "maxcore_mb" not in d or d["maxcore_mb"] is None:
+                d["maxcore_mb"] = calc_maxcore
+            else:
+                try:
+                    maxcore = int(d["maxcore_mb"])
+                    if maxcore > int(ram_mb_val):
+                        d["maxcore_mb"] = calc_maxcore
+                except (ValueError, TypeError):
+                    d["maxcore_mb"] = calc_maxcore
+        elif "maxcore_mb" not in d or d["maxcore_mb"] is None:
+            d["maxcore_mb"] = 3000
 
         # Synchronize AVX-512 capabilities
         if "avx_512_capable" in d and "avx512_support" not in d:
@@ -689,6 +695,8 @@ class EngineInfo(BaseModel):
     path: Optional[str] = Field(None, description="Absolute path to executable, or 'BYPASSED', or 'Not_Found'")
     version: Optional[str] = Field(None, description="Semantic version of the engine")
     hash: Optional[str] = Field(None, description="SHA-256 binary hash")
+    gpu_support: Optional[bool] = Field(default=False, description="Whether the engine has GPU support enabled")
+    track: Optional[str] = Field(default=None, description="Ecosystem execution track or category")
 
     @field_validator("status", mode="before")
     @classmethod
@@ -697,9 +705,9 @@ class EngineInfo(BaseModel):
             return "missing"
         if isinstance(v, str):
             cleaned = v.strip().lower()
-            if cleaned in ("found", "missing", "permission_denied", "bypassed"):
+            if cleaned in ("found", "missing", "permission_denied", "bypassed", "ready"):
                 return cleaned
-            raise ValueError(f"Invalid engine status '{v}'. Must be one of ('found', 'missing', 'permission_denied', 'bypassed').")
+            raise ValueError(f"Invalid engine status '{v}'. Must be one of ('found', 'missing', 'permission_denied', 'bypassed', 'ready').")
         raise ValueError(f"Invalid engine status type '{type(v)}'. Expected string.")
 
     @field_validator("path", "version", "hash", mode="before")
@@ -753,6 +761,7 @@ class HPCConfig(BaseModel):
     username: Optional[str] = Field(default="localuser")
     execution_mode: Optional[str] = Field(default="local")
     walltime_budgets: Optional[Dict[str, str]] = Field(default_factory=dict)
+    sbatch_template: Optional[str] = Field(default=None, description="Custom sbatch template")
 
     @field_validator("scheduler", mode="before")
     @classmethod
@@ -792,6 +801,7 @@ class CoChemSystemConfig(BaseModel):
     quantum_settings: Optional[QuantumSettings] = Field(default_factory=QuantumSettings)
     adaptive_routing: Optional[RoutingPolicy] = None
     hpc: HPCConfig = Field(default_factory=HPCConfig)
+    execution: Optional[Dict[str, Any]] = Field(default=None, description="Execution routing and default engine settings")
     alignment_engine_ready: bool = Field(default=False)
     active_jobs: Dict[str, Any] = Field(default_factory=dict, description="Live execution pointers")
 

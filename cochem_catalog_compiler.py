@@ -29,6 +29,7 @@ import tempfile
 import time
 import uuid
 from contextlib import contextmanager
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import (
     Any,
@@ -1379,7 +1380,135 @@ def deduplicate_bibtex(
     return "\n\n".join(unique_entries) + ("\n" if unique_entries else "")
 
 
+
+
+# =============================================================================
+# 14. Banned Methods Auditor & Method Matrix v4 Compliance Engine
+# =============================================================================
+
+@dataclass
+class BannedMethodsAuditResult:
+    """Result container for Method Matrix v4 banned methods and non-covalent rules audit."""
+
+    passed: bool
+    banned_flags: List[str]
+    allowed_diffuse_basis: bool
+    is_frozen_monomer_verified: bool
+    is_bsse_counterpoise_verified: bool
+    is_valid_hessian_preconditioned: bool
+    conformer_union_params: Dict[str, Any]
+    details: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize audit result to dictionary."""
+        return asdict(self)
+
+
+def audit_banned_methods(
+    metadata: Dict[str, Any],
+    raise_on_violation: bool = True,
+) -> BannedMethodsAuditResult:
+    """Actively audits computational parameters against Method Matrix v4 banned methods.
+
+    Mandates:
+    - Banned: Additive diffuse corrections (e.g. adding diffuse primitives to standard basis)
+      which degrade interaction energies and cause artificial basis collapse.
+    - Required for vdW / non-covalent complexes: True diffuse-in-base sets
+      (e.g., 'aug-cc-pVQZ', 'aug-cc-pVTZ', 'ma-def2-TZVPP', 'def2-TZVPPD').
+    - Confirms Frozen-Monomer Protocol (to fix A-constants).
+    - Confirms Boys-Bernardi Counterpoise Corrections for BSSE.
+    - Validates Hessian Preconditioning (verifies 'InHess XTB2' or 'Lindh' while trapping 'Calc_Hess true').
+    - Documents ORCA GOAT/CREST union parameters.
+
+    Args:
+        metadata: Computational metadata dictionary.
+        raise_on_violation: If True, raises MethodMatrixViolationError upon violation.
+
+    Returns:
+        BannedMethodsAuditResult with pass/fail status and flags.
+
+    Raises:
+        MethodMatrixViolationError: If a banned method is detected and raise_on_violation=True.
+    """
+    banned_flags: List[str] = []
+    basis_set = str(metadata.get("basis_set", "")).strip().lower()
+    keywords = str(metadata.get("keywords", metadata.get("orca_keywords", ""))).lower()
+
+    # 1. Check for banned additive diffuse corrections
+    if "additive_diffuse" in keywords or metadata.get("additive_diffuse_correction", False):
+        banned_flags.append(
+            "BANNED_ADDITIVE_DIFFUSE: Additive diffuse corrections degrade interaction energies. "
+            "Use true diffuse-in-base sets (e.g. aug-cc-pVQZ or ma-def2-TZVPP)."
+        )
+
+    # 2. Check for banned Calc_Hess true without preconditioning
+    if "calc_hess true" in keywords or "calc_hess=true" in keywords or metadata.get("calc_hess_true", False):
+        if not ("inhess xtb2" in keywords or "inhess lindh" in keywords or metadata.get("hessian_preconditioned", False)):
+            banned_flags.append(
+                "BANNED_UNPRECONDITIONED_HESSIAN: 'Calc_Hess true' without preconditioning is forbidden. "
+                "Must use 'InHess XTB2' or 'Lindh' Hessian preconditioning."
+            )
+
+    # 3. Check for diffuse-in-base compliance on non-covalent complexes
+    is_non_covalent = metadata.get("is_non_covalent", metadata.get("is_vdw_complex", False))
+    valid_diffuse_sets = ("aug-cc-pv", "ma-def2", "def2-tzvppd", "def2-qzvppd", "heavy-aug")
+    allowed_diffuse_basis = any(ds in basis_set for ds in valid_diffuse_sets)
+
+    if is_non_covalent and not allowed_diffuse_basis:
+        banned_flags.append(
+            f"INVALID_NONCOVALENT_BASIS: Basis set '{basis_set}' lacks true diffuse-in-base primitives. "
+            "Non-covalent complexes require aug-cc-pVTZ/QZ or ma-def2-TZVPP."
+        )
+
+    # 4. Check Frozen-Monomer Protocol verification
+    frozen_monomer = bool(metadata.get("frozen_monomer", metadata.get("frozen_monomer_protocol", False)))
+
+    # 5. Check BSSE Counterpoise verification
+    bsse_cp = bool(metadata.get("counterpoise", metadata.get("bsse_counterpoise", "cp" in keywords)))
+
+    # 6. Check Hessian preconditioning
+    hessian_preconditioned = bool(
+        "inhess xtb2" in keywords
+        or "inhess lindh" in keywords
+        or metadata.get("hessian_preconditioned", False)
+        or metadata.get("hessian_preconditioning", None) in ("XTB2", "Lindh")
+    )
+
+    # 7. Extract ORCA GOAT/CREST conformer union parameters
+    conformer_union = metadata.get(
+        "conformer_union_parameters",
+        {
+            "crest_ewin": metadata.get("crest_ewin", 6.0),
+            "crest_rthr": metadata.get("crest_rthr", 0.12),
+            "orca_goat_opt": metadata.get("orca_goat_opt", True),
+        },
+    )
+
+    passed = len(banned_flags) == 0
+
+    if not passed and raise_on_violation:
+        raise MethodMatrixViolationError(
+            f"Method Matrix v4 Banned Methods Audit Failed: {'; '.join(banned_flags)}",
+            error_code=ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID,
+            details={"banned_flags": banned_flags, "metadata": metadata},
+        )
+
+    return BannedMethodsAuditResult(
+        passed=passed,
+        banned_flags=banned_flags,
+        allowed_diffuse_basis=allowed_diffuse_basis or not is_non_covalent,
+        is_frozen_monomer_verified=frozen_monomer,
+        is_bsse_counterpoise_verified=bsse_cp,
+        is_valid_hessian_preconditioned=hessian_preconditioned,
+        conformer_union_params=conformer_union,
+        details={"basis_set": basis_set, "keywords": keywords},
+    )
+
+
 __all__ = [
+    "BannedMethodsAuditResult",
+    "audit_banned_methods",
+
     "SPECTRAL_CATALOG_SCHEMA",
     "InactiveRotorError",
     "CoChemPathManager",

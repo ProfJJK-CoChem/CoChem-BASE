@@ -24,19 +24,17 @@ import warnings
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
 import pyarrow.parquet as pq
 
 from cochem_base.exceptions import (
     CoChemIntegrityError,
-    KraitchmanSingularityError,
     KraitchmanZPVEWarning,
 )
 
-# Planck constant over 8*pi^2 in amu * Angstrom^2 * MHz
-INERTIA_CONVERSION_AMU_ANG2_MHZ = 505379.006
+# Planck constant over 8*pi^2 in amu * Angstrom^2 * MHz (CODATA 2022 canonical)
+INERTIA_CONVERSION_AMU_ANG2_MHZ = 505379.0084350172
 
 
 def _to_float(val: Any) -> float:

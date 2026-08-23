@@ -1,4 +1,5 @@
 """CoChem-BASE core package."""
+
 from .config_loader import (
     get_artifact_dir,
     get_base_root,
@@ -25,6 +26,36 @@ from .config_loader import (
     resolve_wsl_executable,
     update_config,
 )
+
+_SUBMODULES = {
+    "cochem_catalog_compiler",
+    "cochem_h5_healer",
+    "cochem_jax_builder",
+    "cochem_spcat_bridge",
+    "cochem_tensor_extractor",
+    "cochem_torq_alignment",
+    "cochem_torq_engine",
+    "cochem_torq_export",
+    "cochem_torq_init",
+    "cochem_torq_mace",
+    "cochem_torq_quench",
+    "cochem_torq_schema",
+    "cochem_torq_slicer",
+    "cochem_torq_telemetry",
+    "cochem_torq_topology",
+    "cochem_torq_vault",
+    "cochem_torq_watchdog",
+}
+
+
+def __getattr__(name: str):
+    if name in _SUBMODULES:
+        import importlib
+        module = importlib.import_module(f".{name}", __name__)
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
 
 __version__ = "0.1.0"
 
@@ -54,5 +85,21 @@ __all__ = [
     "resolve_mapped_path",
     "resolve_wsl_executable",
     "update_config",
+    "cochem_tensor_extractor",
+    "cochem_jax_builder",
+    "cochem_spcat_bridge",
+    "cochem_torq_export",
+    "cochem_torq_telemetry",
+    "cochem_catalog_compiler",
+    "cochem_h5_healer",
+    "cochem_torq_init",
+    "cochem_torq_schema",
+    "cochem_torq_vault",
+    "cochem_torq_topology",
+    "cochem_torq_alignment",
+    "cochem_torq_mace",
+    "cochem_torq_quench",
+    "cochem_torq_slicer",
+    "cochem_torq_engine",
+    "cochem_torq_watchdog",
 ]
-

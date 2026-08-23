@@ -12,9 +12,11 @@ if str(_REPO_ROOT) not in sys.path:
 
 from cochem_catalog_compiler import (  # noqa: E402
     SPECTRAL_CATALOG_SCHEMA,
+    BannedMethodsAuditResult,
     CoChemPathManager,
     InactiveRotorError,
     apply_readonly_chmod,
+    audit_banned_methods,
     buffer_lock_sync,
     deduplicate_bibtex,
     generate_methods_latex,
@@ -30,9 +32,11 @@ from cochem_catalog_compiler import (  # noqa: E402
 
 __all__ = [
     "SPECTRAL_CATALOG_SCHEMA",
+    "BannedMethodsAuditResult",
     "InactiveRotorError",
     "CoChemPathManager",
     "apply_readonly_chmod",
+    "audit_banned_methods",
     "remove_readonly_seal",
     "buffer_lock_sync",
     "purge_ghost_outputs",

@@ -14,7 +14,6 @@ Authoritative Standards:
 from __future__ import annotations
 
 import collections
-import io
 import json
 import math
 import os
@@ -29,7 +28,6 @@ from scipy.interpolate import PchipInterpolator
 
 from cochem_base.exceptions import (
     TelemetryNetworkExhaustedWarning,
-    TelemetryTransportError,
 )
 
 # Global Tripartite In-Memory Air-Gap Buffer (maxlen=1000)
@@ -279,8 +277,7 @@ def generate_plotly_3d_carousels(
     # 2. 2D Strided Regular Grid Decimation Preserving (i, j) Topology
     total_nodes = Nx * Ny
     if total_nodes > max_nodes:
-        stride_x = max(1, int(math.ceil(math.sqrt(total_nodes / max_nodes))))
-        stride_y = max(1, int(math.ceil(math.sqrt(total_nodes / max_nodes))))
+        # Calculate target resolution based on node budget
 
         # Monotonic PCHIP Interpolation along axes to resample smoothly without ringing
         target_nx = max(4, min(Nx, int(math.sqrt(max_nodes))))

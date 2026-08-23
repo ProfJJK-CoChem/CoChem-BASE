@@ -174,3 +174,14 @@ def diagonalize_principal_axes(
         "rotation_matrix": rot_mat,
         "top_type": top_type,
     }
+
+
+def align_eckart_frame(
+    coordinates: np.ndarray,
+    symbols: Sequence[str],
+    masses: Optional[Sequence[float]] = None,
+) -> np.ndarray:
+    """Helper alias returning aligned coordinates in the principal inertia / Eckart frame."""
+    res = diagonalize_principal_axes(symbols=symbols, coordinates=coordinates, masses=masses)
+    return res["aligned_coordinates"]
+

@@ -242,6 +242,10 @@ def low_frequency_lam_trap(
     return stiff_modes
 
 
+# Backward-compatible alias
+low_frequency_trap = low_frequency_lam_trap
+
+
 # =============================================================================
 # 4. MolSym Symmetry Solver & Nuclear Spin Statistical Weights
 # =============================================================================
@@ -1203,7 +1207,143 @@ def build_complete_spcat_payload(
     )
 
 
+
+
+# =============================================================================
+# 10. 3-Tier Routing Protocol (MPQC Primary, ORCA Secondary, CFOUR Legacy)
+# =============================================================================
+
+@dataclass
+class ThreeTierRoutingResult:
+    """Structured resolution of the 3-Tier Ab Initio Routing Protocol."""
+
+    selected_tier: int
+    primary_engine: str
+    electronic_energy_hartree: Optional[float]
+    harmonic_frequencies: List[float]
+    vpt2_x_matrix: Optional[np.ndarray]
+    dipole_moments_debye: Dict[str, float]
+    is_mpqc_primary: bool
+    is_analytic_vpt2_active: bool
+    routing_metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize routing result to dictionary."""
+        return {
+            "selected_tier": self.selected_tier,
+            "primary_engine": self.primary_engine,
+            "electronic_energy_hartree": self.electronic_energy_hartree,
+            "harmonic_frequencies": [float(f) for f in self.harmonic_frequencies],
+            "vpt2_x_matrix": self.vpt2_x_matrix.tolist() if self.vpt2_x_matrix is not None else None,
+            "dipole_moments_debye": self.dipole_moments_debye,
+            "is_mpqc_primary": self.is_mpqc_primary,
+            "is_analytic_vpt2_active": self.is_analytic_vpt2_active,
+            "routing_metadata": self.routing_metadata,
+        }
+
+
+def route_3tier_abinitio_payload(
+    mpqc_data: Optional[Dict[str, Any]] = None,
+    orca_data: Optional[Dict[str, Any]] = None,
+    cfour_data: Optional[Dict[str, Any]] = None,
+    require_analytic_vpt2: bool = False,
+) -> ThreeTierRoutingResult:
+    """Enforces the authoritative 3-Tier Routing Protocol (MPQC Primary).
+
+    Protocol Hierarchy:
+    - Tier 1 (Primary Benchmark): MPQC (the Valeev Stack). Parsed for exact CCSD(T)-F12
+      single-point energetics and reference energies.
+    - Tier 2 (Primary Vibrational): ORCA. Parsed for analytic VPT2, harmonic frequencies,
+      and dipole surface tensors.
+    - Tier 3 (Legacy Alternate): CFOUR. Demoted fallback parsed only when analytic VPT2
+      or high-order coupled cluster corrections require proprietary CFOUR outputs.
+
+    Args:
+        mpqc_data: Parsed dictionary from MPQC (CCSD(T)-F12 calculations).
+        orca_data: Parsed dictionary from ORCA (VPT2 / force fields).
+        cfour_data: Parsed dictionary from CFOUR (Legacy / fallback).
+        require_analytic_vpt2: If True, prioritizes Tier 2 / Tier 3 containing full VPT2 X-matrices.
+
+    Returns:
+        ThreeTierRoutingResult with resolved energies, frequencies, and provenance.
+    """
+    # Tier 1: MPQC Primary for energy benchmarks
+    if mpqc_data is not None and not require_analytic_vpt2:
+        energy = mpqc_data.get("energy_hartree", mpqc_data.get("ccsd_t_f12_energy", None))
+        freqs = mpqc_data.get("frequencies", [])
+        dipoles = mpqc_data.get("dipoles", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0})
+        x_mat = mpqc_data.get("x_matrix", None)
+        return ThreeTierRoutingResult(
+            selected_tier=1,
+            primary_engine="MPQC",
+            electronic_energy_hartree=float(energy) if energy is not None else None,
+            harmonic_frequencies=[float(f) for f in freqs],
+            vpt2_x_matrix=np.asarray(x_mat, dtype=np.float64) if x_mat is not None else None,
+            dipole_moments_debye=dipoles,
+            is_mpqc_primary=True,
+            is_analytic_vpt2_active=x_mat is not None,
+            routing_metadata={"tier_description": "Tier 1: MPQC CCSD(T)-F12 Primary Benchmark", "raw": mpqc_data},
+        )
+
+    # Tier 2: ORCA Primary for analytic VPT2
+    if orca_data is not None:
+        energy = orca_data.get("energy_hartree", orca_data.get("electronic_energy", None))
+        freqs = orca_data.get("frequencies", orca_data.get("harmonic_frequencies", []))
+        dipoles = orca_data.get("dipoles", orca_data.get("dipole_moments", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0}))
+        x_mat = orca_data.get("x_matrix", orca_data.get("anharmonic_x_matrix", None))
+        return ThreeTierRoutingResult(
+            selected_tier=2,
+            primary_engine="ORCA",
+            electronic_energy_hartree=float(energy) if energy is not None else None,
+            harmonic_frequencies=[float(f) for f in freqs],
+            vpt2_x_matrix=np.asarray(x_mat, dtype=np.float64) if x_mat is not None else None,
+            dipole_moments_debye=dipoles,
+            is_mpqc_primary=False,
+            is_analytic_vpt2_active=x_mat is not None,
+            routing_metadata={"tier_description": "Tier 2: ORCA Analytic VPT2 Primary", "raw": orca_data},
+        )
+
+    # Tier 3: CFOUR Legacy Alternate
+    if cfour_data is not None:
+        energy = cfour_data.get("energy_hartree", cfour_data.get("eccsd_t", None))
+        freqs = cfour_data.get("frequencies", [])
+        dipoles = cfour_data.get("dipoles", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0})
+        x_mat = cfour_data.get("x_matrix", None)
+        return ThreeTierRoutingResult(
+            selected_tier=3,
+            primary_engine="CFOUR",
+            electronic_energy_hartree=float(energy) if energy is not None else None,
+            harmonic_frequencies=[float(f) for f in freqs],
+            vpt2_x_matrix=np.asarray(x_mat, dtype=np.float64) if x_mat is not None else None,
+            dipole_moments_debye=dipoles,
+            is_mpqc_primary=False,
+            is_analytic_vpt2_active=x_mat is not None,
+            routing_metadata={"tier_description": "Tier 3: CFOUR Legacy Alternate Fallback", "raw": cfour_data},
+        )
+
+    if mpqc_data is not None:
+        energy = mpqc_data.get("energy_hartree", None)
+        freqs = mpqc_data.get("frequencies", [])
+        dipoles = mpqc_data.get("dipoles", {"mu_a": 0.0, "mu_b": 0.0, "mu_c": 0.0})
+        return ThreeTierRoutingResult(
+            selected_tier=1,
+            primary_engine="MPQC",
+            electronic_energy_hartree=float(energy) if energy is not None else None,
+            harmonic_frequencies=[float(f) for f in freqs],
+            vpt2_x_matrix=None,
+            dipole_moments_debye=dipoles,
+            is_mpqc_primary=True,
+            is_analytic_vpt2_active=False,
+            routing_metadata={"tier_description": "Tier 1: MPQC CCSD(T)-F12 Single-Point", "raw": mpqc_data},
+        )
+
+    raise ValueError("No ab initio data provided to 3-Tier Routing Protocol.")
+
+
 __all__ = [
+    "ThreeTierRoutingResult",
+    "route_3tier_abinitio_payload",
+
     "CODATA2022",
     "CONSTANTS",
     "SymmetryDivisorResult",
@@ -1212,6 +1352,7 @@ __all__ = [
     "SPCATPayload",
     "PICKETT_PARAMETER_CODES",
     "low_frequency_lam_trap",
+    "low_frequency_trap",
     "apply_symmetry_divisors",
     "calculate_rotational_partition_function",
     "calculate_vibrational_partition_function",

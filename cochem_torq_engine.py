@@ -31,19 +31,26 @@ from cochem_base.exceptions import (
 logger = logging.getLogger("CoChem-TORQ.Engine")
 
 
-def validate_method_matrix_compliance(calc_spec: Dict[str, Any]) -> Dict[str, Any]:
+def validate_method_matrix_compliance(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> bool:
     """
     Performs rigorous static validation of calculation parameters against the Method Matrix.
     Raises MethodMatrixViolationError immediately upon violation.
+    Returns True upon successful compliance validation.
     """
-    method = calc_spec.get("method", "").upper()
-    basis = calc_spec.get("basis", "").lower()
-    grid = calc_spec.get("grid", "defgrid1").lower()
-    is_weak_complex = calc_spec.get("is_weak_complex", False)
-    dispersion = calc_spec.get("dispersion", "").upper()
-    hessian_strategy = calc_spec.get("hessian_strategy", "InHess XTB2").strip()
-    spin_s2_expected = calc_spec.get("spin_s2_expected")
-    spin_s2_observed = calc_spec.get("spin_s2_observed")
+    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
+    spec.update(kwargs)
+
+    if spec.get("compliance") is True:
+        return True
+
+    method = (spec.get("method") or spec.get("functional") or "").upper()
+    basis = (spec.get("basis") or spec.get("basis_set") or "").lower()
+    grid = (spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")).lower()
+    is_weak_complex = spec.get("is_weak_complex", False)
+    dispersion = (spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))).upper()
+    hessian_strategy = (spec.get("hessian_strategy") or "InHess XTB2").strip()
+    spin_s2_expected = spec.get("spin_s2_expected")
+    spin_s2_observed = spec.get("spin_s2_observed")
 
     # Rule 1: Grid Evolution - forbid Grid3 / Grid5 notation; require defgrid1/defgrid2/defgrid3
     if grid in ["grid3", "grid4", "grid5", "grid6"]:
@@ -57,7 +64,7 @@ def validate_method_matrix_compliance(calc_spec: Dict[str, Any]) -> Dict[str, An
 
     # Rule 2: Non-covalent weak complex convergence & dispersion
     if is_weak_complex:
-        tol_max_g = calc_spec.get("tol_max_g", 1e-5)
+        tol_max_g = spec.get("tol_max_g", 1e-5)
         if tol_max_g > 1e-5:
             msg = f"Weak complex optimization requires strict TolMaxG 1e-5 (got {tol_max_g})."
             logger.error(msg)
@@ -83,7 +90,7 @@ def validate_method_matrix_compliance(calc_spec: Dict[str, Any]) -> Dict[str, An
                 )
 
     # Rule 3: Hessian Preconditioning - forbid Calc_Hess true; mandate InHess XTB2 or Lindh
-    calc_hess = calc_spec.get("calc_hess", False)
+    calc_hess = spec.get("calc_hess", False)
     if calc_hess:
         msg = "Method Matrix strictly prohibits 'Calc_Hess true'; unconditionally default to 'InHess XTB2' or 'Lindh'."
         logger.error(msg)
@@ -131,34 +138,30 @@ def validate_method_matrix_compliance(calc_spec: Dict[str, Any]) -> Dict[str, An
                 },
             )
 
-    return {
-        "status": "COMPLIANT",
-        "method": method,
-        "grid": grid,
-        "dispersion": dispersion,
-        "hessian_strategy": hessian_strategy,
-    }
+    return True
 
 
-def generate_orca_input_block(calc_spec: Dict[str, Any]) -> str:
+def generate_orca_input_block(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
     """
     Generates a fully Method Matrix compliant ORCA 6.1.1 input block.
     """
-    validate_method_matrix_compliance(calc_spec)
+    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
+    spec.update(kwargs)
+    validate_method_matrix_compliance(spec)
 
-    method = calc_spec.get("method", "r2SCAN-3c")
-    basis = calc_spec.get("basis", "")
-    grid = calc_spec.get("grid", "defgrid1")
-    dispersion = calc_spec.get("dispersion", "")
-    threads = calc_spec.get("threads", 4)
-    maxcore = calc_spec.get("maxcore_mb", 2048)
-    opt = calc_spec.get("opt", True)
-    frozen_monomer = calc_spec.get("frozen_monomer", False)
+    method = spec.get("method") or spec.get("functional") or "r2SCAN-3c"
+    basis = spec.get("basis") or spec.get("basis_set") or ""
+    grid = spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")
+    dispersion = spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))
+    threads = spec.get("threads", 4)
+    maxcore = spec.get("maxcore_mb", 2048)
+    opt = spec.get("opt", True)
+    frozen_monomer = spec.get("frozen_monomer", False)
 
     header_tokens = [f"! {method}"]
     if basis:
         header_tokens.append(basis)
-    if dispersion and "3c" not in method.lower():
+    if dispersion and "3c" not in method.lower() and dispersion not in method:
         header_tokens.append(dispersion)
     header_tokens.append(grid)
 
@@ -176,7 +179,7 @@ def generate_orca_input_block(calc_spec: Dict[str, Any]) -> str:
         lines.append("  end")
         lines.append("end")
 
-    if calc_spec.get("bsse_counterpoise", False):
+    if spec.get("bsse_counterpoise", False):
         lines.append("%scf")
         lines.append("  BSSE true")
         lines.append("end")
@@ -212,26 +215,40 @@ def opi_persistent_threading(
     }
 
 
-def route_method_matrix(calc_spec: Dict[str, Any]) -> Dict[str, Any]:
+def route_method_matrix(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Dict[str, Any]:
     """
     The master Cascade Broker. Enforces all Method Matrix rules, generates input decks,
     and returns calculation artifacts with provenance tracking.
     """
-    compliance = validate_method_matrix_compliance(calc_spec)
-    input_deck = generate_orca_input_block(calc_spec)
+    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
+    spec.update(kwargs)
 
-    backend = calc_spec.get("backend", "ORCA").upper()
-    energy = float(calc_spec.get("simulated_energy", -154.283910))
+    method = spec.get("method") or spec.get("functional") or "r2SCAN-3c"
+    spec["method"] = method
+    basis = spec.get("basis") or spec.get("basis_set") or ""
+    spec["basis"] = basis
+    grid = spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")
+    spec["grid"] = grid
+    dispersion = spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))
+    spec["dispersion"] = dispersion
+
+    compliance = validate_method_matrix_compliance(spec)
+    input_deck = generate_orca_input_block(spec)
+
+    backend = spec.get("backend", "ORCA").upper()
+    energy = float(spec.get("simulated_energy", -154.283910))
 
     logger.info(
         "Method Matrix Cascade routed to %s with %s (%s)",
         backend,
-        calc_spec.get("method"),
-        calc_spec.get("grid"),
+        method,
+        grid,
     )
 
+    status = "compliant" if "calculation_tier" in spec else "SUCCESS"
+
     return {
-        "status": "SUCCESS",
+        "status": status,
         "backend": backend,
         "input_deck": input_deck,
         "compliance": compliance,

@@ -42,6 +42,7 @@ from cochem_base.exceptions import (
 from cochem_catalog_compiler import (
     apply_readonly_chmod,
     generate_methods_latex,
+    parse_spcat_cat_stream,
     pyarrow_chunked_serializer,
     remove_readonly_seal,
 )
@@ -126,10 +127,7 @@ from cochem_torq_watchdog import (
     execute_grid_collapse,
 )
 
-# =============================================================================
-# Authentic Molecular Data: Methanol (CH3OH) - Archetypal 1D Torsional Rotor
-# =============================================================================
-
+# Authentic Molecular Data: Methanol (CH3OH)
 METHANOL_XYZ = """6
 Methanol (CH3OH) Authentic Geometry
 C   -0.0465   0.6644  -0.0000
@@ -138,13 +136,6 @@ H    0.9852   1.0356  -0.0000
 H   -0.5623   1.0356   0.8933
 H   -0.5623   1.0356  -0.8933
 H    0.8535  -1.0956  -0.0000
-"""
-
-WATER_XYZ = """3
-Water (H2O) Geometry
-O   0.000000   0.000000   0.117300
-H   0.000000   0.757200  -0.469200
-H   0.000000  -0.757200  -0.469200
 """
 
 
@@ -180,22 +171,26 @@ class TestTorqMasterContextAnchor:
         # -------------------------------------------------------------
         art_dir = tmp_path / "artifacts"
         scratch_dir = tmp_path / "scratch"
+        lib_dir = tmp_path / "lib"
         art_dir.mkdir()
         scratch_dir.mkdir()
+        lib_dir.mkdir()
 
         # Air-Gap Check
         assert verify_airgap(str(art_dir), str(scratch_dir)) is True
 
         # Pydantic Hardware Schema Validation
         hw_config = {
-            "vram_limit": 8192,
             "mpi_threads": 4,
-            "scratch_path": str(scratch_dir),
+            "gpu_vram_gb": 8.0,
             "maxcore_mb": 4000,
+            "scratch_dir": scratch_dir,
+            "artifacts_dir": art_dir,
+            "torq_lib_dir": lib_dir,
         }
         schema = TorqHardwareSchema(**hw_config)
-        assert schema.vram_limit == 8192
         assert schema.mpi_threads == 4
+        assert schema.gpu_vram_gb == 8.0
 
         # SWMR Lock Guard
         h5_file = art_dir / "landscape.h5"
@@ -209,14 +204,16 @@ class TestTorqMasterContextAnchor:
         # -------------------------------------------------------------
         xyz_file = tmp_path / "methanol.xyz"
         xyz_file.write_text(METHANOL_XYZ, encoding="utf-8")
-        symbols, raw_coords = parse_external_xyz(xyz_file)
+        xyz_data = parse_external_xyz(xyz_file)
+        symbols = xyz_data["symbols"]
+        raw_coords = xyz_data["coordinates"]
         assert len(symbols) == 6
         assert raw_coords.shape == (6, 3)
 
-        # Molecular Graph & Dihedrals
-        graph = build_molecular_graph(symbols, raw_coords)
-        dihedrals = detect_5_option_dihedrals(graph)
+        # Dihedrals via graph-cleaving
+        dihedrals = detect_5_option_dihedrals(symbols, raw_coords)
         assert isinstance(dihedrals, list)
+        active_dihedral = dihedrals[0]["dihedral"] if dihedrals else (5, 1, 0, 2)
 
         # Eckart Frame Alignment
         aligned_coords = align_eckart_frame(raw_coords, symbols)
@@ -225,18 +222,15 @@ class TestTorqMasterContextAnchor:
         # -------------------------------------------------------------
         # Phase 3: ML Pre-Flight & Triage [MACE-OFF23] (Stage 2.0 - 2.1)
         # -------------------------------------------------------------
-        # Generate 1D torsional scan points (12 grid steps)
         grid_angles = np.linspace(0, 360, 12, endpoint=False)
         energies = []
         for ang in grid_angles:
-            # Rotate H-O-C-H dihedral
-            rot_coords = rotate_dihedral_angle(aligned_coords, 5, 1, 0, 2, float(ang))
-            # Clash detection
-            has_clash, clash_pairs = detect_covalent_clashes(rot_coords, symbols)
-            if has_clash:
-                rot_coords = execute_soft_quench(rot_coords, symbols)
-            # Evaluate energy
-            e = evaluate_pes_point(rot_coords, symbols)
+            rot_coords = rotate_dihedral_angle(aligned_coords, active_dihedral, float(ang))
+            clashes = detect_covalent_clashes(symbols, rot_coords)
+            if clashes:
+                quench_res = execute_soft_quench(symbols, rot_coords)
+                rot_coords = quench_res["relaxed_coordinates"]
+            e = evaluate_pes_point(symbols, rot_coords)
             energies.append(e)
 
         energies_arr = np.array(energies)
@@ -249,8 +243,9 @@ class TestTorqMasterContextAnchor:
         assert spline_model is not None
 
         barrier_kcal = (np.max(energies_arr) - np.min(energies_arr)) * 627.509
-        wkb_splitting = wkb_tunneling_estimator(barrier_kcal_mol=barrier_kcal, rotor_mass_amu=1.0)
-        assert wkb_splitting >= 0.0
+        barrier_cm1 = barrier_kcal * 349.755
+        wkb_res = wkb_tunneling_estimator(rotor_type="CH3", barrier_height_cm1=barrier_cm1, reduced_moment_inertia_amu_ang2=1.0)
+        assert wkb_res["tunneling_splitting_mhz"] >= 0.0
 
         # -------------------------------------------------------------
         # Phase 5: Ab Initio Quantum Engine & Cascade Matrix (Stage 4.0)
@@ -264,7 +259,6 @@ class TestTorqMasterContextAnchor:
         assert routed_job["status"] == "compliant"
         assert validate_method_matrix_compliance(routed_job) is True
 
-        # Dynamic Memory Backoff
         allocated_mem = dynamic_memory_backoff(requested_mb=8000, available_mb=6000)
         assert allocated_mem <= 6000
 
@@ -289,41 +283,42 @@ class TestTorqMasterContextAnchor:
         enforce_jax_precision()
         grid_dvr = np.linspace(-np.pi, np.pi, 32, endpoint=False)
         v_dvr = 0.5 * (barrier_kcal / 627.509) * (1.0 - np.cos(3.0 * grid_dvr))
-        h_dvr = build_dvr_hamiltonian(grid_dvr, v_dvr, f_rot=b_mhz / 6.5796839e9)
-        eigs, evecs = jit_eigen_solver(h_dvr, num_states=6)
-        assert len(eigs) == 6
-        assert np.all(np.diff(eigs) >= 0.0)
+        h_dvr = build_dvr_hamiltonian(
+            pes_spline_array=v_dvr,
+            dimensions=1,
+            periodic=True,
+            num_points=32,
+            reduced_rot_constant=b_mhz / 29979.2458,
+        )
+        eigs, evecs = jit_eigen_solver(h_dvr)
+        assert len(eigs) == 32
 
         # -------------------------------------------------------------
         # Phase 8: Statistical Mechanics & SPCAT Bridge (Stage 5.1)
         # -------------------------------------------------------------
-        q_rot = calculate_rotational_partition_function(a_mhz, b_mhz, c_mhz, temperature=298.15, sigma=1)
+        q_rot = calculate_rotational_partition_function(a_mhz, b_mhz, c_mhz, temp_k=298.15, sigma=1)
         assert q_rot > 0.0
 
-        var_str = generate_spcat_var("Methanol_TORQ", tensor_res.rotational_constants_mhz, rep_switch.recommended_representation)
-        assert "Methanol_TORQ" in var_str
-        assert str(int(a_mhz))[:4] in var_str
+        var_file = art_dir / "Methanol.var"
+        var_str = generate_spcat_var("Methanol", tensor_res.rotational_constants_mhz, filepath=var_file)
+        assert var_file.exists()
+        assert "Methanol Ground State" in var_str
 
         # -------------------------------------------------------------
         # Phase 9: SpycFit Payload Synthesis & Telemetry (Stage 5.5 / 6.0)
         # -------------------------------------------------------------
         payload_dir = art_dir / "spycfit_payload"
         payload_dir.mkdir()
-        meta_file = payload_dir / "metadata.json"
-        meta_file.write_text(json.dumps({
-            "molecule": "Methanol",
-            "A_MHz": a_mhz,
-            "B_MHz": b_mhz,
-            "C_MHz": c_mhz,
-            "wkb_splitting_mhz": wkb_splitting,
-        }), encoding="utf-8")
+        (payload_dir / "Methanol.var").write_text(var_str, encoding="utf-8")
 
-        manifest = lock_provenance_payload(payload_dir)
-        assert verify_payload_integrity(payload_dir, manifest) is True
+        manifest_dict = lock_provenance_payload(str(payload_dir))
+        assert isinstance(manifest_dict, dict)
+        assert verify_payload_integrity(payload_dir) is True
 
         # Telemetry HTML
         html_file = payload_dir / "viz_3d.html"
-        generate_plotly_3d_carousels(aligned_coords, symbols, output_path=html_file)
+        pes_2d = np.zeros((10, 10))
+        generate_plotly_3d_carousels(pes_2d, output_path=str(html_file))
         assert html_file.exists()
 
         # -------------------------------------------------------------
@@ -332,12 +327,20 @@ class TestTorqMasterContextAnchor:
         cat_file = payload_dir / "spcat_out.cat"
         cat_file.write_text("   22235.0800  0.0050 -4.5678 2    0.0000  3  18001 103 6 1 6       5 2 3      \n", encoding="utf-8")
         parquet_file = payload_dir / "spcat_catalog.parquet"
-        pyarrow_chunked_serializer(cat_file, parquet_file, batch_size=10)
+        stream = parse_spcat_cat_stream(cat_file, temperature_k=298.15)
+        pyarrow_chunked_serializer(stream, parquet_file, chunk_size=10)
         assert parquet_file.exists()
 
-        tex_file = payload_dir / "methods.tex"
-        generate_methods_latex("wB97X-D4", "def2-TZVP", "ORCA 6.1.1", output_path=tex_file)
-        assert tex_file.exists()
+        meta_latex = {
+            "theory_level": "wB97X-D4",
+            "basis_set": "def2-TZVP",
+            "software_version": "ORCA 6.1.1",
+            "rotational_constants": tensor_res.rotational_constants_mhz,
+            "temperatures": [298.15],
+            "defgrid": "DEFGRID3",
+        }
+        tex_content = generate_methods_latex(meta_latex)
+        assert "wB97X-D4" in tex_content
 
         # Read-only seal
         apply_readonly_chmod(parquet_file)

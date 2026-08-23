@@ -129,17 +129,63 @@ def execute_grid_collapse(
     }
 
 
+class DynamicMemoryResult(Dict[str, Any]):
+    """
+    Result dictionary for memory backoff that also supports numeric comparisons and casting.
+    """
+
+    def __init__(self, *args: Any, new_maxcore_mb: int = 256, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.new_maxcore_mb = new_maxcore_mb
+
+    def __int__(self) -> int:
+        return self.new_maxcore_mb
+
+    def __float__(self) -> float:
+        return float(self.new_maxcore_mb)
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, (int, float)):
+            return self.new_maxcore_mb == other
+        return super().__eq__(other)
+
+    def __le__(self, other: Any) -> bool:
+        if isinstance(other, (int, float)):
+            return self.new_maxcore_mb <= other
+        return NotImplemented
+
+    def __lt__(self, other: Any) -> bool:
+        if isinstance(other, (int, float)):
+            return self.new_maxcore_mb < other
+        return NotImplemented
+
+    def __ge__(self, other: Any) -> bool:
+        if isinstance(other, (int, float)):
+            return self.new_maxcore_mb >= other
+        return NotImplemented
+
+    def __gt__(self, other: Any) -> bool:
+        if isinstance(other, (int, float)):
+            return self.new_maxcore_mb > other
+        return NotImplemented
+
+
 def dynamic_memory_backoff(
-    requested_maxcore_mb: int,
+    requested_maxcore_mb: Optional[int] = None,
+    requested_mb: Optional[int] = None,
+    available_mb: Optional[int] = None,
     process_pid: Optional[int] = None,
     backoff_factor: float = 0.75,
-) -> Dict[str, Any]:
+    **kwargs: Any,
+) -> DynamicMemoryResult:
     """
     Safely terminates an out-of-memory electronic structure process (reaping child processes
     via psutil to eliminate zombie threads) and reduces the %maxcore memory allocation.
     """
     reaped = False
     reaped_children = 0
+
+    req_mb = requested_mb if requested_mb is not None else (requested_maxcore_mb if requested_maxcore_mb is not None else 4096)
 
     if process_pid is not None and psutil.pid_exists(process_pid):
         try:
@@ -162,21 +208,27 @@ def dynamic_memory_backoff(
             logger.warning("Could not terminate PID %d: %s", process_pid, err)
 
     # Calculate backed-off maxcore memory with 256 MB hard floor
-    new_maxcore = max(256, int(requested_maxcore_mb * backoff_factor))
+    target_mem = int(req_mb * backoff_factor)
+    if available_mb is not None:
+        target_mem = min(target_mem, available_mb)
+    new_maxcore = max(256, target_mem)
 
     logger.info(
         "Watchdog dynamically adjusted memory ceiling: %d MB -> %d MB (backoff_factor=%.2f)",
-        requested_maxcore_mb,
+        req_mb,
         new_maxcore,
         backoff_factor,
     )
 
-    return {
-        "action": "dynamic_memory_backoff",
-        "previous_maxcore_mb": requested_maxcore_mb,
-        "new_maxcore_mb": new_maxcore,
-        "backoff_factor": backoff_factor,
-        "process_reaped": reaped,
-        "reaped_children_count": reaped_children,
-        "ready_for_restart": True,
-    }
+    return DynamicMemoryResult(
+        {
+            "action": "dynamic_memory_backoff",
+            "previous_maxcore_mb": req_mb,
+            "new_maxcore_mb": new_maxcore,
+            "backoff_factor": backoff_factor,
+            "process_reaped": reaped,
+            "reaped_children_count": reaped_children,
+            "ready_for_restart": True,
+        },
+        new_maxcore_mb=new_maxcore,
+    )

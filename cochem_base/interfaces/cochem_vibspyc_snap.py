@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any
 
 import jinja2
-import platformdirs
 from pydantic import BaseModel, Field, field_validator
 import zstandard
 
@@ -86,13 +85,13 @@ _MODEL_DOI_MAP: dict[str, str] = {
 def get_spycfit_processed_dir() -> Path:
     """Resolves the default SpycFit processed output directory.
 
-    Checks $COCHEM_STATE_DIR first; falls back to platformdirs user data path.
+    Checks $COCHEM_STATE_DIR first; falls back to Path.home().
     """
     env_state = os.environ.get("COCHEM_STATE_DIR")
     if env_state:
         base_path = Path(env_state).expanduser().resolve()
     else:
-        base_path = Path(platformdirs.user_data_path("CoChem", "CoChem")).resolve()
+        base_path = (Path.home() / ".cochem").resolve()
     return base_path / "SpycFit_Workspace" / "Processed"
 
 

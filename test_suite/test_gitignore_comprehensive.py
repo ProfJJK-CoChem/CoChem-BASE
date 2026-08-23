@@ -227,29 +227,35 @@ def test_git_check_ignore_matrix(
     (tmp_path / ".gitignore").write_bytes(GITIGNORE_PATH.read_bytes())
 
     # Initialize physical git repository
-    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "config", "user.name", "Tester"],
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(tmp_path), "config", "user.email", "test@domain.com"],
-        check=True,
-        capture_output=True,
-    )
+    try:
+        subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, timeout=15)
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.name", "Tester"],
+            check=True,
+            capture_output=True,
+            timeout=15,
+        )
+        subprocess.run(
+            ["git", "-C", str(tmp_path), "config", "user.email", "test@domain.com"],
+            check=True,
+            capture_output=True,
+            timeout=15,
+        )
 
-    # Create dummy target file
-    target_path = tmp_path / file_rel_path
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-    target_path.write_text("airgap validation physical file content", encoding="utf-8")
+        # Create dummy target file
+        target_path = tmp_path / file_rel_path
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text("airgap validation physical file content", encoding="utf-8")
 
-    # Run git check-ignore
-    proc = subprocess.run(
-        ["git", "-C", str(tmp_path), "check-ignore", "-q", file_rel_path],
-        capture_output=True,
-    )
-    actual_ignored = proc.returncode == 0
+        # Run git check-ignore
+        proc = subprocess.run(
+            ["git", "-C", str(tmp_path), "check-ignore", "-q", file_rel_path],
+            capture_output=True,
+            timeout=15,
+        )
+        actual_ignored = proc.returncode == 0
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        pytest.fail(f"Git check-ignore command failed: {e}")
 
     assert actual_ignored == should_be_ignored, (
         f"[{section_label}] Failed for path '{file_rel_path}': "
@@ -261,25 +267,29 @@ def test_special_characters_and_whitespace_paths(tmp_path: Path) -> None:
     """Validate gitignore rules with spaces, Unicode, and complex path names."""
     # Copy raw .gitignore directly without mutation
     (tmp_path / ".gitignore").write_bytes(GITIGNORE_PATH.read_bytes())
-    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Tester"], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@domain.com"], check=True, capture_output=True)
+    try:
+        subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True, timeout=15)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Tester"], check=True, capture_output=True, timeout=15)
+        subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "test@domain.com"], check=True, capture_output=True, timeout=15)
 
-    test_paths = [
-        ("Calculation Folder With Spaces/result.log", True),
-        ("Квантовые_Данные/matrix.h5", True),
-        ("Chemical Structures (2026)/complex_molecule.xyz", True),
-        ("Allowed Code/script_01.py", False),
-        ("Documentation & Notes/Architecture.md", False),
-    ]
+        test_paths = [
+            ("Calculation Folder With Spaces/result.log", True),
+            ("Квантовые_Данные/matrix.h5", True),
+            ("Chemical Structures (2026)/complex_molecule.xyz", True),
+            ("Allowed Code/script_01.py", False),
+            ("Documentation & Notes/Architecture.md", False),
+        ]
 
-    for rel_p, expect_ign in test_paths:
-        p = tmp_path / rel_p
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text("data", encoding="utf-8")
+        for rel_p, expect_ign in test_paths:
+            p = tmp_path / rel_p
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text("data", encoding="utf-8")
 
-        proc = subprocess.run(
-            ["git", "-C", str(tmp_path), "check-ignore", "-q", rel_p],
-            capture_output=True,
-        )
-        assert (proc.returncode == 0) == expect_ign, f"Failed for path '{rel_p}'"
+            proc = subprocess.run(
+                ["git", "-C", str(tmp_path), "check-ignore", "-q", rel_p],
+                capture_output=True,
+                timeout=15,
+            )
+            assert (proc.returncode == 0) == expect_ign, f"Failed for path '{rel_p}'"
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        pytest.fail(f"Git check-ignore command failed: {e}")

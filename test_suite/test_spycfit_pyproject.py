@@ -17,6 +17,7 @@ Defends the Execution Tier build system and Tripartite Architecture metadata by 
 from __future__ import annotations
 
 import ast
+import os
 from pathlib import Path
 from typing import Any, Dict
 
@@ -28,23 +29,28 @@ try:
 except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]
 
-# Repository paths
-BASE_REPO_ROOT = Path(__file__).resolve().parent.parent
-SPYCFIT_REPO_ROOT = BASE_REPO_ROOT.parent / "CoChem-SpycFit"
+# Repository paths with strict environmental configuration and Path.home() fallback
+COCHEM_HOME = Path(os.environ.get("COCHEM_HOME", Path.home() / "cochem"))
+BASE_REPO_ROOT = Path(
+    os.environ.get("COCHEM_BASE_ROOT", str(Path(__file__).resolve().parent.parent))
+)
+SPYCFIT_REPO_ROOT = Path(
+    os.environ.get("COCHEM_SPYCFIT_ROOT", str(BASE_REPO_ROOT.parent / "CoChem-SpycFit"))
+)
 SPYCFIT_PYPROJECT_PATH = SPYCFIT_REPO_ROOT / "pyproject.toml"
 
 # Canonical SRS pyproject.toml content
 CANONICAL_PYPROJECT_CONTENT = (
-    '[build-system]\n'
+    "[build-system]\n"
     'requires = ["setuptools>=61.0", "wheel"]\n'
     'build-backend = "setuptools.build_meta"\n'
-    '\n'
-    '[project]\n'
+    "\n"
+    "[project]\n"
     'name = "CoChem-SpycFit"\n'
     'version = "0.1.0"\n'
     'description = "Tripartite Workspace Air-Gap enabled computational spectroscopy fitter."\n'
     'authors = [{name = "CoChem Swarm"}]\n'
-    'dependencies = [\n'
+    "dependencies = [\n"
     '    "jax",\n'
     '    "jaxlib",\n'
     '    "cupy-cuda12x",\n'
@@ -57,9 +63,9 @@ CANONICAL_PYPROJECT_CONTENT = (
     '    "platformdirs",\n'
     '    "filelock",\n'
     '    "pyzmq"\n'
-    ']\n'
-    '\n'
-    '[project.optional-dependencies]\n'
+    "]\n"
+    "\n"
+    "[project.optional-dependencies]\n"
     'dev = ["pytest", "flake8"]\n'
 )
 
@@ -68,7 +74,9 @@ EXPECTED_BUILD_BACKEND = "setuptools.build_meta"
 
 EXPECTED_PROJECT_NAME = "CoChem-SpycFit"
 EXPECTED_PROJECT_VERSION = "0.1.0"
-EXPECTED_PROJECT_DESCRIPTION = "Tripartite Workspace Air-Gap enabled computational spectroscopy fitter."
+EXPECTED_PROJECT_DESCRIPTION = (
+    "Tripartite Workspace Air-Gap enabled computational spectroscopy fitter."
+)
 EXPECTED_PROJECT_AUTHORS = [{"name": "CoChem Swarm"}]
 
 EXPECTED_DEPENDENCIES = [
@@ -107,7 +115,9 @@ FORBIDDEN_LEGACY_TOKENS = [
 @pytest.fixture(scope="module")
 def pyproject_raw_bytes() -> bytes:
     """Fixture providing raw bytes of CoChem-SpycFit pyproject.toml."""
-    assert SPYCFIT_PYPROJECT_PATH.exists(), f"Missing pyproject.toml at {SPYCFIT_PYPROJECT_PATH}"
+    assert (
+        SPYCFIT_PYPROJECT_PATH.exists()
+    ), f"Missing pyproject.toml at {SPYCFIT_PYPROJECT_PATH}"
     return SPYCFIT_PYPROJECT_PATH.read_bytes()
 
 
@@ -132,19 +142,35 @@ def pyproject_data(pyproject_content: str) -> Dict[str, Any]:
 
 def test_spycfit_pyproject_existence_and_size() -> None:
     """Validate that pyproject.toml physically exists in CoChem-SpycFit root with valid size bounds."""
-    assert SPYCFIT_PYPROJECT_PATH.exists(), f"Target file must exist: {SPYCFIT_PYPROJECT_PATH}"
-    assert SPYCFIT_PYPROJECT_PATH.is_file(), f"Target path must be a regular file: {SPYCFIT_PYPROJECT_PATH}"
+    assert (
+        SPYCFIT_PYPROJECT_PATH.exists()
+    ), f"Target file must exist: {SPYCFIT_PYPROJECT_PATH}"
+    assert (
+        SPYCFIT_PYPROJECT_PATH.is_file()
+    ), f"Target path must be a regular file: {SPYCFIT_PYPROJECT_PATH}"
     size = SPYCFIT_PYPROJECT_PATH.stat().st_size
-    assert 100 < size < 5000, f"pyproject.toml size ({size} bytes) outside expected range (100, 5000)"
+    assert (
+        100 < size < 5000
+    ), f"pyproject.toml size ({size} bytes) outside expected range (100, 5000)"
 
 
-def test_spycfit_pyproject_encoding_and_lf_line_endings(pyproject_raw_bytes: bytes) -> None:
+def test_spycfit_pyproject_encoding_and_lf_line_endings(
+    pyproject_raw_bytes: bytes,
+) -> None:
     """Validate strict UTF-8 encoding without BOM and Unix LF line endings."""
-    assert not pyproject_raw_bytes.startswith(b"\xef\xbb\xbf"), "Target file must not contain a UTF-8 BOM"
-    assert b"\r\n" not in pyproject_raw_bytes, "Target file contains Windows CRLF line endings"
-    assert b"\r" not in pyproject_raw_bytes, "Target file contains carriage return line endings"
+    assert not pyproject_raw_bytes.startswith(
+        b"\xef\xbb\xbf"
+    ), "Target file must not contain a UTF-8 BOM"
+    assert (
+        b"\r\n" not in pyproject_raw_bytes
+    ), "Target file contains Windows CRLF line endings"
+    assert (
+        b"\r" not in pyproject_raw_bytes
+    ), "Target file contains carriage return line endings"
     assert b"\n" in pyproject_raw_bytes, "Target file must contain Unix LF line endings"
-    assert pyproject_raw_bytes.endswith(b"\n"), "Target file must terminate with a Unix LF newline"
+    assert pyproject_raw_bytes.endswith(
+        b"\n"
+    ), "Target file must terminate with a Unix LF newline"
     decoded = pyproject_raw_bytes.decode("utf-8")
     assert len(decoded) > 0, "Target file content cannot be empty"
 
@@ -167,7 +193,9 @@ def test_spycfit_pyproject_top_level_tables(pyproject_data: Dict[str, Any]) -> N
     """Validate required top-level tables exist in pyproject.toml."""
     assert "build-system" in pyproject_data, "Missing [build-system] table"
     assert "project" in pyproject_data, "Missing [project] table"
-    assert isinstance(pyproject_data["build-system"], dict), "[build-system] must be a table"
+    assert isinstance(
+        pyproject_data["build-system"], dict
+    ), "[build-system] must be a table"
     assert isinstance(pyproject_data["project"], dict), "[project] must be a table"
 
 
@@ -177,12 +205,12 @@ def test_spycfit_pyproject_build_system(pyproject_data: Dict[str, Any]) -> None:
     assert "requires" in build_sys, "Missing 'requires' in [build-system]"
     assert "build-backend" in build_sys, "Missing 'build-backend' in [build-system]"
 
-    assert build_sys["requires"] == EXPECTED_BUILD_SYSTEM_REQUIRES, (
-        f"Expected build-system requires {EXPECTED_BUILD_SYSTEM_REQUIRES}, got {build_sys['requires']}"
-    )
-    assert build_sys["build-backend"] == EXPECTED_BUILD_BACKEND, (
-        f"Expected build-backend '{EXPECTED_BUILD_BACKEND}', got '{build_sys['build-backend']}'"
-    )
+    assert (
+        build_sys["requires"] == EXPECTED_BUILD_SYSTEM_REQUIRES
+    ), f"Expected build-system requires {EXPECTED_BUILD_SYSTEM_REQUIRES}, got {build_sys['requires']}"
+    assert (
+        build_sys["build-backend"] == EXPECTED_BUILD_BACKEND
+    ), f"Expected build-backend '{EXPECTED_BUILD_BACKEND}', got '{build_sys['build-backend']}'"
 
 
 # ==============================================================================
@@ -193,18 +221,18 @@ def test_spycfit_pyproject_build_system(pyproject_data: Dict[str, Any]) -> None:
 def test_spycfit_pyproject_metadata(pyproject_data: Dict[str, Any]) -> None:
     """Validate name, version, description, and authors in [project]."""
     proj = pyproject_data["project"]
-    assert proj.get("name") == EXPECTED_PROJECT_NAME, (
-        f"Expected project.name '{EXPECTED_PROJECT_NAME}', got '{proj.get('name')}'"
-    )
-    assert proj.get("version") == EXPECTED_PROJECT_VERSION, (
-        f"Expected project.version '{EXPECTED_PROJECT_VERSION}', got '{proj.get('version')}'"
-    )
-    assert proj.get("description") == EXPECTED_PROJECT_DESCRIPTION, (
-        f"Expected project.description '{EXPECTED_PROJECT_DESCRIPTION}', got '{proj.get('description')}'"
-    )
-    assert proj.get("authors") == EXPECTED_PROJECT_AUTHORS, (
-        f"Expected project.authors {EXPECTED_PROJECT_AUTHORS}, got {proj.get('authors')}"
-    )
+    assert (
+        proj.get("name") == EXPECTED_PROJECT_NAME
+    ), f"Expected project.name '{EXPECTED_PROJECT_NAME}', got '{proj.get('name')}'"
+    assert (
+        proj.get("version") == EXPECTED_PROJECT_VERSION
+    ), f"Expected project.version '{EXPECTED_PROJECT_VERSION}', got '{proj.get('version')}'"
+    assert (
+        proj.get("description") == EXPECTED_PROJECT_DESCRIPTION
+    ), f"Expected project.description '{EXPECTED_PROJECT_DESCRIPTION}', got '{proj.get('description')}'"
+    assert (
+        proj.get("authors") == EXPECTED_PROJECT_AUTHORS
+    ), f"Expected project.authors {EXPECTED_PROJECT_AUTHORS}, got {proj.get('authors')}"
 
 
 # ==============================================================================
@@ -212,48 +240,62 @@ def test_spycfit_pyproject_metadata(pyproject_data: Dict[str, Any]) -> None:
 # ==============================================================================
 
 
-def test_spycfit_pyproject_dependencies_presence_and_count(pyproject_data: Dict[str, Any]) -> None:
+def test_spycfit_pyproject_dependencies_presence_and_count(
+    pyproject_data: Dict[str, Any],
+) -> None:
     """Validate exactly 12 required dependencies are present in [project.dependencies]."""
     proj = pyproject_data["project"]
     assert "dependencies" in proj, "Missing 'dependencies' list in [project]"
     deps = proj["dependencies"]
     assert isinstance(deps, list), "'dependencies' must be a list"
-    assert len(deps) == 12, f"Expected exactly 12 dependencies, found {len(deps)}: {deps}"
-    assert deps == EXPECTED_DEPENDENCIES, (
-        f"Dependencies list mismatch.\nExpected: {EXPECTED_DEPENDENCIES}\nGot: {deps}"
-    )
+    assert (
+        len(deps) == 12
+    ), f"Expected exactly 12 dependencies, found {len(deps)}: {deps}"
+    assert (
+        deps == EXPECTED_DEPENDENCIES
+    ), f"Dependencies list mismatch.\nExpected: {EXPECTED_DEPENDENCIES}\nGot: {deps}"
 
 
 @pytest.mark.parametrize("expected_pkg", EXPECTED_DEPENDENCIES)
-def test_spycfit_pyproject_individual_dependency(pyproject_data: Dict[str, Any], expected_pkg: str) -> None:
+def test_spycfit_pyproject_individual_dependency(
+    pyproject_data: Dict[str, Any], expected_pkg: str
+) -> None:
     """Validate each individual dependency parses cleanly under packaging standards."""
     deps = pyproject_data["project"]["dependencies"]
-    assert expected_pkg in deps, f"Required dependency '{expected_pkg}' missing from dependencies"
+    assert (
+        expected_pkg in deps
+    ), f"Required dependency '{expected_pkg}' missing from dependencies"
     req = Requirement(expected_pkg)
     assert req.name.lower() == expected_pkg.lower()
 
 
-def test_spycfit_pyproject_no_duplicate_dependencies(pyproject_data: Dict[str, Any]) -> None:
+def test_spycfit_pyproject_no_duplicate_dependencies(
+    pyproject_data: Dict[str, Any],
+) -> None:
     """Validate zero duplicate dependency declarations."""
     deps = pyproject_data["project"]["dependencies"]
     normalized = [Requirement(d).name.lower() for d in deps]
-    assert len(normalized) == len(set(normalized)), f"Duplicate dependencies detected in: {deps}"
+    assert len(normalized) == len(
+        set(normalized)
+    ), f"Duplicate dependencies detected in: {deps}"
 
 
-def test_spycfit_pyproject_exclusion_of_forbidden_dependencies(pyproject_data: Dict[str, Any]) -> None:
+def test_spycfit_pyproject_exclusion_of_forbidden_dependencies(
+    pyproject_data: Dict[str, Any],
+) -> None:
     """Validate exclusion of legacy Fortran binaries or unapproved packages."""
     deps = pyproject_data["project"]["dependencies"]
     allowed_names = {Requirement(d).name.lower() for d in EXPECTED_DEPENDENCIES}
 
     for dep in deps:
         req = Requirement(dep)
-        assert req.name.lower() in allowed_names, (
-            f"Unapproved dependency found in project.dependencies: '{dep}'"
-        )
+        assert (
+            req.name.lower() in allowed_names
+        ), f"Unapproved dependency found in project.dependencies: '{dep}'"
         for forbidden in FORBIDDEN_LEGACY_TOKENS:
-            assert forbidden not in dep.lower(), (
-                f"Forbidden token '{forbidden}' found in dependency declaration: '{dep}'"
-            )
+            assert (
+                forbidden not in dep.lower()
+            ), f"Forbidden token '{forbidden}' found in dependency declaration: '{dep}'"
 
 
 # ==============================================================================
@@ -261,18 +303,24 @@ def test_spycfit_pyproject_exclusion_of_forbidden_dependencies(pyproject_data: D
 # ==============================================================================
 
 
-def test_spycfit_pyproject_optional_dependencies(pyproject_data: Dict[str, Any]) -> None:
+def test_spycfit_pyproject_optional_dependencies(
+    pyproject_data: Dict[str, Any],
+) -> None:
     """Validate [project.optional-dependencies] defines dev dependencies."""
     proj = pyproject_data["project"]
-    assert "optional-dependencies" in proj, "Missing [project.optional-dependencies] table"
+    assert (
+        "optional-dependencies" in proj
+    ), "Missing [project.optional-dependencies] table"
     opt_deps = proj["optional-dependencies"]
-    assert isinstance(opt_deps, dict), "[project.optional-dependencies] must be a dictionary"
+    assert isinstance(
+        opt_deps, dict
+    ), "[project.optional-dependencies] must be a dictionary"
     assert "dev" in opt_deps, "Missing 'dev' group in [project.optional-dependencies]"
     dev_deps = opt_deps["dev"]
     assert isinstance(dev_deps, list), "'dev' optional dependencies must be a list"
-    assert dev_deps == EXPECTED_DEV_DEPENDENCIES, (
-        f"Expected dev dependencies {EXPECTED_DEV_DEPENDENCIES}, got {dev_deps}"
-    )
+    assert (
+        dev_deps == EXPECTED_DEV_DEPENDENCIES
+    ), f"Expected dev dependencies {EXPECTED_DEV_DEPENDENCIES}, got {dev_deps}"
 
     for dep in dev_deps:
         req = Requirement(dep)
@@ -298,9 +346,9 @@ def test_spycfit_pyproject_zero_mock_and_no_stubs(pyproject_content: str) -> Non
         "TEMPORARY",
     ]
     for token in forbidden_tokens:
-        assert token.lower() not in pyproject_content.lower(), (
-            f"pyproject.toml contains forbidden placeholder token '{token}'"
-        )
+        assert (
+            token.lower() not in pyproject_content.lower()
+        ), f"pyproject.toml contains forbidden placeholder token '{token}'"
 
 
 def test_test_suite_zero_mock_ast_inspection() -> None:
@@ -309,11 +357,11 @@ def test_test_suite_zero_mock_ast_inspection() -> None:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                assert "mock" not in alias.name.lower(), (
-                    f"Forbidden mock import in test suite: '{alias.name}'"
-                )
+                assert (
+                    "mock" not in alias.name.lower()
+                ), f"Forbidden mock import in test suite: '{alias.name}'"
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
-            assert "mock" not in mod.lower(), (
-                f"Forbidden mock import in test suite from module: '{mod}'"
-            )
+            assert (
+                "mock" not in mod.lower()
+            ), f"Forbidden mock import in test suite from module: '{mod}'"

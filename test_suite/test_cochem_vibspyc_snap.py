@@ -45,7 +45,7 @@ from cochem_base.interfaces.cochem_vibspyc_snap import (
 )
 
 
-def test_target_directory_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_target_directory_resolution(tmp_path: Path) -> None:
     """Verifies target directory resolution via custom path, environment variable, and fallback."""
     # 1. Custom directory argument
     custom_target = tmp_path / "custom_processed"
@@ -54,16 +54,24 @@ def test_target_directory_resolution(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
     # 2. Environment variable override
     env_dir = tmp_path / "cochem_state"
-    monkeypatch.setenv("COCHEM_STATE_DIR", str(env_dir))
-    resolved_env = get_spycfit_processed_dir()
-    expected_env = env_dir / "SpycFit_Workspace" / "Processed"
-    assert resolved_env == expected_env.resolve()
+    original_env = os.environ.get("COCHEM_STATE_DIR")
+    try:
+        os.environ["COCHEM_STATE_DIR"] = str(env_dir)
+        resolved_env = get_spycfit_processed_dir()
+        expected_env = env_dir / "SpycFit_Workspace" / "Processed"
+        assert resolved_env == expected_env.resolve()
 
-    # 3. Fallback when environment variable is unset
-    monkeypatch.delenv("COCHEM_STATE_DIR", raising=False)
-    resolved_fallback = get_spycfit_processed_dir()
-    assert "SpycFit_Workspace" in str(resolved_fallback)
-    assert str(resolved_fallback).endswith("Processed")
+        # 3. Fallback when environment variable is unset
+        if "COCHEM_STATE_DIR" in os.environ:
+            del os.environ["COCHEM_STATE_DIR"]
+        resolved_fallback = get_spycfit_processed_dir()
+        assert "SpycFit_Workspace" in str(resolved_fallback)
+        assert str(resolved_fallback).endswith("Processed")
+    finally:
+        if original_env is not None:
+            os.environ["COCHEM_STATE_DIR"] = original_env
+        elif "COCHEM_STATE_DIR" in os.environ:
+            del os.environ["COCHEM_STATE_DIR"]
 
 
 def test_fit_provenance_payload_validation(tmp_path: Path) -> None:

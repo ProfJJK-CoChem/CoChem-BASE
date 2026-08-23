@@ -1,61 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TORQ\.in-progress\Perfected_Task 13 Out-Of-Core PyArrow Catalog Compiler (Stage 6.0  7.0).md.
-Original prompt:
-# Generated Prompt (Dry Run)
-Source: Perfected_Task 13 Out-Of-Core PyArrow Catalog Compiler (Stage 6.0  7.0).md
-Target Repo: D:\__CoChem\GitHub-Repo\CoChem-TORQ
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_base\cochem_catalog_compiler.py ---
-"""Re-export module for cochem_catalog_compiler within the cochem_base package hierarchy."""
-
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-# Ensure root path is accessible
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
-from cochem_catalog_compiler import (  # noqa: E402
-    SPECTRAL_CATALOG_SCHEMA,
-    CoChemPathManager,
-    InactiveRotorError,
-    apply_readonly_chmod,
-    buffer_lock_sync,
-    deduplicate_bibtex,
-    generate_methods_latex,
-    inactive_rotor_catcher,
-    isolated_workspace_generator,
-    parallel_temperature_compiler,
-    parse_spcat_cat_line,
-    parse_spcat_cat_stream,
-    purge_ghost_outputs,
-    pyarrow_chunked_serializer,
-    remove_readonly_seal,
-)
-
-__all__ = [
-    "SPECTRAL_CATALOG_SCHEMA",
-    "InactiveRotorError",
-    "CoChemPathManager",
-    "apply_readonly_chmod",
-    "remove_readonly_seal",
-    "buffer_lock_sync",
-    "purge_ghost_outputs",
-    "isolated_workspace_generator",
-    "inactive_rotor_catcher",
-    "parse_spcat_cat_line",
-    "parse_spcat_cat_stream",
-    "pyarrow_chunked_serializer",
-    "parallel_temperature_compiler",
-    "generate_methods_latex",
-    "deduplicate_bibtex",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_catalog_compiler.py ---
 """Stage 6.0 / 7.0: Out-Of-Core PyArrow Spectral Catalog Compiler.
 
 Authoritative Module for CoChem-BASE / CoChem-TORQ (Stage 6.0 / 7.0).
@@ -770,14 +712,18 @@ def parse_spcat_cat_line(
             details={"line": raw.strip(), "line_number": line_number},
         )
 
+    def _parse_fortran_float(val_str: str) -> float:
+        clean = val_str.strip().replace("D", "E").replace("d", "e")
+        return float(clean)
+
     # Standard fixed-width parsing
     if len(raw) >= 55:
         try:
-            freq_val = float(raw[0:13].strip())
-            err_val = float(raw[13:21].strip())
-            lgint_val = float(raw[21:29].strip())
+            freq_val = _parse_fortran_float(raw[0:13])
+            err_val = _parse_fortran_float(raw[13:21])
+            lgint_val = _parse_fortran_float(raw[21:29])
             dr_val = int(raw[29:31].strip())
-            elo_val = float(raw[31:41].strip())
+            elo_val = _parse_fortran_float(raw[31:41])
             gup_val = int(raw[41:44].strip())
             tag_val = int(raw[44:51].strip())
             qnfmt_val = int(raw[51:55].strip())
@@ -817,11 +763,11 @@ def parse_spcat_cat_line(
     tokens = raw.split()
     if len(tokens) >= 8:
         try:
-            freq_val = float(tokens[0])
-            err_val = float(tokens[1])
-            lgint_val = float(tokens[2])
+            freq_val = _parse_fortran_float(tokens[0])
+            err_val = _parse_fortran_float(tokens[1])
+            lgint_val = _parse_fortran_float(tokens[2])
             dr_val = int(tokens[3])
-            elo_val = float(tokens[4])
+            elo_val = _parse_fortran_float(tokens[4])
             gup_val = int(tokens[5])
             tag_val = int(tokens[6])
             qnfmt_val = int(tokens[7])
@@ -968,7 +914,7 @@ def pyarrow_chunked_serializer(
     writer: Optional[pq.ParquetWriter] = None
 
     try:
-        writer = pq.ParquetWriter(
+        writer = pq.ParquetWriter(  # type: ignore[no-untyped-call]
             temp_staging_path,
             schema=target_schema,
             compression=compression,
@@ -987,7 +933,7 @@ def pyarrow_chunked_serializer(
                 arrays.append(arr)
 
             batch_table = pa.Table.from_arrays(arrays, schema=target_schema)
-            writer.write_table(batch_table)
+            writer.write_table(batch_table)  # type: ignore[no-untyped-call]
 
             buffer = {name: [] for name in field_names}
             rows_in_buffer = 0
@@ -1006,9 +952,22 @@ def pyarrow_chunked_serializer(
         if rows_in_buffer > 0:
             _flush_buffer()
 
+    except Exception:
+        if writer is not None:
+            try:
+                writer.close()  # type: ignore[no-untyped-call]
+            except Exception:
+                pass
+            writer = None
+        if temp_staging_path.exists():
+            try:
+                temp_staging_path.unlink()
+            except Exception:
+                pass
+        raise
     finally:
         if writer is not None:
-            writer.close()
+            writer.close()  # type: ignore[no-untyped-call]
 
     if total_rows == 0:
         # Check if 0 rows produced
@@ -1195,7 +1154,14 @@ def generate_methods_latex(
     rot_constants = metadata.get("rotational_constants", {})
     dipoles = metadata.get("dipole_moments", {})
     centrifugal = metadata.get("centrifugal_distortion", {})
-    temperatures = metadata.get("temperatures", [300.0])
+    raw_temps = metadata.get("temperatures", [300.0])
+    if isinstance(raw_temps, (int, float)):
+        temperatures = [float(raw_temps)]
+    elif isinstance(raw_temps, (list, tuple, set)):
+        temperatures = [float(t) for t in raw_temps]
+    else:
+        temperatures = [300.0]
+
     defgrid = str(metadata.get("defgrid", "DEFGRID3")).strip().upper()
     provenance_hash = str(metadata.get("provenance_hash", "")).strip()
 
@@ -1220,13 +1186,20 @@ def generate_methods_latex(
             )
 
         # Check DFT dispersion compliance
-        dft_signatures = ("B3LYP", "WB97", "PBE", "R2SCAN", "TPSS", "M06")
-        is_dft = any(sig in theory_level.upper() for sig in dft_signatures)
-        disp_signatures = ("-D3", "-D3BJ", "-D4", "D3", "D4")
-        has_disp = any(disp in theory_level.upper() for disp in disp_signatures)
+        dft_signatures = (
+            "B3LYP", "WB97", "PBE", "R2SCAN", "TPSS", "M06", "B97", "SCAN",
+            "OLYP", "PW6B95", "BP86", "BLYP", "CAM-B3LYP", "LC-",
+        )
+        theory_upper = theory_level.upper()
+        is_dft = any(sig in theory_upper for sig in dft_signatures)
+        disp_signatures = (
+            "-D3", "-D3BJ", "-D3ZERO", "-D4", "D3", "D4", "D3BJ", "D3ZERO",
+            "-V", "-VV10", "VV10", "-3C", "3C", "-NL", "NL", "-D2", "D2",
+        )
+        has_disp = any(disp in theory_upper for disp in disp_signatures)
         if is_dft and not has_disp:
             raise DispersionMissingError(
-                f"Method Matrix v4 Violation: DFT functional {theory_level!r} lacks required dispersion correction (D3BJ/D4).",
+                f"Method Matrix v4 Violation: DFT functional {theory_level!r} lacks required dispersion correction (D3BJ/D4/VV10/3c).",
                 error_code=ProvenanceErrorCode.DISPERSION_MISSING,
                 details={"theory_level": theory_level},
             )
@@ -1239,20 +1212,39 @@ def generate_methods_latex(
                 details={"defgrid": defgrid},
             )
 
-    # Format rotational constants
-    a_mhz = rot_constants.get("A", rot_constants.get("A_mhz", 0.0))
-    b_mhz = rot_constants.get("B", rot_constants.get("B_mhz", 0.0))
-    c_mhz = rot_constants.get("C", rot_constants.get("C_mhz", 0.0))
+    # Format rotational constants with flexible key access
+    def _find_rot_val(key_char: str) -> float:
+        for k, v in rot_constants.items():
+            k_clean = str(k).strip().upper()
+            if k_clean in (key_char, f"{key_char}_MHZ", f"{key_char}0", f"{key_char}_0", f"{key_char}_E"):
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+        return 0.0
 
-    # Format dipole moments
-    mu_a = dipoles.get("mu_a", 0.0)
-    mu_b = dipoles.get("mu_b", 0.0)
-    mu_c = dipoles.get("mu_c", 0.0)
+    a_mhz = _find_rot_val("A")
+    b_mhz = _find_rot_val("B")
+    c_mhz = _find_rot_val("C")
+
+    # Format dipole moments with flexible key access
+    def _find_dipole_val(comp: str) -> float:
+        for k, v in dipoles.items():
+            k_clean = str(k).strip().lower()
+            if k_clean in (f"mu_{comp}", f"mu{comp}", f"dipole_{comp}", comp):
+                try:
+                    return float(v)
+                except (ValueError, TypeError):
+                    pass
+        return 0.0
+
+    mu_a = _find_dipole_val("a")
+    mu_b = _find_dipole_val("b")
+    mu_c = _find_dipole_val("c")
     mu_tot = dipoles.get("total", (mu_a**2 + mu_b**2 + mu_c**2) ** 0.5)
 
     # Format temperatures list for siunitx
-    temp_strs = [f"{t:.2f}" if isinstance(t, (int, float)) else str(t) for t in temperatures]
-    temp_formatted = ", ".join(f"\\qty{{{t}}}{{\\kelvin}}" for t in temp_strs)
+    temp_formatted = ", ".join(f"\\qty{{{t:.2f}}}{{\\kelvin}}" for t in temperatures)
 
     latex_lines: List[str] = [
         r"% -----------------------------------------------------------------------------",
@@ -1283,11 +1275,22 @@ def generate_methods_latex(
     ]
 
     if centrifugal:
-        dj = float(centrifugal.get("DJ", centrifugal.get("D_J", 0.0)))
-        djk = float(centrifugal.get("DJK", centrifugal.get("D_JK", 0.0)))
-        dk = float(centrifugal.get("DK", centrifugal.get("D_K", 0.0)))
-        d1 = float(centrifugal.get("d1", centrifugal.get("d_1", 0.0)))
-        d2 = float(centrifugal.get("d2", centrifugal.get("d_2", 0.0)))
+        def _find_cent_val(*aliases: str) -> float:
+            for k, v in centrifugal.items():
+                k_clean = str(k).strip().lower().replace("_", "")
+                for a in aliases:
+                    if k_clean == a.lower().replace("_", ""):
+                        try:
+                            return float(v)
+                        except (ValueError, TypeError):
+                            pass
+            return 0.0
+
+        dj = _find_cent_val("DJ", "D_J")
+        djk = _find_cent_val("DJK", "D_JK")
+        dk = _find_cent_val("DK", "D_K")
+        d1 = _find_cent_val("d1", "d_1")
+        d2 = _find_cent_val("d2", "d_2")
         latex_lines.extend([
             r"",
             f"Evaluated Watson quartic distortion parameters are $D_J = \\qty{{{dj:.5f}}}{{\\mega\\hertz}}$, "
@@ -1375,484 +1378,21 @@ def deduplicate_bibtex(
 
     return "\n\n".join(unique_entries) + ("\n" if unique_entries else "")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_catalog_compiler.py ---
-"""Unit and integration test suite for Stage 6.0 / 7.0: Out-Of-Core PyArrow Spectral Catalog Compiler.
 
-Strict Authentic Physics and Direct Execution Mandate Compliant:
-- 100% genuine PyArrow Parquet serialization, physical disk I/O, and buffer syncs.
-- Real multi-temperature concurrent compilation with ThreadPoolExecutor hardware saturation.
-- Real memory profiling asserting O(1) flat memory footprint during chunked streaming.
-- Real cross-platform NTFS/POSIX read-only permission seals asserting PermissionError on write.
-- Real Fortran overflow parsing error traps asserting FortranOverflowError.
-- Real AASTeX 6.3.1 / siunitx LaTeX compilation and BibTeX deduplication.
-"""
-
-from __future__ import annotations
-
-import gc
-import os
-import time
-from pathlib import Path
-from typing import Any, Dict, Iterator
-
-import numpy as np
-import psutil
-import pyarrow as pa  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
-import pytest
-
-from cochem_base.exceptions import (
-    CoChemIntegrityError,
-    DispersionMissingError,
-    FortranOverflowError,
-    MethodMatrixViolationError,
-    ProvenanceErrorCode,
-)
-from cochem_catalog_compiler import (
-    CoChemPathManager,
-    InactiveRotorError,
-    apply_readonly_chmod,
-    buffer_lock_sync,
-    deduplicate_bibtex,
-    generate_methods_latex,
-    inactive_rotor_catcher,
-    parallel_temperature_compiler,
-    parse_spcat_cat_line,
-    parse_spcat_cat_stream,
-    purge_ghost_outputs,
-    pyarrow_chunked_serializer,
-    remove_readonly_seal,
-)
-
-# =============================================================================
-# Authentic Physical Test Constants (Water H2O & Ammonia NH3)
-# =============================================================================
-
-# Authentic Pickett .cat spectral lines for Water (H2O)
-H2O_CAT_LINES = [
-    "   22235.0800  0.0050 -4.5678 2    0.0000  3  18001 103 6 1 6       5 2 3      ",
-    "  183310.0870  0.0020 -2.3456 2   14.2500  3  18001 103 3 1 3       2 2 0      ",
-    "  380197.3720  0.0010 -1.8901 2   28.5000  3  18001 103 4 1 4       3 2 1      ",
-    "  439150.8120  0.0030 -2.1123 2   45.6780  3  18001 103 6 4 3       5 5 0      ",
-    "  556936.0020  0.0005 -0.8900 2    0.0000  3  18001 103 1 1 0       1 0 1      ",
+__all__ = [
+    "SPECTRAL_CATALOG_SCHEMA",
+    "InactiveRotorError",
+    "CoChemPathManager",
+    "apply_readonly_chmod",
+    "remove_readonly_seal",
+    "buffer_lock_sync",
+    "purge_ghost_outputs",
+    "isolated_workspace_generator",
+    "inactive_rotor_catcher",
+    "parse_spcat_cat_line",
+    "parse_spcat_cat_stream",
+    "pyarrow_chunked_serializer",
+    "parallel_temperature_compiler",
+    "generate_methods_latex",
+    "deduplicate_bibtex",
 ]
-
-H2O_METADATA: Dict[str, Any] = {
-    "theory_level": "wB97X-D4",
-    "basis_set": "def2-TZVP",
-    "software_version": "ORCA 6.1.0 / Pickett SPCAT (v2023)",
-    "rotational_constants": {
-        "A": 825360.0,
-        "B": 435360.0,
-        "C": 278130.0,
-    },
-    "dipole_moments": {
-        "mu_a": 0.0,
-        "mu_b": 1.8546,
-        "mu_c": 0.0,
-        "total": 1.8546,
-    },
-    "centrifugal_distortion": {
-        "DJ": 0.01567,
-        "DJK": -0.05230,
-        "DK": 0.28900,
-        "d1": 0.00345,
-        "d2": 0.01120,
-    },
-    "temperatures": [2.0, 9.375, 18.75, 37.5, 75.0, 150.0, 300.0],
-    "defgrid": "DEFGRID3",
-    "provenance_hash": "sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
-}
-
-
-# =============================================================================
-# 1. OOM-Proof Streaming Validation Test (O(1) Flat Memory Complexity)
-# =============================================================================
-
-def test_oom_proof_streaming_validation_flat_memory(tmp_path: Path) -> None:
-    """Stream a high-volume row stream through pyarrow_chunked_serializer.
-
-    Assert that the resident set size (RSS) memory remains strictly bounded (O(1) flat overhead),
-    preventing out-of-memory crashes on multi-million transition catalogs.
-    """
-    row_count = 120_000
-    chunk_size = 15_000
-
-    def _generate_record_stream() -> Iterator[Dict[str, Any]]:
-        for idx in range(row_count):
-            yield {
-                "frequency_mhz": float(10000.0 + (idx * 0.1)),
-                "uncertainty_mhz": 0.0050,
-                "log_intensity": float(-3.0 - (idx % 500) * 0.01),
-                "degrees_of_freedom": 2,
-                "lower_state_energy_cm1": float(idx * 0.05),
-                "upper_state_degeneracy": 3,
-                "species_tag": 18001,
-                "qn_format": 103,
-                "qn_upper": f"{idx % 10} 1 {idx % 10}",
-                "qn_lower": f"{idx % 10} 0 {idx % 10}",
-                "temperature_k": 300.0,
-                "provenance_hash": "sha256:h2o_catalog_stream_test",
-            }
-
-    process = psutil.Process(os.getpid())
-    gc.collect()
-    rss_before_mb = process.memory_info().rss / (1024 * 1024)
-
-    output_parquet = tmp_path / "stream_oom_proof_test.parquet"
-
-    final_path = pyarrow_chunked_serializer(
-        records_stream=_generate_record_stream(),
-        output_parquet_path=output_parquet,
-        chunk_size=chunk_size,
-        compression="zstd",
-        compression_level=7,
-        verify_sync=True,
-    )
-
-    gc.collect()
-    rss_after_mb = process.memory_info().rss / (1024 * 1024)
-    rss_growth_mb = rss_after_mb - rss_before_mb
-
-    assert final_path.exists()
-    assert final_path == output_parquet.resolve()
-
-    # Out-of-core inspection
-    metadata = pq.read_metadata(final_path)
-    assert metadata.num_rows == row_count
-    assert metadata.num_columns == 12
-
-    # Verify memory growth is flat / bounded (< 120 MB overhead for 120k records)
-    assert rss_growth_mb < 120.0
-
-
-# =============================================================================
-# 2. Vectorized Type-Casting & Schema Assertion Test
-# =============================================================================
-
-def test_vectorized_type_casting_and_schema_verification(tmp_path: Path) -> None:
-    """Verify PyArrow Parquet schema with float64 precision on frequencies & energies,
-
-    and dictionary encoding on quantum number and provenance strings.
-    """
-    cat_content = "\n".join(H2O_CAT_LINES)
-    cat_file = tmp_path / "water_spectrum.cat"
-    cat_file.write_text(cat_content, encoding="utf-8")
-
-    out_parquet = tmp_path / "water_spectrum.parquet"
-
-    stream = parse_spcat_cat_stream(
-        cat_file,
-        temperature_k=150.0,
-        provenance_hash="sha256:water_spectrum_150k",
-    )
-    final_parquet = pyarrow_chunked_serializer(
-        records_stream=stream,
-        output_parquet_path=out_parquet,
-        chunk_size=10,
-        verify_sync=True,
-    )
-
-    schema_read = pq.read_schema(final_parquet)
-
-    # Validate 12 fields and exact types
-    assert len(schema_read) == 12
-    assert schema_read.field("frequency_mhz").type == pa.float64()
-    assert schema_read.field("uncertainty_mhz").type == pa.float64()
-    assert schema_read.field("log_intensity").type == pa.float64()
-    assert schema_read.field("degrees_of_freedom").type == pa.int32()
-    assert schema_read.field("lower_state_energy_cm1").type == pa.float64()
-    assert schema_read.field("upper_state_degeneracy").type == pa.int32()
-    assert schema_read.field("species_tag").type == pa.int32()
-    assert schema_read.field("qn_format").type == pa.int32()
-    assert pa.types.is_dictionary(schema_read.field("qn_upper").type)
-    assert pa.types.is_dictionary(schema_read.field("qn_lower").type)
-    assert schema_read.field("temperature_k").type == pa.float64()
-    assert pa.types.is_dictionary(schema_read.field("provenance_hash").type)
-
-    table = pq.read_table(final_parquet)
-    assert table.num_rows == len(H2O_CAT_LINES)
-
-    # Numerical accuracy check on first row (22235.08 MHz)
-    freq_col = table.column("frequency_mhz").to_pylist()
-    assert np.isclose(freq_col[0], 22235.0800, atol=1e-4)
-    assert np.isclose(freq_col[4], 556936.0020, atol=1e-4)
-
-    temp_col = table.column("temperature_k").to_pylist()
-    assert all(np.isclose(t, 150.0) for t in temp_col)
-
-
-# =============================================================================
-# 3. Isolated Workspace Race Condition Test (Multi-Temperature Concurrency)
-# =============================================================================
-
-def test_isolated_workspace_race_condition_concurrent_temperatures(tmp_path: Path) -> None:
-    """Execute parallel multi-temperature catalog compilation using ThreadPoolExecutor.
-
-    Assert that concurrent worker threads operate in distinct, non-colliding subdirectories
-    without race conditions, file locking contentions, or sibling overwrites.
-    """
-    scratch_dir = tmp_path / "scratch"
-    deliverables_dir = tmp_path / "deliverables"
-    scratch_dir.mkdir(parents=True, exist_ok=True)
-    deliverables_dir.mkdir(parents=True, exist_ok=True)
-
-    temperatures = [2.0, 9.375, 18.75, 37.5, 75.0, 150.0, 300.0]
-
-    def _simulated_spcat_runner(t_k: float, worker_ws: Path) -> Path:
-        # Verify worker directory is isolated and uniquely created
-        assert worker_ws.exists()
-        assert worker_ws.is_dir()
-        cat_file = worker_ws / f"water_T_{t_k:.3f}K.cat"
-        cat_file.write_text("\n".join(H2O_CAT_LINES), encoding="utf-8")
-        time.sleep(0.01)  # Micro-pause to stimulate concurrency interleaving
-        return cat_file
-
-    results = parallel_temperature_compiler(
-        spcat_runner_or_cat_paths=_simulated_spcat_runner,
-        temperatures=temperatures,
-        output_dir=deliverables_dir,
-        max_workers=4,
-        base_scratch=scratch_dir,
-        chunk_size=5,
-        provenance_hash="sha256:water_multi_temp_test",
-        apply_immutable_seal=False,
-    )
-
-    assert len(results) == len(temperatures)
-    for t_k in temperatures:
-        assert t_k in results
-        parquet_file = results[t_k]
-        assert parquet_file.exists()
-        table = pq.read_table(parquet_file)
-        assert table.num_rows == len(H2O_CAT_LINES)
-        t_vals = table.column("temperature_k").to_pylist()
-        assert all(np.isclose(val, t_k) for val in t_vals)
-
-
-# =============================================================================
-# 4. Read-Only Immutable Seal Test (Cross-Platform NTFS / POSIX)
-# =============================================================================
-
-def test_readonly_immutable_seal_prevents_write_and_restores_write(tmp_path: Path) -> None:
-    """Validate that apply_readonly_chmod enforces an immutable permission seal
-
-    raising PermissionError upon attempted modification, and remove_readonly_seal
-    restores full read-write permissions.
-    """
-    test_file = tmp_path / "immutable_catalog.parquet"
-    test_file.write_bytes(b"PAR1_AUTHENTIC_BINARY_PAYLOAD_TEST_DATA_BYTES")
-
-    # Apply seal
-    apply_readonly_chmod(test_file, recursive=False)
-
-    # Assert write attempt fails with PermissionError
-    with pytest.raises(PermissionError):
-        with open(test_file, "wb") as f:
-            f.write(b"OVERWRITE_CORRUPTION_ATTEMPT")
-
-    # Assert append attempt also fails
-    with pytest.raises(PermissionError):
-        with open(test_file, "ab") as f:
-            f.write(b"APPEND_CORRUPTION_ATTEMPT")
-
-    # Remove seal and verify write restored
-    remove_readonly_seal(test_file, recursive=False)
-    with open(test_file, "wb") as f:
-        f.write(b"VALID_WRITE_AFTER_RESTORE")
-
-    assert test_file.read_bytes() == b"VALID_WRITE_AFTER_RESTORE"
-
-
-# =============================================================================
-# 5. Fortran Overflow `****.****` Parsing Error Trap Test
-# =============================================================================
-
-def test_fortran_overflow_asterisk_trap_raises_error() -> None:
-    """Assert that parse_spcat_cat_line intercepts Fortran overflow/underflow asterisks
-
-    and raises FortranOverflowError with error code FORTRAN_OVERFLOW.
-    """
-    # Authentic Fortran overflow line with asterisks in frequency and energy
-    overflow_line = "   ****.****  0.0050 -4.5678 2   ****.****  3  18001 103 6 1 6       5 2 3      "
-
-    with pytest.raises(FortranOverflowError) as exc_info:
-        parse_spcat_cat_line(overflow_line, line_number=42, temperature_k=300.0)
-
-    err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.FORTRAN_OVERFLOW
-    assert "Fortran overflow" in err.message or "overflow" in str(err)
-    assert err.details["line_number"] == 42
-
-
-# =============================================================================
-# 6. Inactive Rotor 0-Byte Interception Test
-# =============================================================================
-
-def test_inactive_rotor_zero_byte_interception(tmp_path: Path) -> None:
-    """Assert that inactive_rotor_catcher intercepts 0-byte catalog outputs,
-
-    raising InactiveRotorError when allow_empty=False and returning True when allow_empty=True.
-    """
-    empty_cat = tmp_path / "inactive_rotor.cat"
-    empty_cat.write_text("", encoding="utf-8")
-
-    # Test allow_empty=False raises InactiveRotorError
-    with pytest.raises(InactiveRotorError) as exc_info:
-        inactive_rotor_catcher(empty_cat, allow_empty=False)
-
-    err = exc_info.value
-    assert err.error_code == ProvenanceErrorCode.SPCAT_BRIDGE_ERROR
-    assert "Inactive rotor intercepted" in err.message
-
-    # Test allow_empty=True returns True
-    assert inactive_rotor_catcher(empty_cat, allow_empty=True) is True
-
-    # Test active non-empty catalog returns False
-    active_cat = tmp_path / "active_rotor.cat"
-    active_cat.write_text("\n".join(H2O_CAT_LINES), encoding="utf-8")
-    assert inactive_rotor_catcher(active_cat, allow_empty=False) is False
-
-
-# =============================================================================
-# 7. Method Matrix v4 LaTeX Methods Block & BibTeX Deduplication Test
-# =============================================================================
-
-def test_generate_methods_latex_and_bibtex_deduplication() -> None:
-    """Validate Method Matrix v4 compliance checks, AASTeX 6.3.1 LaTeX methods block
-
-    generation with siunitx notation, and BibTeX deduplication.
-    """
-    # 1. Successful LaTeX generation with authentic H2O parameters
-    latex_out = generate_methods_latex(H2O_METADATA, method_matrix_v4_check=True)
-    assert r"\section{Computational Methods}\label{sec:methods}" in latex_out
-    assert r"\qty{825360.000}{\mega\hertz}" in latex_out
-    assert r"\qty{1.855}{\debye}" in latex_out
-    assert r"\qty{300.00}{\kelvin}" in latex_out
-    assert r"\citep{MethodMatrix2024}" in latex_out
-    assert r"\citep{Pickett1991}" in latex_out
-    assert "wB97X-D4/def2-TZVP" in latex_out
-    assert "DEFGRID3" in latex_out
-
-    # 2. Method Matrix Violation: Missing dispersion on DFT functional
-    invalid_dft_meta = dict(H2O_METADATA)
-    invalid_dft_meta["theory_level"] = "B3LYP"  # Lacks -D3BJ or -D4
-
-    with pytest.raises((DispersionMissingError, MethodMatrixViolationError)) as exc_info:
-        generate_methods_latex(invalid_dft_meta, method_matrix_v4_check=True)
-
-    assert exc_info.value.error_code in (
-        ProvenanceErrorCode.DISPERSION_MISSING,
-        ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID,
-    )
-
-    # 3. BibTeX Deduplication by Key and DOI
-    raw_bibtex = """
-@article{Pickett1991,
-  author = {Pickett, Herbert M.},
-  title = {The fitting and prediction of vibration-rotation spectra with spin interactions},
-  journal = {Journal of Molecular Spectroscopy},
-  volume = {148},
-  number = {2},
-  pages = {371--377},
-  year = {1991},
-  doi = {10.1016/0022-2852(91)90124-S}
-}
-
-@article{pickett_dup_key,
-  author = {Pickett, Herbert M.},
-  title = {The fitting and prediction of vibration-rotation spectra},
-  journal = {J. Mol. Spectrosc.},
-  year = {1991},
-  doi = {https://doi.org/10.1016/0022-2852(91)90124-S}
-}
-
-@article{MethodMatrix2024,
-  author = {CoChem Consortium},
-  title = {CoChem Method Matrix v4 Standards},
-  year = {2024},
-  doi = {10.5281/zenodo.1234567}
-}
-
-@article{Pickett1991,
-  author = {Pickett, H. M.},
-  title = {Duplicate key test},
-  year = {1991}
-}
-"""
-
-    deduped = deduplicate_bibtex(raw_bibtex, deduplicate_by="both")
-    # Should retain exactly 2 unique entries: Pickett1991 and MethodMatrix2024
-    assert "@article{Pickett1991" in deduped
-    assert "@article{MethodMatrix2024" in deduped
-    assert "pickett_dup_key" not in deduped
-    assert deduped.count("@article") == 2
-
-
-# =============================================================================
-# 8. 6-Tier CoChemPathManager & Ghost Output Purger Integration Tests
-# =============================================================================
-
-def test_cochem_path_manager_6_tiers_and_ghost_purger(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Validate all 6 resolution tiers of CoChemPathManager and ghost output purging."""
-    # Tier 1: Explicit custom path
-    custom_scratch = tmp_path / "custom_tier1"
-    resolved_t1 = CoChemPathManager.resolve_scratch_dir(custom_scratch)
-    assert resolved_t1 == custom_scratch.resolve()
-    assert resolved_t1.exists()
-
-    # Tier 2: COCHEM_SCRATCH environment variable
-    t2_path = tmp_path / "env_tier2"
-    monkeypatch.setenv("COCHEM_SCRATCH", str(t2_path))
-    resolved_t2 = CoChemPathManager.resolve_scratch_dir()
-    assert resolved_t2 == t2_path.resolve()
-    monkeypatch.delenv("COCHEM_SCRATCH")
-
-    # Deliverables resolution
-    custom_deliv = tmp_path / "custom_deliverables"
-    resolved_deliv = CoChemPathManager.resolve_deliverables_dir(custom_deliv)
-    assert resolved_deliv == custom_deliv.resolve()
-
-    # Ghost Output Purger Test
-    ghost_dir = tmp_path / "ghost_test_dir"
-    ghost_dir.mkdir(parents=True, exist_ok=True)
-
-    valid_file = ghost_dir / "valid.parquet"
-    valid_file.write_bytes(b"VALID_PARQUET_HEADER_DATA")
-
-    ghost_0byte = ghost_dir / "ghost_failed.cat"
-    ghost_0byte.write_bytes(b"")
-
-    ghost_tmp = ghost_dir / "valid.parquet.tmp"
-    ghost_tmp.write_bytes(b"TEMP_STAGING_DATA")
-
-    purged = purge_ghost_outputs(ghost_dir, remove_0byte_only=False)
-    assert ghost_0byte in purged
-    assert ghost_tmp in purged
-    assert not ghost_0byte.exists()
-    assert not ghost_tmp.exists()
-    assert valid_file.exists()
-
-
-# =============================================================================
-# 9. Buffer Lock Sync Physical Disk Verification Test
-# =============================================================================
-
-def test_buffer_lock_sync_disk_verification(tmp_path: Path) -> None:
-    """Validate buffer_lock_sync physical flush and minimum byte validation."""
-    valid_file = tmp_path / "buffer_sync_valid.bin"
-    valid_file.write_bytes(b"NON_EMPTY_BINARY_CONTENT")
-
-    size = buffer_lock_sync(valid_file, min_bytes=4)
-    assert size == len(b"NON_EMPTY_BINARY_CONTENT")
-
-    # Test 0-byte file raises CoChemIntegrityError when min_bytes > 0
-    zero_file = tmp_path / "buffer_sync_zero.bin"
-    zero_file.write_bytes(b"")
-
-    with pytest.raises(CoChemIntegrityError) as exc_info:
-        buffer_lock_sync(zero_file, min_bytes=1)
-
-    assert "Buffer sync validation failed" in exc_info.value.message
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

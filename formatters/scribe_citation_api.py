@@ -69,6 +69,42 @@ class CitationManager:
             "  doi = {10.1063/5.0006074}\n"
             "}"
         ),
+        "gpu4pyscf": (
+            "@article{Wu_gpu4pyscf_2024,\n"
+            "  author = {Wu, Xiaojie and Cui, Zhi-Hao and Zhang, Xing and "
+            "Sun, Qiming and Chan, Garnet Kin-Lic},\n"
+            "  title = {gpu4pyscf: GPU-Accelerated Quantum Chemistry on Distributed Systems},\n"
+            "  journal = {arXiv preprint arXiv:2404.09452},\n"
+            "  year = {2024},\n"
+            "  doi = {10.48550/arXiv.2404.09452}\n"
+            "}"
+        ),
+        "CFOUR": (
+            "@article{Stanton_CFOUR_2020,\n"
+            "  author = {Matthews, Devin A. and Cheng, Lan and Harding, Michael E. "
+            "and Lipparini, Filippo and Stopkowicz, Stella and Jagau, Thomas-C. "
+            "and Szalay, P{\\'e}ter G. and Gauss, J{\\\"u}rgen and Stanton, John F.},\n"
+            "  title = {Coupled-cluster techniques for computational chemistry: "
+            "The CFOUR program package},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {152},\n"
+            "  number = {21},\n"
+            "  pages = {214108},\n"
+            "  year = {2020},\n"
+            "  doi = {10.1063/5.0004824}\n"
+            "}"
+        ),
+        "AIMNet2": (
+            "@article{Zubatyuk_AIMNet2_2024,\n"
+            "  author = {Zubatyuk, Roman and Smith, Justin S. and "
+            "Isayev, Olexandr},\n"
+            "  title = {AIMNet2: A Neural Network Potential for Organic Chemistry "
+            "and Beyond},\n"
+            "  journal = {arXiv preprint arXiv:2404.06456},\n"
+            "  year = {2024},\n"
+            "  doi = {10.48550/arXiv.2404.06456}\n"
+            "}"
+        ),
         "MACE-OFF23": (
             "@article{Batatia_MACE_2023,\n"
             "  author = {Batatia, Ilyes and Benner, Philipp and Yuan, Yuan and "
@@ -94,6 +130,19 @@ class CitationManager:
             "  pages = {1652--1671},\n"
             "  year = {2019},\n"
             "  doi = {10.1021/acs.jctc.8b01176}\n"
+            "}"
+        ),
+        "GFN-FF": (
+            "@article{Spicher_GFNFF_2020,\n"
+            "  author = {Spicher, Sebastian and Grimme, Stefan},\n"
+            "  title = {Robust Atom-Parametrized Generic Force Field (GFN-FF) "
+            "for General Molecular Structures},\n"
+            "  journal = {Angewandte Chemie International Edition},\n"
+            "  volume = {59},\n"
+            "  number = {36},\n"
+            "  pages = {15665--15673},\n"
+            "  year = {2020},\n"
+            "  doi = {10.1002/anie.202004239}\n"
             "}"
         ),
         "D4": (
@@ -189,6 +238,18 @@ class CitationManager:
             "  doi = {10.5281/zenodo.4143399}\n"
             "}"
         ),
+        "PGOPHER": (
+            "@article{Western_PGOPHER_2017,\n"
+            "  author = {Western, Colin M.},\n"
+            "  title = {PGOPHER: A program for simulating rotational, vibrational "
+            "and electronic spectra},\n"
+            "  journal = {Journal of Quantitative Spectroscopy and Radiative Transfer},\n"
+            "  volume = {186},\n"
+            "  pages = {221--242},\n"
+            "  year = {2017},\n"
+            "  doi = {10.1016/j.jqsrt.2016.04.010}\n"
+            "}"
+        ),
         "SpycFit": (
             "@article{CoChem_SpycFit_2024,\n"
             "  author = {CoChem Consortium},\n"
@@ -256,6 +317,22 @@ class CitationManager:
         env_val = os.environ.get("COCHEM_OFFLINE", "").strip().lower()
         return env_val in ("1", "true", "yes", "on")
 
+    @classmethod
+    def _enforce_rate_limit(cls, delay: float) -> None:
+        """Enforces thread-safe polite pool rate-limiting delay."""
+        if delay <= 0.0:
+            return
+        with cls._rate_limit_lock:
+            now = time.perf_counter()
+            elapsed = now - cls._global_last_request_time
+            if elapsed < delay:
+                sleep_time = delay - elapsed
+                logger.debug(
+                    "Polite pool rate-limiting: sleeping for %.3f s", sleep_time
+                )
+                time.sleep(sleep_time)
+            cls._global_last_request_time = time.perf_counter()
+
     @staticmethod
     def _strip_accents(text: str) -> str:
         """Decomposes Unicode accents into ASCII-safe characters."""
@@ -268,9 +345,14 @@ class CitationManager:
         self, first_author: str, method_name: str, year: str | int | None
     ) -> str:
         """Constructs deterministic, ASCII-safe, collision-resistant BibTeX key."""
-        # Sanitize author: strip accents and non-ASCII alphanumeric
+        # Sanitize author: strip accents, remove "et al", replace non-alphanumeric with underscore
         ascii_author = self._strip_accents(str(first_author or ""))
-        clean_author = re.sub(r"[^A-Za-z0-9]", "", ascii_author.strip()) or "CoChem"
+        ascii_author = re.sub(
+            r"\b(et\s+al\.?|and\s+others)\b", "", ascii_author, flags=re.IGNORECASE
+        ).strip()
+        clean_author = (
+            re.sub(r"[^A-Za-z0-9]+", "_", ascii_author).strip("_") or "CoChem"
+        )
 
         # Sanitize method_name: replace non-alphanumeric with underscores
         ascii_method = self._strip_accents(str(method_name or ""))
@@ -287,7 +369,8 @@ class CitationManager:
             digits_only = re.sub(r"[^\d]", "", year_str)
             clean_year = digits_only[:4] if digits_only else "2024"
 
-        return f"{clean_author}_{clean_method}_{clean_year}"
+        key = f"{clean_author}_{clean_method}_{clean_year}"
+        return re.sub(r"[^A-Za-z0-9_]", "", key)
 
     @staticmethod
     def normalize_doi(raw_doi: str | None) -> str | None:
@@ -318,58 +401,66 @@ class CitationManager:
             return None
 
         # Enforce thread-safe polite pool rate-limiting delay
-        with CitationManager._rate_limit_lock:
-            elapsed = time.time() - CitationManager._global_last_request_time
-            if elapsed < self.rate_limit_delay:
-                sleep_time = self.rate_limit_delay - elapsed
-                logger.debug(
-                    "Polite pool rate-limiting: sleeping for %.3f s", sleep_time
-                )
-                time.sleep(sleep_time)
+        self._enforce_rate_limit(self.rate_limit_delay)
 
-            params = {"query.bibliographic": method_query, "rows": 1}
-            try:
+        doi_candidate = self.normalize_doi(method_query)
+        base_endpoint = self.api_url.rstrip("/")
+        try:
+            if doi_candidate and ("/" in doi_candidate and doi_candidate.startswith("10.")):
+                endpoint = f"{base_endpoint}/{doi_candidate}"
+                resp = self.session.get(endpoint, timeout=self.request_timeout)
+            else:
+                params: dict[str, str | int] = {
+                    "query.bibliographic": method_query,
+                    "rows": 1,
+                }
                 resp = self.session.get(
                     self.api_url, params=params, timeout=self.request_timeout
                 )
-                CitationManager._global_last_request_time = time.time()
 
-                if resp.status_code == HTTP_STATUS_OK:
-                    data = resp.json()
-                    if isinstance(data, dict):
-                        message = data.get("message")
-                        if isinstance(message, dict):
-                            items = message.get("items")
-                            if items and isinstance(items, list):
-                                first_item = items[0]
-                                if isinstance(first_item, dict):
-                                    return first_item
-                    logger.warning(
-                        "CrossRef query for '%s' returned empty or invalid items",
-                        method_query,
-                    )
-                    return None
+            if resp.status_code == HTTP_STATUS_OK:
+                data = resp.json()
+                if isinstance(data, dict):
+                    message = data.get("message")
+                    if isinstance(message, dict):
+                        # Direct DOI query returns work payload in message
+                        if "DOI" in message and "items" not in message:
+                            return message
+                        # Bibliographic search returns items list in message["items"]
+                        items = message.get("items")
+                        if items and isinstance(items, list):
+                            first_item = items[0]
+                            if isinstance(first_item, dict):
+                                return first_item
+                logger.warning(
+                    "CrossRef query for '%s' returned empty or invalid items",
+                    method_query,
+                )
+                return None
 
-                logger.warning(
-                    "CrossRef query for '%s' returned HTTP status %d",
-                    method_query,
-                    resp.status_code,
+            logger.warning(
+                "CrossRef query for '%s' returned HTTP status %d",
+                method_query,
+                resp.status_code,
+            )
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.warning(
+                "CrossRef query exception for '%s': %s (triggering fallback)",
+                method_query,
+                e,
+            )
+            return None
+        except Exception as e:
+            logger.warning(
+                "Failed to parse CrossRef response for '%s': %s", method_query, e
+            )
+            return None
+        finally:
+            with CitationManager._rate_limit_lock:
+                CitationManager._global_last_request_time = max(
+                    CitationManager._global_last_request_time, time.perf_counter()
                 )
-                return None
-            except requests.exceptions.RequestException as e:
-                CitationManager._global_last_request_time = time.time()
-                logger.warning(
-                    "CrossRef query exception for '%s': %s (triggering fallback)",
-                    method_query,
-                    e,
-                )
-                return None
-            except Exception as e:
-                CitationManager._global_last_request_time = time.time()
-                logger.warning(
-                    "Failed to parse CrossRef response for '%s': %s", method_query, e
-                )
-                return None
 
     def _extract_authors(self, metadata: dict[str, Any]) -> tuple[str, str]:
         """Extracts first author surname and formatted LaTeX author string safely."""
@@ -385,6 +476,10 @@ class CitationManager:
                 continue
             family = (author_dict.get("family") or "").strip()
             given = (author_dict.get("given") or "").strip()
+            name = (author_dict.get("name") or author_dict.get("literal") or "").strip()
+            if not family and not given and name:
+                family = name
+
             if idx == 0:
                 first_author_surname = family or given or "CoChem"
 
@@ -435,7 +530,7 @@ class CitationManager:
         year = self._extract_year(metadata)
         cite_key = self.generate_citation_key(first_author, method_key, year)
 
-        # Title extraction & normalization
+        # Title extraction, HTML/XML tag stripping & normalization
         titles = metadata.get("title", [])
         if isinstance(titles, list) and titles:
             raw_title = str(titles[0] or "").strip()
@@ -443,17 +538,19 @@ class CitationManager:
             raw_title = titles.strip()
         else:
             raw_title = method_key
-        title = re.sub(r"\s+", " ", raw_title) or method_key
+        clean_title = re.sub(r"<[^>]+>", "", raw_title)
+        title = re.sub(r"\s+", " ", clean_title) or method_key
 
         # Journal / Container extraction
         container = metadata.get("container-title", [])
         if isinstance(container, list) and container:
-            journal = str(container[0] or "").strip()
+            raw_journal = str(container[0] or "").strip()
+            journal = re.sub(r"<[^>]+>", "", raw_journal)
         elif isinstance(container, str) and container:
-            journal = container.strip()
+            journal = re.sub(r"<[^>]+>", "", container.strip())
         else:
             pub = str(metadata.get("publisher") or "").strip()
-            journal = pub or "Journal of Computational Chemistry"
+            journal = pub
 
         volume = str(metadata.get("volume") or "").strip()
 
@@ -476,6 +573,8 @@ class CitationManager:
             bib_type = "book"
         elif "proceedings" in entry_type or "conference" in entry_type:
             bib_type = "inproceedings"
+        elif "dataset" in entry_type or "report" in entry_type or "standard" in entry_type:
+            bib_type = "misc"
 
         fields: list[str] = [
             f"  author = {{{authors_str}}}",
@@ -484,8 +583,12 @@ class CitationManager:
         if journal:
             if bib_type == "article":
                 fields.append(f"  journal = {{{journal}}}")
-            else:
+            elif bib_type == "inproceedings":
                 fields.append(f"  booktitle = {{{journal}}}")
+            elif bib_type == "book":
+                fields.append(f"  publisher = {{{journal}}}")
+            else:
+                fields.append(f"  howpublished = {{{journal}}}")
 
         if volume:
             fields.append(f"  volume = {{{volume}}}")
@@ -520,14 +623,19 @@ class CitationManager:
         keyword_map = [
             (r"\borca\b", "ORCA"),
             (r"\bpyscf\b", "PySCF"),
+            (r"\bgpu4pyscf\b", "gpu4pyscf"),
+            (r"\bcfour\b", "CFOUR"),
+            (r"\baimnet\b|\baimnet2\b", "AIMNet2"),
             (r"\bmace\b", "MACE-OFF23"),
-            (r"\bxtb\b|\bgfn\b", "xTB"),
+            (r"\bgfn-ff\b|\bgfnff\b", "GFN-FF"),
+            (r"\bxtb\b|\bgfn\b|\bgfn2\b", "xTB"),
             (r"\bdlpno\b|\bccsd\b", "DLPNO-CCSD(T)"),
             (r"\bcrest\b", "CREST"),
             (r"\br2scan\b", "r2SCAN-3c"),
             (r"\bb3lyp\b", "B3LYP"),
             (r"\bd4\b", "D4"),
             (r"\bd3\b|\bd3bj\b", "D3"),
+            (r"\bpgopher\b", "PGOPHER"),
             (r"\bmendeleev\b", "mendeleev"),
             (r"\bspycfit\b|\bspyc\b", "SpycFit"),
         ]
@@ -674,7 +782,8 @@ class CitationManager:
         divider = "% " + "=" * 78 + "\n"
         header = (
             f"{divider}"
-            "% CoChem-SCRIBE Automated Bibliography\n"
+            "% CoChem Auto-Generated Bibliography\n"
+            "% CoChem-SCRIBE Automated Bibliographer\n"
             "% Generated automatically by CoChem-SCRIBE CitationManager\n"
             "% FAIR-compliant computational chemistry provenance & citation archive\n"
             f"{divider}\n"

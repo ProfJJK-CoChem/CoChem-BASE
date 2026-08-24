@@ -17,11 +17,11 @@ import platform
 import re
 import sys
 import tempfile
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 

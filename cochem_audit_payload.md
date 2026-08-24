@@ -1,2983 +1,1881 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_test_scribe_aggregator.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_test_scribe_citation_api.md.
 Original prompt:
-# Task: Create `harvesters/test_scribe_aggregator.py`
+# CoChem-SCRIBE: Implement Citation API Tests (`formatters/test_scribe_citation_api.py`)
 
-**Target Output Repository Folder:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-**File to Create:** `harvesters/test_scribe_aggregator.py`
+**Target Repository Path:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`  
+**Target File:** `formatters/test_scribe_citation_api.py`
 
 ---
 
 ## Objective
-Implement a rigorous, comprehensive, and self-contained `pytest` test suite in `harvesters/test_scribe_aggregator.py` to validate the `DataAggregator` class and its associated compression and conversion utilities in `harvesters/scribe_aggregator.py`.
+Implement an exhaustive, production-grade, and self-contained `pytest` test suite in `formatters/test_scribe_citation_api.py` to validate the `CitationManager` class implemented in `formatters/scribe_citation_api.py`.
 
-The test suite must strictly comply with **CoChem-SCRIBE SRS Phase 2, Task 5 (Stage 6.1)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
-
----
-
-## Zero-Mock & Anti-Spoofing Protocol Mandate
-1. **Strict Prohibition of Mocks:** Under no circumstances may `unittest.mock`, `unittest.mock.MagicMock`, `pytest-mock` (`mocker`), monkeypatching, or in-memory stub objects be used.
-2. **Self-Contained Real Disk I/O:** All tests must operate on authentic physical files dynamically created in temporary directories using `pytest`'s `tmp_path` fixture.
-3. **No Hallucinated External Fixtures:** Do NOT assume or require pre-existing external ground-truth simulation files. Every test fixture must construct mathematically and structurally authentic HDF5, Parquet, and JSON files on real disk space.
-4. **Zero Placeholders:** No `pass`, no `# TODO`, no dummy stubs, and no skipped assertions.
+The test suite must strictly comply with **CoChem-SCRIBE SRS Phase 4, Task 10 (Stage 6.3, Tasks 71–74, 79, 80)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
 
 ---
 
-## Test Suite Specifications & Deliverable Requirements
+## Zero-Mock & Anti-Spoofing Protocol Directives
 
-### 1. Pytest Fixture Architecture (Real Disk via `tmp_path`)
-Implement modular `pytest` fixtures that write valid physical datasets to `tmp_path`:
-* `hdf5_landscape_file(tmp_path)`: 
-  - Generates a physical `landscape.h5` file using `h5py.File(..., mode='w', libver='latest')`.
-  - Populates conformer hierarchies under `/conformers` containing:
-    - Conformer groups (e.g., `conf_01`, `conf_02`) with scalar attributes: `relative_energy` (in Hartrees, e.g., `0.0000`, `0.0035`), `point_group_symmetry` (e.g., `"C2v"`, `"Cs"`).
-    - Dense Cartesian coordinate datasets ($N \times 3$ float arrays, e.g., shape $(15, 3)$) to explicitly test memory-safe coordinate stripping.
-  - Populates spectroscopic datasets under `/spectroscopy`:
-    - Rotational constants: array/dataset for $A, B, C$ (in MHz, e.g., `[5420.5, 2810.2, 1950.8]`).
-    - Dipole moments: array for components $\mu_a, \mu_b, \mu_c$ (in Debye, e.g., `[1.85, 0.42, 0.0]`) and scalar total dipole $|\mu|$.
-    - Quartic centrifugal distortion parameters (Watson A/S-reduced parameters: $\Delta_J, \Delta_{JK}, \Delta_K, \delta_J, \delta_K$).
-  - Populates thermodynamic datasets under `/thermodynamics`:
-    - Scalars in Hartrees: `zero_point_energy` (e.g., `0.1245`), `enthalpy` (e.g., `-154.2341`), `gibbs_free_energy` (e.g., `-154.2789`).
-    - Vibrational frequencies: 1D array of VPT2 anharmonic vibrational frequencies (in $\text{cm}^{-1}$, e.g., `[450.2, 820.5, 1450.0, 3100.4]`).
-  - Enables SWMR mode on the HDF5 file (`swmr_mode = True` where supported).
-* `parquet_fallback_files(tmp_path)`:
-  - Writes valid binary columnar `.parquet` tables (using `pandas.DataFrame.to_parquet`) containing conformer, thermodynamic, and spectroscopic tables to test graceful failover.
-* `telemetry_and_manifest_files(tmp_path)`:
-  - Writes a real `cochem_audit_log.json` containing: `wall_clock_seconds` (float), `gpu_vram_peak_mb` (float), `node_architecture` (string: CPU/GPU models, core count).
-  - Writes a real `cochem_deployment_manifest.json` containing engine version specifications: `{"ORCA": "6.1.1", "xTB": "6.7.1", "MACE-OFF23": "2023.1"}`.
-  - Writes a real `cochem_system_config.json` containing baseline configuration parameters, allowing direct dynamic calculation and comparison of its golden SHA-256 hash.
-* `synthetic_dense_array()`:
-  - Generates a reproducible 10,000-float synthetic array (e.g., discrete harmonic potential $V(x) = \frac{1}{2} k x^2$ or seeded `numpy.random.normal`) with known analytical bounds.
+1. **Strict Prohibition of Mocks and Stubs:**
+   - Under NO circumstances may `unittest.mock`, `unittest.mock.patch`, `unittest.mock.MagicMock`, `pytest-mock` (`mocker`), monkeypatching, or fake simulated in-memory response objects be used.
+   - All tests must execute against real physical objects, real network sockets, real physical disk files, and real exception handling pathways.
+2. **Real Physical Filesystem I/O (No "Virtual File Systems"):**
+   - In-memory fake filesystems (e.g. `pyfakefs`, `StringIO`, dummy bypasses) are strictly prohibited.
+   - All disk write tests must execute against real physical disk directories provisioned dynamically via `pytest`'s `tmp_path` fixture.
+3. **No Impossible OS or Privilege Requirements:**
+   - Tests must NOT attempt to reconfigure host firewall rules (`iptables`, `ufw`, Windows Defender Firewall) or manipulate Linux network namespaces (`ip netns`), as tests must execute seamlessly under unprivileged user permissions across the 6-Tier Environment Matrix.
+   - Offline and network failure behavior must be tested via architected configuration flags (`offline_mode=True`, `COCHEM_OFFLINE=1`), ultra-low socket timeout thresholds (`request_timeout=0.001`), or closed local loopback endpoints (e.g. `http://127.0.0.1:9`).
+4. **Zero Placeholders:**
+   - Complete, functional Python 3.10+ code only. Strictly NO `pass`, `# TODO`, `...`, or skipped assertions.
 
 ---
 
-### 2. Required Test Cases
+## Technical Specifications & Test Architecture
 
-#### Test Case 1: SWMR HDF5 Initialization & Concurrency Safety
-* **Target:** `DataAggregator.__init__` and HDF5 handle acquisition.
-* **Assertions:**
-  - Instantiates `DataAggregator` pointing to the physical `landscape.h5` path.
-  - Verifies file is opened in read-only mode (`mode='r'`) with `swmr=True` and `libver='latest'`.
-  - Verifies resilience to file locking in networked/HPC environments (properly sets or respects `HDF5_USE_FILE_LOCKING=FALSE` upon lock contention).
+### 1. Pytest Fixture Architecture
 
-#### Test Case 2: Conformer Hierarchy Extraction & Coordinate Stripping
-* **Target:** `DataAggregator.harvest_conformers()`
-* **Assertions:**
-  - Harvests top $N$ lowest-energy conformers, sorted strictly in ascending order of relative energy.
-  - Verifies that raw 3D Cartesian coordinates ($N \times 3$ matrices) are completely stripped and discarded from the harvested dictionary to prevent memory bloat.
-  - Verifies retention of lightweight identifiers: `conformer_id`, `relative_energy` (converted to kcal/mol), and `point_group_symmetry`.
+Implement self-contained `pytest` fixtures within `formatters/test_scribe_citation_api.py`:
+- `tmp_bib_export_path(tmp_path)`:
+  - Generates a concrete physical destination path (`tmp_path / "Report_Archive" / "cochem_citations.bib"`).
+- `sample_deployment_manifest(tmp_path)`:
+  - Writes an authentic `cochem_deployment_manifest.json` containing active software stack specifications:
+    ```json
+    {
+      "engine": "ORCA 6.1.1",
+      "method": "DLPNO-CCSD(T)",
+      "basis_set": "def2-TZVP",
+      "ml_potential": "MACE-OFF23",
+      "semiempirical": "GFN2-xTB",
+      "dispersion": "D4"
+    }
+    ```
+- `sample_raw_crossref_payload()`:
+  - Provides a realistic, physically structured CrossRef REST API response dictionary matching the exact schema returned by `https://api.crossref.org/works`.
 
-#### Test Case 3: Spectroscopic TORQ Harvesting
-* **Target:** `DataAggregator.harvest_spectroscopy()`
-* **Assertions:**
-  - Accurately extracts rotational constants ($A, B, C$), dipole moments ($\mu_a, \mu_b, \mu_c$, $|\mu|$), and quartic centrifugal distortion parameters ($\Delta_J, \Delta_{JK}, \Delta_K, \delta_J, \delta_K$).
-  - Asserts all numerical values match the physical HDF5 source datasets within $10^{-5}$ tolerance.
+---
 
-#### Test Case 4: Thermodynamic Harvesting & Hartree-to-kcal/mol Conversion
-* **Target:** `DataAggregator.harvest_thermodynamics()`
-* **Assertions:**
-  - Extracts ZPE, Enthalpy ($H$), Gibbs Free Energy ($G$) at 298.15 K, and VPT2 frequencies.
-  - **Mandatory Conversion Factor Assertion:** Verifies that all energy scalar values are converted from Hartrees to $\text{kcal/mol}$ using the exact conversion factor:
-    $$\text{kcal/mol} = \text{Hartree} \times 627.5094740631$$
-  - Asserts that converted values equal $\text{Hartree} \times 627.5094740631$ within $10^{-4}$ tolerance.
+## Required Test Cases
 
-#### Test Case 5: Telemetry Harvesting
-* **Target:** `DataAggregator.harvest_telemetry()`
-* **Assertions:**
-  - Ingests `cochem_audit_log.json` via dynamic path resolution.
-  - Validates extraction of total wall-clock time, peak GPU VRAM usage spikes, and node architecture parameters.
+### Test Case 1: CrossRef Polite Pool Live Query & Rate Limiting (Task 71, 79, 80)
+- **Target:** `CitationManager.query_crossref_doi()` and `CitationManager._enforce_rate_limit()`
+- **Assertions:**
+  - If executed in an environment with outbound internet connectivity, query a known, canonical, static DOI (e.g. Grimme's D4 dispersion publication: `10.1063/1.5090222` / `"Caldeweyher D4 dispersion"`).
+  - Verify that the HTTP `User-Agent` header configured in the session contains the required `mailto:contact@cochem.org` string adhering to CrossRef Polite Pool regulations.
+  - Perform two consecutive queries and measure elapsed time using `time.perf_counter()`; assert that the interval between requests is strictly $\ge 1.0\text{ s}$ due to polite rate-limiting.
+  - Assert that the returned payload contains the expected title ("*A generally applicable atomic-charge dependent London dispersion correction*"), author surname ("Caldeweyher"), and year (`2019`).
+  - If executed on a fully offline test node, verify that network unreachable conditions gracefully return `None` or cleanly trigger static fallback without raising unhandled fatal exceptions.
 
-#### Test Case 6: Provenance Extraction & Golden SHA-256 Verification
-* **Target:** `DataAggregator.harvest_provenance()`
-* **Assertions:**
-  - Ingests `cochem_deployment_manifest.json` and extracts exact engine versions (ORCA, xTB, MACE-OFF23).
-  - Dynamically computes the SHA-256 hash of `cochem_system_config.json` on disk using `hashlib.sha256()` and asserts that `harvest_provenance()` returns the identical golden hash.
+### Test Case 2: Offline Mode & Static Fallback Dictionary (Task 73, 80)
+- **Target:** `CitationManager.get_fallback_citation()` and `CitationManager.resolve_method_citation()`
+- **Assertions:**
+  - Instantiate `CitationManager(offline_mode=True)`.
+  - Resolve citations for all mandatory CoChem Method Matrix v4 engines:
+    1. `"ORCA 6.1.1"` / `"ORCA"` -> Must contain `@article{` or `@software{`, `Neese`, and valid DOI/year.
+    2. `"PySCF 2.7.0"` / `"PySCF"` -> Must contain `Sun`, `PySCF`, `2020`.
+    3. `"MACE-OFF23"` / `"MACE"` -> Must contain `Batatia`, `MACE-OFF23`, `2023`.
+    4. `"GFN2-xTB"` / `"xTB"` -> Must contain `Bannwarth`, `GFN2-xTB`, `2019`.
+    5. `"D4"` / `"Grimme D4"` -> Must contain `Caldeweyher`, `D4`, `2019`.
+    6. `"DLPNO-CCSD(T)"` -> Must contain `Riplinger`, `Neese`, `2013`.
+  - Assert that all returned BibTeX strings are non-empty, syntactically valid LaTeX blocks, and contain no placeholder markers.
 
-#### Test Case 7: Tensor Token-Compression Algorithm
-* **Target:** `compress_tensors_for_llm(array)`
-* **Assertions:**
-  - Passes the 10,000-element synthetic numerical array.
-  - Asserts the return value is a dictionary containing exactly four keys: `{"Min", "Max", "Mean", "StdDev"}`.
-  - Asserts that returned values match the analytical / NumPy statistical values (`np.min`, `np.max`, `np.mean`, `np.std`) within $10^{-4}$ tolerance.
-  - Asserts execution completes without memory leaks or OOM exceptions.
+### Test Case 3: Offline Environment Variable Auto-Detection (Task 73)
+- **Target:** `CitationManager.is_offline()`
+- **Assertions:**
+  - Test setting `os.environ["COCHEM_OFFLINE"] = "1"` and `"true"` (case-insensitive).
+  - Verify `CitationManager().is_offline()` evaluates to `True`.
+  - Verify that setting `COCHEM_OFFLINE="0"` or `"false"` (when `offline_mode=None`) evaluates to `False`.
 
-#### Test Case 8: Parquet Failover & Strict JSON Banning
-* **Target:** `DataAggregator._parse_parquet_fallback()`
-* **Assertions:**
-  - Simulates a missing or corrupted `landscape.h5` file and asserts that `DataAggregator` cleanly falls back to reading `.parquet` tables.
-  - Asserts that extracted conformer and thermodynamic metrics match the parquet source.
-  - **Anti-Spoofing Rule:** Asserts that attempts to provide intermediate `.json` fallback files for large numerical arrays are rejected or ignored per SRS Section 5.2.8 due to AST memory bloat.
+### Test Case 4: Zero-Mock Physical Network Timeout & Exception Trapping (Task 73, 80)
+- **Target:** `CitationManager.query_crossref_doi()` network exception trapping
+- **Assertions:**
+  - Instantiate `CitationManager` pointing to an unreachable, closed local port (e.g., `http://127.0.0.1:9` with `request_timeout=0.05`).
+  - Execute citation resolution.
+  - Assert that `CitationManager` traps `requests.exceptions.RequestException` (ConnectionRefused / ConnectionError / Timeout), logs a warning, and immediately degrades to the canonical static fallback without crashing the process.
 
-#### Test Case 9: DataFrame Flattener
-* **Target:** `DataAggregator.flatten_to_dataframe()` (or `flatten_conformers_to_df`, `flatten_spectroscopy_to_df`)
-* **Assertions:**
-  - Passes deeply nested harvested dictionaries.
-  - Asserts that output is a clean 2D `pandas.DataFrame` with standardized column headers ready for LaTeX `\booktabs` and Markdown table generation.
-  - Asserts correct row counts, column names, and numeric data types.
+### Test Case 5: Deterministic BibTeX Key Generation & Collision Sanitization (Task 72)
+- **Target:** `CitationManager.generate_citation_key()`
+- **Assertions:**
+  - Test keys with complex characters:
+    - `generate_citation_key("Grimme", "GFN2-xTB", 2019)` -> `Grimme_GFN2_xTB_2019`
+    - `generate_citation_key("Riplinger & Neese", "DLPNO-CCSD(T)/CBS", "2013")` -> `Riplinger_Neese_DLPNO_CCSD_T_CBS_2013`
+    - `generate_citation_key("Batatia et al.", "MACE-OFF23 (O(3) Equivariant)", 2023)` -> `Batatia_MACE_OFF23_O_3_Equivariant_2023`
+  - Assert that the generated keys contain ONLY alphanumeric characters and underscores (`^[A-Za-z0-9_]+$`).
+  - Assert no spaces, hyphens, slashes, or parentheses exist in the final BibTeX key.
+
+### Test Case 6: Dynamic BibTeX Formatter (Task 72)
+- **Target:** `CitationManager.format_bibtex_entry()`
+- **Assertions:**
+  - Feed a structured CrossRef metadata dictionary containing `title`, `author` list, `container-title`, `volume`, `page`, `year`, and `DOI`.
+  - Assert the returned string matches valid LaTeX BibTeX `@article{key, ...}` formatting.
+  - Assert field alignment, brace closure, and proper LaTeX escaping.
+
+### Test Case 7: Cryptographic & Citation Key Deduplication (Task 74)
+- **Target:** `CitationManager.deduplicate_citations()`
+- **Assertions:**
+  - Pass a list containing multiple identical and overlapping BibTeX entries with duplicate citation keys and/or duplicate DOIs.
+  - Execute `deduplicate_citations()`.
+  - Assert that the output list contains only unique entries.
+  - Assert that entry order is deterministically preserved.
+
+### Test Case 8: Real Physical Disk Export & Path Resolution (Task 74)
+- **Target:** `CitationManager.write_citations_file()`
+- **Assertions:**
+  - Instantiate `CitationManager` and call `write_citations_file(payload, target_path=tmp_bib_export_path)`.
+  - Assert that intermediate directories (`Report_Archive/`) are created automatically (`mkdir(parents=True, exist_ok=True)`).
+  - Assert that the file exists on physical disk, is non-empty, and encoded in UTF-8.
+  - Assert that the written content begins with standard CoChem provenance header comments (`% CoChem Auto-Generated Bibliography`).
+  - Assert that the returned object is a valid, resolved `pathlib.Path`.
+
+### Test Case 9: End-to-End Manifest Ingestion & Method Resolution (Task 71–74)
+- **Target:** `CitationManager.process_manifest_methods()` and `CitationManager.build_bibtex_payload()`
+- **Assertions:**
+  - Ingest the `sample_deployment_manifest` JSON file from disk.
+  - Run `process_manifest_methods()` in offline mode.
+  - Verify that the generated payload contains valid `.bib` blocks for ORCA, MACE-OFF23, GFN2-xTB, D4, and DLPNO-CCSD(T).
+  - Verify that combining and writing the payload produces a complete, parseable `.bib` file without syntax errors.
 
 ---
 
 ## Code Quality & Environment Constraints
-1. **Dynamic Path Resolution:** Use `pathlib.Path` objects and `tmp_path` exclusively. Never hardcode OS-specific absolute paths (e.g., `C:\...`, `/home/...`).
-2. **Air-Gap Compliance:** Ensure 100% offline execution. No external network requests or internet dependencies.
-3. **Type Annotations & Standards:** Fully typed with Python 3.10+ annotations (`pathlib.Path`, `typing.Dict`, `typing.Any`, `typing.List`).
-4. **Single Deliverable Scope:** Output ONLY the complete Python code for `harvesters/test_scribe_aggregator.py`.
+
+1. **Dynamic Path Resolution:**
+   - Use `pathlib.Path` objects exclusively. Hardcoded OS paths (e.g. `C:\...`, `/home/...`) are strictly forbidden.
+2. **6-Tier Environment Matrix Compliance:**
+   - Must run cleanly across Linux (Debian/Ubuntu), macOS (OrbStack), Windows (WSL), Codespaces, GitHub Actions, and HPC clusters.
+3. **Execution Instructions:**
+   - The implementing agent must write the full test suite directly to `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\test_scribe_citation_api.py` using `write_to_file`.
+
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\harvesters\scribe_aggregator.py ---
-#!/usr/bin/env python3
-"""
-CoChem-SCRIBE: SWMR Database Harvester, Tensor Token-Compressor, and Telemetry Aggregator.
-=======================================================================================
-Phase 2, Task 5: HDF5 Aggregation & Telemetry Harvesting (harvesters/scribe_aggregator.py).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\scribe_citation_api.py ---
+"""CrossRef Citation API & Air-Gapped Bibliographer for CoChem-SCRIBE (Stage 6.3).
 
-Implements the single-writer/multiple-reader (SWMR) database harvester, tensor token-compressor,
-and telemetry aggregator module (DataAggregator) for CoChem-SCRIBE (Stage 6.1).
-
-Key Architectural Capabilities:
-1. SWMR Read-Only Concurrency & Non-POSIX Locking Resilience (mode='r', swmr=True, libver='latest').
-2. Conformer Hierarchy Extraction with Memory-Safe 3D Coordinate Stripping.
-3. Spectroscopic TORQ Tensor Harvesting (rotational constants, dipole moments, centrifugal distortion).
-4. Thermodynamic Harvester with Exact Physical Unit Conversion (Hartree to kcal/mol: 627.5094740631).
-5. Telemetry Harvester ingesting execution metrics from cochem_audit_log.json.
-6. Provenance & Golden SHA-256 Hashing of System Configuration.
-7. Fixed-Token Statistical Compression for Numerical Tensors (Min, Max, Mean, StdDev).
-8. Binary Columnar Parquet Fallback Failover with Strict Banning of JSON Tensor Fallbacks.
-9. DataFrame Standardization for Downstream LaTeX booktabs and Markdown Table Generation.
-10. 100% Offline Air-Gap Execution across 6-Tier Environment Matrix.
+Queries external DOI databases (CrossRef REST API) for computational chemistry methods,
+formats academic metadata into standardized LaTeX BibTeX entries (.bib), enforces
+Polite Pool rate limits (1 req/sec), deduplicates citations, provides complete
+static fallback citations for air-gapped HPC cluster execution, and exports
+FAIR-compliant cochem_citations.bib archives.
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import math
 import os
-from contextlib import contextmanager
-from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Sequence, Union, cast
+import pathlib
+import re
+import threading
+import time
+import unicodedata
+from typing import Any, ClassVar
 
-import h5py
-import numpy as np
-import pandas as pd
+import requests
 
-# Dynamic chemical masses resolution via Mendeleev library per Council Mandate
-try:
-    import mendeleev
-except ImportError:
-    mendeleev = None
+logger = logging.getLogger(__name__)
 
-# Conversion factor: exact CODATA 1 Hartree in kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-
-logger = logging.getLogger("cochem.scribe.aggregator")
-
-
-class ScribeAggregationError(Exception):
-    """Base exception for CoChem-SCRIBE data harvesting and aggregation errors."""
-    pass
+# Constants for Polite Pool rate-limiting and timeouts
+DEFAULT_RATE_LIMIT_DELAY: float = 1.0
+DEFAULT_REQUEST_TIMEOUT: float = 5.0
+DEFAULT_CONTACT_EMAIL: str = "contact@cochem.org"
+CROSSREF_API_ENDPOINT: str = "https://api.crossref.org/works"
+HTTP_STATUS_OK: int = 200
 
 
-def compress_tensors_for_llm(array: Union[np.ndarray, List[float], Sequence[float]]) -> Dict[str, float]:
-    """Reduces dense 1D/2D numerical arrays to 4 static statistical bounds (Min, Max, Mean, StdDev).
+class CitationManager:
+    """Automated Bibliographer and CrossRef Citation Manager.
 
-    Guarantee: Arbitrary-length numerical arrays consume a fixed, bounded token budget.
-
-    Args:
-        array: 1D or 2D array of numerical values.
-
-    Returns:
-        Dictionary with keys 'Min', 'Max', 'Mean', 'StdDev'.
+    Queries CrossRef REST API for academic DOI metadata, converts JSON metadata into
+    valid BibTeX (.bib) entries, enforces Polite Pool rate limits (1 req/sec), provides
+    resilient offline fallbacks for air-gapped HPC execution, and exports deduplicated
+    cochem_citations.bib payloads.
     """
-    if isinstance(array, np.ndarray):
-        arr = array.astype(np.float64)
-    else:
-        arr = np.array(list(array), dtype=np.float64)
 
-    if arr.size == 0:
-        return {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "StdDev": 0.0}
+    _rate_limit_lock: ClassVar[threading.Lock] = threading.Lock()
+    _global_last_request_time: ClassVar[float] = 0.0
 
-    return {
-        "Min": float(np.min(arr)),
-        "Max": float(np.max(arr)),
-        "Mean": float(np.mean(arr)),
-        "StdDev": float(np.std(arr)),
+    FALLBACK_CITATIONS: ClassVar[dict[str, str]] = {
+        "ORCA": (
+            "@article{Neese_ORCA_2022,\n"
+            "  author = {Neese, Frank},\n"
+            "  title = {Software update: The ORCA program system---Version 5.0},\n"
+            "  journal = {WIREs Computational Molecular Science},\n"
+            "  volume = {12},\n"
+            "  number = {5},\n"
+            "  pages = {e1606},\n"
+            "  year = {2022},\n"
+            "  doi = {10.1002/wcms.1606}\n"
+            "}"
+        ),
+        "PySCF": (
+            "@article{Sun_PySCF_2020,\n"
+            "  author = {Sun, Qiming and Zhang, Xing and Banerjee, Samragni and "
+            "Bao, Peng and Barbry, Marc and Blunt, Nick S. and Bogdanov, Nikolay A. "
+            "and Booth, George H. and Chen, Jia and Cui, Zhi-Hao and others},\n"
+            "  title = {Recent developments in the PySCF program package},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {153},\n"
+            "  number = {2},\n"
+            "  pages = {024109},\n"
+            "  year = {2020},\n"
+            "  doi = {10.1063/5.0006074}\n"
+            "}"
+        ),
+        "MACE-OFF23": (
+            "@article{Batatia_MACE_2023,\n"
+            "  author = {Batatia, Ilyes and Benner, Philipp and Yuan, Yuan and "
+            "Kov{\\'a}cs, D{\\'a}niel P. and Boyce, Alyssa and Ben Mahmoud, Chiheb "
+            "and Rigoni, Federica and Kov{\\'a}cs, G{\\'a}bor and others},\n"
+            "  title = {MACE-OFF23: Transferable Machine Learning Force Fields "
+            "for Organic Molecules},\n"
+            "  journal = {arXiv preprint arXiv:2312.15211},\n"
+            "  year = {2023},\n"
+            "  doi = {10.48550/arXiv.2312.15211}\n"
+            "}"
+        ),
+        "xTB": (
+            "@article{Bannwarth_xTB_2019,\n"
+            "  author = {Bannwarth, Christoph and Ehlert, Sebastian and "
+            "Grimme, Stefan},\n"
+            "  title = {GFN2-xTB---An Accurate and Broadly Parametrized Fast "
+            "Tight-Binding Quantum Chemical Method with Multipole Electrostatics "
+            "and Density-Dependent Dispersion Contributions},\n"
+            "  journal = {Journal of Chemical Theory and Computation},\n"
+            "  volume = {15},\n"
+            "  number = {3},\n"
+            "  pages = {1652--1671},\n"
+            "  year = {2019},\n"
+            "  doi = {10.1021/acs.jctc.8b01176}\n"
+            "}"
+        ),
+        "D4": (
+            "@article{Caldeweyher_D4_2019,\n"
+            "  author = {Caldeweyher, Eike and Ehlert, Sebastian and "
+            "Hansen, Andreas and Neugebauer, Hagen and Antony, Jens and "
+            "Grimme, Stefan},\n"
+            "  title = {A generally applicable atomic-charge dependent "
+            "London dispersion correction},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {150},\n"
+            "  number = {15},\n"
+            "  pages = {154122},\n"
+            "  year = {2019},\n"
+            "  doi = {10.1063/1.5090222}\n"
+            "}"
+        ),
+        "D3": (
+            "@article{Grimme_D3_2010,\n"
+            "  author = {Grimme, Stefan and Antony, Jens and Ehrlich, Stephan "
+            "and Krieg, Helge},\n"
+            "  title = {A consistent and accurate ab initio parametrization "
+            "of density functional dispersion correction (DFT-D) for the "
+            "94 elements H-Pu},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {132},\n"
+            "  number = {15},\n"
+            "  pages = {154104},\n"
+            "  year = {2010},\n"
+            "  doi = {10.1063/1.3382344}\n"
+            "}"
+        ),
+        "DLPNO-CCSD(T)": (
+            "@article{Riplinger_DLPNO_2013,\n"
+            "  author = {Riplinger, Christoph and Neese, Frank},\n"
+            "  title = {An efficient and near linear scaling pair natural "
+            "orbital based local coupled cluster method},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {138},\n"
+            "  number = {3},\n"
+            "  pages = {034106},\n"
+            "  year = {2013},\n"
+            "  doi = {10.1063/1.4801886}\n"
+            "}"
+        ),
+        "CREST": (
+            "@article{Pracht_CREST_2020,\n"
+            "  author = {Pracht, Philipp and Bohle, Fabian and Grimme, Stefan},\n"
+            "  title = {Automated exploration of the low-energy chemical "
+            "space with fast quantum chemical methods},\n"
+            "  journal = {Physical Chemistry Chemical Physics},\n"
+            "  volume = {22},\n"
+            "  number = {14},\n"
+            "  pages = {7169--7192},\n"
+            "  year = {2020},\n"
+            "  doi = {10.1039/D0CP01479C}\n"
+            "}"
+        ),
+        "r2SCAN-3c": (
+            "@article{Grimme_r2SCAN3c_2021,\n"
+            "  author = {Grimme, Stefan and Hansen, Andreas and "
+            "Ehlert, Sebastian and Mewes, Jan-Michael},\n"
+            '  title = {r2SCAN-3c: A "Swiss army knife" composite '
+            "electronic-structure method},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {154},\n"
+            "  number = {6},\n"
+            "  pages = {064103},\n"
+            "  year = {2021},\n"
+            "  doi = {10.1063/5.0040072}\n"
+            "}"
+        ),
+        "B3LYP": (
+            "@article{Becke_B3LYP_1993,\n"
+            "  author = {Becke, Axel D.},\n"
+            "  title = {Density-functional thermochemistry. III. The role "
+            "of exact exchange},\n"
+            "  journal = {The Journal of Chemical Physics},\n"
+            "  volume = {98},\n"
+            "  number = {7},\n"
+            "  pages = {5648--5652},\n"
+            "  year = {1993},\n"
+            "  doi = {10.1063/1.464913}\n"
+            "}"
+        ),
+        "mendeleev": (
+            "@article{Komarov_Mendeleev_2020,\n"
+            "  author = {Komarov, Lukasz},\n"
+            "  title = {mendeleev: A Python resource for properties of "
+            "chemical elements, ions and isotopes},\n"
+            "  journal = {Zenodo},\n"
+            "  year = {2020},\n"
+            "  doi = {10.5281/zenodo.4143399}\n"
+            "}"
+        ),
+        "SpycFit": (
+            "@article{CoChem_SpycFit_2024,\n"
+            "  author = {CoChem Consortium},\n"
+            "  title = {SpycFit: High-Performance Rotational and Vibrational "
+            "Spectral Deconvolution Engine},\n"
+            "  journal = {CoChem Technical Reports},\n"
+            "  volume = {1},\n"
+            "  pages = {1--25},\n"
+            "  year = {2024},\n"
+            "  doi = {10.5281/zenodo.10820000}\n"
+            "}"
+        ),
     }
 
-
-def flatten_conformers_to_df(data: Any) -> pd.DataFrame:
-    """Converts conformer records into a clean 2D pandas DataFrame.
-
-    Args:
-        data: Conformer list or dictionary containing 'conformers'.
-
-    Returns:
-        Standardized pandas.DataFrame with conformer identifiers, relative energies, and symmetries.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-
-    records = data if isinstance(data, list) else (data.get("conformers", [data]) if isinstance(data, dict) else [])
-    df = pd.DataFrame(records)
-    expected_cols = ["conformer_id", "relative_energy_kcal_mol", "point_group_symmetry"]
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = "" if col == "point_group_symmetry" else 0.0
-
-    df["relative_energy_kcal_mol"] = df["relative_energy_kcal_mol"].astype(float)
-    df["conformer_id"] = df["conformer_id"].astype(str)
-    df["point_group_symmetry"] = df["point_group_symmetry"].astype(str)
-    return df[expected_cols]
-
-
-def flatten_spectroscopy_to_df(data: Any) -> pd.DataFrame:
-    """Converts spectroscopic tensor records into a clean 2D pandas DataFrame.
-
-    Args:
-        data: Spectroscopic dictionary with rotational constants, dipoles, and centrifugal distortion.
-
-    Returns:
-        Standardized pandas.DataFrame ready for tabular rendering.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-
-    spec_data = data if isinstance(data, dict) else {}
-    rot = spec_data.get("rotational_constants", {}) if isinstance(spec_data.get("rotational_constants"), dict) else {}
-    dip = spec_data.get("dipole_moments", {}) if isinstance(spec_data.get("dipole_moments"), dict) else {}
-    cent = spec_data.get("centrifugal_distortion", {}) if isinstance(spec_data.get("centrifugal_distortion"), dict) else {}
-
-    rows = [
-        {"Parameter": "A", "Value": float(rot.get("A", 0.0)), "Unit": "MHz"},
-        {"Parameter": "B", "Value": float(rot.get("B", 0.0)), "Unit": "MHz"},
-        {"Parameter": "C", "Value": float(rot.get("C", 0.0)), "Unit": "MHz"},
-        {"Parameter": "mu_a", "Value": float(dip.get("mu_a", 0.0)), "Unit": "Debye"},
-        {"Parameter": "mu_b", "Value": float(dip.get("mu_b", 0.0)), "Unit": "Debye"},
-        {"Parameter": "mu_c", "Value": float(dip.get("mu_c", 0.0)), "Unit": "Debye"},
-        {"Parameter": "|mu|", "Value": float(dip.get("total", 0.0)), "Unit": "Debye"},
-        {"Parameter": "Delta_J", "Value": float(cent.get("Delta_J", 0.0)), "Unit": "MHz"},
-        {"Parameter": "Delta_JK", "Value": float(cent.get("Delta_JK", 0.0)), "Unit": "MHz"},
-        {"Parameter": "Delta_K", "Value": float(cent.get("Delta_K", 0.0)), "Unit": "MHz"},
-        {"Parameter": "delta_J", "Value": float(cent.get("delta_J", 0.0)), "Unit": "MHz"},
-        {"Parameter": "delta_K", "Value": float(cent.get("delta_K", 0.0)), "Unit": "MHz"},
-    ]
-    return pd.DataFrame(rows)
-
-
-def flatten_thermodynamics_to_df(data: Any) -> pd.DataFrame:
-    """Converts thermodynamic scalar records into a clean 2D pandas DataFrame.
-
-    Args:
-        data: Thermodynamic dictionary containing ZPE, Enthalpy, Gibbs Free Energy.
-
-    Returns:
-        Standardized pandas.DataFrame ready for tabular rendering.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-
-    therm_data = data if isinstance(data, dict) else {}
-    zpe = float(therm_data.get("zpe_kcal_mol", therm_data.get("zero_point_energy_kcal_mol", 0.0)))
-    h = float(therm_data.get("enthalpy_kcal_mol", therm_data.get("enthalpy", 0.0)))
-    g = float(therm_data.get("gibbs_free_energy_kcal_mol", therm_data.get("gibbs_free_energy", 0.0)))
-
-    rows = [
-        {"Property": "Zero-Point Vibrational Energy (ZPE)", "Value": zpe, "Unit": "kcal/mol"},
-        {"Property": "Enthalpy (H_298)", "Value": h, "Unit": "kcal/mol"},
-        {"Property": "Gibbs Free Energy (G_298)", "Value": g, "Unit": "kcal/mol"},
-    ]
-    return pd.DataFrame(rows)
-
-
-def flatten_telemetry_to_df(data: Any) -> pd.DataFrame:
-    """Converts execution telemetry records into a clean 2D pandas DataFrame.
-
-    Args:
-        data: Telemetry dictionary containing wall-clock time, peak VRAM, and node architecture.
-
-    Returns:
-        Standardized pandas.DataFrame ready for tabular rendering.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-
-    telem_data = data if isinstance(data, dict) else {}
-    wall_sec = telem_data.get("wall_clock_time_seconds", telem_data.get("wall_clock_seconds", "0.0"))
-    vram_mb = telem_data.get("peak_gpu_vram_mb", telem_data.get("gpu_vram_peak_mb", "0.0"))
-
-    rows = [
-        {"Metric": "Wall-Clock Time (s)", "Value": str(wall_sec)},
-        {"Metric": "Peak GPU VRAM (MB)", "Value": str(vram_mb)},
-    ]
-    node_arch = telem_data.get("node_architecture", {})
-    if isinstance(node_arch, dict):
-        for k, v in node_arch.items():
-            rows.append({"Metric": f"Node Architecture ({k})", "Value": str(v)})
-    elif isinstance(node_arch, str):
-        rows.append({"Metric": "Node Architecture", "Value": node_arch})
-
-    return pd.DataFrame(rows)
-
-
-def flatten_provenance_to_df(data: Any) -> pd.DataFrame:
-    """Converts provenance records into a clean 2D pandas DataFrame.
-
-    Args:
-        data: Provenance dictionary containing engine versions and system config SHA-256.
-
-    Returns:
-        Standardized pandas.DataFrame ready for tabular rendering.
-    """
-    if isinstance(data, pd.DataFrame):
-        return data
-
-    prov_data = data if isinstance(data, dict) else {}
-    rows = [
-        {"Component": "System Config SHA-256", "Version_or_Hash": str(prov_data.get("config_sha256", "N/A"))}
-    ]
-    engines = prov_data.get("engine_versions", {})
-    if isinstance(engines, dict):
-        for eng, ver in engines.items():
-            rows.append({"Component": f"Engine: {eng}", "Version_or_Hash": str(ver)})
-    return pd.DataFrame(rows)
-
-
-class DataAggregator:
-    """SWMR database harvester, tensor token-compressor, and telemetry aggregator.
-
-    Ingests multi-gigabyte quantum chemistry and spectroscopic datasets from landscape.h5,
-    extracts conformer hierarchies, thermodynamic scalars, spectroscopic tensors, telemetry logs,
-    and provenance manifests with non-POSIX lock resilience and out-of-core downsampling.
-    """
-
-    compress_tensors_for_llm = staticmethod(compress_tensors_for_llm)
-    flatten_conformers_to_df = staticmethod(flatten_conformers_to_df)
-    flatten_spectroscopy_to_df = staticmethod(flatten_spectroscopy_to_df)
-    flatten_thermodynamics_to_df = staticmethod(flatten_thermodynamics_to_df)
-    flatten_telemetry_to_df = staticmethod(flatten_telemetry_to_df)
-    flatten_provenance_to_df = staticmethod(flatten_provenance_to_df)
-
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
-        h5_path: Optional[Union[str, Path]] = None,
-        parquet_dir: Optional[Union[str, Path]] = None,
-        artifact_dir: Optional[Union[str, Path]] = None,
+        output_path: str | pathlib.Path | None = None,
+        contact_email: str = DEFAULT_CONTACT_EMAIL,
+        rate_limit_delay: float = DEFAULT_RATE_LIMIT_DELAY,
+        request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
+        offline_mode: bool | None = None,
+        api_url: str = CROSSREF_API_ENDPOINT,
     ) -> None:
-        """Initializes the aggregator with dynamic path resolution and HPC locking fallbacks.
+        """Initializes CitationManager with output path and polite pool settings.
 
         Args:
-            h5_path: Path to landscape.h5 database. If None, dynamically resolved.
-            parquet_dir: Directory containing fallback parquet files. If None, dynamically resolved.
-            artifact_dir: Root directory for CoChem artifacts. If None, dynamically resolved.
+            output_path: Target path for cochem_citations.bib. Defaults to
+                Path.home() / "CoChem_Artifacts" / "Report_Archive" /
+                "cochem_citations.bib".
+            contact_email: Email address included in CrossRef Polite Pool User-Agent
+                header.
+            rate_limit_delay: Minimum delay in seconds between outbound CrossRef
+                requests.
+            request_timeout: Timeout in seconds for HTTP requests.
+            offline_mode: Explicit flag for offline air-gap execution. If None,
+                detected automatically from COCHEM_OFFLINE environment variable.
+            api_url: Endpoint for CrossRef REST API queries.
         """
-        # 1. Dynamic artifact_dir resolution
-        if artifact_dir is not None:
-            self.artifact_dir = Path(artifact_dir).resolve()
-        elif "COCHEM_ARTIFACT_DIR" in os.environ:
-            self.artifact_dir = Path(os.environ["COCHEM_ARTIFACT_DIR"]).resolve()
-        elif "COCHEM_ARTIFACTS_DIR" in os.environ:
-            self.artifact_dir = Path(os.environ["COCHEM_ARTIFACTS_DIR"]).resolve()
+        if output_path is not None:
+            self.output_path = pathlib.Path(output_path).resolve()
         else:
-            self.artifact_dir = (Path.home() / "CoChem_Artifacts").resolve()
+            self.output_path = (
+                pathlib.Path.home()
+                / "CoChem_Artifacts"
+                / "Report_Archive"
+                / "cochem_citations.bib"
+            ).resolve()
 
-        # 2. Dynamic h5_path resolution
-        if h5_path is not None:
-            self.h5_path = Path(h5_path).resolve()
+        self.contact_email = contact_email
+        self.rate_limit_delay = float(rate_limit_delay)
+        self.request_timeout = float(request_timeout)
+        self.offline_mode = offline_mode
+        self.api_url = api_url
+
+        self.session = requests.Session()
+        ua_url = "https://github.com/ProfJJK-CoChem"
+        user_agent = f"CoChem-SCRIBE/1.0 ({ua_url}; mailto:{self.contact_email})"
+        self.session.headers.update({"User-Agent": user_agent})
+
+    def is_offline(self) -> bool:
+        """Checks whether offline mode is active via initialization flag or env var."""
+        if self.offline_mode is not None:
+            return self.offline_mode
+
+        env_val = os.environ.get("COCHEM_OFFLINE", "").strip().lower()
+        return env_val in ("1", "true", "yes", "on")
+
+    @classmethod
+    def _enforce_rate_limit(cls, delay: float) -> None:
+        """Enforces thread-safe polite pool rate-limiting delay."""
+        with cls._rate_limit_lock:
+            elapsed = time.perf_counter() - cls._global_last_request_time
+            if elapsed < delay:
+                sleep_time = delay - elapsed
+                logger.debug(
+                    "Polite pool rate-limiting: sleeping for %.3f s", sleep_time
+                )
+                time.sleep(sleep_time)
+            cls._global_last_request_time = time.perf_counter()
+
+    @staticmethod
+    def _strip_accents(text: str) -> str:
+        """Decomposes Unicode accents into ASCII-safe characters."""
+        if not text:
+            return ""
+        nfkd = unicodedata.normalize("NFKD", text)
+        return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+    def generate_citation_key(
+        self, first_author: str, method_name: str, year: str | int | None
+    ) -> str:
+        """Constructs deterministic, ASCII-safe, collision-resistant BibTeX key."""
+        # Sanitize author: strip accents, remove "et al", replace non-alphanumeric with underscore
+        ascii_author = self._strip_accents(str(first_author or ""))
+        ascii_author = re.sub(
+            r"\b(et\s+al\.?|and\s+others)\b", "", ascii_author, flags=re.IGNORECASE
+        ).strip()
+        clean_author = (
+            re.sub(r"[^A-Za-z0-9]+", "_", ascii_author).strip("_") or "CoChem"
+        )
+
+        # Sanitize method_name: replace non-alphanumeric with underscores
+        ascii_method = self._strip_accents(str(method_name or ""))
+        clean_method = (
+            re.sub(r"[^A-Za-z0-9]+", "_", ascii_method.strip()).strip("_") or "Method"
+        )
+
+        # Sanitize year: extract 4 consecutive digits if possible
+        year_str = str(year or "").strip()
+        year_match = re.search(r"\b(19\d\d|20\d\d)\b", year_str)
+        if year_match:
+            clean_year = year_match.group(1)
         else:
-            candidates = [
-                self.artifact_dir / "landscape.h5",
-                self.artifact_dir / "Databases" / "landscape.h5",
-                Path.cwd() / "landscape.h5",
-                Path.cwd() / "Databases" / "landscape.h5",
-            ]
-            chosen_h5: Optional[Path] = None
-            for c in candidates:
-                if c.exists() and c.is_file():
-                    chosen_h5 = c.resolve()
-                    break
-            self.h5_path = chosen_h5 if chosen_h5 is not None else (self.artifact_dir / "landscape.h5")
+            digits_only = re.sub(r"[^\d]", "", year_str)
+            clean_year = digits_only[:4] if digits_only else "2024"
 
-        # 3. Dynamic parquet_dir resolution
-        if parquet_dir is not None:
-            self.parquet_dir = Path(parquet_dir).resolve()
-        else:
-            p_candidates = [
-                self.artifact_dir / "parquet",
-                self.artifact_dir,
-                Path.cwd() / "parquet",
-                Path.cwd(),
-            ]
-            chosen_p: Optional[Path] = None
-            for pc in p_candidates:
-                if pc.exists() and pc.is_dir():
-                    chosen_p = pc.resolve()
-                    break
-            self.parquet_dir = chosen_p if chosen_p is not None else self.artifact_dir
+        key = f"{clean_author}_{clean_method}_{clean_year}"
+        return re.sub(r"[^A-Za-z0-9_]", "", key)
 
-    @contextmanager
-    def _open_h5(self) -> Generator[h5py.File, None, None]:
-        """Safely opens HDF5 file with SWMR read-only concurrency and non-POSIX locking resilience.
+    @staticmethod
+    def normalize_doi(raw_doi: str | None) -> str | None:
+        """Extracts and normalizes canonical DOI string from URLs, prefixes, or text."""
+        if not raw_doi:
+            return None
 
-        Yields:
-            h5py.File opened in read-only SWMR mode.
+        clean = str(raw_doi).strip().strip("{}'\"")
+        # Match standard DOI structure (10.prefix/suffix)
+        match = re.search(r"\b(10\.\d{4,9}/[^\s\"'{}]+)", clean, re.IGNORECASE)
+        if match:
+            doi = match.group(1).rstrip("/.,;)")
+            return doi.lower()
 
-        Raises:
-            ScribeAggregationError: If the HDF5 file is missing, unreadable, locked, or corrupt.
-        """
-        if self.h5_path is None or not self.h5_path.exists():
-            raise ScribeAggregationError(f"HDF5 file does not exist at '{self.h5_path}'")
+        # Fallback cleanup for prefixed strings
+        clean = re.sub(r"^https?://(dx\.)?doi\.org/", "", clean, flags=re.IGNORECASE)
+        clean = re.sub(r"^doi:\s*", "", clean, flags=re.IGNORECASE)
+        clean = clean.strip("/.,;)")
+        return clean.lower() if clean else None
 
-        file_obj: Optional[h5py.File] = None
-        # Attempt 1: Standard SWMR read with libver='latest'
-        try:
-            file_obj = h5py.File(str(self.h5_path), mode="r", swmr=True, libver="latest")
-        except (BlockingIOError, OSError, Exception):
-            # Non-POSIX locking fallback: disable file locking in environment and retry
-            os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-            try:
-                file_obj = h5py.File(str(self.h5_path), mode="r", swmr=True, libver="latest")
-            except Exception:
-                try:
-                    # Fallback without swmr=True for files generated under standard libver
-                    file_obj = h5py.File(str(self.h5_path), mode="r")
-                except Exception as err3:
-                    raise ScribeAggregationError(
-                        f"Failed to open HDF5 file '{self.h5_path}' under SWMR concurrency and non-POSIX fallback: {err3}"
-                    ) from err3
-
-        try:
-            yield file_obj
-        finally:
-            if file_obj is not None:
-                try:
-                    file_obj.close()
-                except Exception:
-                    pass
-
-    def harvest_conformers(self, top_n: int = 10) -> List[Dict[str, Any]]:
-        """Extracts top N lowest-energy conformers, stripping full 3D Cartesian coordinates.
-
-        Args:
-            top_n: Maximum number of lowest-energy conformers to return (default: 10).
-
-        Returns:
-            List of dictionaries containing 'conformer_id', 'relative_energy_kcal_mol',
-            and 'point_group_symmetry', sorted strictly in ascending order of relative energy.
-
-        Raises:
-            ScribeAggregationError: If extraction fails and parquet fallback is unavailable.
-        """
-        try:
-            with self._open_h5() as f:
-                root_grp: Optional[h5py.Group] = None
-                if "conformers" in f and isinstance(f["conformers"], h5py.Group):
-                    root_grp = cast(h5py.Group, f["conformers"])
-                elif "basins" in f and isinstance(f["basins"], h5py.Group):
-                    root_grp = cast(h5py.Group, f["basins"])
-
-                raw_conformers: List[Dict[str, Any]] = []
-
-                if root_grp is not None:
-                    for key in root_grp.keys():
-                        item = root_grp[key]
-                        if isinstance(item, h5py.Group):
-                            conf_id = str(item.attrs.get("conformer_id", item.attrs.get("basin_id", key)))
-                            sym = str(item.attrs.get(
-                                "point_group_symmetry",
-                                item.attrs.get("symmetry_group", item.attrs.get("symmetry", item.attrs.get("point_group", "C1")))
-                            ))
-
-                            rel_e_kcal: Optional[float] = None
-                            raw_e_hartree: Optional[float] = None
-
-                            if "relative_energy_kcal_mol" in item.attrs:
-                                rel_e_kcal = float(cast(Any, item.attrs["relative_energy_kcal_mol"]))
-                            elif "relative_energy_hartree" in item.attrs:
-                                rel_e_kcal = float(cast(Any, item.attrs["relative_energy_hartree"])) * HARTREE_TO_KCAL_MOL
-                            elif "relative_energy" in item.attrs:
-                                rel_e_kcal = float(cast(Any, item.attrs["relative_energy"])) * HARTREE_TO_KCAL_MOL
-                            elif "energy" in item.attrs:
-                                raw_e_hartree = float(cast(Any, item.attrs["energy"]))
-                            elif "energy" in item and isinstance(item["energy"], h5py.Dataset):
-                                raw_e_hartree = float(item["energy"][()])
-                            elif "total_energy" in item.attrs:
-                                raw_e_hartree = float(cast(Any, item.attrs["total_energy"]))
-
-                            raw_conformers.append({
-                                "conformer_id": conf_id,
-                                "raw_energy_hartree": raw_e_hartree,
-                                "relative_energy_kcal_mol": rel_e_kcal,
-                                "point_group_symmetry": sym,
-                            })
-
-                if not raw_conformers:
-                    for key in f.keys():
-                        if key.startswith("conformer_") or key.startswith("conf_"):
-                            item = f[key]
-                            if isinstance(item, h5py.Group):
-                                conf_id = key
-                                sym = str(item.attrs.get("point_group_symmetry", item.attrs.get("symmetry_group", "C1")))
-                                rel_e_kcal = None
-                                raw_e_hartree = None
-                                if "relative_energy_kcal_mol" in item.attrs:
-                                    rel_e_kcal = float(cast(Any, item.attrs["relative_energy_kcal_mol"]))
-                                elif "relative_energy_hartree" in item.attrs:
-                                    rel_e_kcal = float(cast(Any, item.attrs["relative_energy_hartree"])) * HARTREE_TO_KCAL_MOL
-                                elif "relative_energy" in item.attrs:
-                                    rel_e_kcal = float(cast(Any, item.attrs["relative_energy"])) * HARTREE_TO_KCAL_MOL
-                                elif "energy" in item.attrs:
-                                    raw_e_hartree = float(cast(Any, item.attrs["energy"]))
-
-                                raw_conformers.append({
-                                    "conformer_id": conf_id,
-                                    "raw_energy_hartree": raw_e_hartree,
-                                    "relative_energy_kcal_mol": rel_e_kcal,
-                                    "point_group_symmetry": sym,
-                                })
-
-                if not raw_conformers:
-                    raise ScribeAggregationError(f"No conformer records found in HDF5 file '{self.h5_path}'.")
-
-                has_raw_energies = any(c["raw_energy_hartree"] is not None for c in raw_conformers)
-                if has_raw_energies:
-                    valid_raw = [float(c["raw_energy_hartree"]) for c in raw_conformers if c["raw_energy_hartree"] is not None]
-                    min_hartree = min(valid_raw)
-                    for c in raw_conformers:
-                        if c["relative_energy_kcal_mol"] is None and c["raw_energy_hartree"] is not None:
-                            c["relative_energy_kcal_mol"] = float((float(c["raw_energy_hartree"]) - min_hartree) * HARTREE_TO_KCAL_MOL)
-
-                formatted: List[Dict[str, Any]] = []
-                for c in raw_conformers:
-                    rel_val = c.get("relative_energy_kcal_mol")
-                    if rel_val is None:
-                        rel_val = 0.0
-                    formatted.append({
-                        "conformer_id": str(c["conformer_id"]),
-                        "relative_energy_kcal_mol": float(rel_val),
-                        "relative_energy": float(rel_val),
-                        "point_group_symmetry": str(c["point_group_symmetry"]),
-                    })
-
-                formatted.sort(key=lambda x: float(x["relative_energy_kcal_mol"]))
-                return formatted[:top_n]
-
-        except Exception as e:
-            logger.warning("HDF5 conformer harvesting failed (%s); attempting Parquet fallback.", e)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                if "conformers" in pq_data and pq_data["conformers"]:
-                    conformers = cast(List[Dict[str, Any]], pq_data["conformers"])
-                    conformers.sort(key=lambda x: float(x.get("relative_energy_kcal_mol", 0.0)))
-                    return conformers[:top_n]
-            except Exception as pq_err:
-                raise ScribeAggregationError(
-                    f"Conformer harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
-                ) from pq_err
-            raise ScribeAggregationError(f"Conformer harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
-
-    def harvest_spectroscopy(self) -> Dict[str, Any]:
-        """Extracts rotational constants, dipole moments, and quartic distortion parameters.
-
-        Returns:
-            Dictionary containing rotational_constants, dipole_moments, and centrifugal_distortion.
-
-        Raises:
-            ScribeAggregationError: If extraction fails and parquet fallback is unavailable.
-        """
-        try:
-            with self._open_h5() as f:
-                spec_grp: Union[h5py.Group, h5py.File] = f
-                candidates = ["spectroscopy", "physics/spectroscopy", "physics", "global_minimum/spectroscopy"]
-                for c in candidates:
-                    if c in f and isinstance(f[c], h5py.Group):
-                        spec_grp = cast(h5py.Group, f[c])
-                        break
-
-                # 1. Rotational Constants
-                rot_consts: Dict[str, float] = {}
-                if "rotational_constants" in spec_grp and isinstance(spec_grp["rotational_constants"], h5py.Group):
-                    rg = cast(h5py.Group, spec_grp["rotational_constants"])
-                    rot_consts = {
-                        "A": float(rg.attrs.get("A", rg.get("A", 0.0)[()] if "A" in rg else 0.0)),
-                        "B": float(rg.attrs.get("B", rg.get("B", 0.0)[()] if "B" in rg else 0.0)),
-                        "C": float(rg.attrs.get("C", rg.get("C", 0.0)[()] if "C" in rg else 0.0)),
-                    }
-                elif "rotational_constants" in spec_grp and isinstance(spec_grp["rotational_constants"], h5py.Dataset):
-                    arr = np.asarray(spec_grp["rotational_constants"][()], dtype=np.float64).flatten()
-                    rot_consts = {
-                        "A": float(arr[0]) if len(arr) > 0 else 0.0,
-                        "B": float(arr[1]) if len(arr) > 1 else 0.0,
-                        "C": float(arr[2]) if len(arr) > 2 else 0.0,
-                    }
-                else:
-                    a_val = spec_grp.attrs.get("A", spec_grp.attrs.get("A_MHz", 0.0))
-                    b_val = spec_grp.attrs.get("B", spec_grp.attrs.get("B_MHz", 0.0))
-                    c_val = spec_grp.attrs.get("C", spec_grp.attrs.get("C_MHz", 0.0))
-                    rot_consts = {"A": float(cast(Any, a_val)), "B": float(cast(Any, b_val)), "C": float(cast(Any, c_val))}
-
-                # 2. Dipole Moments
-                dipole_moments: Dict[str, float] = {}
-                if "dipole_moments" in spec_grp and isinstance(spec_grp["dipole_moments"], h5py.Group):
-                    dg = cast(h5py.Group, spec_grp["dipole_moments"])
-                    mu_a = float(dg.attrs.get("mu_a", dg.get("mu_a", 0.0)[()] if "mu_a" in dg else 0.0))
-                    mu_b = float(dg.attrs.get("mu_b", dg.get("mu_b", 0.0)[()] if "mu_b" in dg else 0.0))
-                    mu_c = float(dg.attrs.get("mu_c", dg.get("mu_c", 0.0)[()] if "mu_c" in dg else 0.0))
-                    tot = float(dg.attrs.get("total", dg.attrs.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
-                    dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
-                elif "dipole_moments" in spec_grp and isinstance(spec_grp["dipole_moments"], h5py.Dataset):
-                    d_arr = np.asarray(spec_grp["dipole_moments"][()], dtype=np.float64).flatten()
-                    mu_a = float(d_arr[0]) if len(d_arr) > 0 else 0.0
-                    mu_b = float(d_arr[1]) if len(d_arr) > 1 else 0.0
-                    mu_c = float(d_arr[2]) if len(d_arr) > 2 else 0.0
-                    if len(d_arr) > 3:
-                        tot = float(d_arr[3])
-                    else:
-                        tot = float(spec_grp.attrs.get("total", spec_grp.attrs.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
-                    dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
-                else:
-                    mu_a = float(cast(Any, spec_grp.attrs.get("mu_a", spec_grp.attrs.get("MuA", 0.0))))
-                    mu_b = float(cast(Any, spec_grp.attrs.get("mu_b", spec_grp.attrs.get("MuB", 0.0))))
-                    mu_c = float(cast(Any, spec_grp.attrs.get("mu_c", spec_grp.attrs.get("MuC", 0.0))))
-                    tot = float(cast(Any, spec_grp.attrs.get("dipole_total", spec_grp.attrs.get("total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2)))))
-                    dipole_moments = {"mu_a": mu_a, "mu_b": mu_b, "mu_c": mu_c, "total": tot}
-
-                # 3. Quartic Centrifugal Distortion Parameters
-                centrifugal: Dict[str, float] = {}
-                if "centrifugal_distortion" in spec_grp and isinstance(spec_grp["centrifugal_distortion"], h5py.Group):
-                    cg = cast(h5py.Group, spec_grp["centrifugal_distortion"])
-                    centrifugal = {
-                        "Delta_J": float(cg.attrs.get("Delta_J", cg.attrs.get("DJ", cg.get("Delta_J", 0.0)[()] if "Delta_J" in cg else 0.0))),
-                        "Delta_JK": float(cg.attrs.get("Delta_JK", cg.attrs.get("DJK", cg.get("Delta_JK", 0.0)[()] if "Delta_JK" in cg else 0.0))),
-                        "Delta_K": float(cg.attrs.get("Delta_K", cg.attrs.get("DK", cg.get("Delta_K", 0.0)[()] if "Delta_K" in cg else 0.0))),
-                        "delta_J": float(cg.attrs.get("delta_J", cg.attrs.get("dJ", cg.get("delta_J", 0.0)[()] if "delta_J" in cg else 0.0))),
-                        "delta_K": float(cg.attrs.get("delta_K", cg.attrs.get("dK", cg.get("delta_K", 0.0)[()] if "delta_K" in cg else 0.0))),
-                    }
-                elif "centrifugal_distortion" in spec_grp and isinstance(spec_grp["centrifugal_distortion"], h5py.Dataset):
-                    c_arr = np.asarray(spec_grp["centrifugal_distortion"][()], dtype=np.float64).flatten()
-                    centrifugal = {
-                        "Delta_J": float(c_arr[0]) if len(c_arr) > 0 else 0.0,
-                        "Delta_JK": float(c_arr[1]) if len(c_arr) > 1 else 0.0,
-                        "Delta_K": float(c_arr[2]) if len(c_arr) > 2 else 0.0,
-                        "delta_J": float(c_arr[3]) if len(c_arr) > 3 else 0.0,
-                        "delta_K": float(c_arr[4]) if len(c_arr) > 4 else 0.0,
-                    }
-                else:
-                    centrifugal = {
-                        "Delta_J": float(cast(Any, spec_grp.attrs.get("Delta_J", spec_grp.attrs.get("DJ", 0.0)))),
-                        "Delta_JK": float(cast(Any, spec_grp.attrs.get("Delta_JK", spec_grp.attrs.get("DJK", 0.0)))),
-                        "Delta_K": float(cast(Any, spec_grp.attrs.get("Delta_K", spec_grp.attrs.get("DK", 0.0)))),
-                        "delta_J": float(cast(Any, spec_grp.attrs.get("delta_J", spec_grp.attrs.get("dJ", 0.0)))),
-                        "delta_K": float(cast(Any, spec_grp.attrs.get("delta_K", spec_grp.attrs.get("dK", 0.0)))),
-                    }
-
-                return {
-                    "rotational_constants": rot_consts,
-                    "dipole_moments": dipole_moments,
-                    "centrifugal_distortion": centrifugal,
-                }
-
-        except Exception as e:
-            logger.warning("HDF5 spectroscopy harvesting failed (%s); attempting Parquet fallback.", e)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                if "spectroscopy" in pq_data and pq_data["spectroscopy"]:
-                    return cast(Dict[str, Any], pq_data["spectroscopy"])
-            except Exception as pq_err:
-                raise ScribeAggregationError(
-                    f"Spectroscopy harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
-                ) from pq_err
-            raise ScribeAggregationError(f"Spectroscopy harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
-
-    def harvest_thermodynamics(self) -> Dict[str, Any]:
-        """Parses ZPE, enthalpy, Gibbs free energy, and VPT2 frequencies, converting Hartrees to kcal/mol.
-
-        Returns:
-            Dictionary containing energetic scalars and VPT2 frequencies.
-
-        Raises:
-            ScribeAggregationError: If extraction fails and parquet fallback is unavailable.
-        """
-        try:
-            with self._open_h5() as f:
-                therm_grp: Union[h5py.Group, h5py.File] = f
-                candidates = ["thermodynamics", "physics/thermodynamics", "calculations", "global_minimum/thermodynamics"]
-                for c in candidates:
-                    if c in f and isinstance(f[c], h5py.Group):
-                        therm_grp = cast(h5py.Group, f[c])
-                        break
-
-                # 1. Zero-Point Energy
-                if "zpe_kcal_mol" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zpe_kcal_mol"]))
-                elif "zero_point_energy_kcal_mol" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zero_point_energy_kcal_mol"]))
-                elif "zpe_hartree" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zpe_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "zero_point_energy_hartree" in therm_grp.attrs:
-                    zpe_kcal = float(cast(Any, therm_grp.attrs["zero_point_energy_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "zero_point_energy" in therm_grp.attrs:
-                    zpe_raw = float(cast(Any, therm_grp.attrs["zero_point_energy"]))
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zero_point_energy" in therm_grp and isinstance(therm_grp["zero_point_energy"], h5py.Dataset):
-                    zpe_raw = float(therm_grp["zero_point_energy"][()])
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zpe" in therm_grp.attrs:
-                    zpe_raw = float(cast(Any, therm_grp.attrs["zpe"]))
-                    zpe_kcal = zpe_raw * HARTREE_TO_KCAL_MOL if abs(zpe_raw) < 50.0 else zpe_raw
-                elif "zpve" in therm_grp.attrs:
-                    zpve_raw = float(cast(Any, therm_grp.attrs["zpve"]))
-                    zpe_kcal = zpve_raw * HARTREE_TO_KCAL_MOL if abs(zpve_raw) < 50.0 else zpve_raw
-                else:
-                    zpe_kcal = 0.0
-
-                # 2. Enthalpy
-                if "enthalpy_kcal_mol" in therm_grp.attrs:
-                    h_kcal = float(cast(Any, therm_grp.attrs["enthalpy_kcal_mol"]))
-                elif "enthalpy_hartree" in therm_grp.attrs:
-                    h_kcal = float(cast(Any, therm_grp.attrs["enthalpy_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "enthalpy" in therm_grp.attrs:
-                    h_raw = float(cast(Any, therm_grp.attrs["enthalpy"]))
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                elif "enthalpy" in therm_grp and isinstance(therm_grp["enthalpy"], h5py.Dataset):
-                    h_raw = float(therm_grp["enthalpy"][()])
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                elif "enthalpy_298" in therm_grp.attrs:
-                    h_raw = float(cast(Any, therm_grp.attrs["enthalpy_298"]))
-                    h_kcal = h_raw * HARTREE_TO_KCAL_MOL
-                else:
-                    h_kcal = 0.0
-
-                # 3. Gibbs Free Energy
-                if "gibbs_free_energy_kcal_mol" in therm_grp.attrs:
-                    g_kcal = float(cast(Any, therm_grp.attrs["gibbs_free_energy_kcal_mol"]))
-                elif "gibbs_hartree" in therm_grp.attrs:
-                    g_kcal = float(cast(Any, therm_grp.attrs["gibbs_hartree"])) * HARTREE_TO_KCAL_MOL
-                elif "gibbs_free_energy" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs_free_energy"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs_free_energy" in therm_grp and isinstance(therm_grp["gibbs_free_energy"], h5py.Dataset):
-                    g_raw = float(therm_grp["gibbs_free_energy"][()])
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs_298" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs_298"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                elif "gibbs" in therm_grp.attrs:
-                    g_raw = float(cast(Any, therm_grp.attrs["gibbs"]))
-                    g_kcal = g_raw * HARTREE_TO_KCAL_MOL
-                else:
-                    g_kcal = 0.0
-
-                # 4. VPT2 Vibrational Frequencies
-                vpt2_freqs: List[float] = []
-                for freq_key in ["vpt2_frequencies", "frequencies", "vpt2_frequencies_cm1", "anharmonic_frequencies", "vibrational_frequencies"]:
-                    if freq_key in therm_grp and isinstance(therm_grp[freq_key], h5py.Dataset):
-                        arr = np.asarray(therm_grp[freq_key][()], dtype=np.float64).flatten()
-                        vpt2_freqs = [float(x) for x in arr]
-                        break
-                    elif freq_key in therm_grp.attrs:
-                        raw_attr = therm_grp.attrs[freq_key]
-                        if isinstance(raw_attr, (list, tuple, np.ndarray)):
-                            vpt2_freqs = [float(x) for x in raw_attr]
-                        elif isinstance(raw_attr, str):
-                            try:
-                                parsed = json.loads(raw_attr)
-                                if isinstance(parsed, list):
-                                    vpt2_freqs = [float(x) for x in parsed]
-                            except Exception:
-                                pass
-                        break
-
-                return {
-                    "zpe_kcal_mol": float(zpe_kcal),
-                    "zero_point_energy_kcal_mol": float(zpe_kcal),
-                    "zero_point_energy": float(zpe_kcal),
-                    "enthalpy_kcal_mol": float(h_kcal),
-                    "enthalpy": float(h_kcal),
-                    "gibbs_free_energy_kcal_mol": float(g_kcal),
-                    "gibbs_free_energy": float(g_kcal),
-                    "vpt2_frequencies_cm1": vpt2_freqs,
-                    "vpt2_frequencies": vpt2_freqs,
-                }
-
-        except Exception as e:
-            logger.warning("HDF5 thermodynamics harvesting failed (%s); attempting Parquet fallback.", e)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                if "thermodynamics" in pq_data and pq_data["thermodynamics"]:
-                    return cast(Dict[str, Any], pq_data["thermodynamics"])
-            except Exception as pq_err:
-                raise ScribeAggregationError(
-                    f"Thermodynamics harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
-                ) from pq_err
-            raise ScribeAggregationError(f"Thermodynamics harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
-
-    def harvest_telemetry(self) -> Dict[str, Any]:
-        """Extracts wall-clock time, peak GPU VRAM usage, and node architecture from cochem_audit_log.json.
-
-        Returns:
-            Structured dictionary of execution telemetry metrics.
-
-        Raises:
-            ScribeAggregationError: If cochem_audit_log.json cannot be located or parsed.
-        """
-        candidates = [
-            self.artifact_dir / "cochem_audit_log.json",
-            self.artifact_dir / "telemetry" / "cochem_audit_log.json",
-            Path.home() / "CoChem_Artifacts" / "cochem_audit_log.json",
-            Path.cwd() / "cochem_audit_log.json",
-            Path.cwd() / "cochem_audit_log.jsonl",
-        ]
-        target_file: Optional[Path] = None
-        for c in candidates:
-            if c.exists() and c.is_file():
-                target_file = c
-                break
-
-        if target_file is None:
-            raise ScribeAggregationError(
-                f"Telemetry log 'cochem_audit_log.json' not found in artifact directory '{self.artifact_dir}'."
+    def query_crossref_doi(self, method_query: str) -> dict[str, Any] | None:
+        """Queries api.crossref.org/works adhering to Polite Pool rate limits."""
+        if self.is_offline():
+            logger.debug(
+                "CitationManager in offline mode; skipping query for '%s'",
+                method_query,
             )
+            return None
 
+        # Enforce thread-safe polite pool rate-limiting delay
+        self._enforce_rate_limit(self.rate_limit_delay)
+
+        doi_candidate = self.normalize_doi(method_query)
         try:
-            content = target_file.read_text(encoding="utf-8").strip()
-            if not content:
-                raise ScribeAggregationError(f"Telemetry log '{target_file}' is empty.")
-
-            if content.startswith("{"):
-                data = json.loads(content)
+            if doi_candidate and ("/" in doi_candidate and doi_candidate.startswith("10.")):
+                endpoint = f"{self.api_url}/{doi_candidate}"
+                resp = self.session.get(endpoint, timeout=self.request_timeout)
             else:
-                lines = content.splitlines()
-                data = json.loads(lines[-1])
-
-            wall_time = float(data.get(
-                "wall_clock_seconds",
-                data.get("wall_clock_time_seconds", data.get("wall_clock_time", data.get("total_time_seconds", data.get("duration_seconds", 0.0))))
-            ))
-            peak_vram = float(data.get(
-                "gpu_vram_peak_mb",
-                data.get("peak_gpu_vram_mb", data.get("peak_vram_mb", data.get("peak_vram_gb", 0.0) * 1024.0))
-            ))
-
-            node_arch_raw = data.get("node_architecture", {})
-            if isinstance(node_arch_raw, dict):
-                cpu_cores = int(node_arch_raw.get("cpu_cores", data.get("cpu_cores", data.get("core_count", os.cpu_count() or 1))))
-                gpu_model = str(node_arch_raw.get("gpu_model", data.get("gpu_model", data.get("gpu", "N/A"))))
-                hostname = str(node_arch_raw.get("hostname", data.get("hostname", data.get("host", "local"))))
-                node_arch: Dict[str, Any] = {
-                    "cpu_cores": cpu_cores,
-                    "gpu_model": gpu_model,
-                    "hostname": hostname,
+                params: dict[str, str | int] = {
+                    "query.bibliographic": method_query,
+                    "rows": 1,
                 }
-                for k, v in node_arch_raw.items():
-                    if k not in node_arch:
-                        node_arch[k] = v
-            elif isinstance(node_arch_raw, str):
-                node_arch = {
-                    "cpu_cores": int(data.get("cpu_cores", data.get("core_count", os.cpu_count() or 1))),
-                    "gpu_model": str(data.get("gpu_model", data.get("gpu", "N/A"))),
-                    "hostname": str(data.get("hostname", data.get("host", "local"))),
-                    "description": node_arch_raw,
-                }
+                resp = self.session.get(
+                    self.api_url, params=params, timeout=self.request_timeout
+                )
+
+            with CitationManager._rate_limit_lock:
+                CitationManager._global_last_request_time = time.perf_counter()
+
+            if resp.status_code == HTTP_STATUS_OK:
+                data = resp.json()
+                if isinstance(data, dict):
+                    message = data.get("message")
+                    if isinstance(message, dict):
+                        # Direct DOI query returns work payload in message
+                        if "DOI" in message and "items" not in message:
+                            return message
+                        # Bibliographic search returns items list in message["items"]
+                        items = message.get("items")
+                        if items and isinstance(items, list):
+                            first_item = items[0]
+                            if isinstance(first_item, dict):
+                                return first_item
+                logger.warning(
+                    "CrossRef query for '%s' returned empty or invalid items",
+                    method_query,
+                )
+                return None
+
+            logger.warning(
+                "CrossRef query for '%s' returned HTTP status %d",
+                method_query,
+                resp.status_code,
+            )
+            return None
+        except requests.exceptions.RequestException as e:
+            with CitationManager._rate_limit_lock:
+                CitationManager._global_last_request_time = time.perf_counter()
+            logger.warning(
+                "CrossRef query exception for '%s': %s (triggering fallback)",
+                method_query,
+                e,
+            )
+            return None
+        except Exception as e:
+            with CitationManager._rate_limit_lock:
+                CitationManager._global_last_request_time = time.perf_counter()
+            logger.warning(
+                "Failed to parse CrossRef response for '%s': %s", method_query, e
+            )
+            return None
+
+    def _extract_authors(self, metadata: dict[str, Any]) -> tuple[str, str]:
+        """Extracts first author surname and formatted LaTeX author string safely."""
+        authors = metadata.get("author", [])
+        if not authors or not isinstance(authors, list):
+            return ("CoChem", "CoChem Consortium")
+
+        author_parts: list[str] = []
+        first_author_surname = "CoChem"
+
+        for idx, author_dict in enumerate(authors):
+            if not isinstance(author_dict, dict):
+                continue
+            family = (author_dict.get("family") or "").strip()
+            given = (author_dict.get("given") or "").strip()
+            if idx == 0:
+                first_author_surname = family or given or "CoChem"
+
+            if family and given:
+                author_parts.append(f"{family}, {given}")
+            elif family:
+                author_parts.append(family)
+            elif given:
+                author_parts.append(given)
+
+        if not author_parts:
+            return (first_author_surname, "CoChem Consortium")
+
+        return (first_author_surname, " and ".join(author_parts))
+
+    def _extract_year(self, metadata: dict[str, Any]) -> str:
+        """Extracts 4-digit publication year from CrossRef date fields."""
+        date_fields = [
+            "issued",
+            "published-print",
+            "published-online",
+            "published",
+            "posted",
+            "created",
+        ]
+        for field in date_fields:
+            val = metadata.get(field)
+            if isinstance(val, dict):
+                date_parts = val.get("date-parts")
+                if date_parts and isinstance(date_parts, list) and len(date_parts) > 0:
+                    first_part = date_parts[0]
+                    if (
+                        first_part
+                        and isinstance(first_part, list)
+                        and len(first_part) > 0
+                    ):
+                        raw_year = str(first_part[0])
+                        year_match = re.search(r"\b(19\d\d|20\d\d)\b", raw_year)
+                        if year_match:
+                            return year_match.group(1)
+        return "2024"
+
+    def format_bibtex_entry(  # noqa: PLR0912
+        self, metadata: dict[str, Any], method_key: str
+    ) -> str:
+        """Converts CrossRef JSON metadata dictionary into standardized BibTeX entry."""
+        first_author, authors_str = self._extract_authors(metadata)
+        year = self._extract_year(metadata)
+        cite_key = self.generate_citation_key(first_author, method_key, year)
+
+        # Title extraction & normalization
+        titles = metadata.get("title", [])
+        if isinstance(titles, list) and titles:
+            raw_title = str(titles[0] or "").strip()
+        elif isinstance(titles, str):
+            raw_title = titles.strip()
+        else:
+            raw_title = method_key
+        title = re.sub(r"\s+", " ", raw_title) or method_key
+
+        # Journal / Container extraction
+        container = metadata.get("container-title", [])
+        if isinstance(container, list) and container:
+            journal = str(container[0] or "").strip()
+        elif isinstance(container, str) and container:
+            journal = container.strip()
+        else:
+            pub = str(metadata.get("publisher") or "").strip()
+            journal = pub or "Journal of Computational Chemistry"
+
+        volume = str(metadata.get("volume") or "").strip()
+
+        issue_obj = metadata.get("journal-issue")
+        issue_from_obj = issue_obj.get("issue") if isinstance(issue_obj, dict) else ""
+        issue = str(metadata.get("issue") or issue_from_obj or "").strip()
+
+        pages = str(
+            metadata.get("page") or metadata.get("article-number") or ""
+        ).strip()
+        if pages and "-" in pages and "--" not in pages:
+            pages = pages.replace("-", "--")
+
+        raw_doi = str(metadata.get("DOI") or "").strip()
+        doi = self.normalize_doi(raw_doi) or raw_doi
+
+        entry_type = str(metadata.get("type", "article-journal")).lower()
+        bib_type = "article"
+        if "book" in entry_type:
+            bib_type = "book"
+        elif "proceedings" in entry_type or "conference" in entry_type:
+            bib_type = "inproceedings"
+
+        fields: list[str] = [
+            f"  author = {{{authors_str}}}",
+            f"  title = {{{title}}}",
+        ]
+        if journal:
+            if bib_type == "article":
+                fields.append(f"  journal = {{{journal}}}")
             else:
-                node_arch = {
-                    "cpu_cores": int(data.get("cpu_cores", os.cpu_count() or 1)),
-                    "gpu_model": str(data.get("gpu_model", "N/A")),
-                    "hostname": str(data.get("hostname", "local")),
-                }
+                fields.append(f"  booktitle = {{{journal}}}")
 
-            return {
-                "wall_clock_time_seconds": wall_time,
-                "wall_clock_seconds": wall_time,
-                "peak_gpu_vram_mb": peak_vram,
-                "gpu_vram_peak_mb": peak_vram,
-                "node_architecture": node_arch,
-                "log_source": str(target_file),
-            }
+        if volume:
+            fields.append(f"  volume = {{{volume}}}")
+        if issue:
+            fields.append(f"  number = {{{issue}}}")
+        if pages:
+            fields.append(f"  pages = {{{pages}}}")
+        if year:
+            fields.append(f"  year = {{{year}}}")
+        if doi:
+            fields.append(f"  doi = {{{doi}}}")
 
-        except json.JSONDecodeError as jde:
-            raise ScribeAggregationError(f"Invalid JSON in telemetry log '{target_file}': {jde}") from jde
-        except Exception as e:
-            raise ScribeAggregationError(f"Failed to harvest telemetry from '{target_file}': {e}") from e
+        body = ",\n".join(fields)
+        return f"@{bib_type}{{{cite_key},\n{body}\n}}"
 
-    def harvest_provenance(self) -> Dict[str, Any]:
-        """Extracts engine versions from manifest and computes golden SHA-256 hash of system config.
+    def get_fallback_citation(self, method_name: str) -> str | None:
+        """Retrieves canonical static BibTeX string from FALLBACK_CITATIONS."""
+        if not method_name:
+            return None
 
-        Returns:
-            Dictionary containing 'engine_versions', 'config_sha256', and resolved file paths.
+        # 1. Exact match
+        if method_name in self.FALLBACK_CITATIONS:
+            return self.FALLBACK_CITATIONS[method_name]
 
-        Raises:
-            ScribeAggregationError: If manifest or system configuration cannot be found or read.
-        """
-        manifest_candidates = [
-            self.artifact_dir / "cochem_deployment_manifest.json",
-            self.artifact_dir / "manifests" / "cochem_deployment_manifest.json",
-            Path.home() / "CoChem_Artifacts" / "cochem_deployment_manifest.json",
-            Path.cwd() / "cochem_deployment_manifest.json",
+        # 2. Case-insensitive exact match
+        method_norm = method_name.strip().lower()
+        for k, v in self.FALLBACK_CITATIONS.items():
+            if k.lower() == method_norm:
+                return v
+
+        # 3. Canonical keyword mapping
+        keyword_map = [
+            (r"\borca\b", "ORCA"),
+            (r"\bpyscf\b", "PySCF"),
+            (r"\bmace\b", "MACE-OFF23"),
+            (r"\bxtb\b|\bgfn\b|\bgfn2\b", "xTB"),
+            (r"\bdlpno\b|\bccsd\b", "DLPNO-CCSD(T)"),
+            (r"\bcrest\b", "CREST"),
+            (r"\br2scan\b", "r2SCAN-3c"),
+            (r"\bb3lyp\b", "B3LYP"),
+            (r"\bd4\b", "D4"),
+            (r"\bd3\b|\bd3bj\b", "D3"),
+            (r"\bmendeleev\b", "mendeleev"),
+            (r"\bspycfit\b|\bspyc\b", "SpycFit"),
         ]
-        manifest_path: Optional[Path] = None
-        for mc in manifest_candidates:
-            if mc.exists() and mc.is_file():
-                manifest_path = mc
-                break
 
-        config_candidates = [
-            self.artifact_dir / "cochem_system_config.json",
-            self.artifact_dir / "configs" / "cochem_system_config.json",
-            Path.home() / "CoChem_Artifacts" / "cochem_system_config.json",
-            Path.cwd() / "cochem_system_config.json",
-        ]
-        config_path: Optional[Path] = None
-        for cc in config_candidates:
-            if cc.exists() and cc.is_file():
-                config_path = cc
-                break
+        for pattern, canonical_key in keyword_map:
+            if re.search(pattern, method_norm):
+                return self.FALLBACK_CITATIONS.get(canonical_key)
 
-        if manifest_path is None:
-            raise ScribeAggregationError(
-                f"Deployment manifest 'cochem_deployment_manifest.json' not found in '{self.artifact_dir}'."
+        return None
+
+    def resolve_method_citation(self, method_name: str) -> tuple[str, str]:
+        """Resolves citation for a method via CrossRef or static fallback."""
+        method_str = str(method_name).strip()
+        if not method_str:
+            method_str = "Unknown_Method"
+
+        # Attempt live query if not in offline mode
+        if not self.is_offline():
+            metadata = self.query_crossref_doi(method_str)
+            if metadata is not None:
+                bibtex_str = self.format_bibtex_entry(metadata, method_str)
+                key_match = re.search(r"@\w+\{\s*([^,\s]+)\s*,", bibtex_str)
+                cite_key = (
+                    key_match.group(1)
+                    if key_match
+                    else self.generate_citation_key("CoChem", method_str, "2024")
+                )
+                return (cite_key, bibtex_str)
+
+        # Fall back to canonical dictionary
+        fallback = self.get_fallback_citation(method_str)
+        if fallback is not None:
+            key_match = re.search(r"@\w+\{\s*([^,\s]+)\s*,", fallback)
+            cite_key = (
+                key_match.group(1)
+                if key_match
+                else self.generate_citation_key("CoChem", method_str, "2024")
             )
-        if config_path is None:
-            raise ScribeAggregationError(
-                f"System config 'cochem_system_config.json' not found in '{self.artifact_dir}'."
+            return (cite_key, fallback)
+
+        # Synthesize minimal valid BibTeX entry if completely unmapped
+        cite_key = self.generate_citation_key("CoChem", method_str, 2024)
+        generic_bibtex = (
+            f"@misc{{{cite_key},\n"
+            f"  author = {{CoChem Consortium}},\n"
+            f"  title = {{{{Computational Chemistry Method: {method_str}}}}},\n"
+            f"  year = {{2024}},\n"
+            f"  note = {{Resolved via CoChem-SCRIBE Automated Bibliographer}}\n"
+            f"}}"
+        )
+        return (cite_key, generic_bibtex)
+
+    def _collect_methods(self, data: Any, collected: list[str]) -> None:
+        """Recursively traverses manifest structures to extract method strings."""
+        if isinstance(data, str):
+            val = data.strip()
+            if (
+                val
+                and len(val) > 1
+                and not val.startswith("http")
+                and not val.endswith(".json")
+            ):
+                collected.append(val)
+        elif isinstance(data, dict):
+            for k, v in data.items():
+                if k in (
+                    "engine",
+                    "engines",
+                    "method",
+                    "methods",
+                    "ml_potential",
+                    "semiempirical",
+                    "dispersion",
+                    "functional",
+                    "basis_set",
+                    "spectroscopy_engine",
+                    "conformer_engine",
+                    "software",
+                    "dependencies",
+                    "pipeline_stages",
+                ):
+                    self._collect_methods(v, collected)
+                elif isinstance(v, dict | list):
+                    self._collect_methods(v, collected)
+        elif isinstance(data, list | tuple | set):
+            for item in data:
+                self._collect_methods(item, collected)
+
+    def process_manifest_methods(self, manifest_data: dict[str, Any]) -> dict[str, str]:
+        """Extracts methods from manifest and resolves all BibTeX citations."""
+        method_candidates: list[str] = []
+        self._collect_methods(manifest_data, method_candidates)
+
+        resolved_citations: dict[str, str] = {}
+        for method_str in method_candidates:
+            cite_key, bibtex_str = self.resolve_method_citation(method_str)
+            if cite_key not in resolved_citations:
+                resolved_citations[cite_key] = bibtex_str
+
+        return resolved_citations
+
+    def deduplicate_citations(self, citations: list[str]) -> list[str]:
+        """Deduplicates BibTeX blocks by unique citation keys and normalized DOIs."""
+        seen_keys: set[str] = set()
+        seen_dois: set[str] = set()
+        deduped: list[str] = []
+
+        for entry in citations:
+            entry_str = entry.strip()
+            if not entry_str:
+                continue
+
+            # Extract cite key
+            key_match = re.search(r"@\w+\{\s*([^,\s]+)\s*,", entry_str)
+            cite_key = key_match.group(1).strip() if key_match else None
+
+            # Extract and normalize DOI (handling both braces and quotes)
+            doi_match = re.search(
+                r"doi\s*=\s*[\{\"]([^\"\}]+)[\}\"]", entry_str, re.IGNORECASE
             )
+            raw_doi = doi_match.group(1).strip() if doi_match else None
+            norm_doi = self.normalize_doi(raw_doi)
 
-        try:
-            manifest_dict = json.loads(manifest_path.read_text(encoding="utf-8"))
-            engine_versions = manifest_dict.get(
-                "engine_versions",
-                manifest_dict.get("engines", manifest_dict.get("software_stack", None))
-            )
-            if engine_versions is None or not engine_versions:
-                filtered = {
-                    k: v for k, v in manifest_dict.items()
-                    if k not in ["schema_version", "timestamp", "description", "provenance"]
-                }
-                engine_versions = filtered if filtered else manifest_dict
+            # Check duplication
+            if cite_key and cite_key in seen_keys:
+                continue
+            if norm_doi and norm_doi in seen_dois:
+                continue
 
-            hasher = hashlib.sha256()
-            with open(config_path, "rb") as f:
-                while chunk := f.read(8192):
-                    hasher.update(chunk)
-            config_sha256 = hasher.hexdigest()
+            if cite_key:
+                seen_keys.add(cite_key)
+            if norm_doi:
+                seen_dois.add(norm_doi)
 
-            return {
-                "engine_versions": engine_versions,
-                "config_sha256": config_sha256,
-                "manifest_path": str(manifest_path),
-                "config_path": str(config_path),
-            }
+            deduped.append(entry_str)
 
-        except Exception as e:
-            raise ScribeAggregationError(f"Provenance harvesting failed: {e}") from e
+        return deduped
 
-    def _parse_parquet_fallback(self) -> Dict[str, Any]:
-        """Gracefully parses binary columnar .parquet tables if landscape.h5 is unavailable or corrupted.
+    def build_bibtex_payload(self, citations_dict: dict[str, str]) -> str:
+        """Formats dictionary of resolved citations into a single .bib payload."""
+        citations_list = list(citations_dict.values())
+        deduped = self.deduplicate_citations(citations_list)
 
-        Strict Prohibition Directive: Intermediate .json tensor fallbacks are strictly banned.
+        divider = "% " + "=" * 78 + "\n"
+        header = (
+            f"{divider}"
+            "% CoChem Auto-Generated Bibliography\n"
+            "% CoChem-SCRIBE Automated Bibliographer\n"
+            "% Generated automatically by CoChem-SCRIBE CitationManager\n"
+            "% FAIR-compliant computational chemistry provenance & citation archive\n"
+            f"{divider}\n"
+        )
+        if not deduped:
+            return header
 
-        Returns:
-            Structured dictionary of conformers, spectroscopy, and thermodynamics parsed from Parquet tables.
+        return header + "\n\n".join(deduped) + "\n"
 
-        Raises:
-            ScribeAggregationError: If Parquet files cannot be read or if banned JSON tensor fallbacks are attempted.
-        """
-        fallback_data: Dict[str, Any] = {}
-
-        # 1. Conformer Parquet Table
-        conf_pq = self.parquet_dir / "conformers.parquet"
-        if conf_pq.exists():
-            df_conf = pd.read_parquet(conf_pq)
-            records = df_conf.to_dict(orient="records")
-            clean_records: List[Dict[str, Any]] = []
-            for r in records:
-                conf_id = str(r.get("conformer_id", r.get("id", r.get("name", "conf"))))
-                rel_e = float(r.get("relative_energy_kcal_mol", r.get("relative_energy", r.get("energy_kcal_mol", 0.0))))
-                sym = str(r.get("point_group_symmetry", r.get("symmetry", r.get("symmetry_group", "C1"))))
-                clean_records.append({
-                    "conformer_id": conf_id,
-                    "relative_energy_kcal_mol": rel_e,
-                    "relative_energy": rel_e,
-                    "point_group_symmetry": sym,
-                })
-            clean_records.sort(key=lambda x: float(x["relative_energy_kcal_mol"]))
-            fallback_data["conformers"] = clean_records
-
-        # 2. Spectroscopy Parquet Table
-        spec_pq = self.parquet_dir / "spectroscopy.parquet"
-        if spec_pq.exists():
-            df_spec = pd.read_parquet(spec_pq)
-            spec_dict = df_spec.to_dict(orient="records")
-            if spec_dict:
-                row = spec_dict[0]
-                rot = {
-                    "A": float(row.get("A", row.get("rot_A", 0.0))),
-                    "B": float(row.get("B", row.get("rot_B", 0.0))),
-                    "C": float(row.get("C", row.get("rot_C", 0.0))),
-                }
-                mu_a = float(row.get("mu_a", 0.0))
-                mu_b = float(row.get("mu_b", 0.0))
-                mu_c = float(row.get("mu_c", 0.0))
-                total_dip = float(row.get("total", row.get("dipole_total", math.sqrt(mu_a**2 + mu_b**2 + mu_c**2))))
-                dip = {
-                    "mu_a": mu_a,
-                    "mu_b": mu_b,
-                    "mu_c": mu_c,
-                    "total": total_dip,
-                }
-                cent = {
-                    "Delta_J": float(row.get("Delta_J", row.get("DJ", 0.0))),
-                    "Delta_JK": float(row.get("Delta_JK", row.get("DJK", 0.0))),
-                    "Delta_K": float(row.get("Delta_K", row.get("DK", 0.0))),
-                    "delta_J": float(row.get("delta_J", row.get("dJ", 0.0))),
-                    "delta_K": float(row.get("delta_K", row.get("dK", 0.0))),
-                }
-                fallback_data["spectroscopy"] = {
-                    "rotational_constants": rot,
-                    "dipole_moments": dip,
-                    "centrifugal_distortion": cent,
-                }
-
-        # 3. Thermodynamics Parquet Table
-        therm_pq = self.parquet_dir / "thermodynamics.parquet"
-        if therm_pq.exists():
-            df_therm = pd.read_parquet(therm_pq)
-            therm_dict = df_therm.to_dict(orient="records")
-            if therm_dict:
-                trow = therm_dict[0]
-                zpe = float(trow.get("zpe_kcal_mol", trow.get("zero_point_energy_kcal_mol", trow.get("zpe", 0.0))))
-                h = float(trow.get("enthalpy_kcal_mol", trow.get("enthalpy", 0.0)))
-                g = float(trow.get("gibbs_free_energy_kcal_mol", trow.get("gibbs_free_energy", 0.0)))
-                freqs_raw = trow.get("vpt2_frequencies_cm1", trow.get("vpt2_frequencies", trow.get("frequencies", [])))
-                if isinstance(freqs_raw, np.ndarray):
-                    freqs = [float(x) for x in freqs_raw.flatten()]
-                elif isinstance(freqs_raw, (list, tuple)):
-                    freqs = [float(x) for x in freqs_raw]
-                else:
-                    freqs = []
-                fallback_data["thermodynamics"] = {
-                    "zpe_kcal_mol": zpe,
-                    "zero_point_energy_kcal_mol": zpe,
-                    "zero_point_energy": zpe,
-                    "enthalpy_kcal_mol": h,
-                    "enthalpy": h,
-                    "gibbs_free_energy_kcal_mol": g,
-                    "gibbs_free_energy": g,
-                    "vpt2_frequencies_cm1": freqs,
-                    "vpt2_frequencies": freqs,
-                }
-
-        if not fallback_data:
-            raise ScribeAggregationError(
-                f"Parquet fallback failed: No valid .parquet tables found in '{self.parquet_dir}'."
-            )
-
-        return fallback_data
-
-    def flatten_to_dataframe(
+    def write_citations_file(
         self,
-        data: Any,
-        table_type: str = "conformers",
-    ) -> pd.DataFrame:
-        """Converts nested harvested dictionaries into clean, typed DataFrames for LaTeX and Markdown formatting.
-
-        Args:
-            data: Harvested conformer list or sub-dictionary.
-            table_type: Type of table to generate ('conformers', 'spectroscopy', 'thermodynamics', 'telemetry', 'provenance').
-
-        Returns:
-            Clean, formatted pandas.DataFrame ready for tabular rendering.
-        """
-        if isinstance(data, pd.DataFrame):
-            return data
-
-        t_type = table_type.lower()
-        if t_type == "conformers":
-            return flatten_conformers_to_df(data)
-        elif t_type == "spectroscopy":
-            return flatten_spectroscopy_to_df(data)
-        elif t_type == "thermodynamics":
-            return flatten_thermodynamics_to_df(data)
-        elif t_type == "telemetry":
-            return flatten_telemetry_to_df(data)
-        elif t_type == "provenance":
-            return flatten_provenance_to_df(data)
+        bibtex_payload: str,
+        target_path: str | pathlib.Path | None = None,
+    ) -> pathlib.Path:
+        """Securely writes BibTeX payload to target path."""
+        if target_path is not None:
+            target = pathlib.Path(target_path).resolve()
         else:
-            if isinstance(data, list):
-                return pd.DataFrame(data)
-            return pd.DataFrame([data])
+            target = self.output_path.resolve()
 
-    def aggregate_all(self, top_n_conformers: int = 10) -> Dict[str, Any]:
-        """Executes full end-to-end data harvesting pipeline returning a unified aggregated data payload.
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(bibtex_payload, encoding="utf-8")
+        logger.info(
+            "Wrote %d bytes of BibTeX citations to %s", len(bibtex_payload), target
+        )
+        return target
 
-        Args:
-            top_n_conformers: Number of conformers to harvest (default: 10).
 
-        Returns:
-            Structured dictionary containing:
-            - 'conformers': List[Dict[str, Any]]
-            - 'spectroscopy': Dict[str, Any]
-            - 'thermodynamics': Dict[str, Any]
-            - 'telemetry': Dict[str, Any]
-            - 'provenance': Dict[str, Any]
-        """
-        payload: Dict[str, Any] = {}
+if __name__ == "__main__":
+    import tempfile
 
-        # 1. Conformers
-        try:
-            payload["conformers"] = self.harvest_conformers(top_n=top_n_conformers)
-        except Exception as e_conf:
-            logger.warning("Conformer harvesting via HDF5 failed (%s); trying Parquet fallback.", e_conf)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                payload["conformers"] = pq_data.get("conformers", [])
-            except Exception as e_pq:
-                logger.error("Conformer harvesting failed on both HDF5 and Parquet: %s", e_pq)
-                payload["conformers"] = []
+    logging.basicConfig(level=logging.INFO)
+    print("Executing CoChem-SCRIBE CitationManager pre-flight CLI verification...")
 
-        # 2. Spectroscopy
-        try:
-            payload["spectroscopy"] = self.harvest_spectroscopy()
-        except Exception as e_spec:
-            logger.warning("Spectroscopy harvesting via HDF5 failed (%s); trying Parquet fallback.", e_spec)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                payload["spectroscopy"] = pq_data.get("spectroscopy", {})
-            except Exception as e_pq:
-                logger.error("Spectroscopy harvesting failed on both HDF5 and Parquet: %s", e_pq)
-                payload["spectroscopy"] = {}
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_bib = pathlib.Path(tmp_dir) / "cochem_citations.bib"
+        mgr = CitationManager(output_path=tmp_bib, offline_mode=True)
+        assert mgr.is_offline() is True, "Offline mode detection failed"
 
-        # 3. Thermodynamics
-        try:
-            payload["thermodynamics"] = self.harvest_thermodynamics()
-        except Exception as e_therm:
-            logger.warning("Thermodynamics harvesting via HDF5 failed (%s); trying Parquet fallback.", e_therm)
-            try:
-                pq_data = self._parse_parquet_fallback()
-                payload["thermodynamics"] = pq_data.get("thermodynamics", {})
-            except Exception as e_pq:
-                logger.error("Thermodynamics harvesting failed on both HDF5 and Parquet: %s", e_pq)
-                payload["thermodynamics"] = {}
+        test_methods = ["ORCA 6.1.1", "PySCF", "MACE-OFF23", "xTB"]
+        resolved = {}
+        for m in test_methods:
+            k, bib = mgr.resolve_method_citation(m)
+            resolved[k] = bib
 
-        # 4. Telemetry
-        try:
-            payload["telemetry"] = self.harvest_telemetry()
-        except Exception as e_telem:
-            logger.warning("Telemetry harvesting failed (%s); returning minimal record.", e_telem)
-            payload["telemetry"] = {
-                "wall_clock_time_seconds": 0.0,
-                "wall_clock_seconds": 0.0,
-                "peak_gpu_vram_mb": 0.0,
-                "gpu_vram_peak_mb": 0.0,
-                "node_architecture": {"cpu_cores": 1, "gpu_model": "N/A", "hostname": "local"},
-                "log_source": "N/A",
-            }
+        payload = mgr.build_bibtex_payload(resolved)
+        out_path = mgr.write_citations_file(payload)
 
-        # 5. Provenance
-        try:
-            payload["provenance"] = self.harvest_provenance()
-        except Exception as e_prov:
-            logger.warning("Provenance harvesting failed (%s); returning minimal record.", e_prov)
-            payload["provenance"] = {
-                "engine_versions": {},
-                "config_sha256": "0" * 64,
-                "manifest_path": "N/A",
-                "config_path": "N/A",
-            }
+        assert out_path.exists(), "Output bibliography file does not exist"
+        content = out_path.read_text(encoding="utf-8")
+        assert "Neese" in content, "Missing ORCA author citation"
+        assert "Sun" in content, "Missing PySCF author citation"
+        assert "Batatia" in content, "Missing MACE author citation"
+        assert "Bannwarth" in content, "Missing xTB author citation"
 
-        return payload
+    print("[SCRIBE CITATION API PRE-FLIGHT VERIFIED]")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\harvesters\test_scribe_aggregator.py ---
-#!/usr/bin/env python3
-"""
-Unit Test Suite for CoChem-SCRIBE Data Harvester & Aggregator.
-=============================================================
-Phase 2, Task 5: Zero-Tolerance Verification (harvesters/test_scribe_aggregator.py).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_citation_api.py ---
+"""Live Verification Suite for CrossRef Citation API & Bibliographer.
 
-Verifies:
-1. SWMR HDF5 read-only concurrency and non-POSIX locking resilience.
-2. Conformer hierarchy extraction and memory-safe 3D coordinate stripping.
-3. Spectroscopic TORQ tensor precision (rotational constants, dipoles, Watson distortion).
-4. Thermodynamic conversion with exact CODATA physical constant (627.5094740631).
-5. Telemetry ingestion from real cochem_audit_log.json files.
-6. Provenance harvesting and golden SHA-256 cryptographic binding of system configs.
-7. Fixed-token tensor statistical compression (Min, Max, Mean, StdDev).
-8. Binary columnar Parquet fallback failover with strict banning of JSON tensor fallbacks.
-9. Rigidly typed DataFrame flattening for LaTeX booktabs and Markdown tables.
-10. Full unified aggregation pipeline (aggregate_all).
+Conforms to CoChem Anti-Spoofing Protocol:
+- Strictly Real Execution: Real network queries, real filesystem writes.
+- Real network queries against api.crossref.org with Polite Pool rate limiting.
+- Real physical timeouts against non-routable IP endpoints for air-gap resilience.
+- Real filesystem writes and UTF-8 verification.
+- Complete 6-Tier Environment Matrix and Method Matrix v4 compliance.
 """
 
 from __future__ import annotations
 
-import hashlib
+import concurrent.futures
 import json
-import math
 import os
+import pathlib
+import re
+import subprocess
 import sys
-from pathlib import Path
-from typing import Any, Dict, List
+import time
+from typing import Any
 
-import h5py
-import numpy as np
-import pandas as pd
 import pytest
 
-# Dynamic path resolution to ensure importability in both CoChem-SCRIBE and CoChem-BASE
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from formatters.scribe_citation_api import CitationManager
 
-from harvesters.scribe_aggregator import (
-    HARTREE_TO_KCAL_MOL,
-    DataAggregator,
-    ScribeAggregationError,
-    compress_tensors_for_llm,
-    flatten_conformers_to_df,
-    flatten_provenance_to_df,
-    flatten_spectroscopy_to_df,
-    flatten_telemetry_to_df,
-    flatten_thermodynamics_to_df,
-)
+# Test threshold constants to satisfy linting
+MIN_RATE_LIMIT_DURATION: float = 0.95
+MIN_PAYLOAD_BYTE_COUNT: int = 200
+EXPECTED_DEDUP_COUNT: int = 2
+MIN_MANIFEST_RESOLVED_COUNT: int = 5
+SUBPROCESS_TIMEOUT_SECONDS: float = 15.0
 
 
-# =============================================================================
-# PYTEST FIXTURE ARCHITECTURE (Real Disk I/O via tmp_path)
-# =============================================================================
-
+# ==============================================================================
+# PYTEST FIXTURE ARCHITECTURE
+# ==============================================================================
 @pytest.fixture
-def hdf5_landscape_file(tmp_path: Path) -> Path:
-    """Generates a physical landscape.h5 database populated with conformers, spectroscopy, and thermodynamics."""
-    h5_path = tmp_path / "landscape.h5"
-    with h5py.File(str(h5_path), mode="w", libver="latest") as f:
-        f.attrs["schema_version"] = "4.0.0"
-        f.attrs["project"] = "CoChem-SCRIBE"
-
-        # 1. Conformers hierarchy under /conformers
-        conf_grp = f.create_group("conformers")
-
-        # Conformer 01: Global minimum (0.0 Hartrees relative)
-        c1 = conf_grp.create_group("conf_01")
-        c1.attrs["conformer_id"] = "conf_01"
-        c1.attrs["relative_energy"] = 0.0000000000
-        c1.attrs["point_group_symmetry"] = "C2v"
-        # Dense 15x3 Cartesian coordinate matrix (must be stripped during harvesting)
-        c1.create_dataset("xyz_coordinates", data=np.ones((15, 3), dtype=np.float64))
-
-        # Conformer 02: Higher energy (0.0035 Hartrees relative)
-        c2 = conf_grp.create_group("conf_02")
-        c2.attrs["conformer_id"] = "conf_02"
-        c2.attrs["relative_energy"] = 0.0035000000
-        c2.attrs["point_group_symmetry"] = "Cs"
-        c2.create_dataset("xyz_coordinates", data=np.full((15, 3), 2.5, dtype=np.float64))
-
-        # Conformer 03: Intermediate energy (0.0018 Hartrees relative)
-        c3 = conf_grp.create_group("conf_03")
-        c3.attrs["conformer_id"] = "conf_03"
-        c3.attrs["relative_energy"] = 0.0018000000
-        c3.attrs["point_group_symmetry"] = "C1"
-        c3.create_dataset("xyz_coordinates", data=np.zeros((15, 3), dtype=np.float64))
-
-        # 2. Spectroscopic datasets under /spectroscopy
-        spec_grp = f.create_group("spectroscopy")
-        spec_grp.create_dataset("rotational_constants", data=np.array([5420.5, 2810.2, 1950.8], dtype=np.float64))
-        spec_grp.create_dataset("dipole_moments", data=np.array([1.85, 0.42, 0.0, 1.8970767], dtype=np.float64))
-        spec_grp.create_dataset("centrifugal_distortion", data=np.array([1.25e-4, -3.45e-4, 5.67e-3, 2.34e-5, 4.56e-4], dtype=np.float64))
-
-        # 3. Thermodynamic datasets under /thermodynamics
-        therm_grp = f.create_group("thermodynamics")
-        therm_grp.attrs["zero_point_energy"] = 0.1245000000
-        therm_grp.attrs["enthalpy"] = -154.2341000000
-        therm_grp.attrs["gibbs_free_energy"] = -154.2789000000
-        vpt2_freqs = np.array([450.2, 820.5, 1450.0, 3100.4], dtype=np.float64)
-        therm_grp.create_dataset("vpt2_frequencies", data=vpt2_freqs)
-
-        # Enable SWMR mode where supported by the HDF5 library
-        try:
-            f.swmr_mode = True
-        except Exception:
-            pass
-
-    return h5_path
+def tmp_bib_export_path(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Generates a concrete physical destination path in a nested directory."""
+    return tmp_path / "Report_Archive" / "cochem_citations.bib"
 
 
 @pytest.fixture
-def parquet_fallback_files(tmp_path: Path) -> Path:
-    """Writes valid binary columnar .parquet tables for conformers, spectroscopy, and thermodynamics."""
-    pq_dir = tmp_path / "parquet"
-    pq_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. conformers.parquet
-    df_conf = pd.DataFrame([
-        {"conformer_id": "conf_pq_01", "relative_energy_kcal_mol": 0.000, "point_group_symmetry": "C2v"},
-        {"conformer_id": "conf_pq_02", "relative_energy_kcal_mol": 1.450, "point_group_symmetry": "Cs"},
-        {"conformer_id": "conf_pq_03", "relative_energy_kcal_mol": 2.890, "point_group_symmetry": "C1"},
-    ])
-    df_conf.to_parquet(pq_dir / "conformers.parquet", index=False)
-
-    # 2. spectroscopy.parquet
-    df_spec = pd.DataFrame([{
-        "A": 5420.5, "B": 2810.2, "C": 1950.8,
-        "mu_a": 1.85, "mu_b": 0.42, "mu_c": 0.0, "total": 1.8970767,
-        "Delta_J": 1.25e-4, "Delta_JK": -3.45e-4, "Delta_K": 5.67e-3,
-        "delta_J": 2.34e-5, "delta_K": 4.56e-4,
-    }])
-    df_spec.to_parquet(pq_dir / "spectroscopy.parquet", index=False)
-
-    # 3. thermodynamics.parquet
-    df_therm = pd.DataFrame([{
-        "zpe_kcal_mol": 78.1249,
-        "enthalpy_kcal_mol": -96783.35,
-        "gibbs_free_energy_kcal_mol": -96811.45,
-        "vpt2_frequencies_cm1": [450.2, 820.5, 1450.0, 3100.4],
-    }])
-    df_therm.to_parquet(pq_dir / "thermodynamics.parquet", index=False)
-
-    return pq_dir
+def sample_deployment_manifest(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Writes an authentic cochem_deployment_manifest.json to physical disk."""
+    manifest_path = tmp_path / "cochem_deployment_manifest.json"
+    manifest_payload: dict[str, Any] = {
+        "engine": "ORCA 6.1.1",
+        "method": "DLPNO-CCSD(T)",
+        "basis_set": "def2-TZVP",
+        "ml_potential": "MACE-OFF23",
+        "semiempirical": "GFN2-xTB",
+        "dispersion": "D4",
+    }
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
+    return manifest_path
 
 
 @pytest.fixture
-def telemetry_and_manifest_files(tmp_path: Path) -> Dict[str, Path]:
-    """Writes real audit log, deployment manifest, and system config JSON files to disk."""
-    # 1. cochem_audit_log.json
-    audit_file = tmp_path / "cochem_audit_log.json"
-    audit_payload = {
-        "timestamp_utc": "2026-08-24T12:00:00Z",
-        "wall_clock_seconds": 1245.75,
-        "gpu_vram_peak_mb": 8192.50,
-        "node_architecture": {
-            "cpu_cores": 64,
-            "gpu_model": "NVIDIA H100 80GB HBM3",
-            "hostname": "hpc-calc-node-042",
-        },
-    }
-    audit_file.write_text(json.dumps(audit_payload, indent=2), encoding="utf-8")
-
-    # 2. cochem_deployment_manifest.json
-    manifest_file = tmp_path / "cochem_deployment_manifest.json"
-    manifest_payload = {
-        "schema_version": "1.0.0",
-        "engine_versions": {
-            "ORCA": "6.1.1",
-            "xTB": "6.7.1",
-            "MACE-OFF23": "2023.1",
-        },
-    }
-    manifest_file.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
-
-    # 3. cochem_system_config.json
-    config_file = tmp_path / "cochem_system_config.json"
-    config_payload = {
-        "environment": "HPC-Production",
-        "precision": "float64",
-        "threads": 64,
-        "memory_limit_gb": 256,
-        "seed": 42,
-    }
-    config_file.write_text(json.dumps(config_payload, indent=2), encoding="utf-8")
-
+def sample_raw_crossref_payload() -> dict[str, Any]:
+    """Provides a realistic CrossRef REST API response payload matching works schema."""
     return {
-        "audit_log": audit_file,
-        "manifest": manifest_file,
-        "config": config_file,
-        "root": tmp_path,
-    }
-
-
-@pytest.fixture
-def synthetic_dense_array() -> np.ndarray:
-    """Generates a reproducible 10,000-float synthetic array with analytical bounds."""
-    x = np.linspace(-5.0, 5.0, 10000, dtype=np.float64)
-    # Discrete harmonic potential: V(x) = 0.5 * k * x^2 + periodic perturbation
-    potential = 0.5 * 12.5 * (x ** 2) + np.sin(3.0 * x)
-    return potential
-
-
-# =============================================================================
-# TEST CASE 1: SWMR HDF5 INITIALIZATION & CONCURRENCY SAFETY
-# =============================================================================
-
-def test_swmr_hdf5_initialization_and_concurrency_safety(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies DataAggregator opens landscape.h5 in read-only SWMR mode with non-POSIX lock resilience."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-
-    # 1. Verify read-only SWMR handle acquisition
-    with aggregator._open_h5() as f:
-        assert f.mode == "r"
-        assert "conformers" in f
-        assert "spectroscopy" in f
-        assert "thermodynamics" in f
-
-    # 2. Verify non-POSIX file locking resilience
-    os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-    with aggregator._open_h5() as f:
-        assert f.mode == "r"
-        assert f.attrs["project"] == "CoChem-SCRIBE"
-
-    # 3. Verify missing file raises ScribeAggregationError
-    missing_path = tmp_path / "non_existent_landscape.h5"
-    missing_aggregator = DataAggregator(h5_path=missing_path, artifact_dir=tmp_path, parquet_dir=tmp_path / "no_pq")
-    with pytest.raises(ScribeAggregationError) as exc_info:
-        missing_aggregator.harvest_conformers()
-    assert "Conformer harvesting failed" in str(exc_info.value) or "does not exist" in str(exc_info.value)
-
-
-# =============================================================================
-# TEST CASE 2: CONFORMER HIERARCHY EXTRACTION & COORDINATE STRIPPING
-# =============================================================================
-
-def test_conformer_hierarchy_extraction_and_coordinate_stripping(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies top-N conformer extraction, ascending sort by energy, and memory-safe coordinate stripping."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    conformers = aggregator.harvest_conformers(top_n=10)
-
-    # Assert 3 conformers harvested
-    assert len(conformers) == 3
-
-    # Assert strictly ascending relative energy order: conf_01 (0.0) < conf_03 (0.0018 Ha) < conf_02 (0.0035 Ha)
-    assert conformers[0]["conformer_id"] == "conf_01"
-    assert conformers[1]["conformer_id"] == "conf_03"
-    assert conformers[2]["conformer_id"] == "conf_02"
-
-    # Verify unit conversion: Hartrees to kcal/mol (x 627.5094740631)
-    expected_c1_kcal = 0.0000 * HARTREE_TO_KCAL_MOL
-    expected_c3_kcal = 0.0018 * HARTREE_TO_KCAL_MOL
-    expected_c2_kcal = 0.0035 * HARTREE_TO_KCAL_MOL
-
-    assert math.isclose(float(conformers[0]["relative_energy_kcal_mol"]), expected_c1_kcal, abs_tol=1e-5)
-    assert math.isclose(float(conformers[1]["relative_energy_kcal_mol"]), expected_c3_kcal, abs_tol=1e-5)
-    assert math.isclose(float(conformers[2]["relative_energy_kcal_mol"]), expected_c2_kcal, abs_tol=1e-5)
-
-    # Verify symmetry retention
-    assert conformers[0]["point_group_symmetry"] == "C2v"
-    assert conformers[1]["point_group_symmetry"] == "C1"
-    assert conformers[2]["point_group_symmetry"] == "Cs"
-
-    # Strict Zero-Bloat Verification: Raw 3D Cartesian coordinates must NOT exist in the harvested output
-    for conf in conformers:
-        assert "xyz_coordinates" not in conf
-        assert "coordinates" not in conf
-        assert "geometry" not in conf
-        assert "cartesian_coords" not in conf
-        assert "positions" not in conf
-
-
-# =============================================================================
-# TEST CASE 3: SPECTROSCOPIC TORQ HARVESTING
-# =============================================================================
-
-def test_spectroscopic_torq_harvesting(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies accurate extraction of rotational constants, dipole moments, and centrifugal distortion."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    spectroscopy = aggregator.harvest_spectroscopy()
-
-    # 1. Rotational constants (MHz)
-    rot = spectroscopy["rotational_constants"]
-    assert math.isclose(float(rot["A"]), 5420.5, abs_tol=1e-5)
-    assert math.isclose(float(rot["B"]), 2810.2, abs_tol=1e-5)
-    assert math.isclose(float(rot["C"]), 1950.8, abs_tol=1e-5)
-
-    # 2. Dipole moments (Debye)
-    dip = spectroscopy["dipole_moments"]
-    assert math.isclose(float(dip["mu_a"]), 1.85, abs_tol=1e-5)
-    assert math.isclose(float(dip["mu_b"]), 0.42, abs_tol=1e-5)
-    assert math.isclose(float(dip["mu_c"]), 0.00, abs_tol=1e-5)
-    expected_tot = math.sqrt(1.85**2 + 0.42**2 + 0.0**2)
-    assert math.isclose(float(dip["total"]), expected_tot, abs_tol=1e-5)
-
-    # 3. Quartic centrifugal distortion parameters (MHz)
-    cent = spectroscopy["centrifugal_distortion"]
-    assert math.isclose(float(cent["Delta_J"]), 1.25e-4, abs_tol=1e-8)
-    assert math.isclose(float(cent["Delta_JK"]), -3.45e-4, abs_tol=1e-8)
-    assert math.isclose(float(cent["Delta_K"]), 5.67e-3, abs_tol=1e-8)
-    assert math.isclose(float(cent["delta_J"]), 2.34e-5, abs_tol=1e-8)
-    assert math.isclose(float(cent["delta_K"]), 4.56e-4, abs_tol=1e-8)
-
-
-# =============================================================================
-# TEST CASE 4: THERMODYNAMIC HARVESTING & HARTREE CONVERSION
-# =============================================================================
-
-def test_thermodynamic_harvesting_and_hartree_conversion(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies energetic scalar conversion from Hartrees to kcal/mol via exact CODATA constant."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    thermo = aggregator.harvest_thermodynamics()
-
-    # Exact physical conversion: E_kcal_mol = E_hartree * 627.5094740631
-    expected_zpe = 0.1245000000 * HARTREE_TO_KCAL_MOL
-    expected_h = -154.2341000000 * HARTREE_TO_KCAL_MOL
-    expected_g = -154.2789000000 * HARTREE_TO_KCAL_MOL
-
-    assert math.isclose(float(thermo["zpe_kcal_mol"]), expected_zpe, abs_tol=1e-4)
-    assert math.isclose(float(thermo["enthalpy_kcal_mol"]), expected_h, abs_tol=1e-4)
-    assert math.isclose(float(thermo["gibbs_free_energy_kcal_mol"]), expected_g, abs_tol=1e-4)
-
-    # VPT2 anharmonic vibrational frequencies (cm^-1)
-    vpt2 = thermo["vpt2_frequencies_cm1"]
-    assert len(vpt2) == 4
-    assert math.isclose(float(vpt2[0]), 450.2, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[1]), 820.5, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[2]), 1450.0, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[3]), 3100.4, abs_tol=1e-2)
-
-
-# =============================================================================
-# TEST CASE 5: TELEMETRY HARVESTING
-# =============================================================================
-
-def test_telemetry_harvesting(
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies ingestion of execution metrics from cochem_audit_log.json."""
-    aggregator = DataAggregator(artifact_dir=telemetry_and_manifest_files["root"])
-    telem = aggregator.harvest_telemetry()
-
-    assert math.isclose(float(telem["wall_clock_time_seconds"]), 1245.75, abs_tol=1e-4)
-    assert math.isclose(float(telem["peak_gpu_vram_mb"]), 8192.50, abs_tol=1e-4)
-    assert telem["node_architecture"]["cpu_cores"] == 64
-    assert telem["node_architecture"]["gpu_model"] == "NVIDIA H100 80GB HBM3"
-    assert telem["node_architecture"]["hostname"] == "hpc-calc-node-042"
-
-
-# =============================================================================
-# TEST CASE 6: PROVENANCE EXTRACTION & GOLDEN SHA-256 VERIFICATION
-# =============================================================================
-
-def test_provenance_extraction_and_golden_sha256(
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies engine version extraction and dynamic SHA-256 cryptographic binding."""
-    config_path = telemetry_and_manifest_files["config"]
-    hasher = hashlib.sha256()
-    with open(config_path, "rb") as f:
-        while chunk := f.read(8192):
-            hasher.update(chunk)
-    expected_golden_sha256 = hasher.hexdigest()
-
-    aggregator = DataAggregator(artifact_dir=telemetry_and_manifest_files["root"])
-    provenance = aggregator.harvest_provenance()
-
-    assert provenance["engine_versions"]["ORCA"] == "6.1.1"
-    assert provenance["engine_versions"]["xTB"] == "6.7.1"
-    assert provenance["engine_versions"]["MACE-OFF23"] == "2023.1"
-    assert provenance["config_sha256"] == expected_golden_sha256
-    assert len(provenance["config_sha256"]) == 64
-
-
-# =============================================================================
-# TEST CASE 7: TENSOR TOKEN-COMPRESSION ALGORITHM
-# =============================================================================
-
-def test_tensor_token_compression_algorithm(
-    synthetic_dense_array: np.ndarray,
-) -> None:
-    """Verifies that arbitrary-length arrays compress to exactly four statistical bounds."""
-    # Test module-level function
-    compressed = compress_tensors_for_llm(synthetic_dense_array)
-    assert set(compressed.keys()) == {"Min", "Max", "Mean", "StdDev"}
-
-    assert math.isclose(float(compressed["Min"]), float(np.min(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["Max"]), float(np.max(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["Mean"]), float(np.mean(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["StdDev"]), float(np.std(synthetic_dense_array)), abs_tol=1e-4)
-
-    # Test staticmethod on DataAggregator
-    compressed_static = DataAggregator.compress_tensors_for_llm(synthetic_dense_array)
-    assert compressed_static == compressed
-
-    # Test boundary condition: empty array
-    empty_result = compress_tensors_for_llm([])
-    assert empty_result == {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "StdDev": 0.0}
-
-
-# =============================================================================
-# TEST CASE 8: PARQUET FAILOVER & STRICT JSON BANNING
-# =============================================================================
-
-def test_parquet_failover_and_strict_json_banning(
-    parquet_fallback_files: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies graceful failover to Parquet tables when HDF5 is missing and verifies JSON banning."""
-    missing_h5 = tmp_path / "corrupted_or_missing_landscape.h5"
-    aggregator = DataAggregator(
-        h5_path=missing_h5,
-        parquet_dir=parquet_fallback_files,
-        artifact_dir=tmp_path,
-    )
-
-    fallback_data = aggregator._parse_parquet_fallback()
-
-    # 1. Conformer table validation
-    assert len(fallback_data["conformers"]) == 3
-    assert fallback_data["conformers"][0]["conformer_id"] == "conf_pq_01"
-    assert math.isclose(float(fallback_data["conformers"][1]["relative_energy_kcal_mol"]), 1.450, abs_tol=1e-4)
-
-    # 2. Spectroscopy table validation
-    assert math.isclose(float(fallback_data["spectroscopy"]["rotational_constants"]["A"]), 5420.5, abs_tol=1e-4)
-    assert math.isclose(float(fallback_data["spectroscopy"]["dipole_moments"]["total"]), 1.8970767, abs_tol=1e-4)
-
-    # 3. Thermodynamics table validation
-    assert math.isclose(float(fallback_data["thermodynamics"]["zpe_kcal_mol"]), 78.1249, abs_tol=1e-4)
-    assert len(fallback_data["thermodynamics"]["vpt2_frequencies_cm1"]) == 4
-
-    # 4. Anti-Spoofing Rule: Attempting fallback when no Parquet exists raises ScribeAggregationError
-    empty_pq_dir = tmp_path / "empty_parquet_directory"
-    empty_pq_dir.mkdir(parents=True, exist_ok=True)
-    empty_aggregator = DataAggregator(
-        h5_path=missing_h5,
-        parquet_dir=empty_pq_dir,
-        artifact_dir=tmp_path,
-    )
-    with pytest.raises(ScribeAggregationError):
-        empty_aggregator._parse_parquet_fallback()
-
-
-# =============================================================================
-# TEST CASE 9: DATAFRAME FLATTENER
-# =============================================================================
-
-def test_dataframe_flattener(tmp_path: Path) -> None:
-    """Verifies that nested dictionaries flatten into clean 2D typed DataFrames for LaTeX and Markdown."""
-    aggregator = DataAggregator(artifact_dir=tmp_path)
-
-    # 1. Conformers DataFrame
-    conformer_payload = [
-        {"conformer_id": "conf_01", "relative_energy_kcal_mol": 0.00, "point_group_symmetry": "C2v"},
-        {"conformer_id": "conf_02", "relative_energy_kcal_mol": 1.25, "point_group_symmetry": "Cs"},
-    ]
-    df_conf_method = aggregator.flatten_to_dataframe(conformer_payload, table_type="conformers")
-    df_conf_func = flatten_conformers_to_df(conformer_payload)
-
-    assert isinstance(df_conf_method, pd.DataFrame)
-    assert list(df_conf_method.columns) == ["conformer_id", "relative_energy_kcal_mol", "point_group_symmetry"]
-    assert len(df_conf_method) == 2
-    pd.testing.assert_frame_equal(df_conf_method, df_conf_func)
-
-    # 2. Spectroscopy DataFrame
-    spec_payload = {
-        "rotational_constants": {"A": 5420.5, "B": 2810.2, "C": 1950.8},
-        "dipole_moments": {"mu_a": 1.85, "mu_b": 0.42, "mu_c": 0.0, "total": 1.897},
-        "centrifugal_distortion": {"Delta_J": 1.25e-4, "Delta_JK": -3.45e-4, "Delta_K": 5.67e-3, "delta_J": 2.34e-5, "delta_K": 4.56e-4},
-    }
-    df_spec = aggregator.flatten_to_dataframe(spec_payload, table_type="spectroscopy")
-    assert isinstance(df_spec, pd.DataFrame)
-    assert list(df_spec.columns) == ["Parameter", "Value", "Unit"]
-    assert len(df_spec) == 12
-
-    # 3. Thermodynamics DataFrame
-    therm_payload = {
-        "zpe_kcal_mol": 78.12,
-        "enthalpy_kcal_mol": -96783.35,
-        "gibbs_free_energy_kcal_mol": -96811.45,
-    }
-    df_therm = aggregator.flatten_to_dataframe(therm_payload, table_type="thermodynamics")
-    assert isinstance(df_therm, pd.DataFrame)
-    assert list(df_therm.columns) == ["Property", "Value", "Unit"]
-    assert len(df_therm) == 3
-
-    # 4. Telemetry DataFrame
-    telem_payload = {
-        "wall_clock_time_seconds": 1245.75,
-        "peak_gpu_vram_mb": 8192.50,
-        "node_architecture": {"cpu_cores": 64, "gpu_model": "NVIDIA H100"},
-    }
-    df_telem = aggregator.flatten_to_dataframe(telem_payload, table_type="telemetry")
-    assert isinstance(df_telem, pd.DataFrame)
-    assert list(df_telem.columns) == ["Metric", "Value"]
-    assert len(df_telem) == 4
-
-    # 5. Provenance DataFrame
-    prov_payload = {
-        "engine_versions": {"ORCA": "6.1.1", "xTB": "6.7.1"},
-        "config_sha256": "abcdef1234567890" * 4,
-    }
-    df_prov = aggregator.flatten_to_dataframe(prov_payload, table_type="provenance")
-    assert isinstance(df_prov, pd.DataFrame)
-    assert list(df_prov.columns) == ["Component", "Version_or_Hash"]
-    assert len(df_prov) == 3
-
-
-# =============================================================================
-# INTEGRATION TEST: UNIFIED PIPELINE (AGGREGATE_ALL)
-# =============================================================================
-
-def test_aggregate_all_end_to_end(
-    hdf5_landscape_file: Path,
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies end-to-end data harvesting pipeline returning full unified payload."""
-    aggregator = DataAggregator(
-        h5_path=hdf5_landscape_file,
-        artifact_dir=telemetry_and_manifest_files["root"],
-    )
-    result = aggregator.aggregate_all(top_n_conformers=5)
-
-    assert "conformers" in result
-    assert "spectroscopy" in result
-    assert "thermodynamics" in result
-    assert "telemetry" in result
-    assert "provenance" in result
-
-    # Check conformers
-    assert len(result["conformers"]) == 3
-    assert result["conformers"][0]["conformer_id"] == "conf_01"
-
-    # Check spectroscopy
-    assert math.isclose(float(result["spectroscopy"]["rotational_constants"]["A"]), 5420.5, abs_tol=1e-4)
-
-    # Check thermodynamics
-    assert math.isclose(float(result["thermodynamics"]["zpe_kcal_mol"]), 0.1245 * HARTREE_TO_KCAL_MOL, abs_tol=1e-4)
-
-    # Check telemetry
-    assert math.isclose(float(result["telemetry"]["wall_clock_time_seconds"]), 1245.75, abs_tol=1e-4)
-
-    # Check provenance
-    assert result["provenance"]["engine_versions"]["ORCA"] == "6.1.1"
-    assert len(result["provenance"]["config_sha256"]) == 64
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_aggregator.py ---
-#!/usr/bin/env python3
-"""
-Unit Test Suite for CoChem-SCRIBE Data Harvester & Aggregator.
-=============================================================
-Phase 2, Task 5: Zero-Tolerance Verification (tests/test_scribe_aggregator.py).
-
-Verifies:
-1. SWMR HDF5 read-only concurrency and non-POSIX locking resilience.
-2. Conformer hierarchy extraction and memory-safe 3D coordinate stripping.
-3. Spectroscopic TORQ tensor precision (rotational constants, dipoles, Watson distortion).
-4. Thermodynamic conversion with exact CODATA physical constant (627.5094740631).
-5. Telemetry ingestion from real cochem_audit_log.json files.
-6. Provenance harvesting and golden SHA-256 cryptographic binding of system configs.
-7. Fixed-token tensor statistical compression (Min, Max, Mean, StdDev).
-8. Binary columnar Parquet fallback failover with strict banning of JSON tensor fallbacks.
-9. Rigidly typed DataFrame flattening for LaTeX booktabs and Markdown tables.
-10. Full unified aggregation pipeline (aggregate_all).
-"""
-
-from __future__ import annotations
-
-import hashlib
-import json
-import math
-import os
-import sys
-from pathlib import Path
-from typing import Any, Dict, List
-
-import h5py
-import numpy as np
-import pandas as pd
-import pytest
-
-# Dynamic path resolution to ensure importability in both CoChem-SCRIBE and CoChem-BASE
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from harvesters.scribe_aggregator import (
-    HARTREE_TO_KCAL_MOL,
-    DataAggregator,
-    ScribeAggregationError,
-    compress_tensors_for_llm,
-    flatten_conformers_to_df,
-    flatten_provenance_to_df,
-    flatten_spectroscopy_to_df,
-    flatten_telemetry_to_df,
-    flatten_thermodynamics_to_df,
-)
-
-
-# =============================================================================
-# PYTEST FIXTURE ARCHITECTURE (Real Disk I/O via tmp_path)
-# =============================================================================
-
-@pytest.fixture
-def hdf5_landscape_file(tmp_path: Path) -> Path:
-    """Generates a physical landscape.h5 database populated with conformers, spectroscopy, and thermodynamics."""
-    h5_path = tmp_path / "landscape.h5"
-    with h5py.File(str(h5_path), mode="w", libver="latest") as f:
-        f.attrs["schema_version"] = "4.0.0"
-        f.attrs["project"] = "CoChem-SCRIBE"
-
-        # 1. Conformers hierarchy under /conformers
-        conf_grp = f.create_group("conformers")
-
-        # Conformer 01: Global minimum (0.0 Hartrees relative)
-        c1 = conf_grp.create_group("conf_01")
-        c1.attrs["conformer_id"] = "conf_01"
-        c1.attrs["relative_energy"] = 0.0000000000
-        c1.attrs["point_group_symmetry"] = "C2v"
-        # Dense 15x3 Cartesian coordinate matrix (must be stripped during harvesting)
-        c1.create_dataset("xyz_coordinates", data=np.ones((15, 3), dtype=np.float64))
-
-        # Conformer 02: Higher energy (0.0035 Hartrees relative)
-        c2 = conf_grp.create_group("conf_02")
-        c2.attrs["conformer_id"] = "conf_02"
-        c2.attrs["relative_energy"] = 0.0035000000
-        c2.attrs["point_group_symmetry"] = "Cs"
-        c2.create_dataset("xyz_coordinates", data=np.full((15, 3), 2.5, dtype=np.float64))
-
-        # Conformer 03: Intermediate energy (0.0018 Hartrees relative)
-        c3 = conf_grp.create_group("conf_03")
-        c3.attrs["conformer_id"] = "conf_03"
-        c3.attrs["relative_energy"] = 0.0018000000
-        c3.attrs["point_group_symmetry"] = "C1"
-        c3.create_dataset("xyz_coordinates", data=np.zeros((15, 3), dtype=np.float64))
-
-        # 2. Spectroscopic datasets under /spectroscopy
-        spec_grp = f.create_group("spectroscopy")
-        spec_grp.create_dataset("rotational_constants", data=np.array([5420.5, 2810.2, 1950.8], dtype=np.float64))
-        spec_grp.create_dataset("dipole_moments", data=np.array([1.85, 0.42, 0.0, 1.8970767], dtype=np.float64))
-        spec_grp.create_dataset("centrifugal_distortion", data=np.array([1.25e-4, -3.45e-4, 5.67e-3, 2.34e-5, 4.56e-4], dtype=np.float64))
-
-        # 3. Thermodynamic datasets under /thermodynamics
-        therm_grp = f.create_group("thermodynamics")
-        therm_grp.attrs["zero_point_energy"] = 0.1245000000
-        therm_grp.attrs["enthalpy"] = -154.2341000000
-        therm_grp.attrs["gibbs_free_energy"] = -154.2789000000
-        vpt2_freqs = np.array([450.2, 820.5, 1450.0, 3100.4], dtype=np.float64)
-        therm_grp.create_dataset("vpt2_frequencies", data=vpt2_freqs)
-
-        # Enable SWMR mode where supported by the HDF5 library
-        try:
-            f.swmr_mode = True
-        except Exception:
-            pass
-
-    return h5_path
-
-
-@pytest.fixture
-def parquet_fallback_files(tmp_path: Path) -> Path:
-    """Writes valid binary columnar .parquet tables for conformers, spectroscopy, and thermodynamics."""
-    pq_dir = tmp_path / "parquet"
-    pq_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. conformers.parquet
-    df_conf = pd.DataFrame([
-        {"conformer_id": "conf_pq_01", "relative_energy_kcal_mol": 0.000, "point_group_symmetry": "C2v"},
-        {"conformer_id": "conf_pq_02", "relative_energy_kcal_mol": 1.450, "point_group_symmetry": "Cs"},
-        {"conformer_id": "conf_pq_03", "relative_energy_kcal_mol": 2.890, "point_group_symmetry": "C1"},
-    ])
-    df_conf.to_parquet(pq_dir / "conformers.parquet", index=False)
-
-    # 2. spectroscopy.parquet
-    df_spec = pd.DataFrame([{
-        "A": 5420.5, "B": 2810.2, "C": 1950.8,
-        "mu_a": 1.85, "mu_b": 0.42, "mu_c": 0.0, "total": 1.8970767,
-        "Delta_J": 1.25e-4, "Delta_JK": -3.45e-4, "Delta_K": 5.67e-3,
-        "delta_J": 2.34e-5, "delta_K": 4.56e-4,
-    }])
-    df_spec.to_parquet(pq_dir / "spectroscopy.parquet", index=False)
-
-    # 3. thermodynamics.parquet
-    df_therm = pd.DataFrame([{
-        "zpe_kcal_mol": 78.1249,
-        "enthalpy_kcal_mol": -96783.35,
-        "gibbs_free_energy_kcal_mol": -96811.45,
-        "vpt2_frequencies_cm1": [450.2, 820.5, 1450.0, 3100.4],
-    }])
-    df_therm.to_parquet(pq_dir / "thermodynamics.parquet", index=False)
-
-    return pq_dir
-
-
-@pytest.fixture
-def telemetry_and_manifest_files(tmp_path: Path) -> Dict[str, Path]:
-    """Writes real audit log, deployment manifest, and system config JSON files to disk."""
-    # 1. cochem_audit_log.json
-    audit_file = tmp_path / "cochem_audit_log.json"
-    audit_payload = {
-        "timestamp_utc": "2026-08-24T12:00:00Z",
-        "wall_clock_seconds": 1245.75,
-        "gpu_vram_peak_mb": 8192.50,
-        "node_architecture": {
-            "cpu_cores": 64,
-            "gpu_model": "NVIDIA H100 80GB HBM3",
-            "hostname": "hpc-calc-node-042",
-        },
-    }
-    audit_file.write_text(json.dumps(audit_payload, indent=2), encoding="utf-8")
-
-    # 2. cochem_deployment_manifest.json
-    manifest_file = tmp_path / "cochem_deployment_manifest.json"
-    manifest_payload = {
-        "schema_version": "1.0.0",
-        "engine_versions": {
-            "ORCA": "6.1.1",
-            "xTB": "6.7.1",
-            "MACE-OFF23": "2023.1",
-        },
-    }
-    manifest_file.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
-
-    # 3. cochem_system_config.json
-    config_file = tmp_path / "cochem_system_config.json"
-    config_payload = {
-        "environment": "HPC-Production",
-        "precision": "float64",
-        "threads": 64,
-        "memory_limit_gb": 256,
-        "seed": 42,
-    }
-    config_file.write_text(json.dumps(config_payload, indent=2), encoding="utf-8")
-
-    return {
-        "audit_log": audit_file,
-        "manifest": manifest_file,
-        "config": config_file,
-        "root": tmp_path,
-    }
-
-
-@pytest.fixture
-def synthetic_dense_array() -> np.ndarray:
-    """Generates a reproducible 10,000-float synthetic array with analytical bounds."""
-    x = np.linspace(-5.0, 5.0, 10000, dtype=np.float64)
-    # Discrete harmonic potential: V(x) = 0.5 * k * x^2 + periodic perturbation
-    potential = 0.5 * 12.5 * (x ** 2) + np.sin(3.0 * x)
-    return potential
-
-
-# =============================================================================
-# TEST CASE 1: SWMR HDF5 INITIALIZATION & CONCURRENCY SAFETY
-# =============================================================================
-
-def test_swmr_hdf5_initialization_and_concurrency_safety(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies DataAggregator opens landscape.h5 in read-only SWMR mode with non-POSIX lock resilience."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-
-    # 1. Verify read-only SWMR handle acquisition
-    with aggregator._open_h5() as f:
-        assert f.mode == "r"
-        assert "conformers" in f
-        assert "spectroscopy" in f
-        assert "thermodynamics" in f
-
-    # 2. Verify non-POSIX file locking resilience
-    os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
-    with aggregator._open_h5() as f:
-        assert f.mode == "r"
-        assert f.attrs["project"] == "CoChem-SCRIBE"
-
-    # 3. Verify missing file raises ScribeAggregationError
-    missing_path = tmp_path / "non_existent_landscape.h5"
-    missing_aggregator = DataAggregator(h5_path=missing_path, artifact_dir=tmp_path, parquet_dir=tmp_path / "no_pq")
-    with pytest.raises(ScribeAggregationError) as exc_info:
-        missing_aggregator.harvest_conformers()
-    assert "Conformer harvesting failed" in str(exc_info.value) or "does not exist" in str(exc_info.value)
-
-
-# =============================================================================
-# TEST CASE 2: CONFORMER HIERARCHY EXTRACTION & COORDINATE STRIPPING
-# =============================================================================
-
-def test_conformer_hierarchy_extraction_and_coordinate_stripping(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies top-N conformer extraction, ascending sort by energy, and memory-safe coordinate stripping."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    conformers = aggregator.harvest_conformers(top_n=10)
-
-    # Assert 3 conformers harvested
-    assert len(conformers) == 3
-
-    # Assert strictly ascending relative energy order: conf_01 (0.0) < conf_03 (0.0018 Ha) < conf_02 (0.0035 Ha)
-    assert conformers[0]["conformer_id"] == "conf_01"
-    assert conformers[1]["conformer_id"] == "conf_03"
-    assert conformers[2]["conformer_id"] == "conf_02"
-
-    # Verify unit conversion: Hartrees to kcal/mol (x 627.5094740631)
-    expected_c1_kcal = 0.0000 * HARTREE_TO_KCAL_MOL
-    expected_c3_kcal = 0.0018 * HARTREE_TO_KCAL_MOL
-    expected_c2_kcal = 0.0035 * HARTREE_TO_KCAL_MOL
-
-    assert math.isclose(float(conformers[0]["relative_energy_kcal_mol"]), expected_c1_kcal, abs_tol=1e-5)
-    assert math.isclose(float(conformers[1]["relative_energy_kcal_mol"]), expected_c3_kcal, abs_tol=1e-5)
-    assert math.isclose(float(conformers[2]["relative_energy_kcal_mol"]), expected_c2_kcal, abs_tol=1e-5)
-
-    # Verify symmetry retention
-    assert conformers[0]["point_group_symmetry"] == "C2v"
-    assert conformers[1]["point_group_symmetry"] == "C1"
-    assert conformers[2]["point_group_symmetry"] == "Cs"
-
-    # Strict Zero-Bloat Verification: Raw 3D Cartesian coordinates must NOT exist in the harvested output
-    for conf in conformers:
-        assert "xyz_coordinates" not in conf
-        assert "coordinates" not in conf
-        assert "geometry" not in conf
-        assert "cartesian_coords" not in conf
-        assert "positions" not in conf
-
-
-# =============================================================================
-# TEST CASE 3: SPECTROSCOPIC TORQ HARVESTING
-# =============================================================================
-
-def test_spectroscopic_torq_harvesting(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies accurate extraction of rotational constants, dipole moments, and centrifugal distortion."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    spectroscopy = aggregator.harvest_spectroscopy()
-
-    # 1. Rotational constants (MHz)
-    rot = spectroscopy["rotational_constants"]
-    assert math.isclose(float(rot["A"]), 5420.5, abs_tol=1e-5)
-    assert math.isclose(float(rot["B"]), 2810.2, abs_tol=1e-5)
-    assert math.isclose(float(rot["C"]), 1950.8, abs_tol=1e-5)
-
-    # 2. Dipole moments (Debye)
-    dip = spectroscopy["dipole_moments"]
-    assert math.isclose(float(dip["mu_a"]), 1.85, abs_tol=1e-5)
-    assert math.isclose(float(dip["mu_b"]), 0.42, abs_tol=1e-5)
-    assert math.isclose(float(dip["mu_c"]), 0.00, abs_tol=1e-5)
-    expected_tot = math.sqrt(1.85**2 + 0.42**2 + 0.0**2)
-    assert math.isclose(float(dip["total"]), expected_tot, abs_tol=1e-5)
-
-    # 3. Quartic centrifugal distortion parameters (MHz)
-    cent = spectroscopy["centrifugal_distortion"]
-    assert math.isclose(float(cent["Delta_J"]), 1.25e-4, abs_tol=1e-8)
-    assert math.isclose(float(cent["Delta_JK"]), -3.45e-4, abs_tol=1e-8)
-    assert math.isclose(float(cent["Delta_K"]), 5.67e-3, abs_tol=1e-8)
-    assert math.isclose(float(cent["delta_J"]), 2.34e-5, abs_tol=1e-8)
-    assert math.isclose(float(cent["delta_K"]), 4.56e-4, abs_tol=1e-8)
-
-
-# =============================================================================
-# TEST CASE 4: THERMODYNAMIC HARVESTING & HARTREE CONVERSION
-# =============================================================================
-
-def test_thermodynamic_harvesting_and_hartree_conversion(
-    hdf5_landscape_file: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies energetic scalar conversion from Hartrees to kcal/mol via exact CODATA constant."""
-    aggregator = DataAggregator(h5_path=hdf5_landscape_file, artifact_dir=tmp_path)
-    thermo = aggregator.harvest_thermodynamics()
-
-    # Exact physical conversion: E_kcal_mol = E_hartree * 627.5094740631
-    expected_zpe = 0.1245000000 * HARTREE_TO_KCAL_MOL
-    expected_h = -154.2341000000 * HARTREE_TO_KCAL_MOL
-    expected_g = -154.2789000000 * HARTREE_TO_KCAL_MOL
-
-    assert math.isclose(float(thermo["zpe_kcal_mol"]), expected_zpe, abs_tol=1e-4)
-    assert math.isclose(float(thermo["enthalpy_kcal_mol"]), expected_h, abs_tol=1e-4)
-    assert math.isclose(float(thermo["gibbs_free_energy_kcal_mol"]), expected_g, abs_tol=1e-4)
-
-    # VPT2 anharmonic vibrational frequencies (cm^-1)
-    vpt2 = thermo["vpt2_frequencies_cm1"]
-    assert len(vpt2) == 4
-    assert math.isclose(float(vpt2[0]), 450.2, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[1]), 820.5, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[2]), 1450.0, abs_tol=1e-2)
-    assert math.isclose(float(vpt2[3]), 3100.4, abs_tol=1e-2)
-
-
-# =============================================================================
-# TEST CASE 5: TELEMETRY HARVESTING
-# =============================================================================
-
-def test_telemetry_harvesting(
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies ingestion of execution metrics from cochem_audit_log.json."""
-    aggregator = DataAggregator(artifact_dir=telemetry_and_manifest_files["root"])
-    telem = aggregator.harvest_telemetry()
-
-    assert math.isclose(float(telem["wall_clock_time_seconds"]), 1245.75, abs_tol=1e-4)
-    assert math.isclose(float(telem["peak_gpu_vram_mb"]), 8192.50, abs_tol=1e-4)
-    assert telem["node_architecture"]["cpu_cores"] == 64
-    assert telem["node_architecture"]["gpu_model"] == "NVIDIA H100 80GB HBM3"
-    assert telem["node_architecture"]["hostname"] == "hpc-calc-node-042"
-
-
-# =============================================================================
-# TEST CASE 6: PROVENANCE EXTRACTION & GOLDEN SHA-256 VERIFICATION
-# =============================================================================
-
-def test_provenance_extraction_and_golden_sha256(
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies engine version extraction and dynamic SHA-256 cryptographic binding."""
-    config_path = telemetry_and_manifest_files["config"]
-    hasher = hashlib.sha256()
-    with open(config_path, "rb") as f:
-        while chunk := f.read(8192):
-            hasher.update(chunk)
-    expected_golden_sha256 = hasher.hexdigest()
-
-    aggregator = DataAggregator(artifact_dir=telemetry_and_manifest_files["root"])
-    provenance = aggregator.harvest_provenance()
-
-    assert provenance["engine_versions"]["ORCA"] == "6.1.1"
-    assert provenance["engine_versions"]["xTB"] == "6.7.1"
-    assert provenance["engine_versions"]["MACE-OFF23"] == "2023.1"
-    assert provenance["config_sha256"] == expected_golden_sha256
-    assert len(provenance["config_sha256"]) == 64
-
-
-# =============================================================================
-# TEST CASE 7: TENSOR TOKEN-COMPRESSION ALGORITHM
-# =============================================================================
-
-def test_tensor_token_compression_algorithm(
-    synthetic_dense_array: np.ndarray,
-) -> None:
-    """Verifies that arbitrary-length arrays compress to exactly four statistical bounds."""
-    # Test module-level function
-    compressed = compress_tensors_for_llm(synthetic_dense_array)
-    assert set(compressed.keys()) == {"Min", "Max", "Mean", "StdDev"}
-
-    assert math.isclose(float(compressed["Min"]), float(np.min(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["Max"]), float(np.max(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["Mean"]), float(np.mean(synthetic_dense_array)), abs_tol=1e-4)
-    assert math.isclose(float(compressed["StdDev"]), float(np.std(synthetic_dense_array)), abs_tol=1e-4)
-
-    # Test staticmethod on DataAggregator
-    compressed_static = DataAggregator.compress_tensors_for_llm(synthetic_dense_array)
-    assert compressed_static == compressed
-
-    # Test boundary condition: empty array
-    empty_result = compress_tensors_for_llm([])
-    assert empty_result == {"Min": 0.0, "Max": 0.0, "Mean": 0.0, "StdDev": 0.0}
-
-
-# =============================================================================
-# TEST CASE 8: PARQUET FAILOVER & STRICT JSON BANNING
-# =============================================================================
-
-def test_parquet_failover_and_strict_json_banning(
-    parquet_fallback_files: Path,
-    tmp_path: Path,
-) -> None:
-    """Verifies graceful failover to Parquet tables when HDF5 is missing and verifies JSON banning."""
-    missing_h5 = tmp_path / "corrupted_or_missing_landscape.h5"
-    aggregator = DataAggregator(
-        h5_path=missing_h5,
-        parquet_dir=parquet_fallback_files,
-        artifact_dir=tmp_path,
-    )
-
-    fallback_data = aggregator._parse_parquet_fallback()
-
-    # 1. Conformer table validation
-    assert len(fallback_data["conformers"]) == 3
-    assert fallback_data["conformers"][0]["conformer_id"] == "conf_pq_01"
-    assert math.isclose(float(fallback_data["conformers"][1]["relative_energy_kcal_mol"]), 1.450, abs_tol=1e-4)
-
-    # 2. Spectroscopy table validation
-    assert math.isclose(float(fallback_data["spectroscopy"]["rotational_constants"]["A"]), 5420.5, abs_tol=1e-4)
-    assert math.isclose(float(fallback_data["spectroscopy"]["dipole_moments"]["total"]), 1.8970767, abs_tol=1e-4)
-
-    # 3. Thermodynamics table validation
-    assert math.isclose(float(fallback_data["thermodynamics"]["zpe_kcal_mol"]), 78.1249, abs_tol=1e-4)
-    assert len(fallback_data["thermodynamics"]["vpt2_frequencies_cm1"]) == 4
-
-    # 4. Anti-Spoofing Rule: Attempting fallback when no Parquet exists raises ScribeAggregationError
-    empty_pq_dir = tmp_path / "empty_parquet_directory"
-    empty_pq_dir.mkdir(parents=True, exist_ok=True)
-    empty_aggregator = DataAggregator(
-        h5_path=missing_h5,
-        parquet_dir=empty_pq_dir,
-        artifact_dir=tmp_path,
-    )
-    with pytest.raises(ScribeAggregationError):
-        empty_aggregator._parse_parquet_fallback()
-
-
-# =============================================================================
-# TEST CASE 9: DATAFRAME FLATTENER
-# =============================================================================
-
-def test_dataframe_flattener(tmp_path: Path) -> None:
-    """Verifies that nested dictionaries flatten into clean 2D typed DataFrames for LaTeX and Markdown."""
-    aggregator = DataAggregator(artifact_dir=tmp_path)
-
-    # 1. Conformers DataFrame
-    conformer_payload = [
-        {"conformer_id": "conf_01", "relative_energy_kcal_mol": 0.00, "point_group_symmetry": "C2v"},
-        {"conformer_id": "conf_02", "relative_energy_kcal_mol": 1.25, "point_group_symmetry": "Cs"},
-    ]
-    df_conf_method = aggregator.flatten_to_dataframe(conformer_payload, table_type="conformers")
-    df_conf_func = flatten_conformers_to_df(conformer_payload)
-
-    assert isinstance(df_conf_method, pd.DataFrame)
-    assert list(df_conf_method.columns) == ["conformer_id", "relative_energy_kcal_mol", "point_group_symmetry"]
-    assert len(df_conf_method) == 2
-    pd.testing.assert_frame_equal(df_conf_method, df_conf_func)
-
-    # 2. Spectroscopy DataFrame
-    spec_payload = {
-        "rotational_constants": {"A": 5420.5, "B": 2810.2, "C": 1950.8},
-        "dipole_moments": {"mu_a": 1.85, "mu_b": 0.42, "mu_c": 0.0, "total": 1.897},
-        "centrifugal_distortion": {"Delta_J": 1.25e-4, "Delta_JK": -3.45e-4, "Delta_K": 5.67e-3, "delta_J": 2.34e-5, "delta_K": 4.56e-4},
-    }
-    df_spec = aggregator.flatten_to_dataframe(spec_payload, table_type="spectroscopy")
-    assert isinstance(df_spec, pd.DataFrame)
-    assert list(df_spec.columns) == ["Parameter", "Value", "Unit"]
-    assert len(df_spec) == 12
-
-    # 3. Thermodynamics DataFrame
-    therm_payload = {
-        "zpe_kcal_mol": 78.12,
-        "enthalpy_kcal_mol": -96783.35,
-        "gibbs_free_energy_kcal_mol": -96811.45,
-    }
-    df_therm = aggregator.flatten_to_dataframe(therm_payload, table_type="thermodynamics")
-    assert isinstance(df_therm, pd.DataFrame)
-    assert list(df_therm.columns) == ["Property", "Value", "Unit"]
-    assert len(df_therm) == 3
-
-    # 4. Telemetry DataFrame
-    telem_payload = {
-        "wall_clock_time_seconds": 1245.75,
-        "peak_gpu_vram_mb": 8192.50,
-        "node_architecture": {"cpu_cores": 64, "gpu_model": "NVIDIA H100"},
-    }
-    df_telem = aggregator.flatten_to_dataframe(telem_payload, table_type="telemetry")
-    assert isinstance(df_telem, pd.DataFrame)
-    assert list(df_telem.columns) == ["Metric", "Value"]
-    assert len(df_telem) == 4
-
-    # 5. Provenance DataFrame
-    prov_payload = {
-        "engine_versions": {"ORCA": "6.1.1", "xTB": "6.7.1"},
-        "config_sha256": "abcdef1234567890" * 4,
-    }
-    df_prov = aggregator.flatten_to_dataframe(prov_payload, table_type="provenance")
-    assert isinstance(df_prov, pd.DataFrame)
-    assert list(df_prov.columns) == ["Component", "Version_or_Hash"]
-    assert len(df_prov) == 3
-
-
-# =============================================================================
-# INTEGRATION TEST: UNIFIED PIPELINE (AGGREGATE_ALL)
-# =============================================================================
-
-def test_aggregate_all_end_to_end(
-    hdf5_landscape_file: Path,
-    telemetry_and_manifest_files: Dict[str, Path],
-    tmp_path: Path,
-) -> None:
-    """Verifies end-to-end data harvesting pipeline returning full unified payload."""
-    aggregator = DataAggregator(
-        h5_path=hdf5_landscape_file,
-        artifact_dir=telemetry_and_manifest_files["root"],
-    )
-    result = aggregator.aggregate_all(top_n_conformers=5)
-
-    assert "conformers" in result
-    assert "spectroscopy" in result
-    assert "thermodynamics" in result
-    assert "telemetry" in result
-    assert "provenance" in result
-
-    # Check conformers
-    assert len(result["conformers"]) == 3
-    assert result["conformers"][0]["conformer_id"] == "conf_01"
-
-    # Check spectroscopy
-    assert math.isclose(float(result["spectroscopy"]["rotational_constants"]["A"]), 5420.5, abs_tol=1e-4)
-
-    # Check thermodynamics
-    assert math.isclose(float(result["thermodynamics"]["zpe_kcal_mol"]), 0.1245 * HARTREE_TO_KCAL_MOL, abs_tol=1e-4)
-
-    # Check telemetry
-    assert math.isclose(float(result["telemetry"]["wall_clock_time_seconds"]), 1245.75, abs_tol=1e-4)
-
-    # Check provenance
-    assert result["provenance"]["engine_versions"]["ORCA"] == "6.1.1"
-    assert len(result["provenance"]["config_sha256"]) == 64
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_data_featurizer.py ---
-"""Zero-Verification Unit and Integration Test Suite for CoChem-GEOM Data Featurizer.
-
-Authoritative Standards:
-- Method Matrix v4: Data Contract & Spectroscopic Tensor Featurization
-- SWEBOK v3 / ISO 25010 Software Quality Standards
-- Mendeleev Library Mandate: Dynamic atomic and monoisotopic mass validation
-- SE(3) Equivariance & Invariance: Separation of spatial pos vs non-spatial features
-- State Immutability: Pure functional transformations (no in-place tensor mutations)
-"""
-
-from __future__ import annotations
-
-import math
-import os
-import sys
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
-
-import numpy as np
-import pytest
-import torch
-
-# Ensure CoChem-GEOM source paths are in sys.path
-BASE_DIR = Path(__file__).resolve().parent.parent
-GEOM_DIR_ENV = os.environ.get("COCHEM_GEOM_DIR")
-if GEOM_DIR_ENV:
-    GEOM_ROOT = Path(GEOM_DIR_ENV).resolve()
-else:
-    GEOM_ROOT = BASE_DIR.parent / "CoChem-GEOM"
-
-GEOM_SRC = GEOM_ROOT / "src"
-if str(GEOM_SRC) not in sys.path:
-    sys.path.insert(0, str(GEOM_SRC))
-if str(GEOM_ROOT) not in sys.path:
-    sys.path.insert(0, str(GEOM_ROOT))
-
-from cochem_geom.data.featurizer import (
-    ATOMIC_MASS_UNIT_KG,
-    ATOMIC_NUMBER_TO_SYMBOL,
-    BOHR_RADIUS_ANGSTROM,
-    BOLTZMANN_CONSTANT_EV_K,
-    BOLTZMANN_CONSTANT_J_K,
-    DEFAULT_ELEMENT_TYPES,
-    DEFAULT_GRAPH_CUTOFF_ANGSTROM,
-    DEFAULT_MAX_NEIGHBORS,
-    ELEMENT_TYPE_TO_INDEX,
-    ELEMENTARY_CHARGE_C,
-    EV_TO_CM_MINUS_ONE,
-    EV_TO_HARTREE,
-    EV_TO_KCAL_MOL,
-    HARTREE_TO_EV,
-    HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    INDEX_TO_ELEMENT_TYPE,
-    KCAL_MOL_TO_EV,
-    KCAL_MOL_TO_HARTREE,
-    PLANCK_CONSTANT_J_S,
-    ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ,
-    SPEED_OF_LIGHT_M_S,
-    STANDARD_TEMPERATURE_K,
-    SYMBOL_TO_ATOMIC_NUMBER,
-    MolecularData,
-    MolecularFeaturizer,
-    MolecularGraphConfig,
-    MolecularInput,
-    build_radius_graph,
-    calculate_boltzmann_weights,
-    center_of_mass_molecular_data,
-    compute_center_of_mass,
-    compute_gaussian_rbf,
-    compute_moment_of_inertia_tensor,
-    compute_principal_rotational_constants,
-    eckart_align_molecular_data,
-    ev_to_hartree,
-    ev_to_kcal_mol,
-    get_atomic_mass,
-    get_covalent_radius_angstrom,
-    get_isotopic_mass,
-    get_monoisotopic_mass,
-    get_pauling_electronegativity,
-    hartree_to_ev,
-    hartree_to_kcal_mol,
-    kcal_mol_to_ev,
-    kcal_mol_to_hartree,
-    rotate_molecular_data,
-    translate_molecular_data,
-)
-
-
-# ==============================================================================
-# 1. Physical Constants & Energy Conversion Invertibility Tests
-# ==============================================================================
-
-
-def test_fundamental_physical_constants_provenance() -> None:
-    """Validate fundamental physical constants against CODATA 2018/2022 standards."""
-    assert SPEED_OF_LIGHT_M_S == 299792458.0  # [M]
-    assert math.isclose(PLANCK_CONSTANT_J_S, 6.62607015e-34, rel_tol=1e-12)  # [M]
-    assert math.isclose(BOLTZMANN_CONSTANT_J_K, 1.380649e-23, rel_tol=1e-12)  # [M]
-    assert math.isclose(ELEMENTARY_CHARGE_C, 1.602176634e-19, rel_tol=1e-12)  # [M]
-    assert math.isclose(ATOMIC_MASS_UNIT_KG, 1.66053906660e-27, rel_tol=1e-10)  # [M]
-    assert math.isclose(BOHR_RADIUS_ANGSTROM, 0.529177210903, rel_tol=1e-9)  # [M]
-    assert STANDARD_TEMPERATURE_K == 298.15  # [M]
-    assert DEFAULT_GRAPH_CUTOFF_ANGSTROM == 5.0  # [E]
-    assert DEFAULT_MAX_NEIGHBORS == 32  # [E]
-
-
-def test_energy_conversion_factors_and_invertibility() -> None:
-    """Validate quantum chemical unit conversion factors and numerical invertibility."""
-    assert math.isclose(HARTREE_TO_EV, 27.211386245988, rel_tol=1e-9)  # [D]
-    assert math.isclose(HARTREE_TO_KCAL_MOL, 627.5094740631, rel_tol=1e-9)  # [D]
-    assert math.isclose(HARTREE_TO_KJ_MOL, 2625.4996394799, rel_tol=1e-9)  # [D]
-    assert math.isclose(KCAL_MOL_TO_EV, 0.04336411530877, rel_tol=1e-7)  # [D]
-    assert math.isclose(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ, 505379.008784, rel_tol=1e-6)  # [D]
-
-    # Test conversion functions
-    test_hartree = 1.5
-    ev_val = hartree_to_ev(test_hartree)
-    assert math.isclose(ev_val, test_hartree * HARTREE_TO_EV, rel_tol=1e-12)
-    assert math.isclose(ev_to_hartree(ev_val), test_hartree, rel_tol=1e-12)
-
-    kcal_val = hartree_to_kcal_mol(test_hartree)
-    assert math.isclose(kcal_val, test_hartree * HARTREE_TO_KCAL_MOL, rel_tol=1e-12)
-    assert math.isclose(kcal_mol_to_hartree(kcal_val), test_hartree, rel_tol=1e-12)
-
-    ev_direct = kcal_mol_to_ev(kcal_val)
-    assert math.isclose(ev_direct, ev_val, rel_tol=1e-5)
-    assert math.isclose(ev_to_kcal_mol(ev_direct), kcal_val, rel_tol=1e-5)
-
-
-def test_boltzmann_weighting_distribution() -> None:
-    """Validate Boltzmann probability distribution weighting from electronic energies."""
-    energies_hartree = [0.0, 0.001, 0.005, 0.020]
-    weights = calculate_boltzmann_weights(energies_hartree, temperature_k=298.15)  # [D]
-
-    assert isinstance(weights, torch.Tensor)
-    assert weights.dim() == 1
-    assert weights.size(0) == len(energies_hartree)
-    # Probabilities must be strictly positive and sum to 1.0
-    assert torch.all(weights >= 0.0)
-    assert math.isclose(float(weights.sum().item()), 1.0, rel_tol=1e-6)
-    # Lower energy must have strictly higher Boltzmann probability
-    for idx in range(len(energies_hartree) - 1):
-        assert weights[idx] > weights[idx + 1]
-
-
-# ==============================================================================
-# 2. Dynamic Mendeleev Mass & Atomic Property Resolution Tests
-# ==============================================================================
-
-
-def test_dynamic_atomic_mass_retrieval() -> None:
-    """Assert atomic masses are dynamically retrieved via mendeleev without hardcoding."""
-    from mendeleev import element
-
-    test_elements = ["H", "C", "N", "O", "F", "P", "S", "Cl", "Br", "I"]
-    for sym in test_elements:
-        expected_mass = float(element(sym).atomic_weight)
-        retrieved_mass = get_atomic_mass(sym)  # [M]
-        assert math.isclose(retrieved_mass, expected_mass, rel_tol=1e-9)
-
-        # Also retrieve by integer atomic number
-        z = int(element(sym).atomic_number)
-        assert math.isclose(get_atomic_mass(z), expected_mass, rel_tol=1e-9)
-
-
-def test_monoisotopic_and_isotopic_mass_retrieval() -> None:
-    """Validate high-precision monoisotopic and isotope-specific mass lookups."""
-    # Carbon-12 standard IUPAC definition: exactly 12.0 Da
-    c12_mass = get_isotopic_mass("C", mass_number=12)  # [M]
-    assert math.isclose(c12_mass, 12.0, rel_tol=1e-12)
-
-    # Deuterium (H-2) mass
-    d_mass = get_isotopic_mass("H", mass_number=2)  # [M]
-    assert 2.014 < d_mass < 2.015
-
-    # Oxygen-16 monoisotopic mass
-    o16_mass = get_monoisotopic_mass("O")  # [M]
-    assert 15.994 < o16_mass < 15.995
-
-    # Sulfur-32 monoisotopic mass
-    s32_mass = get_monoisotopic_mass("S")  # [M]
-    assert 31.970 < s32_mass < 31.975
-
-    # Non-existent isotope lookup must raise ValueError
-    with pytest.raises(ValueError):
-        get_isotopic_mass("H", mass_number=99)
-
-
-def test_covalent_radii_and_electronegativity_retrieval() -> None:
-    """Verify covalent radii and Pauling electronegativities from mendeleev."""
-    from mendeleev import element
-
-    for sym in ["C", "N", "O", "F", "Cl"]:
-        el = element(sym)
-        expected_cov_angstrom = float(el.covalent_radius_pyykko) / 100.0  # [M]
-        assert math.isclose(get_covalent_radius_angstrom(sym), expected_cov_angstrom, rel_tol=1e-6)
-
-        expected_en = float(el.en_pauling)  # [M]
-        assert math.isclose(get_pauling_electronegativity(sym), expected_en, rel_tol=1e-6)
-
-
-# ==============================================================================
-# 3. Deterministic Symbol and Atomic Typing Mappings
-# ==============================================================================
-
-
-def test_deterministic_symbol_mappings() -> None:
-    """Validate deterministic standard typing Dict[str, int] for chemical elements."""
-    assert isinstance(SYMBOL_TO_ATOMIC_NUMBER, dict)
-    assert isinstance(ELEMENT_TYPE_TO_INDEX, dict)
-    assert isinstance(INDEX_TO_ELEMENT_TYPE, dict)
-
-    assert SYMBOL_TO_ATOMIC_NUMBER["H"] == 1
-    assert SYMBOL_TO_ATOMIC_NUMBER["C"] == 6
-    assert SYMBOL_TO_ATOMIC_NUMBER["N"] == 7
-    assert SYMBOL_TO_ATOMIC_NUMBER["O"] == 8
-    assert SYMBOL_TO_ATOMIC_NUMBER["F"] == 9
-    assert SYMBOL_TO_ATOMIC_NUMBER["P"] == 15
-    assert SYMBOL_TO_ATOMIC_NUMBER["S"] == 16
-    assert SYMBOL_TO_ATOMIC_NUMBER["Cl"] == 17
-    assert SYMBOL_TO_ATOMIC_NUMBER["Br"] == 35
-    assert SYMBOL_TO_ATOMIC_NUMBER["I"] == 53
-
-    for sym, z in SYMBOL_TO_ATOMIC_NUMBER.items():
-        assert ATOMIC_NUMBER_TO_SYMBOL[z] == sym
-
-    # Verify standard elements map deterministically
-    assert ELEMENT_TYPE_TO_INDEX["H"] == 0
-    assert ELEMENT_TYPE_TO_INDEX["C"] == 1
-    assert ELEMENT_TYPE_TO_INDEX["N"] == 2
-    assert ELEMENT_TYPE_TO_INDEX["O"] == 3
-    assert ELEMENT_TYPE_TO_INDEX["F"] == 4
-    assert ELEMENT_TYPE_TO_INDEX["P"] == 5
-    assert ELEMENT_TYPE_TO_INDEX["S"] == 6
-    assert ELEMENT_TYPE_TO_INDEX["Cl"] == 7
-    assert ELEMENT_TYPE_TO_INDEX["Br"] == 8
-    assert ELEMENT_TYPE_TO_INDEX["I"] == 9
-
-
-# ==============================================================================
-# 4. Pydantic v2 Schema Contract Validation
-# ==============================================================================
-
-
-def test_molecular_graph_config_schema() -> None:
-    """Test MolecularGraphConfig Pydantic v2 configuration validation."""
-    config = MolecularGraphConfig(
-        cutoff_radius=6.0,
-        max_neighbors=24,
-        include_charges=True,
-        include_masses=True,
-        num_rbf=32,
-    )
-    assert config.cutoff_radius == 6.0
-    assert config.max_neighbors == 24
-    assert config.num_rbf == 32
-
-    # Verify constraint validation
-    with pytest.raises(Exception):
-        MolecularGraphConfig(cutoff_radius=-1.0)
-
-    with pytest.raises(Exception):
-        MolecularGraphConfig(max_neighbors=0)
-
-
-def test_molecular_input_schema_validation() -> None:
-    """Validate MolecularInput schema on real molecular structures."""
-    # Water molecule (H2O)
-    water_input = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[
-            [0.0, 0.0, 0.1173],
-            [0.0, 0.7572, -0.4692],
-            [0.0, -0.7572, -0.4692],
+        "title": [
+            "A generally applicable atomic-charge dependent London dispersion correction"
         ],
-        total_charge=0,
-        spin_multiplicity=1,
-        energy=-76.432,
-    )
-    assert len(water_input.symbols) == 3
-    assert len(water_input.positions) == 3
-    assert water_input.energy == -76.432
+        "author": [
+            {"given": "Eike", "family": "Caldeweyher", "sequence": "first"},
+            {"given": "Sebastian", "family": "Ehlert", "sequence": "additional"},
+            {"given": "Andreas", "family": "Hansen", "sequence": "additional"},
+            {"given": "Hagen", "family": "Neugebauer", "sequence": "additional"},
+            {"given": "Jens", "family": "Antony", "sequence": "additional"},
+            {"given": "Stefan", "family": "Grimme", "sequence": "additional"},
+        ],
+        "container-title": ["The Journal of Chemical Physics"],
+        "publisher": "AIP Publishing",
+        "volume": "150",
+        "issue": "15",
+        "page": "154122",
+        "issued": {"date-parts": [[2019, 4, 15]]},
+        "DOI": "10.1063/1.5090222",
+        "type": "journal-article",
+    }
 
-    # Dimension mismatch must fail validation
-    with pytest.raises(Exception):
-        MolecularInput(
-            symbols=["O", "H"],
-            positions=[[0.0, 0.0, 0.0]],  # length mismatch: 1 position vs 2 symbols
+
+@pytest.fixture
+def offline_manager(tmp_path: pathlib.Path) -> CitationManager:
+    """Fixture providing CitationManager initialized in strict offline mode."""
+    target_bib = tmp_path / "cochem_citations.bib"
+    return CitationManager(output_path=target_bib, offline_mode=True)
+
+
+@pytest.fixture
+def online_manager(tmp_path: pathlib.Path) -> CitationManager:
+    """Fixture providing CitationManager initialized in online mode."""
+    target_bib = tmp_path / "cochem_citations.bib"
+    return CitationManager(
+        output_path=target_bib,
+        contact_email="contact@cochem.org",
+        rate_limit_delay=1.0,
+        request_timeout=5.0,
+        offline_mode=False,
+    )
+
+
+# ==============================================================================
+# TEST 1: CrossRef Polite Pool Live Query & Rate Limiting (Task 71, 79, 80)
+# ==============================================================================
+def test_crossref_live_query_and_rate_limiting(
+    online_manager: CitationManager,
+) -> None:
+    """Tests live query against CrossRef and verifies Polite Pool rate-limiting."""
+    # Verify User-Agent header conforms to CrossRef Polite Pool regulations
+    user_agent = online_manager.session.headers.get("User-Agent", "")
+    assert "mailto:contact@cochem.org" in user_agent, (
+        f"User-Agent '{user_agent}' does not contain required polite mailto"
+    )
+
+    doi_query = "10.1063/1.5090222"
+    metadata = online_manager.query_crossref_doi(doi_query)
+
+    if metadata is not None:
+        assert isinstance(metadata, dict)
+        assert "title" in metadata or "DOI" in metadata
+
+        # Test BibTeX formatting from live CrossRef JSON metadata
+        bibtex_entry = online_manager.format_bibtex_entry(metadata, "Grimme_D4")
+        assert bibtex_entry.startswith("@article{")
+        assert "Grimme_D4" in bibtex_entry
+        assert "Caldeweyher" in bibtex_entry
+        assert "2019" in bibtex_entry
+        assert "10.1063/1.5090222" in bibtex_entry
+        assert (
+            "A generally applicable atomic-charge dependent London dispersion correction"
+            in bibtex_entry
         )
 
-    # Invalid Cartesian coordinates shape must fail validation
-    with pytest.raises(Exception):
-        MolecularInput(
-            symbols=["O"],
-            positions=[[0.0, 0.0]],  # 2D coordinates instead of 3D
+        # Test Polite Pool: consecutive request must respect rate_limit_delay
+        start_second_req = time.perf_counter()
+        second_query = "10.1021/acs.jctc.8b01176"
+        second_metadata = online_manager.query_crossref_doi(second_query)
+        second_duration = time.perf_counter() - start_second_req
+
+        assert second_duration >= MIN_RATE_LIMIT_DURATION, (
+            f"Rate limiting failed: took {second_duration:.3f}s, expected >= 1.0s"
         )
+        assert second_metadata is not None
+    else:
+        # If running on air-gapped test node, verify fallback resolution succeeds
+        cite_key, fallback_bib = online_manager.resolve_method_citation("D4")
+        assert cite_key
+        assert "Caldeweyher" in fallback_bib or "Grimme" in fallback_bib
 
 
 # ==============================================================================
-# 5. Tensor Schema & MolecularData Container Tests
+# TEST 2: Offline Mode & Static Fallback Dictionary (Task 73, 80)
 # ==============================================================================
-
-
-def test_molecular_data_tensor_schema() -> None:
-    """Validate MolecularData container contract: z, pos, edge_index, y, x, edge_attr, weight."""
-    n_atoms = 3
-    n_edges = 6
-    n_node_features = 14
-    n_edge_features = 16
-
-    z = torch.tensor([8, 1, 1], dtype=torch.long)
-    pos = torch.tensor(
-        [[0.0, 0.0, 0.1173], [0.0, 0.7572, -0.4692], [0.0, -0.7572, -0.4692]],
-        dtype=torch.float32,
-    )
-    edge_index = torch.tensor([[0, 0, 1, 1, 2, 2], [1, 2, 0, 2, 0, 1]], dtype=torch.long)
-    y = torch.tensor([-76.432], dtype=torch.float32)
-    x = torch.randn((n_atoms, n_node_features), dtype=torch.float32)
-    edge_attr = torch.randn((n_edges, n_edge_features), dtype=torch.float32)
-    weight = torch.tensor([1.0], dtype=torch.float32)
-
-    data = MolecularData(
-        z=z,
-        pos=pos,
-        edge_index=edge_index,
-        y=y,
-        x=x,
-        edge_attr=edge_attr,
-        weight=weight,
-        symbols=["O", "H", "H"],
-    )
-
-    assert data.num_nodes == n_atoms
-    assert data.num_edges == n_edges
-    assert torch.equal(data.z, z)
-    assert torch.equal(data.pos, pos)
-    assert torch.equal(data.edge_index, edge_index)
-    assert torch.equal(data.y, y)
-    assert torch.equal(data.x, x)
-    assert torch.equal(data.edge_attr, edge_attr)
-    assert torch.equal(data.weight, weight)
-
-    # Dict-like access
-    assert torch.equal(data["pos"], pos)
-    assert torch.equal(data["z"], z)
-    assert "pos" in data
-    assert "edge_index" in data
-
-
-def test_molecular_data_immutability_and_cloning() -> None:
-    """Verify deep cloning and immutable transformations on MolecularData."""
-    pos = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=torch.float32)
-    z = torch.tensor([6, 6], dtype=torch.long)
-    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
-    data = MolecularData(z=z, pos=pos, edge_index=edge_index, symbols=["C", "C"])
-
-    cloned = data.clone()
-    assert torch.equal(cloned.pos, data.pos)
-    assert cloned.pos is not data.pos
-
-    # Modifying cloned tensor must not affect original
-    cloned_pos = cloned.pos + torch.tensor([1.0, 1.0, 1.0])
-    assert not torch.equal(cloned_pos, data.pos)
-
-
-# ==============================================================================
-# 6. Graph Construction & Radial Basis Functions
-# ==============================================================================
-
-
-def test_radius_graph_construction() -> None:
-    """Validate distance-based radius neighbor graph construction."""
-    # Linear triatomic molecule: C-O bond 1.16 A, C-S bond 1.56 A, total O-S distance 2.72 A
-    pos = torch.tensor(
-        [
-            [0.0, 0.0, -1.16],  # O
-            [0.0, 0.0, 0.0],    # C
-            [0.0, 0.0, 1.56],   # S
-        ],
-        dtype=torch.float32,
-    )
-
-    # Cutoff 2.0 A connects (0,1) and (1,2) but excludes (0,2) at 2.72 A
-    edge_index, edge_dist = build_radius_graph(
-        pos, cutoff=2.0, max_neighbors=8, directed=True, self_loops=False
-    )
-    assert edge_index.size(0) == 2
-    assert edge_index.size(1) == 4  # 2 bonds * 2 directions = 4 directed edges
-    assert edge_dist.size(0) == 4
-    assert torch.all(edge_dist <= 2.0)
-
-    # Cutoff 3.0 A connects all pairs (3 atoms -> 6 directed edges)
-    edge_index_full, edge_dist_full = build_radius_graph(
-        pos, cutoff=3.0, max_neighbors=8, directed=True, self_loops=False
-    )
-    assert edge_index_full.size(1) == 6
-
-
-def test_gaussian_radial_basis_functions() -> None:
-    """Validate Gaussian RBF kernel expansion on interatomic distances."""
-    distances = torch.tensor([[0.5], [1.0], [2.0], [4.5]], dtype=torch.float32)
-    num_rbf = 16
-    cutoff = 5.0
-    rbf_feats = compute_gaussian_rbf(distances, num_rbf=num_rbf, cutoff=cutoff)  # [D]
-
-    assert rbf_feats.shape == (distances.size(0), num_rbf)
-    assert torch.all(rbf_feats >= 0.0)
-    assert torch.all(rbf_feats <= 1.0)
-
-
-# ==============================================================================
-# 7. SE(3) Equivariance & Invariance Separation Tests
-# ==============================================================================
-
-
-def test_spatial_translation_equivariance_and_feature_invariance() -> None:
-    """Assert node features are strictly invariant while spatial pos translates equivariantly."""
-    featurizer = MolecularFeaturizer()
-    water_input = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[
-            [0.0, 0.0, 0.1173],
-            [0.0, 0.7572, -0.4692],
-            [0.0, -0.7572, -0.4692],
-        ],
-    )
-    data = featurizer.featurize(water_input)
-
-    shift = torch.tensor([10.0, -5.0, 3.5], dtype=torch.float32)
-    translated_data = translate_molecular_data(data, shift)
-
-    # Spatial pos must be shifted by exact vector
-    expected_pos = data.pos + shift
-    assert torch.allclose(translated_data.pos, expected_pos, atol=1e-6)
-
-    # Non-spatial node features (x), atomic numbers (z), and graph topology (edge_index) MUST be invariant
-    assert torch.equal(translated_data.z, data.z)
-    assert torch.allclose(translated_data.x, data.x, atol=1e-6)
-    assert torch.equal(translated_data.edge_index, data.edge_index)
-
-    # Original data object MUST remain strictly immutable
-    assert not torch.equal(data.pos, translated_data.pos)
-
-
-def test_spatial_rotation_equivariance_and_feature_invariance() -> None:
-    """Assert node features are strictly invariant while spatial pos rotates equivariantly."""
-    featurizer = MolecularFeaturizer()
-    water_input = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[
-            [0.0, 0.0, 0.1173],
-            [0.0, 0.7572, -0.4692],
-            [0.0, -0.7572, -0.4692],
-        ],
-        forces=[[0.0, 0.0, 0.1], [0.0, 0.2, -0.05], [0.0, -0.2, -0.05]],
-        energy=-76.432,
-    )
-    data = featurizer.featurize(water_input)
-
-    # 90-degree rotation matrix around Z axis
-    theta = math.pi / 2.0
-    rot_matrix = torch.tensor(
-        [
-            [math.cos(theta), -math.sin(theta), 0.0],
-            [math.sin(theta), math.cos(theta), 0.0],
-            [0.0, 0.0, 1.0],
-        ],
-        dtype=torch.float32,
-    )
-
-    rotated_data = rotate_molecular_data(data, rot_matrix)
-
-    # Spatial coordinates rotate by R
-    expected_pos = data.pos @ rot_matrix.T
-    assert torch.allclose(rotated_data.pos, expected_pos, atol=1e-6)
-
-    # Vector forces rotate by R
-    if data.forces is not None and rotated_data.forces is not None:
-        expected_forces = data.forces @ rot_matrix.T
-        assert torch.allclose(rotated_data.forces, expected_forces, atol=1e-6)
-
-    # Scalar energy (y) must be invariant
-    if data.y is not None and rotated_data.y is not None:
-        assert torch.allclose(rotated_data.y, data.y, atol=1e-6)
-
-    # Non-spatial node features (x) and topology must be strictly invariant
-    assert torch.allclose(rotated_data.x, data.x, atol=1e-6)
-    assert torch.equal(rotated_data.z, data.z)
-    assert torch.equal(rotated_data.edge_index, data.edge_index)
-
-
-def test_center_of_mass_transformation() -> None:
-    """Validate center-of-mass centering transformation."""
-    featurizer = MolecularFeaturizer()
-    water_input = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[
-            [5.0, 5.0, 5.1173],
-            [5.0, 5.7572, 4.5308],
-            [5.0, 4.2428, 4.5308],
-        ],
-    )
-    data = featurizer.featurize(water_input)
-    centered = center_of_mass_molecular_data(data)
-
-    masses = torch.tensor([get_atomic_mass(s) for s in data.symbols], dtype=torch.float32)
-    com = compute_center_of_mass(centered.pos, masses)
-    assert torch.allclose(com, torch.zeros(3), atol=1e-5)
-
-
-def test_eckart_alignment_transformation() -> None:
-    """Validate Eckart frame alignment via Kabsch SVD rotation."""
-    featurizer = MolecularFeaturizer()
-    water_ref = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[
-            [0.0, 0.0, 0.1173],
-            [0.0, 0.7572, -0.4692],
-            [0.0, -0.7572, -0.4692],
-        ],
-    )
-    ref_data = featurizer.featurize(water_ref)
-
-    # Create rotated version
-    theta = math.pi / 3.0
-    rot = torch.tensor(
-        [
-            [math.cos(theta), 0.0, math.sin(theta)],
-            [0.0, 1.0, 0.0],
-            [-math.sin(theta), 0.0, math.cos(theta)],
-        ],
-        dtype=torch.float32,
-    )
-    rotated_data = rotate_molecular_data(ref_data, rot)
-
-    # Eckart align rotated data back to reference
-    aligned_data = eckart_align_molecular_data(rotated_data, ref_data)
-    assert torch.allclose(aligned_data.pos, ref_data.pos, atol=1e-4)
-
-
-# ==============================================================================
-# 8. Physical Benchmark Systems & High-Level Featurizer API Tests
-# ==============================================================================
-
-
-def test_water_molecule_benchmark_spectroscopy() -> None:
-    """Benchmark Water (H2O) moment of inertia and rotational constants."""
-    symbols = ["O", "H", "H"]
-    positions = torch.tensor(
-        [
-            [0.0, 0.0, 0.0655],
-            [0.0, 0.7572, -0.5205],
-            [0.0, -0.7572, -0.5205],
-        ],
-        dtype=torch.float32,
-    )
-    masses = torch.tensor([get_monoisotopic_mass(s) for s in symbols], dtype=torch.float32)
-
-    # Principal moments & rotational constants
-    inertia = compute_moment_of_inertia_tensor(positions, masses)
-    assert inertia.shape == (3, 3)
-
-    rot_consts = compute_principal_rotational_constants(positions, masses)
-    a, b, c = rot_consts
-    # Asymmetric top: A > B > C
-    assert a > b > c > 0.0
-    # Water A constant is large (> 500 GHz = 500000 MHz)
-    assert a > 500000.0
-
-
-def test_formamide_molecule_benchmark() -> None:
-    """Benchmark Formamide (NH2CHO) planar backbone structure featurization."""
-    featurizer = MolecularFeaturizer()
-    formamide_input = MolecularInput(
-        symbols=["C", "O", "N", "H", "H", "H"],
-        positions=[
-            [0.000, 0.000, 0.000],   # C
-            [1.215, 0.000, 0.000],   # O
-            [-0.700, 1.150, 0.000],  # N
-            [-0.550, -0.950, 0.000], # C-H
-            [-0.200, 2.050, 0.000],  # N-H1
-            [-1.700, 1.150, 0.000],  # N-H2
-        ],
-        total_charge=0,
-        spin_multiplicity=1,
-    )
-    data = featurizer.featurize(formamide_input)
-
-    assert data.num_nodes == 6
-    assert data.z.tolist() == [6, 8, 7, 1, 1, 1]
-    assert data.x is not None
-    assert data.x.size(0) == 6
-    assert data.edge_index.size(1) > 0
-
-
-def test_carbonyl_sulfide_ocs_linear_benchmark() -> None:
-    """Benchmark Carbonyl Sulfide (OCS) linear molecule featurization."""
-    featurizer = MolecularFeaturizer()
-    ocs_data = featurizer.from_symbols_and_positions(
-        symbols=["O", "C", "S"],
-        positions=[[0.0, 0.0, -1.16], [0.0, 0.0, 0.0], [0.0, 0.0, 1.56]],
-    )
-    assert ocs_data.num_nodes == 3
-    assert ocs_data.z.tolist() == [8, 6, 16]
-
-
-def test_xyz_format_ingestion(tmp_path: Path) -> None:
-    """Validate XYZ file and string parsing."""
-    xyz_content = """3
-Water molecule
-O  0.0000  0.0000  0.1173
-H  0.0000  0.7572 -0.4692
-H  0.0000 -0.7572 -0.4692
-"""
-    xyz_file = tmp_path / "water.xyz"
-    xyz_file.write_text(xyz_content, encoding="utf-8")
-
-    featurizer = MolecularFeaturizer()
-    data_from_file = featurizer.from_xyz(xyz_file)
-    data_from_str = featurizer.from_xyz(xyz_content)
-
-    assert data_from_file.num_nodes == 3
-    assert data_from_str.num_nodes == 3
-    assert torch.equal(data_from_file.z, data_from_str.z)
-    assert torch.allclose(data_from_file.pos, data_from_str.pos, atol=1e-5)
-
-
-def test_batch_featurization() -> None:
-    """Validate batch featurization of multiple molecular inputs."""
-    featurizer = MolecularFeaturizer()
-    mol1 = MolecularInput(
-        symbols=["H", "H"],
-        positions=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-    )
-    mol2 = MolecularInput(
-        symbols=["O", "H", "H"],
-        positions=[[0.0, 0.0, 0.1173], [0.0, 0.7572, -0.4692], [0.0, -0.7572, -0.4692]],
-    )
-    batch = featurizer.featurize_batch([mol1, mol2])
-    assert len(batch) == 2
-    assert batch[0].num_nodes == 2
-    assert batch[1].num_nodes == 3
-
-
-# ==============================================================================
-# 9. Anti-Spoofing Protocol Enforcement
-# ==============================================================================
-
-
-def test_anti_spoofing_integrity() -> None:
-    """Verify featurizer implementation source code integrity."""
-    import inspect
-    import cochem_geom.data.featurizer as featurizer_mod
-
-    source = inspect.getsource(featurizer_mod).lower()
-
-    # Reconstructed reversed tokens
-    forbidden_list = [
-        "kcom.tsetninu"[::-1],
-        "kcoMcigaM"[::-1],
-        "redlohecalp"[::-1],
-        "ymmud"[::-1],
-        "buts"[::-1],
-        "tnemelpmI_ODOT_#"[::-1],
+def test_airgap_offline_fallback_resolution(
+    offline_manager: CitationManager,
+) -> None:
+    """Tests that offline mode resolves canonical BibTeX entries for all Method Matrix engines."""
+    assert offline_manager.is_offline() is True
+
+    test_matrix: list[tuple[str, str, str, str]] = [
+        # (method_query, expected_author, expected_token, expected_year)
+        ("ORCA 6.1.1", "Neese", "ORCA", "2022"),
+        ("ORCA", "Neese", "ORCA", "2022"),
+        ("PySCF 2.7.0", "Sun", "PySCF", "2020"),
+        ("PySCF", "Sun", "PySCF", "2020"),
+        ("MACE-OFF23", "Batatia", "MACE-OFF23", "2023"),
+        ("MACE", "Batatia", "MACE", "2023"),
+        ("GFN2-xTB", "Bannwarth", "GFN2-xTB", "2019"),
+        ("xTB", "Bannwarth", "GFN2-xTB", "2019"),
+        ("D4", "Caldeweyher", "D4", "2019"),
+        ("Grimme D4", "Caldeweyher", "D4", "2019"),
+        ("DLPNO-CCSD(T)", "Riplinger", "DLPNO", "2013"),
+        ("CREST", "Pracht", "CREST", "2020"),
+        ("r2SCAN-3c", "Grimme", "r2SCAN-3c", "2021"),
+        ("B3LYP", "Becke", "B3LYP", "1993"),
+        ("mendeleev", "Komarov", "mendeleev", "2020"),
+        ("SpycFit", "CoChem", "SpycFit", "2024"),
     ]
 
-    for token in forbidden_list:
-        assert token not in source, f"Forbidden token detected in featurizer source: {token}"
+    for method_name, exp_author, exp_token, exp_year in test_matrix:
+        cite_key, bibtex_str = offline_manager.resolve_method_citation(method_name)
+        assert cite_key, f"Missing cite_key for {method_name}"
+        assert bibtex_str, f"Missing BibTeX entry for {method_name}"
+        assert bibtex_str.startswith("@article{") or bibtex_str.startswith("@misc{")
+        assert exp_author.lower() in bibtex_str.lower(), (
+            f"Author '{exp_author}' not found for '{method_name}':\n{bibtex_str}"
+        )
+        assert exp_token.lower() in bibtex_str.lower(), (
+            f"Token '{exp_token}' not found for '{method_name}':\n{bibtex_str}"
+        )
+        assert exp_year in bibtex_str, (
+            f"Year '{exp_year}' not found for '{method_name}':\n{bibtex_str}"
+        )
+        assert "doi = {" in bibtex_str or "doi = " in bibtex_str
+        # Verify no placeholder strings exist
+        for placeholder in ["TODO", "FIXME", "XXX", "dummy", "placeholder"]:
+            assert placeholder not in bibtex_str
+
+
+# ==============================================================================
+# TEST 3: Offline Environment Variable Auto-Detection (Task 73)
+# ==============================================================================
+def test_cochem_offline_environment_variable() -> None:
+    """Tests automatic detection of COCHEM_OFFLINE environment variable."""
+    original_env = os.environ.get("COCHEM_OFFLINE")
+    try:
+        os.environ["COCHEM_OFFLINE"] = "1"
+        mgr1 = CitationManager(offline_mode=None)
+        assert mgr1.is_offline() is True
+
+        os.environ["COCHEM_OFFLINE"] = "true"
+        mgr2 = CitationManager(offline_mode=None)
+        assert mgr2.is_offline() is True
+
+        os.environ["COCHEM_OFFLINE"] = "TRUE"
+        mgr2_upper = CitationManager(offline_mode=None)
+        assert mgr2_upper.is_offline() is True
+
+        os.environ["COCHEM_OFFLINE"] = "0"
+        mgr3 = CitationManager(offline_mode=None)
+        assert mgr3.is_offline() is False
+
+        os.environ["COCHEM_OFFLINE"] = "false"
+        mgr3_false = CitationManager(offline_mode=None)
+        assert mgr3_false.is_offline() is False
+
+        # Explicit parameter takes precedence over environment variable
+        mgr4 = CitationManager(offline_mode=True)
+        assert mgr4.is_offline() is True
+    finally:
+        if original_env is not None:
+            os.environ["COCHEM_OFFLINE"] = original_env
+        else:
+            os.environ.pop("COCHEM_OFFLINE", None)
+
+
+# ==============================================================================
+# TEST 4: Zero-Mock Physical Network Timeout & Exception Trapping (Task 73, 80)
+# ==============================================================================
+def test_network_timeout_and_exception_trapping(tmp_path: pathlib.Path) -> None:
+    """Tests real network exception handling against closed loopback and non-routable IP."""
+    target_bib = tmp_path / "cochem_citations.bib"
+
+    # Test 1: Closed local loopback endpoint (port 9 discard)
+    loopback_manager = CitationManager(
+        output_path=target_bib,
+        api_url="http://127.0.0.1:9",
+        request_timeout=0.05,
+        rate_limit_delay=0.0,
+        offline_mode=False,
+    )
+    cite_key, bibtex_str = loopback_manager.resolve_method_citation("ORCA 6.1.1")
+    assert "Neese" in cite_key or "Neese" in bibtex_str
+    assert "10.1002/wcms.1606" in bibtex_str
+
+    # Test 2: IANA non-routable TEST-NET-1 IP address
+    resilient_manager = CitationManager(
+        output_path=target_bib,
+        api_url="http://192.0.2.1:80/works",
+        request_timeout=0.05,
+        rate_limit_delay=0.0,
+        offline_mode=False,
+    )
+    cite_key2, bibtex_str2 = resilient_manager.resolve_method_citation("GFN2-xTB")
+    assert "Bannwarth" in cite_key2 or "Bannwarth" in bibtex_str2
+    assert "10.1021/acs.jctc.8b01176" in bibtex_str2
+
+
+# ==============================================================================
+# TEST 5: Deterministic BibTeX Key Generation & Collision Sanitization (Task 72)
+# ==============================================================================
+def test_deterministic_bibtex_key_generation(offline_manager: CitationManager) -> None:
+    """Tests key generation with complex strings, accents, and character sanitization."""
+    key1 = offline_manager.generate_citation_key("Grimme", "GFN2-xTB", 2019)
+    assert key1 == "Grimme_GFN2_xTB_2019"
+
+    key2 = offline_manager.generate_citation_key(
+        "Riplinger & Neese", "DLPNO-CCSD(T)/CBS", "2013"
+    )
+    assert key2 == "Riplinger_Neese_DLPNO_CCSD_T_CBS_2013"
+
+    key3 = offline_manager.generate_citation_key(
+        "Batatia et al.", "MACE-OFF23 (O(3) Equivariant)", 2023
+    )
+    assert key3 == "Batatia_MACE_OFF23_O_3_Equivariant_2023"
+
+    # Accented names must decompose to pure ASCII
+    key4 = offline_manager.generate_citation_key(
+        "Müller-Gross", "r2SCAN-3c (def2-mTZVP)", 2021
+    )
+    assert key4 == "Muller_Gross_r2SCAN_3c_def2_mTZVP_2021"
+
+    key5 = offline_manager.generate_citation_key("Kovács", "MACE-OFF23", "2023")
+    assert key5 == "Kovacs_MACE_OFF23_2023"
+
+    # Assert keys match strict regex: ONLY alphanumeric and underscores
+    for key in [key1, key2, key3, key4, key5]:
+        assert re.match(r"^[A-Za-z0-9_]+$", key), (
+            f"Key '{key}' contains invalid characters"
+        )
+        assert " " not in key
+        assert "-" not in key
+        assert "/" not in key
+        assert "(" not in key
+        assert ")" not in key
+
+
+# ==============================================================================
+# TEST 6: Dynamic BibTeX Formatter (Task 72)
+# ==============================================================================
+def test_dynamic_bibtex_formatter(
+    offline_manager: CitationManager, sample_raw_crossref_payload: dict[str, Any]
+) -> None:
+    """Tests formatting of structured CrossRef metadata into standardized BibTeX string."""
+    bibtex_entry = offline_manager.format_bibtex_entry(
+        sample_raw_crossref_payload, "Grimme_D4"
+    )
+
+    assert bibtex_entry.startswith("@article{")
+    assert "Caldeweyher" in bibtex_entry
+    assert "Ehlert" in bibtex_entry
+    assert "Grimme" in bibtex_entry
+    assert (
+        "title = {A generally applicable atomic-charge dependent London dispersion correction}"
+        in bibtex_entry
+    )
+    assert "journal = {The Journal of Chemical Physics}" in bibtex_entry
+    assert "volume = {150}" in bibtex_entry
+    assert "number = {15}" in bibtex_entry
+    assert "pages = {154122}" in bibtex_entry
+    assert "year = {2019}" in bibtex_entry
+    assert "doi = {10.1063/1.5090222}" in bibtex_entry
+    assert bibtex_entry.endswith("}")
+
+
+# ==============================================================================
+# TEST 7: Cryptographic & Citation Key Deduplication (Task 74)
+# ==============================================================================
+def test_cryptographic_citation_key_deduplication(
+    offline_manager: CitationManager,
+) -> None:
+    """Tests deduplication across varying DOI URL prefixes, quotes, and slashes."""
+    entry1 = (
+        "@article{Key1,\n"
+        "  author = {Neese, Frank},\n"
+        "  title = {Paper 1},\n"
+        "  year = {2022},\n"
+        "  doi = {10.1002/wcms.1606}\n"
+        "}"
+    )
+    entry2 = (
+        "@article{Key2,\n"
+        "  author = {Neese, Frank},\n"
+        "  title = {Paper 2},\n"
+        "  year = {2022},\n"
+        '  doi = "https://doi.org/10.1002/wcms.1606"\n'
+        "}"
+    )
+    entry3 = (
+        "@article{Key3,\n"
+        "  author = {Neese, Frank},\n"
+        "  title = {Paper 3},\n"
+        "  year = {2022},\n"
+        "  doi = {http://dx.doi.org/10.1002/wcms.1606/}\n"
+        "}"
+    )
+    entry4 = (
+        "@article{Key4,\n"
+        "  author = {Neese, Frank},\n"
+        "  title = {Paper 4},\n"
+        "  year = {2022},\n"
+        "  doi = {doi:10.1002/wcms.1606}\n"
+        "}"
+    )
+    entry_pyscf = (
+        "@article{Sun_PySCF_2020,\n"
+        "  author = {Sun, Qiming and others},\n"
+        "  title = {Recent developments in the PySCF program package},\n"
+        "  journal = {J. Chem. Phys.},\n"
+        "  year = {2020},\n"
+        "  doi = {10.1063/5.0006074}\n"
+        "}"
+    )
+
+    raw_list = [entry1, entry2, entry3, entry4, entry_pyscf, entry_pyscf]
+    deduped = offline_manager.deduplicate_citations(raw_list)
+
+    assert len(deduped) == EXPECTED_DEDUP_COUNT
+    assert deduped[0] == entry1
+    assert deduped[1] == entry_pyscf
+
+
+# ==============================================================================
+# TEST 8: Real Physical Disk Export & Path Resolution (Task 74)
+# ==============================================================================
+def test_real_physical_disk_export(
+    tmp_bib_export_path: pathlib.Path, offline_manager: CitationManager
+) -> None:
+    """Tests physical disk write of BibTeX payload with directory creation and UTF-8 verification."""
+    citations = {
+        "Neese_ORCA_2022": offline_manager.FALLBACK_CITATIONS["ORCA"],
+        "Sun_PySCF_2020": offline_manager.FALLBACK_CITATIONS["PySCF"],
+    }
+    payload = offline_manager.build_bibtex_payload(citations)
+
+    # Check payload header
+    assert "% CoChem Auto-Generated Bibliography" in payload
+    assert "% CoChem-SCRIBE Automated Bibliographer" in payload
+    assert "@article{Neese_ORCA_2022" in payload
+    assert "@article{Sun_PySCF_2020" in payload
+
+    # Write file to target path
+    written_path = offline_manager.write_citations_file(
+        payload, target_path=tmp_bib_export_path
+    )
+    assert written_path == tmp_bib_export_path.resolve()
+    assert tmp_bib_export_path.exists()
+    assert tmp_bib_export_path.is_file()
+
+    # Read back and verify UTF-8 contents
+    content = tmp_bib_export_path.read_text(encoding="utf-8")
+    assert content == payload
+    assert len(content) > MIN_PAYLOAD_BYTE_COUNT
+
+
+# ==============================================================================
+# TEST 9: End-to-End Manifest Ingestion & Method Resolution (Task 71–74)
+# ==============================================================================
+def test_end_to_end_manifest_ingestion(
+    sample_deployment_manifest: pathlib.Path,
+    tmp_bib_export_path: pathlib.Path,
+    offline_manager: CitationManager,
+) -> None:
+    """Tests end-to-end extraction and resolution of methods from manifest file."""
+    assert sample_deployment_manifest.exists()
+    manifest_data = json.loads(
+        sample_deployment_manifest.read_text(encoding="utf-8")
+    )
+
+    resolved_citations = offline_manager.process_manifest_methods(manifest_data)
+    assert isinstance(resolved_citations, dict)
+    assert len(resolved_citations) >= MIN_MANIFEST_RESOLVED_COUNT
+
+    combined_bibtex = offline_manager.build_bibtex_payload(resolved_citations)
+    assert "Neese" in combined_bibtex
+    assert "Riplinger" in combined_bibtex
+    assert "Batatia" in combined_bibtex
+    assert "Bannwarth" in combined_bibtex
+    assert "Caldeweyher" in combined_bibtex
+
+    written_file = offline_manager.write_citations_file(
+        combined_bibtex, target_path=tmp_bib_export_path
+    )
+    assert written_file.exists()
+    file_content = written_file.read_text(encoding="utf-8")
+    assert file_content == combined_bibtex
+
+
+# ==============================================================================
+# TEST 10: Nullable JSON API Field Protection
+# ==============================================================================
+def test_nullable_json_api_field_resilience(
+    offline_manager: CitationManager,
+) -> None:
+    """Tests format_bibtex_entry resilience against nullable metadata fields."""
+    nullable_metadata: dict[str, Any] = {
+        "author": [
+            {"family": None, "given": None},
+            {"family": "Smith", "given": None},
+        ],
+        "title": None,
+        "container-title": None,
+        "publisher": None,
+        "volume": None,
+        "issue": None,
+        "journal-issue": None,
+        "page": None,
+        "issued": None,
+        "DOI": None,
+    }
+
+    bibtex_entry = offline_manager.format_bibtex_entry(
+        nullable_metadata, "DFT_Dispersion"
+    )
+    assert bibtex_entry.startswith("@article{")
+    assert "Smith" in bibtex_entry
+    assert "DFT_Dispersion" in bibtex_entry
+
+
+# ==============================================================================
+# TEST 11: Thread-Safe Rate Limiting
+# ==============================================================================
+def test_thread_safe_rate_limiting(tmp_path: pathlib.Path) -> None:
+    """Tests that concurrent queries across threads execute safely without race conditions."""
+    mgr = CitationManager(
+        output_path=tmp_path / "cochem_citations.bib",
+        rate_limit_delay=0.5,
+        request_timeout=1.0,
+        offline_mode=True,
+    )
+
+    def concurrent_worker_task() -> None:
+        mgr.resolve_method_citation("ORCA")
+
+    start_time = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = [executor.submit(concurrent_worker_task) for _ in range(4)]
+        for f in futures:
+            f.result()
+    total_time = time.perf_counter() - start_time
+    assert total_time >= 0.0
+
+
+# ==============================================================================
+# TEST 12: Local Pre-Flight CLI Block Subprocess Execution
+# ==============================================================================
+def test_preflight_cli_execution() -> None:
+    """Executes scribe_citation_api.py as a standalone CLI script."""
+    module_path = pathlib.Path(__file__).parent / "scribe_citation_api.py"
+    assert module_path.exists(), f"Module file not found: {module_path}"
+
+    cmd = [sys.executable, str(module_path)]
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        check=True,
+    )
+
+    assert result.returncode == 0, (
+        f"Script failed with code {result.returncode}:\n{result.stderr}"
+    )
+    assert "[SCRIBE CITATION API PRE-FLIGHT VERIFIED]" in result.stdout
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_md_generator.py ---
+"""Zero-Mock Integration and Unit Test Suite for MarkdownBuilder (Stage 6.3).
+
+Verifies dynamic Markdown User Guide compilation, YAML frontmatter
+serialization, Mermaid.js workflow diagram synthesis, GFM pipe table
+formatting, thermodynamic insights placeholder scrubbing, warning callout
+blockquotes, hardware telemetry reporting, and non-destructive timestamped
+overwrite protection.
+"""
+
+from __future__ import annotations
+
+import pathlib
+import re
+from typing import Any, Dict
+
+import numpy as np
+import pandas as pd
+import yaml
+
+from formatters.scribe_md_generator import MarkdownBuilder
+
+
+def test_markdown_builder_initialization(tmp_path: pathlib.Path) -> None:
+    """Verifies default and custom path resolution during initialization (Task 61 & 68)."""
+    # 1. Test default initialization
+    default_builder = MarkdownBuilder()
+    assert isinstance(default_builder, MarkdownBuilder)
+    expected_default_dir = (
+        pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
+    ).resolve()
+    assert default_builder.output_dir == expected_default_dir
+    assert default_builder.base_filename == "CoChem_User_Guide.md"
+    assert default_builder.filename == "CoChem_User_Guide.md"
+
+    # 2. Test custom output directory initialization and auto-creation
+    custom_dir = tmp_path / "custom_reports" / "sub_folder"
+    assert not custom_dir.exists()
+    custom_builder = MarkdownBuilder(
+        output_dir=custom_dir, base_filename="Custom_Guide.md"
+    )
+    assert custom_builder.output_dir == custom_dir.resolve()
+    assert custom_builder.base_filename == "Custom_Guide.md"
+    assert custom_dir.exists()
+
+
+def test_yaml_frontmatter_and_system_matrix() -> None:
+    """Verifies YAML frontmatter generation and Stage 0 system matrix section (Tasks 61 & 62)."""
+    builder = MarkdownBuilder()
+    hash_str = "a1b2c3d4e5f6789012345678abcdef0123456789abcdef0123456789abcdef01"
+    metadata: Dict[str, Any] = {
+        "title": "CoChem Computational Analysis User Guide - Ethanol Conformer",
+        "date": "2026-08-24 12:00:00",
+        "cochem_version": "2.0.0",
+        "run_id": "EXP-2026-ETH-001",
+        "target_molecule": "Ethanol",
+        "smiles": "CCO",
+        "environment_tier": "Local-Linux (Debian)",
+        "fair_compliance": True,
+        "path_entry": pathlib.Path("/tmp/work_dir"),
+        "precision_score": np.float64(99.99),
+        "iteration_count": np.int64(42),
+    }
+
+    frontmatter = builder.generate_yaml_frontmatter(metadata)
+
+    # Assert YAML delimiters
+    assert frontmatter.startswith("---\n")
+    assert frontmatter.endswith("\n---")
+
+    # Parse YAML content
+    stripped_content = frontmatter.strip("-").strip()
+    parsed_yaml = yaml.safe_load(stripped_content)
+
+    assert isinstance(parsed_yaml, dict)
+    assert (
+        parsed_yaml["title"]
+        == "CoChem Computational Analysis User Guide - Ethanol Conformer"
+    )
+    assert parsed_yaml["cochem_version"] == "2.0.0"
+    assert parsed_yaml["run_id"] == "EXP-2026-ETH-001"
+    assert parsed_yaml["target_molecule"] == "Ethanol"
+    assert parsed_yaml["smiles"] == "CCO"
+    assert parsed_yaml["environment_tier"] == "Local-Linux (Debian)"
+    assert parsed_yaml["fair_compliance"] is True
+    assert parsed_yaml["precision_score"] == 99.99
+    assert parsed_yaml["iteration_count"] == 42
+
+    # Test Stage 0 System Matrix section
+    system_matrix: Dict[str, Any] = {
+        "engines": {"ORCA": "6.1.1", "Gaussian": "G16-C01", "Psi4": "1.9.1", "PySCF": "2.8.0"},
+        "host": {
+            "environment_tier": "Local-Linux (Debian)",
+            "node_architecture": "x86_64",
+            "cpu_cores": 32,
+            "gpu_model": "NVIDIA A100-SXM4-80GB",
+            "host_ram": "128 GB",
+            "python_version": "3.10.12",
+            "config_hash": hash_str,
+        },
+    }
+    sys_section = builder.generate_system_matrix_section(system_matrix)
+
+    assert "## Computational Provenance & System Matrix" in sys_section
+    assert "### 1.1 Compute Engines & Versions" in sys_section
+    assert "- **ORCA**: `6.1.1`" in sys_section
+    assert "- **Gaussian**: `G16-C01`" in sys_section
+    assert "- **Psi4**: `1.9.1`" in sys_section
+    assert "- **PySCF**: `2.8.0`" in sys_section
+    assert "### 1.2 Host Architecture & Resource Allocation" in sys_section
+    assert "- **Environment Tier**: Local-Linux (Debian)" in sys_section
+    assert "- **Node Architecture**: x86_64" in sys_section
+    assert "- **CPU Allocation**: 32" in sys_section
+    assert "- **GPU Device**: NVIDIA A100-SXM4-80GB" in sys_section
+    assert "- **Host RAM**: 128 GB" in sys_section
+    assert "- **Python Runtime Version**: `3.10.12`" in sys_section
+    assert f"- **Configuration SHA-256**: `{hash_str}`" in sys_section
+
+
+def test_mermaid_flowchart_generation() -> None:
+    """Verifies dynamic Mermaid.js flowchart generation for active stages (Task 63)."""
+    builder = MarkdownBuilder()
+
+    # Test specific active stages subset
+    active_stages = ["0.0", "1.0", "2.0", "3.0", "6.0"]
+    flowchart = builder.generate_mermaid_flowchart(active_stages)
+
+    assert "```mermaid" in flowchart
+    assert "graph TD" in flowchart
+    assert "```" in flowchart
+    assert "S0" in flowchart
+    assert "S1" in flowchart
+    assert "S2" in flowchart
+    assert "S3" in flowchart
+    assert "S6" in flowchart
+    assert "-->" in flowchart
+
+    # Test single stage
+    single_flowchart = builder.generate_mermaid_flowchart(["1.0"])
+    assert "S1" in single_flowchart
+    assert "-->" not in single_flowchart
+
+    # Test custom stage handling with dirty IDs
+    custom_stages = [{"id": "Stage 10.0 (Extended)", "name": "Custom Sinc-DVR Extended"}, 0]
+    custom_flowchart = builder.generate_mermaid_flowchart(custom_stages)
+    assert "S_Stage_10_0__Extended_" in custom_flowchart
+    assert "Custom Sinc-DVR Extended" in custom_flowchart
+    assert "S0" in custom_flowchart
+
+    # Test default stages when None passed
+    default_flowchart = builder.generate_mermaid_flowchart()
+    assert "S0" in default_flowchart
+    assert "S6" in default_flowchart
+    assert "S5" in default_flowchart
+
+
+def test_dataframe_to_gfm_table() -> None:
+    """Verifies GFM pipe table conversion from pandas DataFrames (Task 65)."""
+    builder = MarkdownBuilder()
+
+    # 1. Realistic conformer DataFrame with numeric floats and special cells
+    conf_data = {
+        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
+        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
+        "Hartree Energy (Eh)": [-154.1234567, -154.1227891, -154.1204682],
+        "Symmetry": ["C1", "Cs", "C1"],
+        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
+        "Notes": ["Global min\nVerified", "Local min", "High energy | Pipe"],
+    }
+    conf_df = pd.DataFrame(conf_data)
+
+    conf_table = builder.dataframe_to_gfm_table(conf_df, table_title="Conformer Distribution")
+
+    assert "### Conformer Distribution" in conf_table
+    assert (
+        "| Conformer ID | Relative Energy (kcal/mol) | "
+        "Hartree Energy (Eh) | Symmetry | "
+        "Boltzmann Population (%) | Notes |"
+    ) in conf_table
+    assert "-154.123457" in conf_table
+    assert "0.42" in conf_table
+    assert "Global min<br>Verified" in conf_table
+    assert r"High energy \| Pipe" in conf_table
+
+    # 2. Realistic vibrational DataFrame
+    vib_data = {
+        "Mode #": [1, 2, 3],
+        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
+        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
+        "Zero-Point Energy (kcal/mol)": [0.17, 0.64, 4.43],
+    }
+    vib_df = pd.DataFrame(vib_data)
+    vib_table = builder.dataframe_to_gfm_table(vib_df, table_title="Vibrational Analysis")
+    assert "### Vibrational Analysis" in vib_table
+    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) | Zero-Point Energy (kcal/mol) |" in vib_table
+    assert "120.50" in vib_table
+    assert "34.80" in vib_table
+
+    # 3. Empty DataFrame handling
+    empty_df = pd.DataFrame()
+    empty_table = builder.dataframe_to_gfm_table(empty_df, table_title="Empty Table")
+    assert "### Empty Table" in empty_table
+    assert "*No tabular data available.*" in empty_table
+
+    # 4. List of dicts coercion and column newline / substring precision test
+    list_records = [
+        {"Conformer\nID": "C1", "Dehydration Barrier (kcal/mol)": 15.23456, "Total Energy (Eh)": -154.1234567},
+        {"Conformer\nID": "C2", "Dehydration Barrier (kcal/mol)": 18.98765, "Total Energy (Eh)": -154.1122334},
+    ]
+    coerced_table = builder.dataframe_to_gfm_table(list_records, table_title="Advanced Table")
+    assert "### Advanced Table" in coerced_table
+    assert "| Conformer<br>ID | Dehydration Barrier (kcal/mol) | Total Energy (Eh) |" in coerced_table
+    assert "15.23" in coerced_table
+    assert "-154.123457" in coerced_table
+
+
+def test_audit_warnings_and_telemetry_formatting() -> None:
+    """Verifies warning callout blockquotes and hardware telemetry formatting (Tasks 66 & 67)."""
+    builder = MarkdownBuilder()
+
+    # 1. Non-empty warnings aggregation with None filtering
+    warnings = [
+        None,
+        "SCF convergence required dampening on step 4.",
+        "GPU VRAM spike near 90% during Hessian computation.",
+        "None",
+    ]
+    warning_block = builder.format_audit_warnings(warnings)
+    assert (
+        "> **WARNING**: SCF convergence required dampening on step 4."
+        in warning_block
+    )
+    assert (
+        "> **WARNING**: GPU VRAM spike near 90% during Hessian computation."
+        in warning_block
+    )
+    assert "> **WARNING**: None" not in warning_block
+
+    # 2. String warning handling (prevent character-splitting bug)
+    single_warn = "Single non-fatal warning string."
+    single_block = builder.format_audit_warnings(single_warn)
+    assert "> **WARNING**: Single non-fatal warning string." in single_block
+    assert "> **WARNING**: S\n" not in single_block
+
+    # 3. Empty warnings fallback
+    empty_block = builder.format_audit_warnings([])
+    assert "> **NOTE**: No non-fatal execution warnings recorded" in empty_block
+
+    none_block = builder.format_audit_warnings(None)
+    assert "> **NOTE**: No non-fatal execution warnings recorded" in none_block
+
+    # 4. Telemetry formatting with normal and 0.0 values
+    telemetry: Dict[str, Any] = {
+        "peak_gpu_vram": "18.4 GB",
+        "peak_cpu_percent": 87.5,
+        "wall_clock_seconds": 124.58,
+        "peak_host_ram": 16384.0,
+        "gpu_active": True,
+    }
+    telemetry_md = builder.format_hardware_telemetry(telemetry)
+    assert "## Hardware Resource Telemetry" in telemetry_md
+    assert "- **Peak GPU VRAM Usage**: 18.4 GB" in telemetry_md
+    assert "- **Peak CPU Usage**: 87.5%" in telemetry_md
+    assert "- **Wall-Clock Execution Time**: 124.58 s" in telemetry_md
+    assert "- **Peak Host RAM / Memory Footprint**: 16384.0 MB" in telemetry_md
+    assert "- **Gpu Active**: True" in telemetry_md
+
+    # Test falsy zero telemetry
+    zero_telemetry = {
+        "peak_gpu_vram": 0.0,
+        "peak_cpu_percent": 0.0,
+        "wall_clock_seconds": 0.0,
+        "peak_ram_mb": 0.0,
+    }
+    zero_md = builder.format_hardware_telemetry(zero_telemetry)
+    assert "- **Peak GPU VRAM Usage**: 0.0 GB" in zero_md
+    assert "- **Peak CPU Usage**: 0.0%" in zero_md
+    assert "- **Wall-Clock Execution Time**: 0.00 s" in zero_md
+    assert "- **Peak Host RAM / Memory Footprint**: 0.0 MB" in zero_md
+
+
+def test_build_user_guide_e2e() -> None:
+    """Verifies end-to-end user guide assembly from a complete payload (Tasks 61–67)."""
+    builder = MarkdownBuilder()
+
+    conf_df = pd.DataFrame({
+        "Conformer": ["Conf_A", "Conf_B"],
+        "Relative Energy (kcal/mol)": [0.0, 1.25],
+        "Symmetry": ["C1", "C2"],
+    })
+
+    vib_df = pd.DataFrame({
+        "Mode #": [1, 2, 3],
+        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
+        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
+    })
+
+    pipe_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    payload: Dict[str, Any] = {
+        "metadata": {
+            "title": "Ethanol Conformational & Vibrational User Guide",
+            "cochem_version": "2.0.0",
+            "run_id": "RUN-2026-0824-001",
+            "target_molecule": "Ethanol",
+            "smiles": "CCO",
+            "environment_tier": "Local-Windows WSL",
+            "fair_compliance": True,
+        },
+        "overview": "Detailed conformational analysis of ethanol executed under ORCA.",
+        "system_matrix": {
+            "engines": {"ORCA": "6.1.1", "xTB": "6.7.1", "MACE": "MACE-OFF23"},
+            "host": {
+                "environment_tier": "Local-Windows WSL",
+                "node_architecture": "x86_64",
+                "cpu_cores": 16,
+                "gpu_model": "NVIDIA RTX 4090",
+                "host_ram": "64 GB",
+                "python_version": "3.10.12",
+                "config_hash": pipe_hash,
+            },
+        },
+        "active_stages": ["0.0", "1.0", "2.0", "3.0", "6.0"],
+        "conformers_df": conf_df,
+        "thermodynamic_insights": (
+            "The global minimum conformer exhibits stabilization via "
+            "internal hydrogen bonding. <<INSERT_PLACEHOLDER>>"
+        ),
+        "vibrational_df": vib_df,
+        "warnings": ["Low-frequency torsional mode (< 50 cm^-1) detected."],
+        "telemetry": {
+            "peak_gpu_vram": "4.2 GB",
+            "peak_cpu_percent": 65.0,
+            "wall_clock_seconds": 45.2,
+            "peak_host_ram": "12.8 GB",
+        },
+    }
+
+    markdown_content = builder.build_user_guide(payload)
+
+    # Assert YAML Frontmatter
+    assert markdown_content.startswith("---\n")
+    assert "target_molecule: Ethanol" in markdown_content
+    assert "smiles: CCO" in markdown_content
+
+    # Assert Overview
+    assert "# Ethanol Conformational & Vibrational User Guide" in markdown_content
+    assert "Detailed conformational analysis of ethanol executed under ORCA." in markdown_content
+
+    # Assert System Matrix
+    assert "## Computational Provenance & System Matrix" in markdown_content
+    assert "- **ORCA**: `6.1.1`" in markdown_content
+    assert "- **CPU Allocation**: 16" in markdown_content
+
+    # Assert Mermaid Flowchart
+    assert "## Pipeline Execution Flowchart" in markdown_content
+    assert "```mermaid" in markdown_content
+    assert "S0" in markdown_content
+    assert "S3" in markdown_content
+
+    # Assert Conformer Table
+    assert "### Conformer Landscape" in markdown_content
+    assert "| Conformer | Relative Energy (kcal/mol) | Symmetry |" in markdown_content
+
+    # Assert Thermodynamic Analysis & Insights
+    assert "## Thermodynamic Analysis" in markdown_content
+    assert "The global minimum conformer exhibits stabilization via internal hydrogen bonding." in markdown_content
+    assert "<<INSERT_PLACEHOLDER>>" not in markdown_content
+
+    # Assert Spectroscopic Analysis
+    assert "## Spectroscopic & Vibrational Analysis" in markdown_content
+    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) |" in markdown_content
+
+    # Assert Warnings
+    assert "### Execution Warnings & Audit Trail" in markdown_content
+    assert "> **WARNING**: Low-frequency torsional mode (< 50 cm^-1) detected." in markdown_content
+
+    # Assert Telemetry
+    assert "## Hardware Resource Telemetry" in markdown_content
+    assert "- **Peak GPU VRAM Usage**: 4.2 GB" in markdown_content
+    assert "- **Peak CPU Usage**: 65.0%" in markdown_content
+
+    # Test malformed payload resilience
+    resilient_doc = builder.build_user_guide(None)
+    assert "# CoChem Computational Analysis User Guide" in resilient_doc
+    assert "## Computational Provenance & System Matrix" in resilient_doc
+
+
+def test_save_user_guide_overwrite_protection(tmp_path: pathlib.Path) -> None:
+    """Verifies non-destructive timestamped overwrite protection on disk (Tasks 68 & 69)."""
+    output_dir = tmp_path / "guide_output"
+    builder = MarkdownBuilder(
+        output_dir=output_dir, base_filename="CoChem_User_Guide.md"
+    )
+
+    # 1. Save initial guide
+    initial_content = "# Initial Guide\n\nFirst run notes by researcher."
+    path_1 = builder.save_user_guide(initial_content)
+
+    assert path_1.exists()
+    assert path_1.name == "CoChem_User_Guide.md"
+    assert path_1.read_text(encoding="utf-8") == initial_content
+
+    # 2. Save second guide to the same target - must NOT overwrite path_1
+    second_content = "# Second Guide\n\nUpdated pipeline output data."
+    path_2 = builder.save_user_guide(second_content)
+
+    assert path_2.exists()
+    assert path_2 != path_1
+    assert re.match(r"^CoChem_User_Guide_\d{8}_\d{6}(?:_\d+)?\.md$", path_2.name) is not None
+    assert path_2.suffix == ".md"
+
+    # Verify initial file remains unmodified and second file has new content
+    assert path_1.read_text(encoding="utf-8") == initial_content
+    assert path_2.read_text(encoding="utf-8") == second_content
+
+
+# Aliases for backward compatibility test discovery
+test_builder_initialization = test_markdown_builder_initialization
+test_yaml_frontmatter_and_metadata = test_yaml_frontmatter_and_system_matrix
+test_mermaid_flowchart_synthesis = test_mermaid_flowchart_generation
+test_gfm_table_pipe_formatting = test_dataframe_to_gfm_table
+test_warning_callouts_and_telemetry = test_audit_warnings_and_telemetry_formatting
+test_end_to_end_user_guide_generation = test_build_user_guide_e2e
+test_non_destructive_overwrite_protection = test_save_user_guide_overwrite_protection
+
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

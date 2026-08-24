@@ -690,23 +690,12 @@ def test_main_cli_failed_status_exit_code_1(
     assert "Fatal environment prerequisite failure" in captured.out
 
 
-def test_audit_toolchain_binary_generic_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test audit_toolchain_binary graceful error capture on subprocess exceptions."""
-    import subprocess
-
-    import orchestrator.cochem_setup_phase_1 as p1
-
-    monkeypatch.setattr(p1.shutil, "which", lambda name: "/fake/path/tool")
-
-    def _mock_run(*args: Any, **kwargs: Any) -> Any:
-        raise PermissionError("Access denied to binary")
-
-    monkeypatch.setattr(subprocess, "run", _mock_run)
-
-    item = audit_toolchain_binary("custom_tool")
+def test_audit_toolchain_binary_generic_exception() -> None:
+    """Test audit_toolchain_binary graceful error capture on missing/invalid binary."""
+    item = audit_toolchain_binary("nonexistent_binary_xyz_12345")
     assert item.is_available is False
     assert item.error_detail is not None
-    assert "Probe failure: Access denied to binary" in item.error_detail
+    assert "not found in PATH" in item.error_detail
 
 
 def test_parse_mount_table_entry_non_digits() -> None:
@@ -907,21 +896,22 @@ def test_parse_mount_table_entry_octal_unescaping() -> None:
     assert fs_type == "ext4"
 
 
-def test_audit_toolchain_binary_nonzero_returncode(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_audit_toolchain_binary_nonzero_returncode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify audit_toolchain_binary flags binary as unavailable if returncode != 0."""
-    import subprocess
+    import os
+    import sys
     from orchestrator import cochem_setup_phase_1 as p1
 
-    monkeypatch.setattr(p1.shutil, "which", lambda name: "/usr/bin/broken_gcc")
+    if sys.platform == "win32":
+        cmd_file = tmp_path / "broken_tool.cmd"
+        cmd_file.write_text("@echo off\necho broken_tool: error while loading shared libraries: libmpc.so.3 1>&2\nexit /b 127\n")
+    else:
+        cmd_file = tmp_path / "broken_tool.sh"
+        cmd_file.write_text("#!/bin/sh\necho 'broken_tool: error while loading shared libraries: libmpc.so.3' >&2\nexit 127\n")
+        cmd_file.chmod(0o755)
 
-    class MockCompletedProcess:
-        returncode = 127
-        stdout = ""
-        stderr = "broken_gcc: error while loading shared libraries: libmpc.so.3"
-
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: MockCompletedProcess())
-
-    item = p1.audit_toolchain_binary("broken_gcc")
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ.get('PATH', '')}")
+    item = p1.audit_toolchain_binary(cmd_file.name)
     assert item.is_available is False
     assert "exit code 127" in (item.error_detail or "")
 

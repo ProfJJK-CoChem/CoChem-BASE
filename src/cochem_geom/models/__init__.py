@@ -28,6 +28,11 @@ from .base_gnn import (
     translate_coordinates,
     verify_se3_equivariance,
 )
+from .egnn import (
+    EGNN,
+    EGNNLayer,
+    EGNNModelConfig,
+)
 
 __all__ = [
     "Base3DGNN",
@@ -35,6 +40,9 @@ __all__ = [
     "Canonical3DGNN",
     "Canonical3DInteractionBlock",
     "ConformerInputContract",
+    "EGNN",
+    "EGNNLayer",
+    "EGNNModelConfig",
     "Equivariant3DGNN",
     "Equivariant3DInteractionBlock",
     "GNNForceOutput",

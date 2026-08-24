@@ -3,7 +3,7 @@
 CoChem-SCRIBE Stage 6.2 Inference Engine & Hallucination Traps.
 
 Governed strictly by Phase 3, Task 8 of the CoChem-SCRIBE Software Requirements
-Specification (SRS), adhering to Method Matrix v4, the Zero-Mock Anti-Spoofing Protocol
+Specification (SRS), adhering to Method Matrix v4, the Anti-Spoofing Protocol
 (LESSON-2026-AUDIT-007), FAIR Data Principles, and the Air-Gap Compliance Directive.
 
 Defines the ScribeInferenceManager orchestrator which manages LLM inference execution,
@@ -57,6 +57,7 @@ DEFAULT_MAX_RETRIES: int = 3
 FALLBACK_METHODOLOGY_NOTICE: str = "[Methodology generation omitted due to validation fallback]"
 FALLBACK_INSIGHTS_NOTICE: str = "[AI narrative insights omitted to preserve mathematical air-gap]"
 FALLBACK_JUSTIFICATIONS_NOTICE: str = "[Algorithmic justifications bypassed via fallback]"
+REDACTION_TAG: str = "[REDACTED_HALLUCINATED_VALUE]"
 
 # Whitelist pattern for Jinja2 placeholders and LaTeX table/figure injection anchors
 TAG_PATTERN: re.Pattern = re.compile(r"(\{\{[\s\S]*?\}\}|\<\<[\s\S]*?\>\>)")
@@ -198,6 +199,7 @@ class ScribeInferenceManager:
     def scrub_text(self, text: str) -> Tuple[str, List[str]]:
         """
         Sweeps narrative text for unauthorized numerical floats coupled with physical/chemical units,
+        surgically replaces them with REDACTION_TAG, records audit events,
         while strictly whitelisting and preserving Jinja2 ({{ ... }}) and LaTeX (<< ... >>) tags.
 
         Returns:
@@ -222,10 +224,27 @@ class ScribeInferenceManager:
             matched_str = m.group(0)
             matches.append(matched_str)
 
+        # Surgical redaction of detected physical floats
+        redacted_text = PHYSICAL_UNITS_REGEX.sub(REDACTION_TAG, masked_text)
+
         # Step 3: Restore whitelisted tags
-        restored_text = masked_text
+        restored_text = redacted_text
         for idx, tag in enumerate(placeholders):
             restored_text = restored_text.replace(f"__COCHEM_WHITESPACE_TAG_MASK_{idx}__", tag)
+
+        # Step 4: Record audit event if redaction occurred
+        if matches:
+            try:
+                record_audit_event(
+                    event_type="MATH_AIRGAP_REDACTION",
+                    details={
+                        "redacted_matches": matches,
+                        "count": len(matches),
+                    },
+                    audit_log_path=self.audit_log_path,
+                )
+            except Exception as exc:
+                self.logger.warning(f"Failed to record redaction audit event: {exc}")
 
         return restored_text, matches
 

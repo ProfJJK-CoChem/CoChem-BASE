@@ -24,6 +24,16 @@ from .scribe_engine import (
     get_engine,
     record_audit_event,
 )
+from .scribe_inference import (
+    FALLBACK_INSIGHTS_NOTICE,
+    FALLBACK_JUSTIFICATIONS_NOTICE,
+    FALLBACK_METHODOLOGY_NOTICE,
+    ScribeInferenceError,
+    ScribeInferenceManager,
+    ScribeOutputSchema,
+    ScribeTimeoutError,
+    ScribeValidationError,
+)
 
 __all__ = [
     "DRY_RUN_OUTPUT_TEXT",
@@ -41,4 +51,12 @@ __all__ = [
     "get_default_models_dir",
     "estimate_token_count",
     "calculate_model_cost",
+    "ScribeInferenceError",
+    "ScribeTimeoutError",
+    "ScribeValidationError",
+    "ScribeOutputSchema",
+    "ScribeInferenceManager",
+    "FALLBACK_METHODOLOGY_NOTICE",
+    "FALLBACK_INSIGHTS_NOTICE",
+    "FALLBACK_JUSTIFICATIONS_NOTICE",
 ]

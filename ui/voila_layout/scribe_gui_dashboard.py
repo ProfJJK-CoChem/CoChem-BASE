@@ -22,6 +22,26 @@ import threading
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field
+
+class DocumentSettings(BaseModel):
+    generate_latex_manuscript: bool = True
+    generate_user_guide: bool = True
+    target_journal: str = "ACS Standard"
+    crossref_doi_autofill: bool = False
+    zstd_compression: bool = True
+    methodology_level: str = "Standard"
+
+class SystemConfig(BaseModel):
+    document_settings: DocumentSettings = Field(default_factory=DocumentSettings)
+    methodology_level: str = "Standard"
+    target_journal: str = "ACS Standard"
+
+class AuditLogEntry(BaseModel):
+    timestamp: str = "AUDIT"
+    event: str = "INFO"
+    details: str = ""
+
 
 import ipywidgets as widgets
 import psutil
@@ -311,25 +331,29 @@ class ScribeDashboard:
         ensuring zero-loss propagation of user options to backend pipelines.
         """
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_data: Dict[str, Any] = {}
+        config_data = {}
         if self.config_path.exists():
             try:
                 config_data = json.loads(self.config_path.read_text(encoding="utf-8"))
             except Exception:
-                config_data = {}
+                pass
 
-        config_data.update({
-            "document_settings": {
-                "generate_latex_manuscript": self.latex_manuscript_checkbox.value,
-                "generate_user_guide": self.user_guide_checkbox.value,
-                "target_journal": self.journal_dropdown.value,
-                "crossref_doi_autofill": self.crossref_doi_checkbox.value,
-                "zstd_compression": self.zstd_compression_checkbox.value,
-                "methodology_level": self.methodology_level_dropdown.value,
-            },
-            "methodology_level": self.methodology_level_dropdown.value,
-            "target_journal": self.journal_dropdown.value,
-        })
+        doc_settings = DocumentSettings(
+            generate_latex_manuscript=self.latex_manuscript_checkbox.value,
+            generate_user_guide=self.user_guide_checkbox.value,
+            target_journal=self.journal_dropdown.value,
+            crossref_doi_autofill=self.crossref_doi_checkbox.value,
+            zstd_compression=self.zstd_compression_checkbox.value,
+            methodology_level=self.methodology_level_dropdown.value,
+        )
+
+        sys_config = SystemConfig(
+            document_settings=doc_settings,
+            methodology_level=self.methodology_level_dropdown.value,
+            target_journal=self.journal_dropdown.value,
+        )
+        
+        config_data.update(sys_config.model_dump())
         self.config_path.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
         return self.config_path
 
@@ -463,7 +487,15 @@ class ScribeDashboard:
             entries = data if isinstance(data, list) else [data]
             with self.telemetry_output:
                 for entry in entries[-max_entries:]:
-                    print(f"[{entry.get('timestamp', 'AUDIT')}] {entry.get('event', entry.get('event_type', 'INFO'))}: {entry.get('details', entry.get('exception_message', ''))}")
+                    try:
+                        parsed = AuditLogEntry(**entry)
+                    except Exception:
+                        parsed = AuditLogEntry(
+                            timestamp=entry.get("timestamp", "AUDIT"),
+                            event=entry.get("event", entry.get("event_type", "INFO")),
+                            details=entry.get("details", entry.get("exception_message", ""))
+                        )
+                    print(f"[{parsed.timestamp}] {parsed.event}: {parsed.details}")
         except Exception:
             pass
 

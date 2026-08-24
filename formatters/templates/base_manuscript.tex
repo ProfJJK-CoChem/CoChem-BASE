@@ -1,0 +1,47 @@
+\documentclass[journal=jacsat,manuscript=article]{achemso}
+
+\usepackage{siunitx}
+\usepackage{booktabs}
+\usepackage{chemfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\title{\VAR{title}}
+\author{\VAR{authors}}
+\affiliation{\VAR{affiliations}}
+
+\begin{document}
+
+\begin{abstract}
+\VAR{abstract}
+\end{abstract}
+
+\BLOCK{ if chemfig_structure }
+\section{Molecular Structure}
+\VAR{chemfig_structure}
+\BLOCK{ endif }
+
+\section{Computational Details}
+\VAR{computational_details}
+
+\BLOCK{ if sinc_dvr_justification }
+\subsection{Large-Amplitude Motion \& Discrete Variable Representation}
+\VAR{sinc_dvr_justification}
+\BLOCK{ endif }
+
+\section{Results and Discussion}
+
+\subsection{Conformational Landscape}
+\VAR{conformer_table}
+
+\subsection{Thermodynamic Properties}
+\VAR{thermo_table}
+
+\subsection{Vibrational Analysis}
+\VAR{vibrational_table}
+
+\section{Computational Provenance}
+\VAR{provenance_footer}
+
+\end{document}

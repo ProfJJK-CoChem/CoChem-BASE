@@ -17,32 +17,25 @@ Verifies:
 10. Full unified aggregation pipeline (aggregate_all).
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import math
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 import h5py
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import pytest
 
 # Dynamic path resolution to ensure importability in both CoChem-SCRIBE and CoChem-BASE
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from harvesters.scribe_aggregator import (
+from harvesters.scribe_aggregator import (  # noqa: E402
     HARTREE_TO_KCAL_MOL,
     DataAggregator,
     ScribeAggregationError,
 )
-
 
 # =============================================================================
 # 1. SWMR HDF5 INITIALIZATION & LOCKING RESILIENCE TESTS

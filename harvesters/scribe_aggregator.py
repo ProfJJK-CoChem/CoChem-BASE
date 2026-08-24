@@ -29,77 +29,22 @@ import math
 import os
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Sequence, Union, cast
 
 import h5py
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-from pydantic import BaseModel, Field
 
-class ConformerRecord(BaseModel):
-    conformer_id: str
-    relative_energy_kcal_mol: float
-    point_group_symmetry: str
-
-class RotationalConstants(BaseModel):
-    A: float = 0.0
-    B: float = 0.0
-    C: float = 0.0
-
-class DipoleMoments(BaseModel):
-    mu_a: float = 0.0
-    mu_b: float = 0.0
-    mu_c: float = 0.0
-    total: float = 0.0
-
-class CentrifugalDistortion(BaseModel):
-    Delta_J: float = 0.0
-    Delta_JK: float = 0.0
-    Delta_K: float = 0.0
-    delta_J: float = 0.0
-    delta_K: float = 0.0
-
-class SpectroscopyData(BaseModel):
-    rotational_constants: RotationalConstants
-    dipole_moments: DipoleMoments
-    centrifugal_distortion: CentrifugalDistortion
-
-class ThermodynamicsData(BaseModel):
-    zpe_kcal_mol: float = 0.0
-    enthalpy_kcal_mol: float = 0.0
-    gibbs_free_energy_kcal_mol: float = 0.0
-    vpt2_frequencies_cm1: List[float] = Field(default_factory=list)
-
-class NodeArchitecture(BaseModel):
-    cpu_cores: int
-    gpu_model: str
-    hostname: str
-
-class TelemetryData(BaseModel):
-    wall_clock_time_seconds: float
-    peak_gpu_vram_mb: float
-    node_architecture: NodeArchitecture
-    log_source: str
-
-class ProvenanceData(BaseModel):
-    engine_versions: Dict[str, Any]
-    config_sha256: str
-    manifest_path: str
-    config_path: str
-
-
-# Dynamic chemical masses resolution if needed
+# Dynamic chemical masses resolution via Mendeleev library per Council Mandate
 try:
     import mendeleev
 except ImportError:
     mendeleev = None
 
-logger = logging.getLogger("cochem.scribe.aggregator")
-
 # Conversion factor: exact CODATA 1 Hartree in kcal/mol
 HARTREE_TO_KCAL_MOL: float = 627.5094740631
+
+logger = logging.getLogger("cochem.scribe.aggregator")
 
 
 class ScribeAggregationError(Exception):
@@ -189,12 +134,12 @@ class DataAggregator:
         # Attempt 1: Standard SWMR read with libver='latest'
         try:
             file_obj = h5py.File(str(self.h5_path), mode="r", swmr=True, libver="latest")
-        except (BlockingIOError, OSError, Exception) as err1:
+        except (BlockingIOError, OSError, Exception):
             # Non-POSIX locking fallback: disable file locking in environment and retry
             os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
             try:
                 file_obj = h5py.File(str(self.h5_path), mode="r", swmr=True, libver="latest")
-            except Exception as err2:
+            except Exception:
                 try:
                     # Fallback without swmr=True for files generated under standard libver
                     file_obj = h5py.File(str(self.h5_path), mode="r")
@@ -212,7 +157,7 @@ class DataAggregator:
                 except Exception:
                     pass
 
-    def harvest_conformers(self, top_n: int = 10) -> List[ConformerRecord]:
+    def harvest_conformers(self, top_n: int = 10) -> List[Dict[str, Any]]:
         """Extracts top N lowest-energy conformers, stripping full 3D Cartesian coordinates.
 
         Args:
@@ -312,7 +257,7 @@ class DataAggregator:
                     })
 
                 formatted.sort(key=lambda x: float(x["relative_energy_kcal_mol"]))
-                return [ConformerRecord(**c) for c in formatted[:top_n]]
+                return formatted[:top_n]
 
         except Exception as e:
             logger.warning("HDF5 conformer harvesting failed (%s); attempting Parquet fallback.", e)
@@ -321,14 +266,14 @@ class DataAggregator:
                 if "conformers" in pq_data and pq_data["conformers"]:
                     conformers = cast(List[Dict[str, Any]], pq_data["conformers"])
                     conformers.sort(key=lambda x: float(x.get("relative_energy_kcal_mol", 0.0)))
-                    return [ConformerRecord(**c) for c in conformers[:top_n]]
+                    return conformers[:top_n]
             except Exception as pq_err:
                 raise ScribeAggregationError(
                     f"Conformer harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
                 ) from pq_err
             raise ScribeAggregationError(f"Conformer harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
 
-    def harvest_spectroscopy(self) -> SpectroscopyData:
+    def harvest_spectroscopy(self) -> Dict[str, Any]:
         """Extracts rotational constants, dipole moments, and quartic distortion parameters.
 
         Returns:
@@ -408,21 +353,25 @@ class DataAggregator:
                         "delta_K": float(cast(Any, spec_grp.attrs.get("delta_K", spec_grp.attrs.get("dK", 0.0)))),
                     }
 
-                return SpectroscopyData(rotational_constants=RotationalConstants(**rot_consts), dipole_moments=DipoleMoments(**dipole_moments), centrifugal_distortion=CentrifugalDistortion(**centrifugal))
+                return {
+                    "rotational_constants": rot_consts,
+                    "dipole_moments": dipole_moments,
+                    "centrifugal_distortion": centrifugal,
+                }
 
         except Exception as e:
             logger.warning("HDF5 spectroscopy harvesting failed (%s); attempting Parquet fallback.", e)
             try:
                 pq_data = self._parse_parquet_fallback()
                 if "spectroscopy" in pq_data and pq_data["spectroscopy"]:
-                    return SpectroscopyData(**pq_data["spectroscopy"])
+                    return cast(Dict[str, Any], pq_data["spectroscopy"])
             except Exception as pq_err:
                 raise ScribeAggregationError(
                     f"Spectroscopy harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
                 ) from pq_err
             raise ScribeAggregationError(f"Spectroscopy harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
 
-    def harvest_thermodynamics(self) -> ThermodynamicsData:
+    def harvest_thermodynamics(self) -> Dict[str, Any]:
         """Parses ZPE, enthalpy, Gibbs free energy, and VPT2 frequencies, converting Hartrees to kcal/mol.
 
         Returns:
@@ -498,21 +447,26 @@ class DataAggregator:
                                 pass
                         break
 
-                return ThermodynamicsData(zpe_kcal_mol=float(zpe_kcal), enthalpy_kcal_mol=float(h_kcal), gibbs_free_energy_kcal_mol=float(g_kcal), vpt2_frequencies_cm1=vpt2_freqs)
+                return {
+                    "zpe_kcal_mol": float(zpe_kcal),
+                    "enthalpy_kcal_mol": float(h_kcal),
+                    "gibbs_free_energy_kcal_mol": float(g_kcal),
+                    "vpt2_frequencies_cm1": vpt2_freqs,
+                }
 
         except Exception as e:
             logger.warning("HDF5 thermodynamics harvesting failed (%s); attempting Parquet fallback.", e)
             try:
                 pq_data = self._parse_parquet_fallback()
                 if "thermodynamics" in pq_data and pq_data["thermodynamics"]:
-                    return ThermodynamicsData(**pq_data["thermodynamics"])
+                    return cast(Dict[str, Any], pq_data["thermodynamics"])
             except Exception as pq_err:
                 raise ScribeAggregationError(
                     f"Thermodynamics harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed ({pq_err})."
                 ) from pq_err
             raise ScribeAggregationError(f"Thermodynamics harvesting failed: HDF5 database does not exist or failed ({e}), and Parquet fallback failed.") from e
 
-    def harvest_telemetry(self) -> TelemetryData:
+    def harvest_telemetry(self) -> Dict[str, Any]:
         """Extracts wall-clock time, peak GPU VRAM usage, and node architecture from cochem_audit_log.json.
 
         Returns:
@@ -554,21 +508,30 @@ class DataAggregator:
             peak_vram = float(data.get("peak_gpu_vram_mb", data.get("peak_vram_mb", data.get("peak_vram_gb", 0.0) * 1024.0)))
 
             node_arch = data.get("node_architecture", {})
-            if not node_arch:
-                node_arch = {
-                    "cpu_cores": int(data.get("cpu_cores", data.get("core_count", os.cpu_count() or 1))),
-                    "gpu_model": str(data.get("gpu_model", data.get("gpu", "N/A"))),
-                    "hostname": str(data.get("hostname", data.get("host", "local"))),
-                }
+            if not isinstance(node_arch, dict):
+                node_arch = {}
 
-            return TelemetryData(wall_clock_time_seconds=wall_time, peak_gpu_vram_mb=peak_vram, node_architecture=NodeArchitecture(**node_arch), log_source=str(target_file))
+            cpu_cores = int(node_arch.get("cpu_cores", data.get("cpu_cores", data.get("core_count", os.cpu_count() or 1))))
+            gpu_model = str(node_arch.get("gpu_model", data.get("gpu_model", data.get("gpu", "N/A"))))
+            hostname = str(node_arch.get("hostname", data.get("hostname", data.get("host", "local"))))
+
+            return {
+                "wall_clock_time_seconds": wall_time,
+                "peak_gpu_vram_mb": peak_vram,
+                "node_architecture": {
+                    "cpu_cores": cpu_cores,
+                    "gpu_model": gpu_model,
+                    "hostname": hostname,
+                },
+                "log_source": str(target_file),
+            }
 
         except json.JSONDecodeError as jde:
             raise ScribeAggregationError(f"Invalid JSON in telemetry log '{target_file}': {jde}") from jde
         except Exception as e:
             raise ScribeAggregationError(f"Failed to harvest telemetry from '{target_file}': {e}") from e
 
-    def harvest_provenance(self) -> ProvenanceData:
+    def harvest_provenance(self) -> Dict[str, Any]:
         """Extracts engine versions from manifest and computes golden SHA-256 hash of system config.
 
         Returns:
@@ -628,13 +591,18 @@ class DataAggregator:
                     hasher.update(chunk)
             config_sha256 = hasher.hexdigest()
 
-            return ProvenanceData(engine_versions=engine_versions, config_sha256=config_sha256, manifest_path=str(manifest_path), config_path=str(config_path))
+            return {
+                "engine_versions": engine_versions,
+                "config_sha256": config_sha256,
+                "manifest_path": str(manifest_path),
+                "config_path": str(config_path),
+            }
 
         except Exception as e:
             raise ScribeAggregationError(f"Provenance harvesting failed: {e}") from e
 
     @staticmethod
-    def compress_tensors_for_llm(array: Union[np.ndarray[Any], List[float], Sequence[float]]) -> Dict[str, float]:
+    def compress_tensors_for_llm(array: Union[np.ndarray, List[float], Sequence[float]]) -> Dict[str, float]:
         """Reduces dense 1D/2D numerical arrays to 4 static statistical bounds (Min, Max, Mean, StdDev).
 
         Guarantee: Arbitrary-length numerical arrays consume a fixed, bounded token budget.
@@ -769,10 +737,6 @@ class DataAggregator:
         """
         if isinstance(data, pd.DataFrame):
             return data
-        if hasattr(data, "model_dump"):
-            data = data.model_dump()
-        elif isinstance(data, list) and len(data) > 0 and hasattr(data[0], "model_dump"):
-            data = [d.model_dump() for d in data]
 
         t_type = table_type.lower()
 
@@ -904,13 +868,23 @@ class DataAggregator:
             payload["telemetry"] = self.harvest_telemetry()
         except Exception as e_telem:
             logger.warning("Telemetry harvesting failed (%s); returning minimal record.", e_telem)
-            payload["telemetry"] = {"wall_clock_time_seconds": 0.0, "peak_gpu_vram_mb": 0.0, "node_architecture": {}}
+            payload["telemetry"] = {
+                "wall_clock_time_seconds": 0.0,
+                "peak_gpu_vram_mb": 0.0,
+                "node_architecture": {"cpu_cores": 1, "gpu_model": "N/A", "hostname": "local"},
+                "log_source": "N/A",
+            }
 
         # 5. Provenance
         try:
             payload["provenance"] = self.harvest_provenance()
         except Exception as e_prov:
             logger.warning("Provenance harvesting failed (%s); returning minimal record.", e_prov)
-            payload["provenance"] = {"engine_versions": {}, "config_sha256": "0" * 64}
+            payload["provenance"] = {
+                "engine_versions": {},
+                "config_sha256": "0" * 64,
+                "manifest_path": "N/A",
+                "config_path": "N/A",
+            }
 
         return payload

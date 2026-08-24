@@ -330,7 +330,7 @@ def test_package_final_report_e2e(
 def test_package_final_report_failed_latex_cleans_scratch_unconditionally(
     tmp_path: pathlib.Path,
 ) -> None:
-    """Verifies that intermediate scratch files are purged even when LaTeX compilation fails."""
+    """Verifies scratch files are purged even when LaTeX compilation fails."""
     work_dir = tmp_path / "broken_e2e"
     work_dir.mkdir()
 
@@ -368,13 +368,19 @@ def test_package_final_report_failed_latex_cleans_scratch_unconditionally(
 
 
 def test_run_timestamp_directory_packaging(tmp_path: pathlib.Path) -> None:
-    """Verifies bundling a Run_[TIMESTAMP] directory into CoChem_Final_Report_[TIMESTAMP].zip."""
+    """Verifies bundling a Run directory into CoChem_Final_Report archive."""
     timestamp_tag = "20260824_153000"
     run_dir = tmp_path / f"Run_{timestamp_tag}"
     run_dir.mkdir()
 
-    (run_dir / "Methodology.tex").write_text("\\documentclass{article}\\begin{document}Run\\end{document}", encoding="utf-8")
-    (run_dir / "data_output.csv").write_text("param,value\nenergy,-120.5", encoding="utf-8")
+    (run_dir / "Methodology.tex").write_text(
+        "\\documentclass{article}\\begin{document}Run\\end{document}",
+        encoding="utf-8",
+    )
+    (run_dir / "data_output.csv").write_text(
+        "param,value\nenergy,-120.5",
+        encoding="utf-8",
+    )
 
     manager = DocumentManager(archive_dir=run_dir)
     archive_path = manager.create_archive(
@@ -390,6 +396,86 @@ def test_run_timestamp_directory_packaging(tmp_path: pathlib.Path) -> None:
         namelist = zf.namelist()
         assert "Methodology.tex" in namelist
         assert "data_output.csv" in namelist
+
+    # Teardown unlock
+    os.chmod(archive_path, stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_genuine_compilation_task90(
+    tmp_path: pathlib.Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Task 90: Genuine Compilation and Archive Packaging Test.
+
+    Strictly enforces Zero-Mock Anti-Spoofing Protocol:
+    1. Compiles a minimal, self-contained minimal_test.tex file.
+    2. Verifies real .pdf creation (or clean fallback if pdflatex not installed).
+    3. Verifies authentic ZIP archiving with correct internal file structure.
+    4. Verifies POSIX read-only permissions (0o444).
+    """
+    work_dir = tmp_path / "task90_workspace"
+    work_dir.mkdir()
+
+    minimal_tex = (
+        "\\documentclass{article}\n"
+        "\\begin{document}\n"
+        "\\title{Task 90 Minimal Test}\n"
+        "\\author{CoChem-SCRIBE}\n"
+        "\\maketitle\n"
+        "\\section{Genuine Compilation}\n"
+        "Self-contained LaTeX document for Task 90 integration testing.\n"
+        "\\end{document}\n"
+    )
+    tex_path = work_dir / "minimal_test.tex"
+    tex_path.write_text(minimal_tex, encoding="utf-8")
+
+    companion_doc = work_dir / "README.md"
+    companion_doc.write_text("# Task 90 Artifact", encoding="utf-8")
+
+    manager = DocumentManager(archive_dir=work_dir)
+    comp_res, manifest_path, archive_path = manager.package_final_report(
+        target_dir=work_dir,
+        tex_filename="minimal_test.tex",
+        topological_code_hash="sha256:task90_verified_code_hash",
+    )
+
+    assert isinstance(comp_res, CompilationResult)
+    assert manifest_path.exists()
+    assert manifest_path.name == "manifest.json"
+    assert archive_path.exists()
+    assert archive_path.is_file()
+    assert archive_path.suffix == ".zip"
+
+    # Check compilation outcome based on pdflatex installation
+    if manager.check_latex_installed():
+        assert comp_res.success is True
+        assert comp_res.pdf_path is not None
+        assert comp_res.pdf_path.exists()
+        assert comp_res.pdf_path.name == "minimal_test.pdf"
+        assert comp_res.fallback_used is False
+    else:
+        assert comp_res.success is False
+        assert comp_res.fallback_used is True
+        assert "pdflatex binary not found" in (comp_res.error_message or "")
+
+    # Verify ZIP integrity and internal file structure
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        assert zf.testzip() is None
+        namelist = zf.namelist()
+        assert "minimal_test.tex" in namelist
+        assert "README.md" in namelist
+        assert "manifest.json" in namelist
+        if manager.check_latex_installed():
+            assert "minimal_test.pdf" in namelist
+
+    # Verify POSIX read-only permissions (0o444 / S_IREAD)
+    file_mode = archive_path.stat().st_mode
+    assert (file_mode & stat.S_IREAD) != 0
+    assert not (file_mode & stat.S_IWRITE)
+
+    # Verify write attempt failure
+    with pytest.raises((PermissionError, OSError)):
+        with open(archive_path, "ab") as f:
+            f.write(b"tamper attempt")
 
     # Teardown unlock
     os.chmod(archive_path, stat.S_IWRITE | stat.S_IREAD)

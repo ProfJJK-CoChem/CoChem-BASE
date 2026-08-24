@@ -11,9 +11,9 @@ and emits telemetry markers for cluster schedulers.
 
 from __future__ import annotations
 
+import atexit
 import datetime
 import hashlib
-import json
 import logging
 import mimetypes
 import os
@@ -24,11 +24,35 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+import psutil
+from pydantic import BaseModel
+
 logger = logging.getLogger(__name__)
 
 FALLBACK_TOPOLOGICAL_HASH: str = "sha256:" + "0" * 64
 DEFAULT_TIMEOUT_SECONDS: int = 60
 CHUNK_SIZE_BYTES: int = 65536
+
+
+def _sweep_zombies() -> None:
+    """Terminates orphaned LaTeX/BibTeX compiler processes upon interpreter exit."""
+    for p in psutil.process_iter(["pid", "name"]):
+        try:
+            proc_name = p.name().lower()
+            if proc_name in (
+                "pdflatex",
+                "bibtex",
+                "xelatex",
+                "pdflatex.exe",
+                "bibtex.exe",
+                "xelatex.exe",
+            ):
+                p.terminate()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
+
+atexit.register(_sweep_zombies)
 
 
 @dataclass
@@ -41,6 +65,23 @@ class CompilationResult:
     error_message: str | None = None
     passes_completed: int = 0
     fallback_used: bool = False
+
+
+class FileManifest(BaseModel):
+    relative_path: str
+    size_bytes: int
+    sha256: str
+    content_type: str
+
+
+class Manifest(BaseModel):
+    manifest_version: str
+    timestamp_iso: str
+    generator: str
+    topological_code_hash: str
+    files_count: int
+    files: list[FileManifest]
+    extra_metadata: dict[str, Any] | None = None
 
 
 class DocumentManager:
@@ -255,6 +296,21 @@ class DocumentManager:
                 passes_completed=passes_completed,
                 fallback_used=True,
             )
+        except subprocess.CalledProcessError as exc:
+            has_fatal_error, error_summary = self.check_log_for_fatal_errors(log_path)
+            err_msg = (
+                error_summary
+                or f"LaTeX compilation failed with exit status {exc.returncode}"
+            )
+            logger.warning("[SCRIBE-WARN] %s", err_msg)
+            return CompilationResult(
+                success=False,
+                pdf_path=pdf_path if pdf_path.exists() else None,
+                log_path=log_path if log_path.exists() else None,
+                error_message=err_msg,
+                passes_completed=passes_completed,
+                fallback_used=True,
+            )
         except Exception as exc:
             msg = f"LaTeX compilation encountered unexpected exception: {exc}"
             logger.warning("[SCRIBE-WARN] %s", msg)
@@ -408,24 +464,22 @@ class DocumentManager:
             .replace("+00:00", "Z")
         )
 
-        manifest_data: dict[str, Any] = {
-            "manifest_version": "1.0",
-            "timestamp_iso": timestamp_iso,
-            "generator": "CoChem-SCRIBE Stage 6.3 DocumentManager",
-            "topological_code_hash": (
+        manifest_obj = Manifest(
+            manifest_version="1.0",
+            timestamp_iso=timestamp_iso,
+            generator="CoChem-SCRIBE Stage 6.3 DocumentManager",
+            topological_code_hash=(
                 topological_code_hash
                 if topological_code_hash is not None
                 else FALLBACK_TOPOLOGICAL_HASH
             ),
-            "files_count": len(files_list),
-            "files": files_list,
-        }
-
-        if extra_metadata:
-            manifest_data["extra_metadata"] = extra_metadata
+            files_count=len(files_list),
+            files=[FileManifest(**fl) for fl in files_list],
+            extra_metadata=extra_metadata,
+        )
 
         with open(manifest_path, "w", encoding="utf-8") as f:
-            json.dump(manifest_data, f, indent=2)
+            f.write(manifest_obj.model_dump_json(indent=2))
 
         return manifest_path
 
@@ -443,7 +497,8 @@ class DocumentManager:
             readonly_mode = stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH
             os.chmod(file_path, readonly_mode)
             logger.info(
-                "[SCRIBE-SECURITY] Applied read-only permission lock (0o444) to: %s", file_path
+                "[SCRIBE-SECURITY] Applied read-only permission lock (0o444) to: %s",
+                file_path,
             )
             return True
         except OSError as exc:

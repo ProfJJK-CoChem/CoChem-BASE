@@ -10,13 +10,13 @@ Adheres strictly to the Anti-Spoofing Protocol.
 from __future__ import annotations
 
 import json
+import os
 import re
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
 
-import os
-import tempfile
 import pytest
 import tiktoken
 

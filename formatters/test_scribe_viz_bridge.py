@@ -182,7 +182,10 @@ def configured_bridge(tmp_path: pathlib.Path) -> VisualAssetBridge:
 def test_visual_asset_bridge_initialization_and_dynamic_pathing(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test Case 1: VisualAssetBridge Initialization & Dynamic Pathing (Tasks 75 & 78)."""
+    """Test Case 1: VisualAssetBridge Initialization & Dynamic Pathing.
+    
+    Covers Tasks 75 & 78.
+    """
     # 1. Default initialization without parameters or environment variables
     monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
     monkeypatch.delenv("COCHEM_REPORT_ARCHIVE_DIR", raising=False)
@@ -282,7 +285,10 @@ def test_volumetric_artifact_discovery(
 def test_zstandard_compression_boundary_50mb(
     configured_bridge: VisualAssetBridge, large_volumetric_cube_file: pathlib.Path
 ) -> None:
-    """Test Case 3: Zstandard Maximum-Ratio Stream Compression Boundary Test (>= 50 MB) (Tasks 76 & 80)."""
+    """Test Case 3: Zstandard Max-Ratio Stream Compression Boundary (>= 50 MB).
+    
+    Covers Tasks 76 & 80.
+    """
     original_size = large_volumetric_cube_file.stat().st_size
     assert original_size >= DEFAULT_50MB_THRESHOLD
 
@@ -299,7 +305,7 @@ def test_zstandard_compression_boundary_50mb(
     assert archive_path.exists()
     assert archive_path.is_file()
 
-    # 3. Mathematically assert original uncompressed file is unlinked (disk bloat truncated)
+    # 3. Assert original uncompressed file is unlinked (disk bloat truncated)
     assert not large_volumetric_cube_file.exists()
 
     # 4. Quantitatively assert space savings
@@ -441,7 +447,10 @@ def test_cross_platform_latex_relative_path_posix_normalization(
     spectral_figure_assets: dict[str, pathlib.Path],
     tmp_path: pathlib.Path,
 ) -> None:
-    """Test Case 8: Cross-Platform LaTeX Relative Path Calculation & POSIX Normalization (Task 78)."""
+    """Test Case 8: LaTeX Relative Path Calculation & POSIX Normalization.
+    
+    Covers Task 78.
+    """
     ir_path = spectral_figure_assets["ir"]
 
     # 1. Relative path to report_archive_dir (default base)
@@ -581,7 +590,8 @@ def test_jinja2_context_injection_and_visual_payload_assembly(
         > MIN_COMPRESSION_SAVINGS_PCT
     )
 
-    # 2. Test build_visual_payload directly on a separate sub-directory with fresh assets
+    # 2. Test build_visual_payload directly on a separate sub-directory
+    # with fresh assets
     sub_artifacts = tmp_path / "sub_artifacts"
     sub_figs = sub_artifacts / "figures"
     sub_figs.mkdir(parents=True, exist_ok=True)

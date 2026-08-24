@@ -186,7 +186,7 @@ class MarkdownBuilder:
             system_matrix: System configuration and execution environment data.
 
         Returns:
-            Formatted Markdown section under ## Computational Provenance & System Matrix.
+            Formatted Markdown section under ## 1. System Execution Environment & Provenance.
         """
         matrix = system_matrix if isinstance(system_matrix, dict) else {}
         lines: List[str] = [
@@ -910,7 +910,7 @@ if __name__ == "__main__":
             "host": {"cpu_cores": 8, "gpu_device": "RTX 4090", "host_ram": "32 GB"},
         }
         sys_sec = builder.generate_system_matrix_section(sys_mat)
-        assert "## Computational Provenance & System Matrix" in sys_sec, "System matrix header missing"
+        assert "## 1. System Execution Environment & Provenance" in sys_sec, "System matrix header missing"
         assert "**ORCA**: `6.1.1`" in sys_sec, "ORCA engine readout missing"
 
         # 3. Test Mermaid Flowchart

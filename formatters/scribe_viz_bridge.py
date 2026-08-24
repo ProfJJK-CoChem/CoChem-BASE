@@ -67,7 +67,9 @@ class VisualAssetBridge:
         if report_archive_dir is not None:
             self.report_archive_dir: pathlib.Path = pathlib.Path(report_archive_dir)
         elif "COCHEM_REPORT_ARCHIVE_DIR" in os.environ:
-            self.report_archive_dir = pathlib.Path(os.environ["COCHEM_REPORT_ARCHIVE_DIR"])
+            self.report_archive_dir = pathlib.Path(
+                os.environ["COCHEM_REPORT_ARCHIVE_DIR"]
+            )
         else:
             self.report_archive_dir = self.artifacts_dir / "Report_Archive"
 
@@ -94,7 +96,9 @@ class VisualAssetBridge:
         Returns:
             Sorted list of identified candidate volumetric file paths.
         """
-        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        target_dir = (
+            pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        )
         if not target_dir.exists() or not target_dir.is_dir():
             return []
 
@@ -103,7 +107,9 @@ class VisualAssetBridge:
 
         for path in target_dir.rglob("*"):
             if path.is_file() and path.suffix.lower() in volumetric_exts:
-                if not path.name.startswith(".") and not path.name.endswith((".tar.zst", ".zst")):
+                if not path.name.startswith(".") and not path.name.endswith(
+                    (".tar.zst", ".zst")
+                ):
                     found_files.append(path)
 
         return sorted(list(set(found_files)))
@@ -128,7 +134,9 @@ class VisualAssetBridge:
             return None
 
         # Prevent double-compression on already compressed archives
-        if target_path.name.endswith((".tar.zst", ".zst", ".tar.gz", ".gz", ".tar.bz2", ".xz")):
+        if target_path.name.endswith(
+            (".tar.zst", ".zst", ".tar.gz", ".gz", ".tar.bz2", ".xz")
+        ):
             return None
 
         original_size = target_path.stat().st_size
@@ -149,7 +157,9 @@ class VisualAssetBridge:
         except Exception:
             if archive_path.exists():
                 archive_path.unlink(missing_ok=True)
-            self.logger.error("Failed to compress volumetric artifact %s", target_path, exc_info=True)
+            self.logger.error(
+                "Failed to compress volumetric artifact %s", target_path, exc_info=True
+            )
             raise
 
         compressed_size = archive_path.stat().st_size
@@ -163,7 +173,9 @@ class VisualAssetBridge:
                     compressed_size=compressed_size,
                 )
             except Exception as e:
-                self.logger.warning("Failed to log compressed artifact to User Guide: %s", e)
+                self.logger.warning(
+                    "Failed to log compressed artifact to User Guide: %s", e
+                )
             return archive_path
         else:
             if archive_path.exists():
@@ -183,7 +195,9 @@ class VisualAssetBridge:
         Returns:
             List of tuples: (archive_path, original_size_bytes, compressed_size_bytes).
         """
-        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        target_dir = (
+            pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        )
         candidate_files = self.scan_volumetric_artifacts(search_dir=target_dir)
 
         results: list[tuple[pathlib.Path, int, int]] = []
@@ -223,7 +237,9 @@ class VisualAssetBridge:
         orig_mb = original_size / (1024 * 1024)
         comp_mb = compressed_size / (1024 * 1024)
         savings_pct = (
-            ((1.0 - (compressed_size / original_size)) * 100.0) if original_size > 0 else 0.0
+            ((1.0 - (compressed_size / original_size)) * 100.0)
+            if original_size > 0
+            else 0.0
         )
 
         comp_path_str = comp_p.as_posix()
@@ -245,7 +261,9 @@ class VisualAssetBridge:
         else:
             existing_content = target_md.read_text(encoding="utf-8")
             if "# CoChem Volumetric Visual Assets Archive" not in existing_content:
-                new_content = existing_content.rstrip() + "\n\n" + table_header + table_row
+                new_content = (
+                    existing_content.rstrip() + "\n\n" + table_header + table_row
+                )
                 target_md.write_text(new_content, encoding="utf-8")
             else:
                 new_content = existing_content.rstrip() + "\n" + table_row
@@ -345,10 +363,14 @@ class VisualAssetBridge:
         rel_path = self.calculate_relative_image_path(img_p, base_dir=base_dir)
 
         clean_caption = (
-            caption if caption else img_p.stem.replace("_", " ").replace("-", " ").title()
+            caption
+            if caption
+            else img_p.stem.replace("_", " ").replace("-", " ").title()
         )
         clean_label = (
-            label if label else f"fig:{img_p.stem.lower().replace(' ', '_').replace('-', '_')}"
+            label
+            if label
+            else f"fig:{img_p.stem.lower().replace(' ', '_').replace('-', '_')}"
         )
 
         snippet = (
@@ -374,17 +396,23 @@ class VisualAssetBridge:
         Returns:
             Structured dictionary payload for Jinja2 template rendering.
         """
-        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        target_dir = (
+            pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        )
         base_dir = target_dir if search_dir is not None else self.report_archive_dir
 
         # Process and compress bloated volumetric artifacts
-        compression_metrics = self.process_all_volumetric_artifacts(search_dir=target_dir)
+        compression_metrics = self.process_all_volumetric_artifacts(
+            search_dir=target_dir
+        )
         compressed_3d_assets: list[dict[str, Any]] = []
         for comp_path, orig_size, comp_size in compression_metrics:
             orig_mb = round(orig_size / (1024 * 1024), 2)
             comp_mb = round(comp_size / (1024 * 1024), 2)
             savings_pct = (
-                round(((1.0 - (comp_size / orig_size)) * 100.0), 2) if orig_size > 0 else 0.0
+                round(((1.0 - (comp_size / orig_size)) * 100.0), 2)
+                if orig_size > 0
+                else 0.0
             )
 
             orig_name = comp_path.name.removesuffix(".tar.zst").removesuffix(".zst")

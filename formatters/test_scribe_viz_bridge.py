@@ -65,11 +65,15 @@ def test_zstandard_compression_boundary_50mb(tmp_path: pathlib.Path) -> None:
     assert archive_path.name == "orbital_density.cube.tar.zst"
 
     # Original file must be unlinked to truncate disk bloat
-    assert not cube_file.exists(), "Original .cube file was not deleted after compression"
+    assert not cube_file.exists(), (
+        "Original .cube file was not deleted after compression"
+    )
 
     compressed_size = archive_path.stat().st_size
     assert compressed_size > 0, "Compressed archive is empty"
-    assert compressed_size < original_size, "Compressed archive is not smaller than original"
+    assert compressed_size < original_size, (
+        "Compressed archive is not smaller than original"
+    )
 
     savings_pct = (1.0 - (compressed_size / original_size)) * 100.0
     assert savings_pct > MIN_COMPRESSION_SAVINGS_PCT, (
@@ -99,7 +103,7 @@ def test_sub_threshold_passthrough(tmp_path: pathlib.Path) -> None:
 
 
 def test_already_compressed_file_passthrough(tmp_path: pathlib.Path) -> None:
-    """Guard test: Files already ending in .tar.zst or .zst are not double-compressed."""
+    """Guard test: Files ending in .tar.zst or .zst are not double-compressed."""
     already_comp = tmp_path / "density.cube.tar.zst"
     already_comp.write_bytes(b"EXISTING_COMPRESSED_DATA" * 1000)
 
@@ -161,7 +165,9 @@ def test_spectral_image_discovery_and_relative_path(
     non_img = figures_dir / "data.csv"
 
     ir_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
-    raman_img.write_text("<svg xmlns='http://www.w3.org/2000/svg'></svg>", encoding="utf-8")
+    raman_img.write_text(
+        "<svg xmlns='http://www.w3.org/2000/svg'></svg>", encoding="utf-8"
+    )
     hidden_img.write_bytes(b"hidden")
     thumb_img.write_bytes(b"thumb")
     non_img.write_text("wavenumber,intensity", encoding="utf-8")
@@ -294,7 +300,9 @@ def test_jinja2_context_injection_integration(tmp_path: pathlib.Path) -> None:
     figures_dir = tmp_path / "figures"
     figures_dir.mkdir(parents=True, exist_ok=True)
 
-    (figures_dir / "ir_spectrum.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+    (figures_dir / "ir_spectrum.png").write_bytes(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    )
     (figures_dir / "raman_spectrum.svg").write_text("<svg></svg>", encoding="utf-8")
 
     cube_file = tmp_path / "nci_density.cube"
@@ -339,7 +347,9 @@ def test_jinja2_context_injection_integration(tmp_path: pathlib.Path) -> None:
     assert "compressed_3d_assets" in enriched
     assert len(enriched["compressed_3d_assets"]) == EXPECTED_COMPRESSED_COUNT
     assert enriched["compressed_3d_assets"][0]["original_name"] == "nci_density.cube"
-    assert enriched["compressed_3d_assets"][0]["savings_pct"] > MIN_COMPRESSION_SAVINGS_PCT
+    assert (
+        enriched["compressed_3d_assets"][0]["savings_pct"] > MIN_COMPRESSION_SAVINGS_PCT
+    )
 
 
 def test_empty_and_nonexistent_directories_safe_handling(
@@ -392,10 +402,13 @@ def test_cli_preflight_verification() -> None:
             timeout=SUBPROCESS_TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired as exc:
-        raise AssertionError(f"Pre-flight CLI timed out after {SUBPROCESS_TIMEOUT_SECONDS}s") from exc
+        raise AssertionError(
+            f"Pre-flight CLI timed out after {SUBPROCESS_TIMEOUT_SECONDS}s"
+        ) from exc
     except subprocess.CalledProcessError as exc:
         raise AssertionError(
-            f"Pre-flight failed with code {exc.returncode}:\nSTDOUT:\n{exc.stdout}\nSTDERR:\n{exc.stderr}"
+            f"Pre-flight failed with code {exc.returncode}:\n"
+            f"STDOUT:\n{exc.stdout}\nSTDERR:\n{exc.stderr}"
         ) from exc
 
     assert result.returncode == 0

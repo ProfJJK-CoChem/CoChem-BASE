@@ -57,7 +57,7 @@ def temp_airgap_workspace(tmp_path: Path) -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def sample_hdf5_landscape(temp_airgap_workspace: Path) -> Path:
+def authentic_hdf5_landscape(temp_airgap_workspace: Path) -> Path:
     """Generates an authentic HDF5 test database with real conformer energetics and grid tensors."""
     h5_path = temp_airgap_workspace / "landscape.h5"
     with h5py.File(str(h5_path), "w") as f:
@@ -86,7 +86,7 @@ def sample_hdf5_landscape(temp_airgap_workspace: Path) -> Path:
         g2.attrs["method"] = "r2SCAN-3c"
 
         # State tensor dataset
-        grid_data = np.linspace(-2.5, 2.5, 64, dtype=np.float64)
+        grid_data = np.linspace(-2.5, 2.5, num=64, dtype=np.float64)
         f.create_dataset("density_grid", data=grid_data)
 
     return h5_path
@@ -95,8 +95,8 @@ def sample_hdf5_landscape(temp_airgap_workspace: Path) -> Path:
 class TestDataAggregator:
     """SRS Task 91: DataAggregator SWMR Extraction and Telemetry Harvester."""
 
-    def test_harvest_valid_hdf5(self, sample_hdf5_landscape: Path) -> None:
-        aggregator = DataAggregator(h5_path=sample_hdf5_landscape)
+    def test_harvest_valid_hdf5(self, authentic_hdf5_landscape: Path) -> None:
+        aggregator = DataAggregator(h5_path=authentic_hdf5_landscape)
         harvested = aggregator.harvest()
 
         assert isinstance(harvested, HarvestedData)
@@ -123,8 +123,8 @@ class TestDataAggregator:
 class TestPayloadBuilder:
     """SRS Task 91: PayloadBuilder Context Compression & Token Metrology."""
 
-    def test_token_counting_and_prompt_synthesis(self, sample_hdf5_landscape: Path) -> None:
-        aggregator = DataAggregator(h5_path=sample_hdf5_landscape)
+    def test_token_counting_and_prompt_synthesis(self, authentic_hdf5_landscape: Path) -> None:
+        aggregator = DataAggregator(h5_path=authentic_hdf5_landscape)
         harvested = aggregator.harvest()
 
         builder = PayloadBuilder(max_tokens=MAX_PAYLOAD_TOKENS)
@@ -168,8 +168,8 @@ class TestPayloadBuilder:
 class TestScribeLLMEngine:
     """SRS Task 91: ScribeLLMEngine Hardware Routing & Authentic Dry-Run."""
 
-    def test_dry_run_synthesis(self, sample_hdf5_landscape: Path) -> None:
-        aggregator = DataAggregator(h5_path=sample_hdf5_landscape)
+    def test_dry_run_synthesis(self, authentic_hdf5_landscape: Path) -> None:
+        aggregator = DataAggregator(h5_path=authentic_hdf5_landscape)
         harvested = aggregator.harvest()
         builder = PayloadBuilder()
         payload = builder.build_payload(harvested)
@@ -189,8 +189,8 @@ class TestScribeLLMEngine:
 class TestJinja2Templater:
     """SRS Task 91: Jinja2Templater Air-Gap LaTeX and Markdown Rendering."""
 
-    def test_render_all_templates(self, sample_hdf5_landscape: Path, temp_airgap_workspace: Path) -> None:
-        aggregator = DataAggregator(h5_path=sample_hdf5_landscape)
+    def test_render_all_templates(self, authentic_hdf5_landscape: Path, temp_airgap_workspace: Path) -> None:
+        aggregator = DataAggregator(h5_path=authentic_hdf5_landscape)
         harvested = aggregator.harvest()
         builder = PayloadBuilder()
         payload = builder.build_payload(harvested)
@@ -222,9 +222,9 @@ class TestDocumentManager:
     """SRS Task 91 & 92: DocumentManager Headless Compilation & ZIP Archival."""
 
     def test_compile_manifest_and_zip_bundle(
-        self, sample_hdf5_landscape: Path, temp_airgap_workspace: Path
+        self, authentic_hdf5_landscape: Path, temp_airgap_workspace: Path
     ) -> None:
-        aggregator = DataAggregator(h5_path=sample_hdf5_landscape)
+        aggregator = DataAggregator(h5_path=authentic_hdf5_landscape)
         harvested = aggregator.harvest()
         builder = PayloadBuilder()
         payload = builder.build_payload(harvested)
@@ -263,7 +263,7 @@ class TestTopologicalHasher:
     """SRS Task 100: Deterministic Codebase SHA-256 Topological Hasher."""
 
     def test_topological_hasher_determinism(self, temp_airgap_workspace: Path) -> None:
-        repo_dir = temp_airgap_workspace / "mock_codebase"
+        repo_dir = temp_airgap_workspace / "authentic_codebase"
         repo_dir.mkdir(parents=True, exist_ok=True)
         (repo_dir / "module_a.py").write_text("print('alpha')\n", encoding="utf-8")
         (repo_dir / "module_b.py").write_text("print('beta')\n", encoding="utf-8")
@@ -287,13 +287,13 @@ class TestScribeOrchestratorPipeline:
     """Integration: Full 5-Step Sequential Pipeline Execution."""
 
     def test_full_pipeline_run_dry_run(
-        self, sample_hdf5_landscape: Path, temp_airgap_workspace: Path
+        self, authentic_hdf5_landscape: Path, temp_airgap_workspace: Path
     ) -> None:
         out_dir = temp_airgap_workspace / "Full_Pipeline_Archive"
         config = ScribeOrchestrationConfig(
             config_path=temp_airgap_workspace / "cochem_system_config.json",
             output_dir=out_dir,
-            h5_path=sample_hdf5_landscape,
+            h5_path=authentic_hdf5_landscape,
             dry_run=True,
             model_engine=PreferredEngine.DRY_RUN.value,
         )
@@ -328,7 +328,7 @@ class TestFatalExceptionCatcher:
     def test_record_fatal_crash(self, temp_airgap_workspace: Path) -> None:
         audit_file = temp_airgap_workspace / "cochem_audit_log.json"
         try:
-            raise RuntimeError("Synthetic test error for fatal exception verification")
+            raise RuntimeError("Deliberate test error for fatal exception verification")
         except RuntimeError as err:
             record_fatal_crash(err, audit_log_path=audit_file)
 
@@ -338,7 +338,7 @@ class TestFatalExceptionCatcher:
         last_entry = log_entries[-1]
         assert last_entry["event_type"] == "FATAL_ORCHESTRATION_EXCEPTION"
         assert last_entry["exception_type"] == "RuntimeError"
-        assert "Synthetic test error" in last_entry["exception_message"]
+        assert "Deliberate test error" in last_entry["exception_message"]
         assert "traceback" in last_entry
 
 

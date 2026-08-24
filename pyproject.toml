@@ -88,6 +88,7 @@ module = [
     "molsym.*",
     "cochem_torq_orca.*",
     "pandas.*",
-    "jinja2.*"
+    "jinja2.*",
+    "setuptools.*"
 ]
 ignore_missing_imports = true

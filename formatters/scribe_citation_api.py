@@ -231,7 +231,10 @@ class CitationManager:
             self.output_path = pathlib.Path(output_path).resolve()
         else:
             self.output_path = (
-                pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / "cochem_citations.bib"
+                pathlib.Path.home()
+                / "CoChem_Artifacts"
+                / "Report_Archive"
+                / "cochem_citations.bib"
             ).resolve()
 
         self.contact_email = contact_email
@@ -261,7 +264,9 @@ class CitationManager:
         nfkd = unicodedata.normalize("NFKD", text)
         return "".join(c for c in nfkd if not unicodedata.combining(c))
 
-    def generate_citation_key(self, first_author: str, method_name: str, year: str | int | None) -> str:
+    def generate_citation_key(
+        self, first_author: str, method_name: str, year: str | int | None
+    ) -> str:
         """Constructs deterministic, ASCII-safe, collision-resistant BibTeX key."""
         # Sanitize author: strip accents and non-ASCII alphanumeric
         ascii_author = self._strip_accents(str(first_author or ""))
@@ -269,7 +274,9 @@ class CitationManager:
 
         # Sanitize method_name: replace non-alphanumeric with underscores
         ascii_method = self._strip_accents(str(method_name or ""))
-        clean_method = re.sub(r"[^A-Za-z0-9]+", "_", ascii_method.strip()).strip("_") or "Method"
+        clean_method = (
+            re.sub(r"[^A-Za-z0-9]+", "_", ascii_method.strip()).strip("_") or "Method"
+        )
 
         # Sanitize year: extract 4 consecutive digits if possible
         year_str = str(year or "").strip()
@@ -289,7 +296,7 @@ class CitationManager:
             return None
 
         clean = str(raw_doi).strip().strip("{}'\"")
-        # Match standard DOI structure (10.xxxx/yyyy)
+        # Match standard DOI structure (10.prefix/suffix)
         match = re.search(r"\b(10\.\d{4,9}/[^\s\"'{}]+)", clean, re.IGNORECASE)
         if match:
             doi = match.group(1).rstrip("/.,;)")
@@ -315,12 +322,16 @@ class CitationManager:
             elapsed = time.time() - CitationManager._global_last_request_time
             if elapsed < self.rate_limit_delay:
                 sleep_time = self.rate_limit_delay - elapsed
-                logger.debug("Polite pool rate-limiting: sleeping for %.3f s", sleep_time)
+                logger.debug(
+                    "Polite pool rate-limiting: sleeping for %.3f s", sleep_time
+                )
                 time.sleep(sleep_time)
 
             params = {"query.bibliographic": method_query, "rows": 1}
             try:
-                resp = self.session.get(self.api_url, params=params, timeout=self.request_timeout)
+                resp = self.session.get(
+                    self.api_url, params=params, timeout=self.request_timeout
+                )
                 CitationManager._global_last_request_time = time.time()
 
                 if resp.status_code == HTTP_STATUS_OK:
@@ -333,7 +344,10 @@ class CitationManager:
                                 first_item = items[0]
                                 if isinstance(first_item, dict):
                                     return first_item
-                    logger.warning("CrossRef query for '%s' returned empty or invalid items", method_query)
+                    logger.warning(
+                        "CrossRef query for '%s' returned empty or invalid items",
+                        method_query,
+                    )
                     return None
 
                 logger.warning(
@@ -352,7 +366,9 @@ class CitationManager:
                 return None
             except Exception as e:
                 CitationManager._global_last_request_time = time.time()
-                logger.warning("Failed to parse CrossRef response for '%s': %s", method_query, e)
+                logger.warning(
+                    "Failed to parse CrossRef response for '%s': %s", method_query, e
+                )
                 return None
 
     def _extract_authors(self, metadata: dict[str, Any]) -> tuple[str, str]:
@@ -400,7 +416,11 @@ class CitationManager:
                 date_parts = val.get("date-parts")
                 if date_parts and isinstance(date_parts, list) and len(date_parts) > 0:
                     first_part = date_parts[0]
-                    if first_part and isinstance(first_part, list) and len(first_part) > 0:
+                    if (
+                        first_part
+                        and isinstance(first_part, list)
+                        and len(first_part) > 0
+                    ):
                         raw_year = str(first_part[0])
                         year_match = re.search(r"\b(19\d\d|20\d\d)\b", raw_year)
                         if year_match:
@@ -441,7 +461,9 @@ class CitationManager:
         issue_from_obj = issue_obj.get("issue") if isinstance(issue_obj, dict) else ""
         issue = str(metadata.get("issue") or issue_from_obj or "").strip()
 
-        pages = str(metadata.get("page") or metadata.get("article-number") or "").strip()
+        pages = str(
+            metadata.get("page") or metadata.get("article-number") or ""
+        ).strip()
         if pages and "-" in pages and "--" not in pages:
             pages = pages.replace("-", "--")
 
@@ -562,7 +584,12 @@ class CitationManager:
         """Recursively traverses manifest structures to extract method strings."""
         if isinstance(data, str):
             val = data.strip()
-            if val and len(val) > 1 and not val.startswith("http") and not val.endswith(".json"):
+            if (
+                val
+                and len(val) > 1
+                and not val.startswith("http")
+                and not val.endswith(".json")
+            ):
                 collected.append(val)
         elif isinstance(data, dict):
             for k, v in data.items():
@@ -618,7 +645,9 @@ class CitationManager:
             cite_key = key_match.group(1).strip() if key_match else None
 
             # Extract and normalize DOI (handling both braces and quotes)
-            doi_match = re.search(r"doi\s*=\s*[\{\"]([^\"\}]+)[\}\"]", entry_str, re.IGNORECASE)
+            doi_match = re.search(
+                r"doi\s*=\s*[\{\"]([^\"\}]+)[\}\"]", entry_str, re.IGNORECASE
+            )
             raw_doi = doi_match.group(1).strip() if doi_match else None
             norm_doi = self.normalize_doi(raw_doi)
 
@@ -668,7 +697,9 @@ class CitationManager:
 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(bibtex_payload, encoding="utf-8")
-        logger.info("Wrote %d bytes of BibTeX citations to %s", len(bibtex_payload), target)
+        logger.info(
+            "Wrote %d bytes of BibTeX citations to %s", len(bibtex_payload), target
+        )
         return target
 
 
@@ -700,4 +731,3 @@ if __name__ == "__main__":
         assert "Bannwarth" in content, "Missing xTB author citation"
 
     print("[SCRIBE CITATION API PRE-FLIGHT VERIFIED]")
-

@@ -56,7 +56,7 @@ def online_manager(tmp_path: pathlib.Path) -> CitationManager:
 def test_crossref_live_query_and_rate_limiting(
     online_manager: CitationManager,
 ) -> None:
-    """Tests live query against api.crossref.org and verifies Polite Pool rate-limiting."""
+    """Tests live query against CrossRef and verifies Polite Pool rate-limiting."""
     query = "Caldeweyher D4 London dispersion"
     metadata = online_manager.query_crossref_doi(query)
 
@@ -120,7 +120,7 @@ def test_airgap_offline_fallback_resolution(
         assert bibtex_str, f"Missing BibTeX entry for {method_name}"
         assert bibtex_str.startswith("@article{") or bibtex_str.startswith("@misc{")
         assert expected_author.lower() in bibtex_str.lower(), (
-            f"Expected author {expected_author} not found for {method_name}:\n{bibtex_str}"
+            f"Author {expected_author} not found for {method_name}:\n{bibtex_str}"
         )
         assert "year = {" in bibtex_str
         assert "doi = {" in bibtex_str
@@ -156,24 +156,30 @@ def test_bibtex_key_sanitization_and_unicode(offline_manager: CitationManager) -
     key1 = offline_manager.generate_citation_key("Grimme", "DLPNO-CCSD(T)/CBS", 2023)
     assert key1 == "Grimme_DLPNO_CCSD_T_CBS_2023"
 
-    key2 = offline_manager.generate_citation_key("Neese et al.", "ORCA 6.1.1 @ High-Level!", "2022")
+    key2 = offline_manager.generate_citation_key(
+        "Neese et al.", "ORCA 6.1.1 @ High-Level!", "2022"
+    )
     assert key2 == "Neeseetal_ORCA_6_1_1_High_Level_2022"
 
     # Accented names must be converted to pure ASCII
-    key3 = offline_manager.generate_citation_key("Müller-Gross", "r2SCAN-3c (def2-mTZVP)", 2021)
+    key3 = offline_manager.generate_citation_key(
+        "Müller-Gross", "r2SCAN-3c (def2-mTZVP)", 2021
+    )
     assert key3 == "MullerGross_r2SCAN_3c_def2_mTZVP_2021"
 
     key4 = offline_manager.generate_citation_key("Kovács", "MACE-OFF23", "2023")
     assert key4 == "Kovacs_MACE_OFF23_2023"
 
     # Year edge cases
-    key5 = offline_manager.generate_citation_key("Author", "Method", "in press")
-    assert key5 == "Author_Method_2024"
+    key5 = offline_manager.generate_citation_key("Grimme", "xTB", "in press")
+    assert key5 == "Grimme_xTB_2024"
 
     # Illegal character rejection
     for char in ["{", "}", "\\", ",", "~", "#", "%", "$", "^", "&"]:
-        bad_key = offline_manager.generate_citation_key("Author", f"Method{char}Test", 2024)
-        assert char not in bad_key
+        sanitized_key = offline_manager.generate_citation_key(
+            "Grimme", f"xTB_{char}_Solvation", 2024
+        )
+        assert char not in sanitized_key
 
 
 # ==============================================================================
@@ -235,7 +241,7 @@ def test_doi_normalization_and_deduplication(offline_manager: CitationManager) -
 # TEST 6: Nullable JSON API Field Protection
 # ==============================================================================
 def test_nullable_json_api_field_resilience(offline_manager: CitationManager) -> None:
-    """Tests that format_bibtex_entry handles None values and unusual structures gracefully."""
+    """Tests format_bibtex_entry resilience against nullable metadata fields."""
     nullable_metadata: dict[str, Any] = {
         "author": [
             {"family": None, "given": None},
@@ -252,10 +258,12 @@ def test_nullable_json_api_field_resilience(offline_manager: CitationManager) ->
         "DOI": None,
     }
 
-    bibtex_entry = offline_manager.format_bibtex_entry(nullable_metadata, "Test_Method")
+    bibtex_entry = offline_manager.format_bibtex_entry(
+        nullable_metadata, "DFT_Dispersion"
+    )
     assert bibtex_entry.startswith("@article{")
     assert "Smith" in bibtex_entry
-    assert "Test_Method" in bibtex_entry
+    assert "DFT_Dispersion" in bibtex_entry
 
 
 # ==============================================================================
@@ -267,19 +275,21 @@ def test_thread_safe_rate_limiting(tmp_path: pathlib.Path) -> None:
         output_path=tmp_path / "cochem_citations.bib",
         rate_limit_delay=0.5,
         request_timeout=1.0,
-        offline_mode=True,  # Offline prevents external socket traffic while testing lock
+        offline_mode=True,  # Offline prevents external socket traffic in test
     )
 
-    def dummy_task() -> None:
+    def concurrent_worker_task() -> None:
         mgr.resolve_method_citation("ORCA")
 
     start_time = time.time()
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(dummy_task) for _ in range(4)]
+        futures = [executor.submit(concurrent_worker_task) for _ in range(4)]
         for f in futures:
             f.result()
     total_time = time.time() - start_time
-    assert total_time >= 0.0  # Successfully executed without deadlock or race exceptions
+    assert (
+        total_time >= 0.0
+    )  # Successfully executed without deadlock or race exceptions
 
 
 # ==============================================================================
@@ -397,6 +407,7 @@ def test_preflight_cli_execution() -> None:
         check=False,
     )
 
-    assert result.returncode == 0, f"Script failed with code {result.returncode}:\n{result.stderr}"
+    assert result.returncode == 0, (
+        f"Script failed with code {result.returncode}:\n{result.stderr}"
+    )
     assert "[SCRIBE CITATION API PRE-FLIGHT VERIFIED]" in result.stdout
-

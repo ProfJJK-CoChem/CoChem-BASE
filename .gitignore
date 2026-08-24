@@ -1,11 +1,14 @@
 # ==============================================================================
 # CoChem-BASE Strict Air-Gap Constraints
 # ==============================================================================
-# 1. Python Cache & Virtual Environments
+# 1. Python Cache & Virtual Environments & Secrets
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .cochem_env/
+.env
+.env.*
+!.env.example
 
 # 2. Absolute blocking of the Artifacts Workspace & Local Compute Overlap
 CoChem_Artifacts/

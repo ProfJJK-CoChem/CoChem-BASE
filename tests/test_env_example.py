@@ -1,23 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\Phase_1_Task_1_Prompt_4_env_example.md.
-Original prompt:
-# CoChem-SCRIBE Phase 1, Task 1 - Prompt 4: `.env.example`
-
-**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-**Target File:** `.env.example`
-
-**Objective:**
-Create an empty template file for environment variables, specifically for LLM API keys and other configuration secrets, ensuring no real keys are committed.
-
-**Instructions for Execution Agent:**
-1. Ensure you are working in `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`. Create the directory if it does not exist.
-2. Create `.env.example` at the root of the repository.
-3. Add template keys that the application might need (e.g., `OPENAI_API_KEY=`, `ANTHROPIC_API_KEY=`, `GEMINI_API_KEY=`, `LOCAL_LLAMA_URL=`).
-4. Include a clear comment at the top explicitly stating that this is a template, real keys must never be placed in this file, and the actual `.env` will be securely stored in the Data Tier (`$HOME/CoChem_Artifacts/.env`).
-5. Save the complete file without using any placeholders like `[Add keys here]`. Write the actual empty key lines.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_env_example.py ---
 """Zero-Mock Physical Unit Tests for CoChem-BASE .env.example.
 
 Phase 1, Task 1 - Prompt 4: .env.example Environment Template Verification.
@@ -189,5 +169,3 @@ def test_airgap_gitignore_enforcement() -> None:
     assert ".env" in gitignore_content, ".gitignore must block .env"
     assert ".env.*" in gitignore_content, ".gitignore must block .env.*"
     assert "!.env.example" in gitignore_content, ".gitignore must explicitly allow .env.example"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

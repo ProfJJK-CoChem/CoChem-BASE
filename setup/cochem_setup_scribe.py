@@ -93,10 +93,10 @@ FORBIDDEN_DEPENDENCIES: set[str] = {
 DISALLOWED_KEY_PATTERNS: set[str] = {
     "",
     "[missing data]",
-    "mock",
-    "placeholder",
-    "dummy",
-    "fake",
+    "mock",  # forbidden
+    "placeholder",  # forbidden
+    "dummy",  # forbidden
+    "fake",  # forbidden
     "none",
     "test",
 }

@@ -33,7 +33,7 @@ dev = [
 include = ["cochem_base*", "cochem_topos*"]
 
 [tool.pytest.ini_options]
-testpaths = ["test_suite"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100

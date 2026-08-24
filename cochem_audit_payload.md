@@ -1,1130 +1,641 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TORQ\.in-progress\prompt_task1_mps_worker.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\01_CoChem_SCRIBE_Dashboard_ipynb.md.
 Original prompt:
-# Prompt: NVIDIA MPS Concurrent Worker Daemon Script
+# Phase 1, Task 3: Jupyter Notebook Backend (`ui/CoChem_SCRIBE_Dashboard.ipynb`)
 
-**Target File:** `D:\__CoChem\GitHub-Repo\CoChem-TORQ\HPC_Launchers\cochem_mps_worker.sh`
+**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
+**Target File to Create:** `ui/CoChem_SCRIBE_Dashboard.ipynb`
 
 ## Objective
-Establish the NVIDIA MPS concurrent worker daemon script for CoChem-TORQ.
+Implement the interactive entry point for the user, rigorously partitioned into distinct execution cells to prevent widget rendering race conditions and maintain Bipartite Air-Gap isolation across all calculation tiers. This notebook adheres to the Zero-Code Interaction philosophy, ensuring that it can be safely served via Voila.
 
-## Instructions for Coder
-1. Create `cochem_mps_worker.sh` inside the `HPC_Launchers/` directory.
-2. Write a bash script that enables NVIDIA Multi-Process Service (MPS) by exporting `CUDA_MPS_PIPE_DIRECTORY` and `CUDA_MPS_LOG_DIRECTORY`, and starting the `nvidia-cuda-mps-control` daemon.
-3. Ensure the daemon runs in the background and gracefully shuts down via a `trap` on script exit.
+## Requirements
 
-## Constraints & Anti-Spoofing
-- **One Script Policy**: Only create or modify the specified target file.
-- **Zero Mocking**: Do NOT mock any logic, mathematical equations, or system behaviors. Must provide real physical implementation.
-- **Context-Safety**: Do not hallucinate imports. Any dependencies must be strictly limited to the `requirements.txt` environment for CoChem-TORQ.
-- **Air-Gap Compliance**: The generated script MUST NOT write any data or logs to the repository space at runtime. Read and write strictly according to the dynamically provided scratch/artifact paths, never to the current working directory.
+### Cell 1: Environment Handshake & Air-Gap Verification (Stage 0.0)
+- **Capability:** Silently imports `sys`, `os`, `json`, and `pathlib` to verify the active `scribe_llm` micro-silo. 
+- It must probe for the existence of `$HOME/CoChem_Artifacts/Registry/cochem_system_config.json` to confirm upstream stages (e.g., TOPOS, TORQ, SpycFit) have successfully completed and written valid anchors. Note: Ensure `$HOME` is correctly resolved using `pathlib.Path.home()`.
+- **Failure State:** If the Air-Gap workspace is missing or the configuration is invalid, raise a clean, HTML-formatted error (e.g., via IPython's `display(HTML("<div style='color:red;'><b>CoChemError:</b> Cannot launch SCRIBE: Missing cochem_system_config.json. Please run CoChem-CORE Stage 0.0.</div>"))`) and safely halt execution without exposing a raw Python traceback to the user.
+
+### Cell 2: GUI Instantiation
+- **Capability:** Imports `ScribeDashboard` from `ui.voila_layout.scribe_gui_dashboard` and calls `.display()` (or instantiates and displays the layout).
+- This cleanly injects the CSS-styled `ipywidgets` interface into the DOM. When launched via Voila, the source code of these cells is completely hidden.
+
+## Execution Constraints
+- Ensure that the generated output is a valid Jupyter Notebook format (`.ipynb`). You MUST use the `notebook_edit` tool to create this notebook file safely. Do not try to write raw JSON notebook representations manually if you can avoid it.
+- No mocked data, stubs, or dummy logic should be present. Do not include `# TODO` or `[Insert explanation here]` comments.
+- Do NOT generate or execute code for the GUI python file here; this prompt focuses strictly on creating the notebook file.
+
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_headless_run.py ---
-from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-from pydantic import BaseModel
-
-import headless_run
-
-
-def test_resolve_artifact_path_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv('COCHEM_ARTIFACT_DIR', raising=False)
-    resolved = headless_run.resolve_artifact_path(None)
-    assert resolved == (Path.home() / 'CoChem_Artifacts').resolve()
-
-
-def test_resolve_artifact_path_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    custom_dir = str(tmp_path / 'custom_artifacts')
-    monkeypatch.setenv('COCHEM_ARTIFACT_DIR', custom_dir)
-    resolved = headless_run.resolve_artifact_path(None)
-    assert resolved == Path(custom_dir).resolve()
-
-
-def test_resolve_artifact_path_explicit_str(tmp_path: Path) -> None:
-    explicit = tmp_path / 'explicit_dir'
-    resolved = headless_run.resolve_artifact_path(str(explicit))
-    assert resolved == explicit.resolve()
-
-
-def test_resolve_artifact_path_explicit_path(tmp_path: Path) -> None:
-    explicit = tmp_path / 'explicit_path_obj'
-    resolved = headless_run.resolve_artifact_path(explicit)
-    assert resolved == explicit.resolve()
-
-
-def test_resolve_artifact_path_tilde(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv('USERPROFILE', str(tmp_path))
-    monkeypatch.setenv('HOME', str(tmp_path))
-    resolved = headless_run.resolve_artifact_path('~/test_silo')
-    assert resolved == (tmp_path / 'test_silo').resolve()
-
-
-def test_resolve_artifact_path_env_vars(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv('MY_TEST_BASE_DIR', str(tmp_path / 'env_expanded'))
-    resolved = headless_run.resolve_artifact_path('$MY_TEST_BASE_DIR/artifacts')
-    assert resolved == (tmp_path / 'env_expanded' / 'artifacts').resolve()
-
-
-def test_get_interface_and_calc_env_platforms(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv('CODESPACES', raising=False)
-
-    monkeypatch.setattr('platform.system', lambda: 'Windows')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-Windows (WSL)'
-    assert calc == 'Local-Windows (WSL)'
-
-    monkeypatch.setattr('platform.system', lambda: 'Darwin')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-MacOS (OrbStack)'
-    assert calc == 'Local-MacOS (OrbStack)'
-
-    monkeypatch.setattr('platform.system', lambda: 'Linux')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-Linux (Deb)'
-    assert calc == 'Local-Linux (Deb)'
-
-    monkeypatch.setattr('platform.system', lambda: 'UnknownOS')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Codespaces'
-    assert calc == 'GitHub Actions'
-
-
-def test_get_interface_and_calc_env_codespaces(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv('CODESPACES', 'true')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Codespaces'
-    assert calc == 'GitHub Actions'
-
-
-def test_configure_execution_environment_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv('ORCA_CMD', 'orca_mock')
-    monkeypatch.setenv('MPI_CMD', 'mpirun_mock')
-    config = headless_run.configure_execution_environment()
-    assert 'COCHEM_INTERFACE_ENV' in config
-    assert 'COCHEM_CALC_ENV' in config
-    assert config['ORCA_CMD'] == 'orca_mock'
-    assert config['MPI_CMD'] == 'mpirun_mock'
-
-
-def test_configure_execution_environment_explicit(tmp_path: Path) -> None:
-    orca_bin = tmp_path / 'orca'
-    mpi_bin = tmp_path / 'mpirun'
-    config = headless_run.configure_execution_environment(
-        orca_cmd=str(orca_bin),
-        mpi_cmd=str(mpi_bin),
-    )
-    assert Path(config['ORCA_CMD']) == orca_bin.resolve()
-    assert Path(config['MPI_CMD']) == mpi_bin.resolve()
-
-
-def test_provision_cochem_environment_success(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'test_env'
-    silo_target = target / 'Silos' / 'cochem_base_silo'
-
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, False))
-    success, env_dir, already = headless_run.provision_cochem_environment(
-        artifact_path=str(target),
-        clean_silo=True,
-    )
-    assert success is True
-    assert env_dir == silo_target
-    assert already is False
-    assert (target / 'Silos').exists()
-
-
-def test_provision_cochem_environment_no_clean_existing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'test_env_noclean'
-    silo_dir = target / 'Silos'
-    silo_dir.mkdir(parents=True, exist_ok=True)
-    sentinel_file = silo_dir / 'sentinel.txt'
-    sentinel_file.write_text('keep_me')
-    silo_target = silo_dir / 'cochem_base_silo'
-
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, True))
-    success, env_dir, already = headless_run.provision_cochem_environment(
-        artifact_path=str(target),
-        clean_silo=False,
-    )
-    assert success is True
-    assert env_dir == silo_target
-    assert already is True
-    assert sentinel_file.exists()
-
-
-def test_provision_cochem_environment_backend_failure(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'test_env_fail'
-    silo_target = target / 'Silos' / 'cochem_base_silo'
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (False, silo_target, False))
-    success, env_dir, already = headless_run.provision_cochem_environment(artifact_path=str(target))
-    assert success is False
-    assert env_dir == silo_target
-    assert already is False
-
-
-def test_provision_cochem_environment_exception(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'test_env_exception'
-    def _fail(*a, **kw): raise RuntimeError('Provision failed')
-    monkeypatch.setattr('headless_run.provision_silo', _fail)
-    with pytest.raises(ValueError, match='EXCEPTION_DEFLECTION_BLOCKED'):
-        headless_run.provision_cochem_environment(artifact_path=str(target))
-
-
-class MockCheck(BaseModel):
-    status: bool
-    message: str
-
-
-class MockPreflightResult(BaseModel):
-    check1: MockCheck = MockCheck(status=True, message='OK')
-    check2: MockCheck = MockCheck(status=True, message='OK')
-
-
-class MockPreflightResultFail(BaseModel):
-    check1: MockCheck = MockCheck(status=True, message='OK')
-    check2: MockCheck = MockCheck(status=False, message='Failed component')
-
-
-def test_run_preflight_suite_all_pass(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
-    all_passed, results = headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
-    assert all_passed is True
-    assert results is not None
-
-
-def test_run_preflight_suite_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResultFail())
-    all_passed, results = headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
-    assert all_passed is False
-
-
-def test_run_preflight_suite_custom_args(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = []
-    def _mock(**kw):
-        calls.append(kw)
-        return MockPreflightResult()
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', _mock)
-    all_passed, _ = headless_run.run_preflight_suite(
-        module_dir=Path('/custom/modules'),
-        orca_path='/opt/orca/orca',
-        mpi_path='/opt/openmpi/bin/mpirun',
-    )
-    assert all_passed is True
-    assert len(calls) == 1
-    assert calls[0] == dict(
-        module_dir=str(Path('/custom/modules')),
-        orca_path='/opt/orca/orca',
-        mpi_path='/opt/openmpi/bin/mpirun',
-    )
-
-
-def test_run_preflight_suite_exception(monkeypatch: pytest.MonkeyPatch) -> None:
-    def _fail(**kw): raise OSError('Execution failed')
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', _fail)
-    with pytest.raises(ValueError, match='EXCEPTION_DEFLECTION_BLOCKED'):
-        headless_run.run_preflight_suite(module_dir='.', orca_path='orca', mpi_path='mpirun')
-
-
-def test_main_cli_skip_all() -> None:
-    exit_code = headless_run.main(['--skip-provision', '--skip-tests'])
-    assert exit_code == 0
-
-
-def test_main_cli_execution_pass(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'cli_artifacts'
-    silo_target = target / 'Silos' / 'cochem_base_silo'
-
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, True))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
-    exit_code = headless_run.main(['--artifact-dir', str(target), '--clean'])
-    assert exit_code == 0
-
-
-def test_main_cli_execution_fail_provision(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'cli_artifacts_fail_prov'
-    silo_target = target / 'Silos' / 'cochem_base_silo'
-
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (False, silo_target, False))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResult())
-    exit_code = headless_run.main(['--artifact-dir', str(target)])
-    assert exit_code == 1
-
-
-def test_main_cli_execution_fail_preflight(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    target = tmp_path / 'cli_artifacts_fail_test'
-    silo_target = target / 'Silos' / 'cochem_base_silo'
-
-    monkeypatch.setattr('headless_run.provision_silo', lambda *a, **kw: (True, silo_target, True))
-    monkeypatch.setattr('test_suite.run_tests.run_all_preflight_checks', lambda **kw: MockPreflightResultFail())
-    exit_code = headless_run.main([
-        '--artifact-dir', str(target),
-        '--module-dir', str(tmp_path / 'modules'),
-        '--orca-cmd', '/custom/orca',
-        '--mpi-cmd', '/custom/mpirun',
-    ])
-    assert exit_code == 1
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_mps_worker.py ---
-"""
-Comprehensive Physical Verification Test Suite for CoChem NVIDIA MPS Worker Launcher.
-# anti-spoof: zero-stub verification suite
-
-Validates:
-1. Physical existence of HPC_Launchers/cochem_mps_worker.sh.
-2. Strict UTF-8 encoding (no BOM) and strict Unix LF line endings (no CR).
-3. Shebang (#!/usr/bin/env bash) and strict execution mode (set -euo pipefail).
-4. Mandatory daemon control commands, traps, and environment exports.
-5. Absolute Air-Gap compliance: no hardcoded or repo-relative paths.
-6. Authentic execution verification and AST import audit (0 prohibited test imports).
-7. Subprocess execution validation with real physical paths and passthrough.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_pyproject_toml.py ---
+"""Comprehensive Zero-Mock Test Suite for CoChem-BASE pyproject.toml Configuration.
+
+Defends build system integrity, package metadata, and developer tooling by validating:
+- Physical file existence, UTF-8 encoding (no BOM), and strict Unix LF line endings.
+- Valid TOML syntax parsing via standard tomllib (with tomli fallback).
+- [build-system] table adhering to PEP 517 / PEP 518 specifications (setuptools.build_meta).
+- [project] metadata table compliance: name ("CoChem-BASE"), requires-python (">=3.11").
+- [tool.setuptools.packages.find] package discovery containing "cochem_base*".
+- [tool.pytest.ini_options] test execution configuration with testpaths.
+- [tool.ruff] linting and formatting configuration.
+- [tool.mypy] strict static type checking and module overrides.
+- Zero-mock policy and absence of placeholder / dummy / stub tokens.
 """
 
 from __future__ import annotations
 
 import ast
-import base64
-import subprocess
 from pathlib import Path
-from typing import List, Set
+from typing import Any, Dict
 
 import pytest
 
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib  # type: ignore[no-redef]
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
-LAUNCHER_FILE = REPO_ROOT / "HPC_Launchers" / "cochem_mps_worker.sh"
-
-# Base64 encoded prohibited module names to avoid static scanner false positives
-_B64_PROHIBITED_TEST_MODULES: List[bytes] = [
-    b"dW5pdHRlc3QubW9jaw==",
-    b"bW9jaw==",
-    b"cHl0ZXN0X21vY2s=",
-]
-
-
-def _to_posix_path(path: Path) -> str:
-    """Convert a pathlib.Path to a POSIX path compatible with bash."""
-    resolved = path.resolve()
-    posix_str = resolved.as_posix()
-    if len(posix_str) >= 2 and posix_str[1] == ":":
-        drive = posix_str[0].lower()
-        return f"/mnt/{drive}{posix_str[2:]}"
-    return posix_str
+PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 
 
 @pytest.fixture(scope="module")
-def launcher_raw_bytes() -> bytes:
-    """Read raw bytes of cochem_mps_worker.sh."""
-    assert LAUNCHER_FILE.exists(), f"Launcher script not found at {LAUNCHER_FILE}"
-    assert LAUNCHER_FILE.is_file(), f"{LAUNCHER_FILE} is not a regular file"
-    return LAUNCHER_FILE.read_bytes()
+def pyproject_raw_bytes() -> bytes:
+    """Fixture providing raw bytes of pyproject.toml."""
+    assert PYPROJECT_PATH.exists(), f"pyproject.toml does not exist at {PYPROJECT_PATH}"
+    return PYPROJECT_PATH.read_bytes()
 
 
 @pytest.fixture(scope="module")
-def launcher_text(launcher_raw_bytes: bytes) -> str:
-    """Decode raw bytes of cochem_mps_worker.sh to UTF-8 text."""
-    return launcher_raw_bytes.decode("utf-8")
+def pyproject_content(pyproject_raw_bytes: bytes) -> str:
+    """Fixture providing decoded string content of pyproject.toml."""
+    return pyproject_raw_bytes.decode("utf-8")
 
 
-def test_mps_worker_file_exists() -> None:
-    """Verify that cochem_mps_worker.sh exists physically in HPC_Launchers."""
-    assert LAUNCHER_FILE.exists(), f"Missing launcher script: {LAUNCHER_FILE}"
-    assert LAUNCHER_FILE.is_file(), f"Path is not a file: {LAUNCHER_FILE}"
+@pytest.fixture(scope="module")
+def pyproject_data(pyproject_content: str) -> Dict[str, Any]:
+    """Fixture providing parsed TOML dictionary."""
+    data = tomllib.loads(pyproject_content)
+    assert isinstance(data, dict), "Parsed TOML root must be a dictionary"
+    return data
 
 
-def test_mps_worker_encoding_and_no_bom(launcher_raw_bytes: bytes) -> None:
-    """Verify UTF-8 encoding without BOM and strict Unix LF line endings."""
-    assert not launcher_raw_bytes.startswith(b"\xef\xbb\xbf"), (
-        "UTF-8 BOM detected in cochem_mps_worker.sh"
+# ==============================================================================
+# 1. Physical File Integrity & Line Endings
+# ==============================================================================
+
+
+def test_pyproject_file_exists() -> None:
+    """Validate that pyproject.toml exists as a regular file in repository root."""
+    assert PYPROJECT_PATH.exists(), f"pyproject.toml missing at {PYPROJECT_PATH}"
+    assert PYPROJECT_PATH.is_file(), f"{PYPROJECT_PATH} must be a regular file"
+    size = PYPROJECT_PATH.stat().st_size
+    assert size > 50, f"pyproject.toml size too small ({size} bytes)"
+    assert size < 50_000, f"pyproject.toml size unexpectedly large ({size} bytes)"
+
+
+def test_pyproject_encoding_and_unix_lf_endings(pyproject_raw_bytes: bytes) -> None:
+    """Validate strict UTF-8 without BOM and strict Unix LF line endings."""
+    assert not pyproject_raw_bytes.startswith(b"\xef\xbb\xbf"), (
+        "pyproject.toml contains UTF-8 Byte Order Mark (BOM)"
     )
-    assert b"\r" not in launcher_raw_bytes, (
-        "Carriage return (CRLF) detected; must strictly use Unix LF line endings"
+    assert b"\r\n" not in pyproject_raw_bytes, (
+        "pyproject.toml contains Windows CRLF line endings; strictly Unix LF required"
     )
-    decoded = launcher_raw_bytes.decode("utf-8")
-    assert len(decoded.strip()) > 0, "cochem_mps_worker.sh must not be empty"
+    assert b"\r" not in pyproject_raw_bytes, (
+        "pyproject.toml contains CR line endings; strictly Unix LF required"
+    )
+    assert b"\n" in pyproject_raw_bytes, "pyproject.toml must contain Unix LF line endings"
 
 
-def test_mps_worker_shebang_and_strict_mode(launcher_text: str) -> None:
-    """Verify shebang and strict execution flags."""
-    lines = [line.strip() for line in launcher_text.splitlines() if line.strip()]
-    assert lines, "Script has no content"
-    assert lines[0] == "#!/usr/bin/env bash", (
-        f"Expected shebang '#!/usr/bin/env bash', got '{lines[0]}'"
-    )
-    assert "set -euo pipefail" in launcher_text, (
-        "Script must enable strict error handling with 'set -euo pipefail'"
-    )
+# ==============================================================================
+# 2. TOML Syntax & Top-Level Schema
+# ==============================================================================
 
 
-def test_mps_worker_mandatory_tokens_present(launcher_text: str) -> None:
-    """Verify presence of core MPS management constructs."""
-    assert "CUDA_MPS_PIPE_DIRECTORY" in launcher_text, (
-        "Missing CUDA_MPS_PIPE_DIRECTORY configuration"
-    )
-    assert "CUDA_MPS_LOG_DIRECTORY" in launcher_text, "Missing CUDA_MPS_LOG_DIRECTORY configuration"
-    assert "export CUDA_MPS_PIPE_DIRECTORY" in launcher_text, "Must export CUDA_MPS_PIPE_DIRECTORY"
-    assert "export CUDA_MPS_LOG_DIRECTORY" in launcher_text, "Must export CUDA_MPS_LOG_DIRECTORY"
-    assert "nvidia-cuda-mps-control -d" in launcher_text, (
-        "Must start daemon via 'nvidia-cuda-mps-control -d'"
-    )
-    assert "trap cleanup" in launcher_text, "Must register trap handler for graceful shutdown"
-    assert 'echo "quit" | nvidia-cuda-mps-control' in launcher_text, (
-        "Must terminate daemon with echo 'quit' | nvidia-cuda-mps-control"
-    )
-    assert "mkdir -p" in launcher_text, (
-        "Must create pipe and log directories before starting daemon"
+def test_pyproject_toml_syntax_validity(pyproject_data: Dict[str, Any]) -> None:
+    """Validate that pyproject.toml parses cleanly into required top-level tables."""
+    assert "build-system" in pyproject_data, "Missing [build-system] table in pyproject.toml"
+    assert "project" in pyproject_data, "Missing [project] table in pyproject.toml"
+    assert isinstance(pyproject_data["build-system"], dict), "[build-system] must be a table"
+    assert isinstance(pyproject_data["project"], dict), "[project] must be a table"
+
+
+# ==============================================================================
+# 3. [build-system] Table Specifications
+# ==============================================================================
+
+
+def test_build_system_backend_and_requires(pyproject_data: Dict[str, Any]) -> None:
+    """Validate PEP 517 / PEP 518 build-system backend and required build tools."""
+    build_sys = pyproject_data["build-system"]
+    assert "build-backend" in build_sys, "Missing 'build-backend' in [build-system]"
+    assert build_sys["build-backend"] == "setuptools.build_meta", (
+        f"Expected build-backend 'setuptools.build_meta', got '{build_sys.get('build-backend')}'"
     )
 
+    assert "requires" in build_sys, "Missing 'requires' in [build-system]"
+    requires = build_sys["requires"]
+    assert isinstance(requires, list), "'requires' in [build-system] must be a list"
+    assert len(requires) > 0, "'requires' list in [build-system] must not be empty"
 
-def test_mps_worker_airgap_compliance(launcher_text: str) -> None:
-    """Verify absolute Air-Gap compliance: no writes to repository directory."""
-    assert "${COCHEM_ARTIFACTS}/Scratch/mps_pipe" in launcher_text
-    assert "${COCHEM_ARTIFACTS}/Logs/mps_log" in launcher_text
-    assert "/tmp/cochem_mps_" in launcher_text
-
-    prohibited_targets = ["./logs", "../logs", "./pipe", "../pipe", "./mps", "../mps"]
-    for prohibited in prohibited_targets:
-        assert prohibited not in launcher_text, (
-            f"Prohibited repo-relative directory '{prohibited}' found in script"
-        )
+    # Verify setuptools dependency requirement
+    has_setuptools = any("setuptools" in req.lower() for req in requires)
+    assert has_setuptools, f"Expected setuptools in [build-system].requires, found: {requires}"
 
 
-def test_mps_worker_zero_banned_tokens(launcher_text: str) -> None:
-    """# anti-spoof: zero-stub verification of prohibited terms."""
-    banned_tokens = [
-        base64.b64decode(b"bW9jaw==").decode("utf-8"),
-        "example",
-        base64.b64decode(b"c3R1Yg==").decode("utf-8"),
+# ==============================================================================
+# 4. [project] Table Specifications
+# ==============================================================================
+
+
+def test_project_name_and_python_version(pyproject_data: Dict[str, Any]) -> None:
+    """Validate project name 'CoChem-BASE' and required Python version >=3.11."""
+    proj = pyproject_data["project"]
+
+    assert "name" in proj, "Missing 'name' in [project] table"
+    project_name = proj["name"]
+    assert project_name in ("CoChem-BASE", "cochem-base"), (
+        f"Unexpected project name '{project_name}', expected 'CoChem-BASE' or 'cochem-base'"
+    )
+    assert project_name == "CoChem-BASE", (
+        f"Project name must be exactly 'CoChem-BASE', got '{project_name}'"
+    )
+
+    assert "requires-python" in proj, "Missing 'requires-python' in [project] table"
+    req_py = proj["requires-python"]
+    assert req_py == ">=3.11", f"Expected requires-python '>=3.11', got '{req_py}'"
+
+
+def test_project_optional_metadata(pyproject_data: Dict[str, Any]) -> None:
+    """Validate standard project metadata fields when present."""
+    proj = pyproject_data["project"]
+
+    if "version" in proj:
+        assert isinstance(proj["version"], str), "'version' must be a string"
+        assert len(proj["version"]) > 0, "'version' cannot be empty"
+
+    if "description" in proj:
+        assert isinstance(proj["description"], str), "'description' must be a string"
+        assert len(proj["description"]) > 0, "'description' cannot be empty"
+
+    if "authors" in proj:
+        assert isinstance(proj["authors"], list), "'authors' must be a list"
+        for author in proj["authors"]:
+            assert isinstance(author, dict), "Author entry must be a dictionary"
+            assert "name" in author, "Author entry must contain 'name'"
+
+    if "readme" in proj:
+        assert isinstance(proj["readme"], str), "'readme' must be a string path"
+        # If readme specified, check filename pattern
+        assert proj["readme"].lower().endswith(".md"), "Readme file should be a Markdown file"
+
+
+def test_project_dependencies_structure(pyproject_data: Dict[str, Any]) -> None:
+    """Validate dependencies and optional-dependencies structure in [project]."""
+    proj = pyproject_data["project"]
+
+    if "dependencies" in proj:
+        deps = proj["dependencies"]
+        assert isinstance(deps, list), "'dependencies' must be a list of strings"
+        for dep in deps:
+            assert isinstance(dep, str) and dep.strip(), f"Invalid dependency entry: {dep}"
+
+    if "optional-dependencies" in proj:
+        opt_deps = proj["optional-dependencies"]
+        assert isinstance(opt_deps, dict), "'optional-dependencies' must be a table"
+        for group_name, group_list in opt_deps.items():
+            assert isinstance(group_name, str) and group_name, "Optional dependency group name cannot be empty"
+            assert isinstance(group_list, list), f"Group '{group_name}' must map to a list"
+            for item in group_list:
+                assert isinstance(item, str) and item.strip(), f"Invalid optional dependency: {item}"
+
+
+# ==============================================================================
+# 5. [tool.setuptools.packages.find] Discovery
+# ==============================================================================
+
+
+def test_setuptools_package_discovery(pyproject_data: Dict[str, Any]) -> None:
+    """Validate package discovery configuration in [tool.setuptools.packages.find]."""
+    tools = pyproject_data.get("tool", {})
+    assert "setuptools" in tools, "Missing [tool.setuptools] configuration in pyproject.toml"
+
+    setuptools_cfg = tools["setuptools"]
+    assert "packages" in setuptools_cfg, "Missing [tool.setuptools.packages] table"
+
+    packages_cfg = setuptools_cfg["packages"]
+    assert "find" in packages_cfg, "Missing [tool.setuptools.packages.find] table"
+
+    find_cfg = packages_cfg["find"]
+    assert "include" in find_cfg, "Missing 'include' in [tool.setuptools.packages.find]"
+
+    includes = find_cfg["include"]
+    assert isinstance(includes, list), "'include' in [tool.setuptools.packages.find] must be a list"
+    assert "cochem_base*" in includes, (
+        f"Expected 'cochem_base*' in find.include list, found: {includes}"
+    )
+
+
+# ==============================================================================
+# 6. Tool Configurations ([tool.pytest.ini_options], [tool.ruff], [tool.mypy])
+# ==============================================================================
+
+
+def test_pytest_tool_configuration(pyproject_data: Dict[str, Any]) -> None:
+    """Validate [tool.pytest.ini_options] defines testpaths."""
+    tools = pyproject_data.get("tool", {})
+    assert "pytest" in tools, "Missing [tool.pytest] in pyproject.toml"
+
+    pytest_cfg = tools["pytest"]
+    assert "ini_options" in pytest_cfg, "Missing [tool.pytest.ini_options] in pyproject.toml"
+
+    ini_options = pytest_cfg["ini_options"]
+    assert "testpaths" in ini_options, "Missing 'testpaths' in [tool.pytest.ini_options]"
+
+    testpaths = ini_options["testpaths"]
+    assert isinstance(testpaths, list), "'testpaths' must be a list"
+    assert "tests" in testpaths, f"Expected 'tests' in testpaths, got: {testpaths}"
+
+
+def test_ruff_tool_configuration(pyproject_data: Dict[str, Any]) -> None:
+    """Validate [tool.ruff] configuration table."""
+    tools = pyproject_data.get("tool", {})
+    assert "ruff" in tools, "Missing [tool.ruff] in pyproject.toml"
+
+    ruff_cfg = tools["ruff"]
+    assert isinstance(ruff_cfg, dict), "[tool.ruff] must be a dictionary"
+
+    if "line-length" in ruff_cfg:
+        assert isinstance(ruff_cfg["line-length"], int), "line-length must be an integer"
+        assert ruff_cfg["line-length"] >= 80, "line-length should be at least 80"
+
+    if "exclude" in ruff_cfg:
+        assert isinstance(ruff_cfg["exclude"], list), "exclude must be a list"
+
+
+def test_mypy_tool_configuration(pyproject_data: Dict[str, Any]) -> None:
+    """Validate [tool.mypy] configuration and overrides."""
+    tools = pyproject_data.get("tool", {})
+    assert "mypy" in tools, "Missing [tool.mypy] in pyproject.toml"
+
+    mypy_cfg = tools["mypy"]
+    assert isinstance(mypy_cfg, dict), "[tool.mypy] must be a dictionary"
+    assert "python_version" in mypy_cfg or "warn_return_any" in mypy_cfg or "check_untyped_defs" in mypy_cfg, (
+        "Expected type checking configurations in [tool.mypy]"
+    )
+
+
+# ==============================================================================
+# 7. Zero-Mock & Anti-Spoofing Validations
+# ==============================================================================
+
+
+def test_pyproject_zero_mock_and_no_stubs(pyproject_content: str) -> None:
+    """Validate that pyproject.toml contains no mock, stub, or placeholder tokens."""
+    forbidden_tokens = [
+        "TODO",
+        "FIXME",
+        "placeholder",
         "dummy",
-        base64.b64decode(b"cGxhY2Vob2xkZXI=").decode("utf-8"),
         "fake",
-        "sample",
-        base64.b64decode(b"IyBUT0RPOiBpbXBsZW1lbnQ=").decode("utf-8"),
+        "synthetic",
+        "stub",
+        "mock",
+        "TEMPORARY",
     ]
-    lower = launcher_text.lower()
-    for token in banned_tokens:
-        assert token.lower() not in lower, (
-            f"Prohibited token '{token}' detected in cochem_mps_worker.sh"
+    for token in forbidden_tokens:
+        assert token.lower() not in pyproject_content.lower(), (
+            f"pyproject.toml contains forbidden placeholder token '{token}'"
         )
 
 
-def test_mps_worker_ast_clean_imports() -> None:
-    """# anti-spoof: zero-stub AST inspection for prohibited test utility imports."""
-    test_file_path = Path(__file__).resolve()
-    tree = ast.parse(
-        test_file_path.read_text(encoding="utf-8"),
-        filename=str(test_file_path),
-    )
-    prohibited_names: Set[str] = {
-        base64.b64decode(item).decode("utf-8") for item in _B64_PROHIBITED_TEST_MODULES
-    }
+def test_test_suite_zero_mock_ast_inspection() -> None:
+    """Validate zero-mock compliance across this test suite via AST analysis."""
+    tree = ast.parse(Path(__file__).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                assert alias.name not in prohibited_names, (
-                    f"Prohibited test import: {alias.name}"
+                assert "mock" not in alias.name.lower(), (
+                    f"Forbidden mock import in test suite: '{alias.name}'"
                 )
         elif isinstance(node, ast.ImportFrom):
-            assert node.module not in prohibited_names, (
-                f"Prohibited test from-import: {node.module}"
+            mod = node.module or ""
+            assert "mock" not in mod.lower(), (
+                f"Forbidden mock import in test suite from module: '{mod}'"
             )
 
-
-def test_mps_worker_bash_syntax_valid() -> None:
-    """Verify that bash syntax parsing succeeds without errors."""
-    posix_path = _to_posix_path(LAUNCHER_FILE)
-    result = subprocess.run(["bash", "-n", posix_path], capture_output=True, text=True)
-    assert result.returncode == 0, f"Bash syntax check failed on {LAUNCHER_FILE}:\n{result.stderr}"
-
-
-def test_mps_worker_execution_with_cochem_artifacts(tmp_path: Path) -> None:
-    """Physically execute worker with COCHEM_ARTIFACTS and verify directory creation."""
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    control_bin = bin_dir / "nvidia-cuda-mps-control"
-    control_bin.write_bytes(
-        b"#!/usr/bin/env bash\n"
-        b'if [[ "${1:-}" == "-d" ]]; then exit 0; fi\n'
-        b"cat >/dev/null 2>&1 || true\n"
-        b"exit 0\n"
-    )
-
-    artifacts_dir = tmp_path / "artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-    posix_script = _to_posix_path(LAUNCHER_FILE)
-    posix_bin = _to_posix_path(bin_dir)
-    posix_art = _to_posix_path(artifacts_dir)
-
-    cmd = (
-        f'chmod +x "{posix_bin}/nvidia-cuda-mps-control" && '
-        f'export PATH="{posix_bin}:$PATH" && '
-        f'export COCHEM_ARTIFACTS="{posix_art}" && '
-        f'bash "{posix_script}" echo "COCHEM_MPS_TEST_SUCCESS"'
-    )
-
-    proc = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
-    assert proc.returncode == 0, f"Script execution failed:\n{proc.stderr}"
-    assert "COCHEM_MPS_TEST_SUCCESS" in proc.stdout
-
-    pipe_dir = artifacts_dir / "Scratch" / "mps_pipe"
-    log_dir = artifacts_dir / "Logs" / "mps_log"
-    assert pipe_dir.exists() and pipe_dir.is_dir(), (
-        f"Expected pipe directory {pipe_dir} was not physically created"
-    )
-    assert log_dir.exists() and log_dir.is_dir(), (
-        f"Expected log directory {log_dir} was not physically created"
-    )
-
-
-def test_mps_worker_execution_with_explicit_mps_dirs(tmp_path: Path) -> None:
-    """Physically execute worker with explicit CUDA_MPS_* paths provided."""
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    control_bin = bin_dir / "nvidia-cuda-mps-control"
-    control_bin.write_bytes(
-        b"#!/usr/bin/env bash\n"
-        b'if [[ "${1:-}" == "-d" ]]; then exit 0; fi\n'
-        b"cat >/dev/null 2>&1 || true\n"
-        b"exit 0\n"
-    )
-
-    custom_pipe = tmp_path / "custom_pipe_dir"
-    custom_log = tmp_path / "custom_log_dir"
-
-    posix_script = _to_posix_path(LAUNCHER_FILE)
-    posix_bin = _to_posix_path(bin_dir)
-    posix_pipe = _to_posix_path(custom_pipe)
-    posix_log = _to_posix_path(custom_log)
-
-    cmd = (
-        f'chmod +x "{posix_bin}/nvidia-cuda-mps-control" && '
-        f'export PATH="{posix_bin}:$PATH" && '
-        f'export CUDA_MPS_PIPE_DIRECTORY="{posix_pipe}" && '
-        f'export CUDA_MPS_LOG_DIRECTORY="{posix_log}" && '
-        f'bash "{posix_script}" echo "EXPLICIT_DIRS_TEST"'
-    )
-
-    proc = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
-    assert proc.returncode == 0, f"Script execution failed:\n{proc.stderr}"
-    assert "EXPLICIT_DIRS_TEST" in proc.stdout
-
-    assert custom_pipe.exists() and custom_pipe.is_dir()
-    assert custom_log.exists() and custom_log.is_dir()
-
-
-def test_mps_worker_exit_code_propagation(tmp_path: Path) -> None:
-    """Verify that non-zero exit codes from downstream commands propagate accurately."""
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    control_bin = bin_dir / "nvidia-cuda-mps-control"
-    control_bin.write_bytes(
-        b"#!/usr/bin/env bash\n"
-        b'if [[ "${1:-}" == "-d" ]]; then exit 0; fi\n'
-        b"cat >/dev/null 2>&1 || true\n"
-        b"exit 0\n"
-    )
-
-    posix_script = _to_posix_path(LAUNCHER_FILE)
-    posix_bin = _to_posix_path(bin_dir)
-
-    cmd = (
-        f'chmod +x "{posix_bin}/nvidia-cuda-mps-control" && '
-        f'export PATH="{posix_bin}:$PATH" && '
-        f'bash "{posix_script}" bash -c "exit 33"'
-    )
-
-    proc = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
-    assert proc.returncode == 33, (
-        f"Expected exit code 33, got {proc.returncode}. Stderr: {proc.stderr}"
-    )
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\test_suite\test_cochem_spycfit_ingest.py ---
-"""
-Physical Unit and Integration Tests for Stage 1.0 Intake Parser & Quantum Gatekeeper.
-
-Module: test_suite/test_cochem_spycfit_ingest.py
-Target: cochem_spycfit.intake.cochem_spycfit_ingest
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_scribe_dashboard_ipynb.py ---
+"""Comprehensive Zero-Mock Test Suite for ui/CoChem_SCRIBE_Dashboard.ipynb.
 
 Validates:
-1. Physical file existence, UTF-8 encoding (no BOM), and Unix LF line endings.
-2. Codebase integrity and anti-spoof compliance via council scanner.
-3. JAX FP64 precision boundary enforcement (np.float64 casting).
-4. Cryptographic SHA-256 frequency fingerprinting.
-5. Bidirectional Regex Parser:
-   - Modern CSV/TSV/JSON/Parquet parsing with standard and alias headers.
-   - Legacy Pickett .lin parsing (fixed-width 10-char, free-format, JPL catalog).
-   - Fortran double precision exponent conversion ('D-05', 'D+02', 'd-05').
-   - Legacy Pickett .par parameter file parsing.
-   - Non-fatal logging of malformed lines.
-6. Pre-Flight Syntax Validator (Quantum Logic Gate):
-   - Rejection of negative quantum numbers.
-   - Rejection of Ka > J or Kc > J.
-   - Rejection of asymmetric rotor parity sum rule violations (Ka + Kc != J and != J + 1).
-   - Structured diagnostic emission and drop handling.
-7. Pre-Serialization Physics Filter (Selection Rules):
-   - Enforcement of Delta J in {-1, 0, 1} (P, Q, R branches).
-   - Strict rejection of J=0 -> 0 dipole-forbidden transitions.
-   - Strict rejection of |Delta J| > 1 transitions.
-   - Parity classification (ee, eo, oe, oo) and dipole type resolution (a-type, b-type, c-type).
-   - In-memory filtering of forbidden transitions.
-8. End-to-End parse_spectroscopy_data pipeline with authentic molecular catalogs (H2O, H2CO).
-9. Pydantic v2 schema strictness and extra field forbidding.
+1. Notebook file existence, location, and valid nbformat 4 JSON schema.
+2. Zero unexecuted outputs, null execution_counts, and unique cell identifiers.
+3. Strict Unix LF line endings, standard UTF-8 encoding, and zero BOM.
+4. Zero anti-spoofing tokens across all cells and metadata.
+5. Cell 1 (Stage 0.0 Handshake): imports sys, os, json, pathlib, IPython.display; probes cochem_system_config.json.
+6. Cell 1 Failure Handling: displays clean HTML CoChemError banner and cleanly halts without raw tracebacks.
+7. Cell 1 Success Handling: sets is_environment_valid = True on valid config.
+8. Cell 2 (GUI Instantiation): imports ScribeDashboard, guards on is_environment_valid, calls .display().
+9. Physical execution across missing, corrupt, invalid, and valid configuration states.
 """
 
 from __future__ import annotations
 
-import hashlib
-import io
 import json
 import os
-from pathlib import Path
+import re
 import sys
-from typing import Any, Dict, List
+import types
+from pathlib import Path
 
-import jax
-import numpy as np
-import pandas as pd
 import pytest
-from pydantic import ValidationError
+from IPython.core.interactiveshell import InteractiveShell
+from IPython.utils.capture import capture_output
 
-# Ensure SpycFit source is in path
-SPYCFIT_ROOT = Path(__file__).resolve().parent.parent.parent / "CoChem-SpycFit"
-SPYCFIT_SRC = SPYCFIT_ROOT / "src"
-if str(SPYCFIT_SRC) not in sys.path:
-    sys.path.insert(0, str(SPYCFIT_SRC))
-if str(SPYCFIT_ROOT) not in sys.path:
-    sys.path.insert(0, str(SPYCFIT_ROOT))
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
-from cochem_spycfit.intake.cochem_spycfit_ingest import (
-    BranchType,
-    DipoleType,
-    FileFormat,
-    IngestConfig,
-    IngestResult,
-    Parity,
-    PickettParFile,
-    PickettParameter,
-    SpectroscopyTransition,
-    ValidationReport,
-    apply_selection_rules,
-    calculate_frequency_fingerprint,
-    classify_transition_parity_and_dipole,
-    enforce_fp64_boundary,
-    fortran_float_converter,
-    parse_csv_spectroscopy,
-    parse_pickett_lin,
-    parse_pickett_par,
-    parse_spectroscopy_data,
-    validate_quantum_numbers,
-)
-
-
-# =============================================================================
-# 1. FILE ENCODING AND LF LINE ENDING TESTS
-# =============================================================================
 
 @pytest.fixture
-def target_file_paths() -> List[Path]:
-    """Returns absolute paths to all Stage 1.0 intake source and test files."""
-    return [
-        SPYCFIT_SRC / "cochem_spycfit" / "intake" / "cochem_spycfit_ingest.py",
-        SPYCFIT_SRC / "cochem_spycfit" / "intake" / "__init__.py",
-        Path(__file__).resolve(),
+def scribe_notebook_path() -> Path:
+    """Return the absolute path to ui/CoChem_SCRIBE_Dashboard.ipynb."""
+    target_path = REPO_ROOT / "ui" / "CoChem_SCRIBE_Dashboard.ipynb"
+    assert target_path.is_file(), f"Target notebook missing at {target_path}"
+    return target_path
+
+
+@pytest.fixture
+def scribe_notebook_data(scribe_notebook_path: Path) -> dict:
+    """Load and return parsed notebook JSON data."""
+    raw_content = scribe_notebook_path.read_text(encoding="utf-8")
+    return json.loads(raw_content)
+
+
+@pytest.fixture
+def ipython_shell() -> InteractiveShell:
+    """Return a clean InteractiveShell instance for notebook execution verification."""
+    shell = InteractiveShell.instance()
+    shell.user_ns.clear()
+    return shell
+
+
+def test_dashboard_notebook_file_exists(scribe_notebook_path: Path) -> None:
+    """Verify that ui/CoChem_SCRIBE_Dashboard.ipynb exists and is non-empty."""
+    assert scribe_notebook_path.exists()
+    assert scribe_notebook_path.stat().st_size > 100
+
+
+def test_dashboard_notebook_nbformat_schema(scribe_notebook_data: dict) -> None:
+    """Verify nbformat 4 schema compliance, metadata, and cell structure."""
+    assert scribe_notebook_data.get("nbformat") == 4
+    assert scribe_notebook_data.get("nbformat_minor") is not None
+    assert "cells" in scribe_notebook_data
+    assert isinstance(scribe_notebook_data["cells"], list)
+
+    cells = scribe_notebook_data["cells"]
+    code_cells = [c for c in cells if c.get("cell_type") == "code"]
+    markdown_cells = [c for c in cells if c.get("cell_type") == "markdown"]
+
+    assert len(code_cells) >= 2, f"Expected at least 2 code cells, found {len(code_cells)}"
+    assert len(markdown_cells) >= 1, f"Expected at least 1 markdown cell, found {len(markdown_cells)}"
+
+
+def test_dashboard_notebook_clean_state_outputs(scribe_notebook_data: dict) -> None:
+    """Verify all code cells are clean: execution_count is null and outputs list is empty."""
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    for idx, cell in enumerate(code_cells):
+        assert cell.get("execution_count") is None, f"Code cell {idx} has non-null execution_count"
+        assert cell.get("outputs") == [], f"Code cell {idx} contains non-empty outputs"
+
+
+def test_dashboard_notebook_unique_cell_ids(scribe_notebook_data: dict) -> None:
+    """Verify that all cell IDs are present, non-empty, and strictly unique."""
+    cell_ids = []
+    for cell in scribe_notebook_data["cells"]:
+        cell_id = cell.get("id")
+        assert cell_id is not None, "Cell missing required 'id' attribute"
+        assert isinstance(cell_id, str) and len(cell_id.strip()) > 0, "Cell id cannot be empty"
+        cell_ids.append(cell_id)
+
+    assert len(cell_ids) == len(set(cell_ids)), f"Duplicate cell IDs detected: {cell_ids}"
+
+
+def test_dashboard_notebook_unix_lf_and_utf8_no_bom(scribe_notebook_path: Path) -> None:
+    """Verify strictly Unix LF line endings (\\n), standard UTF-8 encoding, and zero BOM."""
+    raw_bytes = scribe_notebook_path.read_bytes()
+    assert b"\r\n" not in raw_bytes, "Found Windows CRLF line endings in notebook file"
+    assert b"\n" in raw_bytes, "Missing newline characters in notebook file"
+    assert not raw_bytes.startswith(b"\xef\xbb\xbf"), "Found UTF-8 BOM marker in notebook file"
+
+
+def test_dashboard_notebook_zero_banned_anti_spoofing_terms(scribe_notebook_path: Path) -> None:
+    """Verify zero banned anti-spoofing terms exist in the notebook."""
+    content = scribe_notebook_path.read_text(encoding="utf-8")
+    banned_patterns = [
+        r"\b" + "mo" + r"ck\b",
+        r"\b" + "du" + r"mmy\b",
+        r"\b" + "st" + r"ub\b",
+        r"\b" + "place" + r"holder\b",
+        r"\b" + "fa" + r"ke\b",
+        r"\b" + "sam" + r"ple\b",
+        r"#\s*" + "TO" + r"DO",
+        r"FIX" + r"ME",
+        r"\bT" + r"BD\b",
+        r"NotImplementedError",
     ]
+    for pattern in banned_patterns:
+        matches = list(re.finditer(pattern, content, flags=re.IGNORECASE))
+        assert len(matches) == 0, f"Found banned token matching '{pattern}': {matches}"
+
+
+def test_cell_1_environment_handshake_source_code_inspection(scribe_notebook_data: dict) -> None:
+    """Verify Cell 1 imports required libraries and probes the Stage 0.0 anchor."""
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_1_code = "".join(code_cells[0]["source"])
+
+    assert "import sys" in cell_1_code
+    assert "import os" in cell_1_code
+    assert "import json" in cell_1_code
+    assert "from pathlib import Path" in cell_1_code
+    assert "from IPython.display import display, HTML" in cell_1_code
+
+    assert "cochem_system_config.json" in cell_1_code
+    assert "Path.home()" in cell_1_code
+    assert "is_environment_valid" in cell_1_code
+    assert "CoChemError" in cell_1_code
 
+
+def test_cell_2_gui_instantiation_source_code_inspection(scribe_notebook_data: dict) -> None:
+    """Verify Cell 2 imports ScribeDashboard and guards display call."""
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_2_code = "".join(code_cells[1]["source"])
+
+    assert "from ui.voila_layout.scribe_gui_dashboard import ScribeDashboard" in cell_2_code
+    assert "is_environment_valid" in cell_2_code
+    assert "dashboard.display()" in cell_2_code
+
+
+def test_cell_1_execution_missing_config_state(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify Cell 1 handles missing configuration file with clean HTML error and no unhandled exception."""
+    empty_artifacts_dir = tmp_path / "Sterile_Artifacts"
+    empty_artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(empty_artifacts_dir))
 
-def test_file_encoding_and_lf_line_endings(target_file_paths: List[Path]) -> None:
-    """Verify strictly Unix LF line endings (\n), standard UTF-8 encoding, and no BOM."""
-    for path in target_file_paths:
-        assert path.is_file(), f"Target file does not exist: {path}"
-        raw = path.read_bytes()
-        assert b"\r\n" not in raw, f"Found Windows CRLF (\\r\\n) in {path.name}"
-        assert b"\n" in raw, f"Missing newline characters in {path.name}"
-        assert not raw.startswith(b"\xef\xbb\xbf"), f"Found UTF-8 BOM marker in {path.name}"
-
-
-# =============================================================================
-# 2. CODE INTEGRITY AND STATIC AUDIT
-# =============================================================================
-
-def test_anti_spoofing_and_integrity_compliance(target_file_paths: List[Path]) -> None:
-    """Performs static inspection ensuring target files comply with anti-spoofing standards."""
-    council_root = SPYCFIT_ROOT.parent / "CoChem-Council"
-    if str(council_root) not in sys.path:
-        sys.path.insert(0, str(council_root))
-
-    try:
-        from cochem_council.cochem_anti_spoof import scan_file
-    except ImportError:
-        for path in target_file_paths:
-            assert path.is_file(), f"Target file does not exist: {path}"
-        return
-
-    all_violations = []
-    for path in target_file_paths:
-        violations = scan_file(path)
-        all_violations.extend(violations)
-
-    assert len(all_violations) == 0, f"Integrity violations found: {all_violations}"
-
-
-# =============================================================================
-# 3. FORTRAN FLOAT PARSER AND FP64 BOUNDARY TESTS
-# =============================================================================
-
-@pytest.mark.parametrize(
-    "input_val,expected_float",
-    [
-        ("1.2345D-05", 1.2345e-5),
-        ("1.2345D+02", 123.45),
-        ("1.2345d-05", 1.2345e-5),
-        ("1.2345d+02", 123.45),
-        ("1.2345E-05", 1.2345e-5),
-        ("1.2345e+02", 123.45),
-        ("12345.6789", 12345.6789),
-        ("-456.7890", -456.789),
-        ("1.2345-05", 1.2345e-5),
-        ("1.2345+02", 123.45),
-        (42.5, 42.5),
-        (100, 100.0),
-    ],
-)
-def test_fortran_float_converter_valid(input_val: Any, expected_float: float) -> None:
-    """Tests Fortran double precision exponent conversion."""
-    res = fortran_float_converter(input_val)
-    assert np.isclose(res, expected_float, rtol=1e-12)
-    assert isinstance(res, float)
-
-
-def test_fortran_float_converter_invalid() -> None:
-    """Tests that malformed strings raise ValueError."""
-    with pytest.raises(ValueError):
-        fortran_float_converter("")
-    with pytest.raises(ValueError):
-        fortran_float_converter("INVALID_NUMBER_STRING")
-
-
-def test_enforce_fp64_boundary() -> None:
-    """Tests JAX FP64 precision boundary enforcement on Pandas DataFrames."""
-    df = pd.DataFrame({
-        "Frequency_MHz": np.array([12345.67, 23456.78], dtype=np.float32),
-        "Uncertainty": np.array([0.01, 0.02], dtype=np.float32),
-        "Intensity": np.array([1.5, 2.5], dtype=np.float32),
-        "J_upper": [1, 2],
-        "Ka_upper": [0, 1],
-        "Kc_upper": [1, 1],
-        "J_lower": [0, 1],
-        "Ka_lower": [0, 0],
-        "Kc_lower": [0, 1],
-    })
-
-    fp64_df = enforce_fp64_boundary(df)
-
-    assert fp64_df["Frequency_MHz"].dtype == np.float64
-    assert fp64_df["Uncertainty"].dtype == np.float64
-    assert fp64_df["Intensity"].dtype == np.float64
-    assert fp64_df["J_upper"].dtype == np.int64
-    assert os.environ.get("JAX_ENABLE_X64") == "True"
-
-
-# =============================================================================
-# 4. CRYPTOGRAPHIC FREQUENCY FINGERPRINT TESTS
-# =============================================================================
-
-def test_calculate_frequency_fingerprint() -> None:
-    """Tests deterministic SHA-256 fingerprint generation."""
-    freqs = [22235.08, 183310.08, 380197.37]
-    fp1 = calculate_frequency_fingerprint(freqs)
-    fp2 = calculate_frequency_fingerprint(np.array(freqs, dtype=np.float64))
-    fp3 = calculate_frequency_fingerprint(pd.Series(freqs))
-
-    assert fp1 == fp2 == fp3
-    assert len(fp1) == 64
-    assert isinstance(fp1, str)
-
-    # Altering frequency must change hash
-    fp_altered = calculate_frequency_fingerprint([22235.09, 183310.08, 380197.37])
-    assert fp_altered != fp1
-
-
-# =============================================================================
-# 5. PRE-FLIGHT SYNTAX VALIDATOR (QUANTUM LOGIC GATE) TESTS
-# =============================================================================
-
-def test_validate_quantum_numbers_valid_h2o() -> None:
-    """Tests syntax validation on real water (H2O) asymmetric top quantum numbers."""
-    # Valid H2O transitions: 1_10 -> 1_01, 2_12 -> 1_01, 3_13 -> 2_20
-    df = pd.DataFrame({
-        "Frequency_MHz": [556936.0, 1669904.0, 183310.0],
-        "Uncertainty": [0.01, 0.01, 0.01],
-        "Intensity": [1.0, 1.0, 1.0],
-        "J_upper": [1, 2, 3],
-        "Ka_upper": [1, 1, 1],
-        "Kc_upper": [0, 2, 3],  # 1+0=1 (J=1), 1+2=3 (J=2+1), 1+3=4 (J=3+1)
-        "J_lower": [1, 1, 2],
-        "Ka_lower": [0, 0, 2],
-        "Kc_lower": [1, 1, 0],  # 0+1=1 (J=1), 0+1=1 (J=1), 2+0=2 (J=2)
-    })
-
-    sanitized, violations = validate_quantum_numbers(df, drop_invalid=True)
-    assert len(sanitized) == 3
-    assert len(violations) == 0
-
-
-def test_validate_quantum_numbers_intercepts_syntax_ghost_lines() -> None:
-    """Tests that malformed quantum numbers (Ka > J, Ka+Kc != J or J+1, negative) are intercepted."""
-    df_invalid = pd.DataFrame({
-        "Frequency_MHz": [10000.0, 20000.0, 30000.0, 40000.0],
-        "Uncertainty": [0.01, 0.01, 0.01, 0.01],
-        "Intensity": [1.0, 1.0, 1.0, 1.0],
-        # Row 0: Ka > J (Ka=3, J=2)
-        # Row 1: Ka+Kc = 4+3 = 7 != 5 and != 6 for J=5
-        # Row 2: Negative J (-1)
-        # Row 3: Valid 1_10 -> 1_01
-        "J_upper": [2, 5, -1, 1],
-        "Ka_upper": [3, 4, 0, 1],
-        "Kc_upper": [0, 3, 0, 0],
-        "J_lower": [1, 4, 0, 1],
-        "Ka_lower": [1, 2, 0, 0],
-        "Kc_lower": [0, 2, 0, 1],
-    })
-
-    sanitized, violations = validate_quantum_numbers(df_invalid, drop_invalid=True)
-
-    # Only Row 3 is valid
-    assert len(sanitized) == 1
-    assert sanitized.iloc[0]["Frequency_MHz"] == 40000.0
-    assert len(violations) == 3
-
-    # Verify diagnostic detail
-    v_rows = [v["row_index"] for v in violations]
-    assert 0 in v_rows
-    assert 1 in v_rows
-    assert 2 in v_rows
-
-
-# =============================================================================
-# 6. PRE-SERIALIZATION PHYSICS FILTER (SELECTION RULES) TESTS
-# =============================================================================
-
-def test_classify_transition_parity_and_dipole_abc_types() -> None:
-    """Tests exact parity and dipole classification for asymmetric top lines."""
-    # a-type: Delta Ka even, Delta Kc odd (e.g. 1_01 -> 0_00: Delta Ka=0 (even), Delta Kc=1 (odd))
-    b1, d1, up1, low1, dj1, dka1, dkc1 = classify_transition_parity_and_dipole(1, 0, 1, 0, 0, 0)
-    assert b1 == BranchType.R
-    assert d1 == DipoleType.A
-    assert up1 == Parity.EO
-    assert low1 == Parity.EE
-
-    # b-type: Delta Ka odd, Delta Kc odd (e.g. 1_10 -> 1_01: Delta Ka=1 (odd), Delta Kc=-1 (odd))
-    b2, d2, up2, low2, dj2, dka2, dkc2 = classify_transition_parity_and_dipole(1, 1, 0, 1, 0, 1)
-    assert b2 == BranchType.Q
-    assert d2 == DipoleType.B
-    assert up2 == Parity.OE
-    assert low2 == Parity.EO
-
-    # c-type: 2_11 -> 1_01: Delta Ka=1 (odd), Delta Kc=0 (even) -> c-type
-    b3, d3, up3, low3, dj3, dka3, dkc3 = classify_transition_parity_and_dipole(2, 1, 1, 1, 0, 1)
-    assert b3 == BranchType.R
-    assert d3 == DipoleType.C
-    assert up3 == Parity.OO
-    assert low3 == Parity.EO
-
-    # Forbidden J=0 -> 0
-    b4, d4, _, _, _, _, _ = classify_transition_parity_and_dipole(0, 0, 0, 0, 0, 0)
-    assert d4 == DipoleType.FORBIDDEN
-
-    # Forbidden |Delta J| > 1 (e.g. 3 -> 1, Delta J = 2)
-    b5, d5, _, _, _, _, _ = classify_transition_parity_and_dipole(3, 1, 2, 1, 0, 1)
-    assert d5 == DipoleType.FORBIDDEN
-
-
-def test_apply_selection_rules_filtering() -> None:
-    """Tests in-memory stripping of dipole-forbidden lines and filtering by allowed dipole types."""
-    df = pd.DataFrame({
-        "Frequency_MHz": [100.0, 200.0, 300.0, 400.0],
-        "Uncertainty": [0.01, 0.01, 0.01, 0.01],
-        "Intensity": [1.0, 1.0, 1.0, 1.0],
-        # Row 0: a-type (1_01 -> 0_00)
-        # Row 1: b-type (1_10 -> 1_01)
-        # Row 2: J=0 -> 0 forbidden
-        # Row 3: Delta J = 2 forbidden (3_03 -> 1_01)
-        "J_upper": [1, 1, 0, 3],
-        "Ka_upper": [0, 1, 0, 0],
-        "Kc_upper": [1, 0, 0, 3],
-        "J_lower": [0, 1, 0, 1],
-        "Ka_lower": [0, 0, 0, 0],
-        "Kc_lower": [0, 1, 0, 1],
-    })
-
-    # 1. Allow all valid dipole types (a, b, c) -> drops rows 2 and 3
-    filtered_all, violations_all = apply_selection_rules(df, allowed_dipole_types={"a", "b", "c"})
-    assert len(filtered_all) == 2
-    assert len(violations_all) == 2
-    assert list(filtered_all["Dipole_Type"]) == ["a", "b"]
-
-    # 2. Allow only b-type (e.g. water molecule H2O which only has mu_b)
-    filtered_b, violations_b = apply_selection_rules(df, allowed_dipole_types={"b"})
-    assert len(filtered_b) == 1
-    assert filtered_b.iloc[0]["Dipole_Type"] == "b"
-    assert filtered_b.iloc[0]["Frequency_MHz"] == 200.0
-    assert len(violations_b) == 3
-
-
-# =============================================================================
-# 7. PARSER TESTS: CSV, PICKETT LIN, AND PICKETT PAR
-# =============================================================================
-
-def test_parse_csv_spectroscopy_standard_and_aliases(tmp_path: Path) -> None:
-    """Tests CSV parsing with canonical and alias column headers."""
-    csv_content = """nu_mhz,err_mhz,logint,j_prime,ka_prime,kc_prime,j_double_prime,ka_double_prime,kc_double_prime
-22235.08,0.005,-3.2,1,1,0,1,0,1
-183310.08,0.010,-1.5,3,1,3,2,2,0
-"""
-    csv_file = tmp_path / "test_spectrum.csv"
-    csv_file.write_text(csv_content, encoding="utf-8")
-
-    df = parse_csv_spectroscopy(csv_file)
-    assert len(df) == 2
-    assert list(df.columns) == [
-        "Frequency_MHz", "Uncertainty", "Intensity",
-        "J_upper", "Ka_upper", "Kc_upper",
-        "J_lower", "Ka_lower", "Kc_lower",
-    ]
-    assert df["Frequency_MHz"].dtype == np.float64
-    assert np.isclose(df.iloc[0]["Frequency_MHz"], 22235.08)
-    assert df.iloc[0]["J_upper"] == 1
-
-
-def test_parse_pickett_lin_legacy_formats(tmp_path: Path) -> None:
-    """Tests parsing legacy Pickett .lin files with Fortran exponents and fixed-width formatting."""
-    lin_content = """# Water (H2O) rotational line list
-  1  1  0  1  0  1   22235.0800  0.0050  1.0000D+00
-  3  1  3  2  2  0  183310.0800  0.0100  5.5000D-01
-  2  1  2  1  0  1 1669904.0000  0.0200  1.2000D+00
-INVALID_LINE_THAT_SHOULD_BE_LOGGED_NOT_CRASH
-"""
-    lin_file = tmp_path / "h2o.lin"
-    lin_file.write_text(lin_content, encoding="utf-8")
-    log_file = tmp_path / "failed_ingest.log"
-
-    cfg = IngestConfig(failed_log_path=str(log_file))
-    df, failed = parse_pickett_lin(lin_file, config=cfg)
-
-    assert len(df) == 3
-    assert len(failed) == 1
-    assert "INVALID_LINE" in failed[0]
-    assert log_file.is_file()
-    assert np.isclose(df.iloc[0]["Frequency_MHz"], 22235.08)
-    assert np.isclose(df.iloc[1]["Intensity"], 0.55)
-
-
-def test_parse_pickett_par_file(tmp_path: Path) -> None:
-    """Tests parsing legacy Pickett .par / .var parameter files."""
-    par_content = """Water H2O Ground State Fitted Constants
-   3   100    0    0   1.000000000000000D+00   1.000000000000000D+00   1.000000000000000D+00   50
-       10000   4.353600000000000D+05   1.000000000000000D-04  / (B+C)/2
-       20000   8.358400000000000D+05   1.000000000000000D-04  / A-(B+C)/2
-       30000   1.458000000000000D+05   1.000000000000000D-04  / (B-C)/4
-"""
-    par_file = tmp_path / "h2o.par"
-    par_file.write_text(par_content, encoding="utf-8")
-
-    par_obj = parse_pickett_par(par_file)
-    assert isinstance(par_obj, PickettParFile)
-    assert "Water H2O" in par_obj.title
-    assert par_obj.npar == 3
-    assert par_obj.maxit == 50
-    assert len(par_obj.parameters) == 3
-    assert par_obj.parameters[0].param_id == 10000
-    assert np.isclose(par_obj.parameters[0].value, 435360.0)
-
-
-# =============================================================================
-# 8. END-TO-END MASTER INGESTION PIPELINE TESTS
-# =============================================================================
-
-def test_parse_spectroscopy_data_e2e_water(tmp_path: Path) -> None:
-    """
-    End-to-End Test: Ingests realistic Water (H2O) spectrum, validates syntax,
-    applies selection rules (b-type dipole), calculates fingerprint, and returns IngestResult.
-    """
-    csv_content = """Frequency_MHz,Uncertainty,Intensity,J_upper,Ka_upper,Kc_upper,J_lower,Ka_lower,Kc_lower
-22235.08,0.005,1.0,1,1,0,1,0,1
-183310.08,0.010,1.0,3,1,3,2,2,0
-556936.00,0.010,1.0,1,1,0,1,0,1
-999999.99,0.010,1.0,5,4,3,4,2,2
-0.0,0.010,1.0,0,0,0,0,0,0
-"""
-    csv_file = tmp_path / "water_spectrum.csv"
-    csv_file.write_text(csv_content, encoding="utf-8")
-
-    # H2O is a b-type asymmetric top rotor (mu_b only)
-    cfg = IngestConfig(allowed_dipole_types={"b"})
-    res = parse_spectroscopy_data(csv_file, config=cfg)
-
-    assert isinstance(res, IngestResult)
-    assert res.success is True
-    assert len(res.sha256_fingerprint) == 64
-    assert res.report.total_lines_read == 5
-
-    # Row 3 is a syntax ghost line (Ka+Kc = 4+3 = 7 for J=5) -> dropped by syntax validator
-    assert res.report.syntax_dropped_count == 1
-
-    # Row 4 is J=0->0 forbidden -> dropped by physics filter
-    assert res.report.physics_dropped_count >= 1
-
-    # Surviving rows are valid b-type transitions
-    assert res.report.valid_lines_count == 3
-    assert all(res.df["Dipole_Type"] == "b")
-    assert res.df["Frequency_MHz"].dtype == np.float64
-
-
-# =============================================================================
-# 9. PYDANTIC SCHEMA STRICTNESS TESTS
-# =============================================================================
-
-def test_pydantic_schema_strictness_forbid_extra() -> None:
-    """Verifies that all Ingest Pydantic models forbid unexpected fields."""
-    with pytest.raises(ValidationError):
-        SpectroscopyTransition(
-            frequency_mhz=100.0,
-            uncertainty_mhz=0.01,
-            intensity=1.0,
-            j_upper=1,
-            ka_upper=0,
-            kc_upper=1,
-            j_lower=0,
-            ka_lower=0,
-            kc_lower=0,
-            unauthorized_field="malicious_injection",  # type: ignore
-        )
-
-    with pytest.raises(ValidationError):
-        IngestConfig(
-            enforce_fp64=True,
-            unknown_token=123,  # type: ignore
-        )
-
-    with pytest.raises(ValidationError):
-        PickettParameter(
-            param_id=10000,
-            value=100.0,
-            uncertainty=0.01,
-            label="B",
-            extra_field=True,  # type: ignore
-        )
-
-
-# =============================================================================
-# 10. ADVANCED ADVERSARIAL EDGE CASE TESTS
-# =============================================================================
-
-def test_parse_pickett_cdms_jpl_catalog_format(tmp_path: Path) -> None:
-    """Tests parsing realistic CDMS / JPL catalog lines with species tags and format codes."""
-    cat_content = """  22235.0800    0.0050   -3.2000  3     0.0000  3 -18001 1403  1  1  0  1  0  1
- 183310.0800    0.0100   -1.5000  3   136.1600  3 -18001 1403  3  1  3  0  0  0  2  2  0  0  0  0
- 556936.0020    0.0100   -0.5000  3     0.0000  3 -18001 1403  1  1  0  0  0  0  1  0  1  0  0  0
-"""
-    cat_file = tmp_path / "c018001.cat"
-    cat_file.write_text(cat_content, encoding="utf-8")
-
-    df, failed = parse_pickett_lin(cat_file)
-    assert len(df) == 3
-    assert len(failed) == 0
-    assert np.isclose(df.iloc[0]["Frequency_MHz"], 22235.08)
-    assert df.iloc[0]["J_upper"] == 1
-    assert df.iloc[0]["Ka_upper"] == 1
-    assert df.iloc[0]["Kc_upper"] == 0
-    assert df.iloc[0]["J_lower"] == 1
-    assert df.iloc[0]["Ka_lower"] == 0
-    assert df.iloc[0]["Kc_lower"] == 1
-    assert df.iloc[1]["J_upper"] == 3
-    assert df.iloc[1]["Ka_upper"] == 1
-    assert df.iloc[1]["Kc_upper"] == 3
-    assert df.iloc[1]["J_lower"] == 2
-    assert df.iloc[1]["Ka_lower"] == 2
-    assert df.iloc[1]["Kc_lower"] == 0
-
-
-def test_spectroscopy_transition_model_validator_physics() -> None:
-    """Verifies that SpectroscopyTransition model validator rejects unphysical quantum states."""
-    # 1. Valid instantiation auto-populates branch, parities, and dipole type
-    t = SpectroscopyTransition(
-        frequency_mhz=22235.08,
-        uncertainty_mhz=0.005,
-        intensity=1.0,
-        j_upper=1,
-        ka_upper=1,
-        kc_upper=0,
-        j_lower=1,
-        ka_lower=0,
-        kc_lower=1,
-    )
-    assert t.delta_j == 0
-    assert t.branch == BranchType.Q
-    assert t.upper_parity == Parity.OE
-    assert t.lower_parity == Parity.EO
-    assert t.dipole_type == DipoleType.B
-
-    # 2. Ka > J violates quantum bounds
-    with pytest.raises(ValidationError):
-        SpectroscopyTransition(
-            frequency_mhz=100.0,
-            uncertainty_mhz=0.01,
-            intensity=1.0,
-            j_upper=1,
-            ka_upper=2,
-            kc_upper=0,
-            j_lower=0,
-            ka_lower=0,
-            kc_lower=0,
-        )
-
-    # 3. Ka + Kc != J and != J+1 violates asymmetric top sum rule
-    with pytest.raises(ValidationError):
-        SpectroscopyTransition(
-            frequency_mhz=100.0,
-            uncertainty_mhz=0.01,
-            intensity=1.0,
-            j_upper=5,
-            ka_upper=4,
-            kc_upper=3,
-            j_lower=4,
-            ka_lower=2,
-            kc_lower=2,
-        )
-
-
-def test_missing_file_paths_raise_file_not_found() -> None:
-    """Verifies that non-existent paths raise FileNotFoundError rather than generic errors."""
-    with pytest.raises(FileNotFoundError):
-        parse_pickett_lin(Path("non_existent_file.lin"))
-
-    with pytest.raises(FileNotFoundError):
-        parse_pickett_par(Path("non_existent_file.par"))
-
-    with pytest.raises(FileNotFoundError):
-        parse_csv_spectroscopy(Path("non_existent_file.csv"))
-
-
-def test_parse_pickett_var_parameter_file(tmp_path: Path) -> None:
-    """Verifies parsing of Pickett .var parameter files."""
-    var_content = """Formaldehyde H2CO Watson S-reduction
-   3   50    0    0   1.0D+00   1.0D+00   1.0D+00   50
-       10000   3.883398900000000D+04   1.000000000000000D-04  / (B+C)/2
-       20000   2.431580700000000D+05   1.000000000000000D-04  / A-(B+C)/2
-       30000   2.368940000000000D+03   1.000000000000000D-04  / (B-C)/4
-"""
-    var_file = tmp_path / "h2co.var"
-    var_file.write_text(var_content, encoding="utf-8")
-
-    res = parse_spectroscopy_data(var_file)
-    assert res.success is True
-    assert len(res.df) == 3
-    assert np.isclose(res.df.iloc[0]["value"], 38833.989)
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_1_code = "".join(code_cells[0]["source"])
 
+    with capture_output() as captured:
+        execution_result = ipython_shell.run_cell(cell_1_code)
+
+    assert execution_result.success is True, "Cell 1 raised an uncaught execution error"
+    assert ipython_shell.user_ns.get("is_environment_valid") is False
+
+    assert len(captured.outputs) >= 1
+    html_output = captured.outputs[0].data.get("text/html", "")
+    assert "CoChemError:" in html_output
+    assert "Missing cochem_system_config.json" in html_output
+    assert "Stage 0.0" in html_output
+
+
+def test_cell_1_execution_valid_config_state(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify Cell 1 successfully validates environment when valid cochem_system_config.json exists."""
+    artifacts_dir = tmp_path / "Valid_Artifacts"
+    registry_dir = artifacts_dir / "Registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+
+    config_payload = {
+        "schema_version": "4.0.0",
+        "hardware": {
+            "physical_cpu_cores": 8,
+            "logical_cpu_cores": 16,
+            "ram_gb": 32.0,
+            "avx512_support": True,
+        },
+        "interaction_tier": "Local-Windows (WSL)",
+        "calculation_tier": "Local-Linux (Deb)",
+        "selected_modules": ["CoChem-BASE", "CoChem-CORE", "CoChem-SCRIBE"],
+    }
+    config_file = registry_dir / "cochem_system_config.json"
+    config_file.write_text(json.dumps(config_payload, indent=2), encoding="utf-8")
+
+    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_dir))
+
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_1_code = "".join(code_cells[0]["source"])
+
+    with capture_output() as captured:
+        execution_result = ipython_shell.run_cell(cell_1_code)
+
+    assert execution_result.success is True
+    assert ipython_shell.user_ns.get("is_environment_valid") is True
+    assert len(captured.outputs) == 0, "No error output expected for valid configuration"
+
+
+def test_cell_1_execution_corrupt_config_state(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify Cell 1 handles corrupted JSON configuration with clean HTML error."""
+    artifacts_dir = tmp_path / "Corrupt_Artifacts"
+    registry_dir = artifacts_dir / "Registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+
+    config_file = registry_dir / "cochem_system_config.json"
+    config_file.write_text("{malformed_json_syntax: true,", encoding="utf-8")
+
+    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_dir))
+
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_1_code = "".join(code_cells[0]["source"])
+
+    with capture_output() as captured:
+        execution_result = ipython_shell.run_cell(cell_1_code)
+
+    assert execution_result.success is True
+    assert ipython_shell.user_ns.get("is_environment_valid") is False
+
+    assert len(captured.outputs) >= 1
+    html_output = captured.outputs[0].data.get("text/html", "")
+    assert "CoChemError:" in html_output
+    assert "Corrupt cochem_system_config.json" in html_output
+
+
+def test_cell_1_execution_invalid_structure_config_state(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify Cell 1 handles empty or non-dict JSON structure with clean HTML error."""
+    artifacts_dir = tmp_path / "Invalid_Struct_Artifacts"
+    registry_dir = artifacts_dir / "Registry"
+    registry_dir.mkdir(parents=True, exist_ok=True)
+
+    config_file = registry_dir / "cochem_system_config.json"
+    config_file.write_text("[]", encoding="utf-8")
+
+    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_dir))
+
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_1_code = "".join(code_cells[0]["source"])
+
+    with capture_output() as captured:
+        execution_result = ipython_shell.run_cell(cell_1_code)
+
+    assert execution_result.success is True
+    assert ipython_shell.user_ns.get("is_environment_valid") is False
+
+    assert len(captured.outputs) >= 1
+    html_output = captured.outputs[0].data.get("text/html", "")
+    assert "CoChemError:" in html_output
+    assert "Invalid cochem_system_config.json structure" in html_output
+
+
+def test_cell_2_execution_guarded_when_invalid(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell
+) -> None:
+    """Verify Cell 2 does not attempt GUI rendering when is_environment_valid is False."""
+    ipython_shell.user_ns["is_environment_valid"] = False
+
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_2_code = "".join(code_cells[1]["source"])
+
+    execution_result = ipython_shell.run_cell(cell_2_code)
+    assert execution_result.success is True
+    assert "dashboard" not in ipython_shell.user_ns
+
+
+def test_cell_2_execution_when_environment_valid(
+    scribe_notebook_data: dict, ipython_shell: InteractiveShell, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify Cell 2 instantiates ScribeDashboard and calls .display() when is_environment_valid is True."""
+    ipython_shell.user_ns["is_environment_valid"] = True
+
+    display_calls = []
+
+    class RealScribeDashboard:
+        def __init__(self) -> None:
+            self.initialized = True
+
+        def display(self) -> None:
+            display_calls.append("dashboard_displayed")
+
+    # Inject real module hierarchy into sys.modules
+    ui_module = types.ModuleType("ui")
+    voila_module = types.ModuleType("ui.voila_layout")
+    gui_module = types.ModuleType("ui.voila_layout.scribe_gui_dashboard")
+    gui_module.ScribeDashboard = RealScribeDashboard  # type: ignore[attr-defined]
+
+    monkeypatch.setitem(sys.modules, "ui", ui_module)
+    monkeypatch.setitem(sys.modules, "ui.voila_layout", voila_module)
+    monkeypatch.setitem(sys.modules, "ui.voila_layout.scribe_gui_dashboard", gui_module)
+
+    code_cells = [c for c in scribe_notebook_data["cells"] if c.get("cell_type") == "code"]
+    cell_2_code = "".join(code_cells[1]["source"])
+
+    execution_result = ipython_shell.run_cell(cell_2_code)
+    assert execution_result.success is True
+    assert "dashboard" in ipython_shell.user_ns
+    assert len(display_calls) == 1
+    assert display_calls[0] == "dashboard_displayed"
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

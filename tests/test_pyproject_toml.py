@@ -225,7 +225,7 @@ def test_pytest_tool_configuration(pyproject_data: Dict[str, Any]) -> None:
 
     testpaths = ini_options["testpaths"]
     assert isinstance(testpaths, list), "'testpaths' must be a list"
-    assert "test_suite" in testpaths, f"Expected 'test_suite' in testpaths, got: {testpaths}"
+    assert "tests" in testpaths, f"Expected 'tests' in testpaths, got: {testpaths}"
 
 
 def test_ruff_tool_configuration(pyproject_data: Dict[str, Any]) -> None:

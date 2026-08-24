@@ -1,0 +1,11 @@
+# CoChem-SCRIBE Stage 0.0 Authoritative Dependency Manifest
+# Governed by CoChem-SCRIBE SRS Phase 2, Task 4 (Method Matrix v4)
+
+google-genai
+llama-cpp-python
+jinja2
+tiktoken
+python-dotenv
+h5py
+psutil
+pydantic

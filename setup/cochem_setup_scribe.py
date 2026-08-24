@@ -23,14 +23,16 @@ import stat
 import subprocess
 import sys
 import uuid
+from datetime import datetime, timezone
 from enum import Enum
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import h5py
 import numpy as np
 import psutil
+import tiktoken
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 try:
@@ -103,11 +105,13 @@ DISALLOWED_KEY_PATTERNS: set[str] = {
 
 TIKTOKEN_ENCODING: str = "cl100k_base"
 RESOURCE_GUARD_RAM_THRESHOLD_GB: float = 8.0
+RESOURCE_GUARD_RAM_THRESHOLD_BYTES: float = 8.0 * (1024.0**3)
 
 
 # =============================================================================
 # 1. LOGGING INTERFACE INITIALIZATION (SRS Section 4.5)
 # =============================================================================
+
 
 class ScribeLogFormatter(logging.Formatter):
     """Custom formatter standardizing [SCRIBE-*] log prefixes across output streams."""
@@ -121,17 +125,27 @@ class ScribeLogFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_scribe_logger(log_dir: Optional[Path] = None) -> logging.Logger:
+def setup_scribe_logger(
+    log_dir: Optional[Path] = None,
+    log_filename: str = "cochem_scribe_api.log",
+) -> logging.Logger:
     """
     Initializes the CoChem-SCRIBE central logger with [SCRIBE-*] log prefixes
-    and a RotatingFileHandler to monitor and audit operations.
+    and a RotatingFileHandler strictly targeted to the Air-Gapped Data Tier
+    (e.g., $HOME/CoChem_Artifacts/Report_Archive/cochem_scribe_api.log) to track API token expenditures
+    without repository pollution.
     """
     logger_inst = logging.getLogger("CoChem-SCRIBE")
     logger_inst.setLevel(logging.INFO)
     logger_inst.propagate = False
 
-    # Clear existing handlers to prevent duplicate logging
+    # Clear and close existing handlers to prevent duplicate logging and unclosed file leaks
     if logger_inst.hasHandlers():
+        for h in list(logger_inst.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
         logger_inst.handlers.clear()
 
     formatter = ScribeLogFormatter(
@@ -147,7 +161,7 @@ def setup_scribe_logger(log_dir: Optional[Path] = None) -> logging.Logger:
     if log_dir is not None:
         log_dir_path = Path(log_dir).resolve()
         log_dir_path.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir_path / "scribe_audit.log"
+        log_file = log_dir_path / log_filename
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=10 * 1024 * 1024,  # 10 MB
@@ -168,8 +182,10 @@ logger = setup_scribe_logger()
 # 2. ENUMS & PYDANTIC SCHEMA EXTENSIONS (SRS Section 4.2)
 # =============================================================================
 
+
 class PreferredLLMModel(str, Enum):
     """Authoritative LLM execution engines supported in CoChem-SCRIBE."""
+
     GOOGLE_GENAI = "google-genai"
     LLAMA_CPP = "llama-cpp"
 
@@ -179,13 +195,22 @@ class ScribeSettings(BaseModel):
     Pydantic-validated environment, silo, and execution settings for CoChem-SCRIBE.
     Strictly forbids extra fields and relative paths.
     """
+
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
-    silo_path: str = Field(..., description="Absolute path to the scribe_llm environment or Python executable")
-    api_key_paths: str = Field(..., description="Absolute path to the secure .env file in the Data Tier")
+    silo_path: str = Field(
+        ..., description="Absolute path to the scribe_llm environment or Python executable"
+    )
+    api_key_paths: str = Field(
+        ..., description="Absolute path to the secure .env file in the Data Tier"
+    )
     resource_guard: bool = Field(default=True, description="Hardware resource guard flag")
-    preferred_llm_model: str = Field(default=PreferredLLMModel.GOOGLE_GENAI.value, description="Preferred LLM model")
-    latex_ready: bool = Field(default=False, description="Dynamic boolean set during pre-flight OS probing")
+    preferred_llm_model: str = Field(
+        default=PreferredLLMModel.GOOGLE_GENAI.value, description="Preferred LLM model"
+    )
+    latex_ready: bool = Field(
+        default=False, description="Dynamic boolean set during pre-flight OS probing"
+    )
 
     @field_validator("preferred_llm_model")
     @classmethod
@@ -202,30 +227,41 @@ class ScribeSettings(BaseModel):
             raise ValueError("Path must not be empty.")
         p = Path(v)
         if not p.is_absolute():
-            raise ValueError(f"Relative paths are strictly forbidden in ScribeSettings: '{v}'. Must be absolute.")
+            raise ValueError(
+                f"Relative paths are strictly forbidden in ScribeSettings: '{v}'. Must be absolute."
+            )
         return str(p)
 
 
 if CoChemSystemConfig is not None:
+
     class ScribeExtendedSystemConfig(CoChemSystemConfig):  # type: ignore
         """
         Master Golden Registry extension containing dedicated scribe_settings
         without invalidating upstream CoChem-BASE schema fields.
         """
+
         model_config = ConfigDict(extra="forbid", validate_assignment=True)
-        scribe_settings: Optional[ScribeSettings] = Field(default=None, description="CoChem-SCRIBE configuration")
+        scribe_settings: Optional[ScribeSettings] = Field(
+            default=None, description="CoChem-SCRIBE configuration"
+        )
 else:
+
     class ScribeExtendedSystemConfig(BaseModel):  # type: ignore
         """Fallback standalone configuration schema if CoChemSystemConfig base is unresolvable."""
+
         model_config = ConfigDict(extra="allow", validate_assignment=True)
         schema_version: str = Field(default="4.0.0")
         registry_checksum: Optional[str] = Field(default="")
-        scribe_settings: Optional[ScribeSettings] = Field(default=None, description="CoChem-SCRIBE configuration")
+        scribe_settings: Optional[ScribeSettings] = Field(
+            default=None, description="CoChem-SCRIBE configuration"
+        )
 
 
 # =============================================================================
 # 3. MICRO-SILO BUILDER & DEPENDENCY LOCKING (SRS Section 4.1)
 # =============================================================================
+
 
 def _normalize_pkg_name(pkg: str) -> str:
     """Extracts lowercase base package name stripped of version specifiers and extras."""
@@ -244,18 +280,22 @@ def generate_requirements_manifest(
 
     if custom_packages is not None:
         forbidden = [
-            pkg for pkg in custom_packages
+            pkg
+            for pkg in custom_packages
             if any(fb in _normalize_pkg_name(pkg) for fb in FORBIDDEN_DEPENDENCIES)
         ]
         if forbidden:
-            raise ValueError(f"Unapproved or forbidden dependencies detected in manifest generation: {forbidden}")
+            raise ValueError(
+                f"Unapproved or forbidden dependencies detected in manifest generation: {forbidden}"
+            )
 
         unapproved = [
-            pkg for pkg in custom_packages
-            if _normalize_pkg_name(pkg) not in approved_base_set
+            pkg for pkg in custom_packages if _normalize_pkg_name(pkg) not in approved_base_set
         ]
         if unapproved:
-            raise ValueError(f"Unapproved dependencies rejected by micro-silo whitelist: {unapproved}")
+            raise ValueError(
+                f"Unapproved dependencies rejected by micro-silo whitelist: {unapproved}"
+            )
 
         packages = list(custom_packages)
     else:
@@ -283,6 +323,7 @@ def generate_requirements_manifest(
 # =============================================================================
 # 4. AIR-GAP DIRECTORY INITIALIZATION & CREDENTIAL PROVISIONING (SRS Section 4.3)
 # =============================================================================
+
 
 def is_inside_git_tree(path: Path) -> bool:
     """Detects whether a target directory resides inside a Git repository working tree."""
@@ -347,7 +388,9 @@ def validate_credential_security(env_path: Path) -> bool:
 
     # Verify that the current process has read access
     if not os.access(env_path, os.R_OK):
-        raise PermissionError(f"Security validation failed: Process cannot read credential file at {env_path}")
+        raise PermissionError(
+            f"Security validation failed: Process cannot read credential file at {env_path}"
+        )
 
     # Enforce POSIX 0o600 on non-Windows platforms
     if platform.system() != "Windows":
@@ -372,7 +415,8 @@ def provision_secure_credentials(
     allow_git_nested: bool = False,
 ) -> Path:
     """
-    Generates the .env file exclusively inside the Air-Gapped output directory ($HOME/CoChem_Artifacts/).
+    Generates the .env file exclusively inside the Air-Gapped output directory
+    ($HOME/CoChem_Artifacts/Report_Archive/.env).
     Populates exclusively with authentic, validated credential payloads.
     Fails fast upon missing credentials.
     """
@@ -383,14 +427,20 @@ def provision_secure_credentials(
             f"Air-Gap boundary violation: Cannot provision credentials in '{root}' because it is inside a Git repository."
         )
 
-    os.makedirs(root, exist_ok=True)
-    env_path = root / env_filename
+    report_archive_dir = root / "Report_Archive"
+    os.makedirs(report_archive_dir, exist_ok=True)
+    env_path = report_archive_dir / env_filename
 
-    resolved_key = api_key or os.environ.get("GEMINI_API_KEY", "")
-    resolved_key = resolved_key.strip()
+    resolved_key = (api_key or os.environ.get("GEMINI_API_KEY") or "").strip()
 
-    if not resolved_key or resolved_key.lower() in DISALLOWED_KEY_PATTERNS or len(resolved_key) < 10:
-        raise ValueError("Missing or invalid authentic API credentials. GEMINI_API_KEY must be provided and authentic.")
+    if (
+        not resolved_key
+        or resolved_key.lower() in DISALLOWED_KEY_PATTERNS
+        or len(resolved_key) < 10
+    ):
+        raise ValueError(
+            "Missing or invalid authentic API credentials. GEMINI_API_KEY must be provided and authentic."
+        )
 
     # Write .env securely
     content = f"GEMINI_API_KEY={resolved_key}\n"
@@ -413,6 +463,52 @@ def provision_secure_credentials(
 # 5. HARDWARE-AWARE GUARDRAILS: RESOURCE_GUARD PROTOCOL (SRS Section 4.4)
 # =============================================================================
 
+
+def _log_audit_event(
+    event_type: str,
+    message: str,
+    level: str = "WARNING",
+    report_archive_dir: Optional[Path] = None,
+) -> Path:
+    """
+    Appends an intervention/audit event to the central audit log:
+    $HOME/CoChem_Artifacts/Report_Archive/cochem_audit_log.json
+    using atomic file replacement for HPC and cluster safety.
+    """
+    if report_archive_dir is None:
+        report_archive_dir = get_cochem_artifacts_dir() / "Report_Archive"
+    report_archive_dir = Path(report_archive_dir).resolve()
+    report_archive_dir.mkdir(parents=True, exist_ok=True)
+    audit_file = report_archive_dir / "cochem_audit_log.json"
+
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "level": f"[SCRIBE-{level.upper()}]",
+        "event_type": event_type,
+        "message": message,
+    }
+
+    logs: List[Dict[str, Any]] = []
+    if audit_file.exists():
+        try:
+            content = audit_file.read_text(encoding="utf-8").strip()
+            if content:
+                loaded = json.loads(content)
+                if isinstance(loaded, list):
+                    logs = loaded
+                elif isinstance(loaded, dict):
+                    logs = [loaded]
+        except Exception:
+            logs = []
+
+    logs.append(entry)
+
+    temp_file = audit_file.parent / f".tmp_{audit_file.name}_{uuid.uuid4().hex[:8]}"
+    temp_file.write_text(json.dumps(logs, indent=2), encoding="utf-8")
+    os.replace(temp_file, audit_file)
+    return audit_file
+
+
 def evaluate_resource_guard(
     requested_model: str = PreferredLLMModel.LLAMA_CPP.value,
     override_ram_gb: Optional[float] = None,
@@ -420,16 +516,19 @@ def evaluate_resource_guard(
     artifacts_root: Optional[Path] = None,
 ) -> Tuple[bool, str]:
     """
-    Evaluates host RAM against the 8.0 GB threshold.
+    Evaluates host RAM against the 8.0 GB threshold (< 8.0 * 1024^3 bytes).
     If RAM < 8.0 GB, triggers RESOURCE_GUARD, forces state override to 'google-genai',
-    and fails fast if API credentials are missing.
+    fails fast if API credentials are missing, and logs intervention to cochem_audit_log.json.
     """
     if override_ram_gb is not None:
         total_ram_gb = float(override_ram_gb)
     else:
-        total_ram_gb = psutil.virtual_memory().total / (1024.0 ** 3)
+        total_ram_gb = psutil.virtual_memory().total / (1024.0**3)
 
     if total_ram_gb < RESOURCE_GUARD_RAM_THRESHOLD_GB:
+        root = Path(artifacts_root).resolve() if artifacts_root else get_cochem_artifacts_dir()
+        report_archive_dir = root / "Report_Archive"
+
         logger.warning(
             f"System RAM ({total_ram_gb:.2f} GB) < {RESOURCE_GUARD_RAM_THRESHOLD_GB} GB threshold. "
             "RESOURCE_GUARD triggered: Forcefully routing execution state to 'google-genai'."
@@ -438,20 +537,34 @@ def evaluate_resource_guard(
         # Check API key availability authentically
         if api_key_available is None:
             api_key_env = os.environ.get("GEMINI_API_KEY", "").strip()
-            root = Path(artifacts_root).resolve() if artifacts_root else get_cochem_artifacts_dir()
-            artifacts_env = root / ".env"
+            candidates = [
+                report_archive_dir / ".env",
+                root / ".env",
+            ]
             has_file_key = False
-            if artifacts_env.exists():
-                try:
-                    for line in artifacts_env.read_text(encoding="utf-8").splitlines():
-                        if line.startswith("GEMINI_API_KEY="):
-                            val = line.split("=", 1)[1].strip()
-                            if val and val.lower() not in DISALLOWED_KEY_PATTERNS and len(val) >= 10:
-                                has_file_key = True
-                                break
-                except Exception:
-                    pass
-            has_env_key = bool(api_key_env and api_key_env.lower() not in DISALLOWED_KEY_PATTERNS and len(api_key_env) >= 10)
+            for cand in candidates:
+                if cand.exists():
+                    try:
+                        for line in cand.read_text(encoding="utf-8").splitlines():
+                            if line.startswith("GEMINI_API_KEY="):
+                                val = line.split("=", 1)[1].strip()
+                                if (
+                                    val
+                                    and val.lower() not in DISALLOWED_KEY_PATTERNS
+                                    and len(val) >= 10
+                                ):
+                                    has_file_key = True
+                                    break
+                    except Exception:
+                        pass
+                if has_file_key:
+                    break
+
+            has_env_key = bool(
+                api_key_env
+                and api_key_env.lower() not in DISALLOWED_KEY_PATTERNS
+                and len(api_key_env) >= 10
+            )
             api_key_available = has_env_key or has_file_key
 
         if not api_key_available:
@@ -461,6 +574,20 @@ def evaluate_resource_guard(
                 "Aborting initialization."
             )
 
+        # Explicitly log intervention to central audit log as [SCRIBE-WARNING]
+        try:
+            _log_audit_event(
+                event_type="RESOURCE_GUARD_RAM_OVERRIDE",
+                message=(
+                    f"RESOURCE_GUARD intervention: Total RAM ({total_ram_gb:.2f} GB) is below 8.0 GB threshold. "
+                    f"Local model '{requested_model}' intercepted; execution state forced to 'google-genai'."
+                ),
+                level="WARNING",
+                report_archive_dir=report_archive_dir,
+            )
+        except Exception as audit_err:
+            logger.warning(f"Could not write to central audit log: {audit_err}")
+
         return True, PreferredLLMModel.GOOGLE_GENAI.value
 
     return False, requested_model
@@ -469,6 +596,7 @@ def evaluate_resource_guard(
 # =============================================================================
 # 6. BASE UTILITIES & OS-LEVEL PROBING (SRS Section 4.5)
 # =============================================================================
+
 
 def get_dynamic_atomic_mass(symbol: str) -> float:
     """
@@ -480,7 +608,9 @@ def get_dynamic_atomic_mass(symbol: str) -> float:
     elem_data = element(symbol)
     mass_val = getattr(elem_data, "mass", None)
     if mass_val is None:
-        raise ValueError(f"Could not retrieve atomic mass for element symbol '{symbol}' from mendeleev.")
+        raise ValueError(
+            f"Could not retrieve atomic mass for element symbol '{symbol}' from mendeleev."
+        )
     return float(mass_val)
 
 
@@ -508,6 +638,25 @@ def probe_latex_environment() -> bool:
                 logger.warning(f"Error checking LaTeX binary '{binary}': {exc}")
     logger.info("No LaTeX engine (pdflatex/xelatex) detected on OS PATH.")
     return False
+
+
+def validate_tiktoken_encoding(encoding_name: str = TIKTOKEN_ENCODING) -> bool:
+    """
+    Validates that tiktoken tokenizer is functional and supports the specified encoding (cl100k_base).
+    """
+    try:
+        enc = tiktoken.get_encoding(encoding_name)
+        tokens = enc.encode("CoChem-SCRIBE Token Verification Payload")
+        decoded = enc.decode(tokens)
+        if decoded != "CoChem-SCRIBE Token Verification Payload":
+            raise ValueError(f"Tiktoken round-trip decode failed for encoding '{encoding_name}'.")
+        logger.info(
+            f"Tiktoken encoding '{encoding_name}' validated successfully ({len(tokens)} tokens)."
+        )
+        return True
+    except Exception as exc:
+        logger.error(f"Tiktoken encoding validation failed for '{encoding_name}': {exc}")
+        raise
 
 
 def validate_hdf5_compression(test_dir: Optional[Path] = None) -> bool:
@@ -543,7 +692,9 @@ def validate_hdf5_compression(test_dir: Optional[Path] = None) -> bool:
         with h5py.File(str(temp_h5_path), "r") as h5f:
             read_back = h5f["quantum_grid_slice"][()]
             if not np.allclose(grid_data, read_back):  # type: ignore[attr-defined]
-                raise ValueError("HDF5 data integrity mismatch during gzip+shuffle+fletcher32 round-trip.")
+                raise ValueError(
+                    "HDF5 data integrity mismatch during gzip+shuffle+fletcher32 round-trip."
+                )
 
         logger.info("HDF5 gzip+shuffle+fletcher32 compression pipeline validated successfully.")
         return True
@@ -558,6 +709,7 @@ def validate_hdf5_compression(test_dir: Optional[Path] = None) -> bool:
 # =============================================================================
 # 7. THE GOLDEN REGISTRY LINKER & HPC CONCURRENCY (SRS Section 4.2)
 # =============================================================================
+
 
 def update_scribe_registry(
     config_path: Optional[Path] = None,
@@ -581,14 +733,18 @@ def update_scribe_registry(
                 raw_dict["scribe_settings"] = scribe_settings.model_dump()
             extended_config = ScribeExtendedSystemConfig.model_validate(raw_dict)
         except Exception as exc:
-            logger.warning(f"Error parsing existing registry at {config_path} ({exc}); initializing fresh configuration.")
+            logger.warning(
+                f"Error parsing existing registry at {config_path} ({exc}); initializing fresh configuration."
+            )
             extended_config = _create_fresh_extended_config(scribe_settings)
     else:
         extended_config = _create_fresh_extended_config(scribe_settings)
 
     # Compute deterministic SHA-256 checksum
     serialized_dict = extended_config.model_dump(exclude={"registry_checksum", "last_updated"})
-    cs = hashlib.sha256(json.dumps(serialized_dict, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    cs = hashlib.sha256(
+        json.dumps(serialized_dict, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
     extended_config.registry_checksum = cs
 
     # Atomic write to filesystem via temporary staging file and os.replace (HPC & Clustered safe)
@@ -600,7 +756,9 @@ def update_scribe_registry(
     return extended_config
 
 
-def _create_fresh_extended_config(scribe_settings: Optional[ScribeSettings]) -> ScribeExtendedSystemConfig:
+def _create_fresh_extended_config(
+    scribe_settings: Optional[ScribeSettings],
+) -> ScribeExtendedSystemConfig:
     """Helper to instantiate default configuration with ScribeSettings."""
     if CoChemSystemConfig is not None:
         if discover_host_hardware is not None:
@@ -637,6 +795,7 @@ def _create_fresh_extended_config(scribe_settings: Optional[ScribeSettings]) -> 
 # 8. MASTER STAGE 0.0 SETUP ORCHESTRATOR
 # =============================================================================
 
+
 def setup_scribe_environment(
     artifacts_root: Optional[Path] = None,
     api_key: Optional[str] = None,
@@ -646,44 +805,48 @@ def setup_scribe_environment(
     """
     Executes the complete CoChem-SCRIBE Stage 0.0 setup workflow:
     1. Initializes Air-Gapped output directories outside the Git repository.
-    2. Generates locked requirements manifest (requirements_scribe.txt).
-    3. Provisions authentic credentials (.env) with POSIX 0o600 privilege lock.
-    4. Evaluates hardware against RESOURCE_GUARD protocol (< 8.0 GB RAM constraint).
-    5. Probes OS environment for LaTeX (pdflatex/xelatex).
-    6. Validates HDF5 Method Matrix v4 compression pipeline (gzip+shuffle+fletcher32).
-    7. Updates Golden Registry with Pydantic-validated scribe_settings atomically.
+    2. Configures logger with RotatingFileHandler targeted to Report_Archive/cochem_scribe_api.log.
+    3. Validates Tiktoken cl100k_base tokenizer.
+    4. Generates locked requirements manifest (requirements_scribe.txt).
+    5. Provisions authentic credentials (.env) inside Report_Archive with POSIX 0o600 privilege lock.
+    6. Evaluates hardware against RESOURCE_GUARD protocol (< 8.0 GB RAM constraint) and logs audit events.
+    7. Probes OS environment for LaTeX (pdflatex/xelatex).
+    8. Validates HDF5 Method Matrix v4 compression pipeline (gzip+shuffle+fletcher32).
+    9. Updates Golden Registry with Pydantic-validated scribe_settings atomically.
     """
     # 1. Directory Structure
     dirs = init_airgap_directories(artifacts_root, allow_git_nested=allow_git_nested)
-    log_dir = dirs["logs"]
-    setup_scribe_logger(log_dir)
+    setup_scribe_logger(dirs["report_archive"], log_filename="cochem_scribe_api.log")
 
     logger.info("Initializing CoChem-SCRIBE Stage 0.0 Environment Setup...")
 
-    # 2. Dependency Locking
+    # 2. Tokenizer validation
+    validate_tiktoken_encoding(TIKTOKEN_ENCODING)
+
+    # 3. Dependency Locking
     manifest_path = dirs["registry"] / "requirements_scribe.txt"
     generate_requirements_manifest(manifest_path)
 
-    # 3. Secure Credentials
+    # 4. Secure Credentials in Report_Archive/.env
     env_path = provision_secure_credentials(
         api_key=api_key,
         artifacts_root=dirs["root"],
         allow_git_nested=allow_git_nested,
     )
 
-    # 4. Hardware Resource Guard
+    # 5. Hardware Resource Guard
     _, effective_model = evaluate_resource_guard(
         requested_model=preferred_model,
         artifacts_root=dirs["root"],
     )
 
-    # 5. OS LaTeX Probing
+    # 6. OS LaTeX Probing
     latex_ready = probe_latex_environment()
 
-    # 6. HDF5 Compression Validation
-    validate_hdf5_compression(log_dir)
+    # 7. HDF5 Compression Validation
+    validate_hdf5_compression(dirs["logs"])
 
-    # 7. Scribe Settings & Golden Registry Linker
+    # 8. Scribe Settings & Golden Registry Linker
     silo_path = dirs["scribe_silo"]
     settings = ScribeSettings(
         silo_path=str(silo_path.resolve()),
@@ -703,7 +866,9 @@ def setup_scribe_environment(
 def main() -> None:
     """CLI entry point for CoChem-SCRIBE Stage 0.0 setup."""
     parser = argparse.ArgumentParser(description="CoChem-SCRIBE Stage 0.0 Setup Orchestrator")
-    parser.add_argument("--artifacts-dir", type=str, default=None, help="Path to artifacts root directory")
+    parser.add_argument(
+        "--artifacts-dir", type=str, default=None, help="Path to artifacts root directory"
+    )
     parser.add_argument("--api-key", type=str, default=None, help="Google Gemini API key")
     parser.add_argument(
         "--model",

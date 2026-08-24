@@ -34,6 +34,7 @@ from setup.cochem_setup_scribe import (
     update_scribe_registry,
     validate_credential_security,
     validate_hdf5_compression,
+    validate_tiktoken_encoding,
 )
 
 
@@ -43,6 +44,15 @@ def temp_airgap_env(tmp_path: Path) -> Generator[Path, None, None]:
     test_artifacts_dir = tmp_path / "CoChem_Artifacts"
     test_artifacts_dir.mkdir(parents=True, exist_ok=True)
     yield test_artifacts_dir
+    # Close any active logger handlers before directory teardown
+    scribe_logger = logging.getLogger("CoChem-SCRIBE")
+    if scribe_logger.hasHandlers():
+        for h in list(scribe_logger.handlers):
+            try:
+                h.close()
+            except Exception:
+                pass
+        scribe_logger.handlers.clear()
     if test_artifacts_dir.exists():
         shutil.rmtree(test_artifacts_dir, ignore_errors=True)
 
@@ -56,23 +66,40 @@ class TestScribeDependencies:
 
         assert generated_path.exists()
         content = generated_path.read_text(encoding="utf-8").strip().splitlines()
-        manifest_packages = [line.split("==")[0].split(">=")[0].strip() for line in content if line.strip()]
+        manifest_packages = [
+            line.split("==")[0].split(">=")[0].strip()
+            for line in content
+            if line.strip() and not line.startswith("#")
+        ]
 
         for approved in APPROVED_SCRIBE_DEPENDENCIES:
-            assert approved in manifest_packages, f"Approved dependency '{approved}' missing from manifest."
+            assert approved in manifest_packages, (
+                f"Approved dependency '{approved}' missing from manifest."
+            )
 
         for forbidden in FORBIDDEN_DEPENDENCIES:
-            assert forbidden not in manifest_packages, f"Forbidden package '{forbidden}' detected in manifest!"
+            assert forbidden not in manifest_packages, (
+                f"Forbidden package '{forbidden}' detected in manifest!"
+            )
 
     def test_manifest_rejects_forbidden_injection(self, temp_airgap_env: Path) -> None:
         manifest_file = temp_airgap_env / "requirements_scribe_custom.txt"
         with pytest.raises(ValueError, match="Unapproved or forbidden dependencies detected"):
-            generate_requirements_manifest(manifest_file, custom_packages=["google-genai", "tenacity"])
+            generate_requirements_manifest(
+                manifest_file, custom_packages=["google-genai", "tenacity"]
+            )
 
     def test_manifest_rejects_unapproved_injection(self, temp_airgap_env: Path) -> None:
         manifest_file = temp_airgap_env / "requirements_scribe_unapproved.txt"
-        with pytest.raises(ValueError, match="Unapproved dependencies rejected by micro-silo whitelist"):
-            generate_requirements_manifest(manifest_file, custom_packages=["google-genai", "unapproved_pkg_xyz"])
+        with pytest.raises(
+            ValueError, match="Unapproved dependencies rejected by micro-silo whitelist"
+        ):
+            generate_requirements_manifest(
+                manifest_file, custom_packages=["google-genai", "unapproved_pkg_xyz"]
+            )
+
+    def test_tiktoken_encoding_validation(self) -> None:
+        assert validate_tiktoken_encoding("cl100k_base") is True
 
 
 class TestScribeRegistrySchema:
@@ -81,7 +108,9 @@ class TestScribeRegistrySchema:
     def test_scribe_settings_valid(self, temp_airgap_env: Path) -> None:
         silo_path = temp_airgap_env / "Silos" / "scribe_llm"
         silo_path.mkdir(parents=True, exist_ok=True)
-        env_file = temp_airgap_env / ".env"
+        report_archive = temp_airgap_env / "Report_Archive"
+        report_archive.mkdir(parents=True, exist_ok=True)
+        env_file = report_archive / ".env"
         env_file.write_text("GEMINI_API_KEY=AIzaSyValidRealKey12345\n", encoding="utf-8")
 
         settings = ScribeSettings(
@@ -118,9 +147,11 @@ class TestScribeRegistrySchema:
 
     def test_extended_config_preserves_registry(self, temp_airgap_env: Path) -> None:
         silo_path = temp_airgap_env / "Silos" / "scribe_llm"
-        env_file = temp_airgap_env / ".env"
+        report_archive = temp_airgap_env / "Report_Archive"
         silo_path.mkdir(parents=True, exist_ok=True)
-        env_file.write_text("GEMINI_API_KEY=test_key\n", encoding="utf-8")
+        report_archive.mkdir(parents=True, exist_ok=True)
+        env_file = report_archive / ".env"
+        env_file.write_text("GEMINI_API_KEY=AIzaSyValidProductionKey123\n", encoding="utf-8")
 
         settings = ScribeSettings(
             silo_path=str(silo_path.resolve()),
@@ -164,6 +195,7 @@ class TestSecureCredentialProvisioning:
             allow_git_nested=True,
         )
         assert env_path.exists()
+        assert env_path.parent == temp_airgap_env / "Report_Archive"
         content = env_path.read_text(encoding="utf-8")
         assert "GEMINI_API_KEY=AIzaSyAuthenticApiKeyPayloadForVerification777" in content
 
@@ -198,15 +230,27 @@ class TestSecureCredentialProvisioning:
 class TestResourceGuardProtocol:
     """SRS Section 4.4: Hardware-Aware Guardrails: RESOURCE_GUARD Protocol."""
 
-    def test_resource_guard_triggers_below_8gb(self) -> None:
+    def test_resource_guard_triggers_below_8gb(self, temp_airgap_env: Path) -> None:
         # Override RAM to 6.0 GB to test constraint
+        report_archive = temp_airgap_env / "Report_Archive"
+        report_archive.mkdir(parents=True, exist_ok=True)
+
         triggered, model = evaluate_resource_guard(
             requested_model="llama-cpp",
             override_ram_gb=6.0,
             api_key_available=True,
+            artifacts_root=temp_airgap_env,
         )
         assert triggered is True
         assert model == PreferredLLMModel.GOOGLE_GENAI.value
+
+        # Check central audit log recording
+        audit_file = report_archive / "cochem_audit_log.json"
+        assert audit_file.exists()
+        logs = json.loads(audit_file.read_text(encoding="utf-8"))
+        assert len(logs) >= 1
+        assert logs[-1]["level"] == "[SCRIBE-WARNING]"
+        assert logs[-1]["event_type"] == "RESOURCE_GUARD_RAM_OVERRIDE"
 
     def test_resource_guard_passes_above_8gb(self) -> None:
         triggered, model = evaluate_resource_guard(
@@ -217,12 +261,13 @@ class TestResourceGuardProtocol:
         assert triggered is False
         assert model == "llama-cpp"
 
-    def test_resource_guard_fail_fast_missing_api_key(self) -> None:
+    def test_resource_guard_fail_fast_missing_api_key(self, temp_airgap_env: Path) -> None:
         with pytest.raises(RuntimeError, match="RESOURCE_GUARD triggered due to total RAM"):
             evaluate_resource_guard(
                 requested_model="llama-cpp",
                 override_ram_gb=4.0,
                 api_key_available=False,
+                artifacts_root=temp_airgap_env,
             )
 
 
@@ -241,14 +286,14 @@ class TestOSProbingAndHDF5:
         assert success is True
 
     def test_scribe_logger_setup(self, temp_airgap_env: Path) -> None:
-        log_dir = temp_airgap_env / "Logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        logger_inst = setup_scribe_logger(log_dir)
+        report_archive = temp_airgap_env / "Report_Archive"
+        report_archive.mkdir(parents=True, exist_ok=True)
+        logger_inst = setup_scribe_logger(report_archive, log_filename="cochem_scribe_api.log")
 
         assert isinstance(logger_inst, logging.Logger)
         logger_inst.info("Test SCRIBE audit message")
 
-        log_file = log_dir / "scribe_audit.log"
+        log_file = report_archive / "cochem_scribe_api.log"
         assert log_file.exists()
         content = log_file.read_text(encoding="utf-8")
         assert "[SCRIBE-" in content
@@ -261,9 +306,18 @@ class TestMendeleevIntegration:
         c_mass = get_dynamic_atomic_mass("C")
         h_mass = get_dynamic_atomic_mass("H")
         o_mass = get_dynamic_atomic_mass("O")
+        n_mass = get_dynamic_atomic_mass("N")
+        fe_mass = get_dynamic_atomic_mass("Fe")
+
         assert 12.0 <= c_mass <= 12.02
         assert 1.0 <= h_mass <= 1.01
         assert 15.99 <= o_mass <= 16.00
+        assert 14.00 <= n_mass <= 14.01
+        assert 55.84 <= fe_mass <= 55.85
+
+    def test_mendeleev_invalid_symbol(self) -> None:
+        with pytest.raises((ValueError, KeyError)):
+            get_dynamic_atomic_mass("InvalidElementSymbol999")
 
 
 class TestFullScribeSetupWorkflow:
@@ -282,3 +336,5 @@ class TestFullScribeSetupWorkflow:
         assert config.scribe_settings.preferred_llm_model == "google-genai"
         assert Path(config.scribe_settings.api_key_paths).exists()
         assert Path(config.scribe_settings.silo_path).exists()
+        assert (temp_airgap_env / "Report_Archive" / "cochem_scribe_api.log").exists()
+        assert (temp_airgap_env / "Registry" / "requirements_scribe.txt").exists()

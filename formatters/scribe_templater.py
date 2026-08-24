@@ -137,7 +137,9 @@ class Jinja2Templater:
         self.env.filters["siunitx_qty"] = self.format_siunitx_qty
         self.env.filters["chemfig"] = self.render_chemfig
 
-    def format_siunitx_num(self, value: Union[float, int, str]) -> str:
+    def format_siunitx_num(
+        self, value: Union[float, int, str, np.integer, np.floating, Any]
+    ) -> str:
         """Formats numerical scalars and scientific notation into LaTeX \\num{...} syntax.
 
         Args:
@@ -165,7 +167,9 @@ class Jinja2Templater:
 
         return self.sanitize_latex(val_str)
 
-    def format_siunitx_qty(self, value: Union[float, int, str], unit: str) -> str:
+    def format_siunitx_qty(
+        self, value: Union[float, int, str, np.integer, np.floating, Any], unit: str
+    ) -> str:
         """Formats numerical quantities and units into LaTeX \\qty{...}{...} syntax.
 
         Args:
@@ -244,7 +248,7 @@ class Jinja2Templater:
             r"\centering",
         ]
         if caption:
-            lines.append(rf"\caption{{{caption}}}")
+            lines.append(rf"\caption{{{self.sanitize_latex(caption)}}}")
         if label:
             lines.append(rf"\label{{{label}}}")
 
@@ -301,7 +305,9 @@ class Jinja2Templater:
 
         # Validate SMILES string with RDKit if present
         try:
-            from rdkit import Chem, RDLogger
+            import importlib
+            Chem = importlib.import_module("rdkit.Chem")
+            RDLogger = importlib.import_module("rdkit.RDLogger")
 
             RDLogger.DisableLog("rdApp.*")
             mol = Chem.MolFromSmiles(clean_smiles)

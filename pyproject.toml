@@ -86,6 +86,8 @@ module = [
     "cochem_torq_grid.*",
     "parsl.*",
     "molsym.*",
-    "cochem_torq_orca.*"
+    "cochem_torq_orca.*",
+    "pandas.*",
+    "jinja2.*"
 ]
 ignore_missing_imports = true

@@ -1,59 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\02_scribe_gui_dashboard_py.md.
-Original prompt:
-# Phase 1, Task 3: Voila GUI Component Architecture (`ui/voila_layout/scribe_gui_dashboard.py`)
-
-**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-**Target File to Create:** `ui/voila_layout/scribe_gui_dashboard.py`
-
-## Objective
-Implement the interactive Voila GUI layout using an `ipywidgets.Tab` component architecture to segment complexity, strictly conforming to the CoChem-SCRIBE Software Requirements Specification (SRS Phase 1, Task 3), Method Matrix v4, FAIR data principles, and the 6-Tier Environment Matrix (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC). This dashboard must dynamically poll actual system resources, enforce strict asynchronous DOM protection, maintain Bipartite Air-Gap isolation, and eliminate mock or stub logic.
-
-## Requirements
-
-### Architecture & Base Component (`ScribeDashboard`)
-- Define the `ScribeDashboard` class with a `.display()` method that renders the CSS-styled top-level `ipywidgets.Tab` interface.
-- Implement an `asyncio` wrapper for the execution and compilation workflow to prevent kernel and DOM freezing during local LLM generation and pdflatex compilation.
-
-### Tab 1: Hardware HUD & Inference Routing (`RESOURCE_GUARD`)
-- **Resource Matrix Display (`ipywidgets.HTML`):** Render a styled HTML table dynamically polling:
-  - Total System RAM and Available RAM (via `psutil.virtual_memory()`).
-  - Available VRAM (via `pynvml` or `torch.cuda`, safely wrapped in `try/except` for non-NVIDIA / headless / CPU environments).
-  - Free Disk Space on the active partition (polled via `shutil.disk_usage(pathlib.Path.home())`).
-- **Engine Selector Dropdown (`ipywidgets.Dropdown`):** Options: `['Local Llama.cpp', 'Gemini API', 'Dry-Run Template']`.
-- **The RESOURCE_GUARD Lock:** Retrieve the physical host system RAM via `psutil.virtual_memory().total`. If $< 8.0\text{ GB}$, the `Local Llama.cpp` option must be programmatically disabled (`disabled=True`) with a didactic tooltip/description: `"Insufficient RAM to load 4GB+ .gguf local weights. Route to API or use Dry-Run."`
-- **API Credential Status (`ipywidgets.Password`):** Provide a secure input field for API keys (e.g., `GEMINI_API_KEY`). Upon entry, serialize the credential string directly to `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / ".env"` and apply POSIX `0o600` permissions via `os.chmod()`. The UI must never retain raw keys in persistent widget memory or expose them to notebook state.
-
-### Tab 2: Document & Provenance Configuration
-- **Report Toggle (`ipywidgets.Checkbox`):** Independent checkboxes for `Generate LaTeX Manuscript` and `Generate Markdown User Guide`.
-- **Target Journal Scaffolding (`ipywidgets.Dropdown`):** Options: `['ACS Standard', 'AASTeX (Astrophysics)', 'Generic APS']` (modifies which Jinja2 template is dispatched).
-- **Citation API Trigger (`ipywidgets.Checkbox`):** Toggle for `"Enable CrossRef DOI Autofill"`. When disabled, instructs the backend to utilize local, pre-compiled `.bib` libraries to guarantee 100% offline Air-Gap execution and eliminate mock citations.
-- **Artifact Settings (`ipywidgets.Checkbox`):** Boolean toggle to compress massive 3D grids (`>50MB`) via Zstandard before payload inclusion.
-- **Methodology Justification Level (`ipywidgets.Dropdown`):** Allows forcing the LLM to justify algorithm choices (e.g., forcing justification of Sinc-DVR triggers over rigid-rotor approximations).
-
-### Tab 3: Execution Telemetry & Compilation Status
-- **Master Execution Button (`ipywidgets.Button`):** Labeled `"Generate CoChem Report"`.
-- **State Lockdown Protocol:** On click, synchronously traverse all input widgets across Tab 1 and Tab 2 and set `disabled=True` to prevent state corruption during synthesis. Restore widget state upon completion or error.
-- **5-Step Progress Bar (`ipywidgets.IntProgress`):** An `ipywidgets.IntProgress` (0 to 5) mapped to the `cochem_scribe_master.py` 5-step loop:
-  1. *Sweep HDF5 Anchors & Format Tables*
-  2. *Build Context-Compressed Payload*
-  3. *Trigger LLM Generation (Async)*
-  4. *Inject LaTeX & Jinja2 Scaffolding*
-  5. *Dispatch Silent pdflatex Compilation & ZIP*
-- **Streaming Telemetry Console (`ipywidgets.Output`):** Intercept and render tail updates of `cochem_audit_log.json` located dynamically at `pathlib.Path.home() / "CoChem_Artifacts" / "cochem_audit_log.json"`. Throttle UI updates to a maximum of 5 FPS to protect the DOM across all interaction tiers (including Codespaces).
-- **HPC Payload Download & Graceful Fallback (`ipywidgets.HTML`):**
-  - Upon completion, dynamically render an HTML link to download the generated archive at `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / "CoChem_Final_Report_<TIMESTAMP>.zip"`.
-  - If a fatal error occurs during LaTeX compilation, turn the progress bar orange and output a message that raw `.tex` and `.md` files have been safely salvaged in `Report_Archive/` for manual compilation (FAIR Reusability).
-
-## Execution Constraints
-- You MUST import and utilize actual standard library or installed packages (e.g., `psutil`, `pynvml`, `os`, `pathlib`, `asyncio`, `ipywidgets`, `shutil`).
-- All filesystem operations and paths MUST be resolved dynamically via `pathlib.Path.home()`. Do not use hardcoded OS paths or raw string `$HOME`.
-- The execution button should invoke the real physical loop and backend modules. If the actual `cochem_scribe_master.py` does not exist yet, write the exact structural imports wrapped in `try/except (ImportError, ModuleNotFoundError)` and raise `NotImplementedError` or `ImportError` explicitly rather than faking the data.
-- Ensure the code complies with strict zero-mock policies. Do NOT use `time.sleep` to simulate a fake generation task; wire the UI up to asynchronous logic properly.
-- Output ONLY the single target Python file (`ui/voila_layout/scribe_gui_dashboard.py`).
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_gui_dashboard.py ---
 """Comprehensive Zero-Mock Unit Test Suite for Voila GUI Component Architecture.
 
 Target Code Artifact: ui/voila_layout/scribe_gui_dashboard.py
@@ -68,19 +12,15 @@ import os
 import re
 import stat
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict
 
 import h5py
 import ipywidgets as widgets
 import numpy as np
-import psutil
 import pytest
 
 from core.cochem_scribe_master import (
     CompilationResult,
-    PreferredEngine,
-    ScribeOrchestrationConfig,
-    ScribeOrchestrator,
 )
 from ui.voila_layout.scribe_gui_dashboard import ScribeDashboard
 
@@ -217,9 +157,11 @@ def test_tab1_api_credential_serialization_and_permissions(clean_workspace: Dict
     file_stat = env_path.stat()
     file_mode = stat.S_IMODE(file_stat.st_mode)
     assert (file_mode & (stat.S_IRUSR | stat.S_IWUSR)) != 0
+    if os.name != "nt":
+        assert (file_mode & (stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH | stat.S_IWOTH)) == 0
 
     assert dashboard.api_key_input.value == ""
-    assert "0o600" in dashboard.api_key_status.value or "saved" in dashboard.api_key_status.value or "serialized" in dashboard.api_key_status.value
+    assert "active" in dashboard.api_key_status.value or "serialized" in dashboard.api_key_status.value
 
 
 def test_tab2_document_and_provenance_configuration(clean_workspace: Dict[str, Path]) -> None:
@@ -250,6 +192,25 @@ def test_tab2_document_and_provenance_configuration(clean_workspace: Dict[str, P
 
     assert isinstance(dashboard.methodology_level_dropdown, widgets.Dropdown)
     assert "Standard" in dashboard.methodology_level_dropdown.options
+
+
+def test_tab2_document_configuration_persistence(clean_workspace: Dict[str, Path]) -> None:
+    """Validates real synchronization of Tab 2 UI controls into system config JSON."""
+    dashboard = ScribeDashboard(
+        artifacts_dir=clean_workspace["artifacts_dir"],
+        output_dir=clean_workspace["report_archive_dir"],
+        h5_path=clean_workspace["h5_path"],
+        config_path=clean_workspace["config_path"],
+    )
+
+    dashboard.journal_dropdown.value = "AASTeX (Astrophysics)"
+    dashboard.crossref_doi_checkbox.value = True
+    dashboard.save_document_configuration()
+
+    saved_config = json.loads(clean_workspace["config_path"].read_text(encoding="utf-8"))
+    assert saved_config["target_journal"] == "AASTeX (Astrophysics)"
+    assert saved_config["document_settings"]["crossref_doi_autofill"] is True
+
 
 
 def test_tab3_execution_lockdown_protocol(clean_workspace: Dict[str, Path]) -> None:
@@ -359,7 +320,7 @@ def test_graceful_error_handling(clean_workspace: Dict[str, Path]) -> None:
         config_path=clean_workspace["config_path"],
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match=r".+"):
         dashboard.execute_pipeline_sync()
 
     assert dashboard.progress_bar.bar_style == "danger"
@@ -396,5 +357,3 @@ def test_zero_mock_anti_spoofing_compliance() -> None:
             if target_file == Path(__file__).resolve():
                 continue
             assert len(matches) == 0, f"Found banned token '{banned}' in {target_file.name}: {matches}"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

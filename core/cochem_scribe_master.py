@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import platform
-import re
 import shutil
 import stat
 import subprocess
@@ -28,12 +27,12 @@ import zipfile
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import h5py
 import numpy as np
 import psutil
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 try:
     import tiktoken
@@ -997,13 +996,23 @@ class DocumentManager:
 class ScribeProgressTracker:
     """Terminal-safe progress indicator that detects headless execution environments."""
 
-    def __init__(self, total_steps: int = 5) -> None:
+    def __init__(
+        self,
+        total_steps: int = 5,
+        callback: Optional[Callable[[int, str], None]] = None,
+    ) -> None:
         self.total_steps = total_steps
+        self.callback = callback
         self.is_interactive = sys.stdout.isatty()
 
     def step(self, step_num: int, description: str) -> None:
         """Emits progress marker according to interactive or headless TTY status."""
         msg = f"[Step {step_num}/{self.total_steps}] {description}"
+        if self.callback is not None:
+            try:
+                self.callback(step_num, description)
+            except Exception:
+                pass
         if self.is_interactive:
             # Interactive terminal: Render clear ANSI progress line
             sys.stdout.write(f"\r\033[96m[SCRIBE-PROGRESS]\033[0m {msg}...\n")
@@ -1038,9 +1047,13 @@ class ScribeOrchestrator:
     [5/5] Compile & Zip
     """
 
-    def __init__(self, config: Optional[ScribeOrchestrationConfig] = None) -> None:
+    def __init__(
+        self,
+        config: Optional[ScribeOrchestrationConfig] = None,
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> None:
         self.config = config or ScribeOrchestrationConfig()
-        self.progress = ScribeProgressTracker(total_steps=5)
+        self.progress = ScribeProgressTracker(total_steps=5, callback=progress_callback)
         self.topological_hash: str = ""
 
     def run_pipeline(self) -> CompilationResult:

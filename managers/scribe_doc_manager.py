@@ -439,10 +439,11 @@ class DocumentManager:
             return False
 
         try:
+            # Set POSIX 0o444 (read-only for user, group, other) and Windows S_IREAD
             readonly_mode = stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH
             os.chmod(file_path, readonly_mode)
             logger.info(
-                "[SCRIBE-SECURITY] Applied read-only permission lock to: %s", file_path
+                "[SCRIBE-SECURITY] Applied read-only permission lock (0o444) to: %s", file_path
             )
             return True
         except OSError as exc:
@@ -484,6 +485,7 @@ class DocumentManager:
 
         output_marker = f"[SCRIBE-OUTPUT] Final Report Archive: {archive_path}"
         print(output_marker)
+        print(str(archive_path.resolve()))
         logger.info(output_marker)
 
         return archive_path
@@ -514,11 +516,11 @@ class DocumentManager:
             target_dir=working_dir,
         )
 
-        # 2. Intermediate scratch files purge
+        # 2. Intermediate scratch files purge (post-compilation whether success or fail)
         self.cleanup_intermediate_files(
             target_dir=working_dir,
             preserve_pdf=True,
-            preserve_log_on_error=not compilation_res.success,
+            preserve_log_on_error=False,
         )
 
         # 3. FAIR-compliant Manifest generation

@@ -321,6 +321,76 @@ def test_package_final_report_e2e(
     captured = capsys.readouterr()
     assert "[SCRIBE-OUTPUT] Manifest File:" in captured.out
     assert "[SCRIBE-OUTPUT] Final Report Archive:" in captured.out
+    assert str(archive_path.resolve()) in captured.out
 
     # Teardown unlock
     os.chmod(archive_path, stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_package_final_report_failed_latex_cleans_scratch_unconditionally(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Verifies that intermediate scratch files are purged even when LaTeX compilation fails."""
+    work_dir = tmp_path / "broken_e2e"
+    work_dir.mkdir()
+
+    # Broken TeX document
+    broken_tex = "\\documentclass{article}\\begin{document}\\begin{invalid}No closing"
+    (work_dir / "Methodology.tex").write_text(broken_tex, encoding="utf-8")
+    (work_dir / "Methodology.aux").write_bytes(b"temp aux")
+    (work_dir / "Methodology.log").write_bytes(b"Fatal error occurred")
+    (work_dir / "Methodology.out").write_bytes(b"temp out")
+    (work_dir / "report.md").write_text("# Scribe Report Intact", encoding="utf-8")
+
+    manager = DocumentManager(archive_dir=work_dir)
+    comp_res, manifest_path, archive_path = manager.package_final_report(
+        target_dir=work_dir,
+        tex_filename="Methodology.tex",
+    )
+
+    assert isinstance(comp_res, CompilationResult)
+    assert comp_res.success is False
+    assert comp_res.fallback_used is True
+
+    # Scratch files purged
+    assert not (work_dir / "Methodology.aux").exists()
+    assert not (work_dir / "Methodology.log").exists()
+    assert not (work_dir / "Methodology.out").exists()
+
+    # Primary asset files preserved
+    assert (work_dir / "Methodology.tex").exists()
+    assert (work_dir / "report.md").exists()
+    assert manifest_path.exists()
+    assert archive_path.exists()
+
+    # Teardown unlock
+    os.chmod(archive_path, stat.S_IWRITE | stat.S_IREAD)
+
+
+def test_run_timestamp_directory_packaging(tmp_path: pathlib.Path) -> None:
+    """Verifies bundling a Run_[TIMESTAMP] directory into CoChem_Final_Report_[TIMESTAMP].zip."""
+    timestamp_tag = "20260824_153000"
+    run_dir = tmp_path / f"Run_{timestamp_tag}"
+    run_dir.mkdir()
+
+    (run_dir / "Methodology.tex").write_text("\\documentclass{article}\\begin{document}Run\\end{document}", encoding="utf-8")
+    (run_dir / "data_output.csv").write_text("param,value\nenergy,-120.5", encoding="utf-8")
+
+    manager = DocumentManager(archive_dir=run_dir)
+    archive_path = manager.create_archive(
+        source_dir=run_dir,
+        archive_name_prefix="CoChem_Final_Report",
+        timestamp_str=timestamp_tag,
+    )
+
+    assert archive_path.exists()
+    assert archive_path.name == f"CoChem_Final_Report_{timestamp_tag}.zip"
+
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        namelist = zf.namelist()
+        assert "Methodology.tex" in namelist
+        assert "data_output.csv" in namelist
+
+    # Teardown unlock
+    os.chmod(archive_path, stat.S_IWRITE | stat.S_IREAD)
+

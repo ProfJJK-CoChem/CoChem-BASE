@@ -1,24 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_ci_scribe_yml.md.
-Original prompt:
-# Role and Context
-You are a CoChem execution agent tasked with setting up CI/CD for Phase 4, Task 11 of the CoChem-SCRIBE orchestrator.
-
-# Target Path
-Repository Base: `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-Target File: `.github/workflows/ci_scribe.yml`
-
-# Instructions
-1. **GitHub CI/CD Actions (Task 97):** Write `.github/workflows/ci_scribe.yml` to automatically trigger testing matrix jobs on GitHub Actions targeting `ubuntu-latest` and `macos-latest` across Python 3.10 and 3.11. 
-2. **Air-Gap Enforcement:** Include an explicit bash step to fail the build (Exit Code 1) if any user data artifacts (e.g., massive `.h5` databases, API `.env` files, or generated `.pdf` files) are accidentally detected in the git commit.
-
-# Constraints
-* Must be a valid YAML GitHub Actions workflow.
-* Include steps for installing LaTeX dependencies (`texlive`, etc.) on ubuntu/macos to support testing the `DocumentManager`.
-* Strictly enforce the air-gap check.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_ci_scribe_workflow.py ---
 """Physical Unit Tests for CoChem-SCRIBE CI/CD Workflow (ci_scribe.yml).
 
 Task 97 (Phase 4, Task 11): CI/CD Workflow & Air-Gap Enforcement Verification.
@@ -505,5 +484,3 @@ def test_workflow_and_test_prohibited_patterns_ast_inspection() -> None:
                 assert not (
                     mod == prohibited or mod.startswith(prohibited + ".")
                 ), f"Prohibited import from '{mod}' found in test file"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

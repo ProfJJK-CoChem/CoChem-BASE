@@ -1,240 +1,276 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\08_scribe_md_generator.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\09_scribe_viz_bridge.md.
 Original prompt:
-# Phase 4, Task 9: Dynamic Markdown User Guide Compiler (`formatters/scribe_md_generator.py`)
+# Phase 4, Task 10: Visual Asset Compression & LaTeX Image Linking (`formatters/scribe_viz_bridge.py`)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`  
 **Target Files to Create:**
-- `formatters/scribe_md_generator.py`
-- `formatters/test_scribe_md_generator.py`
+- `formatters/scribe_viz_bridge.py`
+- `formatters/test_scribe_viz_bridge.py`
 
 ## Objective
-Implement the production-grade dynamic Markdown User Guide compiler module (`MarkdownBuilder`) and its comprehensive zero-mock integration test suite (`test_scribe_md_generator.py`) for CoChem-SCRIBE (Stage 6.3). This module bridges the **Mathematical Air-Gap** for rapid laboratory inspection, interactive browser rendering, and Codespaces development by synthesizing structured `CoChem_User_Guide.md` documentation. The compiler parses harvested chemistry payloads, formats YAML frontmatter, constructs dynamic Mermaid.js execution flowcharts, converts conformational and vibrational DataFrames into GitHub-Flavored Markdown (GFM) tables, renders non-fatal execution warnings into callout blockquotes (`> **WARNING**: ...`), aggregates CPU/GPU peak hardware telemetry, and enforces non-destructive timestamped overwrite protection. The implementation must strictly adhere to the **CoChem-SCRIBE Software Requirements Specification (SRS Phase 4, Task 9, Tasks 61–70)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
+Implement the production-grade visual asset management and LaTeX linking module (`VisualAssetBridge`) along with comprehensive zero-mock integration tests (`test_scribe_viz_bridge.py`) for CoChem-SCRIBE (Stage 6.3). This module manages volumetric 3D data bloat (e.g., NCI `.cube` domains, standalone interactive HTML carousels) by executing stream-based Zstandard maximum-ratio compression and payload truncation for files exceeding 50 MB, logs compressed archives transparently to `CoChem_User_Guide.md`, resolves high-resolution 2D spectra (`.svg`, `.png`) from downstream analytical tools (e.g., CoChem-SpycFit, CoChem-TORQ), normalizes cross-platform relative paths with POSIX forward-slash conventions, and synthesizes publication-compliant LaTeX `\includegraphics` figure snippets for direct Jinja2 context injection into `scribe_templater.py`. The implementation must strictly adhere to the **CoChem-SCRIBE Software Requirements Specification (SRS Phase 4, Task 10, Tasks 75–78, 80)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
 
 ---
 
 ## Technical Specifications & Architecture
 
-### 1. Architectural Philosophy: Markdown Synchronization & Air-Gap Bridge (SRS §9.1, §9.3)
-- **Air-Gap Documentation Bridge:** While `scribe_templater.py` compiles formal LaTeX manuscripts, `scribe_md_generator.py` generates an immediate, human-readable, web-friendly User Guide bypassing LaTeX compiler requirements.
-- **Dynamic Mermaid.js Workflow Visualization (SRS §9.3.2, Task 63):** The generator dynamically compiles a Mermaid diagram block (````mermaid graph TD ... ````) representing the exact sequence of active CoChem calculation and analysis stages executed in the current pipeline run.
-- **Non-Destructive Overwrite Protection (SRS §9.3.5, Task 69):** To prevent destructive loss of researcher annotations or previous run notes, the builder checks for existing `CoChem_User_Guide.md` files and appends timestamped archives (`CoChem_User_Guide_YYYYMMDD_HHMMSS.md` or timestamped execution blocks) rather than overwriting.
-- **Deterministic Cross-Platform Pathing (SRS §9.3.5, Task 68):** Path resolution must strictly utilize `pathlib.Path.home()` and OS-agnostic path libraries to guarantee flawless execution across all 6-Tier Environment nodes without relying on POSIX-only shell environment variables.
-- **100% Offline Air-Gap Execution:** All markdown generation, YAML serialization, GFM table conversion, Mermaid diagram generation, and file operations must execute strictly locally without external network sockets or third-party web API calls.
+### 1. Architectural Philosophy: Payload Economy & Cross-Platform Portability
+- **Volumetric Payload Truncation & HPC Network Economy (SRS §10.1, §10.3.1):** Quantum chemistry visualization data (volumetric electron densities, NCI grid `.cube` files, and monolithic interactive 3D HTML canvases) frequently exceed 50 MB to several gigabytes. Leaving uncompressed volumetric grids inside calculation directories causes severe payload bloat, exhausting disk quotas and throttling network transfers when synchronizing artifacts from HPC clusters to local workstations. Files exceeding **50 MB** (`52,428,800` bytes) must be algorithmically identified, compressed into high-ratio `.tar.zst` or `.zst` archives using `zstandard`, and the original uncompressed files safely deleted (`os.remove` / `Path.unlink`).
+- **LaTeX Relative Path Portability & Path Normalization (SRS §10.3.2):** LaTeX compilers (`pdflatex`, `xelatex`, `lualatex`) fatally reject absolute Windows backslash paths (e.g., `C:\Users\...`) inside `\includegraphics{...}`. All graphical asset references must be programmatically transformed into relative paths resolved against the `Report_Archive/` directory and formatted exclusively with POSIX forward slashes (`/`), guaranteeing flawless compilation across Windows WSL, macOS OrbStack, Linux Debian, GitHub Actions, and HPC.
+- **Memory-Safe Streaming Compression:** Massive files must be compressed using buffered stream readers/writers or chunked framing to prevent high-memory spikes (OOM) during compression on RAM-constrained nodes.
+- **100% Offline Air-Gap Execution:** All file scanning, Zstandard compression, path normalization, markdown logging, and LaTeX figure snippet generation must execute locally and deterministically without external network calls or cloud dependencies.
 
 ---
 
-## Deliverable 1: `formatters/scribe_md_generator.py`
+## Deliverable 1: `formatters/scribe_viz_bridge.py`
 
-### 1. Class Architecture & Interface Contract (`MarkdownBuilder`)
+### 1. Class Architecture & Interface Contract (`VisualAssetBridge`)
 
-Define the `MarkdownBuilder` class in `formatters/scribe_md_generator.py` with complete Python 3.10+ typing (`typing.Dict`, `typing.Any`, `typing.Optional`, `typing.Union`, `typing.List`, `pathlib.Path`, `pandas.DataFrame`):
+Define the `VisualAssetBridge` class in `formatters/scribe_viz_bridge.py` with complete Python 3.10+ typing (`typing.Dict`, `typing.Any`, `typing.Optional`, `typing.Union`, `typing.List`, `typing.Tuple`, `pathlib.Path`):
 
 ```python
 import os
-import re
-import json
-import logging
+import tarfile
 import pathlib
-from datetime import datetime
-from typing import Dict, Any, Optional, Union, List
-import pandas as pd
+import logging
+from typing import Dict, Any, Optional, Union, List, Tuple
+import zstandard as zstd
 
-class MarkdownBuilder:
-    """Dynamic Markdown User Guide Compiler for CoChem-SCRIBE.
+class VisualAssetBridge:
+    """Visual Asset, Compression, and LaTeX Linking Manager.
     
-    Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
-    Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
-    GitHub-Flavored Markdown (GFM) tables, thermodynamic analytical insights,
-    non-fatal warning callout blockquotes, hardware telemetry metrics, and
-    non-destructive timestamped overwrite protection.
+    Scans CoChem artifact directories, compresses massive volumetric 3D files (.cube, .html)
+    exceeding 50 MB via Zstandard to eliminate payload bloat, logs compressed archives
+    into CoChem_User_Guide.md, discovers 2D spectral plots (.svg, .png), and generates
+    portable, relative-path LaTeX \\includegraphics figure snippets for Jinja2 template injection.
     """
     def __init__(
         self,
-        output_dir: Optional[Union[str, pathlib.Path]] = None,
-        filename: str = "CoChem_User_Guide.md"
+        artifacts_dir: Optional[Union[str, pathlib.Path]] = None,
+        report_archive_dir: Optional[Union[str, pathlib.Path]] = None,
+        user_guide_path: Optional[Union[str, pathlib.Path]] = None,
+        compression_threshold_bytes: int = 52428800,  # Strict 50 MB threshold
+        compression_level: int = 19                   # High-ratio Zstandard compression
     ) -> None:
-        """Initializes MarkdownBuilder with dynamic path resolution and target filename."""
+        """Initializes the VisualAssetBridge with dynamic path resolution and configurable compression parameters."""
         pass
 
-    def generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str:
-        """Generates strict YAML frontmatter containing run metadata, timestamp, and pipeline provenance."""
-        pass
-
-    def generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str:
-        """Generates Stage 0 system matrix readout (active engines, nodes, cores, GPU) for audit compliance."""
-        pass
-
-    def generate_mermaid_flowchart(self, active_stages: Optional[List[str]] = None) -> str:
-        """Dynamically synthesizes a Mermaid.js diagram (graph TD) mapping active CoChem pipeline stages."""
-        pass
-
-    def format_gfm_table(
+    def scan_volumetric_artifacts(
         self,
-        df: pd.DataFrame,
-        title: Optional[str] = None
+        search_dir: Optional[Union[str, pathlib.Path]] = None
+    ) -> List[pathlib.Path]:
+        """Recursively scans the directory for volumetric 3D artifacts (.cube, .html)."""
+        pass
+
+    def compress_volumetric_artifact(
+        self,
+        file_path: Union[str, pathlib.Path]
+    ) -> Optional[pathlib.Path]:
+        """Compresses a single volumetric file exceeding the size threshold into a .tar.zst archive and truncates original."""
+        pass
+
+    def process_all_volumetric_artifacts(
+        self,
+        search_dir: Optional[Union[str, pathlib.Path]] = None
+    ) -> List[Tuple[pathlib.Path, int, int]]:
+        """Processes and compresses all bloated volumetric files in the search directory, returning compression metrics."""
+        pass
+
+    def log_compressed_artifact(
+        self,
+        compressed_path: pathlib.Path,
+        original_path: pathlib.Path,
+        original_size: int,
+        compressed_size: int
+    ) -> None:
+        """Appends structured Markdown entries to CoChem_User_Guide.md documenting compressed volumetric archives."""
+        pass
+
+    def scan_spectral_artifacts(
+        self,
+        search_dir: Optional[Union[str, pathlib.Path]] = None
+    ) -> List[pathlib.Path]:
+        """Recursively scans the directory for 2D publication spectral images (.svg, .png)."""
+        pass
+
+    def calculate_relative_image_path(
+        self,
+        image_path: Union[str, pathlib.Path],
+        base_dir: Optional[Union[str, pathlib.Path]] = None
     ) -> str:
-        """Converts a pandas DataFrame into a clean GitHub-Flavored Markdown (GFM) pipe table."""
+        """Calculates POSIX-normalized relative path from base_dir to image_path for LaTeX inclusion."""
         pass
 
-    def inject_thermodynamic_insights(self, insights_text: str) -> str:
-        """Formats and wraps LLM-generated thermodynamic insights under ## Thermodynamic Analysis."""
-        pass
-
-    def format_warning_blockquotes(self, warnings: Optional[List[str]] = None) -> str:
-        """Formats non-fatal system warnings into Markdown callout blockquotes (> **WARNING**: ...)."""
-        pass
-
-    def format_telemetry_section(self, telemetry_data: Dict[str, Any]) -> str:
-        """Formats peak CPU/GPU usage, wall-clock execution time, and memory metrics into a structured Markdown section."""
-        pass
-
-    def build_user_guide(self, data_payload: Dict[str, Any]) -> str:
-        """Assembles the complete CoChem_User_Guide.md document string from the aggregated data payload."""
-        pass
-
-    def write_user_guide(
+    def generate_latex_image_snippet(
         self,
-        content: str,
-        destination_path: Optional[Union[str, pathlib.Path]] = None
-    ) -> pathlib.Path:
-        """Writes Markdown content to disk with non-destructive timestamped overwrite protection."""
+        image_path: Union[str, pathlib.Path],
+        caption: str = "",
+        label: str = "",
+        width: str = r"\textwidth"
+    ) -> str:
+        """Constructs an academic LaTeX figure environment snippet with \\includegraphics."""
+        pass
+
+    def build_visual_payload(
+        self,
+        search_dir: Optional[Union[str, pathlib.Path]] = None
+    ) -> Dict[str, Any]:
+        """Builds comprehensive dictionary payload containing relative image paths, figure snippets, and compression logs."""
+        pass
+
+    def inject_visuals_into_context(
+        self,
+        jinja_context: Dict[str, Any],
+        search_dir: Optional[Union[str, pathlib.Path]] = None
+    ) -> Dict[str, Any]:
+        """Injects spectral figure snippets and asset mappings directly into the Jinja2 manuscript context dictionary."""
         pass
 ```
 
 ---
 
-### 2. Detailed Functional Requirements (Tasks 61–70)
+### 2. Detailed Functional Requirements (Tasks 75–78)
 
-#### 2.1 Class Initialization & Cross-Platform Pathing (Tasks 61 & 68)
-- Implement `__init__(self, output_dir=None, filename="CoChem_User_Guide.md")`:
-  - If `output_dir` is not provided, dynamically resolve default destination:
-    `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`
-  - Set `self.output_dir = pathlib.Path(output_dir).resolve()`
-  - Set `self.filename = filename`
-  - Ensure parent directories exist dynamically upon initialization or write (`self.output_dir.mkdir(parents=True, exist_ok=True)`).
-  - Ensure zero reliance on POSIX-only shell environment variables (e.g., `$HOME`), using `pathlib.Path.home()` for cross-platform compatibility across Windows WSL, macOS OrbStack, Linux Debian, Codespaces, GitHub Actions, and HPC.
+#### 2.1 Volumetric Artifact Discovery (Task 75)
+- Recursively traverse `self.artifacts_dir` (defaulting dynamically to `pathlib.Path.home() / "CoChem_Artifacts"` if unconfigured) or a passed `search_dir`.
+- Filter and target volumetric files with case-insensitive extensions: `.cube` (representing volumetric electron density grids, electrostatic potentials, or NCI domains) and `.html` (representing standalone 3D interactive carousels / Mol* / NGL viewer grids).
+- Return a sorted, deduplicated `List[pathlib.Path]` of identified candidate paths.
 
-#### 2.2 YAML Frontmatter & Stage 0 System Matrix (Task 62)
-- Implement `generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str`:
-  - Generate strict YAML block bounded by `---` lines at the top of the file:
-    ```yaml
-    ---
-    title: "CoChem Computational Analysis User Guide"
-    generated_at: "2026-08-23T12:00:00"
-    version: "2.0.0"
-    pipeline_hash: "a1b2c3d4..."
-    environment: "Local-Linux (Debian)"
-    fair_compliance: true
-    ---
+#### 2.2 Zstandard Maximum-Ratio Stream Compression & Bloat Truncation (Task 76)
+- For each discovered candidate file:
+  - Query file size in bytes via `os.path.getsize(file_path)` (or `pathlib.Path.stat().st_size`).
+  - If `file_size >= self.compression_threshold_bytes` (strict `50 MB` / `52428800` bytes):
+    1. Construct archive path: `archive_path = file_path.with_name(f"{file_path.name}.tar.zst")` (or `.zst`).
+    2. Stream-compress using `zstandard.ZstdCompressor(level=self.compression_level)` bundled in a `.tar` stream or direct frame compression:
+       - Buffer in chunks (e.g., `65536` bytes / 64 KB) to ensure zero memory exhaustion even when compressing gigabyte-scale `.cube` files.
+    3. Verify that the compressed file exists and has size $> 0$.
+    4. Execute safe file deletion on the original uncompressed file: `os.remove(file_path)` (or `file_path.unlink()`) to eliminate disk bloat.
+    5. Log the compression ratio: `ratio = (1.0 - (compressed_size / original_size)) * 100`.
+    6. Return the newly created `archive_path`.
+  - If `file_size < self.compression_threshold_bytes`:
+    - Leave the file completely untouched and uncompressed. Return `None`.
+
+#### 2.3 User Guide Markdown Logging (Task 76)
+- Implement `log_compressed_artifact(self, compressed_path, original_path, original_size, compressed_size)`:
+  - Target `self.user_guide_path` (defaulting dynamically to `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / "CoChem_User_Guide.md"` or repo-level `CoChem_User_Guide.md`).
+  - If the target file does not exist, initialize it with a markdown header: `# CoChem Volumetric Visual Assets Archive`.
+  - Append a structured Markdown table row or bullet entry detailing:
+    - Original filename
+    - Compressed archive path (as POSIX relative/absolute path)
+    - Original file size (in MB, formatted to 2 decimal places)
+    - Compressed file size (in MB, formatted to 2 decimal places)
+    - Space savings percentage (`%`)
+  - Ensure file writing uses UTF-8 encoding and creates parent directories dynamically.
+
+#### 2.4 2D Spectral Asset Discovery (Task 77)
+- Recursively search `self.artifacts_dir` / `figures` subdirectory for high-resolution 2D spectra generated by downstream modules (e.g., CoChem-SpycFit Voigt convolved IR/Raman plots, CoChem-TORQ conformational energy profiles).
+- Target files with extensions `.svg`, `.png`, and `.pdf`.
+- Exclude thumbnail or temporary cache files (e.g., files containing `_thumb` or starting with `.`).
+- Return a sorted `List[pathlib.Path]` of high-resolution spectral figures.
+
+#### 2.5 Cross-Platform LaTeX Image Linking & Forward-Slash Normalization (Task 78)
+- Implement `calculate_relative_image_path(self, image_path, base_dir=None) -> str`:
+  - Calculate relative path from `self.report_archive_dir` (default: `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`) to `image_path` using `os.path.relpath`.
+  - **Mandatory Forward-Slash Normalization:** Replace all Windows backslashes `\` with POSIX forward slashes `/` (e.g., `figures/spectrum_ir.png`). LaTeX compilers will fail on backslashes in image paths.
+- Implement `generate_latex_image_snippet(self, image_path, caption="", label="", width=r"\textwidth") -> str`:
+  - Produce standard academic LaTeX figure environment:
+    ```latex
+    \begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\textwidth]{<relative_path_with_forward_slashes>}
+    \caption{<caption>}
+    \label{<label>}
+    \end{figure}
     ```
-- Implement `generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str`:
-  - Render a structured Markdown section under `## 1. System Execution Environment & Provenance`:
-    - Active quantum/molecular engines and exact versions (e.g., ORCA 6.1.1, xTB 6.7.1, MACE-OFF23).
-    - Host architecture details: CPU core allocation, GPU device model, host RAM, environment tier.
-    - Configuration SHA-256 hash verifying reproducibility.
+  - If caption/label are omitted, generate clean default captions derived from the sanitized image stem (e.g., `spectrum_ir` $\to$ `Spectrum Ir`).
 
-#### 2.3 Dynamic Mermaid.js Flowchart Synthesis (Task 63)
-- Implement `generate_mermaid_flowchart(self, active_stages: Optional[List[str]] = None) -> str`:
-  - Dynamically construct a Mermaid flowchart inside a fenced ````mermaid ... ```` block:
-    ```mermaid
-    graph TD
-        S0["Stage 0.0: Configuration & Resource Guards"] --> S1["Stage 1.0: Conformer Generation (CREST/ORCA)"]
-        S1 --> S2["Stage 2.0: Geometry Optimization"]
-        S2 --> S3["Stage 3.0: Frequency & Thermochemistry"]
-        S3 --> S4["Stage 4.0: Spectroscopic Analysis (TORQ)"]
-        S4 --> S5["Stage 5.0: Voigt Spectral Deconvolution (SpycFit)"]
-        S5 --> S6["Stage 6.0: Document Synthesis (SCRIBE)"]
+#### 2.6 Jinja2 Context Injection & Payload Bridging (Task 78)
+- Implement `build_visual_payload(self, search_dir=None) -> Dict[str, Any]`:
+  - Execute volumetric compression sweep and aggregate compressed file logs.
+  - Discover 2D spectral images and compile figure snippets.
+  - Return a dictionary structured as:
+    ```python
+    {
+        "spectral_figures": [
+            {
+                "stem": img.stem,
+                "relative_path": rel_path,
+                "latex_snippet": snippet,
+                "format": img.suffix.lstrip(".").lower()
+            }
+            for img, rel_path, snippet in ...
+        ],
+        "spectral_figure_snippets": "\n\n".join(snippets),
+        "compressed_3d_assets": [
+            {
+                "original_name": orig.name,
+                "compressed_path": str(comp_path),
+                "original_size_mb": orig_mb,
+                "compressed_size_mb": comp_mb,
+                "savings_pct": pct
+            }
+            for ...
+        ]
+    }
     ```
-  - If `active_stages` is provided, dynamically highlight executed nodes (e.g., styling active nodes with class definitions) or filter inactive stages from the diagram.
-  - Return formatted flowchart ready for native rendering in GitHub, Codespaces, and GitLab Markdown viewers.
+- Implement `inject_visuals_into_context(self, jinja_context: Dict[str, Any], search_dir=None) -> Dict[str, Any]`:
+  - Mutate and return `jinja_context` enriched with `spectral_figures`, `spectral_figure_snippets`, `figure_ir_snippet`, `figure_raman_snippet`, and `compressed_3d_assets`.
 
-#### 2.4 Thermodynamic Analytical Insights Integration (Task 64)
-- Implement `inject_thermodynamic_insights(self, insights_text: str) -> str`:
-  - Format the LLM-generated methodology and thermodynamic analytical insights under `## 2. Thermodynamic & Structural Analysis`.
-  - Scrub any leftover internal placeholder tokens (e.g., `<<INSERT_*>>`, `[PLACEHOLDER]`) or malformed whitespace.
-  - If `insights_text` is empty or missing, provide a clean, descriptive fallback note stating analytical data was aggregated without additional narrative comments.
-
-#### 2.5 GitHub-Flavored Markdown (GFM) Table Generation (Task 65)
-- Implement `format_gfm_table(self, df: pd.DataFrame, title: Optional[str] = None) -> str`:
-  - Convert `pandas.DataFrame` tables (e.g., conformer rankings, rotational constants, vibrational modes) into strict GFM pipe-delimited tables:
-    ```markdown
-    | Conformer ID | Relative Energy (kcal/mol) | Symmetry | Population (%) |
-    | :--- | :--- | :--- | :--- |
-    | Conf_01 | 0.00 | C1 | 68.4 |
-    | Conf_02 | 0.42 | Cs | 24.1 |
-    ```
-  - Enforce proper column alignment separators (`:---` or `---:`).
-  - Format floating-point numbers to appropriate significant figures (energies to 2–4 decimal places, frequencies to 1–2 decimal places).
-  - Prepend table title/header when `title` is supplied.
-
-#### 2.6 Hardware Telemetry & Non-Fatal Warnings Callout Blockquotes (Tasks 66 & 67)
-- Implement `format_warning_blockquotes(self, warnings: Optional[List[str]] = None) -> str`:
-  - Parse non-fatal warnings harvested from `cochem_audit_log.json`.
-  - Format each warning as a distinct GitHub-style callout blockquote:
-    `> **WARNING**: <warning_message>`
-  - If `warnings` list is empty or `None`, render:
-    `> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.`
-- Implement `format_telemetry_section(self, telemetry_data: Dict[str, Any]) -> str`:
-  - Render `## 4. Hardware Telemetry & Compute Resource Allocation`.
-  - Format peak GPU VRAM usage, CPU peak usage percentage, wall-clock time, and memory footprint as a clean Markdown list or summary table.
-
-#### 2.7 Non-Destructive Overwrite Protection & File Persistence (Tasks 68 & 69)
-- Implement `write_user_guide(self, content: str, destination_path: Optional[Union[str, pathlib.Path]] = None) -> pathlib.Path`:
-  - Target destination: `destination_path` or `self.output_dir / self.filename`.
-  - **Overwrite Protection Check:** Before writing, check if the file already exists on disk:
-    - If the file exists: generate a timestamped filename to prevent destructive overwriting of user notes:
-      `timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")`
-      `final_path = target_dir / f"{target_stem}_{timestamp}{target_suffix}"`
-    - If the file does not exist: write directly to `destination_path`.
-  - Write content with UTF-8 encoding.
-  - Return the final `pathlib.Path` written.
-
-#### 2.8 Unified Guide Assembly (`build_user_guide`)
-- Implement `build_user_guide(self, data_payload: Dict[str, Any]) -> str`:
-  - Harmonize all sections in logical sequence:
-    1. YAML Frontmatter
-    2. Document Title & Executive Overview
-    3. Stage 0 System Matrix & Provenance
-    4. Dynamic Mermaid.js Workflow Diagram
-    5. Conformer Landscape GFM Table
-    6. Thermodynamic Insights & Energy GFM Table
-    7. Spectroscopic Parameters & Vibrational GFM Table
-    8. Non-Fatal Execution Warnings Callout Blockquotes
-    9. Hardware Telemetry Summary
-  - Return complete, valid Markdown string.
+#### 2.7 Local Pre-Flight CLI Validation (SRS §10.3)
+- Include an `if __name__ == '__main__':` execution block at the bottom of `formatters/scribe_viz_bridge.py`.
+- When invoked directly from CLI across any tier:
+  1. Instantiate `VisualAssetBridge` with local temporary test paths.
+  2. Verify volumetric scanning, relative path forward-slash normalization, and LaTeX snippet generation.
+  3. Print `[SCRIBE VIZ BRIDGE PRE-FLIGHT VERIFIED]` upon successful verification.
 
 ---
 
-## Deliverable 2: `formatters/test_scribe_md_generator.py`
+## Deliverable 2: `formatters/test_scribe_viz_bridge.py`
 
-Implement a complete `pytest` test suite conforming to the **Zero-Mock Anti-Spoofing Protocol** (Task 70):
+Implement a complete `pytest` test suite conforming to the **Zero-Mock Anti-Spoofing Protocol**:
 
-1. **Zero-Mock Enforcement:**
-   - Strictly prohibit `unittest.mock`, `mocker`, or simulated Markdown builders. All tests must execute real class methods, real `pandas.DataFrame` table transformations, and real file I/O using `tmp_path`.
-2. **YAML Frontmatter & Metadata Test:**
-   - Instantiate `MarkdownBuilder` and generate YAML frontmatter with test metadata.
-   - Assert output begins with `---` and ends with `---`, contains valid YAML key-value pairs (`title`, `generated_at`, `version`, `pipeline_hash`), and parses cleanly via `yaml.safe_load`.
-3. **Mermaid.js Flowchart Synthesis Test:**
-   - Call `generate_mermaid_flowchart(["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 6.0"])`.
-   - Assert output contains ````mermaid` and `graph TD`, valid node definitions (`S0["..."]`), and valid edge transitions (`-->`).
-4. **GFM Table Pipe Formatting Test:**
-   - Create a real `pandas.DataFrame` containing conformer IDs, float energies, and symmetry labels.
-   - Call `format_gfm_table()`.
-   - Assert output contains pipe delimiters (`|`), header separator row (`|---|`), and correctly formatted float strings without missing cells.
-5. **Warning Callouts & Telemetry Formatting Test:**
-   - Pass a list of warning strings (`["SCF convergence required dampening on step 4.", "GPU VRAM spike near 90%."]`).
-   - Assert output contains `> **WARNING**: SCF convergence required dampening...` blockquotes.
-   - Pass empty warning list and assert clean `> **NOTE**:` fallback is rendered.
-   - Pass telemetry dictionary and assert peak GPU, CPU, and wall-clock times are present in the formatted telemetry section.
-6. **Non-Destructive Overwrite Protection Test:**
-   - Write an initial `CoChem_User_Guide.md` inside `tmp_path`.
-   - Write a second guide with `builder.write_user_guide()`.
-   - Assert the original `CoChem_User_Guide.md` remains completely intact and un-overwritten.
-   - Assert a new timestamped file (`CoChem_User_Guide_*.md`) was created and contains the updated content.
-7. **End-to-End User Guide Generation Test:**
-   - Assemble a realistic chemical data payload dictionary containing conformer DataFrames, thermodynamic scalars, spectroscopic tables, telemetry metrics, and narrative insights.
-   - Execute `build_user_guide()` and `write_user_guide()`.
-   - Read output file from disk and assert all sections (YAML frontmatter, Mermaid chart, GFM tables, insights, warnings, telemetry) are properly structured and valid Markdown.
+1. **Zero-Mock Enforcement (Task 80):**
+   - Strictly prohibit `unittest.mock`, `mocker`, or simulated compression wrappers.
+   - All tests must execute real filesystem operations, real `zstandard` byte compression streams, and real path math.
+
+2. **Zstandard Compression Boundary Test (Task 80):**
+   - Programmatically generate a physical binary `.cube` file with size $\ge 51\text{ MB}$ (`53,477,376` bytes) filled with repetitive/structured synthetic binary data inside `tmp_path`.
+   - Record initial file size and path.
+   - Execute `bridge.compress_volumetric_artifact()`.
+   - Mathematically assert:
+     - The `.tar.zst` (or `.zst`) archive exists on disk.
+     - The original uncompressed `.cube` file no longer exists (confirming truncation / deletion).
+     - The compressed file size is strictly less than the original size (`compressed_size < original_size`).
+     - The compression ratio exceeds $80\%$ for synthetic repetitive grid data.
+
+3. **Sub-Threshold Passthrough Test:**
+   - Create a small $1\text{ MB}$ `.cube` file inside `tmp_path`.
+   - Execute `bridge.compress_volumetric_artifact()`.
+   - Assert that the returned path is `None`, the original file remains intact, and no `.zst` file is created.
+
+4. **HTML 3D Carousel Compression Test:**
+   - Create a $51\text{ MB}$ `.html` file inside `tmp_path`.
+   - Execute `bridge.process_all_volumetric_artifacts()`.
+   - Assert that the `.html` file is compressed into `.tar.zst` and the original `.html` is truncated.
+
+5. **2D Spectral Image Discovery & Relative Path Formatting Test:**
+   - Create synthetic `ir_spectrum.png` and `raman_spectrum.svg` files inside `tmp_path / "figures"`.
+   - Execute `bridge.scan_spectral_artifacts()` and `bridge.calculate_relative_image_path()`.
+   - Assert discovered list contains both image paths.
+   - Assert generated relative paths contain **zero backslashes** (`\`) and use standard forward slashes (`/`), even when executed on native Windows.
+
+6. **LaTeX Figure Snippet Generation Test:**
+   - Generate LaTeX snippet for `ir_spectrum.png`.
+   - Assert snippet contains `\begin{figure}`, `\centering`, `\includegraphics[width=\textwidth]{figures/ir_spectrum.png}`, `\caption{...}`, and `\end{figure}`.
+
+7. **User Guide Markdown Logging Test:**
+   - Execute `bridge.log_compressed_artifact()` to a test `CoChem_User_Guide.md`.
+   - Read the file content and assert table rows containing the filename, size in MB, and compression percentage exist.
+
+8. **Jinja2 Context Injection Integration Test:**
+   - Create a base Jinja2 context dictionary: `{"title": "Test Paper", "computational_details": "DFT"}`.
+   - Call `bridge.inject_visuals_into_context(jinja_context)`.
+   - Assert returned dictionary contains non-empty `spectral_figures` and `spectral_figure_snippets` keys.
 
 ---
 
@@ -244,22 +280,23 @@ Implement a complete `pytest` test suite conforming to the **Zero-Mock Anti-Spoo
    - Every class, method, helper, and test case must be completely implemented with functional, executable logic.
    - Strictly NO `pass`, `# TODO`, `...`, or placeholder mock returns in output files.
 2. **Dynamic Path Resolution & Air-Gap Compliance:**
-   - All filesystem paths must resolve dynamically using `pathlib.Path.home()` or explicit arguments.
-   - Hardcoded operating system paths (e.g., `C:\Users\...` or `/tmp/...`) are strictly forbidden.
-   - All markdown generation and file persistence must execute 100% offline without external network sockets.
+   - All filesystem paths must resolve dynamically using `pathlib.Path.home()` or explicit parameters.
+   - Hardcoded OS paths (e.g., `C:\Users\...` or `/tmp/...`) are strictly forbidden.
+   - All compression and formatting must execute 100% offline without external network sockets.
 3. **6-Tier Environment Matrix Compliance:**
    - The module and tests must function identically across Linux (Debian/Ubuntu), macOS (OrbStack), Windows (WSL), Codespaces, GitHub Actions, and HPC clusters.
-4. **FAIR Data & Provenance Compliance:**
-   - Markdown tables and frontmatter must preserve exact physical values and SHA-256 pipeline hashes.
+   - Path normalization must guarantee forward slashes in LaTeX code across all OS platforms.
+4. **Memory & Resource Safety:**
+   - Compression of large files must utilize chunked/streaming I/O to avoid spiking node RAM.
 5. **Deliverable Scope:**
-   - Implement `formatters/scribe_md_generator.py` and `formatters/test_scribe_md_generator.py`.
+   - Implement `formatters/scribe_viz_bridge.py` and `formatters/test_scribe_viz_bridge.py`.
 
 ---
 
 ## Task
 Implement the Python modules and tests as described and save them to:
-- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\scribe_md_generator.py`
-- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\test_scribe_md_generator.py`
+- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\scribe_viz_bridge.py`
+- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\test_scribe_viz_bridge.py`
 using the `write_to_file` tool.
 
 Modified files content:
@@ -267,1032 +304,846 @@ Modified files content:
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\__init__.py ---
 """CoChem-BASE Formatters Module."""
 
-from .scribe_templater import Jinja2Templater
 from .scribe_md_generator import MarkdownBuilder
+from .scribe_templater import Jinja2Templater
+from .scribe_viz_bridge import VisualAssetBridge
 
-__all__ = ["Jinja2Templater", "MarkdownBuilder"]
+__all__ = ["Jinja2Templater", "MarkdownBuilder", "VisualAssetBridge"]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\scribe_md_generator.py ---
-"""Dynamic Markdown User Guide Compiler for CoChem-SCRIBE (Stage 6.3).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\scribe_viz_bridge.py ---
+"""Visual Asset Compression & LaTeX Image Linking Bridge (CoChem-SCRIBE Stage 6.3).
 
-Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
-Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
-GitHub-Flavored Markdown (GFM) tables, thermodynamic analytical insights,
-non-fatal warning callout blockquotes, hardware telemetry metrics, and
-non-destructive timestamped overwrite protection.
+This module manages volumetric 3D data bloat (.cube, .html) exceeding 50 MB via
+stream-based Zstandard maximum-ratio compression, logs compressed archives into
+CoChem_User_Guide.md, discovers 2D spectral plots (.svg, .png, .pdf), normalizes
+cross-platform relative paths with POSIX forward-slash conventions, and synthesizes
+publication-compliant LaTeX \\includegraphics figure snippets for direct Jinja2
+context injection into scribe_templater.py.
+
+Adheres strictly to:
+- CoChem-SCRIBE SRS Phase 4, Task 10 (Tasks 75-78, 80)
+- Method Matrix v4
+- Zero-Mock Anti-Spoofing Protocol
+- 6-Tier Environment Matrix
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import pathlib
-import re
-from datetime import datetime
+import tarfile
 from typing import Any
 
-import numpy as np
-import pandas as pd
-import yaml
+import zstandard as zstd
 
-logger = logging.getLogger(__name__)
-
-# Constants for formatting thresholds
-VRAM_THRESHOLD_MB: float = 100.0
-RAM_THRESHOLD_MB: float = 100.0
-HIGH_VAL_THRESHOLD: float = 10000.0
-LOW_VAL_THRESHOLD: float = 1e-4
-
-# Standard Stage definition catalog for Mermaid diagram synthesis
-STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
-    "0.0": ("S0", "Stage 0.0: Configuration & Resource Guards"),
-    "1.0": ("S1", "Stage 1.0: Conformer Generation (CREST/ORCA)"),
-    "2.0": ("S2", "Stage 2.0: Geometry Optimization"),
-    "3.0": ("S3", "Stage 3.0: Frequency & Thermochemistry"),
-    "4.0": ("S4", "Stage 4.0: Spectroscopic Analysis (TORQ)"),
-    "5.0": ("S5", "Stage 5.0: Voigt Spectral Deconvolution (SpycFit)"),
-    "6.0": ("S6", "Stage 6.0: Document Synthesis (SCRIBE)"),
-}
+CHUNK_SIZE_BYTES: int = 65536  # 64 KB streaming buffer
+DEFAULT_50MB_THRESHOLD: int = 52428800  # Strict 50 MB threshold (50 * 1024 * 1024)
+DEFAULT_COMPRESSION_LEVEL: int = 19  # High-ratio Zstandard compression
 
 
-class MarkdownBuilder:
-    """Dynamic Markdown User Guide Compiler for CoChem-SCRIBE.
+class VisualAssetBridge:
+    """Visual Asset, Compression, and LaTeX Linking Manager.
 
-    Synthesizes structured CoChem_User_Guide.md reports containing YAML
-    frontmatter, Stage 0 provenance metadata, dynamic Mermaid.js execution
-    flowcharts, GitHub-Flavored Markdown (GFM) tables, thermodynamic
-    analytical insights, non-fatal warning callout blockquotes, hardware
-    telemetry metrics, and non-destructive timestamped overwrite protection.
+    Scans CoChem artifact directories, compresses massive volumetric 3D files
+    (.cube, .html) exceeding 50 MB via Zstandard to eliminate payload bloat,
+    logs compressed archives into CoChem_User_Guide.md, discovers 2D spectral plots
+    (.svg, .png, .pdf), and generates portable, relative-path LaTeX \\includegraphics
+    figure snippets for Jinja2 template injection.
     """
 
     def __init__(
         self,
-        output_dir: str | pathlib.Path | None = None,
-        filename: str = "CoChem_User_Guide.md",
+        artifacts_dir: str | pathlib.Path | None = None,
+        report_archive_dir: str | pathlib.Path | None = None,
+        user_guide_path: str | pathlib.Path | None = None,
+        compression_threshold_bytes: int = DEFAULT_50MB_THRESHOLD,
+        compression_level: int = DEFAULT_COMPRESSION_LEVEL,
     ) -> None:
-        """Initializes MarkdownBuilder with dynamic path resolution.
+        """Initializes the VisualAssetBridge with dynamic path resolution.
 
         Args:
-            output_dir: Optional directory for output markdown. Defaults to
-                Path.home() / "CoChem_Artifacts" / "Report_Archive".
-            filename: Target output markdown filename. Defaults to
-                "CoChem_User_Guide.md".
+            artifacts_dir: Base directory containing calculation artifacts.
+            report_archive_dir: Directory where the final report is compiled.
+            user_guide_path: Target Markdown file path for logging volumetric archives.
+            compression_threshold_bytes: Size threshold in bytes above which files
+                are compressed.
+            compression_level: Zstandard compression level (1-22, default 19).
         """
-        if output_dir is not None:
-            self.output_dir = pathlib.Path(output_dir).resolve()
-        else:
-            self.output_dir = (
-                pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
-            ).resolve()
+        self.artifacts_dir: pathlib.Path = (
+            pathlib.Path(artifacts_dir)
+            if artifacts_dir is not None
+            else pathlib.Path.home() / "CoChem_Artifacts"
+        )
+        self.report_archive_dir: pathlib.Path = (
+            pathlib.Path(report_archive_dir)
+            if report_archive_dir is not None
+            else self.artifacts_dir / "Report_Archive"
+        )
+        self.user_guide_path: pathlib.Path = (
+            pathlib.Path(user_guide_path)
+            if user_guide_path is not None
+            else self.report_archive_dir / "CoChem_User_Guide.md"
+        )
+        self.compression_threshold_bytes: int = compression_threshold_bytes
+        self.compression_level: int = compression_level
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-        self.filename = filename
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-    def generate_yaml_frontmatter(
-        self, metadata: dict[str, Any] | None = None
-    ) -> str:
-        """Generates strict YAML frontmatter containing run metadata.
+    def scan_volumetric_artifacts(
+        self,
+        search_dir: str | pathlib.Path | None = None,
+    ) -> list[pathlib.Path]:
+        """Recursively scans the directory for volumetric 3D artifacts (.cube, .html).
 
         Args:
-            metadata: Run metadata dictionary.
+            search_dir: Directory to scan. If None, uses self.artifacts_dir.
 
         Returns:
-            Strict YAML frontmatter block enclosed in '---'.
+            Sorted list of identified candidate volumetric file paths.
         """
-        meta = metadata.copy() if metadata else {}
+        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        if not target_dir.exists() or not target_dir.is_dir():
+            return []
 
-        # Ensure default core fields if missing
-        if "title" not in meta:
-            meta["title"] = "CoChem Computational Analysis User Guide"
-        if "generated_at" not in meta:
-            meta["generated_at"] = datetime.now().isoformat()
-        if "version" not in meta:
-            meta["version"] = "2.0.0"
-        if "pipeline_hash" not in meta:
-            meta["pipeline_hash"] = "N/A"
-        if "environment" not in meta:
-            meta["environment"] = "Local-Windows WSL"
-        if "fair_compliance" not in meta:
-            meta["fair_compliance"] = True
+        volumetric_exts = {".cube", ".html"}
+        found_files: list[pathlib.Path] = []
 
-        yaml_content = yaml.dump(
-            meta, sort_keys=False, default_flow_style=False
-        ).strip()
-        return f"---\n{yaml_content}\n---"
+        for path in target_dir.rglob("*"):
+            if path.is_file() and path.suffix.lower() in volumetric_exts:
+                if not path.name.startswith("."):
+                    found_files.append(path)
 
-    def generate_system_matrix_section(
-        self, system_matrix: dict[str, Any] | None = None
-    ) -> str:
-        """Generates Stage 0 system matrix readout for audit compliance.
+        return sorted(list(set(found_files)))
+
+    def compress_volumetric_artifact(
+        self,
+        file_path: str | pathlib.Path,
+    ) -> pathlib.Path | None:
+        """Compresses a volumetric file exceeding the threshold into a .tar.zst archive.
+
+        Uses 64 KB chunked buffer streaming with zstandard to eliminate RAM spikes.
 
         Args:
-            system_matrix: System configuration and execution environment data.
+            file_path: Path to the uncompressed volumetric file.
 
         Returns:
-            Formatted Markdown section under 1. System Execution Environment.
+            Path to the created .tar.zst archive if compressed, or None if below
+            threshold.
         """
-        matrix = system_matrix or {}
-        lines: list[str] = [
-            "## 1. System Execution Environment & Provenance",
-            "",
-            "### 1.1 Compute Engines & Versions",
-        ]
+        target_path = pathlib.Path(file_path)
+        if not target_path.exists() or not target_path.is_file():
+            return None
 
-        engines = matrix.get("engines", {})
-        if isinstance(engines, dict) and engines:
-            for engine, ver in engines.items():
-                lines.append(f"- **{engine}**: `{ver}`")
-        elif isinstance(engines, list) and engines:
-            for item in engines:
-                lines.append(f"- `{item}`")
-        else:
-            lines.append("- *No discrete calculation engines registered.*")
+        original_size = target_path.stat().st_size
+        if original_size < self.compression_threshold_bytes:
+            return None
 
-        lines.append("")
-        lines.append("### 1.2 Host Architecture & Resource Allocation")
+        archive_path = target_path.with_name(f"{target_path.name}.tar.zst")
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
 
-        host_info = (
-            matrix.get("host", {})
-            if isinstance(matrix.get("host"), dict)
-            else matrix
-        )
+        cctx = zstd.ZstdCompressor(level=self.compression_level)
+        try:
+            with open(archive_path, "wb") as f_out:
+                with cctx.stream_writer(
+                    f_out, write_size=CHUNK_SIZE_BYTES, closefd=False
+                ) as compressor:
+                    with tarfile.open(fileobj=compressor, mode="w|") as tar:
+                        tar.add(target_path, arcname=target_path.name)
 
-        env_tier = (
-            host_info.get("environment_tier")
-            or host_info.get("environment")
-            or matrix.get("environment", "Unknown / Heterogeneous")
-        )
-        cpu_cores = (
-            host_info.get("cpu_cores")
-            or host_info.get("cpu")
-            or matrix.get("cpu_cores", "N/A")
-        )
-        gpu_device = (
-            host_info.get("gpu_device")
-            or host_info.get("gpu")
-            or host_info.get("gpu_model")
-            or matrix.get("gpu_device", "N/A")
-        )
-        host_ram = (
-            host_info.get("host_ram")
-            or host_info.get("host_ram_gb")
-            or host_info.get("ram_gb")
-            or matrix.get("host_ram", "N/A")
-        )
-        cfg_hash = (
-            matrix.get("config_hash")
-            or matrix.get("pipeline_hash")
-            or host_info.get("config_hash", "N/A")
-        )
-
-        lines.append(f"- **Environment Tier**: {env_tier}")
-        lines.append(f"- **CPU Allocation**: {cpu_cores}")
-        lines.append(f"- **GPU Device**: {gpu_device}")
-        lines.append(f"- **Host RAM**: {host_ram}")
-        lines.append(f"- **Configuration SHA-256**: `{cfg_hash}`")
-        lines.append("")
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def _resolve_stage_node(
-        stage_item: str, custom_idx: int
-    ) -> tuple[str, str, int]:
-        """Resolves a single stage string into a node ID, label, and updated index."""
-        for key, (node_id, label) in STAGE_DEFINITIONS.items():
-            if (
-                key in stage_item
-                or f"Stage {key[0]}" in stage_item
-                or stage_item.strip() == node_id
-            ):
-                return node_id, label, custom_idx
-        cleaned_name = stage_item.strip()
-        custom_id = f"S_custom_{custom_idx}"
-        return custom_id, cleaned_name, custom_idx + 1
-
-    def _resolve_mermaid_nodes(
-        self, active_stages: list[str] | None = None
-    ) -> list[tuple[str, str]]:
-        """Resolves stage list into ordered Mermaid node definitions."""
-        if not active_stages:
-            return [
-                STAGE_DEFINITIONS[k]
-                for k in ["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"]
-            ]
-
-        resolved_nodes: list[tuple[str, str]] = []
-        custom_idx = 1
-        for stage_item in active_stages:
-            node_id, label, custom_idx = self._resolve_stage_node(
-                stage_item, custom_idx
-            )
-            resolved_nodes.append((node_id, label))
-        return resolved_nodes
-
-    def generate_mermaid_flowchart(
-        self, active_stages: list[str] | None = None
-    ) -> str:
-        """Dynamically synthesizes a Mermaid.js diagram (graph TD).
-
-        Args:
-            active_stages: Optional list of active stage identifier strings.
-
-        Returns:
-            Fenced Mermaid.js flowchart string.
-        """
-        resolved_nodes = self._resolve_mermaid_nodes(active_stages)
-
-        if not resolved_nodes:
-            return (
-                "```mermaid\n"
-                "graph TD\n"
-                '    S0["Stage 0.0: Configuration & Resource Guards"]\n'
-                "```"
-            )
-
-        lines: list[str] = ["```mermaid", "graph TD"]
-
-        if len(resolved_nodes) == 1:
-            node_id, label = resolved_nodes[0]
-            lines.append(f'    {node_id}["{label}"]')
-        else:
-            for i in range(len(resolved_nodes) - 1):
-                prev_id, prev_label = resolved_nodes[i]
-                curr_id, curr_label = resolved_nodes[i + 1]
-                if i == 0:
-                    lines.append(
-                        f'    {prev_id}["{prev_label}"] --> {curr_id}["{curr_label}"]'
-                    )
-                else:
-                    lines.append(f'    {prev_id} --> {curr_id}["{curr_label}"]')
-
-        lines.append("```")
-        return "\n".join(lines)
-
-    def format_gfm_table(
-        self, df: pd.DataFrame, title: str | None = None
-    ) -> str:
-        """Converts a pandas DataFrame into a clean GFM pipe table.
-
-        Args:
-            df: Input pandas DataFrame.
-            title: Optional title/header for the table.
-
-        Returns:
-            GFM formatted table string.
-        """
-        if df is None or df.empty:
-            if title:
-                return f"### {title}\n\n*No tabular data recorded.*\n"
-            return ""
-
-        headers = [str(col).replace("|", r"\|").strip() for col in df.columns]
-
-        alignments: list[str] = []
-        for col in df.columns:
-            is_numeric = (
-                pd.api.types.is_numeric_dtype(df[col])
-                and not pd.api.types.is_bool_dtype(df[col])
-            )
-            alignments.append("---:" if is_numeric else ":---")
-
-        rows: list[str] = []
-        if title:
-            rows.append(f"### {title}")
-            rows.append("")
-
-        header_line = "| " + " | ".join(headers) + " |"
-        rows.append(header_line)
-
-        sep_line = "| " + " | ".join(alignments) + " |"
-        rows.append(sep_line)
-
-        for _, row in df.iterrows():
-            row_cells = []
-            for col in df.columns:
-                val = row[col]
-                formatted_val = self._format_cell_value(val, str(col))
-                row_cells.append(formatted_val)
-            rows.append("| " + " | ".join(row_cells) + " |")
-
-        rows.append("")
-        return "\n".join(rows)
-
-    @staticmethod
-    def _format_cell_value(val: Any, col_name: str) -> str:
-        """Formats an individual DataFrame cell for GFM presentation."""
-        if pd.isna(val) or val is None:
-            return "N/A"
-
-        if isinstance(val, float | np.floating):
-            return MarkdownBuilder._format_float_cell(float(val), col_name)
-
-        if isinstance(val, int | np.integer) and not isinstance(val, bool):
-            return str(val)
-
-        return str(val).replace("|", r"\|").strip()
-
-    @staticmethod
-    def _format_float_cell(val: float, col_name: str) -> str:
-        """Formats float values based on column context and magnitude."""
-        col_lower = col_name.lower()
-        if "hartree" in col_lower or "eh" in col_lower:
-            return f"{val:.6f}"
-        if any(
-            k in col_lower
-            for k in [
-                "energy",
-                "kcal",
-                "kj",
-                "population",
-                "pop",
-                "freq",
-                "%",
-                "intensity",
-            ]
-        ):
-            return f"{val:.2f}"
-        if abs(val) >= HIGH_VAL_THRESHOLD or (0 < abs(val) < LOW_VAL_THRESHOLD):
-            return f"{val:.4e}"
-        return f"{val:.2f}"
-
-    def inject_thermodynamic_insights(
-        self, insights_text: str | None = None
-    ) -> str:
-        """Formats and wraps LLM-generated thermodynamic insights.
-
-        Args:
-            insights_text: Narrative text or analytical insights.
-
-        Returns:
-            Formatted Markdown section with placeholders scrubbed.
-        """
-        lines: list[str] = [
-            "## 2. Thermodynamic & Structural Analysis",
-            "",
-        ]
-
-        if not insights_text or not isinstance(insights_text, str):
-            lines.append(
-                "*Analytical data was aggregated without additional "
-                "narrative comments.*"
-            )
-            lines.append("")
-            return "\n".join(lines)
-
-        cleaned = re.sub(
-            r"<<INSERT_[^>]*>>", "", insights_text, flags=re.IGNORECASE
-        )
-        cleaned = re.sub(r"\[PLACEHOLDER\]", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"<<PLACEHOLDER>>", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"<PLACEHOLDER>", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\{\{[^}]*\}\}", "", cleaned)
-        cleaned = cleaned.strip()
-
-        if not cleaned:
-            lines.append(
-                "*Analytical data was aggregated without additional "
-                "narrative comments.*"
-            )
-        else:
-            lines.append(cleaned)
-
-        lines.append("")
-        return "\n".join(lines)
-
-    def format_warning_blockquotes(
-        self, warnings: list[str] | None = None
-    ) -> str:
-        """Formats non-fatal system warnings into Markdown callout blockquotes.
-
-        Args:
-            warnings: Optional list of warning strings.
-
-        Returns:
-            Formatted callout blockquote string.
-        """
-        if not warnings:
-            return (
-                "> **NOTE**: No non-fatal execution warnings recorded "
-                "during this pipeline run.\n"
-            )
-
-        lines: list[str] = []
-        for w in warnings:
-            w_clean = str(w).strip()
-            if w_clean:
-                lines.append(f"> **WARNING**: {w_clean}")
-
-        if not lines:
-            return (
-                "> **NOTE**: No non-fatal execution warnings recorded "
-                "during this pipeline run.\n"
-            )
-
-        return "\n\n".join(lines) + "\n"
-
-    def format_telemetry_section(
-        self, telemetry_data: dict[str, Any] | None = None
-    ) -> str:
-        """Formats peak CPU/GPU usage, wall-clock time, and memory metrics.
-
-        Args:
-            telemetry_data: Dictionary of hardware telemetry metrics.
-
-        Returns:
-            Formatted Markdown section under 4. Hardware Telemetry.
-        """
-        telem = telemetry_data or {}
-
-        peak_gpu = (
-            telem.get("peak_gpu_vram")
-            or telem.get("peak_gpu_vram_mb")
-            or telem.get("gpu_vram")
-            or telem.get("peak_gpu")
-            or telem.get("gpu_peak_vram_mb")
-            or "N/A"
-        )
-        if isinstance(peak_gpu, int | float):
-            peak_gpu = (
-                f"{peak_gpu:.1f} MB"
-                if peak_gpu > VRAM_THRESHOLD_MB
-                else f"{peak_gpu:.1f} GB"
-            )
-
-        peak_cpu = (
-            telem.get("peak_cpu_percent")
-            or telem.get("cpu_percent")
-            or telem.get("peak_cpu")
-            or telem.get("cpu_peak_percent")
-            or "N/A"
-        )
-        if isinstance(peak_cpu, int | float):
-            peak_cpu = f"{peak_cpu:.1f}%"
-
-        wall_clock = (
-            telem.get("wall_clock_seconds")
-            or telem.get("wall_clock_time")
-            or telem.get("execution_time")
-            or telem.get("wall_clock")
-            or telem.get("elapsed_time")
-            or "N/A"
-        )
-        if isinstance(wall_clock, int | float):
-            wall_clock = f"{wall_clock:.2f} s"
-
-        peak_ram = (
-            telem.get("peak_ram_mb")
-            or telem.get("peak_host_ram")
-            or telem.get("memory_footprint")
-            or telem.get("peak_memory")
-            or telem.get("host_ram")
-            or "N/A"
-        )
-        if isinstance(peak_ram, int | float):
-            peak_ram = (
-                f"{peak_ram:.1f} MB"
-                if peak_ram > RAM_THRESHOLD_MB
-                else f"{peak_ram:.1f} GB"
-            )
-
-        lines: list[str] = [
-            "## 4. Hardware Telemetry & Compute Resource Allocation",
-            "",
-            f"- **Peak GPU VRAM Usage**: {peak_gpu}",
-            f"- **Peak CPU Usage**: {peak_cpu}",
-            f"- **Wall-Clock Execution Time**: {wall_clock}",
-            f"- **Peak Host RAM / Memory Footprint**: {peak_ram}",
-            "",
-        ]
-
-        extra_keys = {
-            k: v
-            for k, v in telem.items()
-            if k
-            not in [
-                "peak_gpu_vram",
-                "peak_gpu_vram_mb",
-                "gpu_vram",
-                "peak_gpu",
-                "gpu_peak_vram_mb",
-                "peak_cpu_percent",
-                "cpu_percent",
-                "peak_cpu",
-                "cpu_peak_percent",
-                "wall_clock_seconds",
-                "wall_clock_time",
-                "execution_time",
-                "wall_clock",
-                "elapsed_time",
-                "peak_ram_mb",
-                "peak_host_ram",
-                "memory_footprint",
-                "peak_memory",
-                "host_ram",
-            ]
-        }
-        if extra_keys:
-            lines.append("### Additional Telemetry Metrics")
-            for k, v in extra_keys.items():
-                k_fmt = k.replace("_", " ").title()
-                lines.append(f"- **{k_fmt}**: {v}")
-            lines.append("")
-
-        return "\n".join(lines)
-
-    def _extract_dataframe(
-        self, payload: dict[str, Any], keys: list[str]
-    ) -> pd.DataFrame | None:
-        """Extracts and standardizes DataFrame from payload given fallback keys."""
-        for key in keys:
-            val = payload.get(key)
-            if val is not None:
-                return (
-                    val if isinstance(val, pd.DataFrame) else pd.DataFrame(val)
+            compressed_size = archive_path.stat().st_size
+            if compressed_size > 0:
+                target_path.unlink()
+                self.log_compressed_artifact(
+                    compressed_path=archive_path,
+                    original_path=target_path,
+                    original_size=original_size,
+                    compressed_size=compressed_size,
                 )
+                return archive_path
+        except Exception:
+            if archive_path.exists():
+                archive_path.unlink(missing_ok=True)
+            raise
+
         return None
 
-    def build_user_guide(
-        self, data_payload: dict[str, Any] | None = None
-    ) -> str:
-        """Assembles the complete CoChem_User_Guide.md document string.
-
-        Args:
-            data_payload: Harvested pipeline data and DataFrames.
-
-        Returns:
-            Complete GitHub-Flavored Markdown user guide string.
-        """
-        payload = data_payload or {}
-        sections: list[str] = []
-
-        # 1. YAML Frontmatter
-        metadata = payload.get("metadata", {})
-        if not isinstance(metadata, dict):
-            metadata = {}
-        for k in ["title", "pipeline_hash", "environment"]:
-            if k in payload and k not in metadata:
-                metadata[k] = payload[k]
-
-        sections.append(self.generate_yaml_frontmatter(metadata))
-
-        # 2. Document Title & Executive Overview
-        doc_title = metadata.get(
-            "title", "CoChem Computational Analysis User Guide"
-        )
-        overview = (
-            payload.get("overview")
-            or payload.get("executive_summary")
-            or (
-                "This document provides a comprehensive summary of the "
-                "computational quantum chemistry pipeline execution, including "
-                "conformer exploration, thermodynamic properties, vibrational "
-                "spectroscopy, and execution provenance."
-            )
-        )
-        sections.append(f"# {doc_title}\n\n{overview}\n")
-
-        # 3. Stage 0 System Matrix & Provenance
-        sys_matrix = payload.get("system_matrix", {})
-        sys_dict = sys_matrix if isinstance(sys_matrix, dict) else {}
-        sections.append(self.generate_system_matrix_section(sys_dict))
-
-        # 4. Dynamic Mermaid.js Workflow Diagram
-        active_stages = payload.get("active_stages")
-        mermaid_chart = self.generate_mermaid_flowchart(active_stages)
-        sections.append(f"## Pipeline Execution Flowchart\n\n{mermaid_chart}\n")
-
-        # 5. Conformer Landscape GFM Table
-        conf_df = self._extract_dataframe(
-            payload, ["conformers_df", "conformer_df", "conformers"]
-        )
-        if conf_df is not None and not conf_df.empty:
-            conf_table = self.format_gfm_table(
-                conf_df, title="Conformer Energetic & Geometric Ranking"
-            )
-            sections.append(f"### Conformer Landscape\n\n{conf_table}\n")
-
-        # 6. Thermodynamic Insights & Energy GFM Table
-        insights = (
-            payload.get("thermodynamic_insights")
-            or payload.get("insights")
-            or ""
-        )
-        sections.append(self.inject_thermodynamic_insights(insights))
-
-        thermo_df = self._extract_dataframe(
-            payload, ["thermodynamics_df", "thermo_df", "energies_df"]
-        )
-        if thermo_df is not None and not thermo_df.empty:
-            thermo_table = self.format_gfm_table(
-                thermo_df,
-                title="Thermodynamic State Functions & Zero-Point Energies",
-            )
-            sections.append(f"{thermo_table}\n")
-
-        # 7. Spectroscopic Parameters & Vibrational GFM Table
-        vib_df = self._extract_dataframe(
-            payload, ["vibrational_df", "spectroscopy_df", "vibrations_df"]
-        )
-        if vib_df is not None and not vib_df.empty:
-            vib_table = self.format_gfm_table(
-                vib_df, title="Vibrational Modes & IR Intensities"
-            )
-            sections.append(
-                f"## 3. Spectroscopic & Vibrational Analysis\n\n{vib_table}\n"
-            )
-
-        # 8. Non-Fatal Execution Warnings Callout Blockquotes
-        warnings = payload.get("warnings")
-        sections.append(
-            f"### Execution Warnings & Audit Trail\n\n"
-            f"{self.format_warning_blockquotes(warnings)}\n"
-        )
-
-        # 9. Hardware Telemetry Summary
-        telemetry = payload.get("telemetry", {})
-        telem_dict = telemetry if isinstance(telemetry, dict) else {}
-        sections.append(self.format_telemetry_section(telem_dict))
-
-        return "\n".join(sections).strip() + "\n"
-
-    def write_user_guide(
+    def process_all_volumetric_artifacts(
         self,
-        content: str,
-        destination_path: str | pathlib.Path | None = None,
-    ) -> pathlib.Path:
-        """Writes Markdown content to disk with overwrite protection.
+        search_dir: str | pathlib.Path | None = None,
+    ) -> list[tuple[pathlib.Path, int, int]]:
+        """Processes and compresses all bloated volumetric files in target directory.
 
         Args:
-            content: Markdown formatted text.
-            destination_path: Optional explicit file path. If omitted, uses
-                self.output_dir / self.filename.
+            search_dir: Directory to scan and compress. If None, uses
+                self.artifacts_dir.
 
         Returns:
-            Resolved pathlib.Path of the written file.
+            List of tuples: (archive_path, original_size_bytes, compressed_size_bytes).
         """
-        if destination_path is not None:
-            target_path = pathlib.Path(destination_path).resolve()
+        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        candidate_files = self.scan_volumetric_artifacts(search_dir=target_dir)
+
+        results: list[tuple[pathlib.Path, int, int]] = []
+        for file_path in candidate_files:
+            if not file_path.exists():
+                continue
+            original_size = file_path.stat().st_size
+            if original_size >= self.compression_threshold_bytes:
+                archive_path = self.compress_volumetric_artifact(file_path)
+                if archive_path is not None and archive_path.exists():
+                    compressed_size = archive_path.stat().st_size
+                    results.append((archive_path, original_size, compressed_size))
+
+        return results
+
+    def log_compressed_artifact(
+        self,
+        compressed_path: pathlib.Path,
+        original_path: pathlib.Path,
+        original_size: int,
+        compressed_size: int,
+    ) -> None:
+        """Appends structured Markdown entries to CoChem_User_Guide.md.
+
+        Args:
+            compressed_path: Path to the compressed archive.
+            original_path: Path to the original uncompressed file.
+            original_size: Original file size in bytes.
+            compressed_size: Compressed archive size in bytes.
+        """
+        target_md = self.user_guide_path
+        target_md.parent.mkdir(parents=True, exist_ok=True)
+
+        orig_mb = original_size / (1024 * 1024)
+        comp_mb = compressed_size / (1024 * 1024)
+        savings_pct = (
+            ((1.0 - (compressed_size / original_size)) * 100.0) if original_size > 0 else 0.0
+        )
+
+        comp_path_str = compressed_path.as_posix()
+        orig_name = original_path.name
+
+        table_header = (
+            "# CoChem Volumetric Visual Assets Archive\n\n"
+            "| Original File | Compressed Archive | Original Size (MB) | "
+            "Compressed Size (MB) | Space Savings (%) |\n"
+            "|---|---|---|---|---|\n"
+        )
+        table_row = (
+            f"| {orig_name} | {comp_path_str} | {orig_mb:.2f} MB | "
+            f"{comp_mb:.2f} MB | {savings_pct:.2f}% |\n"
+        )
+
+        if not target_md.exists():
+            target_md.write_text(table_header + table_row, encoding="utf-8")
         else:
-            target_path = (self.output_dir / self.filename).resolve()
+            existing_content = target_md.read_text(encoding="utf-8")
+            if "# CoChem Volumetric Visual Assets Archive" not in existing_content:
+                new_content = existing_content.rstrip() + "\n\n" + table_header + table_row
+                target_md.write_text(new_content, encoding="utf-8")
+            else:
+                new_content = existing_content.rstrip() + "\n" + table_row
+                target_md.write_text(new_content, encoding="utf-8")
 
-        target_path.parent.mkdir(parents=True, exist_ok=True)
+    def scan_spectral_artifacts(
+        self,
+        search_dir: str | pathlib.Path | None = None,
+    ) -> list[pathlib.Path]:
+        """Recursively scans the directory for 2D publication spectral images.
 
-        if target_path.exists():
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            stem = target_path.stem
-            suffix = target_path.suffix
-            final_path = target_path.parent / f"{stem}_{timestamp}{suffix}"
+        Args:
+            search_dir: Directory to scan. If None, checks figures subdir
+                or self.artifacts_dir.
 
-            count = 1
-            while final_path.exists():
-                final_path = (
-                    target_path.parent / f"{stem}_{timestamp}_{count}{suffix}"
-                )
-                count += 1
+        Returns:
+            Sorted list of high-resolution spectral image paths.
+        """
+        if search_dir is not None:
+            target_dir = pathlib.Path(search_dir)
         else:
-            final_path = target_path
+            fig_dir = self.artifacts_dir / "figures"
+            target_dir = fig_dir if fig_dir.exists() else self.artifacts_dir
 
-        final_path.write_text(content, encoding="utf-8")
-        return final_path
+        if not target_dir.exists():
+            return []
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_md_generator.py ---
-"""Zero-Mock Integration and Unit Test Suite for MarkdownBuilder (Stage 6.3).
+        spectral_exts = {".svg", ".png", ".pdf"}
+        discovered: list[pathlib.Path] = []
 
-Verifies dynamic Markdown User Guide compilation, YAML frontmatter
-serialization, Mermaid.js workflow diagram synthesis, GFM pipe table
-formatting, thermodynamic insights placeholder scrubbing, warning callout
-blockquotes, hardware telemetry reporting, and non-destructive timestamped
-overwrite protection.
+        if target_dir.is_file():
+            if target_dir.suffix.lower() in spectral_exts:
+                return [target_dir]
+            return []
+
+        for p in target_dir.rglob("*"):
+            if p.is_file() and p.suffix.lower() in spectral_exts:
+                if not p.name.startswith(".") and "_thumb" not in p.name.lower():
+                    discovered.append(p)
+
+        return sorted(list(set(discovered)))
+
+    def calculate_relative_image_path(
+        self,
+        image_path: str | pathlib.Path,
+        base_dir: str | pathlib.Path | None = None,
+    ) -> str:
+        """Calculates POSIX-normalized relative path from base_dir to image_path.
+
+        Guarantees standard forward slashes ('/') across all operating systems.
+
+        Args:
+            image_path: Path to the image file.
+            base_dir: Base directory from which relative path is resolved
+                (defaults to self.report_archive_dir).
+
+        Returns:
+            POSIX-normalized relative path string.
+        """
+        img_p = pathlib.Path(image_path)
+        base_p = (
+            pathlib.Path(base_dir).resolve()
+            if base_dir is not None
+            else self.report_archive_dir.resolve()
+        )
+
+        if img_p.is_absolute():
+            try:
+                rel = os.path.relpath(img_p.resolve(), base_p)
+                return rel.replace("\\", "/")
+            except ValueError:
+                return img_p.as_posix()
+        else:
+            return str(img_p).replace("\\", "/")
+
+    def generate_latex_image_snippet(
+        self,
+        image_path: str | pathlib.Path,
+        caption: str = "",
+        label: str = "",
+        width: str = r"\textwidth",
+        base_dir: str | pathlib.Path | None = None,
+    ) -> str:
+        """Constructs an academic LaTeX figure snippet with \\includegraphics.
+
+        Args:
+            image_path: Path to the image file.
+            caption: LaTeX figure caption text. Defaults to sanitized image stem.
+            label: LaTeX figure label. Defaults to fig:<stem>.
+            width: LaTeX graphic width specification (e.g. \\textwidth, 0.8\\linewidth).
+            base_dir: Base directory to resolve relative image path against.
+
+        Returns:
+            LaTeX figure environment code block string.
+        """
+        img_p = pathlib.Path(image_path)
+        rel_path = self.calculate_relative_image_path(img_p, base_dir=base_dir)
+
+        clean_caption = (
+            caption if caption else img_p.stem.replace("_", " ").replace("-", " ").title()
+        )
+        clean_label = (
+            label if label else f"fig:{img_p.stem.lower().replace(' ', '_').replace('-', '_')}"
+        )
+
+        snippet = (
+            r"\begin{figure}[htbp]" + "\n"
+            r"\centering" + "\n"
+            rf"\includegraphics[width={width}]{{{rel_path}}}" + "\n"
+            rf"\caption{{{clean_caption}}}" + "\n"
+            rf"\label{{{clean_label}}}" + "\n"
+            r"\end{figure}"
+        )
+        return snippet
+
+    def build_visual_payload(
+        self,
+        search_dir: str | pathlib.Path | None = None,
+    ) -> dict[str, Any]:
+        """Builds comprehensive dictionary payload for Jinja2 template rendering.
+
+        Args:
+            search_dir: Directory containing visual assets. If None, uses
+                self.artifacts_dir.
+
+        Returns:
+            Structured dictionary payload for Jinja2 template rendering.
+        """
+        target_dir = pathlib.Path(search_dir) if search_dir is not None else self.artifacts_dir
+        base_dir = target_dir if search_dir is not None else self.report_archive_dir
+
+        # Process and compress bloated volumetric artifacts
+        compression_metrics = self.process_all_volumetric_artifacts(search_dir=target_dir)
+        compressed_3d_assets: list[dict[str, Any]] = []
+        for comp_path, orig_size, comp_size in compression_metrics:
+            orig_mb = round(orig_size / (1024 * 1024), 2)
+            comp_mb = round(comp_size / (1024 * 1024), 2)
+            savings_pct = (
+                round(((1.0 - (comp_size / orig_size)) * 100.0), 2) if orig_size > 0 else 0.0
+            )
+
+            orig_name = comp_path.name.removesuffix(".tar.zst").removesuffix(".zst")
+            compressed_3d_assets.append(
+                {
+                    "original_name": orig_name,
+                    "compressed_path": comp_path.as_posix(),
+                    "original_size_mb": orig_mb,
+                    "compressed_size_mb": comp_mb,
+                    "savings_pct": savings_pct,
+                }
+            )
+
+        # Scan 2D spectral images
+        spectral_files = self.scan_spectral_artifacts(search_dir=target_dir)
+        spectral_figures: list[dict[str, Any]] = []
+        snippets: list[str] = []
+
+        for img in spectral_files:
+            rel_path = self.calculate_relative_image_path(img, base_dir=base_dir)
+            snippet = self.generate_latex_image_snippet(img, base_dir=base_dir)
+            spectral_figures.append(
+                {
+                    "stem": img.stem,
+                    "relative_path": rel_path,
+                    "latex_snippet": snippet,
+                    "format": img.suffix.lstrip(".").lower(),
+                }
+            )
+            snippets.append(snippet)
+
+        return {
+            "spectral_figures": spectral_figures,
+            "spectral_figure_snippets": "\n\n".join(snippets),
+            "compressed_3d_assets": compressed_3d_assets,
+        }
+
+    def inject_visuals_into_context(
+        self,
+        jinja_context: dict[str, Any],
+        search_dir: str | pathlib.Path | None = None,
+    ) -> dict[str, Any]:
+        """Injects spectral figure snippets and asset mappings into Jinja2 context.
+
+        Args:
+            jinja_context: Target Jinja2 context dictionary to enrich.
+            search_dir: Directory containing visual assets.
+
+        Returns:
+            Enriched Jinja2 context dictionary.
+        """
+        payload = self.build_visual_payload(search_dir=search_dir)
+
+        jinja_context["spectral_figures"] = payload["spectral_figures"]
+        jinja_context["spectral_figure_snippets"] = payload["spectral_figure_snippets"]
+        jinja_context["compressed_3d_assets"] = payload["compressed_3d_assets"]
+
+        figure_ir_snippet = ""
+        figure_raman_snippet = ""
+
+        for fig in payload["spectral_figures"]:
+            stem_lower = fig["stem"].lower()
+            if "ir" in stem_lower and not figure_ir_snippet:
+                figure_ir_snippet = fig["latex_snippet"]
+            if "raman" in stem_lower and not figure_raman_snippet:
+                figure_raman_snippet = fig["latex_snippet"]
+
+        jinja_context["figure_ir_snippet"] = figure_ir_snippet
+        jinja_context["figure_raman_snippet"] = figure_raman_snippet
+
+        return jinja_context
+
+
+if __name__ == "__main__":
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_p = pathlib.Path(tmp_dir)
+        fig_p = tmp_p / "figures"
+        fig_p.mkdir(parents=True, exist_ok=True)
+
+        test_img = fig_p / "test_spectrum.png"
+        test_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+        bridge = VisualAssetBridge(
+            artifacts_dir=tmp_p,
+            report_archive_dir=tmp_p,
+            user_guide_path=tmp_p / "CoChem_User_Guide.md",
+            compression_threshold_bytes=1000,
+        )
+
+        specs = bridge.scan_spectral_artifacts(search_dir=tmp_p)
+        assert len(specs) == 1, "Spectral scan failed"
+
+        rel_p = bridge.calculate_relative_image_path(test_img, base_dir=tmp_p)
+        assert "\\" not in rel_p, "Path contains backslashes"
+        assert rel_p == "figures/test_spectrum.png", f"Unexpected rel_path: {rel_p}"
+
+        snippet = bridge.generate_latex_image_snippet(test_img, base_dir=tmp_p)
+        assert r"\begin{figure}" in snippet
+        assert "figures/test_spectrum.png" in snippet
+
+        ctx = bridge.inject_visuals_into_context({}, search_dir=tmp_p)
+        assert "spectral_figures" in ctx
+        assert len(ctx["spectral_figures"]) == 1
+
+        print("[SCRIBE VIZ BRIDGE PRE-FLIGHT VERIFIED]")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_viz_bridge.py ---
+"""Zero-Mock Integration Test Suite for VisualAssetBridge (CoChem-SCRIBE Stage 6.3).
+
+Strictly adheres to:
+- SRS Phase 4 Task 10 (Tasks 75-78, 80)
+- Zero-Mock Anti-Spoofing Protocol: Real filesystem I/O, real zstandard byte streams,
+  real tmp_path files, real >= 51 MB synthetic binary .cube and .html files.
+- 6-Tier Environment Matrix (POSIX path assertions).
 """
 
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
-from typing import Any
 
-import pandas as pd
-import yaml
+from formatters.scribe_viz_bridge import (
+    DEFAULT_50MB_THRESHOLD,
+    VisualAssetBridge,
+)
 
-from formatters.scribe_md_generator import MarkdownBuilder
+# Test constants to eliminate magic values
+MIN_COMPRESSION_SAVINGS_PCT: float = 80.0
+SYNTHETIC_CUBE_CHUNK_COUNT: int = 1600
+SYNTHETIC_HTML_CHUNK_COUNT: int = 1700
+SUB_THRESHOLD_REPEAT: int = 70000
+EXPECTED_DISCOVERED_SPECTRAL_COUNT: int = 2
+EXPECTED_COMPRESSED_COUNT: int = 1
+SYNTHETIC_ORIG_SIZE_60MB: int = 62914560
+SYNTHETIC_COMP_SIZE_4MB: int = 4194304
+SYNTHETIC_ORIG_SIZE_50MB: int = 52428800
+SYNTHETIC_COMP_SIZE_5MB: int = 5242880
 
 
-def test_builder_initialization(tmp_path: pathlib.Path) -> None:
-    """Verifies default and custom path resolution during initialization."""
-    # Test default initialization
-    default_builder = MarkdownBuilder()
-    assert isinstance(default_builder, MarkdownBuilder)
-    expected_default_dir = (
-        pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
-    ).resolve()
-    assert default_builder.output_dir == expected_default_dir
-    assert default_builder.filename == "CoChem_User_Guide.md"
+def test_zstandard_compression_boundary_50mb(tmp_path: pathlib.Path) -> None:
+    """Task 80: Real binary .cube file >= 51 MB stream compression boundary test."""
+    cube_file = tmp_path / "orbital_density.cube"
 
-    # Test custom output directory initialization
-    custom_dir = tmp_path / "custom_reports"
-    custom_builder = MarkdownBuilder(
-        output_dir=custom_dir, filename="Custom_Guide.md"
+    # Generate structured synthetic binary data >= 51 MB (54,400,000 bytes)
+    # Chunked write to keep test memory footprint minimal
+    pattern_chunk = b"CUBE_DENSITY_GRID_DATA_CHUNK_12345" * 1000  # 34,000 bytes
+    with open(cube_file, "wb") as f_out:
+        for _ in range(SYNTHETIC_CUBE_CHUNK_COUNT):
+            f_out.write(pattern_chunk)
+
+    original_size = cube_file.stat().st_size
+    assert original_size >= DEFAULT_50MB_THRESHOLD, (
+        f"Generated file size {original_size} < 50 MB threshold"
     )
-    assert custom_builder.output_dir == custom_dir.resolve()
-    assert custom_builder.filename == "Custom_Guide.md"
-    assert custom_dir.exists()
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+        user_guide_path=tmp_path / "Report_Archive" / "CoChem_User_Guide.md",
+        compression_threshold_bytes=DEFAULT_50MB_THRESHOLD,
+        compression_level=19,
+    )
+
+    archive_path = bridge.compress_volumetric_artifact(cube_file)
+
+    assert archive_path is not None, "Compression returned None for >= 50 MB file"
+    assert archive_path.exists(), f"Archive {archive_path} was not written to disk"
+    assert archive_path.name == "orbital_density.cube.tar.zst"
+
+    # Original file must be unlinked to truncate disk bloat
+    assert not cube_file.exists(), "Original .cube file was not deleted after compression"
+
+    compressed_size = archive_path.stat().st_size
+    assert compressed_size > 0, "Compressed archive is empty"
+    assert compressed_size < original_size, "Compressed archive is not smaller than original"
+
+    savings_pct = (1.0 - (compressed_size / original_size)) * 100.0
+    assert savings_pct > MIN_COMPRESSION_SAVINGS_PCT, (
+        f"Expected >80% space savings on repetitive grid, got {savings_pct:.2f}%"
+    )
 
 
-def test_yaml_frontmatter_and_metadata(tmp_path: pathlib.Path) -> None:
-    """Verifies YAML frontmatter generation and yaml.safe_load parsing."""
-    builder = MarkdownBuilder(output_dir=tmp_path)
-    hash_str = "a1b2c3d4e5f6789012345678abcdef0123456789abcdef0123456789abcdef01"
-    metadata: dict[str, Any] = {
-        "title": "CoChem Computational Analysis User Guide - Ethanol Conformer",
-        "generated_at": "2026-08-24T12:00:00",
-        "version": "2.0.0",
-        "pipeline_hash": hash_str,
-        "environment": "Local-Linux (Debian)",
-        "fair_compliance": True,
-        "experiment_id": "EXP-2026-ETH-001",
+def test_sub_threshold_passthrough(tmp_path: pathlib.Path) -> None:
+    """Sub-threshold passthrough: 1 MB .cube file remains intact and uncompressed."""
+    small_cube = tmp_path / "small_grid.cube"
+    small_cube.write_bytes(b"CUBE_DATA_SMALL" * SUB_THRESHOLD_REPEAT)  # ~1.05 MB
+
+    original_size = small_cube.stat().st_size
+    assert original_size < DEFAULT_50MB_THRESHOLD
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+        compression_threshold_bytes=DEFAULT_50MB_THRESHOLD,
+    )
+
+    result = bridge.compress_volumetric_artifact(small_cube)
+
+    assert result is None, "Sub-threshold file should return None"
+    assert small_cube.exists(), "Sub-threshold file must remain untouched"
+    assert not small_cube.with_name(f"{small_cube.name}.tar.zst").exists()
+
+
+def test_html_3d_carousel_compression(tmp_path: pathlib.Path) -> None:
+    """HTML 3D carousel compression: 51 MB .html file processed in batch."""
+    html_file = tmp_path / "carousel_3d.html"
+
+    # Write ~55.25 MB synthetic html data
+    pattern = (
+        b"<div><canvas data-grid='VOLUMETRIC_3D_NGL_STREAM'></canvas></div>\n" * 500
+    )  # 32,500 bytes
+    with open(html_file, "wb") as f_out:
+        for _ in range(SYNTHETIC_HTML_CHUNK_COUNT):
+            f_out.write(pattern)
+
+    assert html_file.stat().st_size >= DEFAULT_50MB_THRESHOLD
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+        compression_threshold_bytes=DEFAULT_50MB_THRESHOLD,
+    )
+
+    metrics = bridge.process_all_volumetric_artifacts(search_dir=tmp_path)
+
+    assert len(metrics) == EXPECTED_COMPRESSED_COUNT
+    archive_path, orig_size, comp_size = metrics[0]
+
+    assert archive_path.name == "carousel_3d.html.tar.zst"
+    assert archive_path.exists()
+    assert not html_file.exists(), "Original .html file was not unlinked"
+    assert comp_size < orig_size
+    assert comp_size > 0
+
+
+def test_spectral_image_discovery_and_relative_path(
+    tmp_path: pathlib.Path,
+) -> None:
+    """2D spectral discovery, filtering, and cross-platform relative path."""
+    figures_dir = tmp_path / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    ir_img = figures_dir / "ir_spectrum.png"
+    raman_img = figures_dir / "raman_spectrum.svg"
+    hidden_img = figures_dir / ".hidden_spectrum.png"
+    thumb_img = figures_dir / "ir_spectrum_thumb.png"
+    non_img = figures_dir / "data.csv"
+
+    ir_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+    raman_img.write_text("<svg xmlns='http://www.w3.org/2000/svg'></svg>", encoding="utf-8")
+    hidden_img.write_bytes(b"hidden")
+    thumb_img.write_bytes(b"thumb")
+    non_img.write_text("wavenumber,intensity", encoding="utf-8")
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+    )
+
+    discovered = bridge.scan_spectral_artifacts(search_dir=tmp_path)
+
+    assert len(discovered) == EXPECTED_DISCOVERED_SPECTRAL_COUNT
+    assert ir_img in discovered
+    assert raman_img in discovered
+    assert hidden_img not in discovered
+    assert thumb_img not in discovered
+    assert non_img not in discovered
+
+    # Verify POSIX forward slash normalization
+    rel_ir = bridge.calculate_relative_image_path(ir_img, base_dir=tmp_path)
+    rel_raman = bridge.calculate_relative_image_path(raman_img, base_dir=tmp_path)
+
+    assert "\\" not in rel_ir, "Relative path contains Windows backslashes"
+    assert "\\" not in rel_raman, "Relative path contains Windows backslashes"
+    assert rel_ir == "figures/ir_spectrum.png"
+    assert rel_raman == "figures/raman_spectrum.svg"
+
+
+def test_latex_figure_snippet_generation(tmp_path: pathlib.Path) -> None:
+    """LaTeX figure environment generation with verified formatting and POSIX paths."""
+    figures_dir = tmp_path / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    ir_img = figures_dir / "ir_spectrum.png"
+    ir_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+    )
+
+    snippet = bridge.generate_latex_image_snippet(
+        image_path=ir_img,
+        caption="Calculated IR Vibrational Spectrum",
+        label="fig:ir_spectrum",
+        width=r"\textwidth",
+        base_dir=tmp_path,
+    )
+
+    assert r"\begin{figure}" in snippet
+    assert r"\centering" in snippet
+    assert r"\includegraphics[width=\textwidth]{figures/ir_spectrum.png}" in snippet
+    assert r"\caption{Calculated IR Vibrational Spectrum}" in snippet
+    assert r"\label{fig:ir_spectrum}" in snippet
+    assert r"\end{figure}" in snippet
+
+
+def test_default_latex_snippet_caption_and_label(tmp_path: pathlib.Path) -> None:
+    """Default fallback generation for caption and label when omitted."""
+    figures_dir = tmp_path / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    uv_img = figures_dir / "uv_vis_spectrum.png"
+    uv_img.write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+    )
+
+    snippet = bridge.generate_latex_image_snippet(image_path=uv_img, base_dir=tmp_path)
+
+    assert r"\caption{Uv Vis Spectrum}" in snippet
+    assert r"\label{fig:uv_vis_spectrum}" in snippet
+    assert r"\includegraphics[width=\textwidth]{figures/uv_vis_spectrum.png}" in snippet
+
+
+def test_user_guide_markdown_logging(tmp_path: pathlib.Path) -> None:
+    """Markdown logging of compressed volumetric assets to CoChem_User_Guide.md."""
+    guide_file = tmp_path / "Report_Archive" / "CoChem_User_Guide.md"
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path / "Report_Archive",
+        user_guide_path=guide_file,
+    )
+
+    orig_cube = tmp_path / "electron_density.cube"
+    comp_cube = tmp_path / "electron_density.cube.tar.zst"
+
+    # 60 MB original, 4 MB compressed
+    bridge.log_compressed_artifact(
+        compressed_path=comp_cube,
+        original_path=orig_cube,
+        original_size=SYNTHETIC_ORIG_SIZE_60MB,
+        compressed_size=SYNTHETIC_COMP_SIZE_4MB,
+    )
+
+    assert guide_file.exists()
+    content = guide_file.read_text(encoding="utf-8")
+
+    assert "# CoChem Volumetric Visual Assets Archive" in content
+    assert (
+        "| Original File | Compressed Archive | Original Size (MB) | "
+        "Compressed Size (MB) | Space Savings (%) |" in content
+    )
+    assert "electron_density.cube" in content
+    assert "60.00 MB" in content
+    assert "4.00 MB" in content
+    assert "93.33%" in content
+
+    # Append second asset and assert table header is not duplicated
+    orig_html = tmp_path / "carousel.html"
+    comp_html = tmp_path / "carousel.html.tar.zst"
+    bridge.log_compressed_artifact(
+        compressed_path=comp_html,
+        original_path=orig_html,
+        original_size=SYNTHETIC_ORIG_SIZE_50MB,
+        compressed_size=SYNTHETIC_COMP_SIZE_5MB,
+    )
+
+    content2 = guide_file.read_text(encoding="utf-8")
+    assert content2.count("# CoChem Volumetric Visual Assets Archive") == 1
+    assert "carousel.html" in content2
+    assert "50.00 MB" in content2
+    assert "5.00 MB" in content2
+    assert "90.00%" in content2
+
+
+def test_jinja2_context_injection_integration(tmp_path: pathlib.Path) -> None:
+    """Full pipeline: scanning, compression, snippet, and Jinja2 context injection."""
+    figures_dir = tmp_path / "figures"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
+    (figures_dir / "ir_spectrum.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+    (figures_dir / "raman_spectrum.svg").write_text("<svg></svg>", encoding="utf-8")
+
+    cube_file = tmp_path / "nci_density.cube"
+    pattern = b"NCI_GRID_BINARY_STREAM_BYTE_CHUNK_999" * 1000  # 37,000 bytes
+    with open(cube_file, "wb") as f_out:
+        for _ in range(1500):  # 55,500,000 bytes (~52.93 MB)
+            f_out.write(pattern)
+
+    bridge = VisualAssetBridge(
+        artifacts_dir=tmp_path,
+        report_archive_dir=tmp_path,
+        compression_threshold_bytes=DEFAULT_50MB_THRESHOLD,
+    )
+
+    base_context = {
+        "title": "DFT Exploration of Porphyrin Metal Complexes",
+        "computational_details": "B3LYP-D3(BJ)/def2-TZVP",
     }
 
-    frontmatter = builder.generate_yaml_frontmatter(metadata)
+    enriched = bridge.inject_visuals_into_context(base_context, search_dir=tmp_path)
 
-    assert frontmatter.startswith("---\n")
-    assert frontmatter.endswith("\n---")
+    # Assert base keys preserved
+    assert enriched["title"] == "DFT Exploration of Porphyrin Metal Complexes"
+    assert enriched["computational_details"] == "B3LYP-D3(BJ)/def2-TZVP"
 
-    # Strip delimiters and parse using real PyYAML safe_load
-    stripped_content = frontmatter.strip("-").strip()
-    parsed_yaml = yaml.safe_load(stripped_content)
+    # Assert visual keys injected
+    assert "spectral_figures" in enriched
+    assert len(enriched["spectral_figures"]) == EXPECTED_DISCOVERED_SPECTRAL_COUNT
 
-    assert isinstance(parsed_yaml, dict)
-    assert (
-        parsed_yaml["title"]
-        == "CoChem Computational Analysis User Guide - Ethanol Conformer"
-    )
-    assert parsed_yaml["version"] == "2.0.0"
-    assert parsed_yaml["pipeline_hash"] == hash_str
-    assert parsed_yaml["environment"] == "Local-Linux (Debian)"
-    assert parsed_yaml["fair_compliance"] is True
-    assert parsed_yaml["experiment_id"] == "EXP-2026-ETH-001"
+    assert "spectral_figure_snippets" in enriched
+    assert "figures/ir_spectrum.png" in enriched["spectral_figure_snippets"]
+    assert "figures/raman_spectrum.svg" in enriched["spectral_figure_snippets"]
 
+    assert "figure_ir_snippet" in enriched
+    assert r"\begin{figure}" in enriched["figure_ir_snippet"]
+    assert "figures/ir_spectrum.png" in enriched["figure_ir_snippet"]
 
-def test_mermaid_flowchart_synthesis(tmp_path: pathlib.Path) -> None:
-    """Verifies dynamic Mermaid.js flowchart generation for active stages."""
-    builder = MarkdownBuilder(output_dir=tmp_path)
+    assert "figure_raman_snippet" in enriched
+    assert r"\begin{figure}" in enriched["figure_raman_snippet"]
+    assert "figures/raman_spectrum.svg" in enriched["figure_raman_snippet"]
 
-    # Test specific active stages subset
-    active_stages = ["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 6.0"]
-    flowchart = builder.generate_mermaid_flowchart(active_stages)
-
-    assert "```mermaid" in flowchart
-    assert "graph TD" in flowchart
-    assert "```" in flowchart
-    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in flowchart
-    assert 'S1["Stage 1.0: Conformer Generation (CREST/ORCA)"]' in flowchart
-    assert 'S2["Stage 2.0: Geometry Optimization"]' in flowchart
-    assert 'S6["Stage 6.0: Document Synthesis (SCRIBE)"]' in flowchart
-    assert "S0" in flowchart and "-->" in flowchart and "S1" in flowchart
-    assert "S2" in flowchart and "-->" in flowchart and "S6" in flowchart
-    # Verify stages not in subset are omitted
-    assert "S3" not in flowchart
-    assert "S4" not in flowchart
-    assert "S5" not in flowchart
-
-    # Test default stages (None passed)
-    default_flowchart = builder.generate_mermaid_flowchart()
-    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in default_flowchart
-    assert 'S6["Stage 6.0: Document Synthesis (SCRIBE)"]' in default_flowchart
-    assert "S5" in default_flowchart
+    assert "compressed_3d_assets" in enriched
+    assert len(enriched["compressed_3d_assets"]) == EXPECTED_COMPRESSED_COUNT
+    assert enriched["compressed_3d_assets"][0]["original_name"] == "nci_density.cube"
+    assert enriched["compressed_3d_assets"][0]["savings_pct"] > MIN_COMPRESSION_SAVINGS_PCT
 
 
-def test_gfm_table_pipe_formatting(tmp_path: pathlib.Path) -> None:
-    """Verifies GFM pipe table conversion from pandas DataFrames."""
-    builder = MarkdownBuilder(output_dir=tmp_path)
+def test_empty_and_nonexistent_directories_safe_handling(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Safe graceful handling when directories do not exist or are empty."""
+    non_existent = tmp_path / "missing_dir"
 
-    data = {
-        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
-        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
-        "Symmetry": ["C1", "Cs", "C1"],
-        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
-    }
-    df = pd.DataFrame(data)
-
-    table_md = builder.format_gfm_table(df, title="Conformer Distribution")
-
-    assert "### Conformer Distribution" in table_md
-    assert (
-        "| Conformer ID | Relative Energy (kcal/mol) | Symmetry | "
-        "Boltzmann Population (%) |"
-    ) in table_md
-    assert (
-        "| :--- | :--- | :--- | :--- |" in table_md
-        or "| :--- | ---: | :--- | ---: |" in table_md
-    )
-    assert (
-        "| Conf_01 | 0.00 | C1 | 68.40 |" in table_md
-        or "| Conf_01 | 0.00 | C1 | 68.4 |" in table_md
-    )
-    assert (
-        "| Conf_02 | 0.42 | Cs | 24.10 |" in table_md
-        or "| Conf_02 | 0.42 | Cs | 24.1 |" in table_md
-    )
-    assert (
-        "| Conf_03 | 1.88 | C1 | 7.50 |" in table_md
-        or "| Conf_03 | 1.88 | C1 | 7.5 |" in table_md
+    bridge = VisualAssetBridge(
+        artifacts_dir=non_existent,
+        report_archive_dir=non_existent,
     )
 
+    assert bridge.scan_volumetric_artifacts() == []
+    assert bridge.scan_spectral_artifacts() == []
+    assert bridge.process_all_volumetric_artifacts() == []
+    assert bridge.compress_volumetric_artifact(non_existent / "fake.cube") is None
 
-def test_warning_callouts_and_telemetry(tmp_path: pathlib.Path) -> None:
-    """Verifies warning blockquotes and hardware telemetry formatting."""
-    builder = MarkdownBuilder(output_dir=tmp_path)
 
-    # 1. Non-empty warnings
-    warnings = [
-        "SCF convergence required dampening on step 4.",
-        "GPU VRAM spike near 90% during Hessian computation.",
-    ]
-    warning_block = builder.format_warning_blockquotes(warnings)
-    assert (
-        "> **WARNING**: SCF convergence required dampening on step 4."
-        in warning_block
-    )
-    assert (
-        "> **WARNING**: GPU VRAM spike near 90% during Hessian computation."
-        in warning_block
+def test_cli_preflight_verification() -> None:
+    """CLI pre-flight execution test executing scribe_viz_bridge as __main__."""
+    bridge_script = pathlib.Path(__file__).parent / "scribe_viz_bridge.py"
+    assert bridge_script.exists(), f"Script not found at {bridge_script}"
+
+    result = subprocess.run(
+        [sys.executable, str(bridge_script)],
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
-    # 2. Empty warnings fallback
-    empty_block = builder.format_warning_blockquotes([])
-    assert (
-        "> **NOTE**: No non-fatal execution warnings recorded during this run."
-        in empty_block
-        or "No non-fatal execution warnings" in empty_block
+    assert result.returncode == 0, (
+        f"Pre-flight failed with error:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )
-
-    none_block = builder.format_warning_blockquotes(None)
-    assert "No non-fatal execution warnings" in none_block
-
-    # 3. Telemetry section
-    telemetry = {
-        "peak_gpu_vram": "18.4 GB",
-        "peak_cpu_percent": 87.5,
-        "wall_clock_seconds": 124.58,
-        "peak_host_ram": "32.1 GB",
-    }
-    telemetry_md = builder.format_telemetry_section(telemetry)
-    assert (
-        "## 4. Hardware Telemetry & Compute Resource Allocation"
-        in telemetry_md
-    )
-    assert "**Peak GPU VRAM Usage**: 18.4 GB" in telemetry_md
-    assert "**Peak CPU Usage**: 87.5%" in telemetry_md
-    assert "**Wall-Clock Execution Time**: 124.58 s" in telemetry_md
-    assert "**Peak Host RAM / Memory Footprint**: 32.1 GB" in telemetry_md
-
-
-def test_non_destructive_overwrite_protection(tmp_path: pathlib.Path) -> None:
-    """Verifies timestamped file creation when target file already exists."""
-    output_dir = tmp_path / "guide_output"
-    builder = MarkdownBuilder(
-        output_dir=output_dir, filename="CoChem_User_Guide.md"
-    )
-
-    # Write initial guide
-    initial_content = "# Initial Guide\n\nFirst run notes by researcher."
-    path_1 = builder.write_user_guide(initial_content)
-
-    assert path_1.exists()
-    assert path_1.name == "CoChem_User_Guide.md"
-    assert path_1.read_text(encoding="utf-8") == initial_content
-
-    # Write second guide - must NOT overwrite path_1
-    second_content = "# Second Guide\n\nUpdated pipeline output data."
-    path_2 = builder.write_user_guide(second_content)
-
-    assert path_2.exists()
-    assert path_2 != path_1
-    assert path_2.name.startswith("CoChem_User_Guide_")
-    assert path_2.suffix == ".md"
-
-    # Verify initial file remains unmodified
-    assert path_1.read_text(encoding="utf-8") == initial_content
-    # Verify second file contains new content
-    assert path_2.read_text(encoding="utf-8") == second_content
-
-
-def test_end_to_end_user_guide_generation(tmp_path: pathlib.Path) -> None:
-    """Verifies full end-to-end user guide assembly and disk persistence."""
-    output_dir = tmp_path / "e2e_output"
-    builder = MarkdownBuilder(
-        output_dir=output_dir, filename="CoChem_User_Guide.md"
-    )
-
-    conf_df = pd.DataFrame({
-        "Conformer": ["Conf_A", "Conf_B"],
-        "Relative Energy (kcal/mol)": [0.0, 1.25],
-        "Symmetry": ["C1", "C2"],
-    })
-
-    vib_df = pd.DataFrame({
-        "Mode #": [1, 2, 3],
-        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
-        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
-    })
-
-    pipe_hash = (
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    )
-    payload: dict[str, Any] = {
-        "metadata": {
-            "title": "Ethanol Conformational & Vibrational User Guide",
-            "version": "2.0.0",
-            "pipeline_hash": pipe_hash,
-            "environment": "Local-Windows WSL",
-            "fair_compliance": True,
-        },
-        "overview": (
-            "Detailed conformational analysis of ethanol executed under ORCA."
-        ),
-        "system_matrix": {
-            "engines": {"ORCA": "6.1.1", "xTB": "6.7.1", "MACE": "MACE-OFF23"},
-            "host": {
-                "environment_tier": "Local-Windows WSL",
-                "cpu_cores": 16,
-                "gpu_device": "NVIDIA RTX 4090",
-                "host_ram": "64 GB",
-            },
-            "config_hash": pipe_hash,
-        },
-        "active_stages": [
-            "Stage 0.0",
-            "Stage 1.0",
-            "Stage 2.0",
-            "Stage 3.0",
-            "Stage 6.0",
-        ],
-        "conformers_df": conf_df,
-        "thermodynamic_insights": (
-            "The global minimum conformer exhibits stabilization via "
-            "internal hydrogen bonding. <<INSERT_PLACEHOLDER>>"
-        ),
-        "vibrational_df": vib_df,
-        "warnings": ["Low-frequency torsional mode (< 50 cm^-1) detected."],
-        "telemetry": {
-            "peak_gpu_vram": "4.2 GB",
-            "peak_cpu_percent": 65.0,
-            "wall_clock_seconds": 45.2,
-            "peak_host_ram": "12.8 GB",
-        },
-    }
-
-    markdown_content = builder.build_user_guide(payload)
-    written_path = builder.write_user_guide(markdown_content)
-
-    assert written_path.exists()
-    disk_content = written_path.read_text(encoding="utf-8")
-
-    # Assert YAML Frontmatter
-    assert disk_content.startswith("---\n")
-    assert f"pipeline_hash: {pipe_hash}" in disk_content
-
-    # Assert System Matrix
-    assert "## 1. System Execution Environment & Provenance" in disk_content
-    assert "- **ORCA**: `6.1.1`" in disk_content
-    assert "- **CPU Allocation**: 16" in disk_content
-
-    # Assert Mermaid Chart
-    assert "```mermaid" in disk_content
-    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in disk_content
-    assert 'S3["Stage 3.0: Frequency & Thermochemistry"]' in disk_content
-
-    # Assert Tables
-    assert (
-        "| Conformer | Relative Energy (kcal/mol) | Symmetry |" in disk_content
-    )
-    assert (
-        "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) |" in disk_content
-    )
-
-    # Assert Insights & Placeholder Scrubbing
-    assert "## 2. Thermodynamic & Structural Analysis" in disk_content
-    assert (
-        "The global minimum conformer exhibits stabilization via internal "
-        "hydrogen bonding."
-    ) in disk_content
-    assert "<<INSERT_PLACEHOLDER>>" not in disk_content
-
-    # Assert Warnings Callout
-    assert (
-        "> **WARNING**: Low-frequency torsional mode (< 50 cm^-1) detected."
-        in disk_content
-    )
-
-    # Assert Telemetry
-    assert (
-        "## 4. Hardware Telemetry & Compute Resource Allocation"
-        in disk_content
-    )
-    assert "**Peak GPU VRAM Usage**: 4.2 GB" in disk_content
-    assert (
-        "**Wall-Clock Execution Time**: 45.20 s" in disk_content
-        or "**Wall-Clock Execution Time**: 45.2 s" in disk_content
-    )
+    assert "[SCRIBE VIZ BRIDGE PRE-FLIGHT VERIFIED]" in result.stdout
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

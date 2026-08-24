@@ -64,8 +64,11 @@ MODEL_PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
 # =============================================================================
 
 
-class ScribeNetworkException(Exception):
+class ScribeNetworkException(Exception):  # noqa: N818
     """Raised when remote API retries are exhausted under exponential backoff."""
+
+
+ScribeNetworkError = ScribeNetworkException
 
 
 # =============================================================================
@@ -120,7 +123,9 @@ def estimate_token_count(text: str) -> int:
     return max(1, max(words, chars // 4))
 
 
-def calculate_model_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
+def calculate_model_cost(
+    model_name: str, prompt_tokens: int, completion_tokens: int
+) -> float:
     """Computes estimated API generation cost in USD based on FAIR model pricing tables."""
     pricing = MODEL_PRICING_USD_PER_MILLION.get(model_name.lower(), (0.075, 0.30))
     cost = (prompt_tokens * pricing[0] / 1_000_000.0) + (
@@ -136,11 +141,13 @@ _PYTHON_VERSION: str = sys.version
 def record_audit_event(
     event_type: str,
     details: dict[str, typing.Any],
-    audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+    audit_log_path: str | pathlib.Path | None = None,
 ) -> None:
     """Appends structured JSON telemetry / audit event to the central audit log."""
     target_path = (
-        pathlib.Path(audit_log_path).resolve() if audit_log_path else get_default_audit_log_path()
+        pathlib.Path(audit_log_path).resolve()
+        if audit_log_path
+        else get_default_audit_log_path()
     )
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -203,7 +210,7 @@ class DryRunEngine(ScribeLLMEngine):
 
     def __init__(
         self,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        audit_log_path: str | pathlib.Path | None = None,
     ) -> None:
         self.audit_log_path = (
             pathlib.Path(audit_log_path).resolve()
@@ -259,8 +266,7 @@ class DryRunEngine(ScribeLLMEngine):
             "tables. ",
             "[LLM INSIGHTS BYPASSED VIA DRY-RUN]",
         ]
-        for chunk in chunks:
-            yield chunk
+        yield from chunks
 
         elapsed_time = time.perf_counter() - start_time
         record_audit_event(
@@ -291,23 +297,27 @@ class GeminiEngine(ScribeLLMEngine):
     def __init__(
         self,
         model_name: str = DEFAULT_MODEL_NAME,
-        env_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        env_path: str | pathlib.Path | None = None,
+        audit_log_path: str | pathlib.Path | None = None,
     ) -> None:
         self.model_name = model_name
-        self.env_path = pathlib.Path(env_path).resolve() if env_path else get_default_env_path()
+        self.env_path = (
+            pathlib.Path(env_path).resolve() if env_path else get_default_env_path()
+        )
         self.audit_log_path = (
             pathlib.Path(audit_log_path).resolve()
             if audit_log_path
             else get_default_audit_log_path()
         )
-        self._fallback_engine: typing.Optional[DryRunEngine] = None
+        self._fallback_engine: DryRunEngine | None = None
         self.client: typing.Any = None
 
         # Check offline flag
         offline_flag = os.environ.get("COCHEM_OFFLINE", "").strip().lower()
         if offline_flag in ("1", "true", "yes", "y", "on"):
-            logger.info("GeminiEngine: COCHEM_OFFLINE is set. Activating DryRunEngine fallback.")
+            logger.info(
+                "GeminiEngine: COCHEM_OFFLINE is set. Activating DryRunEngine fallback."
+            )
             self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
             return
 
@@ -329,7 +339,7 @@ class GeminiEngine(ScribeLLMEngine):
             )
             self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
 
-    def _resolve_api_key(self) -> typing.Optional[str]:
+    def _resolve_api_key(self) -> str | None:
         """Resolves GEMINI_API_KEY from environment or secure .env file with platform-aware security."""
         # 1. Environment variable
         env_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -361,7 +371,9 @@ class GeminiEngine(ScribeLLMEngine):
                     )
                     return None
             except Exception as stat_err:
-                logger.warning(f"GeminiEngine: Failed to check stat on {self.env_path}: {stat_err}")
+                logger.warning(
+                    f"GeminiEngine: Failed to check stat on {self.env_path}: {stat_err}"
+                )
                 return None
 
         # Read .env securely
@@ -378,7 +390,9 @@ class GeminiEngine(ScribeLLMEngine):
                         if resolved:
                             return resolved
         except Exception as read_err:
-            logger.warning(f"GeminiEngine: Failed to read .env file {self.env_path}: {read_err}")
+            logger.warning(
+                f"GeminiEngine: Failed to read .env file {self.env_path}: {read_err}"
+            )
             return None
 
         return None
@@ -422,7 +436,9 @@ class GeminiEngine(ScribeLLMEngine):
         text_content = getattr(response, "text", "") or ""
         usage = getattr(response, "usage_metadata", None)
         prompt_tokens = (
-            getattr(usage, "prompt_token_count", 0) if usage else estimate_token_count(prompt)
+            getattr(usage, "prompt_token_count", 0)
+            if usage
+            else estimate_token_count(prompt)
         )
         completion_tokens = (
             getattr(usage, "candidates_token_count", 0)
@@ -434,7 +450,9 @@ class GeminiEngine(ScribeLLMEngine):
             if usage
             else (prompt_tokens + completion_tokens)
         )
-        cost_usd = calculate_model_cost(self.model_name, prompt_tokens, completion_tokens)
+        cost_usd = calculate_model_cost(
+            self.model_name, prompt_tokens, completion_tokens
+        )
         elapsed_time = time.perf_counter() - start_time
 
         record_audit_event(
@@ -492,10 +510,10 @@ class LocalLlamaEngine(ScribeLLMEngine):
 
     def __init__(
         self,
-        model_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        model_path: str | pathlib.Path | None = None,
         n_ctx: int = 4096,
         n_gpu_layers: int = 0,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        audit_log_path: str | pathlib.Path | None = None,
     ) -> None:
         self.model_path = model_path
         self.n_ctx = n_ctx
@@ -506,7 +524,7 @@ class LocalLlamaEngine(ScribeLLMEngine):
             else get_default_audit_log_path()
         )
         self.model: typing.Any = None
-        self._fallback_engine: typing.Optional[DryRunEngine] = None
+        self._fallback_engine: DryRunEngine | None = None
 
         # Resolve weights path
         resolved_weights = self._resolve_model_weights(model_path)
@@ -564,7 +582,7 @@ class LocalLlamaEngine(ScribeLLMEngine):
             self._handle_oom_kernel_trap(stage="INITIALIZATION", exc=exc)
 
     def _resolve_model_weights(
-        self, candidate_path: typing.Optional[typing.Union[str, pathlib.Path]]
+        self, candidate_path: str | pathlib.Path | None
     ) -> pathlib.Path:
         """Dynamically resolves local model path."""
         if candidate_path is not None:
@@ -581,7 +599,9 @@ class LocalLlamaEngine(ScribeLLMEngine):
     def _check_hardware_resources(self) -> bool:
         """Evaluates host hardware memory constraints."""
         total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        resource_guard_active = os.environ.get("RESOURCE_GUARD", "1").strip().lower() not in (
+        resource_guard_active = os.environ.get(
+            "RESOURCE_GUARD", "1"
+        ).strip().lower() not in (
             "0",
             "false",
             "off",
@@ -607,7 +627,9 @@ class LocalLlamaEngine(ScribeLLMEngine):
 
     def _handle_oom_kernel_trap(self, stage: str, exc: Exception) -> None:
         """Executes OOM release and structured critical logging."""
-        logger.critical(f"[CRITICAL] LocalLlamaEngine OOM Kernel Trap caught during {stage}: {exc}")
+        logger.critical(
+            f"[CRITICAL] LocalLlamaEngine OOM Kernel Trap caught during {stage}: {exc}"
+        )
         if hasattr(self, "model") and self.model is not None:
             try:
                 del self.model
@@ -632,7 +654,8 @@ class LocalLlamaEngine(ScribeLLMEngine):
         """Synchronously generates narrative text using local GGUF weights."""
         if self._fallback_engine is not None or self.model is None:
             return (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+                self._fallback_engine
+                or DryRunEngine(audit_log_path=self.audit_log_path)
             ).generate(prompt)
 
         start_time = time.perf_counter()
@@ -642,7 +665,9 @@ class LocalLlamaEngine(ScribeLLMEngine):
             text_out = choices[0].get("text", "") if choices else ""
             usage = output.get("usage", {})
             prompt_tokens = usage.get("prompt_tokens", estimate_token_count(prompt))
-            completion_tokens = usage.get("completion_tokens", estimate_token_count(text_out))
+            completion_tokens = usage.get(
+                "completion_tokens", estimate_token_count(text_out)
+            )
             total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
             elapsed_time = time.perf_counter() - start_time
 
@@ -664,14 +689,16 @@ class LocalLlamaEngine(ScribeLLMEngine):
         except (MemoryError, RuntimeError, ValueError, Exception) as exc:
             self._handle_oom_kernel_trap(stage="GENERATION", exc=exc)
             return (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+                self._fallback_engine
+                or DryRunEngine(audit_log_path=self.audit_log_path)
             ).generate(prompt)
 
     def stream(self, prompt: str) -> typing.Generator[str, None, None]:
         """Synchronously streams token chunks from local GGUF weights."""
         if self._fallback_engine is not None or self.model is None:
             yield from (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+                self._fallback_engine
+                or DryRunEngine(audit_log_path=self.audit_log_path)
             ).stream(prompt)
             return
 
@@ -685,7 +712,8 @@ class LocalLlamaEngine(ScribeLLMEngine):
         except (MemoryError, RuntimeError, ValueError, Exception) as exc:
             self._handle_oom_kernel_trap(stage="STREAMING", exc=exc)
             yield from (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+                self._fallback_engine
+                or DryRunEngine(audit_log_path=self.audit_log_path)
             ).stream(prompt)
 
 
@@ -694,7 +722,7 @@ class LocalLlamaEngine(ScribeLLMEngine):
 # =============================================================================
 
 
-def get_engine(config: typing.Optional[dict[str, typing.Any]] = None) -> ScribeLLMEngine:
+def get_engine(config: dict[str, typing.Any] | None = None) -> ScribeLLMEngine:
     """
     Factory router instantiating the optimal engine based on hardware telemetry and configuration.
 

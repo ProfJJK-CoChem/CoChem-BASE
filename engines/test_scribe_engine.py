@@ -41,7 +41,7 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from engines.scribe_engine import (
+from engines.scribe_engine import (  # noqa: E402
     DRY_RUN_OUTPUT_TEXT,
     DryRunEngine,
     GeminiEngine,
@@ -76,7 +76,9 @@ def tmp_env_path(tmp_path: pathlib.Path) -> pathlib.Path:
     archive_dir = tmp_path / "CoChem_Artifacts" / "Report_Archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     env_file = archive_dir / ".env"
-    env_file.write_text('GEMINI_API_KEY="test_cochem_secret_key_98765"\n', encoding="utf-8")
+    env_file.write_text(
+        'GEMINI_API_KEY="test_cochem_secret_key_98765"\n', encoding="utf-8"
+    )
     if os.name != "nt":
         os.chmod(env_file, 0o600)
     return env_file
@@ -124,7 +126,10 @@ class MockFreeLoopbackHandler(http.server.BaseHTTPRequestHandler):
                 pass
 
         MockFreeLoopbackHandler.request_counter += 1
-        if MockFreeLoopbackHandler.request_counter <= MockFreeLoopbackHandler.failure_threshold:
+        if (
+            MockFreeLoopbackHandler.request_counter
+            <= MockFreeLoopbackHandler.failure_threshold
+        ):
             err_body = json.dumps(
                 {
                     "error": {
@@ -142,7 +147,11 @@ class MockFreeLoopbackHandler(http.server.BaseHTTPRequestHandler):
         else:
             success_payload = {
                 "candidates": [
-                    {"content": {"parts": [{"text": "Synthetic loopback model response"}]}}
+                    {
+                        "content": {
+                            "parts": [{"text": "Synthetic loopback model response"}]
+                        }
+                    }
                 ],
                 "usage_metadata": {
                     "prompt_token_count": 14,
@@ -167,7 +176,7 @@ def mock_free_http_server() -> typing.Generator[dict[str, typing.Any], None, Non
     MockFreeLoopbackHandler.failure_code = 429
 
     server = http.server.HTTPServer(("127.0.0.1", 0), MockFreeLoopbackHandler)
-    host, port = server.server_address
+    host, port = str(server.server_address[0]), int(server.server_address[1])
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
@@ -227,7 +236,9 @@ def test_engine_inheritance_and_contract() -> None:
 # =============================================================================
 
 
-def test_dry_run_engine_generation_and_streaming(tmp_audit_log_path: pathlib.Path) -> None:
+def test_dry_run_engine_generation_and_streaming(
+    tmp_audit_log_path: pathlib.Path,
+) -> None:
     """SRS §7.2.5, Task 35: Verifies DryRunEngine deterministic generation, streaming, and latency."""
     engine = DryRunEngine(audit_log_path=tmp_audit_log_path)
 
@@ -281,7 +292,9 @@ def test_gemini_engine_airgap_and_permissions(
     # 2. POSIX permissions check
     if os.name != "nt":
         os.chmod(tmp_env_path, 0o644)
-        insecure_engine = GeminiEngine(env_path=tmp_env_path, audit_log_path=tmp_audit_log_path)
+        insecure_engine = GeminiEngine(
+            env_path=tmp_env_path, audit_log_path=tmp_audit_log_path
+        )
         assert insecure_engine._resolve_api_key() is None
         assert insecure_engine._fallback_engine is not None
 
@@ -296,9 +309,14 @@ def test_gemini_engine_airgap_and_permissions(
 
     # 4. Offline mode fallback
     monkeypatch.setenv("COCHEM_OFFLINE", "1")
-    offline_engine = GeminiEngine(env_path=tmp_env_path, audit_log_path=tmp_audit_log_path)
+    offline_engine = GeminiEngine(
+        env_path=tmp_env_path, audit_log_path=tmp_audit_log_path
+    )
     assert offline_engine._fallback_engine is not None
-    assert offline_engine.generate("Prompt requiring offline fallback") == DRY_RUN_OUTPUT_TEXT
+    assert (
+        offline_engine.generate("Prompt requiring offline fallback")
+        == DRY_RUN_OUTPUT_TEXT
+    )
 
     # 5. Missing .env fallback
     monkeypatch.delenv("COCHEM_OFFLINE", raising=False)
@@ -341,7 +359,9 @@ def test_zero_mock_loopback_network_resilience_and_exponential_backoff(
             headers={"Content-Type": "application/json", "Connection": "close"},
         )
         with urllib.request.urlopen(req, timeout=5.0) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            return typing.cast(
+                dict[str, typing.Any], json.loads(resp.read().decode("utf-8"))
+            )
 
     result = fetch_with_backoff(f"{base_url}/generate")
     assert handler.request_counter == 4
@@ -393,7 +413,9 @@ def test_zero_mock_loopback_network_resilience_and_exponential_backoff(
     # Verify LLM_NETWORK_EXCEPTION logged in audit log
     assert tmp_audit_log_path.exists()
     audit_entries = json.loads(tmp_audit_log_path.read_text(encoding="utf-8"))
-    net_events = [e for e in audit_entries if e.get("event_type") == "LLM_NETWORK_EXCEPTION"]
+    net_events = [
+        e for e in audit_entries if e.get("event_type") == "LLM_NETWORK_EXCEPTION"
+    ]
     assert len(net_events) >= 1
 
 
@@ -417,7 +439,9 @@ def test_local_llama_engine_path_resolution_and_hardware_precheck(
 
     # 3. Missing weights fallback
     missing_weights = tmp_audit_log_path.parent / "absent_weights.gguf"
-    engine = LocalLlamaEngine(model_path=missing_weights, audit_log_path=tmp_audit_log_path)
+    engine = LocalLlamaEngine(
+        model_path=missing_weights, audit_log_path=tmp_audit_log_path
+    )
     assert engine._fallback_engine is not None
     assert engine.generate("Prompt") == DRY_RUN_OUTPUT_TEXT
 
@@ -428,7 +452,9 @@ def test_local_llama_engine_path_resolution_and_hardware_precheck(
     # 5. Verify audit log captures model weights missing event
     assert tmp_audit_log_path.exists()
     entries = json.loads(tmp_audit_log_path.read_text(encoding="utf-8"))
-    missing_events = [e for e in entries if e.get("event_type") == "MODEL_WEIGHTS_NOT_FOUND"]
+    missing_events = [
+        e for e in entries if e.get("event_type") == "MODEL_WEIGHTS_NOT_FOUND"
+    ]
     assert len(missing_events) >= 1
 
 
@@ -530,7 +556,9 @@ def test_factory_router_hardware_and_flag_dispatch(
 # =============================================================================
 
 
-def test_fair_cost_and_token_telemetry_tracker(tmp_audit_log_path: pathlib.Path) -> None:
+def test_fair_cost_and_token_telemetry_tracker(
+    tmp_audit_log_path: pathlib.Path,
+) -> None:
     """SRS §7.2.7, Task 37: Verifies structured audit logging, token estimation, and FAIR pricing computation."""
     # Test record_audit_event and disk persistence
     test_event = {
@@ -541,7 +569,9 @@ def test_fair_cost_and_token_telemetry_tracker(tmp_audit_log_path: pathlib.Path)
         "estimated_cost_usd": 0.00015,
         "status": "SUCCESS",
     }
-    record_audit_event("FAIR_TELEMETRY_AUDIT", test_event, audit_log_path=tmp_audit_log_path)
+    record_audit_event(
+        "FAIR_TELEMETRY_AUDIT", test_event, audit_log_path=tmp_audit_log_path
+    )
 
     assert tmp_audit_log_path.exists()
     entries = json.loads(tmp_audit_log_path.read_text(encoding="utf-8"))
@@ -557,7 +587,9 @@ def test_fair_cost_and_token_telemetry_tracker(tmp_audit_log_path: pathlib.Path)
     # Deterministic token count estimation
     assert estimate_token_count("") == 0
     assert (
-        estimate_token_count("Single-point energy evaluation performed at B3LYP/def2-TZVP level.")
+        estimate_token_count(
+            "Single-point energy evaluation performed at B3LYP/def2-TZVP level."
+        )
         > 5
     )
 
@@ -567,10 +599,14 @@ def test_fair_cost_and_token_telemetry_tracker(tmp_audit_log_path: pathlib.Path)
     )
     assert round(cost_gemini, 3) == 0.375
 
-    cost_dryrun = calculate_model_cost("dry-run", prompt_tokens=10_000, completion_tokens=10_000)
+    cost_dryrun = calculate_model_cost(
+        "dry-run", prompt_tokens=10_000, completion_tokens=10_000
+    )
     assert cost_dryrun == 0.0
 
-    cost_local = calculate_model_cost("local-llama", prompt_tokens=10_000, completion_tokens=10_000)
+    cost_local = calculate_model_cost(
+        "local-llama", prompt_tokens=10_000, completion_tokens=10_000
+    )
     assert cost_local == 0.0
 
     # Dynamic path helpers
@@ -605,7 +641,9 @@ def test_cli_preflight_execution() -> None:
     if not engine_script_path.exists():
         engine_script_path = current_test_dir.parent / "engines" / "scribe_engine.py"
 
-    assert engine_script_path.exists(), f"Could not find scribe_engine.py at {engine_script_path}"
+    assert engine_script_path.exists(), (
+        f"Could not find scribe_engine.py at {engine_script_path}"
+    )
 
     result = subprocess.run(
         [sys.executable, str(engine_script_path)],
@@ -648,7 +686,9 @@ def test_anti_spoof_ast_compliance() -> None:
     for target_path in target_files:
         if not target_path.exists():
             continue
-        tree = ast.parse(target_path.read_text(encoding="utf-8"), filename=str(target_path))
+        tree = ast.parse(
+            target_path.read_text(encoding="utf-8"), filename=str(target_path)
+        )
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:

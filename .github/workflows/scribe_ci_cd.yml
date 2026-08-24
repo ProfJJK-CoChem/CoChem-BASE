@@ -1,0 +1,328 @@
+name: CoChem-SCRIBE CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  airgap-enforcement:
+    name: Air-Gap Enforcement Trap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Repository Air-Gap find & tracked file sweep
+        run: |
+          echo "================================================================================"
+          echo "[AIR-GAP SWEEP] Inspecting repository and git tree for forbidden artifacts"
+          echo "================================================================================"
+
+          RESTRICTED_EXTENSIONS_PATTERN="*.h5|*.hdf5|*.pdf|*.zip|*.gguf|*.pt|*.safetensors|*.bin|*.parquet|*.sqlite|*.db|*.cube|*.xyz|*.aux|*.toc|*.bbl|*.blg|*.fls|*.fdb_latexmk|*.synctex.gz|*.tar.gz|*.tar.zst|*.zst"
+          RESTRICTED_DIRS_PATTERN="CoChem_Artifacts|Report_Archive|visual_assets|cochem_scribe_silo|runinfo"
+
+          RESTRICTED_FILES=$(find . -type f \( \
+            -name "*.h5" -o \
+            -name "*.hdf5" -o \
+            -name "*.pdf" -o \
+            -name "*.zip" -o \
+            -name "*.gguf" -o \
+            -name "*.pt" -o \
+            -name "*.safetensors" -o \
+            -name "*.bin" -o \
+            -name "*.parquet" -o \
+            -name "*.sqlite" -o \
+            -name "*.db" -o \
+            -name "*.cube" -o \
+            -name "*.xyz" -o \
+            -name "*.aux" -o \
+            -name "*.toc" -o \
+            -name "*.bbl" -o \
+            -name "*.blg" -o \
+            -name "*.fls" -o \
+            -name "*.fdb_latexmk" -o \
+            -name "*.synctex.gz" -o \
+            -name "*.tar.gz" -o \
+            -name "*.tar.zst" -o \
+            -name "*.zst" \
+          \) -not -path "*/.git/*" -not -path "*/.venv/*" -not -path "*/.conda/*" -not -path "*/.trash/*")
+
+          RESTRICTED_DIRS=$(find . -type d \( \
+            -name "CoChem_Artifacts" -o \
+            -name "Report_Archive" -o \
+            -name "visual_assets" -o \
+            -name "cochem_scribe_silo" -o \
+            -name "runinfo" \
+          \) -not -path "*/.git/*" -not -path "*/.venv/*" -not -path "*/.conda/*" -not -path "*/.trash/*")
+
+          VIOLATIONS=0
+          if [ -n "$RESTRICTED_FILES" ]; then
+            echo "[AIR-GAP VIOLATION] Restricted files detected in repository tree:" >&2
+            echo "$RESTRICTED_FILES" >&2
+            VIOLATIONS=1
+          fi
+
+          if [ -n "$RESTRICTED_DIRS" ]; then
+            echo "[AIR-GAP VIOLATION] Restricted directories detected in repository tree:" >&2
+            echo "$RESTRICTED_DIRS" >&2
+            VIOLATIONS=1
+          fi
+
+          # Also check tracked git files if git is available
+          if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            TRACKED_VIOLATIONS=$(git ls-files | grep -E '\.(h5|hdf5|pdf|zip|gguf|pt|safetensors|bin|parquet|sqlite|db|cube|xyz)$|^CoChem_Artifacts/|^Report_Archive/' || true)
+            if [ -n "$TRACKED_VIOLATIONS" ]; then
+              echo "[AIR-GAP VIOLATION] Tracked forbidden artifacts in git index:" >&2
+              echo "$TRACKED_VIOLATIONS" >&2
+              VIOLATIONS=1
+            fi
+          fi
+
+          if [ $VIOLATIONS -ne 0 ]; then
+            echo "[FATAL] Air-gap sweep failed: forbidden data artifacts or unallowed files detected." >&2
+            echo "Refer to Method Matrix and Bipartite Workspace Air-Gap Architecture." >&2
+            exit 1
+          fi
+
+          echo "[AIR-GAP SWEEP PASSED] Zero restricted files or directories found."
+
+      - name: Magic-number, MIME-type, entropy and forbidden format sweep
+        run: |
+          python - << 'EOF'
+          import math
+          import os
+          import sys
+          from collections import Counter
+          from pathlib import Path
+
+          print("=" * 80)
+          print("[AIR-GAP DEEP SWEEP] Magic-Number, MIME/Binary & Entropy Inspection")
+          print("=" * 80)
+
+          MAGIC_SIGNATURES = [
+              (b"\x89HDF\r\n\x1a\n", "HDF5 Container (.h5 / .hdf5)"),
+              (b"SQLite format 3\x00", "SQLite Database (.db / .sqlite)"),
+              (b"\x93NUMPY", "NumPy Binary Array (.npy)"),
+              (b"PK\x03\x04", "ZIP Archive (.zip / .docx / .jar)"),
+              (b"PAR1", "Apache Parquet File (.parquet)"),
+              (b"%PDF-", "PDF Document (.pdf)"),
+              (b"GGUF", "GGUF Model File (.gguf)"),
+              (b"\x7fELF", "Linux ELF Executable Binary"),
+              (b"MZ", "Windows PE Executable Binary"),
+          ]
+
+          FORBIDDEN_EXTENSIONS = {
+              ".h5", ".hdf5", ".pdf", ".zip", ".gguf", ".pt", ".safetensors",
+              ".bin", ".parquet", ".sqlite", ".db", ".cube", ".xyz",
+              ".aux", ".toc", ".bbl", ".blg", ".fls", ".fdb_latexmk", ".synctex.gz",
+              ".tar.gz", ".tar.zst", ".zst",
+          }
+
+          FORBIDDEN_DIR_NAMES = {
+              "cochem_artifacts", "report_archive", "visual_assets",
+              "cochem_scribe_silo", "runinfo",
+          }
+
+          EXCLUDED_DIRS = {
+              ".git", ".venv", ".conda", ".trash",
+              "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+          }
+
+          def calculate_shannon_entropy(data: bytes) -> float:
+              if not data:
+                  return 0.0
+              length = len(data)
+              counts = Counter(data)
+              return -sum((count / length) * math.log2(count / length) for count in counts.values())
+
+          violations = []
+          scanned = 0
+
+          for root, dirs, files in os.walk(".", topdown=True):
+              dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+
+              for d in dirs:
+                  if d.lower() in FORBIDDEN_DIR_NAMES:
+                      dir_path = Path(root) / d
+                      violations.append({
+                          "file": str(dir_path.as_posix()),
+                          "type": "FORBIDDEN_DIRECTORY",
+                          "detail": f"Restricted directory name '{d}' detected in workspace",
+                      })
+
+              for fname in files:
+                  full_path = Path(root) / fname
+                  rel_path = full_path.as_posix()
+                  suffix = full_path.suffix.lower()
+                  lower_name = fname.lower()
+                  scanned += 1
+
+                  if suffix in FORBIDDEN_EXTENSIONS:
+                      violations.append({
+                          "file": rel_path,
+                          "type": "FORBIDDEN_EXTENSION",
+                          "detail": f"File matches restricted extension '{suffix}'",
+                      })
+                      continue
+
+                  try:
+                      with open(full_path, "rb") as fh:
+                          header = fh.read(8192)
+                          fh.seek(0)
+                          buffer_bytes = fh.read(65536)
+                  except Exception:
+                      continue
+
+                  for magic, desc in MAGIC_SIGNATURES:
+                      if header.startswith(magic):
+                          violations.append({
+                              "file": rel_path,
+                              "type": "MAGIC_NUMBER_VIOLATION",
+                              "detail": f"Disguised binary header detected: {desc}",
+                          })
+                          break
+
+                  if len(buffer_bytes) > 512:
+                      entropy = calculate_shannon_entropy(buffer_bytes)
+                      if entropy >= 7.85 and not lower_name.endswith((".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".eot")):
+                          violations.append({
+                              "file": rel_path,
+                              "type": "HIGH_ENTROPY_VIOLATION",
+                              "detail": f"High Shannon entropy ({entropy:.3f} bits/byte) indicates unallowed encrypted or compressed binary artifact",
+                          })
+
+          print(f"Air-Gap Deep Sweep scanned {scanned} workspace files.")
+          if violations:
+              print(f"[AIR-GAP DEEP SWEEP FAILED] Detected {len(violations)} violation(s):", file=sys.stderr)
+              for idx, v in enumerate(violations, 1):
+                  print(f"  [{idx}] {v['file']} -> {v['type']}: {v['detail']}", file=sys.stderr)
+              print("=" * 80, file=sys.stderr)
+              sys.exit(1)
+
+          print("[AIR-GAP DEEP SWEEP PASSED] Zero air-gap violations found.")
+          print("=" * 80)
+          EOF
+
+  lint-and-validate:
+    name: Code Quality & Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validation dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml pydantic ruff
+
+      - name: Validate GitHub Actions Workflow YAMLs
+        run: |
+          python - << 'EOF'
+          import glob
+          import sys
+          import yaml
+
+          yaml_files = glob.glob(".github/**/*.yml", recursive=True) + glob.glob(".github/**/*.yaml", recursive=True)
+          print(f"Validating {len(yaml_files)} workflow YAML files...")
+          for yf in yaml_files:
+              try:
+                  with open(yf, "r", encoding="utf-8") as fh:
+                      yaml.safe_load(fh)
+                  print(f"  [OK] {yf}")
+              except Exception as exc:
+                  print(f"  [FAIL] {yf}: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          print("All workflow YAML files are valid.")
+          EOF
+
+      - name: Validate Python Syntax & AST Integrity
+        run: |
+          python - << 'EOF'
+          import ast
+          import os
+          import sys
+          from pathlib import Path
+
+          excluded_dirs = {".git", ".venv", ".conda", ".trash", "__pycache__"}
+          py_files = []
+          for root, dirs, files in os.walk(".", topdown=True):
+              dirs[:] = [d for d in dirs if d not in excluded_dirs]
+              for f in files:
+                  if f.endswith(".py"):
+                      py_files.append(Path(root) / f)
+
+          print(f"Validating Python syntax for {len(py_files)} files...")
+          errors = 0
+          for pf in py_files:
+              try:
+                  content = pf.read_text(encoding="utf-8")
+                  ast.parse(content, filename=str(pf))
+              except Exception as exc:
+                  print(f"  [SYNTAX ERROR] {pf}: {exc}", file=sys.stderr)
+                  errors += 1
+
+          if errors:
+              sys.exit(1)
+          print("All Python files parsed successfully.")
+          EOF
+
+  test:
+    name: Test Suite (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: [airgap-enforcement, lint-and-validate]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version:
+          - "3.11"
+          - "3.12"
+
+    env:
+      COCHEM_OFFLINE: "1"
+      RESOURCE_GUARD: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Upgrade pip and build tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install pytest pytest-cov pyyaml mendeleev pydantic
+
+      - name: Run test suite via pytest
+        run: |
+          pytest -v

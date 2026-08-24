@@ -1,25 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\Phase_1_Task_1_Prompt_5_github_workflow.md.
-Original prompt:
-# CoChem-SCRIBE Phase 1, Task 1 - Prompt 5: CI/CD Workflow
-
-**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-**Target File:** `.github/workflows/scribe_ci_cd.yml`
-
-**Objective:**
-Create a GitHub Actions CI/CD workflow that enforces the Air-Gap policy by failing if any data artifacts or unallowed files are accidentally committed.
-
-**Instructions for Execution Agent:**
-1. Ensure you are working in `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`. Create the directory if it does not exist.
-2. Ensure the directory `.github/workflows/` exists.
-3. Create `scribe_ci_cd.yml` inside `.github/workflows/`.
-4. Draft a GitHub Actions workflow that triggers on `push` and `pull_request` to the `main` branch.
-5. The workflow should include a job that actively checks for forbidden files (e.g., `.h5`, `.pdf`, `.zip`, `.gguf`, `.pt`, or the `CoChem_Artifacts/` directory) inside the git tree. If any are found, the job must fail and exit with an error code to enforce the Air-Gap.
-6. Provide a complete, valid YAML file. Do not use stubs or placeholders. Write the bash scripts needed to perform the git tree inspection directly within the YAML run steps.
-7. Save the file.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_ci_cd_workflow.py ---
 """Physical Unit Tests for CoChem-SCRIBE CI/CD Workflow.
 
 Phase 1, Task 1 - Prompt 5: CI/CD Workflow & Air-Gap Enforcement Verification.
@@ -412,4 +390,46 @@ def test_workflow_and_test_prohibited_patterns_ast_inspection() -> None:
                     f"Prohibited import from '{mod}' found in test file"
                 )
 
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.
+
+def test_cross_platform_shell_specification() -> None:
+    """Verify that multi-line bash steps in matrix jobs explicitly specify 'shell: bash' for Windows runner compatibility."""
+    parsed = _load_workflow_yaml()
+    test_job = parsed["jobs"]["test"]
+    steps = test_job.get("steps", [])
+
+    for step in steps:
+        run_cmd = step.get("run", "")
+        if "if [" in run_cmd or "fi" in run_cmd:
+            assert step.get("shell") == "bash" or test_job.get("defaults", {}).get("run", {}).get("shell") == "bash", (
+                f"Step '{step.get('name')}' contains bash syntax but lacks 'shell: bash'"
+            )
+
+
+def test_airgap_functional_sweep_catches_parquet_magic_number(tmp_path: Path) -> None:
+    """Physical test: sweep catches Apache Parquet binary disguised as a text file."""
+    disguised = tmp_path / "dataset.dat"
+    disguised.write_bytes(b"PAR1" + b"\x00\x01parquetpayload")
+    exit_code, violations = _run_python_deep_sweep(tmp_path)
+    assert exit_code == 1, "Must exit with code 1 when Parquet magic header is detected"
+    assert any("PAR1" in v["detail"] or "Parquet" in v["detail"] for v in violations)
+
+
+def test_airgap_functional_sweep_catches_sqlite_magic_number(tmp_path: Path) -> None:
+    """Physical test: sweep catches SQLite database binary disguised as a text file."""
+    disguised = tmp_path / "cache.raw"
+    disguised.write_bytes(b"SQLite format 3\x00" + b"\x00" * 64)
+    exit_code, violations = _run_python_deep_sweep(tmp_path)
+    assert exit_code == 1, "Must exit with code 1 when SQLite magic header is detected"
+    assert any("SQLite" in v["detail"] for v in violations)
+
+
+def test_airgap_functional_sweep_catches_high_entropy_payload(tmp_path: Path) -> None:
+    """Physical test: sweep catches high-entropy encrypted/compressed payload disguised with innocent extension."""
+    disguised = tmp_path / "innocent.txt"
+    # Generate 4096 bytes with near 8.0 entropy
+    high_entropy_bytes = bytes([i % 256 for i in range(4096)])
+    disguised.write_bytes(high_entropy_bytes)
+    exit_code, violations = _run_python_deep_sweep(tmp_path)
+    assert exit_code == 1, "Must exit with code 1 when high Shannon entropy is detected"
+    assert any("HIGH_ENTROPY_VIOLATION" == v["type"] for v in violations)
+

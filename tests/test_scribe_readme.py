@@ -1,27 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_readme.md.
-Original prompt:
-# Role and Context
-You are a CoChem execution agent tasked with documenting Phase 4, Task 11 of the CoChem-SCRIBE orchestrator.
-
-# Target Path
-Repository Base: `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-Target File: `README.md`
-
-# Instructions
-1. **Documentation (Task 98):** Write an exhaustive `README.md`.
-2. Explicitly detail the **6-Tier Environment Matrix** compatibility (WSL, OrbStack, Debian, Codespaces, GitHub Actions, HPC SLURM/PBS).
-3. Explain the strict **Air-Gap rule** (no user data `.h5`, `.env`, or `.pdf` artifacts in commits).
-4. Detail the `RESOURCE_GUARD` hardware toggles.
-5. Provide step-by-step genuine CLI execution instructions (e.g., `python -m cochem_scribe.master --config-path configs/scribe_config.json --output-dir reports/ --dry-run`).
-
-# Constraints
-* Use standard Markdown.
-* Do not use placeholders or "TODOs". Fill out the documentation completely based on the requirements.
-* Maintain an academic, highly rigorous tone consistent with the CoChem ecosystem.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_readme.py ---
 """Comprehensive Zero-Mock Test Suite for CoChem-SCRIBE README.md Documentation.
 
 Governed strictly by:
@@ -349,5 +325,3 @@ def test_test_suite_zero_mock_ast_compliance() -> None:
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
             assert "mock" not in mod.lower(), f"Prohibited mock import from: {mod}"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

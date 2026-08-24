@@ -64,7 +64,7 @@ TAG_PATTERN: re.Pattern = re.compile(r"(\{\{[\s\S]*?\}\}|\<\<[\s\S]*?\>\>)")
 # Mathematical Air-Gap Regex: catches numbers coupled with physical/chemical units
 PHYSICAL_UNITS_REGEX: re.Pattern = re.compile(
     r"(?<![\w\\])(?:[-+]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*"
-    r"(?:\\AA\{\}|\\text\{\\AA\}|\\AA|Å|kcal/mol|kJ/mol|Hartree|Eh|E_h|cm\^\{-1\}|cm\^-1|cm-1|MHz|GHz|THz|nm|eV|Bohr|a\.u\.|Debye|\bD\b)",
+    r"(?:\\text\{\\AA\{\}\}|\\text\{\\AA\}|\\AA\{\}|\\AA|Å|Angstroms?|kcal/mol|kJ/mol|Hartrees?|Eh|E_h|cm\^\{-1\}|cm\^-1|cm-1|MHz|GHz|THz|nm|eV|Bohrs?|a\.u\.|arb\.\s*u\.|Debyes?|\bD\b)",
     re.IGNORECASE,
 )
 
@@ -89,19 +89,24 @@ class ScribeValidationError(ScribeInferenceError):
 # PYDANTIC SCHEMA
 # =============================================================================
 
-class ScribeOutputSchema(BaseModel):
+class ScribeInferenceOutput(BaseModel):
     """Pydantic schema enforcing structured JSON output from LLM inference."""
 
     methodology: str = Field(
-        description="APS/ACS-compliant narrative covering computational methods."
+        ...,
+        description="APS/ACS-compliant narrative covering computational methods.",
     )
     insights: str = Field(
-        description="Thermodynamic population observations and Boltzmann weighting insights."
+        ...,
+        description="Thermodynamic population observations and Boltzmann weighting insights.",
     )
     justifications: str = Field(
         default="",
-        description="Scientific justifications for algorithmic triggers (e.g., Sinc-DVR).",
+        description="Scientific justifications for algorithmic choices (e.g., Sinc-DVR).",
     )
+
+
+ScribeOutputSchema = ScribeInferenceOutput
 
 
 # =============================================================================
@@ -120,24 +125,31 @@ class ScribeInferenceManager:
     def __init__(
         self,
         engine: Optional[Any] = None,
-        timeout_seconds: float = DEFAULT_INFERENCE_TIMEOUT,
+        timeout: float = DEFAULT_INFERENCE_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        log_path: Optional[Union[str, pathlib.Path]] = None,
+        raise_on_fallback: bool = False,
+        timeout_seconds: Optional[float] = None,
         telemetry_log_path: Optional[Union[str, pathlib.Path]] = None,
         audit_log_path: Optional[Union[str, pathlib.Path]] = None,
-        raise_on_fallback: bool = False,
     ) -> None:
         self.engine = engine
-        self.timeout_seconds = float(timeout_seconds)
+        effective_timeout = timeout_seconds if timeout_seconds is not None else timeout
+        self.timeout = float(effective_timeout)
+        self.timeout_seconds = self.timeout
         self.max_retries = int(max_retries)
+
+        effective_log_path = telemetry_log_path if telemetry_log_path is not None else log_path
         self.telemetry_log_path = (
-            pathlib.Path(telemetry_log_path).resolve()
-            if telemetry_log_path
+            pathlib.Path(effective_log_path).resolve()
+            if effective_log_path
             else (pathlib.Path.home() / "CoChem_Artifacts" / "Logs" / "scribe_telemetry.log")
         )
+        self.log_path = self.telemetry_log_path
         self.audit_log_path = (
             pathlib.Path(audit_log_path).resolve()
             if audit_log_path
-            else (pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / "cochem_audit_log.json")
+            else get_default_audit_log_path()
         )
         self.raise_on_fallback = raise_on_fallback
         self.logger = logging.getLogger("cochem.scribe_inference")
@@ -257,7 +269,8 @@ class ScribeInferenceManager:
         completion_tokens: int,
         cost: float,
         status: str,
-        latency_seconds: float,
+        latency_seconds: float = 0.0,
+        strike_count: int = 0,
     ) -> None:
         """Appends structured telemetry records and audit events to dynamic artifact paths."""
         try:
@@ -281,6 +294,7 @@ class ScribeInferenceManager:
             "estimated_cost_usd": round(cost, 8),
             "status": status,
             "latency_seconds": round(latency_seconds, 6),
+            "strike_count": strike_count,
             "platform": platform.platform(),
             "python_version": sys.version,
         }
@@ -304,6 +318,7 @@ class ScribeInferenceManager:
                     "estimated_cost_usd": round(cost, 8),
                     "status": status,
                     "latency_seconds": round(latency_seconds, 6),
+                    "strike_count": strike_count,
                 },
                 audit_log_path=self.audit_log_path,
             )
@@ -370,6 +385,7 @@ class ScribeInferenceManager:
                     cost=cost,
                     status="SUCCESS",
                     latency_seconds=latency,
+                    strike_count=attempt - 1,
                 )
                 return schema_obj
 
@@ -386,6 +402,7 @@ class ScribeInferenceManager:
                     cost=0.0,
                     status="TIMEOUT",
                     latency_seconds=latency,
+                    strike_count=attempt,
                 )
 
             except ScribeValidationError as exc:
@@ -401,6 +418,7 @@ class ScribeInferenceManager:
                     cost=0.0,
                     status="VALIDATION_ERROR",
                     latency_seconds=latency,
+                    strike_count=attempt,
                 )
 
             except Exception as exc:
@@ -416,6 +434,7 @@ class ScribeInferenceManager:
                     cost=0.0,
                     status="EXECUTION_ERROR",
                     latency_seconds=latency,
+                    strike_count=attempt,
                 )
 
         # All retries exhausted
@@ -426,6 +445,7 @@ class ScribeInferenceManager:
             cost=0.0,
             status="FALLBACK_EXHAUSTED",
             latency_seconds=0.0,
+            strike_count=self.max_retries,
         )
 
         if self.raise_on_fallback:

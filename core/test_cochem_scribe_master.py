@@ -346,13 +346,17 @@ class TestScribeOrchestratorE2E:
             "--output-dir", str(out_dir),
         ]
 
-        result = subprocess.run(
-            cmd,
-            cwd=str(repo_root),
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=str(repo_root),
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            pytest.fail(f"CLI execution failed with returncode {exc.returncode}\nstderr:\n{exc.stderr}\nstdout:\n{exc.stdout}")
 
         assert result.returncode == 0, f"CLI execution failed with stderr:\n{result.stderr}\nstdout:\n{result.stdout}"
         assert "[SCRIBE-SUCCESS]" in result.stdout or "Final Report generated" in result.stdout or "Final report archive bundled" in result.stdout

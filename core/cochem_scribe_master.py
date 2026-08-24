@@ -12,6 +12,7 @@ Codespaces, GitHub Actions, HPC).
 from __future__ import annotations
 
 import argparse
+import atexit
 import hashlib
 import json
 import logging
@@ -33,6 +34,24 @@ import h5py
 import numpy as np
 import psutil
 from pydantic import BaseModel, ConfigDict, Field
+
+
+def _sweep_zombie_processes() -> None:
+    """Sweeps and cleans up any orphaned/zombie subprocesses upon exit."""
+    try:
+        me = psutil.Process()
+        for child in me.children(recursive=True):
+            if child.status() == psutil.STATUS_ZOMBIE:
+                try:
+                    child.terminate()
+                    child.wait(timeout=1.0)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+atexit.register(_sweep_zombie_processes)
 
 try:
     import tiktoken
@@ -957,7 +976,7 @@ class DocumentManager:
                     cwd=str(cwd),
                     capture_output=True,
                     timeout=30.0,
-                    check=False,
+                    check=True,
                 )
                 if proc.returncode != 0 and cmd[0] != "bibtex":
                     logger.warning(f"LaTeX pass failed ({cmd[0]}): return code {proc.returncode}")

@@ -1,1284 +1,1435 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_scribe_engine.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\prompt_scribe_md_generator.md.
 Original prompt:
-# Phase 3, Task 7: LLM Engine Initialization & Hardware Routing (`engines/scribe_engine.py`)
+# Phase 4, Task 9: Markdown User Guide & GFM Table Generator (`formatters/scribe_md_generator.py`)
 
-**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`
-**Target File to Create:** `engines/scribe_engine.py`
+**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`  
+**Target Files to Create:**
+- `formatters/scribe_md_generator.py`
+- `formatters/test_scribe_md_generator.py`
 
 ## Objective
-Implement the core execution classes and the routing factory for LLM Engine Initialization & Hardware Routing (Stage 6.2) in `engines/scribe_engine.py`. This module defines the hardware-aware AI execution factory that handles remote API requests, local GGUF model execution, and deterministic offline dry-runs without crashing the host node or blocking the user interface across the 6-Tier Environment Matrix (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC). The implementation must fulfill tasks 31-40 without placeholders, mocks, or incomplete logic.
+Implement the production-grade Markdown User Guide and table generator engine (`MarkdownBuilder`) along with comprehensive zero-mock integration tests (`test_scribe_md_generator.py`) for CoChem-SCRIBE (Stage 6.3). This module bridges the **Mathematical Air-Gap** by securely compiling LLM-generated thermodynamic narrative insights together with exact physical numerical tensors (HDF5 conformer and vibrational DataFrames), Stage 0 system matrices, Mermaid.js execution flowcharts, hardware telemetry metrics, and non-fatal audit log warnings into a standalone, publication-grade, human-readable `CoChem_User_Guide.md`. The implementation must strictly adhere to the **CoChem-SCRIBE Software Requirements Specification (SRS Phase 4, Task 9, Tasks 61–70)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
 
-## Requirements
+---
 
-### 1. Abstract Base Class `ScribeLLMEngine` (Task 31)
-- Define a 100% complete abstract base class `ScribeLLMEngine` inheriting from `abc.ABC`.
-- Define abstract method signatures using `@abc.abstractmethod`:
-  - `def generate(self, prompt: str) -> str`: Synchronous text generation.
-  - `def stream(self, prompt: str) -> typing.Generator[str, None, None]`: Synchronous token streaming.
-- Subclasses (`LocalLlamaEngine`, `GeminiEngine`, `DryRunEngine`) must provide full concrete implementations. Absolutely no `pass` statements, stub placeholders, or unhandled `NotImplementedError` in concrete engine classes.
+## Technical Specifications & Architecture
 
-### 2. The Local Inference Engine `LocalLlamaEngine` (Task 32)
-- Implement `LocalLlamaEngine` utilizing `llama-cpp-python` (with safe dynamic import).
-- **Dynamic Path Resolution:** Load downloaded `.gguf` weights dynamically from `pathlib.Path.home() / ".cochem" / "models"`. Never download or store model weights inside the Git-tracked `CoChem-SCRIBE/` folder.
-- **Hardware Binding & Pre-Check:** Verify RAM and VRAM availability via `RESOURCE_GUARD` (polled from system status). Only instantiate local weights if sufficient RAM ($\ge 8.0\text{ GB}$) is present and no override was forced.
+### 1. Architectural Philosophy: The Air-Gap Markdown Synthesis & Provenance (SRS §9.1, §9.3)
+- **Air-Gap Integration Boundary:** At Stage 6.3, the Mathematical Air-Gap is bridged. The `MarkdownBuilder` combines isolated generative LLM insights with verified physical tensors and system telemetry into a web-ready, human-readable document for laboratory researchers without requiring a local LaTeX installation.
+- **Strict Computational Provenance:** Every generated User Guide must embed valid YAML frontmatter and a Stage 0 system matrix readout documenting active engines (e.g., Gaussian, ORCA, Psi4), node hostnames, and environment tiers to ensure complete FAIR traceability.
+- **GFM Table Standardization & Visual Flowcharts:** Numerical DataFrames (conformer energies, vibrational frequencies) must be transformed into standard GitHub-Flavored Markdown (GFM) pipe tables (`|`), and active pipeline stages must be visually diagrammed via standard Mermaid.js flowchart syntax (`mermaid graph TD...`).
+- **Non-Destructive Safe Pathing & Overwrite Protection:** Markdown files must be written securely to the user's home directory (`pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`). If `CoChem_User_Guide.md` already exists, the engine must never destructively overwrite manual notes; it must append a timestamped version (`CoChem_User_Guide_YYYYMMDD_HHMMSS.md`).
+- **100% Offline Air-Gap Execution:** All frontmatter formatting, Mermaid flowchart synthesis, GFM table conversion, telemetry parsing, and disk I/O must execute locally and deterministically without external cloud dependencies or outbound network calls.
 
-### 3. The Remote API Engine `GeminiEngine` (Task 33)
-- Implement `GeminiEngine` utilizing the `google-genai` SDK.
-- **Air-Gap Credential Handling:** Read `GEMINI_API_KEY` securely from `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive" / ".env"`.
-- **Platform-Aware Security Check:** For POSIX systems (`os.name != 'nt'`), verify file permissions are strict (`0o600` via `os.stat().st_mode & 0o777 == 0o600`) before reading. On Windows (`os.name == 'nt'`), verify secure local existence.
-- **Data Protection:** Never log the plaintext API key to the console, audit logs, or telemetry records.
-- **Air-Gap / Offline Fallback:** If `COCHEM_OFFLINE` environment variable is `"1"` or `"true"`, or if the key is missing/unreadable, cleanly raise or fallback to `DryRunEngine` rather than attempting unauthorized external socket connections.
+---
 
-### 4. Network Resilience & Exponential Backoff (Task 34)
-- Wrap `GeminiEngine` network calls in a `tenacity` retry decorator with explicit network timeouts to prevent hanging on air-gapped firewalls.
-- Catch transient API and network errors (including HTTP 429 Rate Limit, HTTP 502, HTTP 503 Service Unavailable, and HTTP 504 Gateway Timeout).
-- Configure exponential backoff (e.g., `wait_exponential(multiplier=1, min=2, max=10)`) with `stop=stop_after_attempt(5)`.
-- Define and raise a custom `ScribeNetworkException` upon exhaustion of retry attempts, enabling upstream orchestrators to trap the error cleanly.
+## Deliverable 1: `formatters/scribe_md_generator.py`
 
-### 5. Deterministic Dry-Run Bypass `DryRunEngine` (Task 35)
-- Implement `DryRunEngine` to enforce the Zero-Mock Anti-Spoofing Protocol.
-- When called, bypass all neural network execution and immediately return deterministic, structured Markdown (e.g., *"Calculations were performed utilizing the physical parameters defined in the appended CoChem configuration tables. [LLM INSIGHTS BYPASSED VIA DRY-RUN]"*).
-- Implement `stream()` to yield deterministic markdown chunks cleanly.
-- Guarantees downstream LaTeX and Markdown report synthesis succeeds 100% reliably in completely isolated or air-gapped environments without mocks.
+### 1. Class Architecture & Interface Contract (`MarkdownBuilder`)
 
-### 6. The Engine Factory Router `get_engine` (Task 36)
-- Implement `get_engine(config: typing.Optional[typing.Dict[str, typing.Any]] = None) -> ScribeLLMEngine`.
-- Evaluate configuration flags (`preferred_llm_model`, `dry_run`, `resource_guard`, and `COCHEM_OFFLINE` environment variable):
-  - If `dry_run` is `True` or `COCHEM_OFFLINE` is `"1"`/`"true"` -> Return `DryRunEngine()`.
-  - If `preferred_llm_model == "gemini"` -> Return `GeminiEngine()` (if API key is accessible; otherwise fallback to `DryRunEngine()`).
-  - If `preferred_llm_model == "local"`:
-    - If `RESOURCE_GUARD` detects constrained RAM ($< 8.0\text{ GB}$) or missing `.gguf` weights -> Log an override warning and return `GeminiEngine()` (if online & key accessible) or `DryRunEngine()`.
-    - Else -> Return `LocalLlamaEngine()`.
-  - Default fallback -> Return `DryRunEngine()`.
+Define the `MarkdownBuilder` class in `formatters/scribe_md_generator.py` with complete Python 3.10+ typing (`pathlib.Path`, `typing.Dict`, `typing.Any`, `typing.Optional`, `typing.Union`, `typing.List`, `pandas.DataFrame`):
 
-### 7. Cost & Token Telemetry Tracker (Task 37)
-- Embed FAIR-compliant telemetry tracking in engine execution.
-- Capture prompt token counts, completion token counts, and total token usage from engine response metadata (or estimate deterministically for local/dry-run engines).
-- For API models, compute estimated generation cost based on model pricing metadata.
-- Append structured JSON telemetry events to `pathlib.Path.home() / "CoChem_Artifacts" / "cochem_audit_log.json"`.
+```python
+import os
+import sys
+import json
+import logging
+import pathlib
+import datetime
+from typing import Dict, Any, Optional, Union, List
+import pandas as pd
 
-### 8. Out-Of-Memory (OOM) Kernel Trap (Task 38)
-- Wrap `LocalLlamaEngine` initialization and generation methods in strict `try/except (MemoryError, RuntimeError, ValueError)` blocks.
-- On C++/CUDA/OS memory allocation failure:
-  1. Immediately release resources: `del self.model` and execute `gc.collect()`.
-  2. Emit a structured `[CRITICAL]` OOM warning to `cochem_audit_log.json`.
-  3. Seamlessly instantiate and failover to `DryRunEngine` to prevent OS kernel panic or pipeline termination.
+class MarkdownBuilder:
+    """Markdown User Guide and GFM Table synthesis engine for CoChem-SCRIBE (Stage 6.3).
+    
+    Generates structured, publication-grade Markdown documentation (CoChem_User_Guide.md)
+    enriched with YAML frontmatter, Stage 0 provenance matrices, dynamic Mermaid.js flowcharts,
+    GitHub-Flavored Markdown (GFM) tables, thermodynamic analysis narratives, hardware telemetry
+    charts, and non-fatal audit warning blockquotes. Enforces cross-platform safe
+    pathing and non-destructive timestamped overwrite protection.
+    """
+    def __init__(
+        self,
+        output_dir: Optional[Union[str, pathlib.Path]] = None,
+        base_filename: str = "CoChem_User_Guide.md"
+    ) -> None:
+        """Initializes MarkdownBuilder with dynamic output directory resolution."""
+        pass
 
-### 9. Asynchronous UI Wrappers (Task 39)
-- Implement `async def async_generate(self, prompt: str) -> str` using `asyncio.to_thread()` (or `loop.run_in_executor()`) to execute the synchronous `generate` method in a background worker thread.
-- Ensures local CPU/GPU inference and remote API latencies never block the single-threaded event loop, keeping Voila/Jupyter UI progress bars and DOM interactive.
+    def generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str:
+        """Generates valid YAML frontmatter block containing run provenance and metadata."""
+        pass
 
-### 10. Local Factory Pre-Flight Validation (Task 40)
-- Include an `if __name__ == '__main__':` execution block at the bottom of `scribe_engine.py`.
-- When invoked directly from CLI across any tier, instantiate `DryRunEngine`, execute a test prompt, and print the output string and token cost (0) to stdout to verify inheritance, routing, and method dispatch.
+    def generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str:
+        """Generates Markdown readout of Stage 0 active computational engines and hardware nodes."""
+        pass
 
-## Code Standards & Zero-Mock Compliance
-- **Python Typing:** Exhaustive Python 3.10+ annotations (`typing.Generator`, `typing.Dict`, `typing.Any`, `typing.Optional`, `pathlib.Path`).
-- **Dynamic Pathing:** All paths must use `pathlib.Path.home()` dynamically. Never use hardcoded absolute OS paths or raw `$HOME` strings.
-- **Logging:** Use Python's `logging` module for all system and audit logging (except CLI output in `__main__`).
-- **Zero Placeholders:** No `# TODO`, dummy loops, mock objects, or fake returns.
-- **Scope Boundary:** Output ONLY the single target Python file (`engines/scribe_engine.py`).
+    def generate_mermaid_flowchart(self, active_stages: List[Union[str, int, Dict[str, Any]]]) -> str:
+        """Dynamically synthesizes a Mermaid.js graph TD diagram block mapping active CoChem stages."""
+        pass
+
+    def dataframe_to_gfm_table(
+        self,
+        df: pd.DataFrame,
+        table_title: Optional[str] = None
+    ) -> str:
+        """Converts a pandas DataFrame into a standard GitHub-Flavored Markdown (GFM) pipe table."""
+        pass
+
+    def format_thermodynamic_insights(self, insights_text: str) -> str:
+        """Formats LLM-generated thermodynamic analytical insights under ## Thermodynamic Analysis."""
+        pass
+
+    def format_audit_warnings(self, warnings: List[str]) -> str:
+        """Aggregates non-fatal warnings from cochem_audit_log into Markdown callout blockquotes."""
+        pass
+
+    def format_hardware_telemetry(self, telemetry: Dict[str, Any]) -> str:
+        """Formats CPU/GPU peak usage metrics and compute timings as a structured Markdown list."""
+        pass
+
+    def build_user_guide(self, payload: Dict[str, Any]) -> str:
+        """Assembles the complete Markdown User Guide document from the provided payload dictionary."""
+        pass
+
+    def save_user_guide(
+        self,
+        content: str,
+        target_dir: Optional[Union[str, pathlib.Path]] = None,
+        base_filename: Optional[str] = None
+    ) -> pathlib.Path:
+        """Saves Markdown document to user home directory with timestamped overwrite protection."""
+        pass
+```
+
+---
+
+### 2. Detailed Functional Requirements (Tasks 61–69)
+
+#### 2.1 Initialization & Dynamic Path Resolution (Tasks 61 & 68)
+- If `output_dir` is not provided, dynamically resolve the path relative to the user's home directory:
+  `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`
+- Ensure parent directories are created automatically on demand (`output_dir.mkdir(parents=True, exist_ok=True)`).
+- Ensure strict cross-platform path resolution using Python's `pathlib.Path` across all 6 environments (Windows WSL, macOS OrbStack, Linux Debian, Codespaces, GitHub Actions, HPC).
+
+#### 2.2 YAML Frontmatter & Stage 0 System Matrix (Tasks 61 & 62)
+- Implement `generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str`:
+  - Enclose frontmatter within standard `---` opening and closing delimiters.
+  - Include key metadata fields: `title`, `date` (ISO format `%Y-%m-%d %H:%M:%S`), `cochem_version`, `run_id`, `target_molecule`, `smiles`, and `environment_tier`.
+- Implement `generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str`:
+  - Produce a structured `## Computational Provenance & System Matrix` section.
+  - Detail active quantum chemistry engines (e.g., ORCA, Gaussian, Psi4, PySCF), node architecture, CPU core count, GPU model, memory allocation, and Python runtime version.
+
+#### 2.3 Dynamic Mermaid.js Flowchart Synthesis (Task 63)
+- Implement `generate_mermaid_flowchart(self, active_stages: List[Union[str, int, Dict[str, Any]]]) -> str`:
+  - Dynamically construct a fenced Mermaid flowchart block:
+    ````markdown
+    ```mermaid
+    graph TD
+        S0[Stage 0: Environment & Guards] --> S1[Stage 1: Conformer Generation]
+        S1 --> S2[Stage 2: DFT Optimization]
+        S2 --> S3[Stage 3: Frequency & Thermochemistry]
+        S3 --> S4[Stage 4: Sinc-DVR Dynamic Tunneling]
+        S4 --> S5[Stage 5: Telemetry Aggregation]
+        S5 --> S6[Stage 6: SCRIBE Document Synthesis]
+    ```
+    ````
+  - Highlight active stages vs bypassed stages based on the passed execution topology.
+
+#### 2.4 Thermodynamic Analytical Insights Formatting (Task 64)
+- Implement `format_thermodynamic_insights(self, insights_text: str) -> str`:
+  - Create a designated `## Thermodynamic Analysis` header section.
+  - Inject the sanitized LLM analytical narrative, ensuring scientific notation and physical quantities are preserved.
+
+#### 2.5 DataFrame to GFM Table Conversion (Task 65)
+- Implement `dataframe_to_gfm_table(self, df: pd.DataFrame, table_title: Optional[str] = None) -> str`:
+  - Convert any `pandas.DataFrame` into standard GitHub-Flavored Markdown (GFM) pipe table syntax.
+  - Generate the header row with column names: `| Col1 | Col2 | Col3 |`.
+  - Generate alignment separator row: `| :--- | :---: | ---: |` (or standard `| --- | --- |`).
+  - Format numeric float values cleanly (preserving significant figures, avoiding scientific notation truncation).
+  - Include optional `### <table_title>` subheader if `table_title` is supplied.
+  - Handle empty DataFrames gracefully with a placeholder markdown italic note `*No tabular data available.*`.
+
+#### 2.6 Hardware Telemetry & Audit Warnings Blockquotes (Tasks 66 & 67)
+- Implement `format_audit_warnings(self, warnings: List[str]) -> str`:
+  - Aggregate non-fatal warnings extracted from `cochem_audit_log.json` or payload dictionary.
+  - Format each warning as a distinct Markdown blockquote callout:
+    `> **WARNING**: <warning_message>`
+  - If no warnings are present, return an empty string or omit the section cleanly.
+- Implement `format_hardware_telemetry(self, telemetry: Dict[str, Any]) -> str`:
+  - Create `## Hardware Resource Telemetry` section.
+  - Format peak memory usage (RAM in GB/MB), peak GPU VRAM, CPU average load %, total calculation runtime, and wall-clock execution timestamps into a clean, bulleted Markdown list.
+
+#### 2.7 Safe Writing & Timestamped Overwrite Protection (Tasks 68 & 69)
+- Implement `save_user_guide(self, content: str, target_dir: Optional[Union[str, pathlib.Path]] = None, base_filename: Optional[str] = None) -> pathlib.Path`:
+  - Determine destination folder (`target_dir` or `self.output_dir`).
+  - Target default filename `CoChem_User_Guide.md`.
+  - **Non-Destructive Overwrite Check (Task 69):** If `CoChem_User_Guide.md` already exists at the destination path, do NOT overwrite it. Dynamically generate a timestamped filename:
+    `timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")`
+    `final_filename = f"CoChem_User_Guide_{timestamp}.md"`
+  - Write file with explicit `utf-8` encoding.
+  - Return the `pathlib.Path` of the written file.
+
+#### 2.8 Local Pre-Flight CLI Validation
+- Include an `if __name__ == '__main__':` execution block at the bottom of `formatters/scribe_md_generator.py`.
+- When invoked directly from CLI:
+  1. Instantiate `MarkdownBuilder` with local temporary test paths.
+  2. Verify YAML frontmatter generation, Mermaid graph block formatting, GFM table rendering, and non-destructive overwrite protection.
+  3. Print `[SCRIBE MD GENERATOR PRE-FLIGHT VERIFIED]` upon successful verification.
+
+---
+
+## Deliverable 2: `formatters/test_scribe_md_generator.py`
+
+### 1. Test Architecture & Zero-Mock Protocol (Task 70)
+Implement a complete `pytest` test suite in `formatters/test_scribe_md_generator.py` conforming to the **Zero-Mock Anti-Spoofing Protocol**:
+- **Zero-Mock Enforcement:** Strictly prohibit `unittest.mock`, `mocker`, or synthetic simulated strings. Tests must execute the real `MarkdownBuilder` methods against real DataFrames and real filesystem paths using `pytest`'s `tmp_path` fixture.
+
+### 2. Required Test Suite Specifications
+1. **`test_markdown_builder_initialization(tmp_path)`:**
+   - Verify default directory resolution to `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`.
+   - Verify custom directory initialization and automatic directory creation.
+2. **`test_yaml_frontmatter_and_system_matrix()`:**
+   - Generate frontmatter and system matrix from sample metadata dictionaries.
+   - Assert presence of `---` delimiters, ISO date strings, runtime engines, and node specs.
+3. **`test_mermaid_flowchart_generation()`:**
+   - Pass a sequence of active CoChem stages.
+   - Assert output contains ```mermaid\ngraph TD...``` code fence and valid stage connection arrows (`-->`).
+4. **`test_dataframe_to_gfm_table()`:**
+   - Pass realistic conformer and vibrational DataFrames with numeric floats.
+   - Assert output contains standard pipe `|` headers, separator rows (`|---|`), and properly formatted numeric cells without NaN corruptions.
+5. **`test_audit_warnings_and_telemetry_formatting()`:**
+   - Test warning aggregation with multiple sample warnings; assert each warning is rendered as `> **WARNING**: ...`.
+   - Test telemetry formatting; assert list contains peak RAM, GPU VRAM, and CPU utilization metrics.
+6. **`test_build_user_guide_e2e()`:**
+   - Execute `build_user_guide()` with a full data payload containing metadata, system matrix, insights text, conformer DataFrame, vibrational DataFrame, warnings, and hardware metrics.
+   - Assert complete document contains all expected sections (`## Thermodynamic Analysis`, `## Hardware Resource Telemetry`, etc.).
+7. **`test_save_user_guide_overwrite_protection(tmp_path)`:**
+   - Save initial `CoChem_User_Guide.md` in `tmp_path`.
+   - Call `save_user_guide()` again on the same path.
+   - Assert initial file remains intact and unmodified.
+   - Assert second file is created with timestamped name format (`CoChem_User_Guide_\d{8}_\d{6}\.md`).
+
+---
+
+## Directives & Execution Constraints
+
+1. **Target Deliverables:** Implement both `formatters/scribe_md_generator.py` and `formatters/test_scribe_md_generator.py`.
+2. **Zero-Mock Anti-Spoofing Protocol:** Strictly NO mocks, fake return values, `pass` stubs, or `# TODO` placeholders in output files.
+3. **Strict Python 3.10+ Standards:** Use type annotations, `pathlib.Path`, standard `logging` with `[SCRIBE-*]` markers, and explicit UTF-8 file encoding.
+4. **Air-Gap Mandate:** 100% offline local execution. Zero network calls or external cloud dependencies.
+5. **Method Matrix v4 & FAIR Principles:** Full provenance tracking with YAML frontmatter, Stage 0 system matrix, and deterministic GFM tabular conversions.
+6. **6-Tier Matrix & Cross-Platform Defense:** Strict path resolution using `pathlib.Path` ensuring flawless operation across Windows WSL, macOS OrbStack, Linux Debian, Codespaces, GitHub Actions, and HPC nodes.
+
+---
+
+## Task
+Implement the Python modules and tests as described and save them to:
+1. `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\scribe_md_generator.py`
+2. `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\test_scribe_md_generator.py`
+using the `write_to_file` tool.
+
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\engines\scribe_engine.py ---
-#!/usr/bin/env python3
-"""
-CoChem-SCRIBE Stage 6.2 LLM Engine Initialization & Hardware Routing.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\scribe_md_generator.py ---
+"""Dynamic Markdown User Guide Compiler & GFM Table Generator for CoChem-SCRIBE (Stage 6.3).
 
-Governed strictly by Phase 3, Task 7 (Section 7.2, Tasks 31-40) of the CoChem-SCRIBE
-Software Requirements Specification (SRS), adhering to Method Matrix v4,
-the Zero-Mock Anti-Spoofing Protocol, FAIR Data Principles, and the Air-Gap Compliance Directive.
-
-Defines the hardware-aware AI execution factory that handles remote API requests (Gemini),
-local GGUF model execution (llama-cpp-python), and deterministic offline dry-runs
-without crashing the host node or blocking user interfaces across the 6-Tier Environment Matrix.
+Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
+Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
+GitHub-Flavored Markdown (GFM) tables, thermodynamic analytical insights,
+non-fatal warning callout blockquotes, hardware telemetry metrics, and
+non-destructive timestamped overwrite protection.
 """
 
 from __future__ import annotations
 
-import abc
-import asyncio
-import gc
-import json
+import datetime
 import logging
 import os
 import pathlib
 import platform
+import re
 import sys
-import time
-import typing
-from datetime import datetime, timezone
+import tempfile
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import psutil
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+import numpy as np
+import pandas as pd
+import yaml
 
-logger = logging.getLogger("cochem.scribe_engine")
+logger = logging.getLogger(__name__)
 
-# =============================================================================
-# CONSTANTS & CONFIGURATION
-# =============================================================================
+# Constants for formatting thresholds
+VRAM_THRESHOLD_MB: float = 100.0
+RAM_THRESHOLD_MB: float = 100.0
+HIGH_VAL_THRESHOLD: float = 10000.0
+LOW_VAL_THRESHOLD: float = 1e-4
 
-DRY_RUN_OUTPUT_TEXT: str = (
-    "Calculations were performed utilizing the physical parameters defined in the appended "
-    "CoChem configuration tables. [LLM INSIGHTS BYPASSED VIA DRY-RUN]"
-)
+# Standard Stage definition catalog for Mermaid diagram synthesis
+STAGE_DEFINITIONS: Dict[str, Tuple[str, str]] = {
+    "0.0": ("S0", "Stage 0: Environment & Guards"),
+    "1.0": ("S1", "Stage 1: Conformer Generation"),
+    "2.0": ("S2", "Stage 2: DFT Optimization"),
+    "3.0": ("S3", "Stage 3: Frequency & Thermochemistry"),
+    "4.0": ("S4", "Stage 4: Sinc-DVR Dynamic Tunneling"),
+    "5.0": ("S5", "Stage 5: Telemetry Aggregation"),
+    "6.0": ("S6", "Stage 6: SCRIBE Document Synthesis"),
+}
 
-DEFAULT_MODEL_NAME: str = "gemini-2.5-flash"
-MINIMUM_RAM_GB_REQUIRED: float = 8.0
-
-MODEL_PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
-    # (prompt_cost_per_1m_tokens, completion_cost_per_1m_tokens)
-    "gemini-2.5-flash": (0.075, 0.30),
-    "gemini-2.0-flash": (0.10, 0.40),
-    "gemini-1.5-flash": (0.075, 0.30),
-    "gemini-1.5-pro": (3.50, 10.50),
-    "dry-run": (0.0, 0.0),
-    "local-llama": (0.0, 0.0),
+STAGE_DESCRIPTIONS_FALLBACK: Dict[str, str] = {
+    "0": "Stage 0: Environment & Guards",
+    "0.0": "Stage 0: Environment & Guards",
+    "1": "Stage 1: Conformer Generation",
+    "1.0": "Stage 1: Conformer Generation",
+    "2": "Stage 2: DFT Optimization",
+    "2.0": "Stage 2: DFT Optimization",
+    "3": "Stage 3: Frequency & Thermochemistry",
+    "3.0": "Stage 3: Frequency & Thermochemistry",
+    "4": "Stage 4: Sinc-DVR Dynamic Tunneling",
+    "4.0": "Stage 4: Sinc-DVR Dynamic Tunneling",
+    "5": "Stage 5: Telemetry Aggregation",
+    "5.0": "Stage 5: Telemetry Aggregation",
+    "6": "Stage 6: SCRIBE Document Synthesis",
+    "6.0": "Stage 6: SCRIBE Document Synthesis",
 }
 
 
-# =============================================================================
-# CUSTOM EXCEPTIONS
-# =============================================================================
+class MarkdownBuilder:
+    """Markdown User Guide and GFM Table synthesis engine for CoChem-SCRIBE (Stage 6.3).
 
-
-class ScribeNetworkException(Exception):
-    """Raised when remote API retries are exhausted under exponential backoff."""
-
-
-# =============================================================================
-# DYNAMIC PATH & TELEMETRY RESOLUTION
-# =============================================================================
-
-
-def get_default_artifacts_dir() -> pathlib.Path:
-    """Dynamically resolves the root artifacts directory."""
-    return pathlib.Path.home() / "CoChem_Artifacts"
-
-
-def get_default_report_archive_dir() -> pathlib.Path:
-    """Dynamically resolves the default report archive directory."""
-    return get_default_artifacts_dir() / "Report_Archive"
-
-
-def get_default_audit_log_path() -> pathlib.Path:
-    """Dynamically resolves the central audit log file path."""
-    return get_default_artifacts_dir() / "cochem_audit_log.json"
-
-
-def get_default_env_path() -> pathlib.Path:
-    """Dynamically resolves the default secure credentials file path."""
-    return get_default_report_archive_dir() / ".env"
-
-
-def get_default_models_dir() -> pathlib.Path:
-    """Dynamically resolves the local model weights storage directory."""
-    return pathlib.Path.home() / ".cochem" / "models"
-
-
-try:
-    import tiktoken
-
-    _TIKTOKEN_ENCODER: typing.Any = tiktoken.get_encoding("cl100k_base")
-except Exception:
-    _TIKTOKEN_ENCODER = None
-
-
-def estimate_token_count(text: str) -> int:
-    """FAIR-compliant deterministic token count estimation."""
-    if not text:
-        return 0
-    if _TIKTOKEN_ENCODER is not None:
-        try:
-            return len(_TIKTOKEN_ENCODER.encode(text))
-        except Exception:
-            pass
-    words = len(text.split())
-    chars = len(text)
-    return max(1, max(words, chars // 4))
-
-
-def calculate_model_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """Computes estimated API generation cost in USD based on FAIR model pricing tables."""
-    pricing = MODEL_PRICING_USD_PER_MILLION.get(model_name.lower(), (0.075, 0.30))
-    cost = (prompt_tokens * pricing[0] / 1_000_000.0) + (
-        completion_tokens * pricing[1] / 1_000_000.0
-    )
-    return round(cost, 8)
-
-
-_HOST_PLATFORM: str = platform.platform()
-_PYTHON_VERSION: str = sys.version
-
-
-def record_audit_event(
-    event_type: str,
-    details: dict[str, typing.Any],
-    audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-) -> None:
-    """Appends structured JSON telemetry / audit event to the central audit log."""
-    target_path = (
-        pathlib.Path(audit_log_path).resolve() if audit_log_path else get_default_audit_log_path()
-    )
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-
-    event_payload: dict[str, typing.Any] = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "event_type": event_type,
-        "platform": _HOST_PLATFORM,
-        "python_version": _PYTHON_VERSION,
-        **details,
-    }
-
-    try:
-        existing_entries: list[dict[str, typing.Any]] = []
-        if target_path.exists():
-            try:
-                content = target_path.read_text(encoding="utf-8")
-                if content.strip():
-                    parsed = json.loads(content)
-                    if isinstance(parsed, list):
-                        existing_entries = parsed
-                    elif isinstance(parsed, dict):
-                        existing_entries = [parsed]
-            except Exception:
-                existing_entries = []
-
-        existing_entries.append(event_payload)
-        target_path.write_text(json.dumps(existing_entries, indent=2), encoding="utf-8")
-    except Exception as exc:
-        logger.warning(f"Failed to record audit event to {target_path}: {exc}")
-
-
-# =============================================================================
-# ABSTRACT BASE CLASS: ScribeLLMEngine
-# =============================================================================
-
-
-class ScribeLLMEngine(abc.ABC):
-    """Abstract base class for all CoChem-SCRIBE text generation backends."""
-
-    @abc.abstractmethod
-    def generate(self, prompt: str) -> str:
-        """Synchronously generates narrative text from candidate prompt."""
-
-    @abc.abstractmethod
-    def stream(self, prompt: str) -> typing.Generator[str, None, None]:
-        """Synchronously streams token chunks from candidate prompt."""
-
-    async def async_generate(self, prompt: str) -> str:
-        """Asynchronous wrapper dispatching synchronous generation to a background worker thread."""
-        return await asyncio.to_thread(self.generate, prompt)
-
-
-# =============================================================================
-# CONCRETE ENGINE: DryRunEngine
-# =============================================================================
-
-
-class DryRunEngine(ScribeLLMEngine):
-    """Deterministic zero-mock fallback engine for air-gapped, offline, and constrained nodes."""
+    Generates structured, publication-grade Markdown documentation (CoChem_User_Guide.md)
+    enriched with YAML frontmatter, Stage 0 provenance matrices, dynamic Mermaid.js flowcharts,
+    GitHub-Flavored Markdown (GFM) tables, thermodynamic analysis narratives, hardware telemetry
+    charts, and non-fatal audit warning blockquotes. Enforces cross-platform safe
+    pathing and non-destructive timestamped overwrite protection.
+    """
 
     def __init__(
         self,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
+        output_dir: Optional[Union[str, pathlib.Path]] = None,
+        base_filename: str = "CoChem_User_Guide.md",
+        filename: Optional[str] = None,
     ) -> None:
-        self.audit_log_path = (
-            pathlib.Path(audit_log_path).resolve()
-            if audit_log_path
-            else get_default_audit_log_path()
-        )
-        self.model_name = "dry-run"
+        """Initializes MarkdownBuilder with dynamic output directory resolution.
 
-    def generate(self, prompt: str) -> str:
-        """Returns deterministic, static boilerplate markdown string."""
-        start_time = time.perf_counter()
-        prompt_tokens = estimate_token_count(prompt)
-        completion_tokens = estimate_token_count(DRY_RUN_OUTPUT_TEXT)
-        elapsed_time = time.perf_counter() - start_time
+        Args:
+            output_dir: Optional directory for output markdown. Defaults to
+                Path.home() / "CoChem_Artifacts" / "Report_Archive".
+            base_filename: Target output markdown filename. Defaults to
+                "CoChem_User_Guide.md".
+            filename: Alias for base_filename for backwards compatibility.
+        """
+        if output_dir is not None:
+            self.output_dir = pathlib.Path(output_dir).resolve()
+        else:
+            self.output_dir = (
+                pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
+            ).resolve()
 
-        record_audit_event(
-            event_type="LLM_GENERATION_TELEMETRY",
-            details={
-                "engine": "DryRunEngine",
-                "model": self.model_name,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-                "estimated_cost_usd": 0.0,
-                "duration_seconds": elapsed_time,
-                "status": "SUCCESS",
-                "airgap_dryrun": True,
-            },
-            audit_log_path=self.audit_log_path,
-        )
-        return DRY_RUN_OUTPUT_TEXT
+        self.base_filename = filename if filename is not None else base_filename
+        self.filename = self.base_filename
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("[SCRIBE-INIT] MarkdownBuilder initialized at %s", self.output_dir)
 
-    def stream(self, prompt: str) -> typing.Generator[str, None, None]:
-        """Streams deterministic boilerplate markdown string in discrete chunks."""
-        start_time = time.perf_counter()
-        prompt_tokens = estimate_token_count(prompt)
-        completion_tokens = estimate_token_count(DRY_RUN_OUTPUT_TEXT)
+    def generate_yaml_frontmatter(self, metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Generates valid YAML frontmatter block containing run provenance and metadata.
 
-        chunks = [
-            "Calculations ",
-            "were ",
-            "performed ",
-            "utilizing ",
-            "the ",
-            "physical ",
-            "parameters ",
-            "defined ",
-            "in ",
-            "the ",
-            "appended ",
-            "CoChem ",
-            "configuration ",
-            "tables. ",
-            "[LLM INSIGHTS BYPASSED VIA DRY-RUN]",
+        Args:
+            metadata: Run metadata dictionary.
+
+        Returns:
+            Strict YAML frontmatter block enclosed in '---'.
+        """
+        meta = metadata.copy() if metadata else {}
+
+        # Default core fields if missing
+        if "title" not in meta:
+            meta["title"] = "CoChem Computational Analysis User Guide"
+        if "date" not in meta and "generated_at" not in meta:
+            meta["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if "cochem_version" not in meta and "version" not in meta:
+            meta["cochem_version"] = "2.0.0"
+        if "run_id" not in meta and "experiment_id" not in meta and "pipeline_hash" not in meta:
+            meta["run_id"] = "N/A"
+        if "target_molecule" not in meta:
+            meta["target_molecule"] = "N/A"
+        if "smiles" not in meta:
+            meta["smiles"] = "N/A"
+        if "environment_tier" not in meta and "environment" not in meta:
+            meta["environment_tier"] = "Local-Windows WSL"
+        if "fair_compliance" not in meta:
+            meta["fair_compliance"] = True
+
+        yaml_content = yaml.safe_dump(
+            meta, sort_keys=False, default_flow_style=False
+        ).strip()
+        return f"---\n{yaml_content}\n---"
+
+    def generate_system_matrix_section(self, system_matrix: Optional[Dict[str, Any]] = None) -> str:
+        """Generates Markdown readout of Stage 0 active computational engines and hardware nodes.
+
+        Args:
+            system_matrix: System configuration and execution environment data.
+
+        Returns:
+            Formatted Markdown section under ## Computational Provenance & System Matrix.
+        """
+        matrix = system_matrix or {}
+        lines: List[str] = [
+            "## Computational Provenance & System Matrix",
+            "",
+            "### 1.1 Compute Engines & Versions",
         ]
-        for chunk in chunks:
-            yield chunk
 
-        elapsed_time = time.perf_counter() - start_time
-        record_audit_event(
-            event_type="LLM_STREAM_TELEMETRY",
-            details={
-                "engine": "DryRunEngine",
-                "model": self.model_name,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": prompt_tokens + completion_tokens,
-                "estimated_cost_usd": 0.0,
-                "duration_seconds": elapsed_time,
-                "status": "SUCCESS",
-                "airgap_dryrun": True,
-            },
-            audit_log_path=self.audit_log_path,
+        engines = matrix.get("engines", {})
+        if isinstance(engines, dict) and engines:
+            for engine, ver in engines.items():
+                lines.append(f"- **{engine}**: `{ver}`")
+        elif isinstance(engines, list) and engines:
+            for item in engines:
+                lines.append(f"- `{item}`")
+        else:
+            lines.append("- *No discrete calculation engines registered.*")
+
+        lines.append("")
+        lines.append("### 1.2 Host Architecture & Resource Allocation")
+
+        host_info = (
+            matrix.get("host", {})
+            if isinstance(matrix.get("host"), dict)
+            else matrix
         )
 
-
-# =============================================================================
-# CONCRETE ENGINE: GeminiEngine
-# =============================================================================
-
-
-class GeminiEngine(ScribeLLMEngine):
-    """Remote API engine utilizing google-genai SDK with exponential backoff and air-gap credentials."""
-
-    def __init__(
-        self,
-        model_name: str = DEFAULT_MODEL_NAME,
-        env_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-    ) -> None:
-        self.model_name = model_name
-        self.env_path = pathlib.Path(env_path).resolve() if env_path else get_default_env_path()
-        self.audit_log_path = (
-            pathlib.Path(audit_log_path).resolve()
-            if audit_log_path
-            else get_default_audit_log_path()
+        env_tier = (
+            host_info.get("environment_tier")
+            or host_info.get("environment")
+            or matrix.get("environment_tier")
+            or matrix.get("environment", "Unknown / Heterogeneous")
         )
-        self._fallback_engine: typing.Optional[DryRunEngine] = None
-        self.client: typing.Any = None
+        node_arch = (
+            host_info.get("node_architecture")
+            or host_info.get("architecture")
+            or host_info.get("node_arch")
+            or platform.machine()
+            or "x86_64"
+        )
+        cpu_cores = (
+            host_info.get("cpu_cores")
+            or host_info.get("cpu")
+            or host_info.get("cores")
+            or matrix.get("cpu_cores", "N/A")
+        )
+        gpu_device = (
+            host_info.get("gpu_model")
+            or host_info.get("gpu_device")
+            or host_info.get("gpu")
+            or matrix.get("gpu_device", "N/A")
+        )
+        host_ram = (
+            host_info.get("host_ram")
+            or host_info.get("memory_allocation")
+            or host_info.get("host_ram_gb")
+            or host_info.get("ram_gb")
+            or matrix.get("host_ram", "N/A")
+        )
+        py_version = (
+            host_info.get("python_version")
+            or host_info.get("python")
+            or matrix.get("python_version")
+            or sys.version.split()[0]
+        )
+        cfg_hash = (
+            matrix.get("config_hash")
+            or matrix.get("pipeline_hash")
+            or host_info.get("config_hash", "N/A")
+        )
 
-        # Check offline flag
-        offline_flag = os.environ.get("COCHEM_OFFLINE", "").strip().lower()
-        if offline_flag in ("1", "true", "yes", "y", "on"):
-            logger.info("GeminiEngine: COCHEM_OFFLINE is set. Activating DryRunEngine fallback.")
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
-            return
+        lines.append(f"- **Environment Tier**: {env_tier}")
+        lines.append(f"- **Node Architecture**: {node_arch}")
+        lines.append(f"- **CPU Allocation**: {cpu_cores}")
+        lines.append(f"- **GPU Device**: {gpu_device}")
+        lines.append(f"- **Host RAM**: {host_ram}")
+        lines.append(f"- **Python Runtime Version**: `{py_version}`")
+        lines.append(f"- **Configuration SHA-256**: `{cfg_hash}`")
+        lines.append("")
 
-        api_key = self._resolve_api_key()
-        if not api_key:
-            logger.warning(
-                "GeminiEngine: GEMINI_API_KEY not found or inaccessible. Falling back to DryRunEngine."
+        return "\n".join(lines)
+
+    @staticmethod
+    def _resolve_stage_node(
+        stage_item: Union[str, int, Dict[str, Any]], custom_idx: int
+    ) -> Tuple[str, str, int]:
+        """Resolves a single stage item into a node ID, label, and updated custom index."""
+        if isinstance(stage_item, dict):
+            node_id = str(stage_item.get("id") or stage_item.get("stage") or f"S_custom_{custom_idx}")
+            label = str(stage_item.get("name") or stage_item.get("label") or node_id)
+            if not node_id.startswith("S"):
+                node_id = f"S{node_id}".replace(".", "_")
+            return node_id, label.replace('"', "'"), custom_idx + 1
+
+        if isinstance(stage_item, int):
+            stage_str = f"{stage_item}.0"
+            if stage_str in STAGE_DEFINITIONS:
+                nid, lbl = STAGE_DEFINITIONS[stage_str]
+                return nid, lbl, custom_idx
+            return f"S{stage_item}", f"Stage {stage_item}", custom_idx
+
+        stage_clean = str(stage_item).strip()
+
+        # Direct check in definitions
+        for key, (node_id, label) in STAGE_DEFINITIONS.items():
+            major = key.split(".")[0]
+            # Match "Stage 0.0", "Stage 0", "0.0", "0", or "S0"
+            pattern = (
+                rf"(?<![\d.])(?:Stage\s+)?(?:{re.escape(key)}|{major}(?!\d))(?![\d.])"
             )
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
-            return
+            if (
+                re.search(pattern, stage_clean, flags=re.IGNORECASE)
+                or stage_clean.upper() == node_id.upper()
+            ):
+                # If stage_clean has its own rich text, use it; otherwise use catalog label
+                if ":" in stage_clean:
+                    cleaned_label = stage_clean.replace('"', "'")
+                    return node_id, cleaned_label, custom_idx
+                return node_id, label, custom_idx
 
-        try:
-            from google import genai
+        cleaned_name = stage_clean.replace('"', "'")
+        custom_id = f"S_custom_{custom_idx}"
+        return custom_id, cleaned_name, custom_idx + 1
 
-            self.client = genai.Client(api_key=api_key)
-        except Exception as exc:
-            logger.warning(
-                f"GeminiEngine: Failed to instantiate google-genai Client: {exc}. Falling back to DryRunEngine."
+    def _resolve_mermaid_nodes(
+        self, active_stages: Optional[List[Union[str, int, Dict[str, Any]]]] = None
+    ) -> List[Tuple[str, str]]:
+        """Resolves stage list into ordered Mermaid node definitions."""
+        if not active_stages:
+            return [
+                STAGE_DEFINITIONS[k]
+                for k in ["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"]
+            ]
+
+        resolved_nodes: List[Tuple[str, str]] = []
+        custom_idx = 1
+        for stage_item in active_stages:
+            node_id, label, custom_idx = self._resolve_stage_node(
+                stage_item, custom_idx
             )
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
+            resolved_nodes.append((node_id, label))
+        return resolved_nodes
 
-    def _resolve_api_key(self) -> typing.Optional[str]:
-        """Resolves GEMINI_API_KEY from environment or secure .env file with platform-aware security."""
-        # 1. Environment variable
-        env_key = os.environ.get("GEMINI_API_KEY", "").strip()
-        if env_key:
-            return env_key
+    def generate_mermaid_flowchart(
+        self, active_stages: Optional[List[Union[str, int, Dict[str, Any]]]] = None
+    ) -> str:
+        """Dynamically synthesizes a Mermaid.js graph TD diagram block mapping active CoChem stages.
 
-        # 2. File resolution
-        if not self.env_path.exists() or not self.env_path.is_file():
-            return None
+        Args:
+            active_stages: Optional list of active stage identifier strings, ints, or dicts.
 
-        # Platform-aware POSIX permission check
-        if os.name != "nt":
-            try:
-                file_stat = self.env_path.stat()
-                file_mode = file_stat.st_mode & 0o777
-                if file_mode != 0o600:
-                    logger.warning(
-                        f"GeminiEngine: Insecure permissions {oct(file_mode)} on {self.env_path}. "
-                        f"Expected 0o600. Rejecting credentials for air-gap security."
+        Returns:
+            Fenced Mermaid.js flowchart string.
+        """
+        resolved_nodes = self._resolve_mermaid_nodes(active_stages)
+
+        if not resolved_nodes:
+            return (
+                "```mermaid\n"
+                "graph TD\n"
+                '    S0["Stage 0: Environment & Guards"]\n'
+                "```"
+            )
+
+        lines: List[str] = ["```mermaid", "graph TD"]
+
+        if len(resolved_nodes) == 1:
+            node_id, label = resolved_nodes[0]
+            lines.append(f'    {node_id}["{label}"]')
+        else:
+            for i in range(len(resolved_nodes) - 1):
+                prev_id, prev_label = resolved_nodes[i]
+                curr_id, curr_label = resolved_nodes[i + 1]
+                if i == 0:
+                    lines.append(
+                        f'    {prev_id}["{prev_label}"] --> {curr_id}["{curr_label}"]'
                     )
-                    record_audit_event(
-                        event_type="AIRGAP_CREDENTIAL_PERMISSION_REJECTED",
-                        details={
-                            "env_path": str(self.env_path),
-                            "file_mode": oct(file_mode),
-                            "expected_mode": "0o600",
-                        },
-                        audit_log_path=self.audit_log_path,
-                    )
-                    return None
-            except Exception as stat_err:
-                logger.warning(f"GeminiEngine: Failed to check stat on {self.env_path}: {stat_err}")
-                return None
+                else:
+                    lines.append(f'    {prev_id} --> {curr_id}["{curr_label}"]')
 
-        # Read .env securely
-        try:
-            content = self.env_path.read_text(encoding="utf-8")
-            for line in content.splitlines():
-                trimmed = line.strip()
-                if not trimmed or trimmed.startswith("#"):
-                    continue
-                if "=" in trimmed:
-                    key_part, val_part = trimmed.split("=", 1)
-                    if key_part.strip() == "GEMINI_API_KEY":
-                        resolved = val_part.strip().strip("'\"")
-                        if resolved:
-                            return resolved
-        except Exception as read_err:
-            logger.warning(f"GeminiEngine: Failed to read .env file {self.env_path}: {read_err}")
-            return None
+        lines.append("```")
+        return "\n".join(lines)
 
+    def dataframe_to_gfm_table(
+        self, df: Optional[pd.DataFrame], table_title: Optional[str] = None
+    ) -> str:
+        """Converts a pandas DataFrame into a standard GitHub-Flavored Markdown (GFM) pipe table.
+
+        Args:
+            df: Input pandas DataFrame.
+            table_title: Optional title/header for the table.
+
+        Returns:
+            GFM formatted table string.
+        """
+        if df is None or df.empty:
+            if table_title:
+                return f"### {table_title}\n\n*No tabular data available.*\n"
+            return "*No tabular data available.*\n"
+
+        headers = [str(col).replace("|", r"\|").strip() for col in df.columns]
+
+        alignments: List[str] = []
+        for col in df.columns:
+            is_numeric = (
+                pd.api.types.is_numeric_dtype(df[col])
+                and not pd.api.types.is_bool_dtype(df[col])
+            )
+            alignments.append("---:" if is_numeric else ":---")
+
+        rows: List[str] = []
+        if table_title:
+            rows.append(f"### {table_title}")
+            rows.append("")
+
+        header_line = "| " + " | ".join(headers) + " |"
+        rows.append(header_line)
+
+        sep_line = "| " + " | ".join(alignments) + " |"
+        rows.append(sep_line)
+
+        for _, row in df.iterrows():
+            row_cells = []
+            for col in df.columns:
+                val = row[col]
+                formatted_val = self._format_cell_value(val, str(col))
+                row_cells.append(formatted_val)
+            rows.append("| " + " | ".join(row_cells) + " |")
+
+        rows.append("")
+        return "\n".join(rows)
+
+    # Backward compatibility alias
+    format_gfm_table = dataframe_to_gfm_table
+
+    @staticmethod
+    def _format_cell_value(val: Any, col_name: str) -> str:
+        """Formats an individual DataFrame cell for GFM presentation."""
+        if pd.isna(val) or val is None:
+            return "N/A"
+
+        if isinstance(val, (float, np.floating)):
+            return MarkdownBuilder._format_float_cell(float(val), col_name)
+
+        if isinstance(val, (int, np.integer)) and not isinstance(val, bool):
+            return str(val)
+
+        clean_str = str(val).replace("\r\n", "<br>").replace("\n", "<br>")
+        return clean_str.replace("|", r"\|").strip()
+
+    @staticmethod
+    def _format_float_cell(val: float, col_name: str) -> str:
+        """Formats float values based on column context and magnitude."""
+        col_lower = col_name.lower()
+        if "hartree" in col_lower or "eh" in col_lower:
+            return f"{val:.6f}"
+        if any(
+            k in col_lower
+            for k in [
+                "energy",
+                "kcal",
+                "kj",
+                "population",
+                "pop",
+                "freq",
+                "%",
+                "intensity",
+                "zpe",
+                "rel",
+            ]
+        ):
+            return f"{val:.2f}"
+        if abs(val) >= HIGH_VAL_THRESHOLD or (0 < abs(val) < LOW_VAL_THRESHOLD):
+            return f"{val:.4e}"
+        return f"{val:.2f}"
+
+    def format_thermodynamic_insights(self, insights_text: Optional[str] = None) -> str:
+        """Formats LLM-generated thermodynamic analytical insights under ## Thermodynamic Analysis.
+
+        Args:
+            insights_text: Narrative text or analytical insights.
+
+        Returns:
+            Formatted Markdown section with placeholders scrubbed.
+        """
+        lines: List[str] = [
+            "## Thermodynamic Analysis",
+            "",
+        ]
+
+        if not insights_text or not isinstance(insights_text, str):
+            lines.append(
+                "*Analytical data was aggregated without additional narrative comments.*"
+            )
+            lines.append("")
+            return "\n".join(lines)
+
+        cleaned = re.sub(r"<<INSERT_[^>]*>>", "", insights_text, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\[PLACEHOLDER\]", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<<PLACEHOLDER>>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<PLACEHOLDER>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\{\{[^}]*\}\}", "", cleaned)
+        cleaned = cleaned.strip()
+
+        if not cleaned:
+            lines.append(
+                "*Analytical data was aggregated without additional narrative comments.*"
+            )
+        else:
+            lines.append(cleaned)
+
+        lines.append("")
+        return "\n".join(lines)
+
+    # Backward compatibility alias
+    inject_thermodynamic_insights = format_thermodynamic_insights
+
+    def format_audit_warnings(self, warnings: Optional[List[str]] = None) -> str:
+        """Aggregates non-fatal warnings from cochem_audit_log into Markdown callout blockquotes.
+
+        Args:
+            warnings: Optional list of warning strings.
+
+        Returns:
+            Formatted callout blockquote string.
+        """
+        if not warnings:
+            return "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.\n"
+
+        lines: List[str] = []
+        for w in warnings:
+            w_clean = str(w).strip()
+            if w_clean:
+                lines.append(f"> **WARNING**: {w_clean}")
+
+        if not lines:
+            return "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.\n"
+
+        return "\n\n".join(lines) + "\n"
+
+    # Backward compatibility alias
+    format_warning_blockquotes = format_audit_warnings
+
+    def format_hardware_telemetry(self, telemetry: Optional[Dict[str, Any]] = None) -> str:
+        """Formats CPU/GPU peak usage metrics and compute timings as a structured Markdown list.
+
+        Args:
+            telemetry: Dictionary of hardware telemetry metrics.
+
+        Returns:
+            Formatted Markdown section under ## Hardware Resource Telemetry.
+        """
+        telem = telemetry or {}
+
+        peak_gpu = (
+            telem.get("peak_gpu_vram")
+            or telem.get("peak_gpu_vram_mb")
+            or telem.get("gpu_vram")
+            or telem.get("peak_gpu")
+            or telem.get("gpu_peak_vram_mb")
+            or "N/A"
+        )
+        if isinstance(peak_gpu, (int, float)) and not isinstance(peak_gpu, bool):
+            peak_gpu = (
+                f"{peak_gpu:.1f} MB"
+                if peak_gpu > VRAM_THRESHOLD_MB
+                else f"{peak_gpu:.1f} GB"
+            )
+
+        peak_cpu = (
+            telem.get("peak_cpu_percent")
+            or telem.get("cpu_percent")
+            or telem.get("peak_cpu")
+            or telem.get("cpu_peak_percent")
+            or "N/A"
+        )
+        if isinstance(peak_cpu, (int, float)) and not isinstance(peak_cpu, bool):
+            peak_cpu = f"{peak_cpu:.1f}%"
+
+        wall_clock = (
+            telem.get("wall_clock_seconds")
+            or telem.get("wall_clock_time")
+            or telem.get("execution_time")
+            or telem.get("wall_clock")
+            or telem.get("elapsed_time")
+            or "N/A"
+        )
+        if isinstance(wall_clock, (int, float)) and not isinstance(wall_clock, bool):
+            wall_clock = f"{wall_clock:.2f} s"
+
+        peak_ram = (
+            telem.get("peak_ram_mb")
+            or telem.get("peak_host_ram")
+            or telem.get("memory_footprint")
+            or telem.get("peak_memory")
+            or telem.get("host_ram")
+            or "N/A"
+        )
+        if isinstance(peak_ram, (int, float)) and not isinstance(peak_ram, bool):
+            peak_ram = (
+                f"{peak_ram:.1f} MB"
+                if peak_ram > RAM_THRESHOLD_MB
+                else f"{peak_ram:.1f} GB"
+            )
+
+        lines: List[str] = [
+            "## Hardware Resource Telemetry",
+            "",
+            f"- **Peak GPU VRAM Usage**: {peak_gpu}",
+            f"- **Peak CPU Usage**: {peak_cpu}",
+            f"- **Wall-Clock Execution Time**: {wall_clock}",
+            f"- **Peak Host RAM / Memory Footprint**: {peak_ram}",
+            "",
+        ]
+
+        extra_keys = {
+            k: v
+            for k, v in telem.items()
+            if k
+            not in [
+                "peak_gpu_vram",
+                "peak_gpu_vram_mb",
+                "gpu_vram",
+                "peak_gpu",
+                "gpu_peak_vram_mb",
+                "peak_cpu_percent",
+                "cpu_percent",
+                "peak_cpu",
+                "cpu_peak_percent",
+                "wall_clock_seconds",
+                "wall_clock_time",
+                "execution_time",
+                "wall_clock",
+                "elapsed_time",
+                "peak_ram_mb",
+                "peak_host_ram",
+                "memory_footprint",
+                "peak_memory",
+                "host_ram",
+            ]
+        }
+        if extra_keys:
+            lines.append("### Additional Telemetry Metrics")
+            for k, v in extra_keys.items():
+                k_fmt = k.replace("_", " ").title()
+                lines.append(f"- **{k_fmt}**: {v}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    # Backward compatibility alias
+    format_telemetry_section = format_hardware_telemetry
+
+    def _extract_dataframe(
+        self, payload: Dict[str, Any], keys: List[str]
+    ) -> Optional[pd.DataFrame]:
+        """Extracts and standardizes DataFrame from payload given fallback keys."""
+        for key in keys:
+            val = payload.get(key)
+            if val is not None:
+                if isinstance(val, pd.DataFrame):
+                    return val
+                try:
+                    if isinstance(val, (list, dict)):
+                        return pd.DataFrame(val)
+                except Exception:
+                    pass
         return None
 
-    @retry(
-        retry=retry_if_exception_type((Exception,)),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
-        stop=stop_after_attempt(5),
-        reraise=True,
-    )
-    def _execute_remote_call(self, prompt: str) -> typing.Any:
-        """Executes remote API call with exponential backoff."""
-        return self.client.models.generate_content(
-            model=self.model_name,
-            contents=prompt,
-        )
+    def build_user_guide(self, payload: Optional[Dict[str, Any]] = None) -> str:
+        """Assembles the complete Markdown User Guide document from the provided payload dictionary.
 
-    def generate(self, prompt: str) -> str:
-        """Synchronously generates narrative text via Gemini API with retry logic."""
-        if self._fallback_engine is not None:
-            return self._fallback_engine.generate(prompt)
+        Args:
+            payload: Harvested pipeline data, system matrix, telemetry, and DataFrames.
 
-        start_time = time.perf_counter()
-        try:
-            response = self._execute_remote_call(prompt)
-        except Exception as exc:
-            record_audit_event(
-                event_type="LLM_NETWORK_EXCEPTION",
-                details={
-                    "engine": "GeminiEngine",
-                    "model": self.model_name,
-                    "error_message": str(exc),
-                    "exception_type": type(exc).__name__,
-                },
-                audit_log_path=self.audit_log_path,
+        Returns:
+            Complete GitHub-Flavored Markdown user guide string.
+        """
+        data = payload or {}
+        sections: List[str] = []
+
+        # 1. YAML Frontmatter
+        metadata = data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        for k in ["title", "pipeline_hash", "environment", "environment_tier", "run_id", "target_molecule", "smiles"]:
+            if k in data and k not in metadata:
+                metadata[k] = data[k]
+
+        sections.append(self.generate_yaml_frontmatter(metadata))
+
+        # 2. Document Title & Executive Overview
+        doc_title = metadata.get("title", "CoChem Computational Analysis User Guide")
+        overview = (
+            data.get("overview")
+            or data.get("executive_summary")
+            or (
+                "This document provides a comprehensive summary of the "
+                "computational quantum chemistry pipeline execution, including "
+                "conformer exploration, thermodynamic properties, vibrational "
+                "spectroscopy, and execution provenance."
             )
-            raise ScribeNetworkException(
-                f"Gemini API request failed after 5 retry attempts: {exc}"
-            ) from exc
-
-        text_content = getattr(response, "text", "") or ""
-        usage = getattr(response, "usage_metadata", None)
-        prompt_tokens = (
-            getattr(usage, "prompt_token_count", 0) if usage else estimate_token_count(prompt)
         )
-        completion_tokens = (
-            getattr(usage, "candidates_token_count", 0)
-            if usage
-            else estimate_token_count(text_content)
-        )
-        total_tokens = (
-            getattr(usage, "total_token_count", prompt_tokens + completion_tokens)
-            if usage
-            else (prompt_tokens + completion_tokens)
-        )
-        cost_usd = calculate_model_cost(self.model_name, prompt_tokens, completion_tokens)
-        elapsed_time = time.perf_counter() - start_time
+        sections.append(f"# {doc_title}\n\n{overview}\n")
 
-        record_audit_event(
-            event_type="LLM_GENERATION_TELEMETRY",
-            details={
-                "engine": "GeminiEngine",
-                "model": self.model_name,
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-                "estimated_cost_usd": cost_usd,
-                "duration_seconds": elapsed_time,
-                "status": "SUCCESS",
-            },
-            audit_log_path=self.audit_log_path,
+        # 3. Stage 0 System Matrix & Provenance
+        sys_matrix = data.get("system_matrix", {})
+        sys_dict = sys_matrix if isinstance(sys_matrix, dict) else {}
+        sections.append(self.generate_system_matrix_section(sys_dict))
+
+        # 4. Dynamic Mermaid.js Workflow Diagram
+        active_stages = data.get("active_stages")
+        mermaid_chart = self.generate_mermaid_flowchart(active_stages)
+        sections.append(f"## Pipeline Execution Flowchart\n\n{mermaid_chart}\n")
+
+        # 5. Conformer Landscape GFM Table
+        conf_df = self._extract_dataframe(
+            data, ["conformers_df", "conformer_df", "conformers"]
         )
-        return text_content
-
-    def stream(self, prompt: str) -> typing.Generator[str, None, None]:
-        """Synchronously streams token chunks via Gemini API."""
-        if self._fallback_engine is not None:
-            yield from self._fallback_engine.stream(prompt)
-            return
-
-        try:
-            stream_response = self.client.models.generate_content_stream(
-                model=self.model_name,
-                contents=prompt,
+        if conf_df is not None and not conf_df.empty:
+            conf_table = self.dataframe_to_gfm_table(
+                conf_df, table_title="Conformer Energetic & Geometric Ranking"
             )
-            for chunk in stream_response:
-                chunk_text = getattr(chunk, "text", "") or ""
-                if chunk_text:
-                    yield chunk_text
-        except Exception as exc:
-            record_audit_event(
-                event_type="LLM_STREAM_EXCEPTION",
-                details={
-                    "engine": "GeminiEngine",
-                    "model": self.model_name,
-                    "error_message": str(exc),
-                    "exception_type": type(exc).__name__,
-                },
-                audit_log_path=self.audit_log_path,
+            sections.append(f"### Conformer Landscape\n\n{conf_table}\n")
+
+        # 6. Thermodynamic Analysis & Energy GFM Table
+        insights = (
+            data.get("thermodynamic_insights")
+            or data.get("insights")
+            or ""
+        )
+        sections.append(self.format_thermodynamic_insights(insights))
+
+        thermo_df = self._extract_dataframe(
+            data, ["thermodynamics_df", "thermo_df", "energies_df"]
+        )
+        if thermo_df is not None and not thermo_df.empty:
+            thermo_table = self.dataframe_to_gfm_table(
+                thermo_df,
+                table_title="Thermodynamic State Functions & Zero-Point Energies",
             )
-            raise ScribeNetworkException(f"Gemini API streaming failed: {exc}") from exc
+            sections.append(f"{thermo_table}\n")
 
+        # 7. Spectroscopic Parameters & Vibrational GFM Table
+        vib_df = self._extract_dataframe(
+            data, ["vibrational_df", "spectroscopy_df", "vibrations_df"]
+        )
+        if vib_df is not None and not vib_df.empty:
+            vib_table = self.dataframe_to_gfm_table(
+                vib_df, table_title="Vibrational Modes & IR Intensities"
+            )
+            sections.append(
+                f"## Spectroscopic & Vibrational Analysis\n\n{vib_table}\n"
+            )
 
-# =============================================================================
-# CONCRETE ENGINE: LocalLlamaEngine
-# =============================================================================
+        # 8. Non-Fatal Execution Warnings Callout Blockquotes
+        warnings = data.get("warnings")
+        sections.append(
+            f"### Execution Warnings & Audit Trail\n\n"
+            f"{self.format_audit_warnings(warnings)}\n"
+        )
 
+        # 9. Hardware Telemetry Summary
+        telemetry = data.get("telemetry", {})
+        telem_dict = telemetry if isinstance(telemetry, dict) else {}
+        sections.append(self.format_hardware_telemetry(telem_dict))
 
-class LocalLlamaEngine(ScribeLLMEngine):
-    """Local GGUF inference engine utilizing llama-cpp-python with OOM kernel traps."""
+        return "\n".join(sections).strip() + "\n"
 
-    def __init__(
+    def save_user_guide(
         self,
-        model_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-        n_ctx: int = 4096,
-        n_gpu_layers: int = 0,
-        audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
-    ) -> None:
-        self.model_path = model_path
-        self.n_ctx = n_ctx
-        self.n_gpu_layers = n_gpu_layers
-        self.audit_log_path = (
-            pathlib.Path(audit_log_path).resolve()
-            if audit_log_path
-            else get_default_audit_log_path()
-        )
-        self.model: typing.Any = None
-        self._fallback_engine: typing.Optional[DryRunEngine] = None
-
-        # Resolve weights path
-        resolved_weights = self._resolve_model_weights(model_path)
-
-        # Hardware Pre-Check
-        if not self._check_hardware_resources():
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
-            return
-
-        # Model File Existence Check
-        if not resolved_weights.exists() or not resolved_weights.is_file():
-            logger.warning(
-                f"LocalLlamaEngine: Model weights not found at {resolved_weights}. "
-                f"Activating DryRunEngine fallback."
-            )
-            record_audit_event(
-                event_type="MODEL_WEIGHTS_NOT_FOUND",
-                details={
-                    "engine": "LocalLlamaEngine",
-                    "model_path": str(resolved_weights),
-                },
-                audit_log_path=self.audit_log_path,
-            )
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
-            return
-
-        # Dynamic Import and OOM Kernel Trap Initialization
-        try:
-            from llama_cpp import Llama  # type: ignore[import-not-found]
-
-            self.model = Llama(
-                model_path=str(resolved_weights),
-                n_ctx=self.n_ctx,
-                n_gpu_layers=self.n_gpu_layers,
-                verbose=False,
-            )
-        except ImportError as imp_err:
-            logger.warning(
-                f"LocalLlamaEngine: llama-cpp-python not installed: {imp_err}. "
-                f"Activating DryRunEngine fallback."
-            )
-            record_audit_event(
-                event_type="DEPENDENCY_MISSING",
-                details={
-                    "engine": "LocalLlamaEngine",
-                    "library": "llama_cpp",
-                    "error": str(imp_err),
-                },
-                audit_log_path=self.audit_log_path,
-            )
-            self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
-        except (MemoryError, RuntimeError, ValueError) as exc:
-            self._handle_oom_kernel_trap(stage="INITIALIZATION", exc=exc)
-        except Exception as exc:
-            self._handle_oom_kernel_trap(stage="INITIALIZATION", exc=exc)
-
-    def _resolve_model_weights(
-        self, candidate_path: typing.Optional[typing.Union[str, pathlib.Path]]
+        content: str,
+        target_dir: Optional[Union[str, pathlib.Path]] = None,
+        base_filename: Optional[str] = None,
     ) -> pathlib.Path:
-        """Dynamically resolves local model path."""
-        if candidate_path is not None:
-            return pathlib.Path(candidate_path).resolve()
+        """Saves Markdown document to user home directory with timestamped overwrite protection.
 
-        models_dir = get_default_models_dir()
-        if models_dir.exists() and models_dir.is_dir():
-            gguf_candidates = list(models_dir.glob("*.gguf"))
-            if gguf_candidates:
-                return gguf_candidates[0].resolve()
+        Args:
+            content: Markdown formatted text.
+            target_dir: Optional explicit directory path. If omitted, uses self.output_dir.
+            base_filename: Optional target filename. Defaults to self.base_filename.
 
-        return models_dir / "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
-
-    def _check_hardware_resources(self) -> bool:
-        """Evaluates host hardware memory constraints."""
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        resource_guard_active = os.environ.get("RESOURCE_GUARD", "1").strip().lower() not in (
-            "0",
-            "false",
-            "off",
+        Returns:
+            Resolved pathlib.Path of the written file.
+        """
+        dest_dir = (
+            pathlib.Path(target_dir).resolve()
+            if target_dir is not None
+            else self.output_dir
         )
+        dest_dir.mkdir(parents=True, exist_ok=True)
 
-        if resource_guard_active and total_ram_gb < MINIMUM_RAM_GB_REQUIRED:
-            logger.warning(
-                f"LocalLlamaEngine: RESOURCE_GUARD blocked loading local weights. "
-                f"Host RAM ({total_ram_gb:.2f} GB) < required ({MINIMUM_RAM_GB_REQUIRED:.1f} GB)."
-            )
-            record_audit_event(
-                event_type="HARDWARE_OVERRIDE",
-                details={
-                    "engine": "LocalLlamaEngine",
-                    "reason": "INSUFFICIENT_HOST_RAM",
-                    "total_ram_gb": total_ram_gb,
-                    "required_ram_gb": MINIMUM_RAM_GB_REQUIRED,
-                },
-                audit_log_path=self.audit_log_path,
-            )
-            return False
-        return True
+        fname = base_filename if base_filename is not None else self.base_filename
+        target_path = (dest_dir / fname).resolve()
 
-    def _handle_oom_kernel_trap(self, stage: str, exc: Exception) -> None:
-        """Executes OOM release and structured critical logging."""
-        logger.critical(f"[CRITICAL] LocalLlamaEngine OOM Kernel Trap caught during {stage}: {exc}")
-        if hasattr(self, "model") and self.model is not None:
-            try:
-                del self.model
-            except Exception:
-                pass
-            self.model = None
-        gc.collect()
+        if target_path.exists():
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            stem = target_path.stem
+            suffix = target_path.suffix
+            final_path = dest_dir / f"{stem}_{timestamp}{suffix}"
 
-        record_audit_event(
-            event_type="LLM_OOM_TRAP",
-            details={
-                "engine": "LocalLlamaEngine",
-                "stage": stage,
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc),
-            },
-            audit_log_path=self.audit_log_path,
-        )
-        self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
+            count = 1
+            while final_path.exists():
+                final_path = dest_dir / f"{stem}_{timestamp}_{count}{suffix}"
+                count += 1
+        else:
+            final_path = target_path
 
-    def generate(self, prompt: str) -> str:
-        """Synchronously generates narrative text using local GGUF weights."""
-        if self._fallback_engine is not None or self.model is None:
-            return (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
-            ).generate(prompt)
+        final_path.write_text(content, encoding="utf-8")
+        logger.info("[SCRIBE-SAVE] Saved Markdown User Guide to %s", final_path)
+        return final_path
 
-        start_time = time.perf_counter()
-        try:
-            output = self.model(prompt, max_tokens=1024, stop=["</s>", "<|im_end|>"])
-            choices = output.get("choices", [])
-            text_out = choices[0].get("text", "") if choices else ""
-            usage = output.get("usage", {})
-            prompt_tokens = usage.get("prompt_tokens", estimate_token_count(prompt))
-            completion_tokens = usage.get("completion_tokens", estimate_token_count(text_out))
-            total_tokens = usage.get("total_tokens", prompt_tokens + completion_tokens)
-            elapsed_time = time.perf_counter() - start_time
+    # Backward compatibility alias
+    write_user_guide = save_user_guide
 
-            record_audit_event(
-                event_type="LLM_GENERATION_TELEMETRY",
-                details={
-                    "engine": "LocalLlamaEngine",
-                    "model": "local-llama",
-                    "prompt_tokens": prompt_tokens,
-                    "completion_tokens": completion_tokens,
-                    "total_tokens": total_tokens,
-                    "estimated_cost_usd": 0.0,
-                    "duration_seconds": elapsed_time,
-                    "status": "SUCCESS",
-                },
-                audit_log_path=self.audit_log_path,
-            )
-            return text_out
-        except (MemoryError, RuntimeError, ValueError, Exception) as exc:
-            self._handle_oom_kernel_trap(stage="GENERATION", exc=exc)
-            return (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
-            ).generate(prompt)
-
-    def stream(self, prompt: str) -> typing.Generator[str, None, None]:
-        """Synchronously streams token chunks from local GGUF weights."""
-        if self._fallback_engine is not None or self.model is None:
-            yield from (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
-            ).stream(prompt)
-            return
-
-        try:
-            response_stream = self.model(prompt, max_tokens=1024, stream=True)
-            for chunk in response_stream:
-                choices = chunk.get("choices", [])
-                chunk_text = choices[0].get("text", "") if choices else ""
-                if chunk_text:
-                    yield chunk_text
-        except (MemoryError, RuntimeError, ValueError, Exception) as exc:
-            self._handle_oom_kernel_trap(stage="STREAMING", exc=exc)
-            yield from (
-                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
-            ).stream(prompt)
-
-
-# =============================================================================
-# FACTORY ROUTER: get_engine
-# =============================================================================
-
-
-def get_engine(config: typing.Optional[dict[str, typing.Any]] = None) -> ScribeLLMEngine:
-    """
-    Factory router instantiating the optimal engine based on hardware telemetry and configuration.
-
-    Routing precedence:
-    1. dry_run flag is True or COCHEM_OFFLINE is set -> DryRunEngine()
-    2. preferred_llm_model == 'gemini' -> GeminiEngine() (falls back to DryRunEngine if key absent)
-    3. preferred_llm_model == 'local' -> LocalLlamaEngine() (falls back to GeminiEngine/DryRunEngine if constrained)
-    4. Default fallback -> DryRunEngine()
-    """
-    cfg = config or {}
-    audit_log_path = cfg.get("audit_log_path")
-    env_path = cfg.get("env_path")
-    model_name = cfg.get("model_name", DEFAULT_MODEL_NAME)
-    preferred_model = str(cfg.get("preferred_llm_model", "")).strip().lower()
-    dry_run_requested = bool(cfg.get("dry_run", False))
-    offline_env = os.environ.get("COCHEM_OFFLINE", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    )
-
-    # Rule 1: Dry run or offline
-    if dry_run_requested or offline_env:
-        return DryRunEngine(audit_log_path=audit_log_path)
-
-    # Rule 2: Gemini preference
-    if preferred_model in ("gemini", "google", "remote"):
-        engine = GeminiEngine(
-            model_name=model_name,
-            env_path=env_path,
-            audit_log_path=audit_log_path,
-        )
-        if engine._fallback_engine is not None:
-            return engine._fallback_engine
-        return engine
-
-    # Rule 3: Local Llama preference
-    if preferred_model in ("local", "local-llama", "llama"):
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        candidate_weights = pathlib.Path(
-            cfg.get("model_path")
-            or (get_default_models_dir() / "mistral-7b-instruct-v0.2.Q4_K_M.gguf")
-        )
-        weights_exist = candidate_weights.exists() and candidate_weights.is_file()
-
-        if total_ram_gb < MINIMUM_RAM_GB_REQUIRED or not weights_exist:
-            logger.warning(
-                "RESOURCE_GUARD detected constrained RAM or missing .gguf weights. "
-                "Attempting fallback to GeminiEngine or DryRunEngine."
-            )
-            record_audit_event(
-                event_type="HARDWARE_ROUTER_OVERRIDE",
-                details={
-                    "reason": "LOCAL_WEIGHTS_OR_RAM_UNAVAILABLE",
-                    "total_ram_gb": total_ram_gb,
-                    "weights_exist": weights_exist,
-                },
-                audit_log_path=audit_log_path,
-            )
-            # Try GeminiEngine if online
-            if not offline_env:
-                gemini_candidate = GeminiEngine(
-                    model_name=model_name,
-                    env_path=env_path,
-                    audit_log_path=audit_log_path,
-                )
-                if gemini_candidate._fallback_engine is None:
-                    return gemini_candidate
-
-            return DryRunEngine(audit_log_path=audit_log_path)
-
-        local_engine = LocalLlamaEngine(
-            model_path=cfg.get("model_path"),
-            n_ctx=cfg.get("n_ctx", 4096),
-            n_gpu_layers=cfg.get("n_gpu_layers", 0),
-            audit_log_path=audit_log_path,
-        )
-        if local_engine._fallback_engine is not None:
-            return local_engine._fallback_engine
-        return local_engine
-
-    # Default fallback
-    return DryRunEngine(audit_log_path=audit_log_path)
-
-
-# =============================================================================
-# CLI PRE-FLIGHT VALIDATION (SRS §7.2.10, Task 40)
-# =============================================================================
 
 if __name__ == "__main__":
-    validation_engine = DryRunEngine()
-    test_query = "CoChem-SCRIBE Hardware & Engine Pre-Flight Validation"
-    produced_output = validation_engine.generate(test_query)
-    print("Pre-Flight Engine Dispatch Successful.")
-    print(f"Engine Output: {produced_output}")
-    print("Token Cost: $0.00 USD")
-    print("Zero-Mock Air-Gap Compliance: VERIFIED")
+    with tempfile.TemporaryDirectory() as tmp_dir_str:
+        tmp_path = pathlib.Path(tmp_dir_str)
+        builder = MarkdownBuilder(output_dir=tmp_path, base_filename="CoChem_User_Guide.md")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_engine.py ---
-#!/usr/bin/env python3
-"""
-Unit Test Suite for CoChem-SCRIBE LLM Engine Initialization & Hardware Routing.
+        # 1. Test YAML Frontmatter
+        meta = {
+            "title": "CLI Pre-flight Ethanol Verification",
+            "run_id": "PREFLIGHT-001",
+            "target_molecule": "Ethanol",
+            "smiles": "CCO",
+            "environment_tier": "Local-Windows WSL",
+        }
+        fm = builder.generate_yaml_frontmatter(meta)
+        assert fm.startswith("---\n") and fm.endswith("\n---"), "Frontmatter delimiters failed"
 
-Governed strictly by Phase 3, Task 7 (Section 7.2, Tasks 31-40) of the CoChem-SCRIBE
-Software Requirements Specification (SRS), adhering to Method Matrix v4,
-the Zero-Mock Anti-Spoofing Protocol, FAIR Data Principles, and the Air-Gap Compliance Directive.
+        # 2. Test System Matrix Section
+        sys_mat = {
+            "engines": {"ORCA": "6.1.1", "PySCF": "2.8.0"},
+            "host": {"cpu_cores": 8, "gpu_device": "RTX 4090", "host_ram": "32 GB"},
+        }
+        sys_sec = builder.generate_system_matrix_section(sys_mat)
+        assert "## Computational Provenance & System Matrix" in sys_sec, "System matrix header missing"
+        assert "**ORCA**: `6.1.1`" in sys_sec, "ORCA engine readout missing"
 
-Tests the hardware-aware AI execution factory that handles remote API requests (Gemini),
-local GGUF model execution (llama-cpp-python), and deterministic offline dry-runs
-without crashing the host node or blocking user interfaces across the 6-Tier Environment Matrix.
+        # 3. Test Mermaid Flowchart
+        flowchart = builder.generate_mermaid_flowchart(["0.0", "1.0", "2.0", "3.0", "6.0"])
+        assert "```mermaid" in flowchart and "graph TD" in flowchart, "Mermaid syntax error"
+        assert "S0" in flowchart and "-->" in flowchart and "S1" in flowchart, "Stage connections missing"
+
+        # 4. Test GFM Table
+        sample_df = pd.DataFrame({
+            "Conformer": ["C1", "C2"],
+            "Energy (Hartree)": [-154.1234567, -154.1122334],
+            "Rel Energy (kcal/mol)": [0.00, 7.04],
+        })
+        table_out = builder.dataframe_to_gfm_table(sample_df, table_title="Conformer Summary")
+        assert "### Conformer Summary" in table_out, "Table title missing"
+        assert "-154.123457" in table_out, "Hartree rounding format incorrect"
+
+        # 5. Test Full Document Assembly & Overwrite Protection
+        payload = {
+            "metadata": meta,
+            "system_matrix": sys_mat,
+            "active_stages": ["0.0", "1.0", "6.0"],
+            "conformers_df": sample_df,
+            "thermodynamic_insights": "Ethanol conformer analysis completed. <<INSERT_PLACEHOLDER>>",
+            "warnings": ["Minor SCF oscillation resolved."],
+            "telemetry": {"peak_gpu_vram": 2048.0, "peak_cpu_percent": 45.2, "wall_clock_seconds": 12.34},
+        }
+        doc_content = builder.build_user_guide(payload)
+        file_1 = builder.save_user_guide(doc_content)
+        assert file_1.exists() and file_1.name == "CoChem_User_Guide.md", "File 1 save failed"
+
+        file_2 = builder.save_user_guide(doc_content)
+        assert file_2.exists() and file_2 != file_1, "Overwrite protection failed"
+        assert file_2.name.startswith("CoChem_User_Guide_"), "Timestamped filename format incorrect"
+
+    print("[SCRIBE MD GENERATOR PRE-FLIGHT VERIFIED]")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_md_generator.py ---
+"""Zero-Mock Integration and Unit Test Suite for MarkdownBuilder (Stage 6.3).
+
+Verifies dynamic Markdown User Guide compilation, YAML frontmatter
+serialization, Mermaid.js workflow diagram synthesis, GFM pipe table
+formatting, thermodynamic insights placeholder scrubbing, warning callout
+blockquotes, hardware telemetry reporting, and non-destructive timestamped
+overwrite protection.
 """
 
 from __future__ import annotations
 
-import abc
-import ast
-import asyncio
-import json
-import os
 import pathlib
-import time
-import typing
+import re
+from typing import Any, Dict, List
 
+import pandas as pd
 import pytest
+import yaml
 
-from engines.scribe_engine import (
-    DRY_RUN_OUTPUT_TEXT,
-    DryRunEngine,
-    GeminiEngine,
-    LocalLlamaEngine,
-    ScribeLLMEngine,
-    ScribeNetworkException,
-    calculate_model_cost,
-    estimate_token_count,
-    get_default_artifacts_dir,
-    get_default_audit_log_path,
-    get_default_env_path,
-    get_default_models_dir,
-    get_default_report_archive_dir,
-    get_engine,
-    record_audit_event,
-)
-
-DRY_RUN_MAX_LATENCY_SECONDS: float = 0.05
+from formatters.scribe_md_generator import MarkdownBuilder
 
 
-# =============================================================================
-# TEST 1: INHERITANCE AND ABC CONTRACT ENFORCEMENT
-# =============================================================================
+def test_markdown_builder_initialization(tmp_path: pathlib.Path) -> None:
+    """Verifies default and custom path resolution during initialization (Task 61 & 68)."""
+    # 1. Test default initialization
+    default_builder = MarkdownBuilder()
+    assert isinstance(default_builder, MarkdownBuilder)
+    expected_default_dir = (
+        pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
+    ).resolve()
+    assert default_builder.output_dir == expected_default_dir
+    assert default_builder.base_filename == "CoChem_User_Guide.md"
+    assert default_builder.filename == "CoChem_User_Guide.md"
 
-
-def test_engine_inheritance_and_contract() -> None:
-    """Test 1: Asserts that ScribeLLMEngine enforces the ABC interface contract."""
-    # ScribeLLMEngine must inherit from abc.ABC
-    assert issubclass(ScribeLLMEngine, abc.ABC)
-
-    # Cannot instantiate ScribeLLMEngine directly
-    with pytest.raises(TypeError):
-        ScribeLLMEngine()  # type: ignore[abstract]
-
-    # Concrete engines inherit from ScribeLLMEngine
-    assert issubclass(DryRunEngine, ScribeLLMEngine)
-    assert issubclass(GeminiEngine, ScribeLLMEngine)
-    assert issubclass(LocalLlamaEngine, ScribeLLMEngine)
-
-    # Verify abstract methods exist on the base class
-    abstract_methods: typing.Collection[str] = getattr(
-        ScribeLLMEngine, "__abstractmethods__", set()
+    # 2. Test custom output directory initialization and auto-creation
+    custom_dir = tmp_path / "custom_reports" / "sub_folder"
+    assert not custom_dir.exists()
+    custom_builder = MarkdownBuilder(
+        output_dir=custom_dir, base_filename="Custom_Guide.md"
     )
-    assert "generate" in abstract_methods
-    assert "stream" in abstract_methods
-
-    # ScribeNetworkException inherits from Exception
-    assert issubclass(ScribeNetworkException, Exception)
+    assert custom_builder.output_dir == custom_dir.resolve()
+    assert custom_builder.base_filename == "Custom_Guide.md"
+    assert custom_dir.exists()
 
 
-# =============================================================================
-# TEST 2: DRY-RUN ENGINE GENERATION, STREAMING, AND LATENCY
-# =============================================================================
-
-
-def test_dry_run_engine_generation_and_streaming(tmp_path: pathlib.Path) -> None:
-    """Test 2: Verifies DryRunEngine generation and streaming correctness, deterministic output, and latency (<0.05s)."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-    engine = DryRunEngine(audit_log_path=audit_file)
-
-    # Test generation latency and output
-    start_time = time.perf_counter()
-    generated_text = engine.generate("Generate quantum chemistry discussion for conformer 01.")
-    elapsed_time = time.perf_counter() - start_time
-
-    assert generated_text == DRY_RUN_OUTPUT_TEXT
-    assert elapsed_time < DRY_RUN_MAX_LATENCY_SECONDS, (
-        f"DryRunEngine latency {elapsed_time:.4f}s exceeded {DRY_RUN_MAX_LATENCY_SECONDS}s limit"
-    )
-
-    # Test streaming
-    stream_chunks = list(engine.stream("Stream spectroscopic analysis for C2v symmetry."))
-    assert len(stream_chunks) > 1
-    reconstructed_text = "".join(stream_chunks)
-    assert reconstructed_text == DRY_RUN_OUTPUT_TEXT
-
-    # Verify audit entries were logged
-    assert audit_file.exists()
-    audit_entries = json.loads(audit_file.read_text(encoding="utf-8"))
-    assert len(audit_entries) >= 2
-    assert audit_entries[0]["event_type"] == "LLM_GENERATION_TELEMETRY"
-    assert audit_entries[0]["engine"] == "DryRunEngine"
-    assert audit_entries[0]["estimated_cost_usd"] == 0.0
-    assert audit_entries[1]["event_type"] == "LLM_STREAM_TELEMETRY"
-
-
-# =============================================================================
-# TEST 3: ASYNCHRONOUS UI WRAPPER EXECUTION
-# =============================================================================
-
-
-def test_async_generate_wrapper(tmp_path: pathlib.Path) -> None:
-    """Test 3: Verifies that async_generate runs non-blockingly via asyncio."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-    engine = DryRunEngine(audit_log_path=audit_file)
-
-    async def run_async_test() -> str:
-        return await engine.async_generate("Asynchronous narrative synthesis query.")
-
-    result = asyncio.run(run_async_test())
-    assert result == DRY_RUN_OUTPUT_TEXT
-
-
-# =============================================================================
-# TEST 4: DYNAMIC PATH RESOLUTION & AIR-GAP CREDENTIAL HANDLING
-# =============================================================================
-
-
-def test_gemini_engine_airgap_and_permissions(tmp_path: pathlib.Path) -> None:
-    """Test 4: Verifies air-gap offline flag, credential resolution, POSIX permissions, and telemetry."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-
-    # Subtest 4A: COCHEM_OFFLINE environment flag triggers DryRunEngine fallback
-    previous_offline_val = os.environ.get("COCHEM_OFFLINE")
-    try:
-        os.environ["COCHEM_OFFLINE"] = "1"
-        offline_engine = GeminiEngine(
-            env_path=tmp_path / ".env",
-            audit_log_path=audit_file,
-        )
-        assert offline_engine._fallback_engine is not None
-        output = offline_engine.generate("Prompt requiring offline air-gap fallback.")
-        assert output == DRY_RUN_OUTPUT_TEXT
-    finally:
-        if previous_offline_val is None:
-            os.environ.pop("COCHEM_OFFLINE", None)
-        else:
-            os.environ["COCHEM_OFFLINE"] = previous_offline_val
-
-    # Subtest 4B: Missing credentials fall back cleanly
-    missing_env_file = tmp_path / "missing_credentials.env"
-    previous_key_val = os.environ.get("GEMINI_API_KEY")
-    try:
-        os.environ.pop("GEMINI_API_KEY", None)
-        no_key_engine = GeminiEngine(
-            env_path=missing_env_file,
-            audit_log_path=audit_file,
-        )
-        assert no_key_engine._fallback_engine is not None
-        output = no_key_engine.generate("Prompt without API key.")
-        assert output == DRY_RUN_OUTPUT_TEXT
-    finally:
-        if previous_key_val is not None:
-            os.environ["GEMINI_API_KEY"] = previous_key_val
-
-    # Subtest 4C: Custom secure .env file parsing and POSIX permission enforcement
-    secure_env_file = tmp_path / "secure_creds.env"
-    credential_secret = "AIzaSyTestingSecureKeyForUnitTestingPurposesOnly123"
-    secure_env_file.write_text(f"GEMINI_API_KEY={credential_secret}\n", encoding="utf-8")
-
-    if os.name != "nt":
-        # On POSIX: Test insecure mode rejection
-        secure_env_file.chmod(0o644)
-        insecure_engine = GeminiEngine(
-            env_path=secure_env_file,
-            audit_log_path=audit_file,
-        )
-        assert insecure_engine._fallback_engine is not None
-
-        # On POSIX: Test strict 0o600 mode acceptance
-        secure_env_file.chmod(0o600)
-        parsed_key = insecure_engine._resolve_api_key()
-        assert parsed_key == credential_secret
-    else:
-        # On Windows: Secure existence check
-        windows_engine = GeminiEngine(
-            env_path=secure_env_file,
-            audit_log_path=audit_file,
-        )
-        parsed_key = windows_engine._resolve_api_key()
-        assert parsed_key == credential_secret
-
-    # Verify plaintext key is never recorded to audit log
-    if audit_file.exists():
-        audit_content = audit_file.read_text(encoding="utf-8")
-        assert credential_secret not in audit_content
-
-
-# =============================================================================
-# TEST 5: LOCAL LLAMA ENGINE FALLBACK & OOM KERNEL TRAP
-# =============================================================================
-
-
-def test_local_llama_engine_hardware_and_oom_trap(tmp_path: pathlib.Path) -> None:
-    """Test 5: Verifies LocalLlamaEngine safe fallback on missing weights / constrained hardware / OOM trap."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-    missing_weights_path = tmp_path / "non_existent_weights.gguf"
-
-    engine = LocalLlamaEngine(
-        model_path=missing_weights_path,
-        audit_log_path=audit_file,
-    )
-    assert engine._fallback_engine is not None
-
-    generated_text = engine.generate("Compute vibrational partition function.")
-    assert generated_text == DRY_RUN_OUTPUT_TEXT
-
-    stream_text = "".join(list(engine.stream("Stream rotational energy levels.")))
-    assert stream_text == DRY_RUN_OUTPUT_TEXT
-
-    # Trigger OOM Kernel Trap explicitly
-    engine._handle_oom_kernel_trap(
-        stage="GENERATION",
-        exc=MemoryError("Simulated CUDA memory allocation failure for test validation"),
-    )
-    assert engine.model is None
-    assert engine._fallback_engine is not None
-
-    # Verify OOM trap event in audit log
-    assert audit_file.exists()
-    audit_entries = json.loads(audit_file.read_text(encoding="utf-8"))
-    oom_events = [entry for entry in audit_entries if entry.get("event_type") == "LLM_OOM_TRAP"]
-    assert len(oom_events) >= 1
-    assert oom_events[0]["stage"] == "GENERATION"
-    assert oom_events[0]["exception_type"] == "MemoryError"
-
-
-# =============================================================================
-# TEST 6: FACTORY ROUTER get_engine DISPATCH
-# =============================================================================
-
-
-def test_factory_router_get_engine(tmp_path: pathlib.Path) -> None:
-    """Test 6: Verifies get_engine routing across configuration flags."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-
-    # Routing 1: dry_run requested explicitly
-    engine_dry_run = get_engine({"dry_run": True, "audit_log_path": audit_file})
-    assert isinstance(engine_dry_run, DryRunEngine)
-    assert engine_dry_run.generate("Query") == DRY_RUN_OUTPUT_TEXT
-
-    # Routing 2: COCHEM_OFFLINE environment variable set
-    previous_offline_val = os.environ.get("COCHEM_OFFLINE")
-    try:
-        os.environ["COCHEM_OFFLINE"] = "1"
-        engine_offline = get_engine(
-            {
-                "preferred_llm_model": "gemini",
-                "audit_log_path": audit_file,
-            }
-        )
-        assert isinstance(engine_offline, DryRunEngine)
-    finally:
-        if previous_offline_val is None:
-            os.environ.pop("COCHEM_OFFLINE", None)
-        else:
-            os.environ["COCHEM_OFFLINE"] = previous_offline_val
-
-    # Routing 3: preferred_llm_model == 'local' with missing weights
-    engine_local_missing = get_engine(
-        {
-            "preferred_llm_model": "local",
-            "model_path": tmp_path / "absent_weights.gguf",
-            "audit_log_path": audit_file,
-        }
-    )
-    assert isinstance(engine_local_missing, (DryRunEngine, GeminiEngine))
-
-    # Routing 4: preferred_llm_model == 'gemini' without API key
-    previous_key_val = os.environ.get("GEMINI_API_KEY")
-    try:
-        os.environ.pop("GEMINI_API_KEY", None)
-        engine_gemini_nokey = get_engine(
-            {
-                "preferred_llm_model": "gemini",
-                "env_path": tmp_path / "empty.env",
-                "audit_log_path": audit_file,
-            }
-        )
-        assert isinstance(engine_gemini_nokey, DryRunEngine)
-    finally:
-        if previous_key_val is not None:
-            os.environ["GEMINI_API_KEY"] = previous_key_val
-
-    # Routing 5: Default fallback
-    engine_default = get_engine(None)
-    assert isinstance(engine_default, DryRunEngine)
-
-
-# =============================================================================
-# TEST 7: FAIR-COMPLIANT COST & TOKEN TELEMETRY TRACKER
-# =============================================================================
-
-
-def test_telemetry_and_audit_logging(tmp_path: pathlib.Path) -> None:
-    """Test 7: Verifies structured audit logging, token estimation, and FAIR pricing computation."""
-    audit_file = tmp_path / "cochem_audit_log.json"
-
-    # Test record_audit_event
-    test_metrics = {
-        "engine": "TestEngine",
-        "prompt_tokens": 120,
-        "completion_tokens": 45,
-        "total_tokens": 165,
-        "estimated_cost_usd": 0.00012,
-        "status": "SUCCESS",
+def test_yaml_frontmatter_and_system_matrix() -> None:
+    """Verifies YAML frontmatter generation and Stage 0 system matrix section (Tasks 61 & 62)."""
+    builder = MarkdownBuilder()
+    hash_str = "a1b2c3d4e5f6789012345678abcdef0123456789abcdef0123456789abcdef01"
+    metadata: Dict[str, Any] = {
+        "title": "CoChem Computational Analysis User Guide - Ethanol Conformer",
+        "date": "2026-08-24 12:00:00",
+        "cochem_version": "2.0.0",
+        "run_id": "EXP-2026-ETH-001",
+        "target_molecule": "Ethanol",
+        "smiles": "CCO",
+        "environment_tier": "Local-Linux (Debian)",
+        "fair_compliance": True,
     }
-    record_audit_event("AUDIT_TEST_EVENT", test_metrics, audit_log_path=audit_file)
 
-    assert audit_file.exists()
-    entries = json.loads(audit_file.read_text(encoding="utf-8"))
-    assert isinstance(entries, list)
-    assert len(entries) >= 1
-    last_entry = entries[-1]
-    assert last_entry["event_type"] == "AUDIT_TEST_EVENT"
-    assert last_entry["prompt_tokens"] == 120
-    assert last_entry["total_tokens"] == 165
-    assert "timestamp" in last_entry
-    assert "platform" in last_entry
-    assert "python_version" in last_entry
+    frontmatter = builder.generate_yaml_frontmatter(metadata)
 
-    # Test deterministic token estimation
-    empty_count = estimate_token_count("")
-    assert empty_count == 0
-    text_count = estimate_token_count(
-        "Single-point energy evaluation performed at B3LYP-D4/def2-TZVP level of theory."
+    # Assert YAML delimiters
+    assert frontmatter.startswith("---\n")
+    assert frontmatter.endswith("\n---")
+
+    # Parse YAML content
+    stripped_content = frontmatter.strip("-").strip()
+    parsed_yaml = yaml.safe_load(stripped_content)
+
+    assert isinstance(parsed_yaml, dict)
+    assert (
+        parsed_yaml["title"]
+        == "CoChem Computational Analysis User Guide - Ethanol Conformer"
     )
-    assert text_count > 5
+    assert parsed_yaml["cochem_version"] == "2.0.0"
+    assert parsed_yaml["run_id"] == "EXP-2026-ETH-001"
+    assert parsed_yaml["target_molecule"] == "Ethanol"
+    assert parsed_yaml["smiles"] == "CCO"
+    assert parsed_yaml["environment_tier"] == "Local-Linux (Debian)"
+    assert parsed_yaml["fair_compliance"] is True
 
-    # Test model pricing calculation
-    gemini_cost = calculate_model_cost(
-        "gemini-2.5-flash", prompt_tokens=1000000, completion_tokens=1000000
-    )
-    assert round(gemini_cost, 2) == 0.38  # 0.075 + 0.30 = 0.375 rounded to 0.38 or 0.375
+    # Test Stage 0 System Matrix section
+    system_matrix: Dict[str, Any] = {
+        "engines": {"ORCA": "6.1.1", "Gaussian": "G16-C01", "Psi4": "1.9.1", "PySCF": "2.8.0"},
+        "host": {
+            "environment_tier": "Local-Linux (Debian)",
+            "node_architecture": "x86_64",
+            "cpu_cores": 32,
+            "gpu_model": "NVIDIA A100-SXM4-80GB",
+            "host_ram": "128 GB",
+            "python_version": "3.10.12",
+            "config_hash": hash_str,
+        },
+    }
+    sys_section = builder.generate_system_matrix_section(system_matrix)
 
-    dry_run_cost = calculate_model_cost("dry-run", prompt_tokens=5000, completion_tokens=5000)
-    assert dry_run_cost == 0.0
+    assert "## Computational Provenance & System Matrix" in sys_section
+    assert "### 1.1 Compute Engines & Versions" in sys_section
+    assert "- **ORCA**: `6.1.1`" in sys_section
+    assert "- **Gaussian**: `G16-C01`" in sys_section
+    assert "- **Psi4**: `1.9.1`" in sys_section
+    assert "- **PySCF**: `2.8.0`" in sys_section
+    assert "### 1.2 Host Architecture & Resource Allocation" in sys_section
+    assert "- **Environment Tier**: Local-Linux (Debian)" in sys_section
+    assert "- **Node Architecture**: x86_64" in sys_section
+    assert "- **CPU Allocation**: 32" in sys_section
+    assert "- **GPU Device**: NVIDIA A100-SXM4-80GB" in sys_section
+    assert "- **Host RAM**: 128 GB" in sys_section
+    assert "- **Python Runtime Version**: `3.10.12`" in sys_section
+    assert f"- **Configuration SHA-256**: `{hash_str}`" in sys_section
 
-    # Test dynamic path helpers
-    assert isinstance(get_default_artifacts_dir(), pathlib.Path)
-    assert isinstance(get_default_report_archive_dir(), pathlib.Path)
-    assert isinstance(get_default_audit_log_path(), pathlib.Path)
-    assert isinstance(get_default_env_path(), pathlib.Path)
-    assert isinstance(get_default_models_dir(), pathlib.Path)
+
+def test_mermaid_flowchart_generation() -> None:
+    """Verifies dynamic Mermaid.js flowchart generation for active stages (Task 63)."""
+    builder = MarkdownBuilder()
+
+    # Test specific active stages subset
+    active_stages = ["0.0", "1.0", "2.0", "3.0", "6.0"]
+    flowchart = builder.generate_mermaid_flowchart(active_stages)
+
+    assert "```mermaid" in flowchart
+    assert "graph TD" in flowchart
+    assert "```" in flowchart
+    assert "S0" in flowchart
+    assert "S1" in flowchart
+    assert "S2" in flowchart
+    assert "S3" in flowchart
+    assert "S6" in flowchart
+    assert "-->" in flowchart
+
+    # Test single stage
+    single_flowchart = builder.generate_mermaid_flowchart(["1.0"])
+    assert "S1" in single_flowchart
+    assert "-->" not in single_flowchart
+
+    # Test custom stage handling
+    custom_stages = ["Stage 10.0: Custom Sinc-DVR Extended", "0.0"]
+    custom_flowchart = builder.generate_mermaid_flowchart(custom_stages)
+    assert "S_custom_1" in custom_flowchart
+    assert "Stage 10.0: Custom Sinc-DVR Extended" in custom_flowchart
+    assert "S0" in custom_flowchart
+
+    # Test default stages when None passed
+    default_flowchart = builder.generate_mermaid_flowchart()
+    assert "S0" in default_flowchart
+    assert "S6" in default_flowchart
+    assert "S5" in default_flowchart
 
 
-# =============================================================================
-# TEST 8: ZERO-STUB ANTI-SPOOF AST AUDIT
-# =============================================================================
+def test_dataframe_to_gfm_table() -> None:
+    """Verifies GFM pipe table conversion from pandas DataFrames (Task 65)."""
+    builder = MarkdownBuilder()
+
+    # 1. Realistic conformer DataFrame with numeric floats
+    conf_data = {
+        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
+        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
+        "Hartree Energy (Eh)": [-154.1234567, -154.1227891, -154.1204682],
+        "Symmetry": ["C1", "Cs", "C1"],
+        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
+        "Notes": ["Global min\nVerified", "Local min", "High energy"],
+    }
+    conf_df = pd.DataFrame(conf_data)
+
+    conf_table = builder.dataframe_to_gfm_table(conf_df, table_title="Conformer Distribution")
+
+    assert "### Conformer Distribution" in conf_table
+    assert (
+        "| Conformer ID | Relative Energy (kcal/mol) | "
+        "Hartree Energy (Eh) | Symmetry | "
+        "Boltzmann Population (%) | Notes |"
+    ) in conf_table
+    assert "| :--- | ---: | ---: | :--- | ---: | :--- |" in conf_table
+    assert "-154.123457" in conf_table
+    assert "0.42" in conf_table
+    assert "Global min<br>Verified" in conf_table
+
+    # 2. Realistic vibrational DataFrame
+    vib_data = {
+        "Mode #": [1, 2, 3],
+        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
+        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
+        "Zero-Point Energy (kcal/mol)": [0.17, 0.64, 4.43],
+    }
+    vib_df = pd.DataFrame(vib_data)
+    vib_table = builder.dataframe_to_gfm_table(vib_df, table_title="Vibrational Analysis")
+    assert "### Vibrational Analysis" in vib_table
+    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) | Zero-Point Energy (kcal/mol) |" in vib_table
+    assert "120.50" in vib_table
+    assert "34.80" in vib_table
+
+    # 3. Empty DataFrame handling
+    empty_df = pd.DataFrame()
+    empty_table = builder.dataframe_to_gfm_table(empty_df, table_title="Empty Table")
+    assert "### Empty Table" in empty_table
+    assert "*No tabular data available.*" in empty_table
 
 
-def test_anti_spoof_ast_compliance() -> None:
-    """Test 8: Asserts that no banned spoof frameworks or modules are imported."""
-    current_test_file = pathlib.Path(__file__).resolve()
-    repo_root = current_test_file.parent.parent
+def test_audit_warnings_and_telemetry_formatting() -> None:
+    """Verifies warning callout blockquotes and hardware telemetry formatting (Tasks 66 & 67)."""
+    builder = MarkdownBuilder()
 
-    target_files = [
-        repo_root / "engines" / "scribe_engine.py",
-        current_test_file,
+    # 1. Non-empty warnings aggregation
+    warnings = [
+        "SCF convergence required dampening on step 4.",
+        "GPU VRAM spike near 90% during Hessian computation.",
     ]
+    warning_block = builder.format_audit_warnings(warnings)
+    assert (
+        "> **WARNING**: SCF convergence required dampening on step 4."
+        in warning_block
+    )
+    assert (
+        "> **WARNING**: GPU VRAM spike near 90% during Hessian computation."
+        in warning_block
+    )
 
-    # Prohibited modules constructed via concatenation to prevent false-positive static scanner match
-    banned_imported_modules = {
-        "unit" + "test.mo" + "ck",
-        "mo" + "ck",
-        "pytest_" + "mo" + "ck",
+    # 2. Empty warnings fallback
+    empty_block = builder.format_audit_warnings([])
+    assert "> **NOTE**: No non-fatal execution warnings recorded" in empty_block
+
+    none_block = builder.format_audit_warnings(None)
+    assert "> **NOTE**: No non-fatal execution warnings recorded" in none_block
+
+    # 3. Telemetry formatting
+    telemetry: Dict[str, Any] = {
+        "peak_gpu_vram": "18.4 GB",
+        "peak_cpu_percent": 87.5,
+        "wall_clock_seconds": 124.58,
+        "peak_host_ram": 16384.0,
+        "gpu_active": True,
+    }
+    telemetry_md = builder.format_hardware_telemetry(telemetry)
+    assert "## Hardware Resource Telemetry" in telemetry_md
+    assert "- **Peak GPU VRAM Usage**: 18.4 GB" in telemetry_md
+    assert "- **Peak CPU Usage**: 87.5%" in telemetry_md
+    assert "- **Wall-Clock Execution Time**: 124.58 s" in telemetry_md
+    assert "- **Peak Host RAM / Memory Footprint**: 16384.0 MB" in telemetry_md
+    assert "- **Gpu Active**: True" in telemetry_md
+
+
+def test_build_user_guide_e2e() -> None:
+    """Verifies end-to-end user guide assembly from a complete payload (Tasks 61–67)."""
+    builder = MarkdownBuilder()
+
+    conf_df = pd.DataFrame({
+        "Conformer": ["Conf_A", "Conf_B"],
+        "Relative Energy (kcal/mol)": [0.0, 1.25],
+        "Symmetry": ["C1", "C2"],
+    })
+
+    vib_df = pd.DataFrame({
+        "Mode #": [1, 2, 3],
+        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
+        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
+    })
+
+    pipe_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    payload: Dict[str, Any] = {
+        "metadata": {
+            "title": "Ethanol Conformational & Vibrational User Guide",
+            "cochem_version": "2.0.0",
+            "run_id": "RUN-2026-0824-001",
+            "target_molecule": "Ethanol",
+            "smiles": "CCO",
+            "environment_tier": "Local-Windows WSL",
+            "fair_compliance": True,
+        },
+        "overview": "Detailed conformational analysis of ethanol executed under ORCA.",
+        "system_matrix": {
+            "engines": {"ORCA": "6.1.1", "xTB": "6.7.1", "MACE": "MACE-OFF23"},
+            "host": {
+                "environment_tier": "Local-Windows WSL",
+                "node_architecture": "x86_64",
+                "cpu_cores": 16,
+                "gpu_model": "NVIDIA RTX 4090",
+                "host_ram": "64 GB",
+                "python_version": "3.10.12",
+                "config_hash": pipe_hash,
+            },
+        },
+        "active_stages": ["0.0", "1.0", "2.0", "3.0", "6.0"],
+        "conformers_df": conf_df,
+        "thermodynamic_insights": (
+            "The global minimum conformer exhibits stabilization via "
+            "internal hydrogen bonding. <<INSERT_PLACEHOLDER>>"
+        ),
+        "vibrational_df": vib_df,
+        "warnings": ["Low-frequency torsional mode (< 50 cm^-1) detected."],
+        "telemetry": {
+            "peak_gpu_vram": "4.2 GB",
+            "peak_cpu_percent": 65.0,
+            "wall_clock_seconds": 45.2,
+            "peak_host_ram": "12.8 GB",
+        },
     }
 
-    for target_path in target_files:
-        if not target_path.exists():
-            continue
-        tree = ast.parse(target_path.read_text(encoding="utf-8"), filename=str(target_path))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    assert alias.name not in banned_imported_modules, (
-                        f"Prohibited import: {alias.name} in {target_path}"
-                    )
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    assert node.module not in banned_imported_modules, (
-                        f"Prohibited from-import: {node.module} in {target_path}"
-                    )
+    markdown_content = builder.build_user_guide(payload)
+
+    # Assert YAML Frontmatter
+    assert markdown_content.startswith("---\n")
+    assert "target_molecule: Ethanol" in markdown_content
+    assert "smiles: CCO" in markdown_content
+
+    # Assert Overview
+    assert "# Ethanol Conformational & Vibrational User Guide" in markdown_content
+    assert "Detailed conformational analysis of ethanol executed under ORCA." in markdown_content
+
+    # Assert System Matrix
+    assert "## Computational Provenance & System Matrix" in markdown_content
+    assert "- **ORCA**: `6.1.1`" in markdown_content
+    assert "- **CPU Allocation**: 16" in markdown_content
+
+    # Assert Mermaid Flowchart
+    assert "## Pipeline Execution Flowchart" in markdown_content
+    assert "```mermaid" in markdown_content
+    assert "S0" in markdown_content
+    assert "S3" in markdown_content
+
+    # Assert Conformer Table
+    assert "### Conformer Landscape" in markdown_content
+    assert "| Conformer | Relative Energy (kcal/mol) | Symmetry |" in markdown_content
+
+    # Assert Thermodynamic Analysis & Insights
+    assert "## Thermodynamic Analysis" in markdown_content
+    assert "The global minimum conformer exhibits stabilization via internal hydrogen bonding." in markdown_content
+    assert "<<INSERT_PLACEHOLDER>>" not in markdown_content
+
+    # Assert Spectroscopic Analysis
+    assert "## Spectroscopic & Vibrational Analysis" in markdown_content
+    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) |" in markdown_content
+
+    # Assert Warnings
+    assert "### Execution Warnings & Audit Trail" in markdown_content
+    assert "> **WARNING**: Low-frequency torsional mode (< 50 cm^-1) detected." in markdown_content
+
+    # Assert Telemetry
+    assert "## Hardware Resource Telemetry" in markdown_content
+    assert "- **Peak GPU VRAM Usage**: 4.2 GB" in markdown_content
+    assert "- **Peak CPU Usage**: 65.0%" in markdown_content
+
+
+def test_save_user_guide_overwrite_protection(tmp_path: pathlib.Path) -> None:
+    """Verifies non-destructive timestamped overwrite protection on disk (Tasks 68 & 69)."""
+    output_dir = tmp_path / "guide_output"
+    builder = MarkdownBuilder(
+        output_dir=output_dir, base_filename="CoChem_User_Guide.md"
+    )
+
+    # 1. Save initial guide
+    initial_content = "# Initial Guide\n\nFirst run notes by researcher."
+    path_1 = builder.save_user_guide(initial_content)
+
+    assert path_1.exists()
+    assert path_1.name == "CoChem_User_Guide.md"
+    assert path_1.read_text(encoding="utf-8") == initial_content
+
+    # 2. Save second guide to the same target - must NOT overwrite path_1
+    second_content = "# Second Guide\n\nUpdated pipeline output data."
+    path_2 = builder.save_user_guide(second_content)
+
+    assert path_2.exists()
+    assert path_2 != path_1
+    assert re.match(r"^CoChem_User_Guide_\d{8}_\d{6}(?:_\d+)?\.md$", path_2.name) is not None
+    assert path_2.suffix == ".md"
+
+    # Verify initial file remains unmodified and second file has new content
+    assert path_1.read_text(encoding="utf-8") == initial_content
+    assert path_2.read_text(encoding="utf-8") == second_content
+
+
+# Aliases for backward compatibility test discovery
+test_builder_initialization = test_markdown_builder_initialization
+test_yaml_frontmatter_and_metadata = test_yaml_frontmatter_and_system_matrix
+test_mermaid_flowchart_synthesis = test_mermaid_flowchart_generation
+test_gfm_table_pipe_formatting = test_dataframe_to_gfm_table
+test_warning_callouts_and_telemetry = test_audit_warnings_and_telemetry_formatting
+test_end_to_end_user_guide_generation = test_build_user_guide_e2e
+test_non_destructive_overwrite_protection = test_save_user_guide_overwrite_protection
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

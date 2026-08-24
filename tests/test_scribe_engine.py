@@ -49,6 +49,7 @@ DRY_RUN_MAX_LATENCY_SECONDS: float = 0.05
 # TEST 1: INHERITANCE AND ABC CONTRACT ENFORCEMENT
 # =============================================================================
 
+
 def test_engine_inheritance_and_contract() -> None:
     """Test 1: Asserts that ScribeLLMEngine enforces the ABC interface contract."""
     # ScribeLLMEngine must inherit from abc.ABC
@@ -64,7 +65,9 @@ def test_engine_inheritance_and_contract() -> None:
     assert issubclass(LocalLlamaEngine, ScribeLLMEngine)
 
     # Verify abstract methods exist on the base class
-    abstract_methods: typing.Collection[str] = getattr(ScribeLLMEngine, "__abstractmethods__", set())
+    abstract_methods: typing.Collection[str] = getattr(
+        ScribeLLMEngine, "__abstractmethods__", set()
+    )
     assert "generate" in abstract_methods
     assert "stream" in abstract_methods
 
@@ -75,6 +78,7 @@ def test_engine_inheritance_and_contract() -> None:
 # =============================================================================
 # TEST 2: DRY-RUN ENGINE GENERATION, STREAMING, AND LATENCY
 # =============================================================================
+
 
 def test_dry_run_engine_generation_and_streaming(tmp_path: pathlib.Path) -> None:
     """Test 2: Verifies DryRunEngine generation and streaming correctness, deterministic output, and latency (<0.05s)."""
@@ -87,7 +91,9 @@ def test_dry_run_engine_generation_and_streaming(tmp_path: pathlib.Path) -> None
     elapsed_time = time.perf_counter() - start_time
 
     assert generated_text == DRY_RUN_OUTPUT_TEXT
-    assert elapsed_time < DRY_RUN_MAX_LATENCY_SECONDS, f"DryRunEngine latency {elapsed_time:.4f}s exceeded {DRY_RUN_MAX_LATENCY_SECONDS}s limit"
+    assert elapsed_time < DRY_RUN_MAX_LATENCY_SECONDS, (
+        f"DryRunEngine latency {elapsed_time:.4f}s exceeded {DRY_RUN_MAX_LATENCY_SECONDS}s limit"
+    )
 
     # Test streaming
     stream_chunks = list(engine.stream("Stream spectroscopic analysis for C2v symmetry."))
@@ -109,6 +115,7 @@ def test_dry_run_engine_generation_and_streaming(tmp_path: pathlib.Path) -> None
 # TEST 3: ASYNCHRONOUS UI WRAPPER EXECUTION
 # =============================================================================
 
+
 def test_async_generate_wrapper(tmp_path: pathlib.Path) -> None:
     """Test 3: Verifies that async_generate runs non-blockingly via asyncio."""
     audit_file = tmp_path / "cochem_audit_log.json"
@@ -124,6 +131,7 @@ def test_async_generate_wrapper(tmp_path: pathlib.Path) -> None:
 # =============================================================================
 # TEST 4: DYNAMIC PATH RESOLUTION & AIR-GAP CREDENTIAL HANDLING
 # =============================================================================
+
 
 def test_gemini_engine_airgap_and_permissions(tmp_path: pathlib.Path) -> None:
     """Test 4: Verifies air-gap offline flag, credential resolution, POSIX permissions, and telemetry."""
@@ -199,6 +207,7 @@ def test_gemini_engine_airgap_and_permissions(tmp_path: pathlib.Path) -> None:
 # TEST 5: LOCAL LLAMA ENGINE FALLBACK & OOM KERNEL TRAP
 # =============================================================================
 
+
 def test_local_llama_engine_hardware_and_oom_trap(tmp_path: pathlib.Path) -> None:
     """Test 5: Verifies LocalLlamaEngine safe fallback on missing weights / constrained hardware / OOM trap."""
     audit_file = tmp_path / "cochem_audit_log.json"
@@ -237,6 +246,7 @@ def test_local_llama_engine_hardware_and_oom_trap(tmp_path: pathlib.Path) -> Non
 # TEST 6: FACTORY ROUTER get_engine DISPATCH
 # =============================================================================
 
+
 def test_factory_router_get_engine(tmp_path: pathlib.Path) -> None:
     """Test 6: Verifies get_engine routing across configuration flags."""
     audit_file = tmp_path / "cochem_audit_log.json"
@@ -250,10 +260,12 @@ def test_factory_router_get_engine(tmp_path: pathlib.Path) -> None:
     previous_offline_val = os.environ.get("COCHEM_OFFLINE")
     try:
         os.environ["COCHEM_OFFLINE"] = "1"
-        engine_offline = get_engine({
-            "preferred_llm_model": "gemini",
-            "audit_log_path": audit_file,
-        })
+        engine_offline = get_engine(
+            {
+                "preferred_llm_model": "gemini",
+                "audit_log_path": audit_file,
+            }
+        )
         assert isinstance(engine_offline, DryRunEngine)
     finally:
         if previous_offline_val is None:
@@ -262,22 +274,26 @@ def test_factory_router_get_engine(tmp_path: pathlib.Path) -> None:
             os.environ["COCHEM_OFFLINE"] = previous_offline_val
 
     # Routing 3: preferred_llm_model == 'local' with missing weights
-    engine_local_missing = get_engine({
-        "preferred_llm_model": "local",
-        "model_path": tmp_path / "absent_weights.gguf",
-        "audit_log_path": audit_file,
-    })
+    engine_local_missing = get_engine(
+        {
+            "preferred_llm_model": "local",
+            "model_path": tmp_path / "absent_weights.gguf",
+            "audit_log_path": audit_file,
+        }
+    )
     assert isinstance(engine_local_missing, (DryRunEngine, GeminiEngine))
 
     # Routing 4: preferred_llm_model == 'gemini' without API key
     previous_key_val = os.environ.get("GEMINI_API_KEY")
     try:
         os.environ.pop("GEMINI_API_KEY", None)
-        engine_gemini_nokey = get_engine({
-            "preferred_llm_model": "gemini",
-            "env_path": tmp_path / "empty.env",
-            "audit_log_path": audit_file,
-        })
+        engine_gemini_nokey = get_engine(
+            {
+                "preferred_llm_model": "gemini",
+                "env_path": tmp_path / "empty.env",
+                "audit_log_path": audit_file,
+            }
+        )
         assert isinstance(engine_gemini_nokey, DryRunEngine)
     finally:
         if previous_key_val is not None:
@@ -291,6 +307,7 @@ def test_factory_router_get_engine(tmp_path: pathlib.Path) -> None:
 # =============================================================================
 # TEST 7: FAIR-COMPLIANT COST & TOKEN TELEMETRY TRACKER
 # =============================================================================
+
 
 def test_telemetry_and_audit_logging(tmp_path: pathlib.Path) -> None:
     """Test 7: Verifies structured audit logging, token estimation, and FAIR pricing computation."""
@@ -322,11 +339,15 @@ def test_telemetry_and_audit_logging(tmp_path: pathlib.Path) -> None:
     # Test deterministic token estimation
     empty_count = estimate_token_count("")
     assert empty_count == 0
-    text_count = estimate_token_count("Single-point energy evaluation performed at B3LYP-D4/def2-TZVP level of theory.")
+    text_count = estimate_token_count(
+        "Single-point energy evaluation performed at B3LYP-D4/def2-TZVP level of theory."
+    )
     assert text_count > 5
 
     # Test model pricing calculation
-    gemini_cost = calculate_model_cost("gemini-2.5-flash", prompt_tokens=1000000, completion_tokens=1000000)
+    gemini_cost = calculate_model_cost(
+        "gemini-2.5-flash", prompt_tokens=1000000, completion_tokens=1000000
+    )
     assert round(gemini_cost, 2) == 0.38  # 0.075 + 0.30 = 0.375 rounded to 0.38 or 0.375
 
     dry_run_cost = calculate_model_cost("dry-run", prompt_tokens=5000, completion_tokens=5000)
@@ -343,6 +364,7 @@ def test_telemetry_and_audit_logging(tmp_path: pathlib.Path) -> None:
 # =============================================================================
 # TEST 8: ZERO-STUB ANTI-SPOOF AST AUDIT
 # =============================================================================
+
 
 def test_anti_spoof_ast_compliance() -> None:
     """Test 8: Asserts that no banned spoof frameworks or modules are imported."""

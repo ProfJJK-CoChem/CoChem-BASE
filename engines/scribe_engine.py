@@ -63,6 +63,7 @@ MODEL_PRICING_USD_PER_MILLION: dict[str, tuple[float, float]] = {
 # CUSTOM EXCEPTIONS
 # =============================================================================
 
+
 class ScribeNetworkException(Exception):
     """Raised when remote API retries are exhausted under exponential backoff."""
 
@@ -70,6 +71,7 @@ class ScribeNetworkException(Exception):
 # =============================================================================
 # DYNAMIC PATH & TELEMETRY RESOLUTION
 # =============================================================================
+
 
 def get_default_artifacts_dir() -> pathlib.Path:
     """Dynamically resolves the root artifacts directory."""
@@ -83,7 +85,7 @@ def get_default_report_archive_dir() -> pathlib.Path:
 
 def get_default_audit_log_path() -> pathlib.Path:
     """Dynamically resolves the central audit log file path."""
-    return get_default_report_archive_dir() / "cochem_audit_log.json"
+    return get_default_artifacts_dir() / "cochem_audit_log.json"
 
 
 def get_default_env_path() -> pathlib.Path:
@@ -98,6 +100,7 @@ def get_default_models_dir() -> pathlib.Path:
 
 try:
     import tiktoken
+
     _TIKTOKEN_ENCODER: typing.Any = tiktoken.get_encoding("cl100k_base")
 except Exception:
     _TIKTOKEN_ENCODER = None
@@ -120,7 +123,9 @@ def estimate_token_count(text: str) -> int:
 def calculate_model_cost(model_name: str, prompt_tokens: int, completion_tokens: int) -> float:
     """Computes estimated API generation cost in USD based on FAIR model pricing tables."""
     pricing = MODEL_PRICING_USD_PER_MILLION.get(model_name.lower(), (0.075, 0.30))
-    cost = (prompt_tokens * pricing[0] / 1_000_000.0) + (completion_tokens * pricing[1] / 1_000_000.0)
+    cost = (prompt_tokens * pricing[0] / 1_000_000.0) + (
+        completion_tokens * pricing[1] / 1_000_000.0
+    )
     return round(cost, 8)
 
 
@@ -134,7 +139,9 @@ def record_audit_event(
     audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
 ) -> None:
     """Appends structured JSON telemetry / audit event to the central audit log."""
-    target_path = pathlib.Path(audit_log_path).resolve() if audit_log_path else get_default_audit_log_path()
+    target_path = (
+        pathlib.Path(audit_log_path).resolve() if audit_log_path else get_default_audit_log_path()
+    )
     target_path.parent.mkdir(parents=True, exist_ok=True)
 
     event_payload: dict[str, typing.Any] = {
@@ -169,6 +176,7 @@ def record_audit_event(
 # ABSTRACT BASE CLASS: ScribeLLMEngine
 # =============================================================================
 
+
 class ScribeLLMEngine(abc.ABC):
     """Abstract base class for all CoChem-SCRIBE text generation backends."""
 
@@ -188,6 +196,7 @@ class ScribeLLMEngine(abc.ABC):
 # =============================================================================
 # CONCRETE ENGINE: DryRunEngine
 # =============================================================================
+
 
 class DryRunEngine(ScribeLLMEngine):
     """Deterministic zero-mock fallback engine for air-gapped, offline, and constrained nodes."""
@@ -275,6 +284,7 @@ class DryRunEngine(ScribeLLMEngine):
 # CONCRETE ENGINE: GeminiEngine
 # =============================================================================
 
+
 class GeminiEngine(ScribeLLMEngine):
     """Remote API engine utilizing google-genai SDK with exponential backoff and air-gap credentials."""
 
@@ -285,11 +295,7 @@ class GeminiEngine(ScribeLLMEngine):
         audit_log_path: typing.Optional[typing.Union[str, pathlib.Path]] = None,
     ) -> None:
         self.model_name = model_name
-        self.env_path = (
-            pathlib.Path(env_path).resolve()
-            if env_path
-            else get_default_env_path()
-        )
+        self.env_path = pathlib.Path(env_path).resolve() if env_path else get_default_env_path()
         self.audit_log_path = (
             pathlib.Path(audit_log_path).resolve()
             if audit_log_path
@@ -307,15 +313,20 @@ class GeminiEngine(ScribeLLMEngine):
 
         api_key = self._resolve_api_key()
         if not api_key:
-            logger.warning("GeminiEngine: GEMINI_API_KEY not found or inaccessible. Falling back to DryRunEngine.")
+            logger.warning(
+                "GeminiEngine: GEMINI_API_KEY not found or inaccessible. Falling back to DryRunEngine."
+            )
             self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
             return
 
         try:
             from google import genai
+
             self.client = genai.Client(api_key=api_key)
         except Exception as exc:
-            logger.warning(f"GeminiEngine: Failed to instantiate google-genai Client: {exc}. Falling back to DryRunEngine.")
+            logger.warning(
+                f"GeminiEngine: Failed to instantiate google-genai Client: {exc}. Falling back to DryRunEngine."
+            )
             self._fallback_engine = DryRunEngine(audit_log_path=self.audit_log_path)
 
     def _resolve_api_key(self) -> typing.Optional[str]:
@@ -410,9 +421,19 @@ class GeminiEngine(ScribeLLMEngine):
 
         text_content = getattr(response, "text", "") or ""
         usage = getattr(response, "usage_metadata", None)
-        prompt_tokens = getattr(usage, "prompt_token_count", 0) if usage else estimate_token_count(prompt)
-        completion_tokens = getattr(usage, "candidates_token_count", 0) if usage else estimate_token_count(text_content)
-        total_tokens = getattr(usage, "total_token_count", prompt_tokens + completion_tokens) if usage else (prompt_tokens + completion_tokens)
+        prompt_tokens = (
+            getattr(usage, "prompt_token_count", 0) if usage else estimate_token_count(prompt)
+        )
+        completion_tokens = (
+            getattr(usage, "candidates_token_count", 0)
+            if usage
+            else estimate_token_count(text_content)
+        )
+        total_tokens = (
+            getattr(usage, "total_token_count", prompt_tokens + completion_tokens)
+            if usage
+            else (prompt_tokens + completion_tokens)
+        )
         cost_usd = calculate_model_cost(self.model_name, prompt_tokens, completion_tokens)
         elapsed_time = time.perf_counter() - start_time
 
@@ -458,14 +479,13 @@ class GeminiEngine(ScribeLLMEngine):
                 },
                 audit_log_path=self.audit_log_path,
             )
-            raise ScribeNetworkException(
-                f"Gemini API streaming failed: {exc}"
-            ) from exc
+            raise ScribeNetworkException(f"Gemini API streaming failed: {exc}") from exc
 
 
 # =============================================================================
 # CONCRETE ENGINE: LocalLlamaEngine
 # =============================================================================
+
 
 class LocalLlamaEngine(ScribeLLMEngine):
     """Local GGUF inference engine utilizing llama-cpp-python with OOM kernel traps."""
@@ -516,6 +536,7 @@ class LocalLlamaEngine(ScribeLLMEngine):
         # Dynamic Import and OOM Kernel Trap Initialization
         try:
             from llama_cpp import Llama  # type: ignore[import-not-found]
+
             self.model = Llama(
                 model_path=str(resolved_weights),
                 n_ctx=self.n_ctx,
@@ -559,8 +580,12 @@ class LocalLlamaEngine(ScribeLLMEngine):
 
     def _check_hardware_resources(self) -> bool:
         """Evaluates host hardware memory constraints."""
-        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
-        resource_guard_active = os.environ.get("RESOURCE_GUARD", "1").strip().lower() not in ("0", "false", "off")
+        total_ram_gb = psutil.virtual_memory().total / (1024**3)
+        resource_guard_active = os.environ.get("RESOURCE_GUARD", "1").strip().lower() not in (
+            "0",
+            "false",
+            "off",
+        )
 
         if resource_guard_active and total_ram_gb < MINIMUM_RAM_GB_REQUIRED:
             logger.warning(
@@ -606,7 +631,9 @@ class LocalLlamaEngine(ScribeLLMEngine):
     def generate(self, prompt: str) -> str:
         """Synchronously generates narrative text using local GGUF weights."""
         if self._fallback_engine is not None or self.model is None:
-            return (self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)).generate(prompt)
+            return (
+                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+            ).generate(prompt)
 
         start_time = time.perf_counter()
         try:
@@ -636,12 +663,16 @@ class LocalLlamaEngine(ScribeLLMEngine):
             return text_out
         except (MemoryError, RuntimeError, ValueError, Exception) as exc:
             self._handle_oom_kernel_trap(stage="GENERATION", exc=exc)
-            return (self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)).generate(prompt)
+            return (
+                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+            ).generate(prompt)
 
     def stream(self, prompt: str) -> typing.Generator[str, None, None]:
         """Synchronously streams token chunks from local GGUF weights."""
         if self._fallback_engine is not None or self.model is None:
-            yield from (self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)).stream(prompt)
+            yield from (
+                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+            ).stream(prompt)
             return
 
         try:
@@ -653,12 +684,15 @@ class LocalLlamaEngine(ScribeLLMEngine):
                     yield chunk_text
         except (MemoryError, RuntimeError, ValueError, Exception) as exc:
             self._handle_oom_kernel_trap(stage="STREAMING", exc=exc)
-            yield from (self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)).stream(prompt)
+            yield from (
+                self._fallback_engine or DryRunEngine(audit_log_path=self.audit_log_path)
+            ).stream(prompt)
 
 
 # =============================================================================
 # FACTORY ROUTER: get_engine
 # =============================================================================
+
 
 def get_engine(config: typing.Optional[dict[str, typing.Any]] = None) -> ScribeLLMEngine:
     """
@@ -676,7 +710,13 @@ def get_engine(config: typing.Optional[dict[str, typing.Any]] = None) -> ScribeL
     model_name = cfg.get("model_name", DEFAULT_MODEL_NAME)
     preferred_model = str(cfg.get("preferred_llm_model", "")).strip().lower()
     dry_run_requested = bool(cfg.get("dry_run", False))
-    offline_env = os.environ.get("COCHEM_OFFLINE", "").strip().lower() in ("1", "true", "yes", "y", "on")
+    offline_env = os.environ.get("COCHEM_OFFLINE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+    )
 
     # Rule 1: Dry run or offline
     if dry_run_requested or offline_env:
@@ -695,8 +735,11 @@ def get_engine(config: typing.Optional[dict[str, typing.Any]] = None) -> ScribeL
 
     # Rule 3: Local Llama preference
     if preferred_model in ("local", "local-llama", "llama"):
-        total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
-        candidate_weights = pathlib.Path(cfg.get("model_path") or (get_default_models_dir() / "mistral-7b-instruct-v0.2.Q4_K_M.gguf"))
+        total_ram_gb = psutil.virtual_memory().total / (1024**3)
+        candidate_weights = pathlib.Path(
+            cfg.get("model_path")
+            or (get_default_models_dir() / "mistral-7b-instruct-v0.2.Q4_K_M.gguf")
+        )
         weights_exist = candidate_weights.exists() and candidate_weights.is_file()
 
         if total_ram_gb < MINIMUM_RAM_GB_REQUIRED or not weights_exist:

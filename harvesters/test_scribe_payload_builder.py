@@ -15,19 +15,40 @@ import time
 from pathlib import Path
 from typing import Any
 
+import os
+import tempfile
 import pytest
 import tiktoken
 
-from .scribe_payload_builder import (
-    DEFAULT_TOKEN_LIMIT,
-    PayloadBuilder,
-)
+try:
+    from .scribe_payload_builder import (
+        DEFAULT_TOKEN_LIMIT,
+        PayloadBuilder,
+    )
+except ImportError:
+    from harvesters.scribe_payload_builder import (
+        DEFAULT_TOKEN_LIMIT,
+        PayloadBuilder,
+    )
 
 DRY_RUN_MAX_DURATION: float = 0.05
 MAX_ALLOWED_CONFS: int = 3
 MAX_ALLOWED_CRITICAL_WARNINGS: int = 2
 EXPECTED_INVARIANT_GIBBS: float = -182.1250
 EXPECTED_INVARIANT_ZPE: float = 48.9125
+
+
+@pytest.fixture(autouse=True)
+def configure_airgap_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Configures tiktoken to operate strictly with offline local cache."""
+    cache_dir = os.environ.get("TIKTOKEN_CACHE_DIR")
+    if not cache_dir:
+        default_cache = Path(tempfile.gettempdir()) / "data-gym-cache"
+        if default_cache.exists():
+            cache_dir = str(default_cache)
+        else:
+            cache_dir = str(tmp_path / "tiktoken_cache")
+    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", cache_dir)
 
 
 @pytest.fixture
@@ -206,7 +227,10 @@ def maximal_oversized_payload() -> dict[str, Any]:
     }
 
 
-def test_token_count_assertion(authentic_aggregated_data: dict[str, Any]) -> None:
+def test_token_count_assertion(
+    authentic_aggregated_data: dict[str, Any],
+    maximal_oversized_payload: dict[str, Any],
+) -> None:
     """Test 1: Asserts that count_tokens measures tokens using tiktoken."""
     builder = PayloadBuilder(
         aggregated_data=authentic_aggregated_data,
@@ -225,6 +249,12 @@ def test_token_count_assertion(authentic_aggregated_data: dict[str, Any]) -> Non
     json_token_count = builder.count_tokens(json_str)
     assert json_token_count == len(enc.encode(json_str))
     assert json_token_count < DEFAULT_TOKEN_LIMIT
+
+    # Assert that oversized physical chemistry data payload exceeds 6,000 token limit
+    oversized_str = json.dumps(maximal_oversized_payload)
+    oversized_token_count = builder.count_tokens(oversized_str)
+    assert oversized_token_count > DEFAULT_TOKEN_LIMIT
+    assert oversized_token_count == len(enc.encode(oversized_str))
 
 
 def test_truncation_trigger_and_tier_invariants(
@@ -272,6 +302,12 @@ def test_truncation_trigger_and_tier_invariants(
     assert truncated["thermodynamics"]["zpe_kcal_mol"] == EXPECTED_INVARIANT_ZPE
     assert truncated["provenance"]["engine_versions"]["orca"] == "6.1.1"
     assert truncated["provenance"]["engine_versions"]["mace"] == "0.2.0"
+
+    # Asserts that prompt construction completes without unhandled exceptions and respects token budget
+    method_prompt = builder.build_methodology_prompt()
+    assert builder.count_tokens(method_prompt) <= DEFAULT_TOKEN_LIMIT
+    insights_prompt = builder.build_insights_prompt()
+    assert builder.count_tokens(insights_prompt) <= DEFAULT_TOKEN_LIMIT
 
 
 def test_master_system_prompt_regex_and_tags(

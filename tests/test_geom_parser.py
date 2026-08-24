@@ -1,73 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-GEOM\.in-progress\Task_09_data_geom_parser_py.md.
-Original prompt:
-# Task: Create `src/cochem_geom/data/geom_parser.py`
-
-## Context
-You are an autonomous execution agent coding the new version of CoChem-GEOM based on the approved System Architecture.
-Target output directory: `D:\__CoChem\GitHub-Repo\CoChem-GEOM`
-
-## Strict Execution Constraints
-1. **Scope:** Generate exactly one coding script file for this prompt (`src/cochem_geom/data/geom_parser.py`).
-2. **Path:** Output the generated file to the target output directory at `D:\__CoChem\GitHub-Repo\CoChem-GEOM\src/cochem_geom/data/geom_parser.py`. Do not execute or run the code, only generate the file.
-3. **Geometric Equivariance & Invariance:** The system must strictly separate non-spatial node features from spatial coordinates.
-4. **State Immutability:** Geometric transformations are immutable (`data.pos = data.pos + update`, never `data.pos += update`).
-5. **No Hardcoded Paths:** Use dynamic lookups (`pathlib.Path.home()`, environment variables).
-6. **Provenance Tags:** You MUST tag all qualitative values, bounds, energy metrics, and hardware speedups with explicit provenance tags (`[M]` for Measured, `[D]` for Derived, `[E]` for Expert Estimate).
-
-## File Specific Instructions
-Deserialize GEOM msgpack archives safely. Maintain Boltzmann-weighted conformer probabilities `[M]` and exact QM properties from DFT/GFN2-xTB `[M]`. Generate SHA-256 hashes for `.out` files.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_geom\__init__.py ---
-"""# zero-stub anti-spoofing engine
-CoChem-GEOM Core Package
-"""
-
-try:
-    from .engine import (
-        ConstraintEngine,
-        ConstraintError,
-        SubprocessBroker,
-        SubprocessBrokerError,
-        SubprocessExecutionError,
-        SubprocessExecutionResult,
-        SubprocessTimeoutError,
-        SystemConfigSchema,
-        get_cochem_artifacts,
-        get_cochem_root,
-        get_cochem_scratch,
-        get_cochem_trash,
-        get_system_config,
-        get_system_config_path,
-        load_system_config,
-        resolve_cochem_path,
-        sweep_child_processes,
-    )
-except ImportError:
-    pass
-
-__all__ = [
-    "ConstraintEngine",
-    "ConstraintError",
-    "SubprocessBroker",
-    "SubprocessBrokerError",
-    "SubprocessExecutionError",
-    "SubprocessExecutionResult",
-    "SubprocessTimeoutError",
-    "SystemConfigSchema",
-    "get_cochem_root",
-    "get_cochem_scratch",
-    "get_cochem_artifacts",
-    "get_cochem_trash",
-    "resolve_cochem_path",
-    "get_system_config_path",
-    "load_system_config",
-    "get_system_config",
-    "sweep_child_processes",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_geom_parser.py ---
 """Zero-Verification Unit and Integration Test Suite for CoChem-GEOM Parser.
 
 Authoritative Standards:
@@ -902,5 +832,3 @@ def test_anti_spoofing_integrity() -> None:
 
     for token in forbidden_list:
         assert token not in source, f"Forbidden token detected in geom_parser source: {token}"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

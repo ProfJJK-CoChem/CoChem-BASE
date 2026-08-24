@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 GEOM_DIR_ENV = os.environ.get("COCHEM_GEOM_DIR")
 if GEOM_DIR_ENV:

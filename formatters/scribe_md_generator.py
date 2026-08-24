@@ -305,7 +305,8 @@ class MarkdownBuilder:
         return custom_id, cleaned_name, custom_idx + 1
 
     def _resolve_mermaid_nodes(
-        self, active_stages: Optional[List[Union[str, int, float, Dict[str, Any]]]] = None
+        self,
+        active_stages: Optional[Sequence[Any]] = None,
     ) -> List[Tuple[str, str]]:
         """Resolves stage list into ordered Mermaid node definitions."""
         if not active_stages:
@@ -324,12 +325,13 @@ class MarkdownBuilder:
         return resolved_nodes
 
     def generate_mermaid_flowchart(
-        self, active_stages: Optional[List[Union[str, int, float, Dict[str, Any]]]] = None
+        self,
+        active_stages: Optional[Sequence[Any]] = None,
     ) -> str:
         """Dynamically synthesizes a Mermaid.js graph TD diagram block mapping active CoChem stages.
 
         Args:
-            active_stages: Optional list of active stage identifier strings, ints, or dicts.
+            active_stages: Optional list or sequence of active stage identifier strings, ints, or dicts.
 
         Returns:
             Fenced Mermaid.js flowchart string.
@@ -382,29 +384,32 @@ class MarkdownBuilder:
                 return f"### {table_title}\n\n*No tabular data available.*\n"
             return "*No tabular data available.*\n"
 
+        target_df: pd.DataFrame
         if not isinstance(df, pd.DataFrame):
             try:
-                df = pd.DataFrame(df)
+                target_df = pd.DataFrame(df)
             except Exception:
                 if table_title:
                     return f"### {table_title}\n\n*No tabular data available.*\n"
                 return "*No tabular data available.*\n"
+        else:
+            target_df = df
 
-        if df.empty:
+        if target_df.empty:
             if table_title:
                 return f"### {table_title}\n\n*No tabular data available.*\n"
             return "*No tabular data available.*\n"
 
         headers = [
             str(col).replace("\r\n", "<br>").replace("\n", "<br>").replace("|", r"\|").strip()
-            for col in df.columns
+            for col in target_df.columns
         ]
 
         alignments: List[str] = []
-        for col in df.columns:
+        for col in target_df.columns:
             is_numeric = (
-                pd.api.types.is_numeric_dtype(df[col])
-                and not pd.api.types.is_bool_dtype(df[col])
+                pd.api.types.is_numeric_dtype(target_df[col])
+                and not pd.api.types.is_bool_dtype(target_df[col])
             )
             alignments.append("---:" if is_numeric else ":---")
 
@@ -419,9 +424,9 @@ class MarkdownBuilder:
         sep_line = "| " + " | ".join(alignments) + " |"
         rows.append(sep_line)
 
-        for _, row in df.iterrows():
+        for _, row in target_df.iterrows():
             row_cells = []
-            for col in df.columns:
+            for col in target_df.columns:
                 val = row[col]
                 formatted_val = self._format_cell_value(val, str(col))
                 row_cells.append(formatted_val)
@@ -518,7 +523,10 @@ class MarkdownBuilder:
     inject_thermodynamic_insights = format_thermodynamic_insights
 
     def format_audit_warnings(
-        self, warnings: Optional[Union[List[str], Tuple[str, ...], str, Dict[str, Any]]] = None
+        self,
+        warnings: Optional[
+            Union[Iterable[Optional[str]], str, Dict[str, Any]]
+        ] = None,
     ) -> str:
         """Aggregates non-fatal warnings from cochem_audit_log into Markdown callout blockquotes.
 

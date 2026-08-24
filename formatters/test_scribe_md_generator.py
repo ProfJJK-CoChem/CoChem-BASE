@@ -15,7 +15,7 @@ from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from formatters.scribe_md_generator import MarkdownBuilder
 

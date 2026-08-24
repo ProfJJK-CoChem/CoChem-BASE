@@ -20,7 +20,7 @@ import tempfile
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
 import yaml  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
@@ -33,30 +33,30 @@ LOW_VAL_THRESHOLD: float = 1e-4
 
 # Standard Stage definition catalog for Mermaid diagram synthesis
 STAGE_DEFINITIONS: Dict[str, Tuple[str, str]] = {
-    "0.0": ("S0", "Stage 0: Environment & Guards"),
-    "1.0": ("S1", "Stage 1: Conformer Generation"),
-    "2.0": ("S2", "Stage 2: DFT Optimization"),
-    "3.0": ("S3", "Stage 3: Frequency & Thermochemistry"),
-    "4.0": ("S4", "Stage 4: Sinc-DVR Dynamic Tunneling"),
-    "5.0": ("S5", "Stage 5: Telemetry Aggregation"),
-    "6.0": ("S6", "Stage 6: SCRIBE Document Synthesis"),
+    "0.0": ("S0", "Stage 0.0: Configuration & Resource Guards"),
+    "1.0": ("S1", "Stage 1.0: Conformer Generation"),
+    "2.0": ("S2", "Stage 2.0: DFT Optimization"),
+    "3.0": ("S3", "Stage 3.0: Frequency & Thermochemistry"),
+    "4.0": ("S4", "Stage 4.0: Sinc-DVR Dynamic Tunneling"),
+    "5.0": ("S5", "Stage 5.0: Telemetry Aggregation"),
+    "6.0": ("S6", "Stage 6.0: SCRIBE Document Synthesis"),
 }
 
 STAGE_DESCRIPTIONS_FALLBACK: Dict[str, str] = {
-    "0": "Stage 0: Environment & Guards",
-    "0.0": "Stage 0: Environment & Guards",
-    "1": "Stage 1: Conformer Generation",
-    "1.0": "Stage 1: Conformer Generation",
-    "2": "Stage 2: DFT Optimization",
-    "2.0": "Stage 2: DFT Optimization",
-    "3": "Stage 3: Frequency & Thermochemistry",
-    "3.0": "Stage 3: Frequency & Thermochemistry",
-    "4": "Stage 4: Sinc-DVR Dynamic Tunneling",
-    "4.0": "Stage 4: Sinc-DVR Dynamic Tunneling",
-    "5": "Stage 5: Telemetry Aggregation",
-    "5.0": "Stage 5: Telemetry Aggregation",
-    "6": "Stage 6: SCRIBE Document Synthesis",
-    "6.0": "Stage 6: SCRIBE Document Synthesis",
+    "0": "Stage 0.0: Configuration & Resource Guards",
+    "0.0": "Stage 0.0: Configuration & Resource Guards",
+    "1": "Stage 1.0: Conformer Generation",
+    "1.0": "Stage 1.0: Conformer Generation",
+    "2": "Stage 2.0: DFT Optimization",
+    "2.0": "Stage 2.0: DFT Optimization",
+    "3": "Stage 3.0: Frequency & Thermochemistry",
+    "3.0": "Stage 3.0: Frequency & Thermochemistry",
+    "4": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
+    "4.0": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
+    "5": "Stage 5.0: Telemetry Aggregation",
+    "5.0": "Stage 5.0: Telemetry Aggregation",
+    "6": "Stage 6.0: SCRIBE Document Synthesis",
+    "6.0": "Stage 6.0: SCRIBE Document Synthesis",
 }
 
 
@@ -190,7 +190,7 @@ class MarkdownBuilder:
         """
         matrix = system_matrix if isinstance(system_matrix, dict) else {}
         lines: List[str] = [
-            "## Computational Provenance & System Matrix",
+            "## 1. System Execution Environment & Provenance",
             "",
             "### 1.1 Compute Engines & Versions",
         ]
@@ -424,10 +424,9 @@ class MarkdownBuilder:
         sep_line = "| " + " | ".join(alignments) + " |"
         rows.append(sep_line)
 
-        for _, row in target_df.iterrows():
+        for row in target_df.itertuples(index=False):
             row_cells = []
-            for col in target_df.columns:
-                val = row[col]
+            for col, val in zip(target_df.columns, row):
                 formatted_val = self._format_cell_value(val, str(col))
                 row_cells.append(formatted_val)
             rows.append("| " + " | ".join(row_cells) + " |")
@@ -444,11 +443,16 @@ class MarkdownBuilder:
         if pd.isna(val) or val is None:
             return "N/A"
 
-        if isinstance(val, (float, np.floating)):
-            return MarkdownBuilder._format_float_cell(float(val), col_name)
-
         if isinstance(val, (int, np.integer)) and not isinstance(val, bool):
             return str(val)
+
+        if isinstance(val, (float, np.floating)):
+            if float(val).is_integer() and any(
+                k in col_name.lower()
+                for k in ["#", "mode", "index", "idx", "step", "iteration", "count", "num"]
+            ):
+                return str(int(val))
+            return MarkdownBuilder._format_float_cell(float(val), col_name)
 
         clean_str = str(val).replace("\r\n", "<br>").replace("\n", "<br>")
         return clean_str.replace("|", r"\|").strip()
@@ -491,13 +495,13 @@ class MarkdownBuilder:
             Formatted Markdown section with placeholders scrubbed.
         """
         lines: List[str] = [
-            "## Thermodynamic Analysis",
+            "## 2. Thermodynamic & Structural Analysis",
             "",
         ]
 
         if not insights_text or not isinstance(insights_text, str):
             lines.append(
-                "*Analytical data was aggregated without additional narrative comments.*"
+                "*Analytical data was aggregated without additional narrative commentary.*"
             )
             lines.append("")
             return "\n".join(lines)
@@ -511,7 +515,7 @@ class MarkdownBuilder:
 
         if not cleaned:
             lines.append(
-                "*Analytical data was aggregated without additional narrative comments.*"
+                "*Analytical data was aggregated without additional narrative commentary.*"
             )
         else:
             lines.append(cleaned)
@@ -577,7 +581,7 @@ class MarkdownBuilder:
 
         # 1. GPU VRAM
         peak_gpu = "N/A"
-        for k in ["peak_gpu_vram_mb", "gpu_peak_vram_mb"]:
+        for k in ["peak_gpu_vram_mb", "gpu_peak_vram_mb", "gpu_vram_peak_mb"]:
             if k in telem and telem[k] is not None:
                 val = telem[k]
                 if isinstance(val, (int, float, np.integer, np.floating)) and not isinstance(val, bool):
@@ -664,7 +668,7 @@ class MarkdownBuilder:
                 peak_ram = raw_ram
 
         lines: List[str] = [
-            "## Hardware Resource Telemetry",
+            "## 4. Hardware Telemetry & Compute Resource Allocation",
             "",
             f"- **Peak GPU VRAM Usage**: {peak_gpu}",
             f"- **Peak CPU Usage**: {peak_cpu}",
@@ -683,6 +687,9 @@ class MarkdownBuilder:
                 "gpu_vram",
                 "peak_gpu",
                 "gpu_peak_vram_mb",
+                "gpu_vram_peak_mb",
+                "gpu_peak_vram_gb",
+                "peak_gpu_vram_gb",
                 "peak_cpu_percent",
                 "cpu_percent",
                 "peak_cpu",
@@ -697,6 +704,9 @@ class MarkdownBuilder:
                 "memory_footprint",
                 "peak_memory",
                 "host_ram",
+                "peak_ram_gb",
+                "host_ram_gb",
+                "warnings",
             ]
         }
         if extra_keys:

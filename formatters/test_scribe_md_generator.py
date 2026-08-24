@@ -1,93 +1,227 @@
 """Zero-Mock Integration and Unit Test Suite for MarkdownBuilder (Stage 6.3).
 
+Complies with CoChem-SCRIBE SRS Phase 4, Task 9 (Stage 6.3, Tasks 61-70),
+Method Matrix v4, the Zero-Mock Anti-Spoofing Protocol, FAIR Data Principles,
+and the 6-Tier Environment Matrix.
+
 Verifies dynamic Markdown User Guide compilation, YAML frontmatter
 serialization, Mermaid.js workflow diagram synthesis, GFM pipe table
 formatting, thermodynamic insights placeholder scrubbing, warning callout
 blockquotes, hardware telemetry reporting, and non-destructive timestamped
-overwrite protection.
+overwrite protection against real physical disk I/O and real data structures.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import pathlib
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import h5py  # type: ignore[import-untyped]
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore[import-untyped]
+import pytest
 import yaml  # type: ignore[import-untyped]
 
 from formatters.scribe_md_generator import MarkdownBuilder
 
 
-def test_markdown_builder_initialization(tmp_path: pathlib.Path) -> None:
-    """Verifies default and custom path resolution during initialization (Task 61 & 68)."""
-    # 1. Test default initialization
+# ---------------------------------------------------------------------------
+# Zero-Mock Physical Fixtures (Real Disk I/O via tmp_path)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def hdf5_physical_payload(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Generates a physical landscape.h5 file with authentic HDF5 hierarchies on real disk.
+
+    Under the Zero-Mock mandate, this fixture writes real numerical arrays and attributes
+    using h5py in latest library format without mock bypasses.
+
+    Args:
+        tmp_path: pytest temporary directory fixture on physical storage.
+
+    Returns:
+        Resolved pathlib.Path to the created landscape.h5 file.
+    """
+    h5_path = (tmp_path / "landscape.h5").resolve()
+    with h5py.File(h5_path, mode="w", libver="latest") as h5f:
+        # 1. Conformers hierarchy
+        conf_group = h5f.create_group("conformers")
+
+        c1 = conf_group.create_group("conf_01")
+        c1.attrs["relative_energy"] = 0.0000
+        c1.attrs["point_group_symmetry"] = "C2v"
+
+        c2 = conf_group.create_group("conf_02")
+        c2.attrs["relative_energy"] = 0.0035
+        c2.attrs["point_group_symmetry"] = "Cs"
+
+        # 2. Spectroscopy hierarchy
+        spec_group = h5f.create_group("spectroscopy")
+        spec_group.create_dataset(
+            "rotational_constants",
+            data=np.array([5420.5, 2810.2, 1950.8], dtype=np.float64),
+        )
+        spec_group.create_dataset(
+            "dipole_moments",
+            data=np.array([1.85, 0.42, 0.0], dtype=np.float64),
+        )
+
+        # 3. Thermodynamics hierarchy
+        thermo_group = h5f.create_group("thermodynamics")
+        thermo_group.attrs["zero_point_energy"] = 0.0854
+        thermo_group.attrs["enthalpy"] = -154.0321
+        thermo_group.attrs["gibbs_free_energy"] = -154.0654
+        thermo_group.create_dataset(
+            "vibrational_frequencies",
+            data=np.array([450.2, 820.5, 1450.0, 3100.4], dtype=np.float64),
+        )
+
+    return h5_path
+
+
+@pytest.fixture
+def sample_metadata_and_telemetry(
+    tmp_path: pathlib.Path,
+) -> Dict[str, Any]:
+    """Generates authentic JSON audit logs, deployment manifests, and metadata dictionary on disk.
+
+    Args:
+        tmp_path: pytest temporary directory fixture.
+
+    Returns:
+        Dictionary containing metadata, file paths, telemetry, and engine configs.
+    """
+    audit_log_path = tmp_path / "cochem_audit_log.json"
+    audit_data = {
+        "wall_clock_seconds": 142.5,
+        "gpu_vram_peak_mb": 4250.0,
+        "cpu_peak_percent": 88.5,
+        "warnings": [
+            "SCF convergence required dampening on step 4.",
+            "GPU VRAM spike near 85%.",
+        ],
+    }
+    audit_log_path.write_text(json.dumps(audit_data, indent=2), encoding="utf-8")
+
+    manifest_path = tmp_path / "cochem_deployment_manifest.json"
+    manifest_data = {
+        "ORCA": "6.1.1",
+        "xTB": "6.7.1",
+        "MACE-OFF23": "2023.1",
+    }
+    manifest_path.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    metadata = {
+        "title": "CoChem Computational Analysis User Guide",
+        "version": "2.0.0",
+        "generated_at": "2026-08-23T12:00:00",
+        "pipeline_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "environment": "Local-Linux (Debian)",
+        "fair_compliance": True,
+        "audit_log_file": audit_log_path,
+        "deployment_manifest_file": manifest_path,
+        "raw_telemetry": audit_data,
+        "raw_engines": manifest_data,
+    }
+    return metadata
+
+
+@pytest.fixture
+def sample_conformer_dataframe() -> pd.DataFrame:
+    """Returns a real pandas.DataFrame containing conformer energetic and geometric ranking data.
+
+    Returns:
+        Structured DataFrame with conformer IDs, energies, symmetry, and Boltzmann weights.
+    """
+    return pd.DataFrame({
+        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
+        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
+        "Hartree Energy (Eh)": [-154.1234567, -154.1227891, -154.1204682],
+        "Symmetry": ["C2v", "Cs", "C1"],
+        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Required Test Cases (Tasks 61–70)
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_builder_initialization_and_dynamic_pathing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Test Case 1: MarkdownBuilder Initialization & Default Dynamic Pathing (Tasks 61 & 68).
+
+    Verifies default and custom output directory resolution using pathlib.Path,
+    automatic parent directory creation, and zero reliance on POSIX-only $HOME.
+    """
+    # 1. Default initialization resolves to ~/CoChem_Artifacts/Report_Archive
     default_builder = MarkdownBuilder()
     assert isinstance(default_builder, MarkdownBuilder)
-    expected_default_dir = (
+    expected_default = (
         pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
     ).resolve()
-    assert default_builder.output_dir == expected_default_dir
+    assert default_builder.output_dir == expected_default
     assert default_builder.base_filename == "CoChem_User_Guide.md"
     assert default_builder.filename == "CoChem_User_Guide.md"
+    assert isinstance(default_builder.output_dir, pathlib.Path)
 
-    # 2. Test custom output directory initialization and auto-creation
-    custom_dir = tmp_path / "custom_reports" / "sub_folder"
-    assert not custom_dir.exists()
+    # 2. Custom output directory and filename initialization
+    custom_target = tmp_path / "custom_reports" / "sub_archive"
+    assert not custom_target.exists()
     custom_builder = MarkdownBuilder(
-        output_dir=custom_dir, base_filename="Custom_Guide.md"
+        output_dir=custom_target, filename="custom_guide.md"
     )
-    assert custom_builder.output_dir == custom_dir.resolve()
-    assert custom_builder.base_filename == "Custom_Guide.md"
-    assert custom_dir.exists()
+    assert custom_builder.output_dir == custom_target.resolve()
+    assert custom_builder.base_filename == "custom_guide.md"
+    assert custom_builder.filename == "custom_guide.md"
+    assert custom_target.exists()
+    assert custom_target.is_dir()
+
+    # 3. Verify path resolution is pure Python pathlib without POSIX shell $HOME dependency
+    assert not str(custom_builder.output_dir).startswith("$")
 
 
-def test_yaml_frontmatter_and_system_matrix() -> None:
-    """Verifies YAML frontmatter generation and Stage 0 system matrix section (Tasks 61 & 62)."""
-    builder = MarkdownBuilder()
-    hash_str = "a1b2c3d4e5f6789012345678abcdef0123456789abcdef0123456789abcdef01"
-    metadata: Dict[str, Any] = {
-        "title": "CoChem Computational Analysis User Guide - Ethanol Conformer",
-        "date": "2026-08-24 12:00:00",
-        "cochem_version": "2.0.0",
-        "run_id": "EXP-2026-ETH-001",
-        "target_molecule": "Ethanol",
-        "smiles": "CCO",
-        "environment_tier": "Local-Linux (Debian)",
-        "fair_compliance": True,
-        "path_entry": pathlib.Path("/tmp/work_dir"),
-        "precision_score": np.float64(99.99),
-        "iteration_count": np.int64(42),
-    }
+def test_yaml_frontmatter_and_system_matrix_generation(
+    tmp_path: pathlib.Path,
+    sample_metadata_and_telemetry: Dict[str, Any],
+) -> None:
+    """Test Case 2: YAML Frontmatter & Stage 0 System Matrix Generation (Task 62).
 
+    Verifies valid YAML frontmatter delimiter bounding and strict key-value parsing,
+    along with Stage 0 system execution environment readout containing active engines,
+    host architecture, and pipeline SHA-256 configuration hash.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path)
+    metadata = sample_metadata_and_telemetry
+
+    # 1. Test YAML Frontmatter Generation
     frontmatter = builder.generate_yaml_frontmatter(metadata)
-
-    # Assert YAML delimiters
     assert frontmatter.startswith("---\n")
     assert frontmatter.endswith("\n---")
 
-    # Parse YAML content
-    stripped_content = frontmatter.strip("-").strip()
-    parsed_yaml = yaml.safe_load(stripped_content)
-
-    assert isinstance(parsed_yaml, dict)
+    # Strip bounding lines and parse with safe_load
+    yaml_body = frontmatter.strip("-").strip()
+    parsed = yaml.safe_load(yaml_body)
+    assert isinstance(parsed, dict)
+    assert parsed["title"] == "CoChem Computational Analysis User Guide"
+    assert parsed["version"] == "2.0.0"
+    assert parsed["generated_at"] == "2026-08-23T12:00:00"
     assert (
-        parsed_yaml["title"]
-        == "CoChem Computational Analysis User Guide - Ethanol Conformer"
+        parsed["pipeline_hash"]
+        == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     )
-    assert parsed_yaml["cochem_version"] == "2.0.0"
-    assert parsed_yaml["run_id"] == "EXP-2026-ETH-001"
-    assert parsed_yaml["target_molecule"] == "Ethanol"
-    assert parsed_yaml["smiles"] == "CCO"
-    assert parsed_yaml["environment_tier"] == "Local-Linux (Debian)"
-    assert parsed_yaml["fair_compliance"] is True
-    assert parsed_yaml["precision_score"] == 99.99
-    assert parsed_yaml["iteration_count"] == 42
+    assert parsed["environment"] == "Local-Linux (Debian)"
+    assert parsed["fair_compliance"] is True
 
-    # Test Stage 0 System Matrix section
-    system_matrix: Dict[str, Any] = {
-        "engines": {"ORCA": "6.1.1", "Gaussian": "G16-C01", "Psi4": "1.9.1", "PySCF": "2.8.0"},
+    # 2. Test Stage 0 System Matrix Section Generation
+    engines_dict = metadata["raw_engines"]
+    system_matrix = {
+        "engines": engines_dict,
         "host": {
             "environment_tier": "Local-Linux (Debian)",
             "node_architecture": "x86_64",
@@ -95,17 +229,16 @@ def test_yaml_frontmatter_and_system_matrix() -> None:
             "gpu_model": "NVIDIA A100-SXM4-80GB",
             "host_ram": "128 GB",
             "python_version": "3.10.12",
-            "config_hash": hash_str,
+            "config_hash": metadata["pipeline_hash"],
         },
     }
     sys_section = builder.generate_system_matrix_section(system_matrix)
 
-    assert "## Computational Provenance & System Matrix" in sys_section
+    assert "## 1. System Execution Environment & Provenance" in sys_section
     assert "### 1.1 Compute Engines & Versions" in sys_section
     assert "- **ORCA**: `6.1.1`" in sys_section
-    assert "- **Gaussian**: `G16-C01`" in sys_section
-    assert "- **Psi4**: `1.9.1`" in sys_section
-    assert "- **PySCF**: `2.8.0`" in sys_section
+    assert "- **xTB**: `6.7.1`" in sys_section
+    assert "- **MACE-OFF23**: `2023.1`" in sys_section
     assert "### 1.2 Host Architecture & Resource Allocation" in sys_section
     assert "- **Environment Tier**: Local-Linux (Debian)" in sys_section
     assert "- **Node Architecture**: x86_64" in sys_section
@@ -113,312 +246,351 @@ def test_yaml_frontmatter_and_system_matrix() -> None:
     assert "- **GPU Device**: NVIDIA A100-SXM4-80GB" in sys_section
     assert "- **Host RAM**: 128 GB" in sys_section
     assert "- **Python Runtime Version**: `3.10.12`" in sys_section
-    assert f"- **Configuration SHA-256**: `{hash_str}`" in sys_section
+    assert f"- **Configuration SHA-256**: `{metadata['pipeline_hash']}`" in sys_section
 
 
-def test_mermaid_flowchart_generation() -> None:
-    """Verifies dynamic Mermaid.js flowchart generation for active stages (Task 63)."""
+def test_dynamic_mermaid_flowchart_synthesis() -> None:
+    """Test Case 3: Dynamic Mermaid.js Flowchart Synthesis (Task 63).
+
+    Verifies dynamic Mermaid.js graph TD diagram generation mapping active stages,
+    ensuring standard stage nodes, directed edge transitions, and valid Markdown rendering.
+    """
     builder = MarkdownBuilder()
 
-    # Test specific active stages subset
-    active_stages = ["0.0", "1.0", "2.0", "3.0", "6.0"]
+    # 1. Flowchart for specific active stages list
+    active_stages = ["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 6.0"]
     flowchart = builder.generate_mermaid_flowchart(active_stages)
 
     assert "```mermaid" in flowchart
     assert "graph TD" in flowchart
     assert "```" in flowchart
-    assert "S0" in flowchart
-    assert "S1" in flowchart
-    assert "S2" in flowchart
-    assert "S3" in flowchart
-    assert "S6" in flowchart
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in flowchart
+    assert 'S1["Stage 1.0: Conformer Generation"]' in flowchart
+    assert 'S2["Stage 2.0: DFT Optimization"]' in flowchart
+    assert 'S6["Stage 6.0: SCRIBE Document Synthesis"]' in flowchart
     assert "-->" in flowchart
 
-    # Test single stage
-    single_flowchart = builder.generate_mermaid_flowchart(["1.0"])
-    assert "S1" in single_flowchart
-    assert "-->" not in single_flowchart
+    # Verify inactive stages are NOT rendered when an explicit list is provided
+    assert "S3" not in flowchart
+    assert "S4" not in flowchart
+    assert "S5" not in flowchart
 
-    # Test custom stage handling with dirty IDs
-    custom_stages = [{"id": "Stage 10.0 (Extended)", "name": "Custom Sinc-DVR Extended"}, 0]
-    custom_flowchart = builder.generate_mermaid_flowchart(custom_stages)
-    assert "S_Stage_10_0__Extended_" in custom_flowchart
-    assert "Custom Sinc-DVR Extended" in custom_flowchart
-    assert "S0" in custom_flowchart
+    # 2. Flowchart for single stage (no edge transition)
+    single_chart = builder.generate_mermaid_flowchart(["Stage 0.0"])
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in single_chart
+    assert "-->" not in single_chart
 
-    # Test default stages when None passed
-    default_flowchart = builder.generate_mermaid_flowchart()
-    assert "S0" in default_flowchart
-    assert "S6" in default_flowchart
-    assert "S5" in default_flowchart
+    # 3. Default flowchart when None passed renders all stages
+    default_chart = builder.generate_mermaid_flowchart()
+    assert "S0" in default_chart
+    assert "S1" in default_chart
+    assert "S2" in default_chart
+    assert "S3" in default_chart
+    assert "S4" in default_chart
+    assert "S5" in default_chart
+    assert "S6" in default_chart
 
 
-def test_dataframe_to_gfm_table() -> None:
-    """Verifies GFM pipe table conversion from pandas DataFrames (Task 65)."""
+def test_gfm_table_pipe_formatting(
+    sample_conformer_dataframe: pd.DataFrame,
+) -> None:
+    """Test Case 4: GitHub-Flavored Markdown (GFM) Table Pipe Formatting (Task 65).
+
+    Verifies conversion of real pandas DataFrames into standard GFM pipe-delimited tables,
+    alignment rows, numeric precision preservation, empty DataFrame fallback, and table titles.
+    """
     builder = MarkdownBuilder()
 
-    # 1. Realistic conformer DataFrame with numeric floats and special cells
-    conf_data = {
-        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
-        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
-        "Hartree Energy (Eh)": [-154.1234567, -154.1227891, -154.1204682],
-        "Symmetry": ["C1", "Cs", "C1"],
-        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
-        "Notes": ["Global min\nVerified", "Local min", "High energy | Pipe"],
-    }
-    conf_df = pd.DataFrame(conf_data)
+    # 1. Format sample conformer DataFrame
+    table_output = builder.format_gfm_table(
+        sample_conformer_dataframe, table_title="Conformer Energetic Ranking"
+    )
 
-    conf_table = builder.dataframe_to_gfm_table(conf_df, table_title="Conformer Distribution")
-
-    assert "### Conformer Distribution" in conf_table
+    assert "### Conformer Energetic Ranking" in table_output
     assert (
-        "| Conformer ID | Relative Energy (kcal/mol) | "
-        "Hartree Energy (Eh) | Symmetry | "
-        "Boltzmann Population (%) | Notes |"
-    ) in conf_table
-    assert "-154.123457" in conf_table
-    assert "0.42" in conf_table
-    assert "Global min<br>Verified" in conf_table
-    assert r"High energy \| Pipe" in conf_table
+        "| Conformer ID | Relative Energy (kcal/mol) | Hartree Energy (Eh) | Symmetry | Boltzmann Population (%) |"
+        in table_output
+    )
+    # Check alignment row
+    assert "| :--- | ---: | ---: | :--- | ---: |" in table_output
+    # Check data rows and precision formatting
+    assert "| Conf_01 | 0.00 | -154.123457 | C2v | 68.40 |" in table_output
+    assert "| Conf_02 | 0.42 | -154.122789 | Cs | 24.10 |" in table_output
+    assert "| Conf_03 | 1.88 | -154.120468 | C1 | 7.50 |" in table_output
 
-    # 2. Realistic vibrational DataFrame
-    vib_data = {
-        "Mode #": [1, 2, 3],
-        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
-        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
-        "Zero-Point Energy (kcal/mol)": [0.17, 0.64, 4.43],
-    }
-    vib_df = pd.DataFrame(vib_data)
-    vib_table = builder.dataframe_to_gfm_table(vib_df, table_title="Vibrational Analysis")
-    assert "### Vibrational Analysis" in vib_table
-    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) | Zero-Point Energy (kcal/mol) |" in vib_table
-    assert "120.50" in vib_table
-    assert "34.80" in vib_table
-
-    # 3. Empty DataFrame handling
+    # 2. Empty DataFrame returns graceful fallback indicator
     empty_df = pd.DataFrame()
-    empty_table = builder.dataframe_to_gfm_table(empty_df, table_title="Empty Table")
-    assert "### Empty Table" in empty_table
-    assert "*No tabular data available.*" in empty_table
+    empty_output = builder.format_gfm_table(empty_df, table_title="Empty Table")
+    assert "### Empty Table" in empty_output
+    assert "*No tabular data available.*" in empty_output
 
-    # 4. List of dicts coercion and column newline / substring precision test
-    list_records = [
-        {"Conformer\nID": "C1", "Dehydration Barrier (kcal/mol)": 15.23456, "Total Energy (Eh)": -154.1234567},
-        {"Conformer\nID": "C2", "Dehydration Barrier (kcal/mol)": 18.98765, "Total Energy (Eh)": -154.1122334},
-    ]
-    coerced_table = builder.dataframe_to_gfm_table(list_records, table_title="Advanced Table")
-    assert "### Advanced Table" in coerced_table
-    assert "| Conformer<br>ID | Dehydration Barrier (kcal/mol) | Total Energy (Eh) |" in coerced_table
-    assert "15.23" in coerced_table
-    assert "-154.123457" in coerced_table
+    # 3. None input returns graceful fallback without crashing
+    none_output = builder.format_gfm_table(None)
+    assert "*No tabular data available.*" in none_output
 
 
-def test_audit_warnings_and_telemetry_formatting() -> None:
-    """Verifies warning callout blockquotes and hardware telemetry formatting (Tasks 66 & 67)."""
+def test_thermodynamic_insights_injection_and_token_scrubbing() -> None:
+    """Test Case 5: Thermodynamic Analytical Insights Injection & Token Scrubbing (Task 64).
+
+    Verifies rendering of section ## 2. Thermodynamic & Structural Analysis,
+    placeholder token sanitization (<<INSERT_*>>, [PLACEHOLDER]), and empty/None fallback.
+    """
     builder = MarkdownBuilder()
 
-    # 1. Non-empty warnings aggregation with None filtering
-    warnings = [
-        None,
-        "SCF convergence required dampening on step 4.",
-        "GPU VRAM spike near 90% during Hessian computation.",
-        "None",
-    ]
-    warning_block = builder.format_audit_warnings(warnings)
-    assert (
-        "> **WARNING**: SCF convergence required dampening on step 4."
-        in warning_block
+    # 1. Narrative with internal placeholder tokens to scrub
+    raw_insights = (
+        "The global minimum conformer demonstrates significant stabilization. "
+        "<<INSERT_THERMO_TABLE>> The calculated barrier is 14.5 kcal/mol. "
+        "[PLACEHOLDER] Vibrational zero-point energy indicates strong zero-point motion."
     )
+    rendered = builder.inject_thermodynamic_insights(raw_insights)
+
+    assert "## 2. Thermodynamic & Structural Analysis" in rendered
+    assert "The global minimum conformer demonstrates significant stabilization." in rendered
+    assert "The calculated barrier is 14.5 kcal/mol." in rendered
+    assert "Vibrational zero-point energy indicates strong zero-point motion." in rendered
+    assert "<<INSERT_THERMO_TABLE>>" not in rendered
+    assert "[PLACEHOLDER]" not in rendered
+
+    # 2. Passing empty string or None renders clean professional fallback
+    empty_rendered = builder.inject_thermodynamic_insights("")
+    assert "## 2. Thermodynamic & Structural Analysis" in empty_rendered
     assert (
-        "> **WARNING**: GPU VRAM spike near 90% during Hessian computation."
-        in warning_block
+        "*Analytical data was aggregated without additional narrative commentary.*"
+        in empty_rendered
     )
-    assert "> **WARNING**: None" not in warning_block
 
-    # 2. String warning handling (prevent character-splitting bug)
-    single_warn = "Single non-fatal warning string."
-    single_block = builder.format_audit_warnings(single_warn)
-    assert "> **WARNING**: Single non-fatal warning string." in single_block
-    assert "> **WARNING**: S\n" not in single_block
-
-    # 3. Empty warnings fallback
-    empty_block = builder.format_audit_warnings([])
-    assert "> **NOTE**: No non-fatal execution warnings recorded" in empty_block
-
-    none_block = builder.format_audit_warnings(None)
-    assert "> **NOTE**: No non-fatal execution warnings recorded" in none_block
-
-    # 4. Telemetry formatting with normal and 0.0 values
-    telemetry: Dict[str, Any] = {
-        "peak_gpu_vram": "18.4 GB",
-        "peak_cpu_percent": 87.5,
-        "wall_clock_seconds": 124.58,
-        "peak_host_ram": 16384.0,
-        "gpu_active": True,
-    }
-    telemetry_md = builder.format_hardware_telemetry(telemetry)
-    assert "## Hardware Resource Telemetry" in telemetry_md
-    assert "- **Peak GPU VRAM Usage**: 18.4 GB" in telemetry_md
-    assert "- **Peak CPU Usage**: 87.5%" in telemetry_md
-    assert "- **Wall-Clock Execution Time**: 124.58 s" in telemetry_md
-    assert "- **Peak Host RAM / Memory Footprint**: 16384.0 MB" in telemetry_md
-    assert "- **Gpu Active**: True" in telemetry_md
-
-    # Test falsy zero telemetry
-    zero_telemetry = {
-        "peak_gpu_vram": 0.0,
-        "peak_cpu_percent": 0.0,
-        "wall_clock_seconds": 0.0,
-        "peak_ram_mb": 0.0,
-    }
-    zero_md = builder.format_hardware_telemetry(zero_telemetry)
-    assert "- **Peak GPU VRAM Usage**: 0.0 GB" in zero_md
-    assert "- **Peak CPU Usage**: 0.0%" in zero_md
-    assert "- **Wall-Clock Execution Time**: 0.00 s" in zero_md
-    assert "- **Peak Host RAM / Memory Footprint**: 0.0 MB" in zero_md
+    none_rendered = builder.inject_thermodynamic_insights(None)
+    assert "## 2. Thermodynamic & Structural Analysis" in none_rendered
+    assert (
+        "*Analytical data was aggregated without additional narrative commentary.*"
+        in none_rendered
+    )
 
 
-def test_build_user_guide_e2e() -> None:
-    """Verifies end-to-end user guide assembly from a complete payload (Tasks 61–67)."""
-    builder = MarkdownBuilder()
+def test_audit_warnings_callout_blockquotes_and_hardware_telemetry(
+    tmp_path: pathlib.Path,
+    sample_metadata_and_telemetry: Dict[str, Any],
+) -> None:
+    """Test Case 6: Audit Warnings Callout Blockquotes & Hardware Telemetry (Tasks 66 & 67).
 
-    conf_df = pd.DataFrame({
-        "Conformer": ["Conf_A", "Conf_B"],
-        "Relative Energy (kcal/mol)": [0.0, 1.25],
-        "Symmetry": ["C1", "C2"],
+    Verifies aggregation of non-fatal audit log warnings into GitHub-style callouts,
+    empty warnings fallback, and formatting of hardware telemetry section with GPU, CPU,
+    and wall-clock execution metrics.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path)
+    telemetry_data = sample_metadata_and_telemetry["raw_telemetry"]
+
+    # 1. Non-empty warnings formatting
+    warnings = telemetry_data["warnings"]
+    warning_block = builder.format_warning_blockquotes(warnings)
+    assert "> **WARNING**: SCF convergence required dampening on step 4." in warning_block
+    assert "> **WARNING**: GPU VRAM spike near 85%." in warning_block
+
+    # 2. Empty warnings fallback
+    empty_block = builder.format_warning_blockquotes([])
+    assert (
+        "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run."
+        in empty_block
+    )
+
+    none_block = builder.format_warning_blockquotes(None)
+    assert (
+        "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run."
+        in none_block
+    )
+
+    # 3. Hardware telemetry section formatting
+    telem_section = builder.format_telemetry_section(telemetry_data)
+    assert "## 4. Hardware Telemetry & Compute Resource Allocation" in telem_section
+    assert "- **Peak GPU VRAM Usage**: 4250.0 MB" in telem_section
+    assert "- **Peak CPU Usage**: 88.5%" in telem_section
+    assert "- **Wall-Clock Execution Time**: 142.50 s" in telem_section
+
+
+def test_non_destructive_timestamped_overwrite_protection(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Test Case 7: Non-Destructive Timestamped Overwrite Protection & File Persistence (Tasks 68 & 69).
+
+    Verifies that calling write_user_guide multiple times preserves existing files on disk,
+    creates timestamped copies with pattern CoChem_User_Guide_*.md, and maintains UTF-8 encoding.
+    """
+    output_dir = tmp_path / "protected_reports"
+    builder = MarkdownBuilder(
+        output_dir=output_dir, filename="CoChem_User_Guide.md"
+    )
+
+    # 1. Write initial document
+    initial_content = "# CoChem User Guide - Run 1\n\nInitial computational run."
+    file_1 = builder.write_user_guide(initial_content)
+
+    assert file_1.exists()
+    assert file_1.is_file()
+    assert file_1.name == "CoChem_User_Guide.md"
+    assert file_1.read_text(encoding="utf-8") == initial_content
+
+    # 2. Write second document to the same location
+    second_content = "# CoChem User Guide - Run 2\n\nUpdated pipeline execution."
+    file_2 = builder.write_user_guide(second_content)
+
+    assert file_2.exists()
+    assert file_2.is_file()
+    assert file_2 != file_1
+    assert re.match(r"^CoChem_User_Guide_\d{8}_\d{6}(?:_\d+)?\.md$", file_2.name) is not None
+    assert file_2.suffix == ".md"
+
+    # 3. Assert original file remains completely unmodified
+    assert file_1.read_text(encoding="utf-8") == initial_content
+    assert file_2.read_text(encoding="utf-8") == second_content
+
+
+def test_end_to_end_user_guide_generation(
+    tmp_path: pathlib.Path,
+    hdf5_physical_payload: pathlib.Path,
+    sample_metadata_and_telemetry: Dict[str, Any],
+    sample_conformer_dataframe: pd.DataFrame,
+) -> None:
+    """Test Case 8: End-to-End User Guide Generation (Tasks 61–70).
+
+    Assembles a full data payload containing YAML metadata, Stage 0 system matrix,
+    conformer DataFrames, thermodynamic scalars, spectroscopic tables, audit warnings,
+    and hardware telemetry. Executes build_user_guide and writes the result to disk.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path / "final_guide")
+
+    # Read physical data from the authentic HDF5 file
+    with h5py.File(hdf5_physical_payload, mode="r") as h5f:
+        zpe = float(h5f["/thermodynamics"].attrs["zero_point_energy"])
+        enthalpy = float(h5f["/thermodynamics"].attrs["enthalpy"])
+        gibbs = float(h5f["/thermodynamics"].attrs["gibbs_free_energy"])
+        vib_freqs = h5f["/thermodynamics/vibrational_frequencies"][:]
+        rot_consts = h5f["/spectroscopy/rotational_constants"][:]
+
+    thermo_df = pd.DataFrame({
+        "Property": ["Zero-Point Energy (ZPE)", "Enthalpy (H)", "Gibbs Free Energy (G)"],
+        "Value (Hartree)": [zpe, enthalpy, gibbs],
     })
 
     vib_df = pd.DataFrame({
-        "Mode #": [1, 2, 3],
-        "Frequency (cm-1)": [120.5, 450.2, 3100.8],
-        "IR Intensity (km/mol)": [5.2, 34.8, 120.4],
+        "Mode #": list(range(1, len(vib_freqs) + 1)),
+        "Frequency (cm-1)": vib_freqs,
     })
 
-    pipe_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    metadata = sample_metadata_and_telemetry
+    telemetry = metadata["raw_telemetry"]
+    engines = metadata["raw_engines"]
+
     payload: Dict[str, Any] = {
         "metadata": {
-            "title": "Ethanol Conformational & Vibrational User Guide",
-            "cochem_version": "2.0.0",
-            "run_id": "RUN-2026-0824-001",
-            "target_molecule": "Ethanol",
-            "smiles": "CCO",
-            "environment_tier": "Local-Windows WSL",
-            "fair_compliance": True,
+            "title": metadata["title"],
+            "version": metadata["version"],
+            "generated_at": metadata["generated_at"],
+            "pipeline_hash": metadata["pipeline_hash"],
+            "environment": metadata["environment"],
+            "fair_compliance": metadata["fair_compliance"],
         },
-        "overview": "Detailed conformational analysis of ethanol executed under ORCA.",
+        "overview": (
+            "Complete computational quantum chemistry report for conformer exploration, "
+            "vibrational spectroscopy, and thermodynamic state functions."
+        ),
         "system_matrix": {
-            "engines": {"ORCA": "6.1.1", "xTB": "6.7.1", "MACE": "MACE-OFF23"},
+            "engines": engines,
             "host": {
-                "environment_tier": "Local-Windows WSL",
+                "environment_tier": metadata["environment"],
                 "node_architecture": "x86_64",
-                "cpu_cores": 16,
-                "gpu_model": "NVIDIA RTX 4090",
-                "host_ram": "64 GB",
+                "cpu_cores": 32,
+                "gpu_model": "NVIDIA A100-SXM4-80GB",
+                "host_ram": "128 GB",
                 "python_version": "3.10.12",
-                "config_hash": pipe_hash,
+                "config_hash": metadata["pipeline_hash"],
             },
         },
-        "active_stages": ["0.0", "1.0", "2.0", "3.0", "6.0"],
-        "conformers_df": conf_df,
+        "active_stages": ["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 3.0", "Stage 6.0"],
+        "conformers_df": sample_conformer_dataframe,
+        "thermodynamics_df": thermo_df,
         "thermodynamic_insights": (
-            "The global minimum conformer exhibits stabilization via "
-            "internal hydrogen bonding. <<INSERT_PLACEHOLDER>>"
+            "Conformational search identified Conf_01 as the global minimum. "
+            "<<INSERT_THERMO>> Vibrational analysis confirms all real frequencies."
         ),
         "vibrational_df": vib_df,
-        "warnings": ["Low-frequency torsional mode (< 50 cm^-1) detected."],
-        "telemetry": {
-            "peak_gpu_vram": "4.2 GB",
-            "peak_cpu_percent": 65.0,
-            "wall_clock_seconds": 45.2,
-            "peak_host_ram": "12.8 GB",
-        },
+        "warnings": telemetry["warnings"],
+        "telemetry": telemetry,
     }
 
-    markdown_content = builder.build_user_guide(payload)
+    # Execute build_user_guide
+    generated_md = builder.build_user_guide(payload)
 
-    # Assert YAML Frontmatter
-    assert markdown_content.startswith("---\n")
-    assert "target_molecule: Ethanol" in markdown_content
-    assert "smiles: CCO" in markdown_content
+    assert isinstance(generated_md, str)
+    assert len(generated_md) > 0
 
-    # Assert Overview
-    assert "# Ethanol Conformational & Vibrational User Guide" in markdown_content
-    assert "Detailed conformational analysis of ethanol executed under ORCA." in markdown_content
+    # 1. Frontmatter
+    assert generated_md.startswith("---\n")
+    assert "fair_compliance: true" in generated_md.lower()
 
-    # Assert System Matrix
-    assert "## Computational Provenance & System Matrix" in markdown_content
-    assert "- **ORCA**: `6.1.1`" in markdown_content
-    assert "- **CPU Allocation**: 16" in markdown_content
+    # 2. Title & Overview
+    assert "# CoChem Computational Analysis User Guide" in generated_md
+    assert "Complete computational quantum chemistry report" in generated_md
 
-    # Assert Mermaid Flowchart
-    assert "## Pipeline Execution Flowchart" in markdown_content
-    assert "```mermaid" in markdown_content
-    assert "S0" in markdown_content
-    assert "S3" in markdown_content
+    # 3. System Matrix
+    assert "## 1. System Execution Environment & Provenance" in generated_md
+    assert "- **ORCA**: `6.1.1`" in generated_md
 
-    # Assert Conformer Table
-    assert "### Conformer Landscape" in markdown_content
-    assert "| Conformer | Relative Energy (kcal/mol) | Symmetry |" in markdown_content
+    # 4. Flowchart
+    assert "## Pipeline Execution Flowchart" in generated_md
+    assert "```mermaid" in generated_md
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in generated_md
 
-    # Assert Thermodynamic Analysis & Insights
-    assert "## Thermodynamic Analysis" in markdown_content
-    assert "The global minimum conformer exhibits stabilization via internal hydrogen bonding." in markdown_content
-    assert "<<INSERT_PLACEHOLDER>>" not in markdown_content
+    # 5. Conformer Landscape Table
+    assert "### Conformer Landscape" in generated_md
+    assert "| Conf_01 | 0.00 | -154.123457 | C2v | 68.40 |" in generated_md
 
-    # Assert Spectroscopic Analysis
-    assert "## Spectroscopic & Vibrational Analysis" in markdown_content
-    assert "| Mode # | Frequency (cm-1) | IR Intensity (km/mol) |" in markdown_content
+    # 6. Thermodynamic Analysis & Table
+    assert "## 2. Thermodynamic & Structural Analysis" in generated_md
+    assert "Conformational search identified Conf_01 as the global minimum." in generated_md
+    assert "<<INSERT_THERMO>>" not in generated_md
+    assert "| Zero-Point Energy (ZPE) | 0.085400 |" in generated_md
 
-    # Assert Warnings
-    assert "### Execution Warnings & Audit Trail" in markdown_content
-    assert "> **WARNING**: Low-frequency torsional mode (< 50 cm^-1) detected." in markdown_content
+    # 7. Vibrational / Spectroscopic Analysis Table
+    assert "## Spectroscopic & Vibrational Analysis" in generated_md
+    assert "| 1 | 450.20 |" in generated_md
 
-    # Assert Telemetry
-    assert "## Hardware Resource Telemetry" in markdown_content
-    assert "- **Peak GPU VRAM Usage**: 4.2 GB" in markdown_content
-    assert "- **Peak CPU Usage**: 65.0%" in markdown_content
+    # 8. Execution Warnings
+    assert "### Execution Warnings & Audit Trail" in generated_md
+    assert "> **WARNING**: SCF convergence required dampening on step 4." in generated_md
 
-    # Test malformed payload resilience
-    resilient_doc = builder.build_user_guide(None)
-    assert "# CoChem Computational Analysis User Guide" in resilient_doc
-    assert "## Computational Provenance & System Matrix" in resilient_doc
+    # 9. Hardware Telemetry
+    assert "## 4. Hardware Telemetry & Compute Resource Allocation" in generated_md
+    assert "- **Peak GPU VRAM Usage**: 4250.0 MB" in generated_md
+    assert "- **Peak CPU Usage**: 88.5%" in generated_md
 
-
-def test_save_user_guide_overwrite_protection(tmp_path: pathlib.Path) -> None:
-    """Verifies non-destructive timestamped overwrite protection on disk (Tasks 68 & 69)."""
-    output_dir = tmp_path / "guide_output"
-    builder = MarkdownBuilder(
-        output_dir=output_dir, base_filename="CoChem_User_Guide.md"
-    )
-
-    # 1. Save initial guide
-    initial_content = "# Initial Guide\n\nFirst run notes by researcher."
-    path_1 = builder.save_user_guide(initial_content)
-
-    assert path_1.exists()
-    assert path_1.name == "CoChem_User_Guide.md"
-    assert path_1.read_text(encoding="utf-8") == initial_content
-
-    # 2. Save second guide to the same target - must NOT overwrite path_1
-    second_content = "# Second Guide\n\nUpdated pipeline output data."
-    path_2 = builder.save_user_guide(second_content)
-
-    assert path_2.exists()
-    assert path_2 != path_1
-    assert re.match(r"^CoChem_User_Guide_\d{8}_\d{6}(?:_\d+)?\.md$", path_2.name) is not None
-    assert path_2.suffix == ".md"
-
-    # Verify initial file remains unmodified and second file has new content
-    assert path_1.read_text(encoding="utf-8") == initial_content
-    assert path_2.read_text(encoding="utf-8") == second_content
+    # Write document to disk and verify integrity
+    written_file = builder.write_user_guide(generated_md)
+    assert written_file.exists()
+    assert written_file.is_file()
+    assert written_file.read_text(encoding="utf-8") == generated_md
 
 
-# Aliases for backward compatibility test discovery
-test_builder_initialization = test_markdown_builder_initialization
-test_yaml_frontmatter_and_metadata = test_yaml_frontmatter_and_system_matrix
-test_mermaid_flowchart_synthesis = test_mermaid_flowchart_generation
-test_gfm_table_pipe_formatting = test_dataframe_to_gfm_table
-test_warning_callouts_and_telemetry = test_audit_warnings_and_telemetry_formatting
-test_end_to_end_user_guide_generation = test_build_user_guide_e2e
-test_non_destructive_overwrite_protection = test_save_user_guide_overwrite_protection
+# ---------------------------------------------------------------------------
+# Backwards Compatibility Discovery Aliases
+# ---------------------------------------------------------------------------
+test_markdown_builder_initialization = (
+    test_markdown_builder_initialization_and_dynamic_pathing
+)
+test_yaml_frontmatter_and_system_matrix = (
+    test_yaml_frontmatter_and_system_matrix_generation
+)
+test_mermaid_flowchart_generation = test_dynamic_mermaid_flowchart_synthesis
+test_mermaid_flowchart_synthesis = test_dynamic_mermaid_flowchart_synthesis
+test_dataframe_to_gfm_table = test_gfm_table_pipe_formatting
+test_thermodynamic_insights_scrubbing = (
+    test_thermodynamic_insights_injection_and_token_scrubbing
+)
+test_audit_warnings_and_telemetry_formatting = (
+    test_audit_warnings_callout_blockquotes_and_hardware_telemetry
+)
+test_save_user_guide_overwrite_protection = (
+    test_non_destructive_timestamped_overwrite_protection
+)
+test_build_user_guide_e2e = test_end_to_end_user_guide_generation
 

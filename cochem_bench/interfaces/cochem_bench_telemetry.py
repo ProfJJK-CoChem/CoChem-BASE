@@ -1,33 +1,41 @@
 #!/usr/bin/env python3
-r"""Stage 6.0 / 7.0: Context-Compression & Streaming Telemetry Engine.
+r"""Stage 6.0 / 7.0 & Task 3: Telemetry, State Reflection & Crash-Proofing Engine.
 
 Authoritative Implementation: cochem_bench.interfaces.cochem_bench_telemetry
 System Domain: CoChem-BENCH Interface Layer & Telemetry Perimeter
 
 Key Capabilities:
-1. ContextCompressor:
+1. Stateless Rehydration (The "Zombie UI" Protocol):
+   - Execution logic handoff to SubprocessBroker using cross-platform process group
+     detachment orchestrated via psutil.
+   - Dynamic path inspection of $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/Logs/bench_run_state.jsonl.
+   - Rehydrates active stage progress, SCF cycles, energy history, and variance from active NDJSON streams.
+2. Context-Compression Stream Integration:
    - Intercepts massive raw metric arrays (e.g. DIIS error vectors, SCF energy histories)
      and mathematically downsamples them into compact statistical summaries
      (Min, Max, Mean, Variance, Last Value) before transmission.
-   - Largest-Triangle-Three-Buckets (LTTB) decimation algorithm for plotting continuous
-     convergence curves while capping payloads to < 1,000 points.
-2. NDJSONStreamer:
-   - Broadcasts compressed telemetry via lightweight NDJSON (Newline Delimited JSON)
-     to Jupyter frontend / Voila dashboard using asynchronous polling.
-   - Zero-Interruption / Detachment Invariant: If frontend disconnects, calculation continues
-     uninterrupted in the air-gapped workspace.
-3. NanInfInterceptor:
-   - Exact RegEx hooks on live standard output stream catching NaN, Inf, and linear dependence.
-   - Specifically traps literal "Lowest eigenvalue of the overlap matrix" and extracts float value;
-     if < 1e-6, alerts backend and creates a 0-byte ABORT.signal file in $SCRATCH workspace.
-4. Air-Gap & Mendeleev Dynamic Integration:
+   - Polls lightweight NDJSON stream and renders summaries using asynchronous debouncing
+     on a fixed interval (e.g. 2.0 seconds).
+3. Live Asymptotic Convergence Plotting:
+   - Uses plotly.graph_objects.FigureWidget (or Figure fallback) to graph energy residuals (|ΔE|).
+   - Utilizes Largest-Triangle-Three-Buckets (LTTB) visual decimation algorithm
+     if dataset exceeds 1,000 points, preserving visual extrema and curve geometry.
+4. Fatal Error Interception:
+   - ZeroMQ heartbeat subscriber monitoring and drop detection.
+   - Intercepts cross-platform OS Segfaults (139, -11, 0xC0000005, 3221225477, -1073741819)
+     and OOM (137, -9).
+   - Generates high-visibility red HTML readout and structured JSON-LD recovery instructions
+     from the provenance block ([M], [D], [E]) alongside exact 256-byte stderr hex-dump.
+   - Traps numerical instability ("Lowest eigenvalue of the overlap matrix" < 1e-6, NaN, Inf)
+     and creates a 0-byte ABORT.signal in $SCRATCH.
+5. Air-Gap & Mendeleev Dynamic Integration:
    - Dynamic path resolution via COCHEM_ARTIFACTS_DIR without hardcoded paths.
    - Dynamic atomic mass retrieval via the Mendeleev library.
 
 Authoritative References:
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt2_telemetry.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task3_telemetry.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\.improved\Perfected_Task 3 Interactive UI (Jupyter) & Voila GUI Specifications.md
 - D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 7 Thread-Safe Atomic IO & Context-Compression.txt
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 2 File Inventory & Deliverable Capabilities Manifest (Part 2 Interface Layer & Core System Bridges).txt
 - D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
 """
 
@@ -35,19 +43,55 @@ from __future__ import annotations
 
 import collections
 import datetime
+import html
 import json
 import logging
 import math
 import os
 import re
+import subprocess
+import sys
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import numpy as np
+import plotly.graph_objects as go
+import psutil
+import zmq
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
+
+
+# ==============================================================================
+# Constant Definitions & Fatal Exit Codes
+# ==============================================================================
+
+# Segmentation fault return codes across POSIX and Windows NT platforms
+# POSIX: -11 (-signal.SIGSEGV), 139 (128 + 11)
+# Windows NT STATUS_ACCESS_VIOLATION (0xC0000005):
+#   - Hex: 0xC0000005
+#   - Unsigned 32-bit: 3221225477
+#   - Signed 32-bit: -1073741819
+SEGFAULT_RETURN_CODES: Set[int] = {
+    -11,
+    139,
+    3221225477,
+    -1073741819,
+    0xC0000005,
+}
+
+# Out Of Memory (OOM) kill codes
+# POSIX: -9 (-signal.SIGKILL), 137 (128 + 9)
+OOM_RETURN_CODES: Set[int] = {
+    -9,
+    137,
+}
+
+# Combined fatal return codes set
+ALL_FATAL_RETURN_CODES: Set[int] = SEGFAULT_RETURN_CODES | OOM_RETURN_CODES
 
 
 # ==============================================================================
@@ -83,6 +127,19 @@ def get_logs_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> 
     return logs_path
 
 
+def get_bench_logs_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the dynamic BENCH Logs directory ($ARTIFACTS/BENCH_Workspace/Logs)."""
+    base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+    bench_logs_path = base / "BENCH_Workspace" / "Logs"
+    bench_logs_path.mkdir(parents=True, exist_ok=True)
+    return bench_logs_path
+
+
+def get_bench_run_state_path(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the path to bench_run_state.jsonl in $ARTIFACTS/BENCH_Workspace/Logs."""
+    return get_bench_logs_workspace_dir(artifacts_dir) / "bench_run_state.jsonl"
+
+
 def get_element_mass_mendeleev(symbol: str) -> float:
     """Dynamically retrieves the atomic mass of an element via the Mendeleev library."""
     elem_obj = element(symbol)
@@ -93,7 +150,7 @@ def get_element_mass_mendeleev(symbol: str) -> float:
 
 
 # ==============================================================================
-# Pydantic Models for Telemetry and Summaries
+# Pydantic Schemas for Telemetry, State Rehydration & Fatal Reports
 # ==============================================================================
 
 class StatisticalSummary(BaseModel):
@@ -141,6 +198,41 @@ class InterceptionAlert(BaseModel):
     )
 
 
+class RehydratedRunState(BaseModel):
+    """Pydantic model representing state rehydrated from bench_run_state.jsonl."""
+    model_config = ConfigDict(frozen=True)
+
+    stage: str = Field(description="Active execution stage identifier")
+    scf_cycle: int = Field(default=0, description="Current SCF iteration count")
+    progress_percent: float = Field(default=0.0, description="Overall pipeline completion percentage")
+    current_energy: float = Field(default=0.0, description="Latest calculated energy value")
+    energy_history: List[float] = Field(default_factory=list, description="Historical energy sequence")
+    variance: float = Field(default=0.0, description="Variance of energy fluctuations or residuals")
+    pid: Optional[int] = Field(default=None, description="Active compute process ID")
+    status: str = Field(default="RUNNING", description="Pipeline status (RUNNING, COMPLETE, ERROR)")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the last recorded state frame",
+    )
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary engine metadata")
+
+
+class FatalErrorReport(BaseModel):
+    """Structured report representing a fatal crash or intercepted error."""
+    model_config = ConfigDict(frozen=True)
+
+    is_fatal: bool = Field(default=True, description="Always True for fatal error reports")
+    error_type: str = Field(description="Error classification: SEGMENTATION_FAULT, OUT_OF_MEMORY, etc.")
+    exit_code: Optional[int] = Field(default=None, description="Integer process exit code")
+    stderr_hex_dump: str = Field(description="Exact 256-byte hexadecimal dump of stderr")
+    red_html_readout: str = Field(description="High-visibility HTML warning markup")
+    json_ld_provenance: Dict[str, Any] = Field(description="Structured JSON-LD recovery instructions")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the crash report",
+    )
+
+
 # ==============================================================================
 # LTTB Decimation Algorithm
 # ==============================================================================
@@ -173,31 +265,24 @@ def decimate_lttb(
     if n_points <= max_points or max_points < 3:
         return x_arr.copy(), y_arr.copy()
 
-    # Output arrays
     out_x = np.empty(max_points, dtype=np.float64)
     out_y = np.empty(max_points, dtype=np.float64)
 
-    # Always include the first point
     out_x[0] = x_arr[0]
     out_y[0] = y_arr[0]
 
-    # Number of intermediate buckets
     bucket_size = (n_points - 2) / (max_points - 2)
-
-    a_idx = 0  # Point A index in previous bucket
+    a_idx = 0
 
     for i in range(max_points - 2):
-        # Current bucket B range [b_start, b_end)
         b_start = int(math.floor((i + 0) * bucket_size)) + 1
         b_end = int(math.floor((i + 1) * bucket_size)) + 1
         b_end = min(b_end, n_points - 1)
 
-        # Next bucket C range [c_start, c_end) to compute average point C
         c_start = int(math.floor((i + 1) * bucket_size)) + 1
         c_end = int(math.floor((i + 2) * bucket_size)) + 1
         c_end = min(c_end, n_points)
 
-        # Average coordinates of bucket C
         if c_end > c_start:
             avg_c_x = float(np.mean(x_arr[c_start:c_end]))
             avg_c_y = float(np.mean(y_arr[c_start:c_end]))
@@ -205,12 +290,9 @@ def decimate_lttb(
             avg_c_x = float(x_arr[-1])
             avg_c_y = float(y_arr[-1])
 
-        # Point A coordinates
         p_a_x = x_arr[a_idx]
         p_a_y = y_arr[a_idx]
 
-        # Find point in bucket B that maximizes triangle area (A, B, C)
-        # Area = 0.5 * |(Ax - Cx)(By - Ay) - (Ax - Bx)(Cy - Ay)|
         max_area = -1.0
         max_idx = b_start
 
@@ -230,7 +312,6 @@ def decimate_lttb(
         out_y[i + 1] = y_arr[max_idx]
         a_idx = max_idx
 
-    # Always include the last point
     out_x[-1] = x_arr[-1]
     out_y[-1] = y_arr[-1]
 
@@ -242,32 +323,18 @@ def decimate_lttb(
 # ==============================================================================
 
 class ContextCompressor:
-    """Mathematical downsampler reducing massive numeric arrays into statistical summaries.
-
-    Protects Jupyter frontend DOM and AI context windows from overflow.
-    """
+    """Mathematical downsampler reducing massive numeric arrays into statistical summaries."""
 
     def __init__(self, array_threshold: int = 50, lttb_max_points: int = 1000) -> None:
         self.array_threshold = int(array_threshold)
         self.lttb_max_points = int(lttb_max_points)
 
     def compress_array(self, values: Union[Sequence[float], np.ndarray]) -> StatisticalSummary:
-        """Compresses a 1D or multi-dimensional numeric sequence into a StatisticalSummary.
-
-        Args:
-            values: Sequence of floats or numpy array.
-
-        Returns:
-            StatisticalSummary instance with Min, Max, Mean, Variance, Last Value, and count.
-
-        Raises:
-            ValueError: If the sequence is empty.
-        """
+        """Compresses a numeric sequence into a StatisticalSummary."""
         arr = np.asarray(values, dtype=np.float64).ravel()
         if arr.size == 0:
             raise ValueError("Cannot compress empty array.")
 
-        # Compute exact statistics
         arr_min = float(np.min(arr))
         arr_max = float(np.max(arr))
         arr_mean = float(np.mean(arr))
@@ -284,10 +351,7 @@ class ContextCompressor:
         )
 
     def compress_to_dict(self, values: Union[Sequence[float], np.ndarray]) -> Dict[str, float]:
-        """Compresses a sequence into the exact 5-key dictionary matching SRS Task 7.2.1.
-
-        Keys: Array_Min, Array_Max, Array_Mean, Array_Variance, Last_Value.
-        """
+        """Compresses a sequence into the exact 5-key dictionary matching SRS Task 7.2.1."""
         summary = self.compress_array(values)
         return {
             "Array_Min": summary.Array_Min,
@@ -318,15 +382,7 @@ class ContextCompressor:
         payload: Dict[str, Any],
         array_threshold: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Recursively intercepts large arrays in a dictionary payload and compresses them.
-
-        Args:
-            payload: Input dictionary (e.g. telemetry frame, job status).
-            array_threshold: Minimum element count to trigger compression (default: self.array_threshold).
-
-        Returns:
-            New dictionary with large arrays replaced by statistical summary dictionaries.
-        """
+        """Recursively intercepts large arrays in a dictionary payload and compresses them."""
         threshold = array_threshold if array_threshold is not None else self.array_threshold
         compressed: Dict[str, Any] = {}
 
@@ -339,7 +395,6 @@ class ContextCompressor:
                     else:
                         compressed[k] = v
                 except (ValueError, TypeError):
-                    # Non-numeric list/array remains intact
                     compressed[k] = v
             elif isinstance(v, dict):
                 compressed[k] = self.compress_payload(v, array_threshold=threshold)
@@ -354,12 +409,7 @@ class ContextCompressor:
 # ==============================================================================
 
 class NDJSONStreamer:
-    """Asynchronous polling and lightweight NDJSON broadcasting streamer.
-
-    Broadcasts real-time telemetry updates to Jupyter/Voila dashboards.
-    Implements the Zero-Interruption / Detachment invariant: calculations continue
-    uninterrupted in the air-gapped workspace even if the frontend disconnects.
-    """
+    """Asynchronous polling and lightweight NDJSON broadcasting streamer."""
 
     def __init__(
         self,
@@ -376,21 +426,21 @@ class NDJSONStreamer:
 
     @property
     def is_detached(self) -> bool:
-        """Returns True if the frontend has safely detached from the streamer."""
+        """Returns True if frontend is safely detached."""
         return self._is_detached
 
     def detach(self) -> None:
-        """Safely detaches the streamer from the frontend without interrupting compute."""
+        """Detaches frontend consumer without interrupting backend compute."""
         self._is_detached = True
-        logger.info("NDJSONStreamer: Frontend detached. Telemetry spools to local air-gap buffer.")
+        logger.info("NDJSONStreamer: Frontend detached.")
 
     def attach(self) -> None:
-        """Re-attaches an active frontend consumer."""
+        """Re-attaches frontend consumer."""
         self._is_detached = False
         logger.info("NDJSONStreamer: Frontend re-attached.")
 
     def resolve_log_path(self, filename: str = "telemetry.ndjson") -> Path:
-        """Resolves destination path for telemetry.ndjson in the Logs workspace."""
+        """Resolves destination path for telemetry.ndjson in Logs workspace."""
         logs_dir = get_logs_workspace_dir(self.artifacts_dir)
         return logs_dir / filename
 
@@ -403,19 +453,7 @@ class NDJSONStreamer:
         log_file: Optional[Union[str, Path]] = None,
         auto_compress: bool = True,
     ) -> str:
-        """Constructs, buffers, and optionally persists a single NDJSON event.
-
-        Args:
-            event_type: Classification string (e.g. SCF_ITERATION, STAGE_PROGRESS).
-            data: Payload dictionary.
-            node_id: Identifier of the compute node.
-            write_to_disk: If True, appends the line to the NDJSON log file.
-            log_file: Optional explicit file path override.
-            auto_compress: If True, compresses arrays larger than threshold in data.
-
-        Returns:
-            The single-line NDJSON formatted string (with trailing newline).
-        """
+        """Constructs, buffers, and optionally persists a single NDJSON event."""
         payload_data = self.compressor.compress_payload(data) if auto_compress else data
 
         event = TelemetryEvent(
@@ -428,10 +466,7 @@ class NDJSONStreamer:
         event_dict["_event_index"] = self._total_events_emitted
         self._total_events_emitted += 1
 
-        # Store in in-memory ring buffer for async polling
         self.buffer.append(event_dict)
-
-        # Format as strict NDJSON single line
         ndjson_line = json.dumps(event_dict, ensure_ascii=False) + "\n"
 
         if write_to_disk:
@@ -447,15 +482,7 @@ class NDJSONStreamer:
         since_index: int = 0,
         max_items: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        """Asynchronously polls buffered events since a given event index.
-
-        Args:
-            since_index: Starting event sequence index.
-            max_items: Optional ceiling on number of returned events.
-
-        Returns:
-            List of event dictionaries matching criteria.
-        """
+        """Polls buffered events since a given event sequence index."""
         results: List[Dict[str, Any]] = []
         for item in self.buffer:
             idx = item.get("_event_index", 0)
@@ -470,15 +497,7 @@ class NDJSONStreamer:
         log_file: Optional[Union[str, Path]] = None,
         from_byte_offset: int = 0,
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Incrementally reads newly appended NDJSON lines from disk.
-
-        Args:
-            log_file: Path to the NDJSON file (defaults to telemetry.ndjson in Logs).
-            from_byte_offset: Starting byte position for tail reading.
-
-        Returns:
-            Tuple of (list_of_parsed_event_dicts, next_byte_offset).
-        """
+        """Incrementally reads newly appended NDJSON lines from disk."""
         target_path = Path(log_file).resolve() if log_file else self.resolve_log_path()
         if not target_path.exists():
             return [], from_byte_offset
@@ -494,43 +513,346 @@ class NDJSONStreamer:
                 if stripped:
                     try:
                         events.append(json.loads(stripped))
-                    except json.JSONDecodeError:
-                        pass
+                    except json.JSONDecodeError as e:
+                        logger.debug("Skipping unparseable NDJSON line: %s", e)
             next_offset = f.tell()
 
         return events, next_offset
 
 
 # ==============================================================================
-# 3. NanInfInterceptor
+# 3. Stateless Rehydration (Zombie UI Protocol)
+# ==============================================================================
+
+class StatelessRehydrator:
+    """Implements the Zombie UI Protocol for session recovery and process detachment.
+
+    Inspects $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/Logs/bench_run_state.jsonl to
+    rehydrate progress bars, energy graphs, and active compute states.
+    """
+
+    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+
+    def resolve_state_file(self) -> Path:
+        """Resolves path to bench_run_state.jsonl in BENCH_Workspace/Logs."""
+        return get_bench_run_state_path(self.artifacts_dir)
+
+    def check_active_run_state(self) -> bool:
+        """Returns True if bench_run_state.jsonl exists and contains state records."""
+        state_file = self.resolve_state_file()
+        if not state_file.exists():
+            return False
+        return state_file.stat().st_size > 0
+
+    def rehydrate_state(self) -> RehydratedRunState:
+        """Parses bench_run_state.jsonl and builds a RehydratedRunState object.
+
+        Raises:
+            FileNotFoundError: If the state file does not exist.
+            ValueError: If the state file contains no valid JSON records.
+        """
+        state_file = self.resolve_state_file()
+        if not state_file.exists():
+            raise FileNotFoundError(f"Active run state log not found at {state_file}")
+
+        last_record: Optional[Dict[str, Any]] = None
+        with open(state_file, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped:
+                    try:
+                        last_record = json.loads(stripped)
+                    except json.JSONDecodeError as e:
+                        logger.debug("Skipping unparseable state line: %s", e)
+
+        if last_record is None:
+            raise ValueError(f"State file at {state_file} contains no valid JSON lines.")
+
+        energy_hist = last_record.get("energy_history", [])
+        variance = 0.0
+        if energy_hist and len(energy_hist) > 1:
+            variance = float(np.var(np.array(energy_hist, dtype=np.float64)))
+
+        return RehydratedRunState(
+            stage=str(last_record.get("stage", "UNKNOWN_STAGE")),
+            scf_cycle=int(last_record.get("scf_cycle", 0)),
+            progress_percent=float(last_record.get("progress_percent", 0.0)),
+            current_energy=float(last_record.get("current_energy", 0.0)),
+            energy_history=list(energy_hist),
+            variance=variance,
+            pid=int(last_record.get("pid")) if last_record.get("pid") is not None else None,
+            status=str(last_record.get("status", "RUNNING")),
+            timestamp=str(last_record.get("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat())),
+            metadata=dict(last_record.get("metadata", {})),
+        )
+
+    def handoff_to_subprocess_broker(
+        self,
+        cmd: Sequence[str],
+        initial_stage: str = "STAGE_0_BOOTSTRAP",
+        cwd: Optional[Union[str, Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Hands off workload to detached background process group using psutil.
+
+        Cross-platform isolation:
+        - Windows: creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+        - POSIX: start_new_session=True
+
+        Writes initial state frame to bench_run_state.jsonl.
+        """
+        launch_env = os.environ.copy()
+        if env:
+            launch_env.update(env)
+
+        working_dir = str(cwd) if cwd else None
+
+        kwargs: Dict[str, Any] = {
+            "cwd": working_dir,
+            "env": launch_env,
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+
+        if sys.platform == "win32":
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            kwargs["creationflags"] = creationflags
+        else:
+            kwargs["start_new_session"] = True
+
+        proc = subprocess.Popen(list(cmd), **kwargs)
+
+        state_file = self.resolve_state_file()
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+
+        initial_record = {
+            "stage": initial_stage,
+            "scf_cycle": 0,
+            "progress_percent": 0.0,
+            "current_energy": 0.0,
+            "energy_history": [],
+            "pid": proc.pid,
+            "status": "RUNNING",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+        with open(state_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(initial_record) + "\n")
+
+        return {
+            "pid": proc.pid,
+            "state_file": str(state_file),
+            "status": "DETACHED_RUNNING",
+        }
+
+    def is_broker_process_alive(self, pid: int) -> bool:
+        """Verifies liveness of the broker process via psutil."""
+        if not psutil.pid_exists(pid):
+            return False
+        try:
+            p = psutil.Process(pid)
+            return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.debug("Process %s is no longer accessible: %s", pid, e)
+            return False
+
+
+# ==============================================================================
+# 4. Context-Compression Stream Integration
+# ==============================================================================
+
+class ContextCompressionStreamIntegrator:
+    """Asynchronously polls lightweight NDJSON streams and renders debounced statistical summaries."""
+
+    def __init__(
+        self,
+        debounce_interval: float = 2.0,
+        compressor: Optional[ContextCompressor] = None,
+    ) -> None:
+        self.debounce_interval = float(debounce_interval)
+        self.compressor = compressor or ContextCompressor()
+        self._last_render_time: float = 0.0
+        self._buffered_energies: List[float] = []
+        self._latest_stage: str = "INITIALIZING"
+        self._latest_scf_cycle: int = 0
+        self._latest_progress: float = 0.0
+
+    def process_stream_events(
+        self,
+        events: List[Dict[str, Any]],
+        current_time: Optional[float] = None,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """Processes a batch of NDJSON events with debounced statistical compression."""
+        now = time.time() if current_time is None else float(current_time)
+
+        for ev in events:
+            data = ev.get("data", {})
+            if "stage" in data:
+                self._latest_stage = str(data["stage"])
+            if "scf_cycle" in data:
+                self._latest_scf_cycle = int(data["scf_cycle"])
+            if "progress_percent" in data:
+                self._latest_progress = float(data["progress_percent"])
+            if "energy" in data:
+                try:
+                    self._buffered_energies.append(float(data["energy"]))
+                except (ValueError, TypeError) as e:
+                    logger.debug("Could not parse energy float: %s", e)
+            if "delta_e" in data:
+                try:
+                    self._buffered_energies.append(float(data["delta_e"]))
+                except (ValueError, TypeError) as e:
+                    logger.debug("Could not parse delta_e float: %s", e)
+
+        if not force and self._last_render_time > 0.0:
+            if (now - self._last_render_time) < self.debounce_interval:
+                return None
+
+        self._last_render_time = now
+
+        energy_arr = np.array(self._buffered_energies, dtype=np.float64) if self._buffered_energies else np.array([0.0])
+        var_val = float(np.var(energy_arr)) if len(energy_arr) > 0 else 0.0
+        summary_dict = self.compressor.compress_to_dict(energy_arr)
+
+        return {
+            "current_stage": self._latest_stage,
+            "scf_cycle": self._latest_scf_cycle,
+            "progress_percent": self._latest_progress,
+            "energy_variance": var_val,
+            "energy_summary": summary_dict,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+    def poll_ndjson_and_render_summary(
+        self,
+        log_file: Union[str, Path],
+        from_byte_offset: int = 0,
+        current_time: Optional[float] = None,
+        force: bool = False,
+    ) -> Tuple[Optional[Dict[str, Any]], int]:
+        """Incrementally tails an NDJSON file and applies debounced statistical rendering."""
+        target_path = Path(log_file).resolve()
+        if not target_path.exists():
+            return None, from_byte_offset
+
+        events: List[Dict[str, Any]] = []
+        with open(target_path, "r", encoding="utf-8") as f:
+            f.seek(from_byte_offset)
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                stripped = line.strip()
+                if stripped:
+                    try:
+                        events.append(json.loads(stripped))
+                    except json.JSONDecodeError as e:
+                        logger.debug("Skipping unparseable NDJSON line: %s", e)
+            next_offset = f.tell()
+
+        if not events:
+            return None, next_offset
+
+        summary = self.process_stream_events(events, current_time=current_time, force=force)
+        return summary, next_offset
+
+
+# ==============================================================================
+# 5. Live Asymptotic Convergence Plotting
+# ==============================================================================
+
+class LiveConvergencePlotter:
+    """Plotly FigureWidget controller for live energy residual convergence graphing."""
+
+    def __init__(self, max_points: int = 1000) -> None:
+        self.max_points = int(max_points)
+
+    def create_figure(self, title: str = "Live Asymptotic Convergence") -> Union[go.FigureWidget, go.Figure]:
+        """Initializes a Plotly FigureWidget (with go.Figure fallback) with scientific styling and log y-axis."""
+        data = [
+            go.Scatter(
+                x=[],
+                y=[],
+                mode="lines+markers",
+                name="Energy Residual |ΔE|",
+                line=dict(color="#00bcd4", width=2),
+                marker=dict(size=4, color="#ffffff"),
+            )
+        ]
+        layout = go.Layout(
+            title=title,
+            xaxis=dict(title="SCF Iteration / Extrapolation Cycle", showgrid=True),
+            yaxis=dict(
+                title="Energy Residual |ΔE| (Hartree)",
+                type="log",
+                exponentformat="e",
+                showgrid=True,
+            ),
+            template="plotly_dark",
+            margin=dict(l=60, r=40, t=50, b=50),
+        )
+        try:
+            return go.FigureWidget(data=data, layout=layout)
+        except Exception as e:
+            logger.debug("FigureWidget initialization deferred to Figure fallback: %s", e)
+            return go.Figure(data=data, layout=layout)
+
+    def update_plot(
+        self,
+        fig: Any,
+        energy_residuals: Union[Sequence[float], np.ndarray],
+        iterations: Optional[Union[Sequence[float], np.ndarray]] = None,
+        max_points: Optional[int] = None,
+    ) -> Tuple[int, int]:
+        """Updates trace data on FigureWidget with LTTB decimation when exceeding max_points.
+
+        Returns:
+            Tuple of (original_point_count, rendered_point_count).
+        """
+        y_arr = np.asarray(energy_residuals, dtype=np.float64)
+        if len(y_arr) == 0:
+            return 0, 0
+
+        if iterations is None:
+            x_arr = np.arange(1, len(y_arr) + 1, dtype=np.float64)
+        else:
+            x_arr = np.asarray(iterations, dtype=np.float64)
+
+        limit = max_points if max_points is not None else self.max_points
+        orig_count = len(y_arr)
+
+        if orig_count > limit:
+            x_rendered, y_rendered = decimate_lttb(x_arr, y_arr, max_points=limit)
+        else:
+            x_rendered, y_rendered = x_arr, y_arr
+
+        if hasattr(fig, "data") and len(fig.data) > 0:
+            try:
+                fig.data[0].x = x_rendered
+                fig.data[0].y = y_rendered
+            except Exception as e:
+                logger.debug("Falling back to update_traces on Figure: %s", e)
+                fig.update_traces(x=x_rendered, y=y_rendered)
+
+        return orig_count, len(y_rendered)
+
+
+# ==============================================================================
+# 6. NanInfInterceptor & Fatal Error Interception
 # ==============================================================================
 
 class NanInfInterceptor:
-    """Live standard output stream scanner with exact RegEx hooks.
+    """Live stdout stream scanner trapping linear dependence, NaN, and Inf anomalies."""
 
-    Traps:
-    1. Linear dependence overlap: "Lowest eigenvalue of the overlap matrix" < 1e-6.
-    2. NaN values in energy/residual outputs.
-    3. Inf / Infinity values in numerical matrices.
-
-    Upon detection, immediately severs the worker process by creating a 0-byte
-    ABORT.signal file in the dynamic $SCRATCH workspace.
-    """
-
-    # Exact RegEx for lowest eigenvalue of overlap matrix
-    # Captures: "Lowest eigenvalue of the overlap matrix : 1.42e-04" or "Lowest eigenvalue of the overlap matrix = 3.85e-07"
     OVERLAP_EIGENVAL_REGEX = re.compile(
         r"Lowest\s+eigenvalue\s+of\s+the\s+overlap\s+matrix\s*[:=]?\s*([+-]?(?:[0-9]*\.[0-9]+|[0-9]+)(?:[eE][+-]?[0-9]+)?)",
         re.IGNORECASE,
     )
-
-    # Exact RegEx for NaN occurrences in numerical stdout tokens
     NAN_REGEX = re.compile(r"\b(?:nan|nan\s+eh)\b", re.IGNORECASE)
-
-    # Exact RegEx for Inf occurrences in numerical stdout tokens
     INF_REGEX = re.compile(r"\b(?:[+-]?inf|[+-]?infinity)\b", re.IGNORECASE)
-
-    # Linear dependence eigenvalue threshold
     LINEAR_DEPENDENCE_THRESHOLD: float = 1e-6
 
     def __init__(
@@ -553,7 +875,6 @@ class NanInfInterceptor:
         """Creates an exact 0-byte ABORT.signal file in the $SCRATCH directory."""
         abort_path = self.get_abort_signal_path()
         abort_path.parent.mkdir(parents=True, exist_ok=True)
-        # Create strict 0-byte file
         abort_path.touch()
         logger.warning("NanInfInterceptor: Created 0-byte ABORT.signal at %s (Reason: %s)", abort_path, reason)
         return abort_path
@@ -569,30 +890,22 @@ class NanInfInterceptor:
             try:
                 abort_path.unlink()
                 return True
-            except OSError:
+            except OSError as e:
+                logger.debug("Failed to unlink ABORT.signal: %s", e)
                 return False
         return False
 
     def scan_line(self, line: str) -> Optional[InterceptionAlert]:
-        """Scans a single standard output line against exact regex hooks.
-
-        Args:
-            line: Single stdout text string.
-
-        Returns:
-            InterceptionAlert if a fatal numerical trap is triggered; None otherwise.
-        """
+        """Scans a single stdout line against exact regex hooks."""
         if not line or not line.strip():
             return None
 
-        # 1. Check Linear Dependence Overlap Eigenvalue
         match_eig = self.OVERLAP_EIGENVAL_REGEX.search(line)
         if match_eig:
             try:
-                val_str = match_eig.group(1)
-                val = float(val_str)
+                val = float(match_eig.group(1))
                 if val < self.eigenvalue_threshold:
-                    abort_path = self.create_abort_signal(reason=f"OVERLAP_EIGENVALUE_{val:.2e}_BELOW_THRESHOLD")
+                    abort_path = self.create_abort_signal(reason=f"OVERLAP_EIGENVAL_{val:.2e}_BELOW_THRESHOLD")
                     return InterceptionAlert(
                         alert_type="LINEAR_DEPENDENCE",
                         raw_line=line.strip(),
@@ -600,12 +913,11 @@ class NanInfInterceptor:
                         abort_triggered=True,
                         abort_file_path=str(abort_path),
                     )
-            except (ValueError, IndexError):
-                pass
+            except (ValueError, IndexError) as e:
+                logger.debug("Could not parse eigenvalue token: %s", e)
 
-        # 2. Check for NaN in stream
         if self.NAN_REGEX.search(line):
-            abort_path = self.create_abort_signal(reason="NAN_DETECTED_IN_STREAM")
+            abort_path = self.create_abort_signal(reason="NAN_DETECTED")
             return InterceptionAlert(
                 alert_type="NAN_DETECTED",
                 raw_line=line.strip(),
@@ -613,9 +925,8 @@ class NanInfInterceptor:
                 abort_file_path=str(abort_path),
             )
 
-        # 3. Check for Inf in stream
         if self.INF_REGEX.search(line):
-            abort_path = self.create_abort_signal(reason="INF_DETECTED_IN_STREAM")
+            abort_path = self.create_abort_signal(reason="INF_DETECTED")
             return InterceptionAlert(
                 alert_type="INF_DETECTED",
                 raw_line=line.strip(),
@@ -633,3 +944,162 @@ class NanInfInterceptor:
             if alert is not None:
                 alerts.append(alert)
         return alerts
+
+
+class FatalErrorInterceptor:
+    """Interception engine monitoring ZMQ heartbeats, Segfaults, OOMs, and numerical anomalies."""
+
+    def __init__(
+        self,
+        artifacts_dir: Optional[Union[str, Path]] = None,
+        nan_inf_interceptor: Optional[NanInfInterceptor] = None,
+    ) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+        self.nan_inf_interceptor = nan_inf_interceptor or NanInfInterceptor(artifacts_dir=self.artifacts_dir)
+
+    def is_fatal_exit_code(self, exit_code: Optional[int]) -> bool:
+        """Returns True if exit code indicates OS Segfault or Out-Of-Memory termination."""
+        if exit_code is None:
+            return False
+        return exit_code in ALL_FATAL_RETURN_CODES
+
+    def check_zmq_heartbeat(self, sub_socket: zmq.Socket, timeout_ms: int = 1000) -> bool:
+        """Polls a ZeroMQ SUB heartbeat socket. Returns True if heartbeat received."""
+        events = sub_socket.poll(timeout=timeout_ms, flags=zmq.POLLIN)
+        if events & zmq.POLLIN:
+            try:
+                sub_socket.recv(flags=zmq.NOBLOCK)
+                return True
+            except zmq.ZMQError as e:
+                logger.debug("Failed non-blocking receive on ZMQ heartbeat socket: %s", e)
+                return False
+        return False
+
+    def extract_stderr_hex_dump(self, stderr_data: Optional[Union[str, bytes]], num_bytes: int = 256) -> str:
+        """Extracts exact 256-byte hexadecimal dump of stderr output."""
+        if stderr_data is None:
+            return "00" * num_bytes
+        if isinstance(stderr_data, str):
+            b_data = stderr_data.encode("utf-8", errors="replace")
+        else:
+            b_data = bytes(stderr_data)
+
+        truncated = b_data[:num_bytes]
+        if len(truncated) < num_bytes:
+            truncated = truncated.ljust(num_bytes, b"\x00")
+        return truncated.hex()
+
+    def generate_red_html_readout(
+        self,
+        error_type: str,
+        exit_code: Optional[int],
+        message: str,
+        hex_dump: str,
+    ) -> str:
+        """Generates high-visibility red HTML crash banner for Jupyter/Voila UI."""
+        safe_msg = html.escape(message)
+        safe_type = html.escape(error_type)
+        safe_hex = html.escape(hex_dump[:64] + ("..." if len(hex_dump) > 64 else ""))
+
+        return (
+            f'<div class="cochem-fatal-crash-card" style="'
+            f'background-color: #8b0000; color: #ffffff; padding: 18px; border: 2px solid #ff4d4d; '
+            f'border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, monospace; '
+            f'margin: 12px 0; box-shadow: 0 4px 12px rgba(255, 77, 77, 0.3);">'
+            f'<h3 style="margin-top: 0; color: #ffcccc; display: flex; align-items: center;">'
+            f'<span style="background-color: #ff4d4d; color: #000000; padding: 2px 8px; border-radius: 4px; '
+            f'font-size: 12px; font-weight: bold; margin-right: 10px;">FATAL ERROR</span> '
+            f'{safe_type}</h3>'
+            f'<p style="margin: 6px 0; font-size: 14px;"><strong>Exit Code:</strong> {exit_code}</p>'
+            f'<p style="margin: 6px 0; font-size: 13px;"><strong>Diagnostic:</strong> {safe_msg}</p>'
+            f'<div style="background-color: #1a0000; padding: 10px; border-radius: 4px; margin-top: 10px; '
+            f'font-family: monospace; font-size: 11px; word-break: break-all; color: #ff9999;">'
+            f'<strong>256-Byte Stderr Hex:</strong> {safe_hex}'
+            f'</div></div>'
+        )
+
+    def generate_jsonld_provenance(
+        self,
+        error_type: str,
+        exit_code: Optional[int],
+        hex_dump: str,
+        provenance_meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Constructs structured JSON-LD recovery instructions from provenance block."""
+        return {
+            "@context": "https://schema.org",
+            "@type": "SoftwareCrashProvenance",
+            "errorType": error_type,
+            "exitCode": exit_code,
+            "stderrHexDump": hex_dump,
+            "provenance": {
+                "methodology": "[M] Method Matrix v4 Standards",
+                "dataset": "[D] Canonical Wavefunction Landscape",
+                "execution": "[E] CoChem-BENCH SubprocessBroker",
+            },
+            "recoveryInstructions": [
+                "Step 1: Reduce integration grid to defgrid1 to relax convergence criteria.",
+                "Step 2: Increase physical memory ceiling in cochem_system_config.json.",
+                "Step 3: Remove orphaned lock files in BENCH_Workspace/Logs and restart benchmark.",
+            ],
+            "metadata": provenance_meta or {},
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+    def intercept_fatal_error(
+        self,
+        exit_code: Optional[int] = None,
+        stderr_bytes: Optional[Union[str, bytes]] = None,
+        error_classification: Optional[str] = None,
+        provenance_meta: Optional[Dict[str, Any]] = None,
+    ) -> FatalErrorReport:
+        """Constructs complete FatalErrorReport from exit code and standard error dump."""
+        err_type = error_classification or ("SEGMENTATION_FAULT" if exit_code in SEGFAULT_RETURN_CODES else "FATAL_CRASH")
+        hex_dump = self.extract_stderr_hex_dump(stderr_bytes)
+        red_html = self.generate_red_html_readout(
+            error_type=err_type,
+            exit_code=exit_code,
+            message="Fatal OS-level fault or process abort detected.",
+            hex_dump=hex_dump,
+        )
+        json_ld = self.generate_jsonld_provenance(
+            error_type=err_type,
+            exit_code=exit_code,
+            hex_dump=hex_dump,
+            provenance_meta=provenance_meta,
+        )
+        return FatalErrorReport(
+            is_fatal=True,
+            error_type=err_type,
+            exit_code=exit_code,
+            stderr_hex_dump=hex_dump,
+            red_html_readout=red_html,
+            json_ld_provenance=json_ld,
+        )
+
+    def intercept_line(self, line: str) -> Optional[FatalErrorReport]:
+        """Scans line for numerical instability (lowest eigenvalue < 1e-6, NaN, Inf)."""
+        alert = self.nan_inf_interceptor.scan_line(line)
+        if alert is None:
+            return None
+
+        hex_dump = self.extract_stderr_hex_dump(line)
+        red_html = self.generate_red_html_readout(
+            error_type=alert.alert_type,
+            exit_code=-1,
+            message=f"Numerical Trap Intercepted: {alert.raw_line}",
+            hex_dump=hex_dump,
+        )
+        json_ld = self.generate_jsonld_provenance(
+            error_type=alert.alert_type,
+            exit_code=-1,
+            hex_dump=hex_dump,
+        )
+        return FatalErrorReport(
+            is_fatal=True,
+            error_type=alert.alert_type,
+            exit_code=-1,
+            stderr_hex_dump=hex_dump,
+            red_html_readout=red_html,
+            json_ld_provenance=json_ld,
+        )

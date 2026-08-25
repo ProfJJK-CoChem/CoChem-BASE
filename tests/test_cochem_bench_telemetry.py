@@ -1,51 +1,69 @@
 #!/usr/bin/env python3
-r"""Authentic Unit Test Suite for CoChem Stage 6.0 / 7.0 Context-Compression & Streaming Engine.
+r"""Authentic Unit Test Suite for CoChem Stage 6.0 / 7.0 & Task 3 Telemetry Engine.
 
 Module: tests/test_cochem_bench_telemetry.py
 Target Implementation: cochem_bench.interfaces.cochem_bench_telemetry
 
-Tests:
-1. ContextCompressor:
-   - Statistical downsampling of massive raw metric arrays (DIIS error vectors, SCF energy fluctuations).
-   - Exact calculation of Min, Max, Mean, Variance, Last Value.
-   - Largest-Triangle-Three-Buckets (LTTB) visual decimation for continuous curves.
-   - Frame/payload level compression with array threshold gating.
-   - Edge case robustness (single element, constant array, extreme values).
-2. NDJSONStreamer:
-   - Formatting and streaming of lightweight NDJSON events with ISO 8601 timestamps.
-   - Asynchronous polling from in-memory ring buffer.
-   - Non-blocking disk streaming and incremental tail reading.
-   - Safe detachment invariant when frontend disconnects without disrupting backend compute.
-3. NanInfInterceptor:
-   - Exact RegEx trapping of "Lowest eigenvalue of the overlap matrix" with float extraction.
-   - Linear dependence threshold evaluation (< 1e-6).
-   - RegEx trapping of NaN and Inf occurrences in live standard output stream.
-   - Creation and validation of exact 0-byte ABORT.signal in dynamic $SCRATCH workspace.
-   - Air-gap resolution via COCHEM_ARTIFACTS_DIR environment variable.
-4. Mendeleev Dynamic Integration:
-   - Atomic mass resolution dynamically querying the Mendeleev database.
+Covers Task 3 Specs & Protocols:
+1. Stateless Rehydration (Zombie UI Protocol):
+   - Dynamic path resolution via COCHEM_ARTIFACTS_DIR for $ARTIFACTS/BENCH_Workspace/Logs/bench_run_state.jsonl.
+   - Rehydration of stage progress, SCF cycles, energy history, variance, and active PIDs from NDJSON.
+   - Cross-platform process group detachment handoff using psutil.
+   - Real-world process liveness verification.
+2. Context-Compression Stream Integration:
+   - Polling lightweight NDJSON stream.
+   - Statistical compression of massive numeric arrays (Min, Max, Mean, Variance, Last Value).
+   - Asynchronous debouncing on a fixed interval (e.g. 2.0 seconds).
+   - Incremental byte-offset tail reading.
+3. Live Asymptotic Convergence Plotting:
+   - Plotly FigureWidget / Figure initialization with logarithmic scaling and scientific styling.
+   - Largest-Triangle-Three-Buckets (LTTB) decimation algorithm for datasets > 1,000 points.
+   - Preservation of visual extrema and curve geometry under decimation.
+4. Fatal Error Interception:
+   - ZeroMQ heartbeat subscriber monitoring and timeout/drop detection.
+   - Cross-platform OS Segfault (-11, 139, 0xC0000005, 3221225477, -1073741819) and OOM (137, -9) trapping.
+   - Exact 256-byte stderr hex-dump extraction.
+   - High-visibility red HTML crash readout.
+   - Structured JSON-LD recovery instructions from provenance block ([M], [D], [E]).
+   - Numerical instability trapping (overlap eigenvalue < 1e-6, NaN, Inf) with 0-byte ABORT.signal in $SCRATCH.
+5. Dynamic Mendeleev Integration:
+   - Atomic mass queries dynamically resolved via the Mendeleev library.
 
-Authoritative References:
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt2_telemetry.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 7 Thread-Safe Atomic IO & Context-Compression.txt
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 2 File Inventory & Deliverable Capabilities Manifest (Part 2 Interface Layer & Core System Bridges).txt
-- D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+Safety & Anti-Spoofing Contracts:
+- Zero Mocks / Stubs: Uses 100% genuine OS processes, real sockets, and filesystem state.
+- Dynamic environment variable resolution via COCHEM_ARTIFACTS_DIR.
 """
 
 from __future__ import annotations
 
 import json
+import os
+import sys
+import time
 from pathlib import Path
+from typing import Any, Dict, List
 
 import numpy as np
+import plotly.graph_objects as go
+import psutil
 import pytest
+import zmq
 
 from cochem_bench.interfaces.cochem_bench_telemetry import (
     ContextCompressor,
+    ContextCompressionStreamIntegrator,
+    FatalErrorReport,
+    FatalErrorInterceptor,
+    LiveConvergencePlotter,
     NanInfInterceptor,
     NDJSONStreamer,
+    RehydratedRunState,
     StatisticalSummary,
+    StatelessRehydrator,
+    TelemetryEvent,
     decimate_lttb,
+    get_bench_logs_workspace_dir,
+    get_bench_run_state_path,
     get_cochem_artifacts_dir,
     get_element_mass_mendeleev,
     get_logs_workspace_dir,
@@ -56,7 +74,7 @@ from cochem_bench.interfaces.cochem_bench_telemetry import (
 # Authentic Molecular & SCF Convergence Test Fixtures
 # ==============================================================================
 
-# Authentic 50-cycle SCF energy convergence sequence for Water (H2O) at B3LYP/def2-TZVP
+# Authentic 15-cycle SCF energy convergence sequence for Water (H2O) at B3LYP/def2-TZVP
 H2O_SCF_ENERGIES = [
     -75.8201452, -76.3129841, -76.4021984, -76.4258912, -76.4310245,
     -76.4320018, -76.4321782, -76.4322051, -76.4322094, -76.4322101,
@@ -81,7 +99,306 @@ def clean_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 # ==============================================================================
-# 1. ContextCompressor Tests
+# 1. Stateless Rehydration (Zombie UI Protocol) Tests
+# ==============================================================================
+
+class TestStatelessRehydration:
+    """Tests for Zombie UI Protocol: session recovery and process detachment."""
+
+    def test_dynamic_bench_logs_path_resolution(self, clean_env: Path):
+        """Verifies dynamic resolution of $ARTIFACTS/BENCH_Workspace/Logs/bench_run_state.jsonl."""
+        logs_dir = get_bench_logs_workspace_dir()
+        expected_dir = clean_env / "BENCH_Workspace" / "Logs"
+        assert logs_dir.resolve() == expected_dir.resolve()
+        assert logs_dir.exists()
+
+        state_file = get_bench_run_state_path()
+        assert state_file.resolve() == (expected_dir / "bench_run_state.jsonl").resolve()
+
+    def test_check_active_run_state_missing(self, clean_env: Path):
+        """Verifies check_active_run_state returns False when no log exists."""
+        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
+        assert rehydrator.check_active_run_state() is False
+
+    def test_rehydrate_state_from_valid_jsonl(self, clean_env: Path):
+        """Verifies parsing of bench_run_state.jsonl into a RehydratedRunState model."""
+        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
+        state_file = get_bench_run_state_path(clean_env)
+
+        records = [
+            {
+                "stage": "STAGE_1_GEOMETRY_INGEST",
+                "scf_cycle": 1,
+                "progress_percent": 10.0,
+                "current_energy": -75.8201452,
+                "energy_history": [-75.8201452],
+                "pid": 12345,
+                "status": "RUNNING",
+                "timestamp": "2026-08-24T20:00:00Z",
+            },
+            {
+                "stage": "STAGE_2_CBS_EXTRAPOLATION",
+                "scf_cycle": 15,
+                "progress_percent": 65.0,
+                "current_energy": -76.4322102,
+                "energy_history": H2O_SCF_ENERGIES,
+                "pid": 12345,
+                "status": "RUNNING",
+                "timestamp": "2026-08-24T20:05:00Z",
+            },
+        ]
+        with open(state_file, "w", encoding="utf-8") as f:
+            for r in records:
+                f.write(json.dumps(r) + "\n")
+
+        assert rehydrator.check_active_run_state() is True
+        state = rehydrator.rehydrate_state()
+
+        assert isinstance(state, RehydratedRunState)
+        assert state.stage == "STAGE_2_CBS_EXTRAPOLATION"
+        assert state.scf_cycle == 15
+        assert state.progress_percent == 65.0
+        assert pytest.approx(state.current_energy, rel=1e-7) == -76.4322102
+        assert state.pid == 12345
+        assert state.status == "RUNNING"
+        assert len(state.energy_history) == len(H2O_SCF_ENERGIES)
+        assert state.variance > 0.0
+
+    def test_handoff_to_subprocess_broker_process_group_detachment(self, clean_env: Path):
+        """Verifies cross-platform process group detachment handoff orchestrated via psutil."""
+        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
+
+        cmd = [sys.executable, "-c", "import time; time.sleep(0.5)"]
+        launch_result = rehydrator.handoff_to_subprocess_broker(
+            cmd=cmd,
+            initial_stage="STAGE_0_BOOTSTRAP",
+        )
+
+        pid = launch_result["pid"]
+        assert pid > 0
+        assert psutil.pid_exists(pid)
+
+        state_file = get_bench_run_state_path(clean_env)
+        assert state_file.exists()
+        assert rehydrator.check_active_run_state() is True
+
+        assert rehydrator.is_broker_process_alive(pid) is True
+
+        proc = psutil.Process(pid)
+        proc.wait(timeout=3.0)
+        assert rehydrator.is_broker_process_alive(pid) is False
+
+
+# ==============================================================================
+# 2. Context-Compression Stream Integration Tests
+# ==============================================================================
+
+class TestContextCompressionStreamIntegrator:
+    """Tests for NDJSON stream debouncing and statistical aggregation."""
+
+    def test_debounced_processing_interval(self):
+        """Verifies that high-frequency events within debounce window are aggregated."""
+        integrator = ContextCompressionStreamIntegrator(debounce_interval=2.0)
+
+        events_batch_1 = [
+            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 1, "delta_e": 0.05, "energy": -75.8}},
+            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 2, "delta_e": 0.02, "energy": -76.3}},
+        ]
+        summary1 = integrator.process_stream_events(events_batch_1, current_time=100.0)
+        assert summary1 is not None
+        assert summary1["current_stage"] == "CBS"
+        assert summary1["scf_cycle"] == 2
+
+        events_batch_2 = [
+            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 3, "delta_e": 0.005, "energy": -76.4}},
+        ]
+        summary2 = integrator.process_stream_events(events_batch_2, current_time=101.0)
+        assert summary2 is None
+
+        events_batch_3 = [
+            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 4, "delta_e": 0.001, "energy": -76.43}},
+        ]
+        summary3 = integrator.process_stream_events(events_batch_3, current_time=102.5)
+        assert summary3 is not None
+        assert summary3["scf_cycle"] == 4
+        assert summary3["energy_variance"] >= 0.0
+        assert "energy_summary" in summary3
+
+    def test_poll_ndjson_and_render_summary_from_disk(self, clean_env: Path):
+        """Verifies reading live NDJSON stream from disk and computing debounced summaries."""
+        streamer = NDJSONStreamer(artifacts_dir=clean_env)
+        integrator = ContextCompressionStreamIntegrator(debounce_interval=0.0)
+
+        streamer.emit_event(
+            "SCF_ITERATION",
+            {"stage": "CBS_EXTRAPOLATION", "scf_cycle": 1, "energy": -76.0, "delta_e": 0.1},
+            write_to_disk=True,
+        )
+        streamer.emit_event(
+            "SCF_ITERATION",
+            {"stage": "CBS_EXTRAPOLATION", "scf_cycle": 2, "energy": -76.4, "delta_e": 0.01},
+            write_to_disk=True,
+        )
+
+        log_path = streamer.resolve_log_path()
+        summary, next_offset = integrator.poll_ndjson_and_render_summary(log_path, from_byte_offset=0)
+
+        assert summary is not None
+        assert summary["current_stage"] == "CBS_EXTRAPOLATION"
+        assert summary["scf_cycle"] == 2
+        assert next_offset > 0
+
+
+# ==============================================================================
+# 3. Live Asymptotic Convergence Plotting Tests
+# ==============================================================================
+
+class TestLiveConvergencePlotter:
+    """Tests for Plotly FigureWidget / Figure creation and LTTB decimation."""
+
+    def test_create_figure_widget(self):
+        """Verifies creation and structural properties of Plotly Figure."""
+        plotter = LiveConvergencePlotter()
+        fig = plotter.create_figure(title="Test Convergence")
+
+        assert isinstance(fig, (go.FigureWidget, go.Figure))
+        assert len(fig.data) >= 1
+        assert fig.layout.yaxis.type == "log"
+        assert "Energy Residual" in fig.layout.yaxis.title.text
+
+    def test_update_plot_under_1000_points(self):
+        """Verifies updating plot with dataset smaller than 1000 points without decimation."""
+        plotter = LiveConvergencePlotter()
+        fig = plotter.create_figure()
+
+        residuals = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
+        orig_count, render_count = plotter.update_plot(fig, residuals)
+
+        assert orig_count == 6
+        assert render_count == 6
+        assert len(fig.data[0].y) == 6
+        assert list(fig.data[0].y) == residuals
+
+    def test_update_plot_lttb_decimation_over_1000_points(self):
+        """Verifies LTTB decimation strictly caps rendered points to 1000 while preserving extrema."""
+        plotter = LiveConvergencePlotter()
+        fig = plotter.create_figure()
+
+        x = np.linspace(0, 100, 2500)
+        y = np.abs(np.sin(x)) + 1e-5
+        y[500] = 10.0
+        y[1500] = 1e-8
+
+        orig_count, render_count = plotter.update_plot(fig, y, max_points=1000)
+
+        assert orig_count == 2500
+        assert render_count == 1000
+        assert len(fig.data[0].y) == 1000
+        assert pytest.approx(max(fig.data[0].y), rel=1e-4) == 10.0
+        assert pytest.approx(min(fig.data[0].y), rel=1e-4) == 1e-8
+
+
+# ==============================================================================
+# 4. Fatal Error Interception Tests
+# ==============================================================================
+
+class TestFatalErrorInterceptor:
+    """Tests for ZeroMQ heartbeat monitoring, exit code interception, and red screen JSON-LD generation."""
+
+    def test_exit_code_recognition_segfault_and_oom(self):
+        """Verifies recognition of cross-platform segfault and OOM return codes."""
+        interceptor = FatalErrorInterceptor()
+
+        assert interceptor.is_fatal_exit_code(139) is True
+        assert interceptor.is_fatal_exit_code(-11) is True
+        assert interceptor.is_fatal_exit_code(3221225477) is True
+        assert interceptor.is_fatal_exit_code(-1073741819) is True
+        assert interceptor.is_fatal_exit_code(0xC0000005) is True
+        assert interceptor.is_fatal_exit_code(137) is True
+        assert interceptor.is_fatal_exit_code(-9) is True
+        assert interceptor.is_fatal_exit_code(0) is False
+
+    def test_zmq_heartbeat_roundtrip_and_timeout(self):
+        """Verifies genuine ZeroMQ heartbeat transmission, reception, and drop detection."""
+        context = zmq.Context()
+        endpoint = "inproc://telemetry_heartbeat_test"
+
+        pub_sock = context.socket(zmq.PUB)
+        pub_sock.bind(endpoint)
+
+        sub_sock = context.socket(zmq.SUB)
+        sub_sock.connect(endpoint)
+        sub_sock.setsockopt_string(zmq.SUBSCRIBE, "")
+
+        interceptor = FatalErrorInterceptor()
+
+        time.sleep(0.05)
+        pub_sock.send_json({"heartbeat": True, "timestamp": time.time()})
+
+        is_alive = interceptor.check_zmq_heartbeat(sub_sock, timeout_ms=500)
+        assert is_alive is True
+
+        is_alive_timeout = interceptor.check_zmq_heartbeat(sub_sock, timeout_ms=100)
+        assert is_alive_timeout is False
+
+        pub_sock.close()
+        sub_sock.close()
+        context.term()
+
+    def test_intercept_fatal_error_red_screen_and_jsonld(self, clean_env: Path):
+        """Verifies generation of red HTML readout, 256-byte stderr hex dump, and structured JSON-LD."""
+        interceptor = FatalErrorInterceptor(artifacts_dir=clean_env)
+
+        raw_stderr = (
+            b"FATAL ORCA 6.1.1 CORE DUMP: SIGSEGV at address 0x00007FF7C0000005\n"
+            b"Diagnostic: Memory fault during Fock matrix diagonalization.\n"
+            + b"X" * 300
+        )
+
+        report = interceptor.intercept_fatal_error(
+            exit_code=139,
+            stderr_bytes=raw_stderr,
+            error_classification="SEGMENTATION_FAULT",
+        )
+
+        assert isinstance(report, FatalErrorReport)
+        assert report.is_fatal is True
+        assert report.error_type == "SEGMENTATION_FAULT"
+        assert report.exit_code == 139
+
+        assert len(report.stderr_hex_dump) == 512
+        assert report.stderr_hex_dump == raw_stderr[:256].hex()
+
+        assert "<div" in report.red_html_readout
+        assert "background-color" in report.red_html_readout
+        assert "FATAL ERROR" in report.red_html_readout
+        assert report.stderr_hex_dump[:16] in report.red_html_readout
+
+        json_ld = report.json_ld_provenance
+        assert json_ld["@context"] == "https://schema.org"
+        assert json_ld["@type"] == "SoftwareCrashProvenance"
+        assert json_ld["exitCode"] == 139
+        assert "provenance" in json_ld
+        assert "[M]" in json_ld["provenance"]["methodology"]
+        assert len(json_ld["recoveryInstructions"]) >= 3
+
+    def test_intercept_numerical_instability(self, clean_env: Path):
+        """Verifies intercepting linear dependence overlap < 1e-6 and triggering fatal report."""
+        interceptor = FatalErrorInterceptor(artifacts_dir=clean_env)
+        line = "Lowest eigenvalue of the overlap matrix : 1.25e-08"
+
+        report = interceptor.intercept_line(line)
+        assert report is not None
+        assert report.is_fatal is True
+        assert report.error_type == "LINEAR_DEPENDENCE"
+        assert "Lowest eigenvalue of the overlap matrix" in report.red_html_readout
+
+        scratch_dir = get_scratch_workspace_dir(clean_env)
+        assert (scratch_dir / "ABORT.signal").exists()
+
+
+# ==============================================================================
+# 5. Existing Base Engine Tests (Backward Compatibility)
 # ==============================================================================
 
 class TestContextCompressor:
@@ -161,12 +478,10 @@ class TestContextCompressor:
 
     def test_lttb_decimation_preserves_extrema(self):
         """Verifies that LTTB algorithm decimates large curves while strictly preserving extrema."""
-        # 1000-point SCF oscillation curve with distinct peak and valley
         x = np.linspace(0, 100, 1000)
         y = np.sin(x) * np.exp(-x / 30.0)
-        # Inject deliberate sharp extrema
-        y[250] = 5.0   # Sharp peak
-        y[750] = -5.0  # Sharp valley
+        y[250] = 5.0
+        y[750] = -5.0
 
         dec_x, dec_y = decimate_lttb(x, y, max_points=100)
 
@@ -176,7 +491,6 @@ class TestContextCompressor:
         assert dec_x[-1] == x[-1]
         assert dec_y[0] == y[0]
         assert dec_y[-1] == y[-1]
-        # Verify extreme peak and valley were preserved in decimated output
         assert pytest.approx(max(dec_y), rel=1e-5) == 5.0
         assert pytest.approx(min(dec_y), rel=1e-5) == -5.0
 
@@ -197,8 +511,8 @@ class TestContextCompressor:
             "numa_node": 2,
             "status": "RUNNING",
             "scalar_energy": -76.4322,
-            "scf_history": list(range(100)),  # Exceeds threshold -> should compress
-            "small_vector": [1.0, 2.0, 3.0],  # Below threshold -> stays intact
+            "scf_history": list(range(100)),
+            "small_vector": [1.0, 2.0, 3.0],
         }
 
         compressed = compressor.compress_payload(raw_payload)
@@ -209,17 +523,12 @@ class TestContextCompressor:
         assert compressed["scalar_energy"] == -76.4322
         assert compressed["small_vector"] == [1.0, 2.0, 3.0]
 
-        # scf_history should be replaced with a statistical summary dict
         scf_sum = compressed["scf_history"]
         assert isinstance(scf_sum, dict)
         assert scf_sum["Array_Min"] == 0.0
         assert scf_sum["Array_Max"] == 99.0
         assert scf_sum["Last_Value"] == 99.0
 
-
-# ==============================================================================
-# 2. NDJSONStreamer Tests
-# ==============================================================================
 
 class TestNDJSONStreamer:
     """Tests for lightweight NDJSON streaming and asynchronous non-blocking polling."""
@@ -254,7 +563,6 @@ class TestNDJSONStreamer:
         assert events[0]["data"]["step"] == 0
         assert events[-1]["data"]["step"] == 4
 
-        # Poll incremental updates
         new_events = streamer.poll_events(since_index=3)
         assert len(new_events) == 2
         assert new_events[0]["data"]["step"] == 3
@@ -265,7 +573,6 @@ class TestNDJSONStreamer:
         streamer = NDJSONStreamer(artifacts_dir=clean_env)
         log_file = streamer.resolve_log_path()
 
-        # Emit 3 events
         streamer.emit_event("STAGE_START", {"stage": "CBS_EXTRAPOLATION"}, write_to_disk=True)
         streamer.emit_event("STAGE_PROGRESS", {"percent": 50.0}, write_to_disk=True)
         streamer.emit_event("STAGE_COMPLETE", {"status": "SUCCESS"}, write_to_disk=True)
@@ -273,13 +580,11 @@ class TestNDJSONStreamer:
         assert log_file.exists()
         assert log_file.stat().st_size > 0
 
-        # Read first batch
         records, next_offset = streamer.read_stream_file(from_byte_offset=0)
         assert len(records) == 3
         assert records[0]["event_type"] == "STAGE_START"
         assert records[-1]["event_type"] == "STAGE_COMPLETE"
 
-        # Emit 1 more event and read incrementally from offset
         streamer.emit_event("CLEANUP", {"done": True}, write_to_disk=True)
         new_records, final_offset = streamer.read_stream_file(from_byte_offset=next_offset)
         assert len(new_records) == 1
@@ -291,23 +596,16 @@ class TestNDJSONStreamer:
         streamer = NDJSONStreamer()
         assert not streamer.is_detached
 
-        # Frontend disconnect event occurs
         streamer.detach()
         assert streamer.is_detached
 
-        # Emission continues seamlessly without raising errors
         line = streamer.emit_event("BACKGROUND_SCF", {"iter": 12, "e": -100.5})
         assert line is not None
         assert len(streamer.buffer) == 1
 
-        # Reattachment
         streamer.attach()
         assert not streamer.is_detached
 
-
-# ==============================================================================
-# 3. NanInfInterceptor Tests
-# ==============================================================================
 
 class TestNanInfInterceptor:
     """Tests for standard output stream scanning, linear dependence trapping, and ABORT.signal generation."""
@@ -318,7 +616,6 @@ class TestNanInfInterceptor:
         scratch_dir = get_scratch_workspace_dir(clean_env)
         abort_file = scratch_dir / "ABORT.signal"
 
-        # Authentic ORCA linear dependence output line
         line = "Lowest eigenvalue of the overlap matrix : 4.8251e-08"
         alert = interceptor.scan_line(line)
 
@@ -327,7 +624,6 @@ class TestNanInfInterceptor:
         assert pytest.approx(alert.extracted_value, rel=1e-6) == 4.8251e-08
         assert alert.abort_triggered is True
 
-        # CRITICAL VERIFICATION: 0-byte ABORT.signal file must exist in $SCRATCH
         assert abort_file.exists()
         assert abort_file.stat().st_size == 0
 
@@ -337,7 +633,6 @@ class TestNanInfInterceptor:
         scratch_dir = get_scratch_workspace_dir(clean_env)
         abort_file = scratch_dir / "ABORT.signal"
 
-        # Well-conditioned basis set eigenvalue (> 1e-6)
         line = "Lowest eigenvalue of the overlap matrix : 3.4512e-04"
         alert = interceptor.scan_line(line)
 
@@ -404,10 +699,6 @@ class TestNanInfInterceptor:
         assert success is True
         assert interceptor.check_abort_signal() is False
 
-
-# ==============================================================================
-# 4. Air-Gap & Mendeleev Integration Tests
-# ==============================================================================
 
 class TestAirGapAndMendeleev:
     """Tests for dynamic environment variable resolution and Mendeleev mass queries."""

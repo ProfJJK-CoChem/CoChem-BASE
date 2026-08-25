@@ -68,13 +68,13 @@ def _cleanup_zombie_subprocesses() -> None:
                 for child in p_obj.children(recursive=True):
                     try:
                         child.terminate()
-                    except Exception:
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
                         pass
                 p_obj.terminate()
-            except Exception:
+            except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
                 try:
                     proc.kill()
-                except Exception:
+                except (ProcessLookupError, OSError):
                     pass
 
 
@@ -116,11 +116,8 @@ def get_atomic_number(element: str | int) -> int:
 
 def get_atomic_symbol(element: str | int) -> str:
     """Returns canonical IUPAC element symbol for atomic number Z or element symbol."""
-    try:
-        elem = get_mendeleev_element(element)
-        return str(elem.symbol)
-    except Exception:
-        return f"X{element}"
+    elem = get_mendeleev_element(element)
+    return str(elem.symbol)
 
 
 @lru_cache(maxsize=256)
@@ -129,28 +126,25 @@ def get_covalent_radius(element: str | int) -> float:
     Returns empirical single-bond covalent radius in Angstroms dynamically from mendeleev.
     Prioritizes Cordero et al. standard covalent radius (pm / 100), falling back to Pyykko or default.
     """
-    try:
-        elem = get_mendeleev_element(element)
-        cov = elem.covalent_radius_cordero
-        if cov is None:
-            cov = elem.covalent_radius_pyykko
-        if cov is None:
-            cov = elem.covalent_radius
-        if cov is not None:
-            return round(float(cov) / 100.0, 4)
-        return DEFAULT_COVALENT_RADIUS
-    except Exception:
-        return DEFAULT_COVALENT_RADIUS
+    elem = get_mendeleev_element(element)
+    cov = elem.covalent_radius_cordero
+    if cov is None:
+        cov = elem.covalent_radius_pyykko
+    if cov is None:
+        cov = elem.covalent_radius
+    if cov is not None:
+        return round(float(cov) / 100.0, 4)
+    return DEFAULT_COVALENT_RADIUS
 
 
 @lru_cache(maxsize=256)
 def get_atomic_mass(element: str | int) -> float:
     """Returns standard atomic weight in amu dynamically from mendeleev."""
-    try:
-        elem = get_mendeleev_element(element)
-        return float(elem.mass)
-    except Exception:
-        return 12.0
+    elem = get_mendeleev_element(element)
+    mass = elem.mass
+    if mass is None:
+        raise ValueError(f"Could not dynamically retrieve atomic mass from mendeleev for element '{element}'")
+    return float(mass)
 
 
 @lru_cache(maxsize=256)
@@ -159,20 +153,17 @@ def is_transition_or_coordination_metal(element: str | int) -> bool:
     Determines if an element is a transition metal, lanthanide, actinide, or coordination metal center
     capable of forming strong d-block/f-block coordination complexes.
     """
-    try:
-        elem = get_mendeleev_element(element)
-        series = getattr(elem, "series", "")
-        block = getattr(elem, "block", "")
-        z = int(elem.atomic_number)
-        if series in ("Transition metals", "Lanthanides", "Actinides"):
-            return True
-        if block in ("d", "f"):
-            return True
-        if (21 <= z <= 30) or (39 <= z <= 48) or (57 <= z <= 80) or (89 <= z <= 112):
-            return True
-        return False
-    except Exception:
-        return False
+    elem = get_mendeleev_element(element)
+    series = getattr(elem, "series", "")
+    block = getattr(elem, "block", "")
+    z = int(elem.atomic_number)
+    if series in ("Transition metals", "Lanthanides", "Actinides"):
+        return True
+    if block in ("d", "f"):
+        return True
+    if (21 <= z <= 30) or (39 <= z <= 48) or (57 <= z <= 80) or (89 <= z <= 112):
+        return True
+    return False
 
 
 class _DynamicCovalentRadiiMapping(dict[Any, float]):
@@ -183,7 +174,7 @@ class _DynamicCovalentRadiiMapping(dict[Any, float]):
     def get(self, key: int | str, default: float = DEFAULT_COVALENT_RADIUS) -> float:  # type: ignore[override]
         try:
             return get_covalent_radius(key)
-        except Exception:
+        except (ValueError, KeyError):
             return default
 
     def __contains__(self, key: object) -> bool:
@@ -191,7 +182,7 @@ class _DynamicCovalentRadiiMapping(dict[Any, float]):
             try:
                 get_atomic_number(key)
                 return True
-            except Exception:
+            except (ValueError, KeyError):
                 return False
         return False
 
@@ -201,10 +192,10 @@ class _DynamicAtomicWeightsMapping(dict[Any, float]):
     def __getitem__(self, key: int | str) -> float:
         return get_atomic_mass(key)
 
-    def get(self, key: int | str, default: float = 12.0) -> float:  # type: ignore[override]
+    def get(self, key: int | str, default: float | None = None) -> float | None:  # type: ignore[override]
         try:
             return get_atomic_mass(key)
-        except Exception:
+        except (ValueError, KeyError):
             return default
 
     def __contains__(self, key: object) -> bool:
@@ -212,7 +203,7 @@ class _DynamicAtomicWeightsMapping(dict[Any, float]):
             try:
                 get_atomic_number(key)
                 return True
-            except Exception:
+            except (ValueError, KeyError):
                 return False
         return False
 
@@ -427,7 +418,7 @@ class TopologyAnalysisResult(BaseModel):
         derived from os.environ.get('COCHEM_WORKSPACE') (e.g. ${COCHEM_WORKSPACE}/CoChem_Artifacts/Input_Files/user_seeds/)
         and writes/updates stage_n_complete.json.
         """
-        target_ws: str | Path = workspace if workspace is not None else os.environ.get("COCHEM_WORKSPACE", "D:/__CoChem")
+        target_ws: str | Path = workspace if workspace is not None else os.environ.get("COCHEM_WORKSPACE", str(Path.cwd()))
         ws_path = Path(target_ws)
         user_seeds_dir = ws_path / "CoChem_Artifacts" / "Input_Files" / "user_seeds"
         user_seeds_dir.mkdir(parents=True, exist_ok=True)
@@ -494,12 +485,9 @@ class TopologyGraphEngine:
 
     def get_radius(self, element: str | int) -> float:
         """Retrieves covalent radius for given element, honoring custom overrides or mendeleev."""
-        try:
-            z = get_atomic_number(element)
-            if z in self.custom_radii:
-                return self.custom_radii[z]
-        except Exception:
-            pass
+        z = get_atomic_number(element)
+        if z in self.custom_radii:
+            return self.custom_radii[z]
         return get_covalent_radius(element)
 
     def compute_distance_matrix(self, coordinates: np.ndarray | Sequence[Sequence[float]]) -> np.ndarray:

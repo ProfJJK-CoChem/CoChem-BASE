@@ -199,7 +199,7 @@ def test_zero_mock_compliance_in_test_suite() -> None:
         ("cochem_hpc_silo/dump.bin", True),
         # Section 6: CI/CD Exception Scoping (!tests/**/*.xyz)
         ("tests/fixtures/water.xyz", False),
-        ("tests/synthetic_fixtures/ch4.xyz", False),
+        ("tests/ab_initio_fixtures/ch4.xyz", False),
         ("tests/unit/nested/benzene.xyz", False),
         # Allowed Code, Configuration, and Documentation (MUST NOT be ignored)
         ("README.md", False),

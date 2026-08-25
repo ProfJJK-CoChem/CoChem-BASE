@@ -37,4 +37,3 @@ cochem_*_silo/
 
 # 6. Exception Scoping for CI/CD Pipeline
 !tests/**/*.xyz
-

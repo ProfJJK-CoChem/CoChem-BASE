@@ -1,6 +1,6 @@
 Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task1_gitignore.md.
 Original prompt:
-# Task: Create .gitignore for CoChem-BENCH
+﻿# Task: Create .gitignore for CoChem-BENCH
 
 ## Target File
 `.gitignore` (relative to repo root)
@@ -52,10 +52,6 @@ cochem_*_silo/
 # 6. Exception Scoping for CI/CD Pipeline
 !tests/**/*.xyz
 ```
-
 Modified files content:
-- `.gitignore`
-- `tests/test_cochem_bench_gitignore.py`
-- `pytest.ini`
 
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.
+Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -1,41 +1,61 @@
-# ==============================================================================
-# COCHEM-BENCH FILESYSTEM AIR-GAP POLICY
-# ==============================================================================
+# CoChem-BASE Strict Air-Gap Constraints
 
-# 1. Permanently ignore the dynamically generated Artifact Tier
-CoChem_Artifacts/
-*/CoChem_Artifacts/*
-
-# 2. Ignore all localized registries and state locks
-cochem_system_config.json
-*.lock
-cochem_bench_run_state.jsonl
-
-# 3. Block all heavy quantum chemistry and database tensors
-*.h5
-*.hdf5
-*.gbw
-*.tmp
-*.scf
-*.densities
-*.cube
-*.parquet
-
-# 4. Block telemetry and execution logs
-*.log
-*.out
-*.err
-Logs/
-
-# 5. Block Python Bytecode & Environments
+# 1. Python Cache & Virtual Environments
 __pycache__/
+*.pyc
 *.py[cod]
-*$py.class
+*.class
+.ipynb_checkpoints/
+.cochem_env/
 .env
 .env.*
 !.env.example
 .venv
 cochem_*_silo/
 
-# 6. Exception Scoping for CI/CD Pipeline
+# 2. Absolute blocking of the Artifacts Workspace & Local Compute Overlap
+CoChem_Artifacts/
+*/CoChem_Artifacts/*
+cochem_exec_*/
+
+# 3. Heavy Databases & Quantum Arrays (Prevents repository bloat)
+*.h5
+*.hdf5
+*.parquet
+*.npy
+*.npz
+*.db
+*.sqlite
+*.scf
+*.densities
+*.cube
+
+# 4. Execution Scratch, Telemetry Logs, & HPC Residue
+*.gbw
+*.tmp
+*.chk
+*.opt
+*.lock
+*.log
+*.out
+*.err
+core.*
+slurm-*.out
+runinfo/
+*.parsl
+Logs/
+
+# 5. User Chemical Inputs (Protects proprietary user data)
+*.xyz
+*.mol
+*.smi
+*.pdb
+*.cif
 !tests/**/*.xyz
+
+# 6. Local Registries & States (Prevents cross-machine configuration poisoning)
+*config.json
+cochem_system_config.json
+cochem_audit_log.json
+TOPOS_Runtime_State.json
+cochem_bench_run_state.jsonl

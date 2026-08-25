@@ -7,13 +7,11 @@
   "cochem-coder": {
     "status": "SUCCESS",
     "artifacts": [
-      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.devcontainer\\devcontainer.json",
-      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.devcontainer\\setup_tmpfs.sh",
-      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\tests\\test_cochem_bench_devcontainer.py",
-      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\tests\\test_cochem_bench_ci.py",
+      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.gitignore",
+      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\tests\\test_cochem_bench_gitignore.py",
       "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\pytest.ini"
     ],
-    "timestamp": "2026-08-24T20:49:33-05:00"
+    "timestamp": "2026-08-24T20:55:40-05:00"
   },
   "cochem-audit": {
     "status": "SUCCESS",

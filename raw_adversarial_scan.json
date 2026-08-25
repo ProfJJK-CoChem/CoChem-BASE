@@ -1,0 +1,1525 @@
+{
+  "mocks": [],
+  "stubs_not_implemented": [
+    {
+      "file": "cochem_base/core/cochem_core_workspace_manager.py",
+      "line": 468,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "cochem_geom/data/dataset.py",
+      "line": 207,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 1091,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 1257,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "src/cochem_geom/data/dataset.py",
+      "line": 207,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 1091,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 1257,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "tests/test_cochem_mint.py",
+      "line": 265,
+      "type": "raise NotImplementedError"
+    },
+    {
+      "file": "tests/test_cochem_mint.py",
+      "line": 286,
+      "type": "raise NotImplementedError"
+    }
+  ],
+  "empty_pass_blocks": [
+    {
+      "file": "cochem_base/interfaces/web_streaming.py",
+      "line": 327,
+      "name": "_flush",
+      "type": "function_docstring_only"
+    },
+    {
+      "file": "engines/scribe_engine.py",
+      "line": 191,
+      "name": "generate",
+      "type": "function_docstring_only"
+    },
+    {
+      "file": "engines/scribe_engine.py",
+      "line": 195,
+      "name": "stream",
+      "type": "function_docstring_only"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_export_telemetry.py",
+      "line": 427,
+      "name": "log_message",
+      "type": "function_pass_only"
+    }
+  ],
+  "hardcoded_masses": [
+    {
+      "file": "cochem_tensor_extractor.py",
+      "line": 185,
+      "snippet": "def resolve_atomic_mass(symbol_or_mass: Union[str, float, int]) -> float:"
+    },
+    {
+      "file": "cochem_tensor_extractor.py",
+      "line": 381,
+      "snippet": "masses = np.array([resolve_atomic_mass(s) for s in masses_or_symbols], dtype=np.float64)"
+    },
+    {
+      "file": "cochem_tensor_extractor.py",
+      "line": 625,
+      "snippet": "masses = np.array([resolve_atomic_mass(m) for m in masses_or_symbols], dtype=np.float64)"
+    },
+    {
+      "file": "cochem_tensor_extractor.py",
+      "line": 783,
+      "snippet": "self._masses = [resolve_atomic_mass(s) for s in self._symbols]"
+    },
+    {
+      "file": "cochem_tensor_extractor.py",
+      "line": 893,
+      "snippet": "\"resolve_atomic_mass\","
+    },
+    {
+      "file": "cochem_base/cochem_tensor_extractor.py",
+      "line": 34,
+      "snippet": "resolve_atomic_mass,"
+    },
+    {
+      "file": "cochem_base/cochem_tensor_extractor.py",
+      "line": 55,
+      "snippet": "\"resolve_atomic_mass\","
+    },
+    {
+      "file": "cochem_base/io/atomic_data.py",
+      "line": 324,
+      "snippet": "def get_standard_atomic_weight(query: Union[str, int]) -> float:"
+    },
+    {
+      "file": "cochem_base/io/atomic_data.py",
+      "line": 500,
+      "snippet": "\"get_standard_atomic_weight\","
+    },
+    {
+      "file": "cochem_base/io/molecule_definition.py",
+      "line": 14,
+      "snippet": "from cochem_base.io.atomic_data import get_atomic_data_validator, get_standard_atomic_weight"
+    },
+    {
+      "file": "cochem_base/io/molecule_definition.py",
+      "line": 86,
+      "snippet": "return get_standard_atomic_weight(self.symbol)"
+    },
+    {
+      "file": "cochem_base/io/__init__.py",
+      "line": 25,
+      "snippet": "get_standard_atomic_weight,"
+    },
+    {
+      "file": "cochem_base/io/__init__.py",
+      "line": 284,
+      "snippet": "\"get_standard_atomic_weight\","
+    },
+    {
+      "file": "cochem_geom/data/dataset.py",
+      "line": 85,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "cochem_geom/data/dataset.py",
+      "line": 117,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "cochem_geom/data/dataset.py",
+      "line": 161,
+      "snippet": "_DYNAMIC_MASS_CACHE[key] = get_atomic_mass(symbol_or_z)"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 52,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 152,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 166,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 167,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 195,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 196,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 1097,
+      "snippet": "masses_list = [get_atomic_mass(s) for s in data.symbols]"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 1128,
+      "snippet": "masses_list = [get_atomic_mass(s) for s in data.symbols]"
+    },
+    {
+      "file": "cochem_geom/data/featurizer.py",
+      "line": 1249,
+      "snippet": "else get_atomic_mass(sym)"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 44,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 92,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 106,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 107,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 135,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 136,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/data/geom_parser.py",
+      "line": 1133,
+      "snippet": "masses = [get_atomic_mass(s) for s in symbols]"
+    },
+    {
+      "file": "cochem_geom/data/pyg_schema.py",
+      "line": 36,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "cochem_geom/data/pyg_schema.py",
+      "line": 595,
+      "snippet": "m_list = [get_atomic_mass(int(zi.item())) for zi in self.z]"
+    },
+    {
+      "file": "cochem_geom/data/pyg_schema.py",
+      "line": 653,
+      "snippet": "m_list = [get_atomic_mass(int(zi.item())) for zi in self.z]"
+    },
+    {
+      "file": "cochem_geom/data/__init__.py",
+      "line": 21,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "cochem_geom/data/__init__.py",
+      "line": 59,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "cochem_geom/data/__init__.py",
+      "line": 106,
+      "snippet": "\"ATOMIC_MASS_UNIT_KG\","
+    },
+    {
+      "file": "cochem_geom/data/__init__.py",
+      "line": 174,
+      "snippet": "\"get_atomic_mass\","
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 59,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 170,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 173,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 174,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 192,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 193,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 197,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 201,
+      "snippet": "masses.append(get_atomic_mass(int(z_val)))"
+    },
+    {
+      "file": "cochem_geom/eval/metrics.py",
+      "line": 477,
+      "snippet": "masses = get_atomic_masses(atomic_numbers)  # (..., N)"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 58,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 136,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 150,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 151,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 178,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 179,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "cochem_geom/eval/qm_oracle.py",
+      "line": 637,
+      "snippet": "masses = [get_atomic_mass(s) for s in clean_symbols]"
+    },
+    {
+      "file": "cochem_geom/eval/__init__.py",
+      "line": 34,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "cochem_geom/eval/__init__.py",
+      "line": 70,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "cochem_geom/eval/__init__.py",
+      "line": 131,
+      "snippet": "\"get_atomic_mass\","
+    },
+    {
+      "file": "cochem_geom/eval/__init__.py",
+      "line": 132,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 100,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 168,
+      "snippet": "weight = elem.atomic_weight"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 224,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 267,
+      "snippet": "masses = get_atomic_masses(atomic_numbers).to(device=pos.device, dtype=pos.dtype)"
+    },
+    {
+      "file": "cochem_geom/models/base_gnn.py",
+      "line": 308,
+      "snippet": "m = get_atomic_masses(atomic_numbers).to(device=pos.device, dtype=pos.dtype)"
+    },
+    {
+      "file": "cochem_geom/models/__init__.py",
+      "line": 24,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "cochem_geom/models/__init__.py",
+      "line": 53,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "cochem_geom/training/lightning_module.py",
+      "line": 64,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "cochem_geom/training/lightning_module.py",
+      "line": 130,
+      "snippet": "weight = elem.atomic_weight"
+    },
+    {
+      "file": "cochem_geom/training/lightning_module.py",
+      "line": 145,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "cochem_geom/training/__init__.py",
+      "line": 8,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "cochem_geom/training/__init__.py",
+      "line": 41,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "cochem_geom/training/__init__.py",
+      "line": 48,
+      "snippet": "\"ATOMIC_MASS_UNIT_KG\","
+    },
+    {
+      "file": "cochem_geom/training/__init__.py",
+      "line": 81,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 147,
+      "snippet": "def get_atomic_mass(element: str | int) -> float:"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 202,
+      "snippet": "return get_atomic_mass(key)"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 206,
+      "snippet": "return get_atomic_mass(key)"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 221,
+      "snippet": "ATOMIC_WEIGHTS: dict[int | str, float] = _DynamicAtomicWeightsMapping()"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 634,
+      "snippet": "masses = np.array([get_atomic_mass(z) for z in atomic_numbers], dtype=float)"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 706,
+      "snippet": "masses = np.array([get_atomic_mass(z) for z in atomic_numbers], dtype=float)"
+    },
+    {
+      "file": "cochem_topos/cochem_topos_graph.py",
+      "line": 745,
+      "snippet": "masses = np.array([get_atomic_mass(z) for z in frag_z], dtype=float)"
+    },
+    {
+      "file": "cochem_topos/__init__.py",
+      "line": 12,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "cochem_topos/__init__.py",
+      "line": 34,
+      "snippet": "\"get_atomic_mass\","
+    },
+    {
+      "file": "core/cochem_scribe_master.py",
+      "line": 247,
+      "snippet": "def get_dynamic_atomic_mass(symbol: str) -> float:"
+    },
+    {
+      "file": "core/test_cochem_scribe_master.py",
+      "line": 44,
+      "snippet": "get_dynamic_atomic_mass,"
+    },
+    {
+      "file": "core/test_cochem_scribe_master.py",
+      "line": 518,
+      "snippet": "c_mass = get_dynamic_atomic_mass(\"C\")"
+    },
+    {
+      "file": "core/test_cochem_scribe_master.py",
+      "line": 519,
+      "snippet": "h_mass = get_dynamic_atomic_mass(\"H\")"
+    },
+    {
+      "file": "core/test_cochem_scribe_master.py",
+      "line": 520,
+      "snippet": "n_mass = get_dynamic_atomic_mass(\"N\")"
+    },
+    {
+      "file": "intake/cochem_stage2_ingestor.py",
+      "line": 135,
+      "snippet": "def get_atomic_mass(symbol: str) -> float:"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 45,
+      "snippet": "ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 50,
+      "snippet": "FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 135,
+      "snippet": "def resolve_atomic_masses("
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 223,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 254,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 447,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 611,
+      "snippet": "masses_arr = resolve_atomic_masses(target_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 712,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 819,
+      "snippet": "masses_arr = resolve_atomic_masses(coords, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "intake/cochem_topos_alignment.py",
+      "line": 1018,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=final_symbols)"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 69,
+      "snippet": "ATOMIC_MASS_UNIT_U: float = 1.66053906892e-27  # kg / u (CODATA 2022/2026)"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 73,
+      "snippet": "FACTOR_HZ: float = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 566,
+      "snippet": "_STANDARD_ATOMIC_WEIGHTS: Dict[str, float] = {"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 629,
+      "snippet": "if clean_upper in _STANDARD_ATOMIC_WEIGHTS:"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 630,
+      "snippet": "return _STANDARD_ATOMIC_WEIGHTS[clean_upper]"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 637,
+      "snippet": "if sym_head in _STANDARD_ATOMIC_WEIGHTS:"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 638,
+      "snippet": "return _STANDARD_ATOMIC_WEIGHTS[sym_head]"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 651,
+      "snippet": "def resolve_atomic_masses("
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 704,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 720,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 885,
+      "snippet": "masses_arr = resolve_atomic_masses(coords_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "orchestrator/cochem_setup_phase_10.py",
+      "line": 939,
+      "snippet": "masses_arr = resolve_atomic_masses(target_arr, masses=masses, symbols=symbols)"
+    },
+    {
+      "file": "orchestrator/__init__.py",
+      "line": 272,
+      "snippet": "resolve_atomic_masses,"
+    },
+    {
+      "file": "orchestrator/__init__.py",
+      "line": 552,
+      "snippet": "\"resolve_atomic_masses\","
+    },
+    {
+      "file": "setup/cochem_setup_scribe.py",
+      "line": 601,
+      "snippet": "def get_dynamic_atomic_mass(symbol: str) -> float:"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 48,
+      "snippet": "get_dynamic_atomic_mass,"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 616,
+      "snippet": "c_mass = get_dynamic_atomic_mass(\"C\")"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 617,
+      "snippet": "h_mass = get_dynamic_atomic_mass(\"H\")"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 618,
+      "snippet": "o_mass = get_dynamic_atomic_mass(\"O\")"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 619,
+      "snippet": "n_mass = get_dynamic_atomic_mass(\"N\")"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 620,
+      "snippet": "fe_mass = get_dynamic_atomic_mass(\"Fe\")"
+    },
+    {
+      "file": "setup/test_scribe_phase1.py",
+      "line": 630,
+      "snippet": "get_dynamic_atomic_mass(\"InvalidElementSymbol999\")"
+    },
+    {
+      "file": "src/cochem_geom/data/dataset.py",
+      "line": 85,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "src/cochem_geom/data/dataset.py",
+      "line": 117,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "src/cochem_geom/data/dataset.py",
+      "line": 161,
+      "snippet": "_DYNAMIC_MASS_CACHE[key] = get_atomic_mass(symbol_or_z)"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 52,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 152,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 166,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 167,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 195,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 196,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 1097,
+      "snippet": "masses_list = [get_atomic_mass(s) for s in data.symbols]"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 1128,
+      "snippet": "masses_list = [get_atomic_mass(s) for s in data.symbols]"
+    },
+    {
+      "file": "src/cochem_geom/data/featurizer.py",
+      "line": 1249,
+      "snippet": "else get_atomic_mass(sym)"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 44,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 92,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 106,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 107,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 135,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 136,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/data/geom_parser.py",
+      "line": 1133,
+      "snippet": "masses = [get_atomic_mass(s) for s in symbols]"
+    },
+    {
+      "file": "src/cochem_geom/data/pyg_schema.py",
+      "line": 36,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "src/cochem_geom/data/pyg_schema.py",
+      "line": 595,
+      "snippet": "m_list = [get_atomic_mass(int(zi.item())) for zi in self.z]"
+    },
+    {
+      "file": "src/cochem_geom/data/pyg_schema.py",
+      "line": 653,
+      "snippet": "m_list = [get_atomic_mass(int(zi.item())) for zi in self.z]"
+    },
+    {
+      "file": "src/cochem_geom/data/__init__.py",
+      "line": 21,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "src/cochem_geom/data/__init__.py",
+      "line": 59,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "src/cochem_geom/data/__init__.py",
+      "line": 106,
+      "snippet": "\"ATOMIC_MASS_UNIT_KG\","
+    },
+    {
+      "file": "src/cochem_geom/data/__init__.py",
+      "line": 174,
+      "snippet": "\"get_atomic_mass\","
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 59,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 170,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 173,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 174,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 192,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 193,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 197,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 201,
+      "snippet": "masses.append(get_atomic_mass(int(z_val)))"
+    },
+    {
+      "file": "src/cochem_geom/eval/metrics.py",
+      "line": 477,
+      "snippet": "masses = get_atomic_masses(atomic_numbers)  # (..., N)"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 58,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 136,
+      "snippet": "def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 150,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 151,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 178,
+      "snippet": "if el.atomic_weight is not None:"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 179,
+      "snippet": "return float(el.atomic_weight)"
+    },
+    {
+      "file": "src/cochem_geom/eval/qm_oracle.py",
+      "line": 637,
+      "snippet": "masses = [get_atomic_mass(s) for s in clean_symbols]"
+    },
+    {
+      "file": "src/cochem_geom/eval/__init__.py",
+      "line": 34,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "src/cochem_geom/eval/__init__.py",
+      "line": 70,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "src/cochem_geom/eval/__init__.py",
+      "line": 131,
+      "snippet": "\"get_atomic_mass\","
+    },
+    {
+      "file": "src/cochem_geom/eval/__init__.py",
+      "line": 132,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 100,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 168,
+      "snippet": "weight = elem.atomic_weight"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 224,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 267,
+      "snippet": "masses = get_atomic_masses(atomic_numbers).to(device=pos.device, dtype=pos.dtype)"
+    },
+    {
+      "file": "src/cochem_geom/models/base_gnn.py",
+      "line": 308,
+      "snippet": "m = get_atomic_masses(atomic_numbers).to(device=pos.device, dtype=pos.dtype)"
+    },
+    {
+      "file": "src/cochem_geom/models/egnn.py",
+      "line": 78,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "src/cochem_geom/models/__init__.py",
+      "line": 24,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "src/cochem_geom/models/__init__.py",
+      "line": 61,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "src/cochem_geom/training/lightning_module.py",
+      "line": 64,
+      "snippet": "ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27"
+    },
+    {
+      "file": "src/cochem_geom/training/lightning_module.py",
+      "line": 130,
+      "snippet": "weight = elem.atomic_weight"
+    },
+    {
+      "file": "src/cochem_geom/training/lightning_module.py",
+      "line": 145,
+      "snippet": "def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:"
+    },
+    {
+      "file": "src/cochem_geom/training/__init__.py",
+      "line": 8,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "src/cochem_geom/training/__init__.py",
+      "line": 41,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "src/cochem_geom/training/__init__.py",
+      "line": 48,
+      "snippet": "\"ATOMIC_MASS_UNIT_KG\","
+    },
+    {
+      "file": "src/cochem_geom/training/__init__.py",
+      "line": 81,
+      "snippet": "\"get_atomic_masses\","
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 27,
+      "snippet": "get_dynamic_atomic_mass,"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 306,
+      "snippet": "c_mass = get_dynamic_atomic_mass(\"C\")"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 307,
+      "snippet": "h_mass = get_dynamic_atomic_mass(\"H\")"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 308,
+      "snippet": "o_mass = get_dynamic_atomic_mass(\"O\")"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 309,
+      "snippet": "n_mass = get_dynamic_atomic_mass(\"N\")"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 310,
+      "snippet": "fe_mass = get_dynamic_atomic_mass(\"Fe\")"
+    },
+    {
+      "file": "tests/test_cochem_setup_scribe.py",
+      "line": 320,
+      "snippet": "get_dynamic_atomic_mass(\"InvalidElementSymbol999\")"
+    },
+    {
+      "file": "tests/test_cochem_topos_alignment.py",
+      "line": 108,
+      "snippet": "ATOMIC_MASS_UNIT_U = 1.66053906892e-27  # kg / u (CODATA 2022)"
+    },
+    {
+      "file": "tests/test_cochem_topos_alignment.py",
+      "line": 112,
+      "snippet": "FACTOR_HZ = PLANCK_H / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_U * (ANGSTROM_TO_M ** 2))"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 29,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 76,
+      "snippet": "def test_atomic_mass_dynamic_lookup(self) -> None:"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 78,
+      "snippet": "assert pytest.approx(get_atomic_mass(\"H\"), abs=0.01) == 1.008"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 79,
+      "snippet": "assert pytest.approx(get_atomic_mass(\"C\"), abs=0.01) == 12.011"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 80,
+      "snippet": "assert pytest.approx(get_atomic_mass(\"O\"), abs=0.01) == 15.999"
+    },
+    {
+      "file": "tests/test_cochem_topos_graph.py",
+      "line": 81,
+      "snippet": "assert pytest.approx(get_atomic_mass(\"Fe\"), abs=0.01) == 55.845"
+    },
+    {
+      "file": "tests/test_dataset.py",
+      "line": 82,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_dataset.py",
+      "line": 233,
+      "snippet": "[get_atomic_mass(s) for s in centered.symbols],"
+    },
+    {
+      "file": "tests/test_dataset.py",
+      "line": 568,
+      "snippet": "[get_atomic_mass(s) for s in streamed_items[0].symbols],"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 38,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 76,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 101,
+      "snippet": "assert math.isclose(ATOMIC_MASS_UNIT_KG, 1.66053906660e-27, rel_tol=1e-10)  # [M]"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 152,
+      "snippet": "def test_dynamic_atomic_mass_retrieval() -> None:"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 158,
+      "snippet": "expected_mass = float(element(sym).atomic_weight)"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 159,
+      "snippet": "retrieved_mass = get_atomic_mass(sym)  # [M]"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 164,
+      "snippet": "assert math.isclose(get_atomic_mass(z), expected_mass, rel_tol=1e-9)"
+    },
+    {
+      "file": "tests/test_data_featurizer.py",
+      "line": 507,
+      "snippet": "masses = torch.tensor([get_atomic_mass(s) for s in data.symbols], dtype=torch.float32)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 48,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 88,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 89,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 208,
+      "snippet": "def test_dynamic_atomic_masses_lookup(self) -> None:"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 211,
+      "snippet": "m_expected = float(element(sym).atomic_weight)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 212,
+      "snippet": "assert math.isclose(get_atomic_mass(sym), m_expected, rel_tol=1e-9)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 214,
+      "snippet": "assert math.isclose(get_atomic_mass(z), m_expected, rel_tol=1e-9)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 219,
+      "snippet": "masses = get_atomic_masses(z_tensor)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 221,
+      "snippet": "assert math.isclose(masses[0].item(), float(element(\"H\").atomic_weight), rel_tol=1e-6)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 222,
+      "snippet": "assert math.isclose(masses[1].item(), float(element(\"C\").atomic_weight), rel_tol=1e-6)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 223,
+      "snippet": "assert math.isclose(masses[2].item(), float(element(\"N\").atomic_weight), rel_tol=1e-6)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 224,
+      "snippet": "assert math.isclose(masses[3].item(), float(element(\"O\").atomic_weight), rel_tol=1e-6)"
+    },
+    {
+      "file": "tests/test_eval_metrics.py",
+      "line": 225,
+      "snippet": "assert math.isclose(masses[4].item(), float(element(\"S\").atomic_weight), rel_tol=1e-6)"
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 308,
+      "snippet": "assert carbon.atomic_weight > 12.0 and carbon.atomic_weight < 12.02, ("
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 309,
+      "snippet": "f\"Unexpected dynamic atomic weight for Carbon: {carbon.atomic_weight}\""
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 311,
+      "snippet": "assert hydrogen.atomic_weight > 1.007 and hydrogen.atomic_weight < 1.009, ("
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 312,
+      "snippet": "f\"Unexpected dynamic atomic weight for Hydrogen: {hydrogen.atomic_weight}\""
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 314,
+      "snippet": "assert oxygen.atomic_weight > 15.998 and oxygen.atomic_weight < 16.001, ("
+    },
+    {
+      "file": "tests/test_geom_environment_yml.py",
+      "line": 315,
+      "snippet": "f\"Unexpected dynamic atomic weight for Oxygen: {oxygen.atomic_weight}\""
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 36,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 73,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 104,
+      "snippet": "assert math.isclose(ATOMIC_MASS_UNIT_KG, 1.66053906660e-27, rel_tol=1e-10)  # [M]"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 136,
+      "snippet": "def test_dynamic_atomic_mass_retrieval() -> None:"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 142,
+      "snippet": "expected_mass = float(element(sym).atomic_weight)"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 143,
+      "snippet": "retrieved_mass = get_atomic_mass(sym)  # [M]"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 147,
+      "snippet": "assert math.isclose(get_atomic_mass(z), expected_mass, rel_tol=1e-9)"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 927,
+      "snippet": "get_atomic_mass.cache_clear()"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 928,
+      "snippet": "m1 = get_atomic_mass(\"C\")"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 929,
+      "snippet": "m2 = get_atomic_mass(\"C\")"
+    },
+    {
+      "file": "tests/test_geom_parser.py",
+      "line": 931,
+      "snippet": "info = get_atomic_mass.cache_info()"
+    },
+    {
+      "file": "tests/test_lightning_module.py",
+      "line": 65,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_lightning_module.py",
+      "line": 98,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_lightning_module.py",
+      "line": 198,
+      "snippet": "masses = get_atomic_masses(z_tensor)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 29,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 494,
+      "snippet": "m_h = get_atomic_mass(1)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 495,
+      "snippet": "m_o = get_atomic_mass(8)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 496,
+      "snippet": "m_c = get_atomic_mass(6)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 510,
+      "snippet": "m_o = get_atomic_mass(8)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 511,
+      "snippet": "m_h = get_atomic_mass(1)"
+    },
+    {
+      "file": "tests/test_pyg_schema.py",
+      "line": 552,
+      "snippet": "masses_d2o = [get_atomic_mass(8), 2.0141017781, 2.0141017781]"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 53,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 89,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 116,
+      "snippet": "assert math.isclose(ATOMIC_MASS_UNIT_KG, 1.66053906660e-27, rel_tol=1e-8)  # [M]"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 164,
+      "snippet": "def test_atomic_mass_across_periodic_table(self) -> None:"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 170,
+      "snippet": "expected_weight = float(element(sym).atomic_weight)"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 172,
+      "snippet": "mass_by_sym = get_atomic_mass(sym)  # [M]"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 177,
+      "snippet": "mass_by_z = get_atomic_mass(z)  # [M]"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 206,
+      "snippet": "get_atomic_mass(\"Unobtainium\")"
+    },
+    {
+      "file": "tests/test_qm_oracle.py",
+      "line": 209,
+      "snippet": "get_atomic_mass(999)"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 208,
+      "snippet": "assert carbon.atomic_weight is not None"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 209,
+      "snippet": "assert 12.010 <= float(carbon.atomic_weight) <= 12.012"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 211,
+      "snippet": "assert hydrogen.atomic_weight is not None"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 212,
+      "snippet": "assert 1.007 <= float(hydrogen.atomic_weight) <= 1.009"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 214,
+      "snippet": "assert oxygen.atomic_weight is not None"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 215,
+      "snippet": "assert 15.999 <= float(oxygen.atomic_weight) <= 16.000"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 217,
+      "snippet": "assert nitrogen.atomic_weight is not None"
+    },
+    {
+      "file": "tests/test_setup_py.py",
+      "line": 218,
+      "snippet": "assert 14.006 <= float(nitrogen.atomic_weight) <= 14.008"
+    },
+    {
+      "file": "tests/test_train.py",
+      "line": 72,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_train.py",
+      "line": 121,
+      "snippet": "masses = get_atomic_masses(atomic_numbers)"
+    },
+    {
+      "file": "tests/test_models/test_base_gnn.py",
+      "line": 48,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_models/test_base_gnn.py",
+      "line": 87,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_models/test_base_gnn.py",
+      "line": 211,
+      "snippet": "def test_get_atomic_masses_tensor(self) -> None:"
+    },
+    {
+      "file": "tests/test_models/test_base_gnn.py",
+      "line": 214,
+      "snippet": "masses = get_atomic_masses(z)"
+    },
+    {
+      "file": "tests/test_models/test_egnn.py",
+      "line": 71,
+      "snippet": "ATOMIC_MASS_UNIT_KG,"
+    },
+    {
+      "file": "tests/test_models/test_egnn.py",
+      "line": 106,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_models/test_egnn.py",
+      "line": 368,
+      "snippet": "def test_get_atomic_masses_tensor(self, ethanol_molecule: Dict[str, Any]) -> None:"
+    },
+    {
+      "file": "tests/test_models/test_egnn.py",
+      "line": 371,
+      "snippet": "masses = get_atomic_masses(z)"
+    },
+    {
+      "file": "tests/test_models/test_equivariance.py",
+      "line": 80,
+      "snippet": "get_atomic_masses,"
+    },
+    {
+      "file": "tests/test_models/test_equivariance.py",
+      "line": 99,
+      "snippet": "get_atomic_mass,"
+    },
+    {
+      "file": "tests/test_models/test_equivariance.py",
+      "line": 401,
+      "snippet": "masses = get_atomic_masses(z_tensor)"
+    },
+    {
+      "file": "tests/test_models/test_equivariance.py",
+      "line": 838,
+      "snippet": "masses = torch.tensor([get_atomic_mass(s) for s in data.symbols], dtype=data.pos.dtype)"
+    },
+    {
+      "file": "tests/test_models/test_equivariance.py",
+      "line": 870,
+      "snippet": "masses = torch.tensor([get_atomic_mass(s) for s in data.symbols], dtype=torch.float64)"
+    },
+    {
+      "file": "test_suite/test_atomic_data.py",
+      "line": 44,
+      "snippet": "get_standard_atomic_weight,"
+    },
+    {
+      "file": "test_suite/test_atomic_data.py",
+      "line": 236,
+      "snippet": "assert math.isclose(get_standard_atomic_weight(\"Au\"), 196.97, rel_tol=1e-3)"
+    },
+    {
+      "file": "test_suite/test_cochem_setup_phase_10.py",
+      "line": 84,
+      "snippet": "resolve_atomic_masses,"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 88,
+      "snippet": "resolve_atomic_mass,"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 139,
+      "snippet": "def test_atomic_mass_resolution(self) -> None:"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 141,
+      "snippet": "assert resolve_atomic_mass(\"H\") == pytest.approx(1.00782503223, rel=1e-8)"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 142,
+      "snippet": "assert resolve_atomic_mass(\"12C\") == pytest.approx(12.0, rel=1e-8)"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 143,
+      "snippet": "assert resolve_atomic_mass(\"16O\") == pytest.approx(15.99491461957, rel=1e-8)"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 144,
+      "snippet": "assert resolve_atomic_mass(14.003) == pytest.approx(14.003, rel=1e-8)"
+    },
+    {
+      "file": "test_suite/test_cochem_torq_phases_6_to_10.py",
+      "line": 148,
+      "snippet": "masses = [resolve_atomic_mass(s) for s in H2O_SYMBOLS]"
+    }
+  ],
+  "concurrency_unauthorized": [],
+  "synthetic_arrays_in_tests": []
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authentic Unit Test Suite for CoChem Stage 5.0 Benchmark HDF5 & Publication Table Exporter.
+r"""Authentic Unit Test Suite for CoChem Stage 5.0 Benchmark HDF5 & Publication Table Exporter.
 
 Module: tests/test_cochem_bench_export.py
 Target Implementation: bench_engine.cochem_bench_export
@@ -60,6 +60,7 @@ from bench_engine.cochem_bench_export import (
     ExportPipelineResult,
     MissingZPVEError,
     AirGapPackageMissingError,
+    HDF5SchemaError,
     run_export_pipeline,
     HARTREE_TO_KCAL_MOL,
     DEFAULT_PROCESSED_DIR,
@@ -182,6 +183,11 @@ class TestAirGapVerifier:
         assert not hasattr(verifier, "pip_install")
         assert not hasattr(verifier, "tlmgr_install")
 
+    def test_verify_all_passes(self):
+        """Asserts that verify_all completes without errors when dependencies are present."""
+        verifier = AirGapVerifier()
+        assert verifier.verify_all(strict_latex=False) is True
+
 
 # ==============================================================================
 # 2. CompositeAggregator Tests
@@ -252,11 +258,26 @@ class TestCompositeAggregator:
             n_grp = cbs_grp.require_group("node_incomplete")
             n_grp.create_dataset("e_scf_cbs", data=-100.0)
             n_grp.create_dataset("e_corr_cbs", data=-0.5)
-            # No ZPVE dataset in file!
 
         aggregator = CompositeAggregator()
         with pytest.raises(MissingZPVEError):
             aggregator.sweep_hdf5(bad_h5)
+
+    def test_sweep_hdf5_file_not_found(self, tmp_path: Path):
+        """Asserts that sweeping a non-existent file raises FileNotFoundError."""
+        aggregator = CompositeAggregator()
+        with pytest.raises(FileNotFoundError):
+            aggregator.sweep_hdf5(tmp_path / "non_existent.h5")
+
+    def test_sweep_hdf5_missing_cbs_group_raises(self, tmp_path: Path):
+        """Asserts that sweeping an HDF5 file missing cbs_extrapolations raises HDF5SchemaError."""
+        empty_h5 = tmp_path / "empty_landscape.h5"
+        with h5py.File(empty_h5, "w", libver="latest") as f:
+            f.require_group("other_group")
+
+        aggregator = CompositeAggregator()
+        with pytest.raises(HDF5SchemaError):
+            aggregator.sweep_hdf5(empty_h5)
 
     def test_hdf5_composite_roundtrip(self, tmp_path: Path):
         """Tests committing composite energy records back to landscape.h5."""
@@ -341,9 +362,10 @@ class TestSiunitxLaTeXCompiler:
             node_id=H2O_DATA["node_id"],
         )
         out_file = tmp_path / "Benchmark_Results.tex"
-        result_path = compiler.compile_table([rec], output_path=out_file)
-        assert Path(result_path).exists()
-        assert Path(result_path).stat().st_size > 0
+        rendered = compiler.compile_table([rec], output_path=out_file)
+        assert out_file.exists()
+        assert out_file.stat().st_size > 0
+        assert r"\begin{table}" in rendered
 
 
 # ==============================================================================
@@ -381,6 +403,15 @@ class TestProvenanceStamper:
         assert loaded["@type"] == "cochem:BenchmarkProvenanceRecord"
         assert len(loaded["nodes"]) == 1
         assert loaded["nodes"][0]["node_id"] == H2O_DATA["node_id"]
+
+    def test_compute_file_sha256(self, tmp_path: Path):
+        """Verifies SHA-256 calculation for arbitrary file fixtures."""
+        stamper = ProvenanceStamper()
+        sample_file = tmp_path / "test_binary.bin"
+        sample_file.write_bytes(b"ORCA 6.1.1 authentic binary payload simulation")
+        digest = stamper.compute_file_sha256(sample_file)
+        assert len(digest) == 64
+        assert digest != "FILE_NOT_FOUND"
 
 
 # ==============================================================================

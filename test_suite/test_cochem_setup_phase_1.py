@@ -682,19 +682,24 @@ def test_resolve_p1_registry_path_fallbacks(
     # Case 1: .agent_artifacts exists in cwd
     agent_art = tmp_path / ".agent_artifacts"
     agent_art.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
+    import os
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        p1_path = resolve_p1_registry_path()
+        assert p1_path == (agent_art / "Registry" / "p1.json").resolve()
 
-    p1_path = resolve_p1_registry_path()
-    assert p1_path == (agent_art / "Registry" / "p1.json").resolve()
+        # Case 2: No .agent_artifacts in cwd, falls back to home / CoChem_Artifacts
+        shutil.rmtree(agent_art)
+        fake_home = tmp_path / "fake_home"
+        fake_home.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("HOME", str(fake_home))
+        monkeypatch.setenv("USERPROFILE", str(fake_home))
 
-    # Case 2: No .agent_artifacts in cwd, falls back to home / CoChem_Artifacts
-    shutil.rmtree(agent_art)
-    fake_home = tmp_path / "fake_home"
-    fake_home.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(Path, "home", lambda: fake_home)
-
-    p1_path_home = resolve_p1_registry_path()
-    assert p1_path_home == (fake_home / "CoChem_Artifacts" / "Registry" / "p1.json").resolve()
+        p1_path_home = resolve_p1_registry_path()
+        assert p1_path_home == (fake_home / "CoChem_Artifacts" / "Registry" / "p1.json").resolve()
+    finally:
+        os.chdir(original_cwd)
 
 
 def test_dependency_manager_rollback_os_error_resilience(

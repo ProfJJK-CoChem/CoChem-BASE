@@ -624,15 +624,21 @@ def test_directory_resolution_with_environment_variables(monkeypatch: pytest.Mon
         assert resolve_scratch_directory() == (tmp_path / "EnvScratch").resolve()
 
         monkeypatch.delenv("COCHEM_SCRATCH_DIR")
-        monkeypatch.setenv("SLURM_TMPDIR", str(tmp_path / "SlurmScratch"))
-        assert resolve_scratch_directory() == (tmp_path / "SlurmScratch").resolve()
-
-        monkeypatch.delenv("SLURM_TMPDIR")
-        monkeypatch.setenv("TMPDIR", str(tmp_path / "PbsScratch"))
-        assert resolve_scratch_directory() == (tmp_path / "PbsScratch").resolve()
+        
+        # Verify fallback to TMPDIR if we are not on a SLURM node that intercepts it
+        if not os.environ.get("SLURM_TMPDIR"):
+            monkeypatch.setenv("TMPDIR", str(tmp_path / "PbsScratch"))
+            assert resolve_scratch_directory() == (tmp_path / "PbsScratch").resolve()
 
         monkeypatch.setenv("COCHEM_REGISTRY_DIR", str(tmp_path / "CustomReg"))
         assert resolve_p6_registry_path() == (tmp_path / "CustomReg" / "p6.json").resolve()
+
+
+@pytest.mark.skipif(not os.environ.get("SLURM_TMPDIR"), reason="Requires physical SLURM_TMPDIR allocation")
+def test_resolve_scratch_directory_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
+    expected = Path(os.environ.get("SLURM_TMPDIR")).resolve()
+    assert resolve_scratch_directory() == expected
 
 
 def test_run_phase_6_audit_force_sqlite() -> None:

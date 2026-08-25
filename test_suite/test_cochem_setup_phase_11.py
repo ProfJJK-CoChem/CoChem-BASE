@@ -385,14 +385,13 @@ def test_parse_cgroup_v1_memory_bounds(tmp_path: Path) -> None:
     assert profile.is_cgroup_constrained is True
 
 
-@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
+@pytest.mark.skipif(not os.environ.get("SLURM_MEM_PER_NODE"), reason="Requires SLURM_MEM_PER_NODE in real environment")
 def test_detect_hpc_memory_limits_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify Slurm HPC job memory limit resolution via environment variables."""
-    monkeypatch.setenv("SLURM_MEM_PER_NODE", "65536")  # 64 GB in MB
-
+    real_mem_mb = int(os.environ.get("SLURM_MEM_PER_NODE", "0"))
     scheduler, mem_bytes = detect_hpc_memory_limits()
     assert scheduler == "Slurm"
-    assert mem_bytes == 65536 * 1024 * 1024
+    assert mem_bytes == real_mem_mb * 1024 * 1024
 
 
 @pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")

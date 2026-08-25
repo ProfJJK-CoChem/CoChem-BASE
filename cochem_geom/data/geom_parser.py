@@ -2,7 +2,7 @@
 ==========================================================================================
 Provides safe streaming deserialization for massive MsgPack conformer archives,
 extracts QM properties (DFT, GFN2-xTB, ORCA, Gaussian), computes SHA-256 provenance hashes,
-dynamically queries Mendeleev isotopic masses, calculates Boltzmann ensemble distributions,
+dynamically queries Mendeleev isotopic masses with LRU caching, calculates Boltzmann ensemble distributions,
 and constructs SE(3)-equivariant geometric tensor representations.
 
 Authoritative Standards:
@@ -18,14 +18,16 @@ Authoritative Standards:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import functools
 import hashlib
 import io
 import logging
 import math
 import os
 from pathlib import Path
+import pickle
 import re
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, List, Optional, Sequence, Tuple, Union
 
 from mendeleev import element
 import msgpack
@@ -82,10 +84,11 @@ DEFAULT_CHUNK_SIZE_BYTES: int = 65536
 
 
 # ==============================================================================
-# 2. Dynamic Mendeleev Mass and Property Resolution Functions
+# 2. Dynamic Mendeleev Mass and Property Resolution Functions (LRU Cached)
 # ==============================================================================
 
 
+@functools.lru_cache(maxsize=256)
 def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     """Dynamically query standard atomic weight from mendeleev [M].
 
@@ -107,6 +110,7 @@ def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
 
 
+@functools.lru_cache(maxsize=256)
 def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
     """Dynamically query exact mass of most abundant natural isotope from mendeleev [M].
 
@@ -133,6 +137,7 @@ def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
     raise ValueError(f"Monoisotopic mass not found for element '{symbol_or_z}'")
 
 
+@functools.lru_cache(maxsize=512)
 def get_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
     """Dynamically query exact mass of a specific isotope from mendeleev [M].
 
@@ -159,6 +164,7 @@ def get_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
     )
 
 
+@functools.lru_cache(maxsize=256)
 def get_covalent_radius_angstrom(symbol_or_z: Union[str, int]) -> float:
     """Dynamically query Pyykko covalent single-bond radius in Angstroms [M]."""
     el = element(symbol_or_z)
@@ -171,6 +177,7 @@ def get_covalent_radius_angstrom(symbol_or_z: Union[str, int]) -> float:
     return 1.0
 
 
+@functools.lru_cache(maxsize=256)
 def get_pauling_electronegativity(symbol_or_z: Union[str, int]) -> float:
     """Dynamically query Pauling electronegativity from mendeleev [M]."""
     el = element(symbol_or_z)
@@ -179,6 +186,7 @@ def get_pauling_electronegativity(symbol_or_z: Union[str, int]) -> float:
     return 0.0
 
 
+@functools.lru_cache(maxsize=256)
 def get_vdw_radius_angstrom(symbol_or_z: Union[str, int]) -> float:
     """Dynamically query Van der Waals radius in Angstroms [M]."""
     el = element(symbol_or_z)
@@ -395,11 +403,16 @@ def compute_rotational_constants(
     ia, ib, ic = eigenvalues[0], eigenvalues[1], eigenvalues[2]
 
     # Convert principal moments to rotational constants in MHz
-    a_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ia) if ia > 1e-6 else 0.0
-    b_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ib) if ib > 1e-6 else 0.0
-    c_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ic) if ic > 1e-6 else 0.0
+    a_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ia) if ia > 1e-6 else float("inf")
+    b_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ib) if ib > 1e-6 else float("inf")
+    c_const = float(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / ic) if ic > 1e-6 else float("inf")
 
-    return np.array([a_const, b_const, c_const], dtype=np.float32)
+    # If linear or degenerate rotor with infinite constant, clamp gracefully
+    a_out = a_const if not math.isinf(a_const) else (b_const if not math.isinf(b_const) else 0.0)
+    b_out = b_const if not math.isinf(b_const) else 0.0
+    c_out = c_const if not math.isinf(c_const) else 0.0
+
+    return np.array([a_out, b_out, c_out], dtype=np.float32)
 
 
 # ==============================================================================
@@ -450,23 +463,23 @@ def calculate_boltzmann_weights(
     kt_ev = BOLTZMANN_CONSTANT_EV_K * temperature_k
     if kt_ev <= 1e-12:
         weights = np.zeros_like(e_ev, dtype=np.float32)
-        min_idx = int(np.argmin(e_ev))
+        min_idx = int(np.nanargmin(e_ev)) if np.any(np.isfinite(e_ev)) else 0
         weights[min_idx] = 1.0
         return weights
 
     # Numerically stable relative energy shift by minimum
-    min_e = np.min(e_ev)
+    min_e = np.nanmin(e_ev) if np.any(np.isfinite(e_ev)) else 0.0
     delta_e = e_ev - min_e
 
     # Exponentiate with numerical clamp to prevent underflow issues
     exponent = -delta_e / kt_ev
     clipped_exp = np.clip(exponent, -700.0, 0.0)
     exp_terms = np.exp(clipped_exp)
-    partition_function = np.sum(exp_terms)
+    partition_function = np.nansum(exp_terms)
 
     if partition_function <= 0.0 or not np.isfinite(partition_function):
         weights = np.zeros_like(e_ev, dtype=np.float32)
-        min_idx = int(np.argmin(e_ev))
+        min_idx = int(np.nanargmin(e_ev)) if np.any(np.isfinite(e_ev)) else 0
         weights[min_idx] = 1.0
         return weights
 
@@ -747,18 +760,26 @@ def deserialize_geom_archive(
         unpacker = msgpack.Unpacker(f, raw=False, max_buffer_size=max_buffer_size)
         for raw_obj in unpacker:
             if isinstance(raw_obj, dict):
-                # Standard GEOM layout: top-level dictionary mapping SMILES -> data
-                for smiles, mol_data in raw_obj.items():
-                    if isinstance(mol_data, dict):
-                        yield str(smiles), mol_data
-                    else:
-                        yield str(smiles), {"data": mol_data}
+                # Check if it's a single molecule payload or a dict of molecules
+                if "conformers" in raw_obj or "geom" in raw_obj:
+                    smiles_val = str(raw_obj.get("smiles", "UNKNOWN"))
+                    yield smiles_val, raw_obj
+                else:
+                    # Top-level dictionary mapping SMILES -> data
+                    for smiles, mol_data in raw_obj.items():
+                        if isinstance(mol_data, dict):
+                            yield str(smiles), mol_data
+                        else:
+                            yield str(smiles), {"data": mol_data}
             elif isinstance(raw_obj, (list, tuple)):
-                for entry in raw_obj:
-                    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
-                        yield str(entry[0]), entry[1]
-                    elif isinstance(entry, dict) and "smiles" in entry:
-                        yield str(entry["smiles"]), entry
+                if len(raw_obj) >= 2 and isinstance(raw_obj[0], str) and isinstance(raw_obj[1], dict):
+                    yield str(raw_obj[0]), raw_obj[1]
+                else:
+                    for entry in raw_obj:
+                        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                            yield str(entry[0]), entry[1]
+                        elif isinstance(entry, dict) and "smiles" in entry:
+                            yield str(entry["smiles"]), entry
 
 
 def deserialize_geom_bytes(
@@ -783,24 +804,31 @@ def deserialize_geom_bytes(
     unpacker = msgpack.Unpacker(stream, raw=False, max_buffer_size=max_buffer_size)
     for raw_obj in unpacker:
         if isinstance(raw_obj, dict):
-            for smiles, mol_data in raw_obj.items():
-                if isinstance(mol_data, dict):
-                    yield str(smiles), mol_data
-                else:
-                    yield str(smiles), {"data": mol_data}
+            if "conformers" in raw_obj or "geom" in raw_obj:
+                smiles_val = str(raw_obj.get("smiles", "UNKNOWN"))
+                yield smiles_val, raw_obj
+            else:
+                for smiles, mol_data in raw_obj.items():
+                    if isinstance(mol_data, dict):
+                        yield str(smiles), mol_data
+                    else:
+                        yield str(smiles), {"data": mol_data}
         elif isinstance(raw_obj, (list, tuple)):
-            for entry in raw_obj:
-                if isinstance(entry, (list, tuple)) and len(entry) >= 2:
-                    yield str(entry[0]), entry[1]
-                elif isinstance(entry, dict) and "smiles" in entry:
-                    yield str(entry["smiles"]), entry
+            if len(raw_obj) >= 2 and isinstance(raw_obj[0], str) and isinstance(raw_obj[1], dict):
+                yield str(raw_obj[0]), raw_obj[1]
+            else:
+                for entry in raw_obj:
+                    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                        yield str(entry[0]), entry[1]
+                    elif isinstance(entry, dict) and "smiles" in entry:
+                        yield str(entry["smiles"]), entry
 
 
 def serialize_geom_archive(
     file_path: Union[str, Path],
     records: Union[Dict[str, Any], Sequence[Tuple[str, Dict[str, Any]]]],
 ) -> int:
-    """Serialize molecular records into a binary MsgPack archive file.
+    """Serialize molecular records into a binary MsgPack archive file using stream packing.
 
     Parameters
     ----------
@@ -870,6 +898,23 @@ def _extract_coords_from_raw_conformer(raw_conf: Dict[str, Any], expected_n_atom
         coords_raw = raw_conf["coordinates"]
     elif "positions" in raw_conf:
         coords_raw = raw_conf["positions"]
+    elif "rdkit_mol" in raw_conf or "mol" in raw_conf:
+        mol_obj = raw_conf.get("rdkit_mol") or raw_conf.get("mol")
+        if isinstance(mol_obj, bytes):
+            try:
+                mol_obj = pickle.loads(mol_obj)
+            except Exception:
+                if Chem is not None:
+                    try:
+                        mol_obj = Chem.Mol(mol_obj)
+                    except Exception:
+                        pass
+        if mol_obj is not None and hasattr(mol_obj, "GetConformer"):
+            try:
+                conf = mol_obj.GetConformer()
+                coords_raw = conf.GetPositions()
+            except Exception:
+                pass
 
     if coords_raw is None:
         raise ValueError(f"Could not locate 3D coordinates in conformer dictionary keys: {list(raw_conf.keys())}")
@@ -1000,22 +1045,32 @@ def _resolve_topology_from_smiles_or_data(
         except Exception as e:
             logger.debug(f"RDKit parsing bypassed for SMILES '{smiles}': {e}")
 
-    # 3. Fallback: derive element symbols from SMILES string tokens
+    # 3. Robust regex tokenizer fallback: handle bracketed atoms, halogens, organic set, and lowercase aromatics
     if not symbols and smiles:
-        token_pattern = re.findall(r"([A-Z][a-z]?)", smiles)
-        for tok in token_pattern:
-            if tok in SYMBOL_TO_ATOMIC_NUMBER:
-                symbols.append(tok)
-                atomic_numbers_list.append(SYMBOL_TO_ATOMIC_NUMBER[tok])
+        token_pattern = re.compile(r'\[([A-Z][a-z]?)[^\]]*\]|(Cl|Br)|([BCNOPSFI])|([bcnops])')
+        aromatic_map = {'b': 'B', 'c': 'C', 'n': 'N', 'o': 'O', 'p': 'P', 's': 'S'}
+        for match in token_pattern.finditer(smiles):
+            bracket, halogen, upper, lower = match.groups()
+            sym_tok = None
+            if bracket:
+                sym_tok = bracket.capitalize()
+            elif halogen:
+                sym_tok = halogen.capitalize()
+            elif upper:
+                sym_tok = upper
+            elif lower:
+                sym_tok = aromatic_map[lower]
+
+            if sym_tok and sym_tok in SYMBOL_TO_ATOMIC_NUMBER:
+                symbols.append(sym_tok)
+                atomic_numbers_list.append(SYMBOL_TO_ATOMIC_NUMBER[sym_tok])
                 formal_charges_list.append(0)
 
     # 4. Fallback if counts mismatch or still empty
     if fallback_n_atoms is not None:
         if len(symbols) != fallback_n_atoms:
-            # Replicate or pad standard typing
             if len(symbols) < fallback_n_atoms:
                 needed = fallback_n_atoms - len(symbols)
-                # Usually missing explicit hydrogens in organic molecules
                 for _ in range(needed):
                     symbols.append("H")
                     atomic_numbers_list.append(1)
@@ -1058,7 +1113,7 @@ def parse_geom_raw_molecule(
     """
     raw_conformers = raw_data.get("conformers", [])
     if not raw_conformers:
-        if "geom" in raw_data or "xyz" in raw_data:
+        if "geom" in raw_data or "xyz" in raw_data or "rdkit_mol" in raw_data:
             raw_conformers = [raw_data]
 
     # Pre-flight check first conformer to identify atom count
@@ -1185,7 +1240,7 @@ def parse_qm_log_text(
     Returns
     -------
     QMOutputRecord
-        Pydantic data contract containing extracted energies, geometry, forces, dipoles, and SHA-256 hash.
+        Pydantic data contract containing extracted energies, geometry, forces, dipoles, frequencies, and SHA-256 hash.
     """
     sha256_hash = hashlib.sha256(log_text.encode("utf-8")).hexdigest()
 
@@ -1210,19 +1265,22 @@ def parse_qm_log_text(
     rot_consts_arr: Optional[np.ndarray] = None
     s2_val: Optional[float] = None
     forces_list: Optional[List[List[float]]] = None
+    freqs_list: List[float] = []
 
     if detected_prog == "ORCA":
         # 1. Total Electronic Energy (Hartree)
-        e_matches = re.findall(r"FINAL SINGLE POINT ENERGY\s+([-\d\.]+)", log_text)
+        e_matches = re.findall(r"FINAL SINGLE POINT ENERGY\s+([-\d\.]+(?:[eE][+-]?\d+)?)", log_text)
         if e_matches:
             total_energy_hartree = float(e_matches[-1])
 
-        # 2. Convergence
-        if "ORCA TERMINATED NORMALLY" in log_text or "OPTIMIZATION RUN DONE" in log_text or "OPTIMIZATION HAS CONVERGED" in log_text:
+        # 2. Rigorous Convergence Check: must not fail optimization
+        has_normal_term = "ORCA TERMINATED NORMALLY" in log_text
+        has_opt_conv = "OPTIMIZATION HAS CONVERGED" in log_text or "*** OPTIMIZATION RUN DONE ***" in log_text or "HURRAY" in log_text
+        has_opt_fail = "THE OPTIMIZATION HAS NOT CONVERGED" in log_text or "FAILED TO CONVERGE" in log_text
+        if (has_normal_term or has_opt_conv) and not has_opt_fail:
             converged = True
 
         # 3. Cartesian Coordinates (Angstroms)
-        # Look for CARTESIAN COORDINATES (ANGSTROEM)
         coord_blocks = re.findall(
             r"CARTESIAN COORDINATES \(ANGSTROEM\)\s*\n-+\s*\n([\s\S]*?)\n\s*\n",
             log_text,
@@ -1267,16 +1325,19 @@ def parse_qm_log_text(
         if s2_match:
             s2_val = float(s2_match.group(1))
 
+        # 7. Vibrational Frequencies (cm^-1)
+        freq_matches = re.findall(r"\d+:\s+([-\d\.]+)\s+cm\*\*-1", log_text)
+        if freq_matches:
+            freqs_list = [float(f) for f in freq_matches]
+
     elif detected_prog == "xTB":
         # 1. Total Energy (Hartree)
-        e_match = re.search(r"\*\s*TOTAL ENERGY\s+([-\d\.]+)\s*Eh", log_text)
-        if not e_match:
-            e_match = re.search(r"TOTAL ENERGY\s+([-\d\.]+)", log_text)
+        e_match = re.search(r"TOTAL ENERGY\s+([-\d\.]+(?:[eE][+-]?\d+)?)", log_text)
         if e_match:
             total_energy_hartree = float(e_match.group(1))
 
         # 2. Convergence
-        if "normal termination of xtb" in log_text or "GEOMETRY OPTIMIZATION CONVERGED" in log_text:
+        if ("normal termination of xtb" in log_text or "GEOMETRY OPTIMIZATION CONVERGED" in log_text) and "FAILED" not in log_text:
             converged = True
 
         # 3. Dipole Moment (Debye)
@@ -1310,17 +1371,29 @@ def parse_qm_log_text(
                     except ValueError:
                         continue
 
+        # 6. Vibrational Frequencies (cm^-1)
+        freq_block_match = re.search(r"harmonic frequencies \(cm-1\)\s*\n([\s\S]*?)(?:\n\s*\n|reduced masses|\$|\Z)", log_text)
+        if freq_block_match:
+            for line in freq_block_match.group(1).splitlines():
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    try:
+                        freqs_list.append(float(parts[-1]))
+                    except ValueError:
+                        pass
+
     elif detected_prog == "Gaussian":
         # 1. Total Energy (Hartree)
-        e_matches = re.findall(r"SCF Done:\s+E\([^\)]+\)\s*=\s*([-\d\.]+)", log_text)
+        e_matches = re.findall(r"SCF Done:\s+E\([^\)]+\)\s*=\s*([-\d\.]+(?:[dDeE][+-]?\d+)?)", log_text)
         if e_matches:
-            total_energy_hartree = float(e_matches[-1])
+            e_str = e_matches[-1].replace("D", "E").replace("d", "e")
+            total_energy_hartree = float(e_str)
 
         # 2. Convergence
-        if "Normal termination of Gaussian" in log_text or "Optimization completed." in log_text:
+        if ("Normal termination of Gaussian" in log_text or "Optimization completed." in log_text) and "Error termination" not in log_text:
             converged = True
 
-        # 3. Rotational Constants (GHz -> convert to MHz by * 1000)
+        # 3. Rotational Constants (GHZ -> convert to MHz by * 1000)
         rot_match = re.search(r"Rotational constants \(GHZ\):\s*([-\d\.]+)\s+([-\d\.]+)\s+([-\d\.]+)", log_text)
         if rot_match:
             rot_consts_arr = np.array(
@@ -1336,9 +1409,9 @@ def parse_qm_log_text(
                 dtype=np.float32,
             )
 
-        # 5. Standard Orientation Coordinates
+        # 5. Standard or Input Orientation Coordinates
         blocks = re.findall(
-            r"Standard orientation:\s*\n\s*-+\s*\n\s*Center\s+Atomic[^\n]*\n\s*Number\s+Number[^\n]*\n\s*-+\s*\n([\s\S]*?)\n\s*-+",
+            r"(?:Standard|Input)\s+orientation:\s*\n\s*-+\s*\n\s*Center\s+Atomic[^\n]*\n\s*Number\s+Number[^\n]*\n\s*-+\s*\n([\s\S]*?)\n\s*-+",
             log_text,
         )
         if blocks:
@@ -1356,9 +1429,19 @@ def parse_qm_log_text(
                     except ValueError:
                         continue
 
+        # 6. Vibrational Frequencies (cm^-1)
+        freq_matches = re.findall(r"Frequencies\s*--\s+([-\d\.\s]+)", log_text)
+        for block in freq_matches:
+            for tok in block.split():
+                try:
+                    freqs_list.append(float(tok))
+                except ValueError:
+                    pass
+
     # Assemble positions array
     positions_arr = np.array(positions_list, dtype=np.float32) if positions_list else np.empty((0, 3), dtype=np.float32)
     forces_arr = np.array(forces_list, dtype=np.float32) if forces_list else None
+    frequencies_arr = np.array(freqs_list, dtype=np.float32) if freqs_list else None
 
     # Total energy in eV
     total_energy_ev = hartree_to_ev(total_energy_hartree) if total_energy_hartree is not None else None
@@ -1377,7 +1460,7 @@ def parse_qm_log_text(
         rotational_constants=rot_consts_arr,
         s2_calculated=s2_val,
         s2_expected=0.0,
-        frequencies=None,
+        frequencies=frequencies_arr,
         sha256_hash=sha256_hash,
         metadata={"filename": filename} if filename else {},
     )

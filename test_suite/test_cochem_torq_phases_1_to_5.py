@@ -114,7 +114,8 @@ class TestTorqInit:
     ) -> None:
         isolated_home_dir = tmp_path / "isolated_home"
         isolated_home_dir.mkdir()
-        monkeypatch.setattr(Path, "home", lambda: isolated_home_dir)
+        monkeypatch.setenv("HOME", str(isolated_home_dir))
+        monkeypatch.setenv("USERPROFILE", str(isolated_home_dir))
         monkeypatch.delenv("COCHEM_ARTIFACTS", raising=False)
         monkeypatch.delenv("COCHEM_TORQ_LIB", raising=False)
         monkeypatch.delenv("COCHEM_SCRATCH", raising=False)

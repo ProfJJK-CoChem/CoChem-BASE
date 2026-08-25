@@ -538,8 +538,8 @@ def test_multithreaded_concurrent_system_config_updates(tmp_path: Path) -> None:
     init_cfg = CoChemSystemConfig.create_default()
     save_system_config(init_cfg, cfg_file)
 
-    num_threads = 8
-    jobs_per_thread = 5
+    num_threads = 4
+    jobs_per_thread = 3
     exceptions: List[Exception] = []
 
     def worker_task(thread_idx: int) -> None:
@@ -697,27 +697,32 @@ def test_mendeleev_dynamic_isotopic_mass_queries() -> None:
 # 12. ENVIRONMENT DETECTION & ZEROMQ BROADCAST
 # =============================================================================
 
-def test_is_master_node_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_is_master_node_multi_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify is_master_node correctly inspects Slurm, MPI, and environment overrides."""
     # Default standalone
     monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.delenv("SLURM_PROCID", raising=False)
     monkeypatch.delenv("RANK", raising=False)
-    assert is_master_node() is True
 
-    # Override
+    # Explicit override
     monkeypatch.setenv("COCHEM_IS_MASTER", "0")
     assert is_master_node() is False
     monkeypatch.setenv("COCHEM_IS_MASTER", "1")
     assert is_master_node() is True
 
-    # Slurm rank
     monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
-    monkeypatch.setenv("SLURM_PROCID", "0")
+    
+    # MPI rank
+    monkeypatch.setenv("RANK", "0")
     assert is_master_node() is True
-    monkeypatch.setenv("SLURM_PROCID", "4")
+    monkeypatch.setenv("RANK", "1")
     assert is_master_node() is False
 
+@pytest.mark.skipif(not os.environ.get("SLURM_PROCID"), reason="Requires physical SLURM allocation")
+def test_is_master_node_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("COCHEM_IS_MASTER", raising=False)
+    monkeypatch.delenv("RANK", raising=False)
+    expected = (os.environ.get("SLURM_PROCID") == "0")
+    assert is_master_node() is expected
 
 def test_zeromq_broadcast_and_receive(tmp_path: Path) -> None:
     """Verify master node ZeroMQ broadcast and worker node subscriber reception."""

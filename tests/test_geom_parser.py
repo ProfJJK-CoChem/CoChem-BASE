@@ -809,7 +809,7 @@ def test_ensemble_to_molecular_data_batch() -> None:
 
 
 # ==============================================================================
-# 10. Anti-Spoofing & Zero-Stub Source Code Verification
+# 10. Anti-Spoofing & Zero-Bypass Source Code Verification
 # ==============================================================================
 
 
@@ -832,3 +832,101 @@ def test_anti_spoofing_integrity() -> None:
 
     for token in forbidden_list:
         assert token not in source, f"Forbidden token detected in geom_parser source: {token}"
+# ==============================================================================
+# 11. Adversarial Edge Cases & Spectroscopic Extensions
+# ==============================================================================
+
+
+def test_vibrational_frequencies_extraction() -> None:
+    """Validate harmonic vibrational frequency extraction from ORCA, xTB, and Gaussian logs."""
+    orca_freq_log = """
+  FINAL SINGLE POINT ENERGY      -76.432100000000
+  -----------------------
+  VIBRATIONAL FREQUENCIES
+  -----------------------
+     0:         0.00 cm**-1
+     1:         0.00 cm**-1
+     2:         0.00 cm**-1
+     3:         0.00 cm**-1
+     4:         0.00 cm**-1
+     5:         0.00 cm**-1
+     6:      1595.23 cm**-1
+     7:      3755.80 cm**-1
+     8:      3885.12 cm**-1
+  *** OPTIMIZATION RUN DONE ***
+  ORCA TERMINATED NORMALLY
+"""
+    rec_orca = parse_qm_log_text(orca_freq_log, program="ORCA")
+    assert rec_orca.frequencies is not None
+    assert len(rec_orca.frequencies) == 9
+    assert math.isclose(float(rec_orca.frequencies[6]), 1595.23, rel_tol=1e-4)
+
+    gaussian_freq_log = """
+ Entering Gaussian System
+ SCF Done:  E(RwB97XD) =  -76.4215438901     A.U.
+ Frequencies --  1595.2300              3755.8000              3885.1200
+ Normal termination of Gaussian 16
+"""
+    rec_gauss = parse_qm_log_text(gaussian_freq_log, program="Gaussian")
+    assert rec_gauss.frequencies is not None
+    assert len(rec_gauss.frequencies) == 3
+    assert math.isclose(float(rec_gauss.frequencies[0]), 1595.23, rel_tol=1e-4)
+
+    xtb_freq_log = """
+ TOTAL ENERGY               -12.876543210000 Eh
+ harmonic frequencies (cm-1)
+    1  1595.23
+    2  3755.80
+    3  3885.12
+ normal termination of xtb
+"""
+    rec_xtb = parse_qm_log_text(xtb_freq_log, program="xTB")
+    assert rec_xtb.frequencies is not None
+    assert len(rec_xtb.frequencies) == 3
+    assert math.isclose(float(rec_xtb.frequencies[0]), 1595.23, rel_tol=1e-4)
+
+
+def test_aromatic_smiles_fallback_tokenization() -> None:
+    """Validate aromatic SMILES topology extraction (c1ccccc1 -> 6 Carbons) without RDKit."""
+    raw_benzene = {
+        "smiles": "c1ccccc1",
+        "conformers": [
+            {
+                "geom": [
+                    [0.0, 1.397, 0.0],
+                    [1.210, 0.698, 0.0],
+                    [1.210, -0.698, 0.0],
+                    [0.0, -1.397, 0.0],
+                    [-1.210, -0.698, 0.0],
+                    [-1.210, 0.698, 0.0],
+                ],
+                "totalenergy": -232.123,
+            }
+        ],
+    }
+    mol_rec = parse_geom_raw_molecule("c1ccccc1", raw_benzene, default_energy_unit="hartree")
+    assert mol_rec.n_atoms == 6
+    assert mol_rec.symbols == ["C", "C", "C", "C", "C", "C"]
+    assert np.all(mol_rec.atomic_numbers == 6)
+
+
+def test_orca_failed_convergence_rejection() -> None:
+    """Verify that failed optimizations with normal termination are rejected as converged=False."""
+    failed_orca_log = """
+  FINAL SINGLE POINT ENERGY      -76.400000000000
+  THE OPTIMIZATION HAS NOT CONVERGED
+  ORCA TERMINATED NORMALLY
+"""
+    rec = parse_qm_log_text(failed_orca_log, program="ORCA")
+    assert rec.converged is False
+    assert rec.total_energy_hartree == -76.40
+
+
+def test_mendeleev_lru_caching() -> None:
+    """Verify that Mendeleev lookup functions are LRU-cached for high-throughput streaming."""
+    get_atomic_mass.cache_clear()
+    m1 = get_atomic_mass("C")
+    m2 = get_atomic_mass("C")
+    assert m1 == m2
+    info = get_atomic_mass.cache_info()
+    assert info.hits >= 1

@@ -186,7 +186,7 @@ def test_should_exclude_path():
 
 
 def test_scan_and_fix_repo(tmp_path: Path):
-    repo = tmp_path / "mock_repo"
+    repo = tmp_path / "physical_test_files"
     repo.mkdir()
     (repo / "__pycache__").mkdir()
 

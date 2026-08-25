@@ -1,20 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task1_setup_tmpfs.md.
-Original prompt:
-﻿# Task: Create setup_tmpfs.sh
-
-## Target File
-`setup_tmpfs.sh` (relative to repo root)
-
-## Requirements
-Create a bash script to set up a transient RAM-disk for high-speed I/O.
-1. The mount point MUST be strictly bound to the environment variable. Use `eval MOUNT_POINT="$COCHEM_ARTIFACTS_DIR/Scratch_RAM"`. Do NOT hardcode `/tmp/ramdisk` or `/dev/shm`.
-2. Ensure the script fails immediately if `$COCHEM_ARTIFACTS_DIR` is not set.
-
-## Safety Contract
-- Air-Gap strictly enforced dynamically: NO absolute paths.
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_setup_tmpfs.py ---
 """Unit tests for CoChem-BENCH Transient RAM-Disk (tmpfs) Setup Script (setup_tmpfs.sh).
 
 Task: CoChem-BENCH Task 1 - Master Repository Map, Bipartite Topology & Air-Gap Enforcement.
@@ -320,5 +303,3 @@ def test_setup_tmpfs_idempotent_execution(
     assert res2.returncode == 0, f"Second execution failed: {res2.stderr}"
     assert expected_scratch_ram.exists()
     assert canary_file.exists(), "Canary file inside Scratch_RAM should persist across runs in filesystem fallback mode"
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -43,13 +43,43 @@ Authoritative References:
 from __future__ import annotations
 
 import math
+import os
+import tempfile
+import uuid
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
+import filelock
 import h5py
 import pytest
 from mendeleev import element
 
+# Verify importability from both bench_engine and cochem_bench.bench_engine
+from bench_engine.cochem_bench_rel import (
+    DEFAULT_RELATIVISTIC_Z_THRESHOLD,
+    HARTREE_TO_KCAL_MOL,
+    DeltaRelExtractor,
+    EphemeralScratchPurge,
+    RelCorrectionResult,
+    RelativisticExecutionError,
+    RelativisticHamiltonianInjector,
+    RelativisticInputError,
+    SpinOrbitCoupler,
+    X2CDivergenceError,
+    X2CDivergenceRemediator,
+    X2CHandler,
+    commit_rel_to_hdf5,
+    read_rel_from_hdf5,
+    resolve_hdf5_path,
+    run_rel_pipeline,
+)
+from cochem_bench.bench_engine.cochem_bench_rel import (
+    RelativisticHamiltonianInjector as CochemRelInjector,
+)
+from bench_engine.cochem_bench_export import (
+    CompositeAggregator,
+    CompositeEnergyRecord,
+)
 from bench_engine.cochem_bench_cbs import (
     CBSExtrapolationResult,
     commit_cbs_to_hdf5,
@@ -58,25 +88,7 @@ from bench_engine.cochem_bench_cv import (
     CVCorrectionResult,
     commit_cv_to_hdf5,
 )
-from bench_engine.cochem_bench_export import (
-    CompositeAggregator,
-)
 
-# Verify importability from both bench_engine and cochem_bench.bench_engine
-from bench_engine.cochem_bench_rel import (
-    HARTREE_TO_KCAL_MOL,
-    DeltaRelExtractor,
-    EphemeralScratchPurge,
-    RelativisticHamiltonianInjector,
-    RelCorrectionResult,
-    SpinOrbitCoupler,
-    X2CDivergenceError,
-    X2CDivergenceRemediator,
-    X2CHandler,
-    commit_rel_to_hdf5,
-    read_rel_from_hdf5,
-    run_rel_pipeline,
-)
 
 # ==============================================================================
 # Authentic Molecular Test Geometries (Cartesian Coordinates in Angstroms)

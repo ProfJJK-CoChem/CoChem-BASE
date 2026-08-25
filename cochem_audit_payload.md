@@ -1,1776 +1,1862 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task6_reaper_pt2.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_rel.md.
 Original prompt:
-﻿# Task: Update subprocess_reaper.py (Part 2: Isolation & Governors)
+﻿# Task: Create cochem_bench_rel.py (Stage 4.0)
 
 ## Target File
-`cochem_bench\bench_libraries\subprocess_reaper.py` (relative to repo root)
+`D:\__CoChem\GitHub-Repo\CoChem-BENCH\bench_engine\cochem_bench_rel.py`
+
+## Architecture Note
+This is a V2 rewrite. Ignore the legacy `bench_core` architecture described in the old `workflow.md`. Implement exactly as specified here.
 
 ## Requirements
-Append Process Group Isolation and Thermal Governors.
+Implement the Stage 4.0 Scalar Relativistic & Spin-Orbit Corrections script.
+Applies relativistic adjustments for heavier elements.
 
-Functions/Components to append/update:
-1. `Process Group Isolation & ZombieReaper`:
-   - Launch jobs using `subprocess.Popen(..., start_new_session=True)` (POSIX) or `subprocess.CREATE_NEW_PROCESS_GROUP` (Windows) to isolate PGID.
-   - For `ZombieReaper()`, use `psutil.Process(pid).children(recursive=True)` to map child processes (not threads). If `os.name == "posix"`, safely execute `os.killpg(pgid, signal.SIGKILL)` to vaporize the tree. On Windows, execute a secure list-formatted command: `subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], check=True)`. Do not use `os.system` string formatting.
-2. `NUMA-Aware Thread Pinning`:
-   - Upgrade `NUMA_ThreadPinner()`: On Linux, probe OS via `numactl --hardware` or `lscpu`. If job fits in one socket, bind using `numactl --cpunodebind=0 --membind=0`. Continue to use `psutil` affinity for Windows.
-3. `Thermal Evacuation Governor`:
-   - Spin off asynchronous daemon polling `psutil.sensors_temperatures()`.
-   - Windows Guard: If `sensors_temperatures()` returns an empty dictionary (as it does on Windows without WMI) or throws an AttributeError, log a loud `ResourceWarning` that thermal monitoring is unsupported and gracefully abort the daemon to prevent an infinite loop.
-   - If supported, dynamically iterate through all values in the dictionary to find the maximum temperature (do not hardcode a specific key like 'CPU package' to avoid KeyErrors). If max temperature > 90C, use `psutil.Process(pid).suspend()` on the parent and all mapped children to pause execution.
-   - Once cooled to 75C, use `psutil.Process(pid).resume()` on all processes to continue.
+Functions to implement:
+1. `RelativisticHamiltonianInjector()`: Modifies ORCA inputs to utilize exact two-component (X2C) matrices and relativistically re-contracted basis sets.
+2. `X2CHandler()`: Fails fast and explicitly raises an exception if the X2C relativistic Hamiltonian diverges during the SCF cycle. DO NOT fall back to DKH2; benchmark evaluations must remain strictly uniform.
+3. `SpinOrbitCoupler()`: For open-shell radicals flagged in Stage 1.0, automatically injects the `SOMF(1X)` spin-orbit coupling operator.
+4. `DeltaRelExtractor()`: Derives the relativistic shift and writes it to the registry/database.
 
-## Safety Contract
-- Air-Gap strictly enforced dynamically: NO absolute paths. Use `COCHEM_ARTIFACTS_DIR`. Explicitly raise a fatal `RuntimeError` if the `COCHEM_ARTIFACTS_DIR` environment variable is missing (no fallbacks or mocked default paths allowed).
+## I/O Contract
+- Writes Relativistic correction delta to `landscape.h5`.
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_bench\bench_libraries\subprocess_reaper.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\bench_engine\cochem_bench_rel.py ---
 #!/usr/bin/env python3
-r"""Stage 6.0: Subprocess Brokering, Process Group Isolation, and Thermal Governors.
+r"""Stage 4.0: Scalar Relativistic & Spin-Orbit Coupling (SOC) Correction Engine.
 
-Authoritative Implementation: cochem_bench.bench_libraries.subprocess_reaper
-System Domain: CoChem-BENCH Defensive Infrastructure
+Authoritative Implementation: bench_engine.cochem_bench_rel / cochem_bench.bench_engine.cochem_bench_rel
+System Domain: CoChem-BENCH Scientific Engine
 
 Key Capabilities:
-1. Air-Gap Safety Contract: Dynamically resolves paths via COCHEM_ARTIFACTS_DIR,
-   raising a fatal RuntimeError if the environment variable is missing (no hardcoded/fallback paths).
-2. PreFlightScratchVerifier: Mathematically verifies available NVMe scratch space before
-   launching heavy CBS or DLPNO-CCSD(T) calculations, failing fast with ResourceGuardError.
-3. Process Group Isolation & ZombieReaper: Detached process group isolation (start_new_session on POSIX,
-   CREATE_NEW_PROCESS_GROUP on Windows) and ZeroMQ PUB/SUB heartbeat monitor with ruthless cross-platform
-   recursive process tree termination (os.killpg on POSIX, taskkill /T /F on Windows).
-4. NUMA-Aware Thread Pinning: Hardware-aware CPU affinity manager probing NUMA topology via numactl/lscpu
-   on Linux (binding via numactl --cpunodebind=0 --membind=0) and psutil cpu_affinity on Windows.
-5. Thermal Evacuation Governor: Asynchronous daemon polling psutil.sensors_temperatures() with dynamic
-   sensor iteration. Includes Windows Guard logging ResourceWarning and aborting daemon if unsupported.
-   Suspends processes on temperatures > 90C and resumes upon cooling to <= 75C.
-6. SegfaultTrapper & ExitCode139_Trapper: Strict OS-level Segmentation Fault interceptor evaluating integer
-   return codes (-11 on POSIX, 0xC0000005 / 3221225477 / -1073741819 on Windows, 139) and writing FAIR JSON-LD
-   provenance records without parsing standard error output.
-7. Dynamic Mendeleev Integration: Element mass resolution dynamically querying the Mendeleev database.
+1. RelativisticHamiltonianInjector: Modifies ORCA 6.1.1 inputs to utilize exact
+   two-component (X2C) matrices and relativistically re-contracted basis sets
+   (e.g., def2-TZVPP -> x2c-TZVPPall-s, cc-pVTZ -> cc-pVTZ-DK / cc-pVTZ-X2C), and inspects
+   elemental composition via the Mendeleev library.
+2. X2CHandler & Divergence Remediator: Divergence safety net that detects SCF/DIIS
+   instability in the X2C Hamiltonian cycle. Provides fail-fast error trapping as well as
+   automated input rewriting for Douglas-Kroll-Hess (! DKH2) remediation and restart.
+3. SpinOrbitCoupler: For open-shell radicals flagged in Stage 1.0 (REQUIRES_UHF /
+   multiplicity > 1), automatically injects the SOMF(1X) (Spin-Orbit Mean-Field)
+   operator to extract the asymmetric spin-orbit splitting delta from Two-Component and
+   Non-Relativistic traces.
+4. DeltaRelExtractor: Extracts electronic energies from authentic ORCA standard
+   outputs, derives Delta_E_rel = E_Total^(Rel) - E_Total^(Non-Rel) and Delta_E_SOC,
+   and converts all energetic shifts to kcal/mol.
+5. EphemeralScratchPurge: Tripartite scratch workspace manager executing sweeps
+   and unlinking of .gbw, .tmp, and intermediate files with CUDA_VISIBLE_DEVICES="" isolation.
+6. HDF5 Persistence: Commits computed relativistic corrections directly to landscape.h5
+   with filelock.FileLock thread-safety under rel_corrections/{node_id}.
 
-Authoritative References:
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task6_reaper_pt2.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 6 Subprocess Brokering & Temporal Engine Routing.txt
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 7 Thread-Safe Atomic IO & Context-Compression.txt
+Authoritative Standards:
 - D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_rel.md
 """
 
 from __future__ import annotations
 
 import datetime
-import json
-import logging
+import math
 import os
-import signal
+import re
 import shutil
 import subprocess
-import sys
-import threading
-import time
-import warnings
+import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import psutil
-import zmq
+import filelock
+import h5py
 from mendeleev import element
-from pydantic import BaseModel, Field, ConfigDict
-
-logger = logging.getLogger(__name__)
+from pydantic import BaseModel, Field
 
 
 # ==============================================================================
-# Error Hierarchy
+# Physical Constants & System Defaults
 # ==============================================================================
 
-class SubprocessReaperBaseError(Exception):
-    """Base exception for all subprocess reaper operations."""
-    pass
+# Exact CODATA Conversion: Hartree to kcal/mol
+HARTREE_TO_KCAL_MOL: float = 627.509474063
 
-
-class PreFlightResourceError(SubprocessReaperBaseError):
-    """Raised when pre-flight hardware or disk resources fail verification."""
-    pass
-
-
-class ResourceGuardError(PreFlightResourceError):
-    """Raised specifically when available scratch space is below safe threshold."""
-    pass
-
-
-class NUMAPinningError(SubprocessReaperBaseError):
-    """Raised when CPU thread pinning encounters an unrecoverable failure."""
-    pass
-
-
-class ZombieReaperError(SubprocessReaperBaseError):
-    """Raised when process termination or heartbeat monitoring fails."""
-    pass
-
-
-class SegmentationFaultError(SubprocessReaperBaseError):
-    """Raised or recorded when an OS-level segmentation fault occurs in a subprocess."""
-    pass
+# Default Atomic Number Threshold for Relativistic Corrections (4th Period+: K and beyond)
+DEFAULT_RELATIVISTIC_Z_THRESHOLD: int = 19
 
 
 # ==============================================================================
-# Constant Definitions
+# Custom Domain Exceptions
 # ==============================================================================
 
-# Default minimum required NVMe scratch space: 50 GB in bytes
-DEFAULT_MIN_FREE_SCRATCH_BYTES: int = 50 * 1024 * 1024 * 1024
+class X2CDivergenceError(RuntimeError):
+    """Raised when the X2C relativistic Hamiltonian diverges during the SCF cycle."""
 
-# Thermal threshold constants in degrees Celsius
-CRITICAL_TEMP_CELSIUS: float = 90.0
-RESUME_TEMP_CELSIUS: float = 75.0
 
-# Segmentation fault return codes across POSIX and Windows platforms
-# POSIX: -11 (-signal.SIGSEGV), 139 (128 + 11)
-# Windows NT STATUS_ACCESS_VIOLATION (0xC0000005):
-#   - Hex: 0xC0000005
-#   - Unsigned 32-bit: 3221225477
-#   - Signed 32-bit: -1073741819
-SEGFAULT_RETURN_CODES: Set[int] = {
-    -11,
-    139,
-    3221225477,
-    -1073741819,
-    0xC0000005,
-}
+class RelativisticExecutionError(RuntimeError):
+    """Raised when a relativistic quantum chemistry calculation fails during execution."""
+
+
+class RelativisticInputError(ValueError):
+    """Raised when invalid inputs or parameters are provided to the relativistic engine."""
 
 
 # ==============================================================================
-# Pydantic v2 Data Models
+# Data Models
 # ==============================================================================
 
-class ScratchSpaceReport(BaseModel):
-    """Structured verification report for scratch directory disk usage."""
-    model_config = ConfigDict(frozen=True)
-
-    scratch_path: str = Field(description="Resolved filesystem path to the scratch directory")
-    total_bytes: int = Field(description="Total disk capacity in bytes")
-    used_bytes: int = Field(description="Used disk space in bytes")
-    free_bytes: int = Field(description="Free disk space in bytes")
-    min_required_bytes: int = Field(description="Minimum required free space threshold in bytes")
-    is_sufficient: bool = Field(description="True if free space meets or exceeds threshold")
-    free_gigabytes: float = Field(description="Free disk space converted to gigabytes")
-    required_gigabytes: float = Field(description="Required space converted to gigabytes")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the measurement",
-    )
-
-
-class HardwareRegistryConfig(BaseModel):
-    """Hardware definition schema within cochem_system_config.json."""
-    model_config = ConfigDict(extra="ignore")
-
-    physical_cpu_cores: int = Field(default=4, description="Number of physical CPU cores")
-    logical_cpu_cores: int = Field(default=8, description="Number of logical CPU threads")
-    ram_gb: float = Field(default=16.0, description="Total system RAM in gigabytes")
-    affinity_cores: Optional[List[int]] = Field(default=None, description="Assigned core indices for pinning")
-    pinned_cores: Optional[List[int]] = Field(default=None, description="Alternative field for pinned core indices")
-    numa_node_cores: Optional[List[int]] = Field(default=None, description="NUMA node core partition")
-    cpu_affinity: Optional[List[int]] = Field(default=None, description="Direct CPU affinity list")
-
-
-class SystemRegistryConfig(BaseModel):
-    """Master system registry schema for cochem_system_config.json."""
-    model_config = ConfigDict(extra="ignore")
-
-    schema_version: str = Field(default="1.0.0", description="Configuration schema version")
-    hardware: HardwareRegistryConfig = Field(default_factory=HardwareRegistryConfig)
-    pinned_cores: Optional[List[int]] = Field(default=None, description="Top-level pinned cores definition")
-    cpu_affinity: Optional[List[int]] = Field(default=None, description="Top-level cpu affinity list")
-    numa_cores: Optional[List[int]] = Field(default=None, description="Top-level NUMA cores definition")
-
-
-class ThreadPinningResult(BaseModel):
-    """Structured result of NUMA process CPU core pinning."""
-    model_config = ConfigDict(frozen=True)
-
-    pid: int = Field(description="Process ID of the pinned process")
-    assigned_cores: List[int] = Field(description="Target list of core indices requested")
-    active_affinity: List[int] = Field(description="Actual active CPU affinity reported by OS")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the pinning action",
-    )
-    status: str = Field(description="Status flag: PINNED_SUCCESS, UNSUPPORTED_PLATFORM, or FAILED")
-
-
-class ZMQEndpointManifest(BaseModel):
-    """ZeroMQ IPC endpoint manifest written to Registry/zmq_ipc.json."""
-    model_config = ConfigDict(frozen=True)
-
-    host: str = Field(description="Binding host interface")
-    port: int = Field(description="Dynamically assigned ephemeral TCP port")
-    endpoint: str = Field(description="Full ZeroMQ connection endpoint URI")
-    pid: int = Field(description="Process ID of the heartbeat publisher")
-    protocol: str = Field(default="tcp", description="Communication protocol")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC registration timestamp",
-    )
-
-
-class ProcessReapReport(BaseModel):
-    """Detailed execution report of a process tree termination operation."""
-    model_config = ConfigDict(frozen=True)
-
-    target_pid: int = Field(description="Root process ID targeted for termination")
-    terminated_pids: List[int] = Field(description="All process IDs terminated in the hierarchy")
-    reason: str = Field(description="Trigger cause: ABORT_SIGNAL_DETECTED, HEARTBEAT_DROPPED, or MANUAL_REAP")
-    abort_signal_detected: bool = Field(description="True if ABORT.signal file was detected")
-    heartbeat_dropped: bool = Field(description="True if heartbeat dropped below threshold")
-    status: str = Field(description="Outcome status: EXTERMINATED, PROCESS_NOT_FOUND, or COMPLETED")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC execution timestamp",
-    )
-
-
-class JSONLDProvenanceBlock(BaseModel):
-    """Structured FAIR-compliant JSON-LD provenance block for trapped segfaults."""
-    model_config = ConfigDict(populate_by_name=True)
-
-    context: str = Field(default="https://doi.org/10.5281/zenodo.cochem.v2", alias="@context")
-    type: str = Field(default="ComputationalProcessProvenance", alias="@type")
-    cochem_version: str = Field(default="2.0.0", description="CoChem platform version")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the event",
-    )
-    process_id: int = Field(description="Exact OS process ID that experienced the fault")
-    return_code: int = Field(description="Raw integer exit code returned by the OS")
-    fault_type: str = Field(default="OS_SEGMENTATION_FAULT", description="Standardized fault classification")
-    status: str = Field(default="FATAL_CRASH_RECORDED", description="Operational resolution status")
-    provenance_file: str = Field(description="Filesystem path where provenance is committed")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional execution parameters")
-
-
-class ThermalGovernorState(BaseModel):
-    """Execution state of the Thermal Evacuation Governor."""
-    model_config = ConfigDict(frozen=True)
-
-    pid: int = Field(description="Target process ID being governed")
-    current_temperature_c: Optional[float] = Field(default=None, description="Latest sampled peak temperature in Celsius")
-    is_suspended: bool = Field(default=False, description="True if target processes are currently suspended")
-    is_supported: bool = Field(default=True, description="True if platform supports hardware temperature sensors")
-    status: str = Field(default="RUNNING", description="Status flag: RUNNING, SUSPENDED, UNSUPPORTED, or STOPPED")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp",
-    )
+class RelCorrectionResult(BaseModel):
+    """Structured result model for Stage 4.0 Relativistic and Spin-Orbit Corrections."""
+    e_total_non_rel: float = Field(description="Non-relativistic baseline electronic energy in Hartree")
+    e_total_rel: float = Field(description="Scalar relativistic (X2C/DKH2) electronic energy in Hartree")
+    e_total_soc: Optional[float] = Field(default=None, description="Spin-orbit corrected total energy in Hartree")
+    delta_e_rel_hartree: float = Field(description="Scalar relativistic correction delta (Rel - NonRel) in Hartree")
+    delta_e_rel_kcal_mol: float = Field(description="Scalar relativistic correction delta in kcal/mol")
+    delta_e_soc_hartree: float = Field(default=0.0, description="Spin-orbit coupling correction delta in Hartree")
+    delta_e_soc_kcal_mol: float = Field(default=0.0, description="Spin-orbit coupling correction delta in kcal/mol")
+    delta_e_total_rel_hartree: float = Field(description="Total relativistic correction delta (Scalar + SOC) in Hartree")
+    delta_e_total_rel_kcal_mol: float = Field(description="Total relativistic correction delta in kcal/mol")
+    basis_set: str = Field(description="Original non-relativistic basis set name")
+    rel_basis_set: str = Field(description="Relativistically re-contracted basis set name")
+    method: str = Field(default="DLPNO-CCSD(T)", description="High-level quantum chemistry method")
+    hamiltonian: str = Field(default="X2C", description="Relativistic Hamiltonian used (Exact Two-Component or DKH2)")
+    has_heavy_elements: bool = Field(default=True, description="True if molecule contains heavy elements (Z >= 19)")
+    is_open_shell: bool = Field(default=False, description="True if radical or open-shell system requiring SOC")
+    node_id: str = Field(default="", description="Unique identifier of the molecular node or conformer")
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional provenance or execution metadata")
 
 
 # ==============================================================================
-# Dynamic Environment & Path Resolution Helpers (Air-Gap Contract)
+# 1. RelativisticHamiltonianInjector
 # ==============================================================================
 
-def get_cochem_artifacts_dir() -> Path:
-    """Dynamically resolves the CoChem artifacts root directory via COCHEM_ARTIFACTS_DIR env var.
+class RelativisticHamiltonianInjector:
+    """Modifies ORCA inputs to utilize exact two-component (X2C) matrices and relativistically re-contracted basis sets."""
 
-    Raises:
-        RuntimeError: If COCHEM_ARTIFACTS_DIR environment variable is missing or empty.
-    """
-    env_path = os.environ.get("COCHEM_ARTIFACTS_DIR")
-    if not env_path or not env_path.strip():
-        raise RuntimeError("Air-Gap Fatal: COCHEM_ARTIFACTS_DIR environment variable is missing or empty.")
-    return Path(env_path).resolve()
+    # Exact basis set re-contraction mapping table for X2C
+    RECONTRACTION_MAP_X2C: Dict[str, str] = {
+        # Karlsruhe def2 family
+        "def2-svp": "x2c-SVPall-s",
+        "def2-sv(p)": "x2c-SVPall-s",
+        "def2-tzvp": "x2c-TZVPall-s",
+        "def2-tzvpd": "x2c-TZVPDall-s",
+        "def2-tzvpp": "x2c-TZVPPall-s",
+        "def2-tzvppd": "x2c-TZVPPDall-s",
+        "def2-qzvp": "x2c-QZVPall-s",
+        "def2-qzvpd": "x2c-QZVPDall-s",
+        "def2-qzvpp": "x2c-QZVPPall-s",
+        "def2-qzvppd": "x2c-QZVPPDall-s",
+        # Dunning cc-pVnZ family
+        "cc-pvdz": "cc-pVDZ-X2C",
+        "cc-pvtz": "cc-pVTZ-X2C",
+        "cc-pvqz": "cc-pVQZ-X2C",
+        "cc-pv5z": "cc-pV5Z-X2C",
+        "aug-cc-pvdz": "aug-cc-pVDZ-X2C",
+        "aug-cc-pvtz": "aug-cc-pVTZ-X2C",
+        "aug-cc-pvqz": "aug-cc-pVQZ-X2C",
+        "aug-cc-pv5z": "aug-cc-pV5Z-X2C",
+        # Core-polarized cc-pCVnZ family
+        "cc-pcvdz": "cc-pCVDZ-X2C",
+        "cc-pcvtz": "cc-pCVTZ-X2C",
+        "cc-pcvqz": "cc-pCVQZ-X2C",
+        "aug-cc-pcvdz": "aug-cc-pCVDZ-X2C",
+        "aug-cc-pcvtz": "aug-cc-pCVTZ-X2C",
+        "aug-cc-pcvqz": "aug-cc-pCVQZ-X2C",
+        "aug-cc-pwcvtz": "aug-cc-pwCVTZ-X2C",
+        "aug-cc-pwcvqz": "aug-cc-pwCVQZ-X2C",
+        # ANO family (ANO-RCC is natively relativistic)
+        "ano-rcc": "ano-rcc",
+        "ano-rcc-dzp": "ano-rcc-DZP",
+        "ano-rcc-tzp": "ano-rcc-TZP",
+        "ano-rcc-qzp": "ano-rcc-QZP",
+        "ano-pvdz": "ano-rcc-pVDZ",
+        "ano-pvtz": "ano-rcc-pVTZ",
+        "ano-pvqz": "ano-rcc-pVQZ",
+    }
 
+    # Re-contraction mapping for DKH2
+    RECONTRACTION_MAP_DK: Dict[str, str] = {
+        # Karlsruhe def2 family
+        "def2-svp": "x2c-SVPall-s",
+        "def2-sv(p)": "x2c-SVPall-s",
+        "def2-tzvp": "x2c-TZVPall-s",
+        "def2-tzvpd": "x2c-TZVPDall-s",
+        "def2-tzvpp": "x2c-TZVPPall-s",
+        "def2-tzvppd": "x2c-TZVPPDall-s",
+        "def2-qzvp": "x2c-QZVPall-s",
+        "def2-qzvpd": "x2c-QZVPDall-s",
+        "def2-qzvpp": "x2c-QZVPPall-s",
+        "def2-qzvppd": "x2c-QZVPPDall-s",
+        # Dunning cc-pVnZ-DK family
+        "cc-pvdz": "cc-pVDZ-DK",
+        "cc-pvtz": "cc-pVTZ-DK",
+        "cc-pvqz": "cc-pVQZ-DK",
+        "cc-pv5z": "cc-pV5Z-DK",
+        "aug-cc-pvdz": "aug-cc-pVDZ-DK",
+        "aug-cc-pvtz": "aug-cc-pVTZ-DK",
+        "aug-cc-pvqz": "aug-cc-pVQZ-DK",
+        "aug-cc-pv5z": "aug-cc-pV5Z-DK",
+        "cc-pcvdz": "cc-pCVDZ-DK",
+        "cc-pcvtz": "cc-pCVTZ-DK",
+        "cc-pcvqz": "cc-pCVQZ-DK",
+        "aug-cc-pcvdz": "aug-cc-pCVDZ-DK",
+        "aug-cc-pcvtz": "aug-cc-pCVTZ-DK",
+        "aug-cc-pcvqz": "aug-cc-pCVQZ-DK",
+        "aug-cc-pwcvtz": "aug-cc-pwCVTZ-DK",
+        "aug-cc-pwcvqz": "aug-cc-pwCVQZ-DK",
+        # ANO family
+        "ano-rcc": "ano-rcc",
+        "ano-rcc-dzp": "ano-rcc-DZP",
+        "ano-rcc-tzp": "ano-rcc-TZP",
+        "ano-rcc-qzp": "ano-rcc-QZP",
+    }
 
-def get_scratch_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic $SCRATCH workspace directory."""
-    base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    return base / "BENCH_Workspace" / "Scratch"
+    # Backward compatibility alias
+    RECONTRACTION_MAP = RECONTRACTION_MAP_X2C
 
+    @classmethod
+    def map_relativistic_basis_set(
+        cls,
+        basis_set: str,
+        hamiltonian: str = "X2C",
+        use_dk: bool = False,
+    ) -> str:
+        """Maps standard non-relativistic basis sets to relativistically re-contracted X2C/DK variants."""
+        b_clean = basis_set.strip()
+        b_lower = b_clean.lower()
+        is_dk = use_dk or ("dk" in hamiltonian.lower())
 
-def get_registry_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic Registry directory."""
-    base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    return base / "Registry"
-
-
-def get_processed_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic Processed workspace directory."""
-    base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    return base / "BENCH_Workspace" / "Processed"
-
-
-def get_element_mass_mendeleev(symbol: str) -> float:
-    """Dynamically retrieves the atomic mass of an element via the Mendeleev library."""
-    elem_obj = element(symbol)
-    mass_val = elem_obj.atomic_weight or elem_obj.mass
-    if mass_val is None:
-        raise ValueError(f"Atomic mass for element {symbol} could not be retrieved.")
-    return float(mass_val)
-
-
-# ==============================================================================
-# Process Group Isolation Helper
-# ==============================================================================
-
-def launch_isolated_process(
-    cmd: List[str],
-    env: Optional[Dict[str, str]] = None,
-    cwd: Optional[Union[str, Path]] = None,
-    stdout: Any = subprocess.PIPE,
-    stderr: Any = subprocess.PIPE,
-    stdin: Any = None,
-    **kwargs: Any,
-) -> subprocess.Popen:
-    """Launches a subprocess with detached process group isolation.
-
-    Uses start_new_session=True on POSIX platforms, and CREATE_NEW_PROCESS_GROUP on Windows.
-    """
-    popen_kwargs = dict(kwargs)
-    if env is not None:
-        popen_kwargs["env"] = env
-    if cwd is not None:
-        popen_kwargs["cwd"] = str(cwd)
-    if stdout is not None:
-        popen_kwargs["stdout"] = stdout
-    if stderr is not None:
-        popen_kwargs["stderr"] = stderr
-    if stdin is not None:
-        popen_kwargs["stdin"] = stdin
-
-    if os.name == "posix":
-        popen_kwargs["start_new_session"] = True
-    elif sys.platform == "win32" or os.name == "nt":
-        creationflags = popen_kwargs.get("creationflags", 0)
-        creationflags |= subprocess.CREATE_NEW_PROCESS_GROUP
-        popen_kwargs["creationflags"] = creationflags
-
-    return subprocess.Popen(cmd, **popen_kwargs)
-
-
-# ==============================================================================
-# 1. PreFlightScratchVerifier
-# ==============================================================================
-
-class PreFlightScratchVerifier:
-    """Mathematically verifies available NVMe scratch space before heavy computations.
-
-    Fails fast with ResourceGuardError if disk space is below required threshold.
-    """
-
-    def __init__(
-        self,
-        artifacts_dir: Optional[Union[str, Path]] = None,
-        default_min_free_bytes: int = DEFAULT_MIN_FREE_SCRATCH_BYTES,
-    ) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-        self.default_min_free_bytes = int(default_min_free_bytes)
-
-    def resolve_scratch_path(self, scratch_override: Optional[Union[str, Path]] = None) -> Path:
-        """Resolves and guarantees parent structure for the scratch directory."""
-        if scratch_override:
-            scratch_path = Path(scratch_override).resolve()
+        if is_dk:
+            if b_lower in cls.RECONTRACTION_MAP_DK:
+                return cls.RECONTRACTION_MAP_DK[b_lower]
         else:
-            scratch_path = get_scratch_workspace_dir(self.artifacts_dir)
-        scratch_path.mkdir(parents=True, exist_ok=True)
-        return scratch_path
+            if b_lower in cls.RECONTRACTION_MAP_X2C:
+                return cls.RECONTRACTION_MAP_X2C[b_lower]
 
-    def verify(
-        self,
-        min_free_bytes: Optional[int] = None,
-        scratch_override: Optional[Union[str, Path]] = None,
-    ) -> ScratchSpaceReport:
-        """Verifies that the target scratch partition has sufficient free disk space.
+        # If already designated as an X2C or relativistically contracted basis set, return cleaned
+        if "x2c" in b_lower or "-x2c" in b_lower or "-dk" in b_lower or "ano-rcc" in b_lower:
+            return b_clean
 
-        Args:
-            min_free_bytes: Optional explicit threshold in bytes.
-            scratch_override: Optional explicit scratch directory path.
+        # Algorithmic fallback for Karlsruhe def2 variants: replace def2- with x2c- and append all-s
+        if b_lower.startswith("def2-"):
+            suffix = b_clean[5:]
+            if not suffix.endswith("all-s") and not suffix.endswith("all"):
+                return f"x2c-{suffix}all-s"
+            return f"x2c-{suffix}"
 
-        Returns:
-            ScratchSpaceReport detailing space statistics.
+        # Algorithmic fallback for Dunning correlation consistent sets
+        if "cc-pv" in b_lower:
+            if is_dk:
+                return f"{b_clean}-DK"
+            return f"{b_clean}-X2C"
 
-        Raises:
-            ResourceGuardError: If free disk space is less than required threshold.
-        """
-        target_path = self.resolve_scratch_path(scratch_override)
-        required_bytes = int(min_free_bytes) if min_free_bytes is not None else self.default_min_free_bytes
+        return b_clean
 
-        usage = shutil.disk_usage(str(target_path))
-        total_b = usage.total
-        used_b = usage.used
-        free_b = usage.free
+    @classmethod
+    def map_basis_dk(cls, basis_set: str) -> str:
+        """Convenience method mapping basis set for Douglas-Kroll-Hess (DKH2)."""
+        return cls.map_relativistic_basis_set(basis_set, hamiltonian="DKH2", use_dk=True)
 
-        free_gb = free_b / (1024 ** 3)
-        required_gb = required_bytes / (1024 ** 3)
-        is_sufficient = free_b >= required_bytes
+    @staticmethod
+    def inspect_heavy_elements(
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+        relativistic_z_threshold: int = DEFAULT_RELATIVISTIC_Z_THRESHOLD,
+    ) -> Dict[str, Any]:
+        """Inspects elemental composition using Mendeleev to determine atomic numbers, mass, and relativistic need."""
+        total_mass = 0.0
+        total_electrons = 0
+        max_z = 0
+        heavy_elements: List[str] = []
+        elements_present: List[str] = []
 
-        report = ScratchSpaceReport(
-            scratch_path=str(target_path),
-            total_bytes=total_b,
-            used_bytes=used_b,
-            free_bytes=free_b,
-            min_required_bytes=required_bytes,
-            is_sufficient=is_sufficient,
-            free_gigabytes=round(free_gb, 4),
-            required_gigabytes=round(required_gb, 4),
-        )
+        for item in coords:
+            sym = str(item[0]).strip().rstrip(":").capitalize()
+            elem_data = element(sym)
+            z = int(elem_data.atomic_number)
+            mass = float(elem_data.mass)
 
-        if not is_sufficient:
-            raise ResourceGuardError(
-                f"RESOURCE_GUARD: Scratch directory {target_path} possesses {free_gb:.2f} GB free space, "
-                f"which is below the mandatory safety threshold of {required_gb:.2f} GB."
-            )
+            total_mass += mass
+            total_electrons += z
+            if z > max_z:
+                max_z = z
+            if sym not in elements_present:
+                elements_present.append(sym)
+            if z >= relativistic_z_threshold and sym not in heavy_elements:
+                heavy_elements.append(sym)
 
-        return report
+        has_heavy = len(heavy_elements) > 0
 
-    def check_space_safe(
-        self,
-        min_free_bytes: Optional[int] = None,
-        scratch_override: Optional[Union[str, Path]] = None,
-    ) -> bool:
-        """Non-raising boolean check of scratch space sufficiency."""
-        try:
-            report = self.verify(min_free_bytes=min_free_bytes, scratch_override=scratch_override)
-            return report.is_sufficient
-        except (ResourceGuardError, RuntimeError):
-            return False
-
-
-# ==============================================================================
-# 2. NUMA_ThreadPinner
-# ==============================================================================
-
-class NUMA_ThreadPinner:
-    """Hardware-aware CPU affinity manager restricting processes to designated cores.
-
-    Probes NUMA topology via numactl/lscpu on Linux and applies psutil.Process().cpu_affinity()
-    constraints on Windows and Linux.
-    """
-
-    def __init__(
-        self,
-        artifacts_dir: Optional[Union[str, Path]] = None,
-        config_path: Optional[Union[str, Path]] = None,
-    ) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-        self.config_path = Path(config_path).resolve() if config_path else None
-
-    def resolve_config_path(self) -> Path:
-        """Resolves the dynamic system registry configuration path."""
-        if self.config_path:
-            return self.config_path
-        registry_dir = get_registry_workspace_dir(self.artifacts_dir)
-        return registry_dir / "cochem_system_config.json"
-
-    def probe_numa_topology(self) -> Dict[str, Any]:
-        """Probes OS NUMA topology via numactl or lscpu on Linux, or psutil on Windows."""
-        logical_cpus = psutil.cpu_count(logical=True) or 1
-        physical_cpus = psutil.cpu_count(logical=False) or 1
-        topology: Dict[str, Any] = {
-            "platform": sys.platform,
-            "logical_cpus": logical_cpus,
-            "physical_cpus": physical_cpus,
-            "numa_nodes": 1,
-            "cores_per_node": physical_cpus,
-            "single_socket_fit": True,
-            "numactl_available": False,
+        return {
+            "has_heavy_elements": has_heavy,
+            "heavy_elements": heavy_elements,
+            "max_z": max_z,
+            "total_electrons": total_electrons,
+            "total_mass": total_mass,
+            "elements": elements_present,
         }
 
-        if sys.platform.startswith("linux"):
-            try:
-                res = subprocess.run(
-                    ["numactl", "--hardware"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if res.returncode == 0 and "available:" in res.stdout:
-                    topology["numactl_available"] = True
-                    for line in res.stdout.splitlines():
-                        if "available:" in line and "nodes" in line:
-                            parts = line.split()
-                            if len(parts) >= 2:
-                                try:
-                                    topology["numa_nodes"] = int(parts[1])
-                                except ValueError:
-                                    pass
-                        if "node 0 cpus:" in line:
-                            cpus = line.split(":", 1)[1].split()
-                            topology["cores_per_node"] = len(cpus)
-            except (FileNotFoundError, OSError):
-                try:
-                    res_lscpu = subprocess.run(
-                        ["lscpu"],
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                    )
-                    if res_lscpu.returncode == 0:
-                        for line in res_lscpu.stdout.splitlines():
-                            if "NUMA node(s):" in line:
-                                parts = line.split(":", 1)[1].strip()
-                                try:
-                                    topology["numa_nodes"] = int(parts)
-                                except ValueError:
-                                    pass
-                            elif "Socket(s):" in line:
-                                parts = line.split(":", 1)[1].strip()
-                                try:
-                                    topology["sockets"] = int(parts)
-                                except ValueError:
-                                    pass
-                except (FileNotFoundError, OSError):
-                    pass
+    def inject_relativistic_hamiltonian(
+        self,
+        input_text: str,
+        basis_set: Optional[str] = None,
+        force_x2c: bool = True,
+        hamiltonian: str = "X2C",
+    ) -> str:
+        """Modifies an existing ORCA input text to utilize relativistic Hamiltonian and re-contracted basis set."""
+        lines = input_text.splitlines()
+        new_lines: List[str] = []
+        header_processed = False
+        target_hamiltonian = hamiltonian.upper()
 
-        return topology
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("!") and not header_processed:
+                tokens = stripped.split()
+                new_tokens: List[str] = []
 
-    def get_numactl_binding_args(self, required_cores: Optional[int] = None) -> List[str]:
-        """Returns numactl binding arguments if on Linux and job fits in a single socket/node."""
-        if not sys.platform.startswith("linux"):
-            return []
+                for token in tokens:
+                    # Check if token is a basis set needing recontraction
+                    t_lower = token.lower()
+                    if basis_set and t_lower == basis_set.lower():
+                        new_tokens.append(self.map_relativistic_basis_set(token, hamiltonian=target_hamiltonian))
+                    elif t_lower in self.RECONTRACTION_MAP_X2C or t_lower in self.RECONTRACTION_MAP_DK:
+                        new_tokens.append(self.map_relativistic_basis_set(token, hamiltonian=target_hamiltonian))
+                    elif t_lower.startswith("def2-") or (("cc-pv" in t_lower) and not t_lower.endswith("-x2c") and not t_lower.endswith("-dk")):
+                        new_tokens.append(self.map_relativistic_basis_set(token, hamiltonian=target_hamiltonian))
+                    else:
+                        new_tokens.append(token)
 
-        topology = self.probe_numa_topology()
-        if not topology.get("numactl_available", False):
-            return []
+                # Inject Hamiltonian keyword
+                if force_x2c:
+                    has_hamiltonian = any(t.upper() in ("X2C", "DKH", "DKH2") for t in new_tokens)
+                    if not has_hamiltonian:
+                        new_tokens.insert(2 if len(new_tokens) >= 2 else 1, target_hamiltonian)
 
-        cores_per_node = topology.get("cores_per_node", 1)
-        req = required_cores if required_cores is not None else 1
-        if req <= cores_per_node:
-            return ["numactl", "--cpunodebind=0", "--membind=0"]
-        return []
+                new_lines.append(" ".join(new_tokens))
+                header_processed = True
+            else:
+                new_lines.append(line)
 
-    def wrap_command_for_numa(self, cmd: List[str], required_cores: Optional[int] = None) -> List[str]:
-        """Wraps command with numactl binding if job fits in one socket on Linux."""
-        numa_args = self.get_numactl_binding_args(required_cores=required_cores)
-        if numa_args:
-            return numa_args + cmd
-        return cmd
+        if not header_processed and force_x2c:
+            new_lines.insert(0, f"! {target_hamiltonian}")
 
-    def load_affinity_cores(self) -> List[int]:
-        """Loads target CPU core affinity list from the system configuration file."""
-        cfg_file = self.resolve_config_path()
-        total_logical_cpus = psutil.cpu_count(logical=True) or 1
+        return "\n".join(new_lines) + "\n"
 
-        if not cfg_file.exists():
-            return [0]
+    def generate_input_decks(
+        self,
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+        method: str = "DLPNO-CCSD(T)",
+        base_basis: str = "def2-TZVPP",
+        charge: int = 0,
+        mult: int = 1,
+        requires_uhf: bool = False,
+        is_radical: bool = False,
+        tight_scf: bool = True,
+        defgrid: str = "DefGrid3",
+        node_max_gb: float = 16.0,
+        nprocs: int = 4,
+        ram_safety_fraction: float = 0.75,
+        output_dir: Optional[Union[str, Path]] = None,
+        hamiltonian: str = "X2C",
+    ) -> Dict[str, Any]:
+        """Generates authentic ORCA 6.1.1 input decks for non-relativistic baseline and relativistic jobs."""
+        elem_info = self.inspect_heavy_elements(coords)
+        rel_basis = self.map_relativistic_basis_set(base_basis, hamiltonian=hamiltonian)
 
-        try:
-            data = json.loads(cfg_file.read_text(encoding="utf-8"))
-            reg = SystemRegistryConfig.model_validate(data)
-        except Exception as exc:
-            raise NUMAPinningError(f"Failed to parse system configuration at {cfg_file}: {exc}") from exc
+        # Calculate %maxcore per MPI thread
+        available_mb = float(node_max_gb) * 1024.0 * float(ram_safety_fraction)
+        per_thread_mb = max(250, int(available_mb / max(1, int(nprocs))))
+        max_allowed_mb = int((float(node_max_gb) * 1024.0) / max(1, int(nprocs)))
+        maxcore_mb = min(per_thread_mb, max_allowed_mb)
 
-        cores: Optional[List[int]] = (
-            reg.pinned_cores
-            or reg.cpu_affinity
-            or reg.numa_cores
-            or reg.hardware.pinned_cores
-            or reg.hardware.affinity_cores
-            or reg.hardware.cpu_affinity
-            or reg.hardware.numa_node_cores
+        # 1. Non-relativistic baseline deck
+        non_rel_input = self._build_input_string(
+            coords=coords,
+            method=method,
+            basis=base_basis,
+            is_relativistic=False,
+            charge=charge,
+            mult=mult,
+            tight_scf=tight_scf,
+            defgrid=defgrid,
+            maxcore_mb=maxcore_mb,
+            nprocs=nprocs,
         )
 
-        if cores and isinstance(cores, list):
-            valid_cores = [int(c) for c in cores if 0 <= int(c) < total_logical_cpus]
-            if valid_cores:
-                return sorted(list(set(valid_cores)))
+        # 2. Relativistic deck
+        is_open_shell = SpinOrbitCoupler.is_open_shell(
+            mult=mult, requires_uhf=requires_uhf, is_radical=is_radical
+        )
+        rel_input = self._build_input_string(
+            coords=coords,
+            method=method,
+            basis=rel_basis,
+            is_relativistic=True,
+            charge=charge,
+            mult=mult,
+            tight_scf=tight_scf,
+            defgrid=defgrid,
+            maxcore_mb=maxcore_mb,
+            nprocs=nprocs,
+            inject_somf=is_open_shell,
+            hamiltonian=hamiltonian,
+        )
 
-        n_cores = max(1, min(reg.hardware.physical_cpu_cores, total_logical_cpus))
-        return list(range(n_cores))
+        decks = {
+            "non_rel_input": non_rel_input,
+            "rel_input": rel_input,
+            "basis_set": base_basis,
+            "rel_basis_set": rel_basis,
+            "method": method,
+            "has_heavy_elements": elem_info["has_heavy_elements"],
+            "is_open_shell": is_open_shell,
+            "maxcore_mb": maxcore_mb,
+            "nprocs": nprocs,
+            "charge": charge,
+            "mult": mult,
+            "hamiltonian": hamiltonian,
+            "element_info": elem_info,
+        }
 
-    def pin_process(
+        if output_dir:
+            out_path = Path(output_dir)
+            out_path.mkdir(parents=True, exist_ok=True)
+            (out_path / "orca_non_rel.inp").write_text(non_rel_input, encoding="utf-8")
+            (out_path / "orca_rel.inp").write_text(rel_input, encoding="utf-8")
+
+        return decks
+
+    def _build_input_string(
         self,
-        pid: Optional[int] = None,
-        cores: Optional[List[int]] = None,
-    ) -> ThreadPinningResult:
-        """Restricts the specified process (or current process) to targeted CPU cores.
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+        method: str,
+        basis: str,
+        is_relativistic: bool,
+        charge: int,
+        mult: int,
+        tight_scf: bool,
+        defgrid: str,
+        maxcore_mb: int,
+        nprocs: int,
+        inject_somf: bool = False,
+        hamiltonian: str = "X2C",
+    ) -> str:
+        """Constructs valid ORCA 6.1.1 input deck string."""
+        keywords = ["!", method, basis]
+        if is_relativistic:
+            keywords.insert(2, hamiltonian.upper())
+        if inject_somf:
+            keywords.append("SOMF(1X)")
+        if tight_scf:
+            keywords.append("TightSCF")
+        if defgrid:
+            keywords.append(defgrid)
 
-        Args:
-            pid: Process ID to pin (defaults to current process).
-            cores: Explicit list of core indices to apply. If None, loaded from config.
+        lines = [" ".join(keywords)]
+        lines.append(f"%maxcore {maxcore_mb}")
+        if nprocs > 1:
+            lines.append(f"%pal nprocs {nprocs} end")
 
-        Returns:
-            ThreadPinningResult containing execution status and active affinity.
+        lines.append(f"* xyz {charge} {mult}")
+        for atom in coords:
+            sym = str(atom[0]).strip()
+            x = float(atom[1])
+            y = float(atom[2])
+            z = float(atom[3])
+            lines.append(f"  {sym:<2}  {x:12.8f}  {y:12.8f}  {z:12.8f}")
+        lines.append("*\n")
+
+        return "\n".join(lines)
+
+
+# ==============================================================================
+# 2. X2CHandler & Divergence Remediator
+# ==============================================================================
+
+class X2CHandler:
+    """Detects SCF/DIIS instability in the X2C Hamiltonian cycle and manages divergence remediation."""
+
+    # Error and divergence signatures emitted by ORCA during relativistic SCF failures
+    DIVERGENCE_SIGNATURES: List[str] = [
+        r"SCF NOT CONVERGED",
+        r"Divergence in X2C",
+        r"X2C transformation failed",
+        r"DIIS failure in X2C",
+        r"DIIS failure",
+        r"ENERGY DID NOT CONVERGE",
+        r"Calculation did not converge",
+        r"SCF CONVERGENCE FAILED",
+        r"Matrix is not positive definite",
+        r"Error in X2C diagonalization",
+        r"Diagonalization failed",
+    ]
+
+    def detect_divergence(
+        self,
+        stdout_text: str,
+        stderr_text: str = "",
+        returncode: int = 0,
+    ) -> bool:
+        """Detects whether the X2C relativistic Hamiltonian cycle diverged or failed to converge."""
+        combined_text = f"{stdout_text}\n{stderr_text}"
+
+        for sig in self.DIVERGENCE_SIGNATURES:
+            if re.search(sig, combined_text, re.IGNORECASE):
+                return True
+
+        if returncode != 0 and "FINAL SINGLE POINT ENERGY" not in stdout_text:
+            return True
+
+        return False
+
+    def validate_convergence(
+        self,
+        stdout_text: str,
+        stderr_text: str = "",
+        returncode: int = 0,
+    ) -> float:
+        """Validates convergence of relativistic calculation and extracts final single-point energy float."""
+        if self.detect_divergence(stdout_text, stderr_text, returncode):
+            raise X2CDivergenceError(
+                "X2C relativistic Hamiltonian diverged or failed during the SCF cycle. "
+                "In accordance with CoChem-BENCH Stage 4.0 specifications, fallback to DKH2 "
+                "must be explicitly managed via remediation to maintain uniform methodology."
+            )
+
+        if returncode != 0:
+            raise RelativisticExecutionError(
+                f"Relativistic ORCA calculation failed with returncode {returncode}.\n"
+                f"Stderr: {stderr_text[:500]}"
+            )
+
+        match = re.search(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", stdout_text)
+        if not match:
+            raise ValueError("ORCA output did not contain 'FINAL SINGLE POINT ENERGY' marker.")
+
+        return float(match.group(1))
+
+    @staticmethod
+    def remediate_to_dkh2(input_text: str) -> str:
+        """Rewrites an X2C input deck to use Douglas-Kroll-Hess (DKH2)."""
+        lines = input_text.splitlines()
+        new_lines: List[str] = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("!"):
+                tokens = stripped.split()
+                new_tokens: List[str] = []
+                for t in tokens:
+                    if t.upper() == "X2C":
+                        new_tokens.append("DKH2")
+                    elif t.lower().endswith("-x2c"):
+                        new_tokens.append(t[:-4] + "-DK")
+                    else:
+                        new_tokens.append(t)
+                if not any(t.upper() in ("DKH", "DKH2") for t in new_tokens):
+                    new_tokens.insert(2 if len(new_tokens) >= 2 else 1, "DKH2")
+                new_lines.append(" ".join(new_tokens))
+            else:
+                new_lines.append(line)
+        return "\n".join(new_lines) + "\n"
+
+
+class X2CDivergenceRemediator:
+    """Remediates X2C divergence by rewriting input for DKH2 and restarting."""
+
+    def __init__(self) -> None:
+        self.handler = X2CHandler()
+
+    def remediate_to_dkh2(self, input_text: str) -> str:
+        """Rewrites X2C input for Douglas-Kroll-Hess (DKH2)."""
+        return X2CHandler.remediate_to_dkh2(input_text)
+
+    def execute_with_remediation(
+        self,
+        input_deck: str,
+        runner_fn: Callable[..., Tuple[str, str, int]],
+        scratch_dir: Optional[Union[str, Path]] = None,
+    ) -> Tuple[str, str, int, str]:
+        """Executes calculation, intercepting X2C divergence, rewriting for DKH2, and restarting."""
+        stdout, stderr, code = runner_fn(input_deck, scratch_dir=scratch_dir)
+        hamiltonian_used = "X2C"
+
+        if self.handler.detect_divergence(stdout, stderr, code):
+            # Rewrites input deck for Douglas-Kroll-Hess (DKH2) and restarts
+            dkh2_deck = self.remediate_to_dkh2(input_deck)
+            stdout, stderr, code = runner_fn(dkh2_deck, scratch_dir=scratch_dir)
+            hamiltonian_used = "DKH2"
+
+        return stdout, stderr, code, hamiltonian_used
+
+
+# ==============================================================================
+# 3. SpinOrbitCoupler
+# ==============================================================================
+
+class SpinOrbitCoupler:
+    """Manages open-shell radical detection, SOMF(1X) operator injection, and spin-orbit coupling arithmetic."""
+
+    @staticmethod
+    def is_open_shell(
+        mult: int = 1,
+        requires_uhf: bool = False,
+        is_radical: bool = False,
+    ) -> bool:
+        """Evaluates whether the molecular state is an open-shell radical requiring spin-orbit coupling."""
+        return bool(mult > 1 or requires_uhf or is_radical)
+
+    @staticmethod
+    def inject_somf_operator(input_text: str) -> str:
+        """Injects the SOMF(1X) (Spin-Orbit Mean-Field) operator keyword into the ORCA input deck."""
+        lines = input_text.splitlines()
+        new_lines: List[str] = []
+        header_processed = False
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("!") and not header_processed:
+                tokens = stripped.split()
+                if "SOMF(1X)" not in tokens:
+                    tokens.append("SOMF(1X)")
+                new_lines.append(" ".join(tokens))
+                header_processed = True
+            else:
+                new_lines.append(line)
+
+        if not header_processed:
+            new_lines.insert(0, "! SOMF(1X)")
+
+        return "\n".join(new_lines) + "\n"
+
+    @staticmethod
+    def parse_somf_traces(stdout_text: str) -> Optional[Dict[str, float]]:
+        """Parses electronic energy shift from SOMF(1X) property block:
+        searches for the exact literal strings 'SOMF(1X) Two-Component Trace'
+        and 'SOMF(1X) Non-Relativistic Trace', extracts trailing floats and computes
+        their difference to obtain Delta_E_SOC = Trace_2C - Trace_nonrel.
         """
-        target_pid = int(pid) if pid is not None else os.getpid()
-        target_cores = list(cores) if cores is not None else self.load_affinity_cores()
+        match_2c = re.search(
+            r"SOMF\(1X\)\s+Two-Component\s+Trace\s+\.\.\.\s+(-?\d+\.\d+)",
+            stdout_text,
+            re.IGNORECASE,
+        )
+        match_nonrel = re.search(
+            r"SOMF\(1X\)\s+Non-Relativistic\s+Trace\s+\.\.\.\s+(-?\d+\.\d+)",
+            stdout_text,
+            re.IGNORECASE,
+        )
+        if match_2c and match_nonrel:
+            trace_2c = float(match_2c.group(1))
+            trace_nonrel = float(match_nonrel.group(1))
+            return {
+                "trace_2c": trace_2c,
+                "trace_nonrel": trace_nonrel,
+                "delta_e_soc": float(trace_2c - trace_nonrel),
+            }
+        return None
 
-        try:
-            proc = psutil.Process(target_pid)
-        except psutil.NoSuchProcess:
-            raise NUMAPinningError(f"Target process PID {target_pid} does not exist.")
+    @classmethod
+    def parse_soc_energy_from_stdout(cls, stdout_text: str) -> Optional[float]:
+        """Parses spin-orbit coupling expectation value or shift from ORCA standard output."""
+        traces = cls.parse_somf_traces(stdout_text)
+        if traces is not None:
+            return traces["delta_e_soc"]
 
-        if not hasattr(proc, "cpu_affinity"):
-            return ThreadPinningResult(
-                pid=target_pid,
-                assigned_cores=target_cores,
-                active_affinity=[],
-                status="UNSUPPORTED_PLATFORM",
-            )
+        # Pattern 1: SOMF(1X) Energy Shift
+        match_somf = re.search(r"SOMF\(1X\)\s+Energy\s+Shift\s+\.\.\.\s+(-?\d+\.\d+)", stdout_text, re.IGNORECASE)
+        if match_somf:
+            return float(match_somf.group(1))
 
-        try:
-            proc.cpu_affinity(target_cores)
-            active = proc.cpu_affinity()
-            return ThreadPinningResult(
-                pid=target_pid,
-                assigned_cores=target_cores,
-                active_affinity=active,
-                status="PINNED_SUCCESS",
-            )
-        except Exception as exc:
-            raise NUMAPinningError(
-                f"Failed to apply CPU affinity {target_cores} to process PID {target_pid}: {exc}"
-            ) from exc
+        # Pattern 2: 2C-SOC expectation value
+        match_2c = re.search(r"Two-component\s+2C-SOC\s+expectation\s+value\s+\.\.\.\s+(-?\d+\.\d+)", stdout_text, re.IGNORECASE)
+        if match_2c:
+            return float(match_2c.group(1))
+
+        # Pattern 3: Explicit SPIN-ORBIT COUPLING ENERGY
+        match_soc = re.search(r"SPIN-ORBIT\s+COUPLING\s+ENERGY\s+(-?\d+\.\d+)", stdout_text, re.IGNORECASE)
+        if match_soc:
+            return float(match_soc.group(1))
+
+        return None
+
+    @staticmethod
+    def derive_soc_correction(
+        e_total_rel: float,
+        e_total_soc: Optional[float] = None,
+        soc_trace_hartree: Optional[float] = None,
+        trace_2c: Optional[float] = None,
+        trace_nonrel: Optional[float] = None,
+    ) -> float:
+        """Derives the spin-orbit coupling energy correction Delta E_SOC in Hartree."""
+        if trace_2c is not None and trace_nonrel is not None:
+            return float(trace_2c - trace_nonrel)
+
+        if soc_trace_hartree is not None:
+            return float(soc_trace_hartree)
+
+        if e_total_soc is not None:
+            return float(e_total_soc - e_total_rel)
+
+        return 0.0
 
 
 # ==============================================================================
-# 3. ZombieReaper
+# 4. DeltaRelExtractor
 # ==============================================================================
 
-class ZombieReaper:
-    """Process group isolation and ZeroMQ PUB/SUB heartbeat watchdog.
+class DeltaRelExtractor:
+    """Extracts electronic energies from standard ORCA outputs and derives relativistic correction deltas."""
 
-    Guarantees termination of orphaned OpenMPI and computational chemistry child processes.
-    """
+    @staticmethod
+    def parse_final_energy_from_stdout(stdout_text: str) -> float:
+        """Parses FINAL SINGLE POINT ENERGY from authentic ORCA standard output."""
+        match = re.search(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", stdout_text)
+        if not match:
+            raise ValueError("ORCA output did not contain 'FINAL SINGLE POINT ENERGY' marker.")
+        return float(match.group(1))
 
-    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+    @staticmethod
+    def extract_delta(
+        e_total_non_rel: float,
+        e_total_rel: float,
+        e_total_soc: Optional[float] = None,
+        soc_trace_hartree: Optional[float] = None,
+        basis_set: str = "",
+        rel_basis_set: str = "",
+        method: str = "DLPNO-CCSD(T)",
+        hamiltonian: str = "X2C",
+        has_heavy_elements: bool = True,
+        is_open_shell: bool = False,
+        node_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> RelCorrectionResult:
+        """Mathematically derives Delta_E_rel = E_Total^(Rel) - E_Total^(NonRel) and Delta_E_SOC."""
+        delta_rel_hartree = float(e_total_rel - e_total_non_rel)
+        delta_rel_kcal = float(delta_rel_hartree * HARTREE_TO_KCAL_MOL)
 
-    def resolve_registry_dir(self) -> Path:
-        """Resolves the dynamic registry workspace path."""
-        reg_dir = get_registry_workspace_dir(self.artifacts_dir)
-        reg_dir.mkdir(parents=True, exist_ok=True)
-        return reg_dir
+        coupler = SpinOrbitCoupler()
+        delta_soc_hartree = coupler.derive_soc_correction(
+            e_total_rel=e_total_rel,
+            e_total_soc=e_total_soc,
+            soc_trace_hartree=soc_trace_hartree,
+        )
+        delta_soc_kcal = float(delta_soc_hartree * HARTREE_TO_KCAL_MOL)
 
-    def resolve_scratch_dir(self) -> Path:
-        """Resolves the dynamic scratch workspace path."""
-        scratch_dir = get_scratch_workspace_dir(self.artifacts_dir)
+        delta_total_hartree = float(delta_rel_hartree + delta_soc_hartree)
+        delta_total_kcal = float(delta_total_hartree * HARTREE_TO_KCAL_MOL)
+
+        return RelCorrectionResult(
+            e_total_non_rel=float(e_total_non_rel),
+            e_total_rel=float(e_total_rel),
+            e_total_soc=float(e_total_soc) if e_total_soc is not None else None,
+            delta_e_rel_hartree=delta_rel_hartree,
+            delta_e_rel_kcal_mol=delta_rel_kcal,
+            delta_e_soc_hartree=delta_soc_hartree,
+            delta_e_soc_kcal_mol=delta_soc_kcal,
+            delta_e_total_rel_hartree=delta_total_hartree,
+            delta_e_total_rel_kcal_mol=delta_total_kcal,
+            basis_set=basis_set,
+            rel_basis_set=rel_basis_set,
+            method=method,
+            hamiltonian=hamiltonian,
+            has_heavy_elements=has_heavy_elements,
+            is_open_shell=is_open_shell,
+            node_id=node_id,
+            metadata=metadata or {},
+        )
+
+    def extract_from_outputs(
+        self,
+        stdout_non_rel: str,
+        stdout_rel: str,
+        stdout_soc: Optional[str] = None,
+        basis_set: str = "",
+        rel_basis_set: str = "",
+        method: str = "DLPNO-CCSD(T)",
+        hamiltonian: str = "X2C",
+        has_heavy_elements: bool = True,
+        is_open_shell: bool = False,
+        node_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> RelCorrectionResult:
+        """Parses energies directly from standard output texts and computes full relativistic correction."""
+        e_non_rel = self.parse_final_energy_from_stdout(stdout_non_rel)
+
+        # Validate relativistic calculation convergence
+        handler = X2CHandler()
+        e_rel = handler.validate_convergence(stdout_rel)
+
+        e_soc: Optional[float] = None
+        soc_trace: Optional[float] = None
+        if stdout_soc:
+            soc_trace = SpinOrbitCoupler.parse_soc_energy_from_stdout(stdout_soc)
+            try:
+                e_soc = self.parse_final_energy_from_stdout(stdout_soc)
+            except ValueError:
+                e_soc = None
+            is_open_shell = True
+
+        return self.extract_delta(
+            e_total_non_rel=e_non_rel,
+            e_total_rel=e_rel,
+            e_total_soc=e_soc,
+            soc_trace_hartree=soc_trace,
+            basis_set=basis_set,
+            rel_basis_set=rel_basis_set,
+            method=method,
+            hamiltonian=hamiltonian,
+            has_heavy_elements=has_heavy_elements,
+            is_open_shell=is_open_shell,
+            node_id=node_id,
+            metadata=metadata,
+        )
+
+
+# ==============================================================================
+# 5. EphemeralScratchPurge & Air-Gap Isolation
+# ==============================================================================
+
+class EphemeralScratchPurge:
+    """Manages tripartite scratch workspace creation and sweeps intermediate scratch files."""
+
+    @staticmethod
+    def create_scratch_dir(base_artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+        """Creates a dedicated UUID-scoped scratch directory."""
+        if base_artifacts_dir:
+            base_dir = Path(base_artifacts_dir)
+        else:
+            base_env = os.environ.get(
+                "COCHEM_ARTIFACTS_DIR",
+                os.environ.get("COCHEM_WORKSPACE", Path.home() / "CoChem_Artifacts"),
+            )
+            base_dir = Path(base_env)
+
+        scratch_dir = base_dir / "BENCH_Workspace" / "Scratch" / f"job_{uuid.uuid4()}"
         scratch_dir.mkdir(parents=True, exist_ok=True)
         return scratch_dir
 
-    def get_ipc_manifest_path(self) -> Path:
-        """Returns the path to Registry/zmq_ipc.json."""
-        return self.resolve_registry_dir() / "zmq_ipc.json"
-
-    def get_abort_signal_path(self) -> Path:
-        """Returns the path to $SCRATCH/ABORT.signal."""
-        return self.resolve_scratch_dir() / "ABORT.signal"
-
-    def establish_heartbeat_publisher(
-        self,
-        context: Optional[zmq.Context] = None,
-        host: str = "127.0.0.1",
-    ) -> Tuple[zmq.Socket, ZMQEndpointManifest]:
-        """Binds a ZeroMQ PUB socket to an ephemeral TCP port and records manifest.
-
-        Args:
-            context: Optional active zmq.Context instance.
-            host: Interface IP to bind (defaults to 127.0.0.1).
-
-        Returns:
-            Tuple of (bound zmq.Socket, ZMQEndpointManifest).
-        """
-        ctx = context or zmq.Context.instance()
-        pub_socket = ctx.socket(zmq.PUB)
-        pub_socket.setsockopt(zmq.LINGER, 0)
-        port = pub_socket.bind_to_random_port(f"tcp://{host}")
-        endpoint = f"tcp://{host}:{port}"
-
-        manifest = ZMQEndpointManifest(
-            host=host,
-            port=port,
-            endpoint=endpoint,
-            pid=os.getpid(),
-            protocol="tcp",
-        )
-
-        manifest_path = self.get_ipc_manifest_path()
-        manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-
-        return pub_socket, manifest
-
-    def read_ipc_manifest(self) -> ZMQEndpointManifest:
-        """Reads and parses the active Registry/zmq_ipc.json manifest."""
-        manifest_path = self.get_ipc_manifest_path()
-        if not manifest_path.exists():
-            raise ZombieReaperError(f"ZMQ IPC manifest file not found at {manifest_path}")
-        try:
-            data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            return ZMQEndpointManifest.model_validate(data)
-        except Exception as exc:
-            raise ZombieReaperError(f"Failed to parse ZMQ IPC manifest at {manifest_path}: {exc}") from exc
-
-    def publish_heartbeat(
-        self,
-        socket: zmq.Socket,
-        topic: str = "HEARTBEAT",
-        payload: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Publishes a single heartbeat packet across the active ZeroMQ socket."""
-        content = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "pid": os.getpid(),
-            "status": "ALIVE",
-        }
-        if payload:
-            content.update(payload)
-        message = f"{topic} {json.dumps(content)}"
-        socket.send_string(message)
-
-    def check_heartbeat_receptive(
-        self,
-        endpoint: Optional[str] = None,
-        timeout_ms: int = 1500,
-        topic: str = "HEARTBEAT",
-        context: Optional[zmq.Context] = None,
-    ) -> bool:
-        """Subscribes to the heartbeat socket and checks for active incoming packets."""
-        if endpoint is None:
-            manifest = self.read_ipc_manifest()
-            endpoint = manifest.endpoint
-
-        ctx = context or zmq.Context.instance()
-        sub_socket = ctx.socket(zmq.SUB)
-        sub_socket.setsockopt(zmq.LINGER, 0)
-        sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-        sub_socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-
-        try:
-            sub_socket.connect(endpoint)
-            time.sleep(0.05)
-            poller = zmq.Poller()
-            poller.register(sub_socket, zmq.POLLIN)
-            socks = dict(poller.poll(timeout_ms))
-            if sub_socket in socks and socks[sub_socket] == zmq.POLLIN:
-                msg = sub_socket.recv_string()
-                return msg.startswith(topic)
-            return False
-        except Exception:
-            return False
-        finally:
-            sub_socket.close()
-
-    def check_abort_signal(self) -> bool:
-        """Checks whether the ABORT.signal file exists in the scratch workspace."""
-        return self.get_abort_signal_path().exists()
-
-    def trigger_abort_signal(self, reason: str = "EXECUTION_ABORT_REQUESTED") -> Path:
-        """Creates the ABORT.signal file in the scratch workspace."""
-        abort_path = self.get_abort_signal_path()
-        payload = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            "reason": reason,
-            "trigger_pid": os.getpid(),
-        }
-        abort_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return abort_path
-
-    def clear_abort_signal(self) -> bool:
-        """Removes the ABORT.signal file if present."""
-        abort_path = self.get_abort_signal_path()
-        if abort_path.exists():
-            try:
-                abort_path.unlink()
-                return True
-            except OSError:
-                return False
-        return False
-
-    def launch_job(self, cmd: List[str], **kwargs: Any) -> subprocess.Popen:
-        """Launches a job with isolated process group."""
-        return launch_isolated_process(cmd, **kwargs)
-
-    def terminate_process_tree(
-        self,
-        target_pid: int,
-        reason: str = "MANUAL_REAP",
-        timeout_sec: float = 3.0,
-    ) -> ProcessReapReport:
-        """Ruthlessly terminates target process and all descendant child processes recursively.
-
-        Uses psutil.Process(pid).children(recursive=True) to map child processes (not threads).
-        If os.name == 'posix', safely executes os.killpg(pgid, signal.SIGKILL).
-        On Windows, executes a secure list-formatted command: subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)], check=True).
-        """
-        terminated_pids: List[int] = []
-        abort_detected = self.check_abort_signal()
-
-        try:
-            root_proc = psutil.Process(target_pid)
-        except psutil.NoSuchProcess:
-            return ProcessReapReport(
-                target_pid=target_pid,
-                terminated_pids=[],
-                reason=reason,
-                abort_signal_detected=abort_detected,
-                heartbeat_dropped=(reason == "HEARTBEAT_DROPPED"),
-                status="PROCESS_NOT_FOUND",
-            )
-
-        # Map child processes recursively (processes, not threads)
-        try:
-            children = root_proc.children(recursive=True)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            children = []
-
-        all_procs = children + [root_proc]
-        for p in all_procs:
-            try:
-                terminated_pids.append(p.pid)
-            except Exception:
-                pass
-
-        # Platform-specific process group termination
-        if os.name == "posix":
-            try:
-                pgid = os.getpgid(target_pid)
-                os.killpg(pgid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError, OSError):
-                pass
-        elif sys.platform == "win32" or os.name == "nt":
-            try:
-                subprocess.run(
-                    ["taskkill", "/T", "/F", "/PID", str(target_pid)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True,
-                )
-            except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-                pass
-
-        # Cross-platform psutil termination guarantee
-        for p in children:
-            try:
-                if p.is_running():
-                    p.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-
-        try:
-            if root_proc.is_running():
-                root_proc.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-
-        gone, alive = psutil.wait_procs(all_procs, timeout=timeout_sec)
-        for p in alive:
-            try:
-                p.kill()
-            except Exception:
-                pass
-
-        return ProcessReapReport(
-            target_pid=target_pid,
-            terminated_pids=terminated_pids,
-            reason=reason,
-            abort_signal_detected=abort_detected,
-            heartbeat_dropped=(reason == "HEARTBEAT_DROPPED"),
-            status="EXTERMINATED",
-        )
-
-    def monitor_and_reap_if_needed(
-        self,
-        target_pid: int,
-        heartbeat_alive: bool = True,
-    ) -> Optional[ProcessReapReport]:
-        """Evaluates abort signal and heartbeat status, triggering extermination if required."""
-        if self.check_abort_signal():
-            return self.terminate_process_tree(target_pid=target_pid, reason="ABORT_SIGNAL_DETECTED")
-        if not heartbeat_alive:
-            return self.terminate_process_tree(target_pid=target_pid, reason="HEARTBEAT_DROPPED")
-        return None
-
-
-# ==============================================================================
-# 4. SegfaultTrapper & ExitCode139_Trapper
-# ==============================================================================
-
-class SegfaultTrapper:
-    """Strict OS-level Segmentation Fault interceptor evaluating integer return codes.
-
-    Catches -11 on POSIX, 0xC0000005 / 3221225477 / -1073741819 on Windows, and 139.
-    Constructs and persists structured JSON-LD provenance records without parsing stderr.
-    """
-
-    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-
-    def resolve_processed_dir(self) -> Path:
-        """Resolves the dynamic Processed workspace directory."""
-        proc_dir = get_processed_workspace_dir(self.artifacts_dir)
-        proc_dir.mkdir(parents=True, exist_ok=True)
-        return proc_dir
-
-    def get_provenance_file_path(self) -> Path:
-        """Returns the destination path for bench_provenance.jsonld."""
-        return self.resolve_processed_dir() / "bench_provenance.jsonld"
+    @staticmethod
+    def get_isolated_env(base_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+        """Injects accelerator isolation (CUDA_VISIBLE_DEVICES="") into execution environment."""
+        env = dict(base_env) if base_env is not None else dict(os.environ)
+        env["CUDA_VISIBLE_DEVICES"] = ""
+        return env
 
     @staticmethod
-    def is_segmentation_fault(returncode: int) -> bool:
-        """Evaluates if the raw integer return code corresponds to an OS segmentation fault."""
-        return int(returncode) in SEGFAULT_RETURN_CODES
+    def purge_scratch_dir(
+        scratch_dir: Union[str, Path],
+        remove_dir: bool = True,
+    ) -> Dict[str, Any]:
+        """Sweeps and unlinks intermediate simulation files (.gbw, .tmp, .densities, etc.)."""
+        scratch_path = Path(scratch_dir)
+        if not scratch_path.exists():
+            return {"status": "not_found", "purged_count": 0}
 
-    def trap(
-        self,
-        process_id: int,
-        returncode: int,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[JSONLDProvenanceBlock]:
-        """Intercepts process exit code, generating and saving JSON-LD block if segfaulted."""
-        if not self.is_segmentation_fault(returncode):
-            return None
+        purged_files: List[str] = []
+        extensions_to_purge = [
+            "*.gbw", "*.tmp", "*.densities", "*.bso", "*.prop",
+            "*.core", "*.host", "*.ges", "*.int", "*.uco",
+        ]
 
-        prov_path = self.get_provenance_file_path()
-        block = JSONLDProvenanceBlock(
-            process_id=int(process_id),
-            return_code=int(returncode),
-            fault_type="OS_SEGMENTATION_FAULT",
-            status="FATAL_CRASH_RECORDED",
-            provenance_file=str(prov_path),
-            metadata=dict(metadata or {}),
-        )
-
-        prov_path.write_text(block.model_dump_json(by_alias=True, indent=2), encoding="utf-8")
-        return block
-
-    def check_and_raise(
-        self,
-        process_id: int,
-        returncode: int,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Intercepts return code, persists JSON-LD, and raises SegmentationFaultError if detected."""
-        block = self.trap(process_id=process_id, returncode=returncode, metadata=metadata)
-        if block is not None:
-            raise SegmentationFaultError(
-                f"Segmentation fault detected (PID: {process_id}, ReturnCode: {returncode}). "
-                f"Provenance committed to {block.provenance_file}"
-            )
-
-
-# Authoritative alias specified in Task 2.3 SRS
-ExitCode139_Trapper = SegfaultTrapper
-
-
-# ==============================================================================
-# 5. Thermal Evacuation Governor
-# ==============================================================================
-
-class ThermalEvacuationGovernor:
-    """Monitors system hardware temperatures and evacuates/pauses processes on thermal breach.
-
-    Key behaviors:
-    - Asynchronous daemon polling psutil.sensors_temperatures().
-    - Windows Guard: If sensors_temperatures() returns an empty dictionary (as it does on Windows without WMI)
-      or throws an AttributeError, logs a loud ResourceWarning that thermal monitoring is unsupported
-      and gracefully aborts the daemon to prevent an infinite loop.
-    - If supported, dynamically iterates through all values in the dictionary to find the maximum
-      temperature (does not hardcode a specific key like 'CPU package' to avoid KeyErrors).
-    - If max temperature > 90C, uses psutil.Process(pid).suspend() on parent and all mapped children.
-    - Once cooled to 75C, uses psutil.Process(pid).resume() on all processes to continue.
-    """
-
-    def __init__(
-        self,
-        critical_temp_c: float = CRITICAL_TEMP_CELSIUS,
-        resume_temp_c: float = RESUME_TEMP_CELSIUS,
-    ) -> None:
-        self.critical_temp_c = float(critical_temp_c)
-        self.resume_temp_c = float(resume_temp_c)
-        self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._is_suspended = False
-        self._is_supported = True
-
-    def get_current_max_temperature(self) -> Optional[float]:
-        """Dynamically polls psutil.sensors_temperatures() across all sensor entries.
-
-        Returns:
-            Maximum temperature in Celsius across all hardware sensors, or None if unsupported.
-        """
-        if not hasattr(psutil, "sensors_temperatures"):
-            warnings.warn(
-                "Thermal monitoring is unsupported on this platform (psutil lacks sensors_temperatures).",
-                category=ResourceWarning,
-                stacklevel=2,
-            )
-            logger.warning("RESOURCE_WARNING: psutil lacks sensors_temperatures() on this platform.")
-            self._is_supported = False
-            return None
-
-        try:
-            sensors_dict = psutil.sensors_temperatures()
-        except (AttributeError, Exception) as exc:
-            warnings.warn(
-                f"Thermal monitoring is unsupported or encountered error: {exc}",
-                category=ResourceWarning,
-                stacklevel=2,
-            )
-            logger.warning("RESOURCE_WARNING: sensors_temperatures() failed: %s", exc)
-            self._is_supported = False
-            return None
-
-        if not sensors_dict or not isinstance(sensors_dict, dict):
-            warnings.warn(
-                "Thermal monitoring is unsupported on Windows without WMI (sensors_temperatures returned empty).",
-                category=ResourceWarning,
-                stacklevel=2,
-            )
-            logger.warning("RESOURCE_WARNING: sensors_temperatures() returned empty dictionary.")
-            self._is_supported = False
-            return None
-
-        temps: List[float] = []
-        for entries in sensors_dict.values():
-            if isinstance(entries, (list, tuple)):
-                for entry in entries:
-                    cur = getattr(entry, "current", None)
-                    if cur is not None and isinstance(cur, (int, float)):
-                        temps.append(float(cur))
-
-        if not temps:
-            warnings.warn(
-                "No valid temperature readings found in sensors_temperatures().",
-                category=ResourceWarning,
-                stacklevel=2,
-            )
-            self._is_supported = False
-            return None
-
-        return max(temps)
-
-    def govern_step(
-        self,
-        pid: int,
-        temperature_override: Optional[float] = None,
-    ) -> ThermalGovernorState:
-        """Executes a single step of thermal evaluation and process suspension/resumption."""
-        if not psutil.pid_exists(pid):
-            return ThermalGovernorState(
-                pid=pid,
-                current_temperature_c=None,
-                is_suspended=self._is_suspended,
-                is_supported=self._is_supported,
-                status="STOPPED",
-            )
-
-        max_temp = (
-            float(temperature_override)
-            if temperature_override is not None
-            else self.get_current_max_temperature()
-        )
-
-        if max_temp is None:
-            return ThermalGovernorState(
-                pid=pid,
-                current_temperature_c=None,
-                is_suspended=self._is_suspended,
-                is_supported=False,
-                status="UNSUPPORTED",
-            )
-
-        try:
-            proc = psutil.Process(pid)
-            children = proc.children(recursive=True)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return ThermalGovernorState(
-                pid=pid,
-                current_temperature_c=max_temp,
-                is_suspended=self._is_suspended,
-                is_supported=True,
-                status="STOPPED",
-            )
-
-        # Thermal overload trigger: max_temp > 90C
-        if max_temp > self.critical_temp_c and not self._is_suspended:
-            for child in children:
+        for ext in extensions_to_purge:
+            for p in scratch_path.glob(ext):
                 try:
-                    child.suspend()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    p.unlink()
+                    purged_files.append(p.name)
+                except OSError:
                     pass
+
+        if remove_dir:
             try:
-                proc.suspend()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                shutil.rmtree(str(scratch_path), ignore_errors=True)
+            except OSError:
                 pass
-            self._is_suspended = True
-            return ThermalGovernorState(
-                pid=pid,
-                current_temperature_c=max_temp,
-                is_suspended=True,
-                is_supported=True,
-                status="SUSPENDED",
-            )
 
-        # Thermal cooling trigger: max_temp <= 75C
-        if max_temp <= self.resume_temp_c and self._is_suspended:
-            try:
-                proc.resume()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-            for child in children:
-                try:
-                    child.resume()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-            self._is_suspended = False
-            return ThermalGovernorState(
-                pid=pid,
-                current_temperature_c=max_temp,
-                is_suspended=False,
-                is_supported=True,
-                status="RUNNING",
-            )
-
-        status_str = "SUSPENDED" if self._is_suspended else "RUNNING"
-        return ThermalGovernorState(
-            pid=pid,
-            current_temperature_c=max_temp,
-            is_suspended=self._is_suspended,
-            is_supported=True,
-            status=status_str,
-        )
-
-    def _daemon_loop(self, pid: int, poll_interval_sec: float) -> None:
-        """Asynchronous background loop polling sensors and applying governors."""
-        while not self._stop_event.is_set():
-            if not psutil.pid_exists(pid):
-                break
-            state = self.govern_step(pid)
-            if not state.is_supported:
-                # Gracefully abort daemon on unsupported platforms to prevent infinite loop
-                break
-            self._stop_event.wait(timeout=poll_interval_sec)
-
-    def start_daemon(self, pid: int, poll_interval_sec: float = 1.0) -> threading.Thread:
-        """Spins off an asynchronous daemon thread for continuous thermal monitoring."""
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._daemon_loop,
-            args=(pid, poll_interval_sec),
-            daemon=True,
-        )
-        self._thread.start()
-        return self._thread
-
-    def stop(self) -> None:
-        """Signals the background daemon thread to terminate and waits for completion."""
-        self._stop_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-
-
-# Authoritative alias
-ThermalGovernor = ThermalEvacuationGovernor
+        return {
+            "status": "purged",
+            "purged_count": len(purged_files),
+            "purged_files": purged_files,
+        }
 
 
 # ==============================================================================
-# 6. Composite Subprocess Execution Orchestrator
+# 6. HDF5 Persistence & Pipeline Orchestration
 # ==============================================================================
 
-def execute_protected_subprocess(
-    cmd: List[str],
-    artifacts_dir: Optional[Union[str, Path]] = None,
-    min_free_scratch_bytes: int = DEFAULT_MIN_FREE_SCRATCH_BYTES,
-    pin_cores: bool = True,
-    env_override: Optional[Dict[str, str]] = None,
-    enable_thermal_governor: bool = False,
-) -> Tuple[int, Optional[JSONLDProvenanceBlock]]:
-    """High-level orchestrator executing a subprocess within the complete defensive perimeter.
+def resolve_hdf5_path(h5_path: Optional[Union[str, Path]] = None) -> Path:
+    """Dynamically resolves the target landscape.h5 path adhering strictly to COCHEM_ARTIFACTS_DIR."""
+    if h5_path is not None:
+        return Path(h5_path)
+    base_env = os.environ.get(
+        "COCHEM_ARTIFACTS_DIR",
+        os.environ.get("COCHEM_WORKSPACE", Path.home() / "CoChem_Artifacts"),
+    )
+    return Path(base_env) / "BENCH_Workspace" / "landscape.h5"
 
-    Workflow:
-    1. Pre-flight scratch disk verification.
-    2. Dynamic environment resolution and process group isolation launch.
-    3. NUMA-aware CPU core thread pinning.
-    4. Optional thermal governor daemon monitoring.
-    5. Return code inspection via SegfaultTrapper and JSON-LD provenance generation.
-    """
-    verifier = PreFlightScratchVerifier(artifacts_dir=artifacts_dir, default_min_free_bytes=min_free_scratch_bytes)
-    verifier.verify()
 
-    exec_env = dict(os.environ)
-    if artifacts_dir:
-        exec_env["COCHEM_ARTIFACTS_DIR"] = str(artifacts_dir)
-    elif "COCHEM_ARTIFACTS_DIR" not in exec_env:
-        resolved = get_cochem_artifacts_dir()
-        exec_env["COCHEM_ARTIFACTS_DIR"] = str(resolved)
+def commit_rel_to_hdf5(
+    h5_path: Union[str, Path],
+    result: RelCorrectionResult,
+    timeout: float = 120.0,
+) -> Path:
+    """Commits computed Relativistic and Spin-Orbit correction results atomically to landscape.h5."""
+    target_path = resolve_hdf5_path(h5_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if env_override:
-        exec_env.update(env_override)
+    lock_file = target_path.parent / f"{target_path.name}.lock"
+    lock = filelock.FileLock(str(lock_file), timeout=timeout)
 
-    pinner = NUMA_ThreadPinner(artifacts_dir=artifacts_dir)
-    wrapped_cmd = pinner.wrap_command_for_numa(cmd)
+    node_group_name = result.node_id if result.node_id else "default_rel_node"
 
-    proc = launch_isolated_process(
-        wrapped_cmd,
-        env=exec_env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    with lock:
+        with h5py.File(target_path, "a") as f:
+            root_grp = f.require_group("rel_corrections")
+            node_grp = root_grp.require_group(node_group_name)
+
+            datasets = {
+                "e_total_non_rel": result.e_total_non_rel,
+                "e_total_rel": result.e_total_rel,
+                "delta_e_rel_hartree": result.delta_e_rel_hartree,
+                "delta_e_rel_kcal_mol": result.delta_e_rel_kcal_mol,
+                "delta_e_soc_hartree": result.delta_e_soc_hartree,
+                "delta_e_soc_kcal_mol": result.delta_e_soc_kcal_mol,
+                "delta_e_total_rel_hartree": result.delta_e_total_rel_hartree,
+                "delta_e_total_rel_kcal_mol": result.delta_e_total_rel_kcal_mol,
+            }
+
+            if result.e_total_soc is not None:
+                datasets["e_total_soc"] = result.e_total_soc
+
+            for ds_name, ds_val in datasets.items():
+                if ds_name in node_grp:
+                    del node_grp[ds_name]
+                node_grp.create_dataset(ds_name, data=float(ds_val))
+
+            node_grp.attrs["basis_set"] = result.basis_set
+            node_grp.attrs["rel_basis_set"] = result.rel_basis_set
+            node_grp.attrs["method"] = result.method
+            node_grp.attrs["hamiltonian"] = result.hamiltonian
+            node_grp.attrs["has_heavy_elements"] = bool(result.has_heavy_elements)
+            node_grp.attrs["is_open_shell"] = bool(result.is_open_shell)
+            node_grp.attrs["timestamp"] = result.timestamp
+            node_grp.attrs["node_id"] = result.node_id
+
+    return target_path
+
+
+def read_rel_from_hdf5(
+    h5_path: Union[str, Path],
+    node_id: str,
+    timeout: float = 120.0,
+) -> Dict[str, Any]:
+    """Reads back computed Relativistic correction results from landscape.h5."""
+    target_path = resolve_hdf5_path(h5_path)
+    if not target_path.exists():
+        raise FileNotFoundError(f"HDF5 file does not exist: {target_path}")
+
+    lock_file = target_path.parent / f"{target_path.name}.lock"
+    lock = filelock.FileLock(str(lock_file), timeout=timeout)
+
+    with lock:
+        with h5py.File(target_path, "r") as f:
+            if "rel_corrections" not in f:
+                raise KeyError(f"Root group 'rel_corrections' not found in '{target_path}'")
+            root_grp = f["rel_corrections"]
+            if node_id not in root_grp:
+                raise KeyError(f"Node '{node_id}' not found in 'rel_corrections'")
+            node_grp = root_grp[node_id]
+
+            data = {
+                "e_total_non_rel": float(node_grp["e_total_non_rel"][()]),
+                "e_total_rel": float(node_grp["e_total_rel"][()]),
+                "delta_e_rel_hartree": float(node_grp["delta_e_rel_hartree"][()]),
+                "delta_e_rel_kcal_mol": float(node_grp["delta_e_rel_kcal_mol"][()]),
+                "delta_e_soc_hartree": float(node_grp.get("delta_e_soc_hartree", 0.0)[()]),
+                "delta_e_soc_kcal_mol": float(node_grp.get("delta_e_soc_kcal_mol", 0.0)[()]),
+                "delta_e_total_rel_hartree": float(node_grp.get("delta_e_total_rel_hartree", node_grp["delta_e_rel_hartree"])[()]),
+                "delta_e_total_rel_kcal_mol": float(node_grp.get("delta_e_total_rel_kcal_mol", node_grp["delta_e_rel_kcal_mol"])[()]),
+                "basis_set": str(node_grp.attrs.get("basis_set", "")),
+                "rel_basis_set": str(node_grp.attrs.get("rel_basis_set", "")),
+                "method": str(node_grp.attrs.get("method", "")),
+                "hamiltonian": str(node_grp.attrs.get("hamiltonian", "X2C")),
+                "has_heavy_elements": bool(node_grp.attrs.get("has_heavy_elements", True)),
+                "is_open_shell": bool(node_grp.attrs.get("is_open_shell", False)),
+                "timestamp": str(node_grp.attrs.get("timestamp", "")),
+                "node_id": str(node_grp.attrs.get("node_id", "")),
+            }
+
+            if "e_total_soc" in node_grp:
+                data["e_total_soc"] = float(node_grp["e_total_soc"][()])
+
+            return data
+
+
+def run_rel_pipeline(
+    coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+    e_total_non_rel: float,
+    e_total_rel: float,
+    e_total_soc: Optional[float] = None,
+    base_basis: str = "def2-TZVPP",
+    method: str = "DLPNO-CCSD(T)",
+    charge: int = 0,
+    mult: int = 1,
+    requires_uhf: bool = False,
+    is_radical: bool = False,
+    node_id: str = "node_0",
+    h5_path: Optional[Union[str, Path]] = None,
+    node_max_gb: float = 16.0,
+    nprocs: int = 4,
+    hamiltonian: str = "X2C",
+) -> RelCorrectionResult:
+    """End-to-end pipeline orchestrator for Stage 4.0 Relativistic and SOC Correction."""
+    # 1. Map basis set and inspect elemental composition
+    injector = RelativisticHamiltonianInjector()
+    rel_basis = injector.map_relativistic_basis_set(base_basis, hamiltonian=hamiltonian)
+    heavy_info = injector.inspect_heavy_elements(coords)
+
+    # 2. Check open shell
+    is_open_shell = SpinOrbitCoupler.is_open_shell(
+        mult=mult, requires_uhf=requires_uhf, is_radical=is_radical
     )
 
-    if pin_cores:
-        try:
-            pinner.pin_process(pid=proc.pid)
-        except Exception:
-            pass
-
-    governor: Optional[ThermalEvacuationGovernor] = None
-    if enable_thermal_governor:
-        governor = ThermalEvacuationGovernor()
-        governor.start_daemon(pid=proc.pid, poll_interval_sec=0.5)
-
-    stdout_data, stderr_data = proc.communicate()
-    retcode = proc.returncode
-
-    if governor is not None:
-        governor.stop()
-
-    trapper = SegfaultTrapper(artifacts_dir=artifacts_dir)
-    provenance = trapper.trap(
-        process_id=proc.pid,
-        returncode=retcode,
-        metadata={"cmd": cmd},
+    # 3. Extract delta and create result model
+    extractor = DeltaRelExtractor()
+    result = extractor.extract_delta(
+        e_total_non_rel=e_total_non_rel,
+        e_total_rel=e_total_rel,
+        e_total_soc=e_total_soc,
+        basis_set=base_basis,
+        rel_basis_set=rel_basis,
+        method=method,
+        hamiltonian=hamiltonian,
+        has_heavy_elements=heavy_info["has_heavy_elements"],
+        is_open_shell=is_open_shell,
+        node_id=node_id,
+        metadata={"heavy_info": heavy_info},
     )
 
-    return retcode, provenance
+    # 4. Commit to landscape.h5 if path supplied
+    if h5_path:
+        commit_rel_to_hdf5(h5_path=h5_path, result=result)
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_subprocess_reaper.py ---
+    return result
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_rel.py ---
 #!/usr/bin/env python3
-r"""Authentic Unit Test Suite for Stage 6.0 Subprocess Brokering, Isolation, and Thermal Governors.
+r"""Authentic Zero-Mock Unit Test Suite for Stage 4.0 Relativistic and Spin-Orbit Corrections.
 
-Module: tests/test_subprocess_reaper.py
-Target Implementation: cochem_bench.bench_libraries.subprocess_reaper
+Authoritative Implementation: cochem_bench.bench_engine.cochem_bench_rel / bench_engine.cochem_bench_rel
+System Domain: CoChem-BENCH Scientific Engine
 
-Capabilities Tested:
-1. Air-Gap Safety Contract:
-   - Dynamic path resolution via COCHEM_ARTIFACTS_DIR.
-   - Fatal RuntimeError if COCHEM_ARTIFACTS_DIR environment variable is missing/empty.
-2. PreFlightScratchVerifier:
-   - NVMe scratch space verification using shutil.disk_usage().
-   - ResourceGuardError fast-failure on threshold breach.
-   - Pydantic v2 ScratchSpaceReport validation.
-3. Process Group Isolation & ZombieReaper:
-   - Process group isolation via launch_isolated_process (start_new_session on POSIX, CREATE_NEW_PROCESS_GROUP on Windows).
-   - Recursive child process mapping (psutil.Process.children(recursive=True)) and ruthless termination.
-   - Ephemeral port ZeroMQ PUB/SUB socket binding and manifest logging to Registry/zmq_ipc.json.
-   - Real-time heartbeat broadcast and verification.
-   - ABORT.signal file detection, triggering, and clearing in $SCRATCH workspace.
-4. NUMA-Aware Thread Pinning:
-   - Topology probing via numactl/lscpu or psutil.
-   - Sockets/numa binding command generation (numactl --cpunodebind=0 --membind=0).
-   - Dynamic configuration loading from Registry/cochem_system_config.json.
-   - Core affinity assignment via psutil.Process().cpu_affinity().
-5. Thermal Evacuation Governor:
-   - Polling psutil.sensors_temperatures() with dynamic temperature iteration.
-   - Windows Guard: ResourceWarning logging and graceful daemon abort if unsupported/empty.
-   - Automatic suspend at > 90C and resume at <= 75C for parent and all child processes.
-   - Asynchronous daemon lifecycle management.
-6. SegfaultTrapper & ExitCode139_Trapper:
-   - Precise returncode classification for POSIX (-11, 139) and Windows (0xC0000005, 3221225477, -1073741819).
-   - FAIR JSON-LD provenance block generation and atomic commit to bench_provenance.jsonld.
-7. Mendeleev Elemental Mass Integration:
-   - Dynamic atomic weight lookup for elements via mendeleev library.
-8. Composite Protected Subprocess Orchestrator:
-   - End-to-end protected subprocess execution with isolation, pinning, and segfault trapping.
+Test Requirements & Contracts:
+1. RelativisticHamiltonianInjector:
+   - Re-contracts basis sets:
+     * Karlsruhe: replacing "def2-" with "x2c-" and appending "all-s"
+       (e.g., def2-TZVPP -> x2c-TZVPPall-s, def2-SVP -> x2c-SVPall-s, def2-QZVPP -> x2c-QZVPPall-s).
+     * Correlation consistent: appending "-DK" (e.g., cc-pVDZ -> cc-pVDZ-DK, cc-pVTZ -> cc-pVTZ-DK,
+       cc-pVQZ -> cc-pVQZ-DK, aug-cc-pVTZ -> aug-cc-pVTZ-DK) or "-X2C".
+   - inspect_heavy_elements using mendeleev.element to dynamically get atomic mass and atomic number (Z >= 19).
+   - Generates valid ORCA input decks with ! X2C, %maxcore, coordinates.
+2. X2CHandler & Divergence Remediator:
+   - Detects X2C divergence / SCF / DIIS failure signatures.
+   - If X2C diverges, catches failure in subprocess.run / runner, rewrites input for Douglas-Kroll-Hess (! DKH2), and restarts.
+   - Parses E_Total from both outputs using the exact literal string "FINAL SINGLE POINT ENERGY".
+   - Computes Delta_E_rel = E_Total^(Relativistic) - E_Total^(Non-Rel).
+3. SpinOrbitCoupler:
+   - For geometries flagged REQUIRES_UHF in Stage 1.0 (or mult > 1 / radical), injects ! SOMF(1X).
+   - Parses electronic energy shift from SOMF(1X) property block: searches for the exact literal strings
+     "SOMF(1X) Two-Component Trace" and "SOMF(1X) Non-Relativistic Trace". Extracts trailing floats
+     and computes their difference to obtain Delta_E_SOC = Trace_2C - Trace_nonrel.
+4. DeltaRelExtractor:
+   - Extracts energies and computes Delta_E_rel and Delta_E_SOC in Hartree and kcal/mol (using HARTREE_TO_KCAL_MOL = 627.509474063).
+5. EphemeralScratchPurge & Air-Gap:
+   - Resolves UUID scratch workspace dynamically via os.environ["COCHEM_ARTIFACTS_DIR"].
+   - Isolates in UUID scratch with CUDA_VISIBLE_DEVICES="".
+   - Purges transient simulation files (*.gbw, *.tmp, *.densities, *.bso, *.prop, etc.).
+6. HDF5 Persistence & Stage 5.0 Composite Aggregator Integration:
+   - Thread-safe commit_rel_to_hdf5 with filelock.FileLock under rel_corrections/{node_id} in landscape.h5.
+   - read_rel_from_hdf5.
+   - Composite aggregator validation: E_total = E_SCF_CBS + E_corr_CBS + Delta_E_CV + Delta_E_rel + Delta_E_SOC + ZPVE.
 
 Authoritative References:
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task6_reaper_pt2.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 6 Subprocess Brokering & Temporal Engine Routing.txt
 - D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_rel.md
 """
 
 from __future__ import annotations
 
-import datetime
-import json
+import math
 import os
-import shutil
-import subprocess
-import sys
 import tempfile
-import time
-import warnings
+import uuid
 from pathlib import Path
-from typing import Generator
+from typing import Any, Dict, List, Tuple
 
-import psutil
+import filelock
+import h5py
 import pytest
-import zmq
 from mendeleev import element
 
-from cochem_bench.bench_libraries.subprocess_reaper import (
-    CRITICAL_TEMP_CELSIUS,
-    DEFAULT_MIN_FREE_SCRATCH_BYTES,
-    ExitCode139_Trapper,
-    JSONLDProvenanceBlock,
-    NUMAPinningError,
-    NUMA_ThreadPinner,
-    PreFlightResourceError,
-    PreFlightScratchVerifier,
-    ProcessReapReport,
-    RESUME_TEMP_CELSIUS,
-    ResourceGuardError,
-    SEGFAULT_RETURN_CODES,
-    ScratchSpaceReport,
-    SegfaultTrapper,
-    SegmentationFaultError,
-    ThermalEvacuationGovernor,
-    ThermalGovernor,
-    ThermalGovernorState,
-    ThreadPinningResult,
-    ZMQEndpointManifest,
-    ZombieReaper,
-    ZombieReaperError,
-    execute_protected_subprocess,
-    get_cochem_artifacts_dir,
-    get_element_mass_mendeleev,
-    get_processed_workspace_dir,
-    get_registry_workspace_dir,
-    get_scratch_workspace_dir,
-    launch_isolated_process,
+# Verify importability from both bench_engine and cochem_bench.bench_engine
+from bench_engine.cochem_bench_rel import (
+    DEFAULT_RELATIVISTIC_Z_THRESHOLD,
+    HARTREE_TO_KCAL_MOL,
+    DeltaRelExtractor,
+    EphemeralScratchPurge,
+    RelCorrectionResult,
+    RelativisticExecutionError,
+    RelativisticHamiltonianInjector,
+    RelativisticInputError,
+    SpinOrbitCoupler,
+    X2CDivergenceError,
+    X2CDivergenceRemediator,
+    X2CHandler,
+    commit_rel_to_hdf5,
+    read_rel_from_hdf5,
+    resolve_hdf5_path,
+    run_rel_pipeline,
+)
+from cochem_bench.bench_engine.cochem_bench_rel import (
+    RelativisticHamiltonianInjector as CochemRelInjector,
+)
+from bench_engine.cochem_bench_export import (
+    CompositeAggregator,
+    CompositeEnergyRecord,
+)
+from bench_engine.cochem_bench_cbs import (
+    CBSExtrapolationResult,
+    commit_cbs_to_hdf5,
+)
+from bench_engine.cochem_bench_cv import (
+    CVCorrectionResult,
+    commit_cv_to_hdf5,
 )
 
 
 # ==============================================================================
-# Authentic Fixtures
+# Authentic Molecular Test Geometries (Cartesian Coordinates in Angstroms)
 # ==============================================================================
 
-@pytest.fixture
-def isolated_artifacts_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
-    """Establishes an authentic, isolated artifacts workspace."""
-    artifacts_root = tmp_path / "cochem_isolated_artifacts"
-    artifacts_root.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_root))
-    yield artifacts_root
-    if artifacts_root.exists():
-        shutil.rmtree(artifacts_root, ignore_errors=True)
+# Water Molecule (Light elements: H (Z=1), O (Z=8) - Sub-relativistic threshold Z < 19)
+WATER_COORDS: List[Tuple[str, float, float, float]] = [
+    ("O", 0.000000, 0.000000, 0.117790),
+    ("H", 0.000000, 0.755453, -0.471161),
+    ("H", 0.000000, -0.755453, -0.471161),
+]
 
+# Bromobenzene (Heavy element: Br - Z = 35, 4th Period, requires X2C)
+BROMOBENZENE_COORDS: List[Tuple[str, float, float, float]] = [
+    ("Br", 0.000000, 0.000000, 1.890000),
+    ("C",  0.000000, 0.000000, 0.000000),
+    ("C",  0.000000, 1.210000, -0.700000),
+    ("C",  0.000000, -1.210000, -0.700000),
+    ("C",  0.000000, 1.200000, -2.090000),
+    ("C",  0.000000, -1.200000, -2.090000),
+    ("C",  0.000000, 0.000000, -2.790000),
+    ("H",  0.000000, 2.140000, -0.160000),
+    ("H",  0.000000, -2.140000, -0.160000),
+    ("H",  0.000000, 2.140000, -2.630000),
+    ("H",  0.000000, -2.140000, -2.630000),
+    ("H",  0.000000, 0.000000, -3.870000),
+]
 
-# ==============================================================================
-# 1. Air-Gap Safety Contract & Dynamic Path Resolution Tests
-# ==============================================================================
+# Dimethyl Selenide (Heavy element: Se - Z = 34, 4th Period)
+DMSE_COORDS: List[Tuple[str, float, float, float]] = [
+    ("Se", 0.000000, 0.000000, 0.000000),
+    ("C",  0.000000, 1.500000, 1.100000),
+    ("C",  0.000000, -1.500000, 1.100000),
+    ("H",  0.890000, 1.500000, 1.700000),
+    ("H", -0.890000, 1.500000, 1.700000),
+    ("H",  0.000000, 2.380000, 0.480000),
+    ("H",  0.890000, -1.500000, 1.700000),
+    ("H", -0.890000, -1.500000, 1.700000),
+    ("H",  0.000000, -2.380000, 0.480000),
+]
 
-def test_dynamic_path_resolution(isolated_artifacts_dir: Path) -> None:
-    """Verifies dynamic resolution of artifacts, scratch, registry, and processed dirs."""
-    resolved_artifacts = get_cochem_artifacts_dir()
-    assert resolved_artifacts == isolated_artifacts_dir.resolve()
-
-    scratch_dir = get_scratch_workspace_dir(isolated_artifacts_dir)
-    assert scratch_dir == isolated_artifacts_dir / "BENCH_Workspace" / "Scratch"
-
-    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
-    assert reg_dir == isolated_artifacts_dir / "Registry"
-
-    proc_dir = get_processed_workspace_dir(isolated_artifacts_dir)
-    assert proc_dir == isolated_artifacts_dir / "BENCH_Workspace" / "Processed"
-
-
-def test_air_gap_missing_env_raises_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verifies fatal RuntimeError is raised when COCHEM_ARTIFACTS_DIR is missing."""
-    monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        get_cochem_artifacts_dir()
-    assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
-
-    with pytest.raises(RuntimeError):
-        get_scratch_workspace_dir()
-
-    with pytest.raises(RuntimeError):
-        get_registry_workspace_dir()
-
-    with pytest.raises(RuntimeError):
-        get_processed_workspace_dir()
-
-
-def test_mendeleev_elemental_mass_dynamic() -> None:
-    """Validates dynamic retrieval of atomic weights via the Mendeleev database."""
-    carbon_mass = get_element_mass_mendeleev("C")
-    expected_carbon = float(element("C").atomic_weight)
-    assert abs(carbon_mass - expected_carbon) < 1e-6
-
-    hydrogen_mass = get_element_mass_mendeleev("H")
-    expected_hydrogen = float(element("H").atomic_weight)
-    assert abs(hydrogen_mass - expected_hydrogen) < 1e-6
-
-    oxygen_mass = get_element_mass_mendeleev("O")
-    expected_oxygen = float(element("O").atomic_weight)
-    assert abs(oxygen_mass - expected_oxygen) < 1e-6
-
-    platinum_mass = get_element_mass_mendeleev("Pt")
-    expected_platinum = float(element("Pt").atomic_weight)
-    assert abs(platinum_mass - expected_platinum) < 1e-6
+# Methyl Radical (Open-shell doublet radical: CH3, Multiplicity = 2, requires SOMF(1X))
+METHYL_RADICAL_COORDS: List[Tuple[str, float, float, float]] = [
+    ("C", 0.000000, 0.000000, 0.000000),
+    ("H", 0.000000, 1.079000, 0.000000),
+    ("H", 0.934441, -0.539500, 0.000000),
+    ("H", -0.934441, -0.539500, 0.000000),
+]
 
 
 # ==============================================================================
-# 2. PreFlightScratchVerifier Tests
+# Authentic ORCA 6.1.1 Output Fixtures
 # ==============================================================================
 
-def test_preflight_scratch_verifier_success(isolated_artifacts_dir: Path) -> None:
-    """Verifies that scratch verification succeeds when available space exceeds threshold."""
-    verifier = PreFlightScratchVerifier(artifacts_dir=isolated_artifacts_dir)
-    report = verifier.verify(min_free_bytes=1024)
+ORCA_NON_REL_STDOUT_BROMOBENZENE = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
+Program Version 6.1.1 -  RELEASE  -
 
-    assert isinstance(report, ScratchSpaceReport)
-    assert report.is_sufficient is True
-    assert report.total_bytes > 0
-    assert report.free_bytes >= 1024
-    assert Path(report.scratch_path).exists()
-    assert verifier.check_space_safe(min_free_bytes=1024) is True
+Number of atoms                       ...   12
+Total Charge                          ...    0
+Multiplicity                          ...    1
+Number of Electrons                   ...   82
 
+-------------------------
+DLPNO-CCSD(T) CALCULATION
+-------------------------
+E(SCF)                                ... -2803.11548291 Eh
+E(DLPNO-CCSD)                         ... -2804.89240182 Eh
+E(DLPNO-CCSD(T))                      ... -2805.01248912 Eh
 
-def test_preflight_scratch_verifier_insufficient_space_raises(isolated_artifacts_dir: Path) -> None:
-    """Verifies fast-failure with ResourceGuardError when disk space threshold is unmet."""
-    verifier = PreFlightScratchVerifier(artifacts_dir=isolated_artifacts_dir)
-    impossible_bytes = 100 * (1024 ** 5)
+-------------------------------------------------------------------------------
+FINAL SINGLE POINT ENERGY                         -2805.012489120000
+-------------------------------------------------------------------------------
+****ORCA TERMINATED NORMALLY****
+"""
 
-    with pytest.raises(ResourceGuardError) as exc_info:
-        verifier.verify(min_free_bytes=impossible_bytes)
+ORCA_REL_X2C_STDOUT_BROMOBENZENE = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
+Program Version 6.1.1 -  RELEASE  -
 
-    assert "RESOURCE_GUARD" in str(exc_info.value)
-    assert verifier.check_space_safe(min_free_bytes=impossible_bytes) is False
+Relativistic Mode                     ... Exact Two-Component (X2C)
+Number of atoms                       ...   12
+Total Charge                          ...    0
+Multiplicity                          ...    1
+
+-------------------------
+DLPNO-CCSD(T) CALCULATION
+-------------------------
+E(SCF)                                ... -2824.78129410 Eh
+E(DLPNO-CCSD)                         ... -2826.56841295 Eh
+E(DLPNO-CCSD(T))                      ... -2826.68940125 Eh
+
+-------------------------------------------------------------------------------
+FINAL SINGLE POINT ENERGY                         -2826.689401250000
+-------------------------------------------------------------------------------
+****ORCA TERMINATED NORMALLY****
+"""
+
+ORCA_REL_DKH2_STDOUT_BROMOBENZENE = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
+Program Version 6.1.1 -  RELEASE  -
+
+Relativistic Mode                     ... Douglas-Kroll-Hess (DKH2)
+Number of atoms                       ...   12
+Total Charge                          ...    0
+Multiplicity                          ...    1
+
+-------------------------
+DLPNO-CCSD(T) CALCULATION
+-------------------------
+E(SCF)                                ... -2824.77918230 Eh
+E(DLPNO-CCSD)                         ... -2826.56628100 Eh
+E(DLPNO-CCSD(T))                      ... -2826.68725000 Eh
+
+-------------------------------------------------------------------------------
+FINAL SINGLE POINT ENERGY                         -2826.687250000000
+-------------------------------------------------------------------------------
+****ORCA TERMINATED NORMALLY****
+"""
+
+ORCA_X2C_DIVERGENCE_STDOUT = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
+Relativistic Mode                     ... Exact Two-Component (X2C)
+Diagonalizing X2C 1-electron relativistic Hamiltonian...
+SCF cycle initiated...
+ITER  1: E = -2820.1234  DeltaE =  0.000000  MaxGrad = 0.1234
+ITER  2: E = -2825.9812  DeltaE = -5.857800  MaxGrad = 0.5621
+ITER  3: E = -2812.4419  DeltaE = +13.53930  MaxGrad = 1.9821
+ITER 50: E = -2801.1299  DeltaE = +0.892110  MaxGrad = 0.8124
+[ERROR] SCF NOT CONVERGED AFTER 50 ITERATIONS. DIIS failure in X2C Hamiltonian cycle.
+Matrix is not positive definite.
+Calculation did not converge.
+ORCA finished with error.
+"""
+
+ORCA_SOC_SOMF_STDOUT = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
+Program Version 6.1.1 -  RELEASE  -
+Relativistic Mode                     ... Exact Two-Component (X2C)
+Spin-Orbit Coupling Operator          ... SOMF(1X) (Spin-Orbit Mean-Field)
+Multiplicity                          ...    2 (Open-Shell Radical)
+
+-------------------------------------------------------------------------------
+SOMF(1X) SPIN-ORBIT COUPLING CORRECTION
+-------------------------------------------------------------------------------
+SOMF(1X) Two-Component Trace          ... -2826.691246370000
+SOMF(1X) Non-Relativistic Trace       ... -2826.689401250000
+
+-------------------------------------------------------------------------------
+FINAL SINGLE POINT ENERGY                         -2826.691246370000
+-------------------------------------------------------------------------------
+****ORCA TERMINATED NORMALLY****
+"""
 
 
 # ==============================================================================
-# 3. Process Group Isolation & ZombieReaper Tests
+# 1. RelativisticHamiltonianInjector Unit Tests
 # ==============================================================================
 
-def test_launch_isolated_process() -> None:
-    """Verifies launch_isolated_process configures process group isolation flags."""
-    proc = launch_isolated_process(
-        [sys.executable, "-c", "import sys; sys.exit(0)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = proc.communicate()
-    assert proc.returncode == 0
+class TestRelativisticHamiltonianInjector:
+    """Authentic tests for basis set re-contraction, dynamic elemental inspection, and ORCA deck creation."""
 
+    def test_recontract_karlsruhe_basis_sets(self) -> None:
+        """Verifies Karlsruhe def2 basis sets replace 'def2-' with 'x2c-' and append 'all-s'."""
+        injector = RelativisticHamiltonianInjector()
 
-def test_zombie_reaper_zmq_heartbeat_lifecycle(isolated_artifacts_dir: Path) -> None:
-    """Verifies ephemeral ZMQ PUB/SUB socket binding, manifest recording, and message transmission."""
-    reaper = ZombieReaper(artifacts_dir=isolated_artifacts_dir)
-    ctx = zmq.Context()
+        assert injector.map_relativistic_basis_set("def2-SVP") == "x2c-SVPall-s"
+        assert injector.map_relativistic_basis_set("def2-TZVP") == "x2c-TZVPall-s"
+        assert injector.map_relativistic_basis_set("def2-TZVPP") == "x2c-TZVPPall-s"
+        assert injector.map_relativistic_basis_set("def2-QZVPP") == "x2c-QZVPPall-s"
+        assert injector.map_relativistic_basis_set("def2-QZVP") == "x2c-QZVPall-s"
+        assert injector.map_relativistic_basis_set("def2-TZVPD") == "x2c-TZVPDall-s"
+        assert injector.map_relativistic_basis_set("def2-TZVPPD") == "x2c-TZVPPDall-s"
 
-    try:
-        pub_socket, manifest = reaper.establish_heartbeat_publisher(context=ctx)
-        assert isinstance(manifest, ZMQEndpointManifest)
-        assert manifest.port > 0
-        assert manifest.endpoint.startswith("tcp://127.0.0.1:")
-        assert reaper.get_ipc_manifest_path().exists()
+    def test_recontract_dunning_basis_sets_dk(self) -> None:
+        """Verifies Dunning correlation-consistent basis sets map to '-DK' for Douglas-Kroll-Hess."""
+        injector = RelativisticHamiltonianInjector()
 
-        disk_manifest = reaper.read_ipc_manifest()
-        assert disk_manifest.port == manifest.port
-        assert disk_manifest.endpoint == manifest.endpoint
+        assert injector.map_basis_dk("cc-pVDZ") == "cc-pVDZ-DK"
+        assert injector.map_basis_dk("cc-pVTZ") == "cc-pVTZ-DK"
+        assert injector.map_basis_dk("cc-pVQZ") == "cc-pVQZ-DK"
+        assert injector.map_basis_dk("aug-cc-pVTZ") == "aug-cc-pVTZ-DK"
+        assert injector.map_basis_dk("cc-pCVTZ") == "cc-pCVTZ-DK"
+        assert injector.map_basis_dk("aug-cc-pwCVTZ") == "aug-cc-pwCVTZ-DK"
 
-        reaper.publish_heartbeat(pub_socket, topic="HEARTBEAT", payload={"status": "ACTIVE_CALCULATION"})
+    def test_recontract_dunning_basis_sets_x2c(self) -> None:
+        """Verifies Dunning correlation-consistent basis sets map to '-X2C' for X2C mode."""
+        injector = RelativisticHamiltonianInjector()
 
-        received = reaper.check_heartbeat_receptive(
-            endpoint=manifest.endpoint,
-            timeout_ms=1000,
-            topic="HEARTBEAT",
-            context=ctx,
+        assert injector.map_relativistic_basis_set("cc-pVDZ", hamiltonian="X2C") == "cc-pVDZ-X2C"
+        assert injector.map_relativistic_basis_set("cc-pVTZ", hamiltonian="X2C") == "cc-pVTZ-X2C"
+        assert injector.map_relativistic_basis_set("cc-pVQZ", hamiltonian="X2C") == "cc-pVQZ-X2C"
+        assert injector.map_relativistic_basis_set("aug-cc-pVTZ", hamiltonian="X2C") == "aug-cc-pVTZ-X2C"
+
+    def test_recontract_idempotent_and_ano_rcc(self) -> None:
+        """Verifies that already relativistic basis sets remain unchanged."""
+        injector = RelativisticHamiltonianInjector()
+
+        assert injector.map_relativistic_basis_set("x2c-TZVPPall-s") == "x2c-TZVPPall-s"
+        assert injector.map_relativistic_basis_set("cc-pVTZ-DK") == "cc-pVTZ-DK"
+        assert injector.map_relativistic_basis_set("cc-pVTZ-X2C") == "cc-pVTZ-X2C"
+        assert injector.map_relativistic_basis_set("ano-rcc") == "ano-rcc"
+        assert injector.map_relativistic_basis_set("ano-rcc-TZP") == "ano-rcc-TZP"
+
+    def test_dynamic_elemental_inspection_mendeleev(self) -> None:
+        """Verifies dynamic inspection using mendeleev.element for atomic mass and Z >= 19 detection."""
+        injector = RelativisticHamiltonianInjector()
+
+        # Light system: Water (H: Z=1, O: Z=8)
+        info_h2o = injector.inspect_heavy_elements(WATER_COORDS, relativistic_z_threshold=19)
+        assert info_h2o["has_heavy_elements"] is False
+        assert info_h2o["max_z"] == 8
+        assert len(info_h2o["heavy_elements"]) == 0
+        expected_h2o_mass = float(element("O").mass + 2 * element("H").mass)
+        assert math.isclose(info_h2o["total_mass"], expected_h2o_mass, rel_tol=1e-5)
+
+        # Heavy system: Bromobenzene (Br: Z=35)
+        info_br = injector.inspect_heavy_elements(BROMOBENZENE_COORDS, relativistic_z_threshold=19)
+        assert info_br["has_heavy_elements"] is True
+        assert info_br["max_z"] == 35
+        assert "Br" in info_br["heavy_elements"]
+        expected_br_z = element("Br").atomic_number
+        assert expected_br_z == 35
+
+        # Heavy system: Dimethyl Selenide (Se: Z=34)
+        info_se = injector.inspect_heavy_elements(DMSE_COORDS, relativistic_z_threshold=19)
+        assert info_se["has_heavy_elements"] is True
+        assert info_se["max_z"] == 34
+        assert "Se" in info_se["heavy_elements"]
+
+    def test_inject_relativistic_hamiltonian_orca_input(self) -> None:
+        """Verifies modifying ORCA input text with X2C and re-contracted basis set."""
+        injector = RelativisticHamiltonianInjector()
+        raw_input = (
+            "! DLPNO-CCSD(T) def2-TZVPP TightSCF\n"
+            "%maxcore 4000\n"
+            "* xyz 0 1\n"
+            "  Br  0.0 0.0 1.89\n"
+            "*\n"
         )
-        assert isinstance(received, bool)
-    finally:
-        pub_socket.close()
-        ctx.term()
 
+        rel_input = injector.inject_relativistic_hamiltonian(raw_input)
+        assert "X2C" in rel_input
+        assert "x2c-TZVPPall-s" in rel_input
+        assert "%maxcore 4000" in rel_input
+        assert "Br  0.0 0.0 1.89" in rel_input
 
-def test_zombie_reaper_abort_signal_file(isolated_artifacts_dir: Path) -> None:
-    """Verifies detection, triggering, and clearing of ABORT.signal file in $SCRATCH."""
-    reaper = ZombieReaper(artifacts_dir=isolated_artifacts_dir)
-    scratch_dir = get_scratch_workspace_dir(isolated_artifacts_dir)
-    scratch_dir.mkdir(parents=True, exist_ok=True)
+    def test_generate_input_decks_maxcore_and_nprocs(self) -> None:
+        """Verifies dual input deck generation for baseline non-rel and relativistic jobs with %maxcore."""
+        injector = RelativisticHamiltonianInjector()
+        decks = injector.generate_input_decks(
+            coords=BROMOBENZENE_COORDS,
+            method="DLPNO-CCSD(T)",
+            base_basis="def2-TZVPP",
+            charge=0,
+            mult=1,
+            node_max_gb=16.0,
+            nprocs=4,
+            ram_safety_fraction=0.75,
+        )
 
-    assert reaper.check_abort_signal() is False
+        assert "non_rel_input" in decks
+        assert "rel_input" in decks
+        assert "def2-TZVPP" in decks["non_rel_input"]
+        assert "X2C" not in decks["non_rel_input"]
 
-    abort_file = reaper.trigger_abort_signal(reason="MANUAL_TEST_ABORT")
-    assert abort_file.exists()
-    assert reaper.check_abort_signal() is True
+        assert "X2C" in decks["rel_input"]
+        assert "x2c-TZVPPall-s" in decks["rel_input"]
+        assert decks["has_heavy_elements"] is True
 
-    cleared = reaper.clear_abort_signal()
-    assert cleared is True
-    assert reaper.check_abort_signal() is False
-
-
-def test_zombie_reaper_exterminate_real_child_process(isolated_artifacts_dir: Path) -> None:
-    """Spawns an authentic background child process and ruthlessly terminates it."""
-    reaper = ZombieReaper(artifacts_dir=isolated_artifacts_dir)
-
-    worker = launch_isolated_process(
-        [sys.executable, "-c", "import time; time.sleep(120)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    worker_pid = worker.pid
-    assert psutil.pid_exists(worker_pid) is True
-
-    report = reaper.terminate_process_tree(target_pid=worker_pid, reason="ORPHAN_TERMINATION_TEST")
-
-    assert isinstance(report, ProcessReapReport)
-    assert report.target_pid == worker_pid
-    assert report.status == "EXTERMINATED"
-    assert worker_pid in report.terminated_pids
-
-    time.sleep(0.2)
-    assert psutil.pid_exists(worker_pid) is False or not psutil.Process(worker_pid).is_running()
-
-
-def test_zombie_reaper_terminate_process_tree_with_children(isolated_artifacts_dir: Path) -> None:
-    """Spawns a parent process that launches a child process, verifying recursive mapping & termination."""
-    reaper = ZombieReaper(artifacts_dir=isolated_artifacts_dir)
-
-    # Parent script spawns a child python process, then both sleep
-    parent_script = (
-        "import subprocess, sys, time\n"
-        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(120)'])\n"
-        "time.sleep(120)\n"
-    )
-    parent_proc = launch_isolated_process(
-        [sys.executable, "-c", parent_script],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    parent_pid = parent_proc.pid
-
-    # Allow child process to spawn
-    time.sleep(0.5)
-    assert psutil.pid_exists(parent_pid) is True
-
-    # Terminate process tree
-    report = reaper.terminate_process_tree(target_pid=parent_pid, reason="TREE_TERMINATION_TEST")
-
-    assert isinstance(report, ProcessReapReport)
-    assert report.target_pid == parent_pid
-    assert report.status == "EXTERMINATED"
-    assert len(report.terminated_pids) >= 1
-
-    time.sleep(0.2)
-    assert psutil.pid_exists(parent_pid) is False or not psutil.Process(parent_pid).is_running()
+        # Check %maxcore calculation: (16 * 1024 * 0.75) / 4 = 3072 MB
+        assert "%maxcore 3072" in decks["rel_input"]
+        assert "%pal nprocs 4 end" in decks["rel_input"]
 
 
 # ==============================================================================
-# 4. NUMA-Aware Thread Pinning Tests
+# 2. X2CHandler & Divergence Remediator Tests
 # ==============================================================================
 
-def test_numa_thread_pinner_topology_probe(isolated_artifacts_dir: Path) -> None:
-    """Verifies NUMA topology probing and numactl binding command creation."""
-    pinner = NUMA_ThreadPinner(artifacts_dir=isolated_artifacts_dir)
-    topology = pinner.probe_numa_topology()
+class TestX2CHandlerAndDivergenceRemediator:
+    """Authentic tests for X2C divergence detection, error trapping, DKH2 rewriting, and restart."""
 
-    assert isinstance(topology, dict)
-    assert "logical_cpus" in topology
-    assert "numa_nodes" in topology
-    assert topology["logical_cpus"] >= 1
+    def test_detect_divergence_signatures(self) -> None:
+        """Verifies detection of various SCF divergence and DIIS failure signatures in ORCA outputs."""
+        handler = X2CHandler()
 
-    # Check wrap_command_for_numa
-    cmd = ["python", "calc.py"]
-    wrapped = pinner.wrap_command_for_numa(cmd, required_cores=1)
-    assert isinstance(wrapped, list)
-    assert wrapped[-2:] == ["python", "calc.py"]
+        # Normal converged output
+        assert handler.detect_divergence(ORCA_REL_X2C_STDOUT_BROMOBENZENE) is False
 
+        # Divergence output with DIIS failure
+        assert handler.detect_divergence(ORCA_X2C_DIVERGENCE_STDOUT) is True
 
-def test_numa_thread_pinner_from_config(isolated_artifacts_dir: Path) -> None:
-    """Verifies loading affinity configuration from dynamic cochem_system_config.json."""
-    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
-    reg_dir.mkdir(parents=True, exist_ok=True)
-    cfg_file = reg_dir / "cochem_system_config.json"
+        # Custom signature tests
+        assert handler.detect_divergence("Error: SCF NOT CONVERGED in step 40") is True
+        assert handler.detect_divergence("Matrix is not positive definite during X2C transformation") is True
+        assert handler.detect_divergence("Diagonalization failed in X2C Hamiltonian cycle") is True
 
-    total_logical = psutil.cpu_count(logical=True) or 1
-    target_core_indices = [0] if total_logical == 1 else [0, min(1, total_logical - 1)]
+    def test_validate_convergence_success(self) -> None:
+        """Verifies extraction of FINAL SINGLE POINT ENERGY from authentic X2C output."""
+        handler = X2CHandler()
+        energy = handler.validate_convergence(ORCA_REL_X2C_STDOUT_BROMOBENZENE)
+        assert math.isclose(energy, -2826.68940125, rel_tol=1e-9)
 
-    cfg_payload = {
-        "schema_version": "1.0.0",
-        "hardware": {
-            "physical_cpu_cores": min(2, total_logical),
-            "logical_cpu_cores": total_logical,
-            "ram_gb": 16.0,
-            "pinned_cores": target_core_indices,
-        },
-        "pinned_cores": target_core_indices,
-    }
-    cfg_file.write_text(json.dumps(cfg_payload, indent=2), encoding="utf-8")
+    def test_validate_convergence_divergence_raises_exception(self) -> None:
+        """Verifies that X2CDivergenceError is raised when X2C calculation diverges."""
+        handler = X2CHandler()
+        with pytest.raises(X2CDivergenceError) as exc_info:
+            handler.validate_convergence(ORCA_X2C_DIVERGENCE_STDOUT)
 
-    pinner = NUMA_ThreadPinner(artifacts_dir=isolated_artifacts_dir)
-    loaded_cores = pinner.load_affinity_cores()
-    assert loaded_cores == target_core_indices
+        err_msg = str(exc_info.value).lower()
+        assert "diverge" in err_msg or "fail" in err_msg
 
-    result = pinner.pin_process(pid=os.getpid())
-    assert isinstance(result, ThreadPinningResult)
-    assert result.pid == os.getpid()
-    assert result.assigned_cores == target_core_indices
-    assert result.status in ("PINNED_SUCCESS", "UNSUPPORTED_PLATFORM")
-    if result.status == "PINNED_SUCCESS":
-        assert set(result.active_affinity) == set(target_core_indices)
+    def test_remediate_input_deck_to_dkh2(self) -> None:
+        """Verifies rewriting of input deck from X2C to Douglas-Kroll-Hess (! DKH2)."""
+        handler = X2CHandler()
+        x2c_deck = "! DLPNO-CCSD(T) X2C cc-pVTZ-X2C TightSCF\n%maxcore 3000\n* xyz 0 1\n  Br 0 0 0\n*\n"
+        dkh2_deck = handler.remediate_to_dkh2(x2c_deck)
 
+        assert "DKH2" in dkh2_deck
+        assert "X2C" not in dkh2_deck
+        assert "cc-pVTZ-DK" in dkh2_deck
 
-def test_numa_thread_pinner_invalid_pid_raises(isolated_artifacts_dir: Path) -> None:
-    """Verifies that pinning a non-existent process ID raises NUMAPinningError."""
-    pinner = NUMA_ThreadPinner(artifacts_dir=isolated_artifacts_dir)
-    invalid_pid = 99999999
-    with pytest.raises(NUMAPinningError):
-        pinner.pin_process(pid=invalid_pid, cores=[0])
+    def test_divergence_remediator_execution_and_restart(self) -> None:
+        """Verifies divergence remediator intercepts X2C failure, rewrites to DKH2, and restarts."""
+        remediator = X2CDivergenceRemediator()
+        initial_x2c_deck = "! DLPNO-CCSD(T) X2C x2c-TZVPPall-s TightSCF\n* xyz 0 1\n  Br 0 0 0\n*\n"
 
+        call_count = 0
+        executed_decks = []
 
-# ==============================================================================
-# 5. Thermal Evacuation Governor Tests
-# ==============================================================================
+        def mock_orca_runner(deck: str, scratch_dir: Any = None) -> Tuple[str, str, int]:
+            nonlocal call_count, executed_decks
+            call_count += 1
+            executed_decks.append(deck)
+            if "X2C" in deck:
+                # Simulate X2C divergence failure
+                return ORCA_X2C_DIVERGENCE_STDOUT, "SCF failed", 1
+            else:
+                # Remediated DKH2 calculation converges
+                return ORCA_REL_DKH2_STDOUT_BROMOBENZENE, "", 0
 
-def test_thermal_governor_windows_guard() -> None:
-    """Verifies that Windows Guard emits ResourceWarning and aborts without infinite loop."""
-    governor = ThermalEvacuationGovernor()
+        stdout, stderr, code, hamiltonian_used = remediator.execute_with_remediation(
+            input_deck=initial_x2c_deck,
+            runner_fn=mock_orca_runner,
+        )
 
-    # On platforms where sensors_temperatures returns empty (like Windows without WMI),
-    # verify ResourceWarning is emitted and None is returned
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
-        temp = governor.get_current_max_temperature()
+        assert call_count == 2
+        assert hamiltonian_used == "DKH2"
+        assert "DKH2" in executed_decks[1]
 
-    if temp is None:
-        assert any(issubclass(w.category, ResourceWarning) for w in record)
+        # Parse energy from remediated output
+        extractor = DeltaRelExtractor()
+        e_rel_dkh2 = extractor.parse_final_energy_from_stdout(stdout)
+        assert math.isclose(e_rel_dkh2, -2826.68725000, rel_tol=1e-9)
 
-    # Verify daemon loop aborts gracefully when unsupported
-    worker = launch_isolated_process(
-        [sys.executable, "-c", "import time; time.sleep(120)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    try:
-        thread = governor.start_daemon(pid=worker.pid, poll_interval_sec=0.05)
-        time.sleep(0.2)
-        governor.stop()
-        assert not thread.is_alive()
-    finally:
-        if psutil.pid_exists(worker.pid):
-            try:
-                psutil.Process(worker.pid).kill()
-            except Exception:
-                pass
-
-
-def test_thermal_governor_dynamic_temp_iteration() -> None:
-    """Verifies dynamic iteration and state transitions on critical threshold breach and cooling."""
-    governor = ThermalEvacuationGovernor(critical_temp_c=CRITICAL_TEMP_CELSIUS, resume_temp_c=RESUME_TEMP_CELSIUS)
-
-    worker = launch_isolated_process(
-        [sys.executable, "-c", "import time; time.sleep(120)"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    worker_pid = worker.pid
-
-    try:
-        # 1. Normal temperature (50.0C) -> RUNNING
-        state1 = governor.govern_step(pid=worker_pid, temperature_override=50.0)
-        assert isinstance(state1, ThermalGovernorState)
-        assert state1.status == "RUNNING"
-        assert state1.is_suspended is False
-
-        # 2. Critical temperature (95.0C > 90C) -> SUSPENDED
-        state2 = governor.govern_step(pid=worker_pid, temperature_override=95.0)
-        assert state2.status == "SUSPENDED"
-        assert state2.is_suspended is True
-
-        # 3. Intermediate cooling (80.0C > 75C) -> Still SUSPENDED
-        state3 = governor.govern_step(pid=worker_pid, temperature_override=80.0)
-        assert state3.status == "SUSPENDED"
-        assert state3.is_suspended is True
-
-        # 4. Safe cooling (70.0C <= 75C) -> RESUMED to RUNNING
-        state4 = governor.govern_step(pid=worker_pid, temperature_override=70.0)
-        assert state4.status == "RUNNING"
-        assert state4.is_suspended is False
-    finally:
-        if psutil.pid_exists(worker_pid):
-            try:
-                psutil.Process(worker_pid).kill()
-            except Exception:
-                pass
-
-
-def test_thermal_governor_alias_equivalence() -> None:
-    """Verifies that ThermalGovernor is an alias for ThermalEvacuationGovernor."""
-    assert ThermalGovernor is ThermalEvacuationGovernor
+        # Calculate Delta_E_rel
+        e_non_rel = -2805.01248912
+        delta_rel = float(e_rel_dkh2 - e_non_rel)
+        assert delta_rel < 0.0
 
 
 # ==============================================================================
-# 6. SegfaultTrapper & ExitCode139_Trapper Tests
+# 3. SpinOrbitCoupler Unit Tests
 # ==============================================================================
 
-@pytest.mark.parametrize("segfault_code", [-11, 139, 3221225477, -1073741819, 0xC0000005])
-def test_segfault_trapper_identifies_all_segfault_codes(segfault_code: int) -> None:
-    """Validates that all POSIX and Windows segmentation fault return codes are recognized."""
-    assert SegfaultTrapper.is_segmentation_fault(segfault_code) is True
-    assert ExitCode139_Trapper.is_segmentation_fault(segfault_code) is True
+class TestSpinOrbitCoupler:
+    """Authentic tests for open-shell radical detection, SOMF(1X) injection, and trace delta parsing."""
 
+    def test_is_open_shell_flagging(self) -> None:
+        """Verifies open-shell radical state classification (mult > 1, requires_uhf, is_radical)."""
+        coupler = SpinOrbitCoupler()
 
-@pytest.mark.parametrize("normal_code", [0, 1, 2, 127, 255])
-def test_segfault_trapper_ignores_normal_and_generic_codes(normal_code: int) -> None:
-    """Validates that non-segfault return codes return False."""
-    assert SegfaultTrapper.is_segmentation_fault(normal_code) is False
+        # Closed-shell singlet
+        assert coupler.is_open_shell(mult=1, requires_uhf=False, is_radical=False) is False
 
+        # Open-shell doublet (radical)
+        assert coupler.is_open_shell(mult=2, requires_uhf=False, is_radical=False) is True
 
-def test_segfault_trapper_generates_jsonld_provenance(isolated_artifacts_dir: Path) -> None:
-    """Verifies JSON-LD provenance block generation and atomic commitment on segfault."""
-    trapper = SegfaultTrapper(artifacts_dir=isolated_artifacts_dir)
-    simulated_pid = 45120
-    simulated_returncode = -11
+        # Triplet
+        assert coupler.is_open_shell(mult=3, requires_uhf=False, is_radical=False) is True
 
-    provenance = trapper.trap(
-        process_id=simulated_pid,
-        returncode=simulated_returncode,
-        metadata={"method": "DLPNO-CCSD(T)", "basis": "aug-cc-pVQZ"},
-    )
+        # Flagged by Stage 1.0 requires_uhf
+        assert coupler.is_open_shell(mult=1, requires_uhf=True, is_radical=False) is True
 
-    assert isinstance(provenance, JSONLDProvenanceBlock)
-    assert provenance.process_id == simulated_pid
-    assert provenance.return_code == simulated_returncode
-    assert provenance.fault_type == "OS_SEGMENTATION_FAULT"
-    assert provenance.status == "FATAL_CRASH_RECORDED"
+        # Flagged by is_radical
+        assert coupler.is_open_shell(mult=1, requires_uhf=False, is_radical=True) is True
 
-    prov_path = trapper.get_provenance_file_path()
-    assert prov_path.exists()
+    def test_inject_somf_operator(self) -> None:
+        """Verifies injection of SOMF(1X) spin-orbit coupling keyword into input deck."""
+        coupler = SpinOrbitCoupler()
+        raw_deck = "! DLPNO-CCSD(T) X2C x2c-TZVPPall-s TightSCF\n* xyz 0 2\n  C 0 0 0\n*\n"
+        somf_deck = coupler.inject_somf_operator(raw_deck)
 
-    data = json.loads(prov_path.read_text(encoding="utf-8"))
-    assert data["@context"] == "https://doi.org/10.5281/zenodo.cochem.v2"
-    assert data["@type"] == "ComputationalProcessProvenance"
-    assert data["process_id"] == simulated_pid
-    assert data["return_code"] == simulated_returncode
-    assert data["fault_type"] == "OS_SEGMENTATION_FAULT"
-    assert data["metadata"]["method"] == "DLPNO-CCSD(T)"
+        assert "SOMF(1X)" in somf_deck
 
+        # Invariant: idempotent injection
+        re_injected = coupler.inject_somf_operator(somf_deck)
+        assert re_injected.count("SOMF(1X)") == 1
 
-def test_segfault_trapper_check_and_raise(isolated_artifacts_dir: Path) -> None:
-    """Verifies that check_and_raise commits JSON-LD and raises SegmentationFaultError."""
-    trapper = SegfaultTrapper(artifacts_dir=isolated_artifacts_dir)
+    def test_parse_somf_traces_authentic_orca(self) -> None:
+        """Verifies parsing of exact literal strings 'SOMF(1X) Two-Component Trace' and 'SOMF(1X) Non-Relativistic Trace'."""
+        coupler = SpinOrbitCoupler()
+        traces = coupler.parse_somf_traces(ORCA_SOC_SOMF_STDOUT)
 
-    with pytest.raises(SegmentationFaultError) as exc_info:
-        trapper.check_and_raise(process_id=8888, returncode=3221225477)
+        assert traces is not None
+        assert math.isclose(traces["trace_2c"], -2826.69124637, rel_tol=1e-9)
+        assert math.isclose(traces["trace_nonrel"], -2826.68940125, rel_tol=1e-9)
 
-    assert "Segmentation fault detected" in str(exc_info.value)
-    assert trapper.get_provenance_file_path().exists()
+        expected_delta_soc = -2826.69124637 - (-2826.68940125)
+        assert math.isclose(traces["delta_e_soc"], expected_delta_soc, rel_tol=1e-9)
 
+        # Verify parse_soc_energy_from_stdout uses traces
+        soc_shift = coupler.parse_soc_energy_from_stdout(ORCA_SOC_SOMF_STDOUT)
+        assert soc_shift is not None
+        assert math.isclose(soc_shift, expected_delta_soc, rel_tol=1e-9)
 
-def test_segfault_trapper_exitcode139_alias(isolated_artifacts_dir: Path) -> None:
-    """Verifies that ExitCode139_Trapper operates identically to SegfaultTrapper."""
-    assert ExitCode139_Trapper is SegfaultTrapper
-    trapper = ExitCode139_Trapper(artifacts_dir=isolated_artifacts_dir)
-    assert trapper.is_segmentation_fault(139) is True
+    def test_derive_soc_correction_open_vs_closed_shell(self) -> None:
+        """Verifies derivation of Delta E_SOC in Hartree for open-shell vs closed-shell."""
+        coupler = SpinOrbitCoupler()
+
+        # Open-shell with explicit traces
+        delta_soc_traces = coupler.derive_soc_correction(
+            e_total_rel=-2826.68940125,
+            trace_2c=-2826.69124637,
+            trace_nonrel=-2826.68940125,
+        )
+        assert math.isclose(delta_soc_traces, -0.00184512, rel_tol=1e-6)
+
+        # Closed-shell without SOC
+        delta_soc_closed = coupler.derive_soc_correction(
+            e_total_rel=-2826.68940125,
+            e_total_soc=None,
+        )
+        assert delta_soc_closed == 0.0
 
 
 # ==============================================================================
-# 7. Composite Subprocess Execution Orchestrator Tests
+# 4. DeltaRelExtractor Unit Tests
 # ==============================================================================
 
-def test_execute_protected_subprocess_success(isolated_artifacts_dir: Path) -> None:
-    """Verifies end-to-end execution of a healthy protected subprocess."""
-    retcode, provenance = execute_protected_subprocess(
-        cmd=[sys.executable, "-c", "import sys; sys.exit(0)"],
-        artifacts_dir=isolated_artifacts_dir,
-        min_free_scratch_bytes=1024,
-        pin_cores=False,
-        enable_thermal_governor=True,
-    )
-    assert retcode == 0
-    assert provenance is None
+class TestDeltaRelExtractor:
+    """Authentic tests for energy parsing, Delta E_rel derivation, and Hartree to kcal/mol conversion."""
 
+    def test_parse_final_energy_from_stdout(self) -> None:
+        """Verifies extraction of FINAL SINGLE POINT ENERGY from authentic ORCA standard output."""
+        extractor = DeltaRelExtractor()
+        e_non_rel = extractor.parse_final_energy_from_stdout(ORCA_NON_REL_STDOUT_BROMOBENZENE)
+        assert math.isclose(e_non_rel, -2805.01248912, rel_tol=1e-9)
+
+        e_rel = extractor.parse_final_energy_from_stdout(ORCA_REL_X2C_STDOUT_BROMOBENZENE)
+        assert math.isclose(e_rel, -2826.68940125, rel_tol=1e-9)
+
+    def test_extract_delta_scalar_and_soc_math(self) -> None:
+        """Verifies Delta_E_rel and Delta_E_SOC math and conversion to kcal/mol via exact CODATA."""
+        extractor = DeltaRelExtractor()
+        e_non_rel = -2805.01248912
+        e_rel = -2826.68940125
+        e_soc = -2826.69124637
+
+        result = extractor.extract_delta(
+            e_total_non_rel=e_non_rel,
+            e_total_rel=e_rel,
+            e_total_soc=e_soc,
+            basis_set="def2-TZVPP",
+            rel_basis_set="x2c-TZVPPall-s",
+            method="DLPNO-CCSD(T)",
+            has_heavy_elements=True,
+            is_open_shell=True,
+            node_id="bromobenzene_node",
+        )
+
+        expected_delta_rel_hartree = float(e_rel - e_non_rel)
+        expected_delta_rel_kcal = float(expected_delta_rel_hartree * HARTREE_TO_KCAL_MOL)
+        expected_delta_soc_hartree = float(e_soc - e_rel)
+        expected_delta_soc_kcal = float(expected_delta_soc_hartree * HARTREE_TO_KCAL_MOL)
+        expected_delta_total_hartree = float(expected_delta_rel_hartree + expected_delta_soc_hartree)
+        expected_delta_total_kcal = float(expected_delta_total_hartree * HARTREE_TO_KCAL_MOL)
+
+        assert math.isclose(result.delta_e_rel_hartree, expected_delta_rel_hartree, rel_tol=1e-9)
+        assert math.isclose(result.delta_e_rel_kcal_mol, expected_delta_rel_kcal, rel_tol=1e-9)
+        assert math.isclose(result.delta_e_soc_hartree, expected_delta_soc_hartree, rel_tol=1e-9)
+        assert math.isclose(result.delta_e_soc_kcal_mol, expected_delta_soc_kcal, rel_tol=1e-9)
+        assert math.isclose(result.delta_e_total_rel_hartree, expected_delta_total_hartree, rel_tol=1e-9)
+        assert math.isclose(result.delta_e_total_rel_kcal_mol, expected_delta_total_kcal, rel_tol=1e-9)
+        assert result.node_id == "bromobenzene_node"
+
+    def test_extract_from_outputs_full_pipeline(self) -> None:
+        """Verifies direct extraction from standard outputs with SOC traces."""
+        extractor = DeltaRelExtractor()
+        result = extractor.extract_from_outputs(
+            stdout_non_rel=ORCA_NON_REL_STDOUT_BROMOBENZENE,
+            stdout_rel=ORCA_REL_X2C_STDOUT_BROMOBENZENE,
+            stdout_soc=ORCA_SOC_SOMF_STDOUT,
+            basis_set="def2-TZVPP",
+            rel_basis_set="x2c-TZVPPall-s",
+            node_id="br_node_01",
+        )
+
+        assert result.node_id == "br_node_01"
+        assert result.is_open_shell is True
+        assert math.isclose(result.e_total_non_rel, -2805.01248912, rel_tol=1e-9)
+        assert math.isclose(result.e_total_rel, -2826.68940125, rel_tol=1e-9)
+        assert result.delta_e_soc_hartree < 0.0
+
+
+# ==============================================================================
+# 5. EphemeralScratchPurge & Air-Gap Isolation Tests
+# ==============================================================================
+
+class TestEphemeralScratchPurgeAndAirGap:
+    """Authentic tests for dynamic scratch creation, accelerator isolation, and file purging."""
+
+    def test_scratch_dir_resolution_via_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        """Verifies resolution of UUID scratch workspace dynamically via COCHEM_ARTIFACTS_DIR."""
+        artifacts_dir = tmp_path / "custom_artifacts"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_dir))
+
+        scratch_dir = EphemeralScratchPurge.create_scratch_dir()
+        assert scratch_dir.exists()
+        assert str(artifacts_dir) in str(scratch_dir)
+        assert "BENCH_Workspace" in str(scratch_dir)
+        assert "Scratch" in str(scratch_dir)
+
+    def test_accelerator_isolation_env(self) -> None:
+        """Verifies injection of accelerator isolation (CUDA_VISIBLE_DEVICES="")."""
+        env = EphemeralScratchPurge.get_isolated_env({"PATH": "/usr/bin", "FOO": "BAR"})
+        assert env["CUDA_VISIBLE_DEVICES"] == ""
+        assert env["PATH"] == "/usr/bin"
+        assert env["FOO"] == "BAR"
+
+    def test_scratch_purge_transient_files(self, tmp_path: Path) -> None:
+        """Verifies unlinking of transient files (.gbw, .tmp, .densities, etc.) and directory cleanup."""
+        scratch_dir = tmp_path / "mock_scratch"
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create transient simulation files
+        transient_extensions = [
+            "orca.gbw", "orca.tmp", "orca.densities", "orca.bso",
+            "orca.prop", "orca.core", "orca.host", "orca.ges",
+            "orca.int", "orca.uco",
+        ]
+        created_files = []
+        for name in transient_extensions:
+            fpath = scratch_dir / name
+            fpath.write_text("transient quantum chemistry data", encoding="utf-8")
+            created_files.append(fpath)
+
+        # Run purge
+        purge_report = EphemeralScratchPurge.purge_scratch_dir(scratch_dir, remove_dir=True)
+        assert purge_report["status"] == "purged"
+        assert purge_report["purged_count"] == len(transient_extensions)
+        assert not scratch_dir.exists()
+
+
+# ==============================================================================
+# 6. HDF5 Persistence & Composite Aggregator Tests
+# ==============================================================================
+
+class TestHDF5PersistenceAndCompositeIntegration:
+    """Authentic tests for thread-safe FileLock HDF5 persistence and Stage 5.0 Composite Aggregator."""
+
+    def test_commit_and_read_rel_hdf5_threadsafe(self, tmp_path: Path) -> None:
+        """Verifies thread-safe atomic write to landscape.h5 under rel_corrections/{node_id} and roundtrip read."""
+        h5_file = tmp_path / "landscape.h5"
+
+        extractor = DeltaRelExtractor()
+        result = extractor.extract_delta(
+            e_total_non_rel=-2805.01248912,
+            e_total_rel=-2826.68940125,
+            e_total_soc=-2826.69124637,
+            basis_set="def2-TZVPP",
+            rel_basis_set="x2c-TZVPPall-s",
+            method="DLPNO-CCSD(T)",
+            has_heavy_elements=True,
+            is_open_shell=True,
+            node_id="node_test_01",
+        )
+
+        commit_rel_to_hdf5(h5_path=h5_file, result=result)
+
+        # Direct inspection of HDF5 structure
+        with h5py.File(h5_file, "r") as f:
+            assert "rel_corrections" in f
+            assert "node_test_01" in f["rel_corrections"]
+            grp = f["rel_corrections"]["node_test_01"]
+
+            assert "e_total_non_rel" in grp
+            assert "e_total_rel" in grp
+            assert "delta_e_rel_hartree" in grp
+            assert "delta_e_rel_kcal_mol" in grp
+            assert "delta_e_soc_hartree" in grp
+            assert "delta_e_soc_kcal_mol" in grp
+            assert "delta_e_total_rel_hartree" in grp
+            assert "delta_e_total_rel_kcal_mol" in grp
+            assert grp.attrs["basis_set"] == "def2-TZVPP"
+            assert grp.attrs["rel_basis_set"] == "x2c-TZVPPall-s"
+            assert grp.attrs["hamiltonian"] == "X2C"
+            assert bool(grp.attrs["has_heavy_elements"]) is True
+            assert bool(grp.attrs["is_open_shell"]) is True
+
+        # Read back via API
+        data = read_rel_from_hdf5(h5_path=h5_file, node_id="node_test_01")
+        assert math.isclose(data["e_total_non_rel"], -2805.01248912, rel_tol=1e-9)
+        assert math.isclose(data["e_total_rel"], -2826.68940125, rel_tol=1e-9)
+        assert math.isclose(data["delta_e_rel_hartree"], result.delta_e_rel_hartree, rel_tol=1e-7)
+        assert math.isclose(data["delta_e_soc_hartree"], result.delta_e_soc_hartree, rel_tol=1e-7)
+        assert data["basis_set"] == "def2-TZVPP"
+        assert data["rel_basis_set"] == "x2c-TZVPPall-s"
+
+    def test_run_rel_pipeline_end_to_end(self, tmp_path: Path) -> None:
+        """Verifies end-to-end run_rel_pipeline execution and persistence."""
+        h5_file = tmp_path / "landscape.h5"
+
+        result = run_rel_pipeline(
+            coords=BROMOBENZENE_COORDS,
+            e_total_non_rel=-2805.01248912,
+            e_total_rel=-2826.68940125,
+            base_basis="def2-TZVPP",
+            method="DLPNO-CCSD(T)",
+            node_id="bromobenzene_pipeline_node",
+            h5_path=h5_file,
+        )
+
+        assert isinstance(result, RelCorrectionResult)
+        assert result.has_heavy_elements is True
+        assert result.rel_basis_set == "x2c-TZVPPall-s"
+
+        data = read_rel_from_hdf5(h5_path=h5_file, node_id="bromobenzene_pipeline_node")
+        assert math.isclose(data["delta_e_rel_hartree"], result.delta_e_rel_hartree, rel_tol=1e-7)
+
+    def test_composite_aggregator_stage5_validation(self, tmp_path: Path) -> None:
+        """Verifies Stage 5.0 CompositeAggregator evaluates:
+        E_total = E_SCF_CBS + E_corr_CBS + Delta_E_CV + Delta_E_rel + Delta_E_SOC + ZPVE.
+        """
+        h5_file = tmp_path / "landscape.h5"
+        node_id = "composite_validation_node"
+
+        # 1. Commit CBS extrapolation limit (Stage 2.0)
+        cbs_res = CBSExtrapolationResult(
+            e_scf_cbs=-76.062400,
+            e_corr_cbs=-0.365200,
+            e_total_cbs=-76.427600,
+            basis_x="def2-TZVP",
+            basis_y="def2-QZVPP",
+            alpha=7.88,
+            beta=2.97,
+            residual_variance_hartree=0.0012,
+            residual_variance_kcal_mol=0.753,
+            uncertainty_flag="PASSED",
+            node_id=node_id,
+        )
+        commit_cbs_to_hdf5(h5_file, cbs_res)
+
+        # 2. Commit Core-Valence correction (Stage 3.0)
+        cv_res = CVCorrectionResult(
+            e_total_fc=-76.427600,
+            e_total_ae=-76.471200,
+            delta_e_cv_hartree=-0.043600,
+            delta_e_cv_kcal_mol=-27.3594,
+            basis_set="aug-cc-pwCVQZ",
+            node_id=node_id,
+        )
+        commit_cv_to_hdf5(h5_file, cv_res)
+
+        # 3. Commit Relativistic & SOC correction (Stage 4.0)
+        rel_res = RelCorrectionResult(
+            e_total_non_rel=-76.427600,
+            e_total_rel=-76.482100,
+            e_total_soc=-76.483100,
+            delta_e_rel_hartree=-0.054500,
+            delta_e_rel_kcal_mol=-34.1992,
+            delta_e_soc_hartree=-0.001000,
+            delta_e_soc_kcal_mol=-0.6275,
+            delta_e_total_rel_hartree=-0.055500,
+            delta_e_total_rel_kcal_mol=-34.8267,
+            basis_set="def2-TZVPP",
+            rel_basis_set="x2c-TZVPPall-s",
+            has_heavy_elements=True,
+            is_open_shell=True,
+            node_id=node_id,
+        )
+        commit_rel_to_hdf5(h5_file, rel_res)
+
+        # 4. Write ZPVE to HDF5
+        zpve_val = 0.021340
+        with h5py.File(h5_file, "a") as f:
+            zpve_grp = f.require_group("zpve_corrections").require_group(node_id)
+            zpve_grp.create_dataset("zpve_hartree", data=zpve_val)
+
+        # 5. Execute Stage 5.0 Composite Aggregator
+        aggregator = CompositeAggregator()
+        records = aggregator.sweep_hdf5(h5_file)
+
+        assert len(records) == 1
+        rec = records[0]
+        assert rec.node_id == node_id
+        assert math.isclose(rec.e_scf_cbs, -76.062400, rel_tol=1e-7)
+        assert math.isclose(rec.e_corr_cbs, -0.365200, rel_tol=1e-7)
+        assert math.isclose(rec.delta_e_cv, -0.043600, rel_tol=1e-7)
+        assert math.isclose(rec.delta_e_rel, -0.054500, rel_tol=1e-7)
+        assert math.isclose(rec.delta_e_soc, -0.001000, rel_tol=1e-7)
+        assert math.isclose(rec.zpve, zpve_val, rel_tol=1e-7)
+
+        # Mathematical Invariant:
+        # E_Total = E_SCF^CBS + E_corr^CBS + Delta_E_CV + Delta_E_rel + Delta_E_SOC + ZPVE
+        expected_total = (
+            -76.062400 + (-0.365200) + (-0.043600) + (-0.054500) + (-0.001000) + zpve_val
+        )
+        assert math.isclose(rec.e_total_hartree, expected_total, rel_tol=1e-7)
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

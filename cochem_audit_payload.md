@@ -1,23 +1,14 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TOPOS\.in-progress\02_13_export_export.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task1_ci_yml.md.
 Original prompt:
-# Task: Implement FAIR Export (`cochem_topos_export.py`)
+﻿# Task: Create CI/CD workflow for CoChem-BENCH
 
-## Target Output File
-`${COCHEM_WORKSPACE}\GitHub-Repo\CoChem-TOPOS\export_utils\cochem_topos_export.py`
+## Target File
+`.github\workflows\cochem_bench_ci.yml` (relative to repo root)
 
-## Objective
-Translate raw database tensors into human-readable scientific manuscripts and structured archival packages while respecting air-gap protocols.
-
-## Context & Architecture Rules
-This module (Stage 5.1) enforces FAIR data formatting (Findable, Accessible, Interoperable, and Reusable).
-
-## Execution Directives
-Implement the `cochem_topos_export.py` script with the following capabilities:
-
-1. **Automated Bibliographic Compilation**: Generate a complete `cochem_citations.bib` BibTeX file, extracting the exact method strings used in the escalator. Safely connect to the CrossRef API, complying with Tripartite Air-Gaps by failing safely if network access is restricted.
-2. **LaTeX `siunitx` Generation**: Extract the deduplicated energies, thermodynamic corrections, and dipole moments from `landscape.h5` and format them into a perfectly aligned LaTeX table snippet using the `siunitx` package.
-3. **Zip Packaging**: Compress the validated `.xyz` unique conformers, the `cochem_citations.bib`, and the `.tex` tables into a singular `TOPOS_Final_Ensemble.zip` file. Apply appropriate OS-agnostic read-only locks (e.g., `os.chmod 0o444` on POSIX systems or Windows API) to prevent post-generation tampering.
-
+## Requirements
+Create a GitHub Actions CI/CD pipeline for structural code testing.
+The workflow should test the foundational logic, ensuring math extrapolations and environment boundaries hold.
+It must run `pytest` on the `tests/` directory and ensure Python 3.10+ compatibility.
 Modified files content:
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_ci.py ---
@@ -57,7 +48,6 @@ Validates:
 from __future__ import annotations
 
 import ast
-import base64
 import json
 import math
 import os
@@ -283,11 +273,9 @@ def test_ast_sweep_job_structure(workflow_path: Path) -> None:
     )
 
     # Check prohibited modules inspection (anti-spoof compliance)
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
     prohibited_modules = [
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",
@@ -527,12 +515,9 @@ def test_ast_sweep_logic_simulation_clean(tmp_path: Path) -> None:
     )
 
     tree = ast.parse(code_file.read_text(encoding="utf-8"))
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited = {
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",
@@ -561,13 +546,9 @@ def test_ast_sweep_logic_simulation_clean(tmp_path: Path) -> None:
 
 def test_ast_sweep_logic_simulation_prohibited_detected(tmp_path: Path) -> None:
     """Verify AST sweep algorithm detects prohibited imports."""
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_cls = base64.b64decode(b"TWFnaWNNb2Nr").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited_cases = [
-        f"import {target_mod}\n",
-        f"from {target_mod} import {target_cls}\n",
+        "import unittest.mock\n",  # anti-spoof prohibited terms
+        "from unittest.mock import MagicMock\n",  # anti-spoof prohibited terms
         "import multiprocessing\n",
         "import concurrent.futures\n",
         "import parsl\n",
@@ -578,8 +559,8 @@ def test_ast_sweep_logic_simulation_prohibited_detected(tmp_path: Path) -> None:
     ]
 
     prohibited = {
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",

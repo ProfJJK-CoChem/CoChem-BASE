@@ -34,10 +34,8 @@ Validates:
 from __future__ import annotations
 
 import ast
-import base64
 import json
 import math
-import os
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -260,11 +258,9 @@ def test_ast_sweep_job_structure(workflow_path: Path) -> None:
     )
 
     # Check prohibited modules inspection (anti-spoof compliance)
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
     prohibited_modules = [
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",
@@ -504,12 +500,9 @@ def test_ast_sweep_logic_simulation_clean(tmp_path: Path) -> None:
     )
 
     tree = ast.parse(code_file.read_text(encoding="utf-8"))
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited = {
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",
@@ -538,13 +531,9 @@ def test_ast_sweep_logic_simulation_clean(tmp_path: Path) -> None:
 
 def test_ast_sweep_logic_simulation_prohibited_detected(tmp_path: Path) -> None:
     """Verify AST sweep algorithm detects prohibited imports."""
-    target_mod = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    target_cls = base64.b64decode(b"TWFnaWNNb2Nr").decode("utf-8")
-    target_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited_cases = [
-        f"import {target_mod}\n",
-        f"from {target_mod} import {target_cls}\n",
+        "import unittest.mock\n",  # anti-spoof prohibited terms
+        "from unittest.mock import MagicMock\n",  # anti-spoof prohibited terms
         "import multiprocessing\n",
         "import concurrent.futures\n",
         "import parsl\n",
@@ -555,8 +544,8 @@ def test_ast_sweep_logic_simulation_prohibited_detected(tmp_path: Path) -> None:
     ]
 
     prohibited = {
-        target_mod,
-        target_standalone,
+        "unittest.mock",  # anti-spoof prohibited terms
+        "mock",  # anti-spoof prohibited terms
         "multiprocessing",
         "concurrent.futures",
         "parsl",

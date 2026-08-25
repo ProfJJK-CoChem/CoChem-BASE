@@ -51,7 +51,7 @@ logger = logging.getLogger("CoChem.TOPOS.GraphEngine")
 # Standard Resonance Protection Scaling Factor
 RESONANCE_PROTECTION_SCALE: float = 1.15
 
-# Default fallback covalent radius (Angstroms) for synthetic / uncharacterized elements
+# Default fallback covalent radius (Angstroms) for uncharacterized / transuranic elements
 DEFAULT_COVALENT_RADIUS: float = 1.50
 
 

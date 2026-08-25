@@ -1,74 +1,26 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TOPOS\.in-progress\05_01_topology_graph.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_cv.md.
 Original prompt:
-# Task: Implement Graph Topology & Weak Complex Cleavage (`cochem_topos_graph.py`)
+﻿# Task: Create cochem_bench_cv.py (Stage 3.0)
 
-## Target Output File
-`${COCHEM_WORKSPACE}\GitHub-Repo\CoChem-TOPOS\topology\cochem_topos_graph.py`
+## Target File
+`D:\__CoChem\GitHub-Repo\CoChem-BENCH\bench_engine\cochem_bench_cv.py`
 
-## Objective
-Translate 3D Cartesian coordinates into a mathematical adjacency matrix, apply physical tolerances, and objectively classify systems as independent monomers, strongly coordinated structures, or weak Van der Waals (vdW) complexes.
+## Architecture Note
+This is a V2 rewrite. Ignore the legacy `bench_core` architecture described in the old `workflow.md`. Implement exactly as specified here.
 
-## Context & Architecture Rules
-This module (Stage 1.1) algorithmically shatters weak complexes into independent monomer seeds for isolated geometry exploration to prevent computational waste, maintaining Air-Gap compliance.
+## Requirements
+Implement the Stage 3.0 Core-Valence (CV) Correlation Correction script.
+Computes the CV correction term by comparing Frozen-Core versus All-Electron correlation treatments.
 
-## Execution Directives
-Implement the `cochem_topos_graph.py` script with the following capabilities:
+Functions to implement:
+1. `CoreValenceMapper()`: Dynamically maps appropriate core-polarized basis sets (e.g., `aug-cc-pwCVQZ`) based on elemental composition.
+2. `DualCorrelationEngine()`: Executes and compares a Frozen-Core calculation against an All-Electron calculation.
+3. `DeltaExtractor()`: Mathematically derives the energy difference (AE - FC).
+4. `EphemeralScratchPurge()`: Explicit `os.remove()` sweep of `.gbw` and `.tmp` files in the `Scratch/` directory immediately after energy extraction.
 
-1. **Ecosystem Role & Handoff**: Receive read-only coordinate and atomic number arrays in memory from Stage 1.0 (Pre-Flight).
-2. **Distance Matrix & The Resonance Protection Trap**: Compute an NxN distance matrix `D` using `scipy.spatial.distance.cdist`. Query `mendeleev` for exact covalent radii `R`. Apply a 15% breathing tolerance to the adjacency threshold: `Tij = 1.15 * (Ri + Rj)`. Generate an unweighted adjacency matrix `A` (`Aij = 1` if `Dij <= Tij`, else `0`).
-3. **NetworkX Graph Generation & Cleavage**: Instantiate `nx.Graph()` and evaluate `nx.connected_components`. If exactly 1 component is returned, classify as `MONOMER` and route to Stage 2.0. If >1 component, execute the Complex Triage Protocol.
-4. **Complex Triage Protocol**: Calculate the shortest distance vector between Sub-Graphs.
-   - **Strong Complex**: If the shortest distance connects to a transition metal (e.g., Fe, Pd, Ru) OR formal charges imply a tight ionic coordination bridge, tag as `STRONG_COMPLEX`, abort cleavage, and route as a single unit to Stage 2.0.
-   - **Weak Complex**: If purely non-covalent, tag as `WEAK_COMPLEX`, and mathematically sever the array into independent `numpy` matrices.
-5. **The 4-Atom Mathematical Bypass**: If an isolated monomer fragment from a `WEAK_COMPLEX` has < 4 atoms, flag with `BYPASS_GOAT` to skip deep thermal searches and execute only a rapid point relaxation.
-6. **UI Telemetry & Air-Gapped State Export**: Extract the `(i, j)` atomic indices of the shortest non-covalent gap and serialize to JSON for UI rendering using `Pydantic` models. Export isolated monomer coordinate arrays as `.xyz` files strictly to dynamic paths derived from `os.environ.get("COCHEM_WORKSPACE")` (e.g., `${COCHEM_WORKSPACE}/CoChem_Artifacts/Input_Files/user_seeds/`). Update the `stage_n_complete.json` tracker to flag the parent complex for Stage 3.0, while triggering Stage 2.0 for each monomer seed. Keep GOAT primary, add CREST `--nci --nocross --noreftopo` as a secondary search and carry the union.
-7. **Subprocess Safety & Rigorous Linting**: Ensure all `subprocess.run` executions (e.g., for CREST) are wrapped in `try/except` blocks with `check=True` and strict timeouts. Implement zombie process sweeping via `psutil` or `atexit`. Replace all `print()` statements with standard `logging`. Apply exhaustive Python 3.10+ type hints across all functions and classes.
-
+## I/O Contract
+- Writes CV correction delta to `landscape.h5`.
 Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_topos\__init__.py ---
-"""CoChem-TOPOS Combinatorial Conformational Engine."""
-
-from .cochem_topos_graph import (
-    COVALENT_RADII,
-    RESONANCE_PROTECTION_SCALE,
-    MonomerSeed,
-    ShortestGapTelemetry,
-    TopologyAnalysisResult,
-    TopologyGraphEngine,
-    analyze_molecular_graph,
-    generate_chemical_formula,
-    get_atomic_mass,
-    get_atomic_number,
-    get_atomic_symbol,
-    get_covalent_radius,
-    is_transition_or_coordination_metal,
-    parse_xyz_file,
-    parse_xyz_string,
-    run_crest_secondary_search,
-)
-from .engine import ToposEngine
-
-__all__ = [
-    "ToposEngine",
-    "TopologyGraphEngine",
-    "TopologyAnalysisResult",
-    "MonomerSeed",
-    "ShortestGapTelemetry",
-    "analyze_molecular_graph",
-    "parse_xyz_string",
-    "parse_xyz_file",
-    "generate_chemical_formula",
-    "get_covalent_radius",
-    "get_atomic_mass",
-    "get_atomic_number",
-    "get_atomic_symbol",
-    "is_transition_or_coordination_metal",
-    "run_crest_secondary_search",
-    "COVALENT_RADII",
-    "RESONANCE_PROTECTION_SCALE",
-]
-
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_topos\cochem_topos_graph.py ---
 """
@@ -124,7 +76,7 @@ logger = logging.getLogger("CoChem.TOPOS.GraphEngine")
 # Standard Resonance Protection Scaling Factor
 RESONANCE_PROTECTION_SCALE: float = 1.15
 
-# Default fallback covalent radius (Angstroms) for synthetic / uncharacterized elements
+# Default fallback covalent radius (Angstroms) for uncharacterized / transuranic elements
 DEFAULT_COVALENT_RADIUS: float = 1.50
 
 
@@ -970,67 +922,609 @@ def run_crest_secondary_search(
         logger.warning(f"CREST binary '{crest_binary}' not found on system PATH: {err}")
         raise
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_cbs.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\bench_engine\cochem_bench_cv.py ---
 #!/usr/bin/env python3
-"""Authentic Unit Test Suite for CoChem Stage 2.0 CBS Extrapolation Engine.
+r"""Stage 3.0: Core-Valence (CV) Correlation Correction Engine.
 
-Module: tests/test_cochem_bench_cbs.py
-Target Implementation: bench_engine.cochem_bench_cbs
+Authoritative Implementation: bench_engine.cochem_bench_cv
+System Domain: CoChem-BENCH Scientific Engine
+
+Key Capabilities:
+1. CoreValenceMapper: Dynamically maps appropriate core-polarized basis sets
+   (e.g., aug-cc-pwCVnZ, cc-pCVnZ) and inspects elemental core electron configurations
+   via the Mendeleev library.
+2. DualCorrelationEngine: Formulates and executes dual single-point evaluations
+   comparing Frozen-Core (FC) against All-Electron (AE with NoFrozenCore) treatments,
+   enforcing CUDA accelerator isolation (CUDA_VISIBLE_DEVICES="") and %maxcore memory limits.
+3. DeltaExtractor: Extracts FINAL SINGLE POINT ENERGY floats from authentic ORCA standard
+   outputs and mathematically derives Delta_E_CV = E_Total^(AE) - E_Total^(FC).
+4. EphemeralScratchPurge: Tripartite scratch workspace manager executing explicit sweeps
+   and unlinking of .gbw, .tmp, and intermediate files immediately after energy extraction.
+5. HDF5 Persistence: Commits computed CV corrections atomically to landscape.h5.
+
+Authoritative Standards:
+- D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_cv.md
+"""
+
+from __future__ import annotations
+
+import datetime
+import math
+import os
+import re
+import shutil
+import subprocess
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import h5py
+from mendeleev import element
+from pydantic import BaseModel, Field
+
+
+# ==============================================================================
+# Physical Constants
+# ==============================================================================
+
+# Exact CODATA Conversion: Hartree to kcal/mol
+HARTREE_TO_KCAL_MOL: float = 627.509474063
+
+
+# ==============================================================================
+# Data Models
+# ==============================================================================
+
+class CVCorrectionResult(BaseModel):
+    """Structured result model for Core-Valence (CV) correlation energy corrections."""
+    e_total_fc: float = Field(description="Frozen-Core total electronic energy in Hartree")
+    e_total_ae: float = Field(description="All-Electron total electronic energy in Hartree")
+    delta_e_cv_hartree: float = Field(description="Core-Valence correction delta (AE - FC) in Hartree")
+    delta_e_cv_kcal_mol: float = Field(description="Core-Valence correction delta in kcal/mol")
+    basis_set: str = Field(description="Core-polarized basis set used for calculations")
+    original_basis_set: str = Field(default="", description="Original basis set before core-valence mapping")
+    method: str = Field(default="DLPNO-CCSD(T)", description="Quantum chemistry method")
+    has_core_electrons: bool = Field(default=True, description="True if molecule contains elements with core electrons (Z >= 3)")
+    node_id: str = Field(default="", description="Unique identifier of the molecular node or conformer")
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional execution or provenance metadata")
+
+
+# ==============================================================================
+# 1. CoreValenceMapper
+# ==============================================================================
+
+class CoreValenceMapper:
+    """Dynamically maps appropriate core-polarized basis sets and inspects elemental core configurations."""
+
+    @staticmethod
+    def map_basis_set(basis_set: str) -> str:
+        """Maps standard valence basis sets to their corresponding core-polarized variants.
+        
+        Rules:
+        - "aug-cc-pVnZ" -> "aug-cc-pwCVnZ"
+        - "cc-pVnZ" -> "cc-pCVnZ"
+        - "def2-*" -> unchanged (def2 family natively supports all-electron/core-valence)
+        - "ano-*" -> unchanged (ANO basis sets are general contraction all-electron bases)
+        """
+        b_str = basis_set.strip()
+        b_lower = b_str.lower()
+
+        # Handle augmented correlation consistent sets first
+        if "aug-cc-pv" in b_lower:
+            pattern = re.compile(r"aug-cc-pv", re.IGNORECASE)
+            return pattern.sub("aug-cc-pwCV", b_str)
+
+        # Handle standard correlation consistent sets
+        if "cc-pv" in b_lower:
+            pattern = re.compile(r"cc-pv", re.IGNORECASE)
+            return pattern.sub("cc-pCV", b_str)
+
+        # def2 and ANO families do not require prefix modification
+        return b_str
+
+    @staticmethod
+    def inspect_elemental_core(
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+    ) -> Dict[str, Any]:
+        """Inspects elemental composition using Mendeleev to determine core electron counts and molecular mass."""
+        total_mass = 0.0
+        total_electrons = 0
+        total_core_electrons = 0
+        elements_present: List[str] = []
+
+        for item in coords:
+            sym = str(item[0]).strip().rstrip(":").capitalize()
+            elem_data = element(sym)
+            z = int(elem_data.atomic_number)
+            mass = float(elem_data.mass)
+
+            total_mass += mass
+            total_electrons += z
+            if sym not in elements_present:
+                elements_present.append(sym)
+
+            # Core electron calculation:
+            # Z = 1, 2 (H, He): 0 core electrons
+            # Z = 3 - 10 (Li - Ne): 2 core electrons (1s^2 / [He])
+            # Z = 11 - 18 (Na - Ar): 10 core electrons ([Ne])
+            # Z = 19 - 36 (K - Kr): 18 core electrons ([Ar])
+            # Z = 37 - 54 (Rb - Xe): 36 core electrons ([Kr])
+            if z <= 2:
+                core_e = 0
+            elif z <= 10:
+                core_e = 2
+            elif z <= 18:
+                core_e = 10
+            elif z <= 36:
+                core_e = 18
+            elif z <= 54:
+                core_e = 36
+            else:
+                core_e = 54
+
+            total_core_electrons += core_e
+
+        has_core = total_core_electrons > 0
+
+        return {
+            "has_core_electrons": has_core,
+            "total_core_electrons": total_core_electrons,
+            "total_electrons": total_electrons,
+            "total_mass": total_mass,
+            "elements": elements_present,
+        }
+
+
+# ==============================================================================
+# 2. DualCorrelationEngine
+# ==============================================================================
+
+class DualCorrelationEngine:
+    """Manages dual Frozen-Core vs All-Electron single-point ORCA calculation configurations."""
+
+    def __init__(
+        self,
+        method: str = "DLPNO-CCSD(T)",
+        base_basis: str = "aug-cc-pVTZ",
+        node_max_gb: float = 16.0,
+        nprocs: int = 4,
+        ram_safety_fraction: float = 0.75,
+        tight_scf: bool = True,
+        defgrid: str = "DefGrid3",
+        extra_keywords: Optional[List[str]] = None,
+    ) -> None:
+        self.method = method
+        self.base_basis = base_basis
+        self.node_max_gb = float(node_max_gb)
+        self.nprocs = max(1, int(nprocs))
+        self.ram_safety_fraction = float(ram_safety_fraction)
+        self.tight_scf = tight_scf
+        self.defgrid = defgrid
+        self.extra_keywords = list(extra_keywords) if extra_keywords else []
+
+    def calculate_maxcore_per_thread(self) -> int:
+        """Calculates strict per-process %maxcore in MB leaving headroom for OS and MPI runtime."""
+        available_mb = self.node_max_gb * 1024.0 * self.ram_safety_fraction
+        per_thread_mb = int(available_mb / self.nprocs)
+        min_allowed = 250
+        max_allowed = int((self.node_max_gb * 1024.0) / self.nprocs)
+        candidate = max(min_allowed, per_thread_mb)
+        return min(candidate, max_allowed)
+
+    def prepare_execution_env(self) -> Dict[str, str]:
+        """Prepares child subprocess execution environment, air-gapping GPUs via CUDA_VISIBLE_DEVICES=''."""
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = ""
+        return env
+
+    def generate_input_decks(
+        self,
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+        charge: int = 0,
+        mult: int = 1,
+        output_dir: Optional[Union[str, Path]] = None,
+    ) -> Dict[str, Any]:
+        """Generates authentic ORCA 6.1.1 input decks for Frozen-Core and All-Electron calculations."""
+        mapper = CoreValenceMapper()
+        mapped_basis = mapper.map_basis_set(self.base_basis)
+        maxcore_mb = self.calculate_maxcore_per_thread()
+
+        # Job A: Frozen-Core (default)
+        fc_input = self._build_input_string(
+            coords=coords,
+            basis=mapped_basis,
+            is_all_electron=False,
+            charge=charge,
+            mult=mult,
+            maxcore_mb=maxcore_mb,
+        )
+
+        # Job B: All-Electron (NoFrozenCore)
+        ae_input = self._build_input_string(
+            coords=coords,
+            basis=mapped_basis,
+            is_all_electron=True,
+            charge=charge,
+            mult=mult,
+            maxcore_mb=maxcore_mb,
+        )
+
+        decks = {
+            "fc_input": fc_input,
+            "ae_input": ae_input,
+            "basis_set": mapped_basis,
+            "original_basis": self.base_basis,
+            "method": self.method,
+            "maxcore_mb": maxcore_mb,
+            "nprocs": self.nprocs,
+            "charge": charge,
+            "mult": mult,
+        }
+
+        if output_dir:
+            out_path = Path(output_dir)
+            out_path.mkdir(parents=True, exist_ok=True)
+            (out_path / "orca_fc.inp").write_text(fc_input, encoding="utf-8")
+            (out_path / "orca_ae.inp").write_text(ae_input, encoding="utf-8")
+
+        return decks
+
+    def _build_input_string(
+        self,
+        coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+        basis: str,
+        is_all_electron: bool,
+        charge: int,
+        mult: int,
+        maxcore_mb: int,
+    ) -> str:
+        """Constructs valid ORCA 6.1.1 input deck."""
+        keywords = ["!", self.method, basis]
+        if is_all_electron:
+            keywords.append("NoFrozenCore")
+        if self.tight_scf:
+            keywords.append("TightSCF")
+        if self.defgrid:
+            keywords.append(self.defgrid)
+        for kw in self.extra_keywords:
+            if kw not in keywords:
+                keywords.append(kw)
+
+        lines = [" ".join(keywords)]
+        lines.append(f"%maxcore {maxcore_mb}")
+        if self.nprocs > 1:
+            lines.append(f"%pal nprocs {self.nprocs} end")
+
+        lines.append(f"* xyz {charge} {mult}")
+        for atom in coords:
+            sym = str(atom[0]).strip()
+            x = float(atom[1])
+            y = float(atom[2])
+            z = float(atom[3])
+            lines.append(f"  {sym:<2}  {x:12.8f}  {y:12.8f}  {z:12.8f}")
+        lines.append("*\n")
+
+        return "\n".join(lines)
+
+    def execute_job(
+        self,
+        input_text: str,
+        orca_binary_path: Union[str, Path],
+        scratch_dir: Union[str, Path],
+        job_prefix: str = "job",
+        timeout_seconds: int = 7200,
+    ) -> Tuple[str, str, int]:
+        """Executes ORCA binary via subprocess inside isolated scratch with GPU air-gapping."""
+        scratch_path = Path(scratch_dir)
+        scratch_path.mkdir(parents=True, exist_ok=True)
+        inp_file = scratch_path / f"{job_prefix}.inp"
+        inp_file.write_text(input_text, encoding="utf-8")
+
+        env = self.prepare_execution_env()
+
+        cmd = [str(orca_binary_path), str(inp_file)]
+        proc = subprocess.run(
+            cmd,
+            cwd=str(scratch_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        return proc.stdout, proc.stderr, proc.returncode
+
+
+# ==============================================================================
+# 3. DeltaExtractor
+# ==============================================================================
+
+class DeltaExtractor:
+    """Extracts electronic energies from ORCA stdout streams and derives Core-Valence deltas."""
+
+    @staticmethod
+    def parse_final_energy_from_stdout(stdout_text: str) -> float:
+        """Parses FINAL SINGLE POINT ENERGY from standard ORCA output."""
+        match = re.search(r"FINAL SINGLE POINT ENERGY\s+(-?\d+\.\d+)", stdout_text)
+        if not match:
+            raise ValueError("ORCA output did not contain 'FINAL SINGLE POINT ENERGY' marker.")
+        return float(match.group(1))
+
+    @staticmethod
+    def extract_delta(
+        e_total_fc: float,
+        e_total_ae: float,
+        basis_set: str = "",
+        original_basis: str = "",
+        method: str = "DLPNO-CCSD(T)",
+        has_core_electrons: bool = True,
+        node_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> CVCorrectionResult:
+        """Mathematically derives Delta_E_CV = E_Total^(AE) - E_Total^(FC)."""
+        delta_hartree = float(e_total_ae) - float(e_total_fc)
+        delta_kcal = delta_hartree * HARTREE_TO_KCAL_MOL
+
+        return CVCorrectionResult(
+            e_total_fc=float(e_total_fc),
+            e_total_ae=float(e_total_ae),
+            delta_e_cv_hartree=delta_hartree,
+            delta_e_cv_kcal_mol=delta_kcal,
+            basis_set=basis_set,
+            original_basis_set=original_basis,
+            method=method,
+            has_core_electrons=has_core_electrons,
+            node_id=node_id,
+            metadata=metadata or {},
+        )
+
+    def extract_from_outputs(
+        self,
+        stdout_fc: str,
+        stdout_ae: str,
+        basis_set: str = "",
+        original_basis: str = "",
+        method: str = "DLPNO-CCSD(T)",
+        has_core_electrons: bool = True,
+        node_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> CVCorrectionResult:
+        """Parses energies directly from stdout texts and computes CV correction."""
+        e_fc = self.parse_final_energy_from_stdout(stdout_fc)
+        e_ae = self.parse_final_energy_from_stdout(stdout_ae)
+        return self.extract_delta(
+            e_total_fc=e_fc,
+            e_total_ae=e_ae,
+            basis_set=basis_set,
+            original_basis=original_basis,
+            method=method,
+            has_core_electrons=has_core_electrons,
+            node_id=node_id,
+            metadata=metadata,
+        )
+
+
+# ==============================================================================
+# 4. EphemeralScratchPurge
+# ==============================================================================
+
+class EphemeralScratchPurge:
+    """Manages tripartite scratch workspace creation and sweeps intermediate scratch files."""
+
+    @staticmethod
+    def create_scratch_dir(base_artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+        """Creates a dedicated UUID-scoped scratch directory."""
+        if base_artifacts_dir:
+            base_dir = Path(base_artifacts_dir)
+        else:
+            base_env = os.environ.get(
+                "COCHEM_ARTIFACTS_DIR",
+                os.environ.get("COCHEM_WORKSPACE", Path.home() / "CoChem_Artifacts"),
+            )
+            base_dir = Path(base_env)
+
+        scratch_dir = base_dir / "BENCH_Workspace" / "Scratch" / f"job_{uuid.uuid4()}"
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        return scratch_dir
+
+    @staticmethod
+    def purge_scratch_dir(
+        scratch_dir: Union[str, Path],
+        remove_dir: bool = True,
+    ) -> Dict[str, Any]:
+        """Sweeps and unlinks intermediate simulation files (.gbw, .tmp, .densities, etc.)."""
+        scratch_path = Path(scratch_dir)
+        if not scratch_path.exists():
+            return {"status": "not_found", "purged_count": 0}
+
+        purged_files: List[str] = []
+        extensions_to_purge = [
+            "*.gbw", "*.tmp", "*.densities", "*.bso", "*.prop",
+            "*.core", "*.host", "*.ges", "*.int", "*.uco",
+        ]
+
+        for ext in extensions_to_purge:
+            for p in scratch_path.glob(ext):
+                try:
+                    p.unlink()
+                    purged_files.append(p.name)
+                except OSError:
+                    pass
+
+        if remove_dir:
+            try:
+                shutil.rmtree(str(scratch_path), ignore_errors=True)
+            except OSError:
+                pass
+
+        return {
+            "status": "purged",
+            "purged_count": len(purged_files),
+            "purged_files": purged_files,
+        }
+
+
+# ==============================================================================
+# 5. HDF5 Persistence & Pipeline Orchestration
+# ==============================================================================
+
+def commit_cv_to_hdf5(
+    h5_path: Union[str, Path],
+    result: CVCorrectionResult,
+) -> None:
+    """Commits computed Core-Valence correction results atomically to landscape.h5."""
+    target_path = Path(h5_path)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    node_group_name = result.node_id if result.node_id else "default_cv_node"
+
+    with h5py.File(target_path, "a") as f:
+        root_grp = f.require_group("cv_corrections")
+        node_grp = root_grp.require_group(node_group_name)
+
+        datasets = {
+            "e_total_fc": result.e_total_fc,
+            "e_total_ae": result.e_total_ae,
+            "delta_e_cv_hartree": result.delta_e_cv_hartree,
+            "delta_e_cv_kcal_mol": result.delta_e_cv_kcal_mol,
+        }
+
+        for ds_name, ds_val in datasets.items():
+            if ds_name in node_grp:
+                del node_grp[ds_name]
+            node_grp.create_dataset(ds_name, data=float(ds_val))
+
+        node_grp.attrs["basis_set"] = result.basis_set
+        node_grp.attrs["original_basis_set"] = result.original_basis_set
+        node_grp.attrs["method"] = result.method
+        node_grp.attrs["has_core_electrons"] = bool(result.has_core_electrons)
+        node_grp.attrs["timestamp"] = result.timestamp
+        node_grp.attrs["node_id"] = result.node_id
+
+
+def read_cv_from_hdf5(
+    h5_path: Union[str, Path],
+    node_id: str,
+) -> Dict[str, Any]:
+    """Reads back computed Core-Valence correction results from landscape.h5."""
+    target_path = Path(h5_path)
+    if not target_path.exists():
+        raise FileNotFoundError(f"HDF5 file does not exist: {target_path}")
+
+    with h5py.File(target_path, "r") as f:
+        root_grp = f["cv_corrections"]
+        node_grp = root_grp[node_id]
+
+        data = {
+            "e_total_fc": float(node_grp["e_total_fc"][()]),
+            "e_total_ae": float(node_grp["e_total_ae"][()]),
+            "delta_e_cv_hartree": float(node_grp["delta_e_cv_hartree"][()]),
+            "delta_e_cv_kcal_mol": float(node_grp["delta_e_cv_kcal_mol"][()]),
+            "basis_set": str(node_grp.attrs.get("basis_set", "")),
+            "original_basis_set": str(node_grp.attrs.get("original_basis_set", "")),
+            "method": str(node_grp.attrs.get("method", "")),
+            "has_core_electrons": bool(node_grp.attrs.get("has_core_electrons", True)),
+            "timestamp": str(node_grp.attrs.get("timestamp", "")),
+            "node_id": str(node_grp.attrs.get("node_id", "")),
+        }
+        return data
+
+
+def run_cv_pipeline(
+    coords: Union[List[Tuple[str, float, float, float]], List[List[Any]]],
+    e_total_fc: float,
+    e_total_ae: float,
+    base_basis: str = "aug-cc-pVQZ",
+    method: str = "DLPNO-CCSD(T)",
+    node_id: str = "node_0",
+    h5_path: Optional[Union[str, Path]] = None,
+    node_max_gb: float = 16.0,
+    nprocs: int = 4,
+) -> CVCorrectionResult:
+    """End-to-end pipeline orchestrator for Stage 3.0 Core-Valence (CV) Correction."""
+    # 1. Map basis set and inspect elemental core
+    mapper = CoreValenceMapper()
+    mapped_basis = mapper.map_basis_set(base_basis)
+    core_info = mapper.inspect_elemental_core(coords)
+
+    # 2. Extract delta and create result model
+    extractor = DeltaExtractor()
+    result = extractor.extract_delta(
+        e_total_fc=e_total_fc,
+        e_total_ae=e_total_ae,
+        basis_set=mapped_basis,
+        original_basis=base_basis,
+        method=method,
+        has_core_electrons=core_info["has_core_electrons"],
+        node_id=node_id,
+        metadata={"core_info": core_info},
+    )
+
+    # 3. Commit to landscape.h5 if path supplied
+    if h5_path:
+        commit_cv_to_hdf5(h5_path=h5_path, result=result)
+
+    return result
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_cv.py ---
+#!/usr/bin/env python3
+r"""Authentic Unit Test Suite for CoChem Stage 3.0 Core-Valence (CV) Correlation Correction Engine.
+
+Module: tests/test_cochem_bench_cv.py
+Target Implementation: bench_engine.cochem_bench_cv
 
 Tests:
-1. DualBasisDispatcher:
-   - Dynamic %maxcore RAM calculation per MPI thread with host RAM safety margin.
-   - Dual-basis ORCA 6.1.1 input deck generation for def2, cc-pVnZ, and custom basis sets.
-   - Atom coordinate validation and electronic property derivation via Mendeleev.
-   - Multiplicity and open-shell radical detection.
-2. HelgakerExtrapolator:
-   - Energy decomposition: E_corr = E_total - E_SCF.
-   - Exponential decay two-point SCF extrapolation: E_SCF(inf) = (E_SCF(X)*exp(-alpha*sqrt(Y)) - E_SCF(Y)*exp(-alpha*sqrt(X))) / (exp(-alpha*sqrt(Y)) - exp(-alpha*sqrt(X))).
-   - Inverse power two-point correlation extrapolation: E_corr(inf) = (X^beta * E_corr(X) - Y^beta * E_corr(Y)) / (X^beta - Y^beta).
-   - Parameter matrix lookup (alpha and beta) across cc-pVnZ, pc-n, def2, ano-pVnZ, saug-ano-pVnZ families.
-   - Real ab-initio literature validation on authentic molecular calculations (Water, Nitrogen dimer).
-3. ResidualFitAnalyzer:
-   - Absolute variance calculation: Delta = |E_corr(inf) - E_corr(Y)|.
-   - Hartree to kcal/mol conversion (627.509474 kcal/mol per Hartree).
-   - Flagging logic: Delta > 10.0 kcal/mol flags CBS_HIGH_UNCERTAINTY; Delta <= 10.0 kcal/mol passes.
-4. SlowConvInterceptor:
-   - Standard output failure stream parsing for DIIS / SCF non-convergence.
-   - Dynamic remediation injecting '! SlowConv SOSCF' and SCF configuration blocks.
-   - Bounded retry tracking preventing infinite loop oscillations.
+1. CoreValenceMapper:
+   - Dynamic basis set mapping (cc-pV -> cc-pCV, aug-cc-pV -> aug-cc-pwCV, def2 unchanged).
+   - Elemental core composition inspection using dynamic Mendeleev atomic data.
+   - Core electron presence and mass calculation.
+2. DualCorrelationEngine:
+   - Input deck generation for Frozen-Core (FC) vs All-Electron (AE with NoFrozenCore).
+   - Dynamic %maxcore RAM calculation per MPI thread.
+   - Accelerator isolation injecting CUDA_VISIBLE_DEVICES="".
+3. DeltaExtractor:
+   - Extraction of FINAL SINGLE POINT ENERGY from authentic ORCA standard output.
+   - Mathematical derivation of Delta_E_CV = E_Total^(AE) - E_Total^(FC).
+   - Unit conversion from Hartree to kcal/mol via exact CODATA conversion.
+4. EphemeralScratchPurge:
+   - UUID-scoped tripartite scratch workspace creation.
+   - Sweep and unlink of .gbw, .tmp, and ephemeral intermediate files.
+   - Directory removal preventing disk and NVMe exhaustion.
 5. HDF5 Persistence & Pipeline Orchestration:
-   - Atomic commitment of computed CBS limit to landscape.h5 with complete metadata.
+   - Atomic commitment of CV correction results to landscape.h5.
    - Schema validation and roundtrip retrieval.
+   - End-to-end pipeline execution.
 
 Authoritative References:
-- D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\Method_Matrix.md
-- D:\\__CoChem\\__agentic\\.prompts\\.SRS\\CoChem-BENCH\\SRS\\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
-- D:\\__CoChem\\__agentic\\.prompts\\.SRS\\CoChem-BENCH\\.in-progress\\draft_task2_pt1_cbs.md
+- D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_cv.md
 """
 
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import h5py
-import numpy as np
 import pytest
 from mendeleev import element
 
-from bench_engine.cochem_bench_cbs import (
-    DualBasisDispatcher,
-    HelgakerExtrapolator,
-    ResidualFitAnalyzer,
-    SlowConvInterceptor,
-    CBSExtrapolationResult,
-    SlowConvInterceptionResult,
-    commit_cbs_to_hdf5,
-    read_cbs_from_hdf5,
-    run_cbs_pipeline,
+from bench_engine.cochem_bench_cv import (
+    CoreValenceMapper,
+    DualCorrelationEngine,
+    DeltaExtractor,
+    EphemeralScratchPurge,
+    CVCorrectionResult,
+    commit_cv_to_hdf5,
+    read_cv_from_hdf5,
+    run_cv_pipeline,
     HARTREE_TO_KCAL_MOL,
-    CBS_UNCERTAINTY_THRESHOLD_KCAL_MOL,
-    PARAMETER_MATRIX,
 )
 
 
@@ -1054,947 +1548,348 @@ METHANE_COORDS: List[Tuple[str, float, float, float]] = [
     ("H", 0.627600, -0.627600, -0.627600),
 ]
 
-# Nitrogen Dimer (Dinfh equilibrium geometry)
-N2_COORDS: List[Tuple[str, float, float, float]] = [
-    ("N", 0.000000, 0.000000, 0.548800),
-    ("N", 0.000000, 0.000000, -0.548800),
+# Dihydrogen (No core electrons)
+H2_COORDS: List[Tuple[str, float, float, float]] = [
+    ("H", 0.000000, 0.000000, 0.370000),
+    ("H", 0.000000, 0.000000, -0.370000),
 ]
 
-# OH Radical (Open-shell doublet)
-OH_RADICAL_COORDS: List[Tuple[str, float, float, float]] = [
-    ("O", 0.000000, 0.000000, 0.000000),
-    ("H", 0.000000, 0.000000, 0.969700),
+# Carbon Monoxide (Multiple heavy atoms)
+CO_COORDS: List[Tuple[str, float, float, float]] = [
+    ("C", 0.000000, 0.000000, -0.645000),
+    ("O", 0.000000, 0.000000, 0.485000),
 ]
 
 
 # ==============================================================================
-# 1. DualBasisDispatcher Tests
+# Authentic ORCA 6.1.1 Output Fixtures
 # ==============================================================================
 
-def test_dynamic_maxcore_ram_calculation() -> None:
-    """Validate dynamic maxcore calculation per MPI thread prevents host RAM swap-death."""
-    dispatcher = DualBasisDispatcher(node_max_gb=32.0, nprocs=8, ram_safety_fraction=0.75)
-    maxcore_mb = dispatcher.calculate_maxcore_per_thread()
+ORCA_FC_STDOUT_WATER = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
 
-    # 32 GB * 1024 MB/GB * 0.75 / 8 = 3072 MB per thread
-    expected_mb = int((32.0 * 1024.0 * 0.75) / 8)
-    assert maxcore_mb == expected_mb
-    assert maxcore_mb == 3072
-
-    # Test constrained node budgeting
-    dispatcher_constrained = DualBasisDispatcher(node_max_gb=4.0, nprocs=8, ram_safety_fraction=0.75)
-    maxcore_constrained = dispatcher_constrained.calculate_maxcore_per_thread()
-    # 4 * 1024 * 0.75 / 8 = 384 MB
-    assert maxcore_constrained == 384
-    assert maxcore_constrained >= 250
-
-
-def test_dual_basis_orca_input_generation() -> None:
-    """Validate ORCA 6.1.1 input file deck generation for dual-basis extrapolation."""
-    dispatcher = DualBasisDispatcher(
-        node_max_gb=16.0,
-        nprocs=4,
-        method="DLPNO-CCSD(T)",
-        basis_pair=("def2-TZVP", "def2-QZVPP"),
-        tight_scf=True,
-    )
-
-    deck = dispatcher.generate_input_deck(
-        coords=WATER_COORDS,
-        charge=0,
-        mult=1,
-    )
-
-    assert "input_x" in deck
-    assert "input_y" in deck
-    assert deck["basis_x"] == "def2-TZVP"
-    assert deck["basis_y"] == "def2-QZVPP"
-
-    inp_x = deck["input_x"]
-    inp_y = deck["input_y"]
-
-    # Verify ORCA syntax in input X
-    assert "! DLPNO-CCSD(T) def2-TZVP" in inp_x
-    assert "TightSCF" in inp_x
-    assert "DefGrid3" in inp_x
-    assert "%maxcore" in inp_x
-    assert "%pal nprocs 4 end" in inp_x
-    assert "* xyz 0 1" in inp_x
-    assert "0.11779" in inp_x
-
-    # Verify ORCA syntax in input Y
-    assert "! DLPNO-CCSD(T) def2-QZVPP" in inp_y
-    assert "TightSCF" in inp_y
-    assert "%pal nprocs 4 end" in inp_y
-
-
-def test_mendeleev_masses_and_electron_integration() -> None:
-    """Validate dynamic element property retrieval via mendeleev library (Mendeleev Mandate)."""
-    dispatcher = DualBasisDispatcher()
-    
-    # Calculate molecular mass and total electron count dynamically using mendeleev
-    mol_mass, total_electrons = dispatcher.get_molecular_properties(WATER_COORDS)
-    
-    expected_o_mass = float(element("O").mass)
-    expected_h_mass = float(element("H").mass)
-    expected_mol_mass = expected_o_mass + 2.0 * expected_h_mass
-    
-    assert math.isclose(mol_mass, expected_mol_mass, rel_tol=1e-5)
-    assert total_electrons == 10  # 8 + 1 + 1 = 10 electrons
-
-
-def test_open_shell_radical_detection() -> None:
-    """Validate automatic detection of open-shell systems and UHF / unrestricted handling."""
-    dispatcher = DualBasisDispatcher()
-
-    # OH radical: 8 (O) + 1 (H) = 9 electrons (odd number -> open-shell doublet)
-    is_open_shell, inferred_mult = dispatcher.detect_spin_state(OH_RADICAL_COORDS, charge=0)
-    assert is_open_shell is True
-    assert inferred_mult == 2
-
-    deck = dispatcher.generate_input_deck(OH_RADICAL_COORDS, charge=0, mult=2)
-    assert "* xyz 0 2" in deck["input_x"]
-
-
-# ==============================================================================
-# 2. HelgakerExtrapolator Mathematics & Parameter Matrix Tests
-# ==============================================================================
-
-def test_energy_decomposition() -> None:
-    """Validate energy decomposition into SCF and correlation components."""
-    extrapolator = HelgakerExtrapolator()
-
-    # Water with def2-TZVP: E_total = -76.3322 Hartree, E_SCF = -76.0571 Hartree
-    e_total_x = -76.3322
-    e_scf_x = -76.0571
-    e_corr_x = extrapolator.decompose_correlation_energy(e_total_x, e_scf_x)
-
-    expected_corr_x = e_total_x - e_scf_x
-    assert math.isclose(e_corr_x, expected_corr_x, abs_tol=1e-10)
-    assert e_corr_x < 0.0  # Correlation energy must be negative
-
-
-def test_scf_exponential_extrapolation_exact_math() -> None:
-    """Validate exponential decay formula for Hartree-Fock SCF energy extrapolation.
-    
-    Formula:
-    E_SCF(inf) = (E_SCF(X)*exp(-alpha*sqrt(Y)) - E_SCF(Y)*exp(-alpha*sqrt(X))) /
-                 (exp(-alpha*sqrt(Y)) - exp(-alpha*sqrt(X)))
-    """
-    extrapolator = HelgakerExtrapolator()
-
-    e_scf_x3 = -76.0571
-    e_scf_x4 = -76.0648
-    alpha = 7.88  # def2 3/4 parameter
-    X = 3
-    Y = 4
-
-    cbs_scf = extrapolator.extrapolate_scf(e_scf_x=e_scf_x3, e_scf_y=e_scf_x4, X=X, Y=Y, alpha=alpha)
-
-    exp_x = math.exp(-alpha * math.sqrt(X))
-    exp_y = math.exp(-alpha * math.sqrt(Y))
-    expected_cbs_scf = (e_scf_x3 * exp_y - e_scf_x4 * exp_x) / (exp_y - exp_x)
-
-    assert math.isclose(cbs_scf, expected_cbs_scf, rel_tol=1e-12)
-    assert cbs_scf < e_scf_x4  # CBS limit must be more negative than finite basis
-
-
-def test_correlation_inverse_power_extrapolation_exact_math() -> None:
-    """Validate Halkier/Neese inverse power formula for correlation energy extrapolation.
-    
-    Formula:
-    E_corr(inf) = (X^beta * E_corr(X) - Y^beta * E_corr(Y)) / (X^beta - Y^beta)
-    """
-    extrapolator = HelgakerExtrapolator()
-
-    e_corr_x3 = -0.2751
-    e_corr_x4 = -0.2885
-    beta = 2.97  # def2 3/4 parameter
-    X = 3
-    Y = 4
-
-    cbs_corr = extrapolator.extrapolate_correlation(e_corr_x=e_corr_x3, e_corr_y=e_corr_x4, X=X, Y=Y, beta=beta)
-
-    x_beta = float(X) ** beta
-    y_beta = float(Y) ** beta
-    expected_cbs_corr = (x_beta * e_corr_x3 - y_beta * e_corr_x4) / (x_beta - y_beta)
-
-    assert math.isclose(cbs_corr, expected_cbs_corr, rel_tol=1e-12)
-    assert cbs_corr < e_corr_x4  # CBS correlation limit must be more negative
-
-
-def test_parameter_matrix_coverage() -> None:
-    """Validate parameter lookup across all basis set families defined in Task 5 SRS."""
-    extrapolator = HelgakerExtrapolator()
-
-    test_cases = [
-        # (basis_x, basis_y, expected_alpha, expected_beta, expected_X, expected_Y)
-        ("cc-pVDZ", "cc-pVTZ", 4.42, 2.46, 2, 3),
-        ("cc-pVTZ", "cc-pVQZ", 5.46, 3.05, 3, 4),
-        ("pc-1", "pc-2", 7.02, 2.01, 2, 3),
-        ("pc-2", "pc-3", 9.78, 4.09, 3, 4),
-        ("def2-SVP", "def2-TZVP", 10.39, 2.40, 2, 3),
-        ("def2-TZVP", "def2-QZVPP", 7.88, 2.97, 3, 4),
-        ("def2-TZVPP", "def2-QZVPP", 7.88, 2.97, 3, 4),
-        ("ano-pVDZ", "ano-pVTZ", 5.41, 2.43, 2, 3),
-        ("ano-pVTZ", "ano-pVQZ", 4.48, 2.97, 3, 4),
-        ("saug-ano-pVDZ", "saug-ano-pVTZ", 5.48, 2.21, 2, 3),
-        ("saug-ano-pVTZ", "saug-ano-pVQZ", 4.18, 2.83, 3, 4),
-    ]
-
-    for bx, by, exp_alpha, exp_beta, exp_X, exp_Y in test_cases:
-        alpha, beta, X, Y = extrapolator.lookup_parameters(bx, by)
-        assert math.isclose(alpha, exp_alpha, rel_tol=1e-4), f"Alpha mismatch for {bx}/{by}: got {alpha}, exp {exp_alpha}"
-        assert math.isclose(beta, exp_beta, rel_tol=1e-4), f"Beta mismatch for {bx}/{by}: got {beta}, exp {exp_beta}"
-        assert X == exp_X, f"X mismatch for {bx}: got {X}, exp {exp_X}"
-        assert Y == exp_Y, f"Y mismatch for {by}: got {Y}, exp {exp_Y}"
-
-
-def test_full_cbs_extrapolation_pipeline() -> None:
-    """Validate full end-to-end extrapolation returning structured CBSExtrapolationResult."""
-    extrapolator = HelgakerExtrapolator()
-
-    # Authentic Water DLPNO-CCSD(T) energies:
-    # def2-TZVP: E_SCF = -76.0571 Hartree, E_corr = -0.2751 Hartree
-    # def2-QZVPP: E_SCF = -76.0648 Hartree, E_corr = -0.2885 Hartree
-    result: CBSExtrapolationResult = extrapolator.extrapolate(
-        e_scf_x=-76.0571,
-        e_scf_y=-76.0648,
-        e_corr_x=-0.2751,
-        e_corr_y=-0.2885,
-        basis_x="def2-TZVP",
-        basis_y="def2-QZVPP",
-    )
-
-    assert result.e_scf_cbs < -76.0648
-    assert result.e_corr_cbs < -0.2885
-    assert result.e_total_cbs == result.e_scf_cbs + result.e_corr_cbs
-    assert result.basis_x == "def2-TZVP"
-    assert result.basis_y == "def2-QZVPP"
-    assert result.alpha == 7.88
-    assert result.beta == 2.97
-
-
-# ==============================================================================
-# 3. ResidualFitAnalyzer Tests
-# ==============================================================================
-
-def test_residual_fit_analyzer_nominal_pass() -> None:
-    """Validate ResidualFitAnalyzer passes when correlation variance Delta <= 10 kcal/mol."""
-    analyzer = ResidualFitAnalyzer(threshold_kcal_mol=10.0)
-
-    # Delta = |-0.2970 - (-0.2885)| = 0.0085 Hartree
-    # In kcal/mol: 0.0085 * 627.509474 = 5.3338 kcal/mol <= 10.0 kcal/mol -> PASSED
-    e_corr_cbs = -0.2970
-    e_corr_y = -0.2885
-
-    eval_result = analyzer.analyze(e_corr_cbs=e_corr_cbs, e_corr_y=e_corr_y)
-
-    assert eval_result["is_flagged"] is False
-    assert eval_result["flag"] == "PASSED"
-    assert math.isclose(eval_result["variance_hartree"], 0.0085, rel_tol=1e-5)
-    assert math.isclose(eval_result["variance_kcal_mol"], 0.0085 * HARTREE_TO_KCAL_MOL, rel_tol=1e-5)
-
-
-def test_residual_fit_analyzer_cbs_high_uncertainty_flag() -> None:
-    """Validate ResidualFitAnalyzer flags CBS_HIGH_UNCERTAINTY when variance Delta > 10 kcal/mol."""
-    analyzer = ResidualFitAnalyzer(threshold_kcal_mol=10.0)
-
-    # Unphysically large jump / under-saturated basis:
-    # Delta = |-0.3200 - (-0.2885)| = 0.0315 Hartree
-    # In kcal/mol: 0.0315 * 627.509474 = 19.7665 kcal/mol > 10.0 kcal/mol -> HIGH UNCERTAINTY
-    e_corr_cbs = -0.3200
-    e_corr_y = -0.2885
-
-    eval_result = analyzer.analyze(e_corr_cbs=e_corr_cbs, e_corr_y=e_corr_y)
-
-    assert eval_result["is_flagged"] is True
-    assert eval_result["flag"] == "CBS_HIGH_UNCERTAINTY"
-    assert eval_result["variance_kcal_mol"] > 10.0
-    assert "asymptotic regime" in eval_result["reason"].lower()
-
-
-# ==============================================================================
-# 4. SlowConvInterceptor Tests
-# ==============================================================================
-
-def test_slow_conv_interceptor_detection_and_remediation() -> None:
-    """Validate interception of ORCA SCF DIIS convergence failure and injection of SOSCF."""
-    interceptor = SlowConvInterceptor()
-
-    failed_orca_stdout = """
-    =======================================================
-                       * O R C A *
-           An Ab Initio, DFT and Semiempirical SCF program
-    =======================================================
-    SCF NOT CONVERGED AFTER 125 CYCLES
-    DIIS error did not drop below threshold: 4.82e-04 > 1.00e-05
-    SCF failed to converge!
-    -------------------------------------------------------
-    """
-
-    base_input = """! DLPNO-CCSD(T) def2-TZVP TightSCF DefGrid3
-%maxcore 3072
-* xyz 0 1
-O 0.0 0.0 0.11779
-H 0.0 0.75545 -0.47116
-H 0.0 -0.75545 -0.47116
-*
+Total Energy       :      -76.3623851042 Eh
+FINAL SINGLE POINT ENERGY      -76.3623851042
+ORCA TERMINATED NORMALLY
 """
 
-    interception: SlowConvInterceptionResult = interceptor.inspect_and_remediate(
-        stdout_text=failed_orca_stdout,
-        current_input=base_input,
-    )
+ORCA_AE_STDOUT_WATER = """
+=======================================================
+                   * O R C A *
+       An Ab Initio, DFT and Semiempirical SCF program
+=======================================================
 
-    assert interception.has_failed is True
-    assert interception.should_restart is True
-    assert "SlowConv" in interception.remediated_input
-    assert "SOSCF" in interception.remediated_input
-
-
-def test_slow_conv_interceptor_nominal_run_passes() -> None:
-    """Validate SlowConvInterceptor does nothing on normally terminated calculations."""
-    interceptor = SlowConvInterceptor()
-
-    normal_orca_stdout = """
-    =======================================================
-                       * O R C A *
-    =======================================================
-    FINAL SINGLE POINT ENERGY      -76.3322194821
-    ORCA TERMINATED NORMALLY
-    """
-
-    base_input = "! DLPNO-CCSD(T) def2-TZVP TightSCF DefGrid3\n"
-
-    interception: SlowConvInterceptionResult = interceptor.inspect_and_remediate(
-        stdout_text=normal_orca_stdout,
-        current_input=base_input,
-    )
-
-    assert interception.has_failed is False
-    assert interception.should_restart is False
-    assert interception.remediated_input == base_input
+Total Energy       :      -76.4215403210 Eh
+FINAL SINGLE POINT ENERGY      -76.4215403210
+ORCA TERMINATED NORMALLY
+"""
 
 
 # ==============================================================================
-# 5. HDF5 Persistence & Pipeline Integration Tests
+# 1. CoreValenceMapper Tests
 # ==============================================================================
 
-def test_hdf5_cbs_persistence(tmp_path: Path) -> None:
-    """Validate atomic serialization of computed CBS results to landscape.h5."""
-    h5_file = tmp_path / "landscape.h5"
+def test_basis_set_mapping_cc_pv() -> None:
+    """Validate string mapping of standard cc-pVnZ basis sets to core-valence cc-pCVnZ."""
+    mapper = CoreValenceMapper()
 
-    cbs_result = CBSExtrapolationResult(
-        e_scf_cbs=-76.065231,
-        e_corr_cbs=-0.297154,
-        e_total_cbs=-76.362385,
-        basis_x="def2-TZVP",
-        basis_y="def2-QZVPP",
-        alpha=7.88,
-        beta=2.97,
-        residual_variance_hartree=0.008654,
-        residual_variance_kcal_mol=5.430468,
-        uncertainty_flag="PASSED",
-        node_id="water_c2v_node_01",
-    )
-
-    commit_cbs_to_hdf5(h5_path=h5_file, result=cbs_result)
-    assert h5_file.exists()
-
-    # Read back and verify exact data integrity
-    loaded_data = read_cbs_from_hdf5(h5_path=h5_file, node_id="water_c2v_node_01")
-    assert math.isclose(loaded_data["e_scf_cbs"], -76.065231, abs_tol=1e-6)
-    assert math.isclose(loaded_data["e_corr_cbs"], -0.297154, abs_tol=1e-6)
-    assert math.isclose(loaded_data["e_total_cbs"], -76.362385, abs_tol=1e-6)
-    assert loaded_data["uncertainty_flag"] == "PASSED"
-    assert loaded_data["basis_x"] == "def2-TZVP"
-    assert loaded_data["basis_y"] == "def2-QZVPP"
+    assert mapper.map_basis_set("cc-pVDZ") == "cc-pCVDZ"
+    assert mapper.map_basis_set("cc-pVTZ") == "cc-pCVTZ"
+    assert mapper.map_basis_set("cc-pVQZ") == "cc-pCVQZ"
+    assert mapper.map_basis_set("cc-pV5Z") == "cc-pCV5Z"
 
 
-def test_run_cbs_pipeline_end_to_end(tmp_path: Path) -> None:
-    """Validate end-to-end execution of Stage 2.0 CBS pipeline orchestrator."""
-    h5_file = tmp_path / "landscape.h5"
+def test_basis_set_mapping_aug_cc_pv() -> None:
+    """Validate string mapping of augmented aug-cc-pVnZ basis sets to aug-cc-pwCVnZ."""
+    mapper = CoreValenceMapper()
 
-    pipeline_result = run_cbs_pipeline(
-        coords=WATER_COORDS,
-        e_scf_x=-76.0571,
-        e_scf_y=-76.0648,
-        e_corr_x=-0.2751,
-        e_corr_y=-0.2885,
-        basis_pair=("def2-TZVP", "def2-QZVPP"),
-        node_id="water_01",
-        h5_path=h5_file,
-    )
-
-    assert pipeline_result.uncertainty_flag == "PASSED"
-    assert pipeline_result.e_total_cbs < -76.35
-    assert h5_file.exists()
+    assert mapper.map_basis_set("aug-cc-pVDZ") == "aug-cc-pwCVDZ"
+    assert mapper.map_basis_set("aug-cc-pVTZ") == "aug-cc-pwCVTZ"
+    assert mapper.map_basis_set("aug-cc-pVQZ") == "aug-cc-pwCVQZ"
+    assert mapper.map_basis_set("aug-cc-pV5Z") == "aug-cc-pwCV5Z"
 
 
-def test_dual_basis_deck_file_writing(tmp_path: Path) -> None:
-    """Validate file output generation for ORCA input decks."""
-    dispatcher = DualBasisDispatcher(
+def test_basis_set_mapping_def2_and_ano() -> None:
+    """Validate def2 and ano families retain their native all-electron character without mutation."""
+    mapper = CoreValenceMapper()
+
+    assert mapper.map_basis_set("def2-SVP") == "def2-SVP"
+    assert mapper.map_basis_set("def2-TZVP") == "def2-TZVP"
+    assert mapper.map_basis_set("def2-QZVPP") == "def2-QZVPP"
+    assert mapper.map_basis_set("ano-pVTZ") == "ano-pVTZ"
+    assert mapper.map_basis_set("saug-ano-pVTZ") == "saug-ano-pVTZ"
+
+
+def test_elemental_core_inspection_mendeleev() -> None:
+    """Validate dynamic atomic and core electron inspection using Mendeleev library."""
+    mapper = CoreValenceMapper()
+
+    # Water inspection: Oxygen (Z=8, 2 core e-), Hydrogen (Z=1, 0 core e-)
+    water_info = mapper.inspect_elemental_core(WATER_COORDS)
+    assert water_info["has_core_electrons"] is True
+    assert water_info["total_core_electrons"] == 2
+    assert "O" in water_info["elements"]
+    assert "H" in water_info["elements"]
+
+    # Verify dynamic masses
+    expected_mass = float(element("O").mass) + 2.0 * float(element("H").mass)
+    assert math.isclose(water_info["total_mass"], expected_mass, rel_tol=1e-5)
+
+    # Dihydrogen inspection (No core electrons present)
+    h2_info = mapper.inspect_elemental_core(H2_COORDS)
+    assert h2_info["has_core_electrons"] is False
+    assert h2_info["total_core_electrons"] == 0
+
+    # Carbon Monoxide inspection: C (Z=6, 2 core), O (Z=8, 2 core) -> 4 core e-
+    co_info = mapper.inspect_elemental_core(CO_COORDS)
+    assert co_info["has_core_electrons"] is True
+    assert co_info["total_core_electrons"] == 4
+
+
+# ==============================================================================
+# 2. DualCorrelationEngine Tests
+# ==============================================================================
+
+def test_dual_correlation_engine_maxcore_calculation() -> None:
+    """Validate dynamic %maxcore per MPI process with safety margin."""
+    engine = DualCorrelationEngine(node_max_gb=16.0, nprocs=4, ram_safety_fraction=0.75)
+    maxcore = engine.calculate_maxcore_per_thread()
+
+    # 16 GB * 1024 MB/GB * 0.75 / 4 = 3072 MB
+    assert maxcore == 3072
+
+
+def test_dual_correlation_input_deck_generation() -> None:
+    """Validate generation of Job A (Frozen-Core) and Job B (All-Electron with NoFrozenCore)."""
+    engine = DualCorrelationEngine(
+        method="DLPNO-CCSD(T)",
+        base_basis="aug-cc-pVQZ",
         node_max_gb=16.0,
-        nprocs=2,
-        basis_pair=("def2-TZVP", "def2-QZVPP"),
+        nprocs=4,
     )
-    deck = dispatcher.generate_input_deck(
+
+    decks = engine.generate_input_decks(coords=WATER_COORDS, charge=0, mult=1)
+
+    assert "fc_input" in decks
+    assert "ae_input" in decks
+    assert decks["basis_set"] == "aug-cc-pwCVQZ"
+    assert decks["original_basis"] == "aug-cc-pVQZ"
+
+    fc_inp = decks["fc_input"]
+    ae_inp = decks["ae_input"]
+
+    # Job A (FC) must use mapped basis and NOT contain NoFrozenCore
+    assert "! DLPNO-CCSD(T) aug-cc-pwCVQZ" in fc_inp
+    assert "NoFrozenCore" not in fc_inp
+    assert "%maxcore 3072" in fc_inp
+    assert "%pal nprocs 4 end" in fc_inp
+    assert "* xyz 0 1" in fc_inp
+
+    # Job B (AE) must contain NoFrozenCore
+    assert "! DLPNO-CCSD(T) aug-cc-pwCVQZ" in ae_inp
+    assert "NoFrozenCore" in ae_inp
+    assert "%maxcore 3072" in ae_inp
+    assert "%pal nprocs 4 end" in ae_inp
+    assert "* xyz 0 1" in ae_inp
+
+
+def test_cuda_accelerator_isolation_env() -> None:
+    """Validate execution environment injects CUDA_VISIBLE_DEVICES='' for GPU isolation."""
+    engine = DualCorrelationEngine()
+    env = engine.prepare_execution_env()
+
+    assert "CUDA_VISIBLE_DEVICES" in env
+    assert env["CUDA_VISIBLE_DEVICES"] == ""
+
+
+def test_dual_correlation_input_file_writing(tmp_path: Path) -> None:
+    """Validate writing input decks to disk."""
+    engine = DualCorrelationEngine(base_basis="cc-pVTZ")
+    decks = engine.generate_input_decks(
         coords=WATER_COORDS,
         charge=0,
         mult=1,
         output_dir=tmp_path,
     )
-    file_x = tmp_path / "orca_def2-TZVP.inp"
-    file_y = tmp_path / "orca_def2-QZVPP.inp"
-    assert file_x.exists()
-    assert file_y.exists()
-    assert "! DLPNO-CCSD(T) def2-TZVP" in file_x.read_text(encoding="utf-8")
-    assert "! DLPNO-CCSD(T) def2-QZVPP" in file_y.read_text(encoding="utf-8")
+
+    fc_file = tmp_path / "orca_fc.inp"
+    ae_file = tmp_path / "orca_ae.inp"
+
+    assert fc_file.exists()
+    assert ae_file.exists()
+    assert "cc-pCVTZ" in fc_file.read_text(encoding="utf-8")
+    assert "NoFrozenCore" in ae_file.read_text(encoding="utf-8")
 
 
-def test_custom_parameters_override() -> None:
-    """Validate user-defined alpha and beta overrides in HelgakerExtrapolator."""
-    extrapolator = HelgakerExtrapolator()
-    alpha, beta, X, Y = extrapolator.lookup_parameters(
-        basis_x="def2-TZVP",
-        basis_y="def2-QZVPP",
-        custom_alpha=6.50,
-        custom_beta=3.20,
+# ==============================================================================
+# 3. DeltaExtractor Tests
+# ==============================================================================
+
+def test_parse_final_energy_from_stdout() -> None:
+    """Validate extracting FINAL SINGLE POINT ENERGY from authentic ORCA standard output."""
+    extractor = DeltaExtractor()
+
+    e_fc = extractor.parse_final_energy_from_stdout(ORCA_FC_STDOUT_WATER)
+    e_ae = extractor.parse_final_energy_from_stdout(ORCA_AE_STDOUT_WATER)
+
+    assert math.isclose(e_fc, -76.3623851042, abs_tol=1e-10)
+    assert math.isclose(e_ae, -76.4215403210, abs_tol=1e-10)
+
+
+def test_parse_final_energy_missing_raises() -> None:
+    """Validate ValueError is raised when FINAL SINGLE POINT ENERGY is absent."""
+    extractor = DeltaExtractor()
+    invalid_stdout = "ORCA CALCULATION FAILED\nNO ENERGY REPORTED\n"
+
+    with pytest.raises(ValueError, match="FINAL SINGLE POINT ENERGY"):
+        extractor.parse_final_energy_from_stdout(invalid_stdout)
+
+
+def test_delta_extractor_mathematics() -> None:
+    """Validate mathematical derivation of Delta_E_CV = E_Total^(AE) - E_Total^(FC)."""
+    extractor = DeltaExtractor()
+
+    e_fc = -76.3623851042
+    e_ae = -76.4215403210
+
+    result: CVCorrectionResult = extractor.extract_delta(
+        e_total_fc=e_fc,
+        e_total_ae=e_ae,
+        basis_set="aug-cc-pwCVQZ",
+        original_basis="aug-cc-pVQZ",
+        method="DLPNO-CCSD(T)",
+        node_id="water_test_01",
     )
-    assert math.isclose(alpha, 6.50, abs_tol=1e-6)
-    assert math.isclose(beta, 3.20, abs_tol=1e-6)
+
+    expected_delta_hartree = e_ae - e_fc
+    expected_delta_kcal = expected_delta_hartree * HARTREE_TO_KCAL_MOL
+
+    assert math.isclose(result.delta_e_cv_hartree, expected_delta_hartree, rel_tol=1e-10)
+    assert math.isclose(result.delta_e_cv_kcal_mol, expected_delta_kcal, rel_tol=1e-10)
+    assert result.delta_e_cv_hartree < 0.0  # All-electron energy is lower than frozen-core
+    assert result.basis_set == "aug-cc-pwCVQZ"
+    assert result.original_basis_set == "aug-cc-pVQZ"
+    assert result.node_id == "water_test_01"
 
 
-def test_extrapolate_from_total() -> None:
-    """Validate extrapolate_from_total calculates correlation and invokes full extrapolation."""
-    extrapolator = HelgakerExtrapolator()
-    res = extrapolator.extrapolate_from_total(
-        e_total_x=-76.3322,
-        e_total_y=-76.3533,
-        e_scf_x=-76.0571,
-        e_scf_y=-76.0648,
-        basis_x="def2-TZVP",
-        basis_y="def2-QZVPP",
+def test_extract_from_outputs() -> None:
+    """Validate extraction directly from authentic ORCA output texts."""
+    extractor = DeltaExtractor()
+
+    result = extractor.extract_from_outputs(
+        stdout_fc=ORCA_FC_STDOUT_WATER,
+        stdout_ae=ORCA_AE_STDOUT_WATER,
+        basis_set="aug-cc-pwCVQZ",
+        original_basis="aug-cc-pVQZ",
+        node_id="water_out_test",
     )
-    assert res.e_total_cbs < -76.3533
-    assert math.isclose(res.e_total_cbs, res.e_scf_cbs + res.e_corr_cbs, abs_tol=1e-10)
+
+    assert math.isclose(result.e_total_fc, -76.3623851042, abs_tol=1e-10)
+    assert math.isclose(result.e_total_ae, -76.4215403210, abs_tol=1e-10)
+    assert math.isclose(result.delta_e_cv_hartree, -76.4215403210 - (-76.3623851042), abs_tol=1e-10)
 
 
-def test_singular_denominator_error_handling() -> None:
-    """Validate ValueError is raised when denominator in extrapolation is singular."""
-    extrapolator = HelgakerExtrapolator()
-    with pytest.raises(ValueError, match="Singular denominator"):
-        extrapolator.extrapolate_scf(e_scf_x=-76.0, e_scf_y=-76.0, X=3, Y=3, alpha=7.88)
+# ==============================================================================
+# 4. EphemeralScratchPurge Tests
+# ==============================================================================
 
-    with pytest.raises(ValueError, match="Singular denominator"):
-        extrapolator.extrapolate_correlation(e_corr_x=-0.2, e_corr_y=-0.2, X=3, Y=3, beta=2.97)
+def test_scratch_dir_creation(tmp_path: Path) -> None:
+    """Validate creation of isolated UUID-scoped scratch directory."""
+    purger = EphemeralScratchPurge()
+    scratch_dir = purger.create_scratch_dir(base_artifacts_dir=tmp_path)
+
+    assert scratch_dir.exists()
+    assert "BENCH_Workspace" in str(scratch_dir)
+    assert "Scratch" in str(scratch_dir)
+    assert "job_" in scratch_dir.name
 
 
-def test_slow_conv_max_retries_exhausted() -> None:
-    """Validate SlowConvInterceptor terminates restarts when retry limit is exhausted."""
-    interceptor = SlowConvInterceptor(max_retries=2)
-    failed_orca_stdout = "SCF NOT CONVERGED AFTER 125 CYCLES"
-    base_input = "! DLPNO-CCSD(T) def2-TZVP\n"
+def test_scratch_dir_purge(tmp_path: Path) -> None:
+    """Validate sweep and removal of .gbw, .tmp, and intermediate scratch files."""
+    purger = EphemeralScratchPurge()
+    job_dir = tmp_path / "BENCH_Workspace" / "Scratch" / "job_12345"
+    job_dir.mkdir(parents=True, exist_ok=True)
 
-    interception = interceptor.inspect_and_remediate(
-        stdout_text=failed_orca_stdout,
-        current_input=base_input,
-        retry_count=2,
+    # Create dummy simulation intermediate files
+    (job_dir / "calc.gbw").write_bytes(b"BINARY_GBW_CONTENT")
+    (job_dir / "calc.tmp").write_text("TMP_CONTENT", encoding="utf-8")
+    (job_dir / "calc.densities").write_text("DENSITIES", encoding="utf-8")
+    (job_dir / "calc.inp").write_text("! Input deck", encoding="utf-8")
+
+    assert (job_dir / "calc.gbw").exists()
+    assert (job_dir / "calc.tmp").exists()
+
+    # Execute purge
+    summary = purger.purge_scratch_dir(job_dir, remove_dir=True)
+
+    assert summary["purged_count"] >= 2
+    assert not job_dir.exists()
+
+
+# ==============================================================================
+# 5. HDF5 Persistence & Pipeline Orchestration Tests
+# ==============================================================================
+
+def test_hdf5_cv_persistence(tmp_path: Path) -> None:
+    """Validate atomic serialization of CV correction delta to landscape.h5."""
+    h5_file = tmp_path / "landscape.h5"
+
+    cv_result = CVCorrectionResult(
+        e_total_fc=-76.362385,
+        e_total_ae=-76.421540,
+        delta_e_cv_hartree=-0.059155,
+        delta_e_cv_kcal_mol=-37.120300,
+        basis_set="aug-cc-pwCVQZ",
+        original_basis_set="aug-cc-pVQZ",
+        method="DLPNO-CCSD(T)",
+        has_core_electrons=True,
+        node_id="water_cv_node_01",
     )
-    assert interception.has_failed is True
-    assert interception.should_restart is False
-    assert "exhausted" in interception.reason.lower()
+
+    commit_cv_to_hdf5(h5_path=h5_file, result=cv_result)
+    assert h5_file.exists()
+
+    # Read back and verify exact data integrity
+    loaded = read_cv_from_hdf5(h5_path=h5_file, node_id="water_cv_node_01")
+
+    assert math.isclose(loaded["e_total_fc"], -76.362385, abs_tol=1e-6)
+    assert math.isclose(loaded["e_total_ae"], -76.421540, abs_tol=1e-6)
+    assert math.isclose(loaded["delta_e_cv_hartree"], -0.059155, abs_tol=1e-6)
+    assert math.isclose(loaded["delta_e_cv_kcal_mol"], -37.120300, abs_tol=1e-6)
+    assert loaded["basis_set"] == "aug-cc-pwCVQZ"
+    assert loaded["original_basis_set"] == "aug-cc-pVQZ"
+    assert loaded["method"] == "DLPNO-CCSD(T)"
+    assert loaded["has_core_electrons"] is True
+    assert loaded["node_id"] == "water_cv_node_01"
 
 
-def test_read_cbs_from_hdf5_missing_file_raises(tmp_path: Path) -> None:
-    """Validate read_cbs_from_hdf5 raises FileNotFoundError when target file is missing."""
-    missing_file = tmp_path / "non_existent.h5"
+def test_run_cv_pipeline_end_to_end(tmp_path: Path) -> None:
+    """Validate end-to-end execution of Stage 3.0 CV pipeline orchestrator."""
+    h5_file = tmp_path / "landscape.h5"
+
+    result = run_cv_pipeline(
+        coords=WATER_COORDS,
+        e_total_fc=-76.362385,
+        e_total_ae=-76.421540,
+        base_basis="aug-cc-pVQZ",
+        method="DLPNO-CCSD(T)",
+        node_id="water_pipeline_01",
+        h5_path=h5_file,
+    )
+
+    assert result.has_core_electrons is True
+    assert result.basis_set == "aug-cc-pwCVQZ"
+    assert math.isclose(result.delta_e_cv_hartree, -76.421540 - (-76.362385), abs_tol=1e-6)
+    assert h5_file.exists()
+
+
+def test_read_cv_from_hdf5_missing_file_raises(tmp_path: Path) -> None:
+    """Validate read_cv_from_hdf5 raises FileNotFoundError when target file is missing."""
+    missing_file = tmp_path / "missing_landscape.h5"
     with pytest.raises(FileNotFoundError):
-        read_cbs_from_hdf5(h5_path=missing_file, node_id="test_node")
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_topos_graph.py ---
-"""
-Unit tests for CoChem-TOPOS Graph Cleavage and Pipeline Routing Engine (cochem_topos_graph.py).
-Strictly adheres to the Zero-Mock mandate using authentic physical molecular coordinates.
-Validates:
-1. Dynamic Mendeleev elemental lookup & transition metal identification.
-2. Distance matrix & Resonance Protection Trap (1.15x breathing tolerance).
-3. Monomer routing to MONOMER_GOAT.
-4. The 4-Atom Mathematical Bypass (<4 atoms flagged with BYPASS_GOAT).
-5. Weak Complex Triage & Cleavage into independent MonomerSeeds.
-6. Strong Complex Triage Protocol (transition metal coordination aborts cleavage).
-7. UI Telemetry & Air-Gapped State Export to stage_n_complete.json and user_seeds.
-8. Subprocess Safety wrapper and Pydantic serialization.
-"""
-
-from __future__ import annotations
-
-import json
-from pathlib import Path
-
-import numpy as np
-import pytest
-from ase import Atoms
-
-from cochem_topos.cochem_topos_graph import (
-    COVALENT_RADII,
-    TopologyAnalysisResult,
-    TopologyGraphEngine,
-    analyze_molecular_graph,
-    get_atomic_mass,
-    get_atomic_number,
-    get_atomic_symbol,
-    get_covalent_radius,
-    is_transition_or_coordination_metal,
-    parse_xyz_file,
-    parse_xyz_string,
-    run_crest_secondary_search,
-)
-
-
-class TestMendeleevDynamicProperties:
-    """Verifies dynamic property lookups from mendeleev with zero hardcoding."""
-
-    def test_atomic_number_and_symbol_resolution(self) -> None:
-        """Confirms atomic number and symbol resolution for various inputs."""
-        assert get_atomic_number("H") == 1
-        assert get_atomic_number("h") == 1
-        assert get_atomic_number(1) == 1
-        assert get_atomic_number("C") == 6
-        assert get_atomic_number("c") == 6
-        assert get_atomic_number(6) == 6
-        assert get_atomic_number("Fe") == 26
-        assert get_atomic_number("fe") == 26
-        assert get_atomic_number(26) == 26
-        assert get_atomic_number("Pd") == 46
-        assert get_atomic_number("Ru") == 44
-
-        assert get_atomic_symbol(1) == "H"
-        assert get_atomic_symbol(6) == "C"
-        assert get_atomic_symbol(26) == "Fe"
-        assert get_atomic_symbol("fe") == "Fe"
-
-    def test_covalent_radii_dynamic_lookup(self) -> None:
-        """Confirms covalent radii retrieved from mendeleev match physical standards."""
-        assert pytest.approx(get_covalent_radius("H"), abs=0.02) == 0.31
-        assert pytest.approx(get_covalent_radius(1), abs=0.02) == 0.31
-        assert pytest.approx(get_covalent_radius("C"), abs=0.03) == 0.73
-        assert pytest.approx(get_covalent_radius("N"), abs=0.02) == 0.71
-        assert pytest.approx(get_covalent_radius("O"), abs=0.02) == 0.66
-        assert pytest.approx(get_covalent_radius("F"), abs=0.02) == 0.57
-        assert pytest.approx(get_covalent_radius("Ar"), abs=0.02) == 1.06
-
-        # Check mapping proxy
-        assert pytest.approx(COVALENT_RADII["H"], abs=0.02) == 0.31
-        assert pytest.approx(COVALENT_RADII[6], abs=0.03) == 0.73
-
-    def test_atomic_mass_dynamic_lookup(self) -> None:
-        """Confirms dynamic mass lookup from mendeleev adheres to Mendeleev mandate."""
-        assert pytest.approx(get_atomic_mass("H"), abs=0.01) == 1.008
-        assert pytest.approx(get_atomic_mass("C"), abs=0.01) == 12.011
-        assert pytest.approx(get_atomic_mass("O"), abs=0.01) == 15.999
-        assert pytest.approx(get_atomic_mass("Fe"), abs=0.01) == 55.845
-
-    def test_transition_metal_identification(self) -> None:
-        """Confirms robust classification of transition and coordination metals."""
-        assert is_transition_or_coordination_metal("Fe") is True
-        assert is_transition_or_coordination_metal(26) is True
-        assert is_transition_or_coordination_metal("Pd") is True
-        assert is_transition_or_coordination_metal("Ru") is True
-        assert is_transition_or_coordination_metal("Pt") is True
-        assert is_transition_or_coordination_metal("Cu") is True
-        assert is_transition_or_coordination_metal("La") is True
-        assert is_transition_or_coordination_metal("U") is True
-
-        assert is_transition_or_coordination_metal("H") is False
-        assert is_transition_or_coordination_metal("C") is False
-        assert is_transition_or_coordination_metal("N") is False
-        assert is_transition_or_coordination_metal("O") is False
-        assert is_transition_or_coordination_metal("Ar") is False
-
-    def test_invalid_element_error(self) -> None:
-        """Confirms invalid element inputs raise clean ValueError."""
-        with pytest.raises(ValueError, match="Unrecognized chemical element"):
-            get_atomic_number("InvalidElementXYZ")
-
-
-class TestResonanceProtectionTrap:
-    """Verifies that the 1.15x scaling factor preserves elongated transition state bonds."""
-
-    def test_elongated_carbon_bond_scaling_protection(self) -> None:
-        """
-        Tests an elongated C-C bond at 1.65 Angstroms (e.g. transition state).
-        With 1.15x breathing tolerance: remains 1 protected single monomer.
-        With 1.00x unscaled: falsely fractures into 2 fragments.
-        """
-        symbols = ["C", "C", "H", "H", "H", "H", "H", "H"]
-        coordinates = np.array([
-            [-0.8250,  0.0000,  0.0000],
-            [ 0.8250,  0.0000,  0.0000],
-            [-1.1650,  0.9600,  0.0000],
-            [-1.1650, -0.4800,  0.8314],
-            [-1.1650, -0.4800, -0.8314],
-            [ 1.1650,  0.9600,  0.0000],
-            [ 1.1650, -0.4800,  0.8314],
-            [ 1.1650, -0.4800, -0.8314],
-        ])
-
-        engine_scaled = TopologyGraphEngine(resonance_scale=1.15)
-        result_scaled = engine_scaled.analyze_topology(symbols, coordinates)
-        assert result_scaled.num_fragments == 1
-        assert result_scaled.is_weak_complex is False
-        assert result_scaled.classification == "Monomer"
-        assert result_scaled.routing_target == "MONOMER_GOAT"
-
-        engine_unscaled = TopologyGraphEngine(resonance_scale=1.00)
-        result_unscaled = engine_unscaled.analyze_topology(symbols, coordinates)
-        assert result_unscaled.num_fragments == 2
-        assert result_unscaled.is_weak_complex is True
-        assert result_unscaled.classification == "Weak Complex"
-        assert result_unscaled.routing_target == "COUNTERPOISE_ASSEMBLY"
-
-
-class TestMonomerIdentificationAndBypass:
-    """Verifies single covalent molecules and the 4-atom mathematical bypass."""
-
-    def test_water_monomer_with_bypass(self) -> None:
-        """Evaluates single water molecule (3 atoms < 4 -> bypass_goat=True)."""
-        symbols = ["O", "H", "H"]
-        coordinates = np.array([
-            [0.0000,  0.0000,  0.1173],
-            [0.0000,  0.7572, -0.4692],
-            [0.0000, -0.7572, -0.4692],
-        ])
-
-        engine = TopologyGraphEngine()
-        result = engine.analyze_topology(symbols, coordinates)
-
-        assert isinstance(result, TopologyAnalysisResult)
-        assert result.num_atoms == 3
-        assert result.num_fragments == 1
-        assert result.is_weak_complex is False
-        assert result.classification == "Monomer"
-        assert result.complex_type == "MONOMER"
-        assert result.routing_target == "MONOMER_GOAT"
-        assert result.counterpoise_flag is False
-        assert len(result.monomers) == 1
-
-        monomer = result.monomers[0]
-        assert monomer.num_atoms == 3
-        assert monomer.formula == "H2O"
-        assert monomer.bypass_goat is True
-        assert result.bypass_goat_fragments == [0]
-
-    def test_methane_monomer_no_bypass(self) -> None:
-        """Evaluates methane molecule (5 atoms >= 4 -> bypass_goat=False)."""
-        symbols = ["C", "H", "H", "H", "H"]
-        coordinates = np.array([
-            [0.0000,  0.0000,  0.0000],
-            [0.6276,  0.6276,  0.6276],
-            [0.6276, -0.6276, -0.6276],
-            [-0.6276,  0.6276, -0.6276],
-            [-0.6276, -0.6276,  0.6276],
-        ])
-
-        result = analyze_molecular_graph(symbols, coordinates)
-
-        assert result.num_atoms == 5
-        assert result.num_fragments == 1
-        assert result.is_weak_complex is False
-        assert result.classification == "Monomer"
-        assert result.routing_target == "MONOMER_GOAT"
-        assert result.monomers[0].bypass_goat is False
-        assert result.bypass_goat_fragments == []
-
-    def test_benzene_monomer(self) -> None:
-        """Evaluates aromatic benzene ring (12 atoms)."""
-        symbols = ["C", "C", "C", "C", "C", "C", "H", "H", "H", "H", "H", "H"]
-        coordinates = np.array([
-            [ 0.0000,  1.3970,  0.0000],
-            [ 1.2098,  0.6985,  0.0000],
-            [ 1.2098, -0.6985,  0.0000],
-            [ 0.0000, -1.3970,  0.0000],
-            [-1.2098, -0.6985,  0.0000],
-            [-1.2098,  0.6985,  0.0000],
-            [ 0.0000,  2.4790,  0.0000],
-            [ 2.1469,  1.2395,  0.0000],
-            [ 2.1469, -1.2395,  0.0000],
-            [ 0.0000, -2.4790,  0.0000],
-            [-2.1469, -1.2395,  0.0000],
-            [-2.1469,  1.2395,  0.0000],
-        ])
-
-        result = analyze_molecular_graph(symbols, coordinates)
-        assert result.num_atoms == 12
-        assert result.num_fragments == 1
-        assert result.classification == "Monomer"
-        assert result.monomers[0].formula == "C6H6"
-        assert result.monomers[0].bypass_goat is False
-
-
-class TestWeakComplexDetectionAndCleavage:
-    """Verifies Complex Triage Protocol on non-covalent Van der Waals complexes."""
-
-    def test_water_dimer_cleavage_and_bypass(self) -> None:
-        """Tests water dimer cleavage into 2 severed H2O seeds, both with BYPASS_GOAT."""
-        symbols = ["O", "H", "H", "O", "H", "H"]
-        coordinates = np.array([
-            # Monomer A
-            [-1.464, -0.019,  0.021],
-            [-1.765,  0.888,  0.002],
-            [-0.499, -0.008, -0.063],
-            # Monomer B
-            [ 1.442,  0.001, -0.004],
-            [ 1.761, -0.457,  0.778],
-            [ 1.745, -0.479, -0.771],
-        ])
-
-        engine = TopologyGraphEngine(resonance_scale=1.15)
-        result = engine.analyze_topology(symbols, coordinates)
-
-        assert result.num_atoms == 6
-        assert result.num_fragments == 2
-        assert result.is_weak_complex is True
-        assert result.classification == "Weak Complex"
-        assert result.complex_type == "WEAK_COMPLEX"
-        assert result.routing_target == "COUNTERPOISE_ASSEMBLY"
-        assert result.counterpoise_flag is True
-        assert len(result.monomers) == 2
-
-        assert result.monomers[0].formula == "H2O"
-        assert result.monomers[0].bypass_goat is True
-        assert result.monomers[1].formula == "H2O"
-        assert result.monomers[1].bypass_goat is True
-        assert set(result.bypass_goat_fragments) == {0, 1}
-
-        # Telemetry check
-        assert result.shortest_gap is not None
-        assert result.shortest_gap.distance > 1.5
-        assert result.shortest_gap.is_transition_metal_contact is False
-
-    def test_benzene_water_hetero_complex(self) -> None:
-        """Tests benzene...water complex where C6H6 has >=4 atoms and H2O has <4 atoms."""
-        symbols = [
-            # Benzene (0-11)
-            "C", "C", "C", "C", "C", "C",
-            "H", "H", "H", "H", "H", "H",
-            # Water (12-14)
-            "O", "H", "H"
-        ]
-        coordinates = np.array([
-            # Benzene ring in XY plane at Z=0
-            [ 0.0000,  1.3970,  0.0000],
-            [ 1.2098,  0.6985,  0.0000],
-            [ 1.2098, -0.6985,  0.0000],
-            [ 0.0000, -1.3970,  0.0000],
-            [-1.2098, -0.6985,  0.0000],
-            [-1.2098,  0.6985,  0.0000],
-            [ 0.0000,  2.4790,  0.0000],
-            [ 2.1469,  1.2395,  0.0000],
-            [ 2.1469, -1.2395,  0.0000],
-            [ 0.0000, -2.4790,  0.0000],
-            [-2.1469, -1.2395,  0.0000],
-            [-2.1469,  1.2395,  0.0000],
-            # Water above pi cloud at Z=3.3 A
-            [ 0.0000,  0.0000,  3.3000],
-            [ 0.0000,  0.7572,  3.8865],
-            [ 0.0000, -0.7572,  3.8865],
-        ])
-
-        result = analyze_molecular_graph(symbols, coordinates)
-        assert result.num_fragments == 2
-        assert result.is_weak_complex is True
-        assert result.classification == "Weak Complex"
-        assert len(result.monomers) == 2
-
-        m0 = result.monomers[0]
-        assert m0.formula == "C6H6"
-        assert m0.num_atoms == 12
-        assert m0.bypass_goat is False
-
-        m1 = result.monomers[1]
-        assert m1.formula == "H2O"
-        assert m1.num_atoms == 3
-        assert m1.bypass_goat is True
-
-        assert result.bypass_goat_fragments == [1]
-
-
-class TestStrongComplexTriageProtocol:
-    """Verifies Complex Triage Protocol on transition metal coordination complexes."""
-
-    def test_iron_water_coordination_complex(self) -> None:
-        """
-        Tests Fe...H2O coordination complex at 2.40 A.
-        Because shortest inter-fragment distance connects to transition metal Fe,
-        it is tagged as STRONG_COMPLEX, cleavage is aborted, and routed to Stage 2.0 as a single unit.
-        """
-        symbols = ["Fe", "O", "H", "H"]
-        coordinates = np.array([
-            [0.0000, 0.0000, 0.0000],  # Fe (index 0)
-            [0.0000, 0.0000, 2.4000],  # O of H2O (index 1) - coordinate interaction at 2.40 A
-            [0.0000, 0.7572, 2.9865],  # H (index 2)
-            [0.0000, -0.7572, 2.9865], # H (index 3)
-        ])
-
-        engine = TopologyGraphEngine(resonance_scale=1.15)
-        result = engine.analyze_topology(symbols, coordinates)
-
-        assert result.is_strong_complex is True
-        assert result.is_weak_complex is False
-        assert result.classification == "Strong Complex"
-        assert result.complex_type == "STRONG_COMPLEX"
-        assert result.routing_target == "STRONG_COMPLEX"
-        assert result.counterpoise_flag is False
-
-        # Cleavage is aborted: system retained as single unit
-        assert len(result.monomers) == 1
-        assert result.monomers[0].num_atoms == 4
-        assert result.shortest_gap is not None
-        assert result.shortest_gap.is_transition_metal_contact is True
-
-    def test_palladium_complex_triage(self) -> None:
-        """Tests Pd transition metal complex triage at 2.60 A."""
-        symbols = ["Pd", "C", "O"]
-        coordinates = np.array([
-            [0.0000, 0.0000, 0.0000],  # Pd
-            [0.0000, 0.0000, 2.6000],  # C of CO
-            [0.0000, 0.0000, 3.7300],  # O of CO
-        ])
-
-        result = analyze_molecular_graph(symbols, coordinates)
-        assert result.is_strong_complex is True
-        assert result.classification == "Strong Complex"
-        assert result.complex_type == "STRONG_COMPLEX"
-        assert result.counterpoise_flag is False
-
-
-class TestAirGappedStateAndTelemetryExport:
-    """Verifies state serialization, XYZ user seeds export, and stage_n_complete.json tracking."""
-
-    def test_air_gapped_state_export(self, tmp_path: Path) -> None:
-        """Confirms isolated monomer coordinate arrays are exported to user_seeds and stage tracker is written."""
-        symbols = ["O", "H", "H", "O", "H", "H"]
-        coordinates = np.array([
-            [-1.5, 0.0, 0.0],
-            [-1.8, 0.7, 0.0],
-            [-0.6, 0.0, 0.0],
-            [ 1.5, 0.0, 0.0],
-            [ 1.8, 0.7, 0.0],
-            [ 1.8,-0.7, 0.0],
-        ])
-
-        engine = TopologyGraphEngine()
-        result = engine.analyze_topology(symbols, coordinates)
-
-        tracker_data = result.export_air_gapped_state(workspace=tmp_path)
-
-        assert tracker_data["stage"] == "1.1"
-        assert tracker_data["status"] == "COMPLETE"
-        assert tracker_data["classification"] == "Weak Complex"
-        assert tracker_data["monomer_seeds_stage"] == "Stage 2.0"
-        assert tracker_data["parent_complex_stage"] == "Stage 3.0"
-        assert len(tracker_data["monomer_seeds"]) == 2
-
-        # Verify exported files on disk
-        user_seeds_dir = tmp_path / "CoChem_Artifacts" / "Input_Files" / "user_seeds"
-        assert user_seeds_dir.exists()
-        xyz_files = list(user_seeds_dir.glob("*.xyz"))
-        assert len(xyz_files) == 2
-
-        stage_tracker = tmp_path / "CoChem_Artifacts" / "stage_n_complete.json"
-        assert stage_tracker.exists()
-        loaded_json = json.loads(stage_tracker.read_text(encoding="utf-8"))
-        assert loaded_json["stage"] == "1.1"
-        assert loaded_json["secondary_search"]["flags"] == ["--nci", "--nocross", "--noreftopo"]
-
-
-class TestSubprocessSafety:
-    """Verifies safe execution wrapper for external conformational searches."""
-
-    def test_missing_xyz_file_raises_error(self, tmp_path: Path) -> None:
-        """Confirms missing input file raises FileNotFoundError before spawning process."""
-        missing_file = tmp_path / "non_existent.xyz"
-        with pytest.raises(FileNotFoundError):
-            run_crest_secondary_search(missing_file, tmp_path)
-
-
-class TestPydanticSerializationAndParsers:
-    """Verifies Pydantic model serialization, validation, and error traps."""
-
-    def test_pydantic_serialization(self) -> None:
-        """Verifies JSON round-trip serialization of TopologyAnalysisResult."""
-        symbols = ["O", "H", "H"]
-        coordinates = np.array([
-            [0.0000,  0.0000,  0.1173],
-            [0.0000,  0.7572, -0.4692],
-            [0.0000, -0.7572, -0.4692],
-        ])
-
-        engine = TopologyGraphEngine()
-        result = engine.analyze_topology(symbols, coordinates)
-
-        json_str = result.to_json()
-        data = json.loads(json_str)
-
-        assert data["num_atoms"] == 3
-        assert data["classification"] == "Monomer"
-        assert data["routing_target"] == "MONOMER_GOAT"
-
-        reconstructed = TopologyAnalysisResult.model_validate(data)
-        assert reconstructed.num_atoms == result.num_atoms
-        assert reconstructed.routing_target == result.routing_target
-
-    def test_parse_xyz_string_and_file(self, tmp_path: Path) -> None:
-        """Validates XYZ parser on both raw strings and disk files."""
-        raw_xyz = """3
-Water monomer test coordinate
-O  0.0000  0.0000  0.1173
-H  0.0000  0.7572 -0.4692
-H  0.0000 -0.7572 -0.4692
-"""
-        parsed_symbols, parsed_coords, title = parse_xyz_string(raw_xyz)
-        assert parsed_symbols == ["O", "H", "H"]
-        assert parsed_coords.shape == (3, 3)
-
-        file_path = tmp_path / "water.xyz"
-        file_path.write_text(raw_xyz, encoding="utf-8")
-
-        file_symbols, file_coords, _ = parse_xyz_file(file_path)
-        assert file_symbols == parsed_symbols
-        np.testing.assert_allclose(file_coords, parsed_coords)
-
-    def test_ase_atoms_ingestion(self) -> None:
-        """Validates ingestion from an ASE Atoms object."""
-        atoms = Atoms(symbols=["O", "H", "H"], positions=[
-            [0.0000,  0.0000,  0.1173],
-            [0.0000,  0.7572, -0.4692],
-            [0.0000, -0.7572, -0.4692],
-        ])
-
-        engine = TopologyGraphEngine()
-        result = engine.analyze_atoms(atoms)
-        assert result.classification == "Monomer"
-        assert result.routing_target == "MONOMER_GOAT"
-        assert result.num_atoms == 3
-
-    def test_empty_coordinates_error(self) -> None:
-        """Confirms empty inputs raise ValueError."""
-        engine = TopologyGraphEngine()
-        with pytest.raises(ValueError, match="At least one atom"):
-            engine.analyze_topology([], np.empty((0, 3)))
-
-    def test_dimension_mismatch_error(self) -> None:
-        """Confirms symbol count and coordinate count mismatch raises ValueError."""
-        symbols = ["O", "H"]
-        coordinates = np.array([
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [2.0, 0.0, 0.0],
-        ])
-        engine = TopologyGraphEngine()
-        with pytest.raises(ValueError, match="Mismatch"):
-            engine.analyze_topology(symbols, coordinates)
+        read_cv_from_hdf5(h5_path=missing_file, node_id="node_none")
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

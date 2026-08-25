@@ -51,6 +51,21 @@ from cochem_bench.bench_engine.cochem_bench_cv import (
     read_cv_from_hdf5,
     run_cv_pipeline,
 )
+from cochem_bench.bench_engine.cochem_bench_rel import (
+    DEFAULT_RELATIVISTIC_Z_THRESHOLD,
+    DeltaRelExtractor,
+    RelCorrectionResult,
+    RelativisticExecutionError,
+    RelativisticHamiltonianInjector,
+    RelativisticInputError,
+    SpinOrbitCoupler,
+    X2CDivergenceError,
+    X2CDivergenceRemediator,
+    X2CHandler,
+    commit_rel_to_hdf5,
+    read_rel_from_hdf5,
+    run_rel_pipeline,
+)
 
 __all__ = [
     # Stage 1.0
@@ -101,5 +116,20 @@ __all__ = [
     "commit_cv_to_hdf5",
     "read_cv_from_hdf5",
     "run_cv_pipeline",
+    # Stage 4.0 Relativistic & SOC
+    "RelativisticHamiltonianInjector",
+    "X2CHandler",
+    "X2CDivergenceRemediator",
+    "X2CDivergenceError",
+    "RelativisticExecutionError",
+    "RelativisticInputError",
+    "SpinOrbitCoupler",
+    "DeltaRelExtractor",
+    "RelCorrectionResult",
+    "commit_rel_to_hdf5",
+    "read_rel_from_hdf5",
+    "run_rel_pipeline",
+    "DEFAULT_RELATIVISTIC_Z_THRESHOLD",
 ]
+
 

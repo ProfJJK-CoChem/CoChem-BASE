@@ -49,6 +49,34 @@ logger = logging.getLogger("CoChem.TOPOS.MechanicsMemory")
 
 
 # ============================================================================
+# Dynamic Mendeleev Element & Mass Resolution (Mendeleev Mandate)
+# ============================================================================
+
+def get_atomic_mass(atomic_number_or_symbol: Union[int, str]) -> float:
+    """
+    Dynamically retrieve atomic mass via the mendeleev library.
+    Hardcoded atomic masses and isotopic constants are strictly prohibited.
+    """
+    if mendeleev is None:
+        raise RuntimeError("mendeleev library is required for dynamic atomic mass retrieval.")
+    elem = mendeleev.element(atomic_number_or_symbol)
+    return float(elem.mass)
+
+
+def get_element_symbol(atomic_number: int) -> str:
+    """Dynamically retrieve elemental symbol via the mendeleev library."""
+    if mendeleev is None:
+        raise RuntimeError("mendeleev library is required for element symbol retrieval.")
+    elem = mendeleev.element(atomic_number)
+    return str(elem.symbol)
+
+
+def get_molecular_mass(atomic_numbers: Sequence[int]) -> float:
+    """Dynamically compute total molecular mass using mendeleev atomic masses."""
+    return float(sum(get_atomic_mass(z) for z in atomic_numbers))
+
+
+# ============================================================================
 # Air-Gap Protocol & Path Resolution
 # ============================================================================
 
@@ -278,6 +306,16 @@ class GeometryRecord(BaseModel):
                 )
         return self
 
+    @property
+    def total_mass(self) -> float:
+        """Total molecular mass dynamically retrieved from mendeleev."""
+        return get_molecular_mass(self.atomic_numbers)
+
+    @property
+    def symbols(self) -> List[str]:
+        """Elemental symbols dynamically retrieved from mendeleev."""
+        return [get_element_symbol(z) for z in self.atomic_numbers]
+
 
 class TrajectoryStep(BaseModel):
     """Single step in a molecular dynamics or optimization trajectory."""
@@ -318,6 +356,16 @@ class QCSchemaPoint(BaseModel):
     hessian: Optional[List[List[float]]] = None
     method_id: Optional[str] = None
     meta: Dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def total_mass(self) -> float:
+        """Total molecular mass dynamically retrieved from mendeleev."""
+        return get_molecular_mass(self.atomic_numbers)
+
+    @property
+    def symbols(self) -> List[str]:
+        """Elemental symbols dynamically retrieved from mendeleev."""
+        return [get_element_symbol(z) for z in self.atomic_numbers]
 
 
 # ============================================================================
@@ -1284,23 +1332,23 @@ class HardwareResourceBroker:
 
         if "MACE" in engine_str:
             base_overhead = 300 * 1024 * 1024
-            mem_per_sample = max(1024 * 1024, num_atoms * 3 * 1024 * 1024)
+            mem_per_molecule = max(1024 * 1024, num_atoms * 3 * 1024 * 1024)
             max_ceiling = 128
         elif "AIMNet" in engine_str:
             base_overhead = 200 * 1024 * 1024
-            mem_per_sample = max(1024 * 1024, num_atoms * 2 * 1024 * 1024)
+            mem_per_molecule = max(1024 * 1024, num_atoms * 2 * 1024 * 1024)
             max_ceiling = 128
         elif "g-xTB" in engine_str:
             base_overhead = 50 * 1024 * 1024
-            mem_per_sample = max(512 * 1024, int((num_atoms * 12) ** 2 * 8))
+            mem_per_molecule = max(512 * 1024, int((num_atoms * 12) ** 2 * 8))
             max_ceiling = 256
         else:
             base_overhead = 60 * 1024 * 1024
-            mem_per_sample = max(512 * 1024, int((num_atoms * 16) ** 2 * 8))
+            mem_per_molecule = max(512 * 1024, int((num_atoms * 16) ** 2 * 8))
             max_ceiling = 256
 
         available_for_batch = max(0, usable_bytes - base_overhead)
-        calculated_batch = int(available_for_batch // mem_per_sample)
+        calculated_batch = int(available_for_batch // mem_per_molecule)
         safe_batch = max(1, min(calculated_batch, max_ceiling))
 
         return safe_batch
@@ -1405,6 +1453,16 @@ class UniversalFallbackCascade:
             EngineTier.XTB2: None,
         }
         return cascade_map.get(engine)
+
+    @classmethod
+    def get_element_symbols(cls, atomic_numbers: Sequence[int]) -> List[str]:
+        """Dynamically retrieve element symbols via mendeleev."""
+        return [get_element_symbol(z) for z in atomic_numbers]
+
+    @classmethod
+    def get_total_mass(cls, atomic_numbers: Sequence[int]) -> float:
+        """Dynamically compute total molecular mass via mendeleev."""
+        return get_molecular_mass(atomic_numbers)
 
 
 class FallbackCascadeStateMachine:
@@ -1596,3 +1654,13 @@ class PrecisionDowngradeProtocol:
     def downgrade_model_weights(cls, model_or_weights: Any) -> Any:
         """Cast PyTorch model parameters to target precision."""
         return cls.downgrade_tensors(model_or_weights, target_dtype="float32")
+
+
+# ============================================================================
+# Backward Compatibility Aliases
+# ============================================================================
+
+ElementalCascadeRouter = UniversalFallbackCascade
+HDF5StateManager = ToposHDF5MemoryManager
+ToposMemoryBroker = HardwareResourceBroker
+ToposMemoryConfig = dict

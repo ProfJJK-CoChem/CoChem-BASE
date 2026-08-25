@@ -4,9 +4,9 @@ Strict Zero-Mock Mandate: Uses real HDF5 files, real psutil metrics, real torch 
 real numpy arrays, real elemental definitions, and real concurrent filelock access.
 """
 
-import concurrent.futures
 import json
 import os
+import threading
 import time
 from pathlib import Path
 import pytest
@@ -42,6 +42,13 @@ try:
         get_cochem_workspace,
         get_databases_directory,
         get_registry_directory,
+        get_atomic_mass,
+        get_element_symbol,
+        get_molecular_mass,
+        ElementalCascadeRouter,
+        HDF5StateManager,
+        ToposMemoryBroker,
+        ToposMemoryConfig,
     )
 except ImportError:
     from mechanics.cochem_topos_memory import (
@@ -71,6 +78,13 @@ except ImportError:
         get_cochem_workspace,
         get_databases_directory,
         get_registry_directory,
+        get_atomic_mass,
+        get_element_symbol,
+        get_molecular_mass,
+        ElementalCascadeRouter,
+        HDF5StateManager,
+        ToposMemoryBroker,
+        ToposMemoryConfig,
     )
 
 
@@ -81,41 +95,53 @@ except ImportError:
 class TestAirGapProtocolAndConfig:
     """Tests for Air-Gap Protocol, workspace directory resolution, and config loading."""
 
-    def test_workspace_directory_resolution(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_workspace_directory_resolution(self, tmp_path: Path):
         """Test strict workspace resolution via COCHEM_WORKSPACE."""
         workspace = tmp_path / "air_gapped_ws"
         workspace.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setenv("COCHEM_WORKSPACE", str(workspace))
+        old_env = os.environ.get("COCHEM_WORKSPACE")
+        try:
+            os.environ["COCHEM_WORKSPACE"] = str(workspace)
+            assert get_cochem_workspace() == workspace
+            assert get_databases_directory() == workspace / "CoChem_Artifacts" / "Databases"
+            assert get_registry_directory() == workspace / "CoChem_Artifacts" / "Registry"
+            assert get_databases_directory().exists()
+            assert get_registry_directory().exists()
+        finally:
+            if old_env is not None:
+                os.environ["COCHEM_WORKSPACE"] = old_env
+            else:
+                os.environ.pop("COCHEM_WORKSPACE", None)
 
-        assert get_cochem_workspace() == workspace
-        assert get_databases_directory() == workspace / "CoChem_Artifacts" / "Databases"
-        assert get_registry_directory() == workspace / "CoChem_Artifacts" / "Registry"
-        assert get_databases_directory().exists()
-        assert get_registry_directory().exists()
-
-    def test_load_system_config_air_gap(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_load_system_config_air_gap(self, tmp_path: Path):
         """Test reading configuration solely from Registry/cochem_system_config.json."""
         workspace = tmp_path / "custom_airgap_ws"
         reg_dir = workspace / "CoChem_Artifacts" / "Registry"
         reg_dir.mkdir(parents=True, exist_ok=True)
-        monkeypatch.setenv("COCHEM_WORKSPACE", str(workspace))
+        old_env = os.environ.get("COCHEM_WORKSPACE")
+        try:
+            os.environ["COCHEM_WORKSPACE"] = str(workspace)
+            config_data = {
+                "workspace": str(workspace),
+                "vram_governor_cap": 0.85,
+                "active_thread_percentage": 85,
+                "default_precision": "float64",
+                "custom_tier": "T1-1min",
+            }
+            config_path = reg_dir / "cochem_system_config.json"
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config_data, f)
 
-        config_data = {
-            "workspace": str(workspace),
-            "vram_governor_cap": 0.85,
-            "active_thread_percentage": 85,
-            "default_precision": "float64",
-            "custom_tier": "T1-1min",
-        }
-        config_path = reg_dir / "cochem_system_config.json"
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config_data, f)
-
-        loaded = load_system_config()
-        assert loaded["vram_governor_cap"] == 0.85
-        assert loaded["active_thread_percentage"] == 85
-        assert loaded["default_precision"] == "float64"
-        assert loaded["custom_tier"] == "T1-1min"
+            loaded = load_system_config()
+            assert loaded["vram_governor_cap"] == 0.85
+            assert loaded["active_thread_percentage"] == 85
+            assert loaded["default_precision"] == "float64"
+            assert loaded["custom_tier"] == "T1-1min"
+        finally:
+            if old_env is not None:
+                os.environ["COCHEM_WORKSPACE"] = old_env
+            else:
+                os.environ.pop("COCHEM_WORKSPACE", None)
 
 
 # ============================================================================
@@ -296,10 +322,20 @@ class TestUniversalFallbackCascade:
 
     def test_precision_mandate_enforcement(self):
         """Test explicit mandate of FP64 precision across execution tiers."""
-        enforce_precision_tier(PrecisionMode.FP64)
-        assert os.environ["JAX_ENABLE_X64"] == "True"
-        if torch is not None:
-            assert torch.get_default_dtype() == torch.float64
+        orig_jax = os.environ.get("JAX_ENABLE_X64")
+        orig_torch = torch.get_default_dtype() if torch is not None else None
+        try:
+            enforce_precision_tier(PrecisionMode.FP64)
+            assert os.environ["JAX_ENABLE_X64"] == "True"
+            if torch is not None:
+                assert torch.get_default_dtype() == torch.float64
+        finally:
+            if orig_jax is not None:
+                os.environ["JAX_ENABLE_X64"] = orig_jax
+            else:
+                os.environ.pop("JAX_ENABLE_X64", None)
+            if torch is not None and orig_torch is not None:
+                torch.set_default_dtype(orig_torch)
 
 
 # ============================================================================
@@ -364,9 +400,21 @@ class TestToposHDF5MemoryManager:
             [-2.148, 1.240, 0.0],
         ]
         energy = -232.2478
-        gradient = np.zeros((12, 3), dtype=np.float64)
-        gradient[0, 1] = 0.0001
-        hessian = np.eye(36, dtype=np.float64) * 0.5
+        gradient = [
+            [0.00012, -0.00008, 0.00003],
+            [-0.00015, 0.00011, -0.00004],
+            [0.00009, -0.00014, 0.00002],
+            [-0.00008, 0.00007, -0.00003],
+            [0.00011, -0.00009, 0.00005],
+            [-0.00009, 0.00013, -0.00003],
+            [0.00004, -0.00005, 0.00001],
+            [-0.00003, 0.00004, -0.00002],
+            [0.00005, -0.00003, 0.00001],
+            [-0.00002, 0.00005, -0.00002],
+            [0.00003, -0.00004, 0.00002],
+            [-0.00007, 0.00003, -0.00001],
+        ]
+        hessian = [[0.45 if i == j else (0.02 / (1.0 + abs(i - j))) for j in range(36)] for i in range(36)]
 
         manager.write_qcschema_point(
             point_id="benzene_ground_state",
@@ -421,7 +469,17 @@ class TestToposHDF5MemoryManager:
             [-0.0001, 0.0001, -0.0001],
             [0.0000, 0.0001, -0.0002],
         ]
-        hessian = np.eye(9, dtype=np.float64).tolist()
+        hessian = [
+            [0.612, 0.015, -0.008, -0.301, 0.004, 0.002, -0.311, -0.019, 0.006],
+            [0.015, 0.584, 0.011, 0.008, -0.292, -0.005, -0.023, -0.292, -0.006],
+            [-0.008, 0.011, 0.630, -0.004, 0.006, -0.315, 0.012, -0.017, -0.315],
+            [-0.301, 0.008, -0.004, 0.305, -0.002, 0.001, -0.004, -0.006, 0.003],
+            [0.004, -0.292, 0.006, -0.002, 0.295, -0.003, -0.002, -0.003, -0.003],
+            [0.002, -0.005, -0.315, 0.001, -0.003, 0.320, -0.003, 0.008, -0.005],
+            [-0.311, -0.023, 0.012, -0.004, -0.002, -0.003, 0.315, 0.025, -0.009],
+            [-0.019, -0.292, -0.017, -0.006, -0.003, 0.008, 0.025, 0.295, 0.009],
+            [0.006, -0.006, -0.315, 0.003, -0.003, -0.005, -0.009, 0.009, 0.320],
+        ]
         metadata = {"basis": "def2-TZVP", "charge": 0, "multiplicity": 1}
 
         record = GeometryRecord(
@@ -503,25 +561,34 @@ class TestToposHDF5MemoryManager:
         db_file = tmp_path / "concurrent_test.h5"
         manager = ToposHDF5MemoryManager(db_path=db_file)
 
+        results: list = []
+        errors: list = []
+
         def worker_interleaved(idx: int):
-            record = GeometryRecord(
-                geom_id=f"geom_worker_{idx}",
-                atomic_numbers=[1, 1],
-                coords=[[0.0, 0.0, 0.0], [0.0, 0.0, float(idx) * 0.1]],
-                energy=-1.0 - float(idx),
-                metadata={"worker_idx": idx},
-            )
-            manager.write_geometry(record)
-            read_back = manager.read_geometry(f"geom_worker_{idx}")
-            assert read_back is not None
-            assert read_back.geom_id == f"geom_worker_{idx}"
-            return idx
+            try:
+                record = GeometryRecord(
+                    geom_id=f"geom_worker_{idx}",
+                    atomic_numbers=[1, 1],
+                    coords=[[0.0, 0.0, 0.0], [0.0, 0.0, float(idx) * 0.1]],
+                    energy=-1.0 - float(idx),
+                    metadata={"worker_idx": idx},
+                )
+                manager.write_geometry(record)
+                read_back = manager.read_geometry(f"geom_worker_{idx}")
+                assert read_back is not None
+                assert read_back.geom_id == f"geom_worker_{idx}"
+                results.append(idx)
+            except Exception as e:
+                errors.append(e)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(worker_interleaved, i) for i in range(16)]
-            for f in concurrent.futures.as_completed(futures):
-                assert f.result() >= 0
+        threads = [threading.Thread(target=worker_interleaved, args=(i,)) for i in range(16)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
+        assert len(errors) == 0
+        assert len(results) == 16
         geoms = manager.list_geometries()
         assert len(geoms) == 16
 
@@ -631,3 +698,71 @@ class TestPrecisionDowngradeProtocol:
         assert downgraded["energy"].dtype == torch.float32
         assert downgraded["nested_list"][0].dtype == np.float32
         assert downgraded["nested_list"][1]["sub_tensor"].dtype == torch.float32
+
+
+# ============================================================================
+# 7. Mendeleev Library Dynamic Mass & Property Tests
+# ============================================================================
+
+class TestMendeleevDynamicMassAndProperties:
+    """Tests for Mendeleev library integration and dynamic atomic mass retrieval."""
+
+    def test_mendeleev_element_mass_and_symbol_resolution(self):
+        """Test dynamic atomic mass and symbol resolution for various elements."""
+        c_mass = get_atomic_mass("C")
+        c_mass_num = get_atomic_mass(6)
+        assert pytest.approx(c_mass, 1e-3) == 12.011
+        assert pytest.approx(c_mass_num, 1e-3) == 12.011
+
+        h_mass = get_atomic_mass("H")
+        assert pytest.approx(h_mass, 1e-3) == 1.008
+
+        sym_6 = get_element_symbol(6)
+        sym_8 = get_element_symbol(8)
+        assert sym_6 == "C"
+        assert sym_8 == "O"
+
+    def test_molecular_mass_computation(self):
+        """Test dynamic molecular mass computation for H2O and Benzene."""
+        h2o_mass = get_molecular_mass([8, 1, 1])
+        # H2O: 15.999 + 2 * 1.008 ~ 18.015
+        assert 18.01 < h2o_mass < 18.02
+
+        benzene_mass = get_molecular_mass([6, 6, 6, 6, 6, 6, 1, 1, 1, 1, 1, 1])
+        # C6H6: 6*12.011 + 6*1.008 ~ 78.114
+        assert 78.10 < benzene_mass < 78.12
+
+    def test_geometry_record_mendeleev_properties(self):
+        """Test dynamic properties on GeometryRecord."""
+        record = GeometryRecord(
+            geom_id="h2o_test",
+            atomic_numbers=[8, 1, 1],
+            coords=[[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
+            energy=-76.4,
+        )
+        assert record.symbols == ["O", "H", "H"]
+        assert 18.01 < record.total_mass < 18.02
+
+    def test_qcschema_point_mendeleev_properties(self):
+        """Test dynamic properties on QCSchemaPoint."""
+        pt = QCSchemaPoint(
+            point_id="pt_test",
+            atomic_numbers=[6, 1, 1, 1, 1],
+            coordinates=[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 1.0, 1.0]],
+            energy=-40.5,
+        )
+        assert pt.symbols == ["C", "H", "H", "H", "H"]
+        assert 16.03 < pt.total_mass < 16.05
+
+    def test_universal_fallback_cascade_mendeleev_helpers(self):
+        """Test Mendeleev helpers on UniversalFallbackCascade."""
+        symbols = UniversalFallbackCascade.get_element_symbols([1, 6, 7, 8])
+        assert symbols == ["H", "C", "N", "O"]
+        total_mass = UniversalFallbackCascade.get_total_mass([1, 6, 7, 8])
+        assert 43.0 < total_mass < 43.1
+
+    def test_backward_compatibility_aliases(self):
+        """Test that cross-module compatibility aliases point to authentic classes."""
+        assert ElementalCascadeRouter is UniversalFallbackCascade
+        assert HDF5StateManager is ToposHDF5MemoryManager
+        assert ToposMemoryBroker is HardwareResourceBroker

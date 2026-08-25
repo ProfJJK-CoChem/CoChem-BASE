@@ -1,23 +1,10 @@
-"""CoChem-TOPOS Combinatorial Conformational Engine."""
+"""CoChem-TOPOS Topology Package.
 
-from .cochem_topos_cleanup import (
-    HDF5LockRecord,
-    HDF5LockSweeperConfig,
-    HDF5LockSweepResult,
-    PostFlightAuditReport,
-    ProcessReaperConfig,
-    PurgedFileRecord,
-    PurgeResult,
-    ReapedProcessRecord,
-    ReapResult,
-    ScratchPurgeConfig,
-    ToposEnvironmentSanitizer,
-    ToposHDF5LockSweeper,
-    ToposProcessReaper,
-    ToposScratchPurgeEngine,
-    WSLPathTranslator,
-)
-from .cochem_topos_crusher import (
+Provides graph-based molecular connectivity, resonance protection scaling,
+non-covalent complex cleavage, conformer deduplication funnel, and jiggle-quench arbitration.
+"""
+
+from topology.cochem_topos_crusher import (
     ConformerCandidate,
     CRESTConformerEngine,
     DeduplicatedConformerRecord,
@@ -46,37 +33,19 @@ from .cochem_topos_crusher import (
     evaluate_networkx_connectivity_hash,
     is_enantiomer_pair,
 )
-from .cochem_topos_export import (
-    DEFAULT_TEMPERATURE_K,
-    GAS_CONSTANT_KCAL_MOL_K,
-    HARTREE_TO_KCAL_MOL,
-    STATIC_METHOD_CITATIONS,
-    TOPOSFAIRExporter,
-    _compute_sha256,
-    apply_readonly_lock,
-    calculate_boltzmann_weights,
-    remove_readonly_lock,
-    sanitize_latex,
-)
-from .cochem_topos_graph import (
+from topology.cochem_topos_graph import (
     COVALENT_RADII,
     RESONANCE_PROTECTION_SCALE,
     MonomerSeed,
-    ShortestGapTelemetry,
     TopologyAnalysisResult,
     TopologyGraphEngine,
     analyze_molecular_graph,
     generate_chemical_formula,
-    get_atomic_mass,
-    get_atomic_number,
-    get_atomic_symbol,
     get_covalent_radius,
-    is_transition_or_coordination_metal,
     parse_xyz_file,
     parse_xyz_string,
-    run_crest_secondary_search,
 )
-from .cochem_topos_wiggle import (
+from topology.cochem_topos_wiggle import (
     JiggleQuenchArbiter,
     JiggleQuenchConfig,
     JiggleQuenchResult,
@@ -84,51 +53,19 @@ from .cochem_topos_wiggle import (
     execute_lightning_quench,
     jiggle_perturb_pair,
 )
-from .engine import ToposEngine
 
 __all__ = [
-    "ToposEngine",
+    # Graph Engine exports
     "TopologyGraphEngine",
     "TopologyAnalysisResult",
     "MonomerSeed",
-    "ShortestGapTelemetry",
     "analyze_molecular_graph",
     "parse_xyz_string",
     "parse_xyz_file",
     "generate_chemical_formula",
     "get_covalent_radius",
-    "get_atomic_mass",
-    "get_atomic_number",
-    "get_atomic_symbol",
-    "is_transition_or_coordination_metal",
-    "run_crest_secondary_search",
     "COVALENT_RADII",
     "RESONANCE_PROTECTION_SCALE",
-    "ToposEnvironmentSanitizer",
-    "ToposScratchPurgeEngine",
-    "ToposProcessReaper",
-    "ToposHDF5LockSweeper",
-    "WSLPathTranslator",
-    "ScratchPurgeConfig",
-    "PurgedFileRecord",
-    "PurgeResult",
-    "ProcessReaperConfig",
-    "ReapedProcessRecord",
-    "ReapResult",
-    "HDF5LockRecord",
-    "HDF5LockSweeperConfig",
-    "HDF5LockSweepResult",
-    "PostFlightAuditReport",
-    "TOPOSFAIRExporter",
-    "apply_readonly_lock",
-    "remove_readonly_lock",
-    "calculate_boltzmann_weights",
-    "sanitize_latex",
-    "_compute_sha256",
-    "STATIC_METHOD_CITATIONS",
-    "HARTREE_TO_KCAL_MOL",
-    "GAS_CONSTANT_KCAL_MOL_K",
-    "DEFAULT_TEMPERATURE_K",
     # Deduplication Crusher exports
     "TopologyCrusher",
     "ToposCrusher",

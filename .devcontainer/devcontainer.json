@@ -1,0 +1,45 @@
+{
+  "name": "CoChem-BENCH Development Environment",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": "true",
+      "configureZshAsDefaultShell": "true"
+    }
+  },
+  "containerEnv": {
+    "COCHEM_ARTIFACTS_DIR": "/home/vscode/CoChem_Artifacts",
+    "QT_QPA_PLATFORM": "offscreen",
+    "COCHEM_HEADLESS": "1",
+    "OMPI_ALLOW_RUN_AS_ROOT": "1",
+    "OMPI_ALLOW_RUN_AS_ROOT_CONFIRM": "1",
+    "OMPI_MCA_btl_vader_single_copy_mechanism": "none",
+    "OMPI_MCA_rmaps_base_oversubscribe": "1"
+  },
+  "remoteEnv": {
+    "COCHEM_ARTIFACTS_DIR": "/home/vscode/CoChem_Artifacts",
+    "PYTHONPATH": "/workspaces/CoChem-BASE"
+  },
+  "mounts": [
+    "source=${localEnv:COCHEM_ARTIFACTS_DIR:${localEnv:HOME}/CoChem_Artifacts},target=/home/vscode/CoChem_Artifacts,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "bash .devcontainer/setup_tmpfs.sh",
+  "postStartCommand": "bash .devcontainer/setup_tmpfs.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "charliermarsh.ruff"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "tests"
+        ]
+      }
+    }
+  }
+}

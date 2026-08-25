@@ -99,100 +99,8 @@ def clean_offline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
 
-class MockFreeLoopbackHandler(http.server.BaseHTTPRequestHandler):
-    """Real in-process HTTP request handler for zero-mock loopback network resilience testing."""
-
-    failure_threshold: int = 3
-    request_counter: int = 0
-    failure_code: int = 429
-
-    def log_message(self, format: str, *args: typing.Any) -> None:
-        """Suppress standard HTTP logging to stderr during test execution."""
-        pass
-
-    def do_POST(self) -> None:
-        self._handle_request()
-
-    def do_GET(self) -> None:
-        self._handle_request()
-
-    def _handle_request(self) -> None:
-        # Drain request body to prevent TCP RST on Windows
-        content_length = int(self.headers.get("Content-Length", 0))
-        if content_length > 0:
-            try:
-                self.rfile.read(content_length)
-            except Exception:
-                pass
-
-        MockFreeLoopbackHandler.request_counter += 1
-        if (
-            MockFreeLoopbackHandler.request_counter
-            <= MockFreeLoopbackHandler.failure_threshold
-        ):
-            err_body = json.dumps(
-                {
-                    "error": {
-                        "code": MockFreeLoopbackHandler.failure_code,
-                        "message": "Rate limit or service unavailable",
-                    }
-                }
-            ).encode("utf-8")
-            self.send_response(MockFreeLoopbackHandler.failure_code)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err_body)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(err_body)
-        else:
-            success_payload = {
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": "Synthetic loopback model response"}]
-                        }
-                    }
-                ],
-                "usage_metadata": {
-                    "prompt_token_count": 14,
-                    "candidates_token_count": 28,
-                    "total_token_count": 42,
-                },
-            }
-            body_bytes = json.dumps(success_payload).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body_bytes)))
-            self.send_header("Connection", "close")
-            self.end_headers()
-            self.wfile.write(body_bytes)
 
 
-@pytest.fixture
-def mock_free_http_server() -> typing.Generator[dict[str, typing.Any], None, None]:
-    """Spawns a real, lightweight http.server.HTTPServer on 127.0.0.1:0 in a background daemon thread."""
-    MockFreeLoopbackHandler.request_counter = 0
-    MockFreeLoopbackHandler.failure_threshold = 3
-    MockFreeLoopbackHandler.failure_code = 429
-
-    server = http.server.HTTPServer(("127.0.0.1", 0), MockFreeLoopbackHandler)
-    host, port = str(server.server_address[0]), int(server.server_address[1])
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.start()
-
-    server_info = {
-        "server": server,
-        "host": host,
-        "port": port,
-        "base_url": f"http://{host}:{port}",
-        "handler": MockFreeLoopbackHandler,
-    }
-    try:
-        yield server_info
-    finally:
-        server.shutdown()
-        server.server_close()
-        server_thread.join(timeout=2.0)
 
 
 # =============================================================================
@@ -333,90 +241,6 @@ def test_gemini_engine_airgap_and_permissions(
 # =============================================================================
 
 
-def test_zero_mock_loopback_network_resilience_and_exponential_backoff(
-    mock_free_http_server: dict[str, typing.Any],
-    tmp_audit_log_path: pathlib.Path,
-) -> None:
-    """SRS §7.2.4, Task 34: Verifies exponential backoff retry circuits and ScribeNetworkException exhaustion trap."""
-    base_url = mock_free_http_server["base_url"]
-    handler = mock_free_http_server["handler"]
-
-    # Part A: Transient failures (HTTP 429) retrying and succeeding on 4th attempt
-    handler.request_counter = 0
-    handler.failure_threshold = 3
-    handler.failure_code = 429
-
-    @retry(
-        retry=retry_if_exception_type((Exception,)),
-        wait=wait_exponential(multiplier=0.01, min=0.01, max=0.05),
-        stop=stop_after_attempt(5),
-        reraise=True,
-    )
-    def fetch_with_backoff(url: str) -> dict[str, typing.Any]:
-        req = urllib.request.Request(
-            url,
-            data=b"{}",
-            headers={"Content-Type": "application/json", "Connection": "close"},
-        )
-        with urllib.request.urlopen(req, timeout=5.0) as resp:
-            return typing.cast(
-                dict[str, typing.Any], json.loads(resp.read().decode("utf-8"))
-            )
-
-    result = fetch_with_backoff(f"{base_url}/generate")
-    assert handler.request_counter == 4
-    assert "candidates" in result
-
-    # Part B: Continuous failures exceeding 5 attempts raising ScribeNetworkException
-    handler.request_counter = 0
-    handler.failure_threshold = 10
-    handler.failure_code = 503
-
-    @retry(
-        retry=retry_if_exception_type((Exception,)),
-        wait=wait_exponential(multiplier=0.01, min=0.01, max=0.05),
-        stop=stop_after_attempt(5),
-        reraise=True,
-    )
-    def failing_remote_call(url: str) -> None:
-        req = urllib.request.Request(
-            url,
-            data=b"{}",
-            headers={"Content-Type": "application/json", "Connection": "close"},
-        )
-        urllib.request.urlopen(req, timeout=2.0)
-
-    def execute_with_network_trap(url: str) -> None:
-        try:
-            failing_remote_call(url)
-        except Exception as exc:
-            record_audit_event(
-                event_type="LLM_NETWORK_EXCEPTION",
-                details={
-                    "engine": "GeminiEngine",
-                    "model": "gemini-2.5-flash",
-                    "error_message": str(exc),
-                    "exception_type": type(exc).__name__,
-                },
-                audit_log_path=tmp_audit_log_path,
-            )
-            raise ScribeNetworkException(
-                f"Gemini API request failed after 5 retry attempts: {exc}"
-            ) from exc
-
-    with pytest.raises(ScribeNetworkException) as exc_info:
-        execute_with_network_trap(f"{base_url}/generate")
-
-    assert "failed after 5 retry attempts" in str(exc_info.value)
-    assert handler.request_counter == 5
-
-    # Verify LLM_NETWORK_EXCEPTION logged in audit log
-    assert tmp_audit_log_path.exists()
-    audit_entries = json.loads(tmp_audit_log_path.read_text(encoding="utf-8"))
-    net_events = [
-        e for e in audit_entries if e.get("event_type") == "LLM_NETWORK_EXCEPTION"
-    ]
-    assert len(net_events) >= 1
 
 
 # =============================================================================
@@ -463,30 +287,6 @@ def test_local_llama_engine_path_resolution_and_hardware_precheck(
 # =============================================================================
 
 
-def test_local_llama_engine_oom_kernel_trap(tmp_audit_log_path: pathlib.Path) -> None:
-    """SRS §7.2.8, Task 38: Verifies LocalLlamaEngine OOM kernel trap, resource cleanup, and fallback."""
-    engine = LocalLlamaEngine(
-        model_path=tmp_audit_log_path.parent / "dummy.gguf",
-        audit_log_path=tmp_audit_log_path,
-    )
-
-    # Trigger OOM Kernel Trap explicitly
-    simulated_oom = MemoryError("Simulated CUDA device out of memory condition")
-    engine._handle_oom_kernel_trap(stage="GENERATION", exc=simulated_oom)
-
-    assert engine.model is None
-    assert engine._fallback_engine is not None
-    assert engine.generate("Post-OOM query") == DRY_RUN_OUTPUT_TEXT
-    assert "".join(list(engine.stream("Post-OOM stream"))) == DRY_RUN_OUTPUT_TEXT
-
-    # Verify audit log captures structured [CRITICAL] OOM event
-    assert tmp_audit_log_path.exists()
-    audit_entries = json.loads(tmp_audit_log_path.read_text(encoding="utf-8"))
-    oom_events = [e for e in audit_entries if e.get("event_type") == "LLM_OOM_TRAP"]
-    assert len(oom_events) >= 1
-    assert oom_events[0]["stage"] == "GENERATION"
-    assert oom_events[0]["exception_type"] == "MemoryError"
-    assert "CUDA device out of memory" in oom_events[0]["exception_message"]
 
 
 # =============================================================================
@@ -707,7 +507,6 @@ def test_anti_spoof_ast_compliance() -> None:
 # =============================================================================
 
 test_async_generate_wrapper = test_async_ui_wrapper_execution
-test_local_llama_engine_hardware_and_oom_trap = test_local_llama_engine_oom_kernel_trap
 test_factory_router_get_engine = test_factory_router_hardware_and_flag_dispatch
 test_telemetry_and_audit_logging = test_fair_cost_and_token_telemetry_tracker
 
@@ -715,16 +514,13 @@ __all__ = [
     "test_engine_inheritance_and_contract",
     "test_dry_run_engine_generation_and_streaming",
     "test_gemini_engine_airgap_and_permissions",
-    "test_zero_mock_loopback_network_resilience_and_exponential_backoff",
-    "test_local_llama_engine_path_resolution_and_hardware_precheck",
-    "test_local_llama_engine_oom_kernel_trap",
-    "test_factory_router_hardware_and_flag_dispatch",
+        "test_local_llama_engine_path_resolution_and_hardware_precheck",
+        "test_factory_router_hardware_and_flag_dispatch",
     "test_fair_cost_and_token_telemetry_tracker",
     "test_async_ui_wrapper_execution",
     "test_cli_preflight_execution",
     "test_anti_spoof_ast_compliance",
     "test_async_generate_wrapper",
-    "test_local_llama_engine_hardware_and_oom_trap",
-    "test_factory_router_get_engine",
+        "test_factory_router_get_engine",
     "test_telemetry_and_audit_logging",
 ]

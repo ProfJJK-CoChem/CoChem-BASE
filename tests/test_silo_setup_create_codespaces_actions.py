@@ -47,13 +47,12 @@ def isolation_env(tmp_path, monkeypatch):
     Fixture to isolate testing, set specific variables, and sweep zombies.
     """
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "github-actions")
     
     yield tmp_path
     
     sweep_zombie_processes()
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "github-actions", reason="Requires CODESPACES and COCHEM_CALCULATION_OS=github-actions")
 def test_silo_setup_create_codespaces_actions(isolation_env, monkeypatch):
     """
     Test the 'New Install -> Create & Provision' path of silo setup

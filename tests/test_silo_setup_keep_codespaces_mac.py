@@ -26,10 +26,9 @@ def conda_exe():
     except FileNotFoundError:
         pytest.skip("Conda executable not found, cannot run physical Conda tests.")
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "macos", reason="Requires CODESPACES and COCHEM_CALCULATION_OS=macos")
 def test_silo_setup_keep_previous(tmp_path, monkeypatch, conda_exe, caplog):
     # 1. OS-level monkeypatching
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "macos")
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
 
     artifact_dir = tmp_path

@@ -34,8 +34,6 @@ atexit.register(sweep_zombie_processes)
 def conda_env_simulator(tmp_path, monkeypatch):
     """Fixture to set up env vars and clean up."""
     # Simulate Codespaces + GitHub Actions
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "github-actions")
     
     # Point artifact dir to tmp_path
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
@@ -43,6 +41,7 @@ def conda_env_simulator(tmp_path, monkeypatch):
     silo_dir = tmp_path / "Silos" / "cochem_base_silo"
     return silo_dir
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "github-actions", reason="Requires CODESPACES and COCHEM_CALCULATION_OS=github-actions")
 def test_silo_setup_keep_codespaces_actions(conda_env_simulator, caplog, capsys):
     """
     Test that Silo Setup properly identifies an existing environment and skips

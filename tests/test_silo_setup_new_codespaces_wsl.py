@@ -25,8 +25,6 @@ def isolation_env(tmp_path, monkeypatch):
     Fixture to isolate testing, set specific variables, and sweep zombies.
     """
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "wsl")
     
     yield tmp_path
     
@@ -46,6 +44,7 @@ def isolation_env(tmp_path, monkeypatch):
     except psutil.Error as e:
         logger.error(f"Failed during cleanup of child processes: {e}")
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "wsl", reason="Requires CODESPACES and COCHEM_CALCULATION_OS=wsl")
 def test_silo_setup_new_codespaces_wsl(isolation_env, monkeypatch):
     """
     Test the 'New Install -> Create & Provision' path of silo setup

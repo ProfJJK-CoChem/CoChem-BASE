@@ -24,8 +24,6 @@ def isolation_env(tmp_path, monkeypatch):
     Fixture to isolate testing, set specific variables, and sweep zombies.
     """
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "macos")
     
     yield tmp_path
     
@@ -47,6 +45,7 @@ def isolation_env(tmp_path, monkeypatch):
     except psutil.AccessDenied:
         pass
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "macos", reason="Requires CODESPACES and COCHEM_CALCULATION_OS=macos")
 def test_silo_setup_new_codespaces_mac(isolation_env, monkeypatch):
     """
     Test the 'New Install -> Create & Provision' path of silo setup

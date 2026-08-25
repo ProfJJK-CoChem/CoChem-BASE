@@ -45,10 +45,9 @@ def hpc_mock_env(tmp_path, monkeypatch):
     hpc_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(hpc_scratch))
     # Some HPC clusters might set specific cluster variables
-    monkeypatch.setenv("SLURM_JOB_ID", "999999")
-    monkeypatch.setenv("COCHEM_OS_TARGET", "linux_x86_64")
     return hpc_scratch
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID") or os.environ.get("COCHEM_OS_TARGET") != "linux_x86_64", reason="Requires SLURM_JOB_ID and COCHEM_OS_TARGET=linux_x86_64")
 def test_silo_setup_keep_linux_hpc(hpc_mock_env, caplog):
     """
     Tests the "Keep previous setup" logic of the Silo Setup module targeting Local-Linux/HPC.

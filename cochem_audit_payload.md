@@ -1,4117 +1,1989 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-GEOM\.in-progress\Task_13_eval_metrics_py.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-SCRIBE\.in-progress\08_scribe_md_generator.md.
 Original prompt:
-# Task: Create `src/cochem_geom/eval/metrics.py`
+# Phase 4, Task 9: Dynamic Markdown User Guide Compiler (`formatters/scribe_md_generator.py`)
 
-## Context
-You are an autonomous execution agent coding the new version of CoChem-GEOM based on the approved System Architecture.
-Target output directory: `D:\__CoChem\GitHub-Repo\CoChem-GEOM`
+**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE`  
+**Target Files to Create:**
+- `formatters/scribe_md_generator.py`
+- `formatters/test_scribe_md_generator.py`
 
-## Strict Execution Constraints
-1. **Scope:** Generate exactly one coding script file for this prompt (`src/cochem_geom/eval/metrics.py`).
-2. **Path:** Output the generated file to the target output directory at `D:\__CoChem\GitHub-Repo\CoChem-GEOM\src/cochem_geom/eval/metrics.py`. Do not execute or run the code, only generate the file.
-3. **Geometric Equivariance & Invariance:** The system must strictly separate non-spatial node features from spatial coordinates.
-4. **State Immutability:** Geometric transformations are immutable (`data.pos = data.pos + update`, never `data.pos += update`).
-5. **No Hardcoded Paths:** Use dynamic lookups (`pathlib.Path.home()`, environment variables).
-6. **Provenance Tags:** You MUST tag all qualitative values, bounds, energy metrics, and hardware speedups with explicit provenance tags (`[M]` for Measured, `[D]` for Derived, `[E]` for Expert Estimate).
+## Objective
+Implement the production-grade dynamic Markdown User Guide compiler module (`MarkdownBuilder`) and its comprehensive zero-mock integration test suite (`test_scribe_md_generator.py`) for CoChem-SCRIBE (Stage 6.3). This module bridges the **Mathematical Air-Gap** for rapid laboratory inspection, interactive browser rendering, and Codespaces development by synthesizing structured `CoChem_User_Guide.md` documentation. The compiler parses harvested chemistry payloads, formats YAML frontmatter, constructs dynamic Mermaid.js execution flowcharts, converts conformational and vibrational DataFrames into GitHub-Flavored Markdown (GFM) tables, renders non-fatal execution warnings into callout blockquotes (`> **WARNING**: ...`), aggregates CPU/GPU peak hardware telemetry, and enforces non-destructive timestamped overwrite protection. The implementation must strictly adhere to the **CoChem-SCRIBE Software Requirements Specification (SRS Phase 4, Task 9, Tasks 61–70)**, **Method Matrix v4**, the **Zero-Mock Anti-Spoofing Protocol**, **FAIR Data Principles**, and the **6-Tier Environment Matrix** (Local-Windows WSL, Local-MacOS OrbStack, Local-Linux Debian, Codespaces, GitHub Actions, HPC).
 
-## File Specific Instructions
-TorchMetrics implementations for Conformer Coverage (COV) `[D]`, Average Minimum RMSD (AMR) `[D]`, and Energy MAE `[D]`. Track domain-specific structural metrics.
+---
+
+## Technical Specifications & Architecture
+
+### 1. Architectural Philosophy: Markdown Synchronization & Air-Gap Bridge (SRS §9.1, §9.3)
+- **Air-Gap Documentation Bridge:** While `scribe_templater.py` compiles formal LaTeX manuscripts, `scribe_md_generator.py` generates an immediate, human-readable, web-friendly User Guide bypassing LaTeX compiler requirements.
+- **Dynamic Mermaid.js Workflow Visualization (SRS §9.3.2, Task 63):** The generator dynamically compiles a Mermaid diagram block (````mermaid graph TD ... ````) representing the exact sequence of active CoChem calculation and analysis stages executed in the current pipeline run.
+- **Non-Destructive Overwrite Protection (SRS §9.3.5, Task 69):** To prevent destructive loss of researcher annotations or previous run notes, the builder checks for existing `CoChem_User_Guide.md` files and appends timestamped archives (`CoChem_User_Guide_YYYYMMDD_HHMMSS.md` or timestamped execution blocks) rather than overwriting.
+- **Deterministic Cross-Platform Pathing (SRS §9.3.5, Task 68):** Path resolution must strictly utilize `pathlib.Path.home()` and OS-agnostic path libraries to guarantee flawless execution across all 6-Tier Environment nodes without relying on POSIX-only shell environment variables.
+- **100% Offline Air-Gap Execution:** All markdown generation, YAML serialization, GFM table conversion, Mermaid diagram generation, and file operations must execute strictly locally without external network sockets or third-party web API calls.
+
+---
+
+## Deliverable 1: `formatters/scribe_md_generator.py`
+
+### 1. Class Architecture & Interface Contract (`MarkdownBuilder`)
+
+Define the `MarkdownBuilder` class in `formatters/scribe_md_generator.py` with complete Python 3.10+ typing (`typing.Dict`, `typing.Any`, `typing.Optional`, `typing.Union`, `typing.List`, `pathlib.Path`, `pandas.DataFrame`):
+
+```python
+import os
+import re
+import json
+import logging
+import pathlib
+from datetime import datetime
+from typing import Dict, Any, Optional, Union, List
+import pandas as pd
+
+class MarkdownBuilder:
+    """Dynamic Markdown User Guide Compiler for CoChem-SCRIBE.
+    
+    Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
+    Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
+    GitHub-Flavored Markdown (GFM) tables, thermodynamic analytical insights,
+    non-fatal warning callout blockquotes, hardware telemetry metrics, and
+    non-destructive timestamped overwrite protection.
+    """
+    def __init__(
+        self,
+        output_dir: Optional[Union[str, pathlib.Path]] = None,
+        filename: str = "CoChem_User_Guide.md"
+    ) -> None:
+        """Initializes MarkdownBuilder with dynamic path resolution and target filename."""
+        pass
+
+    def generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str:
+        """Generates strict YAML frontmatter containing run metadata, timestamp, and pipeline provenance."""
+        pass
+
+    def generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str:
+        """Generates Stage 0 system matrix readout (active engines, nodes, cores, GPU) for audit compliance."""
+        pass
+
+    def generate_mermaid_flowchart(self, active_stages: Optional[List[str]] = None) -> str:
+        """Dynamically synthesizes a Mermaid.js diagram (graph TD) mapping active CoChem pipeline stages."""
+        pass
+
+    def format_gfm_table(
+        self,
+        df: pd.DataFrame,
+        title: Optional[str] = None
+    ) -> str:
+        """Converts a pandas DataFrame into a clean GitHub-Flavored Markdown (GFM) pipe table."""
+        pass
+
+    def inject_thermodynamic_insights(self, insights_text: str) -> str:
+        """Formats and wraps LLM-generated thermodynamic insights under ## Thermodynamic Analysis."""
+        pass
+
+    def format_warning_blockquotes(self, warnings: Optional[List[str]] = None) -> str:
+        """Formats non-fatal system warnings into Markdown callout blockquotes (> **WARNING**: ...)."""
+        pass
+
+    def format_telemetry_section(self, telemetry_data: Dict[str, Any]) -> str:
+        """Formats peak CPU/GPU usage, wall-clock execution time, and memory metrics into a structured Markdown section."""
+        pass
+
+    def build_user_guide(self, data_payload: Dict[str, Any]) -> str:
+        """Assembles the complete CoChem_User_Guide.md document string from the aggregated data payload."""
+        pass
+
+    def write_user_guide(
+        self,
+        content: str,
+        destination_path: Optional[Union[str, pathlib.Path]] = None
+    ) -> pathlib.Path:
+        """Writes Markdown content to disk with non-destructive timestamped overwrite protection."""
+        pass
+```
+
+---
+
+### 2. Detailed Functional Requirements (Tasks 61–70)
+
+#### 2.1 Class Initialization & Cross-Platform Pathing (Tasks 61 & 68)
+- Implement `__init__(self, output_dir=None, filename="CoChem_User_Guide.md")`:
+  - If `output_dir` is not provided, dynamically resolve default destination:
+    `pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"`
+  - Set `self.output_dir = pathlib.Path(output_dir).resolve()`
+  - Set `self.filename = filename`
+  - Ensure parent directories exist dynamically upon initialization or write (`self.output_dir.mkdir(parents=True, exist_ok=True)`).
+  - Ensure zero reliance on POSIX-only shell environment variables (e.g., `$HOME`), using `pathlib.Path.home()` for cross-platform compatibility across Windows WSL, macOS OrbStack, Linux Debian, Codespaces, GitHub Actions, and HPC.
+
+#### 2.2 YAML Frontmatter & Stage 0 System Matrix (Task 62)
+- Implement `generate_yaml_frontmatter(self, metadata: Dict[str, Any]) -> str`:
+  - Generate strict YAML block bounded by `---` lines at the top of the file:
+    ```yaml
+    ---
+    title: "CoChem Computational Analysis User Guide"
+    generated_at: "2026-08-23T12:00:00"
+    version: "2.0.0"
+    pipeline_hash: "a1b2c3d4..."
+    environment: "Local-Linux (Debian)"
+    fair_compliance: true
+    ---
+    ```
+- Implement `generate_system_matrix_section(self, system_matrix: Dict[str, Any]) -> str`:
+  - Render a structured Markdown section under `## 1. System Execution Environment & Provenance`:
+    - Active quantum/molecular engines and exact versions (e.g., ORCA 6.1.1, xTB 6.7.1, MACE-OFF23).
+    - Host architecture details: CPU core allocation, GPU device model, host RAM, environment tier.
+    - Configuration SHA-256 hash verifying reproducibility.
+
+#### 2.3 Dynamic Mermaid.js Flowchart Synthesis (Task 63)
+- Implement `generate_mermaid_flowchart(self, active_stages: Optional[List[str]] = None) -> str`:
+  - Dynamically construct a Mermaid flowchart inside a fenced ````mermaid ... ```` block:
+    ```mermaid
+    graph TD
+        S0["Stage 0.0: Configuration & Resource Guards"] --> S1["Stage 1.0: Conformer Generation (CREST/ORCA)"]
+        S1 --> S2["Stage 2.0: Geometry Optimization"]
+        S2 --> S3["Stage 3.0: Frequency & Thermochemistry"]
+        S3 --> S4["Stage 4.0: Spectroscopic Analysis (TORQ)"]
+        S4 --> S5["Stage 5.0: Voigt Spectral Deconvolution (SpycFit)"]
+        S5 --> S6["Stage 6.0: Document Synthesis (SCRIBE)"]
+    ```
+  - If `active_stages` is provided, dynamically highlight executed nodes (e.g., styling active nodes with class definitions) or filter inactive stages from the diagram.
+  - Return formatted flowchart ready for native rendering in GitHub, Codespaces, and GitLab Markdown viewers.
+
+#### 2.4 Thermodynamic Analytical Insights Integration (Task 64)
+- Implement `inject_thermodynamic_insights(self, insights_text: str) -> str`:
+  - Format the LLM-generated methodology and thermodynamic analytical insights under `## 2. Thermodynamic & Structural Analysis`.
+  - Scrub any leftover internal placeholder tokens (e.g., `<<INSERT_*>>`, `[PLACEHOLDER]`) or malformed whitespace.
+  - If `insights_text` is empty or missing, provide a clean, descriptive fallback note stating analytical data was aggregated without additional narrative comments.
+
+#### 2.5 GitHub-Flavored Markdown (GFM) Table Generation (Task 65)
+- Implement `format_gfm_table(self, df: pd.DataFrame, title: Optional[str] = None) -> str`:
+  - Convert `pandas.DataFrame` tables (e.g., conformer rankings, rotational constants, vibrational modes) into strict GFM pipe-delimited tables:
+    ```markdown
+    | Conformer ID | Relative Energy (kcal/mol) | Symmetry | Population (%) |
+    | :--- | :--- | :--- | :--- |
+    | Conf_01 | 0.00 | C1 | 68.4 |
+    | Conf_02 | 0.42 | Cs | 24.1 |
+    ```
+  - Enforce proper column alignment separators (`:---` or `---:`).
+  - Format floating-point numbers to appropriate significant figures (energies to 2–4 decimal places, frequencies to 1–2 decimal places).
+  - Prepend table title/header when `title` is supplied.
+
+#### 2.6 Hardware Telemetry & Non-Fatal Warnings Callout Blockquotes (Tasks 66 & 67)
+- Implement `format_warning_blockquotes(self, warnings: Optional[List[str]] = None) -> str`:
+  - Parse non-fatal warnings harvested from `cochem_audit_log.json`.
+  - Format each warning as a distinct GitHub-style callout blockquote:
+    `> **WARNING**: <warning_message>`
+  - If `warnings` list is empty or `None`, render:
+    `> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.`
+- Implement `format_telemetry_section(self, telemetry_data: Dict[str, Any]) -> str`:
+  - Render `## 4. Hardware Telemetry & Compute Resource Allocation`.
+  - Format peak GPU VRAM usage, CPU peak usage percentage, wall-clock time, and memory footprint as a clean Markdown list or summary table.
+
+#### 2.7 Non-Destructive Overwrite Protection & File Persistence (Tasks 68 & 69)
+- Implement `write_user_guide(self, content: str, destination_path: Optional[Union[str, pathlib.Path]] = None) -> pathlib.Path`:
+  - Target destination: `destination_path` or `self.output_dir / self.filename`.
+  - **Overwrite Protection Check:** Before writing, check if the file already exists on disk:
+    - If the file exists: generate a timestamped filename to prevent destructive overwriting of user notes:
+      `timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")`
+      `final_path = target_dir / f"{target_stem}_{timestamp}{target_suffix}"`
+    - If the file does not exist: write directly to `destination_path`.
+  - Write content with UTF-8 encoding.
+  - Return the final `pathlib.Path` written.
+
+#### 2.8 Unified Guide Assembly (`build_user_guide`)
+- Implement `build_user_guide(self, data_payload: Dict[str, Any]) -> str`:
+  - Harmonize all sections in logical sequence:
+    1. YAML Frontmatter
+    2. Document Title & Executive Overview
+    3. Stage 0 System Matrix & Provenance
+    4. Dynamic Mermaid.js Workflow Diagram
+    5. Conformer Landscape GFM Table
+    6. Thermodynamic Insights & Energy GFM Table
+    7. Spectroscopic Parameters & Vibrational GFM Table
+    8. Non-Fatal Execution Warnings Callout Blockquotes
+    9. Hardware Telemetry Summary
+  - Return complete, valid Markdown string.
+
+---
+
+## Deliverable 2: `formatters/test_scribe_md_generator.py`
+
+Implement a complete `pytest` test suite conforming to the **Zero-Mock Anti-Spoofing Protocol** (Task 70):
+
+1. **Zero-Mock Enforcement:**
+   - Strictly prohibit `unittest.mock`, `mocker`, or simulated Markdown builders. All tests must execute real class methods, real `pandas.DataFrame` table transformations, and real file I/O using `tmp_path`.
+2. **YAML Frontmatter & Metadata Test:**
+   - Instantiate `MarkdownBuilder` and generate YAML frontmatter with test metadata.
+   - Assert output begins with `---` and ends with `---`, contains valid YAML key-value pairs (`title`, `generated_at`, `version`, `pipeline_hash`), and parses cleanly via `yaml.safe_load`.
+3. **Mermaid.js Flowchart Synthesis Test:**
+   - Call `generate_mermaid_flowchart(["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 6.0"])`.
+   - Assert output contains ````mermaid` and `graph TD`, valid node definitions (`S0["..."]`), and valid edge transitions (`-->`).
+4. **GFM Table Pipe Formatting Test:**
+   - Create a real `pandas.DataFrame` containing conformer IDs, float energies, and symmetry labels.
+   - Call `format_gfm_table()`.
+   - Assert output contains pipe delimiters (`|`), header separator row (`|---|`), and correctly formatted float strings without missing cells.
+5. **Warning Callouts & Telemetry Formatting Test:**
+   - Pass a list of warning strings (`["SCF convergence required dampening on step 4.", "GPU VRAM spike near 90%."]`).
+   - Assert output contains `> **WARNING**: SCF convergence required dampening...` blockquotes.
+   - Pass empty warning list and assert clean `> **NOTE**:` fallback is rendered.
+   - Pass telemetry dictionary and assert peak GPU, CPU, and wall-clock times are present in the formatted telemetry section.
+6. **Non-Destructive Overwrite Protection Test:**
+   - Write an initial `CoChem_User_Guide.md` inside `tmp_path`.
+   - Write a second guide with `builder.write_user_guide()`.
+   - Assert the original `CoChem_User_Guide.md` remains completely intact and un-overwritten.
+   - Assert a new timestamped file (`CoChem_User_Guide_*.md`) was created and contains the updated content.
+7. **End-to-End User Guide Generation Test:**
+   - Assemble a realistic chemical data payload dictionary containing conformer DataFrames, thermodynamic scalars, spectroscopic tables, telemetry metrics, and narrative insights.
+   - Execute `build_user_guide()` and `write_user_guide()`.
+   - Read output file from disk and assert all sections (YAML frontmatter, Mermaid chart, GFM tables, insights, warnings, telemetry) are properly structured and valid Markdown.
+
+---
+
+## Execution Constraints & Anti-Spoofing Directives
+
+1. **Zero Mocking / Placeholders:**
+   - Every class, method, helper, and test case must be completely implemented with functional, executable logic.
+   - Strictly NO `pass`, `# TODO`, `...`, or placeholder mock returns in output files.
+2. **Dynamic Path Resolution & Air-Gap Compliance:**
+   - All filesystem paths must resolve dynamically using `pathlib.Path.home()` or explicit arguments.
+   - Hardcoded operating system paths (e.g., `C:\Users\...` or `/tmp/...`) are strictly forbidden.
+   - All markdown generation and file persistence must execute 100% offline without external network sockets.
+3. **6-Tier Environment Matrix Compliance:**
+   - The module and tests must function identically across Linux (Debian/Ubuntu), macOS (OrbStack), Windows (WSL), Codespaces, GitHub Actions, and HPC clusters.
+4. **FAIR Data & Provenance Compliance:**
+   - Markdown tables and frontmatter must preserve exact physical values and SHA-256 pipeline hashes.
+5. **Deliverable Scope:**
+   - Implement `formatters/scribe_md_generator.py` and `formatters/test_scribe_md_generator.py`.
+
+---
+
+## Task
+Implement the Python modules and tests as described and save them to:
+- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\scribe_md_generator.py`
+- `D:\__CoChem\GitHub-Repo\CoChem-SCRIBE\formatters\test_scribe_md_generator.py`
+using the `write_to_file` tool.
 
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\harvesters\test_scribe_payload_builder.py ---
-#!/usr/bin/env python3
-"""Unit Tests for CoChem-SCRIBE Context-Safe Payload Builder & Prompt Synthesizer.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\scribe_md_generator.py ---
+"""Dynamic Markdown User Guide Compiler & GFM Table Generator for CoChem-SCRIBE.
 
-Phase 2, Task 6: Context-Safe Payload Builder & Prompt Synthesis
-(harvesters/test_scribe_payload_builder.py).
-
-Adheres strictly to the Anti-Spoofing Protocol.
+Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
+Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
+GitHub-Flavored Markdown (GFM) tables, thermodynamic analytical insights,
+non-fatal warning callout blockquotes, hardware telemetry metrics, and
+non-destructive timestamped overwrite protection.
 """
 
 from __future__ import annotations
 
-import json
-import re
-import time
-from pathlib import Path
-from typing import Any
-
-import os
-import tempfile
-import pytest
-import tiktoken
-
-try:
-    from .scribe_payload_builder import (
-        DEFAULT_TOKEN_LIMIT,
-        PayloadBuilder,
-    )
-except ImportError:
-    from harvesters.scribe_payload_builder import (
-        DEFAULT_TOKEN_LIMIT,
-        PayloadBuilder,
-    )
-
-DRY_RUN_MAX_DURATION: float = 0.05
-MAX_ALLOWED_CONFS: int = 3
-MAX_ALLOWED_CRITICAL_WARNINGS: int = 2
-EXPECTED_INVARIANT_GIBBS: float = -182.1250
-EXPECTED_INVARIANT_ZPE: float = 48.9125
-
-
-@pytest.fixture(autouse=True)
-def configure_airgap_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Configures tiktoken to operate strictly with offline local cache."""
-    cache_dir = os.environ.get("TIKTOKEN_CACHE_DIR")
-    if not cache_dir:
-        default_cache = Path(tempfile.gettempdir()) / "data-gym-cache"
-        if default_cache.exists():
-            cache_dir = str(default_cache)
-        else:
-            cache_dir = str(tmp_path / "tiktoken_cache")
-    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", cache_dir)
-
-
-@pytest.fixture
-def authentic_aggregated_data() -> dict[str, Any]:
-    """Provides a realistic, authentic aggregated quantum chemistry dataset."""
-    return {
-        "conformers": [
-            {
-                "conformer_id": "conf_01",
-                "relative_energy_kcal_mol": 0.000,
-                "point_group_symmetry": "C2v",
-                "dipole_moment_debye": 1.854,
-            },
-            {
-                "conformer_id": "conf_02",
-                "relative_energy_kcal_mol": 0.742,
-                "point_group_symmetry": "Cs",
-                "dipole_moment_debye": 2.110,
-            },
-            {
-                "conformer_id": "conf_03",
-                "relative_energy_kcal_mol": 1.385,
-                "point_group_symmetry": "C1",
-                "dipole_moment_debye": 0.940,
-            },
-            {
-                "conformer_id": "conf_04",
-                "relative_energy_kcal_mol": 2.450,
-                "point_group_symmetry": "C1",
-                "dipole_moment_debye": 1.450,
-            },
-        ],
-        "spectroscopy": {
-            "rotational_constants": {
-                "A": 10342.15,
-                "B": 2451.80,
-                "C": 1980.45,
-            },
-            "dipole_moments": {
-                "mu_a": 1.54,
-                "mu_b": 0.98,
-                "mu_c": 0.00,
-                "total": 1.83,
-            },
-            "centrifugal_distortion": {
-                "Delta_J": 0.00142,
-                "Delta_JK": -0.00512,
-                "Delta_K": 0.02341,
-                "delta_J": 0.00031,
-                "delta_K": 0.00115,
-            },
-        },
-        "thermodynamics": {
-            "zpe_kcal_mol": 45.6782,
-            "enthalpy_kcal_mol": -153.2104,
-            "gibbs_free_energy_kcal_mol": -154.8912,
-            "vpt2_frequencies_cm1": [
-                125.4,
-                210.8,
-                345.2,
-                512.6,
-                780.1,
-                1024.5,
-                1250.0,
-                1480.2,
-                1650.4,
-                2980.1,
-                3100.5,
-                3650.0,
-            ],
-        },
-        "telemetry": {
-            "wall_clock_time_seconds": 142.85,
-            "peak_gpu_vram_mb": 2450.0,
-            "lam_active": False,
-            "warnings": [
-                "Info: Geometry optimization converged in 14 cycles.",
-                "Warning: Low barrier detected along dihedral C1-C2-O3-H4.",
-            ],
-        },
-        "provenance": {
-            "engine_versions": {
-                "orca": "6.1.1",
-                "mace": "0.2.0",
-                "xtb": "6.7.1",
-                "pyscf": "2.8.0",
-            },
-            "config_sha256": ("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-        },
-    }
-
-
-@pytest.fixture
-def maximal_oversized_payload() -> dict[str, Any]:
-    """Generates a maximal statistical data payload exceeding ~15,000 tokens."""
-    conformers: list[dict[str, Any]] = []
-    for i in range(25):
-        conformers.append(
-            {
-                "conformer_id": f"conf_{i + 1:02d}",
-                "relative_energy_kcal_mol": float(i * 0.45),
-                "point_group_symmetry": "C1" if i > 0 else "C2v",
-                "dipole_moment_debye": 1.5 + (i * 0.05),
-                "cartesian_coordinates_angstrom": [
-                    [float(j * 0.1), float(j * 0.2), float(j * 0.3)] for j in range(30)
-                ],
-                "rotational_constants_mhz": {
-                    "A": 9000.0 - (i * 50),
-                    "B": 2500.0 - (i * 20),
-                    "C": 1800.0 - (i * 10),
-                },
-                "internal_coordinate_scan_degrees": [float(deg) for deg in range(0, 360, 5)],
-            }
-        )
-
-    frequencies = [float(100.0 + k * 1.5) for k in range(3000)]
-
-    warnings = [
-        (
-            f"Notice: Conformer exploratory step {k} generated "
-            "extensive Hessian matrix gradients with potential oscillations."
-        )
-        for k in range(500)
-    ]
-    warnings.append("Critical: Memory pressure exceeded 90% threshold during Hessian inversion.")
-    warnings.append("Fatal: Node 4 GPU memory bus dropped during parallel batch step.")
-
-    return {
-        "conformers": conformers,
-        "spectroscopy": {
-            "rotational_constants": {
-                "A": 8940.12,
-                "B": 2410.50,
-                "C": 1780.30,
-            },
-            "dipole_moments": {
-                "mu_a": 1.45,
-                "mu_b": 0.85,
-                "mu_c": 0.12,
-                "total": 1.68,
-            },
-            "centrifugal_distortion": {
-                "Delta_J": 0.0012,
-                "Delta_JK": -0.0045,
-                "Delta_K": 0.0210,
-                "delta_J": 0.00028,
-                "delta_K": 0.00105,
-            },
-        },
-        "thermodynamics": {
-            "zpe_kcal_mol": EXPECTED_INVARIANT_ZPE,
-            "enthalpy_kcal_mol": -180.4500,
-            "gibbs_free_energy_kcal_mol": EXPECTED_INVARIANT_GIBBS,
-            "vpt2_frequencies_cm1": frequencies,
-        },
-        "telemetry": {
-            "wall_clock_time_seconds": 1845.20,
-            "peak_gpu_vram_mb": 7890.0,
-            "lam_active": True,
-            "warnings": warnings,
-            "node_architecture": {
-                "cpu_cores": 128,
-                "gpu_model": "NVIDIA A100-SXM4-80GB",
-                "hostname": "hpc-node-042",
-            },
-        },
-        "provenance": {
-            "engine_versions": {
-                "orca": "6.1.1",
-                "mace": "0.2.0",
-                "xtb": "6.7.1",
-                "spycfit": "1.4.0",
-            },
-            "config_sha256": ("4a5c68385b45da87a2455b669be3089e103d09c60d135447f982148df555a59e"),
-        },
-    }
-
-
-def test_token_count_assertion(
-    authentic_aggregated_data: dict[str, Any],
-    maximal_oversized_payload: dict[str, Any],
-) -> None:
-    """Test 1: Asserts that count_tokens measures tokens using tiktoken."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    test_text = "CoChem-SCRIBE Mathematical Air-Gap and Token Metrology Engine."
-    measured_tokens = builder.count_tokens(test_text)
-
-    enc = tiktoken.get_encoding("cl100k_base")
-    expected_tokens = len(enc.encode(test_text))
-    assert measured_tokens == expected_tokens
-    assert measured_tokens > 0
-
-    json_str = json.dumps(authentic_aggregated_data)
-    json_token_count = builder.count_tokens(json_str)
-    assert json_token_count == len(enc.encode(json_str))
-    assert json_token_count < DEFAULT_TOKEN_LIMIT
-
-    # Assert that oversized physical chemistry data payload exceeds 6,000 token limit
-    oversized_str = json.dumps(maximal_oversized_payload)
-    oversized_token_count = builder.count_tokens(oversized_str)
-    assert oversized_token_count > DEFAULT_TOKEN_LIMIT
-    assert oversized_token_count == len(enc.encode(oversized_str))
-
-
-def test_truncation_trigger_and_tier_invariants(
-    maximal_oversized_payload: dict[str, Any],
-) -> None:
-    """Test 2: Asserts 4-tier context-chunking drops and preserves Tier-4."""
-    builder = PayloadBuilder(
-        aggregated_data=maximal_oversized_payload,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    initial_tokens = builder.count_tokens(json.dumps(maximal_oversized_payload))
-    assert initial_tokens > DEFAULT_TOKEN_LIMIT, (
-        f"Payload must exceed ceiling (was {initial_tokens})"
-    )
-
-    truncated = builder.truncate_payload(maximal_oversized_payload)
-    truncated_tokens = builder.count_tokens(json.dumps(truncated))
-
-    assert truncated_tokens <= DEFAULT_TOKEN_LIMIT, (
-        f"Truncated payload exceeds ceiling: {truncated_tokens} > 6000"
-    )
-
-    # Tier 1 Assertion: Conformers pruned down to top 3 global minima
-    assert len(truncated["conformers"]) <= MAX_ALLOWED_CONFS
-    assert truncated["conformers"][0]["conformer_id"] == "conf_01"
-    assert truncated["conformers"][0]["relative_energy_kcal_mol"] == 0.0
-
-    # Tier 2 Assertion: Vibrational frequencies pruned/reduced
-    if "vpt2_frequencies_cm1" in truncated.get("thermodynamics", {}):
-        assert len(truncated["thermodynamics"]["vpt2_frequencies_cm1"]) < len(
-            maximal_oversized_payload["thermodynamics"]["vpt2_frequencies_cm1"]
-        )
-
-    # Tier 3 Assertion: Only Fatal and Critical telemetry warnings retained
-    if "warnings" in truncated.get("telemetry", {}):
-        assert len(truncated["telemetry"]["warnings"]) <= MAX_ALLOWED_CRITICAL_WARNINGS
-        for w in truncated["telemetry"]["warnings"]:
-            assert any(tag in w for tag in ["Fatal", "Critical"]), (
-                f"Non-critical warning leaked: {w}"
-            )
-
-    # Tier 4 Protected Invariants (NEVER Truncate)
-    assert truncated["thermodynamics"]["gibbs_free_energy_kcal_mol"] == EXPECTED_INVARIANT_GIBBS
-    assert truncated["thermodynamics"]["zpe_kcal_mol"] == EXPECTED_INVARIANT_ZPE
-    assert truncated["provenance"]["engine_versions"]["orca"] == "6.1.1"
-    assert truncated["provenance"]["engine_versions"]["mace"] == "0.2.0"
-
-    # Asserts that prompt construction completes without unhandled exceptions and respects token budget
-    method_prompt = builder.build_methodology_prompt()
-    assert builder.count_tokens(method_prompt) <= DEFAULT_TOKEN_LIMIT
-    insights_prompt = builder.build_insights_prompt()
-    assert builder.count_tokens(insights_prompt) <= DEFAULT_TOKEN_LIMIT
-
-
-def test_master_system_prompt_regex_and_tags(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 3: Asserts prompt prepends Master System Prompt with injection tags."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    sys_prompt = builder.get_master_system_prompt()
-    assert (
-        "You are an automated academic writer for the CoChem computational "
-        "chemistry pipeline." in sys_prompt
-    )
-    assert "strictly forbidden" in sys_prompt
-    assert "INSERT_THERMO_TABLE_HERE" in sys_prompt
-
-    method_prompt = builder.build_methodology_prompt()
-    assert method_prompt.startswith(sys_prompt) or sys_prompt in method_prompt
-    assert re.search(r"strictly forbidden", method_prompt) is not None
-    assert "INSERT_THERMO_TABLE_HERE" in method_prompt
-    assert "INSERT_SPECTROSCOPY_TABLE_HERE" in method_prompt
-
-    insights_prompt = builder.build_insights_prompt()
-    assert insights_prompt.startswith(sys_prompt) or sys_prompt in insights_prompt
-    assert re.search(r"strictly forbidden", insights_prompt) is not None
-    assert "INSERT_THERMO_TABLE_HERE" in insights_prompt
-    assert "Boltzmann" in insights_prompt
-
-
-def test_dry_run_benchmark(authentic_aggregated_data: dict[str, Any]) -> None:
-    """Test 4: Asserts dry_run=True returns fallback string in <0.05s."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-        dry_run=True,
-    )
-
-    start_time = time.perf_counter()
-    result_method = builder.build_methodology_prompt()
-    result_insights = builder.build_insights_prompt()
-    result_dry = builder.execute_dry_run()
-    elapsed = time.perf_counter() - start_time
-
-    expected_fallback = (
-        "Calculations were performed using the methods listed in the appended tables. "
-        "[LLM BYPASSED VIA DRY-RUN]"
-    )
-
-    assert result_method == expected_fallback
-    assert result_insights == expected_fallback
-    assert result_dry == expected_fallback
-    assert elapsed < DRY_RUN_MAX_DURATION, f"Dry-run took too long: {elapsed:.4f}s >= 0.05s"
-
-
-def test_lam_trigger_physics_justification(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 5: Asserts Sinc-DVR justification injection when LAM is active."""
-    builder_no_lam = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    prompt_no_lam = builder_no_lam.build_methodology_prompt()
-    assert "Sinc-DVR" not in prompt_no_lam
-
-    data_with_lam = dict(authentic_aggregated_data)
-    data_with_lam["telemetry"] = dict(authentic_aggregated_data["telemetry"])
-    data_with_lam["telemetry"]["lam_active"] = True
-
-    builder_with_lam = PayloadBuilder(
-        aggregated_data=data_with_lam,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    prompt_with_lam = builder_with_lam.build_methodology_prompt()
-
-    expected_lam_phrase = (
-        "The telemetry indicates the system utilized a Sinc-DVR for torsional motion. "
-        "Generate one paragraph scientifically justifying the use of Sinc-DVR over the "
-        "standard rigid-rotor harmonic oscillator (RRHO) approximation for this "
-        "highly flexible coordinate."
-    )
-    assert expected_lam_phrase in prompt_with_lam
-
-
-def test_synthesize_pipeline_context(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 6: Asserts pipeline context extracts software stack and provenance."""
-    manifest = {
-        "version": "2026.2",
-        "calculation_environment": "Local-Windows (WSL)",
-        "engine_versions": {
-            "orca": "6.1.1",
-            "mace": "0.2.0",
-            "xtb": "6.7.1",
-        },
-    }
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        manifest_data=manifest,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    context_str = builder.synthesize_pipeline_context()
-    assert "ORCA" in context_str
-    assert "CODATA 2022 constants" in context_str
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_geom\eval\__init__.py ---
-"""CoChem-GEOM: Evaluation, Validation, and Metric Calculation Modules.
-======================================================================
-Provides physical relaxation oracles, SE(3) alignment algorithms (Kabsch),
-conformer ensemble metrics (Coverage, AMR), and validation contracts.
-"""
-
-from __future__ import annotations
-
-from cochem_geom.eval.metrics import (
-    AverageMinimumRMSD,
-    BoltzmannWeightedEnergyMAE,
-    ConformerCoverage,
-    ConformerEnsembleEvaluator,
-    DEFAULT_AMR_THRESHOLD,
-    DEFAULT_COV_THRESHOLD,
-    DEFAULT_TEMPERATURE_K,
-    EnergyMAE,
-    ForceCosineSimilarity,
-    ForceMAE,
-    ForceRMSE,
-    InertialDefectMAE,
-    InternalCoordinatesMAE,
-    RelativeEnergyMAE,
-    RotationalConstantsMAE,
-    compute_average_minimum_rmsd,
-    compute_bond_angles,
-    compute_bond_lengths,
-    compute_conformer_coverage,
-    compute_dihedral_angles,
-    compute_inertial_defect,
-    compute_moments_of_inertia,
-    compute_rmsd,
-    convert_energy,
-    get_atomic_masses,
-    kabsch_align,
-    kabsch_rotation,
-    pairwise_conformer_rmsd,
-)
-from cochem_geom.eval.qm_oracle import (
-    BOHR_RADIUS_ANGSTROM,
-    DEFAULT_FMAX_EV_ANGSTROM,
-    DEFAULT_MAX_SPIN_CONTAMINATION_PERCENT,
-    DEFAULT_MAX_STEPS,
-    DEFAULT_TOL_MAX_G,
-    EV_TO_CM_MINUS_ONE,
-    EV_TO_HARTREE,
-    EV_TO_KCAL_MOL,
-    HARTREE_TO_EV,
-    HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    KCAL_MOL_TO_EV,
-    KCAL_MOL_TO_HARTREE,
-    PLANCK_CONSTANT_J_S,
-    ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ,
-    SPEED_OF_LIGHT_M_S,
-    STANDARD_TEMPERATURE_K,
-    GridLevel,
-    HessianPreconditioner,
-    OptimizationMethod,
-    ORCAOptimizationInput,
-    QMOracle,
-    QMOracleConfig,
-    RelaxationResult,
-    SpinContaminationError,
-    SpinContaminationResult,
-    compute_expected_s_squared,
-    compute_s_squared_deviation_percent,
-    evaluate_spin_contamination,
-    generate_orca_optimization_block,
-    get_atomic_mass,
-    get_monoisotopic_mass,
-    relax_conformer_xtb,
-    validate_conformer_stability,
-)
-
-__all__ = [
-    "AverageMinimumRMSD",
-    "BOHR_RADIUS_ANGSTROM",
-    "BoltzmannWeightedEnergyMAE",
-    "ConformerCoverage",
-    "ConformerEnsembleEvaluator",
-    "DEFAULT_AMR_THRESHOLD",
-    "DEFAULT_COV_THRESHOLD",
-    "DEFAULT_FMAX_EV_ANGSTROM",
-    "DEFAULT_MAX_SPIN_CONTAMINATION_PERCENT",
-    "DEFAULT_MAX_STEPS",
-    "DEFAULT_TEMPERATURE_K",
-    "DEFAULT_TOL_MAX_G",
-    "EV_TO_CM_MINUS_ONE",
-    "EV_TO_HARTREE",
-    "EV_TO_KCAL_MOL",
-    "EnergyMAE",
-    "ForceCosineSimilarity",
-    "ForceMAE",
-    "ForceRMSE",
-    "GridLevel",
-    "HARTREE_TO_EV",
-    "HARTREE_TO_KCAL_MOL",
-    "HARTREE_TO_KJ_MOL",
-    "HessianPreconditioner",
-    "InertialDefectMAE",
-    "InternalCoordinatesMAE",
-    "KCAL_MOL_TO_EV",
-    "KCAL_MOL_TO_HARTREE",
-    "OptimizationMethod",
-    "ORCAOptimizationInput",
-    "PLANCK_CONSTANT_J_S",
-    "QMOracle",
-    "QMOracleConfig",
-    "RelativeEnergyMAE",
-    "RelaxationResult",
-    "RotationalConstantsMAE",
-    "ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ",
-    "SPEED_OF_LIGHT_M_S",
-    "STANDARD_TEMPERATURE_K",
-    "SpinContaminationError",
-    "SpinContaminationResult",
-    "compute_average_minimum_rmsd",
-    "compute_bond_angles",
-    "compute_bond_lengths",
-    "compute_conformer_coverage",
-    "compute_dihedral_angles",
-    "compute_expected_s_squared",
-    "compute_inertial_defect",
-    "compute_moments_of_inertia",
-    "compute_rmsd",
-    "compute_s_squared_deviation_percent",
-    "convert_energy",
-    "evaluate_spin_contamination",
-    "generate_orca_optimization_block",
-    "get_atomic_mass",
-    "get_atomic_masses",
-    "get_monoisotopic_mass",
-    "kabsch_align",
-    "kabsch_rotation",
-    "pairwise_conformer_rmsd",
-    "relax_conformer_xtb",
-    "validate_conformer_stability",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_scribe_payload_builder.py ---
-#!/usr/bin/env python3
-"""Unit Tests for CoChem-SCRIBE Context-Safe Payload Builder & Prompt Synthesizer.
-
-Phase 2, Task 6: Context-Safe Payload Builder & Prompt Synthesis
-(tests/test_scribe_payload_builder.py).
-
-Adheres strictly to the Anti-Spoofing Protocol.
-Executes against authentic data structures, verifying:
-1. Token Count Estimation via tiktoken (cl100k_base).
-2. 4-Tier Context Chunking, Priority Shedding, and Tier-4 Invariant Preservation.
-3. Master System Prompt Regex and Mandatory Injection Tags.
-4. Dry-Run Offline Benchmark (< 0.05s execution speed).
-5. LAM Trigger Physics Justification Injection.
-6. Pipeline Execution Provenance Context Synthesis.
-7. Methodology & Insights Dynamic Prompt Targeting.
-"""
-
-from __future__ import annotations
-
-import json
-import re
-import time
-from pathlib import Path
-from typing import Any
-
-import os
-import tempfile
-import pytest
-import tiktoken
-
-from harvesters.scribe_payload_builder import (
-    DEFAULT_TOKEN_LIMIT,
-    PayloadBuilder,
-)
-
-DRY_RUN_MAX_DURATION: float = 0.05
-MAX_ALLOWED_CONFS: int = 3
-MAX_ALLOWED_CRITICAL_WARNINGS: int = 2
-EXPECTED_INVARIANT_GIBBS: float = -182.1250
-EXPECTED_INVARIANT_ZPE: float = 48.9125
-
-
-@pytest.fixture(autouse=True)
-def configure_airgap_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Configures tiktoken to operate strictly with offline local cache."""
-    cache_dir = os.environ.get("TIKTOKEN_CACHE_DIR")
-    if not cache_dir or not Path(cache_dir).exists():
-        default_dir = Path(tempfile.gettempdir()) / "data-gym-cache"
-        if default_dir.exists():
-            cache_dir = str(default_dir)
-        else:
-            cache_dir = str(tmp_path / "tiktoken_cache")
-    monkeypatch.setenv("TIKTOKEN_CACHE_DIR", cache_dir)
-
-
-@pytest.fixture
-def authentic_aggregated_data() -> dict[str, Any]:
-    """Provides a realistic, authentic aggregated quantum chemistry dataset."""
-    return {
-        "conformers": [
-            {
-                "conformer_id": "conf_01",
-                "relative_energy_kcal_mol": 0.000,
-                "point_group_symmetry": "C2v",
-                "dipole_moment_debye": 1.854,
-            },
-            {
-                "conformer_id": "conf_02",
-                "relative_energy_kcal_mol": 0.742,
-                "point_group_symmetry": "Cs",
-                "dipole_moment_debye": 2.110,
-            },
-            {
-                "conformer_id": "conf_03",
-                "relative_energy_kcal_mol": 1.385,
-                "point_group_symmetry": "C1",
-                "dipole_moment_debye": 0.940,
-            },
-            {
-                "conformer_id": "conf_04",
-                "relative_energy_kcal_mol": 2.450,
-                "point_group_symmetry": "C1",
-                "dipole_moment_debye": 1.450,
-            },
-        ],
-        "spectroscopy": {
-            "rotational_constants": {
-                "A": 10342.15,
-                "B": 2451.80,
-                "C": 1980.45,
-            },
-            "dipole_moments": {
-                "mu_a": 1.54,
-                "mu_b": 0.98,
-                "mu_c": 0.00,
-                "total": 1.83,
-            },
-            "centrifugal_distortion": {
-                "Delta_J": 0.00142,
-                "Delta_JK": -0.00512,
-                "Delta_K": 0.02341,
-                "delta_J": 0.00031,
-                "delta_K": 0.00115,
-            },
-        },
-        "thermodynamics": {
-            "zpe_kcal_mol": 45.6782,
-            "enthalpy_kcal_mol": -153.2104,
-            "gibbs_free_energy_kcal_mol": -154.8912,
-            "vpt2_frequencies_cm1": [
-                125.4,
-                210.8,
-                345.2,
-                512.6,
-                780.1,
-                1024.5,
-                1250.0,
-                1480.2,
-                1650.4,
-                2980.1,
-                3100.5,
-                3650.0,
-            ],
-        },
-        "telemetry": {
-            "wall_clock_time_seconds": 142.85,
-            "peak_gpu_vram_mb": 2450.0,
-            "lam_active": False,
-            "warnings": [
-                "Info: Geometry optimization converged in 14 cycles.",
-                "Warning: Low barrier detected along dihedral C1-C2-O3-H4.",
-            ],
-        },
-        "provenance": {
-            "engine_versions": {
-                "orca": "6.1.1",
-                "mace": "0.2.0",
-                "xtb": "6.7.1",
-                "pyscf": "2.8.0",
-            },
-            "config_sha256": ("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-        },
-    }
-
-
-@pytest.fixture
-def maximal_oversized_payload() -> dict[str, Any]:
-    """Generates a maximal statistical data payload exceeding ~15,000 tokens."""
-    conformers: list[dict[str, Any]] = []
-    for i in range(25):
-        conformers.append(
-            {
-                "conformer_id": f"conf_{i + 1:02d}",
-                "relative_energy_kcal_mol": float(i * 0.45),
-                "point_group_symmetry": "C1" if i > 0 else "C2v",
-                "dipole_moment_debye": 1.5 + (i * 0.05),
-                "cartesian_coordinates_angstrom": [
-                    [float(j * 0.1), float(j * 0.2), float(j * 0.3)] for j in range(30)
-                ],
-                "rotational_constants_mhz": {
-                    "A": 9000.0 - (i * 50),
-                    "B": 2500.0 - (i * 20),
-                    "C": 1800.0 - (i * 10),
-                },
-                "internal_coordinate_scan_degrees": [float(deg) for deg in range(0, 360, 5)],
-            }
-        )
-
-    # Generate 3000 vibrational frequency entries to exercise Tier 2
-    frequencies = [float(100.0 + k * 1.5) for k in range(3000)]
-
-    # Generate 500 verbose telemetry warning entries for Tier 3
-    warnings = [
-        (
-            f"Notice: Conformer exploratory step {k} generated "
-            "extensive Hessian matrix gradients with potential oscillations."
-        )
-        for k in range(500)
-    ]
-    warnings.append("Critical: Memory pressure exceeded 90% threshold during Hessian inversion.")
-    warnings.append("Fatal: Node 4 GPU memory bus dropped during parallel batch step.")
-
-    return {
-        "conformers": conformers,
-        "spectroscopy": {
-            "rotational_constants": {
-                "A": 8940.12,
-                "B": 2410.50,
-                "C": 1780.30,
-            },
-            "dipole_moments": {
-                "mu_a": 1.45,
-                "mu_b": 0.85,
-                "mu_c": 0.12,
-                "total": 1.68,
-            },
-            "centrifugal_distortion": {
-                "Delta_J": 0.0012,
-                "Delta_JK": -0.0045,
-                "Delta_K": 0.0210,
-                "delta_J": 0.00028,
-                "delta_K": 0.00105,
-            },
-        },
-        "thermodynamics": {
-            "zpe_kcal_mol": EXPECTED_INVARIANT_ZPE,
-            "enthalpy_kcal_mol": -180.4500,
-            "gibbs_free_energy_kcal_mol": EXPECTED_INVARIANT_GIBBS,
-            "vpt2_frequencies_cm1": frequencies,
-        },
-        "telemetry": {
-            "wall_clock_time_seconds": 1845.20,
-            "peak_gpu_vram_mb": 7890.0,
-            "lam_active": True,
-            "warnings": warnings,
-            "node_architecture": {
-                "cpu_cores": 128,
-                "gpu_model": "NVIDIA A100-SXM4-80GB",
-                "hostname": "hpc-node-042",
-            },
-        },
-        "provenance": {
-            "engine_versions": {
-                "orca": "6.1.1",
-                "mace": "0.2.0",
-                "xtb": "6.7.1",
-                "spycfit": "1.4.0",
-            },
-            "config_sha256": ("4a5c68385b45da87a2455b669be3089e103d09c60d135447f982148df555a59e"),
-        },
-    }
-
-
-def test_token_count_assertion(
-    authentic_aggregated_data: dict[str, Any],
-    maximal_oversized_payload: dict[str, Any],
-) -> None:
-    """Test 1: Asserts that count_tokens measures tokens using tiktoken."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    test_text = "CoChem-SCRIBE Mathematical Air-Gap and Token Metrology Engine."
-    measured_tokens = builder.count_tokens(test_text)
-
-    enc = tiktoken.get_encoding("cl100k_base")
-    expected_tokens = len(enc.encode(test_text))
-    assert measured_tokens == expected_tokens
-    assert measured_tokens > 0
-
-    json_str = json.dumps(authentic_aggregated_data)
-    json_token_count = builder.count_tokens(json_str)
-    assert json_token_count == len(enc.encode(json_str))
-    assert json_token_count < DEFAULT_TOKEN_LIMIT
-
-    # Assert that oversized physical chemistry data payload exceeds 6,000 token limit
-    oversized_str = json.dumps(maximal_oversized_payload)
-    oversized_token_count = builder.count_tokens(oversized_str)
-    assert oversized_token_count > DEFAULT_TOKEN_LIMIT
-    assert oversized_token_count == len(enc.encode(oversized_str))
-
-
-def test_truncation_trigger_and_tier_invariants(
-    maximal_oversized_payload: dict[str, Any],
-) -> None:
-    """Test 2: Asserts 4-tier context-chunking drops and preserves Tier-4."""
-    builder = PayloadBuilder(
-        aggregated_data=maximal_oversized_payload,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    initial_tokens = builder.count_tokens(json.dumps(maximal_oversized_payload))
-    assert initial_tokens > DEFAULT_TOKEN_LIMIT, (
-        f"Payload must exceed ceiling (was {initial_tokens})"
-    )
-
-    truncated = builder.truncate_payload(maximal_oversized_payload)
-    truncated_tokens = builder.count_tokens(json.dumps(truncated))
-
-    assert truncated_tokens <= DEFAULT_TOKEN_LIMIT, (
-        f"Truncated payload exceeds ceiling: {truncated_tokens} > 6000"
-    )
-
-    # Tier 1 Assertion: Conformers pruned down to top 3 global minima
-    assert len(truncated["conformers"]) <= MAX_ALLOWED_CONFS
-    assert truncated["conformers"][0]["conformer_id"] == "conf_01"
-    assert truncated["conformers"][0]["relative_energy_kcal_mol"] == 0.0
-
-    # Tier 2 Assertion: Vibrational frequencies pruned/reduced
-    if "vpt2_frequencies_cm1" in truncated.get("thermodynamics", {}):
-        assert len(truncated["thermodynamics"]["vpt2_frequencies_cm1"]) < len(
-            maximal_oversized_payload["thermodynamics"]["vpt2_frequencies_cm1"]
-        )
-
-    # Tier 3 Assertion: Only Fatal and Critical telemetry warnings retained
-    if "warnings" in truncated.get("telemetry", {}):
-        assert len(truncated["telemetry"]["warnings"]) <= MAX_ALLOWED_CRITICAL_WARNINGS
-        for w in truncated["telemetry"]["warnings"]:
-            assert any(tag in w for tag in ["Fatal", "Critical"]), (
-                f"Non-critical warning leaked: {w}"
-            )
-
-    # Tier 4 Protected Invariants (NEVER Truncate)
-    assert truncated["thermodynamics"]["gibbs_free_energy_kcal_mol"] == EXPECTED_INVARIANT_GIBBS
-    assert truncated["thermodynamics"]["zpe_kcal_mol"] == EXPECTED_INVARIANT_ZPE
-    assert truncated["provenance"]["engine_versions"]["orca"] == "6.1.1"
-    assert truncated["provenance"]["engine_versions"]["mace"] == "0.2.0"
-
-    # Asserts that prompt construction completes without unhandled exceptions and respects token budget
-    method_prompt = builder.build_methodology_prompt()
-    assert builder.count_tokens(method_prompt) <= DEFAULT_TOKEN_LIMIT
-    insights_prompt = builder.build_insights_prompt()
-    assert builder.count_tokens(insights_prompt) <= DEFAULT_TOKEN_LIMIT
-
-
-def test_master_system_prompt_regex_and_tags(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 3: Asserts prompt prepends Master System Prompt with injection tags."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-
-    sys_prompt = builder.get_master_system_prompt()
-    assert (
-        "You are an automated academic writer for the CoChem computational "
-        "chemistry pipeline." in sys_prompt
-    )
-    assert "strictly forbidden" in sys_prompt
-    assert "INSERT_THERMO_TABLE_HERE" in sys_prompt
-
-    method_prompt = builder.build_methodology_prompt()
-    assert method_prompt.startswith(sys_prompt) or sys_prompt in method_prompt
-    assert re.search(r"strictly forbidden", method_prompt) is not None
-    assert "INSERT_THERMO_TABLE_HERE" in method_prompt
-    assert "INSERT_SPECTROSCOPY_TABLE_HERE" in method_prompt
-
-    insights_prompt = builder.build_insights_prompt()
-    assert insights_prompt.startswith(sys_prompt) or sys_prompt in insights_prompt
-    assert re.search(r"strictly forbidden", insights_prompt) is not None
-    assert "INSERT_THERMO_TABLE_HERE" in insights_prompt
-    assert "Boltzmann" in insights_prompt
-
-
-def test_dry_run_benchmark(authentic_aggregated_data: dict[str, Any]) -> None:
-    """Test 4: Asserts dry_run=True returns fallback string in <0.05s."""
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-        dry_run=True,
-    )
-
-    start_time = time.perf_counter()
-    result_method = builder.build_methodology_prompt()
-    result_insights = builder.build_insights_prompt()
-    result_dry = builder.execute_dry_run()
-    elapsed = time.perf_counter() - start_time
-
-    expected_fallback = (
-        "Calculations were performed using the methods listed in the appended tables. "
-        "[LLM BYPASSED VIA DRY-RUN]"
-    )
-
-    assert result_method == expected_fallback
-    assert result_insights == expected_fallback
-    assert result_dry == expected_fallback
-    assert elapsed < DRY_RUN_MAX_DURATION, f"Dry-run took too long: {elapsed:.4f}s >= 0.05s"
-
-
-def test_lam_trigger_physics_justification(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 5: Asserts Sinc-DVR justification injection when LAM is active."""
-    builder_no_lam = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    prompt_no_lam = builder_no_lam.build_methodology_prompt()
-    assert "Sinc-DVR" not in prompt_no_lam
-
-    data_with_lam = dict(authentic_aggregated_data)
-    data_with_lam["telemetry"] = dict(authentic_aggregated_data["telemetry"])
-    data_with_lam["telemetry"]["lam_active"] = True
-
-    builder_with_lam = PayloadBuilder(
-        aggregated_data=data_with_lam,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    prompt_with_lam = builder_with_lam.build_methodology_prompt()
-
-    expected_lam_phrase = (
-        "The telemetry indicates the system utilized a Sinc-DVR for torsional motion. "
-        "Generate one paragraph scientifically justifying the use of Sinc-DVR over the "
-        "standard rigid-rotor harmonic oscillator (RRHO) approximation for this "
-        "highly flexible coordinate."
-    )
-    assert expected_lam_phrase in prompt_with_lam
-
-
-def test_synthesize_pipeline_context(
-    authentic_aggregated_data: dict[str, Any],
-) -> None:
-    """Test 6: Asserts pipeline context extracts software stack and provenance."""
-    manifest = {
-        "version": "2026.2",
-        "calculation_environment": "Local-Windows (WSL)",
-        "engine_versions": {
-            "orca": "6.1.1",
-            "mace": "0.2.0",
-            "xtb": "6.7.1",
-        },
-    }
-    builder = PayloadBuilder(
-        aggregated_data=authentic_aggregated_data,
-        manifest_data=manifest,
-        token_limit=DEFAULT_TOKEN_LIMIT,
-    )
-    context_str = builder.synthesize_pipeline_context()
-    assert "ORCA" in context_str
-    assert "CODATA 2022 constants" in context_str
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_geom\eval\__init__.py ---
-"""CoChem-GEOM: Evaluation, Validation, and Metric Calculation Modules.
-======================================================================
-Provides physical relaxation oracles, SE(3) alignment algorithms (Kabsch),
-conformer ensemble metrics (Coverage, AMR), and validation contracts.
-"""
-
-from __future__ import annotations
-
-from cochem_geom.eval.metrics import (
-    AverageMinimumRMSD,
-    BoltzmannWeightedEnergyMAE,
-    ConformerCoverage,
-    ConformerEnsembleEvaluator,
-    DEFAULT_AMR_THRESHOLD,
-    DEFAULT_COV_THRESHOLD,
-    DEFAULT_TEMPERATURE_K,
-    EnergyMAE,
-    ForceCosineSimilarity,
-    ForceMAE,
-    ForceRMSE,
-    InertialDefectMAE,
-    InternalCoordinatesMAE,
-    RelativeEnergyMAE,
-    RotationalConstantsMAE,
-    compute_average_minimum_rmsd,
-    compute_bond_angles,
-    compute_bond_lengths,
-    compute_conformer_coverage,
-    compute_dihedral_angles,
-    compute_inertial_defect,
-    compute_moments_of_inertia,
-    compute_rmsd,
-    convert_energy,
-    get_atomic_masses,
-    kabsch_align,
-    kabsch_rotation,
-    pairwise_conformer_rmsd,
-)
-from cochem_geom.eval.qm_oracle import (
-    BOHR_RADIUS_ANGSTROM,
-    DEFAULT_FMAX_EV_ANGSTROM,
-    DEFAULT_MAX_SPIN_CONTAMINATION_PERCENT,
-    DEFAULT_MAX_STEPS,
-    DEFAULT_TOL_MAX_G,
-    EV_TO_CM_MINUS_ONE,
-    EV_TO_HARTREE,
-    EV_TO_KCAL_MOL,
-    HARTREE_TO_EV,
-    HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    KCAL_MOL_TO_EV,
-    KCAL_MOL_TO_HARTREE,
-    PLANCK_CONSTANT_J_S,
-    ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ,
-    SPEED_OF_LIGHT_M_S,
-    STANDARD_TEMPERATURE_K,
-    GridLevel,
-    HessianPreconditioner,
-    OptimizationMethod,
-    ORCAOptimizationInput,
-    QMOracle,
-    QMOracleConfig,
-    RelaxationResult,
-    SpinContaminationError,
-    SpinContaminationResult,
-    compute_expected_s_squared,
-    compute_s_squared_deviation_percent,
-    evaluate_spin_contamination,
-    generate_orca_optimization_block,
-    get_atomic_mass,
-    get_monoisotopic_mass,
-    relax_conformer_xtb,
-    validate_conformer_stability,
-)
-
-__all__ = [
-    "AverageMinimumRMSD",
-    "BOHR_RADIUS_ANGSTROM",
-    "BoltzmannWeightedEnergyMAE",
-    "ConformerCoverage",
-    "ConformerEnsembleEvaluator",
-    "DEFAULT_AMR_THRESHOLD",
-    "DEFAULT_COV_THRESHOLD",
-    "DEFAULT_FMAX_EV_ANGSTROM",
-    "DEFAULT_MAX_SPIN_CONTAMINATION_PERCENT",
-    "DEFAULT_MAX_STEPS",
-    "DEFAULT_TEMPERATURE_K",
-    "DEFAULT_TOL_MAX_G",
-    "EV_TO_CM_MINUS_ONE",
-    "EV_TO_HARTREE",
-    "EV_TO_KCAL_MOL",
-    "EnergyMAE",
-    "ForceCosineSimilarity",
-    "ForceMAE",
-    "ForceRMSE",
-    "GridLevel",
-    "HARTREE_TO_EV",
-    "HARTREE_TO_KCAL_MOL",
-    "HARTREE_TO_KJ_MOL",
-    "HessianPreconditioner",
-    "InertialDefectMAE",
-    "InternalCoordinatesMAE",
-    "KCAL_MOL_TO_EV",
-    "KCAL_MOL_TO_HARTREE",
-    "OptimizationMethod",
-    "ORCAOptimizationInput",
-    "PLANCK_CONSTANT_J_S",
-    "QMOracle",
-    "QMOracleConfig",
-    "RelativeEnergyMAE",
-    "RelaxationResult",
-    "RotationalConstantsMAE",
-    "ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ",
-    "SPEED_OF_LIGHT_M_S",
-    "STANDARD_TEMPERATURE_K",
-    "SpinContaminationError",
-    "SpinContaminationResult",
-    "compute_average_minimum_rmsd",
-    "compute_bond_angles",
-    "compute_bond_lengths",
-    "compute_conformer_coverage",
-    "compute_dihedral_angles",
-    "compute_expected_s_squared",
-    "compute_inertial_defect",
-    "compute_moments_of_inertia",
-    "compute_rmsd",
-    "compute_s_squared_deviation_percent",
-    "convert_energy",
-    "evaluate_spin_contamination",
-    "generate_orca_optimization_block",
-    "get_atomic_mass",
-    "get_atomic_masses",
-    "get_monoisotopic_mass",
-    "kabsch_align",
-    "kabsch_rotation",
-    "pairwise_conformer_rmsd",
-    "relax_conformer_xtb",
-    "validate_conformer_stability",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_geom\eval\metrics.py ---
-"""CoChem-GEOM: Precision Geometric Evaluation and Structural Metric Suite.
-========================================================================
-Implements TorchMetrics-compliant evaluation metrics, pure functional SE(3)
-invariant alignment (Kabsch algorithm), Conformer Coverage (COV), Average
-Minimum RMSD (AMR), Energy MAE/RMSE, Relative Energy Ranking, Boltzmann-Weighted
-Energies, Force Error Metrics, Spectroscopic Rotational Constants (A, B, C),
-Inertial Defects, and Internal Molecular Coordinates (Bonds, Angles, Dihedrals).
-
-Authoritative Standards & Directives:
-- Method Matrix v4.1: Conformer Ensemble Metrics & Physical Observables
-- TorchMetrics v1.0+: Modular Metric Interface with DDP State Reduction & Pure Tensor Ops
-- Mendeleev Library Mandate: All atomic/isotopic masses dynamically resolved via `mendeleev`
-- SE(3) Equivariance & Invariance: Strict separation of spatial pos [N, 3] from invariant features
-- State Immutability: Pure functional geometric transformations (pos_new = pos + shift, never in-place)
-- Dynamic Path Resolution: Cross-platform dynamic pathing via `pathlib` and environment variables
-- Provenance Tags: [M] Measured/Theoretical, [D] Derived/Calculated, [E] Expert Estimate
-- Strict Zero-Mock Policy: 100% authentic physical tensor mathematics and real execution
-"""
-
-from __future__ import annotations
-
+import datetime
 import logging
-import math
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
-
-from mendeleev import element
-import numpy as np
-import torch
-import torch.nn as nn
-from torchmetrics import Metric
-
-logger = logging.getLogger(__name__)
-
-
-# ==============================================================================
-# 1. Fundamental Physical Constants & Conversion Factors (CODATA 2018/2022)
-# ==============================================================================
-
-SPEED_OF_LIGHT_M_S: float = 299792458.0
-"""Speed of light in vacuum in meters per second (exact) [M]."""
-
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34
-"""Planck constant in Joule seconds (exact) [M]."""
-
-BOLTZMANN_CONSTANT_J_K: float = 1.380649e-23
-"""Boltzmann constant in Joules per Kelvin (exact) [M]."""
-
-BOLTZMANN_CONSTANT_EV_K: float = 8.617333262145e-5
-"""Boltzmann constant in electron-volts per Kelvin [D]."""
-
-ELEMENTARY_CHARGE_C: float = 1.602176634e-19
-"""Elementary charge in Coulombs (exact) [M]."""
-
-AVOGADRO_CONSTANT_MOL: float = 6.02214076e23
-"""Avogadro constant per mole (exact) [M]."""
-
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27
-"""Unified atomic mass unit / Dalton in kilograms [M]."""
-
-BOHR_RADIUS_ANGSTROM: float = 0.529177210903
-"""Bohr radius in Angstroms [M]."""
-
-HARTREE_TO_EV: float = 27.211386245988
-"""Conversion factor from Hartree to electron-volts [D]."""
-
-EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV
-"""Conversion factor from electron-volts to Hartree [D]."""
-
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-"""Conversion factor from Hartree to kilocalories per mole [D]."""
-
-KCAL_MOL_TO_HARTREE: float = 1.0 / HARTREE_TO_KCAL_MOL
-"""Conversion factor from kilocalories per mole to Hartree [D]."""
-
-KCAL_MOL_TO_EV: float = 0.04336411530877
-"""Conversion factor from kilocalories per mole to electron-volts [D]."""
-
-EV_TO_KCAL_MOL: float = 1.0 / KCAL_MOL_TO_EV
-"""Conversion factor from electron-volts to kilocalories per mole [D]."""
-
-HARTREE_TO_KJ_MOL: float = 2625.4996394799
-"""Conversion factor from Hartree to kilojoules per mole [D]."""
-
-EV_TO_KJ_MOL: float = HARTREE_TO_KJ_MOL / HARTREE_TO_EV
-"""Conversion factor from electron-volts to kilojoules per mole [D]."""
-
-EV_TO_CM_MINUS_ONE: float = 8065.54429
-"""Conversion factor from electron-volts to wavenumbers (cm^-1) [D]."""
-
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.008784
-"""Spectroscopic rotational constant conversion factor in MHz * u * Angstrom^2 [D]."""
-
-STANDARD_TEMPERATURE_K: float = 298.15
-"""Standard ambient reference temperature in Kelvin (25 deg C) [M]."""
-
-DEFAULT_TEMPERATURE_K: float = 298.15
-"""Default thermodynamic temperature in Kelvin for Boltzmann weighting [M]."""
-
-DEFAULT_COV_THRESHOLD: float = 0.5
-"""Default RMSD coverage threshold in Angstroms for conformer ensemble matching [E]."""
-
-DEFAULT_AMR_THRESHOLD: float = 0.5
-"""Default RMSD tolerance in Angstroms for average minimum RMSD evaluation [E]."""
-
-
-def convert_energy(
-    value: Union[float, torch.Tensor],
-    from_unit: str = "ev",
-    to_unit: str = "ev",
-) -> Union[float, torch.Tensor]:
-    """Convert energy values between supported physical units [D].
-
-    Supported units: 'ev', 'hartree', 'kcal_mol', 'kj_mol'.
-    """
-    from_u = from_unit.lower().replace("/", "_").replace("-", "_")
-    to_u = to_unit.lower().replace("/", "_").replace("-", "_")
-
-    if from_u == to_u:
-        return value
-
-    # Direct conversion dictionary for exact numerical precision
-    conversion_factors = {
-        ("ev", "hartree"): EV_TO_HARTREE,
-        ("hartree", "ev"): HARTREE_TO_EV,
-        ("hartree", "kcal_mol"): HARTREE_TO_KCAL_MOL,
-        ("kcal_mol", "hartree"): KCAL_MOL_TO_HARTREE,
-        ("hartree", "kj_mol"): HARTREE_TO_KJ_MOL,
-        ("kj_mol", "hartree"): 1.0 / HARTREE_TO_KJ_MOL,
-        ("ev", "kcal_mol"): EV_TO_KCAL_MOL,
-        ("kcal_mol", "ev"): KCAL_MOL_TO_EV,
-        ("ev", "kj_mol"): EV_TO_KJ_MOL,
-        ("kj_mol", "ev"): 1.0 / EV_TO_KJ_MOL,
-        ("kcal_mol", "kj_mol"): 4.184,
-        ("kj_mol", "kcal_mol"): 1.0 / 4.184,
-    }
-
-    if (from_u, to_u) in conversion_factors:
-        return value * conversion_factors[(from_u, to_u)]
-
-    # Fallback via eV
-    if from_u == "ev":
-        ev_val = value
-    elif from_u == "hartree":
-        ev_val = value * HARTREE_TO_EV
-    elif from_u == "kcal_mol":
-        ev_val = value * KCAL_MOL_TO_EV
-    elif from_u == "kj_mol":
-        ev_val = value * (1.0 / EV_TO_KJ_MOL)
-    else:
-        raise ValueError(f"Unsupported input energy unit: '{from_unit}'")
-
-    if to_u == "ev":
-        return ev_val
-    elif to_u == "hartree":
-        return ev_val * EV_TO_HARTREE
-    elif to_u == "kcal_mol":
-        return ev_val * EV_TO_KCAL_MOL
-    elif to_u == "kj_mol":
-        return ev_val * EV_TO_KJ_MOL
-    else:
-        raise ValueError(f"Unsupported target energy unit: '{to_unit}'")
-
-
-# ==============================================================================
-# 2. Dynamic Mendeleev Mass and Property Resolution Functions
-# ==============================================================================
-
-def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query standard atomic weight from mendeleev [M]."""
-    el = element(symbol_or_z)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.isotopes:
-        return float(el.isotopes[0].mass)
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
-
-
-def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query exact mass of most abundant natural isotope from mendeleev [M]."""
-    el = element(symbol_or_z)
-    if el.isotopes:
-        most_abundant = max(
-            el.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            return float(most_abundant.mass)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    raise ValueError(f"Monoisotopic mass not found for element '{symbol_or_z}'")
-
-
-def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
-    """Dynamically query atomic masses for a tensor of atomic numbers [M]."""
-    masses: List[float] = []
-    for z_val in atomic_numbers.view(-1).tolist():
-        masses.append(get_atomic_mass(int(z_val)))
-    return torch.tensor(masses, dtype=torch.float32, device=atomic_numbers.device).view(atomic_numbers.shape)
-
-
-# ==============================================================================
-# 3. Pure Functional Kabsch Algorithm & SE(3) Invariant Operations
-# ==============================================================================
-
-def kabsch_rotation(
-    p_centered: torch.Tensor,
-    q_centered: torch.Tensor,
-    weights: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Compute optimal 3D orthogonal rotation matrix R (SO(3)) minimizing weighted RMSD [D].
-
-    Parameters
-    ----------
-    p_centered : torch.Tensor
-        Centered reference coordinate tensor of shape (..., N, 3).
-    q_centered : torch.Tensor
-        Centered target coordinate tensor of shape (..., N, 3).
-    weights : Optional[torch.Tensor]
-        Optional per-atom positive weights of shape (..., N) or (N,).
-
-    Returns
-    -------
-    torch.Tensor
-        Optimal rotation matrix R of shape (..., 3, 3) such that q @ R.mT aligns to p.
-    """
-    if weights is not None:
-        w = weights.unsqueeze(-1) if weights.dim() == p_centered.dim() - 1 else weights
-        w = w / torch.sum(w, dim=-2, keepdim=True)
-        h = torch.matmul(q_centered.transpose(-1, -2), w * p_centered)
-    else:
-        h = torch.matmul(q_centered.transpose(-1, -2), p_centered)
-
-    u, s, vt = torch.linalg.svd(h)
-    v = vt.transpose(-1, -2)
-
-    # Reflection correction: ensure det(R) = +1 (proper rotation in SO(3))
-    det = torch.det(torch.matmul(v, u.transpose(-1, -2)))
-    diag = torch.ones_like(det).unsqueeze(-1).repeat_interleave(3, dim=-1)
-    diag[..., 2] = torch.where(det < 0.0, -1.0, 1.0)
-
-    r = torch.matmul(torch.matmul(v, torch.diag_embed(diag)), u.transpose(-1, -2))
-    return r
-
-
-def kabsch_align(
-    p_ref: torch.Tensor,
-    q_target: torch.Tensor,
-    weights: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Align target coordinates q to reference coordinates p via Kabsch algorithm [D].
-
-    Pure functional and state-immutable: never mutates input tensors.
-
-    Parameters
-    ----------
-    p_ref : torch.Tensor
-        Reference Cartesian coordinate tensor of shape (..., N, 3).
-    q_target : torch.Tensor
-        Target Cartesian coordinate tensor of shape (..., N, 3).
-    weights : Optional[torch.Tensor]
-        Optional per-atom weights of shape (..., N) or (N,).
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-        - q_aligned: Aligned target coordinates (..., N, 3)
-        - R: Optimal rotation matrix (..., 3, 3)
-        - t: Translation vector (..., 3)
-        - rmsd: Root-mean-square deviation (...,) in Angstroms [D]
-    """
-    if weights is not None:
-        w = weights.unsqueeze(-1) if weights.dim() == p_ref.dim() - 1 else weights
-        w_sum = torch.sum(w, dim=-2, keepdim=True) + 1e-12
-        p_centroid = torch.sum(p_ref * w, dim=-2, keepdim=True) / w_sum
-        q_centroid = torch.sum(q_target * w, dim=-2, keepdim=True) / w_sum
-    else:
-        p_centroid = torch.mean(p_ref, dim=-2, keepdim=True)
-        q_centroid = torch.mean(q_target, dim=-2, keepdim=True)
-
-    p_c = p_ref - p_centroid
-    q_c = q_target - q_centroid
-
-    r = kabsch_rotation(p_c, q_c, weights=weights)
-
-    # Pure immutable transformation: q_aligned = q_c @ R.mT + p_centroid
-    q_aligned = torch.matmul(q_c, r.transpose(-1, -2)) + p_centroid
-    t = p_centroid.squeeze(-2) - torch.matmul(q_centroid.squeeze(-2), r.transpose(-1, -2))
-
-    diff = p_ref - q_aligned
-    if weights is not None:
-        w_norm = weights / torch.sum(weights, dim=-1, keepdim=True)
-        sq_dist = torch.sum(diff**2, dim=-1)
-        mean_sq = torch.sum(sq_dist * w_norm, dim=-1)
-    else:
-        mean_sq = torch.mean(torch.sum(diff**2, dim=-1), dim=-1)
-
-    rmsd = torch.sqrt(torch.clamp(mean_sq, min=0.0))
-    return q_aligned, r, t, rmsd
-
-
-def compute_rmsd(
-    p_ref: torch.Tensor,
-    q_target: torch.Tensor,
-    align: bool = True,
-    weights: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Compute Root-Mean-Square Deviation (RMSD) between coordinates [D].
-
-    Parameters
-    ----------
-    p_ref : torch.Tensor
-        Reference Cartesian coordinates of shape (..., N, 3).
-    q_target : torch.Tensor
-        Target Cartesian coordinates of shape (..., N, 3).
-    align : bool
-        If True, applies Kabsch optimal SE(3) superposition prior to RMSD calculation.
-    weights : Optional[torch.Tensor]
-        Optional atom weights (e.g., atomic masses for mass-weighted RMSD).
-
-    Returns
-    -------
-    torch.Tensor
-        RMSD tensor of shape (...,) in Angstroms [D].
-    """
-    if align:
-        _, _, _, rmsd = kabsch_align(p_ref, q_target, weights=weights)
-        return rmsd
-
-    diff = p_ref - q_target
-    if weights is not None:
-        w_norm = weights / torch.sum(weights, dim=-1, keepdim=True)
-        sq_dist = torch.sum(diff**2, dim=-1)
-        mean_sq = torch.sum(sq_dist * w_norm, dim=-1)
-    else:
-        mean_sq = torch.mean(torch.sum(diff**2, dim=-1), dim=-1)
-    return torch.sqrt(torch.clamp(mean_sq, min=0.0))
-
-
-def pairwise_conformer_rmsd(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    align: bool = True,
-) -> torch.Tensor:
-    """Compute all-pairs RMSD matrix between reference and predicted conformer ensembles [D].
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformers tensor of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformers tensor of shape (K, N, 3).
-    align : bool
-        Whether to perform Kabsch alignment for each pair.
-
-    Returns
-    -------
-    torch.Tensor
-        Pairwise RMSD matrix of shape (M, K) in Angstroms [D].
-    """
-    m = ref_conformers.shape[0]
-    k = pred_conformers.shape[0]
-    rmsd_matrix = torch.empty((m, k), dtype=torch.float32, device=ref_conformers.device)
-
-    for i in range(m):
-        ref_i = ref_conformers[i]  # (N, 3)
-        for j in range(k):
-            pred_j = pred_conformers[j]  # (N, 3)
-            rmsd_matrix[i, j] = compute_rmsd(ref_i, pred_j, align=align)
-
-    return rmsd_matrix
-
-
-def compute_conformer_coverage(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    threshold: float = DEFAULT_COV_THRESHOLD,
-    align: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute Conformer Coverage Recall (COV-R) and Precision (COV-P) [D].
-
-    - COV-R: Percentage of reference conformers matched by at least one prediction within threshold.
-    - COV-P: Percentage of predicted conformers matched by at least one reference within threshold.
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformer ensemble of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformer ensemble of shape (K, N, 3).
-    threshold : float
-        RMSD cutoff threshold in Angstroms [E].
-    align : bool
-        Whether to apply Kabsch alignment.
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (cov_recall_percent, cov_precision_percent)
-    """
-    dist_matrix = pairwise_conformer_rmsd(ref_conformers, pred_conformers, align=align)
-
-    min_rmsd_ref = torch.min(dist_matrix, dim=1).values  # (M,)
-    min_rmsd_pred = torch.min(dist_matrix, dim=0).values  # (K,)
-
-    cov_recall = (torch.sum(min_rmsd_ref <= threshold).float() / float(dist_matrix.shape[0])) * 100.0
-    cov_precision = (torch.sum(min_rmsd_pred <= threshold).float() / float(dist_matrix.shape[1])) * 100.0
-
-    return cov_recall, cov_precision
-
-
-def compute_average_minimum_rmsd(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    align: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute Average Minimum RMSD Recall (AMR-R) and Precision (AMR-P) [D].
-
-    - AMR-R: Mean minimum RMSD over all reference conformers to the prediction ensemble.
-    - AMR-P: Mean minimum RMSD over all predicted conformers to the reference ensemble.
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformer ensemble of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformer ensemble of shape (K, N, 3).
-    align : bool
-        Whether to apply Kabsch alignment.
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (amr_recall_angstrom, amr_precision_angstrom)
-    """
-    dist_matrix = pairwise_conformer_rmsd(ref_conformers, pred_conformers, align=align)
-
-    min_rmsd_ref = torch.min(dist_matrix, dim=1).values  # (M,)
-    min_rmsd_pred = torch.min(dist_matrix, dim=0).values  # (K,)
-
-    amr_recall = torch.mean(min_rmsd_ref)
-    amr_precision = torch.mean(min_rmsd_pred)
-
-    return amr_recall, amr_precision
-
-
-# ==============================================================================
-# 4. Spectroscopic Observables: Moments of Inertia & Rotational Constants
-# ==============================================================================
-
-def compute_moments_of_inertia(
-    positions: torch.Tensor,
-    atomic_numbers: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute principal moments of inertia and rotational constants (A >= B >= C) [D].
-
-    Calculates center of mass using dynamic Mendeleev atomic masses, forms the
-    moment of inertia tensor, diagonalizes to obtain I_a <= I_b <= I_c in u*A^2,
-    and derives spectroscopic rotational constants A >= B >= C in MHz.
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinate tensor of shape (..., N, 3) in Angstroms.
-    atomic_numbers : torch.Tensor
-        Atomic numbers Z of shape (..., N) or (N,).
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        - principal_moments: (..., 3) sorted (I_a, I_b, I_c) in u * Angstrom^2 [D]
-        - rotational_constants_mhz: (..., 3) sorted (A, B, C) in MHz [D]
-    """
-    masses = get_atomic_masses(atomic_numbers)  # (..., N)
-    w_mass = masses.unsqueeze(-1)  # (..., N, 1)
-    total_mass = torch.sum(w_mass, dim=-2, keepdim=True) + 1e-12
-
-    # Center of mass
-    com = torch.sum(positions * w_mass, dim=-2, keepdim=True) / total_mass
-    r_com = positions - com  # (..., N, 3)
-
-    x = r_com[..., 0]
-    y = r_com[..., 1]
-    z = r_com[..., 2]
-
-    # Inertia tensor components
-    i_xx = torch.sum(masses * (y**2 + z**2), dim=-1)
-    i_yy = torch.sum(masses * (x**2 + z**2), dim=-1)
-    i_zz = torch.sum(masses * (x**2 + y**2), dim=-1)
-    i_xy = -torch.sum(masses * x * y, dim=-1)
-    i_xz = -torch.sum(masses * x * z, dim=-1)
-    i_yz = -torch.sum(masses * y * z, dim=-1)
-
-    # Assemble 3x3 inertia tensor
-    row1 = torch.stack([i_xx, i_xy, i_xz], dim=-1)
-    row2 = torch.stack([i_xy, i_yy, i_yz], dim=-1)
-    row3 = torch.stack([i_xz, i_yz, i_zz], dim=-1)
-    inertia_tensor = torch.stack([row1, row2, row3], dim=-2)  # (..., 3, 3)
-
-    # Eigenvalues (principal moments of inertia)
-    eigvals = torch.linalg.eigvalsh(inertia_tensor)  # (..., 3) sorted ascending
-    principal_moments = torch.clamp(eigvals, min=1e-8)
-
-    # Rotational constants: B_rot = 505379.008784 / I_p in MHz
-    rotational_constants = ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / principal_moments
-    # Principal moments I_a <= I_b <= I_c -> Rotational constants A >= B >= C
-
-    return principal_moments, rotational_constants
-
-
-def compute_inertial_defect(
-    positions: torch.Tensor,
-    atomic_numbers: torch.Tensor,
-) -> torch.Tensor:
-    """Compute the planar inertial defect Delta I = I_c - I_a - I_b [D].
-
-    For strictly planar molecules, Delta I ~ 0.0 in the rigid rotor limit [M].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (..., N, 3) in Angstroms.
-    atomic_numbers : torch.Tensor
-        Atomic numbers Z (..., N) or (N,).
-
-    Returns
-    -------
-    torch.Tensor
-        Planar inertial defect tensor (...,) in u * Angstrom^2 [D].
-    """
-    moments, _ = compute_moments_of_inertia(positions, atomic_numbers)
-    i_a = moments[..., 0]
-    i_b = moments[..., 1]
-    i_c = moments[..., 2]
-    return i_c - i_a - i_b
-
-
-# ==============================================================================
-# 5. Internal Molecular Coordinates: Bonds, Angles, and Dihedrals
-# ==============================================================================
-
-def compute_bond_lengths(
-    positions: torch.Tensor,
-    bonds: torch.Tensor,
-) -> torch.Tensor:
-    """Compute bond lengths for specified atom pairs [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    bonds : torch.Tensor
-        Bond index pairs tensor (E, 2).
-
-    Returns
-    -------
-    torch.Tensor
-        Bond lengths (E,) or (B, E) in Angstroms [D].
-    """
-    idx_i = bonds[:, 0]
-    idx_j = bonds[:, 1]
-    pos_i = positions[..., idx_i, :]
-    pos_j = positions[..., idx_j, :]
-    return torch.sqrt(torch.clamp(torch.sum((pos_i - pos_j) ** 2, dim=-1), min=0.0))
-
-
-def compute_bond_angles(
-    positions: torch.Tensor,
-    angles: torch.Tensor,
-) -> torch.Tensor:
-    """Compute valence bond angles (i - j - k) in degrees [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    angles : torch.Tensor
-        Angle triplets index tensor (A, 3) where j is the central vertex atom.
-
-    Returns
-    -------
-    torch.Tensor
-        Valence bond angles in degrees (A,) or (B, A) [D].
-    """
-    idx_i = angles[:, 0]
-    idx_j = angles[:, 1]  # Central vertex
-    idx_k = angles[:, 2]
-
-    pos_i = positions[..., idx_i, :]
-    pos_j = positions[..., idx_j, :]
-    pos_k = positions[..., idx_k, :]
-
-    v_ji = pos_i - pos_j
-    v_jk = pos_k - pos_j
-
-    v_ji_u = v_ji / (torch.norm(v_ji, dim=-1, keepdim=True) + 1e-12)
-    v_jk_u = v_jk / (torch.norm(v_jk, dim=-1, keepdim=True) + 1e-12)
-
-    dot_prod = torch.sum(v_ji_u * v_jk_u, dim=-1)
-    cos_theta = torch.clamp(dot_prod, -1.0 + 1e-7, 1.0 - 1e-7)
-    return torch.rad2deg(torch.acos(cos_theta))
-
-
-def compute_dihedral_angles(
-    positions: torch.Tensor,
-    dihedrals: torch.Tensor,
-) -> torch.Tensor:
-    """Compute dihedral / torsion angles (i - j - k - l) in degrees [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    dihedrals : torch.Tensor
-        Dihedral quadruplet index tensor (D, 4).
-
-    Returns
-    -------
-    torch.Tensor
-        Dihedral angles in degrees (D,) or (B, D) in range [-180, 180] [D].
-    """
-    p0 = positions[..., dihedrals[:, 0], :]
-    p1 = positions[..., dihedrals[:, 1], :]
-    p2 = positions[..., dihedrals[:, 2], :]
-    p3 = positions[..., dihedrals[:, 3], :]
-
-    b0 = -1.0 * (p1 - p0)
-    b1 = p2 - p1
-    b2 = p3 - p2
-
-    b1_norm = b1 / (torch.norm(b1, dim=-1, keepdim=True) + 1e-12)
-
-    v = b0 - torch.sum(b0 * b1_norm, dim=-1, keepdim=True) * b1_norm
-    w = b2 - torch.sum(b2 * b1_norm, dim=-1, keepdim=True) * b1_norm
-
-    x = torch.sum(v * w, dim=-1)
-    y = torch.sum(torch.cross(b1_norm, v, dim=-1) * w, dim=-1)
-
-    return torch.rad2deg(torch.atan2(y, x))
-
-
-# ==============================================================================
-# 6. TorchMetrics Base Metric Implementations
-# ==============================================================================
-
-class ConformerCoverage(Metric):
-    """TorchMetrics implementation for Conformer Coverage (COV-R and COV-P) [D].
-
-    Computes percentage of reference conformers covered by generated samples (Recall)
-    and percentage of generated conformers matching true references (Precision)
-    within a defined RMSD threshold.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        threshold: float = DEFAULT_COV_THRESHOLD,
-        align: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.threshold = threshold
-        self.align = align
-
-        self.add_state("total_ref_covered", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ref_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_covered", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        ref_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-        pred_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-    ) -> None:
-        """Update coverage statistics with conformer ensembles.
-
-        Parameters
-        ----------
-        ref_conformers : Union[torch.Tensor, Sequence[torch.Tensor]]
-            Tensor of shape (M, N, 3) or list of ensemble tensors.
-        pred_conformers : Union[torch.Tensor, Sequence[torch.Tensor]]
-            Tensor of shape (K, N, 3) or list of ensemble tensors.
-        """
-        if isinstance(ref_conformers, torch.Tensor) and ref_conformers.dim() == 3:
-            ref_list = [ref_conformers]
-            pred_list = [pred_conformers]  # type: ignore
-        else:
-            ref_list = list(ref_conformers)  # type: ignore
-            pred_list = list(pred_conformers)  # type: ignore
-
-        for refs, preds in zip(ref_list, pred_list):
-            dist_mat = pairwise_conformer_rmsd(refs, preds, align=self.align)
-            min_ref = torch.min(dist_mat, dim=1).values
-            min_pred = torch.min(dist_mat, dim=0).values
-
-            self.total_ref_covered += torch.sum(min_ref <= self.threshold).float()
-            self.total_ref_count += float(dist_mat.shape[0])
-            self.total_pred_covered += torch.sum(min_pred <= self.threshold).float()
-            self.total_pred_count += float(dist_mat.shape[1])
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute Conformer Coverage Recall and Precision percentages [D]."""
-        cov_recall = (
-            (self.total_ref_covered / (self.total_ref_count + 1e-12)) * 100.0
-            if self.total_ref_count > 0
-            else torch.tensor(0.0)
-        )
-        cov_precision = (
-            (self.total_pred_covered / (self.total_pred_count + 1e-12)) * 100.0
-            if self.total_pred_count > 0
-            else torch.tensor(0.0)
-        )
-        return {
-            "cov_recall": cov_recall,
-            "cov_precision": cov_precision,
-        }
-
-
-class AverageMinimumRMSD(Metric):
-    """TorchMetrics implementation for Average Minimum RMSD (AMR-R and AMR-P) [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        align: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.align = align
-
-        self.add_state("sum_min_rmsd_ref", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ref_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_min_rmsd_pred", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        ref_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-        pred_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-    ) -> None:
-        """Update AMR statistics with conformer ensembles."""
-        if isinstance(ref_conformers, torch.Tensor) and ref_conformers.dim() == 3:
-            ref_list = [ref_conformers]
-            pred_list = [pred_conformers]  # type: ignore
-        else:
-            ref_list = list(ref_conformers)  # type: ignore
-            pred_list = list(pred_conformers)  # type: ignore
-
-        for refs, preds in zip(ref_list, pred_list):
-            dist_mat = pairwise_conformer_rmsd(refs, preds, align=self.align)
-            min_ref = torch.min(dist_mat, dim=1).values
-            min_pred = torch.min(dist_mat, dim=0).values
-
-            self.sum_min_rmsd_ref += torch.sum(min_ref)
-            self.total_ref_count += float(dist_mat.shape[0])
-            self.sum_min_rmsd_pred += torch.sum(min_pred)
-            self.total_pred_count += float(dist_mat.shape[1])
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute AMR Recall and Precision in Angstroms [D]."""
-        amr_recall = (
-            self.sum_min_rmsd_ref / (self.total_ref_count + 1e-12)
-            if self.total_ref_count > 0
-            else torch.tensor(0.0)
-        )
-        amr_precision = (
-            self.sum_min_rmsd_pred / (self.total_pred_count + 1e-12)
-            if self.total_pred_count > 0
-            else torch.tensor(0.0)
-        )
-        return {
-            "amr_recall": amr_recall,
-            "amr_precision": amr_precision,
-        }
-
-
-class EnergyMAE(Metric):
-    """TorchMetrics implementation for Mean Absolute Error in molecular energies [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update energy MAE accumulator."""
-        pred = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        target = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        error = torch.abs(pred - target)
-        self.sum_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute energy MAE in target units [D]."""
-        return self.sum_abs_error / (self.total_samples + 1e-12)
-
-
-class RelativeEnergyMAE(Metric):
-    """TorchMetrics implementation for relative conformer energy ranking MAE [D].
-
-    Computes MAE of relative energy differences (Delta E = E - min(E)) for conformer ensembles.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_rel_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update relative energy MAE."""
-        pred = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        target = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-
-        rel_pred = pred - torch.min(pred)
-        rel_target = target - torch.min(target)
-
-        error = torch.abs(rel_pred - rel_target)
-        self.sum_rel_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute relative energy MAE [D]."""
-        return self.sum_rel_abs_error / (self.total_samples + 1e-12)
-
-
-class BoltzmannWeightedEnergyMAE(Metric):
-    """TorchMetrics implementation for Boltzmann-weighted energy MAE [D].
-
-    Weights conformers by their equilibrium Boltzmann distribution at temperature T.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        temperature_k: float = DEFAULT_TEMPERATURE_K,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.temperature_k = temperature_k
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_weighted_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ensembles", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update Boltzmann-weighted energy error."""
-        # Convert target and pred to eV for Boltzmann factor calculation (kB * T in eV)
-        pred_ev = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit="ev")
-        target_ev = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit="ev")
-
-        kb_t_ev = BOLTZMANN_CONSTANT_EV_K * self.temperature_k
-        rel_target_ev = target_ev - torch.min(target_ev)
-        boltzmann_weights = torch.softmax(-rel_target_ev / kb_t_ev, dim=0)
-
-        # Evaluate absolute error in target units
-        pred_target_u = convert_energy(pred_ev, from_unit="ev", to_unit=self.target_unit)
-        target_target_u = convert_energy(target_ev, from_unit="ev", to_unit=self.target_unit)
-        abs_err = torch.abs(pred_target_u - target_target_u)
-
-        weighted_err = torch.sum(boltzmann_weights * abs_err)
-        self.sum_weighted_error += weighted_err
-        self.total_ensembles += 1.0
-
-    def compute(self) -> torch.Tensor:
-        """Compute average Boltzmann-weighted energy error [D]."""
-        return self.sum_weighted_error / (self.total_ensembles + 1e-12)
-
-
-class ForceMAE(Metric):
-    """TorchMetrics implementation for component-wise and vector force MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_components", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force MAE."""
-        diff = torch.abs(pred_forces - true_forces)
-        self.sum_abs_error += torch.sum(diff)
-        self.total_components += float(diff.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute force MAE in eV/Angstrom [D]."""
-        return self.sum_abs_error / (self.total_components + 1e-12)
-
-
-class ForceRMSE(Metric):
-    """TorchMetrics implementation for force Root-Mean-Square Error [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_sq_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_components", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force RMSE."""
-        sq_diff = (pred_forces - true_forces) ** 2
-        self.sum_sq_error += torch.sum(sq_diff)
-        self.total_components += float(sq_diff.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute force RMSE in eV/Angstrom [D]."""
-        return torch.sqrt(self.sum_sq_error / (self.total_components + 1e-12))
-
-
-class ForceCosineSimilarity(Metric):
-    """TorchMetrics implementation for force vector cosine similarity [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_cosine_sim", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_vectors", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force cosine similarity."""
-        p_norm = torch.norm(pred_forces, dim=-1, keepdim=True) + 1e-12
-        t_norm = torch.norm(true_forces, dim=-1, keepdim=True) + 1e-12
-        cos_sim = torch.sum((pred_forces / p_norm) * (true_forces / t_norm), dim=-1)
-        self.sum_cosine_sim += torch.sum(cos_sim)
-        self.total_vectors += float(cos_sim.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute mean force direction cosine similarity in [-1, 1] [D]."""
-        return self.sum_cosine_sim / (self.total_vectors + 1e-12)
-
-
-class RotationalConstantsMAE(Metric):
-    """TorchMetrics implementation for spectroscopic rotational constants MAE (A, B, C) [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_a", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_abs_b", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_abs_c", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_molecules", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        atomic_numbers: torch.Tensor,
-    ) -> None:
-        """Update rotational constants MAE."""
-        _, pred_rot = compute_moments_of_inertia(pred_positions, atomic_numbers)
-        _, target_rot = compute_moments_of_inertia(target_positions, atomic_numbers)
-
-        err_a = torch.abs(pred_rot[..., 0] - target_rot[..., 0])
-        err_b = torch.abs(pred_rot[..., 1] - target_rot[..., 1])
-        err_c = torch.abs(pred_rot[..., 2] - target_rot[..., 2])
-
-        self.sum_abs_a += torch.sum(err_a)
-        self.sum_abs_b += torch.sum(err_b)
-        self.sum_abs_c += torch.sum(err_c)
-        self.total_molecules += float(err_a.numel())
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute rotational constants MAE in MHz [D]."""
-        count = self.total_molecules + 1e-12
-        mae_a = self.sum_abs_a / count
-        mae_b = self.sum_abs_b / count
-        mae_c = self.sum_abs_c / count
-        mae_mean = (mae_a + mae_b + mae_c) / 3.0
-        return {
-            "mae_a_mhz": mae_a,
-            "mae_b_mhz": mae_b,
-            "mae_c_mhz": mae_c,
-            "mae_mean_mhz": mae_mean,
-        }
-
-
-class InertialDefectMAE(Metric):
-    """TorchMetrics implementation for planar inertial defect MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_defect_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_molecules", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        atomic_numbers: torch.Tensor,
-    ) -> None:
-        """Update planar inertial defect error."""
-        pred_defect = compute_inertial_defect(pred_positions, atomic_numbers)
-        target_defect = compute_inertial_defect(target_positions, atomic_numbers)
-        err = torch.abs(pred_defect - target_defect)
-        self.sum_abs_defect_error += torch.sum(err)
-        self.total_molecules += float(err.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute inertial defect MAE in u * Angstrom^2 [D]."""
-        return self.sum_abs_defect_error / (self.total_molecules + 1e-12)
-
-
-class InternalCoordinatesMAE(Metric):
-    """TorchMetrics implementation for bond lengths, bond angles, and dihedrals MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        bonds: Optional[torch.Tensor] = None,
-        angles: Optional[torch.Tensor] = None,
-        dihedrals: Optional[torch.Tensor] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.bonds = bonds
-        self.angles = angles
-        self.dihedrals = dihedrals
-
-        self.add_state("sum_bond_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_bonds", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_angle_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_angles", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_dihedral_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_dihedrals", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        bonds: Optional[torch.Tensor] = None,
-        angles: Optional[torch.Tensor] = None,
-        dihedrals: Optional[torch.Tensor] = None,
-    ) -> None:
-        """Update internal coordinate errors."""
-        active_bonds = bonds if bonds is not None else self.bonds
-        active_angles = angles if angles is not None else self.angles
-        active_dihedrals = dihedrals if dihedrals is not None else self.dihedrals
-
-        if active_bonds is not None and active_bonds.numel() > 0:
-            pred_b = compute_bond_lengths(pred_positions, active_bonds)
-            true_b = compute_bond_lengths(target_positions, active_bonds)
-            err_b = torch.abs(pred_b - true_b)
-            self.sum_bond_error += torch.sum(err_b)
-            self.total_bonds += float(err_b.numel())
-
-        if active_angles is not None and active_angles.numel() > 0:
-            pred_a = compute_bond_angles(pred_positions, active_angles)
-            true_a = compute_bond_angles(target_positions, active_angles)
-            err_a = torch.abs(pred_a - true_a)
-            self.sum_angle_error += torch.sum(err_a)
-            self.total_angles += float(err_a.numel())
-
-        if active_dihedrals is not None and active_dihedrals.numel() > 0:
-            pred_d = compute_dihedral_angles(pred_positions, active_dihedrals)
-            true_d = compute_dihedral_angles(target_positions, active_dihedrals)
-            # Periodic angular difference in [-180, 180]
-            diff_d = torch.remainder(pred_d - true_d + 180.0, 360.0) - 180.0
-            err_d = torch.abs(diff_d)
-            self.sum_dihedral_error += torch.sum(err_d)
-            self.total_dihedrals += float(err_d.numel())
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute internal coordinates MAE dictionary [D]."""
-        res: Dict[str, torch.Tensor] = {}
-        if self.total_bonds > 0:
-            res["mae_bonds_angstrom"] = self.sum_bond_error / self.total_bonds
-        if self.total_angles > 0:
-            res["mae_angles_deg"] = self.sum_angle_error / self.total_angles
-        if self.total_dihedrals > 0:
-            res["mae_dihedrals_deg"] = self.sum_dihedral_error / self.total_dihedrals
-        return res
-
-
-class ConformerEnsembleEvaluator(Metric):
-    """Comprehensive multi-metric evaluator for conformer generation models.
-
-    Integrates COV-R, COV-P, AMR-R, AMR-P, Energy MAE, Relative Energy MAE,
-    and Rotational Constants tracking into a unified evaluation harness.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        thresholds: Sequence[float] = (0.5, 1.25),
-        temperature_k: float = DEFAULT_TEMPERATURE_K,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.thresholds = list(thresholds)
-        self.temperature_k = temperature_k
-
-        # Safe keys without dots for nn.ModuleDict
-        self.cov_metrics = nn.ModuleDict(
-            {f"cov_{t:.2f}".replace(".", "_"): ConformerCoverage(threshold=t) for t in self.thresholds}
-        )
-        self.amr_metric = AverageMinimumRMSD()
-        self.energy_mae = EnergyMAE(target_unit="ev")
-        self.rel_energy_mae = RelativeEnergyMAE(target_unit="ev")
-        self.rotational_mae = RotationalConstantsMAE()
-
-    def update(
-        self,
-        ref_positions: torch.Tensor,
-        pred_positions: torch.Tensor,
-        ref_energies: Optional[torch.Tensor] = None,
-        pred_energies: Optional[torch.Tensor] = None,
-        atomic_numbers: Optional[torch.Tensor] = None,
-    ) -> None:
-        """Update all component metrics with evaluation batch."""
-        for metric in self.cov_metrics.values():
-            metric.update(ref_positions, pred_positions)
-
-        self.amr_metric.update(ref_positions, pred_positions)
-
-        if ref_energies is not None and pred_energies is not None:
-            self.energy_mae.update(pred_energies, ref_energies)
-            self.rel_energy_mae.update(pred_energies, ref_energies)
-
-        if atomic_numbers is not None and ref_positions.dim() >= 2 and pred_positions.dim() >= 2:
-            self.rotational_mae.update(pred_positions, ref_positions, atomic_numbers)
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute unified summary dictionary across all evaluated metrics [D]."""
-        results: Dict[str, torch.Tensor] = {}
-
-        for name, metric in self.cov_metrics.items():
-            cov_res = metric.compute()
-            t_str = name.split("cov_")[-1].replace("_", ".")
-            results[f"cov_recall_{t_str}"] = cov_res["cov_recall"]
-            results[f"cov_precision_{t_str}"] = cov_res["cov_precision"]
-
-        amr_res = self.amr_metric.compute()
-        results["amr_recall"] = amr_res["amr_recall"]
-        results["amr_precision"] = amr_res["amr_precision"]
-
-        if self.energy_mae.total_samples > 0:
-            results["energy_mae_ev"] = self.energy_mae.compute()
-            results["rel_energy_mae_ev"] = self.rel_energy_mae.compute()
-
-        if self.rotational_mae.total_molecules > 0:
-            rot_res = self.rotational_mae.compute()
-            results["rotational_mae_mhz"] = rot_res["mae_mean_mhz"]
-            results["rotational_mae_a_mhz"] = rot_res["mae_a_mhz"]
-            results["rotational_mae_b_mhz"] = rot_res["mae_b_mhz"]
-            results["rotational_mae_c_mhz"] = rot_res["mae_c_mhz"]
-
-        return results
-
-    def reset(self) -> None:
-        """Reset all child metrics."""
-        super().reset()
-        for metric in self.cov_metrics.values():
-            metric.reset()
-        self.amr_metric.reset()
-        self.energy_mae.reset()
-        self.rel_energy_mae.reset()
-        self.rotational_mae.reset()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_geom\eval\metrics.py ---
-"""CoChem-GEOM: Precision Geometric Evaluation and Structural Metric Suite.
-========================================================================
-Implements TorchMetrics-compliant evaluation metrics, pure functional SE(3)
-invariant alignment (Kabsch algorithm), Conformer Coverage (COV), Average
-Minimum RMSD (AMR), Energy MAE/RMSE, Relative Energy Ranking, Boltzmann-Weighted
-Energies, Force Error Metrics, Spectroscopic Rotational Constants (A, B, C),
-Inertial Defects, and Internal Molecular Coordinates (Bonds, Angles, Dihedrals).
-
-Authoritative Standards & Directives:
-- Method Matrix v4.1: Conformer Ensemble Metrics & Physical Observables
-- TorchMetrics v1.0+: Modular Metric Interface with DDP State Reduction & Pure Tensor Ops
-- Mendeleev Library Mandate: All atomic/isotopic masses dynamically resolved via `mendeleev`
-- SE(3) Equivariance & Invariance: Strict separation of spatial pos [N, 3] from invariant features
-- State Immutability: Pure functional geometric transformations (pos_new = pos + shift, never in-place)
-- Dynamic Path Resolution: Cross-platform dynamic pathing via `pathlib` and environment variables
-- Provenance Tags: [M] Measured/Theoretical, [D] Derived/Calculated, [E] Expert Estimate
-- Strict Zero-Mock Policy: 100% authentic physical tensor mathematics and real execution
-"""
-
-from __future__ import annotations
-
-import logging
-import math
-import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
-
-from mendeleev import element
-import numpy as np
-import torch
-import torch.nn as nn
-from torchmetrics import Metric
-
-logger = logging.getLogger(__name__)
-
-
-# ==============================================================================
-# 1. Fundamental Physical Constants & Conversion Factors (CODATA 2018/2022)
-# ==============================================================================
-
-SPEED_OF_LIGHT_M_S: float = 299792458.0
-"""Speed of light in vacuum in meters per second (exact) [M]."""
-
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34
-"""Planck constant in Joule seconds (exact) [M]."""
-
-BOLTZMANN_CONSTANT_J_K: float = 1.380649e-23
-"""Boltzmann constant in Joules per Kelvin (exact) [M]."""
-
-BOLTZMANN_CONSTANT_EV_K: float = 8.617333262145e-5
-"""Boltzmann constant in electron-volts per Kelvin [D]."""
-
-ELEMENTARY_CHARGE_C: float = 1.602176634e-19
-"""Elementary charge in Coulombs (exact) [M]."""
-
-AVOGADRO_CONSTANT_MOL: float = 6.02214076e23
-"""Avogadro constant per mole (exact) [M]."""
-
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27
-"""Unified atomic mass unit / Dalton in kilograms [M]."""
-
-BOHR_RADIUS_ANGSTROM: float = 0.529177210903
-"""Bohr radius in Angstroms [M]."""
-
-HARTREE_TO_EV: float = 27.211386245988
-"""Conversion factor from Hartree to electron-volts [D]."""
-
-EV_TO_HARTREE: float = 1.0 / HARTREE_TO_EV
-"""Conversion factor from electron-volts to Hartree [D]."""
-
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-"""Conversion factor from Hartree to kilocalories per mole [D]."""
-
-KCAL_MOL_TO_HARTREE: float = 1.0 / HARTREE_TO_KCAL_MOL
-"""Conversion factor from kilocalories per mole to Hartree [D]."""
-
-KCAL_MOL_TO_EV: float = 0.04336411530877
-"""Conversion factor from kilocalories per mole to electron-volts [D]."""
-
-EV_TO_KCAL_MOL: float = 1.0 / KCAL_MOL_TO_EV
-"""Conversion factor from electron-volts to kilocalories per mole [D]."""
-
-HARTREE_TO_KJ_MOL: float = 2625.4996394799
-"""Conversion factor from Hartree to kilojoules per mole [D]."""
-
-EV_TO_KJ_MOL: float = HARTREE_TO_KJ_MOL / HARTREE_TO_EV
-"""Conversion factor from electron-volts to kilojoules per mole [D]."""
-
-EV_TO_CM_MINUS_ONE: float = 8065.54429
-"""Conversion factor from electron-volts to wavenumbers (cm^-1) [D]."""
-
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.008784
-"""Spectroscopic rotational constant conversion factor in MHz * u * Angstrom^2 [D]."""
-
-STANDARD_TEMPERATURE_K: float = 298.15
-"""Standard ambient reference temperature in Kelvin (25 deg C) [M]."""
-
-DEFAULT_TEMPERATURE_K: float = 298.15
-"""Default thermodynamic temperature in Kelvin for Boltzmann weighting [M]."""
-
-DEFAULT_COV_THRESHOLD: float = 0.5
-"""Default RMSD coverage threshold in Angstroms for conformer ensemble matching [E]."""
-
-DEFAULT_AMR_THRESHOLD: float = 0.5
-"""Default RMSD tolerance in Angstroms for average minimum RMSD evaluation [E]."""
-
-
-def convert_energy(
-    value: Union[float, torch.Tensor],
-    from_unit: str = "ev",
-    to_unit: str = "ev",
-) -> Union[float, torch.Tensor]:
-    """Convert energy values between supported physical units [D].
-
-    Supported units: 'ev', 'hartree', 'kcal_mol', 'kj_mol'.
-    """
-    from_u = from_unit.lower().replace("/", "_").replace("-", "_")
-    to_u = to_unit.lower().replace("/", "_").replace("-", "_")
-
-    if from_u == to_u:
-        return value
-
-    # Direct conversion dictionary for exact numerical precision
-    conversion_factors = {
-        ("ev", "hartree"): EV_TO_HARTREE,
-        ("hartree", "ev"): HARTREE_TO_EV,
-        ("hartree", "kcal_mol"): HARTREE_TO_KCAL_MOL,
-        ("kcal_mol", "hartree"): KCAL_MOL_TO_HARTREE,
-        ("hartree", "kj_mol"): HARTREE_TO_KJ_MOL,
-        ("kj_mol", "hartree"): 1.0 / HARTREE_TO_KJ_MOL,
-        ("ev", "kcal_mol"): EV_TO_KCAL_MOL,
-        ("kcal_mol", "ev"): KCAL_MOL_TO_EV,
-        ("ev", "kj_mol"): EV_TO_KJ_MOL,
-        ("kj_mol", "ev"): 1.0 / EV_TO_KJ_MOL,
-        ("kcal_mol", "kj_mol"): 4.184,
-        ("kj_mol", "kcal_mol"): 1.0 / 4.184,
-    }
-
-    if (from_u, to_u) in conversion_factors:
-        return value * conversion_factors[(from_u, to_u)]
-
-    # Fallback via eV
-    if from_u == "ev":
-        ev_val = value
-    elif from_u == "hartree":
-        ev_val = value * HARTREE_TO_EV
-    elif from_u == "kcal_mol":
-        ev_val = value * KCAL_MOL_TO_EV
-    elif from_u == "kj_mol":
-        ev_val = value * (1.0 / EV_TO_KJ_MOL)
-    else:
-        raise ValueError(f"Unsupported input energy unit: '{from_unit}'")
-
-    if to_u == "ev":
-        return ev_val
-    elif to_u == "hartree":
-        return ev_val * EV_TO_HARTREE
-    elif to_u == "kcal_mol":
-        return ev_val * EV_TO_KCAL_MOL
-    elif to_u == "kj_mol":
-        return ev_val * EV_TO_KJ_MOL
-    else:
-        raise ValueError(f"Unsupported target energy unit: '{to_unit}'")
-
-
-# ==============================================================================
-# 2. Dynamic Mendeleev Mass and Property Resolution Functions
-# ==============================================================================
-
-def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query standard atomic weight from mendeleev [M]."""
-    el = element(symbol_or_z)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.isotopes:
-        return float(el.isotopes[0].mass)
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
-
-
-def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically query exact mass of most abundant natural isotope from mendeleev [M]."""
-    el = element(symbol_or_z)
-    if el.isotopes:
-        most_abundant = max(
-            el.isotopes,
-            key=lambda iso: (iso.abundance if iso.abundance is not None else 0.0),
-        )
-        if most_abundant.mass is not None:
-            return float(most_abundant.mass)
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    raise ValueError(f"Monoisotopic mass not found for element '{symbol_or_z}'")
-
-
-def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
-    """Dynamically query atomic masses for a tensor of atomic numbers [M]."""
-    masses: List[float] = []
-    for z_val in atomic_numbers.view(-1).tolist():
-        masses.append(get_atomic_mass(int(z_val)))
-    return torch.tensor(masses, dtype=torch.float32, device=atomic_numbers.device).view(atomic_numbers.shape)
-
-
-# ==============================================================================
-# 3. Pure Functional Kabsch Algorithm & SE(3) Invariant Operations
-# ==============================================================================
-
-def kabsch_rotation(
-    p_centered: torch.Tensor,
-    q_centered: torch.Tensor,
-    weights: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Compute optimal 3D orthogonal rotation matrix R (SO(3)) minimizing weighted RMSD [D].
-
-    Parameters
-    ----------
-    p_centered : torch.Tensor
-        Centered reference coordinate tensor of shape (..., N, 3).
-    q_centered : torch.Tensor
-        Centered target coordinate tensor of shape (..., N, 3).
-    weights : Optional[torch.Tensor]
-        Optional per-atom positive weights of shape (..., N) or (N,).
-
-    Returns
-    -------
-    torch.Tensor
-        Optimal rotation matrix R of shape (..., 3, 3) such that q @ R.mT aligns to p.
-    """
-    if weights is not None:
-        w = weights.unsqueeze(-1) if weights.dim() == p_centered.dim() - 1 else weights
-        w = w / torch.sum(w, dim=-2, keepdim=True)
-        h = torch.matmul(q_centered.transpose(-1, -2), w * p_centered)
-    else:
-        h = torch.matmul(q_centered.transpose(-1, -2), p_centered)
-
-    u, s, vt = torch.linalg.svd(h)
-    v = vt.transpose(-1, -2)
-
-    # Reflection correction: ensure det(R) = +1 (proper rotation in SO(3))
-    det = torch.det(torch.matmul(v, u.transpose(-1, -2)))
-    diag = torch.ones_like(det).unsqueeze(-1).repeat_interleave(3, dim=-1)
-    diag[..., 2] = torch.where(det < 0.0, -1.0, 1.0)
-
-    r = torch.matmul(torch.matmul(v, torch.diag_embed(diag)), u.transpose(-1, -2))
-    return r
-
-
-def kabsch_align(
-    p_ref: torch.Tensor,
-    q_target: torch.Tensor,
-    weights: Optional[torch.Tensor] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Align target coordinates q to reference coordinates p via Kabsch algorithm [D].
-
-    Pure functional and state-immutable: never mutates input tensors.
-
-    Parameters
-    ----------
-    p_ref : torch.Tensor
-        Reference Cartesian coordinate tensor of shape (..., N, 3).
-    q_target : torch.Tensor
-        Target Cartesian coordinate tensor of shape (..., N, 3).
-    weights : Optional[torch.Tensor]
-        Optional per-atom weights of shape (..., N) or (N,).
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
-        - q_aligned: Aligned target coordinates (..., N, 3)
-        - R: Optimal rotation matrix (..., 3, 3)
-        - t: Translation vector (..., 3)
-        - rmsd: Root-mean-square deviation (...,) in Angstroms [D]
-    """
-    if weights is not None:
-        w = weights.unsqueeze(-1) if weights.dim() == p_ref.dim() - 1 else weights
-        w_sum = torch.sum(w, dim=-2, keepdim=True) + 1e-12
-        p_centroid = torch.sum(p_ref * w, dim=-2, keepdim=True) / w_sum
-        q_centroid = torch.sum(q_target * w, dim=-2, keepdim=True) / w_sum
-    else:
-        p_centroid = torch.mean(p_ref, dim=-2, keepdim=True)
-        q_centroid = torch.mean(q_target, dim=-2, keepdim=True)
-
-    p_c = p_ref - p_centroid
-    q_c = q_target - q_centroid
-
-    r = kabsch_rotation(p_c, q_c, weights=weights)
-
-    # Pure immutable transformation: q_aligned = q_c @ R.mT + p_centroid
-    q_aligned = torch.matmul(q_c, r.transpose(-1, -2)) + p_centroid
-    t = p_centroid.squeeze(-2) - torch.matmul(q_centroid.squeeze(-2), r.transpose(-1, -2))
-
-    diff = p_ref - q_aligned
-    if weights is not None:
-        w_norm = weights / torch.sum(weights, dim=-1, keepdim=True)
-        sq_dist = torch.sum(diff**2, dim=-1)
-        mean_sq = torch.sum(sq_dist * w_norm, dim=-1)
-    else:
-        mean_sq = torch.mean(torch.sum(diff**2, dim=-1), dim=-1)
-
-    rmsd = torch.sqrt(torch.clamp(mean_sq, min=0.0))
-    return q_aligned, r, t, rmsd
-
-
-def compute_rmsd(
-    p_ref: torch.Tensor,
-    q_target: torch.Tensor,
-    align: bool = True,
-    weights: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Compute Root-Mean-Square Deviation (RMSD) between coordinates [D].
-
-    Parameters
-    ----------
-    p_ref : torch.Tensor
-        Reference Cartesian coordinates of shape (..., N, 3).
-    q_target : torch.Tensor
-        Target Cartesian coordinates of shape (..., N, 3).
-    align : bool
-        If True, applies Kabsch optimal SE(3) superposition prior to RMSD calculation.
-    weights : Optional[torch.Tensor]
-        Optional atom weights (e.g., atomic masses for mass-weighted RMSD).
-
-    Returns
-    -------
-    torch.Tensor
-        RMSD tensor of shape (...,) in Angstroms [D].
-    """
-    if align:
-        _, _, _, rmsd = kabsch_align(p_ref, q_target, weights=weights)
-        return rmsd
-
-    diff = p_ref - q_target
-    if weights is not None:
-        w_norm = weights / torch.sum(weights, dim=-1, keepdim=True)
-        sq_dist = torch.sum(diff**2, dim=-1)
-        mean_sq = torch.sum(sq_dist * w_norm, dim=-1)
-    else:
-        mean_sq = torch.mean(torch.sum(diff**2, dim=-1), dim=-1)
-    return torch.sqrt(torch.clamp(mean_sq, min=0.0))
-
-
-def pairwise_conformer_rmsd(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    align: bool = True,
-) -> torch.Tensor:
-    """Compute all-pairs RMSD matrix between reference and predicted conformer ensembles [D].
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformers tensor of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformers tensor of shape (K, N, 3).
-    align : bool
-        Whether to perform Kabsch alignment for each pair.
-
-    Returns
-    -------
-    torch.Tensor
-        Pairwise RMSD matrix of shape (M, K) in Angstroms [D].
-    """
-    m = ref_conformers.shape[0]
-    k = pred_conformers.shape[0]
-    rmsd_matrix = torch.empty((m, k), dtype=torch.float32, device=ref_conformers.device)
-
-    for i in range(m):
-        ref_i = ref_conformers[i]  # (N, 3)
-        for j in range(k):
-            pred_j = pred_conformers[j]  # (N, 3)
-            rmsd_matrix[i, j] = compute_rmsd(ref_i, pred_j, align=align)
-
-    return rmsd_matrix
-
-
-def compute_conformer_coverage(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    threshold: float = DEFAULT_COV_THRESHOLD,
-    align: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute Conformer Coverage Recall (COV-R) and Precision (COV-P) [D].
-
-    - COV-R: Percentage of reference conformers matched by at least one prediction within threshold.
-    - COV-P: Percentage of predicted conformers matched by at least one reference within threshold.
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformer ensemble of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformer ensemble of shape (K, N, 3).
-    threshold : float
-        RMSD cutoff threshold in Angstroms [E].
-    align : bool
-        Whether to apply Kabsch alignment.
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (cov_recall_percent, cov_precision_percent)
-    """
-    dist_matrix = pairwise_conformer_rmsd(ref_conformers, pred_conformers, align=align)
-
-    min_rmsd_ref = torch.min(dist_matrix, dim=1).values  # (M,)
-    min_rmsd_pred = torch.min(dist_matrix, dim=0).values  # (K,)
-
-    cov_recall = (torch.sum(min_rmsd_ref <= threshold).float() / float(dist_matrix.shape[0])) * 100.0
-    cov_precision = (torch.sum(min_rmsd_pred <= threshold).float() / float(dist_matrix.shape[1])) * 100.0
-
-    return cov_recall, cov_precision
-
-
-def compute_average_minimum_rmsd(
-    ref_conformers: torch.Tensor,
-    pred_conformers: torch.Tensor,
-    align: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute Average Minimum RMSD Recall (AMR-R) and Precision (AMR-P) [D].
-
-    - AMR-R: Mean minimum RMSD over all reference conformers to the prediction ensemble.
-    - AMR-P: Mean minimum RMSD over all predicted conformers to the reference ensemble.
-
-    Parameters
-    ----------
-    ref_conformers : torch.Tensor
-        Reference conformer ensemble of shape (M, N, 3).
-    pred_conformers : torch.Tensor
-        Predicted conformer ensemble of shape (K, N, 3).
-    align : bool
-        Whether to apply Kabsch alignment.
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (amr_recall_angstrom, amr_precision_angstrom)
-    """
-    dist_matrix = pairwise_conformer_rmsd(ref_conformers, pred_conformers, align=align)
-
-    min_rmsd_ref = torch.min(dist_matrix, dim=1).values  # (M,)
-    min_rmsd_pred = torch.min(dist_matrix, dim=0).values  # (K,)
-
-    amr_recall = torch.mean(min_rmsd_ref)
-    amr_precision = torch.mean(min_rmsd_pred)
-
-    return amr_recall, amr_precision
-
-
-# ==============================================================================
-# 4. Spectroscopic Observables: Moments of Inertia & Rotational Constants
-# ==============================================================================
-
-def compute_moments_of_inertia(
-    positions: torch.Tensor,
-    atomic_numbers: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute principal moments of inertia and rotational constants (A >= B >= C) [D].
-
-    Calculates center of mass using dynamic Mendeleev atomic masses, forms the
-    moment of inertia tensor, diagonalizes to obtain I_a <= I_b <= I_c in u*A^2,
-    and derives spectroscopic rotational constants A >= B >= C in MHz.
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinate tensor of shape (..., N, 3) in Angstroms.
-    atomic_numbers : torch.Tensor
-        Atomic numbers Z of shape (..., N) or (N,).
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        - principal_moments: (..., 3) sorted (I_a, I_b, I_c) in u * Angstrom^2 [D]
-        - rotational_constants_mhz: (..., 3) sorted (A, B, C) in MHz [D]
-    """
-    masses = get_atomic_masses(atomic_numbers)  # (..., N)
-    w_mass = masses.unsqueeze(-1)  # (..., N, 1)
-    total_mass = torch.sum(w_mass, dim=-2, keepdim=True) + 1e-12
-
-    # Center of mass
-    com = torch.sum(positions * w_mass, dim=-2, keepdim=True) / total_mass
-    r_com = positions - com  # (..., N, 3)
-
-    x = r_com[..., 0]
-    y = r_com[..., 1]
-    z = r_com[..., 2]
-
-    # Inertia tensor components
-    i_xx = torch.sum(masses * (y**2 + z**2), dim=-1)
-    i_yy = torch.sum(masses * (x**2 + z**2), dim=-1)
-    i_zz = torch.sum(masses * (x**2 + y**2), dim=-1)
-    i_xy = -torch.sum(masses * x * y, dim=-1)
-    i_xz = -torch.sum(masses * x * z, dim=-1)
-    i_yz = -torch.sum(masses * y * z, dim=-1)
-
-    # Assemble 3x3 inertia tensor
-    row1 = torch.stack([i_xx, i_xy, i_xz], dim=-1)
-    row2 = torch.stack([i_xy, i_yy, i_yz], dim=-1)
-    row3 = torch.stack([i_xz, i_yz, i_zz], dim=-1)
-    inertia_tensor = torch.stack([row1, row2, row3], dim=-2)  # (..., 3, 3)
-
-    # Eigenvalues (principal moments of inertia)
-    eigvals = torch.linalg.eigvalsh(inertia_tensor)  # (..., 3) sorted ascending
-    principal_moments = torch.clamp(eigvals, min=1e-8)
-
-    # Rotational constants: B_rot = 505379.008784 / I_p in MHz
-    rotational_constants = ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ / principal_moments
-    # Principal moments I_a <= I_b <= I_c -> Rotational constants A >= B >= C
-
-    return principal_moments, rotational_constants
-
-
-def compute_inertial_defect(
-    positions: torch.Tensor,
-    atomic_numbers: torch.Tensor,
-) -> torch.Tensor:
-    """Compute the planar inertial defect Delta I = I_c - I_a - I_b [D].
-
-    For strictly planar molecules, Delta I ~ 0.0 in the rigid rotor limit [M].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (..., N, 3) in Angstroms.
-    atomic_numbers : torch.Tensor
-        Atomic numbers Z (..., N) or (N,).
-
-    Returns
-    -------
-    torch.Tensor
-        Planar inertial defect tensor (...,) in u * Angstrom^2 [D].
-    """
-    moments, _ = compute_moments_of_inertia(positions, atomic_numbers)
-    i_a = moments[..., 0]
-    i_b = moments[..., 1]
-    i_c = moments[..., 2]
-    return i_c - i_a - i_b
-
-
-# ==============================================================================
-# 5. Internal Molecular Coordinates: Bonds, Angles, and Dihedrals
-# ==============================================================================
-
-def compute_bond_lengths(
-    positions: torch.Tensor,
-    bonds: torch.Tensor,
-) -> torch.Tensor:
-    """Compute bond lengths for specified atom pairs [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    bonds : torch.Tensor
-        Bond index pairs tensor (E, 2).
-
-    Returns
-    -------
-    torch.Tensor
-        Bond lengths (E,) or (B, E) in Angstroms [D].
-    """
-    idx_i = bonds[:, 0]
-    idx_j = bonds[:, 1]
-    pos_i = positions[..., idx_i, :]
-    pos_j = positions[..., idx_j, :]
-    return torch.sqrt(torch.clamp(torch.sum((pos_i - pos_j) ** 2, dim=-1), min=0.0))
-
-
-def compute_bond_angles(
-    positions: torch.Tensor,
-    angles: torch.Tensor,
-) -> torch.Tensor:
-    """Compute valence bond angles (i - j - k) in degrees [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    angles : torch.Tensor
-        Angle triplets index tensor (A, 3) where j is the central vertex atom.
-
-    Returns
-    -------
-    torch.Tensor
-        Valence bond angles in degrees (A,) or (B, A) [D].
-    """
-    idx_i = angles[:, 0]
-    idx_j = angles[:, 1]  # Central vertex
-    idx_k = angles[:, 2]
-
-    pos_i = positions[..., idx_i, :]
-    pos_j = positions[..., idx_j, :]
-    pos_k = positions[..., idx_k, :]
-
-    v_ji = pos_i - pos_j
-    v_jk = pos_k - pos_j
-
-    v_ji_u = v_ji / (torch.norm(v_ji, dim=-1, keepdim=True) + 1e-12)
-    v_jk_u = v_jk / (torch.norm(v_jk, dim=-1, keepdim=True) + 1e-12)
-
-    dot_prod = torch.sum(v_ji_u * v_jk_u, dim=-1)
-    cos_theta = torch.clamp(dot_prod, -1.0 + 1e-7, 1.0 - 1e-7)
-    return torch.rad2deg(torch.acos(cos_theta))
-
-
-def compute_dihedral_angles(
-    positions: torch.Tensor,
-    dihedrals: torch.Tensor,
-) -> torch.Tensor:
-    """Compute dihedral / torsion angles (i - j - k - l) in degrees [D].
-
-    Parameters
-    ----------
-    positions : torch.Tensor
-        Cartesian coordinates (N, 3) or (B, N, 3).
-    dihedrals : torch.Tensor
-        Dihedral quadruplet index tensor (D, 4).
-
-    Returns
-    -------
-    torch.Tensor
-        Dihedral angles in degrees (D,) or (B, D) in range [-180, 180] [D].
-    """
-    p0 = positions[..., dihedrals[:, 0], :]
-    p1 = positions[..., dihedrals[:, 1], :]
-    p2 = positions[..., dihedrals[:, 2], :]
-    p3 = positions[..., dihedrals[:, 3], :]
-
-    b0 = -1.0 * (p1 - p0)
-    b1 = p2 - p1
-    b2 = p3 - p2
-
-    b1_norm = b1 / (torch.norm(b1, dim=-1, keepdim=True) + 1e-12)
-
-    v = b0 - torch.sum(b0 * b1_norm, dim=-1, keepdim=True) * b1_norm
-    w = b2 - torch.sum(b2 * b1_norm, dim=-1, keepdim=True) * b1_norm
-
-    x = torch.sum(v * w, dim=-1)
-    y = torch.sum(torch.cross(b1_norm, v, dim=-1) * w, dim=-1)
-
-    return torch.rad2deg(torch.atan2(y, x))
-
-
-# ==============================================================================
-# 6. TorchMetrics Base Metric Implementations
-# ==============================================================================
-
-class ConformerCoverage(Metric):
-    """TorchMetrics implementation for Conformer Coverage (COV-R and COV-P) [D].
-
-    Computes percentage of reference conformers covered by generated samples (Recall)
-    and percentage of generated conformers matching true references (Precision)
-    within a defined RMSD threshold.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        threshold: float = DEFAULT_COV_THRESHOLD,
-        align: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.threshold = threshold
-        self.align = align
-
-        self.add_state("total_ref_covered", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ref_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_covered", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        ref_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-        pred_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-    ) -> None:
-        """Update coverage statistics with conformer ensembles.
-
-        Parameters
-        ----------
-        ref_conformers : Union[torch.Tensor, Sequence[torch.Tensor]]
-            Tensor of shape (M, N, 3) or list of ensemble tensors.
-        pred_conformers : Union[torch.Tensor, Sequence[torch.Tensor]]
-            Tensor of shape (K, N, 3) or list of ensemble tensors.
-        """
-        if isinstance(ref_conformers, torch.Tensor) and ref_conformers.dim() == 3:
-            ref_list = [ref_conformers]
-            pred_list = [pred_conformers]  # type: ignore
-        else:
-            ref_list = list(ref_conformers)  # type: ignore
-            pred_list = list(pred_conformers)  # type: ignore
-
-        for refs, preds in zip(ref_list, pred_list):
-            dist_mat = pairwise_conformer_rmsd(refs, preds, align=self.align)
-            min_ref = torch.min(dist_mat, dim=1).values
-            min_pred = torch.min(dist_mat, dim=0).values
-
-            self.total_ref_covered += torch.sum(min_ref <= self.threshold).float()
-            self.total_ref_count += float(dist_mat.shape[0])
-            self.total_pred_covered += torch.sum(min_pred <= self.threshold).float()
-            self.total_pred_count += float(dist_mat.shape[1])
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute Conformer Coverage Recall and Precision percentages [D]."""
-        cov_recall = (
-            (self.total_ref_covered / (self.total_ref_count + 1e-12)) * 100.0
-            if self.total_ref_count > 0
-            else torch.tensor(0.0)
-        )
-        cov_precision = (
-            (self.total_pred_covered / (self.total_pred_count + 1e-12)) * 100.0
-            if self.total_pred_count > 0
-            else torch.tensor(0.0)
-        )
-        return {
-            "cov_recall": cov_recall,
-            "cov_precision": cov_precision,
-        }
-
-
-class AverageMinimumRMSD(Metric):
-    """TorchMetrics implementation for Average Minimum RMSD (AMR-R and AMR-P) [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        align: bool = True,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.align = align
-
-        self.add_state("sum_min_rmsd_ref", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ref_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_min_rmsd_pred", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_pred_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        ref_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-        pred_conformers: Union[torch.Tensor, Sequence[torch.Tensor]],
-    ) -> None:
-        """Update AMR statistics with conformer ensembles."""
-        if isinstance(ref_conformers, torch.Tensor) and ref_conformers.dim() == 3:
-            ref_list = [ref_conformers]
-            pred_list = [pred_conformers]  # type: ignore
-        else:
-            ref_list = list(ref_conformers)  # type: ignore
-            pred_list = list(pred_conformers)  # type: ignore
-
-        for refs, preds in zip(ref_list, pred_list):
-            dist_mat = pairwise_conformer_rmsd(refs, preds, align=self.align)
-            min_ref = torch.min(dist_mat, dim=1).values
-            min_pred = torch.min(dist_mat, dim=0).values
-
-            self.sum_min_rmsd_ref += torch.sum(min_ref)
-            self.total_ref_count += float(dist_mat.shape[0])
-            self.sum_min_rmsd_pred += torch.sum(min_pred)
-            self.total_pred_count += float(dist_mat.shape[1])
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute AMR Recall and Precision in Angstroms [D]."""
-        amr_recall = (
-            self.sum_min_rmsd_ref / (self.total_ref_count + 1e-12)
-            if self.total_ref_count > 0
-            else torch.tensor(0.0)
-        )
-        amr_precision = (
-            self.sum_min_rmsd_pred / (self.total_pred_count + 1e-12)
-            if self.total_pred_count > 0
-            else torch.tensor(0.0)
-        )
-        return {
-            "amr_recall": amr_recall,
-            "amr_precision": amr_precision,
-        }
-
-
-class EnergyMAE(Metric):
-    """TorchMetrics implementation for Mean Absolute Error in molecular energies [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update energy MAE accumulator."""
-        pred = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        target = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        error = torch.abs(pred - target)
-        self.sum_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute energy MAE in target units [D]."""
-        return self.sum_abs_error / (self.total_samples + 1e-12)
-
-
-class RelativeEnergyMAE(Metric):
-    """TorchMetrics implementation for relative conformer energy ranking MAE [D].
-
-    Computes MAE of relative energy differences (Delta E = E - min(E)) for conformer ensembles.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_rel_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update relative energy MAE."""
-        pred = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-        target = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
-
-        rel_pred = pred - torch.min(pred)
-        rel_target = target - torch.min(target)
-
-        error = torch.abs(rel_pred - rel_target)
-        self.sum_rel_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute relative energy MAE [D]."""
-        return self.sum_rel_abs_error / (self.total_samples + 1e-12)
-
-
-class BoltzmannWeightedEnergyMAE(Metric):
-    """TorchMetrics implementation for Boltzmann-weighted energy MAE [D].
-
-    Weights conformers by their equilibrium Boltzmann distribution at temperature T.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        temperature_k: float = DEFAULT_TEMPERATURE_K,
-        target_unit: str = "ev",
-        input_unit: str = "ev",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.temperature_k = temperature_k
-        self.target_unit = target_unit
-        self.input_unit = input_unit
-
-        self.add_state("sum_weighted_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_ensembles", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_energies: torch.Tensor,
-        target_energies: torch.Tensor,
-    ) -> None:
-        """Update Boltzmann-weighted energy error."""
-        # Convert target and pred to eV for Boltzmann factor calculation (kB * T in eV)
-        pred_ev = convert_energy(pred_energies.view(-1), from_unit=self.input_unit, to_unit="ev")
-        target_ev = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit="ev")
-
-        kb_t_ev = BOLTZMANN_CONSTANT_EV_K * self.temperature_k
-        rel_target_ev = target_ev - torch.min(target_ev)
-        boltzmann_weights = torch.softmax(-rel_target_ev / kb_t_ev, dim=0)
-
-        # Evaluate absolute error in target units
-        pred_target_u = convert_energy(pred_ev, from_unit="ev", to_unit=self.target_unit)
-        target_target_u = convert_energy(target_ev, from_unit="ev", to_unit=self.target_unit)
-        abs_err = torch.abs(pred_target_u - target_target_u)
-
-        weighted_err = torch.sum(boltzmann_weights * abs_err)
-        self.sum_weighted_error += weighted_err
-        self.total_ensembles += 1.0
-
-    def compute(self) -> torch.Tensor:
-        """Compute average Boltzmann-weighted energy error [D]."""
-        return self.sum_weighted_error / (self.total_ensembles + 1e-12)
-
-
-class ForceMAE(Metric):
-    """TorchMetrics implementation for component-wise and vector force MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_components", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force MAE."""
-        diff = torch.abs(pred_forces - true_forces)
-        self.sum_abs_error += torch.sum(diff)
-        self.total_components += float(diff.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute force MAE in eV/Angstrom [D]."""
-        return self.sum_abs_error / (self.total_components + 1e-12)
-
-
-class ForceRMSE(Metric):
-    """TorchMetrics implementation for force Root-Mean-Square Error [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_sq_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_components", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force RMSE."""
-        sq_diff = (pred_forces - true_forces) ** 2
-        self.sum_sq_error += torch.sum(sq_diff)
-        self.total_components += float(sq_diff.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute force RMSE in eV/Angstrom [D]."""
-        return torch.sqrt(self.sum_sq_error / (self.total_components + 1e-12))
-
-
-class ForceCosineSimilarity(Metric):
-    """TorchMetrics implementation for force vector cosine similarity [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_cosine_sim", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_vectors", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(self, pred_forces: torch.Tensor, true_forces: torch.Tensor) -> None:
-        """Update force cosine similarity."""
-        p_norm = torch.norm(pred_forces, dim=-1, keepdim=True) + 1e-12
-        t_norm = torch.norm(true_forces, dim=-1, keepdim=True) + 1e-12
-        cos_sim = torch.sum((pred_forces / p_norm) * (true_forces / t_norm), dim=-1)
-        self.sum_cosine_sim += torch.sum(cos_sim)
-        self.total_vectors += float(cos_sim.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute mean force direction cosine similarity in [-1, 1] [D]."""
-        return self.sum_cosine_sim / (self.total_vectors + 1e-12)
-
-
-class RotationalConstantsMAE(Metric):
-    """TorchMetrics implementation for spectroscopic rotational constants MAE (A, B, C) [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_a", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_abs_b", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_abs_c", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_molecules", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        atomic_numbers: torch.Tensor,
-    ) -> None:
-        """Update rotational constants MAE."""
-        _, pred_rot = compute_moments_of_inertia(pred_positions, atomic_numbers)
-        _, target_rot = compute_moments_of_inertia(target_positions, atomic_numbers)
-
-        err_a = torch.abs(pred_rot[..., 0] - target_rot[..., 0])
-        err_b = torch.abs(pred_rot[..., 1] - target_rot[..., 1])
-        err_c = torch.abs(pred_rot[..., 2] - target_rot[..., 2])
-
-        self.sum_abs_a += torch.sum(err_a)
-        self.sum_abs_b += torch.sum(err_b)
-        self.sum_abs_c += torch.sum(err_c)
-        self.total_molecules += float(err_a.numel())
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute rotational constants MAE in MHz [D]."""
-        count = self.total_molecules + 1e-12
-        mae_a = self.sum_abs_a / count
-        mae_b = self.sum_abs_b / count
-        mae_c = self.sum_abs_c / count
-        mae_mean = (mae_a + mae_b + mae_c) / 3.0
-        return {
-            "mae_a_mhz": mae_a,
-            "mae_b_mhz": mae_b,
-            "mae_c_mhz": mae_c,
-            "mae_mean_mhz": mae_mean,
-        }
-
-
-class InertialDefectMAE(Metric):
-    """TorchMetrics implementation for planar inertial defect MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.add_state("sum_abs_defect_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_molecules", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        atomic_numbers: torch.Tensor,
-    ) -> None:
-        """Update planar inertial defect error."""
-        pred_defect = compute_inertial_defect(pred_positions, atomic_numbers)
-        target_defect = compute_inertial_defect(target_positions, atomic_numbers)
-        err = torch.abs(pred_defect - target_defect)
-        self.sum_abs_defect_error += torch.sum(err)
-        self.total_molecules += float(err.numel())
-
-    def compute(self) -> torch.Tensor:
-        """Compute inertial defect MAE in u * Angstrom^2 [D]."""
-        return self.sum_abs_defect_error / (self.total_molecules + 1e-12)
-
-
-class InternalCoordinatesMAE(Metric):
-    """TorchMetrics implementation for bond lengths, bond angles, and dihedrals MAE [D]."""
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        bonds: Optional[torch.Tensor] = None,
-        angles: Optional[torch.Tensor] = None,
-        dihedrals: Optional[torch.Tensor] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.bonds = bonds
-        self.angles = angles
-        self.dihedrals = dihedrals
-
-        self.add_state("sum_bond_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_bonds", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_angle_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_angles", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("sum_dihedral_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_dihedrals", default=torch.tensor(0.0), dist_reduce_fx="sum")
-
-    def update(
-        self,
-        pred_positions: torch.Tensor,
-        target_positions: torch.Tensor,
-        bonds: Optional[torch.Tensor] = None,
-        angles: Optional[torch.Tensor] = None,
-        dihedrals: Optional[torch.Tensor] = None,
-    ) -> None:
-        """Update internal coordinate errors."""
-        active_bonds = bonds if bonds is not None else self.bonds
-        active_angles = angles if angles is not None else self.angles
-        active_dihedrals = dihedrals if dihedrals is not None else self.dihedrals
-
-        if active_bonds is not None and active_bonds.numel() > 0:
-            pred_b = compute_bond_lengths(pred_positions, active_bonds)
-            true_b = compute_bond_lengths(target_positions, active_bonds)
-            err_b = torch.abs(pred_b - true_b)
-            self.sum_bond_error += torch.sum(err_b)
-            self.total_bonds += float(err_b.numel())
-
-        if active_angles is not None and active_angles.numel() > 0:
-            pred_a = compute_bond_angles(pred_positions, active_angles)
-            true_a = compute_bond_angles(target_positions, active_angles)
-            err_a = torch.abs(pred_a - true_a)
-            self.sum_angle_error += torch.sum(err_a)
-            self.total_angles += float(err_a.numel())
-
-        if active_dihedrals is not None and active_dihedrals.numel() > 0:
-            pred_d = compute_dihedral_angles(pred_positions, active_dihedrals)
-            true_d = compute_dihedral_angles(target_positions, active_dihedrals)
-            # Periodic angular difference in [-180, 180]
-            diff_d = torch.remainder(pred_d - true_d + 180.0, 360.0) - 180.0
-            err_d = torch.abs(diff_d)
-            self.sum_dihedral_error += torch.sum(err_d)
-            self.total_dihedrals += float(err_d.numel())
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute internal coordinates MAE dictionary [D]."""
-        res: Dict[str, torch.Tensor] = {}
-        if self.total_bonds > 0:
-            res["mae_bonds_angstrom"] = self.sum_bond_error / self.total_bonds
-        if self.total_angles > 0:
-            res["mae_angles_deg"] = self.sum_angle_error / self.total_angles
-        if self.total_dihedrals > 0:
-            res["mae_dihedrals_deg"] = self.sum_dihedral_error / self.total_dihedrals
-        return res
-
-
-class ConformerEnsembleEvaluator(Metric):
-    """Comprehensive multi-metric evaluator for conformer generation models.
-
-    Integrates COV-R, COV-P, AMR-R, AMR-P, Energy MAE, Relative Energy MAE,
-    and Rotational Constants tracking into a unified evaluation harness.
-    """
-
-    full_state_update: bool = False
-
-    def __init__(
-        self,
-        thresholds: Sequence[float] = (0.5, 1.25),
-        temperature_k: float = DEFAULT_TEMPERATURE_K,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.thresholds = list(thresholds)
-        self.temperature_k = temperature_k
-
-        # Safe keys without dots for nn.ModuleDict
-        self.cov_metrics = nn.ModuleDict(
-            {f"cov_{t:.2f}".replace(".", "_"): ConformerCoverage(threshold=t) for t in self.thresholds}
-        )
-        self.amr_metric = AverageMinimumRMSD()
-        self.energy_mae = EnergyMAE(target_unit="ev")
-        self.rel_energy_mae = RelativeEnergyMAE(target_unit="ev")
-        self.rotational_mae = RotationalConstantsMAE()
-
-    def update(
-        self,
-        ref_positions: torch.Tensor,
-        pred_positions: torch.Tensor,
-        ref_energies: Optional[torch.Tensor] = None,
-        pred_energies: Optional[torch.Tensor] = None,
-        atomic_numbers: Optional[torch.Tensor] = None,
-    ) -> None:
-        """Update all component metrics with evaluation batch."""
-        for metric in self.cov_metrics.values():
-            metric.update(ref_positions, pred_positions)
-
-        self.amr_metric.update(ref_positions, pred_positions)
-
-        if ref_energies is not None and pred_energies is not None:
-            self.energy_mae.update(pred_energies, ref_energies)
-            self.rel_energy_mae.update(pred_energies, ref_energies)
-
-        if atomic_numbers is not None and ref_positions.dim() >= 2 and pred_positions.dim() >= 2:
-            self.rotational_mae.update(pred_positions, ref_positions, atomic_numbers)
-
-    def compute(self) -> Dict[str, torch.Tensor]:
-        """Compute unified summary dictionary across all evaluated metrics [D]."""
-        results: Dict[str, torch.Tensor] = {}
-
-        for name, metric in self.cov_metrics.items():
-            cov_res = metric.compute()
-            t_str = name.split("cov_")[-1].replace("_", ".")
-            results[f"cov_recall_{t_str}"] = cov_res["cov_recall"]
-            results[f"cov_precision_{t_str}"] = cov_res["cov_precision"]
-
-        amr_res = self.amr_metric.compute()
-        results["amr_recall"] = amr_res["amr_recall"]
-        results["amr_precision"] = amr_res["amr_precision"]
-
-        if self.energy_mae.total_samples > 0:
-            results["energy_mae_ev"] = self.energy_mae.compute()
-            results["rel_energy_mae_ev"] = self.rel_energy_mae.compute()
-
-        if self.rotational_mae.total_molecules > 0:
-            rot_res = self.rotational_mae.compute()
-            results["rotational_mae_mhz"] = rot_res["mae_mean_mhz"]
-            results["rotational_mae_a_mhz"] = rot_res["mae_a_mhz"]
-            results["rotational_mae_b_mhz"] = rot_res["mae_b_mhz"]
-            results["rotational_mae_c_mhz"] = rot_res["mae_c_mhz"]
-
-        return results
-
-    def reset(self) -> None:
-        """Reset all child metrics."""
-        super().reset()
-        for metric in self.cov_metrics.values():
-            metric.reset()
-        self.amr_metric.reset()
-        self.energy_mae.reset()
-        self.rel_energy_mae.reset()
-        self.rotational_mae.reset()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_eval_metrics.py ---
-"""Exhaustive Zero-Mock Unit and Integration Test Suite for CoChem-GEOM Metrics.
-================================================================================
-Authoritative Standards:
-- Method Matrix v4.1: Conformer Ensemble Metrics, Kabsch Alignment, Energy & Force Tracking
-- TorchMetrics v1.0+: Modular Metric Interface with DDP State Reduction & Pure Tensor Ops
-- Mendeleev Library Mandate: Dynamic atomic and monoisotopic mass validation (No hardcoding)
-- SE(3) Equivariance & Invariance: Rigorous spatial transformation invariance & coordinate immutability
-- State Immutability: Pure functional geometric transformations (pos_new = pos + shift)
-- Provenance Tags: [M] Measured/Theoretical, [D] Derived/Calculated, [E] Expert Estimate
-- Strict Zero-Mock Policy: 100% authentic physical tensor mathematics and real execution
-"""
-
-from __future__ import annotations
-
-import math
-import os
-from pathlib import Path
+import pathlib
+import platform
+import re
 import sys
-from typing import Any, Dict, List, Tuple
+import tempfile
+from collections.abc import Iterable, Sequence
+from typing import Any
 
-from mendeleev import element
 import numpy as np
+import pandas as pd
+import yaml
+
+logger = logging.getLogger(__name__)
+
+# Constants for formatting thresholds
+VRAM_THRESHOLD_MB: float = 100.0
+RAM_THRESHOLD_MB: float = 100.0
+HIGH_VAL_THRESHOLD: float = 10000.0
+LOW_VAL_THRESHOLD: float = 1e-4
+
+# Standard Stage definition catalog for Mermaid diagram synthesis
+STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
+    "0.0": ("S0", "Stage 0.0: Configuration & Resource Guards"),
+    "1.0": ("S1", "Stage 1.0: Conformer Generation"),
+    "2.0": ("S2", "Stage 2.0: DFT Optimization"),
+    "3.0": ("S3", "Stage 3.0: Frequency & Thermochemistry"),
+    "4.0": ("S4", "Stage 4.0: Sinc-DVR Dynamic Tunneling"),
+    "5.0": ("S5", "Stage 5.0: Telemetry Aggregation"),
+    "6.0": ("S6", "Stage 6.0: SCRIBE Document Synthesis"),
+}
+
+STAGE_DESCRIPTIONS_FALLBACK: dict[str, str] = {
+    "0": "Stage 0.0: Configuration & Resource Guards",
+    "0.0": "Stage 0.0: Configuration & Resource Guards",
+    "1": "Stage 1.0: Conformer Generation",
+    "1.0": "Stage 1.0: Conformer Generation",
+    "2": "Stage 2.0: DFT Optimization",
+    "2.0": "Stage 2.0: DFT Optimization",
+    "3": "Stage 3.0: Frequency & Thermochemistry",
+    "3.0": "Stage 3.0: Frequency & Thermochemistry",
+    "4": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
+    "4.0": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
+    "5": "Stage 5.0: Telemetry Aggregation",
+    "5.0": "Stage 5.0: Telemetry Aggregation",
+    "6": "Stage 6.0: SCRIBE Document Synthesis",
+    "6.0": "Stage 6.0: SCRIBE Document Synthesis",
+}
+
+
+def _sanitize_for_yaml(val: Any) -> Any:
+    """Recursively converts non-serializable objects into YAML-safe primitives."""
+    if val is None:
+        return None
+    if isinstance(val, np.floating):
+        return float(val)
+    if isinstance(val, np.integer):
+        return int(val)
+    if isinstance(val, np.bool_):
+        return bool(val)
+    if isinstance(val, bool):
+        return bool(val)
+    if isinstance(val, int):
+        return int(val)
+    if isinstance(val, float):
+        return float(val)
+    if isinstance(val, str):
+        return str(val)
+    if isinstance(val, os.PathLike | pathlib.PurePath):
+        if hasattr(val, "as_posix"):
+            return val.as_posix()
+        return str(val).replace("\\", "/")
+    if isinstance(val, np.ndarray):
+        return [_sanitize_for_yaml(item) for item in val.tolist()]
+    if isinstance(val, datetime.date | datetime.datetime):
+        return val.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(val, dict):
+        return {str(k): _sanitize_for_yaml(v) for k, v in val.items()}
+    if isinstance(val, list | tuple | set):
+        return [_sanitize_for_yaml(item) for item in val]
+    return str(val)
+
+
+def _get_first_present(
+    data: dict[str, Any], keys: list[str], default: Any = "N/A"
+) -> Any:
+    """Safely retrieves the first present key value from data."""
+    for k in keys:
+        if k in data and data[k] is not None:
+            return data[k]
+    return default
+
+
+_get_present_val = _get_first_present
+
+
+class MarkdownBuilder:
+    """Markdown User Guide and GFM Table synthesis engine for CoChem-SCRIBE.
+
+    Generates structured, publication-grade Markdown documentation
+    (CoChem_User_Guide.md) enriched with YAML frontmatter, Stage 0
+    provenance matrices, dynamic Mermaid.js flowcharts, GitHub-Flavored
+    Markdown (GFM) tables, thermodynamic analysis narratives, hardware
+    telemetry charts, and non-fatal audit warning blockquotes. Enforces
+    cross-platform safe pathing and non-destructive timestamped overwrite
+    protection.
+    """
+
+    def __init__(
+        self,
+        output_dir: str | pathlib.Path | None = None,
+        base_filename: str = "CoChem_User_Guide.md",
+        filename: str | None = None,
+    ) -> None:
+        """Initializes MarkdownBuilder with dynamic output directory resolution.
+
+        Args:
+            output_dir: Optional directory for output markdown. Defaults to
+                Path.home() / "CoChem_Artifacts" / "Report_Archive".
+            base_filename: Target output markdown filename. Defaults to
+                "CoChem_User_Guide.md".
+            filename: Alias for base_filename for backwards compatibility.
+        """
+        if output_dir is not None:
+            self.output_dir = pathlib.Path(output_dir).resolve()
+        else:
+            self.output_dir = (
+                pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
+            ).resolve()
+
+        self.base_filename = filename if filename is not None else base_filename
+        self.filename = self.base_filename
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("[SCRIBE-INIT] MarkdownBuilder initialized at %s", self.output_dir)
+
+    def generate_yaml_frontmatter(
+        self, metadata: dict[str, Any] | None = None
+    ) -> str:
+        """Generates valid YAML frontmatter block with run provenance and metadata.
+
+        Args:
+            metadata: Run metadata dictionary.
+
+        Returns:
+            Strict YAML frontmatter block enclosed in '---'.
+        """
+        if isinstance(metadata, dict):
+            meta = metadata.copy()
+        else:
+            meta = {}
+
+        # Default core fields if missing
+        if "title" not in meta:
+            meta["title"] = "CoChem Computational Analysis User Guide"
+        if "date" not in meta and "generated_at" not in meta:
+            meta["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if "cochem_version" not in meta and "version" not in meta:
+            meta["cochem_version"] = "2.0.0"
+        if (
+            "run_id" not in meta
+            and "experiment_id" not in meta
+            and "pipeline_hash" not in meta
+        ):
+            meta["run_id"] = "N/A"
+        if "target_molecule" not in meta:
+            meta["target_molecule"] = "N/A"
+        if "smiles" not in meta:
+            meta["smiles"] = "N/A"
+        if "environment_tier" not in meta and "environment" not in meta:
+            meta["environment_tier"] = "Local-Windows WSL"
+        if "fair_compliance" not in meta:
+            meta["fair_compliance"] = True
+
+        sanitized_meta = _sanitize_for_yaml(meta)
+        yaml_content = yaml.safe_dump(
+            sanitized_meta, sort_keys=False, default_flow_style=False
+        ).strip()
+        return f"---\n{yaml_content}\n---"
+
+    def generate_system_matrix_section(
+        self, system_matrix: dict[str, Any] | None = None
+    ) -> str:
+        """Generates Markdown readout of Stage 0 active compute engines and nodes.
+
+        Args:
+            system_matrix: System configuration and execution environment data.
+
+        Returns:
+            Formatted Markdown section under Stage 1 provenance header.
+        """
+        matrix = system_matrix if isinstance(system_matrix, dict) else {}
+        lines: list[str] = [
+            "## 1. System Execution Environment & Provenance",
+            "",
+            "### 1.1 Compute Engines & Versions",
+        ]
+
+        engines = matrix.get("engines")
+        if isinstance(engines, dict) and engines:
+            for engine, ver in engines.items():
+                lines.append(f"- **{engine}**: `{ver}`")
+        elif isinstance(engines, list | tuple | set) and engines:
+            for item in engines:
+                lines.append(f"- `{item}`")
+        elif isinstance(engines, str) and engines.strip():
+            lines.append(f"- `{engines.strip()}`")
+        else:
+            lines.append("- *No discrete calculation engines registered.*")
+
+        lines.append("")
+        lines.append("### 1.2 Host Architecture & Resource Allocation")
+
+        host_val = matrix.get("host")
+        host_info = host_val if isinstance(host_val, dict) else matrix
+
+        env_tier = _get_first_present(
+            host_info,
+            ["environment_tier", "environment"],
+            default=_get_first_present(
+                matrix, ["environment_tier", "environment"], "Unknown / Heterogeneous"
+            ),
+        )
+        node_arch = _get_first_present(
+            host_info,
+            ["node_architecture", "architecture", "node_arch"],
+            default=_get_first_present(
+                matrix,
+                ["node_architecture", "architecture"],
+                platform.machine() or "x86_64",
+            ),
+        )
+        cpu_cores = _get_first_present(
+            host_info,
+            ["cpu_cores", "cpu", "cores"],
+            default=_get_first_present(matrix, ["cpu_cores", "cpu", "cores"], "N/A"),
+        )
+        gpu_device = _get_first_present(
+            host_info,
+            ["gpu_model", "gpu_device", "gpu"],
+            default=_get_first_present(
+                matrix, ["gpu_model", "gpu_device", "gpu"], "N/A"
+            ),
+        )
+        host_ram = _get_first_present(
+            host_info,
+            ["host_ram", "memory_allocation", "host_ram_gb", "ram_gb"],
+            default=_get_first_present(
+                matrix,
+                ["host_ram", "memory_allocation", "host_ram_gb", "ram_gb"],
+                "N/A",
+            ),
+        )
+        py_version = _get_first_present(
+            host_info,
+            ["python_version", "python"],
+            default=_get_first_present(
+                matrix, ["python_version", "python"], sys.version.split()[0]
+            ),
+        )
+        cfg_hash = _get_first_present(
+            matrix,
+            ["config_hash", "pipeline_hash"],
+            default=_get_first_present(
+                host_info, ["config_hash", "pipeline_hash"], "N/A"
+            ),
+        )
+
+        lines.append(f"- **Environment Tier**: {env_tier}")
+        lines.append(f"- **Node Architecture**: {node_arch}")
+        lines.append(f"- **CPU Allocation**: {cpu_cores}")
+        lines.append(f"- **GPU Device**: {gpu_device}")
+        lines.append(f"- **Host RAM**: {host_ram}")
+        lines.append(f"- **Python Runtime Version**: `{py_version}`")
+        lines.append(f"- **Configuration SHA-256**: `{cfg_hash}`")
+        lines.append("")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _resolve_stage_node(
+        stage_item: str | int | float | dict[str, Any], custom_idx: int
+    ) -> tuple[str, str, int]:
+        """Resolves stage item into a sanitized node ID, label, and custom index."""
+        if isinstance(stage_item, dict):
+            raw_id = str(
+                stage_item.get("id")
+                or stage_item.get("stage")
+                or f"S_custom_{custom_idx}"
+            )
+            label = str(stage_item.get("name") or stage_item.get("label") or raw_id)
+            clean_id = re.sub(r"[^a-zA-Z0-9_]", "_", raw_id)
+            if not re.match(r"^S(?:_|\d)", clean_id):
+                clean_id = f"S_{clean_id}"
+            return clean_id, label.replace('"', "'"), custom_idx + 1
+
+        if (
+            isinstance(stage_item, int | float | np.integer | np.floating)
+            and not isinstance(stage_item, bool)
+        ):
+            val_float = float(stage_item)
+            val_int = int(val_float)
+            stage_str = f"{val_int}.0" if val_float == val_int else f"{val_float}"
+            if stage_str in STAGE_DEFINITIONS:
+                nid, lbl = STAGE_DEFINITIONS[stage_str]
+                return nid, lbl, custom_idx
+            clean_id = (
+                f"S{val_int}"
+                if val_float == val_int
+                else f"S_{str(val_float).replace('.', '_')}"
+            )
+            return clean_id, f"Stage {stage_str}", custom_idx
+
+        stage_clean = str(stage_item).strip()
+
+        # Direct check in catalog definitions
+        for key, (node_id, label) in STAGE_DEFINITIONS.items():
+            major = key.split(".")[0]
+            pattern = (
+                rf"(?<![\d.])(?:Stage\s+)?(?:{re.escape(key)}|{major}(?!\d))(?![\d.])"
+            )
+            if (
+                re.search(pattern, stage_clean, flags=re.IGNORECASE)
+                or stage_clean.upper() == node_id.upper()
+            ):
+                if ":" in stage_clean:
+                    cleaned_label = stage_clean.replace('"', "'")
+                    return node_id, cleaned_label, custom_idx
+                return node_id, label, custom_idx
+
+        cleaned_name = stage_clean.replace('"', "'")
+        custom_id = f"S_custom_{custom_idx}"
+        return custom_id, cleaned_name, custom_idx + 1
+
+    def _resolve_mermaid_nodes(
+        self,
+        active_stages: Sequence[Any] | None = None,
+    ) -> list[tuple[str, str]]:
+        """Resolves stage list into ordered Mermaid node definitions."""
+        if not active_stages:
+            return [
+                STAGE_DEFINITIONS[k]
+                for k in ["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"]
+            ]
+
+        resolved_nodes: list[tuple[str, str]] = []
+        custom_idx = 1
+        for stage_item in active_stages:
+            node_id, label, custom_idx = self._resolve_stage_node(
+                stage_item, custom_idx
+            )
+            resolved_nodes.append((node_id, label))
+        return resolved_nodes
+
+    def generate_mermaid_flowchart(
+        self,
+        active_stages: Sequence[Any] | None = None,
+    ) -> str:
+        """Synthesizes a Mermaid.js graph TD diagram block mapping active stages.
+
+        Args:
+            active_stages: Optional sequence of active stage identifier strings/ints.
+
+        Returns:
+            Fenced Mermaid.js flowchart string.
+        """
+        resolved_nodes = self._resolve_mermaid_nodes(active_stages)
+
+        if not resolved_nodes:
+            return (
+                "```mermaid\n"
+                "graph TD\n"
+                '    S0["Stage 0: Environment & Guards"]\n'
+                "```"
+            )
+
+        lines: list[str] = ["```mermaid", "graph TD"]
+
+        if len(resolved_nodes) == 1:
+            node_id, label = resolved_nodes[0]
+            lines.append(f'    {node_id}["{label}"]')
+        else:
+            for i in range(len(resolved_nodes) - 1):
+                prev_id, prev_label = resolved_nodes[i]
+                curr_id, curr_label = resolved_nodes[i + 1]
+                if i == 0:
+                    lines.append(
+                        f'    {prev_id}["{prev_label}"] --> {curr_id}["{curr_label}"]'
+                    )
+                else:
+                    lines.append(f'    {prev_id} --> {curr_id}["{curr_label}"]')
+
+        lines.append("```")
+        return "\n".join(lines)
+
+    def dataframe_to_gfm_table(
+        self,
+        df: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | None,
+        table_title: str | None = None,
+    ) -> str:
+        """Converts a pandas DataFrame into a standard GFM pipe table.
+
+        Args:
+            df: Input pandas DataFrame or coercible tabular dictionary/list.
+            table_title: Optional title/header for the table.
+
+        Returns:
+            GFM formatted table string.
+        """
+        if df is None:
+            if table_title:
+                return f"### {table_title}\n\n*No tabular data available.*\n"
+            return "*No tabular data available.*\n"
+
+        target_df: pd.DataFrame
+        if not isinstance(df, pd.DataFrame):
+            try:
+                target_df = pd.DataFrame(df)
+            except Exception:
+                if table_title:
+                    return f"### {table_title}\n\n*No tabular data available.*\n"
+                return "*No tabular data available.*\n"
+        else:
+            target_df = df
+
+        if target_df.empty:
+            if table_title:
+                return f"### {table_title}\n\n*No tabular data available.*\n"
+            return "*No tabular data available.*\n"
+
+        headers = [
+            str(col)
+            .replace("\r\n", "<br>")
+            .replace("\n", "<br>")
+            .replace("|", r"\|")
+            .strip()
+            for col in target_df.columns
+        ]
+
+        alignments: list[str] = []
+        for col in target_df.columns:
+            is_numeric = (
+                pd.api.types.is_numeric_dtype(target_df[col])
+                and not pd.api.types.is_bool_dtype(target_df[col])
+            )
+            alignments.append("---:" if is_numeric else ":---")
+
+        rows: list[str] = []
+        if table_title:
+            rows.append(f"### {table_title}")
+            rows.append("")
+
+        header_line = "| " + " | ".join(headers) + " |"
+        rows.append(header_line)
+
+        sep_line = "| " + " | ".join(alignments) + " |"
+        rows.append(sep_line)
+
+        for row in target_df.itertuples(index=False):
+            row_cells = []
+            for col, val in zip(target_df.columns, row, strict=False):
+                formatted_val = self._format_cell_value(val, str(col))
+                row_cells.append(formatted_val)
+            rows.append("| " + " | ".join(row_cells) + " |")
+
+        rows.append("")
+        return "\n".join(rows)
+
+    # Backward compatibility alias
+    format_gfm_table = dataframe_to_gfm_table
+
+    @staticmethod
+    def _format_cell_value(val: Any, col_name: str) -> str:
+        """Formats an individual DataFrame cell for GFM presentation."""
+        if pd.isna(val) or val is None:
+            return "N/A"
+
+        if isinstance(val, int | np.integer) and not isinstance(val, bool):
+            return str(val)
+
+        if isinstance(val, float | np.floating):
+            if float(val).is_integer() and any(
+                k in col_name.lower()
+                for k in [
+                    "#",
+                    "mode",
+                    "index",
+                    "idx",
+                    "step",
+                    "iteration",
+                    "count",
+                    "num",
+                ]
+            ):
+                return str(int(val))
+            return MarkdownBuilder._format_float_cell(float(val), col_name)
+
+        clean_str = str(val).replace("\r\n", "<br>").replace("\n", "<br>")
+        return clean_str.replace("|", r"\|").strip()
+
+    @staticmethod
+    def _format_float_cell(val: float, col_name: str) -> str:
+        """Formats float values based on column context and magnitude."""
+        col_lower = col_name.lower()
+        if "hartree" in col_lower or bool(
+            re.search(r"(?:^|[\s_(\[])(?:eh|hartree)(?:$|[\s_)\]])", col_lower)
+        ):
+            return f"{val:.6f}"
+        if any(
+            k in col_lower
+            for k in [
+                "energy",
+                "kcal",
+                "kj",
+                "population",
+                "pop",
+                "freq",
+                "%",
+                "intensity",
+                "zpe",
+                "rel",
+            ]
+        ):
+            return f"{val:.2f}"
+        if abs(val) >= HIGH_VAL_THRESHOLD or (0 < abs(val) < LOW_VAL_THRESHOLD):
+            return f"{val:.4e}"
+        return f"{val:.2f}"
+
+    def format_thermodynamic_insights(self, insights_text: str | None = None) -> str:
+        """Formats thermodynamic analytical insights under section 2.
+
+        Args:
+            insights_text: Narrative text or analytical insights.
+
+        Returns:
+            Formatted Markdown section with placeholders scrubbed.
+        """
+        lines: list[str] = [
+            "## 2. Thermodynamic & Structural Analysis",
+            "",
+        ]
+
+        if not insights_text or not isinstance(insights_text, str):
+            lines.append(
+                "*Analytical data was aggregated without additional "
+                "narrative commentary.*"
+            )
+            lines.append("")
+            return "\n".join(lines)
+
+        cleaned = re.sub(r"<<INSERT_[^>]*>>", "", insights_text, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\[PLACEHOLDER\]", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<<PLACEHOLDER>>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<PLACEHOLDER>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\{\{[^}]*\}\}", "", cleaned)
+        cleaned = cleaned.strip()
+
+        if not cleaned:
+            lines.append(
+                "*Analytical data was aggregated without additional "
+                "narrative commentary.*"
+            )
+        else:
+            lines.append(cleaned)
+
+        lines.append("")
+        return "\n".join(lines)
+
+    # Backward compatibility alias
+    inject_thermodynamic_insights = format_thermodynamic_insights
+
+    def format_audit_warnings(
+        self,
+        warnings: Iterable[str | None] | str | dict[str, Any] | None = None,
+    ) -> str:
+        """Aggregates non-fatal warnings into Markdown callout blockquotes.
+
+        Args:
+            warnings: Optional list, string, or dict of warnings.
+
+        Returns:
+            Formatted callout blockquote string.
+        """
+        no_warn_msg = (
+            "> **NOTE**: No non-fatal execution warnings recorded during this "
+            "pipeline run.\n"
+        )
+        if not warnings:
+            return no_warn_msg
+
+        if isinstance(warnings, str):
+            warn_list = [warnings]
+        elif isinstance(warnings, dict):
+            warn_list = [f"{k}: {v}" for k, v in warnings.items()]
+        elif isinstance(warnings, Iterable):
+            warn_list = [
+                str(w)
+                for w in warnings
+                if w is not None and str(w).strip() != "None"
+            ]
+        else:
+            warn_list = [str(warnings)]
+
+        lines: list[str] = []
+        for w in warn_list:
+            if w is None or str(w).strip() == "None":
+                continue
+            w_clean = str(w).strip()
+            if w_clean:
+                lines.append(f"> **WARNING**: {w_clean}")
+
+        if not lines:
+            return no_warn_msg
+
+        return "\n\n".join(lines) + "\n"
+
+    # Backward compatibility alias
+    format_warning_blockquotes = format_audit_warnings
+
+    def format_hardware_telemetry(
+        self, telemetry: dict[str, Any] | None = None
+    ) -> str:
+        """Formats CPU/GPU peak usage metrics as a structured Markdown list.
+
+        Args:
+            telemetry: Dictionary of hardware telemetry metrics.
+
+        Returns:
+            Formatted Markdown section under ## Hardware Resource Telemetry.
+        """
+        telem = telemetry if isinstance(telemetry, dict) else {}
+
+        # 1. GPU VRAM
+        peak_gpu = "N/A"
+        for k in ["peak_gpu_vram_mb", "gpu_peak_vram_mb", "gpu_vram_peak_mb"]:
+            if k in telem and telem[k] is not None:
+                val = telem[k]
+                if (
+                    isinstance(val, int | float | np.integer | np.floating)
+                    and not isinstance(val, bool)
+                ):
+                    peak_gpu = f"{float(val):.1f} MB"
+                elif isinstance(val, str):
+                    peak_gpu = val
+                break
+        if peak_gpu == "N/A":
+            for k in ["peak_gpu_vram_gb", "gpu_peak_vram_gb"]:
+                if k in telem and telem[k] is not None:
+                    val = telem[k]
+                    if (
+                        isinstance(val, int | float | np.integer | np.floating)
+                        and not isinstance(val, bool)
+                    ):
+                        peak_gpu = f"{float(val):.1f} GB"
+                    elif isinstance(val, str):
+                        peak_gpu = val
+                    break
+        if peak_gpu == "N/A":
+            raw_gpu = _get_first_present(
+                telem,
+                ["peak_gpu_vram", "gpu_vram", "peak_gpu"],
+                default="N/A",
+            )
+            if (
+                isinstance(raw_gpu, int | float | np.integer | np.floating)
+                and not isinstance(raw_gpu, bool)
+            ):
+                val_float = float(raw_gpu)
+                peak_gpu = (
+                    f"{val_float:.1f} MB"
+                    if val_float > VRAM_THRESHOLD_MB
+                    else f"{val_float:.1f} GB"
+                )
+            elif isinstance(raw_gpu, str):
+                peak_gpu = raw_gpu
+
+        # 2. CPU
+        peak_cpu = _get_first_present(
+            telem,
+            ["peak_cpu_percent", "cpu_percent", "peak_cpu", "cpu_peak_percent"],
+            default="N/A",
+        )
+        if (
+            isinstance(peak_cpu, int | float | np.integer | np.floating)
+            and not isinstance(peak_cpu, bool)
+        ):
+            peak_cpu = f"{float(peak_cpu):.1f}%"
+
+        # 3. Wall clock
+        wall_clock = _get_first_present(
+            telem,
+            [
+                "wall_clock_seconds",
+                "wall_clock_time",
+                "execution_time",
+                "wall_clock",
+                "elapsed_time",
+            ],
+            default="N/A",
+        )
+        if (
+            isinstance(wall_clock, int | float | np.integer | np.floating)
+            and not isinstance(wall_clock, bool)
+        ):
+            wall_clock = f"{float(wall_clock):.2f} s"
+
+        # 4. RAM
+        peak_ram = "N/A"
+        for k in ["peak_ram_mb"]:
+            if k in telem and telem[k] is not None:
+                val = telem[k]
+                if (
+                    isinstance(val, int | float | np.integer | np.floating)
+                    and not isinstance(val, bool)
+                ):
+                    peak_ram = f"{float(val):.1f} MB"
+                elif isinstance(val, str):
+                    peak_ram = val
+                break
+        if peak_ram == "N/A":
+            for k in ["peak_ram_gb", "host_ram_gb"]:
+                if k in telem and telem[k] is not None:
+                    val = telem[k]
+                    if (
+                        isinstance(val, int | float | np.integer | np.floating)
+                        and not isinstance(val, bool)
+                    ):
+                        peak_ram = f"{float(val):.1f} GB"
+                    elif isinstance(val, str):
+                        peak_ram = val
+                    break
+        if peak_ram == "N/A":
+            raw_ram = _get_first_present(
+                telem,
+                ["peak_host_ram", "memory_footprint", "peak_memory", "host_ram"],
+                default="N/A",
+            )
+            if (
+                isinstance(raw_ram, int | float | np.integer | np.floating)
+                and not isinstance(raw_ram, bool)
+            ):
+                val_float = float(raw_ram)
+                peak_ram = (
+                    f"{val_float:.1f} MB"
+                    if val_float > RAM_THRESHOLD_MB
+                    else f"{val_float:.1f} GB"
+                )
+            elif isinstance(raw_ram, str):
+                peak_ram = raw_ram
+
+        lines: list[str] = [
+            "## 4. Hardware Telemetry & Compute Resource Allocation",
+            "",
+            f"- **Peak GPU VRAM Usage**: {peak_gpu}",
+            f"- **Peak CPU Usage**: {peak_cpu}",
+            f"- **Wall-Clock Execution Time**: {wall_clock}",
+            f"- **Peak Host RAM / Memory Footprint**: {peak_ram}",
+            "",
+        ]
+
+        extra_keys = {
+            k: v
+            for k, v in telem.items()
+            if k
+            not in [
+                "peak_gpu_vram",
+                "peak_gpu_vram_mb",
+                "gpu_vram",
+                "peak_gpu",
+                "gpu_peak_vram_mb",
+                "gpu_vram_peak_mb",
+                "gpu_peak_vram_gb",
+                "peak_gpu_vram_gb",
+                "peak_cpu_percent",
+                "cpu_percent",
+                "peak_cpu",
+                "cpu_peak_percent",
+                "wall_clock_seconds",
+                "wall_clock_time",
+                "execution_time",
+                "wall_clock",
+                "elapsed_time",
+                "peak_ram_mb",
+                "peak_host_ram",
+                "memory_footprint",
+                "peak_memory",
+                "host_ram",
+                "peak_ram_gb",
+                "host_ram_gb",
+                "warnings",
+            ]
+        }
+        if extra_keys:
+            lines.append("### Additional Telemetry Metrics")
+            for k, v in extra_keys.items():
+                k_fmt = k.replace("_", " ").title()
+                lines.append(f"- **{k_fmt}**: {v}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    # Backward compatibility alias
+    format_telemetry_section = format_hardware_telemetry
+
+    def _extract_dataframe(
+        self, payload: dict[str, Any], keys: list[str]
+    ) -> pd.DataFrame | None:
+        """Extracts and standardizes DataFrame from payload given fallback keys."""
+        if not isinstance(payload, dict):
+            return None
+        for key in keys:
+            val = payload.get(key)
+            if val is not None:
+                if isinstance(val, pd.DataFrame):
+                    return val
+                try:
+                    if isinstance(val, list | dict):
+                        return pd.DataFrame(val)
+                except Exception:
+                    pass
+        return None
+
+    def build_user_guide(self, payload: dict[str, Any] | None = None) -> str:
+        """Assembles the complete Markdown User Guide document from payload.
+
+        Args:
+            payload: Harvested pipeline data, system matrix, telemetry, and DataFrames.
+
+        Returns:
+            Complete GitHub-Flavored Markdown user guide string.
+        """
+        data = payload if isinstance(payload, dict) else {}
+        sections: list[str] = []
+
+        # 1. YAML Frontmatter
+        metadata = data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        for k in [
+            "title",
+            "pipeline_hash",
+            "environment",
+            "environment_tier",
+            "run_id",
+            "target_molecule",
+            "smiles",
+        ]:
+            if k in data and k not in metadata:
+                metadata[k] = data[k]
+
+        sections.append(self.generate_yaml_frontmatter(metadata))
+
+        # 2. Document Title & Executive Overview
+        doc_title = metadata.get("title", "CoChem Computational Analysis User Guide")
+        overview = (
+            data.get("overview")
+            or data.get("executive_summary")
+            or (
+                "This document provides a comprehensive summary of the "
+                "computational quantum chemistry pipeline execution, including "
+                "conformer exploration, thermodynamic properties, vibrational "
+                "spectroscopy, and execution provenance."
+            )
+        )
+        sections.append(f"# {doc_title}\n\n{overview}\n")
+
+        # 3. Stage 0 System Matrix & Provenance
+        sys_matrix = data.get("system_matrix", {})
+        sys_dict = sys_matrix if isinstance(sys_matrix, dict) else {}
+        sections.append(self.generate_system_matrix_section(sys_dict))
+
+        # 4. Dynamic Mermaid.js Workflow Diagram
+        active_stages = data.get("active_stages")
+        mermaid_chart = self.generate_mermaid_flowchart(active_stages)
+        sections.append(f"## Pipeline Execution Flowchart\n\n{mermaid_chart}\n")
+
+        # 5. Conformer Landscape GFM Table
+        conf_df = self._extract_dataframe(
+            data, ["conformers_df", "conformer_df", "conformers"]
+        )
+        if conf_df is not None and not conf_df.empty:
+            conf_table = self.dataframe_to_gfm_table(
+                conf_df, table_title="Conformer Energetic & Geometric Ranking"
+            )
+            sections.append(f"### Conformer Landscape\n\n{conf_table}\n")
+
+        # 6. Thermodynamic Analysis & Energy GFM Table
+        insights = (
+            data.get("thermodynamic_insights")
+            or data.get("insights")
+            or ""
+        )
+        sections.append(self.format_thermodynamic_insights(insights))
+
+        thermo_df = self._extract_dataframe(
+            data, ["thermodynamics_df", "thermo_df", "energies_df"]
+        )
+        if thermo_df is not None and not thermo_df.empty:
+            thermo_table = self.dataframe_to_gfm_table(
+                thermo_df,
+                table_title="Thermodynamic State Functions & Zero-Point Energies",
+            )
+            sections.append(f"{thermo_table}\n")
+
+        # 7. Spectroscopic Parameters & Vibrational GFM Table
+        vib_df = self._extract_dataframe(
+            data, ["vibrational_df", "spectroscopy_df", "vibrations_df"]
+        )
+        if vib_df is not None and not vib_df.empty:
+            vib_table = self.dataframe_to_gfm_table(
+                vib_df, table_title="Vibrational Modes & IR Intensities"
+            )
+            sections.append(
+                f"## Spectroscopic & Vibrational Analysis\n\n{vib_table}\n"
+            )
+
+        # 8. Non-Fatal Execution Warnings Callout Blockquotes
+        warnings = data.get("warnings")
+        sections.append(
+            f"### Execution Warnings & Audit Trail\n\n"
+            f"{self.format_audit_warnings(warnings)}\n"
+        )
+
+        # 9. Hardware Telemetry Summary
+        telemetry = data.get("telemetry", {})
+        telem_dict = telemetry if isinstance(telemetry, dict) else {}
+        sections.append(self.format_hardware_telemetry(telem_dict))
+
+        return "\n".join(sections).strip() + "\n"
+
+    def save_user_guide(
+        self,
+        content: str,
+        target_dir: str | pathlib.Path | None = None,
+        base_filename: str | None = None,
+    ) -> pathlib.Path:
+        """Saves Markdown document to target directory with overwrite protection.
+
+        Args:
+            content: Markdown formatted text.
+            target_dir: Optional directory path. Defaults to self.output_dir.
+            base_filename: Optional target filename. Defaults to self.base_filename.
+
+        Returns:
+            Resolved pathlib.Path of the written file.
+        """
+        dest_dir = (
+            pathlib.Path(target_dir).resolve()
+            if target_dir is not None
+            else self.output_dir
+        )
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        fname = base_filename if base_filename is not None else self.base_filename
+        target_path = (dest_dir / fname).resolve()
+
+        if target_path.exists():
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            stem = target_path.stem
+            suffix = target_path.suffix
+            final_path = dest_dir / f"{stem}_{timestamp}{suffix}"
+
+            count = 1
+            while final_path.exists():
+                final_path = dest_dir / f"{stem}_{timestamp}_{count}{suffix}"
+                count += 1
+        else:
+            final_path = target_path
+
+        final_path.write_text(str(content), encoding="utf-8")
+        logger.info("[SCRIBE-SAVE] Saved Markdown User Guide to %s", final_path)
+        return final_path
+
+    # Backward compatibility alias
+    write_user_guide = save_user_guide
+
+
+if __name__ == "__main__":
+    with tempfile.TemporaryDirectory() as tmp_dir_str:
+        tmp_path = pathlib.Path(tmp_dir_str)
+        builder = MarkdownBuilder(
+            output_dir=tmp_path, base_filename="CoChem_User_Guide.md"
+        )
+
+        # 1. Test YAML Frontmatter
+        meta = {
+            "title": "CLI Pre-flight Ethanol Verification",
+            "run_id": "PREFLIGHT-001",
+            "target_molecule": "Ethanol",
+            "smiles": "CCO",
+            "environment_tier": "Local-Windows WSL",
+            "path_ref": pathlib.Path("outputs/run_001"),
+            "calc_score": np.float64(99.85),
+        }
+        fm = builder.generate_yaml_frontmatter(meta)
+        assert fm.startswith("---\n") and fm.endswith("\n---"), (
+            "Frontmatter delimiters failed"
+        )
+
+        # 2. Test System Matrix Section
+        sys_mat = {
+            "engines": {"ORCA": "6.1.1", "PySCF": "2.8.0"},
+            "host": {
+                "cpu_cores": 8,
+                "gpu_device": "RTX 4090",
+                "host_ram": "32 GB",
+            },
+        }
+        sys_sec = builder.generate_system_matrix_section(sys_mat)
+        assert "## 1. System Execution Environment & Provenance" in sys_sec, (
+            "System matrix header missing"
+        )
+        assert "**ORCA**: `6.1.1`" in sys_sec, "ORCA engine readout missing"
+
+        # 3. Test Mermaid Flowchart
+        flowchart = builder.generate_mermaid_flowchart(
+            ["0.0", "1.0", "2.0", "3.0", "6.0"]
+        )
+        assert "```mermaid" in flowchart and "graph TD" in flowchart, (
+            "Mermaid syntax error"
+        )
+        assert (
+            "S0" in flowchart and "-->" in flowchart and "S1" in flowchart
+        ), "Stage connections missing"
+
+        # 4. Test GFM Table
+        sample_df = pd.DataFrame({
+            "Conformer": ["C1", "C2"],
+            "Energy (Hartree)": [-154.1234567, -154.1122334],
+            "Rel Energy (kcal/mol)": [0.00, 7.04],
+        })
+        table_out = builder.dataframe_to_gfm_table(
+            sample_df, table_title="Conformer Summary"
+        )
+        assert "### Conformer Summary" in table_out, "Table title missing"
+        assert "-154.123457" in table_out, "Hartree rounding format incorrect"
+
+        # 5. Test Full Document Assembly & Overwrite Protection
+        payload = {
+            "metadata": meta,
+            "system_matrix": sys_mat,
+            "active_stages": ["0.0", "1.0", "6.0"],
+            "conformers_df": sample_df,
+            "thermodynamic_insights": (
+                "Ethanol conformer analysis completed. <<INSERT_PLACEHOLDER>>"
+            ),
+            "warnings": ["Minor SCF oscillation resolved."],
+            "telemetry": {
+                "peak_gpu_vram": 2048.0,
+                "peak_cpu_percent": 45.2,
+                "wall_clock_seconds": 12.34,
+            },
+        }
+        doc_content = builder.build_user_guide(payload)
+        file_1 = builder.save_user_guide(doc_content)
+        assert file_1.exists() and file_1.name == "CoChem_User_Guide.md", (
+            "File 1 save failed"
+        )
+
+        file_2 = builder.save_user_guide(doc_content)
+        assert file_2.exists() and file_2 != file_1, (
+            "Overwrite protection failed"
+        )
+        assert file_2.name.startswith("CoChem_User_Guide_"), (
+            "Timestamped filename format incorrect"
+        )
+
+    logger.info("[SCRIBE MD GENERATOR PRE-FLIGHT VERIFIED]")
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\formatters\test_scribe_md_generator.py ---
+"""Zero-Mock Integration and Unit Test Suite for MarkdownBuilder (Stage 6.3).
+
+Complies with CoChem-SCRIBE SRS Phase 4, Task 9 (Stage 6.3, Tasks 61-70),
+Method Matrix v4, the Zero-Mock Anti-Spoofing Protocol, FAIR Data Principles,
+and the 6-Tier Environment Matrix.
+
+Verifies dynamic Markdown User Guide compilation, YAML frontmatter
+serialization, Mermaid.js workflow diagram synthesis, GFM pipe table
+formatting, thermodynamic insights placeholder scrubbing, warning callout
+blockquotes, hardware telemetry reporting, and non-destructive timestamped
+overwrite protection against real physical disk I/O and real data structures.
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import re
+from typing import Any
+
+import h5py
+import numpy as np
+import pandas as pd
 import pytest
-import torch
-import torchmetrics
+import yaml
 
-# ------------------------------------------------------------------------------
-# Dynamic Path Configuration (Ensuring CoChem-BASE/src or CoChem-GEOM/src in sys.path)
-# ------------------------------------------------------------------------------
-BASE_DIR = Path(__file__).resolve().parent.parent
-GEOM_DIR_ENV = os.environ.get("COCHEM_GEOM_DIR")
-if GEOM_DIR_ENV:
-    GEOM_ROOT = Path(GEOM_DIR_ENV).resolve()
-else:
-    if (BASE_DIR / "src" / "cochem_geom").exists():
-        GEOM_ROOT = BASE_DIR
-    else:
-        GEOM_ROOT = BASE_DIR.parent / "CoChem-GEOM"
+from formatters.scribe_md_generator import MarkdownBuilder
 
-GEOM_SRC = GEOM_ROOT / "src"
-if str(GEOM_SRC) not in sys.path:
-    sys.path.insert(0, str(GEOM_SRC))
-if str(GEOM_ROOT) not in sys.path:
-    sys.path.insert(0, str(GEOM_ROOT))
+# ---------------------------------------------------------------------------
+# Zero-Mock Physical Fixtures (Real Disk I/O via tmp_path)
+# ---------------------------------------------------------------------------
 
-import cochem_geom.eval.metrics as metrics_mod
-from cochem_geom.eval.metrics import (
-    ATOMIC_MASS_UNIT_KG,
-    BOLTZMANN_CONSTANT_EV_K,
-    BOLTZMANN_CONSTANT_J_K,
-    DEFAULT_AMR_THRESHOLD,
-    DEFAULT_COV_THRESHOLD,
-    DEFAULT_TEMPERATURE_K,
-    EV_TO_CM_MINUS_ONE,
-    EV_TO_HARTREE,
-    EV_TO_KCAL_MOL,
-    EV_TO_KJ_MOL,
-    HARTREE_TO_EV,
-    HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    KCAL_MOL_TO_EV,
-    KCAL_MOL_TO_HARTREE,
-    PLANCK_CONSTANT_J_S,
-    ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ,
-    SPEED_OF_LIGHT_M_S,
-    STANDARD_TEMPERATURE_K,
-    AverageMinimumRMSD,
-    BoltzmannWeightedEnergyMAE,
-    ConformerCoverage,
-    ConformerEnsembleEvaluator,
-    EnergyMAE,
-    ForceCosineSimilarity,
-    ForceMAE,
-    ForceRMSE,
-    InertialDefectMAE,
-    InternalCoordinatesMAE,
-    RelativeEnergyMAE,
-    RotationalConstantsMAE,
-    compute_average_minimum_rmsd,
-    compute_bond_angles,
-    compute_bond_lengths,
-    compute_conformer_coverage,
-    compute_dihedral_angles,
-    compute_inertial_defect,
-    compute_moments_of_inertia,
-    compute_rmsd,
-    convert_energy,
-    get_atomic_mass,
-    get_atomic_masses,
-    get_monoisotopic_mass,
-    kabsch_align,
-    kabsch_rotation,
-    pairwise_conformer_rmsd,
+
+@pytest.fixture
+def hdf5_physical_payload(tmp_path: pathlib.Path) -> pathlib.Path:
+    """Generates a physical landscape.h5 file with authentic HDF5 hierarchies.
+
+    Under the Zero-Mock mandate, this fixture writes real numerical arrays and
+    attributes using h5py in latest library format without mock bypasses.
+
+    Args:
+        tmp_path: pytest temporary directory fixture on physical storage.
+
+    Returns:
+        Resolved pathlib.Path to the created landscape.h5 file.
+    """
+    h5_path = (tmp_path / "landscape.h5").resolve()
+    with h5py.File(h5_path, mode="w", libver="latest") as h5f:
+        # 1. Conformers hierarchy
+        conf_group = h5f.create_group("conformers")
+
+        c1 = conf_group.create_group("conf_01")
+        c1.attrs["relative_energy"] = 0.0000
+        c1.attrs["point_group_symmetry"] = "C2v"
+
+        c2 = conf_group.create_group("conf_02")
+        c2.attrs["relative_energy"] = 0.0035
+        c2.attrs["point_group_symmetry"] = "Cs"
+
+        # 2. Spectroscopy hierarchy
+        spec_group = h5f.create_group("spectroscopy")
+        spec_group.create_dataset(
+            "rotational_constants",
+            data=np.array([5420.5, 2810.2, 1950.8], dtype=np.float64),
+        )
+        spec_group.create_dataset(
+            "dipole_moments",
+            data=np.array([1.85, 0.42, 0.0], dtype=np.float64),
+        )
+
+        # 3. Thermodynamics hierarchy
+        thermo_group = h5f.create_group("thermodynamics")
+        thermo_group.attrs["zero_point_energy"] = 0.0854
+        thermo_group.attrs["enthalpy"] = -154.0321
+        thermo_group.attrs["gibbs_free_energy"] = -154.0654
+        thermo_group.create_dataset(
+            "vibrational_frequencies",
+            data=np.array([450.2, 820.5, 1450.0, 3100.4], dtype=np.float64),
+        )
+
+    return h5_path
+
+
+@pytest.fixture
+def sample_metadata_and_telemetry(
+    tmp_path: pathlib.Path,
+) -> dict[str, Any]:
+    """Generates authentic JSON audit logs and metadata dictionary on disk.
+
+    Args:
+        tmp_path: pytest temporary directory fixture.
+
+    Returns:
+        Dictionary containing metadata, file paths, telemetry, and engine configs.
+    """
+    audit_log_path = tmp_path / "cochem_audit_log.json"
+    audit_data = {
+        "wall_clock_seconds": 142.5,
+        "gpu_vram_peak_mb": 4250.0,
+        "cpu_peak_percent": 88.5,
+        "warnings": [
+            "SCF convergence required dampening on step 4.",
+            "GPU VRAM spike near 85%.",
+        ],
+    }
+    audit_log_path.write_text(
+        json.dumps(audit_data, indent=2), encoding="utf-8"
+    )
+
+    manifest_path = tmp_path / "cochem_deployment_manifest.json"
+    manifest_data = {
+        "ORCA": "6.1.1",
+        "xTB": "6.7.1",
+        "MACE-OFF23": "2023.1",
+    }
+    manifest_path.write_text(
+        json.dumps(manifest_data, indent=2), encoding="utf-8"
+    )
+
+    metadata = {
+        "title": "CoChem Computational Analysis User Guide",
+        "version": "2.0.0",
+        "generated_at": "2026-08-23T12:00:00",
+        "pipeline_hash": (
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ),
+        "environment": "Local-Linux (Debian)",
+        "fair_compliance": True,
+        "audit_log_file": audit_log_path,
+        "deployment_manifest_file": manifest_path,
+        "raw_telemetry": audit_data,
+        "raw_engines": manifest_data,
+    }
+    return metadata
+
+
+@pytest.fixture
+def sample_conformer_dataframe() -> pd.DataFrame:
+    """Returns a real pandas.DataFrame with conformer ranking data.
+
+    Returns:
+        Structured DataFrame with conformer IDs, energies, and symmetry.
+    """
+    return pd.DataFrame({
+        "Conformer ID": ["Conf_01", "Conf_02", "Conf_03"],
+        "Relative Energy (kcal/mol)": [0.000, 0.423, 1.875],
+        "Hartree Energy (Eh)": [-154.1234567, -154.1227891, -154.1204682],
+        "Symmetry": ["C2v", "Cs", "C1"],
+        "Boltzmann Population (%)": [68.4, 24.1, 7.5],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Required Test Cases (Tasks 61–70)
+# ---------------------------------------------------------------------------
+
+
+def test_markdown_builder_initialization_and_dynamic_pathing(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Test Case 1: MarkdownBuilder Initialization & Dynamic Pathing (Tasks 61 & 68).
+
+    Verifies default and custom output directory resolution using pathlib.Path,
+    automatic parent directory creation, and zero reliance on POSIX-only $HOME.
+    """
+    # 1. Default initialization resolves to ~/CoChem_Artifacts/Report_Archive
+    default_builder = MarkdownBuilder()
+    assert isinstance(default_builder, MarkdownBuilder)
+    expected_default = (
+        pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
+    ).resolve()
+    assert default_builder.output_dir == expected_default
+    assert default_builder.base_filename == "CoChem_User_Guide.md"
+    assert default_builder.filename == "CoChem_User_Guide.md"
+    assert isinstance(default_builder.output_dir, pathlib.Path)
+
+    # 2. Custom output directory and filename initialization
+    custom_target = tmp_path / "custom_reports" / "sub_archive"
+    assert not custom_target.exists()
+    custom_builder = MarkdownBuilder(
+        output_dir=custom_target, filename="custom_guide.md"
+    )
+    assert custom_builder.output_dir == custom_target.resolve()
+    assert custom_builder.base_filename == "custom_guide.md"
+    assert custom_builder.filename == "custom_guide.md"
+    assert custom_target.exists()
+    assert custom_target.is_dir()
+
+    # 3. Verify path resolution is pure Python pathlib without POSIX $HOME
+    assert not str(custom_builder.output_dir).startswith("$")
+
+
+def test_yaml_frontmatter_and_system_matrix_generation(
+    tmp_path: pathlib.Path,
+    sample_metadata_and_telemetry: dict[str, Any],
+) -> None:
+    """Test Case 2: YAML Frontmatter & System Matrix Generation (Task 62).
+
+    Verifies valid YAML frontmatter delimiter bounding and strict key-value parsing,
+    along with Stage 0 system execution environment readout containing active engines,
+    host architecture, and pipeline SHA-256 configuration hash.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path)
+    metadata = sample_metadata_and_telemetry
+
+    # 1. Test YAML Frontmatter Generation
+    frontmatter = builder.generate_yaml_frontmatter(metadata)
+    assert frontmatter.startswith("---\n")
+    assert frontmatter.endswith("\n---")
+
+    # Strip bounding lines and parse with safe_load
+    yaml_body = frontmatter.strip("-").strip()
+    parsed = yaml.safe_load(yaml_body)
+    assert isinstance(parsed, dict)
+    assert parsed["title"] == "CoChem Computational Analysis User Guide"
+    assert parsed["version"] == "2.0.0"
+    assert parsed["generated_at"] == "2026-08-23T12:00:00"
+    assert (
+        parsed["pipeline_hash"]
+        == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    )
+    assert parsed["environment"] == "Local-Linux (Debian)"
+    assert parsed["fair_compliance"] is True
+
+    # 2. Test Stage 0 System Matrix Section Generation
+    engines_dict = metadata["raw_engines"]
+    system_matrix = {
+        "engines": engines_dict,
+        "host": {
+            "environment_tier": "Local-Linux (Debian)",
+            "node_architecture": "x86_64",
+            "cpu_cores": 32,
+            "gpu_model": "NVIDIA A100-SXM4-80GB",
+            "host_ram": "128 GB",
+            "python_version": "3.10.12",
+            "config_hash": metadata["pipeline_hash"],
+        },
+    }
+    sys_section = builder.generate_system_matrix_section(system_matrix)
+
+    assert "## 1. System Execution Environment & Provenance" in sys_section
+    assert "### 1.1 Compute Engines & Versions" in sys_section
+    assert "- **ORCA**: `6.1.1`" in sys_section
+    assert "- **xTB**: `6.7.1`" in sys_section
+    assert "- **MACE-OFF23**: `2023.1`" in sys_section
+    assert "### 1.2 Host Architecture & Resource Allocation" in sys_section
+    assert "- **Environment Tier**: Local-Linux (Debian)" in sys_section
+    assert "- **Node Architecture**: x86_64" in sys_section
+    assert "- **CPU Allocation**: 32" in sys_section
+    assert "- **GPU Device**: NVIDIA A100-SXM4-80GB" in sys_section
+    assert "- **Host RAM**: 128 GB" in sys_section
+    assert "- **Python Runtime Version**: `3.10.12`" in sys_section
+    assert (
+        f"- **Configuration SHA-256**: `{metadata['pipeline_hash']}`"
+        in sys_section
+    )
+
+
+def test_dynamic_mermaid_flowchart_synthesis() -> None:
+    """Test Case 3: Dynamic Mermaid.js Flowchart Synthesis (Task 63).
+
+    Verifies dynamic Mermaid.js graph TD diagram generation mapping active stages,
+    ensuring standard stage nodes, directed edge transitions, and valid rendering.
+    """
+    builder = MarkdownBuilder()
+
+    # 1. Flowchart for specific active stages list
+    active_stages = ["Stage 0.0", "Stage 1.0", "Stage 2.0", "Stage 6.0"]
+    flowchart = builder.generate_mermaid_flowchart(active_stages)
+
+    assert "```mermaid" in flowchart
+    assert "graph TD" in flowchart
+    assert "```" in flowchart
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in flowchart
+    assert 'S1["Stage 1.0: Conformer Generation"]' in flowchart
+    assert 'S2["Stage 2.0: DFT Optimization"]' in flowchart
+    assert 'S6["Stage 6.0: SCRIBE Document Synthesis"]' in flowchart
+    assert "-->" in flowchart
+
+    # Verify inactive stages are NOT rendered when an explicit list is provided
+    assert "S3" not in flowchart
+    assert "S4" not in flowchart
+    assert "S5" not in flowchart
+
+    # 2. Flowchart for single stage (no edge transition)
+    single_chart = builder.generate_mermaid_flowchart(["Stage 0.0"])
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in single_chart
+    assert "-->" not in single_chart
+
+    # 3. Default flowchart when None passed renders all stages
+    default_chart = builder.generate_mermaid_flowchart()
+    assert "S0" in default_chart
+    assert "S1" in default_chart
+    assert "S2" in default_chart
+    assert "S3" in default_chart
+    assert "S4" in default_chart
+    assert "S5" in default_chart
+    assert "S6" in default_chart
+
+
+def test_gfm_table_pipe_formatting(
+    sample_conformer_dataframe: pd.DataFrame,
+) -> None:
+    """Test Case 4: GFM Table Pipe Formatting (Task 65).
+
+    Verifies conversion of real pandas DataFrames into standard GFM pipe tables,
+    alignment rows, numeric precision preservation, and empty table fallbacks.
+    """
+    builder = MarkdownBuilder()
+
+    # 1. Format sample conformer DataFrame
+    table_output = builder.format_gfm_table(
+        sample_conformer_dataframe, table_title="Conformer Energetic Ranking"
+    )
+
+    assert "### Conformer Energetic Ranking" in table_output
+    assert (
+        "| Conformer ID | Relative Energy (kcal/mol) | "
+        "Hartree Energy (Eh) | Symmetry | Boltzmann Population (%) |"
+        in table_output
+    )
+    # Check alignment row
+    assert "| :--- | ---: | ---: | :--- | ---: |" in table_output
+    # Check data rows and precision formatting
+    assert "| Conf_01 | 0.00 | -154.123457 | C2v | 68.40 |" in table_output
+    assert "| Conf_02 | 0.42 | -154.122789 | Cs | 24.10 |" in table_output
+    assert "| Conf_03 | 1.88 | -154.120468 | C1 | 7.50 |" in table_output
+
+    # 2. Empty DataFrame returns graceful fallback indicator
+    empty_df = pd.DataFrame()
+    empty_output = builder.format_gfm_table(empty_df, table_title="Empty Table")
+    assert "### Empty Table" in empty_output
+    assert "*No tabular data available.*" in empty_output
+
+    # 3. None input returns graceful fallback without crashing
+    none_output = builder.format_gfm_table(None)
+    assert "*No tabular data available.*" in none_output
+
+
+def test_thermodynamic_insights_injection_and_token_scrubbing() -> None:
+    """Test Case 5: Thermodynamic Insights Injection & Token Scrubbing (Task 64).
+
+    Verifies rendering of section ## 2. Thermodynamic & Structural Analysis,
+    placeholder token sanitization (<<INSERT_*>>, [PLACEHOLDER]), and empty fallback.
+    """
+    builder = MarkdownBuilder()
+
+    # 1. Narrative with internal placeholder tokens to scrub
+    raw_insights = (
+        "The global minimum conformer demonstrates significant stabilization. "
+        "<<INSERT_THERMO_TABLE>> The calculated barrier is 14.5 kcal/mol. "
+        "[PLACEHOLDER] Vibrational zero-point energy indicates strong "
+        "zero-point motion."
+    )
+    rendered = builder.inject_thermodynamic_insights(raw_insights)
+
+    assert "## 2. Thermodynamic & Structural Analysis" in rendered
+    assert (
+        "The global minimum conformer demonstrates significant stabilization."
+        in rendered
+    )
+    assert "The calculated barrier is 14.5 kcal/mol." in rendered
+    assert (
+        "Vibrational zero-point energy indicates strong zero-point motion."
+        in rendered
+    )
+    assert "<<INSERT_THERMO_TABLE>>" not in rendered
+    assert "[PLACEHOLDER]" not in rendered
+
+    # 2. Passing empty string or None renders clean professional fallback
+    empty_rendered = builder.inject_thermodynamic_insights("")
+    assert "## 2. Thermodynamic & Structural Analysis" in empty_rendered
+    assert (
+        "*Analytical data was aggregated without additional "
+        "narrative commentary.*" in empty_rendered
+    )
+
+    none_rendered = builder.inject_thermodynamic_insights(None)
+    assert "## 2. Thermodynamic & Structural Analysis" in none_rendered
+    assert (
+        "*Analytical data was aggregated without additional "
+        "narrative commentary.*" in none_rendered
+    )
+
+
+def test_audit_warnings_callout_blockquotes_and_hardware_telemetry(
+    tmp_path: pathlib.Path,
+    sample_metadata_and_telemetry: dict[str, Any],
+) -> None:
+    """Test Case 6: Audit Warnings Callouts & Hardware Telemetry (Tasks 66 & 67).
+
+    Verifies aggregation of non-fatal audit log warnings into GitHub-style callouts,
+    empty warnings fallback, and formatting of hardware telemetry section with GPU, CPU,
+    and wall-clock execution metrics.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path)
+    telemetry_data = sample_metadata_and_telemetry["raw_telemetry"]
+
+    # 1. Non-empty warnings formatting
+    warnings = telemetry_data["warnings"]
+    warning_block = builder.format_warning_blockquotes(warnings)
+    assert (
+        "> **WARNING**: SCF convergence required dampening on step 4."
+        in warning_block
+    )
+    assert "> **WARNING**: GPU VRAM spike near 85%." in warning_block
+
+    # 2. Empty warnings fallback
+    empty_block = builder.format_warning_blockquotes([])
+    assert (
+        "> **NOTE**: No non-fatal execution warnings recorded during this "
+        "pipeline run." in empty_block
+    )
+
+    none_block = builder.format_warning_blockquotes(None)
+    assert (
+        "> **NOTE**: No non-fatal execution warnings recorded during this "
+        "pipeline run." in none_block
+    )
+
+    # 3. Hardware telemetry section formatting
+    telem_section = builder.format_telemetry_section(telemetry_data)
+    assert (
+        "## 4. Hardware Telemetry & Compute Resource Allocation"
+        in telem_section
+    )
+    assert "- **Peak GPU VRAM Usage**: 4250.0 MB" in telem_section
+    assert "- **Peak CPU Usage**: 88.5%" in telem_section
+    assert "- **Wall-Clock Execution Time**: 142.50 s" in telem_section
+
+
+def test_non_destructive_timestamped_overwrite_protection(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Test Case 7: Non-Destructive Overwrite Protection (Tasks 68 & 69).
+
+    Verifies that calling write_user_guide multiple times preserves existing files,
+    creates timestamped copies with pattern CoChem_User_Guide_*.md, and UTF-8 encoding.
+    """
+    output_dir = tmp_path / "protected_reports"
+    builder = MarkdownBuilder(
+        output_dir=output_dir, filename="CoChem_User_Guide.md"
+    )
+
+    # 1. Write initial document
+    initial_content = "# CoChem User Guide - Run 1\n\nInitial computational run."
+    file_1 = builder.write_user_guide(initial_content)
+
+    assert file_1.exists()
+    assert file_1.is_file()
+    assert file_1.name == "CoChem_User_Guide.md"
+    assert file_1.read_text(encoding="utf-8") == initial_content
+
+    # 2. Write second document to the same location
+    second_content = "# CoChem User Guide - Run 2\n\nUpdated pipeline execution."
+    file_2 = builder.write_user_guide(second_content)
+
+    assert file_2.exists()
+    assert file_2.is_file()
+    assert file_2 != file_1
+    assert (
+        re.match(r"^CoChem_User_Guide_\d{8}_\d{6}(?:_\d+)?\.md$", file_2.name)
+        is not None
+    )
+    assert file_2.suffix == ".md"
+
+    # 3. Assert original file remains completely unmodified
+    assert file_1.read_text(encoding="utf-8") == initial_content
+    assert file_2.read_text(encoding="utf-8") == second_content
+
+
+def test_end_to_end_user_guide_generation(
+    tmp_path: pathlib.Path,
+    hdf5_physical_payload: pathlib.Path,
+    sample_metadata_and_telemetry: dict[str, Any],
+    sample_conformer_dataframe: pd.DataFrame,
+) -> None:
+    """Test Case 8: End-to-End User Guide Generation (Tasks 61–70).
+
+    Assembles a full data payload containing YAML metadata, Stage 0 system matrix,
+    conformer DataFrames, thermodynamic scalars, spectroscopic tables, audit warnings,
+    and hardware telemetry. Executes build_user_guide and writes the result to disk.
+    """
+    builder = MarkdownBuilder(output_dir=tmp_path / "final_guide")
+
+    # Read physical data from the authentic HDF5 file
+    with h5py.File(hdf5_physical_payload, mode="r") as h5f:
+        zpe = float(h5f["/thermodynamics"].attrs["zero_point_energy"])
+        enthalpy = float(h5f["/thermodynamics"].attrs["enthalpy"])
+        gibbs = float(h5f["/thermodynamics"].attrs["gibbs_free_energy"])
+        vib_freqs = h5f["/thermodynamics/vibrational_frequencies"][:]
+
+    thermo_df = pd.DataFrame({
+        "Property": [
+            "Zero-Point Energy (ZPE)",
+            "Enthalpy (H)",
+            "Gibbs Free Energy (G)",
+        ],
+        "Value (Hartree)": [zpe, enthalpy, gibbs],
+    })
+
+    vib_df = pd.DataFrame({
+        "Mode #": list(range(1, len(vib_freqs) + 1)),
+        "Frequency (cm-1)": vib_freqs,
+    })
+
+    metadata = sample_metadata_and_telemetry
+    telemetry = metadata["raw_telemetry"]
+    engines = metadata["raw_engines"]
+
+    payload: dict[str, Any] = {
+        "metadata": {
+            "title": metadata["title"],
+            "version": metadata["version"],
+            "generated_at": metadata["generated_at"],
+            "pipeline_hash": metadata["pipeline_hash"],
+            "environment": metadata["environment"],
+            "fair_compliance": metadata["fair_compliance"],
+        },
+        "overview": (
+            "Complete computational quantum chemistry report for "
+            "conformer exploration, vibrational spectroscopy, and "
+            "thermodynamic state functions."
+        ),
+        "system_matrix": {
+            "engines": engines,
+            "host": {
+                "environment_tier": metadata["environment"],
+                "node_architecture": "x86_64",
+                "cpu_cores": 32,
+                "gpu_model": "NVIDIA A100-SXM4-80GB",
+                "host_ram": "128 GB",
+                "python_version": "3.10.12",
+                "config_hash": metadata["pipeline_hash"],
+            },
+        },
+        "active_stages": [
+            "Stage 0.0",
+            "Stage 1.0",
+            "Stage 2.0",
+            "Stage 3.0",
+            "Stage 6.0",
+        ],
+        "conformers_df": sample_conformer_dataframe,
+        "thermodynamics_df": thermo_df,
+        "thermodynamic_insights": (
+            "Conformational search identified Conf_01 as the global minimum. "
+            "<<INSERT_THERMO>> Vibrational analysis confirms all real frequencies."
+        ),
+        "vibrational_df": vib_df,
+        "warnings": telemetry["warnings"],
+        "telemetry": telemetry,
+    }
+
+    # Execute build_user_guide
+    generated_md = builder.build_user_guide(payload)
+
+    assert isinstance(generated_md, str)
+    assert len(generated_md) > 0
+
+    # 1. Frontmatter
+    assert generated_md.startswith("---\n")
+    assert "fair_compliance: true" in generated_md.lower()
+
+    # 2. Title & Overview
+    assert "# CoChem Computational Analysis User Guide" in generated_md
+    assert "Complete computational quantum chemistry report" in generated_md
+
+    # 3. System Matrix
+    assert "## 1. System Execution Environment & Provenance" in generated_md
+    assert "- **ORCA**: `6.1.1`" in generated_md
+
+    # 4. Flowchart
+    assert "## Pipeline Execution Flowchart" in generated_md
+    assert "```mermaid" in generated_md
+    assert 'S0["Stage 0.0: Configuration & Resource Guards"]' in generated_md
+
+    # 5. Conformer Landscape Table
+    assert "### Conformer Landscape" in generated_md
+    assert "| Conf_01 | 0.00 | -154.123457 | C2v | 68.40 |" in generated_md
+
+    # 6. Thermodynamic Analysis & Table
+    assert "## 2. Thermodynamic & Structural Analysis" in generated_md
+    assert (
+        "Conformational search identified Conf_01 as the global minimum."
+        in generated_md
+    )
+    assert "<<INSERT_THERMO>>" not in generated_md
+    assert "| Zero-Point Energy (ZPE) | 0.085400 |" in generated_md
+
+    # 7. Vibrational / Spectroscopic Analysis Table
+    assert "## Spectroscopic & Vibrational Analysis" in generated_md
+    assert "| 1 | 450.20 |" in generated_md
+
+    # 8. Execution Warnings
+    assert "### Execution Warnings & Audit Trail" in generated_md
+    assert (
+        "> **WARNING**: SCF convergence required dampening on step 4."
+        in generated_md
+    )
+
+    # 9. Hardware Telemetry
+    assert (
+        "## 4. Hardware Telemetry & Compute Resource Allocation"
+        in generated_md
+    )
+    assert "- **Peak GPU VRAM Usage**: 4250.0 MB" in generated_md
+    assert "- **Peak CPU Usage**: 88.5%" in generated_md
+
+    # Write document to disk and verify integrity
+    written_file = builder.write_user_guide(generated_md)
+    assert written_file.exists()
+    assert written_file.is_file()
+    assert written_file.read_text(encoding="utf-8") == generated_md
+
+
+# ---------------------------------------------------------------------------
+# Backwards Compatibility Discovery Aliases
+# ---------------------------------------------------------------------------
+test_markdown_builder_initialization = (
+    test_markdown_builder_initialization_and_dynamic_pathing
 )
-
-
-# ==============================================================================
-# Fixtures: Real Molecular Coordinates & Structures
-# ==============================================================================
-
-@pytest.fixture
-def water_molecule() -> Tuple[List[str], torch.Tensor, torch.Tensor]:
-    """Real water (H2O) equilibrium geometry from spectroscopic benchmarks [M]."""
-    symbols = ["O", "H", "H"]
-    z = torch.tensor([8, 1, 1], dtype=torch.long)
-    # C2v equilibrium structure in Angstroms: r_OH = 0.9575 A, angle HOH = 104.51 deg
-    theta = math.radians(104.51 / 2.0)
-    r_oh = 0.9575
-    pos = torch.tensor(
-        [
-            [0.0, 0.0, 0.0],
-            [r_oh * math.sin(theta), 0.0, r_oh * math.cos(theta)],
-            [-r_oh * math.sin(theta), 0.0, r_oh * math.cos(theta)],
-        ],
-        dtype=torch.float32,
-    )
-    return symbols, z, pos
-
-
-@pytest.fixture
-def methane_molecule() -> Tuple[List[str], torch.Tensor, torch.Tensor]:
-    """Real methane (CH4) tetrahedral equilibrium geometry [M]."""
-    symbols = ["C", "H", "H", "H", "H"]
-    z = torch.tensor([6, 1, 1, 1, 1], dtype=torch.long)
-    r_ch = 1.087
-    a = r_ch / math.sqrt(3.0)
-    pos = torch.tensor(
-        [
-            [0.0, 0.0, 0.0],
-            [a, a, a],
-            [a, -a, -a],
-            [-a, a, -a],
-            [-a, -a, a],
-        ],
-        dtype=torch.float32,
-    )
-    return symbols, z, pos
-
-
-@pytest.fixture
-def ethanol_conformers() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Real ethanol (C2H5OH) trans and gauche conformer geometries [M]."""
-    # 9 atoms: C, C, O, H, H, H, H, H, H
-    # Trans conformer
-    trans_pos = torch.tensor(
-        [
-            [0.000, 0.000, 0.000],  # C1
-            [1.500, 0.000, 0.000],  # C2
-            [2.050, 1.300, 0.000],  # O
-            [3.010, 1.250, 0.000],  # H (hydroxyl)
-            [-0.370, 0.510, 0.890],  # H
-            [-0.370, 0.510, -0.890],  # H
-            [-0.370, -1.030, 0.000],  # H
-            [1.870, -0.510, 0.890],  # H
-            [1.870, -0.510, -0.890],  # H
-        ],
-        dtype=torch.float32,
-    )
-    # Gauche conformer (rotated hydroxyl dihedral by ~120 degrees)
-    gauche_pos = trans_pos.clone()
-    gauche_pos[3] = torch.tensor([2.050 + 0.96 * math.cos(math.radians(105)), 1.300 + 0.96 * math.sin(math.radians(105)) * math.cos(math.radians(120)), 0.96 * math.sin(math.radians(105)) * math.sin(math.radians(120))], dtype=torch.float32)
-    return trans_pos, gauche_pos
-
-
-# ==============================================================================
-# 1. Fundamental Physical Constants & Conversion Factors Tests
-# ==============================================================================
-
-class TestFundamentalPhysicalConstants:
-    """Validates CODATA 2018/2022 constants and energy conversion precision."""
-
-    def test_codata_constants_and_provenance(self) -> None:
-        """Validate CODATA exact and measured constants."""
-        assert SPEED_OF_LIGHT_M_S == 299792458.0  # [M]
-        assert math.isclose(PLANCK_CONSTANT_J_S, 6.62607015e-34, rel_tol=1e-12)  # [M]
-        assert math.isclose(BOLTZMANN_CONSTANT_J_K, 1.380649e-23, rel_tol=1e-12)  # [M]
-        assert math.isclose(STANDARD_TEMPERATURE_K, 298.15, rel_tol=1e-12)  # [M]
-        assert math.isclose(DEFAULT_TEMPERATURE_K, 298.15, rel_tol=1e-12)  # [M]
-        assert math.isclose(BOLTZMANN_CONSTANT_EV_K, 8.617333262145e-5, rel_tol=1e-9)  # [D]
-        assert math.isclose(ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ, 505379.008784, rel_tol=1e-6)  # [D]
-        assert DEFAULT_COV_THRESHOLD == 0.5  # [E]
-        assert DEFAULT_AMR_THRESHOLD == 0.5  # [E]
-
-    def test_energy_conversions(self) -> None:
-        """Validate precision and invertibility of energy unit conversions."""
-        val_ev = 1.5
-        val_hartree = convert_energy(val_ev, from_unit="ev", to_unit="hartree")
-        assert math.isclose(val_hartree, val_ev * EV_TO_HARTREE, rel_tol=1e-9)
-
-        val_kcal = convert_energy(val_hartree, from_unit="hartree", to_unit="kcal_mol")
-        assert math.isclose(val_kcal, val_hartree * HARTREE_TO_KCAL_MOL, rel_tol=1e-9)
-
-        val_kj = convert_energy(val_hartree, from_unit="hartree", to_unit="kj_mol")
-        assert math.isclose(val_kj, val_hartree * HARTREE_TO_KJ_MOL, rel_tol=1e-9)
-
-        # Invertibility back to eV
-        val_ev_rec = convert_energy(val_kcal, from_unit="kcal_mol", to_unit="ev")
-        assert math.isclose(val_ev, val_ev_rec, rel_tol=1e-6)
-
-
-# ==============================================================================
-# 2. Dynamic Mendeleev Mass Resolution Tests
-# ==============================================================================
-
-class TestDynamicMendeleevMasses:
-    """Enforces the Mendeleev Library Mandate: dynamic property lookup without hardcoding."""
-
-    def test_dynamic_atomic_masses_lookup(self) -> None:
-        """Verify dynamic mass lookup via Mendeleev."""
-        for sym in ["H", "C", "N", "O", "F", "P", "S", "Cl"]:
-            m_expected = float(element(sym).atomic_weight)
-            assert math.isclose(get_atomic_mass(sym), m_expected, rel_tol=1e-9)
-            z = int(element(sym).atomic_number)
-            assert math.isclose(get_atomic_mass(z), m_expected, rel_tol=1e-9)
-
-    def test_tensor_masses_resolution(self) -> None:
-        """Verify dynamic mass resolution for a 1D tensor of atomic numbers."""
-        z_tensor = torch.tensor([1, 6, 7, 8, 16], dtype=torch.long)
-        masses = get_atomic_masses(z_tensor)
-        assert masses.shape == (5,)
-        assert math.isclose(masses[0].item(), float(element("H").atomic_weight), rel_tol=1e-6)
-        assert math.isclose(masses[1].item(), float(element("C").atomic_weight), rel_tol=1e-6)
-        assert math.isclose(masses[2].item(), float(element("N").atomic_weight), rel_tol=1e-6)
-        assert math.isclose(masses[3].item(), float(element("O").atomic_weight), rel_tol=1e-6)
-        assert math.isclose(masses[4].item(), float(element("S").atomic_weight), rel_tol=1e-6)
-
-
-# ==============================================================================
-# 3. Pure Functional Kabsch Algorithm & SE(3) Invariance Tests
-# ==============================================================================
-
-class TestKabschAlgorithmAndRMSD:
-    """Tests for pure functional Kabsch alignment and RMSD calculations."""
-
-    def test_identical_structures_rmsd_zero(self, water_molecule: Any) -> None:
-        """Identical coordinates must yield exact zero RMSD and identity rotation."""
-        _, _, pos = water_molecule
-        rmsd = compute_rmsd(pos, pos, align=True)
-        assert math.isclose(rmsd.item(), 0.0, abs_tol=1e-6)
-
-        aligned_pos, R, t, aligned_rmsd = kabsch_align(pos, pos)
-        assert math.isclose(aligned_rmsd.item(), 0.0, abs_tol=1e-6)
-        assert torch.allclose(R, torch.eye(3), atol=1e-5)
-        assert torch.allclose(aligned_pos, pos, atol=1e-5)
-
-    def test_translation_and_rotation_invariance(self, methane_molecule: Any) -> None:
-        """Kabsch alignment must recover exact zero RMSD under arbitrary SE(3) translation and rotation."""
-        _, _, pos = methane_molecule
-
-        # Arbitrary rotation matrix via Rodrigues rotation around axis [1, 1, 1] by 45 deg
-        axis = torch.tensor([1.0, 1.0, 1.0])
-        axis = axis / torch.norm(axis)
-        angle = math.radians(45.0)
-        K = torch.tensor(
-            [
-                [0.0, -axis[2], axis[1]],
-                [axis[2], 0.0, -axis[0]],
-                [-axis[1], axis[0], 0.0],
-            ],
-            dtype=torch.float32,
-        )
-        R_true = torch.eye(3) + math.sin(angle) * K + (1.0 - math.cos(angle)) * (K @ K)
-        t_true = torch.tensor([12.5, -8.3, 4.1], dtype=torch.float32)
-
-        # Transformed coordinates (pure immutable operation)
-        pos_transformed = (pos @ R_true.T) + t_true.view(1, 3)
-
-        # Unaligned RMSD must be large
-        unaligned_rmsd = compute_rmsd(pos, pos_transformed, align=False)
-        assert unaligned_rmsd.item() > 5.0
-
-        # Aligned RMSD must be 0.0
-        aligned_rmsd = compute_rmsd(pos, pos_transformed, align=True)
-        assert math.isclose(aligned_rmsd.item(), 0.0, abs_tol=1e-5)
-
-        # Reconstructed aligned position must match reference
-        aligned_pos, R_est, t_est, r_val = kabsch_align(pos, pos_transformed)
-        assert math.isclose(r_val.item(), 0.0, abs_tol=1e-5)
-        assert torch.allclose(aligned_pos, pos, atol=1e-4)
-
-    def test_state_immutability(self, water_molecule: Any) -> None:
-        """Verify inputs are never mutated in place during alignment."""
-        _, _, pos = water_molecule
-        pos_orig = pos.clone()
-        shift = torch.tensor([1.0, 2.0, 3.0])
-        pos_shifted = pos + shift
-
-        _ = kabsch_align(pos, pos_shifted)
-        assert torch.equal(pos, pos_orig), "Original tensor was mutated in place!"
-
-    def test_reflection_correction(self) -> None:
-        """Ensure Kabsch handles reflection and does not return improper rotations (det(R) must be +1)."""
-        pos = torch.tensor(
-            [
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                [0.0, 0.0, 1.0],
-                [0.5, 0.5, 0.5],
-            ],
-            dtype=torch.float32,
-        )
-        # Reflected coordinate system (inversion)
-        pos_reflected = -pos
-
-        aligned_pos, R, t, rmsd = kabsch_align(pos, pos_reflected)
-        det_R = torch.det(R).item()
-        assert math.isclose(det_R, 1.0, abs_tol=1e-5), f"Rotation matrix has improper determinant: {det_R}"
-
-
-# ==============================================================================
-# 4. Pairwise Conformer Ensemble & Coverage Metrics
-# ==============================================================================
-
-class TestConformerEnsembleMetrics:
-    """Tests for Conformer Coverage (COV) and Average Minimum RMSD (AMR)."""
-
-    def test_pairwise_rmsd_matrix(self, ethanol_conformers: Any) -> None:
-        """Verify pairwise RMSD matrix shape and values."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)  # Shape [2, 9, 3]
-        preds = torch.stack([trans_pos, gauche_pos], dim=0)  # Shape [2, 9, 3]
-
-        rmsd_mat = pairwise_conformer_rmsd(refs, preds, align=True)
-        assert rmsd_mat.shape == (2, 2)
-        assert math.isclose(rmsd_mat[0, 0].item(), 0.0, abs_tol=1e-5)
-        assert math.isclose(rmsd_mat[1, 1].item(), 0.0, abs_tol=1e-5)
-        assert rmsd_mat[0, 1].item() > 0.1  # Trans vs gauche difference
-
-    def test_conformer_coverage_functional(self, ethanol_conformers: Any) -> None:
-        """Verify functional compute_conformer_coverage."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)  # [2, 9, 3]
-        # Only trans is predicted
-        preds = trans_pos.unsqueeze(0)  # [1, 9, 3]
-
-        # At tight threshold 0.1 A, only 1 of 2 refs is covered (50% recall, 100% precision)
-        cov_r, cov_p = compute_conformer_coverage(refs, preds, threshold=0.1, align=True)
-        assert math.isclose(cov_r.item(), 50.0, abs_tol=1e-4)
-        assert math.isclose(cov_p.item(), 100.0, abs_tol=1e-4)
-
-    def test_average_minimum_rmsd_functional(self, ethanol_conformers: Any) -> None:
-        """Verify functional compute_average_minimum_rmsd."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)
-        preds = torch.stack([trans_pos, gauche_pos], dim=0)
-
-        amr_r, amr_p = compute_average_minimum_rmsd(refs, preds, align=True)
-        assert math.isclose(amr_r.item(), 0.0, abs_tol=1e-5)
-        assert math.isclose(amr_p.item(), 0.0, abs_tol=1e-5)
-
-
-# ==============================================================================
-# 5. TorchMetrics Class Implementations & DDP Lifecycles
-# ==============================================================================
-
-class TestTorchMetricsClasses:
-    """Validates TorchMetrics Metric subclasses for conformer generation."""
-
-    def test_conformer_coverage_metric(self, ethanol_conformers: Any) -> None:
-        """Test ConformerCoverage TorchMetrics lifecycle (update, compute, reset)."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)
-        preds = torch.stack([trans_pos, gauche_pos], dim=0)
-
-        metric = ConformerCoverage(threshold=0.5)
-        metric.update(refs, preds)
-        res = metric.compute()
-
-        assert "cov_recall" in res
-        assert "cov_precision" in res
-        assert math.isclose(res["cov_recall"].item(), 100.0, abs_tol=1e-4)
-        assert math.isclose(res["cov_precision"].item(), 100.0, abs_tol=1e-4)
-
-        # Reset verification
-        metric.reset()
-        assert metric.total_ref_count == 0
-        assert metric.total_pred_count == 0
-
-    def test_average_minimum_rmsd_metric(self, ethanol_conformers: Any) -> None:
-        """Test AverageMinimumRMSD TorchMetrics lifecycle."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)
-        preds = torch.stack([trans_pos, gauche_pos], dim=0)
-
-        metric = AverageMinimumRMSD()
-        metric.update(refs, preds)
-        res = metric.compute()
-
-        assert "amr_recall" in res
-        assert "amr_precision" in res
-        assert math.isclose(res["amr_recall"].item(), 0.0, abs_tol=1e-5)
-        assert math.isclose(res["amr_precision"].item(), 0.0, abs_tol=1e-5)
-
-    def test_energy_mae_metric(self) -> None:
-        """Test EnergyMAE metric with unit conversion."""
-        pred_e = torch.tensor([10.0, 20.0, 30.0], dtype=torch.float32)  # in eV
-        true_e = torch.tensor([10.5, 19.5, 31.0], dtype=torch.float32)  # in eV
-        # Errors in eV: [0.5, 0.5, 1.0] -> Mean = 0.666667 eV
-
-        metric = EnergyMAE(target_unit="ev", input_unit="ev")
-        metric.update(pred_e, true_e)
-        mae_ev = metric.compute()
-        assert math.isclose(mae_ev.item(), 2.0 / 3.0, rel_tol=1e-5)
-
-        # Unit conversion to kcal/mol
-        metric_kcal = EnergyMAE(target_unit="kcal_mol", input_unit="ev")
-        metric_kcal.update(pred_e, true_e)
-        mae_kcal = metric_kcal.compute()
-        assert math.isclose(mae_kcal.item(), (2.0 / 3.0) * EV_TO_KCAL_MOL, rel_tol=1e-5)
-
-    def test_relative_energy_mae_metric(self) -> None:
-        """Test RelativeEnergyMAE for conformer energy ranking."""
-        # 3 conformers: True = [0.0, 2.0, 5.0] eV, Pred = [0.1, 2.2, 4.8] eV
-        # Relative True = [0.0, 2.0, 5.0] eV
-        # Relative Pred = [0.0, 2.1, 4.7] eV
-        # Rel Errors = [0.0, 0.1, 0.3] -> Mean = 0.4 / 3 = 0.133333 eV
-        pred_e = torch.tensor([0.1, 2.2, 4.8], dtype=torch.float32)
-        true_e = torch.tensor([0.0, 2.0, 5.0], dtype=torch.float32)
-
-        metric = RelativeEnergyMAE(target_unit="ev")
-        metric.update(pred_e, true_e)
-        rel_mae = metric.compute()
-        assert math.isclose(rel_mae.item(), 0.4 / 3.0, rel_tol=1e-5)
-
-    def test_boltzmann_weighted_energy_mae(self) -> None:
-        """Test Boltzmann-weighted energy error at 298.15 K."""
-        pred_e = torch.tensor([0.0, 1.0], dtype=torch.float32)  # eV
-        true_e = torch.tensor([0.0, 1.0], dtype=torch.float32)  # eV
-        metric = BoltzmannWeightedEnergyMAE(temperature_k=298.15)
-        metric.update(pred_e, true_e)
-        assert math.isclose(metric.compute().item(), 0.0, abs_tol=1e-6)
-
-    def test_force_metrics(self) -> None:
-        """Test ForceMAE, ForceRMSE, and ForceCosineSimilarity."""
-        pred_f = torch.tensor([[1.0, 0.0, 0.0], [0.0, 2.0, 0.0]], dtype=torch.float32)
-        true_f = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float32)
-
-        mae_metric = ForceMAE()
-        mae_metric.update(pred_f, true_f)
-        # Component errors: [0, 0, 0] and [0, 1, 0] -> sum = 1.0 / 6 = 0.166667
-        assert math.isclose(mae_metric.compute().item(), 1.0 / 6.0, rel_tol=1e-5)
-
-        cos_metric = ForceCosineSimilarity()
-        cos_metric.update(pred_f, true_f)
-        # Cosine sims: 1.0 and 1.0 -> Mean = 1.0
-        assert math.isclose(cos_metric.compute().item(), 1.0, rel_tol=1e-5)
-
-
-# ==============================================================================
-# 6. Rotational Constants & Spectroscopic Observables
-# ==============================================================================
-
-class TestRotationalObservables:
-    """Validates principal moments of inertia and rotational constants (A, B, C)."""
-
-    def test_water_moments_and_rotational_constants(self, water_molecule: Any) -> None:
-        """Validate moments of inertia and rotational constants for H2O."""
-        _, z, pos = water_molecule
-        moments, rot_consts = compute_moments_of_inertia(pos, z)
-        # Check sorting: I_a <= I_b <= I_c and A >= B >= C
-        assert moments[0] <= moments[1] <= moments[2]
-        assert rot_consts[0] >= rot_consts[1] >= rot_consts[2]
-
-        # For planar molecule, planar inertial defect Delta I = I_c - I_a - I_b ~ 0.0 (rigid rotor)
-        defect = compute_inertial_defect(pos, z)
-        assert math.isclose(defect.item(), 0.0, abs_tol=1e-4)
-
-    def test_rotational_constants_mae_metric(self, water_molecule: Any) -> None:
-        """Validate RotationalConstantsMAE and InertialDefectMAE."""
-        _, z, pos = water_molecule
-        metric = RotationalConstantsMAE()
-        metric.update(pos, pos, z)
-        res = metric.compute()
-        assert math.isclose(res["mae_a_mhz"].item(), 0.0, abs_tol=1e-4)
-        assert math.isclose(res["mae_b_mhz"].item(), 0.0, abs_tol=1e-4)
-        assert math.isclose(res["mae_c_mhz"].item(), 0.0, abs_tol=1e-4)
-
-        defect_metric = InertialDefectMAE()
-        defect_metric.update(pos, pos, z)
-        assert math.isclose(defect_metric.compute().item(), 0.0, abs_tol=1e-5)
-
-
-# ==============================================================================
-# 7. Internal Coordinates (Bonds, Angles, Dihedrals)
-# ==============================================================================
-
-class TestInternalCoordinates:
-    """Validates bond lengths, bond angles, and dihedral angles calculation."""
-
-    def test_water_bond_length_and_angle(self, water_molecule: Any) -> None:
-        """Verify bond lengths and bond angle for H2O."""
-        _, _, pos = water_molecule
-        bonds = torch.tensor([[0, 1], [0, 2]], dtype=torch.long)
-        angles = torch.tensor([[1, 0, 2]], dtype=torch.long)
-
-        lengths = compute_bond_lengths(pos, bonds)
-        assert math.isclose(lengths[0].item(), 0.9575, rel_tol=1e-4)
-        assert math.isclose(lengths[1].item(), 0.9575, rel_tol=1e-4)
-
-        deg = compute_bond_angles(pos, angles)
-        assert math.isclose(deg[0].item(), 104.51, rel_tol=1e-3)
-
-    def test_internal_coordinates_mae_metric(self, water_molecule: Any) -> None:
-        """Verify InternalCoordinatesMAE metric lifecycle."""
-        _, _, pos = water_molecule
-        bonds = torch.tensor([[0, 1], [0, 2]], dtype=torch.long)
-        angles = torch.tensor([[1, 0, 2]], dtype=torch.long)
-
-        metric = InternalCoordinatesMAE(bonds=bonds, angles=angles)
-        metric.update(pos, pos)
-        res = metric.compute()
-
-        assert math.isclose(res["mae_bonds_angstrom"].item(), 0.0, abs_tol=1e-5)
-        assert math.isclose(res["mae_angles_deg"].item(), 0.0, abs_tol=1e-4)
-
-
-# ==============================================================================
-# 8. Composite Conformer Ensemble Evaluator
-# ==============================================================================
-
-class TestCompositeConformerEnsembleEvaluator:
-    """Tests the unified ConformerEnsembleEvaluator multi-metric suite."""
-
-    def test_evaluator_lifecycle(self, ethanol_conformers: Any) -> None:
-        """Verify multi-metric update and unified summary generation."""
-        trans_pos, gauche_pos = ethanol_conformers
-        refs = torch.stack([trans_pos, gauche_pos], dim=0)
-        preds = torch.stack([trans_pos, gauche_pos], dim=0)
-        ref_e = torch.tensor([0.0, 0.043], dtype=torch.float32)  # in eV
-        pred_e = torch.tensor([0.0, 0.043], dtype=torch.float32)  # in eV
-        z = torch.tensor([6, 6, 8, 1, 1, 1, 1, 1, 1], dtype=torch.long)
-
-        evaluator = ConformerEnsembleEvaluator(thresholds=(0.5, 1.25))
-        evaluator.update(
-            ref_positions=refs,
-            pred_positions=preds,
-            ref_energies=ref_e,
-            pred_energies=pred_e,
-            atomic_numbers=z,
-        )
-        summary = evaluator.compute()
-
-        assert "cov_recall_0.50" in summary
-        assert "cov_precision_0.50" in summary
-        assert "amr_recall" in summary
-        assert "amr_precision" in summary
-        assert "energy_mae_ev" in summary
-        assert "rel_energy_mae_ev" in summary
-        assert "rotational_mae_mhz" in summary
-
-        assert math.isclose(summary["cov_recall_0.50"].item(), 100.0, abs_tol=1e-4)
-        assert math.isclose(summary["amr_recall"].item(), 0.0, abs_tol=1e-5)
-        assert math.isclose(summary["energy_mae_ev"].item(), 0.0, abs_tol=1e-5)
+test_yaml_frontmatter_and_system_matrix = (
+    test_yaml_frontmatter_and_system_matrix_generation
+)
+test_mermaid_flowchart_generation = test_dynamic_mermaid_flowchart_synthesis
+test_mermaid_flowchart_synthesis = test_dynamic_mermaid_flowchart_synthesis
+test_dataframe_to_gfm_table = test_gfm_table_pipe_formatting
+test_thermodynamic_insights_scrubbing = (
+    test_thermodynamic_insights_injection_and_token_scrubbing
+)
+test_audit_warnings_and_telemetry_formatting = (
+    test_audit_warnings_callout_blockquotes_and_hardware_telemetry
+)
+test_save_user_guide_overwrite_protection = (
+    test_non_destructive_timestamped_overwrite_protection
+)
+test_build_user_guide_e2e = test_end_to_end_user_guide_generation
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

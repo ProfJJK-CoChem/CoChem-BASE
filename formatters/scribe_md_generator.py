@@ -1,4 +1,4 @@
-"""Dynamic Markdown User Guide Compiler & GFM Table Generator for CoChem-SCRIBE (Stage 6.3).
+"""Dynamic Markdown User Guide Compiler & GFM Table Generator for CoChem-SCRIBE.
 
 Synthesizes structured CoChem_User_Guide.md reports containing YAML frontmatter,
 Stage 0 provenance metadata, dynamic Mermaid.js execution flowcharts,
@@ -17,11 +17,12 @@ import platform
 import re
 import sys
 import tempfile
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from collections.abc import Iterable, Sequence
+from typing import Any
 
 import numpy as np
-import pandas as pd  # type: ignore[import-untyped]
-import yaml  # type: ignore[import-untyped]
+import pandas as pd
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -31,44 +32,44 @@ RAM_THRESHOLD_MB: float = 100.0
 HIGH_VAL_THRESHOLD: float = 10000.0
 LOW_VAL_THRESHOLD: float = 1e-4
 
-# Standard Stage definition catalog for Mermaid diagram synthesis
-STAGE_DEFINITIONS: Dict[str, Tuple[str, str]] = {
+# Standard Stage definition catalog for Mermaid diagram synthesis (SRS §2.3)
+STAGE_DEFINITIONS: dict[str, tuple[str, str]] = {
     "0.0": ("S0", "Stage 0.0: Configuration & Resource Guards"),
-    "1.0": ("S1", "Stage 1.0: Conformer Generation"),
-    "2.0": ("S2", "Stage 2.0: DFT Optimization"),
+    "1.0": ("S1", "Stage 1.0: Conformer Generation (CREST/ORCA)"),
+    "2.0": ("S2", "Stage 2.0: Geometry Optimization"),
     "3.0": ("S3", "Stage 3.0: Frequency & Thermochemistry"),
-    "4.0": ("S4", "Stage 4.0: Sinc-DVR Dynamic Tunneling"),
-    "5.0": ("S5", "Stage 5.0: Telemetry Aggregation"),
-    "6.0": ("S6", "Stage 6.0: SCRIBE Document Synthesis"),
+    "4.0": ("S4", "Stage 4.0: Spectroscopic Analysis (TORQ)"),
+    "5.0": ("S5", "Stage 5.0: Voigt Spectral Deconvolution (SpycFit)"),
+    "6.0": ("S6", "Stage 6.0: Document Synthesis (SCRIBE)"),
 }
 
-STAGE_DESCRIPTIONS_FALLBACK: Dict[str, str] = {
+STAGE_DESCRIPTIONS_FALLBACK: dict[str, str] = {
     "0": "Stage 0.0: Configuration & Resource Guards",
     "0.0": "Stage 0.0: Configuration & Resource Guards",
-    "1": "Stage 1.0: Conformer Generation",
-    "1.0": "Stage 1.0: Conformer Generation",
-    "2": "Stage 2.0: DFT Optimization",
-    "2.0": "Stage 2.0: DFT Optimization",
+    "1": "Stage 1.0: Conformer Generation (CREST/ORCA)",
+    "1.0": "Stage 1.0: Conformer Generation (CREST/ORCA)",
+    "2": "Stage 2.0: Geometry Optimization",
+    "2.0": "Stage 2.0: Geometry Optimization",
     "3": "Stage 3.0: Frequency & Thermochemistry",
     "3.0": "Stage 3.0: Frequency & Thermochemistry",
-    "4": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
-    "4.0": "Stage 4.0: Sinc-DVR Dynamic Tunneling",
-    "5": "Stage 5.0: Telemetry Aggregation",
-    "5.0": "Stage 5.0: Telemetry Aggregation",
-    "6": "Stage 6.0: SCRIBE Document Synthesis",
-    "6.0": "Stage 6.0: SCRIBE Document Synthesis",
+    "4": "Stage 4.0: Spectroscopic Analysis (TORQ)",
+    "4.0": "Stage 4.0: Spectroscopic Analysis (TORQ)",
+    "5": "Stage 5.0: Voigt Spectral Deconvolution (SpycFit)",
+    "5.0": "Stage 5.0: Voigt Spectral Deconvolution (SpycFit)",
+    "6": "Stage 6.0: Document Synthesis (SCRIBE)",
+    "6.0": "Stage 6.0: Document Synthesis (SCRIBE)",
 }
 
 
 def _sanitize_for_yaml(val: Any) -> Any:
-    """Recursively converts non-serializable objects (Path, numpy, datetime) into YAML-safe primitives."""
+    """Recursively converts non-serializable objects into YAML-safe primitives."""
     if val is None:
         return None
-    if isinstance(val, (np.floating,)):
+    if isinstance(val, np.floating):
         return float(val)
-    if isinstance(val, (np.integer,)):
+    if isinstance(val, np.integer):
         return int(val)
-    if isinstance(val, (np.bool_,)):
+    if isinstance(val, np.bool_):
         return bool(val)
     if isinstance(val, bool):
         return bool(val)
@@ -78,23 +79,25 @@ def _sanitize_for_yaml(val: Any) -> Any:
         return float(val)
     if isinstance(val, str):
         return str(val)
-    if isinstance(val, (os.PathLike, pathlib.PurePath)):
+    if isinstance(val, os.PathLike | pathlib.PurePath):
         if hasattr(val, "as_posix"):
             return val.as_posix()
         return str(val).replace("\\", "/")
     if isinstance(val, np.ndarray):
         return [_sanitize_for_yaml(item) for item in val.tolist()]
-    if isinstance(val, (datetime.date, datetime.datetime)):
+    if isinstance(val, datetime.date | datetime.datetime):
         return val.strftime("%Y-%m-%d %H:%M:%S")
     if isinstance(val, dict):
         return {str(k): _sanitize_for_yaml(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple, set)):
+    if isinstance(val, list | tuple | set):
         return [_sanitize_for_yaml(item) for item in val]
     return str(val)
 
 
-def _get_first_present(data: Dict[str, Any], keys: List[str], default: Any = "N/A") -> Any:
-    """Safely retrieves the first present key value, distinguishing between None and falsy zero."""
+def _get_first_present(
+    data: dict[str, Any], keys: list[str], default: Any = "N/A"
+) -> Any:
+    """Safely retrieves the first present key value from data."""
     for k in keys:
         if k in data and data[k] is not None:
             return data[k]
@@ -105,29 +108,31 @@ _get_present_val = _get_first_present
 
 
 class MarkdownBuilder:
-    """Markdown User Guide and GFM Table synthesis engine for CoChem-SCRIBE (Stage 6.3).
+    """Markdown User Guide and GFM Table synthesis engine for CoChem-SCRIBE.
 
-    Generates structured, publication-grade Markdown documentation (CoChem_User_Guide.md)
-    enriched with YAML frontmatter, Stage 0 provenance matrices, dynamic Mermaid.js flowcharts,
-    GitHub-Flavored Markdown (GFM) tables, thermodynamic analysis narratives, hardware telemetry
-    charts, and non-fatal audit warning blockquotes. Enforces cross-platform safe
-    pathing and non-destructive timestamped overwrite protection.
+    Generates structured, publication-grade Markdown documentation
+    (CoChem_User_Guide.md) enriched with YAML frontmatter, Stage 0
+    provenance matrices, dynamic Mermaid.js flowcharts, GitHub-Flavored
+    Markdown (GFM) tables, thermodynamic analysis narratives, hardware
+    telemetry charts, and non-fatal audit warning blockquotes. Enforces
+    cross-platform safe pathing and non-destructive timestamped overwrite
+    protection.
     """
 
     def __init__(
         self,
-        output_dir: Optional[Union[str, pathlib.Path]] = None,
-        base_filename: str = "CoChem_User_Guide.md",
-        filename: Optional[str] = None,
+        output_dir: str | pathlib.Path | None = None,
+        filename: str = "CoChem_User_Guide.md",
+        base_filename: str | None = None,
     ) -> None:
         """Initializes MarkdownBuilder with dynamic output directory resolution.
 
         Args:
             output_dir: Optional directory for output markdown. Defaults to
                 Path.home() / "CoChem_Artifacts" / "Report_Archive".
-            base_filename: Target output markdown filename. Defaults to
+            filename: Target output markdown filename. Defaults to
                 "CoChem_User_Guide.md".
-            filename: Alias for base_filename for backwards compatibility.
+            base_filename: Optional alias for filename for backwards compatibility.
         """
         if output_dir is not None:
             self.output_dir = pathlib.Path(output_dir).resolve()
@@ -136,13 +141,18 @@ class MarkdownBuilder:
                 pathlib.Path.home() / "CoChem_Artifacts" / "Report_Archive"
             ).resolve()
 
-        self.base_filename = filename if filename is not None else base_filename
-        self.filename = self.base_filename
+        resolved_filename = (
+            base_filename if base_filename is not None else filename
+        )
+        self.filename = resolved_filename
+        self.base_filename = resolved_filename
         self.output_dir.mkdir(parents=True, exist_ok=True)
         logger.info("[SCRIBE-INIT] MarkdownBuilder initialized at %s", self.output_dir)
 
-    def generate_yaml_frontmatter(self, metadata: Optional[Dict[str, Any]] = None) -> str:
-        """Generates valid YAML frontmatter block containing run provenance and metadata.
+    def generate_yaml_frontmatter(
+        self, metadata: dict[str, Any] | None = None
+    ) -> str:
+        """Generates valid YAML frontmatter block with run provenance and metadata.
 
         Args:
             metadata: Run metadata dictionary.
@@ -162,7 +172,11 @@ class MarkdownBuilder:
             meta["date"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if "cochem_version" not in meta and "version" not in meta:
             meta["cochem_version"] = "2.0.0"
-        if "run_id" not in meta and "experiment_id" not in meta and "pipeline_hash" not in meta:
+        if (
+            "run_id" not in meta
+            and "experiment_id" not in meta
+            and "pipeline_hash" not in meta
+        ):
             meta["run_id"] = "N/A"
         if "target_molecule" not in meta:
             meta["target_molecule"] = "N/A"
@@ -179,17 +193,19 @@ class MarkdownBuilder:
         ).strip()
         return f"---\n{yaml_content}\n---"
 
-    def generate_system_matrix_section(self, system_matrix: Optional[Dict[str, Any]] = None) -> str:
-        """Generates Markdown readout of Stage 0 active computational engines and hardware nodes.
+    def generate_system_matrix_section(
+        self, system_matrix: dict[str, Any] | None = None
+    ) -> str:
+        """Generates Markdown readout of Stage 0 active compute engines and nodes.
 
         Args:
             system_matrix: System configuration and execution environment data.
 
         Returns:
-            Formatted Markdown section under ## 1. System Execution Environment & Provenance.
+            Formatted Markdown section under Stage 1 provenance header.
         """
         matrix = system_matrix if isinstance(system_matrix, dict) else {}
-        lines: List[str] = [
+        lines: list[str] = [
             "## 1. System Execution Environment & Provenance",
             "",
             "### 1.1 Compute Engines & Versions",
@@ -199,7 +215,7 @@ class MarkdownBuilder:
         if isinstance(engines, dict) and engines:
             for engine, ver in engines.items():
                 lines.append(f"- **{engine}**: `{ver}`")
-        elif isinstance(engines, (list, tuple, set)) and engines:
+        elif isinstance(engines, list | tuple | set) and engines:
             for item in engines:
                 lines.append(f"- `{item}`")
         elif isinstance(engines, str) and engines.strip():
@@ -216,12 +232,18 @@ class MarkdownBuilder:
         env_tier = _get_first_present(
             host_info,
             ["environment_tier", "environment"],
-            default=_get_first_present(matrix, ["environment_tier", "environment"], "Unknown / Heterogeneous"),
+            default=_get_first_present(
+                matrix, ["environment_tier", "environment"], "Unknown / Heterogeneous"
+            ),
         )
         node_arch = _get_first_present(
             host_info,
             ["node_architecture", "architecture", "node_arch"],
-            default=_get_first_present(matrix, ["node_architecture", "architecture"], platform.machine() or "x86_64"),
+            default=_get_first_present(
+                matrix,
+                ["node_architecture", "architecture"],
+                platform.machine() or "x86_64",
+            ),
         )
         cpu_cores = _get_first_present(
             host_info,
@@ -231,22 +253,32 @@ class MarkdownBuilder:
         gpu_device = _get_first_present(
             host_info,
             ["gpu_model", "gpu_device", "gpu"],
-            default=_get_first_present(matrix, ["gpu_model", "gpu_device", "gpu"], "N/A"),
+            default=_get_first_present(
+                matrix, ["gpu_model", "gpu_device", "gpu"], "N/A"
+            ),
         )
         host_ram = _get_first_present(
             host_info,
             ["host_ram", "memory_allocation", "host_ram_gb", "ram_gb"],
-            default=_get_first_present(matrix, ["host_ram", "memory_allocation", "host_ram_gb", "ram_gb"], "N/A"),
+            default=_get_first_present(
+                matrix,
+                ["host_ram", "memory_allocation", "host_ram_gb", "ram_gb"],
+                "N/A",
+            ),
         )
         py_version = _get_first_present(
             host_info,
             ["python_version", "python"],
-            default=_get_first_present(matrix, ["python_version", "python"], sys.version.split()[0]),
+            default=_get_first_present(
+                matrix, ["python_version", "python"], sys.version.split()[0]
+            ),
         )
         cfg_hash = _get_first_present(
             matrix,
             ["config_hash", "pipeline_hash"],
-            default=_get_first_present(host_info, ["config_hash", "pipeline_hash"], "N/A"),
+            default=_get_first_present(
+                host_info, ["config_hash", "pipeline_hash"], "N/A"
+            ),
         )
 
         lines.append(f"- **Environment Tier**: {env_tier}")
@@ -262,25 +294,36 @@ class MarkdownBuilder:
 
     @staticmethod
     def _resolve_stage_node(
-        stage_item: Union[str, int, float, Dict[str, Any]], custom_idx: int
-    ) -> Tuple[str, str, int]:
-        """Resolves a single stage item into a sanitized node ID, label, and updated custom index."""
+        stage_item: str | int | float | dict[str, Any], custom_idx: int
+    ) -> tuple[str, str, int]:
+        """Resolves stage item into a sanitized node ID, label, and custom index."""
         if isinstance(stage_item, dict):
-            raw_id = str(stage_item.get("id") or stage_item.get("stage") or f"S_custom_{custom_idx}")
+            raw_id = str(
+                stage_item.get("id")
+                or stage_item.get("stage")
+                or f"S_custom_{custom_idx}"
+            )
             label = str(stage_item.get("name") or stage_item.get("label") or raw_id)
             clean_id = re.sub(r"[^a-zA-Z0-9_]", "_", raw_id)
             if not re.match(r"^S(?:_|\d)", clean_id):
                 clean_id = f"S_{clean_id}"
             return clean_id, label.replace('"', "'"), custom_idx + 1
 
-        if isinstance(stage_item, (int, float, np.integer, np.floating)) and not isinstance(stage_item, bool):
+        if (
+            isinstance(stage_item, int | float | np.integer | np.floating)
+            and not isinstance(stage_item, bool)
+        ):
             val_float = float(stage_item)
             val_int = int(val_float)
             stage_str = f"{val_int}.0" if val_float == val_int else f"{val_float}"
             if stage_str in STAGE_DEFINITIONS:
                 nid, lbl = STAGE_DEFINITIONS[stage_str]
                 return nid, lbl, custom_idx
-            clean_id = f"S{val_int}" if val_float == val_int else f"S_{str(val_float).replace('.', '_')}"
+            clean_id = (
+                f"S{val_int}"
+                if val_float == val_int
+                else f"S_{str(val_float).replace('.', '_')}"
+            )
             return clean_id, f"Stage {stage_str}", custom_idx
 
         stage_clean = str(stage_item).strip()
@@ -306,8 +349,8 @@ class MarkdownBuilder:
 
     def _resolve_mermaid_nodes(
         self,
-        active_stages: Optional[Sequence[Any]] = None,
-    ) -> List[Tuple[str, str]]:
+        active_stages: Sequence[Any] | None = None,
+    ) -> list[tuple[str, str]]:
         """Resolves stage list into ordered Mermaid node definitions."""
         if not active_stages:
             return [
@@ -315,7 +358,7 @@ class MarkdownBuilder:
                 for k in ["0.0", "1.0", "2.0", "3.0", "4.0", "5.0", "6.0"]
             ]
 
-        resolved_nodes: List[Tuple[str, str]] = []
+        resolved_nodes: list[tuple[str, str]] = []
         custom_idx = 1
         for stage_item in active_stages:
             node_id, label, custom_idx = self._resolve_stage_node(
@@ -326,12 +369,12 @@ class MarkdownBuilder:
 
     def generate_mermaid_flowchart(
         self,
-        active_stages: Optional[Sequence[Any]] = None,
+        active_stages: Sequence[Any] | None = None,
     ) -> str:
-        """Dynamically synthesizes a Mermaid.js graph TD diagram block mapping active CoChem stages.
+        """Synthesizes a Mermaid.js graph TD diagram block mapping active stages.
 
         Args:
-            active_stages: Optional list or sequence of active stage identifier strings, ints, or dicts.
+            active_stages: Optional sequence of active stage identifier strings/ints.
 
         Returns:
             Fenced Mermaid.js flowchart string.
@@ -342,11 +385,11 @@ class MarkdownBuilder:
             return (
                 "```mermaid\n"
                 "graph TD\n"
-                '    S0["Stage 0: Environment & Guards"]\n'
+                '    S0["Stage 0.0: Configuration & Resource Guards"]\n'
                 "```"
             )
 
-        lines: List[str] = ["```mermaid", "graph TD"]
+        lines: list[str] = ["```mermaid", "graph TD"]
 
         if len(resolved_nodes) == 1:
             node_id, label = resolved_nodes[0]
@@ -365,23 +408,27 @@ class MarkdownBuilder:
         lines.append("```")
         return "\n".join(lines)
 
-    def dataframe_to_gfm_table(
+    def format_gfm_table(
         self,
-        df: Optional[Union[pd.DataFrame, List[Dict[str, Any]], Dict[str, Any]]],
-        table_title: Optional[str] = None,
+        df: pd.DataFrame | list[dict[str, Any]] | dict[str, Any] | None = None,
+        title: str | None = None,
+        table_title: str | None = None,
     ) -> str:
-        """Converts a pandas DataFrame into a standard GitHub-Flavored Markdown (GFM) pipe table.
+        """Converts a pandas DataFrame into a standard GFM pipe table.
 
         Args:
             df: Input pandas DataFrame or coercible tabular dictionary/list.
-            table_title: Optional title/header for the table.
+            title: Optional title/header for the table (SRS contract name).
+            table_title: Optional title/header alias for backwards compatibility.
 
         Returns:
             GFM formatted table string.
         """
+        effective_title = title if title is not None else table_title
+
         if df is None:
-            if table_title:
-                return f"### {table_title}\n\n*No tabular data available.*\n"
+            if effective_title:
+                return f"### {effective_title}\n\n*No tabular data available.*\n"
             return "*No tabular data available.*\n"
 
         target_df: pd.DataFrame
@@ -389,23 +436,27 @@ class MarkdownBuilder:
             try:
                 target_df = pd.DataFrame(df)
             except Exception:
-                if table_title:
-                    return f"### {table_title}\n\n*No tabular data available.*\n"
+                if effective_title:
+                    return f"### {effective_title}\n\n*No tabular data available.*\n"
                 return "*No tabular data available.*\n"
         else:
             target_df = df
 
         if target_df.empty:
-            if table_title:
-                return f"### {table_title}\n\n*No tabular data available.*\n"
+            if effective_title:
+                return f"### {effective_title}\n\n*No tabular data available.*\n"
             return "*No tabular data available.*\n"
 
         headers = [
-            str(col).replace("\r\n", "<br>").replace("\n", "<br>").replace("|", r"\|").strip()
+            str(col)
+            .replace("\r\n", "<br>")
+            .replace("\n", "<br>")
+            .replace("|", r"\|")
+            .strip()
             for col in target_df.columns
         ]
 
-        alignments: List[str] = []
+        alignments: list[str] = []
         for col in target_df.columns:
             is_numeric = (
                 pd.api.types.is_numeric_dtype(target_df[col])
@@ -413,9 +464,9 @@ class MarkdownBuilder:
             )
             alignments.append("---:" if is_numeric else ":---")
 
-        rows: List[str] = []
-        if table_title:
-            rows.append(f"### {table_title}")
+        rows: list[str] = []
+        if effective_title:
+            rows.append(f"### {effective_title}")
             rows.append("")
 
         header_line = "| " + " | ".join(headers) + " |"
@@ -426,7 +477,7 @@ class MarkdownBuilder:
 
         for row in target_df.itertuples(index=False):
             row_cells = []
-            for col, val in zip(target_df.columns, row):
+            for col, val in zip(target_df.columns, row, strict=False):
                 formatted_val = self._format_cell_value(val, str(col))
                 row_cells.append(formatted_val)
             rows.append("| " + " | ".join(row_cells) + " |")
@@ -435,7 +486,7 @@ class MarkdownBuilder:
         return "\n".join(rows)
 
     # Backward compatibility alias
-    format_gfm_table = dataframe_to_gfm_table
+    dataframe_to_gfm_table = format_gfm_table
 
     @staticmethod
     def _format_cell_value(val: Any, col_name: str) -> str:
@@ -443,13 +494,24 @@ class MarkdownBuilder:
         if pd.isna(val) or val is None:
             return "N/A"
 
-        if isinstance(val, (int, np.integer)) and not isinstance(val, bool):
+        if isinstance(val, int | np.integer) and not isinstance(val, bool):
             return str(val)
 
-        if isinstance(val, (float, np.floating)):
+        if isinstance(val, float | np.floating):
             if float(val).is_integer() and any(
                 k in col_name.lower()
-                for k in ["#", "mode", "index", "idx", "step", "iteration", "count", "num"]
+                for k in [
+                    "#",
+                    "mode",
+                    "index",
+                    "idx",
+                    "step",
+                    "iteration",
+                    "count",
+                    "num",
+                    "rank",
+                    "order",
+                ]
             ):
                 return str(int(val))
             return MarkdownBuilder._format_float_cell(float(val), col_name)
@@ -478,6 +540,8 @@ class MarkdownBuilder:
                 "intensity",
                 "zpe",
                 "rel",
+                "dipole",
+                "rotational",
             ]
         ):
             return f"{val:.2f}"
@@ -485,8 +549,10 @@ class MarkdownBuilder:
             return f"{val:.4e}"
         return f"{val:.2f}"
 
-    def format_thermodynamic_insights(self, insights_text: Optional[str] = None) -> str:
-        """Formats LLM-generated thermodynamic analytical insights under ## Thermodynamic Analysis.
+    def inject_thermodynamic_insights(
+        self, insights_text: str | None = None
+    ) -> str:
+        """Formats and wraps LLM-generated thermodynamic insights under section 2.
 
         Args:
             insights_text: Narrative text or analytical insights.
@@ -494,14 +560,15 @@ class MarkdownBuilder:
         Returns:
             Formatted Markdown section with placeholders scrubbed.
         """
-        lines: List[str] = [
+        lines: list[str] = [
             "## 2. Thermodynamic & Structural Analysis",
             "",
         ]
 
         if not insights_text or not isinstance(insights_text, str):
             lines.append(
-                "*Analytical data was aggregated without additional narrative commentary.*"
+                "*Analytical data was aggregated without additional "
+                "narrative commentary.*"
             )
             lines.append("")
             return "\n".join(lines)
@@ -515,7 +582,8 @@ class MarkdownBuilder:
 
         if not cleaned:
             lines.append(
-                "*Analytical data was aggregated without additional narrative commentary.*"
+                "*Analytical data was aggregated without additional "
+                "narrative commentary.*"
             )
         else:
             lines.append(cleaned)
@@ -524,15 +592,13 @@ class MarkdownBuilder:
         return "\n".join(lines)
 
     # Backward compatibility alias
-    inject_thermodynamic_insights = format_thermodynamic_insights
+    format_thermodynamic_insights = inject_thermodynamic_insights
 
-    def format_audit_warnings(
+    def format_warning_blockquotes(
         self,
-        warnings: Optional[
-            Union[Iterable[Optional[str]], str, Dict[str, Any]]
-        ] = None,
+        warnings: Iterable[str | None] | str | dict[str, Any] | None = None,
     ) -> str:
-        """Aggregates non-fatal warnings from cochem_audit_log into Markdown callout blockquotes.
+        """Formats non-fatal system warnings into Markdown callout blockquotes.
 
         Args:
             warnings: Optional list, string, or dict of warnings.
@@ -540,51 +606,71 @@ class MarkdownBuilder:
         Returns:
             Formatted callout blockquote string.
         """
+        no_warn_msg = (
+            "> **NOTE**: No non-fatal execution warnings recorded during this "
+            "pipeline run.\n"
+        )
         if not warnings:
-            return "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.\n"
+            return no_warn_msg
 
         if isinstance(warnings, str):
             warn_list = [warnings]
         elif isinstance(warnings, dict):
             warn_list = [f"{k}: {v}" for k, v in warnings.items()]
         elif isinstance(warnings, Iterable):
-            warn_list = [str(w) for w in warnings if w is not None and str(w).strip() != "None"]
+            warn_list = [
+                str(w)
+                for w in warnings
+                if w is not None and str(w).strip() != "None"
+            ]
         else:
             warn_list = [str(warnings)]
 
-        lines: List[str] = []
+        lines: list[str] = []
         for w in warn_list:
             if w is None or str(w).strip() == "None":
                 continue
             w_clean = str(w).strip()
             if w_clean:
-                lines.append(f"> **WARNING**: {w_clean}")
+                w_lines = w_clean.splitlines()
+                first = f"> **WARNING**: {w_lines[0]}"
+                rest = [f"> {line}" for line in w_lines[1:]]
+                lines.append("\n".join([first] + rest))
 
         if not lines:
-            return "> **NOTE**: No non-fatal execution warnings recorded during this pipeline run.\n"
+            return no_warn_msg
 
         return "\n\n".join(lines) + "\n"
 
     # Backward compatibility alias
-    format_warning_blockquotes = format_audit_warnings
+    format_audit_warnings = format_warning_blockquotes
 
-    def format_hardware_telemetry(self, telemetry: Optional[Dict[str, Any]] = None) -> str:
-        """Formats CPU/GPU peak usage metrics and compute timings as a structured Markdown list.
+    def format_telemetry_section(
+        self,
+        telemetry_data: dict[str, Any] | None = None,
+        telemetry: dict[str, Any] | None = None,
+    ) -> str:
+        """Formats peak CPU/GPU usage, wall-clock time, and memory metrics.
 
         Args:
-            telemetry: Dictionary of hardware telemetry metrics.
+            telemetry_data: Dictionary of hardware telemetry metrics (SRS name).
+            telemetry: Alias for telemetry_data.
 
         Returns:
-            Formatted Markdown section under ## Hardware Resource Telemetry.
+            Formatted Markdown section under ## 4. Hardware Telemetry.
         """
-        telem = telemetry if isinstance(telemetry, dict) else {}
+        telem_input = telemetry_data if telemetry_data is not None else telemetry
+        telem = telem_input if isinstance(telem_input, dict) else {}
 
         # 1. GPU VRAM
         peak_gpu = "N/A"
         for k in ["peak_gpu_vram_mb", "gpu_peak_vram_mb", "gpu_vram_peak_mb"]:
             if k in telem and telem[k] is not None:
                 val = telem[k]
-                if isinstance(val, (int, float, np.integer, np.floating)) and not isinstance(val, bool):
+                if (
+                    isinstance(val, int | float | np.integer | np.floating)
+                    and not isinstance(val, bool)
+                ):
                     peak_gpu = f"{float(val):.1f} MB"
                 elif isinstance(val, str):
                     peak_gpu = val
@@ -593,7 +679,10 @@ class MarkdownBuilder:
             for k in ["peak_gpu_vram_gb", "gpu_peak_vram_gb"]:
                 if k in telem and telem[k] is not None:
                     val = telem[k]
-                    if isinstance(val, (int, float, np.integer, np.floating)) and not isinstance(val, bool):
+                    if (
+                        isinstance(val, int | float | np.integer | np.floating)
+                        and not isinstance(val, bool)
+                    ):
                         peak_gpu = f"{float(val):.1f} GB"
                     elif isinstance(val, str):
                         peak_gpu = val
@@ -604,7 +693,10 @@ class MarkdownBuilder:
                 ["peak_gpu_vram", "gpu_vram", "peak_gpu"],
                 default="N/A",
             )
-            if isinstance(raw_gpu, (int, float, np.integer, np.floating)) and not isinstance(raw_gpu, bool):
+            if (
+                isinstance(raw_gpu, int | float | np.integer | np.floating)
+                and not isinstance(raw_gpu, bool)
+            ):
                 val_float = float(raw_gpu)
                 peak_gpu = (
                     f"{val_float:.1f} MB"
@@ -620,16 +712,28 @@ class MarkdownBuilder:
             ["peak_cpu_percent", "cpu_percent", "peak_cpu", "cpu_peak_percent"],
             default="N/A",
         )
-        if isinstance(peak_cpu, (int, float, np.integer, np.floating)) and not isinstance(peak_cpu, bool):
+        if (
+            isinstance(peak_cpu, int | float | np.integer | np.floating)
+            and not isinstance(peak_cpu, bool)
+        ):
             peak_cpu = f"{float(peak_cpu):.1f}%"
 
         # 3. Wall clock
         wall_clock = _get_first_present(
             telem,
-            ["wall_clock_seconds", "wall_clock_time", "execution_time", "wall_clock", "elapsed_time"],
+            [
+                "wall_clock_seconds",
+                "wall_clock_time",
+                "execution_time",
+                "wall_clock",
+                "elapsed_time",
+            ],
             default="N/A",
         )
-        if isinstance(wall_clock, (int, float, np.integer, np.floating)) and not isinstance(wall_clock, bool):
+        if (
+            isinstance(wall_clock, int | float | np.integer | np.floating)
+            and not isinstance(wall_clock, bool)
+        ):
             wall_clock = f"{float(wall_clock):.2f} s"
 
         # 4. RAM
@@ -637,7 +741,10 @@ class MarkdownBuilder:
         for k in ["peak_ram_mb"]:
             if k in telem and telem[k] is not None:
                 val = telem[k]
-                if isinstance(val, (int, float, np.integer, np.floating)) and not isinstance(val, bool):
+                if (
+                    isinstance(val, int | float | np.integer | np.floating)
+                    and not isinstance(val, bool)
+                ):
                     peak_ram = f"{float(val):.1f} MB"
                 elif isinstance(val, str):
                     peak_ram = val
@@ -646,7 +753,10 @@ class MarkdownBuilder:
             for k in ["peak_ram_gb", "host_ram_gb"]:
                 if k in telem and telem[k] is not None:
                     val = telem[k]
-                    if isinstance(val, (int, float, np.integer, np.floating)) and not isinstance(val, bool):
+                    if (
+                        isinstance(val, int | float | np.integer | np.floating)
+                        and not isinstance(val, bool)
+                    ):
                         peak_ram = f"{float(val):.1f} GB"
                     elif isinstance(val, str):
                         peak_ram = val
@@ -657,7 +767,10 @@ class MarkdownBuilder:
                 ["peak_host_ram", "memory_footprint", "peak_memory", "host_ram"],
                 default="N/A",
             )
-            if isinstance(raw_ram, (int, float, np.integer, np.floating)) and not isinstance(raw_ram, bool):
+            if (
+                isinstance(raw_ram, int | float | np.integer | np.floating)
+                and not isinstance(raw_ram, bool)
+            ):
                 val_float = float(raw_ram)
                 peak_ram = (
                     f"{val_float:.1f} MB"
@@ -667,7 +780,7 @@ class MarkdownBuilder:
             elif isinstance(raw_ram, str):
                 peak_ram = raw_ram
 
-        lines: List[str] = [
+        lines: list[str] = [
             "## 4. Hardware Telemetry & Compute Resource Allocation",
             "",
             f"- **Peak GPU VRAM Usage**: {peak_gpu}",
@@ -719,11 +832,11 @@ class MarkdownBuilder:
         return "\n".join(lines)
 
     # Backward compatibility alias
-    format_telemetry_section = format_hardware_telemetry
+    format_hardware_telemetry = format_telemetry_section
 
     def _extract_dataframe(
-        self, payload: Dict[str, Any], keys: List[str]
-    ) -> Optional[pd.DataFrame]:
+        self, payload: dict[str, Any], keys: list[str]
+    ) -> pd.DataFrame | None:
         """Extracts and standardizes DataFrame from payload given fallback keys."""
         if not isinstance(payload, dict):
             return None
@@ -733,29 +846,43 @@ class MarkdownBuilder:
                 if isinstance(val, pd.DataFrame):
                     return val
                 try:
-                    if isinstance(val, (list, dict)):
+                    if isinstance(val, list | dict):
                         return pd.DataFrame(val)
                 except Exception:
                     pass
         return None
 
-    def build_user_guide(self, payload: Optional[Dict[str, Any]] = None) -> str:
-        """Assembles the complete Markdown User Guide document from the provided payload dictionary.
+    def build_user_guide(
+        self,
+        data_payload: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> str:
+        """Assembles the complete CoChem_User_Guide.md document string.
 
         Args:
-            payload: Harvested pipeline data, system matrix, telemetry, and DataFrames.
+            data_payload: Aggregated data payload (SRS contract name).
+            payload: Alias for data_payload for backwards compatibility.
 
         Returns:
             Complete GitHub-Flavored Markdown user guide string.
         """
-        data = payload if isinstance(payload, dict) else {}
-        sections: List[str] = []
+        raw_payload = data_payload if data_payload is not None else payload
+        data = raw_payload if isinstance(raw_payload, dict) else {}
+        sections: list[str] = []
 
         # 1. YAML Frontmatter
         metadata = data.get("metadata", {})
         if not isinstance(metadata, dict):
             metadata = {}
-        for k in ["title", "pipeline_hash", "environment", "environment_tier", "run_id", "target_molecule", "smiles"]:
+        for k in [
+            "title",
+            "pipeline_hash",
+            "environment",
+            "environment_tier",
+            "run_id",
+            "target_molecule",
+            "smiles",
+        ]:
             if k in data and k not in metadata:
                 metadata[k] = data[k]
 
@@ -790,8 +917,8 @@ class MarkdownBuilder:
             data, ["conformers_df", "conformer_df", "conformers"]
         )
         if conf_df is not None and not conf_df.empty:
-            conf_table = self.dataframe_to_gfm_table(
-                conf_df, table_title="Conformer Energetic & Geometric Ranking"
+            conf_table = self.format_gfm_table(
+                conf_df, title="Conformer Energetic & Geometric Ranking"
             )
             sections.append(f"### Conformer Landscape\n\n{conf_table}\n")
 
@@ -801,15 +928,15 @@ class MarkdownBuilder:
             or data.get("insights")
             or ""
         )
-        sections.append(self.format_thermodynamic_insights(insights))
+        sections.append(self.inject_thermodynamic_insights(insights))
 
         thermo_df = self._extract_dataframe(
             data, ["thermodynamics_df", "thermo_df", "energies_df"]
         )
         if thermo_df is not None and not thermo_df.empty:
-            thermo_table = self.dataframe_to_gfm_table(
+            thermo_table = self.format_gfm_table(
                 thermo_df,
-                table_title="Thermodynamic State Functions & Zero-Point Energies",
+                title="Thermodynamic State Functions & Zero-Point Energies",
             )
             sections.append(f"{thermo_table}\n")
 
@@ -818,8 +945,8 @@ class MarkdownBuilder:
             data, ["vibrational_df", "spectroscopy_df", "vibrations_df"]
         )
         if vib_df is not None and not vib_df.empty:
-            vib_table = self.dataframe_to_gfm_table(
-                vib_df, table_title="Vibrational Modes & IR Intensities"
+            vib_table = self.format_gfm_table(
+                vib_df, title="Vibrational Modes & IR Intensities"
             )
             sections.append(
                 f"## Spectroscopic & Vibrational Analysis\n\n{vib_table}\n"
@@ -829,40 +956,54 @@ class MarkdownBuilder:
         warnings = data.get("warnings")
         sections.append(
             f"### Execution Warnings & Audit Trail\n\n"
-            f"{self.format_audit_warnings(warnings)}\n"
+            f"{self.format_warning_blockquotes(warnings)}\n"
         )
 
         # 9. Hardware Telemetry Summary
         telemetry = data.get("telemetry", {})
         telem_dict = telemetry if isinstance(telemetry, dict) else {}
-        sections.append(self.format_hardware_telemetry(telem_dict))
+        sections.append(self.format_telemetry_section(telem_dict))
 
         return "\n".join(sections).strip() + "\n"
 
-    def save_user_guide(
+    def write_user_guide(
         self,
         content: str,
-        target_dir: Optional[Union[str, pathlib.Path]] = None,
-        base_filename: Optional[str] = None,
+        destination_path: str | pathlib.Path | None = None,
+        target_dir: str | pathlib.Path | None = None,
+        base_filename: str | None = None,
+        filename: str | None = None,
     ) -> pathlib.Path:
-        """Saves Markdown document to user home directory with timestamped overwrite protection.
+        """Writes Markdown content to disk with non-destructive timestamped overwrite protection.
 
         Args:
             content: Markdown formatted text.
-            target_dir: Optional explicit directory path. If omitted, uses self.output_dir.
-            base_filename: Optional target filename. Defaults to self.base_filename.
+            destination_path: Optional destination file path or directory (SRS contract).
+            target_dir: Optional destination directory (alias).
+            base_filename: Optional target filename (alias).
+            filename: Optional target filename (alias).
 
         Returns:
             Resolved pathlib.Path of the written file.
         """
-        dest_dir = (
-            pathlib.Path(target_dir).resolve()
-            if target_dir is not None
-            else self.output_dir
-        )
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        target_fname = filename or base_filename
 
-        fname = base_filename if base_filename is not None else self.base_filename
+        if destination_path is not None:
+            dest_p = pathlib.Path(destination_path).resolve()
+            if dest_p.suffix:
+                dest_dir = dest_p.parent
+                fname = dest_p.name
+            else:
+                dest_dir = dest_p
+                fname = target_fname or self.filename
+        elif target_dir is not None:
+            dest_dir = pathlib.Path(target_dir).resolve()
+            fname = target_fname or self.filename
+        else:
+            dest_dir = self.output_dir
+            fname = target_fname or self.filename
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
         target_path = (dest_dir / fname).resolve()
 
         if target_path.exists():
@@ -883,13 +1024,15 @@ class MarkdownBuilder:
         return final_path
 
     # Backward compatibility alias
-    write_user_guide = save_user_guide
+    save_user_guide = write_user_guide
 
 
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as tmp_dir_str:
         tmp_path = pathlib.Path(tmp_dir_str)
-        builder = MarkdownBuilder(output_dir=tmp_path, base_filename="CoChem_User_Guide.md")
+        builder = MarkdownBuilder(
+            output_dir=tmp_path, filename="CoChem_User_Guide.md"
+        )
 
         # 1. Test YAML Frontmatter
         meta = {
@@ -902,21 +1045,35 @@ if __name__ == "__main__":
             "calc_score": np.float64(99.85),
         }
         fm = builder.generate_yaml_frontmatter(meta)
-        assert fm.startswith("---\n") and fm.endswith("\n---"), "Frontmatter delimiters failed"
+        assert fm.startswith("---\n") and fm.endswith("\n---"), (
+            "Frontmatter delimiters failed"
+        )
 
         # 2. Test System Matrix Section
         sys_mat = {
             "engines": {"ORCA": "6.1.1", "PySCF": "2.8.0"},
-            "host": {"cpu_cores": 8, "gpu_device": "RTX 4090", "host_ram": "32 GB"},
+            "host": {
+                "cpu_cores": 8,
+                "gpu_device": "RTX 4090",
+                "host_ram": "32 GB",
+            },
         }
         sys_sec = builder.generate_system_matrix_section(sys_mat)
-        assert "## 1. System Execution Environment & Provenance" in sys_sec, "System matrix header missing"
+        assert "## 1. System Execution Environment & Provenance" in sys_sec, (
+            "System matrix header missing"
+        )
         assert "**ORCA**: `6.1.1`" in sys_sec, "ORCA engine readout missing"
 
         # 3. Test Mermaid Flowchart
-        flowchart = builder.generate_mermaid_flowchart(["0.0", "1.0", "2.0", "3.0", "6.0"])
-        assert "```mermaid" in flowchart and "graph TD" in flowchart, "Mermaid syntax error"
-        assert "S0" in flowchart and "-->" in flowchart and "S1" in flowchart, "Stage connections missing"
+        flowchart = builder.generate_mermaid_flowchart(
+            ["0.0", "1.0", "2.0", "3.0", "6.0"]
+        )
+        assert "```mermaid" in flowchart and "graph TD" in flowchart, (
+            "Mermaid syntax error"
+        )
+        assert (
+            "S0" in flowchart and "-->" in flowchart and "S1" in flowchart
+        ), "Stage connections missing"
 
         # 4. Test GFM Table
         sample_df = pd.DataFrame({
@@ -924,7 +1081,9 @@ if __name__ == "__main__":
             "Energy (Hartree)": [-154.1234567, -154.1122334],
             "Rel Energy (kcal/mol)": [0.00, 7.04],
         })
-        table_out = builder.dataframe_to_gfm_table(sample_df, table_title="Conformer Summary")
+        table_out = builder.format_gfm_table(
+            sample_df, title="Conformer Summary"
+        )
         assert "### Conformer Summary" in table_out, "Table title missing"
         assert "-154.123457" in table_out, "Hartree rounding format incorrect"
 
@@ -934,16 +1093,28 @@ if __name__ == "__main__":
             "system_matrix": sys_mat,
             "active_stages": ["0.0", "1.0", "6.0"],
             "conformers_df": sample_df,
-            "thermodynamic_insights": "Ethanol conformer analysis completed. <<INSERT_PLACEHOLDER>>",
+            "thermodynamic_insights": (
+                "Ethanol conformer analysis completed. <<INSERT_PLACEHOLDER>>"
+            ),
             "warnings": ["Minor SCF oscillation resolved."],
-            "telemetry": {"peak_gpu_vram": 2048.0, "peak_cpu_percent": 45.2, "wall_clock_seconds": 12.34},
+            "telemetry": {
+                "peak_gpu_vram": 2048.0,
+                "peak_cpu_percent": 45.2,
+                "wall_clock_seconds": 12.34,
+            },
         }
-        doc_content = builder.build_user_guide(payload)
-        file_1 = builder.save_user_guide(doc_content)
-        assert file_1.exists() and file_1.name == "CoChem_User_Guide.md", "File 1 save failed"
+        doc_content = builder.build_user_guide(data_payload=payload)
+        file_1 = builder.write_user_guide(doc_content)
+        assert file_1.exists() and file_1.name == "CoChem_User_Guide.md", (
+            "File 1 save failed"
+        )
 
-        file_2 = builder.save_user_guide(doc_content)
-        assert file_2.exists() and file_2 != file_1, "Overwrite protection failed"
-        assert file_2.name.startswith("CoChem_User_Guide_"), "Timestamped filename format incorrect"
+        file_2 = builder.write_user_guide(doc_content)
+        assert file_2.exists() and file_2 != file_1, (
+            "Overwrite protection failed"
+        )
+        assert file_2.name.startswith("CoChem_User_Guide_"), (
+            "Timestamped filename format incorrect"
+        )
 
-    print("[SCRIBE MD GENERATOR PRE-FLIGHT VERIFIED]")
+    logger.info("[SCRIBE MD GENERATOR PRE-FLIGHT VERIFIED]")

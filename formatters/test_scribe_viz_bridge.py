@@ -55,9 +55,9 @@ def large_volumetric_cube_file(tmp_path: pathlib.Path) -> pathlib.Path:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     cube_file = artifacts_dir / "esp_grid_large.cube"
 
-    pattern_chunk = (
-        b"ESP_DENSITY_GRID_DATA_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100
-    )[:CHUNK_SIZE_BYTES]  # Exactly 65536 bytes
+    pattern_chunk = (b"ESP_DENSITY_GRID_DATA_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100)[
+        :CHUNK_SIZE_BYTES
+    ]  # Exactly 65536 bytes
     assert len(pattern_chunk) == CHUNK_SIZE_BYTES
 
     with open(cube_file, "wb") as f_out:
@@ -78,9 +78,9 @@ def small_volumetric_cube_file(tmp_path: pathlib.Path) -> pathlib.Path:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     cube_file = artifacts_dir / "esp_grid_small.cube"
 
-    pattern_chunk = (
-        b"ESP_DENSITY_GRID_DATA_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100
-    )[:CHUNK_SIZE_BYTES]  # Exactly 65536 bytes
+    pattern_chunk = (b"ESP_DENSITY_GRID_DATA_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100)[
+        :CHUNK_SIZE_BYTES
+    ]  # Exactly 65536 bytes
     assert len(pattern_chunk) == CHUNK_SIZE_BYTES
 
     with open(cube_file, "wb") as f_out:
@@ -101,10 +101,9 @@ def large_volumetric_html_file(tmp_path: pathlib.Path) -> pathlib.Path:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     html_file = artifacts_dir / "molstar_interactive_large.html"
 
-    pattern_chunk = (
-        b"<div><canvas data-grid='VOLUMETRIC_3D_NGL_STREAM'></canvas></div>\n"
-        * 1024
-    )[:CHUNK_SIZE_BYTES]  # Exactly 65536 bytes
+    pattern_chunk = (b"<div><canvas data-grid='VOLUMETRIC_3D_NGL_STREAM'></canvas></div>\n" * 1024)[
+        :CHUNK_SIZE_BYTES
+    ]  # Exactly 65536 bytes
     assert len(pattern_chunk) == CHUNK_SIZE_BYTES
 
     with open(html_file, "wb") as f_out:
@@ -138,9 +137,7 @@ def spectral_figure_assets(tmp_path: pathlib.Path) -> dict[str, pathlib.Path]:
         "<svg xmlns='http://www.w3.org/2000/svg'><path d='M0 0 L10 10'/></svg>",
         encoding="utf-8",
     )
-    uv_vis_img.write_bytes(
-        b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"
-    )
+    uv_vis_img.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
     thumb_img.write_bytes(b"THUMBNAIL_PREVIEW_BYTES")
     hidden_img.write_bytes(b"HIDDEN_CACHE_BYTES")
     non_img.write_text("wavenumber,intensity\n1000,0.5\n", encoding="utf-8")
@@ -183,7 +180,7 @@ def test_visual_asset_bridge_initialization_and_dynamic_pathing(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test Case 1: VisualAssetBridge Initialization & Dynamic Pathing.
-    
+
     Covers Tasks 75 & 78.
     """
     # 1. Default initialization without parameters or environment variables
@@ -286,15 +283,13 @@ def test_zstandard_compression_boundary_50mb(
     configured_bridge: VisualAssetBridge, large_volumetric_cube_file: pathlib.Path
 ) -> None:
     """Test Case 3: Zstandard Max-Ratio Stream Compression Boundary (>= 50 MB).
-    
+
     Covers Tasks 76 & 80.
     """
     original_size = large_volumetric_cube_file.stat().st_size
     assert original_size >= DEFAULT_50MB_THRESHOLD
 
-    archive_path = configured_bridge.compress_volumetric_artifact(
-        large_volumetric_cube_file
-    )
+    archive_path = configured_bridge.compress_volumetric_artifact(large_volumetric_cube_file)
 
     # 1. Assert return value is a valid pathlib.Path pointing to the .tar.zst archive
     assert archive_path is not None
@@ -324,9 +319,7 @@ def test_sub_threshold_passthrough(
     original_size = small_volumetric_cube_file.stat().st_size
     assert original_size < DEFAULT_50MB_THRESHOLD
 
-    result = configured_bridge.compress_volumetric_artifact(
-        small_volumetric_cube_file
-    )
+    result = configured_bridge.compress_volumetric_artifact(small_volumetric_cube_file)
 
     # 1. Asserts return value is None
     assert result is None
@@ -448,16 +441,14 @@ def test_cross_platform_latex_relative_path_posix_normalization(
     tmp_path: pathlib.Path,
 ) -> None:
     """Test Case 8: LaTeX Relative Path Calculation & POSIX Normalization.
-    
+
     Covers Task 78.
     """
     ir_path = spectral_figure_assets["ir"]
 
     # 1. Relative path to report_archive_dir (default base)
     rel_default = configured_bridge.calculate_relative_image_path(ir_path)
-    assert "\\" not in rel_default, (
-        f"Path contains Windows backslashes: {rel_default}"
-    )
+    assert "\\" not in rel_default, f"Path contains Windows backslashes: {rel_default}"
     assert "/" in rel_default
     assert rel_default == "../artifacts/figures/ir_spectrum.png"
 
@@ -465,9 +456,7 @@ def test_cross_platform_latex_relative_path_posix_normalization(
     rel_artifacts = configured_bridge.calculate_relative_image_path(
         ir_path, base_dir=tmp_path / "artifacts"
     )
-    assert "\\" not in rel_artifacts, (
-        f"Path contains Windows backslashes: {rel_artifacts}"
-    )
+    assert "\\" not in rel_artifacts, f"Path contains Windows backslashes: {rel_artifacts}"
     assert rel_artifacts == "figures/ir_spectrum.png"
 
     # 3. String input compatibility
@@ -478,9 +467,7 @@ def test_cross_platform_latex_relative_path_posix_normalization(
     assert rel_str == "figures/ir_spectrum.png"
 
     # 4. Already relative path string passthrough
-    rel_already = configured_bridge.calculate_relative_image_path(
-        "figures/custom_spectrum.png"
-    )
+    rel_already = configured_bridge.calculate_relative_image_path("figures/custom_spectrum.png")
     assert "\\" not in rel_already
     assert rel_already == "figures/custom_spectrum.png"
 
@@ -505,10 +492,7 @@ def test_academic_latex_figure_snippet_generation(
 
     assert r"\begin{figure}[htbp]" in snippet_custom
     assert r"\centering" in snippet_custom
-    assert (
-        r"\includegraphics[width=\textwidth]{figures/ir_spectrum.png}"
-        in snippet_custom
-    )
+    assert r"\includegraphics[width=\textwidth]{figures/ir_spectrum.png}" in snippet_custom
     assert r"\caption{Experimental IR Spectrum}" in snippet_custom
     assert r"\label{fig:ir_spectrum}" in snippet_custom
     assert r"\end{figure}" in snippet_custom
@@ -521,10 +505,7 @@ def test_academic_latex_figure_snippet_generation(
         width=r"0.8\textwidth",
         base_dir=artifacts_dir,
     )
-    assert (
-        r"\includegraphics[width=0.8\textwidth]{figures/raman_spectrum.svg}"
-        in snippet_width
-    )
+    assert r"\includegraphics[width=0.8\textwidth]{figures/raman_spectrum.svg}" in snippet_width
 
     # Clean default fallback caption and label from sanitized stem
     snippet_default = configured_bridge.generate_latex_image_snippet(
@@ -533,10 +514,7 @@ def test_academic_latex_figure_snippet_generation(
     )
     assert r"\caption{Uv Vis Spectrum}" in snippet_default
     assert r"\label{fig:uv_vis_spectrum}" in snippet_default
-    assert (
-        r"\includegraphics[width=\textwidth]{figures/uv_vis_spectrum.pdf}"
-        in snippet_default
-    )
+    assert r"\includegraphics[width=\textwidth]{figures/uv_vis_spectrum.pdf}" in snippet_default
 
 
 def test_jinja2_context_injection_and_visual_payload_assembly(
@@ -581,14 +559,8 @@ def test_jinja2_context_injection_and_visual_payload_assembly(
 
     assert "compressed_3d_assets" in enriched
     assert len(enriched["compressed_3d_assets"]) == EXPECTED_COMPRESSED_COUNT_SINGLE
-    assert (
-        enriched["compressed_3d_assets"][0]["original_name"]
-        == "esp_grid_large.cube"
-    )
-    assert (
-        enriched["compressed_3d_assets"][0]["savings_pct"]
-        > MIN_COMPRESSION_SAVINGS_PCT
-    )
+    assert enriched["compressed_3d_assets"][0]["original_name"] == "esp_grid_large.cube"
+    assert enriched["compressed_3d_assets"][0]["savings_pct"] > MIN_COMPRESSION_SAVINGS_PCT
 
     # 2. Test build_visual_payload directly on a separate sub-directory
     # with fresh assets
@@ -599,9 +571,7 @@ def test_jinja2_context_injection_and_visual_payload_assembly(
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"\x00" * 100
     )
     sub_cube = sub_artifacts / "homo_density.cube"
-    chunk = (
-        b"DENSITY_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100
-    )[:CHUNK_SIZE_BYTES]
+    chunk = (b"DENSITY_CHUNK_64KB_" + b"0123456789ABCDEF" * 4100)[:CHUNK_SIZE_BYTES]
     with open(sub_cube, "wb") as f_out:
         for _ in range(SYNTHETIC_CHUNK_64KB_COUNT_51MB):
             f_out.write(chunk)
@@ -612,14 +582,8 @@ def test_jinja2_context_injection_and_visual_payload_assembly(
     assert "compressed_3d_assets" in payload
     assert len(payload["spectral_figures"]) == 1
     assert len(payload["compressed_3d_assets"]) == 1
-    assert (
-        payload["compressed_3d_assets"][0]["original_name"]
-        == "homo_density.cube"
-    )
-    assert (
-        payload["compressed_3d_assets"][0]["savings_pct"]
-        > MIN_COMPRESSION_SAVINGS_PCT
-    )
+    assert payload["compressed_3d_assets"][0]["original_name"] == "homo_density.cube"
+    assert payload["compressed_3d_assets"][0]["savings_pct"] > MIN_COMPRESSION_SAVINGS_PCT
 
 
 # ==============================================================================

@@ -91,6 +91,16 @@ from .geom_parser import (
     serialize_geom_bytes,
     translate_conformer,
 )
+from .pyg_schema import (
+    ConformerData,
+    SchemaValidationError,
+    batch_conformer_data,
+    center_at_com_conformer_data,
+    is_valid_conformer_data,
+    rotate_conformer_data,
+    translate_conformer_data,
+    validate_conformer_data,
+)
 
 __all__ = [
     "ATOMIC_MASS_UNIT_KG",
@@ -123,6 +133,7 @@ __all__ = [
     "BaseTransform",
     "CenterOfMassTransform",
     "ComposeTransforms",
+    "ConformerData",
     "ConformerRecord",
     "EckartAlignmentTransform",
     "GEOMDatasetFactory",
@@ -138,8 +149,11 @@ __all__ = [
     "NormalizeTargetsTransform",
     "QMOutputRecord",
     "RandomRotationTransform",
+    "SchemaValidationError",
+    "batch_conformer_data",
     "build_radius_graph",
     "calculate_boltzmann_weights",
+    "center_at_com_conformer_data",
     "center_of_mass_molecular_data",
     "compute_bytes_sha256",
     "compute_center_of_mass",
@@ -166,6 +180,7 @@ __all__ = [
     "get_vdw_radius_angstrom",
     "hartree_to_ev",
     "hartree_to_kcal_mol",
+    "is_valid_conformer_data",
     "kcal_mol_to_ev",
     "kcal_mol_to_hartree",
     "molecular_data_to_conformer",
@@ -173,9 +188,12 @@ __all__ = [
     "parse_qm_log_text",
     "parse_qm_output",
     "rotate_conformer",
+    "rotate_conformer_data",
     "rotate_molecular_data",
     "serialize_geom_archive",
     "serialize_geom_bytes",
     "translate_conformer",
+    "translate_conformer_data",
     "translate_molecular_data",
+    "validate_conformer_data",
 ]

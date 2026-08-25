@@ -1,5 +1,22 @@
 """CoChem-TOPOS Combinatorial Conformational Engine."""
 
+from .cochem_topos_cleanup import (
+    HDF5LockRecord,
+    HDF5LockSweeperConfig,
+    HDF5LockSweepResult,
+    PostFlightAuditReport,
+    ProcessReaperConfig,
+    PurgedFileRecord,
+    PurgeResult,
+    ReapedProcessRecord,
+    ReapResult,
+    ScratchPurgeConfig,
+    ToposEnvironmentSanitizer,
+    ToposHDF5LockSweeper,
+    ToposProcessReaper,
+    ToposScratchPurgeEngine,
+    WSLPathTranslator,
+)
 from .cochem_topos_graph import (
     COVALENT_RADII,
     RESONANCE_PROTECTION_SCALE,
@@ -38,5 +55,19 @@ __all__ = [
     "run_crest_secondary_search",
     "COVALENT_RADII",
     "RESONANCE_PROTECTION_SCALE",
+    "ToposEnvironmentSanitizer",
+    "ToposScratchPurgeEngine",
+    "ToposProcessReaper",
+    "ToposHDF5LockSweeper",
+    "WSLPathTranslator",
+    "ScratchPurgeConfig",
+    "PurgedFileRecord",
+    "PurgeResult",
+    "ProcessReaperConfig",
+    "ReapedProcessRecord",
+    "ReapResult",
+    "HDF5LockRecord",
+    "HDF5LockSweeperConfig",
+    "HDF5LockSweepResult",
+    "PostFlightAuditReport",
 ]
-

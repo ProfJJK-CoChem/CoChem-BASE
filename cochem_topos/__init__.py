@@ -17,6 +17,18 @@ from .cochem_topos_cleanup import (
     ToposScratchPurgeEngine,
     WSLPathTranslator,
 )
+from .cochem_topos_export import (
+    DEFAULT_TEMPERATURE_K,
+    GAS_CONSTANT_KCAL_MOL_K,
+    HARTREE_TO_KCAL_MOL,
+    STATIC_METHOD_CITATIONS,
+    TOPOSFAIRExporter,
+    _compute_sha256,
+    apply_readonly_lock,
+    calculate_boltzmann_weights,
+    remove_readonly_lock,
+    sanitize_latex,
+)
 from .cochem_topos_graph import (
     COVALENT_RADII,
     RESONANCE_PROTECTION_SCALE,
@@ -70,4 +82,14 @@ __all__ = [
     "HDF5LockSweeperConfig",
     "HDF5LockSweepResult",
     "PostFlightAuditReport",
+    "TOPOSFAIRExporter",
+    "apply_readonly_lock",
+    "remove_readonly_lock",
+    "calculate_boltzmann_weights",
+    "sanitize_latex",
+    "_compute_sha256",
+    "STATIC_METHOD_CITATIONS",
+    "HARTREE_TO_KCAL_MOL",
+    "GAS_CONSTANT_KCAL_MOL_K",
+    "DEFAULT_TEMPERATURE_K",
 ]

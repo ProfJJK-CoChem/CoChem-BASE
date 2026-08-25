@@ -22,7 +22,6 @@ class ManifestValidator(BaseModel):
     selected_repositories: list[str]
 
 @pytest.fixture
-@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "linux", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=linux")
 def test_env(tmp_path, monkeypatch):
     """Sets up the environment for Codespaces and Local-Linux testing without mocking."""
     # Inject Codespaces / Linux OS simulation

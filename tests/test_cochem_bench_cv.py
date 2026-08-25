@@ -13,10 +13,13 @@ Tests:
    - Input deck generation for Frozen-Core (FC) vs All-Electron (AE with NoFrozenCore).
    - Dynamic %maxcore RAM calculation per MPI thread.
    - Accelerator isolation injecting CUDA_VISIBLE_DEVICES="".
+   - Execution via subprocess using BenchRunContext and binary path.
+   - Dual execution protocol (execute_dual_sp) with automatic scratch purging.
 3. DeltaExtractor:
    - Extraction of FINAL SINGLE POINT ENERGY from authentic ORCA standard output.
    - Mathematical derivation of Delta_E_CV = E_Total^(AE) - E_Total^(FC).
    - Unit conversion from Hartree to kcal/mol via exact CODATA conversion.
+   - CVParsingError exception hierarchy verification.
 4. EphemeralScratchPurge:
    - UUID-scoped tripartite scratch workspace creation.
    - Sweep and unlink of .gbw, .tmp, and ephemeral intermediate files.
@@ -24,18 +27,19 @@ Tests:
 5. HDF5 Persistence & Pipeline Orchestration:
    - Atomic commitment of CV correction results to landscape.h5.
    - Schema validation and roundtrip retrieval.
-   - End-to-end pipeline execution.
+   - End-to-end pipeline execution with pre-computed energies and direct execution.
 
 Authoritative References:
 - D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
 - D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 5 CBS Extrapolation & Composite Protocol Math (Stages 2.0 - 4.0).txt
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task2_pt1_cv.md
+- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task5_cv.md
 """
 
 from __future__ import annotations
 
 import math
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -49,6 +53,10 @@ from bench_engine.cochem_bench_cv import (
     DeltaExtractor,
     EphemeralScratchPurge,
     CVCorrectionResult,
+    CVCorrectionError,
+    CVExecutionError,
+    CVParsingError,
+    CVScratchPurgeError,
     commit_cv_to_hdf5,
     read_cv_from_hdf5,
     run_cv_pipeline,
@@ -252,6 +260,69 @@ def test_dual_correlation_input_file_writing(tmp_path: Path) -> None:
     assert "NoFrozenCore" in ae_file.read_text(encoding="utf-8")
 
 
+def test_dual_correlation_execute_job_with_runner(tmp_path: Path) -> None:
+    """Validate execute_job executes external runner script and captures output."""
+    script_file = tmp_path / "sim_orca.py"
+    script_file.write_text(
+        'import sys\n'
+        'with open(sys.argv[1], "r", encoding="utf-8") as f:\n'
+        '    inp = f.read()\n'
+        'if "NoFrozenCore" in inp:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.4215403210")\n'
+        'else:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.3623851042")\n'
+        'sys.exit(0)\n',
+        encoding="utf-8",
+    )
+
+    engine = DualCorrelationEngine(base_basis="aug-cc-pVQZ")
+    scratch = tmp_path / "scratch"
+
+    # Use python executable with script file list
+    stdout, stderr, ret = engine.execute_job(
+        input_text="! DLPNO-CCSD(T) aug-cc-pwCVQZ\n* xyz 0 1\nO 0 0 0\n*\n",
+        orca_binary_path=[sys.executable, str(script_file)],
+        scratch_dir=scratch,
+        job_prefix="test_job",
+    )
+
+    assert ret == 0
+    assert "FINAL SINGLE POINT ENERGY      -76.3623851042" in stdout
+
+
+def test_dual_correlation_execute_dual_sp(tmp_path: Path) -> None:
+    """Validate execute_dual_sp runs dual jobs, extracts delta, and purges scratch."""
+    script_file = tmp_path / "sim_orca_dual.py"
+    script_file.write_text(
+        'import sys\n'
+        'with open(sys.argv[1], "r", encoding="utf-8") as f:\n'
+        '    inp = f.read()\n'
+        'if "NoFrozenCore" in inp:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.4215403210")\n'
+        'else:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.3623851042")\n'
+        'sys.exit(0)\n',
+        encoding="utf-8",
+    )
+
+    engine = DualCorrelationEngine(base_basis="aug-cc-pVQZ")
+    scratch = tmp_path / "scratch_dual"
+
+    result = engine.execute_dual_sp(
+        coords=WATER_COORDS,
+        orca_binary=[sys.executable, str(script_file)],
+        node_id="water_dual_test",
+        scratch_dir=scratch,
+        auto_purge=True,
+    )
+
+    assert math.isclose(result.e_total_fc, -76.3623851042, abs_tol=1e-10)
+    assert math.isclose(result.e_total_ae, -76.4215403210, abs_tol=1e-10)
+    assert result.delta_e_cv_hartree < 0.0
+    assert result.node_id == "water_dual_test"
+    assert not scratch.exists()  # Purged
+
+
 # ==============================================================================
 # 3. DeltaExtractor Tests
 # ==============================================================================
@@ -268,11 +339,15 @@ def test_parse_final_energy_from_stdout() -> None:
 
 
 def test_parse_final_energy_missing_raises() -> None:
-    """Validate ValueError is raised when FINAL SINGLE POINT ENERGY is absent."""
+    """Validate CVParsingError is raised when FINAL SINGLE POINT ENERGY is absent."""
     extractor = DeltaExtractor()
     invalid_stdout = "ORCA CALCULATION FAILED\nNO ENERGY REPORTED\n"
 
-    with pytest.raises(ValueError, match="FINAL SINGLE POINT ENERGY"):
+    with pytest.raises(CVParsingError, match="FINAL SINGLE POINT ENERGY"):
+        extractor.parse_final_energy_from_stdout(invalid_stdout)
+
+    # Also verify that CVParsingError is a ValueError subclass
+    with pytest.raises(ValueError):
         extractor.parse_final_energy_from_stdout(invalid_stdout)
 
 
@@ -341,7 +416,7 @@ def test_scratch_dir_purge(tmp_path: Path) -> None:
     job_dir = tmp_path / "BENCH_Workspace" / "Scratch" / "job_12345"
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create dummy simulation intermediate files
+    # Create simulation intermediate files
     (job_dir / "calc.gbw").write_bytes(b"BINARY_GBW_CONTENT")
     (job_dir / "calc.tmp").write_text("TMP_CONTENT", encoding="utf-8")
     (job_dir / "calc.densities").write_text("DENSITIES", encoding="utf-8")
@@ -414,8 +489,111 @@ def test_run_cv_pipeline_end_to_end(tmp_path: Path) -> None:
     assert h5_file.exists()
 
 
+def test_run_cv_pipeline_with_orca_binary(tmp_path: Path) -> None:
+    """Validate end-to-end execution of Stage 3.0 CV pipeline with engine execution."""
+    script_file = tmp_path / "sim_orca_pipe.py"
+    script_file.write_text(
+        'import sys\n'
+        'with open(sys.argv[1], "r", encoding="utf-8") as f:\n'
+        '    inp = f.read()\n'
+        'if "NoFrozenCore" in inp:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.4215403210")\n'
+        'else:\n'
+        '    print("FINAL SINGLE POINT ENERGY      -76.3623851042")\n'
+        'sys.exit(0)\n',
+        encoding="utf-8",
+    )
+
+    h5_file = tmp_path / "landscape.h5"
+    result = run_cv_pipeline(
+        coords=WATER_COORDS,
+        orca_binary=[sys.executable, str(script_file)],
+        base_basis="aug-cc-pVQZ",
+        method="DLPNO-CCSD(T)",
+        node_id="water_pipe_bin_01",
+        h5_path=h5_file,
+    )
+
+    assert result.has_core_electrons is True
+    assert result.node_id == "water_pipe_bin_01"
+    assert math.isclose(result.delta_e_cv_hartree, -76.4215403210 - (-76.3623851042), abs_tol=1e-10)
+    assert h5_file.exists()
+
+
+def test_run_cv_pipeline_missing_args_raises() -> None:
+    """Validate run_cv_pipeline raises CVCorrectionError when neither energies nor binary provided."""
+    with pytest.raises(CVCorrectionError, match="requires either"):
+        run_cv_pipeline(coords=WATER_COORDS)
+
+
 def test_read_cv_from_hdf5_missing_file_raises(tmp_path: Path) -> None:
     """Validate read_cv_from_hdf5 raises FileNotFoundError when target file is missing."""
     missing_file = tmp_path / "missing_landscape.h5"
     with pytest.raises(FileNotFoundError):
         read_cv_from_hdf5(h5_path=missing_file, node_id="node_none")
+
+
+def test_cochem_bench_package_imports() -> None:
+    """Validate that all Stage 3.0 symbols are accessible via cochem_bench.bench_engine."""
+    from cochem_bench.bench_engine.cochem_bench_cv import (
+        CoreValenceMapper as CBMapper,
+        DualCorrelationEngine as CBEngine,
+        DeltaExtractor as CBExtractor,
+        EphemeralScratchPurge as CBPurge,
+        CVCorrectionResult as CBResult,
+        CVCorrectionError,
+        CVExecutionError,
+        CVParsingError,
+        CVScratchPurgeError,
+    )
+
+    mapper = CBMapper()
+    assert mapper.map_basis_set("cc-pVDZ") == "cc-pCVDZ"
+    assert issubclass(CVExecutionError, CVCorrectionError)
+    assert issubclass(CVParsingError, CVCorrectionError)
+    assert issubclass(CVScratchPurgeError, CVCorrectionError)
+
+
+def test_bench_run_context_integration(tmp_path: Path) -> None:
+    """Validate DualCorrelationEngine execution with BenchRunContext."""
+    from cochem_bench.bench_engine.cochem_bench_ingest import BenchRunContext, BenchConfigSchema, BenchHardwareSchema
+
+    cfg = BenchConfigSchema(
+        hardware=BenchHardwareSchema(ram_gb=16.0, cpu_physical_cores=4),
+    )
+    ctx = BenchRunContext(
+        config_hash="abc123hash",
+        safe_maxcore_mb=3072,
+        target_mpi_threads=4,
+        node_id="test_node",
+        timestamp="2026-08-24T00:00:00Z",
+        orca_path=str(tmp_path / "fake_orca_exe"),
+        hdf5_path=tmp_path / "landscape.h5",
+        scratch_path=tmp_path / "scratch",
+        numa_nodes=1,
+        resource_warning=False,
+        config=cfg,
+    )
+
+    assert ctx.orca_binary_path == str(tmp_path / "fake_orca_exe")
+    assert ctx.orca_path == str(tmp_path / "fake_orca_exe")
+
+    engine = DualCorrelationEngine()
+    env = engine.prepare_execution_env()
+    assert env["CUDA_VISIBLE_DEVICES"] == ""
+
+
+def test_scratch_dir_creation_with_environ(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Validate scratch dir creation adheres to COCHEM_ARTIFACTS_DIR environment variable."""
+    monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(tmp_path))
+    purger = EphemeralScratchPurge()
+    scratch_dir = purger.create_scratch_dir()
+
+    assert scratch_dir.exists()
+    assert str(tmp_path) in str(scratch_dir)
+    assert "BENCH_Workspace" in str(scratch_dir)
+    assert "Scratch" in str(scratch_dir)
+
+    summary = purger.purge_scratch_dir(scratch_dir, remove_dir=True)
+    assert summary["status"] == "purged"
+    assert not scratch_dir.exists()

@@ -274,6 +274,10 @@ class BenchRunContext:
     resource_warning: bool
     config: BenchConfigSchema
 
+    @property
+    def orca_binary_path(self) -> Optional[str]:
+        return self.orca_path
+
 
 # ==============================================================================
 # Core Stage 1.0 Components

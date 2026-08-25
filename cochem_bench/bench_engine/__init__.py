@@ -37,6 +37,20 @@ from cochem_bench.bench_engine.cochem_bench_ingest import (
     extract_orca_path,
     run_bench_ingest_pipeline,
 )
+from cochem_bench.bench_engine.cochem_bench_cv import (
+    CVCorrectionError,
+    CVCorrectionResult,
+    CVExecutionError,
+    CVParsingError,
+    CVScratchPurgeError,
+    CoreValenceMapper,
+    DeltaExtractor,
+    DualCorrelationEngine,
+    EphemeralScratchPurge,
+    commit_cv_to_hdf5,
+    read_cv_from_hdf5,
+    run_cv_pipeline,
+)
 
 __all__ = [
     # Stage 1.0
@@ -74,4 +88,18 @@ __all__ = [
     "commit_cbs_to_hdf5",
     "read_cbs_from_hdf5",
     "run_cbs_pipeline",
+    # Stage 3.0 CV
+    "CoreValenceMapper",
+    "DualCorrelationEngine",
+    "DeltaExtractor",
+    "EphemeralScratchPurge",
+    "CVCorrectionResult",
+    "CVCorrectionError",
+    "CVExecutionError",
+    "CVParsingError",
+    "CVScratchPurgeError",
+    "commit_cv_to_hdf5",
+    "read_cv_from_hdf5",
+    "run_cv_pipeline",
 ]
+

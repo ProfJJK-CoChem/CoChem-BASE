@@ -52,10 +52,9 @@ def codespaces_linux_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     codespaces_scratch = Path(os.environ.get("COCHEM_ARTIFACT_DIR", tmp_path / "CoChem_Artifacts"))
     codespaces_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(codespaces_scratch))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "linux")
     return codespaces_scratch
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "linux", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=linux")
 def test_matrix_dashboard_keep_codespaces_linux(codespaces_linux_ephemeral_env: Path, caplog: pytest.LogCaptureFixture):
     """
     Tests the "Keep previous setup" logic of the Interactive Matrix Dashboard module

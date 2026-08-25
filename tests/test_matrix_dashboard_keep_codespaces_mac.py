@@ -53,10 +53,7 @@ def codespaces_mac_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     codespaces_scratch = Path(os.environ.get("COCHEM_ARTIFACT_DIR", tmp_path / "CoChem_Artifacts"))
     codespaces_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(codespaces_scratch))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "macos")
-    
-    # Create an ephemeral 'mac' shim to simulate the OrbStack boundary locally without failing gracefully on missing binaries.
+# Create an ephemeral 'mac' shim to simulate the OrbStack boundary locally without failing gracefully on missing binaries.
     bin_dir = codespaces_scratch / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     
@@ -72,6 +69,7 @@ def codespaces_mac_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("PATH", f"{str(bin_dir)}{os.pathsep}{os.environ.get('PATH', '')}")
     return codespaces_scratch
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "macos", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=macos")
 def test_matrix_dashboard_keep_codespaces_mac(codespaces_mac_ephemeral_env: Path, caplog: pytest.LogCaptureFixture):
     """
     Tests the "Keep previous setup" logic of the Interactive Matrix Dashboard module

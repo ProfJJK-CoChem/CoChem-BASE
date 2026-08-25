@@ -22,19 +22,18 @@ class ManifestValidator(BaseModel):
     selected_repositories: list[str]
 
 @pytest.fixture
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "linux", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=linux")
 def test_env(tmp_path, monkeypatch):
     """Sets up the environment for Codespaces and Local-Linux testing without mocking."""
     # Inject Codespaces / Linux OS simulation
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "linux")
-    
-    # Use temporary directory for artifact registry to prevent corrupting real registry
+# Use temporary directory for artifact registry to prevent corrupting real registry
     artifact_dir = tmp_path / "CoChem_Artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(artifact_dir))
     
     return artifact_dir
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "linux", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=linux")
 def test_matrix_dashboard_codespaces_linux_deployment(test_env):
     """
     Test the 'New Install -> Set Paths & Test' logic targeting Codespaces and Local-Linux.

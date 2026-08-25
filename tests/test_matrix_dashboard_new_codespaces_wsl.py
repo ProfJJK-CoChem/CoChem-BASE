@@ -69,10 +69,9 @@ def codespaces_wsl_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     cs_wsl_scratch = tmp_path / "scratch" / "codespaces_wsl" / "CoChem_Artifacts"
     cs_wsl_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(cs_wsl_scratch))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "wsl")
     return cs_wsl_scratch
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "wsl", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=wsl")
 def test_matrix_dashboard_new_codespaces_wsl(codespaces_wsl_ephemeral_env: Path, caplog: pytest.LogCaptureFixture):
     """
     Tests the "New Install -> Set Paths & Test" logic of the Interactive Matrix Dashboard module

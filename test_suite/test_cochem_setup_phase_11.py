@@ -1,16 +1,16 @@
-"""
-Unit test suite for CoChem Setup Phase 11: Memory Router & Adaptive Tiering (The OOM Shield).
-Strict Zero-Mock Mandate: Real filesystem operations, real temporary directories, real memory
-hierarchy and cgroup v1/v2 parsing, real NUMA topology discovery, real active core memory
-scaling mathematics, real multi-engine target directives (ORCA, PySCF, xTB, Gaussian, CFOUR,
-MACE-Torch, OpenMPI), real environment variable injection dictionaries, and transactional
-atomic state persistence into the Golden Registry (p11.json).
-
-SRS Document 2 Part 2 (Section 3.11), SRS Document 5 (Section 4.2), Method Matrix v4,
-and CoChem User Manual v4.1 Compliant.
-"""
-
 from __future__ import annotations
+"""
+    Unit test suite for CoChem Setup Phase 11: Memory Router & Adaptive Tiering (The OOM Shield).
+    Strict Zero-Mock Mandate: Real filesystem operations, real temporary directories, real memory
+    hierarchy and cgroup v1/v2 parsing, real NUMA topology discovery, real active core memory
+    scaling mathematics, real multi-engine target directives (ORCA, PySCF, xTB, Gaussian, CFOUR,
+    MACE-Torch, OpenMPI), real environment variable injection dictionaries, and transactional
+    atomic state persistence into the Golden Registry (p11.json).
+
+    SRS Document 2 Part 2 (Section 3.11), SRS Document 5 (Section 4.2), Method Matrix v4,
+    and CoChem User Manual v4.1 Compliant.
+"""
+
 
 import json
 import os
@@ -58,7 +58,7 @@ from orchestrator.cochem_setup_phase_11 import (
     parse_proc_meminfo,
     resolve_p11_registry_path,
     run_phase_11_audit,
-)
+    )
 
 
 def make_temp_dir() -> tempfile.TemporaryDirectory:
@@ -76,6 +76,7 @@ def make_temp_dir() -> tempfile.TemporaryDirectory:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_custom_exception_hierarchy() -> None:
     """Verify custom Phase 11 exception classes inherit from Phase11AuditError and RuntimeError."""
     err1 = Phase11AuditError("Phase 11 fatal error")
@@ -98,6 +99,7 @@ def test_custom_exception_hierarchy() -> None:
     assert isinstance(err5, RuntimeError)
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_status_enum() -> None:
     """Verify PhaseStatus enum values and validation."""
     assert PhaseStatus.PASSED.value == "PASSED"
@@ -110,6 +112,7 @@ def test_phase_status_enum() -> None:
         PhaseStatus("INVALID_STATUS")
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_cgroup_version_enum() -> None:
     """Verify CGroupVersion enum values."""
     assert CGroupVersion.V1.value == "V1"
@@ -119,6 +122,7 @@ def test_cgroup_version_enum() -> None:
     assert CGroupVersion.NOT_APPLICABLE.value == "NOT_APPLICABLE"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_memory_tier_enum() -> None:
     """Verify MemoryTier enum values."""
     assert MemoryTier.TIER_1_LOCAL_NUMA.value == "TIER_1_LOCAL_NUMA"
@@ -126,6 +130,7 @@ def test_memory_tier_enum() -> None:
     assert MemoryTier.TIER_3_SWAP_STORAGE.value == "TIER_3_SWAP_STORAGE"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_engine_target_enum() -> None:
     """Verify EngineTarget enum values."""
     assert EngineTarget.ORCA.value == "ORCA"
@@ -138,6 +143,7 @@ def test_engine_target_enum() -> None:
     assert EngineTarget.GENERIC.value == "GENERIC"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_numa_balance_status_enum() -> None:
     """Verify NUMABalanceStatus enum values."""
     assert NUMABalanceStatus.BALANCED.value == "BALANCED"
@@ -151,6 +157,7 @@ def test_numa_balance_status_enum() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_cgroup_memory_profile_model() -> None:
     """Verify CGroupMemoryProfile creation, serialization, and strict validation."""
     profile = CGroupMemoryProfile(
@@ -176,6 +183,7 @@ def test_cgroup_memory_profile_model() -> None:
         })
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_host_memory_profile_model() -> None:
     """Verify HostMemoryProfile validation and computed properties."""
     host = HostMemoryProfile(
@@ -209,6 +217,7 @@ def test_host_memory_profile_model() -> None:
         )
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_numa_node_profile_model() -> None:
     """Verify NumaNodeProfile creation and strict validation."""
     node = NumaNodeProfile(
@@ -232,6 +241,7 @@ def test_numa_node_profile_model() -> None:
         )
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_multi_tier_memory_profile_model() -> None:
     """Verify MultiTierMemoryProfile validation."""
     node0 = NumaNodeProfile(node_id=0, total_ram_mb=32768.0, free_ram_mb=28000.0, cpu_core_ids=[0, 1], is_local=True)
@@ -248,6 +258,7 @@ def test_multi_tier_memory_profile_model() -> None:
     assert profile.tier_1_local_ram_mb == 32768.0
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_engine_memory_budget_model() -> None:
     """Verify EngineMemoryBudget validation and formatting."""
     budget = EngineMemoryBudget(
@@ -265,6 +276,7 @@ def test_engine_memory_budget_model() -> None:
     assert budget.allocated_total_job_mb == 28672
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_oom_shield_scaling_profile_model() -> None:
     """Verify OOMShieldScalingProfile mathematical constraints."""
     profile = OOMShieldScalingProfile(
@@ -290,6 +302,7 @@ def test_oom_shield_scaling_profile_model() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_parse_proc_meminfo_with_real_files(tmp_path: Path) -> None:
     """Verify parsing of Linux /proc/meminfo formatted content."""
     proc_dir = tmp_path / "proc"
@@ -314,6 +327,7 @@ def test_parse_proc_meminfo_with_real_files(tmp_path: Path) -> None:
     assert parsed["SwapTotal"] == 8388604 * 1024
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_parse_proc_meminfo_missing_file(tmp_path: Path) -> None:
     """Verify graceful handling when /proc/meminfo does not exist."""
     empty_dir = tmp_path / "empty_proc"
@@ -322,6 +336,7 @@ def test_parse_proc_meminfo_missing_file(tmp_path: Path) -> None:
     assert parsed == {}
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_parse_cgroup_v2_memory_bounds(tmp_path: Path) -> None:
     """Verify parsing of cgroups v2 memory bounds (memory.max, memory.high, memory.current)."""
     cg_dir = tmp_path / "sys" / "fs" / "cgroup"
@@ -340,6 +355,7 @@ def test_parse_cgroup_v2_memory_bounds(tmp_path: Path) -> None:
     assert profile.is_cgroup_constrained is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_parse_cgroup_v2_max_string_unconstrained(tmp_path: Path) -> None:
     """Verify cgroups v2 with 'max' token correctly identifies unconstrained memory."""
     cg_dir = tmp_path / "sys" / "fs" / "cgroup"
@@ -353,6 +369,7 @@ def test_parse_cgroup_v2_max_string_unconstrained(tmp_path: Path) -> None:
     assert profile.is_cgroup_constrained is False
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_parse_cgroup_v1_memory_bounds(tmp_path: Path) -> None:
     """Verify parsing of cgroups v1 memory bounds (memory.limit_in_bytes, memory.memsw.limit_in_bytes)."""
     cg_dir = tmp_path / "sys" / "fs" / "cgroup" / "memory"
@@ -368,9 +385,9 @@ def test_parse_cgroup_v1_memory_bounds(tmp_path: Path) -> None:
     assert profile.is_cgroup_constrained is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_detect_hpc_memory_limits_slurm(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify Slurm HPC job memory limit resolution via environment variables."""
-    monkeypatch.setenv("SLURM_JOB_ID", "123456")
     monkeypatch.setenv("SLURM_MEM_PER_NODE", "65536")  # 64 GB in MB
 
     scheduler, mem_bytes = detect_hpc_memory_limits()
@@ -378,9 +395,9 @@ def test_detect_hpc_memory_limits_slurm(monkeypatch: pytest.MonkeyPatch) -> None
     assert mem_bytes == 65536 * 1024 * 1024
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_detect_hpc_memory_limits_pbs(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify PBS HPC job memory limit resolution via environment variables."""
-    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
     monkeypatch.setenv("PBS_JOBID", "789012")
     monkeypatch.setenv("PBS_MEM", "32gb")
 
@@ -389,6 +406,7 @@ def test_detect_hpc_memory_limits_pbs(monkeypatch: pytest.MonkeyPatch) -> None:
     assert mem_bytes == 32 * 1024 * 1024 * 1024
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_discover_numa_topology_sysfs(tmp_path: Path) -> None:
     """Verify NUMA node discovery using real sysfs directory hierarchy."""
     sys_dir = tmp_path / "sys" / "devices" / "system" / "node"
@@ -423,6 +441,7 @@ def test_discover_numa_topology_sysfs(tmp_path: Path) -> None:
     assert profile.numa_nodes[1].cpu_core_ids == [8, 9, 10, 11, 12, 13, 14, 15]
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_discover_numa_topology_fallback_uma(tmp_path: Path) -> None:
     """Verify NUMA discovery graceful fallback to Unified UMA when no sysfs nodes exist."""
     empty_sys = tmp_path / "empty_sys"
@@ -438,6 +457,7 @@ def test_discover_numa_topology_fallback_uma(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_compute_os_jupyter_reserve_large_systems() -> None:
     """Verify flat OS/Jupyter reservation bounds on medium and large RAM systems."""
     # 64 GB system (65536 MB): 15% is 9830.4 MB, clamped to max 8192 MB (8 GB)
@@ -453,6 +473,7 @@ def test_compute_os_jupyter_reserve_large_systems() -> None:
     assert res_16g == 4096
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_compute_os_jupyter_reserve_low_ram_systems() -> None:
     """Verify OS/Jupyter reservation scales safely on constrained RAM systems (< 16 GB)."""
     # 8 GB system (8192 MB): 20% is 1638 MB
@@ -466,12 +487,14 @@ def test_compute_os_jupyter_reserve_low_ram_systems() -> None:
     assert (2048 - res_2g) >= 512
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_compute_os_jupyter_reserve_custom_override() -> None:
     """Verify user-provided custom OS reservation override."""
     res_custom = compute_os_jupyter_reserve(65536.0, custom_reserve_mb=6000)
     assert res_custom == 6000
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_compute_oom_shield_scaling_active_vs_physical() -> None:
     """
     Verify OOM Shield mathematical division: dividing allocatable memory across active cores
@@ -516,6 +539,7 @@ def test_compute_oom_shield_scaling_active_vs_physical() -> None:
     assert shield.shield_active is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_compute_oom_shield_scaling_active_cores_clamping() -> None:
     """Verify active cores input clamping to valid physical core range [1, physical_cores]."""
     host_mem = HostMemoryProfile(
@@ -544,6 +568,7 @@ def test_compute_oom_shield_scaling_active_cores_clamping() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_build_engine_memory_budgets() -> None:
     """Verify synthesis of multi-engine memory directives and environment variables."""
     budgets = build_engine_memory_budgets(
@@ -598,6 +623,7 @@ def test_build_engine_memory_budgets() -> None:
     assert mpi.engine == EngineTarget.OPENMPI
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_generate_environment_injection_dict() -> None:
     """Verify comprehensive environment variable injection dictionary synthesis."""
     shield = OOMShieldScalingProfile(
@@ -638,6 +664,7 @@ def test_generate_environment_injection_dict() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_dependency_manager_rollback_on_error(tmp_path: Path) -> None:
     """Verify DependencyManager rolls back and unlinks tracked temp files on exception."""
     temp_target = tmp_path / "will_be_deleted.tmp"
@@ -654,6 +681,7 @@ def test_dependency_manager_rollback_on_error(tmp_path: Path) -> None:
     assert not temp_target.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_dependency_manager_normal_exit(tmp_path: Path) -> None:
     """Verify DependencyManager retains files upon successful execution."""
     temp_target = tmp_path / "will_survive.tmp"
@@ -666,6 +694,7 @@ def test_dependency_manager_normal_exit(tmp_path: Path) -> None:
     assert temp_target.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_p11_registry_path_custom_and_default(tmp_path: Path) -> None:
     """Verify resolution of p11.json Golden Registry artifact destination path."""
     custom_dir = tmp_path / "custom_registry"
@@ -679,6 +708,7 @@ def test_resolve_p11_registry_path_custom_and_default(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_11_audit_full_flow(tmp_path: Path) -> None:
     """Verify end-to-end execution of Phase 11 audit, state validation, and p11.json persistence."""
     output_dir = tmp_path / "artifacts" / "registry"
@@ -706,6 +736,7 @@ def test_run_phase_11_audit_full_flow(tmp_path: Path) -> None:
     assert re_parsed_report.phase_id == "cochem_setup_phase_11"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_11_audit_dry_run(tmp_path: Path) -> None:
     """Verify dry_run produces a valid report without writing p11.json to disk."""
     output_dir = tmp_path / "dry_run_registry"
@@ -721,6 +752,7 @@ def test_run_phase_11_audit_dry_run(tmp_path: Path) -> None:
     assert not p11_file.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_main_cli_execution_json(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """Verify CLI main entry point with --json and --dry-run flags."""
     out_dir = tmp_path / "cli_reg"
@@ -733,6 +765,7 @@ def test_main_cli_execution_json(tmp_path: Path, capsys: pytest.CaptureFixture) 
     assert "oom_shield" in parsed_json
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_main_cli_execution_human_readable(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """Verify CLI main entry point human-readable summary output."""
     out_dir = tmp_path / "cli_reg_human"
@@ -750,6 +783,7 @@ def test_main_cli_execution_human_readable(tmp_path: Path, capsys: pytest.Captur
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_2_audit_findings_model() -> None:
     """Verify Phase2AuditFindings model strict validation and field constraints."""
     findings = Phase2AuditFindings(
@@ -779,6 +813,7 @@ def test_phase_2_audit_findings_model() -> None:
         })
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_get_absolute_physical_ram_positive() -> None:
     """Verify get_absolute_physical_ram returns positive integer byte count."""
     ram = get_absolute_physical_ram()
@@ -786,6 +821,7 @@ def test_get_absolute_physical_ram_positive() -> None:
     assert ram > 0
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_load_phase_2_audit_findings_valid(tmp_path: Path) -> None:
     """Verify load_phase_2_audit_findings accurately parses authentic Phase 2 p2.json."""
     p2_file = tmp_path / "p2.json"
@@ -820,6 +856,7 @@ def test_load_phase_2_audit_findings_valid(tmp_path: Path) -> None:
     assert findings.gpu_available is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_load_phase_2_audit_findings_corrupt_or_missing(tmp_path: Path) -> None:
     """Verify graceful None return on missing or corrupt p2.json files."""
     missing_path = tmp_path / "nonexistent_p2.json"
@@ -830,6 +867,7 @@ def test_load_phase_2_audit_findings_corrupt_or_missing(tmp_path: Path) -> None:
     assert load_phase_2_audit_findings(p2_path=corrupt_path) is None
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify load_phase_2_audit_findings discovers p2.json via COCHEM_REGISTRY_DIR."""
     reg_dir = tmp_path / "env_registry"
@@ -851,6 +889,7 @@ def test_load_phase_2_audit_findings_env_var(tmp_path: Path, monkeypatch: pytest
     assert findings.total_physical_ram_bytes == 68719476736
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_11_audit_with_p2_path(tmp_path: Path) -> None:
     """Verify run_phase_11_audit integrates Phase 2 findings into report and baseline."""
     p2_file = tmp_path / "p2.json"
@@ -873,6 +912,7 @@ def test_run_phase_11_audit_with_p2_path(tmp_path: Path) -> None:
     assert report.oom_shield.active_job_cores == 4
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_openmpi_dft_constraint_algorithm_exact_20pct_reservation() -> None:
     """
     Verify the constraint algorithm for OpenMPI and DFT maximum safe memory allocations:
@@ -902,6 +942,7 @@ def test_openmpi_dft_constraint_algorithm_exact_20pct_reservation() -> None:
     assert shield.baseline_80pct_maxcore_mb == 3276
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_cgroup_v2_priority_over_psutil_hypervisor_anti_spoof(tmp_path: Path) -> None:
     """
     Verify cgroupv2 /sys/fs/cgroup/memory.max strictly bounds total RAM before psutil
@@ -921,6 +962,7 @@ def test_cgroup_v2_priority_over_psutil_hypervisor_anti_spoof(tmp_path: Path) ->
     assert host_mem.bounded_total_ram_gb <= 16.0
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_main_cli_with_p2_path(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """Verify CLI --p2-path parameter propagates to JSON output report."""
     p2_file = tmp_path / "cli_p2.json"

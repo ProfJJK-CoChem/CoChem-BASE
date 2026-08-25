@@ -73,7 +73,8 @@ class CitationManager:
             "@article{Wu_gpu4pyscf_2024,\n"
             "  author = {Wu, Xiaojie and Cui, Zhi-Hao and Zhang, Xing and "
             "Sun, Qiming and Chan, Garnet Kin-Lic},\n"
-            "  title = {gpu4pyscf: GPU-Accelerated Quantum Chemistry on Distributed Systems},\n"
+            "  title = {gpu4pyscf: GPU-Accelerated Quantum Chemistry on "
+            "Distributed Systems},\n"
             "  journal = {arXiv preprint arXiv:2404.09452},\n"
             "  year = {2024},\n"
             "  doi = {10.48550/arXiv.2404.09452}\n"
@@ -243,7 +244,8 @@ class CitationManager:
             "  author = {Western, Colin M.},\n"
             "  title = {PGOPHER: A program for simulating rotational, vibrational "
             "and electronic spectra},\n"
-            "  journal = {Journal of Quantitative Spectroscopy and Radiative Transfer},\n"
+            "  journal = {Journal of Quantitative Spectroscopy and "
+            "Radiative Transfer},\n"
             "  volume = {186},\n"
             "  pages = {221--242},\n"
             "  year = {2017},\n"
@@ -345,7 +347,7 @@ class CitationManager:
         self, first_author: str, method_name: str, year: str | int | None
     ) -> str:
         """Constructs deterministic, ASCII-safe, collision-resistant BibTeX key."""
-        # Sanitize author: strip accents, remove "et al", replace non-alphanumeric with underscore
+        # Sanitize author: strip accents, remove "et al", replace non-alphanumeric
         ascii_author = self._strip_accents(str(first_author or ""))
         ascii_author = re.sub(
             r"\b(et\s+al\.?|and\s+others)\b", "", ascii_author, flags=re.IGNORECASE
@@ -406,7 +408,11 @@ class CitationManager:
         doi_candidate = self.normalize_doi(method_query)
         base_endpoint = self.api_url.rstrip("/")
         try:
-            if doi_candidate and ("/" in doi_candidate and doi_candidate.startswith("10.")):
+            if (
+                doi_candidate
+                and "/" in doi_candidate
+                and doi_candidate.startswith("10.")
+            ):
                 endpoint = f"{base_endpoint}/{doi_candidate}"
                 resp = self.session.get(endpoint, timeout=self.request_timeout)
             else:
@@ -476,7 +482,9 @@ class CitationManager:
                 continue
             family = (author_dict.get("family") or "").strip()
             given = (author_dict.get("given") or "").strip()
-            name = (author_dict.get("name") or author_dict.get("literal") or "").strip()
+            name = (
+                author_dict.get("name") or author_dict.get("literal") or ""
+            ).strip()
             if not family and not given and name:
                 family = name
 
@@ -522,7 +530,19 @@ class CitationManager:
                             return year_match.group(1)
         return "2024"
 
-    def format_bibtex_entry(  # noqa: PLR0912
+    @staticmethod
+    def _determine_bib_type(entry_type: str) -> str:
+        """Maps CrossRef work type string to standard BibTeX entry type."""
+        entry_type_lower = entry_type.lower()
+        if "book" in entry_type_lower:
+            return "book"
+        if "proceedings" in entry_type_lower or "conference" in entry_type_lower:
+            return "inproceedings"
+        if any(t in entry_type_lower for t in ("dataset", "report", "standard")):
+            return "misc"
+        return "article"
+
+    def format_bibtex_entry(
         self, metadata: dict[str, Any], method_key: str
     ) -> str:
         """Converts CrossRef JSON metadata dictionary into standardized BibTeX entry."""
@@ -553,7 +573,6 @@ class CitationManager:
             journal = pub
 
         volume = str(metadata.get("volume") or "").strip()
-
         issue_obj = metadata.get("journal-issue")
         issue_from_obj = issue_obj.get("issue") if isinstance(issue_obj, dict) else ""
         issue = str(metadata.get("issue") or issue_from_obj or "").strip()
@@ -567,14 +586,8 @@ class CitationManager:
         raw_doi = str(metadata.get("DOI") or "").strip()
         doi = self.normalize_doi(raw_doi) or raw_doi
 
-        entry_type = str(metadata.get("type", "article-journal")).lower()
-        bib_type = "article"
-        if "book" in entry_type:
-            bib_type = "book"
-        elif "proceedings" in entry_type or "conference" in entry_type:
-            bib_type = "inproceedings"
-        elif "dataset" in entry_type or "report" in entry_type or "standard" in entry_type:
-            bib_type = "misc"
+        meta_type = str(metadata.get("type", "article-journal"))
+        bib_type = self._determine_bib_type(meta_type)
 
         fields: list[str] = [
             f"  author = {{{authors_str}}}",
@@ -701,24 +714,26 @@ class CitationManager:
                 collected.append(val)
         elif isinstance(data, dict):
             for k, v in data.items():
-                if k in (
-                    "engine",
-                    "engines",
-                    "method",
-                    "methods",
-                    "ml_potential",
-                    "semiempirical",
-                    "dispersion",
-                    "functional",
-                    "basis_set",
-                    "spectroscopy_engine",
-                    "conformer_engine",
-                    "software",
-                    "dependencies",
-                    "pipeline_stages",
+                if (
+                    k
+                    in (
+                        "engine",
+                        "engines",
+                        "method",
+                        "methods",
+                        "ml_potential",
+                        "semiempirical",
+                        "dispersion",
+                        "functional",
+                        "basis_set",
+                        "spectroscopy_engine",
+                        "conformer_engine",
+                        "software",
+                        "dependencies",
+                        "pipeline_stages",
+                    )
+                    or isinstance(v, dict | list)
                 ):
-                    self._collect_methods(v, collected)
-                elif isinstance(v, dict | list):
                     self._collect_methods(v, collected)
         elif isinstance(data, list | tuple | set):
             for item in data:

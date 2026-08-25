@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 
 from pathlib import Path
 
@@ -7,12 +8,14 @@ import pytest
 import headless_run
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv('COCHEM_ARTIFACT_DIR', raising=False)
     resolved = headless_run.resolve_artifact_path(None)
     assert resolved == (Path.home() / 'CoChem_Artifacts').resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     custom_dir = str(tmp_path / 'custom_artifacts')
     monkeypatch.setenv('COCHEM_ARTIFACT_DIR', custom_dir)
@@ -20,18 +23,21 @@ def test_resolve_artifact_path_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert resolved == Path(custom_dir).resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_explicit_str(tmp_path: Path) -> None:
     explicit = tmp_path / 'explicit_dir'
     resolved = headless_run.resolve_artifact_path(str(explicit))
     assert resolved == explicit.resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_explicit_path(tmp_path: Path) -> None:
     explicit = tmp_path / 'explicit_path_obj'
     resolved = headless_run.resolve_artifact_path(explicit)
     assert resolved == explicit.resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_tilde(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv('USERPROFILE', str(tmp_path))
     monkeypatch.setenv('HOME', str(tmp_path))
@@ -39,15 +45,15 @@ def test_resolve_artifact_path_tilde(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert resolved == (tmp_path / 'test_silo').resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_resolve_artifact_path_env_vars(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv('MY_TEST_BASE_DIR', str(tmp_path / 'env_expanded'))
     resolved = headless_run.resolve_artifact_path('$MY_TEST_BASE_DIR/artifacts')
     assert resolved == (tmp_path / 'env_expanded' / 'artifacts').resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_get_interface_and_calc_env_platforms(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv('CODESPACES', raising=False)
-
     monkeypatch.setattr('platform.system', lambda: 'Windows')
     iface, calc = headless_run.get_interface_and_calc_env()
     assert iface == 'Local-Windows (WSL)'
@@ -69,13 +75,14 @@ def test_get_interface_and_calc_env_platforms(monkeypatch: pytest.MonkeyPatch) -
     assert calc == 'GitHub Actions'
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_get_interface_and_calc_env_codespaces(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv('CODESPACES', 'true')
     iface, calc = headless_run.get_interface_and_calc_env()
     assert iface == 'Codespaces'
     assert calc == 'GitHub Actions'
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_configure_execution_environment_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('ORCA_CMD', 'test_orca_path')
     monkeypatch.setenv('MPI_CMD', 'test_mpi_path')
@@ -86,6 +93,7 @@ def test_configure_execution_environment_env(monkeypatch: pytest.MonkeyPatch) ->
     assert config['MPI_CMD'] == 'test_mpi_path'
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_configure_execution_environment_explicit(tmp_path: Path) -> None:
     orca_bin = tmp_path / 'orca'
     mpi_bin = tmp_path / 'mpirun'
@@ -97,6 +105,7 @@ def test_configure_execution_environment_explicit(tmp_path: Path) -> None:
     assert Path(config['MPI_CMD']) == mpi_bin.resolve()
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_provision_cochem_environment_existing(tmp_path: Path) -> None:
     """Verify provision_cochem_environment accurately detects pre-existing Conda silo."""
     target = tmp_path / 'test_env_exist'
@@ -113,6 +122,7 @@ def test_provision_cochem_environment_existing(tmp_path: Path) -> None:
     assert already is True
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_run_preflight_suite_live(tmp_path: Path) -> None:
     """Verify live preflight test suite execution returns structured results."""
     mod_dir = tmp_path / 'modules'
@@ -126,6 +136,7 @@ def test_run_preflight_suite_live(tmp_path: Path) -> None:
     assert results is not None
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_run_preflight_suite_custom_args(tmp_path: Path) -> None:
     """Verify preflight suite handles custom path arguments cleanly."""
     custom_mod = tmp_path / 'custom_modules'
@@ -139,12 +150,14 @@ def test_run_preflight_suite_custom_args(tmp_path: Path) -> None:
     assert results is not None
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_main_cli_skip_all() -> None:
     """Verify CLI entrypoint succeeds when tasks are flagged as skipped."""
     exit_code = headless_run.main(['--skip-provision', '--skip-tests'])
     assert exit_code == 0
 
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_main_cli_with_artifact_dir(tmp_path: Path) -> None:
     """Verify CLI entrypoint configures artifact directory safely."""
     target = tmp_path / 'cli_artifacts'

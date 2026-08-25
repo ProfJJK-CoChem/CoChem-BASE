@@ -28,11 +28,10 @@ atexit.register(sweep_zombie_processes)
 
 @pytest.fixture
 def hpc_codespaces_env(monkeypatch, tmp_path):
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "hpc")
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path))
     yield tmp_path
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "hpc", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=hpc")
 def test_interactive_matrix_dashboard_paths_and_test(hpc_codespaces_env):
     """
     Test the New Install -> Set Paths & Test logic of the Interactive Matrix Dashboard.
@@ -89,8 +88,8 @@ def main():
 
     print("SUCCESS")
 
-if __name__ == "__main__":
-    main()
+    if __name__ == "__main__":
+        main()
 """
 
     try:

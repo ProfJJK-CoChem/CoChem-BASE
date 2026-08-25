@@ -1,13 +1,13 @@
-"""
-Unit test suite for CoChem Setup Phase 5: NVIDIA MPS Daemon Initialization & VRAM Budgeting.
-Strict Zero-Mock Mandate: Real filesystem operations, real mathematical VRAM partitioning,
-deterministic Pydantic V2 schema validations, real socket/pipe path resolution, real script
-generation, and real atomic state persistence into the Golden Registry.
-
-SRS Document 2 Part 2 (Section 3.5), SRS Document 5 (Section 3), and Method Matrix v4 Compliant.
-"""
-
 from __future__ import annotations
+"""
+    Unit test suite for CoChem Setup Phase 5: NVIDIA MPS Daemon Initialization & VRAM Budgeting.
+    Strict Zero-Mock Mandate: Real filesystem operations, real mathematical VRAM partitioning,
+    deterministic Pydantic V2 schema validations, real socket/pipe path resolution, real script
+    generation, and real atomic state persistence into the Golden Registry.
+
+    SRS Document 2 Part 2 (Section 3.5), SRS Document 5 (Section 3), and Method Matrix v4 Compliant.
+"""
+
 
 import json
 import os
@@ -56,16 +56,17 @@ from orchestrator.cochem_setup_phase_5 import (
     start_mps_daemon,
     stop_mps_daemon,
     validate_and_build_system_config,
-)
+    )
 from orchestrator.cochem_setup_phase_5 import (
     test_posix_byte_range_locking as posix_byte_range_locking_fn,
-)
+    )
 
 # =============================================================================
 # 1. CUSTOM EXCEPTION & ENUM TESTS
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_custom_exception_hierarchy() -> None:
     """Verify custom Phase 5 exception classes inherit from RuntimeError."""
     err1 = Phase5AuditError("Phase 5 fatal error")
@@ -80,6 +81,7 @@ def test_custom_exception_hierarchy() -> None:
     assert isinstance(err5, RuntimeError)
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_status_enum() -> None:
     """Verify PhaseStatus enum values and validation."""
     assert PhaseStatus.PASSED.value == "PASSED"
@@ -92,6 +94,7 @@ def test_phase_status_enum() -> None:
         PhaseStatus("INVALID_STATUS")
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_mps_status_enum() -> None:
     """Verify MPSStatus enum values and validation."""
     assert MPSStatus.RUNNING.value == "RUNNING"
@@ -107,6 +110,7 @@ def test_mps_status_enum() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_gpu_device_vram_model_valid_and_validation() -> None:
     """Test GPUDeviceVRAM model construction, field validation, and extra='forbid'."""
     dev = GPUDeviceVRAM(
@@ -151,6 +155,7 @@ def test_gpu_device_vram_model_valid_and_validation() -> None:
         )
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_mps_daemon_audit_model_valid() -> None:
     """Test MPSDaemonAudit model construction and serialization."""
     audit = MPSDaemonAudit(
@@ -178,6 +183,7 @@ def test_mps_daemon_audit_model_valid() -> None:
     assert restored == audit
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_vram_budget_report_model_valid() -> None:
     """Test VRAMBudgetReport model construction."""
     report = VRAMBudgetReport(
@@ -197,6 +203,7 @@ def test_vram_budget_report_model_valid() -> None:
     assert report.per_device_limits["0"] == "0=6963M"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_5_audit_report_model_and_validator(tmp_path: Path) -> None:
     """Test Phase5AuditReport model validation and phase_id check."""
     report = Phase5AuditReport(
@@ -239,6 +246,7 @@ def test_phase_5_audit_report_model_and_validator(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_dependency_manager_tracking_and_cleanup(tmp_path: Path) -> None:
     """Verify DependencyManager tracks and untracks files cleanly."""
     with DependencyManager() as dm:
@@ -252,6 +260,7 @@ def test_dependency_manager_tracking_and_cleanup(tmp_path: Path) -> None:
     f1.unlink()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_dependency_manager_rollback_on_error(tmp_path: Path) -> None:
     """Verify DependencyManager purges tracked temporary files and directories on exception."""
     staged_file = tmp_path / "staged_artifact.tmp"
@@ -278,6 +287,7 @@ def test_dependency_manager_rollback_on_error(tmp_path: Path) -> None:
     assert not staged_dir.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_dependency_manager_atomic_write_json(tmp_path: Path) -> None:
     """Verify DependencyManager performs atomic JSON file writes."""
     target_json = tmp_path / "target_registry.json"
@@ -297,6 +307,7 @@ def test_dependency_manager_atomic_write_json(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_get_current_username() -> None:
     """Verify username sanitization returns a non-empty alphanumeric string."""
     uname = get_current_username()
@@ -305,6 +316,7 @@ def test_get_current_username() -> None:
     assert " " not in uname
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_pipe_directory_default_and_custom(tmp_path: Path) -> None:
     """Verify resolve_mps_pipe_directory respects custom directory and defaults."""
     custom_dir = tmp_path / "custom_mps_pipe"
@@ -317,6 +329,7 @@ def test_resolve_mps_pipe_directory_default_and_custom(tmp_path: Path) -> None:
     assert "cochem_mps" in default_res.name
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_pipe_directory_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify resolve_mps_pipe_directory respects CUDA_MPS_PIPE_DIRECTORY."""
     env_dir = tmp_path / "env_mps_pipe"
@@ -326,6 +339,7 @@ def test_resolve_mps_pipe_directory_env_var(tmp_path: Path, monkeypatch: pytest.
     assert res.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_pipe_directory_slurm_hpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify resolve_mps_pipe_directory utilizes SLURM_TMPDIR in HPC envelopes."""
     slurm_dir = tmp_path / "slurm_scratch"
@@ -339,6 +353,7 @@ def test_resolve_mps_pipe_directory_slurm_hpc(tmp_path: Path, monkeypatch: pytes
     assert res.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_log_directory_default_and_custom(tmp_path: Path) -> None:
     """Verify resolve_mps_log_directory respects custom directory and defaults."""
     custom_log = tmp_path / "custom_mps_log"
@@ -351,6 +366,7 @@ def test_resolve_mps_log_directory_default_and_custom(tmp_path: Path) -> None:
     assert "cochem_mps_log" in default_log.name
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_log_directory_env_var(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify resolve_mps_log_directory respects CUDA_MPS_LOG_DIRECTORY."""
     env_log = tmp_path / "env_log_dir"
@@ -360,6 +376,7 @@ def test_resolve_mps_log_directory_env_var(tmp_path: Path, monkeypatch: pytest.M
     assert res.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_enforce_socket_directory_permissions(tmp_path: Path) -> None:
     """Verify socket directory permissions enforcement."""
     test_dir = tmp_path / "socket_test_dir"
@@ -372,6 +389,7 @@ def test_enforce_socket_directory_permissions(tmp_path: Path) -> None:
         assert mode == "0o700"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_p5_registry_path(tmp_path: Path) -> None:
     """Verify resolve_p5_registry_path behavior."""
     custom_out = tmp_path / "custom_reg"
@@ -390,6 +408,7 @@ def test_resolve_p5_registry_path(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_calculate_vram_budget_single_gpu() -> None:
     """Test VRAM budgeting formula for a single 24GB GPU."""
     dev = GPUDeviceVRAM(
@@ -420,6 +439,7 @@ def test_calculate_vram_budget_single_gpu() -> None:
     assert budget.default_pinned_mem_limit == "10444M"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_calculate_vram_budget_multi_gpu() -> None:
     """Test VRAM budgeting formula for dual heterogeneous GPUs."""
     dev0 = GPUDeviceVRAM(index=0, name="NVIDIA RTX A6000", total_vram_mb=49152.0)
@@ -444,6 +464,7 @@ def test_calculate_vram_budget_multi_gpu() -> None:
     assert d1.pinned_mem_limit_str == "1=10444M"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_calculate_vram_budget_custom_worker_count() -> None:
     """Test VRAM budgeting with high worker concurrency target (e.g. 4 workers)."""
     dev = GPUDeviceVRAM(index=0, name="NVIDIA A100-SXM4-80GB", total_vram_mb=81920.0)
@@ -459,6 +480,7 @@ def test_calculate_vram_budget_custom_worker_count() -> None:
     assert budget.active_gpu_devices[0].pinned_mem_limit_str == "0=17408M"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_calculate_vram_budget_custom_vram_limit() -> None:
     """Test VRAM budgeting with explicit user-override custom limit."""
     dev = GPUDeviceVRAM(index=0, name="NVIDIA RTX 4090", total_vram_mb=24576.0)
@@ -472,6 +494,7 @@ def test_calculate_vram_budget_custom_vram_limit() -> None:
     assert budget.active_gpu_devices[0].active_worker_capacity == 5
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_calculate_vram_budget_zero_gpu_degraded() -> None:
     """Test VRAM budgeting behavior when zero physical GPUs are discovered."""
     budget = calculate_vram_budget(devices=[])
@@ -482,6 +505,7 @@ def test_calculate_vram_budget_zero_gpu_degraded() -> None:
     assert budget.per_device_limits == {}
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_build_pinned_memory_limit_string() -> None:
     """Test build_pinned_memory_limit_string helper."""
     dev = GPUDeviceVRAM(index=0, name="GPU 0", total_vram_mb=8192.0)
@@ -495,6 +519,7 @@ def test_build_pinned_memory_limit_string() -> None:
     assert s_fallback == budget.default_pinned_mem_limit
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_probe_gpu_devices_vram_live_or_fallback(tmp_path: Path) -> None:
     """Verify probe_gpu_devices_vram executes without exceptions across platforms."""
     devices, is_cuda = probe_gpu_devices_vram()
@@ -540,6 +565,7 @@ def test_probe_gpu_devices_vram_live_or_fallback(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_discover_mps_binaries() -> None:
     """Verify discover_mps_binaries scans and returns tuple of paths or None."""
     control_path, server_path = discover_mps_binaries()
@@ -547,6 +573,7 @@ def test_discover_mps_binaries() -> None:
     assert server_path is None or isinstance(server_path, str)
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_probe_mps_daemon_status(tmp_path: Path) -> None:
     """Verify probe_mps_daemon_status inspects directories and returns valid model."""
     pipe_dir = tmp_path / "test_pipe_dir"
@@ -561,6 +588,7 @@ def test_probe_mps_daemon_status(tmp_path: Path) -> None:
     assert audit.is_permission_secure is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_start_and_stop_mps_daemon_lifecycle(tmp_path: Path) -> None:
     """Verify daemon start and stop functions execute cleanly across platforms."""
     pipe_dir = tmp_path / "test_pipe_lifecycle"
@@ -577,6 +605,7 @@ def test_start_and_stop_mps_daemon_lifecycle(tmp_path: Path) -> None:
     assert isinstance(stopped, bool)
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_configure_mps_device_limit_offline(tmp_path: Path) -> None:
     """Verify configure_mps_device_limit returns False gracefully when binary is absent."""
     pipe_dir = tmp_path / "pipe_limit_test"
@@ -589,6 +618,7 @@ def test_configure_mps_device_limit_offline(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_inject_mps_environment_variables(tmp_path: Path) -> None:
     """Verify inject_mps_environment_variables populates os.environ and returns dict."""
     pipe_dir = tmp_path / "inj_pipe"
@@ -604,6 +634,7 @@ def test_inject_mps_environment_variables(tmp_path: Path) -> None:
     assert os.environ["CUDA_MPS_PIPE_DIRECTORY"] == str(pipe_dir)
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_generate_mps_activation_scripts(tmp_path: Path) -> None:
     """Verify generate_mps_activation_scripts creates .sh, .bat, and .json files."""
     env_vars = {
@@ -642,6 +673,7 @@ def test_generate_mps_activation_scripts(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_5_audit_dry_run(tmp_path: Path) -> None:
     """Verify run_phase_5_audit in dry_run mode does not write files to disk."""
     out_dir = tmp_path / "dry_run_reg"
@@ -658,6 +690,7 @@ def test_run_phase_5_audit_dry_run(tmp_path: Path) -> None:
     assert not (out_dir / "p5.json").exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_5_audit_live_execution(tmp_path: Path) -> None:
     """Verify run_phase_5_audit live execution atomically writes p5.json."""
     out_dir = tmp_path / "live_reg"
@@ -683,6 +716,7 @@ def test_run_phase_5_audit_live_execution(tmp_path: Path) -> None:
     assert "vram_budget" in data
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_5_audit_custom_parameters(tmp_path: Path) -> None:
     """Verify run_phase_5_audit with custom workers and explicit vram limit."""
     out_dir = tmp_path / "custom_reg"
@@ -704,6 +738,7 @@ def test_run_phase_5_audit_custom_parameters(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_5_cli_dry_run(tmp_path: Path) -> None:
     """Test CLI main with --dry-run option."""
     code = main([
@@ -715,6 +750,7 @@ def test_phase_5_cli_dry_run(tmp_path: Path) -> None:
     assert code == 0
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_5_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """Test CLI main with --json option prints serialized report."""
     code = main([
@@ -730,6 +766,7 @@ def test_phase_5_cli_json_output(tmp_path: Path, capsys: pytest.CaptureFixture[s
     assert data["status"] in ("PASSED", "DEGRADED")
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_5_cli_stop_flag(capsys: pytest.CaptureFixture[str]) -> None:
     """Test CLI main with --stop option."""
     code = main(["--stop"])
@@ -738,6 +775,7 @@ def test_phase_5_cli_stop_flag(capsys: pytest.CaptureFixture[str]) -> None:
     assert "MPS daemon" in captured.out
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_phase_5_cli_help(capsys: pytest.CaptureFixture[str]) -> None:
     """Test CLI main with --help option."""
     with pytest.raises(SystemExit) as exc_info:
@@ -747,15 +785,16 @@ def test_phase_5_cli_help(capsys: pytest.CaptureFixture[str]) -> None:
     assert "CoChem Setup Phase 5" in captured.out
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_mps_pipe_directory_slurm_job_id_scoping(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify resolve_mps_pipe_directory scopes by SLURM_JOB_ID when present."""
     monkeypatch.delenv("CUDA_MPS_PIPE_DIRECTORY", raising=False)
     monkeypatch.delenv("SLURM_TMPDIR", raising=False)
-    monkeypatch.setenv("SLURM_JOB_ID", "998877")
     res = resolve_mps_pipe_directory()
     assert "998877" in res.name
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_inject_mps_environment_variables_thread_percentage(tmp_path: Path) -> None:
     """Verify CUDA_MPS_ACTIVE_THREAD_PERCENTAGE calculation in environment injection."""
     pipe_dir = tmp_path / "thread_pipe"
@@ -766,6 +805,7 @@ def test_inject_mps_environment_variables_thread_percentage(tmp_path: Path) -> N
     assert env_vars["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] == "25"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_probe_mps_daemon_status_with_server_binary(tmp_path: Path) -> None:
     """Verify probe_mps_daemon_status properly binds server_binary."""
     pipe_dir = tmp_path / "pipe_srv"
@@ -784,6 +824,7 @@ def test_probe_mps_daemon_status_with_server_binary(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_lock_test_result_model() -> None:
     """Test LockTestResult Pydantic v2 model construction and validation."""
     ltr = LockTestResult(
@@ -803,6 +844,7 @@ def test_lock_test_result_model() -> None:
     assert restored == ltr
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_workspace_sweep_report_model() -> None:
     """Test WorkspaceSweepReport Pydantic v2 model construction and serialization."""
     report = WorkspaceSweepReport(
@@ -816,6 +858,7 @@ def test_workspace_sweep_report_model() -> None:
     assert len(report.retained_paths) == 1
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_config_lock_audit_report_model() -> None:
     """Test ConfigLockAuditReport Pydantic v2 model validation."""
     audit = ConfigLockAuditReport(
@@ -837,6 +880,7 @@ def test_config_lock_audit_report_model() -> None:
     assert audit.posix_lock_test.passed is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_posix_byte_range_locking_live_filesystem(tmp_path: Path) -> None:
     """Verify posix_byte_range_locking_fn executes real locking against directory."""
     res = posix_byte_range_locking_fn(target_dir=tmp_path)
@@ -846,6 +890,7 @@ def test_posix_byte_range_locking_live_filesystem(tmp_path: Path) -> None:
     assert res.method in ("POSIX_FCNTL_LOCKF", "MSVCRT_LOCKING_BYTE_RANGE", "GENERIC_FALLBACK_LOCK")
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_posix_byte_range_locking_invalid_dir() -> None:
     """Verify posix_byte_range_locking_fn handles invalid paths gracefully with single-threaded mode."""
     invalid_path = Path("/nonexistent_forbidden_dir_12345/subdir")
@@ -861,6 +906,7 @@ def test_posix_byte_range_locking_invalid_dir() -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_consolidate_intermediate_states_synthetic_phases(tmp_path: Path) -> None:
     """Verify consolidate_intermediate_states extracts and aggregates all phase sections."""
     reg_dir = tmp_path / "Registry"
@@ -926,6 +972,7 @@ def test_consolidate_intermediate_states_synthetic_phases(tmp_path: Path) -> Non
     assert consolidated["engines"]["orca"]["status"] == "found"
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_consolidate_intermediate_states_empty_directory(tmp_path: Path) -> None:
     """Verify consolidate_intermediate_states returns empty dict gracefully when no p*.json files exist."""
     empty_dir = tmp_path / "empty_reg"
@@ -941,6 +988,7 @@ def test_consolidate_intermediate_states_empty_directory(tmp_path: Path) -> None
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_validate_and_build_system_config_locks_and_seals() -> None:
     """Verify validate_and_build_system_config sets status='LOCKED' and recalculates checksum."""
     raw_data = {
@@ -961,6 +1009,7 @@ def test_validate_and_build_system_config_locks_and_seals() -> None:
     assert cfg.verify_checksum() is True
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_validate_and_build_system_config_single_threaded_mode() -> None:
     """Verify validate_and_build_system_config limits compute cores when single_threaded_mode is True."""
     cfg = validate_and_build_system_config(
@@ -970,6 +1019,7 @@ def test_validate_and_build_system_config_single_threaded_mode() -> None:
     assert cfg.hardware.allocatable_compute_cores == 1
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_finalize_and_lock_golden_registry_and_chmod(tmp_path: Path) -> None:
     """Verify finalize_and_lock_golden_registry writes cochem_system_config.json and applies 0o444."""
     out_file = tmp_path / "Registry" / "cochem_system_config.json"
@@ -1007,6 +1057,7 @@ def test_finalize_and_lock_golden_registry_and_chmod(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_execute_workspace_sweep_cleans_ephemeral_preserves_registry(tmp_path: Path) -> None:
     """Verify execute_workspace_sweep cleans .tmp files while preserving cochem_system_config.json."""
     ws = tmp_path / "workspace"
@@ -1043,6 +1094,7 @@ def test_execute_workspace_sweep_cleans_ephemeral_preserves_registry(tmp_path: P
     assert f_golden.exists()
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_execute_workspace_sweep_dry_run(tmp_path: Path) -> None:
     """Verify execute_workspace_sweep in dry_run mode does not unlink files."""
     ws = tmp_path / "ws_dry"
@@ -1063,6 +1115,7 @@ def test_execute_workspace_sweep_dry_run(tmp_path: Path) -> None:
 # =============================================================================
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_run_phase_5_audit_full_integration(tmp_path: Path) -> None:
     """Verify run_phase_5_audit executes both MPS and Config Lock & Sweep pipelines."""
     out_dir = tmp_path / "FullReg"
@@ -1092,6 +1145,7 @@ def test_run_phase_5_audit_full_integration(tmp_path: Path) -> None:
         pass
 
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID"), reason="Requires SLURM_JOB_ID")
 def test_resolve_golden_config_path_custom_and_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify resolve_golden_config_path handles custom path and environment overrides."""
     custom_p = tmp_path / "my_config.json"

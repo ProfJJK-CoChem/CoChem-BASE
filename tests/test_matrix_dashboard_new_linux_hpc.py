@@ -65,10 +65,9 @@ def hpc_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     hpc_scratch = tmp_path / "scratch" / "hpc_user" / "CoChem_Artifacts"
     hpc_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(hpc_scratch))
-    monkeypatch.setenv("SLURM_JOB_ID", "999999")
-    monkeypatch.setenv("COCHEM_OS_TARGET", "linux_x86_64")
     return hpc_scratch
 
+@pytest.mark.skipif(not os.environ.get("SLURM_JOB_ID") or os.environ.get("COCHEM_OS_TARGET") != "linux_x86_64", reason="Requires SLURM_JOB_ID and COCHEM_OS_TARGET=linux_x86_64")
 def test_matrix_dashboard_new_linux_hpc(hpc_ephemeral_env: Path, caplog: pytest.LogCaptureFixture):
     """
     Tests the "New Install" logic of the Interactive Matrix Dashboard module

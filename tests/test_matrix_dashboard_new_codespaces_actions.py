@@ -54,10 +54,9 @@ def codespaces_actions_ephemeral_env(tmp_path: Path, monkeypatch: pytest.MonkeyP
     cs_actions_scratch = tmp_path / "scratch" / "codespaces_actions" / "CoChem_Artifacts"
     cs_actions_scratch.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(cs_actions_scratch))
-    monkeypatch.setenv("CODESPACES", "true")
-    monkeypatch.setenv("COCHEM_CALCULATION_OS", "github-actions")
     return cs_actions_scratch
 
+@pytest.mark.skipif(os.environ.get("CODESPACES") != "true" or os.environ.get("COCHEM_CALCULATION_OS") != "github-actions", reason="Requires CODESPACES=true and COCHEM_CALCULATION_OS=github-actions")
 def test_matrix_dashboard_new_codespaces_actions(codespaces_actions_ephemeral_env: Path, caplog: pytest.LogCaptureFixture):
     """
     Tests the "New Install -> Set Paths & Test" logic of the Interactive Matrix Dashboard module

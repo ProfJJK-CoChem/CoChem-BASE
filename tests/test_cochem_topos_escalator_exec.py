@@ -25,7 +25,6 @@ import h5py
 import numpy as np
 import pytest
 from ase import Atoms
-
 from escalation.cochem_topos_escalator_exec import (
     AlertSeverity,
     AutoCASAlert,
@@ -56,6 +55,7 @@ from escalation.cochem_topos_escalator_exec import (
     ToposEscalatorExec,
     WavefunctionSeeder,
     execute_time_aware_escalation,
+    get_dynamic_atomic_mass,
     parse_orca_output,
     send_ipc_alert,
     verify_redundant_cartesian_geometry,
@@ -874,3 +874,99 @@ class TestTimeAwareCapabilitySelectorAndBroker:
         assert step_record.multiref_diagnostics is not None
         assert step_record.multiref_diagnostics.is_multireference is True
         assert step_record.multiref_diagnostics.t1_diagnostic > 0.02
+
+
+# ============================================================================
+# 11. Tests for Mendeleev Dynamic Atomic Mass Mandate
+# ============================================================================
+
+
+class TestDirective11MendeleevDynamicMasses:
+    """Verifies dynamic atomic and isotopic mass retrieval via Mendeleev."""
+
+    def test_dynamic_atomic_mass_retrieval(self) -> None:
+        """Confirms dynamic mass lookup for standard elements."""
+        c_mass = get_dynamic_atomic_mass("C")
+        h_mass = get_dynamic_atomic_mass("H")
+        o_mass = get_dynamic_atomic_mass("O")
+
+        assert pytest.approx(c_mass, rel=1e-3) == 12.011
+        assert pytest.approx(h_mass, rel=1e-3) == 1.008
+        assert pytest.approx(o_mass, rel=1e-3) == 15.999
+
+    def test_dynamic_isotopic_mass_retrieval(self) -> None:
+        """Confirms dynamic mass lookup for specific isotopes (13C, 2H/D, 18O)."""
+        c13_mass = get_dynamic_atomic_mass("C", mass_number=13)
+        h2_mass = get_dynamic_atomic_mass("H", mass_number=2)
+        o18_mass = get_dynamic_atomic_mass("O", mass_number=18)
+
+        assert pytest.approx(c13_mass, rel=1e-5) == 13.00335
+        assert pytest.approx(h2_mass, rel=1e-5) == 2.01410
+        assert pytest.approx(o18_mass, rel=1e-5) == 17.99916
+
+
+# ============================================================================
+# 12. Tests for Top-Level Convenience Functions & Return Models
+# ============================================================================
+
+
+class TestTopLevelConvenienceFunctions:
+    """Verifies top-level helper functions and data models."""
+
+    def test_execute_time_aware_escalation_convenience(self, tmp_path: Path) -> None:
+        """Confirms execute_time_aware_escalation wrapper returns EscalationResult."""
+        res: EscalationResult = execute_time_aware_escalation(
+            geometry="* xyz 0 1\nO 0 0 0\nH 0 0 1\nH 0 1 0\n*",
+            molecule_id="water_top_level",
+            time_budget_seconds=10.0,
+            working_dir=tmp_path / "top_level_test",
+            dry_run=True,
+        )
+        assert isinstance(res, EscalationResult)
+        assert res.success is True
+        assert res.highest_tier_achieved == EscalationTier.T1_10S.value
+
+    def test_parse_orca_output_convenience(self) -> None:
+        """Confirms parse_orca_output convenience function returns parsed dictionary."""
+        out = """
+ORCA SCF ITERATIONS
+Iter         Energy       Delta-E        Max-DP      RMS-DP
+  0     -76.4000000000   0.0000000000  0.08000000  0.01000000
+  1     -76.4345200000  -0.0345200000  0.00005000  0.00000500
+SUCCESSFULLY CONVERGED
+COUPLED CLUSTER DIAGNOSTICS:
+  T1 diagnostic: 0.0110
+  D1 diagnostic: 0.0320
+FINAL SINGLE POINT ENERGY: -76.43452000
+ORCA TERMINATED NORMALLY
+"""
+        parsed = parse_orca_output(out)
+        assert pytest.approx(parsed["final_energy_hartree"], rel=1e-6) == -76.43452000
+        assert isinstance(parsed["multireference_diagnostics"], MultireferenceDiagnostics)
+        assert parsed["multireference_diagnostics"].t1_diagnostic == 0.0110
+        assert parsed["normal_termination"] is True
+
+    def test_send_ipc_alert_convenience(self, tmp_path: Path) -> None:
+        """Confirms send_ipc_alert convenience helper constructs and queues alert."""
+        queue_dir = tmp_path / "ipc_conv_queue"
+        alert = send_ipc_alert(
+            title="Convenience Alert",
+            message="Testing send_ipc_alert convenience function",
+            severity=AlertSeverity.INFO,
+            queue_dir=queue_dir,
+        )
+        assert isinstance(alert, CrossPlatformIPCAlert)
+        assert alert.title == "Convenience Alert"
+
+    def test_autocas_alert_model_instantiation(self) -> None:
+        """Confirms AutoCASAlert model fields validation."""
+        alert = AutoCASAlert(
+            molecule_id="test_mol",
+            t1_diagnostic=0.045,
+            d1_diagnostic=0.085,
+            message="Test multireference alert",
+        )
+        assert alert.t1_diagnostic == 0.045
+        assert alert.downgraded_state == "! AutoCAS"
+
+

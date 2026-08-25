@@ -31,6 +31,7 @@ Authoritative References:
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import json
 import logging
@@ -43,7 +44,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Generator, Iterator, List, Optional, Set, Tuple, Union
 
 import psutil
 import zmq
@@ -84,6 +85,11 @@ class ZombieReaperError(SubprocessReaperBaseError):
 
 class SegmentationFaultError(SubprocessReaperBaseError):
     """Raised or recorded when an OS-level segmentation fault occurs in a subprocess."""
+    pass
+
+
+class TemporalRoutingError(SubprocessReaperBaseError):
+    """Raised when temporal routing encounters missing configuration or fatal constraints."""
     pass
 
 
@@ -235,6 +241,58 @@ class ThermalGovernorState(BaseModel):
     timestamp: str = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
         description="ISO 8601 UTC timestamp",
+    )
+
+
+class TemporalRouteResult(BaseModel):
+    """Structured assessment from the 10-Tier Temporal Wall Clock Matrix & Router."""
+    model_config = ConfigDict(frozen=True)
+
+    tier: int = Field(description="Temporal Tier index from 1 to 10")
+    tier_label: str = Field(description="Descriptive tier classification label")
+    wall_clock_estimate: str = Field(description="Estimated wall-clock duration string")
+    method: str = Field(description="Requested quantum chemistry method")
+    atom_count: int = Field(description="Canonical atom count N")
+    scaling_exponent: int = Field(description="Theoretical scaling exponent O(N^k)")
+    is_local_workstation: bool = Field(description="True if target profile is a Local Workstation")
+    execution_allowed: bool = Field(description="True if execution is safe to proceed on current profile")
+    resource_warning_emitted: bool = Field(description="True if ResourceWarning was emitted")
+    suggested_offload: Optional[str] = Field(default=None, description="Suggested execution offload target (e.g. HPC/SLURM)")
+    message: str = Field(description="Operational routing message")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the routing decision",
+    )
+
+
+class IOScratchRouteReport(BaseModel):
+    """Structured routing report for High-Speed I/O scratch allocation."""
+    model_config = ConfigDict(frozen=True)
+
+    scratch_path: str = Field(description="Active allocated scratch filesystem path")
+    persistent_path: str = Field(description="Persistent SSD workspace destination path")
+    is_ramdisk: bool = Field(description="True if routed to tmpfs RAM-disk (/dev/shm)")
+    route_type: str = Field(description="Route type: RAM_DISK_TMPFS or STANDARD_NVME_SCRATCH")
+    available_ram_gb: float = Field(description="System accessible RAM in gigabytes")
+    free_ramdisk_bytes: Optional[int] = Field(default=None, description="Free space on /dev/shm in bytes if checked")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the routing decision",
+    )
+
+
+class IOCleanupReport(BaseModel):
+    """Execution report for post-calculation I/O cleanup and artifact persistence."""
+    model_config = ConfigDict(frozen=True)
+
+    active_scratch_path: str = Field(description="Filesystem path of the scratch directory that was cleaned")
+    persistent_workspace_path: str = Field(description="Filesystem path of the persistent workspace")
+    copied_artifacts: List[str] = Field(description="List of persisted artifact files (.out, .gbw, etc.)")
+    ramdisk_cleaned: bool = Field(description="True if RAM-disk was unlinked/removed via shutil.rmtree()")
+    status: str = Field(description="Cleanup resolution status flag")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the cleanup operation",
     )
 
 
@@ -1204,3 +1262,582 @@ def execute_protected_subprocess(
     )
 
     return retcode, provenance
+
+
+# ==============================================================================
+# 7. TemporalRouter (10-Tier Temporal Wall Clock Matrix & Routing)
+# ==============================================================================
+
+class TemporalRouter:
+    """Evaluates computational cost heuristics, assigning quantum chemistry workloads
+    to the 10-Tier Temporal Wall Clock Matrix and preventing host resource exhaustion.
+
+    Key Behaviors:
+    1. Extracts target method string and atom count N from ingested BenchRunContext dataclass metadata.
+    2. Dynamically reads system hardware profile from $COCHEM_ARTIFACTS_DIR/Registry/cochem_system_config.json.
+    3. Explicitly raises fatal RuntimeError if COCHEM_ARTIFACTS_DIR environment variable is missing.
+    4. If the hardware profile indicates a Local Workstation and the method string contains 'DLPNO-CCSD(T)'
+       (or job scales to Tier 9-10), emits a ResourceWarning, hard-disables execution, and suggests HPC/SLURM offload.
+    """
+
+    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+
+    def __new__(
+        cls,
+        context: Optional[Any] = None,
+        method: Optional[str] = None,
+        atom_count: Optional[int] = None,
+        artifacts_dir: Optional[Union[str, Path]] = None,
+        config_override: Optional[Dict[str, Any]] = None,
+    ) -> Union[TemporalRouter, TemporalRouteResult]:
+        instance = super().__new__(cls)
+        instance.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+        if context is not None or method is not None or atom_count is not None:
+            return instance.route(
+                context=context,
+                method=method,
+                atom_count=atom_count,
+                config_override=config_override,
+            )
+        return instance
+
+    @staticmethod
+    def extract_metadata_from_context(context: Any) -> Tuple[str, int]:
+        """Extracts the target method string and atom count N from BenchRunContext without mock parsers."""
+        method: str = "DFT"
+        atom_count: int = 1
+
+        if context is None:
+            return method, atom_count
+
+        # 1. Direct attributes on context
+        if hasattr(context, "method") and getattr(context, "method"):
+            method = str(getattr(context, "method"))
+        if hasattr(context, "atom_count") and getattr(context, "atom_count") is not None:
+            try:
+                atom_count = int(getattr(context, "atom_count"))
+            except (ValueError, TypeError):
+                pass
+        elif hasattr(context, "num_atoms") and getattr(context, "num_atoms") is not None:
+            try:
+                atom_count = int(getattr(context, "num_atoms"))
+            except (ValueError, TypeError):
+                pass
+        elif hasattr(context, "N") and getattr(context, "N") is not None:
+            try:
+                atom_count = int(getattr(context, "N"))
+            except (ValueError, TypeError):
+                pass
+
+        # 2. Check context.config if present
+        cfg = getattr(context, "config", None)
+        if cfg is not None:
+            qs = getattr(cfg, "quantum_settings", None)
+            if qs is not None:
+                if hasattr(qs, "method") and getattr(qs, "method"):
+                    method = str(getattr(qs, "method"))
+                elif isinstance(qs, dict) and qs.get("method"):
+                    method = str(qs["method"])
+
+            active_jobs = getattr(cfg, "active_jobs", None)
+            if isinstance(active_jobs, dict):
+                if "method" in active_jobs and active_jobs["method"]:
+                    method = str(active_jobs["method"])
+                if "atom_count" in active_jobs and active_jobs["atom_count"] is not None:
+                    try:
+                        atom_count = int(active_jobs["atom_count"])
+                    except (ValueError, TypeError):
+                        pass
+                elif "num_atoms" in active_jobs and active_jobs["num_atoms"] is not None:
+                    try:
+                        atom_count = int(active_jobs["num_atoms"])
+                    except (ValueError, TypeError):
+                        pass
+                elif "N" in active_jobs and active_jobs["N"] is not None:
+                    try:
+                        atom_count = int(active_jobs["N"])
+                    except (ValueError, TypeError):
+                        pass
+
+            cost_h = getattr(cfg, "cost_heuristics", None)
+            if isinstance(cost_h, dict):
+                if "method" in cost_h and cost_h["method"]:
+                    method = str(cost_h["method"])
+                if "atom_count" in cost_h and cost_h["atom_count"] is not None:
+                    try:
+                        atom_count = int(cost_h["atom_count"])
+                    except (ValueError, TypeError):
+                        pass
+
+        # 3. Check metadata dict on context
+        meta = getattr(context, "metadata", None)
+        if isinstance(meta, dict):
+            if "method" in meta and meta["method"]:
+                method = str(meta["method"])
+            if "atom_count" in meta and meta["atom_count"] is not None:
+                try:
+                    atom_count = int(meta["atom_count"])
+                except (ValueError, TypeError):
+                    pass
+            elif "num_atoms" in meta and meta["num_atoms"] is not None:
+                try:
+                    atom_count = int(meta["num_atoms"])
+                except (ValueError, TypeError):
+                    pass
+            elif "N" in meta and meta["N"] is not None:
+                try:
+                    atom_count = int(meta["N"])
+                except (ValueError, TypeError):
+                    pass
+
+        return method, max(1, atom_count)
+
+    def load_system_config(self) -> Dict[str, Any]:
+        """Dynamically reads cochem_system_config.json from $COCHEM_ARTIFACTS_DIR/Registry.
+
+        Raises:
+            RuntimeError: If COCHEM_ARTIFACTS_DIR is missing or empty.
+            FileNotFoundError: If cochem_system_config.json is absent.
+        """
+        env_artifacts = os.environ.get("COCHEM_ARTIFACTS_DIR")
+        if not env_artifacts or not env_artifacts.strip():
+            raise RuntimeError("Air-Gap Fatal: COCHEM_ARTIFACTS_DIR environment variable is missing or empty.")
+
+        reg_dir = Path(env_artifacts).resolve() / "Registry"
+        cfg_path = reg_dir / "cochem_system_config.json"
+
+        if not cfg_path.exists():
+            if self.artifacts_dir:
+                alt_cfg = self.artifacts_dir / "Registry" / "cochem_system_config.json"
+                if alt_cfg.exists():
+                    return json.loads(alt_cfg.read_text(encoding="utf-8"))
+            raise FileNotFoundError(
+                f"Registry configuration not found at {cfg_path}. Run Stage 0 setup."
+            )
+
+        return json.loads(cfg_path.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def is_local_workstation(config_data: Dict[str, Any]) -> bool:
+        """Evaluates whether the hardware profile indicates a Local Workstation rather than HPC."""
+        # Check HPC scheduler
+        hpc_cfg = config_data.get("hpc", {})
+        if isinstance(hpc_cfg, dict):
+            scheduler = str(hpc_cfg.get("scheduler", "local")).strip().lower()
+            exec_mode = str(hpc_cfg.get("execution_mode", "local")).strip().lower()
+            if scheduler in ("slurm", "pbs", "sge") and exec_mode in ("cluster", "hpc", "slurm"):
+                return False
+
+        # Check os_target
+        hw_cfg = config_data.get("hardware", {})
+        os_target = ""
+        if isinstance(hw_cfg, dict):
+            os_target = str(hw_cfg.get("os_target", ""))
+        if not os_target:
+            env_cfg = config_data.get("environment", {})
+            if isinstance(env_cfg, dict):
+                os_target = str(env_cfg.get("os_target", ""))
+        if not os_target:
+            os_target = str(config_data.get("os_target", ""))
+
+        os_target_norm = os_target.strip().lower()
+        if os_target_norm in ("hpc", "hpc_slurm_linux"):
+            return False
+
+        return True
+
+    @staticmethod
+    def calculate_temporal_tier(method: str, atom_count: int) -> Tuple[int, str, str, int]:
+        """Calculates the temporal tier (1-10), label, wall-clock estimate, and scaling exponent.
+
+        Scaling Laws:
+        - DLPNO-CCSD(T) / CCSD(T): O(N^7)
+        - MP2 / CBS: O(N^5)
+        - DFT / HF / SCF / B3LYP / wB97: O(N^4)
+        - Semiempirical / xTB / MACE: O(N^2) or O(N)
+        """
+        norm_method = method.strip().upper()
+        n = max(1, atom_count)
+
+        if "DLPNO-CCSD(T)" in norm_method or "CCSD(T)" in norm_method or "CC" in norm_method:
+            exponent = 7
+            if n >= 10:
+                tier = 10
+                label = "Tier 10 (1 Month to Max Accuracy / Strict HPC Cluster Required)"
+                duration = "1mo"
+            elif n >= 6:
+                tier = 9
+                label = "Tier 9 (3 Days to Max Accuracy / Strict HPC Cluster Required)"
+                duration = "3d"
+            elif n >= 4:
+                tier = 8
+                label = "Tier 8 (1 Day / Heavy Local or Standard HPC)"
+                duration = "1d"
+            elif n >= 2:
+                tier = 7
+                label = "Tier 7 (12 Hours / Heavy Local or Standard HPC)"
+                duration = "12h"
+            else:
+                tier = 6
+                label = "Tier 6 (5 Hours / Heavy Local or Standard HPC)"
+                duration = "5h"
+        elif "MP2" in norm_method or "CBS" in norm_method:
+            exponent = 5
+            if n >= 15:
+                tier = 9
+                label = "Tier 9 (3 Days / Strict HPC Cluster Required)"
+                duration = "3d"
+            elif n >= 10:
+                tier = 8
+                label = "Tier 8 (1 Day / Heavy Local or Standard HPC)"
+                duration = "1d"
+            elif n >= 6:
+                tier = 7
+                label = "Tier 7 (12 Hours / Heavy Local or Standard HPC)"
+                duration = "12h"
+            elif n >= 4:
+                tier = 6
+                label = "Tier 6 (5 Hours / Heavy Local or Standard HPC)"
+                duration = "5h"
+            elif n >= 2:
+                tier = 5
+                label = "Tier 5 (3 Hours / Heavy Local or Standard HPC)"
+                duration = "3h"
+            else:
+                tier = 4
+                label = "Tier 4 (1 Hour / Local Workstation Safe)"
+                duration = "1h"
+        elif any(k in norm_method for k in ("DFT", "B3LYP", "WB97", "PBE", "SCF", "HF", "DEF2")):
+            exponent = 4
+            if n >= 30:
+                tier = 8
+                label = "Tier 8 (1 Day / Heavy Local or Standard HPC)"
+                duration = "1d"
+            elif n >= 20:
+                tier = 6
+                label = "Tier 6 (5 Hours / Heavy Local or Standard HPC)"
+                duration = "5h"
+            elif n >= 10:
+                tier = 4
+                label = "Tier 4 (1 Hour / Local Workstation Safe)"
+                duration = "1h"
+            elif n >= 5:
+                tier = 3
+                label = "Tier 3 (30 Minutes / Local Workstation Safe)"
+                duration = "30m"
+            elif n >= 3:
+                tier = 2
+                label = "Tier 2 (1 Minute / Local Workstation Safe)"
+                duration = "1m"
+            else:
+                tier = 1
+                label = "Tier 1 (10 Seconds / Local Workstation Safe)"
+                duration = "10s"
+        else:
+            exponent = 2
+            if n >= 50:
+                tier = 3
+                label = "Tier 3 (30 Minutes / Local Workstation Safe)"
+                duration = "30m"
+            elif n >= 20:
+                tier = 2
+                label = "Tier 2 (1 Minute / Local Workstation Safe)"
+                duration = "1m"
+            else:
+                tier = 1
+                label = "Tier 1 (10 Seconds / Local Workstation Safe)"
+                duration = "10s"
+
+        return tier, label, duration, exponent
+
+    def route(
+        self,
+        context: Optional[Any] = None,
+        method: Optional[str] = None,
+        atom_count: Optional[int] = None,
+        config_override: Optional[Dict[str, Any]] = None,
+    ) -> TemporalRouteResult:
+        """Evaluates execution parameters, routes to temporal tier, and enforces hardware guardrails.
+
+        Args:
+            context: Ingested BenchRunContext dataclass instance.
+            method: Optional explicit method string override.
+            atom_count: Optional explicit atom count N override.
+            config_override: Optional dictionary override for system configuration.
+
+        Returns:
+            TemporalRouteResult detailing tier assignment, wall clock estimate, and execution authorization.
+        """
+        extracted_method, extracted_atoms = self.extract_metadata_from_context(context)
+        target_method = str(method) if method is not None else extracted_method
+        target_atoms = int(atom_count) if atom_count is not None else extracted_atoms
+
+        if config_override is not None:
+            sys_config = dict(config_override)
+        else:
+            sys_config = self.load_system_config()
+
+        is_local = self.is_local_workstation(sys_config)
+        tier, label, duration, exponent = self.calculate_temporal_tier(target_method, target_atoms)
+
+        is_dlpno = "DLPNO-CCSD(T)" in target_method.upper()
+        is_heavy_tier = tier >= 9
+
+        warning_emitted = False
+        execution_allowed = True
+        suggested_offload: Optional[str] = None
+
+        if is_local and (is_dlpno or is_heavy_tier):
+            warning_emitted = True
+            execution_allowed = False
+            suggested_offload = "HPC/SLURM"
+            warning_msg = (
+                f"RESOURCE_WARNING: High-cost method '{target_method}' (Tier {tier}, N={target_atoms} atoms) "
+                f"requested on Local Workstation profile. Local execution disabled to protect host OS. "
+                f"Suggested offload: HPC/SLURM cluster."
+            )
+            warnings.warn(warning_msg, category=ResourceWarning, stacklevel=2)
+            logger.warning(warning_msg)
+            msg = f"Execution disabled on Local Workstation: method '{target_method}' requires HPC offload."
+        else:
+            msg = f"Execution authorized on {'Local Workstation' if is_local else 'HPC Cluster'} under {label}."
+
+        return TemporalRouteResult(
+            tier=tier,
+            tier_label=label,
+            wall_clock_estimate=duration,
+            method=target_method,
+            atom_count=target_atoms,
+            scaling_exponent=exponent,
+            is_local_workstation=is_local,
+            execution_allowed=execution_allowed,
+            resource_warning_emitted=warning_emitted,
+            suggested_offload=suggested_offload,
+            message=msg,
+        )
+
+    def __call__(
+        self,
+        context: Optional[Any] = None,
+        method: Optional[str] = None,
+        atom_count: Optional[int] = None,
+        config_override: Optional[Dict[str, Any]] = None,
+    ) -> TemporalRouteResult:
+        return self.route(
+            context=context,
+            method=method,
+            atom_count=atom_count,
+            config_override=config_override,
+        )
+
+
+# ==============================================================================
+# 8. High-Speed I/O Routing (tmpfs RAM-Disk Overlay & Persistence Lifecycle)
+# ==============================================================================
+
+class HighSpeedIORouter:
+    """High-Speed I/O Router managing tmpfs RAM-disk overlays and scratch persistence.
+
+    Key Behaviors:
+    1. Evaluates available_ram_gb. If >128 GB and os.name == 'posix', verifies free space on /dev/shm
+       using shutil.disk_usage('/dev/shm').free. If sufficient space exists, re-routes scratch explicitly to /dev/shm.
+    2. On Windows systems, or if /dev/shm capacity is insufficient, bypasses tmpfs and routes to standard NVMe scratch.
+    3. Upon calculation termination, securely copies output artifacts (.out, .gbw, etc.) back to persistent SSD workspace,
+       then triggers shutil.rmtree() on the RAM-disk (if used) to recover system memory instantly.
+    """
+
+    def __init__(
+        self,
+        artifacts_dir: Optional[Union[str, Path]] = None,
+        min_free_ramdisk_bytes: int = DEFAULT_MIN_FREE_SCRATCH_BYTES,
+    ) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+        self.min_free_ramdisk_bytes = int(min_free_ramdisk_bytes)
+
+    def resolve_persistent_scratch_dir(self) -> Path:
+        """Dynamically resolves the persistent SSD scratch workspace directory."""
+        scratch_dir = get_scratch_workspace_dir(self.artifacts_dir)
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        return scratch_dir
+
+    def route_scratch(
+        self,
+        available_ram_gb: float,
+        job_id: Optional[str] = None,
+        min_free_bytes: Optional[int] = None,
+    ) -> IOScratchRouteReport:
+        """Evaluates RAM capacity and platform, allocating RAM-disk tmpfs or standard NVMe scratch.
+
+        Args:
+            available_ram_gb: Total accessible system RAM in GB.
+            job_id: Optional calculation job identifier for subfolder isolation.
+            min_free_bytes: Required free disk threshold in bytes (defaults to 50 GB).
+
+        Returns:
+            IOScratchRouteReport detailing allocated scratch path and route classification.
+        """
+        required_bytes = int(min_free_bytes) if min_free_bytes is not None else self.min_free_ramdisk_bytes
+        persistent_dir = self.resolve_persistent_scratch_dir()
+        ram_gb = float(available_ram_gb)
+
+        use_ramdisk = False
+        free_shm_bytes: Optional[int] = None
+        allocated_scratch_path: Path
+
+        # POSIX tmpfs RAM-Disk Evaluation: available_ram_gb > 128 GB AND os.name == 'posix'
+        if ram_gb > 128.0 and os.name == "posix":
+            shm_target = Path("/dev/shm")
+            if shm_target.exists() and shm_target.is_dir():
+                try:
+                    usage = shutil.disk_usage(str(shm_target))
+                    free_shm_bytes = usage.free
+                    if free_shm_bytes >= required_bytes:
+                        use_ramdisk = True
+                except (OSError, PermissionError):
+                    use_ramdisk = False
+
+        if use_ramdisk:
+            folder_name = f"cochem_orca_{job_id}" if job_id else f"cochem_orca_{os.getpid()}_{int(time.time())}"
+            allocated_scratch_path = Path("/dev/shm") / folder_name
+            allocated_scratch_path.mkdir(parents=True, exist_ok=True)
+            route_type = "RAM_DISK_TMPFS"
+        else:
+            if job_id:
+                allocated_scratch_path = persistent_dir / f"job_{job_id}"
+                allocated_scratch_path.mkdir(parents=True, exist_ok=True)
+            else:
+                allocated_scratch_path = persistent_dir
+            route_type = "STANDARD_NVME_SCRATCH"
+
+        return IOScratchRouteReport(
+            scratch_path=str(allocated_scratch_path),
+            persistent_path=str(persistent_dir),
+            is_ramdisk=use_ramdisk,
+            route_type=route_type,
+            available_ram_gb=ram_gb,
+            free_ramdisk_bytes=free_shm_bytes,
+        )
+
+    def finalize_and_cleanup(
+        self,
+        active_scratch_path: Union[str, Path],
+        persistent_workspace_path: Optional[Union[str, Path]] = None,
+        copy_extensions: Tuple[str, ...] = (".out", ".gbw"),
+        is_ramdisk: Optional[bool] = None,
+    ) -> IOCleanupReport:
+        """Securely copies output artifacts back to persistent SSD workspace and cleans RAM-disk.
+
+        Args:
+            active_scratch_path: Working directory where calculation was executed.
+            persistent_workspace_path: Destination persistent SSD directory.
+            copy_extensions: File extensions to copy back (defaults to .out and .gbw).
+            is_ramdisk: Explicit flag indicating whether scratch was on RAM-disk. If None, auto-detected.
+
+        Returns:
+            IOCleanupReport detailing persisted files and cleanup outcome.
+        """
+        src_dir = Path(active_scratch_path).resolve()
+        dest_dir = Path(persistent_workspace_path).resolve() if persistent_workspace_path else self.resolve_persistent_scratch_dir()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        ramdisk_flag = (
+            bool(is_ramdisk)
+            if is_ramdisk is not None
+            else (os.name == "posix" and str(src_dir).startswith("/dev/shm"))
+        )
+
+        copied_artifacts: List[str] = []
+        if src_dir.exists() and src_dir.is_dir():
+            for item in src_dir.iterdir():
+                if item.is_file() and any(item.name.endswith(ext) for ext in copy_extensions):
+                    dest_file = dest_dir / item.name
+                    shutil.copy2(str(item), str(dest_file))
+                    copied_artifacts.append(str(dest_file))
+
+            if ramdisk_flag:
+                shutil.rmtree(str(src_dir), ignore_errors=(os.name == "nt"))
+
+        return IOCleanupReport(
+            active_scratch_path=str(src_dir),
+            persistent_workspace_path=str(dest_dir),
+            copied_artifacts=copied_artifacts,
+            ramdisk_cleaned=ramdisk_flag,
+            status="CLEANED_AND_PERSISTED",
+        )
+
+    @contextlib.contextmanager
+    def scratch_context(
+        self,
+        available_ram_gb: float,
+        job_id: Optional[str] = None,
+        min_free_bytes: Optional[int] = None,
+        copy_extensions: Tuple[str, ...] = (".out", ".gbw"),
+    ) -> Generator[Path, None, None]:
+        """Context manager managing the complete lifecycle of ephemeral scratch execution."""
+        report = self.route_scratch(
+            available_ram_gb=available_ram_gb,
+            job_id=job_id,
+            min_free_bytes=min_free_bytes,
+        )
+        scratch_path = Path(report.scratch_path)
+        try:
+            yield scratch_path
+        finally:
+            self.finalize_and_cleanup(
+                active_scratch_path=scratch_path,
+                persistent_workspace_path=report.persistent_path,
+                copy_extensions=copy_extensions,
+                is_ramdisk=report.is_ramdisk,
+            )
+
+
+# Authoritative alias
+HighSpeedIORouting = HighSpeedIORouter
+
+
+# ==============================================================================
+# Export Declarations
+# ==============================================================================
+
+__all__ = [
+    "CRITICAL_TEMP_CELSIUS",
+    "DEFAULT_MIN_FREE_SCRATCH_BYTES",
+    "ExitCode139_Trapper",
+    "HardwareRegistryConfig",
+    "HighSpeedIORouter",
+    "HighSpeedIORouting",
+    "IOCleanupReport",
+    "IOScratchRouteReport",
+    "JSONLDProvenanceBlock",
+    "NUMAPinningError",
+    "NUMA_ThreadPinner",
+    "PreFlightResourceError",
+    "PreFlightScratchVerifier",
+    "ProcessReapReport",
+    "RESUME_TEMP_CELSIUS",
+    "ResourceGuardError",
+    "SEGFAULT_RETURN_CODES",
+    "ScratchSpaceReport",
+    "SegfaultTrapper",
+    "SegmentationFaultError",
+    "SystemRegistryConfig",
+    "TemporalRouteResult",
+    "TemporalRouter",
+    "TemporalRoutingError",
+    "ThermalEvacuationGovernor",
+    "ThermalGovernor",
+    "ThermalGovernorState",
+    "ThreadPinningResult",
+    "ZMQEndpointManifest",
+    "ZombieReaper",
+    "ZombieReaperError",
+    "execute_protected_subprocess",
+    "get_cochem_artifacts_dir",
+    "get_element_mass_mendeleev",
+    "get_processed_workspace_dir",
+    "get_registry_workspace_dir",
+    "get_scratch_workspace_dir",
+    "launch_isolated_process",
+]
+

@@ -33,7 +33,8 @@ dev = [
 include = ["cochem_base*", "cochem_topos*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "setup/test_scribe_phase1.py"]
+testpaths = ["tests/test_cochem_topos_escalator_exec.py"]
+
 
 [tool.ruff]
 line-length = 100

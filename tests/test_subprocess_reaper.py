@@ -65,6 +65,10 @@ from cochem_bench.bench_libraries.subprocess_reaper import (
     CRITICAL_TEMP_CELSIUS,
     DEFAULT_MIN_FREE_SCRATCH_BYTES,
     ExitCode139_Trapper,
+    HighSpeedIORouter,
+    HighSpeedIORouting,
+    IOCleanupReport,
+    IOScratchRouteReport,
     JSONLDProvenanceBlock,
     NUMAPinningError,
     NUMA_ThreadPinner,
@@ -77,6 +81,9 @@ from cochem_bench.bench_libraries.subprocess_reaper import (
     ScratchSpaceReport,
     SegfaultTrapper,
     SegmentationFaultError,
+    TemporalRouteResult,
+    TemporalRouter,
+    TemporalRoutingError,
     ThermalEvacuationGovernor,
     ThermalGovernor,
     ThermalGovernorState,
@@ -536,4 +543,264 @@ def test_execute_protected_subprocess_success(isolated_artifacts_dir: Path) -> N
     )
     assert retcode == 0
     assert provenance is None
+
+
+# ==============================================================================
+# 8. TemporalRouter Tests (10-Tier Wall Clock & Hardware Guardrails)
+# ==============================================================================
+
+def test_temporal_router_air_gap_missing_env_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verifies that missing COCHEM_ARTIFACTS_DIR raises fatal RuntimeError."""
+    monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
+    router = TemporalRouter()
+
+    with pytest.raises(RuntimeError) as exc_info:
+        router.load_system_config()
+    assert "COCHEM_ARTIFACTS_DIR" in str(exc_info.value)
+
+
+def test_temporal_router_missing_config_raises(isolated_artifacts_dir: Path) -> None:
+    """Verifies FileNotFoundError when cochem_system_config.json is absent."""
+    router = TemporalRouter(artifacts_dir=isolated_artifacts_dir)
+    with pytest.raises(FileNotFoundError) as exc_info:
+        router.load_system_config()
+    assert "cochem_system_config.json" in str(exc_info.value)
+
+
+def test_temporal_router_metadata_extraction_bench_run_context(isolated_artifacts_dir: Path) -> None:
+    """Validates extraction of method and atom count N from authentic BenchRunContext."""
+    from cochem_bench.bench_engine.cochem_bench_ingest import (
+        BenchConfigSchema,
+        BenchHardwareSchema,
+        BenchRunContext,
+    )
+
+    hw = BenchHardwareSchema(ram_gb=16.0, cpu_physical_cores=4)
+    cfg = BenchConfigSchema(
+        hardware=hw,
+        active_jobs={"method": "DLPNO-CCSD(T)", "atom_count": 8},
+    )
+    context = BenchRunContext(
+        config_hash="abc12345",
+        safe_maxcore_mb=3000,
+        target_mpi_threads=3,
+        node_id="test_node",
+        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        orca_path=None,
+        hdf5_path=isolated_artifacts_dir / "landscape.h5",
+        scratch_path=isolated_artifacts_dir / "scratch",
+        numa_nodes=1,
+        resource_warning=False,
+        config=cfg,
+    )
+
+    method, atoms = TemporalRouter.extract_metadata_from_context(context)
+    assert method == "DLPNO-CCSD(T)"
+    assert atoms == 8
+
+
+def test_temporal_router_local_workstation_dlpno_disables_and_warns(isolated_artifacts_dir: Path) -> None:
+    """Verifies ResourceWarning emission, execution disablement, and HPC suggestion for DLPNO on Local Workstation."""
+    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = reg_dir / "cochem_system_config.json"
+
+    cfg_payload = {
+        "schema_version": "1.0.0",
+        "hardware": {
+            "physical_cpu_cores": 4,
+            "logical_cpu_cores": 8,
+            "ram_gb": 32.0,
+            "os_target": "Local-Windows",
+        },
+        "hpc": {
+            "scheduler": "local",
+            "execution_mode": "local",
+        },
+    }
+    cfg_file.write_text(json.dumps(cfg_payload, indent=2), encoding="utf-8")
+
+    router = TemporalRouter(artifacts_dir=isolated_artifacts_dir)
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = router.route(method="DLPNO-CCSD(T)", atom_count=6)
+
+    assert any(issubclass(w.category, ResourceWarning) for w in record)
+    assert isinstance(result, TemporalRouteResult)
+    assert result.is_local_workstation is True
+    assert result.execution_allowed is False
+    assert result.resource_warning_emitted is True
+    assert result.suggested_offload == "HPC/SLURM"
+    assert result.tier >= 9
+    assert result.scaling_exponent == 7
+
+
+def test_temporal_router_local_workstation_dft_authorized(isolated_artifacts_dir: Path) -> None:
+    """Verifies that modest DFT calculations on Local Workstations are authorized without warning."""
+    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = reg_dir / "cochem_system_config.json"
+
+    cfg_payload = {
+        "schema_version": "1.0.0",
+        "hardware": {
+            "physical_cpu_cores": 8,
+            "logical_cpu_cores": 16,
+            "ram_gb": 64.0,
+            "os_target": "Local-Linux",
+        },
+        "hpc": {
+            "scheduler": "local",
+            "execution_mode": "local",
+        },
+    }
+    cfg_file.write_text(json.dumps(cfg_payload, indent=2), encoding="utf-8")
+
+    router = TemporalRouter(artifacts_dir=isolated_artifacts_dir)
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        result = router.route(method="B3LYP/def2-TZVP", atom_count=5)
+
+    assert len([w for w in record if issubclass(w.category, ResourceWarning)]) == 0
+    assert result.is_local_workstation is True
+    assert result.execution_allowed is True
+    assert result.resource_warning_emitted is False
+    assert result.suggested_offload is None
+    assert result.tier == 3
+    assert result.scaling_exponent == 4
+
+
+def test_temporal_router_hpc_cluster_authorizes_dlpno(isolated_artifacts_dir: Path) -> None:
+    """Verifies that heavy DLPNO-CCSD(T) calculations on HPC cluster profiles are authorized."""
+    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = reg_dir / "cochem_system_config.json"
+
+    cfg_payload = {
+        "schema_version": "1.0.0",
+        "hardware": {
+            "physical_cpu_cores": 64,
+            "logical_cpu_cores": 128,
+            "ram_gb": 512.0,
+            "os_target": "HPC",
+        },
+        "hpc": {
+            "scheduler": "slurm",
+            "execution_mode": "cluster",
+        },
+    }
+    cfg_file.write_text(json.dumps(cfg_payload, indent=2), encoding="utf-8")
+
+    router = TemporalRouter(artifacts_dir=isolated_artifacts_dir)
+    result = router.route(method="DLPNO-CCSD(T)", atom_count=12)
+
+    assert result.is_local_workstation is False
+    assert result.execution_allowed is True
+    assert result.tier == 10
+    assert result.scaling_exponent == 7
+    assert result.wall_clock_estimate == "1mo"
+
+
+def test_temporal_router_call_shorthand_syntax(isolated_artifacts_dir: Path) -> None:
+    """Verifies functional instantiation TemporalRouter(method=..., atom_count=...)."""
+    reg_dir = get_registry_workspace_dir(isolated_artifacts_dir)
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_file = reg_dir / "cochem_system_config.json"
+
+    cfg_payload = {
+        "schema_version": "1.0.0",
+        "hardware": {"ram_gb": 32.0, "os_target": "Local-Windows"},
+        "hpc": {"scheduler": "local"},
+    }
+    cfg_file.write_text(json.dumps(cfg_payload, indent=2), encoding="utf-8")
+
+    result = TemporalRouter(method="MP2", atom_count=4, artifacts_dir=isolated_artifacts_dir)
+    assert isinstance(result, TemporalRouteResult)
+    assert result.method == "MP2"
+    assert result.atom_count == 4
+    assert result.scaling_exponent == 5
+    assert result.tier == 6
+
+
+# ==============================================================================
+# 9. High-Speed I/O Routing Tests (tmpfs RAM-Disk & Persistence)
+# ==============================================================================
+
+def test_high_speed_io_router_windows_bypasses_ramdisk(isolated_artifacts_dir: Path) -> None:
+    """Verifies that Windows systems or non-posix environments bypass /dev/shm."""
+    router = HighSpeedIORouter(artifacts_dir=isolated_artifacts_dir)
+    report = router.route_scratch(available_ram_gb=256.0, job_id="test_win_job")
+
+    assert isinstance(report, IOScratchRouteReport)
+    assert report.available_ram_gb == 256.0
+    if os.name != "posix":
+        assert report.is_ramdisk is False
+        assert report.route_type == "STANDARD_NVME_SCRATCH"
+        assert Path(report.scratch_path).exists()
+
+
+def test_high_speed_io_router_low_ram_bypasses_ramdisk(isolated_artifacts_dir: Path) -> None:
+    """Verifies that RAM capacity <= 128 GB routes to standard NVMe scratch."""
+    router = HighSpeedIORouter(artifacts_dir=isolated_artifacts_dir)
+    report = router.route_scratch(available_ram_gb=64.0, job_id="test_low_ram")
+
+    assert report.is_ramdisk is False
+    assert report.route_type == "STANDARD_NVME_SCRATCH"
+    assert Path(report.scratch_path).exists()
+
+
+def test_high_speed_io_router_finalize_and_cleanup_lifecycle(isolated_artifacts_dir: Path) -> None:
+    """Verifies artifact copying (.out, .gbw) to persistent workspace and RAM-disk recovery."""
+    router = HighSpeedIORouter(artifacts_dir=isolated_artifacts_dir)
+
+    temp_scratch = isolated_artifacts_dir / "temp_calc_scratch"
+    temp_scratch.mkdir(parents=True, exist_ok=True)
+
+    # Create calculation artifacts
+    out_file = temp_scratch / "orca_calc.out"
+    out_file.write_text("FINAL SINGLE POINT ENERGY -150.12345678", encoding="utf-8")
+    gbw_file = temp_scratch / "orca_calc.gbw"
+    gbw_file.write_bytes(b"\x00\x01\x02ORCA_GBW_DENSITY_MATRIX")
+    tmp_file = temp_scratch / "orca_calc.tmp"
+    tmp_file.write_text("transient integral cache", encoding="utf-8")
+
+    persistent_dir = isolated_artifacts_dir / "persistent_ssd_workspace"
+
+    cleanup_report = router.finalize_and_cleanup(
+        active_scratch_path=temp_scratch,
+        persistent_workspace_path=persistent_dir,
+        copy_extensions=(".out", ".gbw"),
+        is_ramdisk=True,
+    )
+
+    assert isinstance(cleanup_report, IOCleanupReport)
+    assert cleanup_report.ramdisk_cleaned is True
+    assert (persistent_dir / "orca_calc.out").exists()
+    assert (persistent_dir / "orca_calc.gbw").exists()
+    assert not (persistent_dir / "orca_calc.tmp").exists()
+    assert not temp_scratch.exists()
+
+
+def test_high_speed_io_router_context_manager(isolated_artifacts_dir: Path) -> None:
+    """Verifies end-to-end scratch_context context manager lifecycle and persistence."""
+    router = HighSpeedIORouter(artifacts_dir=isolated_artifacts_dir)
+
+    with router.scratch_context(available_ram_gb=64.0, job_id="cm_calc") as scratch_path:
+        assert scratch_path.exists()
+        out_f = scratch_path / "result.out"
+        out_f.write_text("ORCA TERMINATED NORMALLY", encoding="utf-8")
+        gbw_f = scratch_path / "result.gbw"
+        gbw_f.write_bytes(b"GBW_PAYLOAD")
+
+    persistent_scratch = get_scratch_workspace_dir(isolated_artifacts_dir)
+    assert (persistent_scratch / "result.out").exists()
+    assert (persistent_scratch / "result.gbw").exists()
+
+
+def test_high_speed_io_routing_alias() -> None:
+    """Verifies HighSpeedIORouting is an authoritative alias for HighSpeedIORouter."""
+    assert HighSpeedIORouting is HighSpeedIORouter
+
 

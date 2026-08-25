@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""Stage 2.0: Two-Point Complete Basis Set (CBS) Energy Extrapolation Engine.
 
-Authoritative Implementation: bench_engine.cochem_bench_cbs / cochem_bench.bench_engine.cochem_bench_cbs
+Authoritative Implementation: cochem_bench.bench_engine.cochem_bench_cbs
 System Domain: CoChem-BENCH Scientific Engine
 
 Key Capabilities:

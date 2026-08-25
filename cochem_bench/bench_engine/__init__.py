@@ -1,5 +1,27 @@
 """CoChem-BENCH Engine Package."""
 
+from cochem_bench.bench_engine.cochem_bench_cbs import (
+    ALPHA_BETA_MAP,
+    CBS_UNCERTAINTY_THRESHOLD_KCAL_MOL,
+    HARTREE_TO_KCAL_MOL,
+    PARAMETER_MATRIX,
+    CBSExtrapolationError,
+    CBSExtrapolationResult,
+    CBSParameterError,
+    CBSParsingError,
+    CBSSingularDenominatorError,
+    DualBasisDispatcher,
+    EnergyDecompositionResult,
+    HelgakerExtrapolator,
+    ResidualFitAnalyzer,
+    SlowConvInterceptionResult,
+    SlowConvInterceptor,
+    commit_cbs_to_hdf5,
+    parse_orca_energies,
+    read_cbs_from_hdf5,
+    resolve_hdf5_path,
+    run_cbs_pipeline,
+)
 from cochem_bench.bench_engine.cochem_bench_ingest import (
     BenchConfigSchema,
     BenchHardwareSchema,
@@ -17,6 +39,7 @@ from cochem_bench.bench_engine.cochem_bench_ingest import (
 )
 
 __all__ = [
+    # Stage 1.0
     "BenchConfigSchema",
     "BenchHardwareSchema",
     "BenchRunContext",
@@ -30,4 +53,25 @@ __all__ = [
     "cleanse_ld_library_path",
     "extract_orca_path",
     "run_bench_ingest_pipeline",
+    # Stage 2.0 CBS
+    "ALPHA_BETA_MAP",
+    "PARAMETER_MATRIX",
+    "HARTREE_TO_KCAL_MOL",
+    "CBS_UNCERTAINTY_THRESHOLD_KCAL_MOL",
+    "CBSExtrapolationError",
+    "CBSParameterError",
+    "CBSSingularDenominatorError",
+    "CBSParsingError",
+    "CBSExtrapolationResult",
+    "SlowConvInterceptionResult",
+    "EnergyDecompositionResult",
+    "parse_orca_energies",
+    "DualBasisDispatcher",
+    "HelgakerExtrapolator",
+    "ResidualFitAnalyzer",
+    "SlowConvInterceptor",
+    "resolve_hdf5_path",
+    "commit_cbs_to_hdf5",
+    "read_cbs_from_hdf5",
+    "run_cbs_pipeline",
 ]

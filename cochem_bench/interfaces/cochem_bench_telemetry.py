@@ -99,16 +99,15 @@ ALL_FATAL_RETURN_CODES: Set[int] = SEGFAULT_RETURN_CODES | OOM_RETURN_CODES
 # ==============================================================================
 
 def get_cochem_artifacts_dir() -> Path:
-    """Dynamically resolves the CoChem artifacts root directory from environment.
+    """Dynamically resolves the CoChem artifacts root directory via COCHEM_ARTIFACTS_DIR env var.
 
-    Priority:
-    1. os.environ['COCHEM_ARTIFACTS_DIR']
-    2. Path.home() / 'cochem_artifacts'
+    Raises:
+        RuntimeError: If COCHEM_ARTIFACTS_DIR environment variable is missing or empty.
     """
     env_path = os.environ.get("COCHEM_ARTIFACTS_DIR")
-    if env_path and env_path.strip():
-        return Path(env_path).resolve()
-    return (Path.home() / "cochem_artifacts").resolve()
+    if not env_path or not env_path.strip():
+        raise RuntimeError("Air-Gap Fatal: COCHEM_ARTIFACTS_DIR environment variable is missing or empty.")
+    return Path(env_path).resolve()
 
 
 def get_scratch_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
@@ -318,6 +317,10 @@ def decimate_lttb(
     return out_x, out_y
 
 
+# Alias matching functional naming convention
+lttb_decimate = decimate_lttb
+
+
 # ==============================================================================
 # 1. ContextCompressor
 # ==============================================================================
@@ -330,7 +333,7 @@ class ContextCompressor:
         self.lttb_max_points = int(lttb_max_points)
 
     def compress_array(self, values: Union[Sequence[float], np.ndarray]) -> StatisticalSummary:
-        """Compresses a numeric sequence into a StatisticalSummary."""
+        """Compresses a numeric sequence into a StatisticalSummary without file I/O."""
         arr = np.asarray(values, dtype=np.float64).ravel()
         if arr.size == 0:
             raise ValueError("Cannot compress empty array.")
@@ -360,6 +363,29 @@ class ContextCompressor:
             "Array_Variance": summary.Array_Variance,
             "Last_Value": summary.Last_Value,
         }
+
+    def intercept_and_compress(
+        self,
+        data: Union[Sequence[float], np.ndarray, Dict[str, Any]],
+        array_threshold: Optional[int] = None,
+    ) -> Union[Dict[str, Any], Sequence[float], np.ndarray]:
+        """Intercepts 1D/2D arrays or dictionary payloads.
+
+        If an array's element count exceeds 50 (or array_threshold), compresses it
+        and returns the 5-key dictionary payload without executing any file I/O.
+        """
+        threshold = array_threshold if array_threshold is not None else self.array_threshold
+        if isinstance(data, dict):
+            return self.compress_payload(data, array_threshold=threshold)
+        if isinstance(data, (list, tuple, np.ndarray)):
+            try:
+                arr = np.asarray(data, dtype=np.float64)
+                if arr.size > threshold:
+                    return self.compress_to_dict(arr)
+                return data
+            except (ValueError, TypeError):
+                return data
+        return data
 
     def decimate_curve(
         self,

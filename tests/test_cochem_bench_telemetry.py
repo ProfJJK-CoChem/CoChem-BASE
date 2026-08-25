@@ -62,6 +62,7 @@ from cochem_bench.interfaces.cochem_bench_telemetry import (
     StatelessRehydrator,
     TelemetryEvent,
     decimate_lttb,
+    lttb_decimate,
     get_bench_logs_workspace_dir,
     get_bench_run_state_path,
     get_cochem_artifacts_dir,
@@ -529,6 +530,92 @@ class TestContextCompressor:
         assert scf_sum["Array_Max"] == 99.0
         assert scf_sum["Last_Value"] == 99.0
 
+    def test_intercept_and_compress_1d_and_2d_arrays(self):
+        """Verifies intercepting 1D and 2D arrays: compressing if > 50 elements and preserving if <= 50."""
+        compressor = ContextCompressor(array_threshold=50)
+
+        # 1D array with > 50 elements
+        arr_1d_large = np.linspace(1.0, 100.0, 75)
+        res_1d_large = compressor.intercept_and_compress(arr_1d_large)
+        assert isinstance(res_1d_large, dict)
+        assert len(res_1d_large) == 5
+        assert set(res_1d_large.keys()) == {"Array_Min", "Array_Max", "Array_Mean", "Array_Variance", "Last_Value"}
+        assert pytest.approx(res_1d_large["Array_Min"]) == 1.0
+        assert pytest.approx(res_1d_large["Array_Max"]) == 100.0
+        assert pytest.approx(res_1d_large["Last_Value"]) == 100.0
+
+        # 1D array with <= 50 elements
+        arr_1d_small = [1.0, 2.0, 3.0, 4.0]
+        res_1d_small = compressor.intercept_and_compress(arr_1d_small)
+        assert res_1d_small == arr_1d_small
+
+        # 2D array with > 50 elements (e.g. 10x6 = 60 elements)
+        arr_2d_large = np.arange(60, dtype=np.float64).reshape((10, 6))
+        res_2d_large = compressor.intercept_and_compress(arr_2d_large)
+        assert isinstance(res_2d_large, dict)
+        assert len(res_2d_large) == 5
+        assert set(res_2d_large.keys()) == {"Array_Min", "Array_Max", "Array_Mean", "Array_Variance", "Last_Value"}
+        assert res_2d_large["Array_Min"] == 0.0
+        assert res_2d_large["Array_Max"] == 59.0
+        assert res_2d_large["Last_Value"] == 59.0
+
+        # 2D array with <= 50 elements (e.g. 5x5 = 25 elements)
+        arr_2d_small = np.arange(25, dtype=np.float64).reshape((5, 5))
+        res_2d_small = compressor.intercept_and_compress(arr_2d_small)
+        assert np.array_equal(res_2d_small, arr_2d_small)
+
+    def test_context_compressor_no_file_io(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """Verifies that ContextCompressor executes zero file I/O operations."""
+        compressor = ContextCompressor(array_threshold=50)
+
+        # Track any file access calls
+        io_attempts = []
+        real_open = open
+
+        def guarded_open(*args, **kwargs):
+            io_attempts.append(args)
+            return real_open(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.open", guarded_open)
+
+        data = list(range(100))
+        summary = compressor.compress_array(data)
+        dict_res = compressor.compress_to_dict(data)
+        intercept_res = compressor.intercept_and_compress(data)
+        decimated = compressor.decimate_curve(data, max_points=10)
+
+        assert len(io_attempts) == 0
+        assert summary.count == 100
+        assert len(dict_res) == 5
+        assert isinstance(intercept_res, dict)
+        assert len(decimated[0]) == 10
+
+    def test_lttb_decimation_strictly_caps_payload_under_1000(self):
+        """Verifies that LTTB algorithm strictly caps large 1D curves to < 1000 points."""
+        compressor = ContextCompressor(lttb_max_points=500)
+        huge_x = np.linspace(0, 500, 3000)
+        huge_y = np.cos(huge_x) * np.exp(-huge_x / 100.0)
+
+        dec_x, dec_y = compressor.decimate_curve(huge_y, huge_x, max_points=500)
+        assert len(dec_x) == 500
+        assert len(dec_y) == 500
+        assert len(dec_y) < 1000
+
+        # Default cap verification
+        dec_x_default, dec_y_default = decimate_lttb(huge_x, huge_y, max_points=999)
+        assert len(dec_x_default) == 999
+        assert len(dec_y_default) < 1000
+
+    def test_lttb_decimate_alias(self):
+        """Verifies that lttb_decimate alias functions identically to decimate_lttb."""
+        x = np.linspace(0, 10, 100)
+        y = np.sin(x)
+        res1_x, res1_y = decimate_lttb(x, y, max_points=20)
+        res2_x, res2_y = lttb_decimate(x, y, max_points=20)
+
+        assert np.array_equal(res1_x, res2_x)
+        assert np.array_equal(res1_y, res2_y)
+
 
 class TestNDJSONStreamer:
     """Tests for lightweight NDJSON streaming and asynchronous non-blocking polling."""
@@ -713,6 +800,12 @@ class TestAirGapAndMendeleev:
 
         logs = get_logs_workspace_dir()
         assert logs == clean_env / "Logs"
+
+    def test_missing_artifacts_dir_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Verifies that missing COCHEM_ARTIFACTS_DIR raises RuntimeError under Air-Gap contract."""
+        monkeypatch.delenv("COCHEM_ARTIFACTS_DIR", raising=False)
+        with pytest.raises(RuntimeError, match="Air-Gap Fatal: COCHEM_ARTIFACTS_DIR"):
+            get_cochem_artifacts_dir()
 
     def test_mendeleev_dynamic_mass_integration(self):
         """Verifies dynamic atomic mass retrieval using Mendeleev library."""

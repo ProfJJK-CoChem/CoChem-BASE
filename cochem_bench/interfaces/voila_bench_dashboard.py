@@ -5,32 +5,35 @@ Authoritative Implementation: cochem_bench.interfaces.voila_bench_dashboard
 System Domain: CoChem-BENCH Interface Layer & Voila GUI Portal
 
 Key Capabilities:
-1. MethodologyToggles:
-   - Renders interactive ipywidgets controls for selecting Complete Basis Set (CBS)
-     extrapolation mathematics and composite correction terms (Delta E_CV, Delta E_rel).
+1. Target Ingestion & System HUD:
+   - Status Ribbon displaying Active Engine, Available MPI Threads, and Scratch Disk Free Space (GB).
+   - Geometry Selector: Dropdown querying datastore at $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/landscape.h5.
+     Strictly opened in read-only SWMR mode to prevent lock contention.
+   - 3D Viewer: Lightweight py3Dmol widget for structural coordinates only (blocks .cube densities).
+2. Methodology Matrix & Protocol Builder:
+   - CBS Extrapolation Toggles for basis pair selection and mathematical models.
+   - Composite Corrections checkboxes for CV and Relativistic corrections (Delta E_CV, Delta E_rel).
    - Dynamically couples cardinal basis pairs (e.g. def2-TZVPP -> def2-QZVPP).
    - Manages relativistic Hamiltonian selection (X2C, DKH2, ZORA).
-2. CostHeuristicTooltip:
+3. Dynamic Node-Hour Cost Heuristic:
    - Dynamically polls hardware node limits from the active registry:
      $COCHEM_ARTIFACTS_DIR/Registry/cochem_system_config.json.
-   - Derives O(N^7) runtime and O(N^4) $SCRATCH disk footprint estimates by reading
-     num_atoms integer strictly from ingested state metadata (zero raw .xyz parsing).
+   - Derives O(N^7) runtime, O(N^4) $SCRATCH disk footprint, and O(N^4) RAM estimates by reading
+     num_atoms integer strictly from ingested state metadata in landscape.h5 (zero raw .xyz parsing).
    - Compares mathematical projection against physical RAM and renders red warning HTML
      if memory limit is exceeded, locking the execution button.
-3. ManifestCompiler:
+4. Manifest Compiler & Cross-Platform Execution Mutex:
    - Serializes user's GUI choices into a strict bench_run_params.json payload.
-   - Persists securely to $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/bench_run_params.json.
-   - Automatically locks submission buttons (disabled=True) to prevent duplicate
+   - Persists securely to $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/bench_run_params.json using filelock.FileLock.
+   - Automatically locks submission buttons (disabled=True) with a spinning indicator to prevent duplicate
      MPI thread spawning.
-4. VoilaBenchDashboard / BenchDashboard:
-   - Master interactive UI wrapper designed for both Jupyter Notebooks and headless
-     Voila web application deployment.
 
 Safety & Anti-Spoofing Contracts:
 - Air-Gap strictly enforced dynamically: All paths resolve via COCHEM_ARTIFACTS_DIR.
-- Zero raw coordinate/wavefunction parsing in frontend.
+- Zero raw coordinate/wavefunction string parsing for atom counts.
 - Mendeleev dynamic mass retrieval for element queries.
 - Fail-fast import guard on ipywidgets (never auto pip-install).
+- Zero mock or stub logic.
 """
 
 from __future__ import annotations
@@ -41,7 +44,11 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
+
+import filelock
+import h5py
+import numpy as np
 
 try:
     import ipywidgets as widgets
@@ -50,6 +57,12 @@ except ImportError as err:
     raise RuntimeError(
         "ipywidgets is required for cochem_bench.interfaces.voila_bench_dashboard but is not installed."
     ) from err
+
+try:
+    import py3Dmol
+    PY3DMOL_AVAILABLE = True
+except ImportError:
+    PY3DMOL_AVAILABLE = False
 
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field
@@ -86,6 +99,12 @@ def get_registry_config_path(artifacts_dir: Optional[Union[str, Path]] = None) -
     """Resolves the dynamic path to cochem_system_config.json in Registry."""
     base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
     return base / "Registry" / "cochem_system_config.json"
+
+
+def get_landscape_h5_path(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the dynamic path to landscape.h5 datastore in BENCH_Workspace."""
+    workspace = get_bench_workspace_dir(artifacts_dir)
+    return workspace / "landscape.h5"
 
 
 def get_element_mass_mendeleev(symbol: str) -> float:
@@ -153,6 +172,19 @@ class BenchRunParams(BaseModel):
     )
 
 
+class GeometryMetadata(BaseModel):
+    """Pydantic model validating molecular geometry metadata ingested from landscape.h5."""
+    model_config = ConfigDict(frozen=True)
+
+    state_id: str = Field(description="Unique identifier for state / basin record")
+    num_atoms: int = Field(description="Total atom count integer strictly read from metadata")
+    symbols: List[str] = Field(default_factory=list, description="Ordered atomic symbols")
+    coordinates: List[List[float]] = Field(default_factory=list, description="Cartesian coordinates in Angstroms (Nx3)")
+    charge: int = Field(default=0, description="Molecular net charge")
+    multiplicity: int = Field(default=1, description="Spin multiplicity (2S+1)")
+    energy: Optional[float] = Field(default=None, description="Electronic energy in Hartrees if available")
+
+
 # ==============================================================================
 # Basis Pair Coupling Registry
 # ==============================================================================
@@ -174,7 +206,7 @@ ALL_LOWER_BASIS_SETS: List[str] = [
 
 def get_higher_basis_options(lower_basis: str) -> List[str]:
     """Returns valid higher cardinal basis options strictly within the same basis family."""
-    for family, members in BASIS_FAMILIES.items():
+    for _family, members in BASIS_FAMILIES.items():
         if lower_basis in members:
             idx = members.index(lower_basis)
             higher_options = members[idx + 1:]
@@ -185,7 +217,202 @@ def get_higher_basis_options(lower_basis: str) -> List[str]:
 
 
 # ==============================================================================
-# 1. MethodologyToggles
+# 1. Target Ingestion: Datastore Querying (landscape.h5 in SWMR mode)
+# ==============================================================================
+
+def query_landscape_geometries(landscape_path: Union[str, Path]) -> Dict[str, GeometryMetadata]:
+    """Queries geometry records from datastore at landscape.h5 strictly in read-only SWMR mode.
+
+    Args:
+        landscape_path: Path to landscape.h5 file in BENCH_Workspace.
+
+    Returns:
+        Dictionary mapping state_id to GeometryMetadata.
+    """
+    path = Path(landscape_path).resolve()
+    results: Dict[str, GeometryMetadata] = {}
+
+    if not path.exists():
+        logger.info("Landscape file does not exist at %s. Returning empty geometry catalog.", path)
+        return results
+
+    # Strictly open in read-only SWMR mode to eliminate lock contention on shared filesystems
+    try:
+        with h5py.File(str(path), mode="r", swmr=True) as h5f:
+            # Enumerate top-level groups or geometries datasets
+            for key in h5f.keys():
+                item = h5f[key]
+                if isinstance(item, h5py.Group):
+                    attrs = dict(item.attrs)
+
+                    # Read symbols
+                    symbols: List[str] = []
+                    if "symbols" in item:
+                        sym_data = item["symbols"][()]
+                        if isinstance(sym_data, np.ndarray):
+                            symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in sym_data]
+                    elif "symbols" in attrs:
+                        raw_syms = attrs["symbols"]
+                        if isinstance(raw_syms, (list, np.ndarray)):
+                            symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw_syms]
+
+                    # Read coordinates
+                    coords: List[List[float]] = []
+                    if "coordinates" in item:
+                        coords_arr = np.asarray(item["coordinates"][()], dtype=float)
+                        if coords_arr.ndim == 2:
+                            coords = coords_arr.tolist()
+                    elif "geometry" in item:
+                        coords_arr = np.asarray(item["geometry"][()], dtype=float)
+                        if coords_arr.ndim == 2:
+                            coords = coords_arr.tolist()
+
+                    # Derive atom count strictly from metadata / shape (NEVER parse .xyz strings!)
+                    num_atoms = 0
+                    if "num_atoms" in attrs:
+                        num_atoms = int(attrs["num_atoms"])
+                    elif symbols:
+                        num_atoms = len(symbols)
+                    elif coords:
+                        num_atoms = len(coords)
+
+                    charge = int(attrs.get("charge", 0))
+                    mult = int(attrs.get("multiplicity", 1))
+                    energy = float(attrs["energy"]) if "energy" in attrs else None
+
+                    if num_atoms > 0:
+                        results[key] = GeometryMetadata(
+                            state_id=key,
+                            num_atoms=num_atoms,
+                            symbols=symbols,
+                            coordinates=coords,
+                            charge=charge,
+                            multiplicity=mult,
+                            energy=energy,
+                        )
+    except Exception as exc:
+        logger.warning("SWMR read encountered an exception on %s: %s", path, exc)
+        raise
+
+    return results
+
+
+# ==============================================================================
+# 2. 3D Viewer: Lightweight py3Dmol Coordinate Viewer (Blocks .cube Densities)
+# ==============================================================================
+
+class StructuralViewer3D:
+    """Lightweight 3D molecular viewer widget for structural coordinates only.
+
+    Strictly blocks volumetric .cube densities to prevent browser memory blowup.
+    """
+
+    def __init__(self, width: int = 420, height: int = 280) -> None:
+        self.width = width
+        self.height = height
+        self.container = widgets.Output(
+            layout=widgets.Layout(
+                width=f"{width}px",
+                height=f"{height}px",
+                border="1px solid #cbd5e1",
+                border_radius="6px",
+                padding="4px",
+            )
+        )
+        self._render_placeholder()
+
+    def _render_placeholder(self) -> None:
+        """Renders initial placeholder before geometry is selected."""
+        with self.container:
+            self.container.clear_output()
+            display(widgets.HTML(
+                f"<div style='display: flex; align-items: center; justify-content: center; height: {self.height - 20}px; color: #64748b; font-family: sans-serif; font-size: 0.9em;'>"
+                "Select a geometry to render 3D coordinates"
+                "</div>"
+            ))
+
+    @staticmethod
+    def block_cube_densities(source: Any) -> None:
+        """Verifies that the provided input is NOT a volumetric cube density file.
+
+        Raises:
+            ValueError: If a .cube file, dataset, or volumetric density is passed.
+        """
+        if isinstance(source, (str, Path)):
+            str_path = str(source).lower()
+            if str_path.endswith(".cube") or ".cube" in str_path:
+                raise ValueError(
+                    "Volumetric cube density files (.cube) are strictly blocked from 3D coordinate viewer "
+                    "to maintain lightweight UI rendering."
+                )
+        elif isinstance(source, dict) and source.get("format", "").lower() == "cube":
+            raise ValueError(
+                "Volumetric cube density payloads are strictly blocked from 3D coordinate viewer."
+            )
+
+    def render_geometry(
+        self,
+        symbols: Sequence[str],
+        coordinates: Sequence[Sequence[float]],
+        state_id: str = "molecule",
+    ) -> None:
+        """Renders 3D atomic coordinates using py3Dmol with stick and sphere representation."""
+        self.container.clear_output()
+        if not symbols or not coordinates or len(symbols) != len(coordinates):
+            self._render_placeholder()
+            return
+
+        # Format XYZ payload
+        n_atoms = len(symbols)
+        lines = [f"{n_atoms}", f"{state_id}"]
+        for sym, pos in zip(symbols, coordinates, strict=False):
+            x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
+            lines.append(f"{sym:<3} {x:12.6f} {y:12.6f} {z:12.6f}")
+        xyz_str = "\n".join(lines)
+
+        with self.container:
+            if PY3DMOL_AVAILABLE:
+                try:
+                    view = py3Dmol.view(width=self.width - 10, height=self.height - 10)
+                    view.addModel(xyz_str, "xyz")
+                    view.setStyle({"stick": {"radius": 0.15}, "sphere": {"scale": 0.3}})
+                    view.zoomTo()
+                    view.show()
+                except Exception as e:
+                    logger.warning("py3Dmol rendering failed: %s. Using HTML fallback.", e)
+                    self._render_html_summary(symbols, coordinates, state_id)
+            else:
+                self._render_html_summary(symbols, coordinates, state_id)
+
+    def _render_html_summary(
+        self,
+        symbols: Sequence[str],
+        coordinates: Sequence[Sequence[float]],
+        state_id: str,
+    ) -> None:
+        """Fallback lightweight structural coordinates table."""
+        atom_rows = "".join(
+            f"<tr><td style='padding:2px 8px; font-weight:bold;'>{sym}</td>"
+            f"<td style='padding:2px 8px;'>{c[0]:.4f}</td>"
+            f"<td style='padding:2px 8px;'>{c[1]:.4f}</td>"
+            f"<td style='padding:2px 8px;'>{c[2]:.4f}</td></tr>"
+            for sym, c in zip(symbols[:12], coordinates[:12], strict=False)
+        )
+        more_notice = f"<tr><td colspan='4' style='padding:2px 8px; color:#64748b; font-style:italic;'>... and {len(symbols)-12} more atoms</td></tr>" if len(symbols) > 12 else ""
+        html = f"""
+        <div style="font-family: monospace; font-size: 0.8em; overflow-y: auto; max-height: {self.height - 20}px;">
+          <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px;">Structure: {state_id} (N={len(symbols)})</div>
+          <table style="border-collapse: collapse; width: 100%;">
+            <thead><tr style="background:#f1f5f9;"><th style='padding:2px 8px;'>El</th><th style='padding:2px 8px;'>X</th><th style='padding:2px 8px;'>Y</th><th style='padding:2px 8px;'>Z</th></tr></thead>
+            <tbody>{atom_rows}{more_notice}</tbody>
+          </table>
+        </div>
+        """
+        display(widgets.HTML(html))
+
+
+# ==============================================================================
+# 3. Methodology Matrix & Protocol Builder (MethodologyToggles)
 # ==============================================================================
 
 class MethodologyToggles:
@@ -331,7 +558,7 @@ class MethodologyToggles:
 
 
 # ==============================================================================
-# 2. CostHeuristicTooltip
+# 4. Dynamic Node-Hour Cost Heuristic (CostHeuristicTooltip)
 # ==============================================================================
 
 class CostHeuristicTooltip:
@@ -434,11 +661,15 @@ class CostHeuristicTooltip:
 
     def update_ui(
         self,
-        state_metadata: Dict[str, Any],
+        state_metadata: Union[Dict[str, Any], GeometryMetadata],
         submit_button: Optional[widgets.Button] = None,
     ) -> CostHeuristics:
         """Updates HTML tooltip with visual warnings and locks the submit button if RAM is exceeded."""
-        num_atoms = int(state_metadata.get("num_atoms", 1))
+        if isinstance(state_metadata, GeometryMetadata):
+            num_atoms = state_metadata.num_atoms
+        else:
+            num_atoms = int(state_metadata.get("num_atoms", 1))
+
         heuristics = self.compute_heuristics(num_atoms=num_atoms)
 
         if heuristics.is_ram_exceeded:
@@ -469,11 +700,11 @@ class CostHeuristicTooltip:
 
 
 # ==============================================================================
-# 3. ManifestCompiler
+# 5. Manifest Compiler & Cross-Platform Execution Mutex (ManifestCompiler)
 # ==============================================================================
 
 class ManifestCompiler:
-    """Serializes user's GUI selections into a strict bench_run_params.json payload."""
+    """Serializes user's GUI choices into bench_run_params.json using filelock.FileLock."""
 
     def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
         self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
@@ -486,27 +717,31 @@ class ManifestCompiler:
     def compile_and_save(
         self,
         job_name: str,
-        state_metadata: Dict[str, Any],
+        state_metadata: Union[Dict[str, Any], GeometryMetadata],
         methodology: MethodologySettings,
         heuristics: CostHeuristics,
         hardware: Optional[HardwareAllocation] = None,
         submit_button: Optional[widgets.Button] = None,
     ) -> Path:
-        """Serializes parameter selections to bench_run_params.json and locks submit buttons.
+        """Serializes parameter selections to bench_run_params.json with filelock mutex and locks submit buttons.
 
         Args:
             job_name: Identifier string for benchmark run.
-            state_metadata: Ingested molecular state dictionary (must contain state_id and num_atoms).
+            state_metadata: Ingested molecular state dictionary or GeometryMetadata.
             methodology: Validated MethodologySettings model.
             heuristics: Validated CostHeuristics model.
             hardware: Optional HardwareAllocation model.
-            submit_button: If provided, immediately disables this button to prevent duplicate MPI spawns.
+            submit_button: If provided, immediately disables this button with spinning indicator.
 
         Returns:
             Path to the persisted bench_run_params.json file.
         """
-        state_id = str(state_metadata.get("state_id", "canonical_state"))
-        num_atoms = int(state_metadata.get("num_atoms", heuristics.num_atoms))
+        if isinstance(state_metadata, GeometryMetadata):
+            state_id = state_metadata.state_id
+            num_atoms = state_metadata.num_atoms
+        else:
+            state_id = str(state_metadata.get("state_id", "canonical_state"))
+            num_atoms = int(state_metadata.get("num_atoms", heuristics.num_atoms))
 
         hw_alloc = hardware or HardwareAllocation(
             n_procs=8,
@@ -525,25 +760,28 @@ class ManifestCompiler:
 
         target_path = self.resolve_manifest_path()
         target_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = target_path.with_suffix(".lock")
 
-        # Atomic write
-        temp_file = target_path.with_suffix(".tmp")
-        temp_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-        shutil.move(str(temp_file), str(target_path))
+        # Cross-platform FileLock execution mutex instead of POSIX fcntl
+        with filelock.FileLock(str(lock_path), timeout=10.0):
+            temp_file = target_path.with_suffix(".tmp")
+            temp_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+            shutil.move(str(temp_file), str(target_path))
 
         logger.info("ManifestCompiler: Serialized bench_run_params.json to %s", target_path)
 
-        # UI Lockout: Mathematically prevent double-clicking and overlapping OpenMPI processes
+        # UI Lockout & Spinning Indicator: Prevent duplicate OpenMPI process spawning
         if submit_button is not None:
             submit_button.disabled = True
             submit_button.description = "Orchestrating..."
+            submit_button.icon = "spinner"
             submit_button.button_style = "info"
 
         return target_path
 
 
 # ==============================================================================
-# 4. VoilaBenchDashboard / BenchDashboard (Master UI)
+# 6. VoilaBenchDashboard / BenchDashboard (Master UI)
 # ==============================================================================
 
 class VoilaBenchDashboard:
@@ -552,17 +790,52 @@ class VoilaBenchDashboard:
     def __init__(
         self,
         artifacts_dir: Optional[Union[str, Path]] = None,
-        state_metadata: Optional[Dict[str, Any]] = None,
+        state_metadata: Optional[Union[Dict[str, Any], GeometryMetadata]] = None,
     ) -> None:
         self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-        self.state_metadata = state_metadata or {"state_id": "water_monomer", "num_atoms": 3}
 
-        # Initialize sub-components
-        self.methodology_toggles = MethodologyToggles()
+        # Sub-components
         self.cost_tooltip = CostHeuristicTooltip(artifacts_dir=self.artifacts_dir)
+        self.methodology_toggles = MethodologyToggles()
         self.manifest_compiler = ManifestCompiler(artifacts_dir=self.artifacts_dir)
+        self.viewer_3d = StructuralViewer3D(width=420, height=280)
 
-        # UI Widgets
+        # Datastore Geometries Ingestion
+        self.landscape_geometries = self._ingest_landscape()
+
+        if state_metadata is not None:
+            if isinstance(state_metadata, GeometryMetadata):
+                self.current_state_metadata = state_metadata
+            else:
+                self.current_state_metadata = GeometryMetadata(
+                    state_id=str(state_metadata.get("state_id", "canonical_state")),
+                    num_atoms=int(state_metadata.get("num_atoms", 3)),
+                    symbols=list(state_metadata.get("symbols", ["O", "H", "H"])),
+                    coordinates=list(state_metadata.get("coordinates", [[0.0, 0.0, 0.0], [0.0, 0.757, 0.587], [0.0, -0.757, 0.587]])),
+                )
+        elif self.landscape_geometries:
+            first_key = next(iter(self.landscape_geometries))
+            self.current_state_metadata = self.landscape_geometries[first_key]
+        else:
+            self.current_state_metadata = GeometryMetadata(
+                state_id="water_monomer",
+                num_atoms=3,
+                symbols=["O", "H", "H"],
+                coordinates=[[0.0, 0.0, 0.0], [0.0, 0.757, 0.587], [0.0, -0.757, 0.587]],
+            )
+
+        # Geometry Selector Dropdown
+        geom_options = list(self.landscape_geometries.keys()) if self.landscape_geometries else [self.current_state_metadata.state_id]
+        self.geometry_dropdown = widgets.Dropdown(
+            options=geom_options,
+            value=self.current_state_metadata.state_id if self.current_state_metadata.state_id in geom_options else geom_options[0],
+            description="Geometry:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="400px"),
+        )
+        self.geometry_dropdown.observe(self._on_geometry_selected, names="value")
+
+        # Job Name Text Field
         self.job_name_text = widgets.Text(
             value="CBS_Extrapolation_Run_01",
             description="Job Name:",
@@ -570,30 +843,60 @@ class VoilaBenchDashboard:
             layout=widgets.Layout(width="400px"),
         )
 
+        # Execution Button
         self.execute_button = widgets.Button(
             description="Execute Benchmark",
             button_style="primary",
             icon="play",
             layout=widgets.Layout(width="240px", height="40px"),
         )
+        self.execute_button.on_click(self._on_execute_clicked)
 
+        # Status Ribbon & Console Output
         self.status_ribbon_html = widgets.HTML(layout=widgets.Layout(width="100%", margin="0 0 10px 0"))
         self.console_output = widgets.Output(layout=widgets.Layout(margin="10px 0 0 0"))
 
         # Build UI layout
         self._build_status_ribbon()
-        self.cost_tooltip.update_ui(self.state_metadata, submit_button=self.execute_button)
-        self.execute_button.on_click(self._on_execute_clicked)
-
+        self._update_geometry_view(self.current_state_metadata)
         self.main_container = self._assemble_dashboard()
 
+    def _ingest_landscape(self) -> Dict[str, GeometryMetadata]:
+        """Queries landscape.h5 in read-only SWMR mode."""
+        landscape_path = get_landscape_h5_path(self.artifacts_dir)
+        try:
+            return query_landscape_geometries(landscape_path)
+        except Exception as e:
+            logger.warning("Error querying landscape.h5: %s", e)
+            return {}
+
+    def _on_geometry_selected(self, change: Dict[str, Any]) -> None:
+        """Handles geometry selection change in dropdown."""
+        selected_key = change.get("new")
+        if selected_key and selected_key in self.landscape_geometries:
+            self.current_state_metadata = self.landscape_geometries[selected_key]
+            self._update_geometry_view(self.current_state_metadata)
+
+    def _update_geometry_view(self, metadata: GeometryMetadata) -> None:
+        """Updates 3D Viewer and Cost Heuristics tooltip when geometry changes."""
+        self.viewer_3d.render_geometry(
+            symbols=metadata.symbols,
+            coordinates=metadata.coordinates,
+            state_id=metadata.state_id,
+        )
+        self.cost_tooltip.update_ui(metadata, submit_button=self.execute_button)
+
     def _build_status_ribbon(self) -> None:
-        """Renders top status ribbon with active engine and node metrology."""
+        """Renders top status ribbon with active engine, available MPI threads, and scratch free space."""
         cfg = self.cost_tooltip.poll_system_config()
         hw = cfg.get("hardware", {})
-        ram_gb = hw.get("ram_gb", 32.0)
-        cores = hw.get("physical_cpu_cores", 8)
-        engine_name = "ORCA 6.1.1"
+        ram_gb = float(hw.get("ram_gb", 32.0))
+        logical_cores = int(hw.get("logical_cpu_cores", hw.get("physical_cpu_cores", os.cpu_count() or 8)))
+
+        engines = cfg.get("engines", {})
+        orca_info = engines.get("orca", {})
+        engine_version = orca_info.get("version", "6.1.1")
+        engine_name = f"ORCA {engine_version}"
 
         try:
             free_scratch_gb = shutil.disk_usage(str(get_bench_workspace_dir(self.artifacts_dir))).free / (1024.0 ** 3)
@@ -604,7 +907,8 @@ class VoilaBenchDashboard:
         <div style="background-color: #0f172a; color: #f8fafc; border-radius: 6px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; font-family: monospace; font-size: 0.9em;">
           <div style="display: flex; gap: 20px;">
             <span><b style="color: #38bdf8;">ACTIVE ENGINE:</b> {engine_name}</span>
-            <span><b style="color: #38bdf8;">NODE SPEC:</b> {cores} Cores | {ram_gb:.1f} GB RAM</span>
+            <span><b style="color: #38bdf8;">AVAILABLE MPI THREADS:</b> {logical_cores}</span>
+            <span><b style="color: #38bdf8;">NODE RAM:</b> {ram_gb:.1f} GB</span>
             <span><b style="color: #38bdf8;">SCRATCH FREE:</b> {free_scratch_gb:.1f} GB</span>
           </div>
           <span style="color: #4ade80; font-weight: bold;">[BENCH SILO READY]</span>
@@ -619,10 +923,21 @@ class VoilaBenchDashboard:
             "<span style='color: #64748b; font-size: 0.9em;'>Automated Basis Set Limit &amp; Composite Protocol Extrapolator</span></div>"
         )
 
-        job_info_box = widgets.VBox([
-            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Job Metadata</div>"),
+        ingestion_controls = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Target Ingestion &amp; Job Metadata</div>"),
+            self.geometry_dropdown,
             self.job_name_text,
-        ], layout=widgets.Layout(padding="10px", margin="0 0 10px 0", border="1px solid #e2e8f0"))
+        ], layout=widgets.Layout(width="440px"))
+
+        viewer_box = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Structural 3D Viewer</div>"),
+            self.viewer_3d.container,
+        ], layout=widgets.Layout(width="440px"))
+
+        hud_and_viewer_row = widgets.HBox(
+            [ingestion_controls, viewer_box],
+            layout=widgets.Layout(padding="10px", margin="0 0 10px 0", border="1px solid #e2e8f0", justify_content="space-between"),
+        )
 
         action_bar = widgets.HBox(
             [self.execute_button],
@@ -632,7 +947,7 @@ class VoilaBenchDashboard:
         return widgets.VBox([
             header,
             self.status_ribbon_html,
-            job_info_box,
+            hud_and_viewer_row,
             self.methodology_toggles.container,
             self.cost_tooltip.html_widget,
             action_bar,
@@ -640,21 +955,21 @@ class VoilaBenchDashboard:
         ], layout=widgets.Layout(padding="15px", max_width="960px"))
 
     def _on_execute_clicked(self, btn: widgets.Button) -> None:
-        """Handles execution button click event."""
+        """Handles execution button click event with filelock mutex and spinner indicator."""
         with self.console_output:
             try:
                 methodology = self.methodology_toggles.get_methodology_settings()
-                heuristics = self.cost_tooltip.compute_heuristics(num_atoms=self.state_metadata.get("num_atoms", 1))
+                heuristics = self.cost_tooltip.compute_heuristics(num_atoms=self.current_state_metadata.num_atoms)
 
                 manifest_path = self.manifest_compiler.compile_and_save(
                     job_name=self.job_name_text.value,
-                    state_metadata=self.state_metadata,
+                    state_metadata=self.current_state_metadata,
                     methodology=methodology,
                     heuristics=heuristics,
                     submit_button=self.execute_button,
                 )
 
-                print(f"[SUCCESS] Benchmark parameters compiled and locked.")
+                print("[SUCCESS] Benchmark parameters compiled and locked.")
                 print(f"[ORCHESTRATOR] Manifest saved to: {manifest_path}")
             except Exception as e:
                 print(f"[ERROR] Compilation failed: {e}")

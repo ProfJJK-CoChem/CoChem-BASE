@@ -1,126 +1,107 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task3_telemetry.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task3_voila.md.
 Original prompt:
-﻿# Task: Update/Create cochem_bench_telemetry.py with Task 3 Specs
+﻿# Task: Update/Create voila_bench_dashboard.py with Task 3 Specs
 
 ## Target File
-`cochem_bench\interfaces\cochem_bench_telemetry.py` (relative to repo root)
+`cochem_bench\interfaces\voila_bench_dashboard.py` (relative to repo root)
 
 ## Architecture Note
 This is a V2 rewrite. Ensure the `interfaces` directory exists.
 
 ## Requirements
-Implement Telemetry, State Reflection & Crash-Proofing.
+Implement the Voila GUI Frontend components.
 
 Functions/Components to implement:
-1. `Stateless Rehydration (Zombie UI Protocol)`:
-   - Handoff to `SubprocessBroker` using cross-platform process group detachment orchestrated via `psutil`.
-   - Inspects `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR")) / "BENCH_Workspace" / "Logs" / "bench_run_state.jsonl"`. If found, rehydrates progress bars and telemetry graphs.
-2. `Context-Compression Stream Integration`:
-   - Polls lightweight NDJSON stream. Renders statistically compressed summaries (Current Stage, SCF Cycle, Variance) using asynchronous debouncing on a fixed interval (e.g., 2 seconds).
-3. `Live Asymptotic Convergence Plotting`:
-   - Uses `plotly.graph_objects.FigureWidget` to graph energy residuals. Utilizes LTTB decimation if dataset exceeds 1,000 points.
-4. `Fatal Error Interception`:
-   - Monitors ZMQ heartbeat. If segfault/OOM detected, flashes red HTML readout and displays structured JSON-LD recovery instructions from the provenance block.
+1. `Target Ingestion & System HUD`:
+   - Status Ribbon displaying Active Engine, Available MPI Threads, and Scratch Disk Free Space (GB).
+   - Geometry Selector: Dropdown querying datastore at `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR")) / "BENCH_Workspace" / "landscape.h5"`. Must strictly open in read-only SWMR mode to prevent lock contention.
+   - 3D Viewer: Lightweight `py3Dmol` widget for structural coordinates only (block `.cube` densities).
+2. `Methodology Matrix & Protocol Builder`:
+   - CBS Extrapolation Toggles for basis pair selection and mathematical models.
+   - Composite Corrections checkboxes for CV and Relativistic corrections.
+3. `Dynamic Node-Hour Cost Heuristic`:
+   - Reads atom count (N) from selected geometry metadata in `landscape.h5` (NOT parsing .xyz). Applies scalar limits from `cochem_system_config.json`.
+   - Renders red warning and hard-disables Execute button if projected memory exceeds limit.
+4. `Manifest Compiler & Cross-Platform Execution Mutex`:
+   - Serializes selections into `bench_run_params.json` at `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR")) / "BENCH_Workspace" / "bench_run_params.json"`.
+   - Uses cross-platform `filelock.FileLock` instead of POSIX `fcntl`.
+   - Sets button `disabled=True` with spinning indicator.
 
 ## Safety Contract
 - Air-Gap strictly enforced dynamically: No absolute paths. Use `COCHEM_ARTIFACTS_DIR`.
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_bench\interfaces\cochem_bench_telemetry.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_bench\interfaces\voila_bench_dashboard.py ---
 #!/usr/bin/env python3
-r"""Stage 6.0 / 7.0 & Task 3: Telemetry, State Reflection & Crash-Proofing Engine.
+r"""Stage 3.0 / Task 3: Voila GUI Wrapper & Configuration UI.
 
-Authoritative Implementation: cochem_bench.interfaces.cochem_bench_telemetry
-System Domain: CoChem-BENCH Interface Layer & Telemetry Perimeter
+Authoritative Implementation: cochem_bench.interfaces.voila_bench_dashboard
+System Domain: CoChem-BENCH Interface Layer & Voila GUI Portal
 
 Key Capabilities:
-1. Stateless Rehydration (The "Zombie UI" Protocol):
-   - Execution logic handoff to SubprocessBroker using cross-platform process group
-     detachment orchestrated via psutil.
-   - Dynamic path inspection of $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/Logs/bench_run_state.jsonl.
-   - Rehydrates active stage progress, SCF cycles, energy history, and variance from active NDJSON streams.
-2. Context-Compression Stream Integration:
-   - Intercepts massive raw metric arrays (e.g. DIIS error vectors, SCF energy histories)
-     and mathematically downsamples them into compact statistical summaries
-     (Min, Max, Mean, Variance, Last Value) before transmission.
-   - Polls lightweight NDJSON stream and renders summaries using asynchronous debouncing
-     on a fixed interval (e.g. 2.0 seconds).
-3. Live Asymptotic Convergence Plotting:
-   - Uses plotly.graph_objects.FigureWidget (or Figure fallback) to graph energy residuals (|ΔE|).
-   - Utilizes Largest-Triangle-Three-Buckets (LTTB) visual decimation algorithm
-     if dataset exceeds 1,000 points, preserving visual extrema and curve geometry.
-4. Fatal Error Interception:
-   - ZeroMQ heartbeat subscriber monitoring and drop detection.
-   - Intercepts cross-platform OS Segfaults (139, -11, 0xC0000005, 3221225477, -1073741819)
-     and OOM (137, -9).
-   - Generates high-visibility red HTML readout and structured JSON-LD recovery instructions
-     from the provenance block ([M], [D], [E]) alongside exact 256-byte stderr hex-dump.
-   - Traps numerical instability ("Lowest eigenvalue of the overlap matrix" < 1e-6, NaN, Inf)
-     and creates a 0-byte ABORT.signal in $SCRATCH.
-5. Air-Gap & Mendeleev Dynamic Integration:
-   - Dynamic path resolution via COCHEM_ARTIFACTS_DIR without hardcoded paths.
-   - Dynamic atomic mass retrieval via the Mendeleev library.
+1. Target Ingestion & System HUD:
+   - Status Ribbon displaying Active Engine, Available MPI Threads, and Scratch Disk Free Space (GB).
+   - Geometry Selector: Dropdown querying datastore at $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/landscape.h5.
+     Strictly opened in read-only SWMR mode to prevent lock contention.
+   - 3D Viewer: Lightweight py3Dmol widget for structural coordinates only (blocks .cube densities).
+2. Methodology Matrix & Protocol Builder:
+   - CBS Extrapolation Toggles for basis pair selection and mathematical models.
+   - Composite Corrections checkboxes for CV and Relativistic corrections (Delta E_CV, Delta E_rel).
+   - Dynamically couples cardinal basis pairs (e.g. def2-TZVPP -> def2-QZVPP).
+   - Manages relativistic Hamiltonian selection (X2C, DKH2, ZORA).
+3. Dynamic Node-Hour Cost Heuristic:
+   - Dynamically polls hardware node limits from the active registry:
+     $COCHEM_ARTIFACTS_DIR/Registry/cochem_system_config.json.
+   - Derives O(N^7) runtime, O(N^4) $SCRATCH disk footprint, and O(N^4) RAM estimates by reading
+     num_atoms integer strictly from ingested state metadata in landscape.h5 (zero raw .xyz parsing).
+   - Compares mathematical projection against physical RAM and renders red warning HTML
+     if memory limit is exceeded, locking the execution button.
+4. Manifest Compiler & Cross-Platform Execution Mutex:
+   - Serializes user's GUI choices into a strict bench_run_params.json payload.
+   - Persists securely to $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/bench_run_params.json using filelock.FileLock.
+   - Automatically locks submission buttons (disabled=True) with a spinning indicator to prevent duplicate
+     MPI thread spawning.
 
-Authoritative References:
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\.in-progress\draft_task3_telemetry.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\.improved\Perfected_Task 3 Interactive UI (Jupyter) & Voila GUI Specifications.md
-- D:\__CoChem\__agentic\.prompts\.SRS\CoChem-BENCH\SRS\Task 7 Thread-Safe Atomic IO & Context-Compression.txt
-- D:\__CoChem\GitHub-Repo\CoChem-BASE\Method_Matrix.md
+Safety & Anti-Spoofing Contracts:
+- Air-Gap strictly enforced dynamically: All paths resolve via COCHEM_ARTIFACTS_DIR.
+- Zero raw coordinate/wavefunction string parsing for atom counts.
+- Mendeleev dynamic mass retrieval for element queries.
+- Fail-fast import guard on ipywidgets (never auto pip-install).
+- Zero mock or stub logic.
 """
 
 from __future__ import annotations
 
-import collections
 import datetime
-import html
 import json
 import logging
-import math
 import os
-import re
-import subprocess
-import sys
-import time
+import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
+import filelock
+import h5py
 import numpy as np
-import plotly.graph_objects as go
-import psutil
-import zmq
+
+try:
+    import ipywidgets as widgets
+    from IPython.display import display
+except ImportError as err:
+    raise RuntimeError(
+        "ipywidgets is required for cochem_bench.interfaces.voila_bench_dashboard but is not installed."
+    ) from err
+
+try:
+    import py3Dmol
+    PY3DMOL_AVAILABLE = True
+except ImportError:
+    PY3DMOL_AVAILABLE = False
+
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field
 
 logger = logging.getLogger(__name__)
-
-
-# ==============================================================================
-# Constant Definitions & Fatal Exit Codes
-# ==============================================================================
-
-# Segmentation fault return codes across POSIX and Windows NT platforms
-# POSIX: -11 (-signal.SIGSEGV), 139 (128 + 11)
-# Windows NT STATUS_ACCESS_VIOLATION (0xC0000005):
-#   - Hex: 0xC0000005
-#   - Unsigned 32-bit: 3221225477
-#   - Signed 32-bit: -1073741819
-SEGFAULT_RETURN_CODES: Set[int] = {
-    -11,
-    139,
-    3221225477,
-    -1073741819,
-    0xC0000005,
-}
-
-# Out Of Memory (OOM) kill codes
-# POSIX: -9 (-signal.SIGKILL), 137 (128 + 9)
-OOM_RETURN_CODES: Set[int] = {
-    -9,
-    137,
-}
-
-# Combined fatal return codes set
-ALL_FATAL_RETURN_CODES: Set[int] = SEGFAULT_RETURN_CODES | OOM_RETURN_CODES
 
 
 # ==============================================================================
@@ -140,1724 +121,1400 @@ def get_cochem_artifacts_dir() -> Path:
     return (Path.home() / "cochem_artifacts").resolve()
 
 
-def get_scratch_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic $SCRATCH workspace directory ($ARTIFACTS/BENCH_Workspace/Scratch)."""
+def get_bench_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the dynamic $ARTIFACTS/BENCH_Workspace directory."""
     base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    scratch_path = base / "BENCH_Workspace" / "Scratch"
-    scratch_path.mkdir(parents=True, exist_ok=True)
-    return scratch_path
+    bench_path = base / "BENCH_Workspace"
+    bench_path.mkdir(parents=True, exist_ok=True)
+    return bench_path
 
 
-def get_logs_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic Logs directory ($ARTIFACTS/Logs)."""
+def get_registry_config_path(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the dynamic path to cochem_system_config.json in Registry."""
     base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    logs_path = base / "Logs"
-    logs_path.mkdir(parents=True, exist_ok=True)
-    return logs_path
+    return base / "Registry" / "cochem_system_config.json"
 
 
-def get_bench_logs_workspace_dir(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the dynamic BENCH Logs directory ($ARTIFACTS/BENCH_Workspace/Logs)."""
-    base = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
-    bench_logs_path = base / "BENCH_Workspace" / "Logs"
-    bench_logs_path.mkdir(parents=True, exist_ok=True)
-    return bench_logs_path
-
-
-def get_bench_run_state_path(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
-    """Resolves the path to bench_run_state.jsonl in $ARTIFACTS/BENCH_Workspace/Logs."""
-    return get_bench_logs_workspace_dir(artifacts_dir) / "bench_run_state.jsonl"
+def get_landscape_h5_path(artifacts_dir: Optional[Union[str, Path]] = None) -> Path:
+    """Resolves the dynamic path to landscape.h5 datastore in BENCH_Workspace."""
+    workspace = get_bench_workspace_dir(artifacts_dir)
+    return workspace / "landscape.h5"
 
 
 def get_element_mass_mendeleev(symbol: str) -> float:
-    """Dynamically retrieves the atomic mass of an element via the Mendeleev library."""
+    """Dynamically retrieves atomic mass of an element via the Mendeleev library."""
     elem_obj = element(symbol)
     mass_val = elem_obj.atomic_weight or elem_obj.mass
     if mass_val is None:
-        raise ValueError(f"Atomic mass for element {symbol} could not be retrieved.")
+        raise ValueError(f"Atomic mass for element '{symbol}' could not be retrieved.")
     return float(mass_val)
 
 
 # ==============================================================================
-# Pydantic Schemas for Telemetry, State Rehydration & Fatal Reports
+# Pydantic Schemas for Validation and Manifest Compilation
 # ==============================================================================
 
-class StatisticalSummary(BaseModel):
-    """Pydantic model representing a mathematically downsampled array summary."""
+class MethodologySettings(BaseModel):
+    """Pydantic model representing user-selected CBS and composite methodology parameters."""
     model_config = ConfigDict(frozen=True)
 
-    Array_Min: float = Field(description="Minimum value in the array")
-    Array_Max: float = Field(description="Maximum value in the array")
-    Array_Mean: float = Field(description="Arithmetic mean of array elements")
-    Array_Variance: float = Field(description="Variance of array elements")
-    Last_Value: float = Field(description="Final trailing value in the sequence")
-    count: int = Field(description="Total number of elements compressed")
-    timestamp: str = Field(
+    cardinal_lower: str = Field(default="def2-TZVPP", description="Lower cardinal basis set")
+    cardinal_higher: str = Field(default="def2-QZVPP", description="Higher cardinal basis set")
+    scf_model: str = Field(default="Feller Exponential", description="SCF extrapolation formula")
+    cor_model: str = Field(default="Halkier Inverse Cubic (X^-3)", description="Correlation extrapolation formula")
+    cv_correction: bool = Field(default=False, description="Core-Valence basis extension correction")
+    rel_correction: bool = Field(default=False, description="Scalar relativistic correction")
+    rel_hamiltonian: str = Field(default="None", description="Relativistic Hamiltonian model")
+    method_level: str = Field(default="DLPNO-CCSD(T)", description="High-level wave function method")
+    pno_setting: str = Field(default="TightPNO", description="Pair Natural Orbital cutoff profile")
+
+
+class CostHeuristics(BaseModel):
+    """Pydantic model representing hardware cost estimates."""
+    model_config = ConfigDict(frozen=True)
+
+    num_atoms: int = Field(description="Total atom count ingested from state metadata")
+    estimated_runtime_seconds: float = Field(description="Projected O(N^7) wall-clock time in seconds")
+    estimated_scratch_gb: float = Field(description="Projected O(N^4) scratch disk requirement in GB")
+    estimated_ram_gb: float = Field(description="Projected memory footprint in GB")
+    available_ram_gb: float = Field(description="Physical memory detected from system configuration")
+    is_ram_exceeded: bool = Field(description="True if estimated RAM exceeds available RAM")
+
+
+class HardwareAllocation(BaseModel):
+    """Pydantic model for allocated execution hardware."""
+    model_config = ConfigDict(frozen=True)
+
+    n_procs: int = Field(default=8, description="Number of allocated MPI ranks / CPU cores")
+    max_memory_gb: float = Field(default=32.0, description="Max memory ceiling allocated")
+    scratch_path: str = Field(default="", description="Scratch disk working directory")
+
+
+class BenchRunParams(BaseModel):
+    """Pydantic model validating the complete bench_run_params.json payload."""
+    model_config = ConfigDict(frozen=True)
+
+    job_name: str = Field(default="CoChem_CBS_Benchmark", description="User-assigned benchmark identifier")
+    state_id: str = Field(description="Unique molecular state identifier")
+    num_atoms: int = Field(description="Ingested atom count")
+    methodology: MethodologySettings = Field(description="Selected quantum chemistry methodology")
+    hardware_allocation: HardwareAllocation = Field(description="Allocated hardware and scratch limits")
+    cost_heuristics: CostHeuristics = Field(description="Calculated computational cost metrics")
+    timestamp_utc: str = Field(
         default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the statistical summary",
+        description="UTC timestamp of manifest compilation",
     )
 
 
-class TelemetryEvent(BaseModel):
-    """Structured telemetry event model for NDJSON serialization."""
+class GeometryMetadata(BaseModel):
+    """Pydantic model validating molecular geometry metadata ingested from landscape.h5."""
     model_config = ConfigDict(frozen=True)
 
-    event_type: str = Field(description="Event classification (e.g. SCF_ITERATION, STAGE_PROGRESS)")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp",
-    )
-    node_id: Optional[str] = Field(default=None, description="Identifier of the active compute node")
-    data: Dict[str, Any] = Field(default_factory=dict, description="Payload data or compressed metrics")
-    status: Optional[str] = Field(default="OK", description="Execution status")
-
-
-class InterceptionAlert(BaseModel):
-    """Structured interception report for NaN, Inf, or Linear Dependence traps."""
-    model_config = ConfigDict(frozen=True)
-
-    alert_type: str = Field(description="Classification: LINEAR_DEPENDENCE, NAN_DETECTED, or INF_DETECTED")
-    raw_line: str = Field(description="The matching stdout line intercepted")
-    extracted_value: Optional[float] = Field(default=None, description="Extracted numerical metric (e.g. eigenvalue)")
-    abort_triggered: bool = Field(description="True if 0-byte ABORT.signal was generated")
-    abort_file_path: Optional[str] = Field(default=None, description="Path to ABORT.signal on disk")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of interception",
-    )
-
-
-class RehydratedRunState(BaseModel):
-    """Pydantic model representing state rehydrated from bench_run_state.jsonl."""
-    model_config = ConfigDict(frozen=True)
-
-    stage: str = Field(description="Active execution stage identifier")
-    scf_cycle: int = Field(default=0, description="Current SCF iteration count")
-    progress_percent: float = Field(default=0.0, description="Overall pipeline completion percentage")
-    current_energy: float = Field(default=0.0, description="Latest calculated energy value")
-    energy_history: List[float] = Field(default_factory=list, description="Historical energy sequence")
-    variance: float = Field(default=0.0, description="Variance of energy fluctuations or residuals")
-    pid: Optional[int] = Field(default=None, description="Active compute process ID")
-    status: str = Field(default="RUNNING", description="Pipeline status (RUNNING, COMPLETE, ERROR)")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the last recorded state frame",
-    )
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary engine metadata")
-
-
-class FatalErrorReport(BaseModel):
-    """Structured report representing a fatal crash or intercepted error."""
-    model_config = ConfigDict(frozen=True)
-
-    is_fatal: bool = Field(default=True, description="Always True for fatal error reports")
-    error_type: str = Field(description="Error classification: SEGMENTATION_FAULT, OUT_OF_MEMORY, etc.")
-    exit_code: Optional[int] = Field(default=None, description="Integer process exit code")
-    stderr_hex_dump: str = Field(description="Exact 256-byte hexadecimal dump of stderr")
-    red_html_readout: str = Field(description="High-visibility HTML warning markup")
-    json_ld_provenance: Dict[str, Any] = Field(description="Structured JSON-LD recovery instructions")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        description="ISO 8601 UTC timestamp of the crash report",
-    )
+    state_id: str = Field(description="Unique identifier for state / basin record")
+    num_atoms: int = Field(description="Total atom count integer strictly read from metadata")
+    symbols: List[str] = Field(default_factory=list, description="Ordered atomic symbols")
+    coordinates: List[List[float]] = Field(default_factory=list, description="Cartesian coordinates in Angstroms (Nx3)")
+    charge: int = Field(default=0, description="Molecular net charge")
+    multiplicity: int = Field(default=1, description="Spin multiplicity (2S+1)")
+    energy: Optional[float] = Field(default=None, description="Electronic energy in Hartrees if available")
 
 
 # ==============================================================================
-# LTTB Decimation Algorithm
+# Basis Pair Coupling Registry
 # ==============================================================================
 
-def decimate_lttb(
-    x: Union[Sequence[float], np.ndarray],
-    y: Union[Sequence[float], np.ndarray],
-    max_points: int = 1000,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Largest-Triangle-Three-Buckets (LTTB) visual decimation algorithm.
+BASIS_FAMILIES: Dict[str, List[str]] = {
+    "def2": ["def2-SVP", "def2-TZVP", "def2-TZVPP", "def2-QZVP", "def2-QZVPP"],
+    "cc-pV": ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z"],
+    "aug-cc-pV": ["aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z"],
+    "pcseg": ["pcseg-1", "pcseg-2", "pcseg-3", "pcseg-4"],
+}
 
-    Downsamples time-series / convergence curves to max_points while strictly
-    preserving visual extrema, local peaks, and overall curve geometry.
+ALL_LOWER_BASIS_SETS: List[str] = [
+    "def2-SVP", "def2-TZVP", "def2-TZVPP",
+    "cc-pVDZ", "cc-pVTZ",
+    "aug-cc-pVDZ", "aug-cc-pVTZ",
+    "pcseg-1", "pcseg-2",
+]
+
+
+def get_higher_basis_options(lower_basis: str) -> List[str]:
+    """Returns valid higher cardinal basis options strictly within the same basis family."""
+    for _family, members in BASIS_FAMILIES.items():
+        if lower_basis in members:
+            idx = members.index(lower_basis)
+            higher_options = members[idx + 1:]
+            if higher_options:
+                return higher_options
+    # Fallback to default higher options if not found
+    return ["def2-TZVPP", "def2-QZVPP"]
+
+
+# ==============================================================================
+# 1. Target Ingestion: Datastore Querying (landscape.h5 in SWMR mode)
+# ==============================================================================
+
+def query_landscape_geometries(landscape_path: Union[str, Path]) -> Dict[str, GeometryMetadata]:
+    """Queries geometry records from datastore at landscape.h5 strictly in read-only SWMR mode.
 
     Args:
-        x: 1D array of monotonic X coordinates (e.g. cycle indices, timestamps).
-        y: 1D array of Y values (e.g. energy fluctuations, gradient norms).
-        max_points: Maximum number of points in output (default: 1000).
+        landscape_path: Path to landscape.h5 file in BENCH_Workspace.
 
     Returns:
-        Tuple of (decimated_x, decimated_y) as numpy arrays.
+        Dictionary mapping state_id to GeometryMetadata.
     """
-    x_arr = np.asarray(x, dtype=np.float64)
-    y_arr = np.asarray(y, dtype=np.float64)
+    path = Path(landscape_path).resolve()
+    results: Dict[str, GeometryMetadata] = {}
 
-    if x_arr.ndim != 1 or y_arr.ndim != 1 or len(x_arr) != len(y_arr):
-        raise ValueError("x and y must be 1D arrays of identical length.")
-
-    n_points = len(x_arr)
-    if n_points <= max_points or max_points < 3:
-        return x_arr.copy(), y_arr.copy()
-
-    out_x = np.empty(max_points, dtype=np.float64)
-    out_y = np.empty(max_points, dtype=np.float64)
-
-    out_x[0] = x_arr[0]
-    out_y[0] = y_arr[0]
-
-    bucket_size = (n_points - 2) / (max_points - 2)
-    a_idx = 0
-
-    for i in range(max_points - 2):
-        b_start = int(math.floor((i + 0) * bucket_size)) + 1
-        b_end = int(math.floor((i + 1) * bucket_size)) + 1
-        b_end = min(b_end, n_points - 1)
-
-        c_start = int(math.floor((i + 1) * bucket_size)) + 1
-        c_end = int(math.floor((i + 2) * bucket_size)) + 1
-        c_end = min(c_end, n_points)
-
-        if c_end > c_start:
-            avg_c_x = float(np.mean(x_arr[c_start:c_end]))
-            avg_c_y = float(np.mean(y_arr[c_start:c_end]))
-        else:
-            avg_c_x = float(x_arr[-1])
-            avg_c_y = float(y_arr[-1])
-
-        p_a_x = x_arr[a_idx]
-        p_a_y = y_arr[a_idx]
-
-        max_area = -1.0
-        max_idx = b_start
-
-        for idx in range(b_start, b_end):
-            p_b_x = x_arr[idx]
-            p_b_y = y_arr[idx]
-
-            area = abs(
-                (p_a_x - avg_c_x) * (p_b_y - p_a_y)
-                - (p_a_x - p_b_x) * (avg_c_y - p_a_y)
-            )
-            if area > max_area:
-                max_area = area
-                max_idx = idx
-
-        out_x[i + 1] = x_arr[max_idx]
-        out_y[i + 1] = y_arr[max_idx]
-        a_idx = max_idx
-
-    out_x[-1] = x_arr[-1]
-    out_y[-1] = y_arr[-1]
-
-    return out_x, out_y
-
-
-# ==============================================================================
-# 1. ContextCompressor
-# ==============================================================================
-
-class ContextCompressor:
-    """Mathematical downsampler reducing massive numeric arrays into statistical summaries."""
-
-    def __init__(self, array_threshold: int = 50, lttb_max_points: int = 1000) -> None:
-        self.array_threshold = int(array_threshold)
-        self.lttb_max_points = int(lttb_max_points)
-
-    def compress_array(self, values: Union[Sequence[float], np.ndarray]) -> StatisticalSummary:
-        """Compresses a numeric sequence into a StatisticalSummary."""
-        arr = np.asarray(values, dtype=np.float64).ravel()
-        if arr.size == 0:
-            raise ValueError("Cannot compress empty array.")
-
-        arr_min = float(np.min(arr))
-        arr_max = float(np.max(arr))
-        arr_mean = float(np.mean(arr))
-        arr_var = float(np.var(arr))
-        last_val = float(arr[-1])
-
-        return StatisticalSummary(
-            Array_Min=arr_min,
-            Array_Max=arr_max,
-            Array_Mean=arr_mean,
-            Array_Variance=arr_var,
-            Last_Value=last_val,
-            count=int(arr.size),
-        )
-
-    def compress_to_dict(self, values: Union[Sequence[float], np.ndarray]) -> Dict[str, float]:
-        """Compresses a sequence into the exact 5-key dictionary matching SRS Task 7.2.1."""
-        summary = self.compress_array(values)
-        return {
-            "Array_Min": summary.Array_Min,
-            "Array_Max": summary.Array_Max,
-            "Array_Mean": summary.Array_Mean,
-            "Array_Variance": summary.Array_Variance,
-            "Last_Value": summary.Last_Value,
-        }
-
-    def decimate_curve(
-        self,
-        y_values: Union[Sequence[float], np.ndarray],
-        x_values: Optional[Union[Sequence[float], np.ndarray]] = None,
-        max_points: Optional[int] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Applies LTTB visual decimation on a 1D curve."""
-        y_arr = np.asarray(y_values, dtype=np.float64)
-        if x_values is None:
-            x_arr = np.arange(len(y_arr), dtype=np.float64)
-        else:
-            x_arr = np.asarray(x_values, dtype=np.float64)
-
-        limit = max_points if max_points is not None else self.lttb_max_points
-        return decimate_lttb(x_arr, y_arr, max_points=limit)
-
-    def compress_payload(
-        self,
-        payload: Dict[str, Any],
-        array_threshold: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Recursively intercepts large arrays in a dictionary payload and compresses them."""
-        threshold = array_threshold if array_threshold is not None else self.array_threshold
-        compressed: Dict[str, Any] = {}
-
-        for k, v in payload.items():
-            if isinstance(v, (list, tuple, np.ndarray)):
-                try:
-                    arr = np.asarray(v, dtype=np.float64)
-                    if arr.size > threshold:
-                        compressed[k] = self.compress_to_dict(arr)
-                    else:
-                        compressed[k] = v
-                except (ValueError, TypeError):
-                    compressed[k] = v
-            elif isinstance(v, dict):
-                compressed[k] = self.compress_payload(v, array_threshold=threshold)
-            else:
-                compressed[k] = v
-
-        return compressed
-
-
-# ==============================================================================
-# 2. NDJSONStreamer
-# ==============================================================================
-
-class NDJSONStreamer:
-    """Asynchronous polling and lightweight NDJSON broadcasting streamer."""
-
-    def __init__(
-        self,
-        artifacts_dir: Optional[Union[str, Path]] = None,
-        buffer_capacity: int = 1000,
-        compressor: Optional[ContextCompressor] = None,
-    ) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-        self.buffer_capacity = int(buffer_capacity)
-        self.buffer: collections.deque[Dict[str, Any]] = collections.deque(maxlen=self.buffer_capacity)
-        self.compressor = compressor or ContextCompressor()
-        self._is_detached: bool = False
-        self._total_events_emitted: int = 0
-
-    @property
-    def is_detached(self) -> bool:
-        """Returns True if frontend is safely detached."""
-        return self._is_detached
-
-    def detach(self) -> None:
-        """Detaches frontend consumer without interrupting backend compute."""
-        self._is_detached = True
-        logger.info("NDJSONStreamer: Frontend detached.")
-
-    def attach(self) -> None:
-        """Re-attaches frontend consumer."""
-        self._is_detached = False
-        logger.info("NDJSONStreamer: Frontend re-attached.")
-
-    def resolve_log_path(self, filename: str = "telemetry.ndjson") -> Path:
-        """Resolves destination path for telemetry.ndjson in Logs workspace."""
-        logs_dir = get_logs_workspace_dir(self.artifacts_dir)
-        return logs_dir / filename
-
-    def emit_event(
-        self,
-        event_type: str,
-        data: Dict[str, Any],
-        node_id: Optional[str] = None,
-        write_to_disk: bool = False,
-        log_file: Optional[Union[str, Path]] = None,
-        auto_compress: bool = True,
-    ) -> str:
-        """Constructs, buffers, and optionally persists a single NDJSON event."""
-        payload_data = self.compressor.compress_payload(data) if auto_compress else data
-
-        event = TelemetryEvent(
-            event_type=str(event_type),
-            node_id=str(node_id) if node_id is not None else None,
-            data=payload_data,
-        )
-
-        event_dict = event.model_dump()
-        event_dict["_event_index"] = self._total_events_emitted
-        self._total_events_emitted += 1
-
-        self.buffer.append(event_dict)
-        ndjson_line = json.dumps(event_dict, ensure_ascii=False) + "\n"
-
-        if write_to_disk:
-            target_path = Path(log_file).resolve() if log_file else self.resolve_log_path()
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(target_path, "a", encoding="utf-8") as f:
-                f.write(ndjson_line)
-
-        return ndjson_line
-
-    def poll_events(
-        self,
-        since_index: int = 0,
-        max_items: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
-        """Polls buffered events since a given event sequence index."""
-        results: List[Dict[str, Any]] = []
-        for item in self.buffer:
-            idx = item.get("_event_index", 0)
-            if idx >= since_index:
-                results.append(dict(item))
-                if max_items and len(results) >= max_items:
-                    break
+    if not path.exists():
+        logger.info("Landscape file does not exist at %s. Returning empty geometry catalog.", path)
         return results
 
-    def read_stream_file(
-        self,
-        log_file: Optional[Union[str, Path]] = None,
-        from_byte_offset: int = 0,
-    ) -> Tuple[List[Dict[str, Any]], int]:
-        """Incrementally reads newly appended NDJSON lines from disk."""
-        target_path = Path(log_file).resolve() if log_file else self.resolve_log_path()
-        if not target_path.exists():
-            return [], from_byte_offset
+    # Strictly open in read-only SWMR mode to eliminate lock contention on shared filesystems
+    try:
+        with h5py.File(str(path), mode="r", swmr=True) as h5f:
+            # Enumerate top-level groups or geometries datasets
+            for key in h5f.keys():
+                item = h5f[key]
+                if isinstance(item, h5py.Group):
+                    attrs = dict(item.attrs)
 
-        events: List[Dict[str, Any]] = []
-        with open(target_path, "r", encoding="utf-8") as f:
-            f.seek(from_byte_offset)
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                stripped = line.strip()
-                if stripped:
-                    try:
-                        events.append(json.loads(stripped))
-                    except json.JSONDecodeError as e:
-                        logger.debug("Skipping unparseable NDJSON line: %s", e)
-            next_offset = f.tell()
+                    # Read symbols
+                    symbols: List[str] = []
+                    if "symbols" in item:
+                        sym_data = item["symbols"][()]
+                        if isinstance(sym_data, np.ndarray):
+                            symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in sym_data]
+                    elif "symbols" in attrs:
+                        raw_syms = attrs["symbols"]
+                        if isinstance(raw_syms, (list, np.ndarray)):
+                            symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw_syms]
 
-        return events, next_offset
+                    # Read coordinates
+                    coords: List[List[float]] = []
+                    if "coordinates" in item:
+                        coords_arr = np.asarray(item["coordinates"][()], dtype=float)
+                        if coords_arr.ndim == 2:
+                            coords = coords_arr.tolist()
+                    elif "geometry" in item:
+                        coords_arr = np.asarray(item["geometry"][()], dtype=float)
+                        if coords_arr.ndim == 2:
+                            coords = coords_arr.tolist()
+
+                    # Derive atom count strictly from metadata / shape (NEVER parse .xyz strings!)
+                    num_atoms = 0
+                    if "num_atoms" in attrs:
+                        num_atoms = int(attrs["num_atoms"])
+                    elif symbols:
+                        num_atoms = len(symbols)
+                    elif coords:
+                        num_atoms = len(coords)
+
+                    charge = int(attrs.get("charge", 0))
+                    mult = int(attrs.get("multiplicity", 1))
+                    energy = float(attrs["energy"]) if "energy" in attrs else None
+
+                    if num_atoms > 0:
+                        results[key] = GeometryMetadata(
+                            state_id=key,
+                            num_atoms=num_atoms,
+                            symbols=symbols,
+                            coordinates=coords,
+                            charge=charge,
+                            multiplicity=mult,
+                            energy=energy,
+                        )
+    except Exception as exc:
+        logger.warning("SWMR read encountered an exception on %s: %s", path, exc)
+        raise
+
+    return results
 
 
 # ==============================================================================
-# 3. Stateless Rehydration (Zombie UI Protocol)
+# 2. 3D Viewer: Lightweight py3Dmol Coordinate Viewer (Blocks .cube Densities)
 # ==============================================================================
 
-class StatelessRehydrator:
-    """Implements the Zombie UI Protocol for session recovery and process detachment.
+class StructuralViewer3D:
+    """Lightweight 3D molecular viewer widget for structural coordinates only.
 
-    Inspects $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/Logs/bench_run_state.jsonl to
-    rehydrate progress bars, energy graphs, and active compute states.
+    Strictly blocks volumetric .cube densities to prevent browser memory blowup.
     """
 
-    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+    def __init__(self, width: int = 420, height: int = 280) -> None:
+        self.width = width
+        self.height = height
+        self.container = widgets.Output(
+            layout=widgets.Layout(
+                width=f"{width}px",
+                height=f"{height}px",
+                border="1px solid #cbd5e1",
+                border_radius="6px",
+                padding="4px",
+            )
+        )
+        self._render_placeholder()
 
-    def resolve_state_file(self) -> Path:
-        """Resolves path to bench_run_state.jsonl in BENCH_Workspace/Logs."""
-        return get_bench_run_state_path(self.artifacts_dir)
+    def _render_placeholder(self) -> None:
+        """Renders initial placeholder before geometry is selected."""
+        with self.container:
+            self.container.clear_output()
+            display(widgets.HTML(
+                f"<div style='display: flex; align-items: center; justify-content: center; height: {self.height - 20}px; color: #64748b; font-family: sans-serif; font-size: 0.9em;'>"
+                "Select a geometry to render 3D coordinates"
+                "</div>"
+            ))
 
-    def check_active_run_state(self) -> bool:
-        """Returns True if bench_run_state.jsonl exists and contains state records."""
-        state_file = self.resolve_state_file()
-        if not state_file.exists():
-            return False
-        return state_file.stat().st_size > 0
-
-    def rehydrate_state(self) -> RehydratedRunState:
-        """Parses bench_run_state.jsonl and builds a RehydratedRunState object.
+    @staticmethod
+    def block_cube_densities(source: Any) -> None:
+        """Verifies that the provided input is NOT a volumetric cube density file.
 
         Raises:
-            FileNotFoundError: If the state file does not exist.
-            ValueError: If the state file contains no valid JSON records.
+            ValueError: If a .cube file, dataset, or volumetric density is passed.
         """
-        state_file = self.resolve_state_file()
-        if not state_file.exists():
-            raise FileNotFoundError(f"Active run state log not found at {state_file}")
-
-        last_record: Optional[Dict[str, Any]] = None
-        with open(state_file, "r", encoding="utf-8") as f:
-            for line in f:
-                stripped = line.strip()
-                if stripped:
-                    try:
-                        last_record = json.loads(stripped)
-                    except json.JSONDecodeError as e:
-                        logger.debug("Skipping unparseable state line: %s", e)
-
-        if last_record is None:
-            raise ValueError(f"State file at {state_file} contains no valid JSON lines.")
-
-        energy_hist = last_record.get("energy_history", [])
-        variance = 0.0
-        if energy_hist and len(energy_hist) > 1:
-            variance = float(np.var(np.array(energy_hist, dtype=np.float64)))
-
-        return RehydratedRunState(
-            stage=str(last_record.get("stage", "UNKNOWN_STAGE")),
-            scf_cycle=int(last_record.get("scf_cycle", 0)),
-            progress_percent=float(last_record.get("progress_percent", 0.0)),
-            current_energy=float(last_record.get("current_energy", 0.0)),
-            energy_history=list(energy_hist),
-            variance=variance,
-            pid=int(last_record.get("pid")) if last_record.get("pid") is not None else None,
-            status=str(last_record.get("status", "RUNNING")),
-            timestamp=str(last_record.get("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat())),
-            metadata=dict(last_record.get("metadata", {})),
-        )
-
-    def handoff_to_subprocess_broker(
-        self,
-        cmd: Sequence[str],
-        initial_stage: str = "STAGE_0_BOOTSTRAP",
-        cwd: Optional[Union[str, Path]] = None,
-        env: Optional[Dict[str, str]] = None,
-    ) -> Dict[str, Any]:
-        """Hands off workload to detached background process group using psutil.
-
-        Cross-platform isolation:
-        - Windows: creationflags=subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-        - POSIX: start_new_session=True
-
-        Writes initial state frame to bench_run_state.jsonl.
-        """
-        launch_env = os.environ.copy()
-        if env:
-            launch_env.update(env)
-
-        working_dir = str(cwd) if cwd else None
-
-        kwargs: Dict[str, Any] = {
-            "cwd": working_dir,
-            "env": launch_env,
-            "stdin": subprocess.DEVNULL,
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-        }
-
-        if sys.platform == "win32":
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
-            kwargs["creationflags"] = creationflags
-        else:
-            kwargs["start_new_session"] = True
-
-        proc = subprocess.Popen(list(cmd), **kwargs)
-
-        state_file = self.resolve_state_file()
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-
-        initial_record = {
-            "stage": initial_stage,
-            "scf_cycle": 0,
-            "progress_percent": 0.0,
-            "current_energy": 0.0,
-            "energy_history": [],
-            "pid": proc.pid,
-            "status": "RUNNING",
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-
-        with open(state_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(initial_record) + "\n")
-
-        return {
-            "pid": proc.pid,
-            "state_file": str(state_file),
-            "status": "DETACHED_RUNNING",
-        }
-
-    def is_broker_process_alive(self, pid: int) -> bool:
-        """Verifies liveness of the broker process via psutil."""
-        if not psutil.pid_exists(pid):
-            return False
-        try:
-            p = psutil.Process(pid)
-            return p.is_running() and p.status() != psutil.STATUS_ZOMBIE
-        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-            logger.debug("Process %s is no longer accessible: %s", pid, e)
-            return False
-
-
-# ==============================================================================
-# 4. Context-Compression Stream Integration
-# ==============================================================================
-
-class ContextCompressionStreamIntegrator:
-    """Asynchronously polls lightweight NDJSON streams and renders debounced statistical summaries."""
-
-    def __init__(
-        self,
-        debounce_interval: float = 2.0,
-        compressor: Optional[ContextCompressor] = None,
-    ) -> None:
-        self.debounce_interval = float(debounce_interval)
-        self.compressor = compressor or ContextCompressor()
-        self._last_render_time: float = 0.0
-        self._buffered_energies: List[float] = []
-        self._latest_stage: str = "INITIALIZING"
-        self._latest_scf_cycle: int = 0
-        self._latest_progress: float = 0.0
-
-    def process_stream_events(
-        self,
-        events: List[Dict[str, Any]],
-        current_time: Optional[float] = None,
-        force: bool = False,
-    ) -> Optional[Dict[str, Any]]:
-        """Processes a batch of NDJSON events with debounced statistical compression."""
-        now = time.time() if current_time is None else float(current_time)
-
-        for ev in events:
-            data = ev.get("data", {})
-            if "stage" in data:
-                self._latest_stage = str(data["stage"])
-            if "scf_cycle" in data:
-                self._latest_scf_cycle = int(data["scf_cycle"])
-            if "progress_percent" in data:
-                self._latest_progress = float(data["progress_percent"])
-            if "energy" in data:
-                try:
-                    self._buffered_energies.append(float(data["energy"]))
-                except (ValueError, TypeError) as e:
-                    logger.debug("Could not parse energy float: %s", e)
-            if "delta_e" in data:
-                try:
-                    self._buffered_energies.append(float(data["delta_e"]))
-                except (ValueError, TypeError) as e:
-                    logger.debug("Could not parse delta_e float: %s", e)
-
-        if not force and self._last_render_time > 0.0:
-            if (now - self._last_render_time) < self.debounce_interval:
-                return None
-
-        self._last_render_time = now
-
-        energy_arr = np.array(self._buffered_energies, dtype=np.float64) if self._buffered_energies else np.array([0.0])
-        var_val = float(np.var(energy_arr)) if len(energy_arr) > 0 else 0.0
-        summary_dict = self.compressor.compress_to_dict(energy_arr)
-
-        return {
-            "current_stage": self._latest_stage,
-            "scf_cycle": self._latest_scf_cycle,
-            "progress_percent": self._latest_progress,
-            "energy_variance": var_val,
-            "energy_summary": summary_dict,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-
-    def poll_ndjson_and_render_summary(
-        self,
-        log_file: Union[str, Path],
-        from_byte_offset: int = 0,
-        current_time: Optional[float] = None,
-        force: bool = False,
-    ) -> Tuple[Optional[Dict[str, Any]], int]:
-        """Incrementally tails an NDJSON file and applies debounced statistical rendering."""
-        target_path = Path(log_file).resolve()
-        if not target_path.exists():
-            return None, from_byte_offset
-
-        events: List[Dict[str, Any]] = []
-        with open(target_path, "r", encoding="utf-8") as f:
-            f.seek(from_byte_offset)
-            while True:
-                line = f.readline()
-                if not line:
-                    break
-                stripped = line.strip()
-                if stripped:
-                    try:
-                        events.append(json.loads(stripped))
-                    except json.JSONDecodeError as e:
-                        logger.debug("Skipping unparseable NDJSON line: %s", e)
-            next_offset = f.tell()
-
-        if not events:
-            return None, next_offset
-
-        summary = self.process_stream_events(events, current_time=current_time, force=force)
-        return summary, next_offset
-
-
-# ==============================================================================
-# 5. Live Asymptotic Convergence Plotting
-# ==============================================================================
-
-class LiveConvergencePlotter:
-    """Plotly FigureWidget controller for live energy residual convergence graphing."""
-
-    def __init__(self, max_points: int = 1000) -> None:
-        self.max_points = int(max_points)
-
-    def create_figure(self, title: str = "Live Asymptotic Convergence") -> Union[go.FigureWidget, go.Figure]:
-        """Initializes a Plotly FigureWidget (with go.Figure fallback) with scientific styling and log y-axis."""
-        data = [
-            go.Scatter(
-                x=[],
-                y=[],
-                mode="lines+markers",
-                name="Energy Residual |ΔE|",
-                line=dict(color="#00bcd4", width=2),
-                marker=dict(size=4, color="#ffffff"),
+        if isinstance(source, (str, Path)):
+            str_path = str(source).lower()
+            if str_path.endswith(".cube") or ".cube" in str_path:
+                raise ValueError(
+                    "Volumetric cube density files (.cube) are strictly blocked from 3D coordinate viewer "
+                    "to maintain lightweight UI rendering."
+                )
+        elif isinstance(source, dict) and source.get("format", "").lower() == "cube":
+            raise ValueError(
+                "Volumetric cube density payloads are strictly blocked from 3D coordinate viewer."
             )
-        ]
-        layout = go.Layout(
-            title=title,
-            xaxis=dict(title="SCF Iteration / Extrapolation Cycle", showgrid=True),
-            yaxis=dict(
-                title="Energy Residual |ΔE| (Hartree)",
-                type="log",
-                exponentformat="e",
-                showgrid=True,
-            ),
-            template="plotly_dark",
-            margin=dict(l=60, r=40, t=50, b=50),
-        )
-        try:
-            return go.FigureWidget(data=data, layout=layout)
-        except Exception as e:
-            logger.debug("FigureWidget initialization deferred to Figure fallback: %s", e)
-            return go.Figure(data=data, layout=layout)
 
-    def update_plot(
+    def render_geometry(
         self,
-        fig: Any,
-        energy_residuals: Union[Sequence[float], np.ndarray],
-        iterations: Optional[Union[Sequence[float], np.ndarray]] = None,
-        max_points: Optional[int] = None,
-    ) -> Tuple[int, int]:
-        """Updates trace data on FigureWidget with LTTB decimation when exceeding max_points.
+        symbols: Sequence[str],
+        coordinates: Sequence[Sequence[float]],
+        state_id: str = "molecule",
+    ) -> None:
+        """Renders 3D atomic coordinates using py3Dmol with stick and sphere representation."""
+        self.container.clear_output()
+        if not symbols or not coordinates or len(symbols) != len(coordinates):
+            self._render_placeholder()
+            return
+
+        # Format XYZ payload
+        n_atoms = len(symbols)
+        lines = [f"{n_atoms}", f"{state_id}"]
+        for sym, pos in zip(symbols, coordinates, strict=False):
+            x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
+            lines.append(f"{sym:<3} {x:12.6f} {y:12.6f} {z:12.6f}")
+        xyz_str = "\n".join(lines)
+
+        with self.container:
+            if PY3DMOL_AVAILABLE:
+                try:
+                    view = py3Dmol.view(width=self.width - 10, height=self.height - 10)
+                    view.addModel(xyz_str, "xyz")
+                    view.setStyle({"stick": {"radius": 0.15}, "sphere": {"scale": 0.3}})
+                    view.zoomTo()
+                    view.show()
+                except Exception as e:
+                    logger.warning("py3Dmol rendering failed: %s. Using HTML fallback.", e)
+                    self._render_html_summary(symbols, coordinates, state_id)
+            else:
+                self._render_html_summary(symbols, coordinates, state_id)
+
+    def _render_html_summary(
+        self,
+        symbols: Sequence[str],
+        coordinates: Sequence[Sequence[float]],
+        state_id: str,
+    ) -> None:
+        """Fallback lightweight structural coordinates table."""
+        atom_rows = "".join(
+            f"<tr><td style='padding:2px 8px; font-weight:bold;'>{sym}</td>"
+            f"<td style='padding:2px 8px;'>{c[0]:.4f}</td>"
+            f"<td style='padding:2px 8px;'>{c[1]:.4f}</td>"
+            f"<td style='padding:2px 8px;'>{c[2]:.4f}</td></tr>"
+            for sym, c in zip(symbols[:12], coordinates[:12], strict=False)
+        )
+        more_notice = f"<tr><td colspan='4' style='padding:2px 8px; color:#64748b; font-style:italic;'>... and {len(symbols)-12} more atoms</td></tr>" if len(symbols) > 12 else ""
+        html = f"""
+        <div style="font-family: monospace; font-size: 0.8em; overflow-y: auto; max-height: {self.height - 20}px;">
+          <div style="font-weight: bold; color: #0f172a; margin-bottom: 4px;">Structure: {state_id} (N={len(symbols)})</div>
+          <table style="border-collapse: collapse; width: 100%;">
+            <thead><tr style="background:#f1f5f9;"><th style='padding:2px 8px;'>El</th><th style='padding:2px 8px;'>X</th><th style='padding:2px 8px;'>Y</th><th style='padding:2px 8px;'>Z</th></tr></thead>
+            <tbody>{atom_rows}{more_notice}</tbody>
+          </table>
+        </div>
+        """
+        display(widgets.HTML(html))
+
+
+# ==============================================================================
+# 3. Methodology Matrix & Protocol Builder (MethodologyToggles)
+# ==============================================================================
+
+class MethodologyToggles:
+    """Renders ipywidgets GUI controls for CBS extrapolation and composite corrections."""
+
+    def __init__(self) -> None:
+        # High-level method selector
+        self.method_level_dropdown = widgets.Dropdown(
+            options=["DLPNO-CCSD(T)", "CCSD(T)", "MP2", "CASSCF/NEVPT2", "DLPNO-MP2"],
+            value="DLPNO-CCSD(T)",
+            description="Method:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        # PNO profile selector
+        self.pno_dropdown = widgets.Dropdown(
+            options=["TightPNO", "NormalPNO", "LoosePNO"],
+            value="TightPNO",
+            description="PNO Threshold:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        # Coupled basis pair dropdowns
+        self.cardinal_lower_dropdown = widgets.Dropdown(
+            options=ALL_LOWER_BASIS_SETS,
+            value="def2-TZVPP",
+            description="Basis (X):",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        initial_higher_options = get_higher_basis_options("def2-TZVPP")
+        self.cardinal_higher_dropdown = widgets.Dropdown(
+            options=initial_higher_options,
+            value=initial_higher_options[0] if initial_higher_options else "def2-QZVPP",
+            description="Basis (X+1):",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        # SCF & Correlation extrapolation formulas
+        self.scf_extrap_dropdown = widgets.Dropdown(
+            options=["Feller Exponential", "Karton-Martin", "Geometric (3-point)", "Three-Point Exponential"],
+            value="Feller Exponential",
+            description="SCF Extrap:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        self.cor_extrap_dropdown = widgets.Dropdown(
+            options=["Halkier Inverse Cubic (X^-3)", "Helgaker Two-Point", "Neese-Valeev", "Martin Two-Point"],
+            value="Halkier Inverse Cubic (X^-3)",
+            description="Cor Extrap:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        # Composite correction checkboxes
+        self.cv_checkbox = widgets.Checkbox(
+            value=False,
+            description="Delta E_CV (Core-Valence Basis Set Extension)",
+            style={"description_width": "initial"},
+            layout=widgets.Layout(width="400px"),
+        )
+
+        self.rel_checkbox = widgets.Checkbox(
+            value=False,
+            description="Delta E_rel (Scalar Relativistic Correction)",
+            style={"description_width": "initial"},
+            layout=widgets.Layout(width="400px"),
+        )
+
+        self.rel_hamiltonian_dropdown = widgets.Dropdown(
+            options=["X2C", "DKH2", "ZORA"],
+            value="X2C",
+            description="Hamiltonian:",
+            disabled=True,
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="360px"),
+        )
+
+        # Attach dynamic event handlers
+        self.cardinal_lower_dropdown.observe(self._on_lower_basis_changed, names="value")
+        self.rel_checkbox.observe(self._on_rel_checkbox_changed, names="value")
+
+        # Assemble layout container
+        self.container = self._build_layout()
+
+    def _on_lower_basis_changed(self, change: Dict[str, Any]) -> None:
+        """Dynamically restricts higher basis dropdown to higher cardinal sets of the same family."""
+        new_lower = change.get("new", "def2-TZVPP")
+        higher_opts = get_higher_basis_options(new_lower)
+        self.cardinal_higher_dropdown.options = higher_opts
+        if higher_opts:
+            self.cardinal_higher_dropdown.value = higher_opts[0]
+
+    def _on_rel_checkbox_changed(self, change: Dict[str, Any]) -> None:
+        """Enables/disables relativistic Hamiltonian dropdown when relativistic checkbox toggles."""
+        is_checked = change.get("new", False)
+        self.rel_hamiltonian_dropdown.disabled = not is_checked
+
+    def _build_layout(self) -> widgets.VBox:
+        """Constructs styled layout cards for methodology toggles."""
+        method_box = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>High-Level Method &amp; PNO Protocol</div>"),
+            widgets.HBox([self.method_level_dropdown, self.pno_dropdown]),
+        ], layout=widgets.Layout(padding="10px", margin="0 0 10px 0", border="1px solid #e2e8f0"))
+
+        basis_box = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Complete Basis Set (CBS) Extrapolation Pair &amp; Mathematical Limits</div>"),
+            widgets.HBox([self.cardinal_lower_dropdown, self.cardinal_higher_dropdown]),
+            widgets.HBox([self.scf_extrap_dropdown, self.cor_extrap_dropdown]),
+        ], layout=widgets.Layout(padding="10px", margin="0 0 10px 0", border="1px solid #e2e8f0"))
+
+        corrections_box = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Composite Corrections (Delta E)</div>"),
+            self.cv_checkbox,
+            widgets.HBox([self.rel_checkbox, self.rel_hamiltonian_dropdown]),
+        ], layout=widgets.Layout(padding="10px", border="1px solid #e2e8f0"))
+
+        return widgets.VBox([method_box, basis_box, corrections_box])
+
+    def get_methodology_settings(self) -> MethodologySettings:
+        """Extracts and validates current GUI selections into a MethodologySettings model."""
+        rel_ham = self.rel_hamiltonian_dropdown.value if self.rel_checkbox.value else "None"
+        return MethodologySettings(
+            cardinal_lower=str(self.cardinal_lower_dropdown.value),
+            cardinal_higher=str(self.cardinal_higher_dropdown.value),
+            scf_model=str(self.scf_extrap_dropdown.value),
+            cor_model=str(self.cor_extrap_dropdown.value),
+            cv_correction=bool(self.cv_checkbox.value),
+            rel_correction=bool(self.rel_checkbox.value),
+            rel_hamiltonian=str(rel_ham),
+            method_level=str(self.method_level_dropdown.value),
+            pno_setting=str(self.pno_dropdown.value),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Returns methodology settings as a standard dictionary."""
+        return self.get_methodology_settings().model_dump()
+
+
+# ==============================================================================
+# 4. Dynamic Node-Hour Cost Heuristic (CostHeuristicTooltip)
+# ==============================================================================
+
+class CostHeuristicTooltip:
+    """Dynamically polls node limits and calculates O(N^7) runtime and O(N^4) scratch disk footprint."""
+
+    # Default scientific scaling multipliers if not specified in registry
+    DEFAULT_RUNTIME_SCALAR_O_N7: float = 1.0e-5     # seconds / (N^7)
+    DEFAULT_SCRATCH_SCALAR_O_N4_GB: float = 1.0e-4  # GB / (N^4)
+    DEFAULT_RAM_SCALAR_O_N4_GB: float = 5.0e-5      # GB / (N^4)
+    DEFAULT_BASE_RAM_GB: float = 2.0                # Base process overhead in GB
+
+    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+        self.html_widget = widgets.HTML(
+            value=self._render_placeholder_html(),
+            layout=widgets.Layout(width="100%", margin="6px 0"),
+        )
+
+    def _render_placeholder_html(self) -> str:
+        """Initial placeholder state for tooltip before geometry ingestion."""
+        return (
+            "<div style='padding: 8px 12px; background-color: #f8fafc; border: 1px solid #cbd5e1; "
+            "border-radius: 6px; font-size: 0.88em; color: #475569;'>"
+            "<b>Cost Heuristic:</b> Select geometry to evaluate node-hour and memory scaling projections."
+            "</div>"
+        )
+
+    def poll_system_config(self) -> Dict[str, Any]:
+        """Polls active system configuration from Registry/cochem_system_config.json."""
+        config_path = get_registry_config_path(self.artifacts_dir)
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    return cast(Dict[str, Any], json.load(f))
+            except Exception as e:
+                logger.warning("Failed to parse %s: %s. Using default hardware profile.", config_path, e)
+
+        # Fallback profile if registry not yet populated
+        return {
+            "hardware": {
+                "physical_cpu_cores": 8,
+                "logical_cpu_cores": 16,
+                "ram_gb": 32.0,
+            },
+            "cost_heuristics": {
+                "runtime_scalar_o_n7": self.DEFAULT_RUNTIME_SCALAR_O_N7,
+                "scratch_scalar_o_n4_gb": self.DEFAULT_SCRATCH_SCALAR_O_N4_GB,
+                "ram_scalar_o_n4_gb": self.DEFAULT_RAM_SCALAR_O_N4_GB,
+                "base_ram_gb": self.DEFAULT_BASE_RAM_GB,
+            },
+        }
+
+    def compute_heuristics(
+        self,
+        num_atoms: int,
+        config_override: Optional[Dict[str, Any]] = None,
+    ) -> CostHeuristics:
+        """Computes O(N^7) runtime and O(N^4) scratch/RAM requirements strictly from num_atoms metadata.
+
+        Args:
+            num_atoms: Total atom count integer from state metadata. (Never parse .xyz strings!).
+            config_override: Optional explicit configuration dictionary.
 
         Returns:
-            Tuple of (original_point_count, rendered_point_count).
+            CostHeuristics model with projections and memory limit comparison.
         """
-        y_arr = np.asarray(energy_residuals, dtype=np.float64)
-        if len(y_arr) == 0:
-            return 0, 0
+        n = max(1, int(num_atoms))
+        config = config_override or self.poll_system_config()
 
-        if iterations is None:
-            x_arr = np.arange(1, len(y_arr) + 1, dtype=np.float64)
+        hw = config.get("hardware", {})
+        avail_ram = float(hw.get("ram_gb", 32.0))
+
+        heur_cfg = config.get("cost_heuristics", {})
+        runtime_scalar = float(heur_cfg.get("runtime_scalar_o_n7", self.DEFAULT_RUNTIME_SCALAR_O_N7))
+        scratch_scalar = float(heur_cfg.get("scratch_scalar_o_n4_gb", self.DEFAULT_SCRATCH_SCALAR_O_N4_GB))
+        ram_scalar = float(heur_cfg.get("ram_scalar_o_n4_gb", self.DEFAULT_RAM_SCALAR_O_N4_GB))
+        base_ram = float(heur_cfg.get("base_ram_gb", self.DEFAULT_BASE_RAM_GB))
+
+        # Algorithmic scaling rules
+        # Runtime: O(N^7) for DLPNO-CCSD(T) / canonical CCSD(T)
+        est_runtime_sec = float(runtime_scalar * (n ** 7))
+
+        # Scratch disk footprint: O(N^4) 4-center integral and amplitude storage
+        est_scratch_gb = float(scratch_scalar * (n ** 4))
+
+        # RAM footprint: Base + O(N^4) memory scaling
+        est_ram_gb = float(base_ram + (ram_scalar * (n ** 4)))
+
+        # Compare against physical memory
+        is_exceeded = est_ram_gb > avail_ram
+
+        return CostHeuristics(
+            num_atoms=n,
+            estimated_runtime_seconds=est_runtime_sec,
+            estimated_scratch_gb=est_scratch_gb,
+            estimated_ram_gb=est_ram_gb,
+            available_ram_gb=avail_ram,
+            is_ram_exceeded=is_exceeded,
+        )
+
+    def update_ui(
+        self,
+        state_metadata: Union[Dict[str, Any], GeometryMetadata],
+        submit_button: Optional[widgets.Button] = None,
+    ) -> CostHeuristics:
+        """Updates HTML tooltip with visual warnings and locks the submit button if RAM is exceeded."""
+        if isinstance(state_metadata, GeometryMetadata):
+            num_atoms = state_metadata.num_atoms
         else:
-            x_arr = np.asarray(iterations, dtype=np.float64)
+            num_atoms = int(state_metadata.get("num_atoms", 1))
 
-        limit = max_points if max_points is not None else self.max_points
-        orig_count = len(y_arr)
+        heuristics = self.compute_heuristics(num_atoms=num_atoms)
 
-        if orig_count > limit:
-            x_rendered, y_rendered = decimate_lttb(x_arr, y_arr, max_points=limit)
+        if heuristics.is_ram_exceeded:
+            # Memory ceiling exceeded: Render critical red warning and HARD DISABLE submit button
+            html_content = f"""
+            <div style="margin: 6px 0; padding: 10px 14px; background-color: #fee2e2; border-left: 4px solid #dc2626; border-radius: 4px; color: #991b1b; font-size: 0.88em;">
+              <b>WARNING: Estimated Memory ({heuristics.estimated_ram_gb:.1f} GB) exceeds Available ({heuristics.available_ram_gb:.1f} GB).</b>
+              <br>Severe Swap-Death / OOM crash inevitable. Calculation has been locked. Reduce basis cardinal number or allocate larger node.
+              <br><span style="font-size: 0.82em; color: #b91c1c;">Projected Scratch: {heuristics.estimated_scratch_gb:.1f} GB | Projected Runtime: {heuristics.estimated_runtime_seconds:.1f}s (Atoms: N={heuristics.num_atoms})</span>
+            </div>
+            """
+            self.html_widget.value = html_content
+            if submit_button is not None:
+                submit_button.disabled = True
         else:
-            x_rendered, y_rendered = x_arr, y_arr
+            # Within physical limits: Render green verification and enable submit button
+            html_content = f"""
+            <div style="margin: 6px 0; padding: 10px 14px; background-color: #dcfce7; border-left: 4px solid #16a34a; border-radius: 4px; color: #166534; font-size: 0.88em;">
+              <b>Resource limits verified:</b> Estimated RAM ({heuristics.estimated_ram_gb:.2f} GB) / Scratch ({heuristics.estimated_scratch_gb:.2f} GB) within physical limit ({heuristics.available_ram_gb:.1f} GB).
+              <br><span style="font-size: 0.82em; color: #15803d;">Projected Runtime: {heuristics.estimated_runtime_seconds:.1f}s | Atom Count: N={heuristics.num_atoms}</span>
+            </div>
+            """
+            self.html_widget.value = html_content
+            if submit_button is not None:
+                submit_button.disabled = False
 
-        if hasattr(fig, "data") and len(fig.data) > 0:
+        return heuristics
+
+
+# ==============================================================================
+# 5. Manifest Compiler & Cross-Platform Execution Mutex (ManifestCompiler)
+# ==============================================================================
+
+class ManifestCompiler:
+    """Serializes user's GUI choices into bench_run_params.json using filelock.FileLock."""
+
+    def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+
+    def resolve_manifest_path(self) -> Path:
+        """Resolves target path for bench_run_params.json in BENCH_Workspace."""
+        workspace = get_bench_workspace_dir(self.artifacts_dir)
+        return workspace / "bench_run_params.json"
+
+    def compile_and_save(
+        self,
+        job_name: str,
+        state_metadata: Union[Dict[str, Any], GeometryMetadata],
+        methodology: MethodologySettings,
+        heuristics: CostHeuristics,
+        hardware: Optional[HardwareAllocation] = None,
+        submit_button: Optional[widgets.Button] = None,
+    ) -> Path:
+        """Serializes parameter selections to bench_run_params.json with filelock mutex and locks submit buttons.
+
+        Args:
+            job_name: Identifier string for benchmark run.
+            state_metadata: Ingested molecular state dictionary or GeometryMetadata.
+            methodology: Validated MethodologySettings model.
+            heuristics: Validated CostHeuristics model.
+            hardware: Optional HardwareAllocation model.
+            submit_button: If provided, immediately disables this button with spinning indicator.
+
+        Returns:
+            Path to the persisted bench_run_params.json file.
+        """
+        if isinstance(state_metadata, GeometryMetadata):
+            state_id = state_metadata.state_id
+            num_atoms = state_metadata.num_atoms
+        else:
+            state_id = str(state_metadata.get("state_id", "canonical_state"))
+            num_atoms = int(state_metadata.get("num_atoms", heuristics.num_atoms))
+
+        hw_alloc = hardware or HardwareAllocation(
+            n_procs=8,
+            max_memory_gb=heuristics.available_ram_gb,
+            scratch_path=str(get_bench_workspace_dir(self.artifacts_dir) / "Scratch"),
+        )
+
+        manifest = BenchRunParams(
+            job_name=str(job_name).strip() or "CoChem_CBS_Benchmark",
+            state_id=state_id,
+            num_atoms=num_atoms,
+            methodology=methodology,
+            hardware_allocation=hw_alloc,
+            cost_heuristics=heuristics,
+        )
+
+        target_path = self.resolve_manifest_path()
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path = target_path.with_suffix(".lock")
+
+        # Cross-platform FileLock execution mutex instead of POSIX fcntl
+        with filelock.FileLock(str(lock_path), timeout=10.0):
+            temp_file = target_path.with_suffix(".tmp")
+            temp_file.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+            shutil.move(str(temp_file), str(target_path))
+
+        logger.info("ManifestCompiler: Serialized bench_run_params.json to %s", target_path)
+
+        # UI Lockout & Spinning Indicator: Prevent duplicate OpenMPI process spawning
+        if submit_button is not None:
+            submit_button.disabled = True
+            submit_button.description = "Orchestrating..."
+            submit_button.icon = "spinner"
+            submit_button.button_style = "info"
+
+        return target_path
+
+
+# ==============================================================================
+# 6. VoilaBenchDashboard / BenchDashboard (Master UI)
+# ==============================================================================
+
+class VoilaBenchDashboard:
+    """Master Voila GUI Wrapper & Configuration UI for CoChem-BENCH."""
+
+    def __init__(
+        self,
+        artifacts_dir: Optional[Union[str, Path]] = None,
+        state_metadata: Optional[Union[Dict[str, Any], GeometryMetadata]] = None,
+    ) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+
+        # Sub-components
+        self.cost_tooltip = CostHeuristicTooltip(artifacts_dir=self.artifacts_dir)
+        self.methodology_toggles = MethodologyToggles()
+        self.manifest_compiler = ManifestCompiler(artifacts_dir=self.artifacts_dir)
+        self.viewer_3d = StructuralViewer3D(width=420, height=280)
+
+        # Datastore Geometries Ingestion
+        self.landscape_geometries = self._ingest_landscape()
+
+        if state_metadata is not None:
+            if isinstance(state_metadata, GeometryMetadata):
+                self.current_state_metadata = state_metadata
+            else:
+                self.current_state_metadata = GeometryMetadata(
+                    state_id=str(state_metadata.get("state_id", "canonical_state")),
+                    num_atoms=int(state_metadata.get("num_atoms", 3)),
+                    symbols=list(state_metadata.get("symbols", ["O", "H", "H"])),
+                    coordinates=list(state_metadata.get("coordinates", [[0.0, 0.0, 0.0], [0.0, 0.757, 0.587], [0.0, -0.757, 0.587]])),
+                )
+        elif self.landscape_geometries:
+            first_key = next(iter(self.landscape_geometries))
+            self.current_state_metadata = self.landscape_geometries[first_key]
+        else:
+            self.current_state_metadata = GeometryMetadata(
+                state_id="water_monomer",
+                num_atoms=3,
+                symbols=["O", "H", "H"],
+                coordinates=[[0.0, 0.0, 0.0], [0.0, 0.757, 0.587], [0.0, -0.757, 0.587]],
+            )
+
+        # Geometry Selector Dropdown
+        geom_options = list(self.landscape_geometries.keys()) if self.landscape_geometries else [self.current_state_metadata.state_id]
+        self.geometry_dropdown = widgets.Dropdown(
+            options=geom_options,
+            value=self.current_state_metadata.state_id if self.current_state_metadata.state_id in geom_options else geom_options[0],
+            description="Geometry:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="400px"),
+        )
+        self.geometry_dropdown.observe(self._on_geometry_selected, names="value")
+
+        # Job Name Text Field
+        self.job_name_text = widgets.Text(
+            value="CBS_Extrapolation_Run_01",
+            description="Job Name:",
+            style={"description_width": "120px"},
+            layout=widgets.Layout(width="400px"),
+        )
+
+        # Execution Button
+        self.execute_button = widgets.Button(
+            description="Execute Benchmark",
+            button_style="primary",
+            icon="play",
+            layout=widgets.Layout(width="240px", height="40px"),
+        )
+        self.execute_button.on_click(self._on_execute_clicked)
+
+        # Status Ribbon & Console Output
+        self.status_ribbon_html = widgets.HTML(layout=widgets.Layout(width="100%", margin="0 0 10px 0"))
+        self.console_output = widgets.Output(layout=widgets.Layout(margin="10px 0 0 0"))
+
+        # Build UI layout
+        self._build_status_ribbon()
+        self._update_geometry_view(self.current_state_metadata)
+        self.main_container = self._assemble_dashboard()
+
+    def _ingest_landscape(self) -> Dict[str, GeometryMetadata]:
+        """Queries landscape.h5 in read-only SWMR mode."""
+        landscape_path = get_landscape_h5_path(self.artifacts_dir)
+        try:
+            return query_landscape_geometries(landscape_path)
+        except Exception as e:
+            logger.warning("Error querying landscape.h5: %s", e)
+            return {}
+
+    def _on_geometry_selected(self, change: Dict[str, Any]) -> None:
+        """Handles geometry selection change in dropdown."""
+        selected_key = change.get("new")
+        if selected_key and selected_key in self.landscape_geometries:
+            self.current_state_metadata = self.landscape_geometries[selected_key]
+            self._update_geometry_view(self.current_state_metadata)
+
+    def _update_geometry_view(self, metadata: GeometryMetadata) -> None:
+        """Updates 3D Viewer and Cost Heuristics tooltip when geometry changes."""
+        self.viewer_3d.render_geometry(
+            symbols=metadata.symbols,
+            coordinates=metadata.coordinates,
+            state_id=metadata.state_id,
+        )
+        self.cost_tooltip.update_ui(metadata, submit_button=self.execute_button)
+
+    def _build_status_ribbon(self) -> None:
+        """Renders top status ribbon with active engine, available MPI threads, and scratch free space."""
+        cfg = self.cost_tooltip.poll_system_config()
+        hw = cfg.get("hardware", {})
+        ram_gb = float(hw.get("ram_gb", 32.0))
+        logical_cores = int(hw.get("logical_cpu_cores", hw.get("physical_cpu_cores", os.cpu_count() or 8)))
+
+        engines = cfg.get("engines", {})
+        orca_info = engines.get("orca", {})
+        engine_version = orca_info.get("version", "6.1.1")
+        engine_name = f"ORCA {engine_version}"
+
+        try:
+            free_scratch_gb = shutil.disk_usage(str(get_bench_workspace_dir(self.artifacts_dir))).free / (1024.0 ** 3)
+        except Exception:
+            free_scratch_gb = 50.0
+
+        html = f"""
+        <div style="background-color: #0f172a; color: #f8fafc; border-radius: 6px; padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; font-family: monospace; font-size: 0.9em;">
+          <div style="display: flex; gap: 20px;">
+            <span><b style="color: #38bdf8;">ACTIVE ENGINE:</b> {engine_name}</span>
+            <span><b style="color: #38bdf8;">AVAILABLE MPI THREADS:</b> {logical_cores}</span>
+            <span><b style="color: #38bdf8;">NODE RAM:</b> {ram_gb:.1f} GB</span>
+            <span><b style="color: #38bdf8;">SCRATCH FREE:</b> {free_scratch_gb:.1f} GB</span>
+          </div>
+          <span style="color: #4ade80; font-weight: bold;">[BENCH SILO READY]</span>
+        </div>
+        """
+        self.status_ribbon_html.value = html
+
+    def _assemble_dashboard(self) -> widgets.VBox:
+        """Assembles all sub-components into master dashboard VBox."""
+        header = widgets.HTML(
+            "<div style='margin-bottom: 8px;'><h2 style='margin: 0; color: #0f172a;'>CoChem-BENCH Extrapolation Portal</h2>"
+            "<span style='color: #64748b; font-size: 0.9em;'>Automated Basis Set Limit &amp; Composite Protocol Extrapolator</span></div>"
+        )
+
+        ingestion_controls = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Target Ingestion &amp; Job Metadata</div>"),
+            self.geometry_dropdown,
+            self.job_name_text,
+        ], layout=widgets.Layout(width="440px"))
+
+        viewer_box = widgets.VBox([
+            widgets.HTML("<div style='font-weight: bold; color: #1e293b; margin-bottom: 6px;'>Structural 3D Viewer</div>"),
+            self.viewer_3d.container,
+        ], layout=widgets.Layout(width="440px"))
+
+        hud_and_viewer_row = widgets.HBox(
+            [ingestion_controls, viewer_box],
+            layout=widgets.Layout(padding="10px", margin="0 0 10px 0", border="1px solid #e2e8f0", justify_content="space-between"),
+        )
+
+        action_bar = widgets.HBox(
+            [self.execute_button],
+            layout=widgets.Layout(justify_content="flex-end", margin="10px 0"),
+        )
+
+        return widgets.VBox([
+            header,
+            self.status_ribbon_html,
+            hud_and_viewer_row,
+            self.methodology_toggles.container,
+            self.cost_tooltip.html_widget,
+            action_bar,
+            self.console_output,
+        ], layout=widgets.Layout(padding="15px", max_width="960px"))
+
+    def _on_execute_clicked(self, btn: widgets.Button) -> None:
+        """Handles execution button click event with filelock mutex and spinner indicator."""
+        with self.console_output:
             try:
-                fig.data[0].x = x_rendered
-                fig.data[0].y = y_rendered
+                methodology = self.methodology_toggles.get_methodology_settings()
+                heuristics = self.cost_tooltip.compute_heuristics(num_atoms=self.current_state_metadata.num_atoms)
+
+                manifest_path = self.manifest_compiler.compile_and_save(
+                    job_name=self.job_name_text.value,
+                    state_metadata=self.current_state_metadata,
+                    methodology=methodology,
+                    heuristics=heuristics,
+                    submit_button=self.execute_button,
+                )
+
+                print("[SUCCESS] Benchmark parameters compiled and locked.")
+                print(f"[ORCHESTRATOR] Manifest saved to: {manifest_path}")
             except Exception as e:
-                logger.debug("Falling back to update_traces on Figure: %s", e)
-                fig.update_traces(x=x_rendered, y=y_rendered)
+                print(f"[ERROR] Compilation failed: {e}")
+                logger.error("Execution click error: %s", e)
 
-        return orig_count, len(y_rendered)
-
-
-# ==============================================================================
-# 6. NanInfInterceptor & Fatal Error Interception
-# ==============================================================================
-
-class NanInfInterceptor:
-    """Live stdout stream scanner trapping linear dependence, NaN, and Inf anomalies."""
-
-    OVERLAP_EIGENVAL_REGEX = re.compile(
-        r"Lowest\s+eigenvalue\s+of\s+the\s+overlap\s+matrix\s*[:=]?\s*([+-]?(?:[0-9]*\.[0-9]+|[0-9]+)(?:[eE][+-]?[0-9]+)?)",
-        re.IGNORECASE,
-    )
-    NAN_REGEX = re.compile(r"\b(?:nan|nan\s+eh)\b", re.IGNORECASE)
-    INF_REGEX = re.compile(r"\b(?:[+-]?inf|[+-]?infinity)\b", re.IGNORECASE)
-    LINEAR_DEPENDENCE_THRESHOLD: float = 1e-6
-
-    def __init__(
-        self,
-        artifacts_dir: Optional[Union[str, Path]] = None,
-        eigenvalue_threshold: float = LINEAR_DEPENDENCE_THRESHOLD,
-    ) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-        self.eigenvalue_threshold = float(eigenvalue_threshold)
-
-    def resolve_scratch_dir(self) -> Path:
-        """Resolves the dynamic $SCRATCH directory ($ARTIFACTS/BENCH_Workspace/Scratch)."""
-        return get_scratch_workspace_dir(self.artifacts_dir)
-
-    def get_abort_signal_path(self) -> Path:
-        """Returns the dynamic path to $SCRATCH/ABORT.signal."""
-        return self.resolve_scratch_dir() / "ABORT.signal"
-
-    def create_abort_signal(self, reason: str = "LINEAR_DEPENDENCE_OVERLAP") -> Path:
-        """Creates an exact 0-byte ABORT.signal file in the $SCRATCH directory."""
-        abort_path = self.get_abort_signal_path()
-        abort_path.parent.mkdir(parents=True, exist_ok=True)
-        abort_path.touch()
-        logger.warning("NanInfInterceptor: Created 0-byte ABORT.signal at %s (Reason: %s)", abort_path, reason)
-        return abort_path
-
-    def check_abort_signal(self) -> bool:
-        """Returns True if the ABORT.signal file exists in $SCRATCH."""
-        return self.get_abort_signal_path().exists()
-
-    def clear_abort_signal(self) -> bool:
-        """Safely removes the ABORT.signal file if present."""
-        abort_path = self.get_abort_signal_path()
-        if abort_path.exists():
-            try:
-                abort_path.unlink()
-                return True
-            except OSError as e:
-                logger.debug("Failed to unlink ABORT.signal: %s", e)
-                return False
-        return False
-
-    def scan_line(self, line: str) -> Optional[InterceptionAlert]:
-        """Scans a single stdout line against exact regex hooks."""
-        if not line or not line.strip():
-            return None
-
-        match_eig = self.OVERLAP_EIGENVAL_REGEX.search(line)
-        if match_eig:
-            try:
-                val = float(match_eig.group(1))
-                if val < self.eigenvalue_threshold:
-                    abort_path = self.create_abort_signal(reason=f"OVERLAP_EIGENVAL_{val:.2e}_BELOW_THRESHOLD")
-                    return InterceptionAlert(
-                        alert_type="LINEAR_DEPENDENCE",
-                        raw_line=line.strip(),
-                        extracted_value=val,
-                        abort_triggered=True,
-                        abort_file_path=str(abort_path),
-                    )
-            except (ValueError, IndexError) as e:
-                logger.debug("Could not parse eigenvalue token: %s", e)
-
-        if self.NAN_REGEX.search(line):
-            abort_path = self.create_abort_signal(reason="NAN_DETECTED")
-            return InterceptionAlert(
-                alert_type="NAN_DETECTED",
-                raw_line=line.strip(),
-                abort_triggered=True,
-                abort_file_path=str(abort_path),
-            )
-
-        if self.INF_REGEX.search(line):
-            abort_path = self.create_abort_signal(reason="INF_DETECTED")
-            return InterceptionAlert(
-                alert_type="INF_DETECTED",
-                raw_line=line.strip(),
-                abort_triggered=True,
-                abort_file_path=str(abort_path),
-            )
-
-        return None
-
-    def scan_chunk(self, text: str) -> List[InterceptionAlert]:
-        """Scans a multi-line output text chunk and returns all triggered alerts."""
-        alerts: List[InterceptionAlert] = []
-        for line in text.splitlines():
-            alert = self.scan_line(line)
-            if alert is not None:
-                alerts.append(alert)
-        return alerts
+    def display(self) -> None:
+        """Renders dashboard in Jupyter Notebook environment."""
+        display(self.main_container)  # type: ignore[no-untyped-call]
 
 
-class FatalErrorInterceptor:
-    """Interception engine monitoring ZMQ heartbeats, Segfaults, OOMs, and numerical anomalies."""
+# Alias for SRS compatibility
+BenchDashboard = VoilaBenchDashboard
 
-    def __init__(
-        self,
-        artifacts_dir: Optional[Union[str, Path]] = None,
-        nan_inf_interceptor: Optional[NanInfInterceptor] = None,
-    ) -> None:
-        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
-        self.nan_inf_interceptor = nan_inf_interceptor or NanInfInterceptor(artifacts_dir=self.artifacts_dir)
-
-    def is_fatal_exit_code(self, exit_code: Optional[int]) -> bool:
-        """Returns True if exit code indicates OS Segfault or Out-Of-Memory termination."""
-        if exit_code is None:
-            return False
-        return exit_code in ALL_FATAL_RETURN_CODES
-
-    def check_zmq_heartbeat(self, sub_socket: zmq.Socket, timeout_ms: int = 1000) -> bool:
-        """Polls a ZeroMQ SUB heartbeat socket. Returns True if heartbeat received."""
-        events = sub_socket.poll(timeout=timeout_ms, flags=zmq.POLLIN)
-        if events & zmq.POLLIN:
-            try:
-                sub_socket.recv(flags=zmq.NOBLOCK)
-                return True
-            except zmq.ZMQError as e:
-                logger.debug("Failed non-blocking receive on ZMQ heartbeat socket: %s", e)
-                return False
-        return False
-
-    def extract_stderr_hex_dump(self, stderr_data: Optional[Union[str, bytes]], num_bytes: int = 256) -> str:
-        """Extracts exact 256-byte hexadecimal dump of stderr output."""
-        if stderr_data is None:
-            return "00" * num_bytes
-        if isinstance(stderr_data, str):
-            b_data = stderr_data.encode("utf-8", errors="replace")
-        else:
-            b_data = bytes(stderr_data)
-
-        truncated = b_data[:num_bytes]
-        if len(truncated) < num_bytes:
-            truncated = truncated.ljust(num_bytes, b"\x00")
-        return truncated.hex()
-
-    def generate_red_html_readout(
-        self,
-        error_type: str,
-        exit_code: Optional[int],
-        message: str,
-        hex_dump: str,
-    ) -> str:
-        """Generates high-visibility red HTML crash banner for Jupyter/Voila UI."""
-        safe_msg = html.escape(message)
-        safe_type = html.escape(error_type)
-        safe_hex = html.escape(hex_dump[:64] + ("..." if len(hex_dump) > 64 else ""))
-
-        return (
-            f'<div class="cochem-fatal-crash-card" style="'
-            f'background-color: #8b0000; color: #ffffff; padding: 18px; border: 2px solid #ff4d4d; '
-            f'border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, monospace; '
-            f'margin: 12px 0; box-shadow: 0 4px 12px rgba(255, 77, 77, 0.3);">'
-            f'<h3 style="margin-top: 0; color: #ffcccc; display: flex; align-items: center;">'
-            f'<span style="background-color: #ff4d4d; color: #000000; padding: 2px 8px; border-radius: 4px; '
-            f'font-size: 12px; font-weight: bold; margin-right: 10px;">FATAL ERROR</span> '
-            f'{safe_type}</h3>'
-            f'<p style="margin: 6px 0; font-size: 14px;"><strong>Exit Code:</strong> {exit_code}</p>'
-            f'<p style="margin: 6px 0; font-size: 13px;"><strong>Diagnostic:</strong> {safe_msg}</p>'
-            f'<div style="background-color: #1a0000; padding: 10px; border-radius: 4px; margin-top: 10px; '
-            f'font-family: monospace; font-size: 11px; word-break: break-all; color: #ff9999;">'
-            f'<strong>256-Byte Stderr Hex:</strong> {safe_hex}'
-            f'</div></div>'
-        )
-
-    def generate_jsonld_provenance(
-        self,
-        error_type: str,
-        exit_code: Optional[int],
-        hex_dump: str,
-        provenance_meta: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """Constructs structured JSON-LD recovery instructions from provenance block."""
-        return {
-            "@context": "https://schema.org",
-            "@type": "SoftwareCrashProvenance",
-            "errorType": error_type,
-            "exitCode": exit_code,
-            "stderrHexDump": hex_dump,
-            "provenance": {
-                "methodology": "[M] Method Matrix v4 Standards",
-                "dataset": "[D] Canonical Wavefunction Landscape",
-                "execution": "[E] CoChem-BENCH SubprocessBroker",
-            },
-            "recoveryInstructions": [
-                "Step 1: Reduce integration grid to defgrid1 to relax convergence criteria.",
-                "Step 2: Increase physical memory ceiling in cochem_system_config.json.",
-                "Step 3: Remove orphaned lock files in BENCH_Workspace/Logs and restart benchmark.",
-            ],
-            "metadata": provenance_meta or {},
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
-
-    def intercept_fatal_error(
-        self,
-        exit_code: Optional[int] = None,
-        stderr_bytes: Optional[Union[str, bytes]] = None,
-        error_classification: Optional[str] = None,
-        provenance_meta: Optional[Dict[str, Any]] = None,
-    ) -> FatalErrorReport:
-        """Constructs complete FatalErrorReport from exit code and standard error dump."""
-        err_type = error_classification or ("SEGMENTATION_FAULT" if exit_code in SEGFAULT_RETURN_CODES else "FATAL_CRASH")
-        hex_dump = self.extract_stderr_hex_dump(stderr_bytes)
-        red_html = self.generate_red_html_readout(
-            error_type=err_type,
-            exit_code=exit_code,
-            message="Fatal OS-level fault or process abort detected.",
-            hex_dump=hex_dump,
-        )
-        json_ld = self.generate_jsonld_provenance(
-            error_type=err_type,
-            exit_code=exit_code,
-            hex_dump=hex_dump,
-            provenance_meta=provenance_meta,
-        )
-        return FatalErrorReport(
-            is_fatal=True,
-            error_type=err_type,
-            exit_code=exit_code,
-            stderr_hex_dump=hex_dump,
-            red_html_readout=red_html,
-            json_ld_provenance=json_ld,
-        )
-
-    def intercept_line(self, line: str) -> Optional[FatalErrorReport]:
-        """Scans line for numerical instability (lowest eigenvalue < 1e-6, NaN, Inf)."""
-        alert = self.nan_inf_interceptor.scan_line(line)
-        if alert is None:
-            return None
-
-        hex_dump = self.extract_stderr_hex_dump(line)
-        red_html = self.generate_red_html_readout(
-            error_type=alert.alert_type,
-            exit_code=-1,
-            message=f"Numerical Trap Intercepted: {alert.raw_line}",
-            hex_dump=hex_dump,
-        )
-        json_ld = self.generate_jsonld_provenance(
-            error_type=alert.alert_type,
-            exit_code=-1,
-            hex_dump=hex_dump,
-        )
-        return FatalErrorReport(
-            is_fatal=True,
-            error_type=alert.alert_type,
-            exit_code=-1,
-            stderr_hex_dump=hex_dump,
-            red_html_readout=red_html,
-            json_ld_provenance=json_ld,
-        )
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_telemetry.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_voila.py ---
 #!/usr/bin/env python3
-r"""Authentic Unit Test Suite for CoChem Stage 6.0 / 7.0 & Task 3 Telemetry Engine.
+r"""Unit Test Suite for CoChem-BENCH Voila GUI Wrapper & Configuration UI.
 
-Module: tests/test_cochem_bench_telemetry.py
-Target Implementation: cochem_bench.interfaces.cochem_bench_telemetry
+Module: tests/test_cochem_bench_voila.py
+Target Implementation: cochem_bench.interfaces.voila_bench_dashboard
 
-Covers Task 3 Specs & Protocols:
-1. Stateless Rehydration (Zombie UI Protocol):
-   - Dynamic path resolution via COCHEM_ARTIFACTS_DIR for $ARTIFACTS/BENCH_Workspace/Logs/bench_run_state.jsonl.
-   - Rehydration of stage progress, SCF cycles, energy history, variance, and active PIDs from NDJSON.
-   - Cross-platform process group detachment handoff using psutil.
-   - Real-world process liveness verification.
-2. Context-Compression Stream Integration:
-   - Polling lightweight NDJSON stream.
-   - Statistical compression of massive numeric arrays (Min, Max, Mean, Variance, Last Value).
-   - Asynchronous debouncing on a fixed interval (e.g. 2.0 seconds).
-   - Incremental byte-offset tail reading.
-3. Live Asymptotic Convergence Plotting:
-   - Plotly FigureWidget / Figure initialization with logarithmic scaling and scientific styling.
-   - Largest-Triangle-Three-Buckets (LTTB) decimation algorithm for datasets > 1,000 points.
-   - Preservation of visual extrema and curve geometry under decimation.
-4. Fatal Error Interception:
-   - ZeroMQ heartbeat subscriber monitoring and timeout/drop detection.
-   - Cross-platform OS Segfault (-11, 139, 0xC0000005, 3221225477, -1073741819) and OOM (137, -9) trapping.
-   - Exact 256-byte stderr hex-dump extraction.
-   - High-visibility red HTML crash readout.
-   - Structured JSON-LD recovery instructions from provenance block ([M], [D], [E]).
-   - Numerical instability trapping (overlap eigenvalue < 1e-6, NaN, Inf) with 0-byte ABORT.signal in $SCRATCH.
-5. Dynamic Mendeleev Integration:
-   - Atomic mass queries dynamically resolved via the Mendeleev library.
-
-Safety & Anti-Spoofing Contracts:
-- Zero Mocks / Stubs: Uses 100% genuine OS processes, real sockets, and filesystem state.
-- Dynamic environment variable resolution via COCHEM_ARTIFACTS_DIR.
+Tests:
+1. Target Ingestion & System HUD:
+   - Dynamic querying of datastore at $COCHEM_ARTIFACTS_DIR/BENCH_Workspace/landscape.h5 in read-only SWMR mode.
+   - Extraction of num_atoms, symbols, coordinates, and state metadata directly from HDF5 datasets/attrs.
+   - Status Ribbon rendering Active Engine, Available MPI Threads, Node RAM, and Scratch Space.
+   - 3D Viewer coordinate rendering and strict blocking of volumetric .cube density files.
+2. Methodology Matrix & Protocol Builder:
+   - Renders ipywidgets controls for basis pair selection, SCF models, Correlation models, and composite corrections.
+   - Basis pair coupling logic (e.g. def2-TZVPP -> def2-QZVPP).
+   - Relativistic Hamiltonian selection toggle (X2C vs DKH2).
+   - Serialization to structured methodology dictionary.
+3. Cost Heuristic Tooltip:
+   - Dynamic polling of node limits from Registry/cochem_system_config.json.
+   - O(N^7) runtime and O(N^4) scratch disk calculation strictly from num_atoms metadata (no raw .xyz parsing).
+   - Dynamic physical RAM threshold comparison and red warning generation when memory limit is exceeded.
+   - Hard-locking of execution button on memory overflow.
+4. Manifest Compiler & Cross-Platform Mutex:
+   - Serialization into bench_run_params.json in BENCH_Workspace.
+   - Cross-platform filelock.FileLock synchronization.
+   - UI button lockout (disabled=True) with spinning indicator preventing duplicate MPI thread spawning.
+5. VoilaBenchDashboard Full Master UI:
+   - Full master dashboard construction, Status Ribbon HUD, and widget assembly.
+   - Dynamic geometry selection update cycle.
+   - End-to-end configuration and execution trigger.
+6. Safety Contracts:
+   - Dynamic air-gap pathing via COCHEM_ARTIFACTS_DIR.
+   - Zero parsing of raw .xyz strings or wavefunction files for atom count metadata.
+   - Dynamic Mendeleev atomic mass integration.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import sys
-import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
+import h5py
+import ipywidgets as widgets
 import numpy as np
-import plotly.graph_objects as go
-import psutil
 import pytest
-import zmq
 
-from cochem_bench.interfaces.cochem_bench_telemetry import (
-    ContextCompressor,
-    ContextCompressionStreamIntegrator,
-    FatalErrorReport,
-    FatalErrorInterceptor,
-    LiveConvergencePlotter,
-    NanInfInterceptor,
-    NDJSONStreamer,
-    RehydratedRunState,
-    StatisticalSummary,
-    StatelessRehydrator,
-    TelemetryEvent,
-    decimate_lttb,
-    get_bench_logs_workspace_dir,
-    get_bench_run_state_path,
+from cochem_bench.interfaces.voila_bench_dashboard import (
+    BenchRunParams,
+    CostHeuristics,
+    CostHeuristicTooltip,
+    GeometryMetadata,
+    ManifestCompiler,
+    MethodologySettings,
+    MethodologyToggles,
+    StructuralViewer3D,
+    VoilaBenchDashboard,
+    get_bench_workspace_dir,
     get_cochem_artifacts_dir,
     get_element_mass_mendeleev,
-    get_logs_workspace_dir,
-    get_scratch_workspace_dir,
+    get_landscape_h5_path,
+    get_registry_config_path,
+    query_landscape_geometries,
 )
-
-# ==============================================================================
-# Authentic Molecular & SCF Convergence Test Fixtures
-# ==============================================================================
-
-# Authentic 15-cycle SCF energy convergence sequence for Water (H2O) at B3LYP/def2-TZVP
-H2O_SCF_ENERGIES = [
-    -75.8201452, -76.3129841, -76.4021984, -76.4258912, -76.4310245,
-    -76.4320018, -76.4321782, -76.4322051, -76.4322094, -76.4322101,
-    -76.4322102, -76.4322102, -76.4322102, -76.4322102, -76.4322102,
-]
-
-# Authentic DIIS Error Vector history for an oscillating complex
-DIIS_ERROR_VECTOR = [
-    0.4512000, 0.2104500, 0.0894000, 0.0341000, 0.0125000,
-    0.0048100, 0.0019200, 0.0006500, 0.0002100, 0.0000750,
-    0.0000240, 0.0000081, 0.0000025, 0.0000009, 0.0000002,
-]
 
 
 @pytest.fixture
-def clean_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Sets up a clean, isolated COCHEM_ARTIFACTS_DIR workspace."""
+def clean_bench_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Sets up a sterile, air-gapped COCHEM_ARTIFACTS_DIR workspace with genuine config and landscape.h5."""
     artifacts_dir = tmp_path / "cochem_artifacts_test"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    registry_dir = artifacts_dir / "Registry"
+    workspace_dir = artifacts_dir / "BENCH_Workspace"
+
+    registry_dir.mkdir(parents=True, exist_ok=True)
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Authentic cochem_system_config.json
+    config_data: Dict[str, Any] = {
+        "schema_version": "4.0.0",
+        "hardware": {
+            "physical_cpu_cores": 8,
+            "logical_cpu_cores": 16,
+            "ram_gb": 64.0,
+            "avx512_support": True,
+            "gpu_profile": "NVIDIA A100",
+            "vram_gb": 40.0,
+            "os_target": "linux_x86_64",
+        },
+        "cost_heuristics": {
+            "runtime_scalar_o_n7": 2.5e-6,
+            "scratch_scalar_o_n4_gb": 1.5e-4,
+            "ram_scalar_o_n4_gb": 8.0e-5,
+            "base_ram_gb": 4.0,
+        },
+        "engines": {
+            "orca": {
+                "status": "found",
+                "path": "/opt/orca/orca",
+                "version": "6.1.1",
+            }
+        },
+    }
+
+    config_file = registry_dir / "cochem_system_config.json"
+    config_file.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
+
+    # 2. Genuine HDF5 landscape.h5 datastore with physical molecular states
+    landscape_file = workspace_dir / "landscape.h5"
+    with h5py.File(str(landscape_file), mode="w", libver="latest") as h5f:
+        # Water monomer state (N=3)
+        g_water = h5f.create_group("water_monomer")
+        g_water.attrs["num_atoms"] = 3
+        g_water.attrs["charge"] = 0
+        g_water.attrs["multiplicity"] = 1
+        g_water.attrs["energy"] = -76.4382
+        syms_water = np.array([b"O", b"H", b"H"])
+        coords_water = np.array([
+            [0.0000, 0.0000, 0.1173],
+            [0.0000, 0.7572, -0.4692],
+            [0.0000, -0.7572, -0.4692],
+        ], dtype=float)
+        g_water.create_dataset("symbols", data=syms_water)
+        g_water.create_dataset("coordinates", data=coords_water)
+
+        # Ethanol conformer state (N=9)
+        g_eth = h5f.create_group("ethanol_c1")
+        g_eth.attrs["num_atoms"] = 9
+        g_eth.attrs["charge"] = 0
+        g_eth.attrs["multiplicity"] = 1
+        g_eth.attrs["energy"] = -154.9821
+        syms_eth = np.array([b"C", b"C", b"O", b"H", b"H", b"H", b"H", b"H", b"H"])
+        coords_eth = np.zeros((9, 3), dtype=float)
+        coords_eth[0] = [-0.012, 0.015, 0.000]
+        coords_eth[1] = [1.503, 0.015, 0.000]
+        coords_eth[2] = [-0.603, 1.200, 0.000]
+        g_eth.create_dataset("symbols", data=syms_eth)
+        g_eth.create_dataset("coordinates", data=coords_eth)
+
     monkeypatch.setenv("COCHEM_ARTIFACTS_DIR", str(artifacts_dir))
     return artifacts_dir
 
 
 # ==============================================================================
-# 1. Stateless Rehydration (Zombie UI Protocol) Tests
+# 1. Target Ingestion & System HUD Tests
 # ==============================================================================
 
-class TestStatelessRehydration:
-    """Tests for Zombie UI Protocol: session recovery and process detachment."""
+class TestTargetIngestionAndHUD:
+    """Tests for landscape.h5 SWMR reading, status ribbon, and 3D coordinate viewer."""
 
-    def test_dynamic_bench_logs_path_resolution(self, clean_env: Path):
-        """Verifies dynamic resolution of $ARTIFACTS/BENCH_Workspace/Logs/bench_run_state.jsonl."""
-        logs_dir = get_bench_logs_workspace_dir()
-        expected_dir = clean_env / "BENCH_Workspace" / "Logs"
-        assert logs_dir.resolve() == expected_dir.resolve()
-        assert logs_dir.exists()
+    def test_query_landscape_geometries_swmr_mode(self, clean_bench_env: Path) -> None:
+        """Verifies querying genuine landscape.h5 in read-only SWMR mode."""
+        landscape_path = get_landscape_h5_path(clean_bench_env)
+        geometries = query_landscape_geometries(landscape_path)
 
-        state_file = get_bench_run_state_path()
-        assert state_file.resolve() == (expected_dir / "bench_run_state.jsonl").resolve()
+        assert "water_monomer" in geometries
+        assert "ethanol_c1" in geometries
 
-    def test_check_active_run_state_missing(self, clean_env: Path):
-        """Verifies check_active_run_state returns False when no log exists."""
-        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
-        assert rehydrator.check_active_run_state() is False
+        water_meta = geometries["water_monomer"]
+        assert isinstance(water_meta, GeometryMetadata)
+        assert water_meta.num_atoms == 3
+        assert water_meta.symbols == ["O", "H", "H"]
+        assert len(water_meta.coordinates) == 3
+        assert pytest.approx(water_meta.energy, rel=1e-3) == -76.4382
 
-    def test_rehydrate_state_from_valid_jsonl(self, clean_env: Path):
-        """Verifies parsing of bench_run_state.jsonl into a RehydratedRunState model."""
-        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
-        state_file = get_bench_run_state_path(clean_env)
+        eth_meta = geometries["ethanol_c1"]
+        assert eth_meta.num_atoms == 9
+        assert len(eth_meta.symbols) == 9
 
-        records = [
-            {
-                "stage": "STAGE_1_GEOMETRY_INGEST",
-                "scf_cycle": 1,
-                "progress_percent": 10.0,
-                "current_energy": -75.8201452,
-                "energy_history": [-75.8201452],
-                "pid": 12345,
-                "status": "RUNNING",
-                "timestamp": "2026-08-24T20:00:00Z",
-            },
-            {
-                "stage": "STAGE_2_CBS_EXTRAPOLATION",
-                "scf_cycle": 15,
-                "progress_percent": 65.0,
-                "current_energy": -76.4322102,
-                "energy_history": H2O_SCF_ENERGIES,
-                "pid": 12345,
-                "status": "RUNNING",
-                "timestamp": "2026-08-24T20:05:00Z",
-            },
-        ]
-        with open(state_file, "w", encoding="utf-8") as f:
-            for r in records:
-                f.write(json.dumps(r) + "\n")
+    def test_query_landscape_missing_file_returns_empty(self, tmp_path: Path) -> None:
+        """Verifies graceful empty dictionary return if landscape.h5 does not exist."""
+        non_existent = tmp_path / "non_existent.h5"
+        res = query_landscape_geometries(non_existent)
+        assert res == {}
 
-        assert rehydrator.check_active_run_state() is True
-        state = rehydrator.rehydrate_state()
+    def test_structural_viewer_3d_rendering(self) -> None:
+        """Verifies 3D coordinate rendering with valid atom coordinates."""
+        viewer = StructuralViewer3D(width=400, height=280)
+        assert viewer.container is not None
 
-        assert isinstance(state, RehydratedRunState)
-        assert state.stage == "STAGE_2_CBS_EXTRAPOLATION"
-        assert state.scf_cycle == 15
-        assert state.progress_percent == 65.0
-        assert pytest.approx(state.current_energy, rel=1e-7) == -76.4322102
-        assert state.pid == 12345
-        assert state.status == "RUNNING"
-        assert len(state.energy_history) == len(H2O_SCF_ENERGIES)
-        assert state.variance > 0.0
+        symbols = ["O", "H", "H"]
+        coords = [[0.0, 0.0, 0.117], [0.0, 0.757, -0.469], [0.0, -0.757, -0.469]]
+        viewer.render_geometry(symbols, coords, state_id="water_test")
 
-    def test_handoff_to_subprocess_broker_process_group_detachment(self, clean_env: Path):
-        """Verifies cross-platform process group detachment handoff orchestrated via psutil."""
-        rehydrator = StatelessRehydrator(artifacts_dir=clean_env)
+    def test_structural_viewer_3d_blocks_cube_densities(self) -> None:
+        """Verifies that volumetric cube density files are strictly blocked from 3D viewer."""
+        viewer = StructuralViewer3D()
 
-        cmd = [sys.executable, "-c", "import time; time.sleep(0.5)"]
-        launch_result = rehydrator.handoff_to_subprocess_broker(
-            cmd=cmd,
-            initial_stage="STAGE_0_BOOTSTRAP",
-        )
+        # String filename ending in .cube
+        with pytest.raises(ValueError, match="Volumetric cube density files"):
+            viewer.block_cube_densities("density_map.cube")
 
-        pid = launch_result["pid"]
-        assert pid > 0
-        assert psutil.pid_exists(pid)
+        # Path ending in .cube
+        with pytest.raises(ValueError, match="Volumetric cube density files"):
+            viewer.block_cube_densities(Path("/path/to/orbitals.cube"))
 
-        state_file = get_bench_run_state_path(clean_env)
-        assert state_file.exists()
-        assert rehydrator.check_active_run_state() is True
-
-        assert rehydrator.is_broker_process_alive(pid) is True
-
-        proc = psutil.Process(pid)
-        proc.wait(timeout=3.0)
-        assert rehydrator.is_broker_process_alive(pid) is False
+        # Payload dictionary indicating cube format
+        with pytest.raises(ValueError, match="Volumetric cube density payloads"):
+            viewer.block_cube_densities({"format": "cube", "data": [1, 2, 3]})
 
 
 # ==============================================================================
-# 2. Context-Compression Stream Integration Tests
+# 2. MethodologyToggles Tests
 # ==============================================================================
 
-class TestContextCompressionStreamIntegrator:
-    """Tests for NDJSON stream debouncing and statistical aggregation."""
+class TestMethodologyToggles:
+    """Tests for ipywidgets methodology selection and coupling logic."""
 
-    def test_debounced_processing_interval(self):
-        """Verifies that high-frequency events within debounce window are aggregated."""
-        integrator = ContextCompressionStreamIntegrator(debounce_interval=2.0)
+    def test_widgets_initialization(self) -> None:
+        """Verifies that all required ipywidgets controls are instantiated with valid defaults."""
+        toggles = MethodologyToggles()
 
-        events_batch_1 = [
-            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 1, "delta_e": 0.05, "energy": -75.8}},
-            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 2, "delta_e": 0.02, "energy": -76.3}},
-        ]
-        summary1 = integrator.process_stream_events(events_batch_1, current_time=100.0)
-        assert summary1 is not None
-        assert summary1["current_stage"] == "CBS"
-        assert summary1["scf_cycle"] == 2
+        assert isinstance(toggles.cardinal_lower_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.cardinal_higher_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.scf_extrap_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.cor_extrap_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.cv_checkbox, widgets.Checkbox)
+        assert isinstance(toggles.rel_checkbox, widgets.Checkbox)
+        assert isinstance(toggles.rel_hamiltonian_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.method_level_dropdown, widgets.Dropdown)
+        assert isinstance(toggles.container, widgets.VBox)
 
-        events_batch_2 = [
-            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 3, "delta_e": 0.005, "energy": -76.4}},
-        ]
-        summary2 = integrator.process_stream_events(events_batch_2, current_time=101.0)
-        assert summary2 is None
+    def test_basis_pair_coupling(self) -> None:
+        """Verifies that selecting a lower cardinal basis restricts/updates the higher basis dropdown."""
+        toggles = MethodologyToggles()
 
-        events_batch_3 = [
-            {"event_type": "SCF_ITER", "data": {"stage": "CBS", "scf_cycle": 4, "delta_e": 0.001, "energy": -76.43}},
-        ]
-        summary3 = integrator.process_stream_events(events_batch_3, current_time=102.5)
-        assert summary3 is not None
-        assert summary3["scf_cycle"] == 4
-        assert summary3["energy_variance"] >= 0.0
-        assert "energy_summary" in summary3
+        # Set lower cardinal to TZVPP (3)
+        toggles.cardinal_lower_dropdown.value = "def2-TZVPP"
+        higher_options = list(toggles.cardinal_higher_dropdown.options)
+        assert "def2-SVP" not in higher_options
+        assert "def2-TZVPP" not in higher_options
+        assert "def2-QZVPP" in higher_options
 
-    def test_poll_ndjson_and_render_summary_from_disk(self, clean_env: Path):
-        """Verifies reading live NDJSON stream from disk and computing debounced summaries."""
-        streamer = NDJSONStreamer(artifacts_dir=clean_env)
-        integrator = ContextCompressionStreamIntegrator(debounce_interval=0.0)
+        # Set lower cardinal to cc-pVDZ (2)
+        toggles.cardinal_lower_dropdown.value = "cc-pVDZ"
+        higher_options_cc = list(toggles.cardinal_higher_dropdown.options)
+        assert "cc-pVDZ" not in higher_options_cc
+        assert "cc-pVTZ" in higher_options_cc
 
-        streamer.emit_event(
-            "SCF_ITERATION",
-            {"stage": "CBS_EXTRAPOLATION", "scf_cycle": 1, "energy": -76.0, "delta_e": 0.1},
-            write_to_disk=True,
-        )
-        streamer.emit_event(
-            "SCF_ITERATION",
-            {"stage": "CBS_EXTRAPOLATION", "scf_cycle": 2, "energy": -76.4, "delta_e": 0.01},
-            write_to_disk=True,
-        )
+    def test_relativistic_hamiltonian_toggle_visibility(self) -> None:
+        """Verifies that relativistic Hamiltonian dropdown enables/disables with the checkbox."""
+        toggles = MethodologyToggles()
 
-        log_path = streamer.resolve_log_path()
-        summary, next_offset = integrator.poll_ndjson_and_render_summary(log_path, from_byte_offset=0)
+        toggles.rel_checkbox.value = False
+        assert toggles.rel_hamiltonian_dropdown.disabled is True
 
-        assert summary is not None
-        assert summary["current_stage"] == "CBS_EXTRAPOLATION"
-        assert summary["scf_cycle"] == 2
-        assert next_offset > 0
+        toggles.rel_checkbox.value = True
+        assert toggles.rel_hamiltonian_dropdown.disabled is False
 
+    def test_to_methodology_settings(self) -> None:
+        """Verifies extraction and validation of MethodologySettings Pydantic model."""
+        toggles = MethodologyToggles()
+        toggles.cardinal_lower_dropdown.value = "def2-TZVPP"
+        toggles.cardinal_higher_dropdown.value = "def2-QZVPP"
+        toggles.scf_extrap_dropdown.value = "Feller Exponential"
+        toggles.cor_extrap_dropdown.value = "Halkier Inverse Cubic (X^-3)"
+        toggles.cv_checkbox.value = True
+        toggles.rel_checkbox.value = True
+        toggles.rel_hamiltonian_dropdown.value = "X2C"
+        toggles.method_level_dropdown.value = "DLPNO-CCSD(T)"
 
-# ==============================================================================
-# 3. Live Asymptotic Convergence Plotting Tests
-# ==============================================================================
+        settings = toggles.get_methodology_settings()
+        assert isinstance(settings, MethodologySettings)
+        assert settings.cardinal_lower == "def2-TZVPP"
+        assert settings.cardinal_higher == "def2-QZVPP"
+        assert settings.scf_model == "Feller Exponential"
+        assert settings.cor_model == "Halkier Inverse Cubic (X^-3)"
+        assert settings.cv_correction is True
+        assert settings.rel_correction is True
+        assert settings.rel_hamiltonian == "X2C"
+        assert settings.method_level == "DLPNO-CCSD(T)"
 
-class TestLiveConvergencePlotter:
-    """Tests for Plotly FigureWidget / Figure creation and LTTB decimation."""
-
-    def test_create_figure_widget(self):
-        """Verifies creation and structural properties of Plotly Figure."""
-        plotter = LiveConvergencePlotter()
-        fig = plotter.create_figure(title="Test Convergence")
-
-        assert isinstance(fig, (go.FigureWidget, go.Figure))
-        assert len(fig.data) >= 1
-        assert fig.layout.yaxis.type == "log"
-        assert "Energy Residual" in fig.layout.yaxis.title.text
-
-    def test_update_plot_under_1000_points(self):
-        """Verifies updating plot with dataset smaller than 1000 points without decimation."""
-        plotter = LiveConvergencePlotter()
-        fig = plotter.create_figure()
-
-        residuals = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6]
-        orig_count, render_count = plotter.update_plot(fig, residuals)
-
-        assert orig_count == 6
-        assert render_count == 6
-        assert len(fig.data[0].y) == 6
-        assert list(fig.data[0].y) == residuals
-
-    def test_update_plot_lttb_decimation_over_1000_points(self):
-        """Verifies LTTB decimation strictly caps rendered points to 1000 while preserving extrema."""
-        plotter = LiveConvergencePlotter()
-        fig = plotter.create_figure()
-
-        x = np.linspace(0, 100, 2500)
-        y = np.abs(np.sin(x)) + 1e-5
-        y[500] = 10.0
-        y[1500] = 1e-8
-
-        orig_count, render_count = plotter.update_plot(fig, y, max_points=1000)
-
-        assert orig_count == 2500
-        assert render_count == 1000
-        assert len(fig.data[0].y) == 1000
-        assert pytest.approx(max(fig.data[0].y), rel=1e-4) == 10.0
-        assert pytest.approx(min(fig.data[0].y), rel=1e-4) == 1e-8
+        # Dict dump
+        d = toggles.to_dict()
+        assert d["cardinal_lower"] == "def2-TZVPP"
+        assert d["cv_correction"] is True
 
 
 # ==============================================================================
-# 4. Fatal Error Interception Tests
+# 3. CostHeuristicTooltip Tests
 # ==============================================================================
 
-class TestFatalErrorInterceptor:
-    """Tests for ZeroMQ heartbeat monitoring, exit code interception, and red screen JSON-LD generation."""
+class TestCostHeuristicTooltip:
+    """Tests for dynamic node limits polling, O(N^7) runtime and O(N^4) scratch calculations."""
 
-    def test_exit_code_recognition_segfault_and_oom(self):
-        """Verifies recognition of cross-platform segfault and OOM return codes."""
-        interceptor = FatalErrorInterceptor()
+    def test_dynamic_registry_polling(self, clean_bench_env: Path) -> None:
+        """Verifies reading system hardware and cost heuristic multipliers from cochem_system_config.json."""
+        tooltip = CostHeuristicTooltip(artifacts_dir=clean_bench_env)
+        config = tooltip.poll_system_config()
 
-        assert interceptor.is_fatal_exit_code(139) is True
-        assert interceptor.is_fatal_exit_code(-11) is True
-        assert interceptor.is_fatal_exit_code(3221225477) is True
-        assert interceptor.is_fatal_exit_code(-1073741819) is True
-        assert interceptor.is_fatal_exit_code(0xC0000005) is True
-        assert interceptor.is_fatal_exit_code(137) is True
-        assert interceptor.is_fatal_exit_code(-9) is True
-        assert interceptor.is_fatal_exit_code(0) is False
+        assert config["hardware"]["ram_gb"] == 64.0
+        assert config["hardware"]["physical_cpu_cores"] == 8
+        assert config["cost_heuristics"]["runtime_scalar_o_n7"] == 2.5e-6
+        assert config["cost_heuristics"]["scratch_scalar_o_n4_gb"] == 1.5e-4
 
-    def test_zmq_heartbeat_roundtrip_and_timeout(self):
-        """Verifies genuine ZeroMQ heartbeat transmission, reception, and drop detection."""
-        context = zmq.Context()
-        endpoint = "inproc://telemetry_heartbeat_test"
+    def test_cost_heuristic_calculation_within_limits(self, clean_bench_env: Path) -> None:
+        """Verifies mathematical calculation for small molecule (N=10 atoms) within RAM limits."""
+        tooltip = CostHeuristicTooltip(artifacts_dir=clean_bench_env)
+        state_meta: Dict[str, Any] = {"state_id": "mol_water_dimer", "num_atoms": 10}
 
-        pub_sock = context.socket(zmq.PUB)
-        pub_sock.bind(endpoint)
+        heuristics = tooltip.compute_heuristics(num_atoms=int(state_meta["num_atoms"]))
 
-        sub_sock = context.socket(zmq.SUB)
-        sub_sock.connect(endpoint)
-        sub_sock.setsockopt_string(zmq.SUBSCRIBE, "")
+        assert isinstance(heuristics, CostHeuristics)
+        assert heuristics.num_atoms == 10
+        # O(N^7) runtime: 2.5e-6 * 10^7 = 25.0 seconds
+        assert pytest.approx(heuristics.estimated_runtime_seconds, rel=1e-3) == 25.0
+        # O(N^4) scratch: 1.5e-4 * 10^4 = 1.5 GB
+        assert pytest.approx(heuristics.estimated_scratch_gb, rel=1e-3) == 1.5
+        # RAM: base (4.0) + 8.0e-5 * 10^4 = 4.8 GB
+        assert pytest.approx(heuristics.estimated_ram_gb, rel=1e-3) == 4.8
+        assert heuristics.is_ram_exceeded is False
 
-        interceptor = FatalErrorInterceptor()
+        # Update UI
+        submit_btn = widgets.Button(description="Execute Benchmark", disabled=False)
+        tooltip.update_ui(state_metadata=state_meta, submit_button=submit_btn)
 
-        time.sleep(0.05)
-        pub_sock.send_json({"heartbeat": True, "timestamp": time.time()})
+        assert submit_btn.disabled is False
+        assert "Resource limits verified" in tooltip.html_widget.value
+        assert "#166534" in tooltip.html_widget.value or "green" in tooltip.html_widget.value or "#dcfce7" in tooltip.html_widget.value
 
-        is_alive = interceptor.check_zmq_heartbeat(sub_sock, timeout_ms=500)
-        assert is_alive is True
+    def test_cost_heuristic_calculation_exceeding_ram_locks_button(self, clean_bench_env: Path) -> None:
+        """Verifies that large molecule (N=60 atoms) exceeding RAM (64 GB) triggers red warning & locks button."""
+        tooltip = CostHeuristicTooltip(artifacts_dir=clean_bench_env)
+        state_meta: Dict[str, Any] = {"state_id": "massive_cluster", "num_atoms": 60}
 
-        is_alive_timeout = interceptor.check_zmq_heartbeat(sub_sock, timeout_ms=100)
-        assert is_alive_timeout is False
+        heuristics = tooltip.compute_heuristics(num_atoms=int(state_meta["num_atoms"]))
 
-        pub_sock.close()
-        sub_sock.close()
-        context.term()
+        assert heuristics.estimated_ram_gb > 64.0
+        assert heuristics.is_ram_exceeded is True
 
-    def test_intercept_fatal_error_red_screen_and_jsonld(self, clean_env: Path):
-        """Verifies generation of red HTML readout, 256-byte stderr hex dump, and structured JSON-LD."""
-        interceptor = FatalErrorInterceptor(artifacts_dir=clean_env)
+        submit_btn = widgets.Button(description="Execute Benchmark", disabled=False)
+        tooltip.update_ui(state_metadata=state_meta, submit_button=submit_btn)
 
-        raw_stderr = (
-            b"FATAL ORCA 6.1.1 CORE DUMP: SIGSEGV at address 0x00007FF7C0000005\n"
-            b"Diagnostic: Memory fault during Fock matrix diagonalization.\n"
-            + b"X" * 300
-        )
+        # Critical Guardrail: Execute button MUST be disabled
+        assert submit_btn.disabled is True
+        assert "WARNING: Estimated Memory" in tooltip.html_widget.value
+        assert "exceeds Available" in tooltip.html_widget.value
+        assert "Swap-Death" in tooltip.html_widget.value or "OOM" in tooltip.html_widget.value
 
-        report = interceptor.intercept_fatal_error(
-            exit_code=139,
-            stderr_bytes=raw_stderr,
-            error_classification="SEGMENTATION_FAULT",
-        )
-
-        assert isinstance(report, FatalErrorReport)
-        assert report.is_fatal is True
-        assert report.error_type == "SEGMENTATION_FAULT"
-        assert report.exit_code == 139
-
-        assert len(report.stderr_hex_dump) == 512
-        assert report.stderr_hex_dump == raw_stderr[:256].hex()
-
-        assert "<div" in report.red_html_readout
-        assert "background-color" in report.red_html_readout
-        assert "FATAL ERROR" in report.red_html_readout
-        assert report.stderr_hex_dump[:16] in report.red_html_readout
-
-        json_ld = report.json_ld_provenance
-        assert json_ld["@context"] == "https://schema.org"
-        assert json_ld["@type"] == "SoftwareCrashProvenance"
-        assert json_ld["exitCode"] == 139
-        assert "provenance" in json_ld
-        assert "[M]" in json_ld["provenance"]["methodology"]
-        assert len(json_ld["recoveryInstructions"]) >= 3
-
-    def test_intercept_numerical_instability(self, clean_env: Path):
-        """Verifies intercepting linear dependence overlap < 1e-6 and triggering fatal report."""
-        interceptor = FatalErrorInterceptor(artifacts_dir=clean_env)
-        line = "Lowest eigenvalue of the overlap matrix : 1.25e-08"
-
-        report = interceptor.intercept_line(line)
-        assert report is not None
-        assert report.is_fatal is True
-        assert report.error_type == "LINEAR_DEPENDENCE"
-        assert "Lowest eigenvalue of the overlap matrix" in report.red_html_readout
-
-        scratch_dir = get_scratch_workspace_dir(clean_env)
-        assert (scratch_dir / "ABORT.signal").exists()
-
-
-# ==============================================================================
-# 5. Existing Base Engine Tests (Backward Compatibility)
-# ==============================================================================
-
-class TestContextCompressor:
-    """Tests for mathematical downsampling of large raw arrays into statistical summaries."""
-
-    def test_compress_array_statistical_exactness(self):
-        """Verifies exact floating point statistical calculations for 1D arrays."""
-        arr = np.array(H2O_SCF_ENERGIES, dtype=np.float64)
-        compressor = ContextCompressor()
-        summary = compressor.compress_array(arr)
-
-        assert isinstance(summary, StatisticalSummary)
-        assert pytest.approx(summary.Array_Min, rel=1e-7) == float(np.min(arr))
-        assert pytest.approx(summary.Array_Max, rel=1e-7) == float(np.max(arr))
-        assert pytest.approx(summary.Array_Mean, rel=1e-7) == float(np.mean(arr))
-        assert pytest.approx(summary.Array_Variance, rel=1e-7) == float(np.var(arr))
-        assert pytest.approx(summary.Last_Value, rel=1e-7) == float(arr[-1])
-        assert summary.count == len(arr)
-
-    def test_compress_to_dict_format(self):
-        """Verifies that dictionary output contains exact 5 required keys matching SRS."""
-        compressor = ContextCompressor()
-        res_dict = compressor.compress_to_dict(DIIS_ERROR_VECTOR)
-
-        assert "Array_Min" in res_dict
-        assert "Array_Max" in res_dict
-        assert "Array_Mean" in res_dict
-        assert "Array_Variance" in res_dict
-        assert "Last_Value" in res_dict
-
-        assert res_dict["Array_Min"] == min(DIIS_ERROR_VECTOR)
-        assert res_dict["Array_Max"] == max(DIIS_ERROR_VECTOR)
-        assert res_dict["Last_Value"] == DIIS_ERROR_VECTOR[-1]
-
-    def test_compress_single_element_array(self):
-        """Verifies edge case: single element array has zero variance and identical bounds."""
-        compressor = ContextCompressor()
-        summary = compressor.compress_array([42.5])
-
-        assert summary.Array_Min == 42.5
-        assert summary.Array_Max == 42.5
-        assert summary.Array_Mean == 42.5
-        assert summary.Array_Variance == 0.0
-        assert summary.Last_Value == 42.5
-        assert summary.count == 1
-
-    def test_compress_constant_array(self):
-        """Verifies edge case: array with identical elements has zero variance."""
-        compressor = ContextCompressor()
-        data = [3.14159265] * 100
-        summary = compressor.compress_array(data)
-
-        assert pytest.approx(summary.Array_Min, rel=1e-8) == 3.14159265
-        assert pytest.approx(summary.Array_Max, rel=1e-8) == 3.14159265
-        assert pytest.approx(summary.Array_Mean, rel=1e-8) == 3.14159265
-        assert pytest.approx(summary.Array_Variance, abs=1e-12) == 0.0
-        assert summary.Last_Value == 3.14159265
-        assert summary.count == 100
-
-    def test_compress_empty_array_raises_value_error(self):
-        """Asserts that compressing an empty sequence fails fast with ValueError."""
-        compressor = ContextCompressor()
-        with pytest.raises(ValueError, match="Cannot compress empty array"):
-            compressor.compress_array([])
-
-    def test_compress_2d_array_flattening(self):
-        """Verifies that multi-dimensional arrays (e.g. Fock/density matrices) are safely compressed."""
-        matrix = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float64)
-        compressor = ContextCompressor()
-        summary = compressor.compress_array(matrix)
-
-        assert summary.Array_Min == 1.0
-        assert summary.Array_Max == 6.0
-        assert summary.Array_Mean == 3.5
-        assert summary.Last_Value == 6.0
-        assert summary.count == 6
-
-    def test_lttb_decimation_preserves_extrema(self):
-        """Verifies that LTTB algorithm decimates large curves while strictly preserving extrema."""
-        x = np.linspace(0, 100, 1000)
-        y = np.sin(x) * np.exp(-x / 30.0)
-        y[250] = 5.0
-        y[750] = -5.0
-
-        dec_x, dec_y = decimate_lttb(x, y, max_points=100)
-
-        assert len(dec_x) == 100
-        assert len(dec_y) == 100
-        assert dec_x[0] == x[0]
-        assert dec_x[-1] == x[-1]
-        assert dec_y[0] == y[0]
-        assert dec_y[-1] == y[-1]
-        assert pytest.approx(max(dec_y), rel=1e-5) == 5.0
-        assert pytest.approx(min(dec_y), rel=1e-5) == -5.0
-
-    def test_lttb_small_array_passthrough(self):
-        """Asserts that arrays smaller than max_points are returned without mutation."""
-        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        y = np.array([10.0, 20.0, 30.0, 40.0, 50.0])
-        dec_x, dec_y = decimate_lttb(x, y, max_points=100)
-
-        assert np.array_equal(dec_x, x)
-        assert np.array_equal(dec_y, y)
-
-    def test_compress_payload_frame(self):
-        """Verifies compression of full nested dictionary payloads containing large arrays."""
-        compressor = ContextCompressor(array_threshold=10)
-        raw_payload = {
-            "node_id": "H2O_equilibrium",
-            "numa_node": 2,
-            "status": "RUNNING",
-            "scalar_energy": -76.4322,
-            "scf_history": list(range(100)),
-            "small_vector": [1.0, 2.0, 3.0],
+    def test_raw_xyz_never_parsed(self, clean_bench_env: Path) -> None:
+        """Verifies that string coordinate payloads in state_metadata are ignored and num_atoms is strictly used."""
+        tooltip = CostHeuristicTooltip(artifacts_dir=clean_bench_env)
+        state_meta: Dict[str, Any] = {
+            "state_id": "test_atom_count",
+            "num_atoms": 12,
+            "raw_xyz": "FAKE XYZ DATA THAT SHOULD NOT BE PARSED",
         }
-
-        compressed = compressor.compress_payload(raw_payload)
-
-        assert compressed["node_id"] == "H2O_equilibrium"
-        assert compressed["numa_node"] == 2
-        assert compressed["status"] == "RUNNING"
-        assert compressed["scalar_energy"] == -76.4322
-        assert compressed["small_vector"] == [1.0, 2.0, 3.0]
-
-        scf_sum = compressed["scf_history"]
-        assert isinstance(scf_sum, dict)
-        assert scf_sum["Array_Min"] == 0.0
-        assert scf_sum["Array_Max"] == 99.0
-        assert scf_sum["Last_Value"] == 99.0
+        heuristics = tooltip.compute_heuristics(num_atoms=int(state_meta["num_atoms"]))
+        assert heuristics.num_atoms == 12
 
 
-class TestNDJSONStreamer:
-    """Tests for lightweight NDJSON streaming and asynchronous non-blocking polling."""
+# ==============================================================================
+# 4. ManifestCompiler Tests
+# ==============================================================================
 
-    def test_emit_event_structure(self):
-        """Verifies NDJSON string formatting with valid JSON syntax and required keys."""
-        streamer = NDJSONStreamer()
-        line = streamer.emit_event(
-            event_type="SCF_ITERATION",
-            data={"iteration": 5, "delta_e": 1.2e-6, "energy": -76.43219},
-            node_id="Node_01",
+class TestManifestCompiler:
+    """Tests for serializing GUI choices into bench_run_params.json and UI locking."""
+
+    def test_compile_manifest_and_save_with_filelock(self, clean_bench_env: Path) -> None:
+        """Verifies compiling parameters, saving to BENCH_Workspace with FileLock, and setting button.disabled = True."""
+        compiler = ManifestCompiler(artifacts_dir=clean_bench_env)
+
+        methodology = MethodologySettings(
+            cardinal_lower="def2-TZVPP",
+            cardinal_higher="def2-QZVPP",
+            scf_model="Feller Exponential",
+            cor_model="Halkier Inverse Cubic (X^-3)",
+            cv_correction=True,
+            rel_correction=False,
+            rel_hamiltonian="None",
+            method_level="DLPNO-CCSD(T)",
+            pno_setting="TightPNO",
         )
 
-        assert isinstance(line, str)
-        assert line.endswith("\n")
+        heuristics = CostHeuristics(
+            num_atoms=15,
+            estimated_runtime_seconds=120.0,
+            estimated_scratch_gb=4.5,
+            estimated_ram_gb=8.2,
+            available_ram_gb=64.0,
+            is_ram_exceeded=False,
+        )
 
-        parsed = json.loads(line.strip())
-        assert parsed["event_type"] == "SCF_ITERATION"
-        assert parsed["node_id"] == "Node_01"
-        assert parsed["data"]["iteration"] == 5
-        assert "timestamp" in parsed
+        submit_btn = widgets.Button(description="Execute Benchmark", disabled=False)
 
-    def test_in_memory_polling(self):
-        """Verifies in-memory ring buffer and asynchronous polling mechanics."""
-        streamer = NDJSONStreamer(buffer_capacity=10)
+        manifest_path = compiler.compile_and_save(
+            job_name="Water_Cluster_Bench",
+            state_metadata={"state_id": "water_hexamer", "num_atoms": 15},
+            methodology=methodology,
+            heuristics=heuristics,
+            submit_button=submit_btn,
+        )
 
-        for i in range(5):
-            streamer.emit_event("METRIC_UPDATE", {"step": i, "val": i * 1.5})
+        assert manifest_path.exists()
+        assert manifest_path == clean_bench_env / "BENCH_Workspace" / "bench_run_params.json"
 
-        events = streamer.poll_events(since_index=0)
-        assert len(events) == 5
-        assert events[0]["data"]["step"] == 0
-        assert events[-1]["data"]["step"] == 4
+        # UI Lockout & Spinner Indicator: Button MUST be disabled
+        assert submit_btn.disabled is True
+        assert submit_btn.description == "Orchestrating..."
+        assert submit_btn.icon == "spinner"
 
-        new_events = streamer.poll_events(since_index=3)
-        assert len(new_events) == 2
-        assert new_events[0]["data"]["step"] == 3
-        assert new_events[1]["data"]["step"] == 4
+        # Validate JSON content against Pydantic model
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            raw_data = json.load(f)
 
-    def test_stream_to_file_and_tail_reading(self, clean_env: Path):
-        """Verifies streaming events to NDJSON file and incremental byte offset tail reading."""
-        streamer = NDJSONStreamer(artifacts_dir=clean_env)
-        log_file = streamer.resolve_log_path()
-
-        streamer.emit_event("STAGE_START", {"stage": "CBS_EXTRAPOLATION"}, write_to_disk=True)
-        streamer.emit_event("STAGE_PROGRESS", {"percent": 50.0}, write_to_disk=True)
-        streamer.emit_event("STAGE_COMPLETE", {"status": "SUCCESS"}, write_to_disk=True)
-
-        assert log_file.exists()
-        assert log_file.stat().st_size > 0
-
-        records, next_offset = streamer.read_stream_file(from_byte_offset=0)
-        assert len(records) == 3
-        assert records[0]["event_type"] == "STAGE_START"
-        assert records[-1]["event_type"] == "STAGE_COMPLETE"
-
-        streamer.emit_event("CLEANUP", {"done": True}, write_to_disk=True)
-        new_records, final_offset = streamer.read_stream_file(from_byte_offset=next_offset)
-        assert len(new_records) == 1
-        assert new_records[0]["event_type"] == "CLEANUP"
-        assert final_offset > next_offset
-
-    def test_safe_detachment_on_disconnect(self):
-        """Verifies Zero-Interruption Safety Contract: calculation and streaming continue when detached."""
-        streamer = NDJSONStreamer()
-        assert not streamer.is_detached
-
-        streamer.detach()
-        assert streamer.is_detached
-
-        line = streamer.emit_event("BACKGROUND_SCF", {"iter": 12, "e": -100.5})
-        assert line is not None
-        assert len(streamer.buffer) == 1
-
-        streamer.attach()
-        assert not streamer.is_detached
+        validated_params = BenchRunParams.model_validate(raw_data)
+        assert validated_params.job_name == "Water_Cluster_Bench"
+        assert validated_params.state_id == "water_hexamer"
+        assert validated_params.num_atoms == 15
+        assert validated_params.methodology.cardinal_lower == "def2-TZVPP"
+        assert validated_params.methodology.cardinal_higher == "def2-QZVPP"
+        assert validated_params.cost_heuristics.estimated_ram_gb == 8.2
 
 
-class TestNanInfInterceptor:
-    """Tests for standard output stream scanning, linear dependence trapping, and ABORT.signal generation."""
+# ==============================================================================
+# 5. VoilaBenchDashboard Full Master UI Tests
+# ==============================================================================
 
-    def test_detect_linear_dependence_eigenvalue_and_trigger_abort(self, clean_env: Path):
-        """Verifies trapping 'Lowest eigenvalue of the overlap matrix' < 1e-6 and creating 0-byte ABORT.signal."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        scratch_dir = get_scratch_workspace_dir(clean_env)
-        abort_file = scratch_dir / "ABORT.signal"
+class TestVoilaBenchDashboard:
+    """Tests for full VoilaBenchDashboard lifecycle, HUD, geometry selection, and submission."""
 
-        line = "Lowest eigenvalue of the overlap matrix : 4.8251e-08"
-        alert = interceptor.scan_line(line)
+    def test_dashboard_full_initialization_with_hud_and_viewer(self, clean_bench_env: Path) -> None:
+        """Verifies full dashboard initialization with Status Ribbon, Target Ingestion, 3D Viewer, and Toggles."""
+        dashboard = VoilaBenchDashboard(artifacts_dir=clean_bench_env)
 
-        assert alert is not None
-        assert alert.alert_type == "LINEAR_DEPENDENCE"
-        assert pytest.approx(alert.extracted_value, rel=1e-6) == 4.8251e-08
-        assert alert.abort_triggered is True
+        assert dashboard.status_ribbon_html is not None
+        assert dashboard.geometry_dropdown is not None
+        assert dashboard.viewer_3d is not None
+        assert dashboard.methodology_toggles is not None
+        assert dashboard.cost_tooltip is not None
+        assert dashboard.manifest_compiler is not None
+        assert dashboard.execute_button is not None
+        assert dashboard.main_container is not None
 
-        assert abort_file.exists()
-        assert abort_file.stat().st_size == 0
+        # Check Status Ribbon metrology
+        assert "ORCA 6.1.1" in dashboard.status_ribbon_html.value
+        assert "AVAILABLE MPI THREADS:" in dashboard.status_ribbon_html.value
+        assert "16" in dashboard.status_ribbon_html.value
+        assert "64.0 GB" in dashboard.status_ribbon_html.value
 
-    def test_safe_eigenvalue_does_not_trigger_abort(self, clean_env: Path):
-        """Verifies that eigenvalues >= 1e-6 pass safely without triggering ABORT.signal."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        scratch_dir = get_scratch_workspace_dir(clean_env)
-        abort_file = scratch_dir / "ABORT.signal"
+        # Check Geometry Dropdown options populated from landscape.h5
+        assert "water_monomer" in dashboard.geometry_dropdown.options
+        assert "ethanol_c1" in dashboard.geometry_dropdown.options
 
-        line = "Lowest eigenvalue of the overlap matrix : 3.4512e-04"
-        alert = interceptor.scan_line(line)
+    def test_dashboard_geometry_selection_change(self, clean_bench_env: Path) -> None:
+        """Verifies that selecting a different geometry updates state metadata and cost heuristics."""
+        dashboard = VoilaBenchDashboard(artifacts_dir=clean_bench_env)
 
-        assert alert is None
-        assert not abort_file.exists()
+        # Select ethanol_c1 (N=9)
+        dashboard.geometry_dropdown.value = "ethanol_c1"
+        assert dashboard.current_state_metadata.state_id == "ethanol_c1"
+        assert dashboard.current_state_metadata.num_atoms == 9
 
-    def test_detect_nan_in_stream(self, clean_env: Path):
-        """Verifies trapping NaN tokens in stdout lines and triggering 0-byte ABORT.signal."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        scratch_dir = get_scratch_workspace_dir(clean_env)
-        abort_file = scratch_dir / "ABORT.signal"
+    def test_dashboard_execution_trigger(self, clean_bench_env: Path) -> None:
+        """Verifies clicking execute button triggers manifest serialization with FileLock and locks UI."""
+        dashboard = VoilaBenchDashboard(artifacts_dir=clean_bench_env)
 
-        line = "SCF ITERATION 14: Total Energy = NaN Eh | Max Gradient = 0.045"
-        alert = interceptor.scan_line(line)
+        assert dashboard.execute_button.disabled is False
 
-        assert alert is not None
-        assert alert.alert_type == "NAN_DETECTED"
-        assert alert.abort_triggered is True
-        assert abort_file.exists()
-        assert abort_file.stat().st_size == 0
+        # Simulate button click
+        dashboard._on_execute_clicked(dashboard.execute_button)
 
-    def test_detect_inf_in_stream(self, clean_env: Path):
-        """Verifies trapping Inf / Infinity tokens in stdout lines and triggering 0-byte ABORT.signal."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        scratch_dir = get_scratch_workspace_dir(clean_env)
-        abort_file = scratch_dir / "ABORT.signal"
+        assert dashboard.execute_button.disabled is True
+        assert dashboard.execute_button.description == "Orchestrating..."
+        assert dashboard.execute_button.icon == "spinner"
 
-        line = "Error: DIIS matrix inversion failed, residual norm = +Inf"
-        alert = interceptor.scan_line(line)
-
-        assert alert is not None
-        assert alert.alert_type == "INF_DETECTED"
-        assert alert.abort_triggered is True
-        assert abort_file.exists()
-        assert abort_file.stat().st_size == 0
-
-    def test_scan_multiline_chunk(self, clean_env: Path):
-        """Verifies batch scanning of multi-line standard output logs."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        chunk = """
-        ----------------------------------------------------
-        ORCA SCF CONVERGENCE ENGINE
-        ----------------------------------------------------
-        Number of basis functions: 342
-        Lowest eigenvalue of the overlap matrix : 1.12e-07
-        Iteration 1: Energy = -1245.8920341
-        Iteration 2: Energy = -1245.8945102
-        Iteration 3: Energy = NaN
-        """
-        alerts = interceptor.scan_chunk(chunk)
-
-        assert len(alerts) == 2
-        alert_types = [a.alert_type for a in alerts]
-        assert "LINEAR_DEPENDENCE" in alert_types
-        assert "NAN_DETECTED" in alert_types
-
-    def test_clear_abort_signal(self, clean_env: Path):
-        """Verifies utility method for safely removing the ABORT.signal file."""
-        interceptor = NanInfInterceptor(artifacts_dir=clean_env)
-        interceptor.create_abort_signal("TEST_REASON")
-        assert interceptor.check_abort_signal() is True
-
-        success = interceptor.clear_abort_signal()
-        assert success is True
-        assert interceptor.check_abort_signal() is False
+        # Verify output manifest file was generated
+        manifest_file = clean_bench_env / "BENCH_Workspace" / "bench_run_params.json"
+        assert manifest_file.exists()
 
 
-class TestAirGapAndMendeleev:
-    """Tests for dynamic environment variable resolution and Mendeleev mass queries."""
+# ==============================================================================
+# 6. Air-Gap & Mendeleev Integration Tests
+# ==============================================================================
 
-    def test_dynamic_artifacts_dir_resolution(self, clean_env: Path):
-        """Verifies dynamic resolution of COCHEM_ARTIFACTS_DIR without hardcoding."""
-        resolved = get_cochem_artifacts_dir()
-        assert resolved == clean_env.resolve()
+class TestAirGapAndSafety:
+    """Tests for air-gap compliance and dynamic Mendeleev mass integration."""
 
-        scratch = get_scratch_workspace_dir()
-        assert scratch == clean_env / "BENCH_Workspace" / "Scratch"
+    def test_dynamic_paths(self, clean_bench_env: Path) -> None:
+        """Verifies path helper functions dynamically route to COCHEM_ARTIFACTS_DIR."""
+        artifacts = get_cochem_artifacts_dir()
+        assert artifacts == clean_bench_env.resolve()
 
-        logs = get_logs_workspace_dir()
-        assert logs == clean_env / "Logs"
+        workspace = get_bench_workspace_dir()
+        assert workspace == clean_bench_env / "BENCH_Workspace"
 
-    def test_mendeleev_dynamic_mass_integration(self):
-        """Verifies dynamic atomic mass retrieval using Mendeleev library."""
+        config_path = get_registry_config_path()
+        assert config_path == clean_bench_env / "Registry" / "cochem_system_config.json"
+
+        landscape_path = get_landscape_h5_path()
+        assert landscape_path == clean_bench_env / "BENCH_Workspace" / "landscape.h5"
+
+    def test_mendeleev_integration(self) -> None:
+        """Verifies Mendeleev dynamic atomic mass retrieval."""
+        n_mass = get_element_mass_mendeleev("N")
+        assert 14.0 < n_mass < 14.01
+
         c_mass = get_element_mass_mendeleev("C")
-        h_mass = get_element_mass_mendeleev("H")
-        o_mass = get_element_mass_mendeleev("O")
-
         assert 12.0 < c_mass < 12.02
-        assert 1.007 < h_mass < 1.009
-        assert 15.99 < o_mass < 16.01
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

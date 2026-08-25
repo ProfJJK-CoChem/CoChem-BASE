@@ -478,12 +478,16 @@ def PreFlightVerification(
     # 4. Resolve artifacts directory
     if artifacts_dir:
         resolved_artifacts = Path(artifacts_dir).resolve()
-    elif "COCHEM_ARTIFACTS_DIR" in os.environ and os.environ["COCHEM_ARTIFACTS_DIR"]:
-        resolved_artifacts = Path(os.environ["COCHEM_ARTIFACTS_DIR"]).resolve()
     else:
-        raise RegistryHandshakeError(
-            "COCHEM_ARTIFACTS_DIR environment variable is not defined for Pre-Flight verification."
-        )
+        try:
+            raw_artifacts = os.environ["COCHEM_ARTIFACTS_DIR"]
+            if not raw_artifacts:
+                raise KeyError("COCHEM_ARTIFACTS_DIR is empty")
+            resolved_artifacts = Path(raw_artifacts).resolve()
+        except KeyError as err:
+            raise RegistryHandshakeError(
+                "COCHEM_ARTIFACTS_DIR environment variable is not defined for Pre-Flight verification."
+            ) from err
 
     # 5. Verify scratch space via PreFlightScratchVerifier
     try:
@@ -539,13 +543,17 @@ def RegistryHandshake(
     """
     if artifacts_dir:
         resolved_artifacts = Path(artifacts_dir).resolve()
-    elif "COCHEM_ARTIFACTS_DIR" in os.environ and os.environ["COCHEM_ARTIFACTS_DIR"]:
-        resolved_artifacts = Path(os.environ["COCHEM_ARTIFACTS_DIR"]).resolve()
     else:
-        raise RegistryHandshakeError(
-            "Stage 0 Handshake Error: COCHEM_ARTIFACTS_DIR environment variable is not defined. "
-            "CoChem-BENCH requires an active artifacts directory to resolve system configuration."
-        )
+        try:
+            raw_artifacts = os.environ["COCHEM_ARTIFACTS_DIR"]
+            if not raw_artifacts:
+                raise KeyError("COCHEM_ARTIFACTS_DIR is empty")
+            resolved_artifacts = Path(raw_artifacts).resolve()
+        except KeyError as err:
+            raise RegistryHandshakeError(
+                "Stage 0 Handshake Error: COCHEM_ARTIFACTS_DIR environment variable is not defined. "
+                "CoChem-BENCH requires an active artifacts directory to resolve system configuration."
+            ) from err
 
     config_path = resolved_artifacts / "Registry" / "cochem_system_config.json"
     if not config_path.exists():

@@ -1,5 +1,7 @@
 import logging
 
+logger = logging.getLogger("cochem.kie_profiler")
+
 import h5py
 import jax
 import jax.numpy as jnp
@@ -11,17 +13,68 @@ try:
 except ImportError:
     molsym = None
 
-logger = logging.getLogger("CoChem-KIEProfiler")
+from collections.abc import Mapping
+try:
+    from mendeleev import element as _mendeleev_element
+except ImportError:
+    _mendeleev_element = None
 
-HEAVY_ISOTOPES = {
-    "H": 2.014101778,   # Deuterium
-    "C": 13.003354835,  # 13C
-    "N": 15.000108898,  # 15N
-    "O": 17.999159612,  # 18O
-    "S": 33.96786690,   # 34S
-    "Cl": 36.96590260,  # 37Cl
-    "Br": 80.9162906,   # 81Br
+_TARGET_HEAVY_MASS_NUMBERS = {
+    "H": 2,    # Deuterium
+    "C": 13,   # 13C
+    "N": 15,   # 15N
+    "O": 18,   # 18O
+    "S": 34,   # 34S
+    "Cl": 37,  # 37Cl
+    "Br": 81,  # 81Br
 }
+
+
+class _DynamicHeavyIsotopesMap(Mapping):
+    """Dynamic heavy isotope mass mapping backed by Mendeleev library."""
+
+    def __getitem__(self, key: str) -> float:
+        if not key or not isinstance(key, str):
+            raise KeyError(key)
+        sym = key.strip().capitalize()
+        if sym not in _TARGET_HEAVY_MASS_NUMBERS:
+            raise KeyError(key)
+
+        mass_num = _TARGET_HEAVY_MASS_NUMBERS[sym]
+        if _mendeleev_element is not None:
+            try:
+                el = _mendeleev_element(sym)
+                for iso in getattr(el, "isotopes", []):
+                    if iso.mass_number == mass_num and iso.mass is not None:
+                        return float(iso.mass)
+            except Exception:
+                pass
+
+        # Fallback values if mendeleev is unavailable
+        fallbacks = {
+            "H": 2.014101778,
+            "C": 13.003354835,
+            "N": 15.000108898,
+            "O": 17.999159612,
+            "S": 33.96786690,
+            "Cl": 36.96590260,
+            "Br": 80.9162906,
+        }
+        return fallbacks[sym]
+
+    def __iter__(self):
+        return iter(_TARGET_HEAVY_MASS_NUMBERS.keys())
+
+    def __len__(self):
+        return len(_TARGET_HEAVY_MASS_NUMBERS)
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        return key.strip().capitalize() in _TARGET_HEAVY_MASS_NUMBERS
+
+
+HEAVY_ISOTOPES: Mapping[str, float] = _DynamicHeavyIsotopesMap()
 
 def get_projection_matrix(coords: jnp.ndarray, masses: jnp.ndarray) -> jnp.ndarray:
     """Constructs the Eckart projection operator P = I - D D^T."""

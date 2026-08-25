@@ -563,23 +563,85 @@ def audit_or_provision_molsym_silo(
 # 5. THEORETICAL ECKART FRAME & CARTESIAN ORIGIN SHIFTING ENGINE
 # =============================================================================
 
-_STANDARD_ATOMIC_WEIGHTS: Dict[str, float] = {
-    "H": 1.008, "HE": 4.0026, "LI": 6.94, "BE": 9.0122, "B": 10.81, "C": 12.011,
-    "N": 14.007, "O": 15.999, "F": 18.9984, "NE": 20.180, "NA": 22.9898, "MG": 24.305,
-    "AL": 26.9815, "SI": 28.085, "P": 30.9738, "S": 32.06, "CL": 35.45, "AR": 39.95,
-    "K": 39.0983, "CA": 40.078, "SC": 44.9559, "TI": 47.867, "V": 50.9415, "CR": 51.9961,
-    "MN": 54.9380, "FE": 55.845, "CO": 58.9332, "NI": 58.6934, "CU": 63.546, "ZN": 65.38,
-    "GA": 69.723, "GE": 72.630, "AS": 74.9216, "SE": 78.971, "BR": 79.904, "KR": 83.798,
-    "RB": 85.4678, "SR": 87.62, "Y": 88.9058, "ZR": 91.224, "NB": 92.9064, "MO": 95.95,
-    "TC": 97.9072, "RU": 101.07, "RH": 102.9055, "PD": 106.42, "AG": 107.8682, "CD": 112.414,
-    "IN": 114.818, "SN": 118.710, "SB": 121.760, "TE": 127.60, "I": 126.90447, "XE": 131.293,
-    "CS": 132.90545, "BA": 137.327, "LA": 138.90547, "CE": 140.116, "PR": 140.90766, "ND": 144.242,
-    "PM": 144.9127, "SM": 150.36, "EU": 151.964, "GD": 157.25, "TB": 158.92535, "DY": 162.500,
-    "HO": 164.93033, "ER": 167.259, "TM": 168.93422, "YB": 173.045, "LU": 174.9668, "HF": 178.49,
-    "TA": 180.94788, "W": 183.84, "RE": 186.207, "OS": 190.23, "IR": 192.217, "PT": 195.084,
-    "AU": 196.96657, "HG": 200.592, "TL": 204.38, "PB": 207.2, "BI": 208.98040, "TH": 232.0377,
-    "PA": 231.03588, "U": 238.02891, "PU": 244.0642,
-}
+from collections.abc import Mapping
+
+
+class _DynamicMendeleevMassMap(Mapping):
+    """Dynamic standard atomic weight mapping backed by the Mendeleev library."""
+
+    def __getitem__(self, key: str) -> float:
+        if not key or not isinstance(key, str):
+            raise KeyError(key)
+        clean = key.strip()
+        if not clean:
+            raise KeyError(key)
+
+        if clean.upper() in {"D", "2H"}:
+            if _HAS_MENDELEEV and mendeleev is not None:
+                try:
+                    for iso in getattr(mendeleev.element("H"), "isotopes", []):
+                        if iso.mass_number == 2:
+                            return float(iso.mass)
+                except Exception:
+                    pass
+            return 2.01410177812
+
+        if clean.upper() in {"T", "3H"}:
+            if _HAS_MENDELEEV and mendeleev is not None:
+                try:
+                    for iso in getattr(mendeleev.element("H"), "isotopes", []):
+                        if iso.mass_number == 3:
+                            return float(iso.mass)
+                except Exception:
+                    pass
+            return 3.01604928132
+
+        import re
+        m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
+        sym_head = m.group(1).capitalize() if m else clean.capitalize()
+
+        if _HAS_MENDELEEV and mendeleev is not None:
+            try:
+                elem = mendeleev.element(sym_head)
+                if elem is not None and elem.mass is not None:
+                    return float(elem.mass)
+            except Exception:
+                pass
+
+        raise KeyError(key)
+
+    def __iter__(self):
+        return iter([
+            "H", "HE", "LI", "BE", "B", "C", "N", "O", "F", "NE", "NA", "MG",
+            "AL", "SI", "P", "S", "CL", "AR", "K", "CA", "SC", "TI", "V", "CR",
+            "MN", "FE", "CO", "NI", "CU", "ZN", "GA", "GE", "AS", "SE", "BR", "KR",
+            "RB", "SR", "Y", "ZR", "NB", "MO", "TC", "RU", "RH", "PD", "AG", "CD",
+            "IN", "SN", "SB", "TE", "I", "XE", "CS", "BA", "LA", "CE", "PR", "ND",
+            "PM", "SM", "EU", "GD", "TB", "DY", "HO", "ER", "TM", "YB", "LU", "HF",
+            "TA", "W", "RE", "OS", "IR", "PT", "AU", "HG", "TL", "PB", "BI", "TH",
+            "PA", "U", "PU"
+        ])
+
+    def __len__(self):
+        return 118
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        try:
+            self[key]
+            return True
+        except (KeyError, Exception):
+            return False
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+_STANDARD_ATOMIC_WEIGHTS: Mapping[str, float] = _DynamicMendeleevMassMap()
 
 
 def is_ghost_symbol(symbol: str) -> bool:
@@ -615,7 +677,7 @@ def is_ghost_symbol(symbol: str) -> bool:
 
 def get_physical_mass(symbol: str) -> float:
     """
-    Retrieve standard atomic mass in amu (u / Da).
+    Retrieve standard atomic mass in amu (u / Da) dynamically using Mendeleev library.
     Ghost atoms strictly return 0.0.
     """
     if not symbol or not isinstance(symbol, str) or not symbol.strip():
@@ -625,25 +687,42 @@ def get_physical_mass(symbol: str) -> float:
     if is_ghost_symbol(clean):
         return 0.0
 
-    clean_upper = clean.upper()
-    if clean_upper in _STANDARD_ATOMIC_WEIGHTS:
-        return _STANDARD_ATOMIC_WEIGHTS[clean_upper]
+    # Hydrogen isotopes
+    if clean.upper() in {"D", "2H"}:
+        if _HAS_MENDELEEV and mendeleev is not None:
+            try:
+                for iso in getattr(mendeleev.element("H"), "isotopes", []):
+                    if iso.mass_number == 2:
+                        return float(iso.mass)
+            except Exception:
+                pass
+        return 2.01410177812
+
+    if clean.upper() in {"T", "3H"}:
+        if _HAS_MENDELEEV and mendeleev is not None:
+            try:
+                for iso in getattr(mendeleev.element("H"), "isotopes", []):
+                    if iso.mass_number == 3:
+                        return float(iso.mass)
+            except Exception:
+                pass
+        return 3.01604928132
 
     # Check isotope or numbered notation (e.g. C12, Cl35, O_16, H-2, C:1)
     import re
     m = re.match(r"^([A-Za-z]{1,2})[0-9_\-:]*$", clean)
-    if m:
-        sym_head = m.group(1).upper()
-        if sym_head in _STANDARD_ATOMIC_WEIGHTS:
-            return _STANDARD_ATOMIC_WEIGHTS[sym_head]
+    sym_head = m.group(1).capitalize() if m else clean.capitalize()
 
     if _HAS_MENDELEEV and mendeleev is not None:
         try:
-            elem = mendeleev.element(clean)
+            elem = mendeleev.element(sym_head)
             if elem is not None and elem.mass is not None:
                 return float(elem.mass)
         except Exception:
             pass
+
+    if clean.upper() in _STANDARD_ATOMIC_WEIGHTS:
+        return float(_STANDARD_ATOMIC_WEIGHTS[clean.upper()])
 
     raise ValueError(f"Unrecognized chemical element symbol: '{symbol}'.")
 

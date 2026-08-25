@@ -58,141 +58,138 @@ INERTIA_CONVERSION_AMU_ANG2_CM1 = 16.85762920252
 
 
 # =============================================================================
-# 2. CIAAW Exact Mono-Isotopic Masses (amu / Daltons)
+# 2. Dynamic Mendeleev Exact Mono-Isotopic & Atomic Masses (amu / Daltons)
 # =============================================================================
 
-CIAAW_ISOTOPIC_MASSES: Dict[str, float] = {
-    "H": 1.00782503223,
-    "1H": 1.00782503223,
-    "D": 2.01410177812,
-    "2H": 2.01410177812,
-    "T": 3.01604928132,
-    "3H": 3.01604928132,
-    "He": 4.00260325413,
-    "3He": 3.0160293201,
-    "4He": 4.00260325413,
-    "Li": 7.0160034366,
-    "6Li": 6.0151228874,
-    "7Li": 7.0160034366,
-    "Be": 9.012183065,
-    "9Be": 9.012183065,
-    "B": 11.00930536,
-    "10B": 10.01293695,
-    "11B": 11.00930536,
-    "C": 12.00000000000,
-    "12C": 12.00000000000,
-    "13C": 13.00335483507,
-    "14C": 14.0032419884,
-    "N": 14.00307400443,
-    "14N": 14.00307400443,
-    "15N": 15.00010889888,
-    "O": 15.99491461957,
-    "16O": 15.99491461957,
-    "17O": 16.99913175650,
-    "18O": 17.99915961286,
-    "F": 18.99840316273,
-    "19F": 18.99840316273,
-    "Ne": 19.992440176,
-    "20Ne": 19.992440176,
-    "21Ne": 20.993846685,
-    "22Ne": 21.991385114,
-    "Na": 22.9897692820,
-    "23Na": 22.9897692820,
-    "Mg": 23.985041697,
-    "24Mg": 23.985041697,
-    "25Mg": 24.985836976,
-    "26Mg": 25.982592968,
-    "Al": 26.98153853,
-    "27Al": 26.98153853,
-    "Si": 27.97692653465,
-    "28Si": 27.97692653465,
-    "29Si": 28.97649466490,
-    "30Si": 29.973770136,
-    "P": 30.97376199842,
-    "31P": 30.97376199842,
-    "S": 31.97207073,
-    "32S": 31.97207073,
-    "33S": 32.9714589098,
-    "34S": 33.96786687,
-    "36S": 35.96708088,
-    "Cl": 34.96885271,
-    "35Cl": 34.96885271,
-    "37Cl": 36.96590260,
-    "Ar": 39.9623831237,
-    "36Ar": 35.967545105,
-    "38Ar": 37.96273211,
-    "40Ar": 39.9623831237,
-    "K": 38.9637064864,
-    "39K": 38.9637064864,
-    "40K": 39.963998166,
-    "41K": 40.9618252579,
-    "Ca": 39.962590863,
-    "40Ca": 39.962590863,
-    "42Ca": 41.95861783,
-    "44Ca": 43.9554806,
-    "Sc": 44.95590828,
-    "Ti": 47.94794198,
-    "48Ti": 47.94794198,
-    "V": 50.9439570,
-    "51V": 50.9439570,
-    "Cr": 51.94050623,
-    "52Cr": 51.94050623,
-    "Mn": 54.93804391,
-    "55Mn": 54.93804391,
-    "Fe": 55.93493633,
-    "56Fe": 55.93493633,
-    "54Fe": 53.93960899,
-    "57Fe": 56.93539284,
-    "Co": 58.93319429,
-    "59Co": 58.93319429,
-    "Ni": 57.93534241,
-    "58Ni": 57.93534241,
-    "60Ni": 59.93078588,
-    "Cu": 62.92959772,
-    "63Cu": 62.92959772,
-    "65Cu": 64.92778970,
-    "Zn": 63.92914201,
-    "64Zn": 63.92914201,
-    "66Zn": 65.92603381,
-    "Ga": 68.9255735,
-    "Ge": 73.92117776,
-    "As": 74.92159457,
-    "75As": 74.92159457,
-    "Se": 79.91651990,
-    "80Se": 79.91651990,
-    "Br": 78.9183376,
-    "79Br": 78.9183376,
-    "81Br": 80.9162897,
-    "Kr": 83.91149773,
-    "84Kr": 83.91149773,
-    "Rb": 84.911789737,
-    "Sr": 87.9056125,
-    "Y": 88.9058479,
-    "Zr": 89.9046977,
-    "Nb": 92.9063730,
-    "Mo": 97.90540482,
-    "I": 126.9044719,
-    "127I": 126.9044719,
-    "Xe": 129.903540,
-    "132Xe": 131.9041535,
-    "Cs": 132.90545196,
-    "133Cs": 132.90545196,
-    "Ba": 137.9052470,
-    "138Ba": 137.9052470,
-}
+from collections.abc import Mapping
+try:
+    from mendeleev import element as _mendeleev_element
+except ImportError:
+    _mendeleev_element = None
+
+
+class _DynamicMendeleevMassMap(Mapping):
+    """Dynamic isotopic and atomic mass mapping backed by the Mendeleev library."""
+
+    def __getitem__(self, key: str) -> float:
+        if not key or not isinstance(key, str):
+            raise KeyError(key)
+        sym = str(key).strip()
+        if not sym:
+            raise KeyError(key)
+
+        # Hydrogen isotopes
+        if sym.upper() in {"D", "2H"}:
+            if _mendeleev_element is not None:
+                try:
+                    for iso in getattr(_mendeleev_element("H"), "isotopes", []):
+                        if iso.mass_number == 2:
+                            return float(iso.mass)
+                except Exception:
+                    pass
+            return 2.01410177812
+
+        if sym.upper() in {"T", "3H"}:
+            if _mendeleev_element is not None:
+                try:
+                    for iso in getattr(_mendeleev_element("H"), "isotopes", []):
+                        if iso.mass_number == 3:
+                            return float(iso.mass)
+                except Exception:
+                    pass
+            return 3.01604928132
+
+        # Specific isotope notation like "13C", "35Cl", "14N", "16O"
+        import re
+        m = re.match(r"^(\d+)([A-Za-z]+)$", sym)
+        if m:
+            mass_num = int(m.group(1))
+            el_sym = m.group(2).capitalize()
+            if _mendeleev_element is not None:
+                try:
+                    el = _mendeleev_element(el_sym)
+                    for iso in getattr(el, "isotopes", []):
+                        if iso.mass_number == mass_num and iso.mass is not None:
+                            return float(iso.mass)
+                    if el.mass is not None:
+                        return float(el.mass)
+                except Exception:
+                    pass
+
+        cleaned = "".join([c for c in sym if c.isalpha()]).capitalize()
+        if cleaned:
+            if _mendeleev_element is not None:
+                try:
+                    el = _mendeleev_element(cleaned)
+                    # For mono-isotopic queries, return most abundant isotope mass if available
+                    if getattr(el, "isotopes", None):
+                        abundances = [
+                            (getattr(iso, "abundance", 0.0) or 0.0, float(iso.mass))
+                            for iso in el.isotopes
+                            if iso.mass is not None
+                        ]
+                        if abundances:
+                            abundances.sort(key=lambda x: x[0], reverse=True)
+                            return abundances[0][1]
+                    if el.mass is not None:
+                        return float(el.mass)
+                except Exception:
+                    pass
+
+        raise KeyError(key)
+
+    def __iter__(self):
+        return iter([
+            "H", "1H", "D", "2H", "T", "3H", "He", "3He", "4He", "Li", "6Li", "7Li",
+            "Be", "9Be", "B", "10B", "11B", "C", "12C", "13C", "14C", "N", "14N", "15N",
+            "O", "16O", "17O", "18O", "F", "19F", "Ne", "20Ne", "21Ne", "22Ne", "Na", "23Na",
+            "Mg", "24Mg", "25Mg", "26Mg", "Al", "27Al", "Si", "28Si", "29Si", "30Si",
+            "P", "31P", "S", "32S", "33S", "34S", "36S", "Cl", "35Cl", "37Cl",
+            "Ar", "36Ar", "38Ar", "40Ar", "K", "39K", "40K", "41K", "Ca", "40Ca", "42Ca", "44Ca",
+            "Sc", "Ti", "48Ti", "V", "51V", "Cr", "52Cr", "Mn", "55Mn", "Fe", "56Fe", "54Fe", "57Fe",
+            "Co", "59Co", "Ni", "58Ni", "60Ni", "Cu", "63Cu", "65Cu", "Zn", "64Zn", "66Zn",
+            "Ga", "Ge", "As", "75As", "Se", "80Se", "Br", "79Br", "81Br", "Kr", "84Kr",
+            "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "I", "127I", "Xe", "132Xe", "Cs", "133Cs", "Ba", "138Ba"
+        ])
+
+    def __len__(self):
+        return 118
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str):
+            return False
+        try:
+            self[key]
+            return True
+        except (KeyError, Exception):
+            return False
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+
+CIAAW_ISOTOPIC_MASSES: Mapping[str, float] = _DynamicMendeleevMassMap()
 
 
 def resolve_atomic_mass(symbol_or_mass: Union[str, float, int]) -> float:
-    """Resolve atomic mass from element symbol string or direct float value."""
+    """Resolve atomic mass dynamically via Mendeleev library or direct float value."""
     if isinstance(symbol_or_mass, (int, float)):
         return float(symbol_or_mass)
     sym = str(symbol_or_mass).strip()
-    if sym in CIAAW_ISOTOPIC_MASSES:
-        return CIAAW_ISOTOPIC_MASSES[sym]
-    # Clean leading/trailing numbers if not found
-    cleaned = "".join([c for c in sym if c.isalpha()])
-    if cleaned in CIAAW_ISOTOPIC_MASSES:
-        return CIAAW_ISOTOPIC_MASSES[cleaned]
+    if not sym:
+        return 12.0
+    try:
+        return float(CIAAW_ISOTOPIC_MASSES[sym])
+    except Exception:
+        cleaned = "".join([c for c in sym if c.isalpha()])
+        if cleaned:
+            try:
+                return float(CIAAW_ISOTOPIC_MASSES[cleaned])
+            except Exception:
+                pass
     # Default fallback to carbon-12 mass if unknown
     logger.warning("Unrecognized atomic symbol '%s'; defaulting to 12.0 amu.", sym)
     return 12.0

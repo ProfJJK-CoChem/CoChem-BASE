@@ -22,59 +22,19 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 
-from cochem_base.exceptions import CoChemIntegrityError, MissingDataError, ProvenanceErrorCode
+from cochem_base.exceptions import (
+    CoChemIntegrityError,
+    MissingDataError,
+    ProvenanceErrorCode,
+)
 
-logger = logging.getLogger("CoChem-TORQ.Vault")
+from collections.abc import Mapping
+try:
+    from mendeleev import element as _mendeleev_element
+except ImportError:
+    _mendeleev_element = None
 
-# Exact CIAAW Mono-Isotopic Masses (u)
-CIAAW_ISOTOPIC_MASSES: Dict[str, float] = {
-    "H": 1.00782503223,
-    "He": 4.00260325413,
-    "Li": 7.0160034366,
-    "Be": 9.012183065,
-    "B": 11.00930536,
-    "C": 12.00000000000,
-    "N": 14.00307400443,
-    "O": 15.99491461957,
-    "F": 18.99840316273,
-    "Ne": 19.992440176,
-    "Na": 22.9897692820,
-    "Mg": 23.985041697,
-    "Al": 26.98153853,
-    "Si": 27.97692653465,
-    "P": 30.97376199842,
-    "S": 31.97207073,
-    "Cl": 34.96885271,
-    "Ar": 39.9623831237,
-    "K": 38.9637064864,
-    "Ca": 39.962590863,
-    "Sc": 44.95590828,
-    "Ti": 47.94794198,
-    "V": 50.9439570,
-    "Cr": 51.94050623,
-    "Mn": 54.93804391,
-    "Fe": 55.93493633,
-    "Co": 58.93319429,
-    "Ni": 57.93534241,
-    "Cu": 62.92959772,
-    "Zn": 63.92914201,
-    "Ga": 68.9255735,
-    "Ge": 73.92117776,
-    "As": 74.92159457,
-    "Se": 79.91651990,
-    "Br": 78.9183376,
-    "Kr": 83.91149773,
-    "Rb": 84.911789737,
-    "Sr": 87.9056125,
-    "Y": 88.9058479,
-    "Zr": 89.9046977,
-    "Nb": 92.9063730,
-    "Mo": 97.90540482,
-    "I": 126.9044719,
-    "Xe": 129.903540,
-    "Cs": 132.90545196,
-    "Ba": 137.9052470,
-}
+from cochem_tensor_extractor import CIAAW_ISOTOPIC_MASSES
 
 ATOMIC_NUMBERS: Dict[str, int] = {
     "H": 1,

@@ -1,26 +1,3 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\CoChem-TOPOS\.in-progress\02_13_export_export.md.
-Original prompt:
-# Task: Implement FAIR Export (`cochem_topos_export.py`)
-
-## Target Output File
-`${COCHEM_WORKSPACE}\GitHub-Repo\CoChem-TOPOS\export_utils\cochem_topos_export.py`
-
-## Objective
-Translate raw database tensors into human-readable scientific manuscripts and structured archival packages while respecting air-gap protocols.
-
-## Context & Architecture Rules
-This module (Stage 5.1) enforces FAIR data formatting (Findable, Accessible, Interoperable, and Reusable).
-
-## Execution Directives
-Implement the `cochem_topos_export.py` script with the following capabilities:
-
-1. **Automated Bibliographic Compilation**: Generate a complete `cochem_citations.bib` BibTeX file, extracting the exact method strings used in the escalator. Safely connect to the CrossRef API, complying with Tripartite Air-Gaps by failing safely if network access is restricted.
-2. **LaTeX `siunitx` Generation**: Extract the deduplicated energies, thermodynamic corrections, and dipole moments from `landscape.h5` and format them into a perfectly aligned LaTeX table snippet using the `siunitx` package.
-3. **Zip Packaging**: Compress the validated `.xyz` unique conformers, the `cochem_citations.bib`, and the `.tex` tables into a singular `TOPOS_Final_Ensemble.zip` file. Apply appropriate OS-agnostic read-only locks (e.g., `os.chmod 0o444` on POSIX systems or Windows API) to prevent post-generation tampering.
-
-Modified files content:
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_cochem_bench_ci.py ---
 """Unit tests for CoChem-BENCH CI/CD GitHub Actions workflow (cochem_bench_ci.yml).
 
 Task: CoChem-BENCH Task 1 CI/CD Workflow & Air-Gap Enforcement Verification.
@@ -814,5 +791,3 @@ def test_physical_cochem_system_config_pollution_detection(tmp_path: Path) -> No
     }
     clean_issues = inspect_config(clean_config)
     assert len(clean_issues) == 0
-
-Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

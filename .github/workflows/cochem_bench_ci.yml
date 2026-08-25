@@ -1,0 +1,461 @@
+name: CoChem-BENCH CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  airgap-enforcement:
+    name: Air-Gap Enforcement Trap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Repository Air-Gap find & tracked file sweep
+        shell: bash
+        run: |
+          echo "Executing find sweep for restricted extensions and directories..."
+          RESTRICTED_FILES=$(find . -type f \( \
+            -name "*.h5" -o \
+            -name "*.hdf5" -o \
+            -name "*.gbw" -o \
+            -name "*.xyz" -o \
+            -name "*.npy" -o \
+            -name "*.npz" -o \
+            -name "*.db" -o \
+            -name "*.sqlite" -o \
+            -name "*.tmp" -o \
+            -name "*.chk" -o \
+            -name "*.opt" -o \
+            -name "*.parsl" -o \
+            -name "*.scf" -o \
+            -name "*.densities" -o \
+            -name "*.cube" -o \
+            -name "*.parquet" -o \
+            -name "*.log" -o \
+            -name "*.out" -o \
+            -name "*.err" \
+          \) -not -path "*/.git/*" -not -path "*/.venv/*" -not -path "*/.conda/*" -not -path "*/.trash/*")
+
+          RESTRICTED_DIRS=$(find . -type d \( \
+            -name "CoChem_Artifacts" -o \
+            -name "BENCH_Workspace" -o \
+            -name "runinfo" -o \
+            -name "cochem_exec_*" -o \
+            -name "Logs" \
+          \) -not -path "*/.git/*" -not -path "*/.venv/*" -not -path "*/.conda/*" -not -path "*/.trash/*")
+
+          VIOLATIONS=0
+          if [ -n "$RESTRICTED_FILES" ]; then
+            echo "[AIR-GAP VIOLATION] Restricted dynamic files detected in repository:"
+            echo "$RESTRICTED_FILES"
+            VIOLATIONS=1
+          fi
+
+          if [ -n "$RESTRICTED_DIRS" ]; then
+            echo "[AIR-GAP VIOLATION] Restricted directories detected in repository:"
+            echo "$RESTRICTED_DIRS"
+            VIOLATIONS=1
+          fi
+
+          if [ $VIOLATIONS -ne 0 ]; then
+            echo "Air-gap find sweep failed: restricted artifacts committed to repository."
+            exit 1
+          fi
+          echo "Air-gap find sweep passed: zero restricted files or directories found."
+
+      - name: Magic-number, MIME-type, entropy and forbidden format sweep
+        run: |
+          python - << 'EOF'
+          import json
+          import math
+          import os
+          import sys
+          from collections import Counter
+          from pathlib import Path
+
+          print("=" * 78)
+          print("[AIR-GAP DEEP SWEEP] Magic-Number, MIME/Binary & Entropy Inspection")
+          print("=" * 78)
+
+          MAGIC_SIGNATURES = [
+              (b"\x89HDF\r\n\x1a\n", "HDF5 Container (.h5 / .hdf5)"),
+              (b"SQLite format 3\x00", "SQLite Database (.db / .sqlite)"),
+              (b"\x93NUMPY", "NumPy Binary Array (.npy)"),
+              (b"PK\x03\x04", "ZIP / Binary Archive (.zip / .jar)"),
+              (b"PAR1", "Apache Parquet File (.parquet)"),
+              (b"\x7fELF", "Linux ELF Executable Binary"),
+              (b"MZ", "Windows PE Executable Binary"),
+          ]
+
+          FORBIDDEN_EXTENSIONS = {
+              ".h5", ".hdf5", ".gbw", ".xyz", ".npy", ".npz",
+              ".db", ".sqlite", ".tmp", ".chk", ".opt", ".parsl",
+              ".scf", ".densities", ".cube", ".parquet", ".log", ".out", ".err",
+          }
+
+          EXCLUDED_DIRS = {
+              ".git", ".venv", ".conda", ".trash",
+              "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+          }
+
+          EXCLUDED_FILES = {
+              ".coverage",
+          }
+
+          QM_LOG_PATTERNS = [
+              b"* O R C A *",
+              b"FINAL SINGLE POINT ENERGY",
+              b"ORCA TERMINATED NORMALLY",
+              b"TOTAL RUN TIME:",
+              b"Gaussian, Inc.",
+              b"NWChem",
+              b"Q-Chem",
+              b"SLURM_JOB_ID",
+          ]
+
+          def calculate_shannon_entropy(data: bytes) -> float:
+              if not data:
+                  return 0.0
+              length = len(data)
+              counts = Counter(data)
+              return -sum((count / length) * math.log2(count / length) for count in counts.values())
+
+          def is_xyz_format(data_bytes: bytes) -> bool:
+              try:
+                  text = data_bytes.decode("utf-8", errors="ignore").strip()
+                  lines = [line.strip() for line in text.splitlines() if line.strip()]
+                  if len(lines) < 3:
+                      return False
+                  atom_count = int(lines[0])
+                  if atom_count <= 0 or atom_count > 100000:
+                      return False
+                  valid_coord_lines = 0
+                  for line in lines[2:2 + min(atom_count, 10)]:
+                      parts = line.split()
+                      if len(parts) >= 4:
+                          float(parts[1])
+                          float(parts[2])
+                          float(parts[3])
+                          valid_coord_lines += 1
+                  return valid_coord_lines >= min(atom_count, 3)
+              except Exception:
+                  return False
+
+          def check_config_pollution(file_path: Path) -> list[str]:
+              issues = []
+              try:
+                  content = file_path.read_text(encoding="utf-8")
+                  data = json.loads(content)
+                  if "active_jobs" in data and bool(data["active_jobs"]):
+                      issues.append("Active jobs present in configuration file")
+                  json_str = json.dumps(data).lower()
+                  for leak in ["/users/", "/home/", "c:\\users", "c:/users", "c:\\\\users"]:
+                      if leak in json_str:
+                          issues.append(f"Localized system path leak detected: {leak}")
+                          break
+              except Exception:
+                  pass
+              return issues
+
+          violations = []
+          scanned = 0
+
+          for root, dirs, files in os.walk(".", topdown=True):
+              dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+              for fname in files:
+                  if fname in EXCLUDED_FILES:
+                      continue
+                  full_path = Path(root) / fname
+                  try:
+                      rel_path = full_path.relative_to(".").as_posix()
+                  except ValueError:
+                      rel_path = str(full_path).replace("\\", "/")
+
+                  scanned += 1
+                  lower_name = fname.lower()
+                  suffix = full_path.suffix.lower()
+
+                  # 1. Extension inspection
+                  if suffix in FORBIDDEN_EXTENSIONS:
+                      violations.append({
+                          "file": rel_path,
+                          "type": "FORBIDDEN_EXTENSION",
+                          "detail": f"File matches forbidden extension '{suffix}'",
+                      })
+                      continue
+
+                  # 2. Localized config pollution inspection
+                  if lower_name == "cochem_system_config.json":
+                      config_issues = check_config_pollution(full_path)
+                      if config_issues:
+                          violations.append({
+                              "file": rel_path,
+                              "type": "CONFIG_POLLUTION",
+                              "detail": "; ".join(config_issues),
+                          })
+
+                  # Read binary header and payload buffer
+                  try:
+                      with open(full_path, "rb") as fh:
+                          header = fh.read(8192)
+                          fh.seek(0)
+                          full_buffer = fh.read(65536)
+                  except Exception:
+                      continue
+
+                  # 3. Magic-number / MIME signature inspection
+                  for magic, desc in MAGIC_SIGNATURES:
+                      if header.startswith(magic):
+                          violations.append({
+                              "file": rel_path,
+                              "type": "MAGIC_NUMBER_VIOLATION",
+                              "detail": f"Disguised binary header detected: {desc}",
+                          })
+                          break
+
+                  # 4. Quantum chemistry calculation log inspection (.log, .out)
+                  if not lower_name.endswith((".py", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ipynb")):
+                      for qm_pat in QM_LOG_PATTERNS:
+                          if qm_pat in header:
+                              violations.append({
+                                  "file": rel_path,
+                                  "type": "QM_LOG_VIOLATION",
+                                  "detail": f"Quantum calculation output signature: {qm_pat.decode('utf-8', errors='ignore')}",
+                              })
+                              break
+
+                  # 5. Coordinate format inspection (.xyz)
+                  if is_xyz_format(header) and not lower_name.endswith((".py", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ipynb")):
+                      violations.append({
+                          "file": rel_path,
+                          "type": "XYZ_FORMAT_VIOLATION",
+                          "detail": "Restricted XYZ atomic coordinate dataset detected",
+                      })
+
+                  # 6. Shannon Entropy Analysis
+                  if len(full_buffer) > 512:
+                      entropy = calculate_shannon_entropy(full_buffer)
+                      if entropy >= 7.8 and not lower_name.endswith((".png", ".jpg", ".jpeg", ".gif", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".zip", ".gz")):
+                          violations.append({
+                              "file": rel_path,
+                              "type": "HIGH_ENTROPY_VIOLATION",
+                              "detail": f"High Shannon entropy ({entropy:.3f} bits/byte) indicates disguised binary artifact",
+                          })
+
+          print(f"Deep file sweep inspected {scanned} repository files.")
+          if violations:
+              print(f"[AIR-GAP DEEP SWEEP FAILED] Detected {len(violations)} violation(s):", file=sys.stderr)
+              for idx, v in enumerate(violations, 1):
+                  print(f"  [{idx}] {v['file']} -> {v['type']}: {v['detail']}", file=sys.stderr)
+              print("=" * 78, file=sys.stderr)
+              sys.exit(1)
+
+          print("[AIR-GAP DEEP SWEEP PASSED] Zero air-gap violations found.")
+          print("=" * 78)
+          EOF
+
+  ast-sweep:
+    name: AST Anti-Spoofing Sweep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Execute AST Anti-Spoofing Sweep
+        run: |
+          python - << 'EOF'
+          import ast
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          print("=" * 78)
+          print("[AST SWEEP] Anti-Spoofing & Parallel Import Enforcement")
+          print("=" * 78)
+
+          amnesty_path = Path(".anti_spoof_amnesty.json")
+          normalized_amnesty = set()
+          if amnesty_path.exists():
+              try:
+                  with open(amnesty_path, "r", encoding="utf-8") as f:
+                      raw_amnesty = json.load(f)
+                      for entry in raw_amnesty:
+                          norm = entry.replace("\\", "/").strip("/")
+                          normalized_amnesty.add(norm.lower())
+                          if norm.lower().startswith("cochem-base/"):
+                              normalized_amnesty.add(norm[len("cochem-base/"):].lower())
+                  print(f"Loaded {len(normalized_amnesty)} normalized amnesty entries from {amnesty_path.name}")
+              except Exception as exc:
+                  print(f"ERROR: Failed to load amnesty list: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              print(f"WARNING: Amnesty file {amnesty_path} not found. Running strict zero-amnesty sweep.")
+
+          # anti-spoof prohibited terms check
+          prohibited_modules = {
+              "unittest.mock",  # anti-spoof prohibited terms
+              "mock",  # anti-spoof prohibited terms
+              "multiprocessing",
+              "concurrent.futures",
+              "parsl",
+              "dask",
+              "ray",
+              "mpi4py",
+              "threading",
+          }
+
+          excluded_dirs = {
+              ".git",
+              ".venv",
+              ".conda",
+              "__pycache__",
+              ".pytest_cache",
+              ".mypy_cache",
+              ".ruff_cache",
+              ".trash",
+          }
+
+          violations = []
+          scanned_files = 0
+
+          for root, dirs, files in os.walk(".", topdown=True):
+              dirs[:] = [d for d in dirs if d not in excluded_dirs]
+              for filename in files:
+                  if not filename.endswith(".py"):
+                      continue
+
+                  file_path = Path(root) / filename
+                  try:
+                      posix_rel = file_path.relative_to(".").as_posix()
+                  except ValueError:
+                      posix_rel = file_path.as_posix()
+                  posix_rel_norm = posix_rel.lower()
+
+                  if posix_rel_norm in normalized_amnesty:
+                      continue
+
+                  scanned_files += 1
+                  try:
+                      content = file_path.read_text(encoding="utf-8-sig")
+                      tree = ast.parse(content, filename=str(file_path))
+                  except Exception as parse_err:
+                      violations.append({
+                          "file": posix_rel,
+                          "line": 0,
+                          "module": "SYNTAX_OR_ENCODING_ERROR",
+                          "detail": str(parse_err),
+                      })
+                      continue
+
+                  for node in ast.walk(tree):
+                      if isinstance(node, ast.Import):
+                          for alias in node.names:
+                              for prohibited in prohibited_modules:
+                                  if alias.name == prohibited or alias.name.startswith(prohibited + "."):
+                                      violations.append({
+                                          "file": posix_rel,
+                                          "line": node.lineno,
+                                          "module": alias.name,
+                                          "detail": f"Direct import '{alias.name}' is prohibited without amnesty.",
+                                      })
+                      elif isinstance(node, ast.ImportFrom):
+                          mod = node.module or ""
+                          for prohibited in prohibited_modules:
+                              if mod == prohibited or mod.startswith(prohibited + "."):
+                                  violations.append({
+                                      "file": posix_rel,
+                                      "line": node.lineno,
+                                      "module": mod,
+                                      "detail": f"Import from '{mod}' is prohibited without amnesty.",
+                                  })
+                          for alias in node.names:
+                              full_imported = f"{mod}.{alias.name}" if mod else alias.name
+                              for prohibited in prohibited_modules:
+                                  if (
+                                      full_imported == prohibited
+                                      or full_imported.startswith(prohibited + ".")
+                                      or alias.name == prohibited
+                                  ):
+                                      if not any(
+                                          v["line"] == node.lineno and v["file"] == posix_rel and v["module"] in (mod, full_imported, alias.name)
+                                          for v in violations
+                                      ):
+                                          violations.append({
+                                              "file": posix_rel,
+                                              "line": node.lineno,
+                                              "module": full_imported,
+                                              "detail": f"Import of '{full_imported}' is prohibited without amnesty.",
+                                          })
+
+          print(f"Scanned {scanned_files} non-amnesty Python files.")
+          if violations:
+              print(f"[AST SWEEP FAILED] Detected {len(violations)} unauthorized AST violation(s):", file=sys.stderr)
+              for idx, v in enumerate(violations, 1):
+                  print(f"  [{idx}] File: {v['file']}:{v['line']} -> Prohibited import: '{v['module']}' ({v['detail']})", file=sys.stderr)
+              print("=" * 78, file=sys.stderr)
+              sys.exit(1)
+
+          print("[AST SWEEP PASSED] 0 unauthorized AST patterns found.")
+          print("=" * 78)
+          EOF
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    needs: [airgap-enforcement, ast-sweep]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        python-version:
+          - "3.10"
+          - "3.11"
+
+    env:
+      QT_QPA_PLATFORM: "offscreen"
+      COCHEM_HEADLESS: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Upgrade pip and install build tools
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Install dependencies
+        run: |
+          python -m pip install pydantic psutil h5py filelock pluggy httpx pyyaml mendeleev pytest pytest-cov
+          python -m pip install -e .
+
+      - name: Run test suite via pytest
+        run: |
+          pytest tests/ -v

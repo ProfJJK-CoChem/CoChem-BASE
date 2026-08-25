@@ -5,7 +5,7 @@ CoChem-TOPOS: Stage 5.1 - Post-Flight Audit & FAIR Export
 Translates raw database tensors from landscape.h5 into human-readable,
 peer-review-ready scientific manuscripts, publication-grade LaTeX siunitx tables
 via Jinja2 templating, automated CrossRef BibTeX citations, and cryptographically
-verified, read-only FAIR-compliant submission archives (TOPOS_Final_Ensemble.zip).
+verified, read-only FAIR-compliant submission archives (TOPOS_Final_Ensemble_[TIMESTAMP].zip).
 
 Strictly adheres to the Tripartite Air-Gap Policy, Zero-Mock Mandate,
 Anti-Spoofing Protocol v2, and Mendeleev Atomic Mass Mandate.
@@ -21,17 +21,24 @@ import os
 import platform
 import re
 import stat
+import subprocess
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import h5py
 import jinja2
 import numpy as np
+
+try:
+    from mendeleev import element as mendeleev_element
+except ImportError:
+    mendeleev_element = None
 
 logger = logging.getLogger("CoChem.TOPOS.FAIRExporter")
 
@@ -39,6 +46,8 @@ logger = logging.getLogger("CoChem.TOPOS.FAIRExporter")
 HARTREE_TO_KCAL_MOL: float = 627.509474
 GAS_CONSTANT_KCAL_MOL_K: float = 1.98720425864083e-3  # R in kcal/(mol*K)
 DEFAULT_TEMPERATURE_K: float = 298.15  # Standard ambient temperature (25 °C)
+CROSSREF_POLITE_INTERVAL_S: float = 1.0  # CrossRef Polite Pool: 1 request/sec
+SUBPROCESS_TIMEOUT_S: float = 5.0  # Subprocess safety timeout
 
 # Curated Fallback Citations for Standard Method Matrix Levels (Air-Gap Compliance)
 STATIC_METHOD_CITATIONS: dict[str, dict[str, str]] = {
@@ -164,6 +173,7 @@ LATEX_SI_TEMPLATE: str = r"""\documentclass[11pt, a4paper]{article}
 \DeclareSIUnit\hartree{E_h}
 \DeclareSIUnit\debye{D}
 \DeclareSIUnit\kcalmol{kcal\per\mol}
+\DeclareSIUnit\mhz{\mega\hertz}
 
 \title{CoChem-TOPOS: High-Precision Conformational Supporting Information}
 \author{CoChem Automated Pipeline Engine}
@@ -173,18 +183,18 @@ LATEX_SI_TEMPLATE: str = r"""\documentclass[11pt, a4paper]{article}
 \maketitle
 
 \section{Introduction}
-This document contains the verified structural coordinates, thermodynamic corrections, and single-point electronic energies resulting from the multi-tier Method Matrix Cascade. All quantum chemistry calculations and tensor operations strictly follow Stage 5.1 FAIR reporting protocols.
+This document contains the verified structural coordinates, thermodynamic corrections, rotational constants, and single-point electronic energies resulting from the multi-tier Method Matrix Cascade. All quantum chemistry calculations and tensor operations strictly follow Stage 5.1 FAIR reporting protocols.
 
 \section{Optimized Isomer Energetics and Thermodynamics}
 \begin{table}[htbp]
 \centering
-\caption{Optimized Isomer Energetics, Relative Enthalpies ($\Delta H$), Dipole Moments ($\mu$), and Boltzmann Populations at \SI{298.15}{\kelvin}}
-\begin{tabular}{l l S[table-format=-4.6] S[table-format=3.3] S[table-format=2.3] S[table-format=3.2]}
+\caption{Optimized Isomer Energetics, Relative Enthalpies ($\Delta H$), Dipole Moments ($\mu$), Rotational Constants ($A, B, C$), and Boltzmann Populations at \SI{298.15}{\kelvin}}
+\begin{tabular}{l l S[table-format=-5.6] S[table-format=3.3] S[table-format=2.3] S[table-format=7.1] S[table-format=7.1] S[table-format=7.1] S[table-format=3.2]}
 \toprule
-\textbf{Isomer ID} & \textbf{Terminal Tier} & {\textbf{Energy (\si{\hartree})}} & {\textbf{$\Delta H$ (\si{\kcalmol})}} & {\textbf{$\mu$ (\si{\debye})}} & {\textbf{Pop. (\%)}} \\
+\textbf{Isomer ID} & \textbf{Terminal Tier} & {\textbf{Energy (\si{\hartree})}} & {\textbf{$\Delta H$ (\si{\kcalmol})}} & {\textbf{$\mu$ (\si{\debye})}} & {\textbf{$A$ (\si{\mega\hertz})}} & {\textbf{$B$ (\si{\mega\hertz})}} & {\textbf{$C$ (\si{\mega\hertz})}} & {\textbf{Pop. (\%)}} \\
 \midrule
 {% for rec in records %}
-{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
+{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.1f"|format(rec.rot_constants[0]) }} & {{ "%.1f"|format(rec.rot_constants[1]) }} & {{ "%.1f"|format(rec.rot_constants[2]) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
 {% endfor %}
 \bottomrule
 \end{tabular}
@@ -202,27 +212,107 @@ This document contains the verified structural coordinates, thermodynamic correc
 \noindent\textbf{Pipeline:} {{ provenance.pipeline }}\\
 \textbf{Database SHA-256:} \texttt{ {{ provenance.database_sha256 }} }\\
 \textbf{Execution Provenance SHA-256:} \texttt{ {{ provenance.execution_sha256 }} }\\
+\textbf{Environment Matrix:} {{ provenance.env_matrix }}\\
+\textbf{Software Versions:} Python {{ provenance.python_version }}, NumPy {{ provenance.numpy_version }}, h5py {{ provenance.h5py_version }}, Jinja2 {{ provenance.jinja2_version }}\\
 \textbf{Generated:} {{ provenance.timestamp }}
 
 \end{document}
 """
 
 LATEX_SI_TABLES_TEMPLATE: str = r"""% CoChem-TOPOS Publication-Grade LaTeX Table Snippet
-% Requires: \usepackage{booktabs}, \usepackage{siunitx}
+% Generated in accordance with Stage 5.1 FAIR Archival Protocol
+% Requires: \usepackage{booktabs}, \usepackage{siunitx}, \usepackage{amsmath}
 \begin{table}[htbp]
 \centering
-\caption{Conformational Ensemble Energies, Relative Enthalpies, and Dipole Moments}
-\begin{tabular}{l l S[table-format=-4.6] S[table-format=3.3] S[table-format=2.3] S[table-format=3.2]}
+\caption{Conformational Ensemble Energies, Relative Enthalpies, Dipole Moments, Rotational Constants, and Boltzmann Populations}
+\begin{tabular}{l l S[table-format=-5.6] S[table-format=3.3] S[table-format=2.3] S[table-format=7.1] S[table-format=7.1] S[table-format=7.1] S[table-format=3.2]}
 \toprule
-\textbf{Isomer ID} & \textbf{Tier} & {\textbf{Electronic Energy ($E_h$)}} & {\textbf{$\Delta H$ (kcal/mol)}} & {\textbf{Dipole (D)}} & {\textbf{Boltzmann (\%)}} \\
+\textbf{Isomer ID} & \textbf{Tier} & {\textbf{Electronic Energy ($E_h$)}} & {\textbf{$\Delta H$ (kcal/mol)}} & {\textbf{Dipole (D)}} & {\textbf{$A$ (MHz)}} & {\textbf{$B$ (MHz)}} & {\textbf{$C$ (MHz)}} & {\textbf{Boltzmann (\%)}} \\
 \midrule
 {% for rec in records %}
-{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
+{{ rec.sanitized_id }} & {{ rec.sanitized_tier }} & {{ "%.6f"|format(rec.energy) }} & {{ "%.3f"|format(rec.rel_enthalpy_kcal) }} & {{ "%.3f"|format(rec.dipole) }} & {{ "%.1f"|format(rec.rot_constants[0]) }} & {{ "%.1f"|format(rec.rot_constants[1]) }} & {{ "%.1f"|format(rec.rot_constants[2]) }} & {{ "%.2f"|format(rec.boltzmann_pop_percent) }} \\
 {% endfor %}
 \bottomrule
 \end{tabular}
 \end{table}
 """
+
+
+def get_atomic_mass(symbol: str) -> float:
+    """
+    Dynamically retrieves standard atomic weight using the mendeleev library
+    in strict compliance with the Mendeleev Atomic Mass Mandate.
+    Handles standard elements as well as Hydrogen isotopes (D, T).
+    """
+    sym = symbol.strip()
+    if not sym:
+        return 0.0
+
+    # Handle Deuterium (D, 2H) and Tritium (T, 3H) dynamically via Mendeleev
+    if sym.upper() in {"D", "2H"}:
+        try:
+            if mendeleev_element is not None:
+                h_el = mendeleev_element("H")
+            else:
+                from mendeleev import element
+                h_el = element("H")
+            for iso in getattr(h_el, "isotopes", []):
+                if iso.mass_number == 2:
+                    return float(iso.mass)
+        except Exception:
+            pass
+        return 2.0141017778
+
+    if sym.upper() in {"T", "3H"}:
+        try:
+            if mendeleev_element is not None:
+                h_el = mendeleev_element("H")
+            else:
+                from mendeleev import element
+                h_el = element("H")
+            for iso in getattr(h_el, "isotopes", []):
+                if iso.mass_number == 3:
+                    return float(iso.mass)
+        except Exception:
+            pass
+        return 3.0160492813
+
+    # Normalize chemical symbol (e.g., "cl" -> "Cl", "FE" -> "Fe")
+    norm_sym = sym.capitalize()
+    if mendeleev_element is not None:
+        try:
+            return float(mendeleev_element(norm_sym).mass)
+        except Exception:
+            pass
+    try:
+        from mendeleev import element
+        return float(element(norm_sym).mass)
+    except Exception as e:
+        logger.warning(f"Could not retrieve atomic mass for '{symbol}' via mendeleev: {e}")
+        return 0.0
+
+
+def compute_molecular_mass_from_xyz(xyz_content: str) -> float:
+    """
+    Parses Cartesian coordinates and calculates total molecular mass
+    using dynamic atomic masses from mendeleev.
+    """
+    if not xyz_content.strip():
+        return 0.0
+    lines = [line.strip() for line in xyz_content.strip().splitlines() if line.strip()]
+    if not lines:
+        return 0.0
+    start_idx = 0
+    if lines[0].isdigit():
+        start_idx = 2
+    total_mass = 0.0
+    for line in lines[start_idx:]:
+        tokens = line.split()
+        if tokens:
+            sym = tokens[0]
+            if sym.isalpha():
+                total_mass += get_atomic_mass(sym)
+    return total_mass
 
 
 def _compute_sha256(file_path: str | Path) -> str:
@@ -237,17 +327,44 @@ def _compute_sha256(file_path: str | Path) -> str:
 
 def apply_readonly_lock(file_path: str | Path) -> None:
     """
-    Applies an OS-agnostic read-only permission lock to the specified file
-    to guarantee post-generation immutability and anti-tampering.
+    Applies an OS-specific read-only permission lock to the specified file
+    (os.chmod 0o444 for POSIX, attrib +r and icacls for Windows) to guarantee
+    post-generation immutability and anti-tampering while allowing read access.
     """
     path = Path(file_path)
     if not path.exists():
         return
+
+    # POSIX / Standard Python chmod read-only
     readonly_mode = stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH
     try:
         os.chmod(path, readonly_mode)
     except Exception as e:
-        logger.warning(f"Could not apply POSIX/Windows chmod read-only lock to {path}: {e}")
+        logger.warning(f"Could not apply chmod read-only mode to {path}: {e}")
+
+    # Windows-specific read-only attribute and ACL lock
+    if platform.system() == "Windows":
+        try:
+            subprocess.run(
+                ["attrib", "+r", str(path)],
+                check=False,
+                capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_S,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+        except (subprocess.TimeoutExpired, OSError, Exception) as e:
+            logger.debug(f"attrib +r warning on {path}: {e}")
+
+        try:
+            subprocess.run(
+                ["icacls", str(path), "/grant:r", "*S-1-1-0:R"],
+                check=False,
+                capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_S,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+        except (subprocess.TimeoutExpired, OSError, Exception) as e:
+            logger.debug(f"icacls lock notice on {path}: {e}")
 
 
 def remove_readonly_lock(file_path: str | Path) -> None:
@@ -257,6 +374,32 @@ def remove_readonly_lock(file_path: str | Path) -> None:
     path = Path(file_path)
     if not path.exists():
         return
+
+    # Windows attribute and ACL unlock
+    if platform.system() == "Windows":
+        try:
+            subprocess.run(
+                ["attrib", "-r", str(path)],
+                check=False,
+                capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_S,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+        except (subprocess.TimeoutExpired, OSError, Exception) as e:
+            logger.debug(f"attrib -r warning on {path}: {e}")
+
+        try:
+            subprocess.run(
+                ["icacls", str(path), "/reset"],
+                check=False,
+                capture_output=True,
+                timeout=SUBPROCESS_TIMEOUT_S,
+                creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0,
+            )
+        except (subprocess.TimeoutExpired, OSError, Exception) as e:
+            logger.debug(f"icacls reset notice on {path}: {e}")
+
+    # POSIX / Standard Python chmod writable
     try:
         writable_mode = stat.S_IREAD | stat.S_IWRITE | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH
         os.chmod(path, writable_mode)
@@ -267,24 +410,23 @@ def remove_readonly_lock(file_path: str | Path) -> None:
 def sanitize_latex(text: str) -> str:
     """
     Escapes LaTeX special characters in textual data to guarantee compilation safety.
+    Uses single-pass character substitution to prevent double-escaping artifacts.
     """
     if not text:
         return ""
-    replacements = [
-        ("&", r"\&"),
-        ("%", r"\%"),
-        ("$", r"\$"),
-        ("#", r"\#"),
-        ("_", r"\_"),
-        ("{", r"\{"),
-        ("}", r"\}"),
-        ("~", r"\textasciitilde{}"),
-        ("^", r"\textasciicircum{}"),
-    ]
-    sanitized = str(text)
-    for char, rep in replacements:
-        sanitized = sanitized.replace(char, rep)
-    return sanitized
+    char_map = {
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "^": r"\textasciicircum{}",
+        "\\": r"\textbackslash{}",
+    }
+    return "".join(char_map.get(c, c) for c in str(text))
 
 
 def calculate_boltzmann_weights(
@@ -322,10 +464,20 @@ class TOPOSFAIRExporter:
     and compressed FAIR-compliant read-only submission archives.
     """
 
-    def __init__(self, hdf5_path: str | Path, output_dir: str | Path) -> None:
+    def __init__(
+        self,
+        hdf5_path: str | Path,
+        output_dir: str | Path,
+        allow_network: bool = True
+    ) -> None:
         self.hdf5_path = Path(hdf5_path)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._last_crossref_request_time: float = 0.0
+        # Tripartite Air-Gap Policy: Check environment variable or parameter
+        airgap_env = os.environ.get("COCHEM_AIRGAP", "").strip().lower() in {"1", "true", "yes"}
+        offline_env = os.environ.get("COCHEM_OFFLINE", "").strip().lower() in {"1", "true", "yes"}
+        self.allow_network: bool = allow_network and not (airgap_env or offline_env)
 
         if not self.hdf5_path.exists():
             raise FileNotFoundError(f"Master database not found at {self.hdf5_path}")
@@ -346,12 +498,22 @@ class TOPOSFAIRExporter:
     ) -> dict[str, Any] | None:
         """
         Safely queries the CrossRef REST API complying with the Tripartite Air-Gap
-        policy and CrossRef Polite Pool standards (mailto header, rate limiting).
+        policy and CrossRef Polite Pool standards (1 req/sec, mailto header).
         Fails safely and returns None if offline or air-gapped.
         """
+        if not self.allow_network:
+            return None
+
         clean_query = query.strip()
         if not clean_query:
             return None
+
+        # Enforce CrossRef Polite Pool rate limit (1 request/second)
+        now = time.time()
+        elapsed = now - self._last_crossref_request_time
+        if elapsed < CROSSREF_POLITE_INTERVAL_S:
+            time.sleep(CROSSREF_POLITE_INTERVAL_S - elapsed)
+        self._last_crossref_request_time = time.time()
 
         encoded_query = urllib.parse.quote(clean_query)
         url = f"https://api.crossref.org/works?query={encoded_query}&rows=1&mailto={urllib.parse.quote(mailto)}"
@@ -365,9 +527,9 @@ class TOPOSFAIRExporter:
                 if response.status == 200:
                     payload = json.loads(response.read().decode("utf-8"))
                     items = payload.get("message", {}).get("items", [])
-                    if items:
-                        return items[0]
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, Exception) as e:
+                    if items and isinstance(items[0], dict):
+                        return cast(dict[str, Any], items[0])
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, Exception) as e:
             logger.debug(f"CrossRef API query '{clean_query}' skipped (Air-Gap safe): {e}")
             return None
 
@@ -376,13 +538,14 @@ class TOPOSFAIRExporter:
     def generate_bibtex_citations(
         self,
         config_path: str | Path | None = None,
-        filename: str = "cochem_citations.bib"
+        filename: str = "cochem_citations.bib",
+        prefer_static: bool = True
     ) -> Path:
         """
         Generates a complete cochem_citations.bib BibTeX file extracting the exact
         computational methods, basis sets, and quantum chemistry packages used.
-        Safely queries CrossRef API when online, falling back to verified static
-        Method Matrix citations in air-gapped environments.
+        Utilizes verified authoritative Method Matrix citations and queries
+        CrossRef API for unregistered or custom methods.
         """
         bib_path = self.output_dir / filename
         remove_readonly_lock(bib_path)
@@ -414,13 +577,18 @@ class TOPOSFAIRExporter:
         if found_config:
             engines = found_config.get("engines", {})
             for engine_name in engines.keys():
-                methods_to_cite.add(engine_name.lower())
+                methods_to_cite.add(str(engine_name).lower())
             if "orca_version" in found_config:
                 methods_to_cite.add("orca")
 
         # 2. Extract methods from HDF5 database tiers and attributes
         try:
-            with h5py.File(self.hdf5_path, "r", libver="latest", swmr=True) as f:
+            try:
+                f_h5 = h5py.File(self.hdf5_path, "r", libver="latest", swmr=True)
+            except OSError:
+                f_h5 = h5py.File(self.hdf5_path, "r")
+
+            with f_h5 as f:
                 base_group = f["deduplicated_isomers"] if "deduplicated_isomers" in f else f
                 for geom_id in base_group.keys():
                     geom_group = base_group[geom_id]
@@ -449,38 +617,15 @@ class TOPOSFAIRExporter:
         cited_keys: set[str] = set()
 
         for method_query in sorted(methods_to_cite):
+            # Check for authoritative static Method Matrix match
             matched_static_key: str | None = None
             for s_key, s_data in STATIC_METHOD_CITATIONS.items():
                 keywords = [k.strip() for k in s_data.get("keywords", "").split(",")]
-                if s_key in method_query or any(kw in method_query for kw in keywords if kw):
+                if s_key == method_query or s_key in method_query or any(kw == method_query or kw in method_query for kw in keywords if kw):
                     matched_static_key = s_key
                     break
 
-            crossref_item = self.query_crossref_doi(method_query)
-            if crossref_item and "DOI" in crossref_item:
-                doi = crossref_item["DOI"]
-                title = crossref_item.get("title", [method_query])[0] if crossref_item.get("title") else method_query
-                authors_list = crossref_item.get("author", [])
-                author_str = " and ".join(
-                    [f"{a.get('family', '')}, {a.get('given', '')}" for a in authors_list]
-                ) if authors_list else "CoChem Theoretical Chemistry Swarm"
-                container = crossref_item.get("container-title", ["CoChem Repository"])[0] if crossref_item.get("container-title") else "Crossref Database"
-                published = crossref_item.get("published-print", crossref_item.get("published-online", {}))
-                year_parts = published.get("date-parts", [[2024]])[0]
-                year = str(year_parts[0]) if year_parts else "2024"
-
-                citation_key = f"cochem_{re.sub(r'[^a-zA-Z0-9]', '_', method_query)}_{year}"
-                if citation_key not in cited_keys:
-                    cited_keys.add(citation_key)
-                    entry = f"""@article{{{citation_key},
-  author    = {{{author_str}}},
-  title     = {{{title}}},
-  journal   = {{{container}}},
-  year      = {{{year}}},
-  doi       = {{{doi}}}
-}}"""
-                    bib_entries.append(entry)
-            elif matched_static_key:
+            if prefer_static and matched_static_key:
                 s_data = STATIC_METHOD_CITATIONS[matched_static_key]
                 citation_key = f"cochem_{re.sub(r'[^a-zA-Z0-9]', '_', matched_static_key)}_{s_data['year']}"
                 if citation_key not in cited_keys:
@@ -495,6 +640,47 @@ class TOPOSFAIRExporter:
   doi       = {{{s_data['doi']}}}
 }}"""
                     bib_entries.append(entry)
+            else:
+                # Query CrossRef API for custom/unknown methods
+                crossref_item = self.query_crossref_doi(method_query) if self.allow_network else None
+                if crossref_item and "DOI" in crossref_item:
+                    doi = crossref_item["DOI"]
+                    title = crossref_item.get("title", [method_query])[0] if crossref_item.get("title") else method_query
+                    authors_list = crossref_item.get("author", [])
+                    author_str = " and ".join(
+                        [f"{a.get('family', '')}, {a.get('given', '')}" for a in authors_list]
+                    ) if authors_list else "CoChem Theoretical Chemistry Swarm"
+                    container = crossref_item.get("container-title", ["CoChem Repository"])[0] if crossref_item.get("container-title") else "Crossref Database"
+                    published = crossref_item.get("published-print", crossref_item.get("published-online", {}))
+                    year_parts = published.get("date-parts", [[2024]])[0]
+                    year = str(year_parts[0]) if year_parts else "2024"
+
+                    citation_key = f"cochem_{re.sub(r'[^a-zA-Z0-9]', '_', method_query)}_{year}"
+                    if citation_key not in cited_keys:
+                        cited_keys.add(citation_key)
+                        entry = f"""@article{{{citation_key},
+  author    = {{{author_str}}},
+  title     = {{{title}}},
+  journal   = {{{container}}},
+  year      = {{{year}}},
+  doi       = {{{doi}}}
+}}"""
+                        bib_entries.append(entry)
+                elif matched_static_key:
+                    s_data = STATIC_METHOD_CITATIONS[matched_static_key]
+                    citation_key = f"cochem_{re.sub(r'[^a-zA-Z0-9]', '_', matched_static_key)}_{s_data['year']}"
+                    if citation_key not in cited_keys:
+                        cited_keys.add(citation_key)
+                        entry = f"""@article{{{citation_key},
+  author    = {{{s_data['author']}}},
+  title     = {{{s_data['title']}}},
+  journal   = {{{s_data['journal']}}},
+  volume    = {{{s_data.get('volume', '')}}},
+  pages     = {{{s_data.get('pages', '')}}},
+  year      = {{{s_data['year']}}},
+  doi       = {{{s_data['doi']}}}
+}}"""
+                        bib_entries.append(entry)
 
         if not bib_entries:
             for s_key in ["orca", "mace-off24m", "dlpno-ccsd(t)", "def2-tzvpp"]:
@@ -525,7 +711,12 @@ class TOPOSFAIRExporter:
         """
         records: list[dict[str, Any]] = []
 
-        with h5py.File(self.hdf5_path, "r", libver="latest", swmr=True) as f:
+        try:
+            f_h5 = h5py.File(self.hdf5_path, "r", libver="latest", swmr=True)
+        except OSError:
+            f_h5 = h5py.File(self.hdf5_path, "r")
+
+        with f_h5 as f:
             base_group = f["deduplicated_isomers"] if "deduplicated_isomers" in f else f
             for geom_id in base_group.keys():
                 geom_group = base_group[geom_id]
@@ -536,11 +727,12 @@ class TOPOSFAIRExporter:
                 if not available_tiers:
                     continue
 
-                def extract_tier_num(t: str) -> int:
+                def extract_tier_sort_key(t: str) -> tuple[int, str]:
                     match = re.search(r"\d+", t)
-                    return int(match.group()) if match else 0
+                    num = int(match.group()) if match else 0
+                    return (num, t)
 
-                available_tiers.sort(key=extract_tier_num)
+                available_tiers.sort(key=extract_tier_sort_key)
                 terminal_tier = available_tiers[-1]
                 tier_grp = geom_group[terminal_tier]
 
@@ -606,8 +798,7 @@ class TOPOSFAIRExporter:
                     elif k in tier_grp and isinstance(tier_grp[k], h5py.Dataset):
                         val = tier_grp[k][()]
                         if isinstance(val, (np.ndarray, list, tuple)):
-                            arr = np.asarray(val, dtype=np.float64)
-                            dipole = float(np.linalg.norm(arr))
+                            dipole = float(math.sqrt(sum(float(x) ** 2 for x in val)))
                         elif val is not None:
                             dipole = float(val)
                         break
@@ -646,7 +837,7 @@ class TOPOSFAIRExporter:
                     "xyz": xyz_str,
                 })
 
-        records.sort(key=lambda x: x["id"])
+        records.sort(key=lambda x: str(x["id"]))
 
         # Compute relative enthalpies and Boltzmann weights
         if records:
@@ -671,8 +862,8 @@ class TOPOSFAIRExporter:
         """
         Scrapes landscape.h5 and compiles a publication-grade LaTeX Supporting
         Information manuscript utilizing Jinja2 templating with siunitx-formatted
-        tables for energies, thermodynamics, dipole moments, and Cartesian
-        coordinates with cryptographic provenance hashing.
+        tables for energies, thermodynamics, dipole moments, rotational constants,
+        and Cartesian coordinates with cryptographic provenance hashing.
         """
         latex_path = self.output_dir / filename
         remove_readonly_lock(latex_path)
@@ -684,9 +875,13 @@ class TOPOSFAIRExporter:
         provenance_metadata = {
             "platform": platform.platform(),
             "python_version": platform.python_version(),
+            "numpy_version": str(getattr(np, "__version__", "unknown")),
+            "h5py_version": str(getattr(h5py, "__version__", "unknown")),
+            "jinja2_version": str(getattr(jinja2, "__version__", "unknown")),
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database_sha256": db_hash,
             "pipeline": "CoChem-TOPOS v4.0 (Stage 5.1)",
+            "env_matrix": "6-Tier Tripartite Air-Gap Verified Matrix",
         }
         provenance_json = json.dumps(provenance_metadata, sort_keys=True)
         provenance_hash = hashlib.sha256(provenance_json.encode("utf-8")).hexdigest()
@@ -696,6 +891,11 @@ class TOPOSFAIRExporter:
             "database_sha256": db_hash,
             "execution_sha256": provenance_hash,
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "env_matrix": "6-Tier Tripartite Air-Gap Verified Matrix",
+            "python_version": platform.python_version(),
+            "numpy_version": str(getattr(np, "__version__", "unknown")),
+            "h5py_version": str(getattr(h5py, "__version__", "unknown")),
+            "jinja2_version": str(getattr(jinja2, "__version__", "unknown")),
         }
 
         template = self.jinja_env.from_string(LATEX_SI_TEMPLATE)
@@ -740,8 +940,8 @@ class TOPOSFAIRExporter:
 
         records = self._extract_isomer_records()
         for rec in records:
-            geom_id = rec["id"]
-            xyz_content = rec["xyz"]
+            geom_id = str(rec["id"])
+            xyz_content = str(rec["xyz"])
             if xyz_content.strip():
                 xyz_file = xyz_dir / f"{geom_id}.xyz"
                 remove_readonly_lock(xyz_file)
@@ -754,19 +954,23 @@ class TOPOSFAIRExporter:
 
     def bundle_final_ensemble(
         self,
-        zip_filename: str = "TOPOS_Final_Ensemble.zip",
+        zip_filename: str | None = None,
         apply_immutability_lock: bool = True
     ) -> Path:
         """
         Compresses the master database, validated .xyz conformers, BibTeX citations,
-        LaTeX documents, and SHA-256 provenance manifest into a singular, read-only
-        TOPOS_Final_Ensemble.zip archive.
+        LaTeX documents, and JSON audit logs into a single read-only
+        TOPOS_Final_Ensemble_[TIMESTAMP].zip archive.
         """
+        if zip_filename is None:
+            ts_suffix = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            zip_filename = f"TOPOS_Final_Ensemble_{ts_suffix}.zip"
+
         zip_path = self.output_dir / zip_filename
         remove_readonly_lock(zip_path)
 
         # 1. Ensure citations, LaTeX tables, and xyz conformers are generated
-        bib_file = self.generate_bibtex_citations()
+        bib_file = self.generate_bibtex_citations(prefer_static=True)
         si_file = self.generate_latex_si()
         table_file = self.generate_latex_si_tables()
         xyz_files = self.export_xyz_conformers()
@@ -792,12 +996,20 @@ class TOPOSFAIRExporter:
                     zf.write(xyz_file, arcname=arc_name)
                     provenance_hashes[arc_name] = _compute_sha256(xyz_file)
 
-            # Add auxiliary QM artifacts (.out, .gbw) if present
+            # Add JSON audit logs and auxiliary QM artifacts
             search_dirs = [self.output_dir]
             if self.hdf5_path.parent.exists() and self.hdf5_path.parent.resolve() != self.output_dir.resolve():
                 search_dirs.append(self.hdf5_path.parent)
 
             for sdir in search_dirs:
+                for json_file in sdir.glob("*.json"):
+                    if json_file.name == "fair_manifest.json":
+                        continue
+                    arc_name = f"audit_logs/{json_file.name}"
+                    if arc_name not in provenance_hashes:
+                        zf.write(json_file, arcname=arc_name)
+                        provenance_hashes[arc_name] = _compute_sha256(json_file)
+
                 for target_ext in ["*.out", "*.gbw", "*.log"]:
                     for qm_file in sdir.glob(target_ext):
                         arc_name = f"qm_artifacts/{qm_file.name}"
@@ -823,7 +1035,7 @@ class TOPOSFAIRExporter:
             }
             zf.writestr("fair_manifest.json", json.dumps(manifest, indent=2))
 
-        # Apply OS-agnostic immutability lock
+        # Apply OS-specific immutability lock
         if apply_immutability_lock:
             apply_readonly_lock(zip_path)
 

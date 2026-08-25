@@ -1,16 +1,18 @@
 """
 Comprehensive Zero-Mock Unit Tests for CoChem-TOPOS Stage 5.1 FAIR Export.
-(tests/test_cochem_topos_export.py)
+(tests/test_cochem_topos_export.py & CoChem-TOPOS/tests/test_export.py)
 
 Validates:
 1. Jinja2-based publication-grade LaTeX Supporting Information generation and siunitx formatting.
 2. Jinja2-based LaTeX SI table snippet generation with booktabs and siunitx rules.
-3. Automated CrossRef / static fallback BibTeX citation generation.
+3. Automated CrossRef / static fallback BibTeX citation generation and polite pool throttling.
 4. Physical Boltzmann population distributions and thermodynamic enthalpy scaling.
-5. Deterministic SHA-256 cryptographic provenance manifests and environment hashing.
+5. Deterministic SHA-256 cryptographic provenance manifests, 6-tier matrix metadata, and environment hashing.
 6. Standalone Cartesian coordinate (.xyz) conformer extraction.
-7. Immutable read-only FAIR archive packaging (TOPOS_Final_Ensemble.zip).
-8. Air-gap safety and network fault resilience.
+7. Immutable read-only FAIR archive packaging (TOPOS_Final_Ensemble_[TIMESTAMP].zip).
+8. Dynamic atomic masses via the Mendeleev library and molecular mass calculation (including isotopes).
+9. OS-specific read-only locks (icacls/attrib on Windows, chmod on POSIX).
+10. Air-gap safety and network fault resilience.
 
 Strictly complies with the Zero-Mock Mandate, Anti-Spoofing Protocol v2,
 and Mendeleev Atomic Mass Mandate.
@@ -28,32 +30,18 @@ import h5py
 import numpy as np
 import pytest
 
-try:
-    from cochem_topos.cochem_topos_export import (
-        DEFAULT_TEMPERATURE_K,
-        GAS_CONSTANT_KCAL_MOL_K,
-        HARTREE_TO_KCAL_MOL,
-        STATIC_METHOD_CITATIONS,
-        TOPOSFAIRExporter,
-        _compute_sha256,
-        apply_readonly_lock,
-        calculate_boltzmann_weights,
-        remove_readonly_lock,
-        sanitize_latex,
-    )
-except ImportError:
-    from export_utils.cochem_topos_export import (  # type: ignore[no-redef]
-        DEFAULT_TEMPERATURE_K,
-        GAS_CONSTANT_KCAL_MOL_K,
-        HARTREE_TO_KCAL_MOL,
-        STATIC_METHOD_CITATIONS,
-        TOPOSFAIRExporter,
-        _compute_sha256,
-        apply_readonly_lock,
-        calculate_boltzmann_weights,
-        remove_readonly_lock,
-        sanitize_latex,
-    )
+from cochem_topos.cochem_topos_export import (
+    DEFAULT_TEMPERATURE_K,
+    GAS_CONSTANT_KCAL_MOL_K,
+    TOPOSFAIRExporter,
+    _compute_sha256,
+    apply_readonly_lock,
+    calculate_boltzmann_weights,
+    compute_molecular_mass_from_xyz,
+    get_atomic_mass,
+    remove_readonly_lock,
+    sanitize_latex,
+)
 
 
 def _create_sample_landscape_h5(h5_path: Path) -> None:
@@ -108,7 +96,7 @@ def _create_sample_landscape_h5(h5_path: Path) -> None:
         )
 
 
-def test_compute_sha256(tmp_path: Path):
+def test_compute_sha256(tmp_path: Path) -> None:
     """Verifies deterministic SHA-256 calculation for arbitrary payloads."""
     test_file = tmp_path / "test_manifest.txt"
     test_file.write_text("CoChem Stage 5.1 FAIR Export Verification", encoding="utf-8")
@@ -119,7 +107,7 @@ def test_compute_sha256(tmp_path: Path):
     assert digest == digest_second
 
 
-def test_topos_fair_exporter_init(tmp_path: Path):
+def test_topos_fair_exporter_init(tmp_path: Path) -> None:
     """Verifies initialization fails on missing database and succeeds on valid path."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
@@ -136,14 +124,15 @@ def test_topos_fair_exporter_init(tmp_path: Path):
     assert exporter.jinja_env is not None
 
 
-def test_sanitize_latex():
-    """Verifies proper escaping of LaTeX special characters."""
-    assert sanitize_latex("isomer_001%_val&hash#$test{a}") == r"isomer\_001\%\_val\&hash\#\$test\{a\}"
+def test_sanitize_latex() -> None:
+    """Verifies proper escaping of LaTeX special characters including backslashes."""
+    assert sanitize_latex(r"isomer_001%_val&hash#$test{a}") == r"isomer\_001\%\_val\&hash\#\$test\{a\}"
     assert sanitize_latex("test~name^2") == r"test\textasciitilde{}name\textasciicircum{}2"
+    assert sanitize_latex(r"path\to\file") == r"path\textbackslash{}to\textbackslash{}file"
     assert sanitize_latex("") == ""
 
 
-def test_calculate_boltzmann_weights_physics():
+def test_calculate_boltzmann_weights_physics() -> None:
     """Verifies physical Boltzmann distribution weighting and normalization."""
     # 1. Equal energies -> equal populations
     weights_equal = calculate_boltzmann_weights([0.0, 0.0], DEFAULT_TEMPERATURE_K)
@@ -165,7 +154,7 @@ def test_calculate_boltzmann_weights_physics():
     assert calculate_boltzmann_weights([]) == []
 
 
-def test_custom_temperature_boltzmann():
+def test_custom_temperature_boltzmann() -> None:
     """Evaluates population distribution across different temperatures."""
     energies = [0.0, 1.0]  # 1.0 kcal/mol gap
     w_low_t = calculate_boltzmann_weights(energies, temperature_k=100.0)
@@ -178,7 +167,7 @@ def test_custom_temperature_boltzmann():
     assert w_high_t[1] > w_std_t[1] > w_low_t[1]
 
 
-def test_generate_bibtex_citations_static_fallback(tmp_path: Path):
+def test_generate_bibtex_citations_static_fallback(tmp_path: Path) -> None:
     """Verifies cochem_citations.bib generation using authentic method citations."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
@@ -186,8 +175,8 @@ def test_generate_bibtex_citations_static_fallback(tmp_path: Path):
 
     _create_sample_landscape_h5(h5_path)
 
-    exporter = TOPOSFAIRExporter(h5_path, out_dir)
-    bib_path = exporter.generate_bibtex_citations()
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
+    bib_path = exporter.generate_bibtex_citations(prefer_static=True)
 
     assert bib_path.exists()
     content = bib_path.read_text(encoding="utf-8")
@@ -198,7 +187,7 @@ def test_generate_bibtex_citations_static_fallback(tmp_path: Path):
     assert "wb97m_v" in content.lower() or "def2_tzvpp" in content.lower()
 
 
-def test_generate_bibtex_citations_from_config(tmp_path: Path):
+def test_generate_bibtex_citations_from_config(tmp_path: Path) -> None:
     """Verifies citation compilation parses cochem_system_config.json."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
@@ -219,8 +208,8 @@ def test_generate_bibtex_citations_from_config(tmp_path: Path):
     config_file = out_dir / "cochem_system_config.json"
     config_file.write_text(json.dumps(config_data, indent=2), encoding="utf-8")
 
-    exporter = TOPOSFAIRExporter(h5_path, out_dir)
-    bib_path = exporter.generate_bibtex_citations(config_path=config_file)
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
+    bib_path = exporter.generate_bibtex_citations(config_path=config_file, prefer_static=True)
 
     assert bib_path.exists()
     content = bib_path.read_text(encoding="utf-8")
@@ -230,7 +219,7 @@ def test_generate_bibtex_citations_from_config(tmp_path: Path):
     assert "crest" in content.lower()
 
 
-def test_latex_si_generation_jinja2(tmp_path: Path):
+def test_latex_si_generation_jinja2(tmp_path: Path) -> None:
     """Verifies LaTeX Supporting Information generation via Jinja2, siunitx header bracing, and tier selection."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
@@ -248,7 +237,7 @@ def test_latex_si_generation_jinja2(tmp_path: Path):
     assert r"{\textbf{$\Delta H$ (\si{\kcalmol})}}" in content
     assert r"{\textbf{$\mu$ (\si{\debye})}}" in content
     assert r"{\textbf{Pop. (\%)}}" in content
-    assert r"S[table-format=-4.6]" in content
+    assert r"S[table-format=-5.6]" in content
 
     # 2. Verify highest tier was chosen (T2_ORCA_DFT over T1_MACE_OFF24M)
     assert r"water\_conf\_01" in content
@@ -257,13 +246,15 @@ def test_latex_si_generation_jinja2(tmp_path: Path):
     assert "-76.435678" in content
     assert "Water Isomer 1 T2 Opt" in content
 
-    # 3. Verify Cryptographic Provenance Section
+    # 3. Verify Cryptographic Provenance Section & Software Versions
     assert r"\section*{Cryptographic Provenance and Reproducibility}" in content
     assert r"Execution Provenance SHA-256:" in content
     assert r"Database SHA-256:" in content
+    assert r"Environment Matrix:" in content
+    assert r"Software Versions:" in content
 
 
-def test_latex_si_tables_snippet_jinja2(tmp_path: Path):
+def test_latex_si_tables_snippet_jinja2(tmp_path: Path) -> None:
     """Verifies dedicated LaTeX table snippet generation via Jinja2."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
@@ -284,7 +275,7 @@ def test_latex_si_tables_snippet_jinja2(tmp_path: Path):
     assert "-76.435678" in content
 
 
-def test_energy_dataset_and_fallback_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+def test_energy_dataset_and_fallback_warning(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """Verifies fallback when energy is stored in dataset or missing."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
@@ -307,7 +298,7 @@ def test_energy_dataset_and_fallback_warning(tmp_path: Path, caplog: pytest.LogC
     assert any("Missing electronic energy for geometry 'isomer_missing_energy'" in record.message for record in caplog.records)
 
 
-def test_export_xyz_conformers(tmp_path: Path):
+def test_export_xyz_conformers(tmp_path: Path) -> None:
     """Verifies extraction of individual .xyz geometry files."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
@@ -326,7 +317,7 @@ def test_export_xyz_conformers(tmp_path: Path):
     assert "Water Isomer 1 T2 Opt" in water_txt
 
 
-def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path):
+def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path) -> None:
     """Verifies final ensemble zip packaging, provenance manifest, and immutability lock."""
     h5_dir = tmp_path / "calculations"
     h5_dir.mkdir()
@@ -336,13 +327,13 @@ def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path):
 
     _create_sample_landscape_h5(h5_path)
 
-    # Add QM output artifact
+    # Add QM output artifact and JSON audit log
     orca_out = h5_dir / "calc_01.out"
     orca_out.write_text("ORCA TERMINATED NORMALLY", encoding="utf-8")
-    orca_gbw = h5_dir / "calc_01.gbw"
-    orca_gbw.write_bytes(b"\x00\x01\x02\x03\x04\x05")
+    audit_log = out_dir / "audit_telemetry.json"
+    audit_log.write_text(json.dumps({"stage": 5.1, "status": "VERIFIED"}), encoding="utf-8")
 
-    exporter = TOPOSFAIRExporter(h5_path, out_dir)
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
     zip_path = exporter.bundle_final_ensemble("TOPOS_Final_Ensemble.zip", apply_immutability_lock=True)
 
     assert zip_path.exists()
@@ -357,6 +348,7 @@ def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path):
         assert "conformers_xyz/water_conf_01.xyz" in namelist
         assert "conformers_xyz/water_conf_02.xyz" in namelist
         assert "qm_artifacts/calc_01.out" in namelist
+        assert "audit_logs/audit_telemetry.json" in namelist
         assert "fair_manifest.json" in namelist
 
         manifest_data = json.loads(zf.read("fair_manifest.json").decode("utf-8"))
@@ -373,30 +365,77 @@ def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path):
     remove_readonly_lock(zip_path)
 
 
-def test_bundle_fair_archive_wrapper(tmp_path: Path):
+def test_bundle_final_ensemble_default_timestamp(tmp_path: Path) -> None:
+    """Verifies default timestamp naming for TOPOS_Final_Ensemble_[TIMESTAMP].zip."""
+    h5_path = tmp_path / "landscape.h5"
+    out_dir = tmp_path / "export_output"
+    _create_sample_landscape_h5(h5_path)
+
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
+    zip_path = exporter.bundle_final_ensemble()
+    assert zip_path.exists()
+    assert "TOPOS_Final_Ensemble_" in zip_path.name
+    assert zip_path.suffix == ".zip"
+    remove_readonly_lock(zip_path)
+
+
+def test_bundle_fair_archive_wrapper(tmp_path: Path) -> None:
     """Verifies backwards-compatible bundle_fair_archive wrapper."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
     _create_sample_landscape_h5(h5_path)
 
-    exporter = TOPOSFAIRExporter(h5_path, out_dir)
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
     zip_path = exporter.bundle_fair_archive("TOPOS_FAIR_Archive.zip")
     assert zip_path.exists()
     assert zip_path.name == "TOPOS_FAIR_Archive.zip"
     remove_readonly_lock(zip_path)
 
 
-def test_query_crossref_doi_safely(tmp_path: Path):
+def test_query_crossref_doi_safely(tmp_path: Path) -> None:
     """Verifies CrossRef API queries fail safely without throwing unhandled network errors."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
     with h5py.File(h5_path, "w") as f:
         f.attrs["init"] = 1
 
-    exporter = TOPOSFAIRExporter(h5_path, out_dir)
-    # Empty query should return None immediately
+    exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=True)
     assert exporter.query_crossref_doi("") is None
     assert exporter.query_crossref_doi("   ") is None
-    # Real query should either return parsed dict or None (if air-gapped/timed out) without raising
     result = exporter.query_crossref_doi("10.1063/5.0004608", timeout=1.0)
     assert result is None or isinstance(result, dict)
+
+
+def test_mendeleev_mass_calculation() -> None:
+    """Verifies dynamic atomic masses from mendeleev library for molecular stoichiometry."""
+    c_mass = get_atomic_mass("C")
+    h_mass = get_atomic_mass("H")
+    o_mass = get_atomic_mass("O")
+    d_mass = get_atomic_mass("D")
+    t_mass = get_atomic_mass("T")
+
+    assert 12.0 <= c_mass <= 12.02
+    assert 1.007 <= h_mass <= 1.01
+    assert 15.99 <= o_mass <= 16.01
+    assert 2.013 <= d_mass <= 2.015
+    assert 3.015 <= t_mass <= 3.017
+
+    xyz_h2o = """3
+Water molecule
+O 0.0000 0.0000 0.1173
+H 0.0000 0.7572 -0.4692
+H 0.0000 -0.7572 -0.4692
+"""
+    m_h2o = compute_molecular_mass_from_xyz(xyz_h2o)
+    expected_m = o_mass + 2 * h_mass
+    assert pytest.approx(m_h2o, rel=1e-4) == expected_m
+
+    xyz_d2o = """3
+Heavy water D2O
+O 0.0000 0.0000 0.1173
+D 0.0000 0.7572 -0.4692
+D 0.0000 -0.7572 -0.4692
+"""
+    m_d2o = compute_molecular_mass_from_xyz(xyz_d2o)
+    expected_d2o = o_mass + 2 * d_mass
+    assert pytest.approx(m_d2o, rel=1e-4) == expected_d2o

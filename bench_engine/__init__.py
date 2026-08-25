@@ -2,6 +2,24 @@
 
 from __future__ import annotations
 
+# Stage 1.0 Ingest & Handshake
+from bench_engine.cochem_bench_ingest import (
+    BenchConfigSchema,
+    BenchHardwareSchema,
+    BenchRunContext,
+    BenchSiloPathsSchema,
+    HardwareGovernor,
+    HardwareGovernorResult,
+    PreFlightVerification,
+    RegistryHandshake,
+    ResourceGuardError,
+    SiloIntegrityAssert,
+    SiloIntegrityError,
+    cleanse_ld_library_path,
+    extract_orca_path,
+    run_bench_ingest_pipeline,
+)
+# Stage 2.0 CBS
 from bench_engine.cochem_bench_cbs import (
     CBSExtrapolationResult,
     DualBasisDispatcher,
@@ -15,6 +33,7 @@ from bench_engine.cochem_bench_cbs import (
     CBS_UNCERTAINTY_THRESHOLD_KCAL_MOL,
     PARAMETER_MATRIX,
 )
+# Stage 3.0 CV
 from bench_engine.cochem_bench_cv import (
     CoreValenceMapper,
     CVCorrectionResult,
@@ -24,6 +43,7 @@ from bench_engine.cochem_bench_cv import (
     read_cv_from_hdf5,
     run_cv_pipeline,
 )
+# Stage 4.0 Relativistic & SOC
 from bench_engine.cochem_bench_rel import (
     DeltaRelExtractor,
     RelCorrectionResult,
@@ -39,6 +59,7 @@ from bench_engine.cochem_bench_rel import (
     DEFAULT_RELATIVISTIC_Z_THRESHOLD,
     HARTREE_TO_KCAL_MOL,
 )
+# Stage 5.0 Exporter
 from bench_engine.cochem_bench_export import (
     AirGapPackageMissingError,
     AirGapVerifier,
@@ -55,6 +76,20 @@ from bench_engine.cochem_bench_export import (
 )
 
 __all__ = [
+    # Stage 1.0 Ingest & Handshake
+    "BenchConfigSchema",
+    "BenchHardwareSchema",
+    "BenchRunContext",
+    "BenchSiloPathsSchema",
+    "HardwareGovernor",
+    "HardwareGovernorResult",
+    "PreFlightVerification",
+    "RegistryHandshake",
+    "ResourceGuardError",
+    "SiloIntegrityError",
+    "cleanse_ld_library_path",
+    "extract_orca_path",
+    "run_bench_ingest_pipeline",
     # Stage 2.0 CBS
     "DualBasisDispatcher",
     "HelgakerExtrapolator",

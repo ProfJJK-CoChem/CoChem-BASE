@@ -33,9 +33,11 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import hashlib
 import json
 import logging
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -88,6 +90,31 @@ class SegmentationFaultError(SubprocessReaperBaseError):
     pass
 
 
+class OSFaultError(SegmentationFaultError):
+    """Raised when an OS-level fault (Segfault, OOM, Access Violation) is trapped."""
+    pass
+
+
+class StreamTrapError(SubprocessReaperBaseError):
+    """Base exception raised when an active stream regex trap intercepts an anomaly."""
+    pass
+
+
+class LinearDependenceFaultError(StreamTrapError):
+    """Raised when eigenvalues < 10^-6 is detected in ORCA output stream."""
+    pass
+
+
+class EnergyMatrixNaNInfFaultError(StreamTrapError):
+    """Raised when NaN or Inf appears in energy matrices or output stream."""
+    pass
+
+
+class SCFPingPongOscillationError(StreamTrapError):
+    """Raised when a 2-cycle SCF ping-pong oscillation is detected."""
+    pass
+
+
 class TemporalRoutingError(SubprocessReaperBaseError):
     """Raised when temporal routing encounters missing configuration or fatal constraints."""
     pass
@@ -117,6 +144,23 @@ SEGFAULT_RETURN_CODES: Set[int] = {
     -1073741819,
     0xC0000005,
 }
+
+# POSIX Out-Of-Memory (OOM) Killer codes: -9 (-SIGKILL), 137 (128 + 9)
+OOM_RETURN_CODES: Set[int] = {-9, 137}
+
+# Comprehensive OS-level fault trap return codes
+OS_FAULT_RETURN_CODES: Set[int] = SEGFAULT_RETURN_CODES | OOM_RETURN_CODES
+
+# Active stream regex trap patterns
+LINEAR_DEPENDENCE_PATTERN: str = r"eigenvalues\s*<\s*10\^-6|eigenvalues < 10\^-6"
+NAN_INF_PATTERN: str = r"\b(?:NaN|Inf|Infinity|-NaN|-Inf)\b"
+SCF_DELTA_E_PATTERN: str = r"(?:Delta-E|DELTA-E|DE|Delta E)\s*[:=]?\s*([+-]?\d+\.\d+(?:[eE][+-]?\d+)?)|^\s*\d+\s+[-+]?\d+\.\d+\s+([-+]?\d+\.\d+(?:[eE][+-]?\d+)?)"
+SLOWCONV_SOSCF_KEYWORD: str = "! SlowConv SOSCF"
+
+# Standard trap classification identifiers
+ORCA_LINEAR_DEPENDENCE_FAULT: str = "ORCA_LINEAR_DEPENDENCE_FAULT"
+ENERGY_MATRIX_NAN_INF_FAULT: str = "ENERGY_MATRIX_NAN_INF_FAULT"
+SCF_PING_PONG_OSCILLATION: str = "SCF_PING_PONG_OSCILLATION"
 
 
 # ==============================================================================
@@ -210,6 +254,39 @@ class ProcessReapReport(BaseModel):
     )
 
 
+class StreamTrapEvent(BaseModel):
+    """Structured event record emitted when an active stream regex trap triggers."""
+    model_config = ConfigDict(frozen=True)
+
+    trap_type: str = Field(description="Trap identifier: ORCA_LINEAR_DEPENDENCE_FAULT, ENERGY_MATRIX_NAN_INF_FAULT, or SCF_PING_PONG_OSCILLATION")
+    line_content: str = Field(description="Raw line content that triggered the trap")
+    pid: Optional[int] = Field(default=None, description="Process ID that was intercepted")
+    rescued_input: Optional[str] = Field(default=None, description="Rescued ORCA input string with injected directives if applicable")
+    delta_e_history: List[float] = Field(default_factory=list, description="Historical Delta-E trajectory for ping-pong analysis")
+    message: str = Field(description="Operational diagnostic message")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of the trap event",
+    )
+
+
+class StreamTrapReport(BaseModel):
+    """Execution report from monitoring an active subprocess stream."""
+    model_config = ConfigDict(frozen=True)
+
+    pid: int = Field(description="Target process ID monitored")
+    trapped: bool = Field(description="True if any trap was triggered during stream execution")
+    event: Optional[StreamTrapEvent] = Field(default=None, description="Detailed trap event if triggered")
+    reaped: bool = Field(default=False, description="True if process tree was terminated by ZombieReaper")
+    rescued_input: Optional[str] = Field(default=None, description="Rescued input string if ping-pong trap triggered")
+    lines_processed: int = Field(default=0, description="Total number of stream lines parsed")
+    delta_e_cycles: List[float] = Field(default_factory=list, description="All parsed Delta-E cycles")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp",
+    )
+
+
 class JSONLDProvenanceBlock(BaseModel):
     """Structured FAIR-compliant JSON-LD provenance block for trapped segfaults."""
     model_config = ConfigDict(populate_by_name=True)
@@ -226,7 +303,25 @@ class JSONLDProvenanceBlock(BaseModel):
     fault_type: str = Field(default="OS_SEGMENTATION_FAULT", description="Standardized fault classification")
     status: str = Field(default="FATAL_CRASH_RECORDED", description="Operational resolution status")
     provenance_file: str = Field(description="Filesystem path where provenance is committed")
+    hex_dump: Optional[str] = Field(default=None, description="Formatted 256-byte POSIX hex dump from tail scratch/stderr buffer")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional execution parameters")
+
+
+class ProvenanceFooterPayload(BaseModel):
+    """Structured FAIR-compliant JSON-LD Provenance Footer committed upon calculation finalization."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    context: str = Field(default="https://doi.org/10.5281/zenodo.cochem.v2", alias="@context")
+    type: str = Field(default="BenchmarkProvenanceFooter", alias="@type")
+    cochem_version: str = Field(default="2.0.0", alias="CoChem_Version")
+    orca_binary_hash: str = Field(description="SHA-256 hash of the ORCA binary executable", alias="ORCA_Binary_Hash")
+    hardware_profile: Dict[str, Any] = Field(description="Hardware profile configuration", alias="Hardware_Profile")
+    geometry_hash: str = Field(description="SHA-256 hash of the starting geometry coordinates", alias="Geometry_Hash")
+    composite_methodology: Union[str, Dict[str, Any]] = Field(description="Composite protocol mathematical methodology", alias="Composite_Methodology")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        description="ISO 8601 UTC timestamp of calculation finalization",
+    )
 
 
 class ThermalGovernorState(BaseModel):
@@ -337,6 +432,103 @@ def get_element_mass_mendeleev(symbol: str) -> float:
     if mass_val is None:
         raise ValueError(f"Atomic mass for element {symbol} could not be retrieved.")
     return float(mass_val)
+
+
+# ==============================================================================
+# Hex Dumping & SHA-256 Cryptographic Helpers
+# ==============================================================================
+
+def format_hex_dump(data: Union[bytes, bytearray], bytes_per_line: int = 16) -> str:
+    """Formats raw binary bytes into a POSIX-compliant canonical hex-dump string (hexdump -C style)."""
+    if not data:
+        return ""
+    raw = bytes(data)
+    lines: List[str] = []
+    for offset in range(0, len(raw), bytes_per_line):
+        chunk = raw[offset : offset + bytes_per_line]
+        if len(chunk) > 8:
+            first_8 = " ".join(f"{b:02x}" for b in chunk[:8])
+            second_8 = " ".join(f"{b:02x}" for b in chunk[8:])
+            hex_part = f"{first_8:<23}  {second_8:<23}"
+        else:
+            hex_part = f"{' '.join(f'{b:02x}' for b in chunk):<48}"
+        ascii_part = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
+        lines.append(f"{offset:08x}  {hex_part}  |{ascii_part}|")
+    return "\n".join(lines)
+
+
+def extract_tail_hex_dump(
+    data_or_file: Union[bytes, bytearray, str, Path],
+    max_bytes: int = 256,
+) -> str:
+    """Extracts the final max_bytes from binary data or a dump file and converts to a hex-dump string."""
+    if isinstance(data_or_file, Path) or (isinstance(data_or_file, str) and not data_or_file.startswith("\n") and Path(data_or_file).is_file()):
+        p = Path(data_or_file)
+        if not p.exists() or not p.is_file():
+            return ""
+        size = p.stat().st_size
+        offset = max(0, size - max_bytes)
+        with p.open("rb") as fh:
+            fh.seek(offset)
+            raw = fh.read(max_bytes)
+        return format_hex_dump(raw)
+    elif isinstance(data_or_file, (bytes, bytearray)):
+        raw = bytes(data_or_file)[-max_bytes:]
+        return format_hex_dump(raw)
+    elif isinstance(data_or_file, str):
+        raw = data_or_file.encode("utf-8", errors="replace")[-max_bytes:]
+        return format_hex_dump(raw)
+    return ""
+
+
+def find_scratch_dump_file(scratch_dir: Path) -> Optional[Path]:
+    """Finds the most recent dump file (.tmp, stderr, .err, .log) in the scratch workspace."""
+    if not scratch_dir.exists() or not scratch_dir.is_dir():
+        return None
+    candidates: List[Tuple[float, Path]] = []
+    for item in scratch_dir.iterdir():
+        if item.is_file():
+            lname = item.name.lower()
+            if lname.endswith(".tmp") or lname.endswith(".err") or "stderr" in lname or lname.endswith(".dump"):
+                try:
+                    mtime = item.stat().st_mtime
+                    candidates.append((mtime, item))
+                except OSError:
+                    pass
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
+    return None
+
+
+def compute_sha256_hash(data: Union[str, bytes, bytearray, Path]) -> str:
+    """Computes SHA-256 hexadecimal digest for string, bytes, or file content."""
+    if isinstance(data, Path) or (isinstance(data, str) and not data.startswith("\n") and Path(data).is_file()):
+        p = Path(data)
+        hasher = hashlib.sha256()
+        with p.open("rb") as fh:
+            while chunk := fh.read(65536):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    elif isinstance(data, (bytes, bytearray)):
+        return hashlib.sha256(data).hexdigest()
+    elif isinstance(data, str):
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+    else:
+        return hashlib.sha256(str(data).encode("utf-8")).hexdigest()
+
+
+def compute_geometry_hash(geometry: Union[str, bytes, bytearray, Path, Any]) -> str:
+    """Computes SHA-256 hash of starting geometry coordinates / XYZ string."""
+    if isinstance(geometry, str):
+        cleaned = "\n".join(line.strip() for line in geometry.strip().splitlines() if line.strip())
+        return compute_sha256_hash(cleaned)
+    return compute_sha256_hash(geometry)
+
+
+def compute_orca_binary_hash(binary_path_or_identifier: Union[str, bytes, bytearray, Path]) -> str:
+    """Computes SHA-256 hash of ORCA binary executable or binary identifier."""
+    return compute_sha256_hash(binary_path_or_identifier)
 
 
 # ==============================================================================
@@ -898,6 +1090,56 @@ class ZombieReaper:
             status="EXTERMINATED",
         )
 
+    def kill_process_group(self, target_pid: int) -> None:
+        """Kills process group using os.killpg on POSIX or taskkill /T /F on Windows."""
+        if os.name == "posix":
+            try:
+                pgid = os.getpgid(target_pid)
+                os.killpg(pgid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        elif sys.platform == "win32" or os.name == "nt":
+            try:
+                subprocess.run(
+                    ["taskkill", "/T", "/F", "/PID", str(target_pid)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                )
+            except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+                pass
+
+    def reap_on_linear_dependence(self, target_pid: int) -> ProcessReapReport:
+        """Issues Zombie Reaper kill command and logs ORCA_LINEAR_DEPENDENCE_FAULT."""
+        logger.error(
+            "ORCA_LINEAR_DEPENDENCE_FAULT: Intercepted eigenvalues < 10^-6 for PID %s. Reaping process tree.",
+            target_pid,
+        )
+        return self.terminate_process_tree(target_pid=target_pid, reason=ORCA_LINEAR_DEPENDENCE_FAULT)
+
+    def reap_on_nan_inf(self, target_pid: int) -> ProcessReapReport:
+        """Issues Zombie Reaper kill command and logs ENERGY_MATRIX_NAN_INF_FAULT."""
+        logger.error(
+            "ENERGY_MATRIX_NAN_INF_FAULT: Intercepted NaN or Inf in energy matrix for PID %s. Reaping process tree.",
+            target_pid,
+        )
+        return self.terminate_process_tree(target_pid=target_pid, reason=ENERGY_MATRIX_NAN_INF_FAULT)
+
+    def reap_and_requeue_ping_pong(
+        self,
+        target_pid: int,
+        orca_input: str,
+    ) -> Tuple[ProcessReapReport, str]:
+        """Terminates process tree for SCF ping-pong oscillation and injects ! SlowConv SOSCF rescue."""
+        logger.warning(
+            "SCF_PING_PONG_OSCILLATION: Intercepted 2-cycle ping-pong limit cycle for PID %s. Reaping and re-queuing.",
+            target_pid,
+        )
+        report = self.terminate_process_tree(target_pid=target_pid, reason=SCF_PING_PONG_OSCILLATION)
+        trap = ActiveStreamRegexTrap(reaper=self, artifacts_dir=self.artifacts_dir)
+        rescued_input = trap.inject_slowconv_soscf(orca_input)
+        return report, rescued_input
+
     def monitor_and_reap_if_needed(
         self,
         target_pid: int,
@@ -916,10 +1158,15 @@ class ZombieReaper:
 # ==============================================================================
 
 class SegfaultTrapper:
-    """Strict OS-level Segmentation Fault interceptor evaluating integer return codes.
+    """Strict OS-level Segmentation Fault and OOM interceptor evaluating integer return codes.
 
-    Catches -11 on POSIX, 0xC0000005 / 3221225477 / -1073741819 on Windows, and 139.
-    Constructs and persists structured JSON-LD provenance records without parsing stderr.
+    Catches:
+    - POSIX Segfaults: -11, 139
+    - POSIX OOM: -9, 137
+    - Windows Access Violations: 0xC0000005, 3221225477, -1073741819
+
+    Extracts tail 256-byte binary dump from scratch files, formats POSIX hex-dump,
+    logs error, and commits FAIR JSON-LD provenance.
     """
 
     def __init__(self, artifacts_dir: Optional[Union[str, Path]] = None) -> None:
@@ -931,6 +1178,12 @@ class SegfaultTrapper:
         proc_dir.mkdir(parents=True, exist_ok=True)
         return proc_dir
 
+    def resolve_scratch_dir(self) -> Path:
+        """Resolves the dynamic Scratch workspace directory."""
+        scratch_dir = get_scratch_workspace_dir(self.artifacts_dir)
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+        return scratch_dir
+
     def get_provenance_file_path(self) -> Path:
         """Returns the destination path for bench_provenance.jsonld."""
         return self.resolve_processed_dir() / "bench_provenance.jsonld"
@@ -940,24 +1193,75 @@ class SegfaultTrapper:
         """Evaluates if the raw integer return code corresponds to an OS segmentation fault."""
         return int(returncode) in SEGFAULT_RETURN_CODES
 
+    @staticmethod
+    def is_oom_fault(returncode: int) -> bool:
+        """Evaluates if the raw integer return code corresponds to an OS Out-Of-Memory fault."""
+        return int(returncode) in OOM_RETURN_CODES
+
+    @staticmethod
+    def is_os_fault(returncode: int) -> bool:
+        """Evaluates if the raw integer return code corresponds to any trapped OS fault."""
+        return int(returncode) in OS_FAULT_RETURN_CODES
+
+    def extract_scratch_hex_dump(
+        self,
+        scratch_dir: Optional[Union[str, Path]] = None,
+        max_bytes: int = 256,
+    ) -> Optional[str]:
+        """Locates scratch dump files (.tmp, stderr, .err), tails the final 256 bytes, and converts to hex dump."""
+        target_dir = Path(scratch_dir).resolve() if scratch_dir else self.resolve_scratch_dir()
+        dump_file = find_scratch_dump_file(target_dir)
+        if dump_file is not None and dump_file.exists():
+            hex_str = extract_tail_hex_dump(dump_file, max_bytes=max_bytes)
+            if hex_str:
+                return hex_str
+        return None
+
     def trap(
         self,
         process_id: int,
         returncode: int,
         metadata: Optional[Dict[str, Any]] = None,
+        stderr_data: Optional[Union[bytes, str]] = None,
+        scratch_override: Optional[Union[str, Path]] = None,
     ) -> Optional[JSONLDProvenanceBlock]:
-        """Intercepts process exit code, generating and saving JSON-LD block if segfaulted."""
-        if not self.is_segmentation_fault(returncode):
+        """Intercepts process exit code, extracts tail hex dump, and saves JSON-LD provenance block."""
+        if not self.is_os_fault(returncode):
             return None
 
+        hex_dump_str: Optional[str] = None
+        if stderr_data is not None:
+            hex_dump_str = extract_tail_hex_dump(stderr_data, max_bytes=256)
+        else:
+            try:
+                hex_dump_str = self.extract_scratch_hex_dump(scratch_dir=scratch_override, max_bytes=256)
+            except Exception:
+                hex_dump_str = None
+
+        fault_type = "OS_OOM_FAULT" if self.is_oom_fault(returncode) else "OS_SEGMENTATION_FAULT"
+
+        if hex_dump_str:
+            logger.error(
+                "OS_FAULT_TRAPPED: Fault %s detected (PID %s, ReturnCode %s). Tail 256-byte hex dump:\n%s",
+                fault_type,
+                process_id,
+                returncode,
+                hex_dump_str,
+            )
+
         prov_path = self.get_provenance_file_path()
+        meta = dict(metadata or {})
+        if hex_dump_str:
+            meta["hex_dump"] = hex_dump_str
+
         block = JSONLDProvenanceBlock(
             process_id=int(process_id),
             return_code=int(returncode),
-            fault_type="OS_SEGMENTATION_FAULT",
+            fault_type=fault_type,
             status="FATAL_CRASH_RECORDED",
             provenance_file=str(prov_path),
-            metadata=dict(metadata or {}),
+            hex_dump=hex_dump_str,
+            metadata=meta,
         )
 
         prov_path.write_text(block.model_dump_json(by_alias=True, indent=2), encoding="utf-8")
@@ -968,12 +1272,21 @@ class SegfaultTrapper:
         process_id: int,
         returncode: int,
         metadata: Optional[Dict[str, Any]] = None,
+        stderr_data: Optional[Union[bytes, str]] = None,
+        scratch_override: Optional[Union[str, Path]] = None,
     ) -> None:
         """Intercepts return code, persists JSON-LD, and raises SegmentationFaultError if detected."""
-        block = self.trap(process_id=process_id, returncode=returncode, metadata=metadata)
+        block = self.trap(
+            process_id=process_id,
+            returncode=returncode,
+            metadata=metadata,
+            stderr_data=stderr_data,
+            scratch_override=scratch_override,
+        )
         if block is not None:
+            dump_msg = f"\nHex Dump:\n{block.hex_dump}" if block.hex_dump else ""
             raise SegmentationFaultError(
-                f"Segmentation fault detected (PID: {process_id}, ReturnCode: {returncode}). "
+                f"Segmentation fault detected (PID: {process_id}, ReturnCode: {returncode}).{dump_msg} "
                 f"Provenance committed to {block.provenance_file}"
             )
 
@@ -1797,12 +2110,348 @@ HighSpeedIORouting = HighSpeedIORouter
 
 
 # ==============================================================================
+# 9. Active Stream Regex Traps & Anomaly Watchdogs
+# ==============================================================================
+
+class ActiveStreamRegexTrap:
+    """Active subprocess stderr/stdout polling watchdog and regex trap.
+
+    Interrogates stream output for fatal mathematical faults and divergence traps:
+    1. Linear Dependence: eigenvalues < 10^-6 -> triggers Zombie Reaper and logs ORCA_LINEAR_DEPENDENCE_FAULT.
+    2. NaN / Inf Output: NaN / Inf detected in energy matrices -> instantly kills calculation.
+    3. SCF Ping-Pong Trap: Tracks last 5 SCF Delta-E cycles. If signs alternate perfectly while
+       magnitude is constant, kills the job and returns re-queued input injecting '! SlowConv SOSCF'.
+    """
+
+    def __init__(
+        self,
+        reaper: Optional[ZombieReaper] = None,
+        artifacts_dir: Optional[Union[str, Path]] = None,
+        ping_pong_tolerance: float = 1e-4,
+    ) -> None:
+        self.artifacts_dir = Path(artifacts_dir).resolve() if artifacts_dir else None
+        self.reaper = reaper or ZombieReaper(artifacts_dir=self.artifacts_dir)
+        self.ping_pong_tolerance = float(ping_pong_tolerance)
+        self.delta_e_history: List[float] = []
+        self._linear_dep_re = re.compile(LINEAR_DEPENDENCE_PATTERN, re.IGNORECASE)
+        self._nan_inf_re = re.compile(NAN_INF_PATTERN)
+
+    def detect_linear_dependence(self, text: str) -> bool:
+        """Evaluates whether text contains the literal string 'eigenvalues < 10^-6'."""
+        if "eigenvalues < 10^-6" in text:
+            return True
+        return bool(self._linear_dep_re.search(text))
+
+    def detect_nan_inf(self, text: str) -> bool:
+        """Evaluates whether text contains NaN or Inf numeric tokens."""
+        return bool(self._nan_inf_re.search(text))
+
+    def extract_delta_e(self, line: str) -> Optional[float]:
+        """Attempts to parse SCF Delta-E value from an ORCA output iteration line."""
+        stripped = line.strip()
+        if not stripped:
+            return None
+
+        parts = stripped.split()
+        if len(parts) >= 3 and parts[0].isdigit():
+            try:
+                val = float(parts[2])
+                return val
+            except (ValueError, IndexError):
+                pass
+
+        if "Delta-E" in line or "DELTA-E" in line or "Delta E" in line:
+            m = re.search(r"(?:Delta-E|DELTA-E|DE|Delta E)\s*[:=]?\s*([+-]?\d+\.\d+(?:[eE][+-]?\d+)?)", line)
+            if m:
+                try:
+                    return float(m.group(1))
+                except ValueError:
+                    pass
+
+        return None
+
+    def detect_ping_pong_oscillation(
+        self,
+        delta_e_cycles: Optional[List[float]] = None,
+        tolerance: Optional[float] = None,
+    ) -> bool:
+        """Checks if the last 5 SCF Delta-E cycles exhibit 2-cycle ping-pong oscillation.
+
+        Criteria:
+        1. At least 5 recorded cycles.
+        2. Signs alternate strictly across all consecutive pairs in the 5-cycle window.
+        3. Magnitude is constant within specified tolerance.
+        """
+        history = list(delta_e_cycles) if delta_e_cycles is not None else list(self.delta_e_history)
+        if len(history) < 5:
+            return False
+
+        last_5 = history[-5:]
+        tol = tolerance if tolerance is not None else self.ping_pong_tolerance
+
+        # 1. Non-zero checks and alternating signs
+        for i in range(4):
+            v1 = last_5[i]
+            v2 = last_5[i + 1]
+            if abs(v1) < 1e-12 or abs(v2) < 1e-12:
+                return False
+            if (v1 * v2) >= 0:
+                return False
+
+        # 2. Constant magnitude check
+        mags = [abs(x) for x in last_5]
+        max_m = max(mags)
+        min_m = min(mags)
+
+        if (max_m - min_m) <= tol:
+            return True
+
+        if max_m > 0 and ((max_m - min_m) / max_m) <= 0.05:
+            return True
+
+        return False
+
+    def inject_slowconv_soscf(self, orca_input: str) -> str:
+        """Injects '! SlowConv SOSCF' into the ORCA input text for SCF rescue."""
+        if not orca_input or not orca_input.strip():
+            return f"{SLOWCONV_SOSCF_KEYWORD}\n"
+
+        lines = orca_input.splitlines()
+        keyword_line_idx = -1
+
+        for idx, l in enumerate(lines):
+            stripped = l.strip()
+            if stripped.startswith("!"):
+                keyword_line_idx = idx
+                break
+
+        if keyword_line_idx >= 0:
+            kw_line = lines[keyword_line_idx]
+            kw_upper = kw_line.upper()
+            additions: List[str] = []
+            if "SLOWCONV" not in kw_upper:
+                additions.append("SlowConv")
+            if "SOSCF" not in kw_upper:
+                additions.append("SOSCF")
+
+            if additions:
+                prefix = kw_line[: kw_line.find("!") + 1]
+                rest = kw_line[kw_line.find("!") + 1 :].strip()
+                if rest:
+                    new_kw = f"{prefix} {' '.join(additions)} {rest}".strip()
+                else:
+                    new_kw = f"{prefix} {' '.join(additions)}".strip()
+                lines[keyword_line_idx] = new_kw
+            return "\n".join(lines)
+        else:
+            return f"{SLOWCONV_SOSCF_KEYWORD}\n{orca_input}"
+
+    def process_line(
+        self,
+        line: str,
+        pid: Optional[int] = None,
+        orca_input: Optional[str] = None,
+    ) -> Optional[StreamTrapEvent]:
+        """Evaluates a single line against active stream regex traps, executing reaps if triggered."""
+        # 1. Linear dependence trap
+        if self.detect_linear_dependence(line):
+            logger.error("ORCA_LINEAR_DEPENDENCE_FAULT detected: %s", line.strip())
+            if pid is not None:
+                self.reaper.kill_process_group(pid)
+                self.reaper.terminate_process_tree(pid, reason=ORCA_LINEAR_DEPENDENCE_FAULT)
+
+            return StreamTrapEvent(
+                trap_type=ORCA_LINEAR_DEPENDENCE_FAULT,
+                line_content=line.strip(),
+                pid=pid,
+                message="Linear dependence overlap detected: eigenvalues < 10^-6. Job terminated.",
+            )
+
+        # 2. NaN / Inf trap
+        if self.detect_nan_inf(line):
+            logger.error("ENERGY_MATRIX_NAN_INF_FAULT detected: %s", line.strip())
+            if pid is not None:
+                self.reaper.kill_process_group(pid)
+                self.reaper.terminate_process_tree(pid, reason=ENERGY_MATRIX_NAN_INF_FAULT)
+
+            return StreamTrapEvent(
+                trap_type=ENERGY_MATRIX_NAN_INF_FAULT,
+                line_content=line.strip(),
+                pid=pid,
+                message="NaN/Inf numeric singularity detected in energy matrix. Job terminated.",
+            )
+
+        # 3. Ping-Pong trap
+        de = self.extract_delta_e(line)
+        if de is not None:
+            self.delta_e_history.append(de)
+            if self.detect_ping_pong_oscillation():
+                rescued_input = self.inject_slowconv_soscf(orca_input or "")
+                logger.warning("SCF_PING_PONG_OSCILLATION detected. Re-queuing with ! SlowConv SOSCF.")
+                if pid is not None:
+                    self.reaper.kill_process_group(pid)
+                    self.reaper.terminate_process_tree(pid, reason=SCF_PING_PONG_OSCILLATION)
+
+                return StreamTrapEvent(
+                    trap_type=SCF_PING_PONG_OSCILLATION,
+                    line_content=line.strip(),
+                    pid=pid,
+                    rescued_input=rescued_input,
+                    delta_e_history=list(self.delta_e_history[-5:]),
+                    message="2-cycle SCF ping-pong oscillation detected. Job terminated and re-queued with ! SlowConv SOSCF.",
+                )
+
+        return None
+
+    def poll_stream(
+        self,
+        stream: Any,
+        pid: Optional[int] = None,
+        orca_input: Optional[str] = None,
+    ) -> Generator[str, None, Optional[StreamTrapEvent]]:
+        """Yields lines from stream while checking regex traps on each line."""
+        for raw_line in stream:
+            line = raw_line.decode("utf-8", errors="replace") if isinstance(raw_line, (bytes, bytearray)) else str(raw_line)
+            event = self.process_line(line, pid=pid, orca_input=orca_input)
+            yield line
+            if event is not None:
+                return event
+        return None
+
+    def monitor_process(
+        self,
+        proc: subprocess.Popen,
+        orca_input: Optional[str] = None,
+        poll_interval_sec: float = 0.01,
+    ) -> StreamTrapReport:
+        """Monitors a running subprocess stdout/stderr streams, applying regex traps."""
+        lines_count = 0
+        trapped_event: Optional[StreamTrapEvent] = None
+
+        if proc.stdout:
+            while proc.poll() is None:
+                line = proc.stdout.readline()
+                if not line:
+                    time.sleep(poll_interval_sec)
+                    continue
+                line_str = line.decode("utf-8", errors="replace") if isinstance(line, bytes) else str(line)
+                lines_count += 1
+                event = self.process_line(line_str, pid=proc.pid, orca_input=orca_input)
+                if event is not None:
+                    trapped_event = event
+                    break
+
+        return StreamTrapReport(
+            pid=proc.pid,
+            trapped=trapped_event is not None,
+            event=trapped_event,
+            reaped=trapped_event is not None,
+            rescued_input=trapped_event.rescued_input if trapped_event else None,
+            lines_processed=lines_count,
+            delta_e_cycles=list(self.delta_e_history),
+        )
+
+
+# Authoritative alias
+StreamRegexTrap = ActiveStreamRegexTrap
+
+
+# ==============================================================================
+# 10. JSON-LD Provenance Footer Appender
+# ==============================================================================
+
+def append_jsonld_provenance_footer(
+    orca_binary_hash: str,
+    hardware_profile: Union[Dict[str, Any], HardwareRegistryConfig, BaseModel],
+    geometry_hash: str,
+    composite_methodology: Union[str, Dict[str, Any]],
+    cochem_version: str = "2.0.0",
+    artifacts_dir: Optional[Union[str, Path]] = None,
+    destination_path: Optional[Union[str, Path]] = None,
+) -> Tuple[ProvenanceFooterPayload, Path]:
+    """Appends a structured FAIR JSON-LD provenance footer to Processed/bench_provenance.jsonld.
+
+    Guarantees persistence of:
+    - CoChem_Version
+    - ORCA_Binary_Hash (SHA-256)
+    - Hardware_Profile
+    - Geometry_Hash
+    - Composite_Methodology
+
+    Raises:
+        RuntimeError: If COCHEM_ARTIFACTS_DIR is missing and artifacts_dir is not provided.
+    """
+    if destination_path is not None:
+        target_path = Path(destination_path).resolve()
+    else:
+        base_dir = Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+        target_path = base_dir / "Processed" / "bench_provenance.jsonld"
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    hw_data: Dict[str, Any]
+    if isinstance(hardware_profile, BaseModel):
+        hw_data = hardware_profile.model_dump()
+    elif isinstance(hardware_profile, dict):
+        hw_data = dict(hardware_profile)
+    else:
+        hw_data = {"profile": str(hardware_profile)}
+
+    payload = ProvenanceFooterPayload(
+        CoChem_Version=cochem_version,
+        ORCA_Binary_Hash=str(orca_binary_hash),
+        Hardware_Profile=hw_data,
+        Geometry_Hash=str(geometry_hash),
+        Composite_Methodology=composite_methodology,
+    )
+
+    # Read existing entries if present to maintain valid JSON-LD ledger array
+    existing_entries: List[Dict[str, Any]] = []
+    if target_path.exists():
+        try:
+            content = target_path.read_text(encoding="utf-8").strip()
+            if content:
+                loaded = json.loads(content)
+                if isinstance(loaded, list):
+                    existing_entries = loaded
+                elif isinstance(loaded, dict):
+                    existing_entries = [loaded]
+        except Exception:
+            existing_entries = []
+
+    payload_dict = payload.model_dump(by_alias=True)
+    existing_entries.append(payload_dict)
+
+    target_path.write_text(json.dumps(existing_entries, indent=2), encoding="utf-8")
+
+    # Also mirror to BENCH_Workspace/Processed if target is Processed
+    if destination_path is None:
+        try:
+            bench_processed = (
+                Path(artifacts_dir).resolve() if artifacts_dir else get_cochem_artifacts_dir()
+            ) / "BENCH_Workspace" / "Processed" / "bench_provenance.jsonld"
+            bench_processed.parent.mkdir(parents=True, exist_ok=True)
+            bench_processed.write_text(json.dumps(existing_entries, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    return payload, target_path
+
+
+# Authoritative alias
+JSONLDProvenanceFooter = ProvenanceFooterPayload
+
+
+# ==============================================================================
 # Export Declarations
 # ==============================================================================
 
 __all__ = [
+    "ActiveStreamRegexTrap",
     "CRITICAL_TEMP_CELSIUS",
     "DEFAULT_MIN_FREE_SCRATCH_BYTES",
+    "ENERGY_MATRIX_NAN_INF_FAULT",
+    "EnergyMatrixNaNInfFaultError",
     "ExitCode139_Trapper",
     "HardwareRegistryConfig",
     "HighSpeedIORouter",
@@ -1810,17 +2459,34 @@ __all__ = [
     "IOCleanupReport",
     "IOScratchRouteReport",
     "JSONLDProvenanceBlock",
+    "JSONLDProvenanceFooter",
+    "LINEAR_DEPENDENCE_PATTERN",
+    "LinearDependenceFaultError",
+    "NAN_INF_PATTERN",
     "NUMAPinningError",
     "NUMA_ThreadPinner",
+    "OOM_RETURN_CODES",
+    "ORCA_LINEAR_DEPENDENCE_FAULT",
+    "OSFaultError",
+    "OS_FAULT_RETURN_CODES",
     "PreFlightResourceError",
     "PreFlightScratchVerifier",
     "ProcessReapReport",
+    "ProvenanceFooterPayload",
     "RESUME_TEMP_CELSIUS",
     "ResourceGuardError",
+    "SCF_DELTA_E_PATTERN",
+    "SCF_PING_PONG_OSCILLATION",
+    "SCFPingPongOscillationError",
     "SEGFAULT_RETURN_CODES",
+    "SLOWCONV_SOSCF_KEYWORD",
     "ScratchSpaceReport",
     "SegfaultTrapper",
     "SegmentationFaultError",
+    "StreamRegexTrap",
+    "StreamTrapError",
+    "StreamTrapEvent",
+    "StreamTrapReport",
     "SystemRegistryConfig",
     "TemporalRouteResult",
     "TemporalRouter",
@@ -1832,7 +2498,14 @@ __all__ = [
     "ZMQEndpointManifest",
     "ZombieReaper",
     "ZombieReaperError",
+    "append_jsonld_provenance_footer",
+    "compute_geometry_hash",
+    "compute_orca_binary_hash",
+    "compute_sha256_hash",
     "execute_protected_subprocess",
+    "extract_tail_hex_dump",
+    "find_scratch_dump_file",
+    "format_hex_dump",
     "get_cochem_artifacts_dir",
     "get_element_mass_mendeleev",
     "get_processed_workspace_dir",

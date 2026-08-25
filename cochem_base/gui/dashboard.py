@@ -39,11 +39,18 @@ class PipelineWorker(QThread):
         exit_code = self.router.route_job("default", cmd, cwd=cwd, job_name="cochem_pipeline_stage1")
         
         if exit_code == 0:
-            self.progress_updated.emit("Stage 1 Setup Complete. 11-Arrow Pipeline Handoff Required.", 50)
-            # The rest of the pipeline is currently unimplemented. 
-            # We abort here rather than mocking the remaining steps.
-            logger.error("[HARD_ABORT: PHYSICS WALL] 11-Arrow Canonical Pipeline not implemented. Handoff to cochem-coder required.")
-            self.finished.emit(False)
+            self.progress_updated.emit("Stage 1 Setup Complete. Launching 11-Arrow Canonical Pipeline...", 50)
+            
+            # Execute the 11-Arrow Canonical Pipeline
+            cmd_11 = f'"{sys.executable}" -m escalation.cochem_topos_escalator_exec'
+            exit_code_11 = self.router.route_job("default", cmd_11, cwd=cwd, job_name="cochem_pipeline_11_arrow")
+            
+            if exit_code_11 == 0:
+                self.progress_updated.emit("11-Arrow Canonical Pipeline Complete.", 100)
+                self.finished.emit(True)
+            else:
+                self.progress_updated.emit(f"Pipeline Failed at 11-Arrow Escalation (Exit Code: {exit_code_11})", 50)
+                self.finished.emit(False)
         else:
             self.progress_updated.emit(f"Pipeline Failed at Stage 1 (Exit Code: {exit_code})", 0)
             self.finished.emit(False)

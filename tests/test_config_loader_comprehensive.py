@@ -196,20 +196,25 @@ def test_get_scratch_dir_tier4_tempfile(monkeypatch: pytest.MonkeyPatch) -> None
     assert resolved.is_dir()
 
 
-def test_get_scratch_dir_tier5_home_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_scratch_dir_tier5_home_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Tier 5: Fallback to Path.home() / ".cochem" / "scratch" when Tier 4 fails."""
     monkeypatch.delenv("COCHEM_SCRATCH", raising=False)
     monkeypatch.delenv("COCHEM_SCRATCH_DIR", raising=False)
     monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
 
-    def failing_tempdir() -> str:
-        raise OSError("Simulated unwritable tempdir")
+    # Induce Tier 4 failure physically by pointing tempdir to a file
+    dummy_file = tmp_path / "dummy_tempdir.txt"
+    dummy_file.write_text("blocker")
+    original_tempdir = tempfile.tempdir
+    tempfile.tempdir = str(dummy_file)
 
-    monkeypatch.setattr("tempfile.gettempdir", failing_tempdir)
-    resolved = get_scratch_dir()
-    expected = (Path.home() / ".cochem" / "scratch").resolve()
-    assert resolved == expected
-    assert resolved.is_dir()
+    try:
+        resolved = get_scratch_dir()
+        expected = (Path.home() / ".cochem" / "scratch").resolve()
+        assert resolved == expected
+        assert resolved.is_dir()
+    finally:
+        tempfile.tempdir = original_tempdir
 
 
 def test_get_cochem_scratch_alias(tmp_path: Path) -> None:

@@ -487,27 +487,27 @@ def test_nullable_json_api_field_resilience(
 
 
 # ==============================================================================
-# TEST 11: Thread-Safe Rate Limiting
+# TEST 11: Thread-Safe Rate Limiting (Task 79, 80)
 # ==============================================================================
-def test_thread_safe_rate_limiting(tmp_path: pathlib.Path) -> None:
-    """Tests concurrent queries across threads execute safely without race."""
-    mgr = CitationManager(
-        output_path=tmp_path / "cochem_citations.bib",
-        rate_limit_delay=0.5,
-        request_timeout=1.0,
-        offline_mode=True,
-    )
+def test_thread_safe_rate_limiting() -> None:
+    """Tests concurrent calls serialize properly under rate-limiting delay."""
+    delay = 0.10
+    num_workers = 4
 
-    def concurrent_worker_task() -> None:
-        mgr.resolve_method_citation("ORCA")
+    def concurrent_rate_task() -> None:
+        CitationManager._enforce_rate_limit(delay)
 
     start_time = time.perf_counter()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [executor.submit(concurrent_worker_task) for _ in range(4)]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(concurrent_rate_task) for _ in range(num_workers)]
         for f in futures:
             f.result()
     total_time = time.perf_counter() - start_time
-    assert total_time >= 0.0
+    expected_min = (num_workers - 1) * delay * 0.8
+    err_msg = (
+        f"Rate limiting failed: took {total_time:.3f}s, expected >= {expected_min:.3f}s"
+    )
+    assert total_time >= expected_min, err_msg
 
 
 # ==============================================================================
@@ -531,3 +531,61 @@ def test_preflight_cli_execution() -> None:
         f"Script failed with code {result.returncode}:\n{result.stderr}"
     )
     assert "[SCRIBE CITATION API PRE-FLIGHT VERIFIED]" in result.stdout
+
+
+# ==============================================================================
+# TEST 13: LaTeX Special Character Escaping Verification
+# ==============================================================================
+def test_latex_special_character_escaping(offline_manager: CitationManager) -> None:
+    """Tests that unescaped LaTeX characters in metadata are properly escaped."""
+    metadata: dict[str, Any] = {
+        "author": [{"family": "Smith & Jones", "given": "John"}],
+        "title": "Quantum 100% Efficiency & Accuracy for B3LYP_D3 #1 $E=mc^2$",
+        "container-title": "Journal of R&D",
+        "publisher": "Wiley & Sons",
+        "volume": "10",
+        "issue": "2",
+        "page": "100-110",
+        "issued": {"date-parts": [[2023]]},
+        "DOI": "10.1000/182",
+    }
+    bibtex = offline_manager.format_bibtex_entry(metadata, "Special_Method")
+    assert r"100\%" in bibtex
+    assert r"R\&D" in bibtex or r"Wiley \& Sons" in bibtex
+    assert r"B3LYP\_D3" in bibtex
+    assert r"\#1" in bibtex
+    assert r"\$E=mc^2\$" in bibtex
+
+    # Verify generic fallback escaping
+    cite_key, generic_bib = offline_manager.resolve_method_citation("Custom_DFT_100%")
+    assert r"100\%" in generic_bib
+    assert r"Custom\_DFT\_100\%" in generic_bib
+
+
+# ==============================================================================
+# TEST 14: DOI URL Query and Fragment Stripping
+# ==============================================================================
+def test_doi_url_query_and_fragment_stripping() -> None:
+    """Tests that query parameters and URL fragments are cleaned from DOIs."""
+    raw_with_query = "https://doi.org/10.1002/wcms.1606?utm_source=springer&id=1#abstract"
+    normalized = CitationManager.normalize_doi(raw_with_query)
+    assert normalized == "10.1002/wcms.1606"
+
+    raw_with_fragment = "10.1063/1.5090222#fig1"
+    normalized_frag = CitationManager.normalize_doi(raw_with_fragment)
+    assert normalized_frag == "10.1063/1.5090222"
+
+
+# ==============================================================================
+# TEST 15: Corporate & Institutional Author Double Bracing
+# ==============================================================================
+def test_corporate_author_double_braces(offline_manager: CitationManager) -> None:
+    """Tests that institutional author names are enclosed in double braces."""
+    metadata = {
+        "author": [{"name": "The PySCF Development Team"}],
+        "title": "PySCF GPU Engine",
+        "issued": {"date-parts": [[2024]]},
+        "DOI": "10.1000/pyscf",
+    }
+    bibtex = offline_manager.format_bibtex_entry(metadata, "PySCF_GPU")
+    assert "author = {{The PySCF Development Team}}" in bibtex

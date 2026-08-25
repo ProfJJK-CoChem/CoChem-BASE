@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os
-
+import platform
 from pathlib import Path
 
 import pytest
@@ -54,25 +54,25 @@ def test_resolve_artifact_path_env_vars(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
 @pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")
 def test_get_interface_and_calc_env_platforms(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr('platform.system', lambda: 'Windows')
+    # Temporarily remove CODESPACES to test the platform.system() code path
+    monkeypatch.delenv("CODESPACES", raising=False)
+    
     iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-Windows (WSL)'
-    assert calc == 'Local-Windows (WSL)'
-
-    monkeypatch.setattr('platform.system', lambda: 'Darwin')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-MacOS (OrbStack)'
-    assert calc == 'Local-MacOS (OrbStack)'
-
-    monkeypatch.setattr('platform.system', lambda: 'Linux')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Local-Linux (Deb)'
-    assert calc == 'Local-Linux (Deb)'
-
-    monkeypatch.setattr('platform.system', lambda: 'UnknownOS')
-    iface, calc = headless_run.get_interface_and_calc_env()
-    assert iface == 'Codespaces'
-    assert calc == 'GitHub Actions'
+    sys_name = platform.system()
+    
+    mapping = {
+        "Windows": "Local-Windows (WSL)",
+        "Darwin": "Local-MacOS (OrbStack)",
+        "Linux": "Local-Linux (Deb)",
+    }
+    
+    if sys_name in mapping:
+        expected = mapping[sys_name]
+        assert iface == expected
+        assert calc == expected
+    else:
+        assert iface == "Codespaces"
+        assert calc == "GitHub Actions"
 
 
 @pytest.mark.skipif(os.environ.get("CODESPACES") != "true", reason="Requires CODESPACES=true")

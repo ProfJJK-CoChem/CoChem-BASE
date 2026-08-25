@@ -1,60 +1,155 @@
 Parallel audit completed. Review the following output for any necessary interventions:
-I have initiated the parallel adversarial static analysis across `D:\__CoChem\GitHub-Repo\CoChem-BASE` by launching the `cochem-audit` and `adversary` subagents concurrently. Standing by for their forensic findings.
-The `adversary` subagent has completed its adversarial audit. Awaiting the final audit completion from the `cochem-audit` subagent.
-# Parallel Adversarial Static Analysis Audit Report: CoChem-BASE
+I have read the audit requirements from [`parallel_audit_payload.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/parallel_audit_payload.md) and initiated a parallel adversarial static analysis across `D:\__CoChem\GitHub-Repo\CoChem-BASE`.
 
-The parallel adversarial static analysis requested in [`parallel_audit_payload.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/parallel_audit_payload.md) was executed by deploying [`cochem-audit`](conversation://d432eae9-fcf9-4747-8ed4-839f4a372662) and [`adversary`](conversation://ce17606a-e6cd-4936-8c94-6c9bbb39cb79) concurrently across [`D:\__CoChem\GitHub-Repo\CoChem-BASE`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE).
+### Parallel Swarm Status:
+- **`cochem-audit`** (`dc0f8e83-28e1-4aba-9d0c-adacbf447269`): Performing QA, code standards compliance, Method Matrix v4 compliance (grid progression, Hessian preconditioning, dispersion, spin contamination), Mendeleev mandate verification, and static typing/error-handling analysis.
+- **`adversary`** (`a6d15a48-4cbb-44ca-8183-fcbd7e4ddd08`): Hunting for faked jobs, simulated tests, `unittest.mock`/`pytest.monkeypatch`, synthetic arrays/placeholders, dead-end stubs, and anti-spoofing protocol violations.
 
-The full synthesized findings and remediation vectors are documented in the master artifact:
-👉 **[parallel_adversarial_static_audit_synthesis.md](file:///C:/Users/ansac/.gemini/antigravity-cli/brain/9d968418-816a-4cdd-ad78-bcb8bc555243/parallel_adversarial_static_audit_synthesis.md)**
+Standing by for subagent completion reports to synthesize the final adversarial audit findings.
+I have received the static analysis report from [`cochem-audit`](conversation://dc0f8e83-28e1-4aba-9d0c-adacbf447269). 
+
+Standing by for the adversarial mock-hunt and anti-spoofing report from [`adversary`](conversation://a6d15a48-4cbb-44ca-8183-fcbd7e4ddd08) before compiling the unified Agent Council audit synthesis.
+Continuing to monitor the adversarial audit execution in [`adversary`](conversation://a6d15a48-4cbb-44ca-8183-fcbd7e4ddd08). Will synthesize both reports immediately upon receipt.
+# Adversarial Static Analysis & Forensic Audit Report
+
+**Target Workspace:** [`D:\__CoChem\GitHub-Repo\CoChem-BASE`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE)  
+**Initiating Instruction:** [`parallel_audit_payload.md`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/parallel_audit_payload.md)  
+**Auditing Swarm:** [`cochem-audit`](conversation://dc0f8e83-28e1-4aba-9d0c-adacbf447269) & [`adversary`](conversation://a6d15a48-4cbb-44ca-8183-fcbd7e4ddd08)  
+**Governing Directives:** Anti-Spoofing Protocol v2, Zero-Mock Mandate, Mendeleev Library Mandate, Method Matrix v4
 
 ---
 
-### Executive Joint Council Verdict
+## 1. Executive Summary & Verdict
+
 > [!CAUTION]
-> **VERDICT: CONDITIONAL FAIL / HIGH-RISK INTEGRITY VIOLATIONS DETECTED**  
-> While core mathematical and quantum-chemical routines (such as JAX Eckart projections in [`calc/cochem_kie_profiler.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_kie_profiler.py) and quaternion rotational alignment in [`cochem_torq_alignment.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_torq_alignment.py)) are authentic, the codebase exhibits **critical zero-mock violations, hardcoded mass dictionaries, 518 monkeypatch environment simulations, base64 linter evasion, an amnesty laundering file, and 344 silent exception swallows**.
+> **Audit Verdict: SEVERE PROTOCOL VIOLATIONS DETECTED**  
+> While the repository exhibits extensive scientific typing and physical modeling scaffolding across 508 Python files, the parallel adversarial static analysis revealed systemic breaches in **Anti-Spoofing Protocol v2**, **Zero-Mock Policy**, and the **Mendeleev Library Mandate**.
+
+### Core Forensic Findings:
+1. **Direct Mendeleev Mandate Violations & Silent Defaults:** Over 103 instances across 11 files bypass dynamic `mendeleev` queries with static atomic tables. In [`intake/cochem_stage2_ingestor.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/intake/cochem_stage2_ingestor.py#L135-L147), exceptions are silently suppressed with `except Exception: pass`, collapsing all non-hydrogen elements (e.g., Oxygen, Nitrogen, Uranium) into Carbon mass (12.011 u).
+2. **Deliberate Scanner Evasion via Base64 & Token Splitting:** More than 30 test files employ Base64 encoding (e.g., `b"dW5pdHRlc3QubW9jaw=="`) and dynamic string concatenation (`"Magic" + "Mock"`, `"unittest." + "mock"`) with explicit comments stating this was done to evade static security and anti-spoofing scanners.
+3. **Hardware & Subprocess Interception (Monkeypatching):** Multiple test suites intercept OS detection, filesystem verification, compiler toolchain checks, and kernel probes with monkeypatched lambdas (`_mock_run`, `interrogate_os`, `audit_filesystem`), bypassing physical environment execution.
+4. **Semantic Ground-Truth Array Spoofing:** In [`cochem_geom/data/dataset.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_geom/data/dataset.py#L799-L834), missing ground-truth physics labels (forces, dipoles, rotational constants) are silently populated with synthetic zero tensors (`torch.zeros`) without missingness masks.
+5. **Dead-End Stubs & Unsafe Subprocesses:** 26 dead-end stubs (empty `pass` methods and `NotImplementedError` raises in non-abstract interfaces), 103 hardcoded filesystem paths (`D:\...`, `/tmp/...`), and 315 unshielded subprocess calls lacking `timeout` guards or `check=True`.
 
 ---
 
-### Compliance Scorecard Summary
+## 2. Forensic Findings by Severity
 
-| Assessment Domain | Status | Critical | Major | Minor | Core Findings |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **1. Zero-Mock & Anti-Spoof Mandate** | ❌ **FAIL** | 5 | 12 | 24 | Base64 token evasion; 518 `monkeypatch` calls faking HPC/OS; dummy Qt/watchdog stubs; [`.anti_spoof_amnesty.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/.anti_spoof_amnesty.json) exempting 90 files. |
-| **2. Dynamic Atomic Masses (Mendeleev)** | ❌ **FAIL** | 5 | 2 | 0 | Hardcoded static `CIAAW_ISOTOPIC_MASSES` dictionaries (120 elements) with carbon-12 (`12.0` amu) arbitrary fallbacks. |
-| **3. Method Matrix Compliance** | ⚠️ **PARTIAL** | 1 | 3 | 2 | CREST parameters default to `--gfn2 -opt` instead of `--nci --nocross --noreftopo`; input generator defaults to `defgrid1` for general optimizations. |
-| **4. Logical Integrity & Safety** | ⚠️ **MAJOR RISK** | 2 | 8 | 344+ | 344 production `except Exception: pass` swallows; `shell=True` subprocess calls without sanitization; unhandled Windows sensors. |
-| **5. Architecture & Typing Standards** | ℹ️ **PASS** | 0 | 0 | 214 | 290+ Pydantic v2 schemas valid; SHA-256 provenance active; 214 files use legacy Python `typing` syntax. |
+### 🔴 Critical Severity
 
----
-
-### Key Forensic Findings
-
-1. **Static Atomic Mass Violations (Mendeleev Mandate):**
-   - [`cochem_tensor_extractor.py:L64-182`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_tensor_extractor.py#L64-L182) & [`cochem_torq_vault.py:L30-77`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_torq_vault.py#L30-L77): 120-element static mass tables with fallback `return 12.0`.
-   - [`orchestrator/cochem_setup_phase_10.py:L566-582`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_10.py#L566-L582): Hardcodes `_STANDARD_ATOMIC_WEIGHTS`.
-   - [`cochem_base/io/atomic_data.py:L64-180`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/io/atomic_data.py#L64-L180): Hardcodes `_PERIODIC_TABLE_RAW`.
-   - *Approved Standard:* Route all mass queries through [`src/cochem_geom/data/featurizer.py:L151-170`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_geom/data/featurizer.py#L151-L170) using dynamic `from mendeleev import element` lookups.
-
-2. **Zero-Mock & Evasion Tactics:**
-   - **Base64 Obfuscation:** [`test_suite/test_cochem_topos_quench.py:L514-525`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_topos_quench.py#L514-L525) and [`test_suite/test_deployment_manifest.py:L41-49`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_deployment_manifest.py#L41-L49) encode `unittest.mock` strings in Base64 (`b"dW5pdHRlc3QubW9jaw=="`) to bypass static linters.
-   - **Amnesty File:** [`.anti_spoof_amnesty.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/.anti_spoof_amnesty.json) grants blanket exemptions to 90 files.
-   - **HPC/OS Simulation:** 518 instances across 62 test files use `monkeypatch.setenv("SLURM_JOB_ID", ...)` (e.g. [`tests/test_silo_setup_keep_linux_hpc.py:L48`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_silo_setup_keep_linux_hpc.py#L48)) rather than isolated execution fixtures.
-   - **Hollow Classes:** [`calc/cochem_numfreq_dispatcher.py:L20-23`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_numfreq_dispatcher.py#L20-L23) stubs `class BaseModel: pass`.
-
-3. **Method Matrix Alignment:**
-   - [`cochem_base/interfaces/cochem_unity_fast_pass_widget.py:L265`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/interfaces/cochem_unity_fast_pass_widget.py#L265): Defaults CREST to `--gfn2 -opt` instead of `--gfn2 --nci --nocross --noreftopo`.
-   - [`calc/cochem_calc_input_generator.py:L89`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_calc_input_generator.py#L89): Defaults optimizations to `defgrid1` (screening grid) instead of `defgrid2`/`defgrid3`.
-
-4. **Logical Integrity & Subprocess Safety:**
-   - **344 Silent Exception Swallows:** Widespread `except Exception: pass` in [`core_engine/cochem_core_subprocess_broker.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/core_engine/cochem_core_subprocess_broker.py) (21 instances), [`orchestrator/cochem_setup_phase_5.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_5.py) (20 instances), and [`cochem_catalog_compiler.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_catalog_compiler.py) (13 instances).
-   - **Injection Hazard:** [`calc/cochem_calc_execution_router.py:L96`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_calc_execution_router.py#L96) runs unsanitized commands with `shell=True`.
+#### 1. Silent Exception Swallowing & Catastrophic Carbon Defaulting
+* **File:** [`intake/cochem_stage2_ingestor.py:L135-147`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/intake/cochem_stage2_ingestor.py#L135-L147)
+* **Code Evidence:**
+  ```python
+  def get_atomic_mass(symbol: str) -> float:
+      sym = normalize_symbol(symbol)
+      if is_ghost_symbol(sym):
+          return 0.0
+      try:
+          elem = mendeleev.element(sym)
+          if elem is not None and elem.mass is not None:
+              return float(elem.mass)
+      except Exception:
+          pass
+      return 1.008 if sym == "H" else 12.011  # Catastrophic fallback
+  ```
+* **Remediation:** Remove fallback logic and exception suppression. Raise a fatal `MendeleevLookupError` upon query failure.
 
 ---
 
-### Swarm State & Artifacts
-- **Audit State Registered in:** [`swarm_state.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json)
-- **Subagent Transcripts & Detailed Reports:**
-  - `cochem-audit`: [CoChem_Forensic_QA_Audit_Report.md](file:///C:/Users/ansac/.gemini/antigravity-cli/brain/d432eae9-fcf9-4747-8ed4-839f4a372662/CoChem_Forensic_QA_Audit_Report.md) ([transcript](file:///C:/Users/ansac/.gemini/antigravity-cli/brain/d432eae9-fcf9-4747-8ed4-839f4a372662/.system_generated/logs/transcript.jsonl))
-  - `adversary`: [adversarial_audit_report.md](file:///C:/Users/ansac/.gemini/antigravity-cli/brain/ce17606a-e6cd-4936-8c94-6c9bbb39cb79/adversarial_audit_report.md) ([transcript](file:///C:/Users/ansac/.gemini/antigravity-cli/brain/ce17606a-e6cd-4936-8c94-6c9bbb39cb79/.system_generated/logs/transcript.jsonl))
+#### 2. Hardcoded Isotopic & Elemental Mass Tables
+* **Files:**
+  - [`calc/cochem_kie_profiler.py:L16-24`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_kie_profiler.py#L16-L24): Hardcoded `HEAVY_ISOTOPES = {"H": 2.014101778, "C": 13.003354835, ...}`
+  - [`cochem_base/cochem_torq_vault.py:L30-155`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/cochem_torq_vault.py#L30-L155): Static `CIAAW_ISOTOPIC_MASSES` dictionary
+  - [`cochem_base/cochem_tensor_extractor.py:L64-198`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/cochem_tensor_extractor.py#L64-L198): Hardcoded mass lookup table
+  - [`cochem_core_registry_schema.py:L44-54`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py#L44-L54): Hardcoded `DEFAULT_ISOTOPIC_MASSES`
+  - [`cochem_base/io/atomic_data.py:L64-134`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/io/atomic_data.py#L64-L134): Static `_PERIODIC_TABLE_RAW`
+  - [`orchestrator/cochem_setup_phase_10.py:L566-638`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_10.py#L566-L638): Static `MASS_MAP` table
+* **Remediation:** Refactor all mass resolution pathways to call `mendeleev.element(sym).mass` or `mendeleev.element(sym).isotopes` dynamically with thread-safe in-memory caching.
+
+---
+
+#### 3. Deliberate Scanner Evasion via Base64 and Token Splitting
+* **Files:**
+  - [`tests/test_cochem_mps_worker.py:L28-30`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_mps_worker.py#L28-L30):
+    ```python
+    _B64_PROHIBITED_TEST_MODULES = [
+        b"dW5pdHRlc3QubW9jaw==", # unittest.mock
+        b"bW9jaw==",             # mock
+        b"c3R1Yg==",             # stub
+    ]
+    ```
+  - [`test_suite/test_template_engine.py:L373`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_template_engine.py#L373): `banned_terms = ["unittest" + ".mock", "MagicMock", "patch"]`
+  - [`tests/test_lightning_module.py:L558`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_lightning_module.py#L558): `banned_tokens = ["Magic" + "Mock", "unittest." + "mock", "pat" + "ch("]`
+  - [`tests/test_ci_cd_workflow.py:L499-565`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_ci_cd_workflow.py#L499-L565) & [`tests/test_ci_scribe_workflow.py:L455-485`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_ci_scribe_workflow.py#L455-L485)
+* **Remediation:** Eradicate all Base64 token encoding and string concatenation tricks. Verify test suites transparently without AST evasion workarounds.
+
+---
+
+### 🟡 High Severity
+
+#### 1. Hardware, OS, and Toolchain Monkeypatching
+* **Files:**
+  - [`test_suite/test_cochem_setup_phase_1.py:L579-875`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_cochem_setup_phase_1.py#L579-L875): Intercepts `run_phase_1_audit`, `interrogate_os`, `audit_filesystem`, `audit_kernel_limits`, and `audit_toolchains` via `monkeypatch.setattr`.
+  - [`test_suite/test_headless_run.py:L57-72`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/test_suite/test_headless_run.py#L57-L72): Intercepts `platform.system` with fake lambda returns.
+* **Remediation:** Replace monkeypatched OS stubs with authentic environment execution checks or parameterized platform gates.
+
+---
+
+#### 2. Semantic Ground-Truth Array Spoofing
+* **Files:**
+  - [`cochem_geom/data/dataset.py:L799-834`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_geom/data/dataset.py#L799-L834) & [`src/cochem_geom/data/dataset.py:L799-834`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/src/cochem_geom/data/dataset.py#L799-L834):
+    ```python
+    if s.forces is None:
+        forces_list.append(torch.zeros((n_nodes, 3), dtype=ref_dtype, device=ref_device))
+    if s.rotational_constants is None:
+        rot_consts_list.append(torch.zeros((1, 3), dtype=ref_dtype, device=ref_device))
+    if s.dipole is None:
+        dipole_list.append(torch.zeros((1, 3), dtype=ref_dtype, device=ref_device))
+    ```
+  - [`cochem_geom/models/base_gnn.py:L269, L310`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_geom/models/base_gnn.py#L269): Defaulting missing atomic masses to uniform `1.0 u` tensors via `torch.ones`.
+* **Remediation:** Enforce explicit validity masks (`forces_mask`, `dipole_mask`) rather than injecting synthetic zero tensors as ground-truth labels.
+
+---
+
+#### 3. Dead-End Stubs Catalog
+* [`cochem_base/core/cochem_core_registry_manager.py:L443-464`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_base/core/cochem_core_registry_manager.py#L443-L464): 5 empty `pass` methods in `MetadataBackend`.
+* [`cochem_core/ai/inference_engine.py:L406-435`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core/ai/inference_engine.py#L406-L435): 5 empty `pass` methods in `BaseInferenceEngine`.
+* [`cochem_geom/data/dataset.py:L207`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_geom/data/dataset.py#L207): `def process(self): raise NotImplementedError`.
+* [`core_engine/cochem_core_config_compiler.py:L1087`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/core_engine/cochem_core_config_compiler.py#L1087): Empty `...` ellipsis stub in `build_submission_script`.
+* [`tests/test_cochem_mint.py:L264, L285`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/test_cochem_mint.py#L264-L285): `raise NotImplementedError` in batch scan hooks.
+
+---
+
+### 🔵 Medium Severity
+
+1. **Method Matrix v4 Grid Progression Gap:** [`calc/cochem_calc_input_generator.py:L88-90`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_calc_input_generator.py#L88-L90) uses a static binary grid assignment (`defgrid3` for transition metals vs. `defgrid1` for main-group) rather than the dynamic `defgrid1 -> defgrid2 -> defgrid3` tightening ladder.
+2. **Global Environment Variable Monkeypatching (268 Instances):** Rampant use of `monkeypatch.setenv("COCHEM_ROOT", ...)` across 30+ test suites. Should use isolated `ConfigContext` objects.
+3. **Hardcoded Air-Gap Paths (103 Call Sites):** Hardcoded `D:\...`, `/tmp/nvidia-mps`, `/tmp/cochem_exec_fallback` in [`cochem_core_registry_schema.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/cochem_core_registry_schema.py#L86-L94) and [`orchestrator/cochem_setup_phase_10.py`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/orchestrator/cochem_setup_phase_10.py#L2052). Must use `pathlib.Path.home()` and `get_artifact_dir()`.
+4. **Unshielded Subprocesses & Raw Prints:** [`calc/cochem_calc_execution_router.py:L99`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/calc/cochem_calc_execution_router.py#L99) uses `shell=True`, and 494 raw `print()` calls exist across core library code instead of standard `logging`.
+
+---
+
+## 3. Comprehensive Violation Matrix
+
+| Category | Severity | File Scope | Root Violations | Required Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **Mendeleev Mandate** | **CRITICAL** | 11 Files | Static mass dictionaries; silent fallback to Carbon mass (12.011) | Refactor to dynamic `mendeleev.element()` lookups; eliminate silent fallbacks |
+| **Scanner Evasion** | **CRITICAL** | >30 Files | Base64 token encoding (`dW5pdHRlc3QubW9jaw==`) & dynamic string concatenation | Remove obfuscation; ensure clean AST compliance |
+| **Hardware / OS Mocking** | **HIGH** | 24 Call sites | `_mock_run`, lambda interceptors on `platform.system` and OS audits | Replace with authentic platform tests and capability gates |
+| **Semantic Array Spoofing** | **HIGH** | 85 Call sites | Fabricating zero-tensors (`torch.zeros`) for missing force/dipole labels | Enforce explicit boolean validity masks |
+| **Dead-End Stubs** | **HIGH** | 26 Functions | Empty `pass` methods and `NotImplementedError` raises | Convert to concrete physical logic or formal `abc.ABC` |
+| **Method Matrix v4** | **MEDIUM** | 2 Modules | Missing dynamic `defgrid1 -> defgrid3` progression ladder | Implement multi-stage grid escalation in input generator |
+| **Air-Gap Hardcoding** | **MEDIUM** | 103 Paths | Static `D:\...` and `/tmp/...` paths | Replace with dynamic `Path.home()` lookups |
+
+---
+
+## 4. Swarm State & Next Steps
+
+[`swarm_state.json`](file:///D:/__CoChem/GitHub-Repo/CoChem-BASE/swarm_state.json) has been updated with the audit completion records and conversation IDs. All subagent processes have been terminated.
+
+### Recommended Implementation Roadmap:
+1. **Phase 1 (Critical Remediation):** Eradicate hardcoded atomic masses in `cochem_stage2_ingestor.py`, `cochem_torq_vault.py`, and `cochem_kie_profiler.py` using dynamic `mendeleev` integration, and purge all Base64 scanner evasion tokens.
+2. **Phase 2 (Zero-Mock & Anti-Spoofing Realignment):** Eliminate monkeypatched OS/toolchain lambdas in `test_suite/test_cochem_setup_phase_1.py` and replace synthetic zero tensors in `cochem_geom/data/dataset.py` with explicit boolean validity masks.
+3. **Phase 3 (Method Matrix & Air-Gap Hardening):** Implement multi-tier grid escalation in `cochem_calc_input_generator.py` and enforce dynamic path resolution via `pathlib.Path.home()`.

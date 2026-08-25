@@ -343,6 +343,19 @@ class CitationManager:
         nfkd = unicodedata.normalize("NFKD", text)
         return "".join(c for c in nfkd if not unicodedata.combining(c))
 
+    @staticmethod
+    def _escape_latex_field(text: str) -> str:
+        """Escapes unescaped LaTeX special characters (% & _ # $) in BibTeX values."""
+        if not text:
+            return ""
+        # Preserve existing escape sequences, escape raw %, &, _, #, $
+        escaped = re.sub(r"(?<!\\)&", r"\&", text)
+        escaped = re.sub(r"(?<!\\)%", r"\%", escaped)
+        escaped = re.sub(r"(?<!\\)_", r"\_", escaped)
+        escaped = re.sub(r"(?<!\\)#", r"\#", escaped)
+        escaped = re.sub(r"(?<!\\)\$", r"\$", escaped)
+        return escaped
+
     def generate_citation_key(
         self, first_author: str, method_name: str, year: str | int | None
     ) -> str:
@@ -381,6 +394,9 @@ class CitationManager:
             return None
 
         clean = str(raw_doi).strip().strip("{}'\"")
+        # Strip URL query parameters and fragments
+        clean = re.split(r"[?#]", clean)[0].strip()
+
         # Match standard DOI structure (10.prefix/suffix)
         match = re.search(r"\b(10\.\d{4,9}/[^\s\"'{}]+)", clean, re.IGNORECASE)
         if match:
@@ -472,7 +488,7 @@ class CitationManager:
         """Extracts first author surname and formatted LaTeX author string safely."""
         authors = metadata.get("author", [])
         if not authors or not isinstance(authors, list):
-            return ("CoChem", "CoChem Consortium")
+            return ("CoChem", "{CoChem Consortium}")
 
         author_parts: list[str] = []
         first_author_surname = "CoChem"
@@ -485,8 +501,11 @@ class CitationManager:
             name = (
                 author_dict.get("name") or author_dict.get("literal") or ""
             ).strip()
+
+            is_corporate = False
             if not family and not given and name:
                 family = name
+                is_corporate = True
 
             if idx == 0:
                 first_author_surname = family or given or "CoChem"
@@ -494,12 +513,15 @@ class CitationManager:
             if family and given:
                 author_parts.append(f"{family}, {given}")
             elif family:
-                author_parts.append(family)
+                if is_corporate or (" " in family and not given):
+                    author_parts.append(f"{{{family}}}")
+                else:
+                    author_parts.append(family)
             elif given:
                 author_parts.append(given)
 
         if not author_parts:
-            return (first_author_surname, "CoChem Consortium")
+            return (first_author_surname, "{CoChem Consortium}")
 
         return (first_author_surname, " and ".join(author_parts))
 
@@ -560,6 +582,7 @@ class CitationManager:
             raw_title = method_key
         clean_title = re.sub(r"<[^>]+>", "", raw_title)
         title = re.sub(r"\s+", " ", clean_title) or method_key
+        title = self._escape_latex_field(title)
 
         # Journal / Container extraction
         container = metadata.get("container-title", [])
@@ -571,17 +594,21 @@ class CitationManager:
         else:
             pub = str(metadata.get("publisher") or "").strip()
             journal = pub
+        journal = self._escape_latex_field(journal)
 
-        volume = str(metadata.get("volume") or "").strip()
+        volume = self._escape_latex_field(str(metadata.get("volume") or "").strip())
         issue_obj = metadata.get("journal-issue")
         issue_from_obj = issue_obj.get("issue") if isinstance(issue_obj, dict) else ""
-        issue = str(metadata.get("issue") or issue_from_obj or "").strip()
+        issue = self._escape_latex_field(
+            str(metadata.get("issue") or issue_from_obj or "").strip()
+        )
 
         pages = str(
             metadata.get("page") or metadata.get("article-number") or ""
         ).strip()
         if pages and "-" in pages and "--" not in pages:
             pages = pages.replace("-", "--")
+        pages = self._escape_latex_field(pages)
 
         raw_doi = str(metadata.get("DOI") or "").strip()
         doi = self.normalize_doi(raw_doi) or raw_doi
@@ -690,16 +717,18 @@ class CitationManager:
             return (cite_key, fallback)
 
         # Synthesize minimal valid BibTeX entry if completely unmapped
-        cite_key = self.generate_citation_key("CoChem", method_str, 2024)
+        clean_method_key = self.generate_citation_key("CoChem", method_str, 2024)
+        escaped_method_title = self._escape_latex_field(method_str)
+        fallback_title = f"{{{{Computational Method: {escaped_method_title}}}}}"
         generic_bibtex = (
-            f"@misc{{{cite_key},\n"
-            f"  author = {{CoChem Consortium}},\n"
-            f"  title = {{{{Computational Chemistry Method: {method_str}}}}},\n"
+            f"@misc{{{clean_method_key},\n"
+            f"  author = {{{{CoChem Consortium}}}},\n"
+            f"  title = {fallback_title},\n"
             f"  year = {{2024}},\n"
             f"  note = {{Resolved via CoChem-SCRIBE Automated Bibliographer}}\n"
             f"}}"
         )
-        return (cite_key, generic_bibtex)
+        return (clean_method_key, generic_bibtex)
 
     def _collect_methods(self, data: Any, collected: list[str]) -> None:
         """Recursively traverses manifest structures to extract method strings."""

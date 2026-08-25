@@ -325,7 +325,7 @@ class TestUniversalFallbackCascade:
         orig_jax = os.environ.get("JAX_ENABLE_X64")
         orig_torch = torch.get_default_dtype() if torch is not None else None
         try:
-            enforce_precision_tier(PrecisionMode.FP64)
+            enforce_precision_tier(PrecisionMode.FP64, set_torch_default=True)
             assert os.environ["JAX_ENABLE_X64"] == "True"
             if torch is not None:
                 assert torch.get_default_dtype() == torch.float64

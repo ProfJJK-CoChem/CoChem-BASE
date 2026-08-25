@@ -513,21 +513,21 @@ def handle_engine_exit_code(
 # Precision Mandate Enforcement
 # ============================================================================
 
-def enforce_precision_tier(mode: PrecisionMode = PrecisionMode.FP64) -> None:
+def enforce_precision_tier(mode: PrecisionMode = PrecisionMode.FP64, set_torch_default: bool = False) -> None:
     """
     Explicitly mandate FP64 (or configured mode) precision across all execution tiers.
-    Sets JAX_ENABLE_X64=True and PyTorch default floating point dtype.
+    Sets JAX_ENABLE_X64=True/False in the environment.
     """
     if mode == PrecisionMode.FP64:
         os.environ["JAX_ENABLE_X64"] = "True"
-        if torch is not None:
+        if set_torch_default and torch is not None:
             try:
                 torch.set_default_dtype(torch.float64)
             except Exception as e:
                 logger.debug(f"Could not set torch default dtype to float64: {e}")
     elif mode == PrecisionMode.FP32:
         os.environ["JAX_ENABLE_X64"] = "False"
-        if torch is not None:
+        if set_torch_default and torch is not None:
             try:
                 torch.set_default_dtype(torch.float32)
             except Exception as e:

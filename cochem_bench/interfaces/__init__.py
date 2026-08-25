@@ -11,6 +11,20 @@ from .cochem_bench_telemetry import (
     get_logs_workspace_dir,
     get_scratch_workspace_dir,
 )
+
+from .voila_bench_dashboard import (
+    BenchDashboard,
+    BenchRunParams,
+    CostHeuristics,
+    CostHeuristicTooltip,
+    HardwareAllocation,
+    ManifestCompiler,
+    MethodologySettings,
+    MethodologyToggles,
+    VoilaBenchDashboard,
+    get_bench_workspace_dir,
+    get_registry_config_path,
+)
 from .webgl_perf import WebGLPerformanceTracker
 
 __all__ = [
@@ -26,4 +40,16 @@ __all__ = [
     "get_logs_workspace_dir",
     "get_element_mass_mendeleev",
     "decimate_lttb",
+    "MethodologyToggles",
+    "CostHeuristicTooltip",
+    "ManifestCompiler",
+    "VoilaBenchDashboard",
+    "BenchDashboard",
+    "MethodologySettings",
+    "CostHeuristics",
+    "HardwareAllocation",
+    "BenchRunParams",
+    "get_bench_workspace_dir",
+    "get_registry_config_path",
 ]
+

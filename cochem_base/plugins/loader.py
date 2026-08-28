@@ -102,7 +102,7 @@ def get_plugin_manager(
         try:
             pm.load_setuptools_entrypoints(PLUGIN_PROJECT_NAME)
         except Exception as e:
-            logger.warning("Error loading setuptools entrypoints for %s: %e", PLUGIN_PROJECT_NAME, e)
+            logger.warning("Error loading setuptools entrypoints for %s: %s", PLUGIN_PROJECT_NAME, e)
 
     logger.debug("Pluggy PluginManager initialized successfully for project %s", PLUGIN_PROJECT_NAME)
     return pm

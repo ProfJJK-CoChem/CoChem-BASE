@@ -36,6 +36,9 @@ _SUBMODULES = {
     "cochem_h5_healer",
     "cochem_jax_builder",
     "cochem_spcat_bridge",
+    "cochem_spycfit_ml_engine",
+    "cochem_spycfit_ml_schema",
+    "cochem_spycfit_ml_storage",
     "cochem_tensor_extractor",
     "cochem_torq_alignment",
     "cochem_torq_engine",
@@ -106,4 +109,7 @@ __all__ = [
     "cochem_torq_slicer",
     "cochem_torq_engine",
     "cochem_torq_watchdog",
+    "cochem_spycfit_ml_schema",
+    "cochem_spycfit_ml_engine",
+    "cochem_spycfit_ml_storage",
 ]

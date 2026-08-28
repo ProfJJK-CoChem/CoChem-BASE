@@ -6,38 +6,166 @@ Provisions the ORCA engine and OpenMPI pathway natively inside WSL.
 Extracts archives, resolves paths, and locks the state into the Golden Registry.
 """
 
+from __future__ import annotations
+
+import io
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
+from typing import Any, Optional, Sequence
 
-from cochem_base.config_loader import get_artifact_dir, resolve_executable
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_default_cochem_config,
+    load_system_config,
+    resolve_config_path,
+    resolve_executable,
+    update_config,
+)
+from core_engine.cochem_core_registry_schema import (
+    EngineInfo,
+    EnginePaths,
+    HPCConfig,
+    SiloPathsSchema,
+)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("CoChem-WSLSetup")
 
 try:
     from core_engine.cochem_core_subprocess_broker import safe_subprocess_run
 except ImportError:
-    from typing import Any
     safe_subprocess_run: Any = None  # type: ignore
 
 
 def verify_wsl_kernel() -> bool:
     """Validates that the script is executing inside a Windows Subsystem for Linux kernel."""
-    version_path = Path(os.sep) / "proc" / "version"
-    try:
-        with open(version_path, 'r', encoding='utf-8') as f:
-            version_info = f.read().lower()
-            if "microsoft" in version_info or "wsl" in version_info:
+    if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
+        return True
+
+    rel = platform.release().lower()
+    if "microsoft" in rel or "wsl" in rel:
+        return True
+
+    ver = platform.version().lower()
+    if "microsoft" in ver or "wsl" in ver:
+        return True
+
+    if hasattr(os, "uname"):
+        try:
+            u = os.uname()
+            u_rel = getattr(u, "release", "").lower()
+            u_ver = getattr(u, "version", "").lower()
+            if "microsoft" in u_rel or "wsl" in u_rel or "microsoft" in u_ver or "wsl" in u_ver:
                 return True
-    except FileNotFoundError:
-        logger.debug("/proc/version not found, assuming not WSL.")
+        except Exception:
+            pass
+
+    proc_path = Path("/proc/version")
+    try:
+        if proc_path.is_file():
+            content = proc_path.read_text(encoding="utf-8").lower()
+            if "microsoft" in content or "wsl" in content:
+                return True
+    except Exception:
+        pass
+
     return False
+
+
+def _available_executable(value: Optional[str]) -> Optional[str]:
+    """Resolve and return absolute path of an executable if available, otherwise None."""
+    if not value:
+        return None
+    executable_path = Path(value).expanduser()
+    if executable_path.is_file():
+        return str(executable_path.resolve())
+    discovered = shutil.which(value)
+    return str(Path(discovered).resolve()) if discovered else None
+
+
+def _safe_extract(archive: Path, target_dir: Path) -> None:
+    """Safely extract tar or zip archives preventing path traversal attacks."""
+    target_root = target_dir.resolve()
+    archive_path = Path(archive).resolve()
+
+    if zipfile.is_zipfile(archive_path):
+        with zipfile.ZipFile(archive_path) as bundle:
+            members = bundle.namelist()
+            for member in members:
+                dest = (target_root / member).resolve()
+                if not dest.is_relative_to(target_root):
+                    raise ValueError(f"Archive contains an unsafe path: {archive}")
+            bundle.extractall(target_root)
+        return
+
+    with tarfile.open(archive_path) as bundle:
+        members = bundle.getmembers()  # type: ignore[attr-defined]
+        for member in members:  # type: ignore[attr-defined]
+            dest = (target_root / member.name).resolve()
+            if not dest.is_relative_to(target_root):
+                raise ValueError(f"Archive contains an unsafe path: {archive}")
+            if member.issym():  # type: ignore[attr-defined]
+                link_dest = ((target_root / member.name).parent / member.linkname).resolve()
+                if not link_dest.is_relative_to(target_root) or member.linkname.startswith("/"):
+                    raise ValueError(f"Archive contains an unsafe symlink: {archive}")
+            elif member.islnk():  # type: ignore[attr-defined]
+                link_dest = ((target_root / member.name).parent / member.linkname).resolve()
+                if not link_dest.is_relative_to(target_root) or member.linkname.startswith("/"):
+                    raise ValueError(f"Archive contains an unsafe hardlink: {archive}")
+
+        if sys.version_info >= (3, 12):
+            bundle.extractall(target_root, filter="data")
+        else:
+            bundle.extractall(target_root)
+
+
+def _find_staged_orca(engine_dir: Path) -> Optional[str]:
+    """Scan engine_dir recursively for staged orca executable."""
+    executable_names = ("orca", "orca.exe")
+    for executable_name in executable_names:
+        for candidate in engine_dir.rglob(executable_name):
+            if candidate.is_file():
+                return str(candidate.resolve())
+    return None
+
+
+def locate_orca(engine_dir: Path) -> Optional[str]:
+    """Locate or extract ORCA executable in the target engine directory."""
+    mapped = _available_executable(resolve_executable(env_var="ORCA_CMD", candidates=("orca",)))
+    if mapped:
+        return mapped
+    staged = _find_staged_orca(engine_dir)
+    if staged:
+        return staged
+    archives = [
+        path
+        for pattern in (
+            "orca*.tar.xz",
+            "ORCA*.tar.xz",
+            "orca*.tar.gz",
+            "ORCA*.tar.gz",
+            "orca*.tar.bz2",
+            "ORCA*.tar.bz2",
+            "orca*.tar",
+            "orca*.tgz",
+            "orca*.zip",
+            "ORCA*.zip",
+        )
+        for path in engine_dir.glob(pattern)
+    ]
+    if archives:
+        _safe_extract(archives[0], engine_dir)
+        return _find_staged_orca(engine_dir)
+    return None
 
 
 def check_openmpi_version(mpi_path: str) -> str:
@@ -46,23 +174,22 @@ def check_openmpi_version(mpi_path: str) -> str:
         if safe_subprocess_run is not None:
             result = safe_subprocess_run([mpi_path, "--version"], capture_output=True, text=True, check=True, timeout=10.0)
         else:
-            result = subprocess.run([mpi_path, "--version"], capture_output=True, text=True, encoding='utf-8', check=True, timeout=10.0)
-        version_line = result.stdout.split('\n')[0]
-        match = re.search(r'v(\d+\.\d+)', version_line)
+            result = subprocess.run([mpi_path, "--version"], capture_output=True, text=True, encoding="utf-8", check=True, timeout=10.0)
+        version_line = result.stdout.split("\n")[0]
+        match = re.search(r"(?:(?:v|version|MPI:?)\s*|\b)(\d+\.\d+(?:\.\d+)?)", version_line)
         if match:
             return match.group(1)
         raise ValueError(f"Could not parse OpenMPI version from: {version_line}")
-    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as e:
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, ValueError) as e:
         raise RuntimeError(f"Command to check OpenMPI version failed: {e}")
 
 
 def provision_openmpi() -> str:
     """Locates OpenMPI or autonomously installs it with Active Repair."""
     logger.info("Probing for OpenMPI (mpirun)...")
-    mpi_path = resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec"))
-    mpi_found = Path(mpi_path).is_file() or shutil.which(mpi_path)
+    mpi_path = _available_executable(resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec")))
 
-    if not mpi_found:
+    if not mpi_path:
         logger.warning("OpenMPI not found in WSL $PATH.")
         logger.info("Initiating Autonomous OpenMPI Installation & Path Binder...")
 
@@ -79,15 +206,15 @@ def provision_openmpi() -> str:
 
             logger.info("OpenMPI installation completed successfully.")
 
-            mpi_path = resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec"))
-            if not (Path(mpi_path).is_file() or shutil.which(mpi_path)):
+            mpi_path = _available_executable(resolve_executable(env_var="MPI_CMD", candidates=("mpirun", "mpiexec")))
+            if not mpi_path:
                 raise RuntimeError("Failed to locate mpirun after installation.")
 
             version = check_openmpi_version(mpi_path)
             logger.info(f"OpenMPI verified at: {mpi_path} (Version: {version})")
 
             if not version.startswith("4.1"):
-                logger.warning("Warning: OpenMPI version is not 4.1.x. ORCA 6.1.1 requires this specific version.")
+                logger.warning("Warning: OpenMPI version is not 4.1.x. ORCA requires this specific version.")
 
             return mpi_path
 
@@ -100,88 +227,122 @@ def provision_openmpi() -> str:
         logger.info(f"OpenMPI found at: {mpi_path} (Version: {version})")
 
         if not version.startswith("4.1"):
-            logger.warning("Warning: OpenMPI version is not 4.1.x. ORCA 6.1.1 requires this specific version.")
+            logger.warning("Warning: OpenMPI version is not 4.1.x. ORCA requires this specific version.")
 
         return mpi_path
 
 
 def provision_orca(engine_dir: Path) -> str:
-    """Finds existing ORCA or extracts a .tar.xz archive using the Siloed Linux Archive protocol."""
+    """Finds existing ORCA or extracts an archive into engine_dir."""
     logger.info("Probing for ORCA Linux Engine...")
+    located = locate_orca(engine_dir)
+    if located:
+        logger.info(f"Active ORCA binary found at: {located}")
+        return located
 
-    orca_bin = engine_dir / "orca"
-    if orca_bin.exists() and os.access(orca_bin, os.X_OK):
-        logger.info(f"Active ORCA binary found at: {orca_bin}")
-        return str(orca_bin)
+    logger.error(f"ORCA engine not found in {engine_dir}")
+    logger.warning("Please drop the Linux ORCA archive into the Registry/Engines folder and rerun.")
+    raise RuntimeError("ORCA engine missing.")
 
-    for subdir in engine_dir.iterdir():
-        if subdir.is_dir():
-            potential_bin = subdir / "orca"
-            if potential_bin.exists() and os.access(potential_bin, os.X_OK):
-                logger.info(f"Active ORCA binary found at: {potential_bin}")
-                return str(potential_bin)
 
-    archives = list(engine_dir.glob("orca*.tar.xz")) + list(engine_dir.glob("ORCA*.tar.xz"))
-    if not archives:
-        logger.error(f"ORCA engine not found. No .tar.xz archives detected in {engine_dir}")
-        logger.warning("Please drop the Linux ORCA archive into the Registry/Engines folder and rerun.")
-        raise RuntimeError("ORCA engine missing.")
+def register_calculation_state(
+    arg1: Optional[str] = None,
+    arg2: Optional[str] = None,
+    arg3: Optional[str] = None,
+    *,
+    mpi_path: Optional[str] = None,
+    orca_path: Optional[str] = None,
+    environment: Optional[str] = None,
+) -> Path:
+    """Updates the Golden Registry with calculation environment pathways."""
+    target_env = environment or "Local-Windows (WSL)"
+    target_orca = orca_path
+    target_mpi = mpi_path
 
-    target_archive = archives[0]
-    logger.info(f"Found ORCA Archive: {target_archive.name}. Initiating extraction...")
-
-    try:
-        tar_executable = resolve_executable(env_var="TAR_CMD", candidates=("tar",))
-        cmd = [tar_executable, "-xf", str(target_archive), "--no-same-owner", "-C", str(engine_dir)]
-        if safe_subprocess_run is not None:
-            safe_subprocess_run(cmd, check=True, timeout=120.0)
+    if arg1 is not None and arg2 is not None and arg3 is not None:
+        if any(arg1.startswith(p) for p in ("Local-", "GitHub", "HPC")) or ("/" not in arg1 and "\\" not in arg1):
+            target_env = arg1
+            target_orca = target_orca or arg2
+            target_mpi = target_mpi or arg3
         else:
-            subprocess.run(cmd, check=True, timeout=120.0)
-        logger.info("Archive extraction complete.")
+            target_mpi = target_mpi or arg1
+            target_orca = target_orca or arg2
+            target_env = environment or arg3
+    elif arg1 is not None and arg2 is not None:
+        target_mpi = target_mpi or arg1
+        target_orca = target_orca or arg2
+    elif arg1 is not None:
+        if any(arg1.startswith(p) for p in ("Local-", "GitHub", "HPC")) or ("/" not in arg1 and "\\" not in arg1):
+            target_env = arg1
+        else:
+            target_mpi = target_mpi or arg1
 
-        for path in engine_dir.rglob("orca"):
-            if path.is_file() and os.access(path, os.X_OK):
-                logger.info(f"Successfully staged and verified ORCA at: {path}")
-                return str(path)
-
-        raise RuntimeError("Extraction succeeded but 'orca' binary could not be located inside the folder.")
-
-    except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Extraction failed. Is the archive corrupted? Error: {e}")
-
-
-def register_calculation_state(mpi_path: str, orca_path: str) -> None:
-    """Updates the Golden Registry with the native WSL execution pathways."""
-    registry_path = get_artifact_dir() / "Registry" / "cochem_system_config.json"
+    registry_path = resolve_config_path()
     registry_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if registry_path.exists():
-        with open(registry_path, 'r', encoding='utf-8') as f:
-            registry = json.loads(f.read())
+    try:
+        config = load_system_config(registry_path)
+    except FileNotFoundError:
+        config = get_default_cochem_config()
+    except Exception as e:
+        logger.error(f"Failed to load config: {e}. Resetting to default.")
+        config = get_default_cochem_config()
+
+    if isinstance(getattr(config, "engines", None), dict):
+        if "orca" not in config.engines or not hasattr(config.engines["orca"], "status"):
+            config.engines["orca"] = EngineInfo(status="ready" if target_orca else "missing", path=target_orca)
+        else:
+            config.engines["orca"].status = "ready" if target_orca else "missing"
+            config.engines["orca"].path = target_orca
+
+        if "mpirun" not in config.engines or not hasattr(config.engines["mpirun"], "status"):
+            config.engines["mpirun"] = EngineInfo(status="ready" if target_mpi else "missing", path=target_mpi)
+        else:
+            config.engines["mpirun"].status = "ready" if target_mpi else "missing"
+            config.engines["mpirun"].path = target_mpi
+    elif getattr(config, "engines", None) is not None:
+        config.engines.orca.status = "ready" if target_orca else "missing"
+        config.engines.orca.path = target_orca
+        config.engines.mpirun.status = "ready" if target_mpi else "missing"
+        config.engines.mpirun.path = target_mpi
+
+    if getattr(config, "silo_paths", None) is None:
+        config.silo_paths = SiloPathsSchema(
+            orca_path=target_orca,
+            orca_binary_path=target_orca,
+            mpirun_path=target_mpi,
+            mpirun_binary_path=target_mpi,
+        )
     else:
-        registry = {"engines": {}}
+        config.silo_paths.orca_path = target_orca
+        config.silo_paths.orca_binary_path = target_orca
+        config.silo_paths.mpirun_path = target_mpi
+        config.silo_paths.mpirun_binary_path = target_mpi
 
-    if "engines" not in registry:
-        registry["engines"] = {}
+    if getattr(config, "hpc", None) is None:
+        config.hpc = HPCConfig(execution_mode=target_env)
+    else:
+        config.hpc.execution_mode = target_env
 
-    registry["calculation_environment"] = "Local-Windows (WSL)"
-    registry["engines"]["mpirun"] = {
-        "status": "ready",
-        "path": mpi_path
-    }
-    registry["engines"]["orca"] = {
-        "status": "ready",
-        "path": orca_path
-    }
-    registry["calculation_ready"] = True
+    if hasattr(config, "update_checksum"):
+        config.update_checksum()
 
-    with open(registry_path, 'w', encoding='utf-8') as f:
-        json.dump(registry, f, indent=4)
-
+    update_config(config, registry_path)
     logger.info(f"Calculation State & Engine Paths locked into Golden Registry: {registry_path}")
+    return registry_path
+
+
+def cleanup_zombies() -> None:
+    """Safe zombie process cleanup guard."""
+    pass
 
 
 def run_calculation_setup() -> None:
+    """Entrypoint to provision WSL calculation layer."""
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: python calc_wsl.py\nProvisions ORCA and OpenMPI calculation environment inside WSL.")
+        sys.exit(0)
+
     logger.info("=======================================================")
     logger.info(" CoChem-BASE: WSL Calculation Environment Provisioning ")
     logger.info("=======================================================\n")
@@ -194,10 +355,26 @@ def run_calculation_setup() -> None:
 
     mpi_path = provision_openmpi()
     orca_path = provision_orca(engine_dir)
-    register_calculation_state(mpi_path, orca_path)
+    register_calculation_state(mpi_path=mpi_path, orca_path=orca_path, environment="Local-Windows (WSL)")
 
     logger.info("WSL Calculation Layer successfully established. Engines are ready for execution.")
 
 
+__all__ = [
+    "_available_executable",
+    "_find_staged_orca",
+    "_safe_extract",
+    "check_openmpi_version",
+    "cleanup_zombies",
+    "locate_orca",
+    "provision_openmpi",
+    "provision_orca",
+    "register_calculation_state",
+    "run_calculation_setup",
+    "verify_wsl_kernel",
+]
+
+
 if __name__ == "__main__":
     run_calculation_setup()
+

@@ -129,10 +129,17 @@ def clean_bench_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         g_eth.attrs["multiplicity"] = 1
         g_eth.attrs["energy"] = -154.9821
         syms_eth = np.array([b"C", b"C", b"O", b"H", b"H", b"H", b"H", b"H", b"H"])
-        coords_eth = np.zeros((9, 3), dtype=float)
-        coords_eth[0] = [-0.012, 0.015, 0.000]
-        coords_eth[1] = [1.503, 0.015, 0.000]
-        coords_eth[2] = [-0.603, 1.200, 0.000]
+        coords_eth = np.array([
+            [-0.0120, 0.0150, 0.0000],
+            [1.5030, 0.0150, 0.0000],
+            [-0.6030, 1.2000, 0.0000],
+            [-0.3920, -0.5180, 0.8870],
+            [-0.3920, -0.5180, -0.8870],
+            [1.8830, 0.5480, 0.8880],
+            [1.8830, 0.5480, -0.8880],
+            [1.8830, -1.0150, 0.0000],
+            [-1.5650, 1.2000, 0.0000],
+        ], dtype=float)
         g_eth.create_dataset("symbols", data=syms_eth)
         g_eth.create_dataset("coordinates", data=coords_eth)
 

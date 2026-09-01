@@ -22,11 +22,8 @@ import json
 import math
 import os
 import platform
-import shutil
-import stat
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pytest
@@ -36,7 +33,6 @@ from orchestrator.cochem_setup_phase_10 import (
     CheckpointFormat,
     CheckpointStatus,
     CheckpointValidationError,
-    CheckpointValidationItem,
     CheckpointValidationReport,
     DependencyManager,
     EckartAlignmentError,
@@ -46,14 +42,11 @@ from orchestrator.cochem_setup_phase_10 import (
     EckartVerificationStatus,
     EphemeralSandboxError,
     EphemeralSandboxProfile,
-    FACTOR_CM1,
-    FACTOR_GHZ,
-    FACTOR_MHZ,
+    InertiaTensorError,
+    InertiaTensorResult,
     IOPSBenchmarkError,
     IOPSBenchmarkProfile,
     IOPSBenchmarkStatus,
-    InertiaTensorError,
-    InertiaTensorResult,
     MolSymSiloError,
     MolSymSiloProfile,
     MolSymSiloStatus,
@@ -68,21 +61,15 @@ from orchestrator.cochem_setup_phase_10 import (
     align_to_principal_axes,
     audit_or_provision_molsym_silo,
     audit_state_chain_recovery,
-    classify_rotor_top,
     cleanup_ephemeral_sandbox,
     compute_center_of_mass,
     compute_file_sha256,
     compute_moment_of_inertia_tensor,
-    compute_rotational_constants,
-    datetime,
     diagonalize_inertia_tensor,
-    find_repository_root,
     generate_environment_injection_dict,
     get_physical_mass,
     is_ghost_symbol,
     main,
-    resolve_atomic_masses,
-    resolve_p10_registry_path,
     resolve_sandbox_base_directory,
     run_phase_10_audit,
     run_theoretical_eckart_benchmarks,
@@ -90,11 +77,9 @@ from orchestrator.cochem_setup_phase_10 import (
     scaffold_ephemeral_sandbox,
     scan_and_validate_checkpoints,
     translate_to_center_of_mass,
-    validate_checkpoint_file,
     validate_orca_gbw_checkpoint,
     validate_pyscf_chk_checkpoint,
     validate_xtb_xtbw_checkpoint,
-    verify_eckart_conditions,
 )
 
 try:

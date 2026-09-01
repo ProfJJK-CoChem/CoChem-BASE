@@ -1072,3 +1072,70 @@ def test_main_cli_json_output(capsys: pytest.CaptureFixture[str]) -> None:
         assert "topology" in data
         assert "memory" in data
         assert "affinity" in data
+
+
+# =============================================================================
+# 12. ADVERSARIAL EDGE CASE TESTS
+# =============================================================================
+
+
+def test_resolve_p7_registry_path_from_env() -> None:
+    """Test p7 registry path resolution from environment variables."""
+    with make_temp_dir() as tmpdir:
+        reg_dir = Path(tmpdir) / "custom_reg"
+        os.environ["COCHEM_REGISTRY_DIR"] = str(reg_dir)
+        try:
+            assert resolve_p7_registry_path() == (reg_dir / "p7.json").resolve()
+        finally:
+            del os.environ["COCHEM_REGISTRY_DIR"]
+
+    with make_temp_dir() as tmpdir:
+        art_dir = Path(tmpdir) / "custom_art"
+        os.environ["COCHEM_ARTIFACT_DIR"] = str(art_dir)
+        try:
+            assert resolve_p7_registry_path() == (art_dir / "Registry" / "p7.json").resolve()
+        finally:
+            del os.environ["COCHEM_ARTIFACT_DIR"]
+
+
+def test_parse_slurm_topology_ntasks_fallback() -> None:
+    """Test Slurm topology parsing when SLURM_TASKS_PER_NODE is absent but SLURM_NTASKS is present."""
+    env = {
+        "SLURM_JOB_ID": "8877",
+        "SLURM_NNODES": "2",
+        "SLURM_NTASKS": "8",
+    }
+    topo = parse_slurm_topology(env)
+    assert topo.num_nodes == 2
+    assert topo.tasks_per_node == [4, 4]
+    assert topo.total_tasks == 8
+
+
+def test_expand_single_node_spec_triple_dash_error() -> None:
+    """Test error handling for node range with multiple dashes."""
+    with pytest.raises(HPCTopologyError):
+        _expand_single_node_spec("node[01-02-03]")
+
+
+def test_affinity_profile_compact_and_master_binds() -> None:
+    """Test thread affinity calculations with compact and master bindings."""
+    topo = parse_standalone_topology({})
+    aff_compact = compute_thread_affinity_profile(topo, proc_bind="compact")
+    assert aff_compact.omp_proc_bind == "compact"
+    assert aff_compact.kmp_affinity == "granularity=fine,compact,1,0"
+
+    aff_master = compute_thread_affinity_profile(topo, proc_bind="master")
+    assert aff_master.omp_proc_bind == "master"
+    assert aff_master.kmp_affinity == "granularity=fine,compact,1,0"
+
+
+def test_run_phase_7_audit_with_errors() -> None:
+    """Test audit orchestrator gracefully handles invalid memory and topology input."""
+    env = {
+        "SLURM_JOB_ID": "111",
+        "SLURM_NODELIST": "node[05-01]",  # descending range -> triggers error catch
+    }
+    report = run_phase_7_audit(env=env, dry_run=True)
+    assert report.status == PhaseStatus.FAILED
+    assert len(report.errors) > 0
+

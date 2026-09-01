@@ -323,12 +323,12 @@ class ConformerBatch:
         )
 
 
-def collate_conformers(samples: Sequence[ConformerData]) -> ConformerBatch:
+def collate_conformers(conformers: Sequence[ConformerData]) -> ConformerBatch:
     """Collate a sequence of ConformerData objects into a single contiguous ConformerBatch.
 
     Parameters
     ----------
-    samples : Sequence[ConformerData]
+    conformers : Sequence[ConformerData]
         List or sequence of individual ConformerData graphs.
 
     Returns
@@ -345,12 +345,12 @@ def collate_conformers(samples: Sequence[ConformerData]) -> ConformerBatch:
     weight_list: List[torch.Tensor] = []
     edge_index_list: List[torch.Tensor] = []
 
-    has_x = any(s.x is not None for s in samples)
-    has_force = any(s.force is not None for s in samples)
-    has_edges = any(s.edge_index is not None for s in samples)
+    has_x = any(s.x is not None for s in conformers)
+    has_force = any(s.force is not None for s in conformers)
+    has_edges = any(s.edge_index is not None for s in conformers)
 
     node_offset = 0
-    for i, item in enumerate(samples):
+    for i, item in enumerate(conformers):
         n_atoms = item.pos.shape[0]
         pos_list.append(item.pos.to(torch.float32))
         z_list.append(item.z.to(torch.long))
@@ -398,7 +398,7 @@ def collate_conformers(samples: Sequence[ConformerData]) -> ConformerBatch:
         force=batched_force,
         weight=batched_weight,
         edge_index=batched_edge_index,
-        num_graphs=len(samples),
+        num_graphs=len(conformers),
     )
 
 

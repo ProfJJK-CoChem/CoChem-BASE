@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, List
+from typing import List
 
 import pytest
 
@@ -140,13 +140,35 @@ def test_resolve_smiles_empty() -> None:
     assert source is None
 
 
+WATER_XYZ_PHYSICAL = """3
+Water Molecule - Method Matrix Reference Geometry
+O   0.000000   0.000000   0.117300
+H   0.000000   0.757200  -0.469200
+H   0.000000  -0.757200  -0.469200
+"""
+
+METHANE_XYZ_PHYSICAL = """5
+Methane Molecule - Tetrahedral Td Geometry
+C   0.000000   0.000000   0.000000
+H   0.629118   0.629118   0.629118
+H  -0.629118  -0.629118   0.629118
+H   0.629118  -0.629118  -0.629118
+H  -0.629118   0.629118  -0.629118
+"""
+
+HELIUM_XYZ_PHYSICAL = """1
+Helium Noble Gas Ground State
+He  0.000000   0.000000   0.000000
+"""
+
+
 def test_scan_workspace_geometries(tmp_path: Path) -> None:
     """Verify directory scanner identifies and parses real .xyz files."""
     f1 = tmp_path / "mol1.xyz"
-    f1.write_text("3\nWater\nO 0 0 0\nH 0 0 1\nH 0 1 0\n", encoding="utf-8")
+    f1.write_text(WATER_XYZ_PHYSICAL, encoding="utf-8")
 
     f2 = tmp_path / "mol2.xyz"
-    f2.write_text("1\nSingle Atom\nC 0.0 0.0 0.0\n", encoding="utf-8")
+    f2.write_text(HELIUM_XYZ_PHYSICAL, encoding="utf-8")
 
     f3 = tmp_path / "other.txt"
     f3.write_text("Not an xyz file", encoding="utf-8")
@@ -161,22 +183,23 @@ def test_scan_workspace_geometries(tmp_path: Path) -> None:
     mol1_info = next(r for r in results if r["name"] == "mol1.xyz")
     assert mol1_info["valid"] is True
     assert mol1_info["atom_count"] == 3
-    assert mol1_info["comment"] == "Water"
+    assert "Water Molecule" in mol1_info["comment"]
 
 
 def test_save_uploaded_geometries_ipywidgets_v7(tmp_path: Path) -> None:
     """Verify file upload handler processes ipywidgets 7 dict schema."""
+    water_bytes = WATER_XYZ_PHYSICAL.encode("utf-8")
     upload_dict = {
         "water.xyz": {
-            "content": b"3\nWater\nO 0 0 0\nH 0 0 1\nH 0 1 0\n",
-            "metadata": {"size": 35},
+            "content": water_bytes,
+            "metadata": {"size": len(water_bytes)},
         }
     }
     saved = save_uploaded_geometries(upload_dict, tmp_path)
     assert len(saved) == 1
     assert saved[0].name == "water.xyz"
     assert saved[0].exists()
-    assert "Water" in saved[0].read_text(encoding="utf-8")
+    assert "Water Molecule" in saved[0].read_text(encoding="utf-8")
 
 
 def test_save_uploaded_geometries_ipywidgets_v8(tmp_path: Path) -> None:
@@ -184,7 +207,7 @@ def test_save_uploaded_geometries_ipywidgets_v8(tmp_path: Path) -> None:
     upload_tuple = (
         {
             "name": "methane.xyz",
-            "content": memoryview(b"5\nMethane\nC 0 0 0\nH 1 0 0\nH -1 0 0\nH 0 1 0\nH 0 -1 0\n"),
+            "content": memoryview(METHANE_XYZ_PHYSICAL.encode("utf-8")),
         },
     )
     saved = save_uploaded_geometries(upload_tuple, tmp_path)
@@ -198,7 +221,7 @@ def test_save_uploaded_geometries_path_traversal(tmp_path: Path) -> None:
     upload_tuple = (
         {
             "name": "../../evil_upload.xyz",
-            "content": b"1\nAtom\nHe 0 0 0\n",
+            "content": HELIUM_XYZ_PHYSICAL.encode("utf-8"),
         },
     )
     saved = save_uploaded_geometries(upload_tuple, tmp_path)
@@ -209,52 +232,56 @@ def test_save_uploaded_geometries_path_traversal(tmp_path: Path) -> None:
 
 def test_ingestion_watchdog_callback() -> None:
     """Verify IngestionWatchdog triggers callback on .xyz creation."""
+    from watchdog.events import DirCreatedEvent, FileCreatedEvent
+
     events_logged: List[str] = []
 
-    def dummy_cb(msg: str) -> None:
+    def log_event_callback(msg: str) -> None:
         events_logged.append(msg)
 
-    watchdog = IngestionWatchdog(dummy_cb)
+    watchdog = IngestionWatchdog(log_event_callback)
 
-    class MockEvent:
-        def __init__(self, path: str, is_dir: bool = False):
-            self.src_path = path
-            self.is_directory = is_dir
-
-    watchdog.on_created(MockEvent("/tmp/cochem_artifacts/test_mol.xyz", False))
+    watchdog.on_created(FileCreatedEvent("/tmp/cochem_artifacts/test_mol.xyz"))
     assert len(events_logged) == 1
     assert "test_mol.xyz" in events_logged[0]
 
-    watchdog.on_created(MockEvent("/tmp/cochem_artifacts/data.csv", False))
+    watchdog.on_created(FileCreatedEvent("/tmp/cochem_artifacts/data.csv"))
     assert len(events_logged) == 1
 
-    watchdog.on_created(MockEvent("/tmp/cochem_artifacts/subdir.xyz", True))
+    watchdog.on_created(DirCreatedEvent("/tmp/cochem_artifacts/subdir.xyz"))
     assert len(events_logged) == 1
 
 
-def test_cochem_mint_ui_full_lifecycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cochem_mint_ui_full_lifecycle(tmp_path: Path) -> None:
     """Verify complete CoChemMIntUI initialization, workspace resolution, and actions."""
-    monkeypatch.setenv("COCHEM_ARTIFACT_DIR", str(tmp_path / "CoChem_Artifacts"))
+    target_artifacts = tmp_path / "CoChem_Artifacts"
+    old_env = os.environ.get("COCHEM_ARTIFACT_DIR")
+    os.environ["COCHEM_ARTIFACT_DIR"] = str(target_artifacts)
+    try:
+        ui = CoChemMIntUI(default_project="Test_Experiment_A")
+        assert ui.current_workspace.name == "Test_Experiment_A"
+        assert ui.current_workspace.exists()
 
-    ui = CoChemMIntUI(default_project="Test_Experiment_A")
-    assert ui.current_workspace.name == "Test_Experiment_A"
-    assert ui.current_workspace.exists()
+        ui.project_name.value = "Project Beta 2026"
+        assert ui.current_workspace.name == "Project_Beta_2026"
+        assert ui.current_workspace.exists()
 
-    ui.project_name.value = "Project Beta 2026"
-    assert ui.current_workspace.name == "Project_Beta_2026"
-    assert ui.current_workspace.exists()
+        ui.molecule_name_input.value = "CCO"
+        ui._on_build_clicked(None)
 
-    ui.molecule_name_input.value = "CCO"
-    ui._on_build_clicked(None)
+        built_files = list(ui.current_workspace.glob("*.xyz"))
+        assert len(built_files) >= 1
+        assert any("CCO_rdkit.xyz" in f.name for f in built_files)
 
-    built_files = list(ui.current_workspace.glob("*.xyz"))
-    assert len(built_files) >= 1
-    assert any("CCO_rdkit.xyz" in f.name for f in built_files)
-
-    ui._on_scan_clicked(None)
-    ui._on_watch_clicked(None)
-    ui._on_watch_clicked(None)
-    ui.close()
+        ui._on_scan_clicked(None)
+        ui._on_watch_clicked(None)
+        ui._on_watch_clicked(None)
+        ui.close()
+    finally:
+        if old_env is not None:
+            os.environ["COCHEM_ARTIFACT_DIR"] = old_env
+        else:
+            os.environ.pop("COCHEM_ARTIFACT_DIR", None)
 
 
 def test_print_status_utility() -> None:

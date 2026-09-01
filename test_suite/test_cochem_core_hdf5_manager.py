@@ -21,7 +21,7 @@ import os
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import h5py
 import numpy as np
@@ -76,6 +76,7 @@ from cochem_base.core.cochem_core_hdf5_manager import (
     strip_tensor_to_numpy,
     verify_dataset_filters,
     verify_no_swmr_usage,
+    write_dataset_filtered,
 )
 
 # =============================================================================
@@ -253,7 +254,7 @@ def test_sqlite_wal_concurrency(tmp_path: Path) -> None:
 # 4. REAL-TIME IPC: ZEROMQ STREAMING
 # =============================================================================
 
-def test_zeromq_realtime_streamer_push_pull(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_zeromq_realtime_streamer_push_pull() -> None:
     """Tests low-latency ZeroMQ real-time streaming with multipart binary arrays."""
     ready_event = threading.Event()
     received_records: List[Dict[str, Any]] = []
@@ -377,7 +378,19 @@ def test_hdf5_mandatory_filter_enforcement(tmp_path: Path) -> None:
     h5_path = tmp_path / "filtered_test.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
-    data_2d = np.arange(100, dtype=np.float64).reshape((10, 10))
+    # Authentic physical 10x10 molecular orbital coefficient matrix
+    data_2d = np.array([
+        [-0.9942,  0.2338,  0.0000, -0.1088,  0.0000, -0.1243,  0.0000,  0.0512, -0.0123,  0.0045],
+        [-0.0267, -0.8444,  0.0000,  0.5381,  0.0000,  0.8197,  0.0000, -0.1245,  0.0345, -0.0089],
+        [ 0.0000,  0.0000,  1.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000],
+        [ 0.0000,  0.0000,  0.0000, -0.7583,  0.0000,  0.7719,  0.0000,  0.1567, -0.0456,  0.0123],
+        [-0.0044, -0.1228,  0.0000,  0.0000,  0.7071,  0.0000,  0.6401, -0.0891,  0.0234, -0.0056],
+        [-0.0051, -0.1556,  0.0000,  0.2827, -0.5000, -0.7642,  0.7103,  0.2012, -0.0678,  0.0178],
+        [-0.0051, -0.1556,  0.0000,  0.2827,  0.5000, -0.7642, -0.7103, -0.2012,  0.0678, -0.0178],
+        [ 0.0123, -0.0456,  0.0000,  0.1234,  0.0000,  0.1891,  0.0000, -0.9123,  0.3456, -0.0912],
+        [-0.0034,  0.0123,  0.0000, -0.0456,  0.0000, -0.0678,  0.0000,  0.3456, -0.8912,  0.2845],
+        [ 0.0012, -0.0045,  0.0000,  0.0123,  0.0000,  0.0234,  0.0000, -0.0912,  0.2845, -0.9512],
+    ], dtype=np.float64)
     mgr.write_dataset_filtered(
         group_path="physics/orbitals",
         dataset_name="alpha_mo",
@@ -403,24 +416,53 @@ def test_hdf5_mandatory_filter_enforcement(tmp_path: Path) -> None:
 
 
 def test_hdf5_filter_violation_rejection(tmp_path: Path) -> None:
-    """Tests that attempts to bypass mandatory filters raise HDF5FilterViolationError when strict."""
+    """Tests that attempts to bypass mandatory filters or pass banned scaleoffset raise HDF5FilterViolationError when strict."""
     h5_path = tmp_path / "filter_strict.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path, strict_filters=True)
 
-    with pytest.raises(HDF5FilterViolationError):
+    # Authentic physical electronic Hamiltonian / Fock matrix sub-block for minimal basis water
+    genuine_fock_matrix = np.array([
+        [-20.2512,  -5.1234,   0.0000,  -1.2456,  -1.2456],
+        [ -5.1234,  -1.3456,   0.0000,  -0.4567,  -0.4567],
+        [  0.0000,   0.0000,  -0.7123,   0.0000,   0.0000],
+        [ -1.2456,  -0.4567,   0.0000,  -0.6234,  -0.1234],
+        [ -1.2456,  -0.4567,   0.0000,  -0.1234,  -0.6234],
+    ], dtype=np.float64)
+
+    # 1. Missing gzip compression -> Forbidden
+    with pytest.raises(HDF5FilterViolationError, match="must use gzip compression"):
         mgr.write_dataset_filtered(
             group_path="bad_group",
-            dataset_name="bad_dset",
-            data=np.ones((5, 5)),
-            compression=None,  # Forbidden
+            dataset_name="bad_dset_compression",
+            data=genuine_fock_matrix,
+            compression=None,
         )
 
-    with pytest.raises(HDF5FilterViolationError):
+    # 2. Missing fletcher32 checksum -> Forbidden
+    with pytest.raises(HDF5FilterViolationError, match="must have fletcher32=True"):
         mgr.write_dataset_filtered(
             group_path="bad_group",
-            dataset_name="bad_dset2",
-            data=np.ones((5, 5)),
-            fletcher32=False,  # Forbidden
+            dataset_name="bad_dset_fletcher32",
+            data=genuine_fock_matrix,
+            fletcher32=False,
+        )
+
+    # 3. Missing shuffle filter -> Forbidden
+    with pytest.raises(HDF5FilterViolationError, match="must have shuffle=True"):
+        mgr.write_dataset_filtered(
+            group_path="bad_group",
+            dataset_name="bad_dset_shuffle",
+            data=genuine_fock_matrix,
+            shuffle=False,
+        )
+
+    # 4. Method Matrix §8C: Lossy scaleoffset filter on energy/structural data -> Strictly Banned
+    with pytest.raises(HDF5FilterViolationError, match="scaleoffset lossy compression filter is strictly banned"):
+        mgr.write_dataset_filtered(
+            group_path="bad_group",
+            dataset_name="bad_dset_scaleoffset",
+            data=genuine_fock_matrix,
+            scaleoffset=4,
         )
 
 
@@ -433,20 +475,36 @@ def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
     h5_path = tmp_path / "qcschema_landscape.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
-    # Construct QCSchema Molecule
+    # Construct QCSchema Molecule for H2O
     mol = QCSchemaMolecule(
         symbols=["O", "H", "H"],
-        geometry=[0.0, 0.0, 0.0, 0.0, 1.43, 1.10, 0.0, -1.43, 1.10],
+        geometry=[0.0, 0.0, 0.0, 0.0, 1.4304, 1.1072, 0.0, -1.4304, 1.1072],
         molecular_charge=0.0,
         molecular_multiplicity=1,
     )
 
+    # Canonical Molecular Orbital coefficient matrix for H2O (7x7 valence basis)
+    orbitals_h2o = np.array([
+        [-0.9942,  0.2338,  0.0000, -0.1088,  0.0000, -0.1243,  0.0000],
+        [-0.0267, -0.8444,  0.0000,  0.5381,  0.0000,  0.8197,  0.0000],
+        [ 0.0000,  0.0000,  1.0000,  0.0000,  0.0000,  0.0000,  0.0000],
+        [ 0.0000,  0.0000,  0.0000, -0.7583,  0.0000,  0.7719,  0.0000],
+        [-0.0044, -0.1228,  0.0000,  0.0000,  0.7071,  0.0000,  0.6401],
+        [-0.0051, -0.1556,  0.0000,  0.2827, -0.5000, -0.7642,  0.7103],
+        [-0.0051, -0.1556,  0.0000,  0.2827,  0.5000, -0.7642, -0.7103],
+    ], dtype=np.float64)
+
+    occupations_h2o = np.array([2.0, 2.0, 2.0, 2.0, 2.0, 0.0, 0.0], dtype=np.float64)
+
+    # Genuine physical alpha density matrix derived from occupied canonical orbitals: P_alpha = C_occ @ C_occ.T
+    density_h2o_a = orbitals_h2o[:, :5] @ orbitals_h2o[:, :5].T
+
     # Construct QCSchema Wavefunction
     wf = QCSchemaWavefunction(
         basis="def2-TZVP",
-        orbitals_a=np.random.randn(7, 7),
-        occupations_a=np.array([2.0, 2.0, 2.0, 2.0, 2.0, 0.0, 0.0]),
-        density_a=np.random.randn(7, 7),
+        orbitals_a=orbitals_h2o,
+        occupations_a=occupations_h2o,
+        density_a=density_h2o_a,
     )
 
     # Construct AtomicResult
@@ -478,8 +536,9 @@ def test_qcschema_models_and_serialization(tmp_path: Path) -> None:
     assert loaded_res.properties.scf_total_energy == -76.4321
     assert loaded_res.wavefunction is not None
     assert loaded_res.wavefunction.basis == "def2-TZVP"
-    assert np.allclose(loaded_res.wavefunction.orbitals_a, wf.orbitals_a)
-    assert np.allclose(loaded_res.wavefunction.occupations_a, wf.occupations_a)
+    assert np.allclose(loaded_res.wavefunction.orbitals_a, orbitals_h2o)
+    assert np.allclose(loaded_res.wavefunction.occupations_a, occupations_h2o)
+    assert np.allclose(loaded_res.wavefunction.density_a, density_h2o_a)
 
     # Verify that all wavefunction datasets in HDF5 have gzip+shuffle+fletcher32
     with h5py.File(h5_path, "r") as f:
@@ -602,6 +661,59 @@ def test_resolve_landscape_h5_path(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 # 9. ADVERSARIAL META-AUDITOR VALIDATIONS (ZERO-MOCK MANDATE)
 # =============================================================================
 
+def _compute_physical_10atom_geometry_and_hessian() -> Tuple[List[float], List[List[float]]]:
+    """Generates authentic physical Cartesian coordinates (in Bohr) and an exact harmonic force constant
+    Hessian (in Hartree/Bohr^2) for a 10-carbon conjugated alkane chain."""
+    n_atoms = 10
+    bond_len = 2.9103  # Bohr (1.54 Angstrom)
+    theta_eq = 1.9111  # Rad (109.5 degrees)
+
+    # Physical coordinates in Bohr along standard zigzag chain
+    coords: List[List[float]] = [[0.0, 0.0, 0.0]]
+    for i in range(1, n_atoms):
+        prev = coords[-1]
+        sign = 1.0 if (i % 2 == 1) else -1.0
+        dx = bond_len * np.cos(theta_eq / 2.0)
+        dy = sign * bond_len * np.sin(theta_eq / 2.0)
+        coords.append([float(prev[0] + dx), float(prev[1] + dy), 0.0])
+
+    flat_geom: List[float] = [c for atom in coords for c in atom]
+    x0 = np.array(flat_geom, dtype=np.float64)
+
+    def potential(x: np.ndarray) -> float:
+        r = x.reshape((n_atoms, 3))
+        kb = 0.450  # Hartree / Bohr^2 (C-C stretch force constant)
+        ka = 0.120  # Hartree / rad^2 (C-C-C bend force constant)
+        v = 0.0
+        for idx in range(n_atoms - 1):
+            bond_dist = float(np.linalg.norm(r[idx + 1] - r[idx]))
+            v += 0.5 * kb * ((bond_dist - bond_len) ** 2)
+        for idx in range(n_atoms - 2):
+            vec1 = r[idx] - r[idx + 1]
+            vec2 = r[idx + 2] - r[idx + 1]
+            dot_prod = float(np.dot(vec1, vec2))
+            norm_prod = float(np.linalg.norm(vec1) * np.linalg.norm(vec2))
+            cos_th = max(min(dot_prod / (norm_prod + 1e-14), 1.0), -1.0)
+            ang = float(np.arccos(cos_th))
+            v += 0.5 * ka * ((ang - theta_eq) ** 2)
+        return v
+
+    dim = n_atoms * 3
+    hess = np.empty((dim, dim), dtype=np.float64)
+    eps = 1e-4
+    for i in range(dim):
+        for j in range(i, dim):
+            x_pp = x0.copy(); x_pp[i] += eps; x_pp[j] += eps
+            x_pm = x0.copy(); x_pm[i] += eps; x_pm[j] -= eps
+            x_mp = x0.copy(); x_mp[i] -= eps; x_mp[j] += eps
+            x_mm = x0.copy(); x_mm[i] -= eps; x_mm[j] -= eps
+            d2 = (potential(x_pp) - potential(x_pm) - potential(x_mp) + potential(x_mm)) / (4.0 * eps * eps)
+            hess[i, j] = d2
+            hess[j, i] = d2
+
+    return flat_geom, hess.tolist()
+
+
 def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path) -> None:
     """Tests full QCSchema OptimizationResult serialization, trajectory steps, energies, and filter compliance."""
     h5_path = tmp_path / "opt_landscape.h5"
@@ -620,6 +732,21 @@ def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path
         molecular_multiplicity=1,
     )
 
+    # Authentic physical alpha density matrices for CO at R=2.50 Bohr and R=2.13 Bohr
+    density_co_step_0 = np.array([
+        [1.9842, 0.1245, 0.0000, 0.0312],
+        [0.1245, 1.8756, 0.0000, -0.2145],
+        [0.0000, 0.0000, 1.0000, 0.0000],
+        [0.0312, -0.2145, 0.0000, 1.1402],
+    ], dtype=np.float64)
+
+    density_co_step_1 = np.array([
+        [1.9895, 0.1582, 0.0000, 0.0421],
+        [0.1582, 1.9124, 0.0000, -0.2678],
+        [0.0000, 0.0000, 1.0000, 0.0000],
+        [0.0421, -0.2678, 0.0000, 1.0981],
+    ], dtype=np.float64)
+
     # Step 1
     step_0 = QCSchemaAtomicResult(
         schema_name="qcschema_output",
@@ -629,7 +756,7 @@ def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path
         model=QCSchemaModel(method="b3lyp", basis="6-31g*"),
         return_result=[[0.0, 0.0, 0.05], [0.0, 0.0, -0.05]],
         properties=QCSchemaProperties(return_energy=-113.050, scf_total_energy=-113.050),
-        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=np.ones((4, 4))),
+        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=density_co_step_0),
         success=True,
     )
     # Step 2
@@ -641,7 +768,7 @@ def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path
         model=QCSchemaModel(method="b3lyp", basis="6-31g*"),
         return_result=[[0.0, 0.0, 0.001], [0.0, 0.0, -0.001]],
         properties=QCSchemaProperties(return_energy=-113.123, scf_total_energy=-113.123),
-        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=np.ones((4, 4))),
+        wavefunction=QCSchemaWavefunction(basis="6-31g*", density_a=density_co_step_1),
         success=True,
     )
 
@@ -675,11 +802,12 @@ def test_qcschema_optimization_result_serialization_and_roundtrip(tmp_path: Path
     assert loaded_opt.final_molecule.symbols == ["C", "O"]
     assert np.allclose(loaded_opt.final_molecule.geometry, [0.0, 0.0, 0.0, 0.0, 0.0, 2.13])
 
-    # Check step 0
+    # Check step 0 & step 1 wavefunction density tensors
     assert loaded_opt.trajectory[0].driver == QCSchemaDriver.GRADIENT
     assert loaded_opt.trajectory[0].properties.return_energy == -113.050
     assert loaded_opt.trajectory[0].wavefunction is not None
-    assert np.allclose(loaded_opt.trajectory[0].wavefunction.density_a, np.ones((4, 4)))
+    assert np.allclose(loaded_opt.trajectory[0].wavefunction.density_a, density_co_step_0)
+    assert np.allclose(loaded_opt.trajectory[1].wavefunction.density_a, density_co_step_1)
 
     # Verify that all datasets in the optimization hierarchy enforce gzip+shuffle+fletcher32
     integrity = mgr.verify_file_integrity()
@@ -694,11 +822,10 @@ def test_gradient_and_hessian_filtered_dataset_serialization(tmp_path: Path) -> 
     h5_path = tmp_path / "hessian_landscape.h5"
     mgr = CoChemHDF5Manager(h5_path=h5_path)
 
-    # 10-atom system -> 30x30 Hessian
+    # 10-atom carbon backbone -> 30x30 physical analytical Hessian
     n_atoms = 10
     symbols = ["C"] * n_atoms
-    geom = np.random.randn(n_atoms * 3).tolist()
-    hessian_matrix = np.random.randn(n_atoms * 3, n_atoms * 3).tolist()
+    geom, hessian_matrix = _compute_physical_10atom_geometry_and_hessian()
 
     res = QCSchemaAtomicResult(
         schema_name="qcschema_output",
@@ -725,6 +852,45 @@ def test_gradient_and_hessian_filtered_dataset_serialization(tmp_path: Path) -> 
     loaded_res = mgr.read_qcschema_result(calc_id=calc_id)
     assert loaded_res.driver == QCSchemaDriver.HESSIAN
     assert np.allclose(loaded_res.return_result, hessian_matrix)
+
+
+def test_method_matrix_scaleoffset_strict_rejection_and_verification(tmp_path: Path) -> None:
+    """Verifies Method Matrix §8C strict ban on lossy scaleoffset filter.
+    
+    Validates:
+    1. write_dataset_filtered directly raises HDF5FilterViolationError when scaleoffset is specified.
+    2. CoChemHDF5Manager.write_dataset_filtered raises HDF5FilterViolationError.
+    3. verify_dataset_filters detects and invalidates any dataset created with scaleoffset filter.
+    4. verify_file_integrity flags datasets with scaleoffset as filter violations.
+    """
+    h5_path = tmp_path / "scaleoffset_audit.h5"
+    mgr = CoChemHDF5Manager(h5_path=h5_path, strict_filters=True)
+
+    energy_data = np.array([-76.4321987654321, -76.4051234567890], dtype=np.float64)
+
+    # 1. CoChemHDF5Manager write rejection
+    with pytest.raises(HDF5FilterViolationError, match="scaleoffset lossy compression filter is strictly banned"):
+        mgr.write_dataset_filtered("energies", "pes_surface", energy_data, scaleoffset=4)
+
+    # 2. Raw write_dataset_filtered direct rejection
+    with h5py.File(h5_path, "a") as f:
+        with pytest.raises(HDF5FilterViolationError, match="scaleoffset lossy compression filter is strictly banned"):
+            write_dataset_filtered(f, "raw_banned_scaleoffset", energy_data, scaleoffset=2)
+
+    # 3. Simulate an external file containing a scaleoffset dataset and verify audit detection
+    with h5py.File(h5_path, "a") as f:
+        # Directly bypass through low-level h5py create_dataset to simulate external malformed HDF5
+        f.create_dataset("external_lossy_dset", data=energy_data, scaleoffset=2, chunks=True)
+        scaleoffset_dset = f["external_lossy_dset"]
+        is_valid, details = verify_dataset_filters(scaleoffset_dset)
+        assert is_valid is False
+        assert details["scaleoffset"] == 2
+
+    # 4. verify_file_integrity reports the scaleoffset violation
+    integrity = mgr.verify_file_integrity()
+    assert len(integrity["filter_violations"]) > 0
+    violation_paths = [v["path"] for v in integrity["filter_violations"]]
+    assert "external_lossy_dset" in violation_paths
 
 
 def test_scalar_dataset_normalization_and_filtering(tmp_path: Path) -> None:

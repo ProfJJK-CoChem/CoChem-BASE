@@ -19,6 +19,7 @@ from typing import List
 import pytest
 
 from core_engine.cochem_core_subprocess_broker import (
+    CRITICAL_SEGFAULT_EXIT_CODES,
     HAS_PSUTIL,
     HAS_ZMQ,
     CPUTopologyManager,
@@ -33,12 +34,15 @@ from core_engine.cochem_core_subprocess_broker import (
     detect_cpu_topology,
     detect_mpi_environment,
     enforce_cpu_affinity,
+    extract_segfault_hex_dump,
     get_active_popen_processes,
+    is_crash_returncode,
     kill_process_tree,
     lock_directory_permissions,
     register_popen_process,
     safe_subprocess_run,
     sanitize_mpi_environment,
+    sweep_crash_hex_dump,
     unregister_popen_process,
     verify_scratch_io,
     verify_scratch_quota_and_io,
@@ -153,6 +157,12 @@ def test_cpu_topology_detection_and_manager() -> None:
 
     affinity_calc = mgr.calculate_thread_affinity(rank=0, threads_per_rank=1)
     assert len(affinity_calc) == 1
+
+    node_id = mgr.get_numa_node_for_core(0)
+    assert isinstance(node_id, int)
+
+    pinned = mgr.pin_process(os.getpid(), [0])
+    assert isinstance(pinned, bool)
 
 
 def test_enforce_cpu_affinity() -> None:
@@ -708,4 +718,135 @@ def test_windows_job_object_disable_kill_on_close() -> None:
     finally:
         kill_process_tree(proc.pid)
         proc.wait(timeout=2.0)
+
+
+# =====================================================================
+# 8. Segfault & Access Violation Hex-Dump Sweeper
+# =====================================================================
+
+def test_is_crash_returncode() -> None:
+    """Test detection of POSIX segfaults, signals, and Windows access violations."""
+    assert is_crash_returncode(139) is True
+    assert is_crash_returncode(-11) is True
+    assert is_crash_returncode(-1073741819) is True
+    assert is_crash_returncode(3221225477) is True
+    assert is_crash_returncode(0xC0000005) is True
+    assert is_crash_returncode(134) is True
+    assert is_crash_returncode(-6) is True
+    assert is_crash_returncode(-1073741571) is True
+    assert is_crash_returncode(0xC00000FD) is True
+
+    # Non crash codes
+    assert is_crash_returncode(0) is False
+    assert is_crash_returncode(1) is False
+    assert is_crash_returncode(2) is False
+    assert is_crash_returncode(None) is False
+
+
+def test_extract_segfault_hex_dump_posix_139() -> None:
+    """Test hex dump extraction on POSIX Exit Code 139 (SIGSEGV)."""
+    raw_stderr = b"Fatal error in ORCA SCF iteration: Segmentation fault at memory offset 0x7fffabcd\n"
+    res = extract_segfault_hex_dump(139, raw_stderr)
+
+    assert res["is_crash"] is True
+    assert res["returncode"] == 139
+    assert res["crash_type"] == "SIGSEGV"
+    assert res["raw_hex"] == raw_stderr.hex()
+    assert res["byte_count"] == len(raw_stderr)
+    assert "00000000:" in res["formatted_hex_dump"]
+    assert "Fatal error" in res["formatted_hex_dump"]
+    assert res["terminal_stderr_snippet"] == raw_stderr.decode("utf-8")
+
+
+def test_extract_segfault_hex_dump_windows_access_violation_signed() -> None:
+    """Test hex dump extraction on Windows Access Violation -1073741819 (0xC0000005)."""
+    raw_stderr = b"ACCESS_VIOLATION reading address 0x0000000000000010\n"
+    res = extract_segfault_hex_dump(-1073741819, raw_stderr)
+
+    assert res["is_crash"] is True
+    assert res["returncode"] == -1073741819
+    assert res["crash_type"] == "STATUS_ACCESS_VIOLATION"
+    assert res["raw_hex"] == raw_stderr.hex()
+    assert "00000000:" in res["formatted_hex_dump"]
+
+
+def test_extract_segfault_hex_dump_windows_access_violation_unsigned() -> None:
+    """Test hex dump extraction on Windows Access Violation 3221225477 (0xC0000005 unsigned)."""
+    raw_stderr = b"STATUS_ACCESS_VIOLATION in quantum module\n"
+    res = extract_segfault_hex_dump(3221225477, raw_stderr)
+
+    assert res["is_crash"] is True
+    assert res["returncode"] == 3221225477
+    assert res["crash_type"] == "STATUS_ACCESS_VIOLATION"
+    assert res["raw_hex"] == raw_stderr.hex()
+
+
+def test_extract_segfault_hex_dump_256_byte_tail_extraction() -> None:
+    """Test that precisely the final 256 bytes are extracted when stderr buffer exceeds 256 bytes."""
+    full_buffer = os.urandom(1024)
+    expected_tail = full_buffer[-256:]
+
+    res = extract_segfault_hex_dump(139, full_buffer, max_bytes=256)
+    assert res["is_crash"] is True
+    assert res["byte_count"] == 256
+    assert res["raw_hex"] == expected_tail.hex()
+
+
+def test_extract_segfault_hex_dump_string_and_list_formats() -> None:
+    """Test extracting hex dumps from string and list of strings stderr buffers."""
+    str_buffer = "Critical quantum failure: segfault core dumped\n"
+    res_str = extract_segfault_hex_dump(139, str_buffer)
+    assert res_str["is_crash"] is True
+    assert res_str["raw_hex"] == str_buffer.encode("utf-8").hex()
+
+    list_buffer = ["Line 1: computing integrals", "Line 2: memory crash"]
+    res_list = extract_segfault_hex_dump(-1073741819, list_buffer)
+    assert res_list["is_crash"] is True
+    assert res_list["byte_count"] == len("\n".join(list_buffer).encode("utf-8"))
+
+
+def test_extract_segfault_hex_dump_non_crash_returncode() -> None:
+    """Test extract_segfault_hex_dump returns non-crash payload for standard exit codes."""
+    res_zero = extract_segfault_hex_dump(0, b"Normal output")
+    assert res_zero["is_crash"] is False
+    assert res_zero["raw_hex"] == ""
+    assert res_zero["formatted_hex_dump"] == ""
+    assert res_zero["crash_type"] is None
+
+    res_one = extract_segfault_hex_dump(1, "Syntax error")
+    assert res_one["is_crash"] is False
+
+
+def test_sweep_crash_hex_dump_alias() -> None:
+    """Test sweep_crash_hex_dump alias performs identically to extract_segfault_hex_dump."""
+    raw_data = b"Crash test buffer"
+    res1 = extract_segfault_hex_dump(139, raw_data)
+    res2 = sweep_crash_hex_dump(139, raw_data)
+    assert res1 == res2
+
+
+def test_broker_extract_crash_hex_dump_method() -> None:
+    """Test extract_crash_hex_dump method on SubprocessBroker."""
+    broker = SubprocessBroker()
+    try:
+        res = broker.extract_crash_hex_dump(139, b"Segmentation fault at 0xdeadbeef\n")
+        assert res["is_crash"] is True
+        assert res["crash_type"] == "SIGSEGV"
+    finally:
+        broker.close()
+
+
+def test_safe_subprocess_run_called_process_error_with_crash_trace() -> None:
+    """Test safe_subprocess_run attaches crash payload and hex dump on segfault."""
+    cmd = [sys.executable, "-c", "import sys; sys.stderr.write('Fatal segfault memory trace'); sys.exit(139)"]
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        safe_subprocess_run(cmd, check=True)
+
+    err = exc_info.value
+    assert err.returncode == 139
+    crash_payload = getattr(err, "crash_payload", {})
+    assert crash_payload.get("is_crash") is True
+    assert crash_payload.get("crash_type") == "SIGSEGV"
+    assert "Fatal segfault memory trace" in crash_payload.get("terminal_stderr_snippet", "")
+
 

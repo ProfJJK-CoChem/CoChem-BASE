@@ -1,0 +1,222 @@
+{
+  "phase_id": "PHASE_3_ENGINE_DISCOVERY_INTEGRITY",
+  "status": "PASSED",
+  "timestamp_utc": "2026-08-30T05:25:06.602301+00:00",
+  "engines": {
+    "orca": {
+      "name": "orca",
+      "track": "ORCA",
+      "path": "C:\\ORCA_6.1.1\\orca.exe",
+      "version": "6.1.1",
+      "sha256_hash": "8d6b51bf4093c967dbed997cc651f0212b8f94313ee77ea56f548f000672c42f",
+      "file_size_bytes": 280638976,
+      "is_available": true,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": null,
+      "status": "FOUND_VALID"
+    },
+    "mpirun": {
+      "name": "mpirun",
+      "track": "ORCA",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'mpirun' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "mpiexec": {
+      "name": "mpiexec",
+      "track": "ORCA",
+      "path": "C:\\Program Files\\Microsoft MPI\\Bin\\mpiexec.exe",
+      "version": "Unknown option: --version",
+      "sha256_hash": "161d18ac9f66d28add3aec8719f834297d0dc08ce07ec536c8aed5a9172fca8e",
+      "file_size_bytes": 543664,
+      "is_available": true,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": null,
+      "status": "FOUND_VALID"
+    },
+    "orca_2mkl": {
+      "name": "orca_2mkl",
+      "track": "ORCA",
+      "path": "C:\\ORCA_6.1.1\\orca_2mkl.exe",
+      "version": "Reading the input file --version.gbw      ... [file orca_tools/Tool-ORCAData/qci",
+      "sha256_hash": "86b0a94b10f31e263e8a2692ebef98b3dee7395426885ef8bb4fffc223c8cfe2",
+      "file_size_bytes": 98720768,
+      "is_available": true,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": null,
+      "status": "FOUND_VALID"
+    },
+    "orca_vpt2_prep": {
+      "name": "orca_vpt2_prep",
+      "track": "ORCA",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'orca_vpt2_prep' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "xcfour": {
+      "name": "xcfour",
+      "track": "CFOUR",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'xcfour' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "c4init": {
+      "name": "c4init",
+      "track": "CFOUR",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'c4init' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "c4cleanup": {
+      "name": "c4cleanup",
+      "track": "CFOUR",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'c4cleanup' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "xtb": {
+      "name": "xtb",
+      "track": "XTB_CREST",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'xtb' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "crest": {
+      "name": "crest",
+      "track": "XTB_CREST",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'crest' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "apptainer": {
+      "name": "apptainer",
+      "track": "GENERAL",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'apptainer' not found across standard or configured search tiers",
+      "status": "MISSING"
+    },
+    "singularity": {
+      "name": "singularity",
+      "track": "GENERAL",
+      "path": null,
+      "version": null,
+      "sha256_hash": null,
+      "file_size_bytes": null,
+      "is_available": false,
+      "is_container": false,
+      "container_flags": [],
+      "error_detail": "Binary 'singularity' not found across standard or configured search tiers",
+      "status": "MISSING"
+    }
+  },
+  "tracks": {
+    "ORCA": {
+      "track": "ORCA",
+      "total_scanned": 5,
+      "available_count": 3,
+      "missing_count": 2,
+      "is_track_ready": false
+    },
+    "CFOUR": {
+      "track": "CFOUR",
+      "total_scanned": 3,
+      "available_count": 0,
+      "missing_count": 3,
+      "is_track_ready": false
+    },
+    "XTB_CREST": {
+      "track": "XTB_CREST",
+      "total_scanned": 2,
+      "available_count": 0,
+      "missing_count": 2,
+      "is_track_ready": false
+    },
+    "PYSCF_GPU": {
+      "track": "PYSCF_GPU",
+      "total_scanned": 0,
+      "available_count": 0,
+      "missing_count": 0,
+      "is_track_ready": false
+    },
+    "CONTAINER_SIF": {
+      "track": "CONTAINER_SIF",
+      "total_scanned": 0,
+      "available_count": 0,
+      "missing_count": 0,
+      "is_track_ready": false
+    },
+    "GENERAL": {
+      "track": "GENERAL",
+      "total_scanned": 2,
+      "available_count": 0,
+      "missing_count": 2,
+      "is_track_ready": false
+    }
+  },
+  "container": {
+    "runtime_name": null,
+    "runtime_path": null,
+    "runtime_version": null,
+    "airgap_flags_valid": true,
+    "discovered_sifs": []
+  },
+  "fingerprint": {
+    "composite_hash": "6b9c1de100acf5ca50d72962869369ed10e66beee752a150413d192f97ee7ee5",
+    "component_count": 3,
+    "provenance": "[D] Deterministic Composite System Hash"
+  },
+  "warnings": [],
+  "errors": [],
+  "artifact_path": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.agent_artifacts\\Registry\\p3.json"
+}

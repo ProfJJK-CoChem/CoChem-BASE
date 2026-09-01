@@ -74,6 +74,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from cochem_geom.data.pyg_schema import ConformerData
+
 
 # ==============================================================================
 # 1. Fundamental Physical Constants & Provenance Declarations (CODATA 2018/2022)
@@ -1220,10 +1222,121 @@ class Equivariant3DInteractionBlock(BaseGNNLayer):
 
 
 # ==============================================================================
-# 8. Abstract Base Class: Base3DGNN
+# 8. Abstract Base Classes: BaseGNN and Base3DGNN
 # ==============================================================================
 
-class Base3DGNN(nn.Module, abc.ABC):
+class BaseGNN(nn.Module, abc.ABC):
+    """Authoritative Abstract Base Class for 3D Graph Neural Networks in CoChem-GEOM [D].
+
+    All GNN models in CoChem-GEOM must inherit from `BaseGNN`. This class enforces
+    a standardized I/O dictionary schema and houses the analytical force computation
+    logic (`compute_forces`), ensuring compliance with physics constraints.
+
+    Parameters
+    ----------
+    hidden_channels : int
+        Latent hidden representation feature dimension. Defaults to 128 [E].
+    max_z : int
+        Maximum supported atomic number Z for the embedding table. Typically bounded at 100 [M].
+    **kwargs : Any
+        Additional keyword arguments.
+    """
+
+    def __init__(
+        self,
+        hidden_channels: Union[int, Any] = DEFAULT_HIDDEN_CHANNELS,
+        max_z: int = DEFAULT_MAX_Z,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__()
+        if hasattr(hidden_channels, "hidden_channels"):
+            if hasattr(hidden_channels, "max_z") and max_z == DEFAULT_MAX_Z:
+                max_z = getattr(hidden_channels, "max_z")
+            hidden_channels = getattr(hidden_channels, "hidden_channels")
+        elif isinstance(hidden_channels, dict):
+            if "max_z" in hidden_channels and max_z == DEFAULT_MAX_Z:
+                max_z = hidden_channels["max_z"]
+            hidden_channels = hidden_channels.get("hidden_channels", DEFAULT_HIDDEN_CHANNELS)
+
+        if max_z <= 0:
+            raise ValueError(f"max_z must be a positive integer, got {max_z}")
+        if hidden_channels <= 0:
+            raise ValueError(f"hidden_channels must be a positive integer, got {hidden_channels}")
+
+        self.hidden_channels: int = int(hidden_channels)
+        self.max_z: int = int(max_z)
+        self.atom_embedding: nn.Embedding = nn.Embedding(self.max_z, self.hidden_channels)
+
+    @abc.abstractmethod
+    def forward(self, data: Union[ConformerData, Any]) -> Dict[str, torch.Tensor]:
+        """Forward pass returning at minimum the scalar electronic energy under key 'energy' [D].
+
+        Parameters
+        ----------
+        data : ConformerData or Any
+            Molecular graph data structure containing coordinates `pos` and atomic numbers `z`.
+
+        Returns
+        -------
+        Dict[str, torch.Tensor]
+            Dictionary containing at minimum the `"energy"` key.
+        """
+        raise NotImplementedError
+
+    def compute_forces(self, data: Union[ConformerData, Any]) -> Dict[str, torch.Tensor]:
+        """Compute analytical interatomic forces as negative Cartesian gradient of energy [D].
+
+        Sets `data.pos.requires_grad_(True)` before the forward pass.
+        Derives forces according to conservative potential physics:
+        $$\\mathbf{F} = -\\frac{\\partial E}{\\partial \\mathbf{X}} = -\\nabla_{\\mathbf{pos}} E$$
+
+        Uses `create_graph=self.training` and `retain_graph=self.training` for exact
+        second-order gradient backpropagation during physics-informed training loops.
+
+        Parameters
+        ----------
+        data : ConformerData or Any
+            Input molecular data structure containing Cartesian coordinates `pos`.
+
+        Returns
+        -------
+        Dict[str, torch.Tensor]
+            Dictionary containing `"energy"` and analytical `"forces"` [N, 3].
+        """
+        if isinstance(data, dict):
+            if not data["pos"].requires_grad:
+                data["pos"].requires_grad_(True)
+            pos_tensor = data["pos"]
+        else:
+            if not data.pos.requires_grad:
+                data.pos.requires_grad_(True)
+            pos_tensor = data.pos
+
+        with torch.enable_grad():
+            out = self.forward(data)
+
+            if isinstance(out, dict):
+                energy = out["energy"]
+                res = dict(out)
+            elif isinstance(out, GNNOutput):
+                energy = out.energy
+                res = out.as_dict()
+            else:
+                raise TypeError(f"Expected forward() to return Dict[str, torch.Tensor], got {type(out)}")
+
+            grad_outputs = energy.sum() if energy.dim() > 0 else energy
+            forces = -torch.autograd.grad(
+                outputs=grad_outputs,
+                inputs=pos_tensor,
+                create_graph=self.training,
+                retain_graph=self.training,
+            )[0]
+
+        res["forces"] = forces
+        return res
+
+
+class Base3DGNN(BaseGNN, abc.ABC):
     """Authoritative Abstract Base Class for 3D Molecular Graph Neural Networks in CoChem.
 
     Enforces:
@@ -1233,9 +1346,11 @@ class Base3DGNN(nn.Module, abc.ABC):
     """
 
     def __init__(self, config: Optional[GNNModelConfig] = None) -> None:
-        super().__init__()
-        self.config: GNNModelConfig = config if config is not None else GNNModelConfig()
+        cfg = config if config is not None else GNNModelConfig()
+        super().__init__(hidden_channels=cfg.hidden_channels, max_z=cfg.max_z + 1)
+        self.config: GNNModelConfig = cfg
         self.cutoff: float = float(self.config.cutoff)
+        self.embedding: nn.Embedding = self.atom_embedding
 
     @abc.abstractmethod
     def forward(
@@ -1374,7 +1489,6 @@ class Canonical3DGNN(Base3DGNN):
         super().__init__(config)
         cfg = self.config
 
-        self.embedding = nn.Embedding(cfg.max_z + 1, cfg.hidden_channels)
         self.rbf = RadialBasisExpansion(num_radial=cfg.num_radial, cutoff=cfg.cutoff)
 
         self.interactions = nn.ModuleList([
@@ -1446,8 +1560,6 @@ class Equivariant3DGNN(Base3DGNN):
         super().__init__(config)
         cfg = self.config
 
-        self.embedding = nn.Embedding(cfg.max_z + 1, cfg.hidden_channels)
-
         self.layers = nn.ModuleList([
             Equivariant3DInteractionBlock(
                 hidden_channels=cfg.hidden_channels,
@@ -1455,6 +1567,7 @@ class Equivariant3DGNN(Base3DGNN):
             )
             for _ in range(cfg.num_layers)
         ])
+
 
         act_layer = nn.SiLU() if cfg.activation == "silu" else nn.ReLU()
         self.readout = nn.Sequential(
@@ -1614,3 +1727,54 @@ def verify_se3_equivariance(
             energy_invariant and force_equivariant and coord_equivariant and forces_conserved
         ),
     }
+
+
+__all__ = [
+    "ATOMIC_MASS_UNIT_KG",
+    "AVOGADRO_CONSTANT_MOL",
+    "BOHR_RADIUS_ANGSTROM",
+    "BOLTZMANN_CONSTANT_EV_K",
+    "BOLTZMANN_CONSTANT_J_K",
+    "DEFAULT_HIDDEN_CHANNELS",
+    "DEFAULT_MAX_Z",
+    "DEFAULT_NUM_LAYERS",
+    "DEFAULT_NUM_RADIAL",
+    "DEFAULT_RBF_CUTOFF",
+    "ELEMENTARY_CHARGE_C",
+    "EV_TO_HARTREE",
+    "HARTREE_TO_EV",
+    "HARTREE_TO_KCAL_MOL",
+    "KCAL_MOL_TO_EV",
+    "PLANCK_CONSTANT_J_S",
+    "ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ",
+    "SPEED_OF_LIGHT_M_S",
+    "STANDARD_TEMPERATURE_K",
+    "Base3DGNN",
+    "BaseGNN",
+    "BaseGNNLayer",
+    "Canonical3DGNN",
+    "Canonical3DInteractionBlock",
+    "ConformerInputContract",
+    "Equivariant3DGNN",
+    "Equivariant3DInteractionBlock",
+    "GNNForceOutput",
+    "GNNModelConfig",
+    "GNNOutput",
+    "GNNPredictionContract",
+    "RadialBasisExpansion",
+    "apply_coordinate_delta",
+    "build_radius_graph",
+    "center_coordinates",
+    "compute_center_of_mass",
+    "compute_moment_of_inertia_tensor",
+    "compute_principal_rotational_constants",
+    "extract_gnn_inputs",
+    "generate_random_so3_rotation",
+    "get_atomic_masses",
+    "resolve_dynamic_mass",
+    "resolve_dynamic_monoisotopic_mass",
+    "rotate_coordinates",
+    "translate_coordinates",
+    "verify_se3_equivariance",
+]
+

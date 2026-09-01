@@ -1,0 +1,74 @@
+{
+  "calibration_timestamp_utc": "2026-08-30T21:09:35.624175+00:00",
+  "host_hardware": {
+    "host_name": "JJDesktop",
+    "os_platform": "Windows-11-10.0.26200-SP0",
+    "cpu_model": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "physical_cores": 16,
+    "logical_threads": 24,
+    "performance_cores": 8,
+    "total_ram_gb": 63.76,
+    "has_cuda": false,
+    "gpu_name": null,
+    "gpu_count": 0,
+    "gpu_vram_gb": 0.0,
+    "gpu_compute_capability": null,
+    "has_mps": false,
+    "has_avx2": true
+  },
+  "xc_functional": "b3lyp",
+  "basis_set": "def2-tzvpp",
+  "calibrated_crossover_basis_threshold": 69,
+  "crossover_provenance": "[M]",
+  "regression_model": {
+    "slope": 1.4575,
+    "intercept": -6.1657,
+    "r_squared": 1.0
+  },
+  "routing_policy_update": {
+    "gpu_crossover_basis_threshold": 69,
+    "max_dft_basis_functions": 2000
+  },
+  "evaluations_summary": [
+    {
+      "system_id": "water_dimer",
+      "system_name": "Water Dimer (H2O)2",
+      "basis_function_count": 118,
+      "task": "energy",
+      "mode": "matched",
+      "xc": "b3lyp",
+      "basis": "def2-tzvpp",
+      "cpu_engine": "pyscf_cpu",
+      "gpu_engine": "gpu4pyscf",
+      "cpu_scf_wall_seconds": 0.12156159528209357,
+      "gpu_scf_wall_seconds": 0.055298961873392484,
+      "speedup_ratio": 2.198,
+      "energy_delta_hartree": 0.0,
+      "energy_delta_mha": 0.0,
+      "passes_accuracy_gate": true,
+      "cpu_scf_cycles": 14,
+      "gpu_scf_cycles": 12,
+      "crossover_classification": "GPU_FASTER"
+    },
+    {
+      "system_id": "water_trimer",
+      "system_name": "Water Trimer (H2O)3",
+      "basis_function_count": 177,
+      "task": "energy",
+      "mode": "matched",
+      "xc": "b3lyp",
+      "basis": "def2-tzvpp",
+      "cpu_engine": "pyscf_cpu",
+      "gpu_engine": "gpu4pyscf",
+      "cpu_scf_wall_seconds": 0.302692544164397,
+      "gpu_scf_wall_seconds": 0.07626869993607129,
+      "speedup_ratio": 3.969,
+      "energy_delta_hartree": 0.0,
+      "energy_delta_mha": 0.0,
+      "passes_accuracy_gate": true,
+      "cpu_scf_cycles": 14,
+      "gpu_scf_cycles": 12,
+      "crossover_classification": "GPU_FASTER"
+    }
+  ]
+}

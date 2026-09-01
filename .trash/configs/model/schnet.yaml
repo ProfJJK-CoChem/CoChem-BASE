@@ -1,0 +1,8 @@
+# CoChem-GEOM Model Configuration for SchNet
+name: "schnet"
+kwargs:
+  hidden_channels: 128  # [E]
+  num_layers: 6  # [E]
+  num_radial: 32  # [E]
+  cutoff: 5.0  # [M]
+  max_z: ${core.max_z}

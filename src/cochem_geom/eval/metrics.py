@@ -361,17 +361,127 @@ def pairwise_conformer_rmsd(
     torch.Tensor
         Pairwise RMSD matrix of shape (M, K) in Angstroms [D].
     """
+    if ref_conformers.dim() != 3 or pred_conformers.dim() != 3:
+        raise ValueError(
+            f"Expected 3D tensors of shape (M, N, 3) and (K, N, 3), got "
+            f"{ref_conformers.shape} and {pred_conformers.shape}"
+        )
+    if ref_conformers.shape[1] != pred_conformers.shape[1]:
+        raise ValueError(
+            f"Atom count mismatch: ref has {ref_conformers.shape[1]}, "
+            f"pred has {pred_conformers.shape[1]}"
+        )
     m = ref_conformers.shape[0]
     k = pred_conformers.shape[0]
-    rmsd_matrix = torch.empty((m, k), dtype=torch.float32, device=ref_conformers.device)
+    n = ref_conformers.shape[1]
 
-    for i in range(m):
-        ref_i = ref_conformers[i]  # (N, 3)
-        for j in range(k):
-            pred_j = pred_conformers[j]  # (N, 3)
-            rmsd_matrix[i, j] = compute_rmsd(ref_i, pred_j, align=align)
+    if align:
+        from cochem_geom.eval.alignment import kabsch_alignment
+        ref_expanded = ref_conformers.unsqueeze(1).expand(m, k, n, 3)
+        pred_expanded = pred_conformers.unsqueeze(0).expand(m, k, n, 3)
+        _, rmsd_matrix = kabsch_alignment(pred_expanded, ref_expanded)
+        return rmsd_matrix
+    else:
+        ref_expanded = ref_conformers.unsqueeze(1).expand(m, k, n, 3)
+        pred_expanded = pred_conformers.unsqueeze(0).expand(m, k, n, 3)
+        diff = pred_expanded - ref_expanded
+        mean_sq = torch.mean(torch.sum(diff**2, dim=-1), dim=-1)
+        return torch.sqrt(torch.clamp(mean_sq, min=0.0))
 
-    return rmsd_matrix
+
+def calculate_ensemble_metrics(
+    generated: torch.Tensor,
+    reference: torch.Tensor,
+    threshold: float = 1.25,  # [E]
+) -> Tuple[float, float]:
+    """Calculates Coverage (COV) and Average Minimum RMSD (AMR) for a conformer ensemble [D].
+
+    Parameters
+    ----------
+    generated : torch.Tensor
+        Generated conformer ensemble tensor of shape (N_gen, N_atoms, 3) [D].
+    reference : torch.Tensor
+        Ground-truth reference conformer ensemble tensor of shape (N_ref, N_atoms, 3) [D].
+    threshold : float, default=1.25
+        Strict tolerance radius delta in Angstroms for Conformer Coverage [E].
+
+    Returns
+    -------
+    Tuple[float, float]
+        - cov: Conformer Coverage percentage (0.0 to 100.0) [D].
+        - amr: Average Minimum RMSD in Angstroms [D].
+
+    Raises
+    ------
+    ValueError
+        If inputs are not 3D tensors, do not have 3 spatial dimensions,
+        contain 0 conformers or 0 atoms, or have mismatching atom counts.
+    """
+    if threshold < 0.0:
+        raise ValueError(f"Threshold must be non-negative, got {threshold}")
+
+    if generated.dim() != 3 or reference.dim() != 3:
+        raise ValueError(
+            f"Expected 3D tensors of shape (N_gen, N_atoms, 3) and (N_ref, N_atoms, 3), "
+            f"got generated dim {generated.dim()} (shape {generated.shape}) and "
+            f"reference dim {reference.dim()} (shape {reference.shape})"
+        )
+
+    if generated.shape[-1] != 3 or reference.shape[-1] != 3:
+        raise ValueError(
+            f"Expected 3D Cartesian coordinates with shape (..., 3), "
+            f"got generated shape {generated.shape} and reference shape {reference.shape}"
+        )
+
+    if generated.shape[0] < 1 or reference.shape[0] < 1:
+        raise ValueError(
+            f"Ensembles must contain at least 1 conformer, "
+            f"got generated count {generated.shape[0]} and reference count {reference.shape[0]}"
+        )
+
+    if generated.shape[1] < 1 or reference.shape[1] < 1:
+        raise ValueError(
+            f"Number of atoms must be at least 1, "
+            f"got generated atoms {generated.shape[1]} and reference atoms {reference.shape[1]}"
+        )
+
+    if generated.shape[1] != reference.shape[1]:
+        raise ValueError(
+            f"Atom count mismatch: generated has {generated.shape[1]} atoms, "
+            f"reference has {reference.shape[1]} atoms"
+        )
+
+    # Dynamic dtype promotion and device synchronization for cross-precision support [D]
+    common_dtype = torch.promote_types(generated.dtype, reference.dtype)
+    gen = generated.to(dtype=common_dtype)
+    ref = reference.to(dtype=common_dtype, device=gen.device)
+
+    try:
+        from eval.alignment import kabsch_alignment
+    except ImportError:
+        from cochem_geom.eval.alignment import kabsch_alignment
+
+    n_gen = gen.shape[0]
+    n_ref = ref.shape[0]
+    n_atoms = ref.shape[1]
+
+    # Dense bipartite broadcasting: [N_ref, N_gen, N_atoms, 3] avoiding sequential loops [E]
+    ref_expanded = ref.unsqueeze(1).expand(n_ref, n_gen, n_atoms, 3)
+    gen_expanded = gen.unsqueeze(0).expand(n_ref, n_gen, n_atoms, 3)
+
+    _, rmsd_matrix = kabsch_alignment(gen_expanded, ref_expanded)  # Shape [N_ref, N_gen]
+
+    # For each reference conformer, find the minimum RMSD across all generated conformers [D]
+    min_rmsd_per_ref = torch.min(rmsd_matrix, dim=1).values  # Shape [N_ref]
+
+    # Conformer Coverage (COV): Percentage of ground-truth conformers within tolerance radius threshold [D]
+    cov = (torch.sum(min_rmsd_per_ref <= threshold).float() / float(n_ref)) * 100.0
+
+    # Average Minimum RMSD (AMR): Arithmetic mean of minimum RMSDs across all reference conformers [D]
+    amr = torch.mean(min_rmsd_per_ref)
+
+    return float(cov.item()), float(amr.item())
+
 
 
 def compute_conformer_coverage(
@@ -795,7 +905,7 @@ class EnergyMAE(Metric):
         self.input_unit = input_unit
 
         self.add_state("sum_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
 
     def update(
         self,
@@ -807,11 +917,11 @@ class EnergyMAE(Metric):
         target = convert_energy(target_energies.view(-1), from_unit=self.input_unit, to_unit=self.target_unit)
         error = torch.abs(pred - target)
         self.sum_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
+        self.total_count += float(error.numel())
 
     def compute(self) -> torch.Tensor:
         """Compute energy MAE in target units [D]."""
-        return self.sum_abs_error / (self.total_samples + 1e-12)
+        return self.sum_abs_error / (self.total_count + 1e-12)
 
 
 class RelativeEnergyMAE(Metric):
@@ -833,7 +943,7 @@ class RelativeEnergyMAE(Metric):
         self.input_unit = input_unit
 
         self.add_state("sum_rel_abs_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
-        self.add_state("total_samples", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("total_count", default=torch.tensor(0.0), dist_reduce_fx="sum")
 
     def update(
         self,
@@ -849,11 +959,11 @@ class RelativeEnergyMAE(Metric):
 
         error = torch.abs(rel_pred - rel_target)
         self.sum_rel_abs_error += torch.sum(error)
-        self.total_samples += float(error.numel())
+        self.total_count += float(error.numel())
 
     def compute(self) -> torch.Tensor:
         """Compute relative energy MAE [D]."""
-        return self.sum_rel_abs_error / (self.total_samples + 1e-12)
+        return self.sum_rel_abs_error / (self.total_count + 1e-12)
 
 
 class BoltzmannWeightedEnergyMAE(Metric):
@@ -1181,7 +1291,7 @@ class ConformerEnsembleEvaluator(Metric):
         results["amr_recall"] = amr_res["amr_recall"]
         results["amr_precision"] = amr_res["amr_precision"]
 
-        if self.energy_mae.total_samples > 0:
+        if self.energy_mae.total_count > 0:
             results["energy_mae_ev"] = self.energy_mae.compute()
             results["rel_energy_mae_ev"] = self.rel_energy_mae.compute()
 

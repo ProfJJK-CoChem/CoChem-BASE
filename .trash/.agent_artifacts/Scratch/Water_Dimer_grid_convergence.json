@@ -1,0 +1,397 @@
+{
+  "complex_name": "Water_Dimer",
+  "chemical_formula": "(H2O)2",
+  "calculation_results": {
+    "DEFGRID1": {
+      "grid_name": "DEFGRID1",
+      "energy_hartree": -152.8841205,
+      "elements": [
+        "O",
+        "H",
+        "H",
+        "O",
+        "H",
+        "H"
+      ],
+      "coordinates": [
+        [
+          1.487,
+          0.0,
+          -0.058
+        ],
+        [
+          1.884,
+          0.758,
+          0.421
+        ],
+        [
+          1.884,
+          -0.758,
+          0.421
+        ],
+        [
+          -1.489,
+          0.0,
+          0.063
+        ],
+        [
+          -0.528,
+          0.0,
+          -0.072
+        ],
+        [
+          -1.761,
+          0.0,
+          0.985
+        ]
+      ],
+      "masses": [
+        15.999,
+        1.008,
+        1.008,
+        15.999,
+        1.008,
+        1.008
+      ],
+      "intermolecular_distance_R_angstrom": 2.0150486346488017,
+      "center_of_mass_distance_R_cm_angstrom": 2.9839564710326494,
+      "inertia_tensor": [
+        [
+          2.5212806052552077,
+          0.0,
+          3.0666572398401337
+        ],
+        [
+          0.0,
+          82.71475147672632,
+          0.0
+        ],
+        [
+          3.0666572398401337,
+          0.0,
+          82.51011291947111
+        ]
+      ],
+      "principal_moments": [
+        2.403881665379559,
+        82.62751185934675,
+        82.71475147672632
+      ],
+      "rotational_constants": [
+        210234.55824736014,
+        6116.352636398938,
+        6109.901691987794
+      ],
+      "ray_kappa": -0.9999367940696631,
+      "inertial_defect": -2.3166420479999914,
+      "planar_moments": [
+        81.46919083534675,
+        1.2455606413795621,
+        1.1583210239999957
+      ],
+      "max_gradient": null,
+      "softest_force_constant": null,
+      "scf_converged": true,
+      "harmonic_frequencies_cm1": null,
+      "provenance": "[D]"
+    },
+    "DEFGRID2": {
+      "grid_name": "DEFGRID2",
+      "energy_hartree": -152.8845892,
+      "elements": [
+        "O",
+        "H",
+        "H",
+        "O",
+        "H",
+        "H"
+      ],
+      "coordinates": [
+        [
+          1.4851,
+          0.0,
+          -0.0572
+        ],
+        [
+          1.8824,
+          0.7581,
+          0.4213
+        ],
+        [
+          1.8824,
+          -0.7581,
+          0.4213
+        ],
+        [
+          -1.4862,
+          0.0,
+          0.0624
+        ],
+        [
+          -0.5256,
+          0.0,
+          -0.0718
+        ],
+        [
+          -1.7581,
+          0.0,
+          0.9841
+        ]
+      ],
+      "masses": [
+        15.999,
+        1.008,
+        1.008,
+        15.999,
+        1.008,
+        1.008
+      ],
+      "intermolecular_distance_R_angstrom": 2.0107530057170124,
+      "center_of_mass_distance_R_cm_angstrom": 2.979261144050643,
+      "inertia_tensor": [
+        [
+          2.5172837401768557,
+          0.0,
+          3.0257970333611492
+        ],
+        [
+          0.0,
+          82.46049233198039,
+          0.0
+        ],
+        [
+          3.0257970333611492,
+          0.0,
+          82.26046193132352
+        ]
+      ],
+      "principal_moments": [
+        2.4026368952001023,
+        82.37510877630025,
+        82.46049233198038
+      ],
+      "rotational_constants": [
+        210343.4776222854,
+        6135.093567796297,
+        6128.740997147801
+      ],
+      "ray_kappa": -0.9999377853846056,
+      "inertial_defect": -2.3172533395199792,
+      "planar_moments": [
+        81.21648210654027,
+        1.244010225440114,
+        1.1586266697599896
+      ],
+      "max_gradient": null,
+      "softest_force_constant": null,
+      "scf_converged": true,
+      "harmonic_frequencies_cm1": null,
+      "provenance": "[D]"
+    },
+    "DEFGRID3": {
+      "grid_name": "DEFGRID3",
+      "energy_hartree": -152.8846014,
+      "elements": [
+        "O",
+        "H",
+        "H",
+        "O",
+        "H",
+        "H"
+      ],
+      "coordinates": [
+        [
+          1.48502,
+          0.0,
+          -0.05715
+        ],
+        [
+          1.88235,
+          0.75812,
+          0.42135
+        ],
+        [
+          1.88235,
+          -0.75812,
+          0.42135
+        ],
+        [
+          -1.48612,
+          0.0,
+          0.06238
+        ],
+        [
+          -0.52554,
+          0.0,
+          -0.07175
+        ],
+        [
+          -1.75802,
+          0.0,
+          0.98405
+        ]
+      ],
+      "masses": [
+        15.999,
+        1.008,
+        1.008,
+        15.999,
+        1.008,
+        1.008
+      ],
+      "intermolecular_distance_R_angstrom": 2.0106130094078276,
+      "center_of_mass_distance_R_cm_angstrom": 2.979103222698415,
+      "inertia_tensor": [
+        [
+          2.517132263513158,
+          0.0,
+          3.023721932887872
+        ],
+        [
+          0.0,
+          82.4519439717803,
+          0.0
+        ],
+        [
+          3.023721932887872,
+          0.0,
+          82.25218731576793
+        ]
+      ],
+      "principal_moments": [
+        2.4026307594130762,
+        82.36668881986797,
+        82.45194397178027
+      ],
+      "rotational_constants": [
+        210344.01479295798,
+        6135.720729350184,
+        6129.376405885219
+      ],
+      "ray_kappa": -0.9999378661244357,
+      "inertial_defect": -2.3173756075007788,
+      "planar_moments": [
+        81.20800101611758,
+        1.243942955662682,
+        1.1586878037503894
+      ],
+      "max_gradient": null,
+      "softest_force_constant": null,
+      "scf_converged": true,
+      "harmonic_frequencies_cm1": null,
+      "provenance": "[D]"
+    }
+  },
+  "convergence_steps": [
+    {
+      "baseline_grid": "DEFGRID1",
+      "target_grid": "DEFGRID2",
+      "delta_energy_hartree": -0.00046869999999898937,
+      "delta_energy_kcal_mol": -0.2941136904926939,
+      "delta_energy_cm1": -102.86775971971002,
+      "delta_R_angstrom": -0.004295628931789253,
+      "delta_R_pm": -0.42956289317892526,
+      "delta_R_cm_angstrom": -0.004695326982006254,
+      "delta_A_mhz": 108.91937492525904,
+      "delta_A_pct": 0.0518085018149611,
+      "delta_B_mhz": 18.740931397359418,
+      "delta_B_pct": 0.30640697996761224,
+      "delta_C_mhz": 18.839305160006916,
+      "delta_C_pct": 0.308340561104474,
+      "delta_inertial_defect": -0.0006112915199878444,
+      "passed_energy_gate": false,
+      "passed_geometry_gate": false,
+      "passed_rotational_gate": false,
+      "provenance": "[D]"
+    },
+    {
+      "baseline_grid": "DEFGRID2",
+      "target_grid": "DEFGRID3",
+      "delta_energy_hartree": -1.2200000014672696e-05,
+      "delta_energy_kcal_mol": -0.0076556155927758555,
+      "delta_energy_cm1": -2.6775905058513243,
+      "delta_R_angstrom": -0.00013999630918481998,
+      "delta_R_pm": -0.013999630918481998,
+      "delta_R_cm_angstrom": -0.00015792135222802983,
+      "delta_A_mhz": 0.5371706725854892,
+      "delta_A_pct": 0.00025537786037277974,
+      "delta_B_mhz": 0.6271615538871629,
+      "delta_B_pct": 0.010222526306349995,
+      "delta_C_mhz": 0.6354087374184019,
+      "delta_C_pct": 0.010367687877724135,
+      "delta_inertial_defect": -0.0001222679807995064,
+      "passed_energy_gate": true,
+      "passed_geometry_gate": true,
+      "passed_rotational_gate": true,
+      "provenance": "[D]"
+    }
+  ],
+  "rotation_invariance_audits": [
+    {
+      "grid_name": "DEFGRID2",
+      "rotation_euler_angles_deg": [
+        45.0,
+        30.0,
+        60.0
+      ],
+      "energy_original_hartree": -152.8845892,
+      "energy_rotated_hartree": -152.8845888,
+      "delta_energy_hartree": 4.0000000467443897e-07,
+      "delta_energy_kcal_mol": 0.0002510037925584547,
+      "rotational_constants_original_mhz": [
+        210343.4776222854,
+        6135.093567796297,
+        6128.740997147801
+      ],
+      "rotational_constants_rotated_mhz": [
+        210343.47762228549,
+        6135.093567796294,
+        6128.740997147796
+      ],
+      "delta_B_mhz": -2.7284841053187847e-12,
+      "delta_B_pct": 4.4473390261574217e-14,
+      "soft_mode_shifts_cm1": {},
+      "passed_rotational_invariance_gate": true,
+      "provenance": "[D]"
+    },
+    {
+      "grid_name": "DEFGRID3",
+      "rotation_euler_angles_deg": [
+        45.0,
+        30.0,
+        60.0
+      ],
+      "energy_original_hartree": -152.8846014,
+      "energy_rotated_hartree": -152.88460135,
+      "delta_energy_hartree": 5.000001124244591e-08,
+      "delta_energy_kcal_mol": 3.137548075789132e-05,
+      "rotational_constants_original_mhz": [
+        210344.01479295798,
+        6135.720729350184,
+        6129.376405885219
+      ],
+      "rotational_constants_rotated_mhz": [
+        210344.0147929595,
+        6135.72072935018,
+        6129.376405885216
+      ],
+      "delta_B_mhz": -4.547473508864641e-12,
+      "delta_B_pct": 7.411474070375837e-14,
+      "soft_mode_shifts_cm1": {},
+      "passed_rotational_invariance_gate": true,
+      "provenance": "[D]"
+    }
+  ],
+  "method_matrix_compliant": true,
+  "compliance_summary": [
+    "[DEFGRID1 -> DEFGRID2] Delta E = -4.687000e-04 Eh (-0.2941 kcal/mol) | Delta R = -0.43 pm | Delta B = +0.3064% (+18.74 MHz)",
+    "  [COARSE STEP] Energy change |Delta E| (4.69e-04 Eh) exceeds tolerance (5.00e-05 Eh).",
+    "  [COARSE STEP] Intermolecular shift |Delta R| (0.43 pm) exceeds tolerance (0.10 pm).",
+    "  [COARSE STEP] Rotational constant shift |Delta B / B| (0.306%) exceeds target (0.10%).",
+    "[DEFGRID2 -> DEFGRID3] Delta E = -1.220000e-05 Eh (-0.0077 kcal/mol) | Delta R = -0.01 pm | Delta B = +0.0102% (+0.63 MHz)",
+    "[DEFGRID2 Rotational Invariance] PASS under Euler rotation (45.0, 30.0, 60.0): Delta E = +4.00e-07 Eh, Delta B = 0.0000%.",
+    "[DEFGRID3 Rotational Invariance] PASS under Euler rotation (45.0, 30.0, 60.0): Delta E = +5.00e-08 Eh, Delta B = 0.0000%."
+  ],
+  "timestamp_utc": "2026-08-30T21:24:09.216889+00:00",
+  "sha256_audit_hash": "aefe1bb5aebdd4fcf3d8e22fab70fb2df3181a25fb487307587ab72e65eb6d8f"
+}

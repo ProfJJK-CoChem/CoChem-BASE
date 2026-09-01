@@ -2,6 +2,7 @@
 
 from .base_gnn import (
     Base3DGNN,
+    BaseGNN,
     BaseGNNLayer,
     Canonical3DGNN,
     Canonical3DInteractionBlock,
@@ -33,23 +34,46 @@ from .egnn import (
     EGNNLayer,
     EGNNModelConfig,
 )
+from .layers.interaction import (
+    CosineCutoff,
+)
+from .layers.radial_basis import (
+    GaussianSmearing,
+)
+from .layers.readout import (
+    EnergyReadout,
+)
+from .registry import (
+    ModelRegistry,
+)
+from .schnet import (
+    SchNet,
+    SchNetInteraction,
+)
 
 __all__ = [
     "Base3DGNN",
+    "BaseGNN",
     "BaseGNNLayer",
     "Canonical3DGNN",
     "Canonical3DInteractionBlock",
     "ConformerInputContract",
+    "CosineCutoff",
     "EGNN",
     "EGNNLayer",
     "EGNNModelConfig",
+    "EnergyReadout",
     "Equivariant3DGNN",
     "Equivariant3DInteractionBlock",
     "GNNForceOutput",
     "GNNModelConfig",
     "GNNOutput",
     "GNNPredictionContract",
+    "GaussianSmearing",
+    "ModelRegistry",
     "RadialBasisExpansion",
+    "SchNet",
+    "SchNetInteraction",
     "apply_coordinate_delta",
     "build_radius_graph",
     "center_coordinates",

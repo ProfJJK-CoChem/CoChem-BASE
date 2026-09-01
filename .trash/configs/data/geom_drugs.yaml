@@ -1,0 +1,14 @@
+# CoChem-GEOM Data Configuration for GEOM Drugs
+# Complies with Method Matrix v4, SRS Task 42, and Zero-Mock Mandate
+
+dataset_name: "geom_drugs"
+
+module:
+  _target_: cochem_geom.data.datamodule.GEOMDataModule
+  lmdb_path: "${core.work_dir}/data/processed/geom_drugs.lmdb"
+  split_json_path: "${core.work_dir}/data/splits/drugs_splits.json"
+  batch_size: 32  # [E]
+  num_workers: 4  # [E]
+  pin_memory: True  # [E]
+  target_mean: -2000.0  # [M]
+  target_std: 150.0  # [M]

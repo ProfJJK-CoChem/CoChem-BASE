@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pluggy
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
 import cochem_base.plugins as plugins
 from cochem_base.path_sanitization import leak_patterns
@@ -134,24 +134,19 @@ def test_plugin_manager_lifecycle_and_hooks() -> None:
     assert hasattr(pm.hook, "register_menu_actions")
 
 
-class DummyTabs:
-    def __init__(self):
-        self.addTab_calls = []
-    def addTab(self, widget, title):
-        self.addTab_calls.append((widget, title))
-
-class DummyMainWindow:
-    def __init__(self):
-        self.tabs = DummyTabs()
-
 def test_core_plugin_registration(qapp: QApplication) -> None:
-    """Verify CorePlugin tab registration hook registers standard backbone tabs."""
+    """Verify CorePlugin tab registration hook registers standard backbone tabs on physical QMainWindow."""
     plugin = plugins.CorePlugin()
-    mock_main_window = DummyMainWindow()
+    main_window = QMainWindow()
+    main_window.tabs = QTabWidget(main_window)  # type: ignore[attr-defined]
 
-    plugin.register_tabs(mock_main_window)
-    assert len(mock_main_window.tabs.addTab_calls) == 3
-    added_titles = [call[1] for call in mock_main_window.tabs.addTab_calls]
-    assert "BASE - Hardware Orchestrator" in added_titles
-    assert "TOPOS - Combinatorial Engine" in added_titles
-    assert "TORQ - Quantum Resonance" in added_titles
+    try:
+        assert main_window.tabs.count() == 0
+        plugin.register_tabs(main_window)
+        assert main_window.tabs.count() == 3
+        added_titles = [main_window.tabs.tabText(i) for i in range(main_window.tabs.count())]
+        assert "BASE - Hardware Orchestrator" in added_titles
+        assert "TOPOS - Combinatorial Engine" in added_titles
+        assert "TORQ - Quantum Resonance" in added_titles
+    finally:
+        main_window.close()

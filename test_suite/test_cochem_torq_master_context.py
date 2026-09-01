@@ -317,7 +317,7 @@ class TestTorqMasterContextAnchor:
 
         # Telemetry HTML
         html_file = payload_dir / "viz_3d.html"
-        pes_2d = np.zeros((10, 10))
+        pes_2d = np.outer(energies_arr[:10], energies_arr[:10])
         generate_plotly_3d_carousels(pes_2d, output_path=str(html_file))
         assert html_file.exists()
 

@@ -1,0 +1,29 @@
+# CoChem-GEOM Callbacks Configuration
+# Complies with Method Matrix v4, SRS Doc 9, and Physical Verification Mandate
+
+logger:
+  _target_: pytorch_lightning.loggers.WandbLogger
+  project: "${core.project_name}"  # [E]
+  name: "${core.experiment_name}"  # [E]
+  save_dir: "${core.work_dir}"  # [E]
+
+model_checkpoint:
+  _target_: pytorch_lightning.callbacks.ModelCheckpoint
+  dirpath: "${core.work_dir}/checkpoints/${core.experiment_name}"  # [E]
+  filename: "epoch_{epoch:03d}-val_loss_{val/loss_energy:.4f}"  # [E]
+  monitor: "val/loss_energy"  # [E]
+  mode: "min"  # [E]
+  save_top_k: 3  # [E]
+  save_last: True  # [M]
+  auto_insert_metric_name: False  # [E]
+
+early_stopping:
+  _target_: pytorch_lightning.callbacks.EarlyStopping
+  monitor: "val/loss_energy"  # [E]
+  patience: 20  # [E]
+  mode: "min"  # [E]
+  min_delta: 0.001  # [D]
+
+lr_monitor:
+  _target_: pytorch_lightning.callbacks.LearningRateMonitor
+  logging_interval: "step"  # [E]

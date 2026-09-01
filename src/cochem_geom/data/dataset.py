@@ -72,6 +72,13 @@ try:
 except ImportError:
     msgpack = None
 
+try:
+    import lmdb
+except ImportError:
+    lmdb = None
+
+import pickle
+
 # Optional PyG Base Class inheritance if PyG is installed
 try:
     import torch_geometric.data as pyg_data
@@ -671,10 +678,18 @@ class MolecularBatch:
             sub_dipole = self.dipole[i].clone() if self.dipole is not None else None
             sub_symbols = (
                 self.symbols[start_node:end_node]
-                if self.symbols is not None
-                else [ATOMIC_NUMBER_TO_SYMBOL.get(int(z.item()), "X") for z in sub_z]
+                if self.symbols is not None and len(self.symbols) == self.num_nodes
+                else (
+                    self.symbols[i]
+                    if self.symbols is not None and len(self.symbols) == self.num_graphs and isinstance(self.symbols[i], list)
+                    else [ATOMIC_NUMBER_TO_SYMBOL.get(int(z.item()), "X") for z in sub_z]
+                )
             )
-            sub_meta = self.metadata[i] if self.metadata is not None else {}
+            sub_meta = (
+                self.metadata[i]
+                if self.metadata is not None and i < len(self.metadata)
+                else {}
+            )
 
             data_list.append(
                 MolecularData(
@@ -706,17 +721,17 @@ class MolecularBatch:
         return f"MolecularBatch({', '.join(attrs)})"
 
 
-def geom_collate_fn(samples: Sequence[Union[MolecularData, Dict[str, Any], Any]]) -> MolecularBatch:
+def geom_collate_fn(items: Sequence[Union[MolecularData, Dict[str, Any], Any]]) -> MolecularBatch:
     """Collate a sequence of MolecularData objects into a contiguous MolecularBatch [E]."""
-    if not samples:
-        raise ValueError("Cannot collate empty sequence of molecular samples.")
+    if not items:
+        raise ValueError("Cannot collate empty sequence of molecular items.")
 
-    mol_samples: List[MolecularData] = []
-    for s in samples:
+    mol_items: List[MolecularData] = []
+    for s in items:
         if isinstance(s, MolecularData):
-            mol_samples.append(s)
+            mol_items.append(s)
         elif isinstance(s, dict):
-            mol_samples.append(
+            mol_items.append(
                 MolecularData(
                     z=s["z"],
                     pos=s["pos"],
@@ -733,7 +748,7 @@ def geom_collate_fn(samples: Sequence[Union[MolecularData, Dict[str, Any], Any]]
                 )
             )
         else:
-            mol_samples.append(
+            mol_items.append(
                 MolecularData(
                     z=getattr(s, "z"),
                     pos=getattr(s, "pos"),
@@ -765,20 +780,20 @@ def geom_collate_fn(samples: Sequence[Union[MolecularData, Dict[str, Any], Any]]
     symbols_list: List[str] = []
     metadata_list: List[Dict[str, Any]] = []
 
-    has_edges = any(s.edge_index is not None and s.edge_index.numel() > 0 for s in mol_samples)
-    has_x = any(s.x is not None for s in mol_samples)
-    has_edge_attr = any(s.edge_attr is not None for s in mol_samples)
-    has_y = any(s.y is not None for s in mol_samples)
-    has_forces = any(s.forces is not None for s in mol_samples)
-    has_rot_consts = any(s.rotational_constants is not None for s in mol_samples)
-    has_dipole = any(s.dipole is not None for s in mol_samples)
-    has_weight = any(s.weight is not None for s in mol_samples)
+    has_edges = any(s.edge_index is not None and s.edge_index.numel() > 0 for s in mol_items)
+    has_x = any(s.x is not None for s in mol_items)
+    has_edge_attr = any(s.edge_attr is not None for s in mol_items)
+    has_y = any(s.y is not None for s in mol_items)
+    has_forces = any(s.forces is not None for s in mol_items)
+    has_rot_consts = any(s.rotational_constants is not None for s in mol_items)
+    has_dipole = any(s.dipole is not None for s in mol_items)
+    has_weight = any(s.weight is not None for s in mol_items)
 
     node_offset = 0
-    ref_device = mol_samples[0].pos.device
-    ref_dtype = mol_samples[0].pos.dtype
+    ref_device = mol_items[0].pos.device
+    ref_dtype = mol_items[0].pos.dtype
 
-    for i, s in enumerate(mol_samples):
+    for i, s in enumerate(mol_items):
         n_nodes = s.num_nodes
         pos_list.append(s.pos.to(device=ref_device, dtype=ref_dtype))
         z_list.append(s.z.to(device=ref_device, dtype=torch.long))
@@ -796,7 +811,7 @@ def geom_collate_fn(samples: Sequence[Union[MolecularData, Dict[str, Any], Any]]
             if s.x is not None:
                 x_list.append(s.x.to(device=ref_device, dtype=ref_dtype))
             else:
-                dim_x = next(item.x.size(1) for item in mol_samples if item.x is not None)
+                dim_x = next(item.x.size(1) for item in mol_items if item.x is not None)
                 x_list.append(torch.zeros((n_nodes, dim_x), dtype=ref_dtype, device=ref_device))
 
         if has_edge_attr and s.edge_attr is not None:
@@ -865,7 +880,7 @@ def geom_collate_fn(samples: Sequence[Union[MolecularData, Dict[str, Any], Any]]
         rotational_constants=batched_rot_consts,
         dipole=batched_dipole,
         weight=batched_weight,
-        num_graphs=len(mol_samples),
+        num_graphs=len(mol_items),
         num_nodes=node_offset,
         symbols=symbols_list,
         metadata=metadata_list,
@@ -1148,12 +1163,19 @@ class GEOMIterableDataset(IterableDataset):
             files_to_read = self.file_paths
             worker_id = 0
             num_workers = 1
+            shard_records = False
         else:
             worker_id = worker_info.id
             num_workers = worker_info.num_workers
-            files_to_read = self.file_paths[worker_id::num_workers]
+            if len(self.file_paths) >= num_workers:
+                files_to_read = self.file_paths[worker_id::num_workers]
+                shard_records = False
+            else:
+                files_to_read = self.file_paths
+                shard_records = True
 
         rng = random.Random((self.seed or 0) + worker_id)
+        global_rec_idx = 0
 
         for file_path in files_to_read:
             if not file_path.exists():
@@ -1175,6 +1197,11 @@ class GEOMIterableDataset(IterableDataset):
                             mols = [conformer_to_molecular_data(rec, rng.choice(rec.conformers))]
 
                     for m in mols:
+                        if shard_records:
+                            curr_idx = global_rec_idx
+                            global_rec_idx += 1
+                            if curr_idx % num_workers != worker_id:
+                                continue
                         if self.filter_fn is not None and not self.filter_fn(m):
                             continue
                         out_mol = self.transform(m) if self.transform is not None else m
@@ -1182,6 +1209,11 @@ class GEOMIterableDataset(IterableDataset):
 
             elif file_path.suffix in [".json", ".jsonl"]:
                 for m in self._stream_jsonl_file(file_path):
+                    if shard_records:
+                        curr_idx = global_rec_idx
+                        global_rec_idx += 1
+                        if curr_idx % num_workers != worker_id:
+                            continue
                     if self.filter_fn is not None and not self.filter_fn(m):
                         continue
                     out_mol = self.transform(m) if self.transform is not None else m
@@ -1189,6 +1221,11 @@ class GEOMIterableDataset(IterableDataset):
 
             elif file_path.suffix in [".log", ".out"]:
                 for m in self._stream_qm_log_file(file_path):
+                    if shard_records:
+                        curr_idx = global_rec_idx
+                        global_rec_idx += 1
+                        if curr_idx % num_workers != worker_id:
+                            continue
                     if self.filter_fn is not None and not self.filter_fn(m):
                         continue
                     out_mol = self.transform(m) if self.transform is not None else m
@@ -1354,3 +1391,252 @@ class GEOMDatasetFactory:
         test_dataset = dataset[test_idx]
 
         return train_dataset, val_dataset, test_dataset
+
+
+# ==============================================================================
+# 8. GEOM High-Throughput LMDB Dataset Implementation
+# ==============================================================================
+
+class GEOMLmdbDataset(Dataset):
+    """Map-style dataset for lock-free, high-throughput multiprocessing reading of LMDB conformer graphs [M].
+
+    Adheres strictly to SRS Document 4:
+    - Lazy per-worker initialization (`readonly=True, lock=False, readahead=False, meminit=False`)
+    - Zero-mutation principles
+    - Dynamic casting of numpy arrays to torch tensors
+    """
+
+    def __init__(
+        self,
+        lmdb_path: Union[str, Path],
+        transform: Optional[Callable[[ConformerData], ConformerData]] = None,
+    ) -> None:
+        super().__init__()
+        self._env: Optional[Any] = None
+        self.lmdb_path = Path(lmdb_path).expanduser().resolve()
+        self.transform = transform
+
+        if not self.lmdb_path.exists():
+            raise FileNotFoundError(f"LMDB path does not exist: {self.lmdb_path}")
+
+        metadata_path = self.lmdb_path.parent / "metadata.json"
+        if metadata_path.exists():
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+                self._length = int(metadata.get("total_conformers", 0))
+        else:
+            if lmdb is not None:
+                env = lmdb.open(str(self.lmdb_path), subdir=False, readonly=True, lock=False)
+                with env.begin() as txn:
+                    self._length = int(txn.stat()["entries"])
+                env.close()
+            else:
+                self._length = 0
+
+    def _init_db(self) -> None:
+        """Lazily initialize LMDB connection inside worker process [D]."""
+        if lmdb is None:
+            raise ImportError("lmdb is required to read GEOMLmdbDataset.")
+        if self._env is None:
+            self._env = lmdb.open(
+                str(self.lmdb_path),
+                subdir=False,
+                readonly=True,
+                lock=False,
+                readahead=False,
+                meminit=False,
+            )
+
+    def __len__(self) -> int:
+        return self._length
+
+    def __getitem__(self, idx: int) -> ConformerData:
+        self._init_db()
+        key = f"{idx:09d}".encode("ascii")
+
+        with self._env.begin() as txn:
+            data_bytes = txn.get(key)
+            if data_bytes is None:
+                key_alt = f"{idx}".encode("ascii")
+                data_bytes = txn.get(key_alt)
+
+        if data_bytes is None:
+            raise KeyError(f"Index {idx} not found in LMDB (key: {key.decode('ascii')}).")
+
+        try:
+            raw_dict: Dict[str, Any] = pickle.loads(data_bytes)
+        except (pickle.UnpicklingError, TypeError, ValueError):
+            raw_dict = json.loads(data_bytes.decode("utf-8"))
+
+        z_raw = raw_dict["z"]
+        if isinstance(z_raw, list):
+            z_raw = np.array(z_raw, dtype=np.int64)
+        z = torch.from_numpy(z_raw).to(torch.long)
+
+        pos_raw = raw_dict["pos"]
+        if isinstance(pos_raw, list):
+            pos_raw = np.array(pos_raw, dtype=np.float32)
+        pos = torch.from_numpy(pos_raw).to(torch.float32)
+
+        edge_index = None
+        if "edge_index" in raw_dict and raw_dict["edge_index"] is not None:
+            ei_raw = raw_dict["edge_index"]
+            if isinstance(ei_raw, list):
+                ei_raw = np.array(ei_raw, dtype=np.int64)
+            edge_index = torch.from_numpy(ei_raw).to(torch.long)
+
+        edge_attr = None
+        if "edge_attr" in raw_dict and raw_dict["edge_attr"] is not None:
+            ea_raw = raw_dict["edge_attr"]
+            if isinstance(ea_raw, list):
+                ea_raw = np.array(ea_raw, dtype=np.float32)
+            edge_attr = torch.from_numpy(ea_raw).to(torch.float32)
+
+        y = None
+        if "y" in raw_dict and raw_dict["y"] is not None:
+            raw_y = raw_dict["y"]
+            if isinstance(raw_y, (int, float)):
+                y = torch.tensor([raw_y], dtype=torch.float32)
+            elif isinstance(raw_y, np.ndarray):
+                y = torch.from_numpy(raw_y).to(torch.float32)
+                if y.dim() == 0:
+                    y = y.unsqueeze(0)
+            elif isinstance(raw_y, torch.Tensor):
+                y = raw_y.to(torch.float32)
+                if y.dim() == 0:
+                    y = y.unsqueeze(0)
+            else:
+                y = torch.tensor(raw_y, dtype=torch.float32)
+                if y.dim() == 0:
+                    y = y.unsqueeze(0)
+
+        weight = None
+        if "weight" in raw_dict and raw_dict["weight"] is not None:
+            raw_w = raw_dict["weight"]
+            if isinstance(raw_w, (int, float)):
+                weight = torch.tensor([raw_w], dtype=torch.float32)
+            elif isinstance(raw_w, np.ndarray):
+                weight = torch.from_numpy(raw_w).to(torch.float32)
+                if weight.dim() == 0:
+                    weight = weight.unsqueeze(0)
+            elif isinstance(raw_w, torch.Tensor):
+                weight = raw_w.to(torch.float32)
+                if weight.dim() == 0:
+                    weight = weight.unsqueeze(0)
+            else:
+                weight = torch.tensor(raw_w, dtype=torch.float32)
+                if weight.dim() == 0:
+                    weight = weight.unsqueeze(0)
+
+        x = (
+            torch.from_numpy(raw_dict["x"]).to(torch.float32)
+            if "x" in raw_dict and raw_dict["x"] is not None
+            else None
+        )
+        forces = (
+            torch.from_numpy(raw_dict["forces"]).to(torch.float32)
+            if "forces" in raw_dict and raw_dict["forces"] is not None
+            else None
+        )
+        dipole = None
+        if "dipole" in raw_dict and raw_dict["dipole"] is not None:
+            raw_d = raw_dict["dipole"]
+            if isinstance(raw_d, np.ndarray):
+                dipole = torch.from_numpy(raw_d).to(torch.float32)
+            elif isinstance(raw_d, torch.Tensor):
+                dipole = raw_d.to(torch.float32)
+            else:
+                dipole = torch.tensor(raw_d, dtype=torch.float32)
+
+        rotational_constants = None
+        if "rotational_constants" in raw_dict and raw_dict["rotational_constants"] is not None:
+            raw_rc = raw_dict["rotational_constants"]
+            if isinstance(raw_rc, np.ndarray):
+                rotational_constants = torch.from_numpy(raw_rc).to(torch.float32)
+            elif isinstance(raw_rc, torch.Tensor):
+                rotational_constants = raw_rc.to(torch.float32)
+            else:
+                rotational_constants = torch.tensor(raw_rc, dtype=torch.float32)
+
+        symbols = (
+            list(raw_dict["symbols"])
+            if "symbols" in raw_dict and raw_dict["symbols"] is not None
+            else [ATOMIC_NUMBER_TO_SYMBOL.get(int(zi), "X") for zi in z]
+        )
+
+        data = ConformerData(
+            z=z,
+            pos=pos,
+            edge_index=edge_index,
+            edge_attr=edge_attr,
+            y=y,
+            weight=weight,
+            x=x,
+            forces=forces,
+            dipole=dipole,
+            rotational_constants=rotational_constants,
+            symbols=symbols,
+            metadata=raw_dict.get("metadata", {}),
+        )
+
+        if self.transform is not None:
+            data = self.transform(data)
+
+        return data
+
+    def close(self) -> None:
+        """Explicitly close LMDB environment and release file descriptors [E]."""
+        if getattr(self, "_env", None) is not None:
+            try:
+                self._env.close()
+            except (OSError, RuntimeError) as exc:
+                logger.debug("Failed to cleanly close LMDB environment: %s", exc)
+            self._env = None
+
+    def __del__(self) -> None:
+        self.close()
+
+    def __enter__(self) -> GEOMLmdbDataset:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+
+# ==============================================================================
+# 9. Architectural Parity Aliases
+# ==============================================================================
+
+ConformerData = MolecularData
+"""Alias for MolecularData to maintain parity with SRS Document 4."""
+
+CenterOfMassZeroing = CenterOfMassTransform
+"""Alias for CenterOfMassTransform to maintain parity with SRS Document 4."""
+
+TargetStandardize = NormalizeTargetsTransform
+"""Alias for NormalizeTargetsTransform to maintain parity with SRS Document 4."""
+
+
+__all__ = [
+    "DEFAULT_RANDOM_SEED",
+    "DEFAULT_STREAMING_BUFFER_SIZE",
+    "BaseTransform",
+    "CenterOfMassTransform",
+    "CenterOfMassZeroing",
+    "ComposeTransforms",
+    "ConformerData",
+    "EckartAlignmentTransform",
+    "GEOMDatasetFactory",
+    "GEOMInMemoryDataset",
+    "GEOMIterableDataset",
+    "GEOMLmdbDataset",
+    "GaussianJitterTransform",
+    "MolecularBatch",
+    "NormalizeTargetsTransform",
+    "RandomRotationTransform",
+    "TargetStandardize",
+    "geom_collate_fn",
+    "get_default_data_dir",
+    "resolve_dynamic_mass",
+    "resolve_dynamic_monoisotopic_mass",
+]

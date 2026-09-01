@@ -1,0 +1,7 @@
+# CoChem-GEOM Model Configuration for EGNN
+name: "egnn"
+kwargs:
+  hidden_channels: 128  # [E]
+  num_layers: 6  # [E]
+  cutoff: 10.0  # [M]
+  max_z: ${core.max_z}

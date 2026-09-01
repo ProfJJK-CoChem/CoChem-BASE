@@ -647,9 +647,9 @@ def test_lttb_zero_mock_ast_audit() -> None:
         "PropertyMock",
         "patch",
         "patch.object",
-        "unit" + "test.mock",
-        "pytest" + "_mock",
-        "mock" + "er",
+        "unittest.mock",
+        "pytest_mock",
+        "mocker",
     }
 
     files_to_audit = [test_filepath]

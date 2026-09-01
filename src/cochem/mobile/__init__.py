@@ -6,6 +6,7 @@ and Inorganic Complex Generator UI (SRS Chunk 06).
 
 from __future__ import annotations
 
+from cochem.mobile import assembly
 from cochem.mobile.conformer_engine import generate_3d_conformer
 from cochem.mobile.inorganic import (
     ChelateAssembler,
@@ -60,6 +61,7 @@ from cochem.mobile.schemas import (
 from cochem.mobile.sketcher_widget import SketcherWidget
 
 __all__ = [
+    "assembly",
     "AtomCoordinate2D",
     "AtomCoordinate3D",
     "AtomCoordinate3DRecord",

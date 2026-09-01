@@ -11,16 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import platform
 import stat
 import sys
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Dict
 
 import pytest
-from pydantic import ValidationError
 
 from orchestrator.cochem_setup_phase_3 import (
     BinaryEngineItem,
@@ -552,3 +549,68 @@ def test_main_cli_standard_output(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "COCHEM SETUP PHASE 3: MULTI-TRACK QUANTUM ENGINE DISCOVERY" in captured.out
     assert "Fingerprint:" in captured.out
     assert (out_dir / "p3.json").exists()
+
+
+# =============================================================================
+# 9. LEGACY PHASE_3.PY SHIM COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_legacy_phase_3_module_exports() -> None:
+    """Verify orchestrator.phase_3 re-exports all canonical and legacy alias symbols."""
+    import orchestrator.phase_3 as legacy_p3
+
+    # Verify canonical models and enums
+    assert legacy_p3.PhaseStatus is PhaseStatus
+    assert legacy_p3.EngineTrack is EngineTrack
+    assert legacy_p3.EngineStatus is EngineStatus
+    assert legacy_p3.BinaryEngineItem is BinaryEngineItem
+    assert legacy_p3.EngineTrackSummary is EngineTrackSummary
+    assert legacy_p3.ContainerAudit is ContainerAudit
+    assert legacy_p3.EnvironmentFingerprint is EnvironmentFingerprint
+    assert legacy_p3.Phase3AuditReport is Phase3AuditReport
+    assert legacy_p3.DependencyManager is DependencyManager
+
+    # Verify function aliases
+    assert legacy_p3.run_phase_3 is run_phase_3_audit
+    assert legacy_p3.run_audit is run_phase_3_audit
+    assert legacy_p3.execute_phase_3 is run_phase_3_audit
+    assert legacy_p3.execute_audit is run_phase_3_audit
+    assert legacy_p3.phase_3_audit is run_phase_3_audit
+
+    assert legacy_p3.audit_engines is audit_all_engines
+    assert legacy_p3.audit_engine is audit_single_binary
+    assert legacy_p3.audit_binary is audit_single_binary
+    assert legacy_p3.audit_containers is audit_container_sifs
+    assert legacy_p3.audit_sifs is audit_container_sifs
+    assert legacy_p3.audit_sif is audit_container_sifs
+
+    assert legacy_p3.compute_fingerprint is compute_environment_fingerprint
+    assert legacy_p3.compute_sha256 is compute_file_sha256
+    assert legacy_p3.hash_file is compute_file_sha256
+    assert legacy_p3.discover_binary is discover_binary_path
+    assert legacy_p3.interrogate_version is interrogate_binary_version
+    assert legacy_p3.extract_version is extract_semantic_version
+    assert legacy_p3.resolve_registry_path is resolve_p3_registry_path
+
+    assert legacy_p3.main is main
+    assert legacy_p3.phase_3_main is main
+
+    # Check __all__ consistency
+    for item in legacy_p3.__all__:
+        assert hasattr(legacy_p3, item), f"Exported symbol {item} missing from legacy phase_3"
+
+
+def test_legacy_phase_3_cli_execution(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify executing orchestrator.phase_3 via main function runs full phase 3 audit."""
+    import orchestrator.phase_3 as legacy_p3
+
+    out_dir = tmp_path / "legacy_cli_reg"
+    exit_code = legacy_p3.main(["--output-dir", str(out_dir), "--json"])
+
+    assert exit_code in (0, 1)
+    captured = capsys.readouterr()
+    stdout_parsed = json.loads(captured.out)
+    assert stdout_parsed["phase_id"] == "PHASE_3_ENGINE_DISCOVERY_INTEGRITY"
+    assert (out_dir / "p3.json").exists()
+

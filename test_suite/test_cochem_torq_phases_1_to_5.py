@@ -492,7 +492,17 @@ C  0.000000  0.000000  0.100000
 
     def test_standardize_geometry_dataframe(self) -> None:
         symbols = ["C", "H", "H", "H", "O", "H"]
-        coords = np.zeros((6, 3))
+        coords = np.array(
+            [
+                [0.0000, 0.0000, 0.0000],
+                [1.0900, 0.0000, 0.0000],
+                [-0.3633, 1.0276, 0.0000],
+                [-0.3633, -0.5138, 0.8900],
+                [-0.7400, -0.6500, -0.9000],
+                [-1.6800, -0.6500, -0.9000],
+            ],
+            dtype=np.float64,
+        )
         df = standardize_geometry_dataframe(symbols, coords)
         assert len(df) == 6
         assert list(df.columns) == [
@@ -894,6 +904,29 @@ class TestTorqEngine:
             validate_method_matrix_compliance(calc_spec)
         assert exc_info.value.error_code == ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED
 
+    def test_validate_method_matrix_compliance_no_bypass(self) -> None:
+        """Verifies that passing compliance=True does not bypass Method Matrix validation rules."""
+        # Bypass attempt with forbidden grid syntax
+        with pytest.raises(MethodMatrixViolationError) as exc_info:
+            validate_method_matrix_compliance({"compliance": True, "grid": "Grid5"})
+        assert exc_info.value.error_code == ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID
+
+        # Bypass attempt with missing dispersion on weak complex
+        with pytest.raises(DispersionMissingError) as exc_info:
+            validate_method_matrix_compliance({
+                "compliance": True,
+                "is_weak_complex": True,
+                "method": "B3LYP",
+                "dispersion": "",
+                "grid": "defgrid1",
+            })
+        assert exc_info.value.error_code == ProvenanceErrorCode.DISPERSION_MISSING
+
+        # Bypass attempt with forbidden Calc_Hess
+        with pytest.raises(InvalidHessianStrategyError) as exc_info:
+            validate_method_matrix_compliance({"compliance": True, "calc_hess": True, "grid": "defgrid1"})
+        assert exc_info.value.error_code == ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
+
     def test_route_method_matrix_success(self) -> None:
         calc_spec = {
             "method": "r2SCAN-3c",
@@ -908,10 +941,40 @@ class TestTorqEngine:
         }
         result = route_method_matrix(calc_spec)
         assert result["status"] == "SUCCESS"
-        assert result["provenance"] == "[M]"
+        assert result["provenance"] == "[E]"
         assert "defgrid1" in result["input_deck"]
         assert "Constraints" in result["input_deck"]
         assert "BSSE true" in result["input_deck"]
+
+    def test_route_method_matrix_provenance_distinction(self) -> None:
+        """Verifies Method Matrix §12.5 & §21 provenance tagging rules."""
+        # Simulated/estimated energy yields [E]
+        spec_sim = {
+            "method": "r2SCAN-3c",
+            "grid": "defgrid1",
+            "simulated_energy": -154.283910,
+        }
+        res_sim = route_method_matrix(spec_sim)
+        assert res_sim["provenance"] == "[E]"
+
+        # Authentic converged quantum calculation yields [M]
+        spec_conv = {
+            "method": "r2SCAN-3c",
+            "grid": "defgrid1",
+            "converged_energy": -154.283910,
+        }
+        res_conv = route_method_matrix(spec_conv)
+        assert res_conv["provenance"] == "[M]"
+
+        # Explicit derived provenance is preserved
+        spec_derived = {
+            "method": "r2SCAN-3c",
+            "grid": "defgrid1",
+            "energy_hartree": -154.283910,
+            "provenance": "[D]",
+        }
+        res_derived = route_method_matrix(spec_derived)
+        assert res_derived["provenance"] == "[D]"
 
     def test_opi_persistent_threading(self, tmp_path: Path) -> None:
         scratch = tmp_path / "scratch"

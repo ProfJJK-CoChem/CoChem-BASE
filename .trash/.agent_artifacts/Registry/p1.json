@@ -1,0 +1,61 @@
+{
+  "phase_id": "PHASE_1_ENVIRONMENT_GATEKEEPER",
+  "status": "DEGRADED",
+  "timestamp_utc": "2026-08-30T12:02:30.429938+00:00",
+  "os_profile": {
+    "system": "Windows",
+    "release": "11",
+    "version": "10.0.26200",
+    "machine": "AMD64",
+    "is_wsl": false,
+    "is_windows": true,
+    "is_posix": false
+  },
+  "filesystem": {
+    "target_path": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE",
+    "mount_point": "D:\\",
+    "fs_type": "NTFS",
+    "is_9p_mount": false,
+    "is_posix_compliant": false
+  },
+  "toolchains": {
+    "gcc": {
+      "name": "gcc",
+      "path": null,
+      "version": null,
+      "is_available": false,
+      "error_detail": "Binary 'gcc' not found in PATH"
+    },
+    "make": {
+      "name": "make",
+      "path": null,
+      "version": null,
+      "is_available": false,
+      "error_detail": "Binary 'make' not found in PATH"
+    },
+    "git": {
+      "name": "git",
+      "path": "C:\\Program Files\\Git\\cmd\\git.exe",
+      "version": "git version 2.55.0.windows.2",
+      "is_available": true,
+      "error_detail": null
+    }
+  },
+  "kernel_limits": {
+    "vm_max_map_count": null,
+    "stack_limit_bytes": null,
+    "stack_unlimited": false,
+    "degraded_mode": true,
+    "recommended_flags": [
+      "/STACK:67108864",
+      "-Wl,--stack,67108864"
+    ]
+  },
+  "warnings": [
+    "Host is Windows PE: dynamic stack expansion via ulimit unavailable. Using compiler stack flags.",
+    "Toolchain binary 'gcc' not found or inaccessible: Binary 'gcc' not found in PATH",
+    "Toolchain binary 'make' not found or inaccessible: Binary 'make' not found in PATH"
+  ],
+  "errors": [],
+  "artifact_path": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.agent_artifacts\\Registry\\p1.json"
+}

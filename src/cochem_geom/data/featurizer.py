@@ -16,15 +16,19 @@ Authoritative Standards:
 from __future__ import annotations
 
 import functools
+import logging
 import math
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 from mendeleev import element
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from rdkit import Chem
 import torch
+
+logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
@@ -141,6 +145,9 @@ INDEX_TO_ELEMENT_TYPE: Dict[int, str] = {
     idx: sym for sym, idx in DEFAULT_ELEMENT_TYPES.items()
 }
 """Reverse index-to-symbol mapping for core element types."""
+
+ALLOWED_ATOMS: Set[int] = {1, 6, 7, 8, 9, 15, 16, 17, 35, 53}
+"""Allowed atomic numbers Z for molecular graph featurization: {H, C, N, O, F, P, S, Cl, Br, I} [M]."""
 
 
 # ==============================================================================
@@ -492,7 +499,13 @@ class MolecularInput(BaseModel):
 # ==============================================================================
 
 
-class MolecularData:
+try:
+    from torch_geometric.data import Data as _PyGBaseData
+except (ImportError, AttributeError):
+    _PyGBaseData = object
+
+
+class MolecularData(_PyGBaseData):
     """Canonical geometric PyTorch data container for molecular structures.
 
     Attributes
@@ -537,34 +550,64 @@ class MolecularData:
         rotational_constants: Optional[torch.Tensor] = None,
         symbols: Optional[List[str]] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
     ) -> None:
-        self.z = z
-        self.pos = pos
-        self.edge_index = (
+        resolved_edge_index = (
             edge_index
             if edge_index is not None
-            else torch.empty((2, 0), dtype=torch.long, device=pos.device)
+            else (torch.empty((2, 0), dtype=torch.long, device=pos.device) if pos is not None else None)
         )
-        self.y = y
-        self.x = x
-        self.edge_attr = edge_attr
-        self.weight = (
+        resolved_weight = (
             weight
             if weight is not None
-            else torch.tensor([1.0], dtype=pos.dtype, device=pos.device)
+            else (torch.tensor([1.0], dtype=pos.dtype, device=pos.device) if pos is not None else None)
         )
-        self.forces = forces
-        self.dipole = dipole
-        self.rotational_constants = rotational_constants
-        self.symbols = symbols if symbols is not None else [
-            ATOMIC_NUMBER_TO_SYMBOL.get(int(zi.item()), "X") for zi in z
-        ]
-        self.metadata = metadata if metadata is not None else {}
+        resolved_symbols = symbols if symbols is not None else (
+            [ATOMIC_NUMBER_TO_SYMBOL.get(int(zi.item()), "X") for zi in z] if z is not None else None
+        )
+        resolved_metadata = metadata if metadata is not None else {}
+
+        if _PyGBaseData is not object:
+            super().__init__(
+                z=z,
+                pos=pos,
+                edge_index=resolved_edge_index,
+                y=y,
+                x=x,
+                edge_attr=edge_attr,
+                weight=resolved_weight,
+                forces=forces,
+                dipole=dipole,
+                rotational_constants=rotational_constants,
+                symbols=resolved_symbols,
+                metadata=resolved_metadata,
+                **kwargs,
+            )
+        else:
+            self.z = z
+            self.pos = pos
+            self.edge_index = resolved_edge_index
+            self.y = y
+            self.x = x
+            self.edge_attr = edge_attr
+            self.weight = resolved_weight
+            self.forces = forces
+            self.dipole = dipole
+            self.rotational_constants = rotational_constants
+            self.symbols = resolved_symbols
+            self.metadata = resolved_metadata
 
     @property
     def num_nodes(self) -> int:
         """Total number of atom nodes N in the molecular structure."""
         return int(self.pos.size(0))
+
+    @property
+    def num_graphs(self) -> int:
+        """Total number of graphs in the container (1 for single item, N for batch) [D]."""
+        if hasattr(self, "batch") and getattr(self, "batch", None) is not None and self.batch.numel() > 0:
+            return int(self.batch.max().item()) + 1
+        return 1
 
     @property
     def num_edges(self) -> int:
@@ -578,6 +621,8 @@ class MolecularData:
 
     def clone(self) -> MolecularData:
         """Create an independent deep copy of all tensors and attributes."""
+        if _PyGBaseData is not object:
+            return super().clone()
         return MolecularData(
             z=self.z.clone(),
             pos=self.pos.clone(),
@@ -593,16 +638,20 @@ class MolecularData:
                 if self.rotational_constants is not None
                 else None
             ),
-            symbols=list(self.symbols),
-            metadata=dict(self.metadata),
+            symbols=list(self.symbols) if self.symbols is not None else None,
+            metadata=dict(self.metadata) if self.metadata is not None else {},
         )
 
     def to(
         self,
-        device: Optional[Union[str, torch.device]] = None,
-        dtype: Optional[torch.dtype] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> MolecularData:
         """Transfer tensor attributes to specified device and dtype immutably."""
+        if _PyGBaseData is not object:
+            return super().to(*args, **kwargs)
+        device = kwargs.get("device", args[0] if len(args) > 0 else None)
+        dtype = kwargs.get("dtype", args[1] if len(args) > 1 else None)
         new_pos = self.pos.to(device=device, dtype=dtype) if dtype is not None else self.pos.to(device=device)
         new_z = self.z.to(device=device)
         new_edge_index = self.edge_index.to(device=device) if self.edge_index is not None else None
@@ -653,22 +702,60 @@ class MolecularData:
             forces=new_forces,
             dipole=new_dipole,
             rotational_constants=new_rot_consts,
-            symbols=list(self.symbols),
-            metadata=dict(self.metadata),
+            symbols=list(self.symbols) if self.symbols is not None else None,
+            metadata=dict(self.metadata) if self.metadata is not None else {},
         )
 
+    def __getattr__(self, key: str) -> Any:
+        if _PyGBaseData is not object:
+            try:
+                return super().__getattr__(key)
+            except AttributeError:
+                if key in (
+                    "forces",
+                    "dipole",
+                    "rotational_constants",
+                    "x",
+                    "y",
+                    "edge_attr",
+                    "weight",
+                    "metadata",
+                    "symbols",
+                    "batch",
+                    "ptr",
+                    "smiles",
+                    "conformer_id",
+                    "source_hash",
+                    "frequencies",
+                    "s2_spin",
+                ):
+                    return None
+                raise
+        if hasattr(self, key):
+            return getattr(self, key)
+        raise AttributeError(f"'MolecularData' object has no attribute '{key}'")
+
     def __getitem__(self, key: str) -> Any:
+        if _PyGBaseData is not object:
+            return super().__getitem__(key)
         if hasattr(self, key):
             return getattr(self, key)
         raise KeyError(f"Key '{key}' not present in MolecularData.")
 
     def __setitem__(self, key: str, value: Any) -> None:
-        setattr(self, key, value)
+        if _PyGBaseData is not object:
+            super().__setitem__(key, value)
+        else:
+            setattr(self, key, value)
 
     def __contains__(self, key: str) -> bool:
+        if _PyGBaseData is not object:
+            return super().__contains__(key)
         return hasattr(self, key) and getattr(self, key) is not None
 
     def keys(self) -> List[str]:
+        if _PyGBaseData is not object:
+            return list(super().keys())
         all_keys = [
             "z", "pos", "edge_index", "y", "x", "edge_attr",
             "weight", "forces", "dipole", "rotational_constants", "symbols", "metadata"
@@ -1468,3 +1555,80 @@ class MolecularFeaturizer:
             **kwargs,
         )
         return self.featurize(mol_input)
+
+
+# ==============================================================================
+# 11. Cheminformatics & RDKit Molecular Topology Featurizer (Task 20)
+# ==============================================================================
+
+
+def featurize_topology(
+    smiles: str,
+) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, int]]:
+    """Featurize molecular graph topology directly from a SMILES string [D].
+
+    Bridges cheminformatics (RDKit) and intermediate data models for 3D MPNNs.
+
+    Parameters
+    ----------
+    smiles : str
+        SMILES representation of the molecule.
+
+    Returns
+    -------
+    Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, int]]
+        Tuple containing:
+        - atomic_numbers: np.ndarray of shape (N,) and dtype np.int64 [M]
+        - edge_indices: np.ndarray of shape (2, E) and dtype np.int64 [D]
+        - edge_types: np.ndarray of shape (E,) and dtype np.float32 [D]
+        - n_atoms: int count of all atoms including explicit hydrogens
+        Returns None if SMILES cannot be parsed, contains disconnected fragments,
+        or contains atoms outside ALLOWED_ATOMS.
+    """
+    if not smiles or not smiles.strip():
+        return None
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        logger.debug(f"RDKit failed to parse SMILES: {smiles}")
+        return None
+
+    mol = Chem.AddHs(mol)
+
+    if mol.GetNumAtoms() == 0 or len(Chem.GetMolFrags(mol)) != 1:
+        logger.debug(f"Invalid fragment count or empty molecule, skipping: {smiles}")
+        return None
+
+    n_atoms = mol.GetNumAtoms()
+    z_list: List[int] = []
+
+    for atom in mol.GetAtoms():
+        z = int(atom.GetAtomicNum())
+        if z not in ALLOWED_ATOMS:
+            logger.debug(f"Unsupported atom {z} in {smiles}")
+            return None
+        z_list.append(z)
+
+    atomic_numbers = np.array(z_list, dtype=np.int64)
+
+    src_indices: List[int] = []
+    dst_indices: List[int] = []
+    bond_types: List[float] = []
+
+    for bond in mol.GetBonds():
+        u = int(bond.GetBeginAtomIdx())
+        v = int(bond.GetEndAtomIdx())
+        b_type = float(bond.GetBondTypeAsDouble())
+
+        src_indices.extend([u, v])
+        dst_indices.extend([v, u])
+        bond_types.extend([b_type, b_type])
+
+    if src_indices:
+        edge_indices = np.array([src_indices, dst_indices], dtype=np.int64)
+        edge_types = np.array(bond_types, dtype=np.float32)
+    else:
+        edge_indices = np.empty((2, 0), dtype=np.int64)
+        edge_types = np.empty((0,), dtype=np.float32)
+
+    return atomic_numbers, edge_indices, edge_types, n_atoms

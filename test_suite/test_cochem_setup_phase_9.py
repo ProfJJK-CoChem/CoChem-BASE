@@ -12,7 +12,6 @@ and CoChem User Manual v4.1 Compliant.
 from __future__ import annotations
 
 import ast
-import base64
 import importlib
 import json
 import os
@@ -56,12 +55,10 @@ from orchestrator.cochem_setup_phase_9 import (
 
 def make_temp_dir() -> tempfile.TemporaryDirectory:
     """Create a temporary directory with Windows cleanup resilience."""
-    if hasattr(tempfile.TemporaryDirectory, "_ignore_cleanup_errors") or platform.system() == "Windows":
-        try:
-            return tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
-        except TypeError:
-            pass
-    return tempfile.TemporaryDirectory()
+    try:
+        return tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+    except TypeError:
+        return tempfile.TemporaryDirectory()
 
 
 # =============================================================================
@@ -828,12 +825,9 @@ def test_zero_mock_mandate_compliance() -> None:
     content = test_file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(test_file_path))
 
-    forbidden_mod_name = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    forbidden_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited_in_test: Set[str] = {
-        forbidden_mod_name,
-        forbidden_standalone,
+        "unittest.mock",
+        "mock",
     }
 
     for node in ast.walk(tree):

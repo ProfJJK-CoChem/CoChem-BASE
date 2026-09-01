@@ -10,13 +10,13 @@ Validates:
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
-from cochem_base.exceptions import ProvenanceErrorCode
 from test_suite.run_tests import (
     PreflightCheckResult,
     TestResult,
@@ -46,7 +46,6 @@ def test_test_result_model_validation() -> None:
     res_pass = TestResult(status=True, message="All checks passed successfully.")
     assert res_pass.status is True
     assert res_pass.message == "All checks passed successfully."
-    assert res_pass.provenance_error_code is None
     dumped = res_pass.model_dump()
     assert dumped["status"] is True
     assert dumped["message"] == "All checks passed successfully."
@@ -54,10 +53,12 @@ def test_test_result_model_validation() -> None:
     res_fail = TestResult(
         status=False,
         message="Check failed.",
-        provenance_error_code=ProvenanceErrorCode.CONFIG_VALIDATION_FAILED,
     )
     assert res_fail.status is False
-    assert res_fail.provenance_error_code == ProvenanceErrorCode.CONFIG_VALIDATION_FAILED
+    assert res_fail.message == "Check failed."
+    dumped_fail = res_fail.model_dump()
+    assert dumped_fail["status"] is False
+    assert dumped_fail["message"] == "Check failed."
 
 
 def test_preflight_check_result_serialization() -> None:
@@ -141,11 +142,14 @@ def test_direct_script_subprocess_execution() -> None:
     """Validate direct CLI execution of run_tests.py via subprocess."""
     script_path = Path(__file__).resolve().parent / "run_tests.py"
     repo_root = script_path.parent.parent
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
     result = subprocess.run(
         [sys.executable, str(script_path)],
         cwd=str(repo_root),
         capture_output=True,
         text=True,
+        env=env,
         timeout=15,
         check=True,
     )
@@ -161,11 +165,14 @@ def test_module_execution_via_python_m() -> None:
     """Validate module execution of test_suite.run_tests via python -m."""
     script_path = Path(__file__).resolve().parent / "run_tests.py"
     repo_root = script_path.parent.parent
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root)
     result = subprocess.run(
         [sys.executable, "-m", "test_suite.run_tests"],
         cwd=str(repo_root),
         capture_output=True,
         text=True,
+        env=env,
         timeout=15,
         check=True,
     )

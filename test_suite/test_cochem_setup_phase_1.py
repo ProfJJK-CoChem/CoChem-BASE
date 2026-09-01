@@ -777,3 +777,225 @@ def test_check_wsl_9p_mount_ext4_under_mnt() -> None:
     assert mount_pt == "/mnt/c/fast"
     assert fs_type == "ext4"
 
+
+def test_check_wsl_9p_mount_windows_mnt_prefix() -> None:
+    """Verify check_wsl_9p_mount properly strips Windows drive letter prefix when path starts with /mnt/."""
+    mount_table = "C:\\ /mnt/c 9p rw,noatime,dirsync,aname=drvfs 0 0\n"
+    is_9p, mount_pt, fs_type = check_wsl_9p_mount("D:/mnt/c/Users/repo", mount_table_content=mount_table)
+    assert is_9p is True
+    assert mount_pt == "/mnt/c"
+    assert fs_type == "9p"
+
+
+def test_audit_toolchain_binary_subprocess_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify audit_toolchain_binary handles unexpected exception from subprocess.run gracefully."""
+    import subprocess
+    from orchestrator import cochem_setup_phase_1 as p1
+
+    def _broken_run(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("Permission denied / executable damaged")
+
+    monkeypatch.setattr(subprocess, "run", _broken_run)
+    item = p1.audit_toolchain_binary("python")
+    assert item.is_available is False
+    assert item.error_detail is not None
+    assert "Probe failure: Permission denied" in item.error_detail
+
+
+def test_is_wsl_environment_simulations(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Verify is_wsl_environment logic across simulated Linux kernel artifacts without external mocks."""
+    from orchestrator import cochem_setup_phase_1 as p1
+
+    # Simulate non-Linux OS
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    assert p1.is_wsl_environment() is False
+
+    # Simulate Linux OS
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+
+    # Case A: /proc/version contains 'microsoft'
+    fake_proc_ver = tmp_path / "proc_version"
+    fake_proc_ver.write_text("Linux version 5.15.153.1-microsoft-standard-WSL2", encoding="utf-8")
+    monkeypatch.setattr(p1, "Path", lambda p: fake_proc_ver if str(p) == "/proc/version" else Path(p))
+    assert p1.is_wsl_environment() is True
+
+    # Case B: release contains 'microsoft'
+    monkeypatch.setattr(p1, "Path", Path)
+    monkeypatch.setattr(platform, "release", lambda: "5.15.0-microsoft-standard")
+    assert p1.is_wsl_environment() is True
+
+    # Case C: WSL_DISTRO_NAME environment variable
+    monkeypatch.setattr(platform, "release", lambda: "5.15.0-generic")
+    monkeypatch.setenv("WSL_DISTRO_NAME", "Ubuntu-22.04")
+    assert p1.is_wsl_environment() is True
+
+    # Case D: WSL_INTEROP environment variable
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    monkeypatch.setenv("WSL_INTEROP", "/run/WSL/1_interop")
+    assert p1.is_wsl_environment() is True
+
+
+def test_check_wsl_9p_mount_posix_table_variations() -> None:
+    """Verify check_wsl_9p_mount handles diverse mount table variations without breaking host pathlib."""
+    from orchestrator import cochem_setup_phase_1 as p1
+
+    sample_mounts = (
+        "rootfs / rootfs rw 0 0\n"
+        "sysfs /sys sysfs rw,nosuid,nodev,noexec,relatime 0 0\n"
+        "proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0\n"
+        "/dev/sdb /home/cochem ext4 rw,relatime,discard,errors=remount-ro 0 0\n"
+        "C:\\134 /mnt/c 9p rw,relatime,dir_mode=0777,file_mode=0777,aname=drvfs 0 0\n"
+        "D:\\134 /mnt/d 9p rw,relatime,dir_mode=0777,file_mode=0777,aname=drvfs 0 0\n"
+    )
+
+    # 1. ext4 home directory -> not 9p
+    is_9p, mount_pt, fs_type = p1.check_wsl_9p_mount("/home/cochem/repo", mount_table_content=sample_mounts)
+    assert is_9p is False
+    assert mount_pt == "/home/cochem"
+    assert fs_type == "ext4"
+
+    # 2. 9p C drive mount -> is 9p
+    is_9p_c, mount_pt_c, fs_type_c = p1.check_wsl_9p_mount("/mnt/c/Users/repo", mount_table_content=sample_mounts)
+    assert is_9p_c is True
+    assert mount_pt_c == "/mnt/c"
+    assert fs_type_c == "9p"
+
+    # 3. 9p D drive mount -> is 9p
+    is_9p_d, mount_pt_d, fs_type_d = p1.check_wsl_9p_mount("/mnt/d/workspace", mount_table_content=sample_mounts)
+    assert is_9p_d is True
+    assert mount_pt_d == "/mnt/d"
+    assert fs_type_d == "9p"
+
+
+
+def test_main_cli_failed_status_and_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Verify main() CLI correctly handles and reports PhaseStatus.FAILED with exit code 1."""
+    from orchestrator import cochem_setup_phase_1 as p1
+
+    def _failing_audit(output_dir: Any = None, target_path: Any = None) -> p1.Phase1AuditReport:
+        return p1.Phase1AuditReport(
+            phase_id="PHASE_1_ENVIRONMENT_GATEKEEPER",
+            status=p1.PhaseStatus.FAILED,
+            timestamp_utc="2026-08-29T20:00:00Z",
+            os_profile=p1.OSProfile(
+                system="Linux",
+                release="5.15.0",
+                version="1",
+                machine="x86_64",
+                is_wsl=False,
+                is_windows=False,
+                is_posix=True,
+            ),
+            filesystem=p1.FilesystemAudit(
+                target_path=str(tmp_path),
+                mount_point="/",
+                fs_type="ext4",
+                is_9p_mount=False,
+                is_posix_compliant=True,
+            ),
+            toolchains={
+                "gcc": p1.ToolchainItem(
+                    name="gcc",
+                    path="/usr/bin/gcc",
+                    version="11.4.0",
+                    is_available=True,
+                )
+            },
+            kernel_limits=p1.KernelLimitsAudit(
+                vm_max_map_count=262144,
+                stack_limit_bytes=67108864,
+                stack_unlimited=False,
+                degraded_mode=False,
+            ),
+            warnings=[],
+            errors=["Fatal error: Required kernel module missing"],
+            artifact_path=str(tmp_path / "Registry" / "p1.json"),
+        )
+
+    monkeypatch.setattr(p1, "run_phase_1_audit", _failing_audit)
+    exit_code = p1.main(argv=["--output-dir", str(tmp_path)])
+    assert exit_code == 1
+
+    captured = capsys.readouterr()
+    assert "Status:          FAILED" in captured.out
+    assert "Fatal error: Required kernel module missing" in captured.out
+
+
+# =============================================================================
+# 7. LEGACY PHASE_1.PY COMPATIBILITY & RE-EXPORT TESTS
+# =============================================================================
+
+
+def test_legacy_phase_1_symbol_parity_and_aliases() -> None:
+    """Verify orchestrator.phase_1 re-exports all canonical symbols and exposes legacy aliases."""
+    import orchestrator.cochem_setup_phase_1 as cp1
+    import orchestrator.phase_1 as leg_p1
+
+    # Verify model & exception identities
+    assert leg_p1.DependencyManager is cp1.DependencyManager
+    assert leg_p1.FilesystemAudit is cp1.FilesystemAudit
+    assert leg_p1.KernelLimitsAudit is cp1.KernelLimitsAudit
+    assert leg_p1.OSProfile is cp1.OSProfile
+    assert leg_p1.Phase1AuditError is cp1.Phase1AuditError
+    assert leg_p1.Phase1AuditReport is cp1.Phase1AuditReport
+    assert leg_p1.PhaseStatus is cp1.PhaseStatus
+    assert leg_p1.ToolchainItem is cp1.ToolchainItem
+    assert leg_p1.WSL9PMountError is cp1.WSL9PMountError
+
+    # Verify canonical functions
+    assert leg_p1.audit_filesystem is cp1.audit_filesystem
+    assert leg_p1.audit_kernel_limits is cp1.audit_kernel_limits
+    assert leg_p1.audit_toolchain_binary is cp1.audit_toolchain_binary
+    assert leg_p1.audit_toolchains is cp1.audit_toolchains
+    assert leg_p1.check_wsl_9p_mount is cp1.check_wsl_9p_mount
+    assert leg_p1.interrogate_os is cp1.interrogate_os
+    assert leg_p1.is_wsl_environment is cp1.is_wsl_environment
+    assert leg_p1.parse_mount_table_entry is cp1.parse_mount_table_entry
+    assert leg_p1.resolve_p1_registry_path is cp1.resolve_p1_registry_path
+    assert leg_p1.run_phase_1_audit is cp1.run_phase_1_audit
+    assert leg_p1.main is cp1.main
+
+    # Verify legacy aliases
+    assert leg_p1.run_phase_1 is cp1.run_phase_1_audit
+    assert leg_p1.run_audit is cp1.run_phase_1_audit
+    assert leg_p1.execute_phase_1 is cp1.run_phase_1_audit
+    assert leg_p1.execute_audit is cp1.run_phase_1_audit
+    assert leg_p1.phase_1_audit is cp1.run_phase_1_audit
+    assert leg_p1.audit_os is cp1.interrogate_os
+    assert leg_p1.audit_fs is cp1.audit_filesystem
+    assert leg_p1.audit_tools is cp1.audit_toolchains
+    assert leg_p1.audit_kernel is cp1.audit_kernel_limits
+    assert leg_p1.phase_1_main is cp1.main
+
+    # Verify __all__ completeness
+    for symbol in leg_p1.__all__:
+        assert hasattr(leg_p1, symbol), f"Symbol '{symbol}' listed in __all__ but not found in module"
+
+
+def test_legacy_phase_1_execution_via_aliases(tmp_path: Path) -> None:
+    """Verify execution of audit pipeline through legacy aliases in orchestrator.phase_1."""
+    import orchestrator.phase_1 as leg_p1
+
+    profile = leg_p1.audit_os()
+    assert isinstance(profile, leg_p1.OSProfile)
+
+    fs_audit = leg_p1.audit_fs(tmp_path)
+    assert isinstance(fs_audit, leg_p1.FilesystemAudit)
+
+    tool_audit = leg_p1.audit_tools(["git"])
+    assert "git" in tool_audit
+    assert isinstance(tool_audit["git"], leg_p1.ToolchainItem)
+
+    kernel_audit = leg_p1.audit_kernel(profile)
+    assert isinstance(kernel_audit, leg_p1.KernelLimitsAudit)
+
+    report = leg_p1.run_phase_1(output_dir=tmp_path / "Registry", target_path=tmp_path)
+    assert isinstance(report, leg_p1.Phase1AuditReport)
+    assert report.status in (leg_p1.PhaseStatus.PASSED, leg_p1.PhaseStatus.DEGRADED)
+    assert report.artifact_path is not None
+    assert Path(report.artifact_path).exists()
+
+
+

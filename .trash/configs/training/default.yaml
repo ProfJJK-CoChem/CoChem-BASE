@@ -1,0 +1,8 @@
+# CoChem-GEOM Training Configuration
+epochs: 200  # [E]
+steps_per_epoch: 1000  # [E]
+lr: 5e-4  # [E]
+weight_decay: 1e-5  # [E]
+loss:
+  energy_weight: 1.0  # [E]
+  force_weight: 0.0  # [E]

@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import interfaces.cochem_dock_main as legacy_dock_main
+import interfaces.dock_main as legacy_dock_script
 from cochem_base.interfaces.cochem_dock_main import (
     DualModeJobQueue,
     HealthResponse,
@@ -51,9 +52,17 @@ def dock_main_path() -> Path:
 
 
 @pytest.fixture
-def interfaces_dock_main_path() -> Path:
+def interfaces_cochem_dock_main_path() -> Path:
     """Return the absolute path to interfaces/cochem_dock_main.py."""
     path = Path(__file__).resolve().parent.parent / "interfaces" / "cochem_dock_main.py"
+    assert path.is_file(), f"Target file does not exist: {path}"
+    return path
+
+
+@pytest.fixture
+def interfaces_dock_main_path() -> Path:
+    """Return the absolute path to interfaces/dock_main.py."""
+    path = Path(__file__).resolve().parent.parent / "interfaces" / "dock_main.py"
     assert path.is_file(), f"Target file does not exist: {path}"
     return path
 
@@ -65,10 +74,10 @@ def client() -> TestClient:
 
 
 def test_file_encoding_and_lf_line_endings(
-    dock_main_path: Path, interfaces_dock_main_path: Path
+    dock_main_path: Path, interfaces_cochem_dock_main_path: Path, interfaces_dock_main_path: Path
 ) -> None:
     """Verify strictly Unix LF line endings (\\n), standard UTF-8 encoding, and no BOM."""
-    for path in (dock_main_path, interfaces_dock_main_path):
+    for path in (dock_main_path, interfaces_cochem_dock_main_path, interfaces_dock_main_path):
         raw = path.read_bytes()
         assert b"\r\n" not in raw, f"Found Windows CRLF line endings in {path.name}"
         assert b"\n" in raw, f"Missing newline characters in {path.name}"
@@ -79,11 +88,11 @@ def test_file_encoding_and_lf_line_endings(
 
 
 def test_zero_personal_path_leaks(
-    dock_main_path: Path, interfaces_dock_main_path: Path
+    dock_main_path: Path, interfaces_cochem_dock_main_path: Path, interfaces_dock_main_path: Path
 ) -> None:
-    """Verify zero personal machine or local user path leakage in cochem_dock_main.py."""
+    """Verify zero personal machine or local user path leakage in dock_main files."""
     patterns = leak_patterns()
-    for path in (dock_main_path, interfaces_dock_main_path):
+    for path in (dock_main_path, interfaces_cochem_dock_main_path, interfaces_dock_main_path):
         lines = path.read_text(encoding="utf-8").splitlines()
         leaks = []
         for lineno, line in enumerate(lines, 1):
@@ -95,30 +104,33 @@ def test_zero_personal_path_leaks(
 
 
 def test_interfaces_dock_main_reexports_and_aliases() -> None:
-    """Verify interfaces.cochem_dock_main cleanly re-exports canonical symbols."""
-    assert legacy_dock_main.app is app
-    assert legacy_dock_main.create_app is create_app
-    assert legacy_dock_main.health_check is health_check
-    assert legacy_dock_main.telemetry_stats is telemetry_stats
-    assert legacy_dock_main.websocket_telemetry is websocket_telemetry
-    assert legacy_dock_main.lttb_decimate is lttb_decimate
-    assert legacy_dock_main.run_server is run_server
-    assert legacy_dock_main.lifespan is lifespan
-    assert legacy_dock_main.logger is logger
-    assert legacy_dock_main.default_job_queue is default_job_queue
-    assert legacy_dock_main.DualModeJobQueue is DualModeJobQueue
-    assert legacy_dock_main.TelemetryEvent is TelemetryEvent
-    assert legacy_dock_main.TelemetryMessage is TelemetryEvent
-    assert legacy_dock_main.HealthResponse is HealthResponse
-    assert legacy_dock_main.TelemetryBatchPayload is TelemetryBatchPayload
-    assert legacy_dock_main.TelemetryStatsResponse is TelemetryStatsResponse
-    assert legacy_dock_main.JobSubmitRequest is JobSubmitRequest
-    assert legacy_dock_main.JobSubmitResponse is JobSubmitResponse
-    assert legacy_dock_main.JobStatusResponse is JobStatusResponse
-    assert legacy_dock_main.JobCancelResponse is JobCancelResponse
+    """Verify interfaces.cochem_dock_main and interfaces.dock_main cleanly re-export canonical symbols."""
+    for mod in (legacy_dock_main, legacy_dock_script):
+        assert mod.app is app
+        assert mod.create_app is create_app
+        assert mod.health_check is health_check
+        assert mod.telemetry_stats is telemetry_stats
+        assert mod.websocket_telemetry is websocket_telemetry
+        assert mod.lttb_decimate is lttb_decimate
+        assert mod.run_server is run_server
+        assert mod.lifespan is lifespan
+        assert mod.logger is logger
+        assert mod.default_job_queue is default_job_queue
+        assert mod.DualModeJobQueue is DualModeJobQueue
+        assert mod.TelemetryEvent is TelemetryEvent
+        assert mod.TelemetryMessage is TelemetryEvent
+        assert mod.HealthResponse is HealthResponse
+        assert mod.TelemetryBatchPayload is TelemetryBatchPayload
+        assert mod.TelemetryStatsResponse is TelemetryStatsResponse
+        assert mod.JobSubmitRequest is JobSubmitRequest
+        assert mod.JobSubmitResponse is JobSubmitResponse
+        assert mod.JobStatusResponse is JobStatusResponse
+        assert mod.JobCancelResponse is JobCancelResponse
 
-    for sym in legacy_dock_main.__all__:
-        assert hasattr(legacy_dock_main, sym), f"Missing symbol {sym} in legacy module"
+        for sym in mod.__all__:
+            assert hasattr(mod, sym), f"Missing symbol {sym} in module {mod.__name__}"
+
+    assert legacy_dock_script.dock_app is app
 
 
 def test_telemetry_event_model_fields_and_validation() -> None:
@@ -492,9 +504,13 @@ def test_rest_job_endpoints(client: TestClient) -> None:
     cancel_data = cancel_res.json()
     assert cancel_data["cancelled"] is True
 
-    # 404 on missing job
+    # 404 on missing job status
     missing_res = client.get("/api/v1/jobs/status/non_existent_id")
     assert missing_res.status_code == 404
+
+    # 404 on missing job cancel
+    missing_cancel = client.post("/api/v1/jobs/cancel/non_existent_id")
+    assert missing_cancel.status_code == 404
 
 
 # --- WebSocket Telemetry Stream Tests ---
@@ -533,5 +549,43 @@ def test_websocket_buffer_batching_and_flush(client: TestClient) -> None:
             msg = ws.receive_text()
             assert json.loads(msg)["step"] == i
 
-        # Test flush frame
+        # Test flush frame and verify returned batched payload
         ws.send_text("flush")
+        flush_batch = ws.receive_json()
+        assert flush_batch["type"] == "lttb_batch"
+        assert flush_batch["count"] == 3
+        assert len(flush_batch["data"]) == 3
+
+
+def test_websocket_job_filtered_telemetry(client: TestClient) -> None:
+    """Verify WebSocket /ws/telemetry/{job_id} endpoint filters out irrelevant jobs."""
+    with client.websocket_connect("/ws/telemetry/job_target_99") as ws:
+        # Send an event for a different job
+        send_telemetry_payload({"type": "scf_step", "job_id": "job_other_1", "energy_hartree": -10.0})
+        # Send an event for the targeted job
+        send_telemetry_payload({"type": "scf_step", "job_id": "job_target_99", "energy_hartree": -25.5})
+
+        msg = ws.receive_text()
+        data = json.loads(msg)
+        assert data["job_id"] == "job_target_99"
+        assert data["energy_hartree"] == -25.5
+
+
+def test_websocket_buffer_threshold_autobatch(client: TestClient) -> None:
+    """Verify WebSocket automatically emits decimated batch when buffer threshold is reached."""
+    with client.websocket_connect("/ws/telemetry?buffer_threshold=3&decimate_target=2") as ws:
+        for i in range(3):
+            send_telemetry_payload({"type": "scf_step", "energy_hartree": -76.0 - i, "step": i})
+
+        # The first 2 items below threshold are received as direct raw frames
+        frame0 = ws.receive_json()
+        frame1 = ws.receive_json()
+        assert frame0["step"] == 0
+        assert frame1["step"] == 1
+
+        # The 3rd item hits the threshold and triggers an automatic LTTB decimated batch emission
+        batch = ws.receive_json()
+        assert batch["type"] == "lttb_batch"
+        assert batch["count"] == 2
+        assert len(batch["data"]) == 2
+

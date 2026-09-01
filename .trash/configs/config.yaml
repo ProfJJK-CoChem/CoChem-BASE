@@ -1,0 +1,26 @@
+# CoChem-GEOM Master Configuration
+# Complies with Method Matrix v4, SRS Doc 9, and Physical Verification Mandate
+
+defaults:
+  - _self_
+  - data: geom_qm9
+  - model: schnet
+  - training: default
+  - callbacks: default
+
+core:
+  project_name: "CoChem-GEOM"
+  experiment_name: "${model.name}_${data.dataset_name}_baseline"
+  seed: 42  # [E]
+  max_z: 100  # [M]
+  work_dir: ${hydra:runtime.cwd}
+
+trainer:
+  accelerator: "gpu"  # [E]
+  devices: -1  # [E]
+  strategy: "ddp"  # [E]
+  precision: "bf16-mixed"  # [M]
+  max_epochs: ${training.epochs}  # [E]
+  gradient_clip_val: 1.0  # [E]
+  log_every_n_steps: 50  # [E]
+  deterministic: False  # [E]

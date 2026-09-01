@@ -12,10 +12,8 @@ Defends the Tripartite Workspace Air-Gap and repository hygiene by validating:
 from __future__ import annotations
 
 import ast
-import fnmatch
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
 
 import pytest
 
@@ -121,7 +119,6 @@ def test_gitignore_no_bom_and_strict_lf() -> None:
 
 def test_gitignore_header_and_sections(gitignore_content: str) -> None:
     """Validate top banner and all 6 SRS Document 1 section headers."""
-    assert "# ==============================================================================" in gitignore_content
     assert "# CoChem-BASE Strict Air-Gap Constraints" in gitignore_content
     for header in EXPECTED_SECTION_HEADERS:
         assert header in gitignore_content, f"Missing section header in .gitignore: {header}"

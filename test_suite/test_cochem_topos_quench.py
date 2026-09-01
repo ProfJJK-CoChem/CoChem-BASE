@@ -28,7 +28,6 @@ Test Matrix:
 from __future__ import annotations
 
 import ast
-import base64
 import json
 import sys
 import tempfile
@@ -508,20 +507,22 @@ def test_zero_test_double_ast_audit() -> None:
     """Audit AST of target implementation and test suite for zero-test-double purity."""
     target_files = [
         Path(TOPOS_REPO_ROOT) / "mechanics" / "cochem_topos_quench.py",
+        Path(BASE_REPO_ROOT) / "cochem_base" / "interfaces" / "cochem_topos_quench.py",
+        Path(BASE_REPO_ROOT) / "cochem_base" / "mechanics" / "cochem_topos_quench.py",
         Path(__file__).resolve(),
     ]
 
     banned_modules = {
-        base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8"),
-        base64.b64decode(b"bW9jaw==").decode("utf-8"),
-        base64.b64decode(b"cHl0ZXN0X21vY2s=").decode("utf-8"),
+        "unittest.mock",
+        "mock",
+        "pytest_mock",
     }
     banned_names = {
-        base64.b64decode(b"TWFnaWNNb2Nr").decode("utf-8"),
-        base64.b64decode(b"TW9jaw==").decode("utf-8"),
-        base64.b64decode(b"cGF0Y2g=").decode("utf-8"),
-        base64.b64decode(b"UHJvcGVydHlNb2Nr").decode("utf-8"),
-        base64.b64decode(b"Y3JlYXRlX2F1dG9zcGVj").decode("utf-8"),
+        "MagicMock",
+        "Mock",
+        "patch",
+        "PropertyMock",
+        "create_autospec",
     }
 
     for file_path in target_files:

@@ -903,18 +903,18 @@ def _extract_coords_from_raw_conformer(raw_conf: Dict[str, Any], expected_n_atom
         if isinstance(mol_obj, bytes):
             try:
                 mol_obj = pickle.loads(mol_obj)
-            except Exception:
+            except (pickle.UnpicklingError, TypeError, ValueError):
                 if Chem is not None:
                     try:
                         mol_obj = Chem.Mol(mol_obj)
-                    except Exception:
-                        pass
+                    except (TypeError, ValueError, RuntimeError):
+                        mol_obj = None
         if mol_obj is not None and hasattr(mol_obj, "GetConformer"):
             try:
                 conf = mol_obj.GetConformer()
                 coords_raw = conf.GetPositions()
-            except Exception:
-                pass
+            except (ValueError, RuntimeError, AttributeError):
+                coords_raw = None
 
     if coords_raw is None:
         raise ValueError(f"Could not locate 3D coordinates in conformer dictionary keys: {list(raw_conf.keys())}")
@@ -978,8 +978,8 @@ def _extract_forces_from_raw_conformer(raw_conf: Dict[str, Any], n_atoms: int) -
             arr = arr.reshape(n_atoms, 3)
         if arr.shape == (n_atoms, 3):
             return arr
-    except Exception:
-        pass
+    except (ValueError, TypeError) as exc:
+        logger.debug("Failed to reshape forces array: %s", exc)
     return None
 
 
@@ -991,8 +991,8 @@ def _extract_dipole_from_raw_conformer(raw_conf: Dict[str, Any]) -> Optional[np.
                 arr = np.asarray(raw_conf[key], dtype=np.float32)
                 if arr.ndim == 1 and arr.shape[0] == 3:
                     return arr
-            except Exception:
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.debug("Failed to parse dipole array: %s", exc)
     return None
 
 
@@ -1004,8 +1004,8 @@ def _extract_rotational_constants_from_raw_conformer(raw_conf: Dict[str, Any]) -
                 arr = np.asarray(raw_conf[key], dtype=np.float32)
                 if arr.ndim == 1 and arr.shape[0] == 3:
                     return arr
-            except Exception:
-                pass
+            except (ValueError, TypeError) as exc:
+                logger.debug("Failed to parse rotational constants array: %s", exc)
     return None
 
 

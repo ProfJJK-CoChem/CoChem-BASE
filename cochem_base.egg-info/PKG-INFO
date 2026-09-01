@@ -6,7 +6,6 @@ Author: CoChem Team
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 License-File: LICENSE
-License-File: LICENSE.conda_trash
 Requires-Dist: PySide6
 Requires-Dist: pluggy
 Requires-Dist: pydantic>=2
@@ -39,9 +38,9 @@ Dynamic: license-file
 
 ## 1. Executive Overview & Mission
 
-**CoChem-BASE** is the foundational routing engine, environment orchestrator, and Stage 0 bootstrap layer for the **CoChem** computational ecosystem (`CoChem-BASE`, `CoChem-TOPOS`, `CoChem-TORQ`, `CoChem-SpycFit`, `CoChem-SCRIBE`). It provisions isolated computational silos, schedules hardware-aware quantum chemical workloads, enforces strict architectural air-gaps, and manages state synchronization across heterogeneous computing environments (local workstations, WSL2, and High-Performance Computing clusters).
+**CoChem-BASE** is the foundational routing engine, environment orchestrator, and Stage 0 bootstrap layer for the **CoChem** computational ecosystem (`CoChem-BASE`, `CoChem-TOPOS`, `CoChem-TORQ`, `CoChem-SpycFit`, `CoChem-SCRIBE`). It provisions isolated computational silos, schedules hardware-aware quantum chemical workloads, enforces strict architectural air-gaps, and seamlessly manages state synchronization across heterogeneous computing environments (local workstations, WSL2, and High-Performance Computing (HPC) clusters).
 
-Built to rigorous *ab initio* theoretical standards, CoChem-BASE integrates directly with the Valeev stack (MPQC, TiledArray, Libint) and external electronic structure engines (ORCA 6.1.0, CFOUR 2.1, xTB 6.7.1, PySCF 2.7+). Workflows execute dynamic JAX-compiled tensor computation graphs guided by the **Method Matrix v4 10-Tier Wall-Clock Heuristic (T0–T9)**.
+Built to rigorous *ab initio* theoretical standards, CoChem-BASE empowers both experts and non-coders alike. It integrates directly with the Valeev stack (MPQC, TiledArray, Libint) and external electronic structure engines (ORCA 6.1.0, CFOUR 2.1, xTB 6.7.1, PySCF 2.7+). Thanks to our intuitive **No-Code Dashboard**, complex workflows execute dynamic JAX-compiled tensor computation graphs guided by the **Method Matrix v4 10-Tier Wall-Clock Heuristic (T0–T9)**—all without requiring manual script writing.
 
 ```mermaid
 graph TD
@@ -173,44 +172,58 @@ GitHub Actions in the CoChem ecosystem is strictly constrained to:
 4. **Zero-Mock Lightweight Unit Tests**: Running pytest suites against lightweight physical systems (e.g., hydrogen dimer, 2-atom tensors, analytical Hamiltonians).
 
 ### Production Compute Dispatch
-All intensive *ab initio* electronic structure computations (ORCA, CFOUR, MRCC), PES active-learning scans, and Sinc-DVR grid calculations must be dispatched via the `HPCDispatcher` to dedicated High-Performance Computing clusters (managed by **Slurm**, **PBS**, or **Torque**) or configured on-premise multi-GPU workstations.
+All intensive *ab initio* electronic structure computations (ORCA, CFOUR, MRCC), PES active-learning scans, and Sinc-DVR grid calculations must be dispatched via the `ParslExecutionBroker` or `SubprocessBroker` to dedicated High-Performance Computing clusters (managed by **Slurm**, **PBS**, or **Torque**) or configured on-premise multi-GPU workstations.
 
 ---
 
 ## 5. Getting Started & Stage 0 Bootstrap
 
-The primary entry point for configuring and interacting with CoChem-BASE is the interactive Jupyter notebook **`Start_Here.ipynb`**.
+The primary entry point for configuring and interacting with CoChem-BASE is our **No-Code Interactive Dashboard**, a Voilà-powered standalone graphical interface driven by `Start_Here.ipynb` and `ipywidgets`. This allows researchers to orchestrate complex quantum chemistry workflows without writing a single line of code!
 
 ### Prerequisites
 - **Operating System**: Linux, macOS, or Windows (native or WSL2).
 - **Python**: Version 3.11 or higher.
-- **Environment Manager**: `conda`, `mamba`, or `micromamba` accessible in system path.
+- **Environment Manager**: `conda`, `mamba`, or `micromamba` accessible in the system path.
+- **Voilà**: Installed in your environment (`pip install voila`).
 
-### Step 1: Clone Repository & Open Notebook
+### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/ProfJJK-CoChem/CoChem-BASE.git
 cd CoChem-BASE
-jupyter lab Start_Here.ipynb
 ```
 
-### Step 2: Execute Stage 0 Silo Setup (Cell 1 & 2)
-1. In `Start_Here.ipynb`, locate **Cell 2 (Silo Setup & Artifact Registry Configuration)**.
-2. Click the cell and press `Shift + Enter`.
-3. Choose **New Install** to provision a fresh environment, or **Keep previous setup** to validate an existing installation.
-4. Specify your persistent artifact directory (defaults to `~/CoChem_Artifacts`).
-5. Click **Create & Provision**. The Stage 0 bootstrapper will build the isolated `cochem_base_silo` environment and register the Jupyter kernel.
+### Step 2: Launch the Voilà Application
+Experience the No-Code interface locally:
+```bash
+voila Start_Here.ipynb
+```
 
-### Step 3: Switch Active Jupyter Kernel
-- In the top-right corner of your Jupyter interface (or VS Code notebook toolbar), click the kernel selection dropdown.
-- Select the newly provisioned kernel: **`cochem_base_silo`**.
+### SSH Port Forwarding for HPC Users
+If you are deploying CoChem-BASE on a headless remote High-Performance Computing (HPC) cluster, launch Voilà bound to all IP addresses, disabling the browser launch:
+```bash
+voila Start_Here.ipynb --no-browser --port=8866 --Voila.ip=0.0.0.0
+```
+Then, on your local workstation, establish an SSH tunnel to securely access the interactive GUI:
+```bash
+ssh -L 8866:localhost:8866 <username>@<hpc_address>
+```
+Navigate to `http://localhost:8866` in your local web browser.
 
-### Step 4: Launch the Interactive Matrix Dashboard (Cell 3 & 4)
-- Execute **Cell 4 (CoChem-BASE Interactive Matrix Dashboard)**.
-- The UI dynamically detects host CPU topology, RAM, AVX-512 flags, and NVIDIA CUDA profiles.
-- Configure paths to external quantum chemistry binaries (ORCA, xTB, MPI) directly through the graphical dashboard.
+### The No-Code GUI Experience
 
-### Step 5: Optional AI Agent Collaboration (Cell 5)
-- If enabled, initialize the **Antigravity 2.0 Assistant** daemon widget to access AI-driven workflow assistance and calculation troubleshooting.
+1. **Seamless Install Wizard**
+   - **Calculation Environment:** Select your calculation environment (e.g., `local`, `github-actions`, `hpc`, `linux`, `macos`, `wsl`).
+   - **Interaction Environment:** Select your interaction environment (e.g., `Local`, `GitHub Codespaces`).
+
+2. **No-Code Matrix Configuration**
+   - Use the intuitive, click-driven dashboard to define computational tasks according to the *Method Matrix v4.1*.
+   - **Geometry:** Simply input your Cartesian `.xyz` coordinates.
+   - **Engine:** Select from integrated backends (ORCA, CFOUR) via dropdown menus.
+   - **Method & Basis Set:** Construct valid theoretical pairings (e.g., `B3LYP / def2-TZVP`) ensuring strict adherence to the CoChem theoretical standards, all without touching a script.
+
+3. **Execution & Live Telemetry**
+   - Click to dispatch the computational workflow locally or onto an HPC job scheduler.
+   - Monitor the **Execution & Live Telemetry** log streaming interface for real-time visual tracking of SCF convergence, energy gradients, and engine-specific warnings—no need to manually tail output files in the terminal!
 
 ---
 
@@ -235,35 +248,37 @@ CoChem-BASE exposes a clean, typed Python interface for dynamic path resolution,
 
 ```python
 from pathlib import Path
-from cochem_base.config_loader import (
-    get_artifact_dir,
-    get_scratch_dir,
-    load_system_config,
-    resolve_config_path,
+from cochem_base.orchestrator.cochem_system_config import (
+    load_golden_registry,
+    resolve_golden_registry_path,
+    discover_storage_topology,
 )
-from cochem_base.engine import HPCDispatcher, TaskStatus
+from cochem_base.core_engine.cochem_core_subprocess_broker import SubprocessBroker
 
 # 1. Dynamically resolve Tripartite workspace boundaries via 4-Tier OS model
-config_file: Path = resolve_config_path()
-artifact_dir: Path = get_artifact_dir()
-scratch_dir: Path = get_scratch_dir()
-system_cfg = load_system_config()
+config_file: Path = resolve_golden_registry_path()
+system_cfg = load_golden_registry(config_file)
+storage_cfg = system_cfg.storage or discover_storage_topology()
+
+artifact_dir = Path(storage_cfg.artifacts_dir)
+scratch_dir = Path(storage_cfg.scratch_dir) if storage_cfg.scratch_dir else artifact_dir / "Scratch"
 
 print(f"Active Config: {config_file}")
 print(f"Artifact Store: {artifact_dir}")
 print(f"Scratch Directory: {scratch_dir}")
 
-# 2. Dispatch quantum chemical task via HPCDispatcher
-with HPCDispatcher(max_workers=4) as dispatcher:
-    future = dispatcher.submit(
-        command=["orca", "water_opt.inp"],
-        work_dir=str(scratch_dir),
-        task_id="orca_opt_001",
-        timeout_seconds=3600.0,
+# 2. Dispatch quantum chemical task safely via SubprocessBroker
+with SubprocessBroker(
+    cwd=scratch_dir,
+    memory_limit_gb=8.0
+) as broker:
+    # Tasks run with cross-platform isolation and crash telemetry monitoring
+    return_code: int = broker.execute(
+        payload_command=["orca", "water_opt.inp"],
+        job_name="orca_opt_001",
+        timeout=3600.0,
     )
-    # Tasks run asynchronously; inspect task state
-    status: TaskStatus = dispatcher.get_status("orca_opt_001")
-    print(f"Current Job Status: {status}")
+    print(f"Current Job Status: Return Code {return_code}")
 ```
 
 ---

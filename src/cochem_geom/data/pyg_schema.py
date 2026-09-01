@@ -93,7 +93,7 @@ def validate_conformer_data(data: ConformerData) -> None:
         raise TypeError(f"Attribute 'z' must be a torch.Tensor, got {type(z_val)}")
     if z_val.dim() != 1:
         raise SchemaValidationError(f"Attribute 'z' must be a 1D tensor of shape (N,), got shape {list(z_val.shape)}")
-    if z_val.dtype not in (torch.int64, torch.long, torch.int32):
+    if z_val.dtype not in (torch.int64, torch.long):
         raise TypeError(f"Attribute 'z' must have integer dtype (torch.long/int64), got {z_val.dtype}")
     if z_val.numel() == 0:
         raise SchemaValidationError("Attribute 'z' cannot be empty (N >= 1 required).")
@@ -129,7 +129,7 @@ def validate_conformer_data(data: ConformerData) -> None:
     if edge_index_val is not None:
         if not isinstance(edge_index_val, torch.Tensor):
             raise TypeError(f"Attribute 'edge_index' must be a torch.Tensor, got {type(edge_index_val)}")
-        if edge_index_val.dtype not in (torch.int64, torch.long, torch.int32):
+        if edge_index_val.dtype not in (torch.int64, torch.long):
             raise TypeError(f"Attribute 'edge_index' must have integer dtype (torch.long), got {edge_index_val.dtype}")
         if edge_index_val.dim() != 2 or edge_index_val.size(0) != 2:
             raise SchemaValidationError(
@@ -376,7 +376,11 @@ class ConformerData(Data):
 
         self.metadata = dict(metadata) if metadata is not None else {}
 
-        if validate and z is not None and pos is not None:
+        if validate and (z is not None or pos is not None):
+            if z is None or pos is None:
+                raise SchemaValidationError(
+                    "ConformerData requires both 'z' (atomic numbers) and 'pos' (Cartesian coordinates) tensors."
+                )
             validate_conformer_data(self)
 
     # --------------------------------------------------------------------------
@@ -411,7 +415,7 @@ class ConformerData(Data):
             raise
 
     # --------------------------------------------------------------------------
-    # PyG Batching Increment Override
+    # PyG Batching Increment & Concatenation Overrides
     # --------------------------------------------------------------------------
 
     def __inc__(self, key: str, value: Any, *args: Any, **kwargs: Any) -> Any:
@@ -427,6 +431,17 @@ class ConformerData(Data):
                 return self.pos.size(0)
             return self.num_nodes
         return super().__inc__(key, value, *args, **kwargs)
+
+    def __cat_dim__(self, key: str, value: Any, *args: Any, **kwargs: Any) -> Any:
+        """Override PyG concatenation dimension for molecular graph-level vectors.
+
+        For 1D graph-level vectors (e.g. `dipole: (3,)`, `rotational_constants: (3,)`),
+        returning `None` instructs PyG to stack along a new batch dimension, yielding
+        batched tensors of shape `(B, 3)` instead of flattening into `(3 * B,)`.
+        """
+        if key in ("dipole", "rotational_constants") and isinstance(value, torch.Tensor) and value.dim() == 1:
+            return None
+        return super().__cat_dim__(key, value, *args, **kwargs)
 
     # --------------------------------------------------------------------------
     # Pure Functional SE(3) Transformations (State Immutability Guaranteed)
@@ -463,29 +478,50 @@ class ConformerData(Data):
 
         new_pos = self.pos + t_vec.squeeze()
 
+        standard_keys = {
+            "z", "pos", "edge_index", "y", "x", "edge_attr", "weight", "forces",
+            "dipole", "rotational_constants", "symbols", "smiles", "conformer_id",
+            "source_hash", "frequencies", "s2_spin", "metadata"
+        }
+        extra_kwargs = {}
+        for k in self.keys():
+            if k not in standard_keys:
+                val = self[k]
+                extra_kwargs[k] = val.clone() if isinstance(val, torch.Tensor) else copy.deepcopy(val)
+
+        z_val = getattr(self, "z", None)
+        edge_index_val = getattr(self, "edge_index", None)
+        y_val = getattr(self, "y", None)
+        x_val = getattr(self, "x", None)
+        edge_attr_val = getattr(self, "edge_attr", None)
+        weight_val = getattr(self, "weight", None)
+        forces_val = getattr(self, "forces", None)
+        dipole_val = getattr(self, "dipole", None)
+        rc_val = getattr(self, "rotational_constants", None)
+        symbols_val = getattr(self, "symbols", None)
+        freq_val = getattr(self, "frequencies", None)
+        meta_val = getattr(self, "metadata", None)
+
         return ConformerData(
-            z=self.z.clone() if self.z is not None else None,
+            z=z_val.clone() if z_val is not None else None,
             pos=new_pos,
-            edge_index=self.edge_index.clone() if self.edge_index is not None else None,
-            y=self.y.clone() if self.y is not None else None,
-            x=self.x.clone() if self.x is not None else None,
-            edge_attr=self.edge_attr.clone() if self.edge_attr is not None else None,
-            weight=self.weight.clone() if self.weight is not None else None,
-            forces=self.forces.clone() if self.forces is not None else None,
-            dipole=self.dipole.clone() if self.dipole is not None else None,
-            rotational_constants=(
-                self.rotational_constants.clone()
-                if self.rotational_constants is not None
-                else None
-            ),
-            symbols=list(self.symbols) if self.symbols is not None else None,
-            smiles=self.smiles,
-            conformer_id=self.conformer_id,
-            source_hash=self.source_hash,
-            frequencies=self.frequencies.clone() if self.frequencies is not None else None,
-            s2_spin=self.s2_spin,
-            metadata=copy.deepcopy(self.metadata) if self.metadata is not None else {},
+            edge_index=edge_index_val.clone() if edge_index_val is not None else None,
+            y=y_val.clone() if y_val is not None else None,
+            x=x_val.clone() if x_val is not None else None,
+            edge_attr=edge_attr_val.clone() if edge_attr_val is not None else None,
+            weight=weight_val.clone() if weight_val is not None else None,
+            forces=forces_val.clone() if forces_val is not None else None,
+            dipole=dipole_val.clone() if dipole_val is not None else None,
+            rotational_constants=rc_val.clone() if rc_val is not None else None,
+            symbols=list(symbols_val) if symbols_val is not None else None,
+            smiles=getattr(self, "smiles", None),
+            conformer_id=getattr(self, "conformer_id", None),
+            source_hash=getattr(self, "source_hash", None),
+            frequencies=freq_val.clone() if freq_val is not None else None,
+            s2_spin=getattr(self, "s2_spin", None),
+            metadata=copy.deepcopy(meta_val) if meta_val is not None else {},
             validate=False,
+            **extra_kwargs,
         )
 
     def rotate(
@@ -521,44 +557,61 @@ class ConformerData(Data):
         new_pos = torch.matmul(self.pos, rot_mat.t())
 
         # Equivariant forces rotation if present
-        new_forces = (
-            torch.matmul(self.forces, rot_mat.t())
-            if self.forces is not None
-            else None
-        )
+        f_val = getattr(self, "forces", None)
+        new_forces = torch.matmul(f_val, rot_mat.t()) if f_val is not None else None
 
         # Equivariant dipole rotation if present
-        if self.dipole is not None:
-            if self.dipole.dim() == 1:
-                new_dipole = torch.matmul(rot_mat, self.dipole)
+        d_val = getattr(self, "dipole", None)
+        if d_val is not None:
+            if d_val.dim() == 1:
+                new_dipole = torch.matmul(rot_mat, d_val)
             else:
-                new_dipole = torch.matmul(self.dipole, rot_mat.t())
+                new_dipole = torch.matmul(d_val, rot_mat.t())
         else:
             new_dipole = None
 
+        standard_keys = {
+            "z", "pos", "edge_index", "y", "x", "edge_attr", "weight", "forces",
+            "dipole", "rotational_constants", "symbols", "smiles", "conformer_id",
+            "source_hash", "frequencies", "s2_spin", "metadata"
+        }
+        extra_kwargs = {}
+        for k in self.keys():
+            if k not in standard_keys:
+                val = self[k]
+                extra_kwargs[k] = val.clone() if isinstance(val, torch.Tensor) else copy.deepcopy(val)
+
+        z_val = getattr(self, "z", None)
+        edge_index_val = getattr(self, "edge_index", None)
+        y_val = getattr(self, "y", None)
+        x_val = getattr(self, "x", None)
+        edge_attr_val = getattr(self, "edge_attr", None)
+        weight_val = getattr(self, "weight", None)
+        rc_val = getattr(self, "rotational_constants", None)
+        symbols_val = getattr(self, "symbols", None)
+        freq_val = getattr(self, "frequencies", None)
+        meta_val = getattr(self, "metadata", None)
+
         return ConformerData(
-            z=self.z.clone() if self.z is not None else None,
+            z=z_val.clone() if z_val is not None else None,
             pos=new_pos,
-            edge_index=self.edge_index.clone() if self.edge_index is not None else None,
-            y=self.y.clone() if self.y is not None else None,
-            x=self.x.clone() if self.x is not None else None,
-            edge_attr=self.edge_attr.clone() if self.edge_attr is not None else None,
-            weight=self.weight.clone() if self.weight is not None else None,
+            edge_index=edge_index_val.clone() if edge_index_val is not None else None,
+            y=y_val.clone() if y_val is not None else None,
+            x=x_val.clone() if x_val is not None else None,
+            edge_attr=edge_attr_val.clone() if edge_attr_val is not None else None,
+            weight=weight_val.clone() if weight_val is not None else None,
             forces=new_forces,
             dipole=new_dipole,
-            rotational_constants=(
-                self.rotational_constants.clone()
-                if self.rotational_constants is not None
-                else None
-            ),
-            symbols=list(self.symbols) if self.symbols is not None else None,
-            smiles=self.smiles,
-            conformer_id=self.conformer_id,
-            source_hash=self.source_hash,
-            frequencies=self.frequencies.clone() if self.frequencies is not None else None,
-            s2_spin=self.s2_spin,
-            metadata=copy.deepcopy(self.metadata) if self.metadata is not None else {},
+            rotational_constants=rc_val.clone() if rc_val is not None else None,
+            symbols=list(symbols_val) if symbols_val is not None else None,
+            smiles=getattr(self, "smiles", None),
+            conformer_id=getattr(self, "conformer_id", None),
+            source_hash=getattr(self, "source_hash", None),
+            frequencies=freq_val.clone() if freq_val is not None else None,
+            s2_spin=getattr(self, "s2_spin", None),
+            metadata=copy.deepcopy(meta_val) if meta_val is not None else {},
             validate=False,
+            **extra_kwargs,
         )
 
     # --------------------------------------------------------------------------
@@ -668,16 +721,10 @@ class ConformerData(Data):
         ixz = -(m * x * z).sum()
         iyz = -(m * y * z).sum()
 
-        inertia = torch.tensor(
-            [
-                [ixx, ixy, ixz],
-                [ixy, iyy, iyz],
-                [ixz, iyz, izz],
-            ],
-            dtype=self.pos.dtype,
-            device=self.pos.device,
-        )
-        return inertia
+        row0 = torch.stack([ixx, ixy, ixz])
+        row1 = torch.stack([ixy, iyy, iyz])
+        row2 = torch.stack([ixz, iyz, izz])
+        return torch.stack([row0, row1, row2])
 
     def compute_principal_rotational_constants(
         self, masses: Optional[Union[torch.Tensor, Sequence[float]]] = None
@@ -768,23 +815,30 @@ class ConformerData(Data):
         MolecularData
             Converted MolecularData object.
         """
+        edge_index_val = getattr(self, "edge_index", None)
+        y_val = getattr(self, "y", None)
+        x_val = getattr(self, "x", None)
+        edge_attr_val = getattr(self, "edge_attr", None)
+        weight_val = getattr(self, "weight", None)
+        forces_val = getattr(self, "forces", None)
+        dipole_val = getattr(self, "dipole", None)
+        rc_val = getattr(self, "rotational_constants", None)
+        symbols_val = getattr(self, "symbols", None)
+        meta_val = getattr(self, "metadata", None)
+
         return MolecularData(
             z=self.z.clone(),
             pos=self.pos.clone(),
-            edge_index=self.edge_index.clone() if self.edge_index is not None else None,
-            y=self.y.clone() if self.y is not None else None,
-            x=self.x.clone() if self.x is not None else None,
-            edge_attr=self.edge_attr.clone() if self.edge_attr is not None else None,
-            weight=self.weight.clone() if self.weight is not None else None,
-            forces=self.forces.clone() if self.forces is not None else None,
-            dipole=self.dipole.clone() if self.dipole is not None else None,
-            rotational_constants=(
-                self.rotational_constants.clone()
-                if self.rotational_constants is not None
-                else None
-            ),
-            symbols=list(self.symbols) if self.symbols is not None else None,
-            metadata=copy.deepcopy(self.metadata) if self.metadata is not None else {},
+            edge_index=edge_index_val.clone() if edge_index_val is not None else None,
+            y=y_val.clone() if y_val is not None else None,
+            x=x_val.clone() if x_val is not None else None,
+            edge_attr=edge_attr_val.clone() if edge_attr_val is not None else None,
+            weight=weight_val.clone() if weight_val is not None else None,
+            forces=forces_val.clone() if forces_val is not None else None,
+            dipole=dipole_val.clone() if dipole_val is not None else None,
+            rotational_constants=rc_val.clone() if rc_val is not None else None,
+            symbols=list(symbols_val) if symbols_val is not None else None,
+            metadata=copy.deepcopy(meta_val) if meta_val is not None else {},
         )
 
     @classmethod
@@ -878,11 +932,17 @@ class ConformerData(Data):
         """
         coords = self.pos.detach().cpu().numpy().astype(np.float64)
         y_tensor = getattr(self, "y", None)
-        energy = float(y_tensor.item()) if y_tensor is not None and y_tensor.numel() > 0 else 0.0
+        if y_tensor is not None and y_tensor.numel() > 0:
+            energy = float(y_tensor.flatten()[0].item())
+        else:
+            energy = 0.0
         meta = self.metadata if getattr(self, "metadata", None) is not None else {}
         relative_energy = float(meta.get("relative_energy", 0.0))
         w_tensor = getattr(self, "weight", None)
-        boltzmann_weight = float(w_tensor.item()) if w_tensor is not None and w_tensor.numel() > 0 else 1.0
+        if w_tensor is not None and w_tensor.numel() > 0:
+            boltzmann_weight = float(w_tensor.flatten()[0].item())
+        else:
+            boltzmann_weight = 1.0
 
         f_tensor = getattr(self, "forces", None)
         forces = f_tensor.detach().cpu().numpy().astype(np.float64) if f_tensor is not None else None
@@ -1031,6 +1091,9 @@ def center_at_com_conformer_data(
 def batch_conformer_data(data_list: Sequence[ConformerData]) -> Batch:
     """Collate a sequence of ConformerData objects into a unified PyG Batch [D].
 
+    Automatically synchronizes and pads optional tensor attributes across heterogeneous
+    conformer instances to prevent PyG collation KeyErrors.
+
     Parameters
     ----------
     data_list : Sequence[ConformerData]
@@ -1041,4 +1104,41 @@ def batch_conformer_data(data_list: Sequence[ConformerData]) -> Batch:
     torch_geometric.data.Batch
         Unified batched graph container.
     """
-    return Batch.from_data_list(list(data_list))
+    items = list(data_list)
+    if not items:
+        return Batch()
+
+    all_keys = set()
+    for item in items:
+        all_keys.update(item.keys())
+
+    synced_items: List[ConformerData] = []
+    for item in items:
+        c_item = item.clone()
+        num_atoms = c_item.z.size(0) if c_item.z is not None else (c_item.pos.size(0) if c_item.pos is not None else 0)
+        num_edges = c_item.edge_index.size(1) if getattr(c_item, "edge_index", None) is not None else 0
+        dev = c_item.pos.device if c_item.pos is not None else None
+
+        if "forces" in all_keys and getattr(c_item, "forces", None) is None:
+            c_item.forces = torch.zeros((num_atoms, 3), dtype=torch.float32, device=dev)
+        if "dipole" in all_keys and getattr(c_item, "dipole", None) is None:
+            c_item.dipole = torch.zeros((3,), dtype=torch.float32, device=dev)
+        if "rotational_constants" in all_keys and getattr(c_item, "rotational_constants", None) is None:
+            c_item.rotational_constants = torch.zeros((3,), dtype=torch.float32, device=dev)
+        if "y" in all_keys and getattr(c_item, "y", None) is None:
+            c_item.y = torch.zeros((1,), dtype=torch.float32, device=dev)
+        if "weight" in all_keys and getattr(c_item, "weight", None) is None:
+            c_item.weight = torch.ones((1,), dtype=torch.float32, device=dev)
+        if "x" in all_keys and getattr(c_item, "x", None) is None:
+            # Find feature dimension from any item with x
+            ref_x = next((getattr(it, "x", None) for it in items if getattr(it, "x", None) is not None), None)
+            dim_f = ref_x.size(1) if ref_x is not None and ref_x.dim() == 2 else 0
+            c_item.x = torch.zeros((num_atoms, dim_f), dtype=torch.float32, device=dev)
+        if "edge_attr" in all_keys and getattr(c_item, "edge_attr", None) is None:
+            ref_ea = next((getattr(it, "edge_attr", None) for it in items if getattr(it, "edge_attr", None) is not None), None)
+            dim_d = ref_ea.size(1) if ref_ea is not None and ref_ea.dim() == 2 else 0
+            c_item.edge_attr = torch.zeros((num_edges, dim_d), dtype=torch.float32, device=dev)
+
+        synced_items.append(c_item)
+
+    return Batch.from_data_list(synced_items)

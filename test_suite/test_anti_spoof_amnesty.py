@@ -20,7 +20,6 @@ Defends the Tripartite Workspace Air-Gap and AST-level Anti-Spoofing boundary by
 from __future__ import annotations
 
 import ast
-import base64
 import json
 import os
 from pathlib import Path
@@ -32,14 +31,9 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AMNESTY_PATH = REPO_ROOT / ".anti_spoof_amnesty.json"
 
-# Prohibited modules encoded in base64 to avoid static scanner false positives
-_B64_PROHIBITED: List[bytes] = [
-    b"dW5pdHRlc3QubW9jaw==",
-    b"bW9jaw==",
-]
-
 MOCK_MODULES: Set[str] = {
-    base64.b64decode(item).decode("utf-8") for item in _B64_PROHIBITED
+    "unittest.mock",
+    "mock",
 }
 
 CONCURRENCY_MODULES: Set[str] = {
@@ -54,16 +48,27 @@ CONCURRENCY_MODULES: Set[str] = {
 
 PROHIBITED_MODULES = MOCK_MODULES | CONCURRENCY_MODULES
 
-# Directories excluded from repository-wide AST sweep
 EXCLUDED_DIRS: Set[str] = {
+    ".agent_artifacts",
     ".git",
     ".venv",
+    "venv",
     ".conda",
     "__pycache__",
     ".pytest_cache",
+    ".pytest_cache_fresh",
     ".mypy_cache",
     ".ruff_cache",
     ".trash",
+    ".tox",
+    ".nox",
+    "dist",
+    "build",
+    "egg-info",
+    ".eggs",
+    "node_modules",
+    ".idea",
+    ".vscode",
 }
 
 # Mandatory active parallel / concurrency orchestration modules that must be whitelisted
@@ -399,9 +404,6 @@ def test_physical_ast_sweep_execution(normalized_amnesty_set: Set[str]) -> None:
             
             if posix_rel_norm not in normalized_amnesty_set:
                 scanned_count += 1
-            else:
-                # We still scan amnestied files for mocks, but don't count them towards the 50 non-amnestied files check
-                pass
 
             file_violations = scan_file_ast_for_violations(
                 file_path=file_path,
@@ -463,8 +465,8 @@ def test_ast_sweep_detects_prohibited_imports_simulation(tmp_path: Path) -> None
         ("ray_direct.py", "import ray\n"),
         ("mpi4py_direct.py", "import mpi4py\n"),
         ("threading_direct.py", "import threading\n"),
-        ("prohibited_test_direct_1.py", f"import {base64.b64decode(b'dW5pdHRlc3QubW9jaw==').decode('utf-8')}\n"),
-        ("prohibited_test_direct_2.py", f"import {base64.b64decode(b'bW9jaw==').decode('utf-8')}\n"),
+        ("prohibited_test_direct_1.py", "import unittest.mock\n"),
+        ("prohibited_test_direct_2.py", "import mock\n"),
     ]
 
     for fname, snippet in direct_snippets:
@@ -487,8 +489,8 @@ def test_ast_sweep_detects_prohibited_imports_simulation(tmp_path: Path) -> None
         ("mpi_world.py", "from mpi4py import MPI\n"),
         ("th_lock.py", "from threading import Thread, Lock, Event\n"),
         ("concurrent_from_import.py", "from concurrent import futures\n"),
-        ("prohibited_test_from_import.py", f"from unittest import {base64.b64decode(b'bW9jaw==').decode('utf-8')}\n"),
-        ("prohibited_test_magic.py", f"from {base64.b64decode(b'dW5pdHRlc3QubW9jaw==').decode('utf-8')} import {base64.b64decode(b'TWFnaWNNb2Nr').decode('utf-8')}\n"),
+        ("prohibited_test_from_import.py", "from unittest import mock\n"),
+        ("prohibited_test_magic.py", "from unittest.mock import MagicMock\n"),
     ]
 
     for fname, snippet in from_snippets:
@@ -541,12 +543,9 @@ def test_zero_mock_mandate_compliance() -> None:
     content = test_file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(test_file_path))
 
-    forbidden_mod_name = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    forbidden_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited_in_test: Set[str] = {
-        forbidden_mod_name,
-        forbidden_standalone,
+        "unittest.mock",
+        "mock",
     }
 
     for node in ast.walk(tree):

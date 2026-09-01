@@ -14,7 +14,6 @@ Validates:
 from __future__ import annotations
 
 import ast
-import base64
 import json
 import re
 from pathlib import Path
@@ -37,15 +36,11 @@ from setup.cochem_setup_orchestrator import (
 REPO_ROOT: Path = get_base_root()
 MANIFEST_PATH: Path = REPO_ROOT / "cochem_deployment_manifest.json"
 
-# Base64-encoded strings for forbidden test double modules to prevent static scanner false positives
-_B64_PROHIBITED_MODULES: List[bytes] = [
-    b"dW5pdHRlc3QubW9jaw==",
-    b"bW9jaw==",
-    b"cHl0ZXN0X21vY2s=",
-]
-
+# Prohibited test double module names for AST anti-spoofing verification
 PROHIBITED_IMPORT_NAMES: Set[str] = {
-    base64.b64decode(b).decode("utf-8") for b in _B64_PROHIBITED_MODULES
+    "unittest.mock",
+    "mock",
+    "pytest_mock",
 }
 
 # Complete list of expected downstream module identifiers in CoChem ecosystem
@@ -92,25 +87,21 @@ SHA256_HEX_REGEX = re.compile(r"^[a-f0-9]{64}$")
 SHA512_HEX_REGEX = re.compile(r"^[a-f0-9]{128}$")
 GIT_SHA1_HEX_REGEX = re.compile(r"^[a-f0-9]{40}$")
 
-# Base64-encoded forbidden sentinel tokens that indicate unpopulated or incomplete configuration
-_B64_SENTINEL_PATTERNS: List[bytes] = [
-    b"W01JU1NJTkcgREFUQV0=",
-    b"PFRPRE8+",
-    b"VE9ETw==",
-    b"RklYTUU=",
-    b"VEJE",
-    b"UExBQ0VIT0xERVI=",
-    b"U1RVQg==",
-    b"RFVNTVk=",
-    b"RkFLRQ==",
-    b"U1lOVEhFVElD",
-    b"VEVNUE9SQVJZ",
-    b"VU5ERUZJTkVE",
-    b"VU5QT1BVTEFURUQ=",
-]
-
+# Forbidden sentinel tokens that indicate unpopulated or incomplete configuration
 FORBIDDEN_SENTINEL_PATTERNS: List[str] = [
-    base64.b64decode(b).decode("utf-8") for b in _B64_SENTINEL_PATTERNS
+    "[MISSING DATA]",
+    "<TODO>",
+    "TODO",
+    "FIXME",
+    "TBD",
+    "PLACEHOLDER",
+    "STUB",
+    "DUMMY",
+    "FAKE",
+    "SYNTHETIC",
+    "TEMPORARY",
+    "UNDEFINED",
+    "UNPOPULATED",
 ]
 
 
@@ -317,7 +308,7 @@ def test_deployment_manifest_no_sentinel_or_unpopulated_tokens(
     for text_val in all_strings:
         assert len(text_val.strip()) > 0, "Encountered empty or whitespace-only string in manifest"
         for sentinel in FORBIDDEN_SENTINEL_PATTERNS:
-            assert sentinel.lower() != text_val.strip().lower(), (
+            assert sentinel.lower() not in text_val.lower(), (
                 f"Manifest contains forbidden unpopulated token '{sentinel}' in element '{text_val}'"
             )
 
@@ -386,11 +377,8 @@ def test_deployment_manifest_module_url_naming_consistency(
     for mod_name, url in repo_map.items():
         normalized_target = mod_name.lower()
         url_lower = url.lower().rstrip("/")
-        # Check that the URL basename contains the module name or recognized alias
-        if normalized_target == "spycfit":
-            valid_alias = "spycfit" in url_lower
-        else:
-            valid_alias = normalized_target in url_lower
+        # Check that the URL basename contains the normalized module name
+        valid_alias = normalized_target in url_lower
 
         if not valid_alias:
             mismatches.append((mod_name, url))
@@ -602,3 +590,12 @@ def test_deployment_manifest_test_suite_ast_anti_spoofing_sweep() -> None:
                 assert prohibited not in module_name.lower(), (
                     f"Forbidden test double import from '{module_name}' detected in {source_file.name}"
                 )
+            for alias in node.names:
+                full_imported = f"{module_name}.{alias.name}" if module_name else alias.name
+                for prohibited in PROHIBITED_IMPORT_NAMES:
+                    assert (
+                        prohibited not in full_imported.lower()
+                        and prohibited != alias.name.lower()
+                    ), (
+                        f"Forbidden test double import '{full_imported}' detected in {source_file.name}"
+                    )

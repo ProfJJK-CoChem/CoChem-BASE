@@ -1,0 +1,11 @@
+! GOAT XTB2 PAL2
+%goat
+  maxen 12.00
+  conftemp 298.15
+  confdegen auto
+  maxglobaliter 100
+  minglobaliter 3
+  gfnuphill
+  gfnff
+end
+* xyzfile 0 1 input.xyz

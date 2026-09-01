@@ -1,18 +1,21 @@
 """CoChem-GEOM: Equivariant Graph Neural Network (EGNN) Architecture & Layers.
 =============================================================================
 Provides production-grade implementation of E(n) / SE(3) / O(3) Equivariant Graph
-Neural Networks for 3D molecular conformers, potential energy surface (PES) modeling,
-and analytical force field derivation within the CoChem ecosystem.
+Neural Networks (Satorras et al., ICML 2021) for 3D molecular conformers, potential
+energy surface (PES) modeling, and analytical force field derivation within the
+CoChem ecosystem (CoChem-GEOM and CoChem-BASE).
 
 Theoretical Foundations & Physics Contracts:
-1. E(n) Equivariant Graph Neural Networks (Satorras et al., ICML 2021):
+1. E(n) Equivariant Graph Neural Networks (Satorras et al., 2021):
    - Invariant node feature messages:
      $$\\mathbf{m}_{ij} = \\phi_m(\\mathbf{h}_i, \\mathbf{h}_j, \\|\\mathbf{r}_i - \\mathbf{r}_j\\|^2, \\mathbf{a}_{ij}) \\quad [\\text{D}]$$
    - Equivariant coordinate updates:
-     $$\\mathbf{r}'_i = \\mathbf{r}_i + \\sum_{j \\in \\mathcal{N}(i)} (\\mathbf{r}_i - \\mathbf{r}_j) \\phi_x(\\mathbf{m}_{ij}) \\quad [\\text{D}]$$
-     * Note: $\\phi_x$ terminal linear layer strictly enforces `bias=False` to prevent translational drift.
+     $$\\mathbf{r}'_i = \\mathbf{r}_i + \\frac{1}{|\\mathcal{N}(i)|} \\sum_{j \\in \\mathcal{N}(i)} (\\mathbf{r}_i - \\mathbf{r}_j) \\phi_x(\\mathbf{m}_{ij}) \\quad [\\text{D}]$$
+     * Note: $\\phi_x$ terminal linear layer strictly enforces `bias=False` to prevent spontaneous coordinate drift [M].
+     * Coordinate aggregation uses `reduce='mean'` for numerical stability [M].
    - Invariant node representation updates:
      $$\\mathbf{h}'_i = \\mathbf{h}_i + \\phi_h\\left(\\mathbf{h}_i, \\sum_{j \\in \\mathcal{N}(i)} \\mathbf{m}_{ij}\\right) \\quad [\\text{D}]$$
+     * Node feature aggregation uses `reduce='sum'` for physical extensivity [M].
 
 2. Symmetries & Conservation Laws:
    - Scalar electronic energy is E(3)-invariant: $E(\\mathbf{r} \\mathbf{R}^T + \\mathbf{t}) = E(\\mathbf{r})$ [M].
@@ -25,6 +28,7 @@ Theoretical Foundations & Physics Contracts:
    - Mendeleev Library Mandate: Dynamic atomic mass & isotopic queries via `mendeleev.element`.
    - Pure State Immutability: Pure functional transformations (`pos_new = pos + update`).
    - Provenance Tagging: Explicitly tagged with [M] (Measured), [D] (Derived), [E] (Expert Estimate).
+   - Base3DGNN API Compliance: Subclass of Base3DGNN registered to ModelRegistry as 'egnn'.
 """
 
 from __future__ import annotations
@@ -52,7 +56,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.utils import scatter
 
+from cochem_geom.data.pyg_schema import ConformerData
 from cochem_geom.models.base_gnn import (
     DEFAULT_HIDDEN_CHANNELS,
     DEFAULT_MAX_Z,
@@ -60,28 +66,15 @@ from cochem_geom.models.base_gnn import (
     DEFAULT_NUM_RADIAL,
     DEFAULT_RBF_CUTOFF,
     Base3DGNN,
-    BaseGNNLayer,
-    ConformerInputContract,
+    BaseGNN,
     GNNForceOutput,
     GNNModelConfig,
     GNNOutput,
-    GNNPredictionContract,
-    RadialBasisExpansion,
-    apply_coordinate_delta,
     build_radius_graph,
-    center_coordinates,
-    compute_center_of_mass,
-    compute_moment_of_inertia_tensor,
-    compute_principal_rotational_constants,
     extract_gnn_inputs,
-    generate_random_so3_rotation,
-    get_atomic_masses,
-    resolve_dynamic_mass,
-    resolve_dynamic_monoisotopic_mass,
-    rotate_coordinates,
-    translate_coordinates,
-    verify_se3_equivariance,
 )
+from cochem_geom.models.layers.readout import EnergyReadout
+from cochem_geom.models.registry import ModelRegistry
 
 
 # ==============================================================================
@@ -101,7 +94,7 @@ def _get_activation(activation_name: str) -> nn.Module:
     nn.Module
         PyTorch activation module.
     """
-    act = activation_name.lower().strip()
+    act = str(activation_name).lower().strip()
     if act == "silu":
         return nn.SiLU()
     elif act == "relu":
@@ -115,7 +108,54 @@ def _get_activation(activation_name: str) -> nn.Module:
 
 
 # ==============================================================================
-# 2. EGNN Model Configuration Schema
+# 2. Dynamic Radius Graph Helper
+# ==============================================================================
+
+def _dynamic_radius_graph(
+    pos: torch.Tensor,
+    r: float,
+    batch: Optional[torch.Tensor] = None,
+    max_num_neighbors: int = 64,
+) -> torch.Tensor:
+    """Compute dynamic radius graph with robust fallback [D].
+
+    Parameters
+    ----------
+    pos : torch.Tensor
+        Cartesian coordinates [N, 3].
+    r : float
+        Radial cutoff distance in Angstroms [M].
+    batch : Optional[torch.Tensor]
+        Node-to-graph batch assignment index [N].
+    max_num_neighbors : int
+        Maximum allowable neighbors per node [E].
+
+    Returns
+    -------
+    torch.Tensor
+        Directed edge indices tensor [2, E] (row=target i, col=source j).
+    """
+    try:
+        from torch_geometric.nn import radius_graph as pyg_radius_graph
+        return pyg_radius_graph(
+            pos,
+            r=r,
+            batch=batch,
+            loop=False,
+            max_num_neighbors=max_num_neighbors,
+        )
+    except (ImportError, RuntimeError):
+        edge_index, _ = build_radius_graph(
+            pos=pos,
+            batch=batch,
+            cutoff=r,
+            max_num_neighbors=max_num_neighbors,
+        )
+        return edge_index
+
+
+# ==============================================================================
+# 3. EGNN Model Configuration Schema
 # ==============================================================================
 
 class EGNNModelConfig(GNNModelConfig):
@@ -140,24 +180,25 @@ class EGNNModelConfig(GNNModelConfig):
 
 
 # ==============================================================================
-# 3. Equivariant Graph Neural Network Layer (EGNNLayer)
+# 4. Equivariant Graph Neural Network Layer (EGNNLayer)
 # ==============================================================================
 
-class EGNNLayer(BaseGNNLayer):
-    """E(n) Equivariant Graph Neural Network Interaction Layer [D].
+class EGNNLayer(nn.Module):
+    """E(n) Equivariant Graph Neural Network Interaction Layer (Satorras et al., 2021) [D].
 
     Performs simultaneous equivariant Cartesian coordinate updates and invariant
-    latent node feature message passing following the Satorras et al. (2021) formulation:
+    latent node feature message passing:
 
-    $$\\mathbf{m}_{ij} = \\phi_m(\\mathbf{h}_i, \\mathbf{h}_j, \\|\\mathbf{r}_i - \\mathbf{r}_j\\|^2, \\mathbf{a}_{ij})$$
-    $$\\mathbf{r}'_i = \\mathbf{r}_i + \\sum_{j \\in \\mathcal{N}(i)} (\\mathbf{r}_i - \\mathbf{r}_j) \\phi_x(\\mathbf{m}_{ij})$$
-    $$\\mathbf{h}'_i = \\mathbf{h}_i + \\phi_h\\left(\\mathbf{h}_i, \\sum_{j \\in \\mathcal{N}(i)} \\mathbf{m}_{ij}\\right)$$
+    $$\\mathbf{m}_{ij} = \\phi_m(\\mathbf{h}_i, \\mathbf{h}_j, \\|\\mathbf{r}_i - \\mathbf{r}_j\\|^2, \\mathbf{a}_{ij}) \\quad [\\text{D}]$$
+    $$\\mathbf{r}'_i = \\mathbf{r}_i + \\frac{1}{|\\mathcal{N}(i)|} \\sum_{j \\in \\mathcal{N}(i)} (\\mathbf{r}_i - \\mathbf{r}_j) \\phi_x(\\mathbf{m}_{ij}) \\quad [\\text{D}]$$
+    $$\\mathbf{h}'_i = \\mathbf{h}_i + \\phi_h\\left(\\mathbf{h}_i, \\sum_{j \\in \\mathcal{N}(i)} \\mathbf{m}_{ij}\\right) \\quad [\\text{D}]$$
 
     Physics & Symmetry Invariants:
     - $\\phi_x$ terminal linear layer has `bias=False` to strictly prevent coordinate translation drift [M].
     - Functional state immutability: coordinates and features are updated via non-destructive additions [D].
     - Invariant to global SO(3) rotations and translations for node features $\\mathbf{h}$ [M].
     - Equivariant to global SO(3) rotations, reflections O(3), and translations for coordinates $\\mathbf{r}$ [M].
+    - Uses `torch_geometric.utils.scatter` with `reduce='mean'` for coordinates and `reduce='sum'` for node updates [M].
     """
 
     def __init__(
@@ -178,31 +219,33 @@ class EGNNLayer(BaseGNNLayer):
             Nonlinear activation function ('silu', 'relu', 'gelu', 'tanh') [E].
         """
         super().__init__()
-        self.hidden_channels = int(hidden_channels)
-        self.edge_feat_dim = int(edge_feat_dim)
-        self.activation = activation
+        self.hidden_channels: int = int(hidden_channels)
+        self.edge_feat_dim: int = int(edge_feat_dim)
+        self.activation_name: str = str(activation)
+
+        act_layer = _get_activation(activation)
 
         # Message network phi_m: [2 * hidden + 1 (dist_sq) + edge_feat_dim] -> hidden
-        msg_in_dim = hidden_channels * 2 + 1 + edge_feat_dim
-        self.message_mlp = nn.Sequential(
-            nn.Linear(msg_in_dim, hidden_channels),
-            _get_activation(activation),
-            nn.Linear(hidden_channels, hidden_channels),
+        msg_in_dim = self.hidden_channels * 2 + 1 + self.edge_feat_dim
+        self.message_mlp: nn.Sequential = nn.Sequential(
+            nn.Linear(msg_in_dim, self.hidden_channels),
+            act_layer,
+            nn.Linear(self.hidden_channels, self.hidden_channels),
             _get_activation(activation),
         )
 
-        # Coordinate network phi_x: hidden -> 1 (bias=False to preserve translational symmetry)
-        self.coord_mlp = nn.Sequential(
-            nn.Linear(hidden_channels, hidden_channels),
+        # Coordinate network phi_x: hidden -> 1 (bias=False strictly prevents translational drift [M])
+        self.coord_mlp: nn.Sequential = nn.Sequential(
+            nn.Linear(self.hidden_channels, self.hidden_channels),
             _get_activation(activation),
-            nn.Linear(hidden_channels, 1, bias=False),
+            nn.Linear(self.hidden_channels, 1, bias=False),
         )
 
         # Node feature update network phi_h: [2 * hidden] -> hidden
-        self.node_mlp = nn.Sequential(
-            nn.Linear(hidden_channels * 2, hidden_channels),
+        self.node_mlp: nn.Sequential = nn.Sequential(
+            nn.Linear(self.hidden_channels * 2, self.hidden_channels),
             _get_activation(activation),
-            nn.Linear(hidden_channels, hidden_channels),
+            nn.Linear(self.hidden_channels, self.hidden_channels),
         )
 
     def forward(
@@ -218,172 +261,224 @@ class EGNNLayer(BaseGNNLayer):
         Parameters
         ----------
         h : torch.Tensor
-            Invariant node latent representations of shape [N, hidden_channels].
+            Invariant node latent representations of shape `[N, hidden_channels]`.
         pos : torch.Tensor
-            Equivariant Cartesian coordinates of shape [N, 3].
+            Equivariant Cartesian coordinates of shape `[N, 3]`.
         edge_index : torch.Tensor
-            Pairwise directed edge indices [2, E] (src, dst).
+            Pairwise directed edge indices `[2, E]` (row=target i, col=source j).
         edge_attr : Optional[torch.Tensor]
-            Pairwise edge features of shape [E, edge_feat_dim].
+            Pairwise edge features of shape `[E, edge_feat_dim]`.
         **kwargs : Any
-            Additional keyword arguments.
+            Additional optional keyword arguments.
 
         Returns
         -------
         Tuple[torch.Tensor, torch.Tensor]
-            (h_new [N, hidden_channels], pos_new [N, 3])
+            `(h_new [N, hidden_channels], pos_new [N, 3])`
         """
+        num_nodes = pos.size(0)
         if edge_index.size(1) == 0:
-            # Handle empty edge graphs (e.g. isolated single atoms or no neighbors within cutoff)
             return h, pos
 
-        src, dst = edge_index[0], edge_index[1]
+        row, col = edge_index[0], edge_index[1]
 
-        # Vector displacement and squared Euclidean distance
-        diff = pos[src] - pos[dst]  # [E, 3]
+        # Vector displacement (r_i - r_j) and squared Euclidean distance
+        diff = pos[row] - pos[col]  # [E, 3]
         dist_sq = (diff ** 2).sum(dim=-1, keepdim=True)  # [E, 1]
 
         # Message input aggregation
         if edge_attr is not None:
-            msg_input = torch.cat([h[src], h[dst], dist_sq, edge_attr], dim=-1)
+            msg_input = torch.cat([h[row], h[col], dist_sq, edge_attr], dim=-1)
         else:
-            msg_input = torch.cat([h[src], h[dst], dist_sq], dim=-1)
+            msg_input = torch.cat([h[row], h[col], dist_sq], dim=-1)
 
-        msg = self.message_mlp(msg_input)  # [E, hidden]
+        msg = self.message_mlp(msg_input)  # [E, hidden_channels]
 
-        # 1. Equivariant Coordinate Update (r'_i = r_i + sum_j (r_i - r_j) * phi_x(m_ij))
+        # 1. Equivariant Coordinate Update (reduce='mean' for numerical stability [M])
         coord_weights = self.coord_mlp(msg)  # [E, 1]
         coord_messages = diff * coord_weights  # [E, 3]
+        coord_agg = scatter(coord_messages, row, dim=0, dim_size=num_nodes, reduce="mean")
+        pos_new = pos + coord_agg  # Pure functional immutable update [D]
 
-        coord_agg = torch.zeros_like(pos)
-        coord_agg.index_add_(0, dst, coord_messages)
-        pos_new = pos + coord_agg  # Pure functional immutable addition [D]
-
-        # 2. Invariant Node Feature Update (h'_i = h_i + phi_h(h_i, sum_j m_ij))
-        node_agg = torch.zeros_like(h)
-        node_agg.index_add_(0, dst, msg)
+        # 2. Invariant Node Feature Update (reduce='sum' for extensive physical properties [M])
+        node_agg = scatter(msg, row, dim=0, dim_size=num_nodes, reduce="sum")
         h_update = self.node_mlp(torch.cat([h, node_agg], dim=-1))
-        h_new = h + h_update  # Pure functional immutable addition [D]
+        h_new = h + h_update  # Pure functional immutable update [D]
 
         return h_new, pos_new
 
 
 # ==============================================================================
-# 4. Production Equivariant Graph Neural Network (EGNN) Architecture
+# 5. Production Equivariant Graph Neural Network (EGNN) Architecture
 # ==============================================================================
 
+@ModelRegistry.register("egnn")
 class EGNN(Base3DGNN):
-    """Production-grade Equivariant Graph Neural Network (EGNN) for Potential Energy Surfaces [D].
+    """Production-grade Equivariant Graph Neural Network (EGNN) (Satorras et al., 2021) [D].
 
+    Subclass of Base3DGNN registered to ModelRegistry as 'egnn'.
     Guarantees strict SE(3) / E(3) symmetry compliance:
     - Scalar potential energy $E(\\mathbf{r} \\mathbf{R}^T + \\mathbf{t}) = E(\\mathbf{r})$ is strictly invariant [M].
     - Coordinate update $\\mathbf{r}'(\\mathbf{r} \\mathbf{R}^T + \\mathbf{t}) = \\mathbf{r}'(\\mathbf{r}) \\mathbf{R}^T + \\mathbf{t}$ is equivariant [D].
     - Analytical force field $\\mathbf{F}(\\mathbf{r} \\mathbf{R}^T + \\mathbf{t}) = \\mathbf{F}(\\mathbf{r}) \\mathbf{R}^T$ is equivariant [D].
     - Conservation of net interatomic forces: $\\sum_i \\mathbf{F}_i = \\mathbf{0}$ [M].
+    - Pure functional coordinate propagation preserving autograd flow.
+
+    Parameters
+    ----------
+    hidden_channels : int
+        Dimension of latent node representations (default: 128) [E].
+    num_layers : int
+        Number of equivariant interaction blocks (default: 4) [E].
+    cutoff : float
+        Spatial interaction cutoff radius in Angstroms (default: 10.0) [M].
+    max_z : int
+        Maximum supported atomic number Z (default: 100) [D].
+    max_num_neighbors : int
+        Maximum allowable neighbors per node in radius graph (default: 64) [E].
+    edge_feat_dim : int
+        Dimension of optional auxiliary edge attribute features (default: 0) [E].
+    activation : str
+        Nonlinear activation function identifier (default: 'silu') [E].
+    aggr : str
+        Global aggregation operator (default: 'sum') [E].
+    config : Optional[Union[EGNNModelConfig, GNNModelConfig, Dict[str, Any]]]
+        Optional configuration schema object or dictionary.
     """
 
     def __init__(
         self,
+        hidden_channels: Union[int, EGNNModelConfig, GNNModelConfig, Dict[str, Any]] = DEFAULT_HIDDEN_CHANNELS,
+        num_layers: int = 4,
+        cutoff: float = 10.0,
+        max_z: int = DEFAULT_MAX_Z,
+        max_num_neighbors: int = 64,
+        edge_feat_dim: int = 0,
+        activation: str = "silu",
+        aggr: str = "sum",
         config: Optional[Union[EGNNModelConfig, GNNModelConfig, Dict[str, Any]]] = None,
+        **kwargs: Any,
     ) -> None:
-        """Initialize EGNN architecture with validated hyperparameter configuration.
+        if config is None and not isinstance(hidden_channels, (int, float)) and hasattr(hidden_channels, "hidden_channels"):
+            config = hidden_channels
+        elif config is None and isinstance(hidden_channels, dict):
+            config = hidden_channels
 
-        Parameters
-        ----------
-        config : Optional[Union[EGNNModelConfig, GNNModelConfig, Dict[str, Any]]]
-            Configuration object or dictionary specifying model parameters.
-        """
-        if config is None:
-            model_cfg = EGNNModelConfig()
-        elif isinstance(config, dict):
-            model_cfg = EGNNModelConfig(**config)
-        elif isinstance(config, EGNNModelConfig):
-            model_cfg = config
-        elif isinstance(config, GNNModelConfig):
-            model_cfg = EGNNModelConfig(**config.model_dump())
+        if config is not None:
+            if isinstance(config, (EGNNModelConfig, GNNModelConfig)) or hasattr(config, "hidden_channels"):
+                cfg = config
+                hidden_channels = getattr(config, "hidden_channels", DEFAULT_HIDDEN_CHANNELS)
+                num_layers = getattr(config, "num_layers", num_layers)
+                cutoff = getattr(config, "cutoff", cutoff)
+                max_z = getattr(config, "max_z", max_z)
+                activation = getattr(config, "activation", activation)
+                aggr = getattr(config, "aggr", aggr)
+                if hasattr(config, "edge_feat_dim"):
+                    edge_feat_dim = getattr(config, "edge_feat_dim")
+                if hasattr(config, "max_num_neighbors"):
+                    max_num_neighbors = getattr(config, "max_num_neighbors")
+            elif isinstance(config, dict):
+                hidden_channels = config.get("hidden_channels", hidden_channels if isinstance(hidden_channels, (int, float)) else DEFAULT_HIDDEN_CHANNELS)
+                num_layers = config.get("num_layers", num_layers)
+                cutoff = config.get("cutoff", cutoff)
+                max_z = config.get("max_z", max_z)
+                max_num_neighbors = config.get("max_num_neighbors", max_num_neighbors)
+                edge_feat_dim = config.get("edge_feat_dim", edge_feat_dim)
+                activation = config.get("activation", activation)
+                aggr = config.get("aggr", aggr)
+                cfg = EGNNModelConfig(
+                    hidden_channels=hidden_channels,
+                    num_layers=num_layers,
+                    cutoff=cutoff,
+                    max_z=max_z,
+                    edge_feat_dim=edge_feat_dim,
+                    activation=activation,
+                    aggr=aggr,
+                )
         else:
-            raise TypeError(f"Unsupported config type: {type(config)}")
-
-        super().__init__(config=model_cfg)
-        self.config: EGNNModelConfig = model_cfg
-
-        # Atomic number embedding layer [max_z + 1 -> hidden_channels]
-        self.embedding = nn.Embedding(self.config.max_z + 1, self.config.hidden_channels)
-
-        # Sequential equivariant interaction layers
-        self.layers = nn.ModuleList([
-            EGNNLayer(
-                hidden_channels=self.config.hidden_channels,
-                edge_feat_dim=self.config.edge_feat_dim,
-                activation=self.config.activation,
+            cfg = EGNNModelConfig(
+                hidden_channels=int(hidden_channels),
+                num_layers=int(num_layers),
+                cutoff=float(cutoff),
+                max_z=int(max_z),
+                edge_feat_dim=int(edge_feat_dim),
+                activation=str(activation),
+                aggr=str(aggr),
             )
-            for _ in range(self.config.num_layers)
+
+        super().__init__(config=cfg)
+        self.max_z: int = int(max_z)
+        self.num_layers: int = int(num_layers)
+        self.cutoff: float = float(cutoff)
+        self.max_num_neighbors: int = int(max_num_neighbors)
+        self.edge_feat_dim: int = int(edge_feat_dim)
+        self.activation_name: str = str(activation)
+        self.aggr: str = str(aggr)
+
+        self.layers: nn.ModuleList = nn.ModuleList([
+            EGNNLayer(
+                hidden_channels=self.hidden_channels,
+                edge_feat_dim=self.edge_feat_dim,
+                activation=self.activation_name,
+            )
+            for _ in range(self.num_layers)
         ])
 
-        # Atomic energy readout MLP: hidden -> hidden // 2 -> 1
-        act_layer = _get_activation(self.config.activation)
-        hidden_mid = max(self.config.hidden_channels // 2, 4)
-        self.readout = nn.Sequential(
-            nn.Linear(self.config.hidden_channels, hidden_mid),
-            act_layer,
-            nn.Linear(hidden_mid, 1),
+        self.readout: EnergyReadout = EnergyReadout(
+            hidden_channels=self.hidden_channels,
+            activation=self.activation_name,
+            aggr=self.aggr,
         )
 
     def forward(
         self,
-        data: Any,
+        data: Union[ConformerData, Dict[str, Any], Any],
     ) -> GNNOutput:
-        """Execute equivariant forward pass predicting atomic and total potential energies [D].
+        """Forward pass predicting total molecular electronic potential energy and updated coordinates [D].
 
         Parameters
         ----------
-        data : Any
-            Molecular graph data structure (MolecularData, ConformerData, dict, etc.)
-            containing 'pos' [N, 3], 'z' [N], and optional 'batch' [N], 'edge_index' [2, E].
+        data : Union[ConformerData, Dict[str, Any], Any]
+            Molecular graph data structure containing coordinates `pos` and atomic numbers `z`.
 
         Returns
         -------
         GNNOutput
-            Container with total energy [B, 1], atomic energies [N, 1], node features [N, hidden],
-            and updated equivariant coordinates [N, 3].
+            Standardized dataclass container with predicted scalar energy, atomic energies,
+            node features, and updated coordinates.
         """
-        pos, z, batch, edge_index, _ = extract_gnn_inputs(data)
+        pos, z, batch, edge_index, edge_attr = extract_gnn_inputs(data)
 
-        # Build pairwise radius graph within each molecule if not provided
+        # 0. Initial atomic embedding: discrete Z -> latent representation
+        h = self.atom_embedding(z)
+
+        # 1. Dynamic radius graph construction with max_num_neighbors
         if edge_index is None or edge_index.size(1) == 0:
-            edge_index, _ = self.build_radius_graph(pos, batch)
+            edge_index = _dynamic_radius_graph(
+                pos,
+                r=self.cutoff,
+                batch=batch,
+                max_num_neighbors=self.max_num_neighbors,
+            )
 
-        # Initial invariant atomic representations
-        h = self.embedding(z)
+        # 2. Sequential equivariant message passing & coordinate updates
         cur_pos = pos
-
-        # Sequential equivariant message passing
         for layer in self.layers:
-            h, cur_pos = layer(h, cur_pos, edge_index)
+            h, cur_pos = layer(h, cur_pos, edge_index, edge_attr=edge_attr)
 
-        # Readout atomic energy contributions
-        atomic_energies = self.readout(h)  # [N, 1]
-
-        # Aggregate atomic contributions per molecular graph in batch
-        num_graphs = int(batch.max().item() + 1) if batch.numel() > 0 else 1
-        total_energy = torch.zeros((num_graphs, 1), dtype=pos.dtype, device=pos.device)
-
-        if self.config.aggr == "mean":
-            counts = torch.zeros((num_graphs, 1), dtype=pos.dtype, device=pos.device)
-            ones = torch.ones_like(atomic_energies)
-            total_energy.index_add_(0, batch, atomic_energies)
-            counts.index_add_(0, batch, ones)
-            total_energy = total_energy / torch.clamp(counts, min=1.0)
-        else:
-            total_energy.index_add_(0, batch, atomic_energies)
+        # 3. Energy Readout via extensive additive pooling on final latent states
+        energy, atomic_energies = self.readout(h, batch, return_atomic=True)
 
         return GNNOutput(
-            energy=total_energy,
+            energy=energy,
             atomic_energies=atomic_energies,
             node_features=h,
             pos_updated=cur_pos,
         )
 
+
+# Register uppercase alias in ModelRegistry
+ModelRegistry.register("EGNN")(EGNN)
 
 # Backward-compatible aliases
 Equivariant3DGNN = EGNN

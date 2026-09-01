@@ -18,6 +18,7 @@ from .dataset import (
     get_default_data_dir,
 )
 from .featurizer import (
+    ALLOWED_ATOMS,
     ATOMIC_MASS_UNIT_KG,
     ATOMIC_NUMBER_TO_SYMBOL,
     BOHR_RADIUS_ANGSTROM,
@@ -56,6 +57,7 @@ from .featurizer import (
     eckart_align_molecular_data,
     ev_to_hartree,
     ev_to_kcal_mol,
+    featurize_topology,
     get_atomic_mass,
     get_covalent_radius_angstrom,
     get_isotopic_mass,
@@ -101,8 +103,19 @@ from .pyg_schema import (
     translate_conformer_data,
     validate_conformer_data,
 )
+from .datamodule import GEOMDataModule
+from .pes_store import PESStore
+from .transforms import (
+    CenterOfMassZeroing,
+    Compose,
+    EckartAlignment,
+    GaussianJitter,
+    RandomRotation,
+    TargetStandardize,
+)
 
 __all__ = [
+    "ALLOWED_ATOMS",
     "ATOMIC_MASS_UNIT_KG",
     "ATOMIC_NUMBER_TO_SYMBOL",
     "BOHR_RADIUS_ANGSTROM",
@@ -132,13 +145,18 @@ __all__ = [
     "SYMBOL_TO_ATOMIC_NUMBER",
     "BaseTransform",
     "CenterOfMassTransform",
+    "CenterOfMassZeroing",
+    "Compose",
     "ComposeTransforms",
     "ConformerData",
     "ConformerRecord",
+    "EckartAlignment",
     "EckartAlignmentTransform",
+    "GEOMDataModule",
     "GEOMDatasetFactory",
     "GEOMInMemoryDataset",
     "GEOMIterableDataset",
+    "GaussianJitter",
     "GaussianJitterTransform",
     "MolecularBatch",
     "MolecularData",
@@ -147,9 +165,12 @@ __all__ = [
     "MolecularInput",
     "MoleculeRecord",
     "NormalizeTargetsTransform",
+    "PESStore",
     "QMOutputRecord",
+    "RandomRotation",
     "RandomRotationTransform",
     "SchemaValidationError",
+    "TargetStandardize",
     "batch_conformer_data",
     "build_radius_graph",
     "calculate_boltzmann_weights",
@@ -170,6 +191,7 @@ __all__ = [
     "ensemble_to_molecular_data",
     "ev_to_hartree",
     "ev_to_kcal_mol",
+    "featurize_topology",
     "geom_collate_fn",
     "get_atomic_mass",
     "get_covalent_radius_angstrom",

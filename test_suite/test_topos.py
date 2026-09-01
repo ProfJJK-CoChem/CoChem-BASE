@@ -1,0 +1,399 @@
+"""Comprehensive unit and integration test suite for CoChem-TOPOS Tab & Conformer Engine.
+
+Validates:
+- Physical constants, IUPAC elemental data, and AtomCoordinate instantiation.
+- Concrete physical molecular geometry parsers (XYZ, PDB, MDL Molfile).
+- Covalent bond topology and interatomic distance determination.
+- Center-of-mass, moment of inertia tensor diagonalization, and rotational constants (A, B, C).
+- Thermodynamic Boltzmann population weighting and Method Matrix v4 compliance.
+- Pydantic ToposConformerConfig schema validation and constraint enforcement.
+- ToposViewer3D rendering, style switching, scene clearance, and safe fallback.
+- ToposWorker background execution, cancellation, and signal propagation.
+- ToposTab UI lifecycle, structure loading, metrics display, conformer table interaction, and cleanup.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+from PySide6.QtWidgets import QApplication
+
+from cochem_base.gui.topos import (
+    AtomCoordinate,
+    ConformerData,
+    ToposConformerConfig,
+    ToposTab,
+    ToposViewer3D,
+    ToposWorker,
+    calculate_boltzmann_populations,
+    load_structure_from_file,
+    parse_mol_string,
+    parse_pdb_string,
+    parse_xyz_string,
+)
+
+
+@pytest.fixture(scope="module")
+def qapp() -> QApplication:
+    """Ensure a singleton QApplication instance is active for Qt-based Topos tests."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    return app
+
+
+# Sample Physical Geometries
+SAMPLE_WATER_XYZ = """3
+Water molecule
+O   0.000000   0.000000   0.117300
+H   0.000000   0.757200  -0.469200
+H   0.000000  -0.757200  -0.469200
+"""
+
+SAMPLE_METHANE_XYZ = """5
+Methane molecule
+C   0.000000   0.000000   0.000000
+H   0.629118   0.629118   0.629118
+H  -0.629118  -0.629118   0.629118
+H   0.629118  -0.629118  -0.629118
+H  -0.629118   0.629118  -0.629118
+"""
+
+SAMPLE_ETHANOL_PDB = """HEADER    ETHANOL
+HETATM    1  C1  ETH A   1       0.000   0.000   0.000  1.00  0.00           C
+HETATM    2  C2  ETH A   1       1.500   0.000   0.000  1.00  0.00           C
+HETATM    3  O   ETH A   1       2.000   1.200   0.000  1.00  0.00           O
+HETATM    4  H1  ETH A   1      -0.400   0.900   0.000  1.00  0.00           H
+HETATM    5  H2  ETH A   1      -0.400  -0.500   0.800  1.00  0.00           H
+HETATM    6  H3  ETH A   1      -0.400  -0.500  -0.800  1.00  0.00           H
+HETATM    7  H4  ETH A   1       1.900  -0.500   0.800  1.00  0.00           H
+HETATM    8  H5  ETH A   1       1.900  -0.500  -0.800  1.00  0.00           H
+HETATM    9  HO  ETH A   1       2.950   1.200   0.000  1.00  0.00           H
+END
+"""
+
+SAMPLE_FORMALDEHYDE_MOL = """Formaldehyde
+  ChemDraw08182612002D
+
+  4  3  0  0  0  0  0  0  0  0999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    0.0000    1.2100    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+   -0.9400   -0.5400    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+    0.9400   -0.5400    0.0000 H   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0  0  0  0
+  1  3  1  0  0  0  0
+  1  4  1  0  0  0  0
+M  END
+"""
+
+
+# =============================================================================
+# 1. Elemental & Physical Data Unit Tests
+# =============================================================================
+
+
+class TestElementalAndPhysicalData:
+    """Test suite for physical elemental tables and AtomCoordinate models."""
+
+    def test_atom_coordinate_creation_known_element(self) -> None:
+        """Verify AtomCoordinate properties populated for Carbon, Oxygen, Hydrogen."""
+        c = AtomCoordinate.create("C", 1.0, 2.0, 3.0)
+        assert c.symbol == "C"
+        assert c.atomic_number == 6
+        assert c.mass == 12.0
+        assert c.covalent_radius == 0.76
+        assert c.color_hex == "#909090"
+        assert (c.x, c.y, c.z) == (1.0, 2.0, 3.0)
+
+        o = AtomCoordinate.create("O", 0.0, 0.0, 0.0)
+        assert o.symbol == "O"
+        assert o.atomic_number == 8
+        assert abs(o.mass - 15.9949) < 0.01
+        assert o.color_hex == "#FF0D0D"
+
+        h = AtomCoordinate.create("h", 0.0, 0.0, 1.0)
+        assert h.symbol == "H"
+        assert h.atomic_number == 1
+        assert abs(h.mass - 1.0078) < 0.01
+        assert h.color_hex == "#FFFFFF"
+
+    def test_atom_coordinate_unknown_element_fallback(self) -> None:
+        """Verify graceful fallback for unknown or generic elements."""
+        x = AtomCoordinate.create("Xx", 0.0, 0.0, 0.0)
+        assert x.symbol == "Xx"
+        assert x.atomic_number == 0
+        assert x.mass == 12.0
+        assert x.covalent_radius == 0.77
+
+
+# =============================================================================
+# 2. Molecular Geometry Parsers & Mathematics Tests
+# =============================================================================
+
+
+class TestMolecularParsersAndMath:
+    """Test suite for physical coordinate parsers, bonding, and rotational constants."""
+
+    def test_parse_xyz_water(self) -> None:
+        """Verify XYZ parser correctly constructs water molecule with bonds and metrics."""
+        struct = parse_xyz_string(SAMPLE_WATER_XYZ, title="Water")
+        assert struct.title == "Water molecule"
+        assert len(struct.atoms) == 3
+        assert struct.formula == "H2O"
+        assert abs(struct.total_mass_amu - 18.0105) < 0.01
+
+        # Check bonds: should have 2 O-H bonds
+        assert len(struct.bonds) == 2
+        for b in struct.bonds:
+            assert 0.90 < b.length_angstrom < 1.05
+
+        # Check rotational constants
+        a, b, c = struct.rotational_constants_mhz
+        assert a > b > c > 0.0
+        # Water experimental A ~ 820 GHz, B ~ 437 GHz, C ~ 285 GHz
+        assert a > 500000.0
+        assert b > 300000.0
+        assert c > 200000.0
+
+    def test_parse_xyz_methane(self) -> None:
+        """Verify XYZ parser on tetrahedral methane molecule."""
+        struct = parse_xyz_string(SAMPLE_METHANE_XYZ, title="Methane")
+        assert struct.formula == "CH4"
+        assert len(struct.atoms) == 5
+        assert len(struct.bonds) == 4  # 4 C-H bonds
+        # Spherical top: Ia ~ Ib ~ Ic, so A ~ B ~ C
+        a, b, c = struct.rotational_constants_mhz
+        assert abs(a - b) < 100.0
+        assert abs(b - c) < 100.0
+
+    def test_parse_pdb_ethanol(self) -> None:
+        """Verify PDB parser extracting ATOM/HETATM coordinates."""
+        struct = parse_pdb_string(SAMPLE_ETHANOL_PDB, title="Ethanol")
+        assert struct.formula == "C2H6O"
+        assert len(struct.atoms) == 9
+        assert len(struct.bonds) >= 8
+        assert abs(struct.total_mass_amu - 46.069) < 0.05
+
+    def test_parse_mol_formaldehyde(self) -> None:
+        """Verify MDL Molfile V2000 parser."""
+        struct = parse_mol_string(SAMPLE_FORMALDEHYDE_MOL, title="Formaldehyde")
+        assert struct.formula == "CH2O"
+        assert len(struct.atoms) == 4
+        assert len(struct.bonds) == 3
+        # Check C=O double bond
+        co_bonds = [b for b in struct.bonds if b.bond_order == 2]
+        assert len(co_bonds) == 1
+
+    def test_load_structure_from_file_roundtrip(self, tmp_path: Path) -> None:
+        """Verify loading XYZ structure from temporary file."""
+        xyz_file = tmp_path / "water_test.xyz"
+        xyz_file.write_text(SAMPLE_WATER_XYZ, encoding="utf-8")
+
+        struct = load_structure_from_file(xyz_file)
+        assert struct.formula == "H2O"
+        assert len(struct.atoms) == 3
+
+    def test_load_structure_file_not_found(self, tmp_path: Path) -> None:
+        """Verify FileNotFoundError when target structure file is missing."""
+        missing = tmp_path / "non_existent.xyz"
+        with pytest.raises(FileNotFoundError):
+            load_structure_from_file(missing)
+
+
+# =============================================================================
+# 3. Thermodynamic Boltzmann & Configuration Model Tests
+# =============================================================================
+
+
+class TestThermodynamicAndConfigModels:
+    """Test suite for Boltzmann population weighting and ToposConformerConfig."""
+
+    def test_boltzmann_population_calculation(self) -> None:
+        """Verify Boltzmann weights decrease monotonically with relative energy."""
+        energies = [0.0, 1.0, 2.5]
+        weights = calculate_boltzmann_populations(energies, temperature_k=298.15)
+        assert len(weights) == 3
+        assert abs(sum(weights) - 1.0) < 1e-4
+        assert weights[0] > weights[1] > weights[2]
+
+    def test_boltzmann_empty_input(self) -> None:
+        """Verify empty energy input returns empty list."""
+        assert calculate_boltzmann_populations([]) == []
+
+    def test_topos_conformer_config_validation_valid(self) -> None:
+        """Verify valid ToposConformerConfig instantiation."""
+        cfg = ToposConformerConfig(
+            input_source="C1=CC=CC=C1",
+            temperature_k=300.0,
+            pressure_atm=2.0,
+            multiplicity=1,
+            charge=0,
+            s_squared_threshold=0.08,
+            method="CREST_ORCA_GOAT",
+            energy_window_kcal=5.0,
+            max_conformers=20,
+        )
+        assert cfg.temperature_k == 300.0
+        assert cfg.method == "CREST_ORCA_GOAT"
+
+    def test_topos_conformer_config_invalid_temperature(self) -> None:
+        """Verify rejection of unphysical temperatures (T <= 0)."""
+        with pytest.raises(ValidationError):
+            ToposConformerConfig(temperature_k=-10.0)
+
+    def test_topos_conformer_config_invalid_method(self) -> None:
+        """Verify rejection of non-compliant conformer algorithms."""
+        with pytest.raises(ValidationError):
+            ToposConformerConfig(method="RANDOM_GUESS")
+
+
+# =============================================================================
+# 4. 3D Visualizer & Worker Subsystem Tests
+# =============================================================================
+
+
+@pytest.mark.usefixtures("qapp")
+class TestVisualizerAndWorker:
+    """Test suite for ToposViewer3D and background ToposWorker thread."""
+
+    def test_topos_viewer_initialization_and_styles(self, qapp: QApplication) -> None:
+        """Verify ToposViewer3D initialization and style rendering."""
+        viewer = ToposViewer3D()
+        struct = parse_xyz_string(SAMPLE_WATER_XYZ)
+
+        # Test rendering across styles
+        viewer.render_structure(struct, style="ball_and_stick")
+        viewer.render_structure(struct, style="space_filling")
+        viewer.render_structure(struct, style="wireframe")
+
+        viewer.reset_camera()
+        viewer.clear_scene()
+        viewer.cleanup()
+
+    def test_topos_worker_execution(self, qapp: QApplication) -> None:
+        """Verify ToposWorker explores conformers and emits signals correctly."""
+        struct = parse_xyz_string(SAMPLE_METHANE_XYZ)
+        cfg = ToposConformerConfig(
+            temperature_k=298.15,
+            pressure_atm=1.0,
+            multiplicity=1,
+            charge=0,
+            method="CREST_ORCA_GOAT",
+            energy_window_kcal=6.0,
+        )
+
+        worker = ToposWorker(config=cfg, initial_structure=struct)
+        discovered: list[ConformerData] = []
+        finished_list: list[list[ConformerData]] = []
+
+        worker.conformer_discovered.connect(lambda c: discovered.append(c))
+        worker.search_finished.connect(lambda lst: finished_list.append(lst))
+
+        # Execute run synchronously for deterministic test assertion
+        worker.run()
+
+        assert len(discovered) >= 1
+        assert len(finished_list) == 1
+        ground = finished_list[0][0]
+        assert ground.conformer_id == 1
+        assert ground.delta_energy_kcal == 0.0
+        assert ground.boltzmann_weight > 0.0
+
+    def test_topos_worker_missing_geometry_error(self, qapp: QApplication) -> None:
+        """Verify ToposWorker emits error signal when no geometry is provided."""
+        cfg = ToposConformerConfig(input_source="")
+        worker = ToposWorker(config=cfg, initial_structure=None)
+        errors: list[str] = []
+        worker.search_error.connect(lambda err: errors.append(err))
+
+        worker.run()
+        assert len(errors) == 1
+        assert "[MISSING DATA]" in errors[0]
+
+
+# =============================================================================
+# 5. ToposTab Primary GUI Interface Tests
+# =============================================================================
+
+
+@pytest.mark.usefixtures("qapp")
+class TestToposTabWidget:
+    """Test suite for ToposTab graphical controls and signal handling."""
+
+    def test_topos_tab_initialization(self, qapp: QApplication) -> None:
+        """Verify ToposTab instantiates cleanly with default controls."""
+        tab = ToposTab()
+        try:
+            assert tab.combo_method.count() == 3
+            assert tab.spin_temp.value() == 298.15
+            assert tab.spin_pressure.value() == 1.00
+            assert tab.spin_multiplicity.value() == 1
+            assert tab.table_conformers.columnCount() == 7
+            assert tab.btn_generate.isEnabled()
+            assert not tab.btn_cancel.isEnabled()
+        finally:
+            tab.cleanup()
+
+    def test_topos_tab_load_structure(self, tmp_path: Path, qapp: QApplication) -> None:
+        """Verify load_structure updates UI labels and metrics."""
+        tab = ToposTab()
+        try:
+            xyz_file = tmp_path / "water.xyz"
+            xyz_file.write_text(SAMPLE_WATER_XYZ, encoding="utf-8")
+
+            tab.load_structure(xyz_file)
+            assert tab.active_structure is not None
+            assert tab.active_structure.formula == "H2O"
+            assert "H2O" in tab.lbl_formula.text()
+            assert "3 / 2" in tab.lbl_atom_count.text()
+            assert "18.01" in tab.lbl_mass.text()
+
+            # Test clear
+            tab._on_clear_view_clicked()
+            assert tab.active_structure is None
+            assert "0 / 0" in tab.lbl_atom_count.text()
+        finally:
+            tab.cleanup()
+
+    def test_topos_tab_conformer_table_workflow(
+        self, tmp_path: Path, qapp: QApplication
+    ) -> None:
+        """Verify complete conformer discovery and table row selection."""
+        tab = ToposTab()
+        try:
+            xyz_file = tmp_path / "methane.xyz"
+            xyz_file.write_text(SAMPLE_METHANE_XYZ, encoding="utf-8")
+            tab.load_structure(xyz_file)
+
+            # Trigger conformer generation directly via worker callback simulation
+            ground_conf = ConformerData(
+                conformer_id=1,
+                label="Methane_conf_1",
+                energy_hartree=-40.5000,
+                delta_energy_kcal=0.0,
+                boltzmann_weight=1.0,
+                rotational_constants_mhz=(157000.0, 157000.0, 157000.0),
+                dipole_moment_debye=0.0,
+                structure=tab.active_structure,
+                xyz_block=SAMPLE_METHANE_XYZ,
+            )
+
+            tab._on_conformer_discovered(ground_conf)
+            assert tab.table_conformers.rowCount() == 1
+
+            tab._on_worker_finished([ground_conf])
+            assert tab.btn_export_conformers.isEnabled()
+
+            # Test row selection
+            tab.table_conformers.selectRow(0)
+            assert "157000.00" in tab.lbl_rot_constants.text()
+        finally:
+            tab.cleanup()
+
+    def test_topos_tab_cleanup_on_close(self, qapp: QApplication) -> None:
+        """Verify closeEvent cleans up background workers and VTK plotter."""
+        tab = ToposTab()
+        tab.close()

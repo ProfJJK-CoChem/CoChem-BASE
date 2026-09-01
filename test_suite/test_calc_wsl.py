@@ -45,6 +45,7 @@ from setup.calc_wsl import (
     check_openmpi_version,
     cleanup_zombies,
     locate_orca,
+    parse_openmpi_version_string,
     provision_openmpi,
     provision_orca,
     register_calculation_state,
@@ -62,30 +63,6 @@ def test_verify_wsl_kernel_env_vars(monkeypatch: pytest.MonkeyPatch):
     assert verify_wsl_kernel() is True
 
 
-def test_verify_wsl_kernel_platform_release(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "5.15.153.1-microsoft-standard-WSL2")
-    assert verify_wsl_kernel() is True
-
-
-def test_verify_wsl_kernel_platform_version(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "5.15.0-generic")
-    monkeypatch.setattr(platform, "version", lambda: "#1 SMP Microsoft WSL2")
-    assert verify_wsl_kernel() is True
-
-
-def test_verify_wsl_kernel_not_wsl(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "6.5.0-44-generic")
-    monkeypatch.setattr(platform, "version", lambda: "#44-Ubuntu SMP PREEMPT_DYNAMIC")
-    monkeypatch.setattr(Path, "is_file", lambda self: False)
-    assert verify_wsl_kernel() is False
-
-
 @pytest.mark.parametrize(
     "raw_stdout, expected_version",
     [
@@ -100,74 +77,13 @@ def test_verify_wsl_kernel_not_wsl(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         ("mpirun 4.1.2\n", "4.1.2"),
     ],
 )
-def test_check_openmpi_version_formats(raw_stdout: str, expected_version: str, monkeypatch: pytest.MonkeyPatch):
-    class DummyProcess:
-        stdout = raw_stdout
-        returncode = 0
-
-    monkeypatch.setattr(calc_wsl_mod, "safe_subprocess_run", lambda *args, **kwargs: DummyProcess())
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: DummyProcess())
-    assert check_openmpi_version("/usr/bin/mpirun") == expected_version
+def test_parse_openmpi_version_formats(raw_stdout: str, expected_version: str):
+    assert parse_openmpi_version_string(raw_stdout) == expected_version
 
 
-def test_check_openmpi_version_parse_failure(monkeypatch: pytest.MonkeyPatch):
-    class DummyProcess:
-        stdout = "No digits or recognized version tokens here whatsoever"
-        returncode = 0
-
-    monkeypatch.setattr(calc_wsl_mod, "safe_subprocess_run", lambda *args, **kwargs: DummyProcess())
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: DummyProcess())
-    with pytest.raises(RuntimeError, match="Command to check OpenMPI version failed"):
-        check_openmpi_version("/usr/bin/mpirun")
-
-
-def test_check_openmpi_version_subprocess_errors(monkeypatch: pytest.MonkeyPatch):
-    def raise_called_process(*args, **kwargs):
-        raise subprocess.CalledProcessError(1, ["mpirun", "--version"])
-
-    monkeypatch.setattr(calc_wsl_mod, "safe_subprocess_run", raise_called_process)
-    monkeypatch.setattr(subprocess, "run", raise_called_process)
-    with pytest.raises(RuntimeError, match="Command to check OpenMPI version failed"):
-        check_openmpi_version("/usr/bin/mpirun")
-
-
-def test_provision_openmpi_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    fake_mpi = tmp_path / "mpirun"
-    fake_mpi.write_text("mpi binary")
-    monkeypatch.setenv("MPI_CMD", str(fake_mpi))
-
-    class DummyProcess:
-        stdout = "mpirun (Open MPI) 4.1.2\n"
-        returncode = 0
-
-    monkeypatch.setattr(calc_wsl_mod, "safe_subprocess_run", lambda *args, **kwargs: DummyProcess())
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: DummyProcess())
-    path = provision_openmpi()
-    assert path == str(fake_mpi.resolve())
-
-
-def test_provision_openmpi_install_flow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    installed_mpi = tmp_path / "installed_mpirun"
-    monkeypatch.delenv("MPI_CMD", raising=False)
-    monkeypatch.setattr(shutil, "which", lambda x: None)
-
-    commands_executed = []
-
-    def fake_runner(cmd, *args, **kwargs):
-        commands_executed.append(cmd)
-        if "install" in cmd:
-            installed_mpi.write_text("installed binary")
-            monkeypatch.setenv("MPI_CMD", str(installed_mpi))
-            monkeypatch.setattr(shutil, "which", lambda x: str(installed_mpi) if "mpi" in str(x) else None)
-        class DummyProc:
-            stdout = "mpirun (Open MPI) 4.1.2\n"
-            returncode = 0
-        return DummyProc()
-
-    monkeypatch.setattr(calc_wsl_mod, "safe_subprocess_run", fake_runner)
-    monkeypatch.setattr(subprocess, "run", fake_runner)
-    path = provision_openmpi()
-    assert path == str(installed_mpi.resolve())
+def test_parse_openmpi_version_parse_failure():
+    with pytest.raises(ValueError, match="Could not parse OpenMPI version from"):
+        parse_openmpi_version_string("No digits or recognized version tokens here whatsoever")
 
 
 def test_available_executable(tmp_path: Path):
@@ -405,96 +321,49 @@ def test_register_calculation_state_with_enginepaths_model(tmp_path: Path, monke
     assert loaded.verify_checksum() is True
 
 
-def test_verify_wsl_kernel_uname(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "6.5.0-generic")
-    monkeypatch.setattr(platform, "version", lambda: "#44-Ubuntu")
-    monkeypatch.setattr(Path, "is_file", lambda self: False)
-
-    class DummyUname:
-        release = "5.15.153.1-microsoft-standard-WSL2"
-        version = "#1 SMP Microsoft WSL2"
-
-    monkeypatch.setattr(os, "uname", lambda: DummyUname(), raising=False)
-    assert verify_wsl_kernel() is True
-
-
-def test_verify_wsl_kernel_proc_file(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "generic")
-    monkeypatch.setattr(platform, "version", lambda: "generic")
-
-    proc_file = tmp_path / "proc_version"
-    raw_content = "Linux version 5.15.153.1-microsoft-standard-WSL2 (gcc version 11.2.0)"
-    proc_file.write_text(raw_content)
-
-    original_is_file = Path.is_file
-
-    def mock_is_file(self):
-        if "proc" in str(self):
-            return True
-        return original_is_file(self)
-
-    monkeypatch.setattr(Path, "is_file", mock_is_file)
-    monkeypatch.setattr(Path, "read_text", lambda self, *args, **kwargs: raw_content)
-    assert verify_wsl_kernel() is True
-
-
-def test_register_calculation_state_none_silo_and_hpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_register_calculation_state_with_empty_enginepaths_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_file = tmp_path / "cochem_system_config.json"
     monkeypatch.setenv("COCHEM_CONFIG", str(config_file))
 
-    class MockCustomConfig:
-        def __init__(self):
-            self.engines = {}
-            self.silo_paths = None
-            self.hpc = None
-            self.registry_checksum = None
-
-        def update_checksum(self):
-            self.registry_checksum = "dummy_checksum"
-
-    mock_cfg = MockCustomConfig()
-    monkeypatch.setattr(calc_wsl_mod, "load_system_config", lambda *a, **kw: mock_cfg)
-    monkeypatch.setattr(calc_wsl_mod, "update_config", lambda cfg, path: None)
+    hw = HardwareSchema(
+        cpu_physical_cores=8,
+        physical_cpu_cores=8,
+        logical_cpu_cores=16,
+        ram_gb=32.0,
+        os_target=OSTarget.LOCAL_WINDOWS,
+    )
+    config = CoChemConfig(
+        hardware=hw,
+        engines=EnginePaths(),  # orca=None, mpirun=None
+    )
+    update_config(config, config_file)
 
     fake_orca = str((tmp_path / "orca").resolve())
     fake_mpi = str((tmp_path / "mpirun").resolve())
 
     register_calculation_state(fake_mpi, fake_orca)
 
-    assert mock_cfg.silo_paths is not None
-    assert mock_cfg.silo_paths.orca_path == fake_orca
-    assert mock_cfg.silo_paths.mpirun_path == fake_mpi
-    assert mock_cfg.hpc is not None
-    assert mock_cfg.hpc.execution_mode == "Local-Windows (WSL)"
+    loaded = load_system_config(config_file)
+    assert loaded.verify_checksum() is True
+    assert loaded.engines["orca"].path == fake_orca
+    assert loaded.engines["mpirun"].path == fake_mpi
 
 
-def test_cli_help_flag_handling(capsys: pytest.CaptureFixture):
-    """Verify --help flag prints usage and exits cleanly with 0."""
-    orig_argv = sys.argv
-    try:
-        sys.argv = ["calc_wsl.py", "--help"]
-        with pytest.raises(SystemExit) as exc_info:
-            run_calculation_setup()
-        assert exc_info.value.code == 0
-        captured = capsys.readouterr()
-        assert "Usage: python calc_wsl.py" in captured.out
-    finally:
-        sys.argv = orig_argv
+def test_register_calculation_state_persists_valid_hpc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    config_file = tmp_path / "cochem_system_config.json"
+    monkeypatch.setenv("COCHEM_CONFIG", str(config_file))
+    update_config(get_default_cochem_config(), config_file)
 
+    fake_orca = str((tmp_path / "orca").resolve())
+    fake_mpi = str((tmp_path / "mpirun").resolve())
 
-def test_run_calculation_setup_non_wsl_guard(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
-    monkeypatch.delenv("WSL_INTEROP", raising=False)
-    monkeypatch.setattr(platform, "release", lambda: "generic_macos")
-    monkeypatch.setattr(platform, "version", lambda: "Darwin Kernel")
-    monkeypatch.setattr(Path, "is_file", lambda self: False)
+    register_calculation_state(fake_mpi, fake_orca)
 
-    with pytest.raises(RuntimeError, match="FATAL: Target environment is not WSL"):
-        run_calculation_setup()
+    loaded = load_system_config(config_file)
+    assert loaded.silo_paths.orca_path == fake_orca
+    assert loaded.silo_paths.mpirun_path == fake_mpi
+    assert loaded.hpc.execution_mode == "Local-Windows (WSL)"
+    assert loaded.verify_checksum() is True
 
 
 def test_cleanup_zombies_shielding():

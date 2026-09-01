@@ -1,0 +1,10 @@
+{
+    "hashes": {
+        "ci_tools/ci_airgap_sweep.py": "365445ed2a682d3f17528b66c7fb08d58b943d8b8c2e1b2f1e03d4d944eb88d8",
+        "ci_tools/verify_core_integrity.py": "358f82d41b50bb15585a23453fd4d76746a614d41f49f6de43fe7c6b4fcad99e",
+        "ci_tools/__init__.py": "8e1c2caf17ff55969f721556db7722ebf22534678514c38a7f7c670a5817e95b",
+        "core/cochem_scribe_master.py": "054af5b5c0a3f11f3c978ec9f4d809e0d336da708b15030dc1625bce92b409cf",
+        "core/test_cochem_scribe_master.py": "2f0de750058efec2ce210cdf2243f29f6f04a2ad327466e2b1f7992585d1ae90",
+        "core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+}

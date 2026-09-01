@@ -1,0 +1,14 @@
+# CoChem-GEOM Data Configuration for GEOM QM9
+# Complies with Method Matrix v4, SRS Task 41, and Zero-Mock Mandate
+
+dataset_name: "geom_qm9"
+
+module:
+  _target_: cochem_geom.data.datamodule.GEOMDataModule
+  lmdb_path: "${core.work_dir}/data/processed/geom_qm9.lmdb"
+  split_json_path: "${core.work_dir}/data/splits/qm9_splits.json"
+  batch_size: 128  # [E]
+  num_workers: 4  # [E]
+  pin_memory: True  # [E]
+  target_mean: -400.0  # [M]
+  target_std: 25.0  # [M]

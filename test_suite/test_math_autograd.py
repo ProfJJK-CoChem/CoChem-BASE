@@ -157,7 +157,11 @@ def test_coulomb_field_and_force_wrappers() -> None:
     pos1 = (0.0, 0.0, 0.0)
     pos2 = (1e-9, 0.0, 0.0)
     fx, fy, fz = coulomb_force(q, q, pos1=pos1, pos2=pos2)
-    assert fx > 0.0
+    expected_f = COULOMB_CONSTANT * q * q / ((1e-9) ** 2)
+    assert math.isclose(fx, -expected_f, rel_tol=1e-7)
+    assert fx < 0.0
+    assert math.isclose(fy, 0.0, abs_tol=1e-15)
+    assert math.isclose(fz, 0.0, abs_tol=1e-15)
 
     # Invalid dimension lengths
     with pytest.raises(ValueError, match="Cartesian position vectors must have length 3"):
@@ -239,8 +243,24 @@ def test_dual_number_powers_and_elementary_functions() -> None:
     assert pz.real == 0.0
     assert pz.dual == 0.0
 
-    with pytest.raises(ValueError, match="Derivative undefined for non-positive power at zero"):
+    pz1 = z**1.0
+    assert pz1.real == 0.0
+    assert pz1.dual == 1.0
+
+    # Fractional power 0 < p < 1 has singular derivative at zero
+    with pytest.raises(ValueError, match="Derivative undefined for power < 1 at zero"):
         _ = z**0.5
+
+    # Non-positive powers at zero are also undefined
+    with pytest.raises(ValueError, match="Derivative undefined for power < 1 at zero"):
+        _ = z**0.0
+
+    with pytest.raises(ValueError, match="Derivative undefined for power < 1 at zero"):
+        _ = z ** (-1.0)
+
+    # Fractional power with negative base
+    with pytest.raises(ValueError, match="Fractional power undefined for negative dual number base"):
+        _ = DualNumber(-2.0, 1.0) ** 0.5
 
     # Sqrt: d/dx (sqrt(x)) at x=4 -> 1 / (2*sqrt(4)) = 0.25
     x4 = DualNumber(4.0, 1.0)

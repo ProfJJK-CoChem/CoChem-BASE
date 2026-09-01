@@ -630,8 +630,8 @@ def test_audit_ipc_and_mps_security_clean_environment() -> None:
     assert audit.ipc_spoofing_shielded is True
 
 
-def test_audit_ipc_and_mps_security_with_synthetic_socket_dir(tmp_path: Path) -> None:
-    """Test audit_ipc_and_mps_security on real synthetic socket directory."""
+def test_audit_ipc_and_mps_security_with_fixture_socket_dir(tmp_path: Path) -> None:
+    """Test audit_ipc_and_mps_security on fixture socket directory."""
     sock_dir = tmp_path / "nvidia_mps_test"
     sock_dir.mkdir()
     (sock_dir / "control").write_bytes(b"control_pipe")

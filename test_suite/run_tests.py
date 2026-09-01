@@ -2,8 +2,14 @@ import json
 import logging
 import os
 import atexit
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+# Ensure repository root is on sys.path for direct execution and isolated test runs
+_repo_root = Path(__file__).resolve().parent.parent
+if str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 try:
     import psutil
@@ -13,10 +19,16 @@ from pydantic import BaseModel, Field
 
 from cochem_base.config_loader import resolve_executable
 
-from .test_environment import check_artifacts_dir, check_cochem_base_silo
-from .test_modules import check_modules_installed
-from .test_mpi import run_multi_core_orca_test
-from .test_orca import run_single_core_orca_test
+try:
+    from .test_environment import check_artifacts_dir, check_cochem_base_silo
+    from .test_modules import check_modules_installed
+    from .test_mpi import run_multi_core_orca_test
+    from .test_orca import run_single_core_orca_test
+except ImportError:
+    from test_suite.test_environment import check_artifacts_dir, check_cochem_base_silo
+    from test_suite.test_modules import check_modules_installed
+    from test_suite.test_mpi import run_multi_core_orca_test
+    from test_suite.test_orca import run_single_core_orca_test
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("CoChem-TestSuiteRunner")

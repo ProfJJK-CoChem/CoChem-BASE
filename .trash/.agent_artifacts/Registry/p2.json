@@ -1,0 +1,60 @@
+{
+  "phase_id": "PHASE_2_HARDWARE_RESOURCE_GATEKEEPER",
+  "status": "PASSED",
+  "timestamp_utc": "2026-08-30T04:42:00.901559+00:00",
+  "memory": {
+    "total_bytes": 68463595520,
+    "available_bytes": 46280818688,
+    "swap_total_bytes": 4294967296,
+    "swap_free_bytes": 4236955648,
+    "cgroup_memory_limit_bytes": null,
+    "cgroup_swap_limit_bytes": null,
+    "is_cgroup_constrained": false,
+    "effective_memory_bytes": 68463595520
+  },
+  "cpu": {
+    "physical_cores": 16,
+    "logical_cores": 24,
+    "frequency_mhz": 3400.0,
+    "cgroup_cpu_quota_us": null,
+    "cgroup_cpu_period_us": null,
+    "cgroup_effective_cpus": null,
+    "cpu_affinity_count": 24,
+    "architecture": "AMD64"
+  },
+  "gpu": {
+    "available": true,
+    "vendor_summary": {
+      "NVIDIA": 1
+    },
+    "devices": [
+      {
+        "index": 0,
+        "vendor": "NVIDIA",
+        "name": "NVIDIA GeForce RTX 3090",
+        "memory_total_bytes": 25769803776,
+        "memory_free_bytes": 24465375232,
+        "driver_version": "610.88",
+        "compute_capability": "8.6",
+        "uuid": "GPU-33ad2e61-1a9c-37aa-177b-59d3d3691bb2"
+      }
+    ],
+    "cuda_available": true,
+    "rocm_available": false,
+    "oneapi_available": false,
+    "degraded_fallback": false
+  },
+  "precision": {
+    "float32_epsilon": 1.1920928955078125e-7,
+    "float64_epsilon": 2.220446049250313e-16,
+    "subnormal_supported": true,
+    "smallest_subnormal_f64": 5e-324,
+    "smallest_normal_f64": 2.2250738585072014e-308,
+    "subnormal_arithmetic_valid": true,
+    "precision_intact": true,
+    "precision_message": "Float Precision: Intact"
+  },
+  "warnings": [],
+  "errors": [],
+  "artifact_path": "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.agent_artifacts\\Registry\\p2.json"
+}

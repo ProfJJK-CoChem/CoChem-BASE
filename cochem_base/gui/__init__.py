@@ -1,1 +1,0 @@
-"""CoChem-BASE GUI package."""

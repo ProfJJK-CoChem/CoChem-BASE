@@ -133,12 +133,12 @@ ATOMIC_NUMBER_TO_SYMBOL: Dict[int, str] = {
 """Deterministic reverse mapping from atomic number Z to chemical symbol."""
 
 
-def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
+def get_atomic_mass(symbol_or_z: Union[str, int, np.integer]) -> float:
     """Dynamically query standard atomic weight from mendeleev [M].
 
     Parameters
     ----------
-    symbol_or_z : Union[str, int]
+    symbol_or_z : Union[str, int, np.integer]
         Chemical element symbol (e.g., 'C', 'O') or atomic number Z (e.g., 6, 8).
 
     Returns
@@ -146,7 +146,13 @@ def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     float
         Standard atomic mass in Daltons.
     """
-    el = element(symbol_or_z)
+    if isinstance(symbol_or_z, (int, np.integer)):
+        el = element(int(symbol_or_z))
+    elif isinstance(symbol_or_z, str) and symbol_or_z.isdigit():
+        el = element(int(symbol_or_z))
+    else:
+        el = element(str(symbol_or_z).capitalize())
+
     if el.atomic_weight is not None:
         return float(el.atomic_weight)
     if el.isotopes:
@@ -154,12 +160,12 @@ def get_atomic_mass(symbol_or_z: Union[str, int]) -> float:
     raise ValueError(f"Standard atomic mass not found for element '{symbol_or_z}'")
 
 
-def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
+def get_monoisotopic_mass(symbol_or_z: Union[str, int, np.integer]) -> float:
     """Dynamically query exact mass of most abundant natural isotope from mendeleev [M].
 
     Parameters
     ----------
-    symbol_or_z : Union[str, int]
+    symbol_or_z : Union[str, int, np.integer]
         Chemical element symbol or atomic number Z.
 
     Returns
@@ -167,7 +173,13 @@ def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
     float
         Monoisotopic mass in Daltons.
     """
-    el = element(symbol_or_z)
+    if isinstance(symbol_or_z, (int, np.integer)):
+        el = element(int(symbol_or_z))
+    elif isinstance(symbol_or_z, str) and symbol_or_z.isdigit():
+        el = element(int(symbol_or_z))
+    else:
+        el = element(str(symbol_or_z).capitalize())
+
     if el.isotopes:
         most_abundant = max(
             el.isotopes,
@@ -639,12 +651,10 @@ def relax_conformer_xtb(
 
     # Attach calculator
     calculator_attached = False
+    uhf = max(0, spin_multiplicity - 1)
     try:
-        from xtb.ase.calculator import XTB
-
-        # Unpaired electrons = spin_multiplicity - 1
-        uhf = spin_multiplicity - 1
-        mol.calc = XTB(method="GFN2-xTB", charge=charge, uhf=uhf)
+        from eval.qm_oracle import create_xtb_calculator
+        mol.calc = create_xtb_calculator(method=config.method.value if hasattr(config.method, "value") else str(config.method), charge=charge, uhf=uhf)
         calculator_attached = True
     except Exception as e:
         logger.info(f"xTB ASE calculator initialization bypassed or unavailable: {e}")
@@ -700,8 +710,8 @@ def relax_conformer_xtb(
         if initial_energy_ev is not None:
             energy_change_ev = final_energy_ev - initial_energy_ev
             energy_change_kcal_mol = energy_change_ev * EV_TO_KCAL_MOL
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Could not calculate final potential energy or forces: %s", exc)
 
     return RelaxationResult(
         converged=converged,

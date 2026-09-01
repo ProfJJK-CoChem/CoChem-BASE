@@ -1,12 +1,19 @@
 """CoChem Mobile 2D Organic & Inorganic Complex Synthesis Platform.
 
 Zero-Mock implementation of touch-optimized 2D sketcher, RDKit conformer engine,
-and Inorganic Complex Generator UI (SRS Chunk 06).
+Inorganic Complex Generator UI (SRS Chunk 06), and Asynchronous Webhook Offloading & Execution Management (SRS Chunk 08).
 """
 
 from __future__ import annotations
 
 from cochem.mobile import assembly
+from cochem.mobile.async_runner import (
+    AsyncProcessRunner,
+    delegate_pipeline_execution_async,
+    execute_worker_pipeline,
+    isolate_cuda_device,
+    spawn_detached_process,
+)
 from cochem.mobile.conformer_engine import generate_3d_conformer
 from cochem.mobile.inorganic import (
     ChelateAssembler,
@@ -39,6 +46,33 @@ from cochem.mobile.inorganic import (
     complex_to_schema,
     get_polyhedron_coordination_number,
 )
+from cochem.mobile.job_state import (
+    ExecutionPayload,
+    ExecutionTier,
+    JobStatus,
+    JobStatusRecord,
+    ManifestReference,
+    validate_status_transition,
+)
+from cochem.mobile.payload_serializer import (
+    STAGE_THRESHOLD_BYTES,
+    calculate_xyz_molecular_mass_dynamic,
+    canonical_json_dumps,
+    canonical_serialize,
+    ensure_tripartite_dirs,
+    get_coch_artifacts,
+    get_coch_src,
+    get_cochem_state_dir,
+    get_hmac_secret,
+    get_job_artifact_dir,
+    get_job_lock_path,
+    get_job_status_path,
+    load_staged_payload,
+    sign_payload,
+    stage_or_inline_payload,
+    validate_xyz_structure_dynamic,
+    verify_payload_signature,
+)
 from cochem.mobile.rdkit_bridge import (
     AtomCoordinate3DRecord,
     ConformerEmbeddingError,
@@ -59,9 +93,26 @@ from cochem.mobile.schemas import (
     ValenceValidationResultSchema,
 )
 from cochem.mobile.sketcher_widget import SketcherWidget
+from cochem.mobile.status_poller import (
+    compute_backoff_delay,
+    map_github_run_to_job_status,
+    poll_github_workflow_run,
+    poll_job_status_async,
+    read_status_atomic,
+    update_status_progress,
+    write_status_atomic,
+)
+from cochem.mobile.webhook_dispatcher import (
+    WebhookDispatcher,
+    build_github_dispatch_request,
+    detect_execution_tier,
+    dispatch_github_action_webhook,
+    synthesize_slurm_script,
+)
 
 __all__ = [
-    "assembly",
+    "STAGE_THRESHOLD_BYTES",
+    "AsyncProcessRunner",
     "AtomCoordinate2D",
     "AtomCoordinate3D",
     "AtomCoordinate3DRecord",
@@ -73,6 +124,8 @@ __all__ = [
     "CoordinationGeometry",
     "CoordinationPolyhedron",
     "DonorAtom",
+    "ExecutionPayload",
+    "ExecutionTier",
     "HDF5InorganicSerializer",
     "InorganicAirGapClient",
     "InorganicAssemblyEngine",
@@ -86,10 +139,13 @@ __all__ = [
     "IsomerPickerWidget",
     "IsomerResolver",
     "JSONInorganicSerializer",
+    "JobStatus",
+    "JobStatusRecord",
     "Ligand",
     "LigandBudgetWidget",
     "LigandLibrary",
     "LigandSelectorDialog",
+    "ManifestReference",
     "MetalCategory",
     "MetalCenter",
     "PolyhedronTemplateRegistry",
@@ -99,13 +155,47 @@ __all__ = [
     "SketcherWidget",
     "Smiles3DConformerEngine",
     "ValenceValidationResultSchema",
+    "WebhookDispatcher",
+    "assembly",
+    "build_github_dispatch_request",
     "calculate_formula_weight",
+    "calculate_xyz_molecular_mass_dynamic",
+    "canonical_json_dumps",
+    "canonical_serialize",
     "complex_to_schema",
+    "compute_backoff_delay",
+    "delegate_pipeline_execution_async",
+    "detect_execution_tier",
+    "dispatch_github_action_webhook",
+    "ensure_tripartite_dirs",
+    "execute_worker_pipeline",
     "generate_3d_conformer",
     "generate_deterministic_3d_coordinates",
+    "get_cochem_state_dir",
+    "get_coch_artifacts",
+    "get_coch_src",
+    "get_hmac_secret",
+    "get_job_artifact_dir",
+    "get_job_lock_path",
+    "get_job_status_path",
     "get_polyhedron_coordination_number",
+    "isolate_cuda_device",
+    "load_staged_payload",
+    "map_github_run_to_job_status",
+    "poll_github_workflow_run",
+    "poll_job_status_async",
+    "read_status_atomic",
     "relax_geometry_and_calculate_energy",
+    "sign_payload",
     "smiles_to_3d",
     "smiles_to_3d_async",
+    "spawn_detached_process",
+    "stage_or_inline_payload",
+    "synthesize_slurm_script",
+    "update_status_progress",
     "validate_and_sanitize_smiles",
+    "validate_status_transition",
+    "validate_xyz_structure_dynamic",
+    "verify_payload_signature",
+    "write_status_atomic",
 ]

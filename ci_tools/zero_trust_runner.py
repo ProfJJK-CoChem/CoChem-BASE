@@ -226,7 +226,7 @@ def main() -> int:
     
     with QuarantineEnvironment() as qe:
         # 1. Enforce copy of current repository to quarantine directory
-        shutil.copytree(cwd, qe.quarantine_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", ".agent_artifacts"))
+        shutil.copytree(cwd, qe.quarantine_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache", ".agent_artifacts", ".trash"))
         
         # 2. PathCanonicalRewriter: Regex-based case-insensitive path replacement
         new_command = []

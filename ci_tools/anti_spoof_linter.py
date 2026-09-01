@@ -215,6 +215,26 @@ def check_script(
                 self.check_stubs(node)
             self.generic_visit(node)
 
+        def visit_For(self, node: ast.For) -> None:
+            self.check_loop_body(node, "for")
+            self.generic_visit(node)
+
+        def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+            self.check_loop_body(node, "async for")
+            self.generic_visit(node)
+
+        def visit_While(self, node: ast.While) -> None:
+            self.check_loop_body(node, "while")
+            self.generic_visit(node)
+
+        def check_loop_body(self, node: Union[ast.For, ast.AsyncFor, ast.While], loop_type: str) -> None:
+            body = [n for n in node.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str))]
+            if len(body) == 1 and isinstance(body[0], ast.Pass):
+                if not self.is_line_exempt(node.lineno):
+                    violations.append(
+                        f"Line {node.lineno}: Synthetic dummy loop ('{loop_type}' with single pass body)"
+                    )
+
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             self.check_ident(node.name, node, "class name")
             self.generic_visit(node)

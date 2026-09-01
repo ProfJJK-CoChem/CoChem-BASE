@@ -13,12 +13,15 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "PySide6",
+    "cryptography>=50.0.1",
+    "filelock>=3.32.5",
+    "mendeleev>=1.2.0",
     "pluggy",
     "pydantic>=2",
     "pyqtgraph",
     "pyvista",
     "pyvistaqt",
-    "vtk"
+    "vtk",
 ]
 
 [project.optional-dependencies]

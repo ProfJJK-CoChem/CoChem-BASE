@@ -7,6 +7,9 @@ Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: PySide6
+Requires-Dist: cryptography>=50.0.1
+Requires-Dist: filelock>=3.32.5
+Requires-Dist: mendeleev>=1.2.0
 Requires-Dist: pluggy
 Requires-Dist: pydantic>=2
 Requires-Dist: pyqtgraph

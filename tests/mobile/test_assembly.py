@@ -40,7 +40,6 @@ from cochem.mobile.assembly import (
     get_atomic_number,
     get_coordination_template_vectors,
     get_covalent_radius_angstrom,
-    get_standard_atomic_weight,
     get_vdw_radius_angstrom,
     infer_ligand_charge,
     kabsch_fit_proper,
@@ -649,7 +648,7 @@ class TestAuxiliaryAndModelInvariants:
             atomic_symbols=["O"],
             coordinates=[(0.0, 0.0, 0.0)],
         )
-        with pytest.raises(Exception):
+        with pytest.raises((TypeError, ValueError)):
             lig.denticity = 2  # Frozen model raises TypeError or ValidationError
 
         # Mismatched donor index count vs denticity

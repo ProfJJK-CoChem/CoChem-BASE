@@ -6,7 +6,7 @@ Inorganic Complex Generator UI (SRS Chunk 06), and Asynchronous Webhook Offloadi
 
 from __future__ import annotations
 
-from cochem.mobile import assembly
+from cochem.mobile import assembly, pwa
 from cochem.mobile.async_runner import (
     AsyncProcessRunner,
     delegate_pipeline_execution_async,
@@ -184,6 +184,7 @@ __all__ = [
     "map_github_run_to_job_status",
     "poll_github_workflow_run",
     "poll_job_status_async",
+    "pwa",
     "read_status_atomic",
     "relax_geometry_and_calculate_energy",
     "sign_payload",

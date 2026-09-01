@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+from typing import List
 
 import pytest
 from mendeleev import element

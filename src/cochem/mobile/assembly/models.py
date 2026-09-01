@@ -67,7 +67,9 @@ class LigandAttachment(BaseModel):
     ]
     coordinates: Annotated[
         list[tuple[float, float, float]],
-        Field(min_length=1, description="Pre-calculated rigid 3D conformer coordinates in Angstroms"),
+        Field(
+            min_length=1, description="Pre-calculated rigid 3D conformer coordinates in Angstroms"
+        ),
     ]
 
     @model_validator(mode="after")
@@ -160,7 +162,9 @@ class StericClashReport(BaseModel):
     ]
     bondi_threshold: Annotated[
         float,
-        Field(description="Calculated scaled Bondi cutoff distance for closest non-bonded pair in Angstroms"),
+        Field(
+            description="Calculated scaled Bondi cutoff distance for closest non-bonded pair in Angstroms"
+        ),
     ]
     clash_resolved: Annotated[
         bool,

@@ -10,20 +10,16 @@ from __future__ import annotations
 import concurrent.futures  # zero-stub anti-spoof ThreadPoolExecutor
 import json
 import logging
-from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Union, cast
 
 import anywidget
 import traitlets
-from pydantic import BaseModel, ConfigDict, Field
 
 from cochem.mobile.inorganic.engine import (
     InorganicAssemblyEngine,
-    PolyhedronTemplateRegistry,
 )
 from cochem.mobile.inorganic.models import (
-    CoordinationGeometry,
     CoordinationPolyhedron,
-    DonorAtom,
     InorganicComplex,
     Ligand,
     LigandLibrary,
@@ -166,35 +162,35 @@ class IsomerPickerWidget:
         # Octahedral CN=6
         if polyhedron == CoordinationPolyhedron.OCTAHEDRAL:
             # Tris-bidentate [M(bidentate)3]
-            if len(ligands) == 3 and all(l.denticity == 2 for l in ligands):
+            if len(ligands) == 3 and all(lig_item.denticity == 2 for lig_item in ligands):
                 return ["Delta", "Lambda"]
 
             # MA3B3
-            if len(ligands) == 6 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
-                counts = {}
+            if len(ligands) == 6 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
+                counts_ma3b3: Dict[str, int] = {}
                 for n in names:
-                    counts[n] = counts.get(n, 0) + 1
-                if len(counts) == 2 and list(counts.values()) == [3, 3]:
+                    counts_ma3b3[n] = counts_ma3b3.get(n, 0) + 1
+                if len(counts_ma3b3) == 2 and list(counts_ma3b3.values()) == [3, 3]:
                     return ["fac", "mer"]
 
             # MA2B4
-            if len(ligands) == 6 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
-                counts = {}
+            if len(ligands) == 6 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
+                counts_ma2b4: Dict[str, int] = {}
                 for n in names:
-                    counts[n] = counts.get(n, 0) + 1
-                if len(counts) == 2 and set(counts.values()) == {2, 4}:
+                    counts_ma2b4[n] = counts_ma2b4.get(n, 0) + 1
+                if len(counts_ma2b4) == 2 and set(counts_ma2b4.values()) == {2, 4}:
                     return ["cis", "trans"]
 
         # Square Planar CN=4
         if polyhedron == CoordinationPolyhedron.SQUARE_PLANAR:
-            if len(ligands) == 4 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
-                counts = {}
+            if len(ligands) == 4 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
+                counts_sq: Dict[str, int] = {}
                 for n in names:
-                    counts[n] = counts.get(n, 0) + 1
-                if len(counts) == 2 and list(counts.values()) == [2, 2]:
+                    counts_sq[n] = counts_sq.get(n, 0) + 1
+                if len(counts_sq) == 2 and list(counts_sq.values()) == [2, 2]:
                     return ["cis", "trans"]
 
         return ["default"]
@@ -267,9 +263,7 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
         self._budget_tracker = LigandBudgetWidget(coordination_number=6)
         self._refresh_state()
 
-    def set_metal(
-        self, symbol: str, oxidation_state: int, spin_state: str = "low"
-    ) -> None:
+    def set_metal(self, symbol: str, oxidation_state: int, spin_state: str = "low") -> None:
         """Update central metal ion parameters."""
         metal = MetalCenter(
             symbol=symbol,
@@ -282,9 +276,7 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
         self.spin_state = spin_state
         self._refresh_state()
 
-    def set_polyhedron(
-        self, polyhedron: Union[CoordinationPolyhedron, str]
-    ) -> None:
+    def set_polyhedron(self, polyhedron: Union[CoordinationPolyhedron, str]) -> None:
         """Set polyhedral coordination geometry and validate compatibility."""
         if isinstance(polyhedron, str):
             poly_enum = CoordinationPolyhedron(polyhedron.upper())
@@ -292,7 +284,7 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
             poly_enum = polyhedron
 
         new_cn = get_polyhedron_coordination_number(poly_enum)
-        current_denticity = sum(l.denticity for l in self._ligand_list)
+        current_denticity = sum(lig.denticity for lig in self._ligand_list)
 
         if current_denticity > new_cn:
             raise ValueError(
@@ -343,7 +335,7 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
         """Recalculate budget, physical properties, formula, and available isomers."""
         poly_enum = CoordinationPolyhedron(self.polyhedron_name)
         cn = get_polyhedron_coordination_number(poly_enum)
-        used_dent = sum(l.denticity for l in self._ligand_list)
+        used_dent = sum(lig.denticity for lig in self._ligand_list)
         vacant = max(0, cn - used_dent)
 
         self.coordination_number = cn
@@ -352,9 +344,7 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
         self._budget_tracker.update_budget(cn, used_dent)
 
         # Update available isomers
-        isomers = IsomerPickerWidget.get_available_isomers(
-            poly_enum, self._ligand_list
-        )
+        isomers = IsomerPickerWidget.get_available_isomers(poly_enum, self._ligand_list)
         self.available_isomers_json = json.dumps(isomers)
         if self.isomer_state not in isomers and isomers:
             self.isomer_state = isomers[0]
@@ -365,23 +355,21 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
             oxidation_state=self.oxidation_state,
             spin_state=self.spin_state,
         )
-        self.net_charge = metal.oxidation_state + sum(
-            l.charge for l in self._ligand_list
-        )
+        self.net_charge = metal.oxidation_state + sum(lig.charge for lig in self._ligand_list)
         self.spin_multiplicity = metal.determine_spin_multiplicity(poly_enum)
         self.molecular_weight = metal.atomic_weight + sum(
-            l.molecular_weight for l in self._ligand_list
+            lig.molecular_weight for lig in self._ligand_list
         )
 
         # Ligands JSON representation
         ligs_data = [
             {
-                "name": l.name,
-                "formula": l.formula,
-                "denticity": l.denticity,
-                "charge": l.charge,
+                "name": lig.name,
+                "formula": lig.formula,
+                "denticity": lig.denticity,
+                "charge": lig.charge,
             }
-            for l in self._ligand_list
+            for lig in self._ligand_list
         ]
         self.ligands_json = json.dumps(ligs_data)
 
@@ -467,7 +455,10 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
                 self.busy = False
                 raise
 
-        return self._assembly_engine._executor.submit(_worker)
+        return cast(
+            concurrent.futures.Future[InorganicComplexSchema],
+            self._assembly_engine._executor.submit(_worker),
+        )
 
     def close(self) -> None:
         """Teardown widget and shutdown background executor."""

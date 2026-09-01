@@ -27,68 +27,89 @@ def get_coordination_template_vectors(geometry: CoordinationGeometryEnum) -> np.
     """
     if geometry == CoordinationGeometryEnum.LINEAR:
         # CN = 2: along z-axis
-        vectors = np.array([
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.TRIGONAL_PLANAR:
         # CN = 3: in xy-plane at 120 degree separation
-        vectors = np.array([
-            [1.0, 0.0, 0.0],
-            [-0.5, math.sqrt(3.0) / 2.0, 0.0],
-            [-0.5, -math.sqrt(3.0) / 2.0, 0.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [-0.5, math.sqrt(3.0) / 2.0, 0.0],
+                [-0.5, -math.sqrt(3.0) / 2.0, 0.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.TETRAHEDRAL:
         # CN = 4: ideal tetrahedral angle 109.4712 degrees
         inv_sqrt3 = 1.0 / math.sqrt(3.0)
-        vectors = np.array([
-            [1.0 * inv_sqrt3, 1.0 * inv_sqrt3, 1.0 * inv_sqrt3],
-            [1.0 * inv_sqrt3, -1.0 * inv_sqrt3, -1.0 * inv_sqrt3],
-            [-1.0 * inv_sqrt3, 1.0 * inv_sqrt3, -1.0 * inv_sqrt3],
-            [-1.0 * inv_sqrt3, -1.0 * inv_sqrt3, 1.0 * inv_sqrt3],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [1.0 * inv_sqrt3, 1.0 * inv_sqrt3, 1.0 * inv_sqrt3],
+                [1.0 * inv_sqrt3, -1.0 * inv_sqrt3, -1.0 * inv_sqrt3],
+                [-1.0 * inv_sqrt3, 1.0 * inv_sqrt3, -1.0 * inv_sqrt3],
+                [-1.0 * inv_sqrt3, -1.0 * inv_sqrt3, 1.0 * inv_sqrt3],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.SQUARE_PLANAR:
         # CN = 4: in xy-plane at 90 degree separation
-        vectors = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, -1.0, 0.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.TRIGONAL_BIPYRAMIDAL:
         # CN = 5: 2 axial (z-axis) + 3 equatorial (xy-plane, 120 deg)
-        vectors = np.array([
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            [-0.5, math.sqrt(3.0) / 2.0, 0.0],
-            [-0.5, -math.sqrt(3.0) / 2.0, 0.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0],
+                [1.0, 0.0, 0.0],
+                [-0.5, math.sqrt(3.0) / 2.0, 0.0],
+                [-0.5, -math.sqrt(3.0) / 2.0, 0.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.SQUARE_PYRAMIDAL:
         # CN = 5: 1 axial (z-axis) + 4 basal (xy-plane, 90 deg)
-        vectors = np.array([
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, -1.0, 0.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, -1.0, 0.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.OCTAHEDRAL:
         # CN = 6: +/- x, +/- y, +/- z
-        vectors = np.array([
-            [1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [-1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, -1.0, 0.0],
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0],
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.PENTAGONAL_BIPYRAMIDAL:
         # CN = 7: 2 axial (+/- z) + 5 equatorial in xy-plane (72 deg intervals)
@@ -96,11 +117,14 @@ def get_coordination_template_vectors(geometry: CoordinationGeometryEnum) -> np.
         for k in range(5):
             angle = k * 2.0 * math.pi / 5.0
             eq_vecs.append([math.cos(angle), math.sin(angle), 0.0])
-        vectors = np.array([
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-            *eq_vecs,
-        ], dtype=np.float64)
+        vectors = np.array(
+            [
+                [0.0, 0.0, 1.0],
+                [0.0, 0.0, -1.0],
+                *eq_vecs,
+            ],
+            dtype=np.float64,
+        )
 
     elif geometry == CoordinationGeometryEnum.SQUARE_ANTIPRISMATIC:
         # CN = 8: Archimedean square antiprism with 45 degree staggered rings

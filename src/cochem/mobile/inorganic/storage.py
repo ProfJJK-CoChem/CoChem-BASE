@@ -6,30 +6,21 @@ thread-safe SQLite persistence, and Tripartite Air-Gap RPC client.
 
 from __future__ import annotations
 
-import contextlib
-from datetime import datetime, timezone
 import hashlib
 import json
-import os
-from pathlib import Path
 import sqlite3
-from typing import Annotated, Any, Dict, List, Optional, Sequence, Tuple, Union
 import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Annotated, Any, Dict, List, Optional, Sequence, Union
 
 import h5py
-import mendeleev
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from cochem.concurrency.atomic_file_lock import AtomicFileLock
 from cochem.mobile.inorganic.models import (
-    CoordinationGeometry,
-    CoordinationPolyhedron,
-    DonorAtom,
     InorganicComplex,
-    Ligand,
-    LigandLibrary,
-    MetalCenter,
     get_mendeleev_element,
 )
 
@@ -39,21 +30,13 @@ class InorganicAtom3D(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    atom_index: Annotated[
-        int, Field(ge=0, description="0-indexed global atom identifier")
-    ]
-    symbol: Annotated[
-        str, Field(min_length=1, max_length=3, description="IUPAC element symbol")
-    ]
+    atom_index: Annotated[int, Field(ge=0, description="0-indexed global atom identifier")]
+    symbol: Annotated[str, Field(min_length=1, max_length=3, description="IUPAC element symbol")]
     x: Annotated[float, Field(description="3D Cartesian X coordinate in Angstroms")]
     y: Annotated[float, Field(description="3D Cartesian Y coordinate in Angstroms")]
     z: Annotated[float, Field(description="3D Cartesian Z coordinate in Angstroms")]
-    charge: Annotated[
-        int, Field(default=0, ge=-7, le=7, description="Formal atomic charge")
-    ]
-    is_metal: Annotated[
-        bool, Field(default=False, description="True if atom is central metal ion")
-    ]
+    charge: Annotated[int, Field(default=0, ge=-7, le=7, description="Formal atomic charge")]
+    is_metal: Annotated[bool, Field(default=False, description="True if atom is central metal ion")]
     is_donor: Annotated[
         bool, Field(default=False, description="True if atom directly coordinates to metal")
     ]
@@ -77,12 +60,8 @@ class InorganicBondRecord(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    atom_index_1: Annotated[
-        int, Field(ge=0, description="0-indexed atom index of first endpoint")
-    ]
-    atom_index_2: Annotated[
-        int, Field(ge=0, description="0-indexed atom index of second endpoint")
-    ]
+    atom_index_1: Annotated[int, Field(ge=0, description="0-indexed atom index of first endpoint")]
+    atom_index_2: Annotated[int, Field(ge=0, description="0-indexed atom index of second endpoint")]
     bond_order: Annotated[
         float, Field(gt=0.0, le=4.0, default=1.0, description="Formal bond order")
     ]
@@ -103,30 +82,18 @@ class InorganicComplexSchema(BaseModel):
     metal_symbol: Annotated[
         str, Field(min_length=1, max_length=3, description="Central metal symbol")
     ]
-    oxidation_state: Annotated[
-        int, Field(ge=-2, le=8, description="Metal formal oxidation state")
-    ]
-    geometry_name: Annotated[
-        str, Field(min_length=1, description="Coordination geometry name")
-    ]
-    polyhedron: Annotated[
-        str, Field(min_length=1, description="Polyhedron enum string")
-    ]
+    oxidation_state: Annotated[int, Field(ge=-2, le=8, description="Metal formal oxidation state")]
+    geometry_name: Annotated[str, Field(min_length=1, description="Coordination geometry name")]
+    polyhedron: Annotated[str, Field(min_length=1, description="Polyhedron enum string")]
     coordination_number: Annotated[
         int, Field(ge=2, le=12, description="Polyhedral coordination number")
     ]
     isomer_state: Annotated[
         str, Field(default="default", description="Stereochemical isomer identifier")
     ]
-    spin_multiplicity: Annotated[
-        int, Field(ge=1, le=11, description="Spin multiplicity 2S + 1")
-    ]
-    net_charge: Annotated[
-        int, Field(ge=-10, le=10, description="Net complex electrostatic charge")
-    ]
-    formula: Annotated[
-        str, Field(min_length=1, description="IUPAC-style chemical formula")
-    ]
+    spin_multiplicity: Annotated[int, Field(ge=1, le=11, description="Spin multiplicity 2S + 1")]
+    net_charge: Annotated[int, Field(ge=-10, le=10, description="Net complex electrostatic charge")]
+    formula: Annotated[str, Field(min_length=1, description="IUPAC-style chemical formula")]
     molecular_weight: Annotated[
         float, Field(gt=0.0, description="Dynamic molecular weight in g/mol")
     ]
@@ -362,7 +329,9 @@ class HDF5InorganicSerializer:
                 metadata = json.loads(meta_json)
 
                 coords = grp["coordinates"][:]
-                symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in grp["symbols"][:]]
+                symbols = [
+                    s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in grp["symbols"][:]
+                ]
                 charges = grp["charges"][:]
                 is_metal = grp["is_metal"][:]
                 is_donor = grp["is_donor"][:]
@@ -528,9 +497,7 @@ class SQLiteInorganicStore:
                     (formula,),
                 )
                 rows = cursor.fetchall()
-                return [
-                    InorganicComplexSchema.model_validate_json(r[0]) for r in rows
-                ]
+                return [InorganicComplexSchema.model_validate_json(r[0]) for r in rows]
             finally:
                 conn.close()
 
@@ -554,9 +521,7 @@ class SQLiteInorganicStore:
             conn = sqlite3.connect(self.db_path)
             try:
                 cursor = conn.cursor()
-                cursor.execute(
-                    "DELETE FROM inorganic_complexes WHERE id = ?", (complex_id,)
-                )
+                cursor.execute("DELETE FROM inorganic_complexes WHERE id = ?", (complex_id,))
                 conn.commit()
                 return cursor.rowcount > 0
             finally:

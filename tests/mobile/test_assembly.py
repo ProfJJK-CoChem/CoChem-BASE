@@ -185,10 +185,7 @@ class TestComplexAssemblyRealChemicalSystems:
 
     def test_octahedral_monodentate_fe_h2o6(self, tmp_path: Path) -> None:
         """Test [Fe(H2O)6]2+ high-spin d6 (S=2, 2S+1=5) octahedral complex assembly."""
-        ligands = [
-            _generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}")
-            for i in range(6)
-        ]
+        ligands = [_generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}") for i in range(6)]
         request = ComplexAssemblyRequest(
             metal_symbol="Fe",
             oxidation_state=2,
@@ -216,8 +213,7 @@ class TestComplexAssemblyRealChemicalSystems:
     def test_octahedral_monodentate_fe_cn6(self, tmp_path: Path) -> None:
         """Test [Fe(CN)6]4- low-spin d6 (S=0, 2S+1=1) octahedral complex assembly."""
         ligands = [
-            _generate_conformer_from_smiles("[C-]#[N]", 1, [0], [i], f"CN_{i}")
-            for i in range(6)
+            _generate_conformer_from_smiles("[C-]#[N]", 1, [0], [i], f"CN_{i}") for i in range(6)
         ]
         request = ComplexAssemblyRequest(
             metal_symbol="Fe",
@@ -330,8 +326,7 @@ class TestStericClashAndRelaxation:
         """Test square planar complex with substituted pyridines testing dihedral sweep and UFF."""
         # 4 Pyridine ligands on Pt(II) in square planar geometry
         ligands = [
-            _generate_conformer_from_smiles("c1ccncc1", 1, [3], [i], f"py_{i}")
-            for i in range(4)
+            _generate_conformer_from_smiles("c1ccncc1", 1, [3], [i], f"py_{i}") for i in range(4)
         ]
         request = ComplexAssemblyRequest(
             metal_symbol="Pt",
@@ -354,10 +349,7 @@ class TestExceptionTriggers:
     def test_coordination_geometry_mismatch_error(self) -> None:
         """Verify CoordinationGeometryMismatchError when denticity sum != CN."""
         # 5 monodentate ligands on Octahedral (CN=6)
-        ligands = [
-            _generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}")
-            for i in range(5)
-        ]
+        ligands = [_generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}") for i in range(5)]
         req = ComplexAssemblyRequest(
             metal_symbol="Fe",
             oxidation_state=2,
@@ -370,10 +362,7 @@ class TestExceptionTriggers:
 
     def test_quantum_parity_error_trigger(self) -> None:
         """Verify QuantumParityError on invalid spin multiplicity."""
-        ligands = [
-            _generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}")
-            for i in range(6)
-        ]
+        ligands = [_generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}") for i in range(6)]
         # Fe(III) d5 (Ne=23, odd) with singlet (2S=0, even) -> violates parity
         req = ComplexAssemblyRequest(
             metal_symbol="Fe",
@@ -424,12 +413,14 @@ class TestExceptionTriggers:
         with pytest.raises(SingularRotationAxisError):
             perform_rodrigues_dihedral_sweep(
                 atomic_symbols=["Fe", "O", "H", "H"],
-                coordinates=np.array([
-                    [0.0, 0.0, 0.0],
-                    [0.0, 0.0, 0.0],  # Donor at origin (distance = 0)
-                    [1.0, 0.0, 0.0],
-                    [-1.0, 0.0, 0.0],
-                ]),
+                coordinates=np.array(
+                    [
+                        [0.0, 0.0, 0.0],
+                        [0.0, 0.0, 0.0],  # Donor at origin (distance = 0)
+                        [1.0, 0.0, 0.0],
+                        [-1.0, 0.0, 0.0],
+                    ]
+                ),
                 ligand_slices=[(1, 4)],
                 monodentate_info=[(0, 1, 1)],
                 donor_global_indices={1},
@@ -445,13 +436,15 @@ class TestExceptionTriggers:
     def test_steric_clash_detected_error_trigger(self) -> None:
         """Verify StericClashDetectedError when an insurmountable clash cannot be resolved."""
         # Directly test with overlapping atoms that fail resolution
-        coords = np.array([
-            [0.0, 0.0, 0.0],  # Metal
-            [1.0, 0.0, 0.0],  # Donor 1
-            [0.2, 0.0, 0.0],  # Atom overlapping metal
-            [-1.0, 0.0, 0.0], # Donor 2
-            [-0.2, 0.0, 0.0], # Atom overlapping metal
-        ])
+        coords = np.array(
+            [
+                [0.0, 0.0, 0.0],  # Metal
+                [1.0, 0.0, 0.0],  # Donor 1
+                [0.2, 0.0, 0.0],  # Atom overlapping metal
+                [-1.0, 0.0, 0.0],  # Donor 2
+                [-0.2, 0.0, 0.0],  # Atom overlapping metal
+            ]
+        )
         with pytest.raises(StericClashDetectedError):
             resolve_clashes_and_report(
                 atomic_symbols=["Pt", "N", "C", "N", "C"],
@@ -486,10 +479,7 @@ class TestAsyncOrchestrationAndStorage:
 
     def test_assemble_complex_async(self, tmp_path: Path) -> None:
         """Verify async top-level interface assemble_complex_async."""
-        ligands = [
-            _generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}")
-            for i in range(6)
-        ]
+        ligands = [_generate_conformer_from_smiles("O", 1, [0], [i], f"H2O_{i}") for i in range(6)]
         request = ComplexAssemblyRequest(
             metal_symbol="Fe",
             oxidation_state=2,
@@ -540,7 +530,9 @@ class TestAsyncOrchestrationAndStorage:
         )
         lines = xyz.strip().split("\n")
         assert lines[0] == "2"
-        assert "Stoichiometry=FeO NetCharge=2 SpinMultiplicity=5 SHA256=abcdef1234567890" in lines[1]
+        assert (
+            "Stoichiometry=FeO NetCharge=2 SpinMultiplicity=5 SHA256=abcdef1234567890" in lines[1]
+        )
         assert "Fe" in lines[2] and "0.000000" in lines[2]
         assert "O" in lines[3] and "1.234568" in lines[3]
 
@@ -717,5 +709,3 @@ class TestAuxiliaryAndModelInvariants:
         )
         with pytest.raises(StericClashDetectedError):
             assemble_complex_sync(request_crowded, h5_path=tmp_path / "test_crowded.h5")
-
-

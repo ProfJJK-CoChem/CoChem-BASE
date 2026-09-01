@@ -46,24 +46,33 @@ def rotation_matrix_from_vectors(vec1: np.ndarray, vec2: np.ndarray) -> np.ndarr
         return np.eye(3, dtype=np.float64)
     if c < -0.9999999999:
         # 180-degree rotation around any perpendicular axis
-        orth = np.array([1.0, 0.0, 0.0], dtype=np.float64) if abs(a[0]) < 0.9 else np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        orth = (
+            np.array([1.0, 0.0, 0.0], dtype=np.float64)
+            if abs(a[0]) < 0.9
+            else np.array([0.0, 1.0, 0.0], dtype=np.float64)
+        )
         axis = np.cross(a, orth)
         axis = axis / np.linalg.norm(axis)
         return -np.eye(3, dtype=np.float64) + 2.0 * np.outer(axis, axis)
 
     v = np.cross(a, b)
     s = float(np.linalg.norm(v))
-    kmat = np.array([
-        [0.0, -v[2], v[1]],
-        [v[2], 0.0, -v[0]],
-        [-v[1], v[0], 0.0],
-    ], dtype=np.float64)
+    kmat = np.array(
+        [
+            [0.0, -v[2], v[1]],
+            [v[2], 0.0, -v[0]],
+            [-v[1], v[0], 0.0],
+        ],
+        dtype=np.float64,
+    )
 
-    r_mat = np.eye(3, dtype=np.float64) + kmat + (kmat @ kmat) * ((1.0 - c) / (s ** 2))
+    r_mat = np.eye(3, dtype=np.float64) + kmat + (kmat @ kmat) * ((1.0 - c) / (s**2))
     return r_mat
 
 
-def kabsch_fit_proper(p_coords: np.ndarray, q_coords: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def kabsch_fit_proper(
+    p_coords: np.ndarray, q_coords: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Perform Kabsch alignment with strict SO(3) sign-correction to prevent improper reflections.
 
     Args:
@@ -142,7 +151,9 @@ def align_ligand_to_template(
 
     # Compute target donor positions
     target_positions = []
-    for slot_idx, donor_idx in zip(ligand.target_vector_slots, ligand.donor_atom_indices, strict=True):
+    for slot_idx, donor_idx in zip(
+        ligand.target_vector_slots, ligand.donor_atom_indices, strict=True
+    ):
         slot_vec = template_vectors[slot_idx]
         donor_sym = ligand.atomic_symbols[donor_idx]
         r_ml = calculate_metal_donor_distance(metal_symbol, donor_sym)
@@ -211,7 +222,11 @@ def align_ligand_to_template(
                             v_vec = aligned_coords[idx] - q_cent
                             dot_val = float(np.dot(v_vec, axis_unit))
                             cross_val = np.cross(axis_unit, v_vec)
-                            v_rot = (v_vec * cos_t) + (cross_val * sin_t) + (axis_unit * (dot_val * (1.0 - cos_t)))
+                            v_rot = (
+                                (v_vec * cos_t)
+                                + (cross_val * sin_t)
+                                + (axis_unit * (dot_val * (1.0 - cos_t)))
+                            )
                             c_back_rot_sum += v_rot
                         c_back_mean = c_back_rot_sum / len(non_donor_indices)
                         proj = float(np.dot(c_back_mean, q_unit))
@@ -226,7 +241,12 @@ def align_ligand_to_template(
                             v_vec = aligned_coords[i] - q_cent
                             dot_val = float(np.dot(v_vec, axis_unit))
                             cross_val = np.cross(axis_unit, v_vec)
-                            aligned_coords[i] = q_cent + (v_vec * cos_t) + (cross_val * sin_t) + (axis_unit * (dot_val * (1.0 - cos_t)))
+                            aligned_coords[i] = (
+                                q_cent
+                                + (v_vec * cos_t)
+                                + (cross_val * sin_t)
+                                + (axis_unit * (dot_val * (1.0 - cos_t)))
+                            )
 
         # Validate bite angle RMSD
         for i in range(len(ligand.donor_atom_indices)):
@@ -250,7 +270,12 @@ def align_ligand_to_template(
                         logger.warning(
                             "Bite angle deviation for ligand '%s' between donors (%d, %d): "
                             "calc=%.2f deg, template=%.2f deg, diff=%.2f deg",
-                            ligand.ligand_id, da_idx, db_idx, angle_calc, angle_tmpl, deviation
+                            ligand.ligand_id,
+                            da_idx,
+                            db_idx,
+                            angle_calc,
+                            angle_tmpl,
+                            deviation,
                         )
 
     # Ensure all hydrogens bonded to donor atoms point outward away from metal (0, 0, 0)
@@ -271,7 +296,9 @@ def align_ligand_to_template(
                             aligned_coords[h_idx] = d_pos + w_corr
 
     # Validate physical asymptotic distance bounds: 1.5 A <= R_COM <= 12.0 A
-    weights = np.array([get_standard_atomic_weight(sym) for sym in ligand.atomic_symbols], dtype=np.float64)
+    weights = np.array(
+        [get_standard_atomic_weight(sym) for sym in ligand.atomic_symbols], dtype=np.float64
+    )
     total_mass = float(np.sum(weights))
     if total_mass <= 0:
         total_mass = float(len(weights))

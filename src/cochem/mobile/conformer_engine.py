@@ -70,18 +70,11 @@ def extract_error_atom_indices(mol: Chem.Mol | None, exception: Exception) -> li
             sym = atom.GetSymbol()
             if sym in standard_max_valences:
                 try:
-                    exp_val = sum(
-                        int(bond.GetBondTypeAsDouble()) for bond in atom.GetBonds()
-                    )
-                    if (
-                        exp_val > standard_max_valences[sym]
-                        and atom.GetIdx() not in indices
-                    ):
+                    exp_val = sum(int(bond.GetBondTypeAsDouble()) for bond in atom.GetBonds())
+                    if exp_val > standard_max_valences[sym] and atom.GetIdx() not in indices:
                         indices.append(atom.GetIdx())
                 except (RuntimeError, ValueError) as val_err:
-                    logger.debug(
-                        "Failed checking explicit valence on atom: %s", val_err
-                    )
+                    logger.debug("Failed checking explicit valence on atom: %s", val_err)
 
     return indices
 
@@ -103,9 +96,7 @@ def generate_3d_conformer(payload: SketcherPayloadSchema) -> Conformer3DResultSc
     mol: Chem.Mol | None = None
     if payload.molfile_v2000:
         try:
-            parsed = Chem.MolFromMolBlock(
-                payload.molfile_v2000, sanitize=False, removeHs=False
-            )
+            parsed = Chem.MolFromMolBlock(payload.molfile_v2000, sanitize=False, removeHs=False)
             if parsed is not None and parsed.GetNumAtoms() > 0:
                 mol = parsed
         except (RuntimeError, ValueError) as parse_err:

@@ -16,22 +16,14 @@ class AtomCoordinate2D(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    atom_index: Annotated[
-        int, Field(ge=0, description="0-indexed identifier of the atom")
-    ]
+    atom_index: Annotated[int, Field(ge=0, description="0-indexed identifier of the atom")]
     symbol: Annotated[
         str,
         Field(min_length=1, max_length=3, description="IUPAC chemical element symbol"),
     ]
-    x: Annotated[
-        float, Field(description="2D Cartesian X coordinate in screen/canvas units")
-    ]
-    y: Annotated[
-        float, Field(description="2D Cartesian Y coordinate in screen/canvas units")
-    ]
-    charge: Annotated[
-        int, Field(default=0, ge=-7, le=7, description="Formal charge of the atom")
-    ]
+    x: Annotated[float, Field(description="2D Cartesian X coordinate in screen/canvas units")]
+    y: Annotated[float, Field(description="2D Cartesian Y coordinate in screen/canvas units")]
+    charge: Annotated[int, Field(default=0, ge=-7, le=7, description="Formal charge of the atom")]
 
     @property
     def atomic_weight(self) -> float:
@@ -72,9 +64,7 @@ class ValenceValidationResultSchema(BaseModel):
     ]
     diagnostic_message: Annotated[
         str,
-        Field(
-            default="", description="Sanitization diagnostic message or error detail"
-        ),
+        Field(default="", description="Sanitization diagnostic message or error detail"),
     ]
     atom_error_indices: Annotated[
         list[int],
@@ -90,17 +80,13 @@ class SketcherPayloadSchema(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    smiles: Annotated[
-        str, Field(min_length=1, description="SMILES string representation")
-    ]
+    smiles: Annotated[str, Field(min_length=1, description="SMILES string representation")]
     molfile_v2000: Annotated[
         str, Field(min_length=10, description="MDL Molfile V2000 format block")
     ]
     chiral_centers_count: Annotated[
         int,
-        Field(
-            default=0, ge=0, description="Number of chiral centers identified in sketch"
-        ),
+        Field(default=0, ge=0, description="Number of chiral centers identified in sketch"),
     ]
     atoms_2d: Annotated[
         list[AtomCoordinate2D],

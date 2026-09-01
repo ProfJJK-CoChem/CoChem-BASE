@@ -106,9 +106,7 @@ class SketcherWidget(anywidget.AnyWidget):
             return
 
         self.busy = True
-        self._last_future = self._executor.submit(
-            self._process_payload_async, new_payload_str
-        )
+        self._last_future = self._executor.submit(self._process_payload_async, new_payload_str)
 
     def _process_payload_async(self, payload_str: str) -> Conformer3DResultSchema:
         """Worker thread task: validate schema and execute 3D conformer generation."""

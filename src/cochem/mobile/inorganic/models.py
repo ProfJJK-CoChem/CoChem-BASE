@@ -7,9 +7,9 @@ dynamic Mendeleev atomic weight and radius calculations.
 
 from __future__ import annotations
 
-from enum import Enum
 import functools
 import re
+from enum import Enum
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 import mendeleev
@@ -77,9 +77,7 @@ class CoordinationGeometry(BaseModel):
         int, Field(ge=2, le=12, description="Total coordination capacity")
     ]
     name: Annotated[str, Field(description="Descriptive geometry title")]
-    symmetry_point_group: Annotated[
-        str, Field(description="Schoenflies symmetry point group")
-    ]
+    symmetry_point_group: Annotated[str, Field(description="Schoenflies symmetry point group")]
     ideal_vectors: Annotated[
         List[Tuple[float, float, float]],
         Field(description="Unit vectors defining the coordination vertices"),
@@ -91,15 +89,9 @@ class DonorAtom(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    symbol: Annotated[
-        str, Field(min_length=1, max_length=3, description="IUPAC element symbol")
-    ]
-    index: Annotated[
-        int, Field(ge=0, description="0-indexed position within parent ligand")
-    ]
-    formal_charge: Annotated[
-        int, Field(default=0, ge=-4, le=4, description="Formal donor charge")
-    ]
+    symbol: Annotated[str, Field(min_length=1, max_length=3, description="IUPAC element symbol")]
+    index: Annotated[int, Field(ge=0, description="0-indexed position within parent ligand")]
+    formal_charge: Annotated[int, Field(default=0, ge=-4, le=4, description="Formal donor charge")]
 
     @property
     def atomic_weight(self) -> float:
@@ -121,16 +113,10 @@ class Ligand(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: Annotated[str, Field(min_length=1, description="Ligand IUPAC or common name")]
-    formula: Annotated[
-        str, Field(min_length=1, description="Empirical chemical formula")
-    ]
+    formula: Annotated[str, Field(min_length=1, description="Empirical chemical formula")]
     smiles: Annotated[str, Field(description="Canonical SMILES representation")]
-    charge: Annotated[
-        int, Field(ge=-6, le=4, description="Formal electrostatic charge q")
-    ]
-    denticity: Annotated[
-        int, Field(ge=1, le=8, description="Chelating denticity kappa")
-    ]
+    charge: Annotated[int, Field(ge=-6, le=4, description="Formal electrostatic charge q")]
+    denticity: Annotated[int, Field(ge=1, le=8, description="Chelating denticity kappa")]
     donor_atoms: Annotated[
         List[DonorAtom], Field(description="Ordered list of donor atom definitions")
     ]
@@ -150,9 +136,7 @@ class Ligand(BaseModel):
 
     @field_validator("donor_atoms")
     @classmethod
-    def validate_donor_count(
-        cls, v: List[DonorAtom], info: Any
-    ) -> List[DonorAtom]:
+    def validate_donor_count(cls, v: List[DonorAtom], info: Any) -> List[DonorAtom]:
         """Verify that donor atoms count matches denticity."""
         return v
 
@@ -187,9 +171,7 @@ class MetalCenter(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    symbol: Annotated[
-        str, Field(min_length=1, max_length=3, description="IUPAC metal symbol")
-    ]
+    symbol: Annotated[str, Field(min_length=1, max_length=3, description="IUPAC metal symbol")]
     oxidation_state: Annotated[
         int, Field(ge=-2, le=8, description="Metal formal oxidation state z")
     ]
@@ -340,9 +322,7 @@ class MetalCenter(BaseModel):
 
         return 1
 
-    def check_geometry_compatibility(
-        self, polyhedron: CoordinationPolyhedron
-    ) -> Tuple[bool, str]:
+    def check_geometry_compatibility(self, polyhedron: CoordinationPolyhedron) -> Tuple[bool, str]:
         """Check compatibility between metal electronic configuration and coordination geometry."""
         dn = self.d_electrons
         period = self.period
@@ -802,9 +782,7 @@ class LigandLibrary:
         donor_atoms: List[DonorAtom] = []
         for idx, sym in enumerate(donor_atom_types):
             get_mendeleev_element(sym)
-            donor_atoms.append(
-                DonorAtom(symbol=sym, index=idx, formal_charge=0)
-            )
+            donor_atoms.append(DonorAtom(symbol=sym, index=idx, formal_charge=0))
 
         ligand = Ligand(
             name=name,
@@ -825,15 +803,11 @@ class InorganicComplex(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
-    metal_center: Annotated[
-        MetalCenter, Field(description="Central metallic coordination core")
-    ]
+    metal_center: Annotated[MetalCenter, Field(description="Central metallic coordination core")]
     geometry: Annotated[
         CoordinationGeometry, Field(description="Ideal polyhedral coordination template")
     ]
-    ligands: Annotated[
-        List[Ligand], Field(default_factory=list, description="Bound ligand list")
-    ]
+    ligands: Annotated[List[Ligand], Field(default_factory=list, description="Bound ligand list")]
     isomer_state: Annotated[
         str,
         Field(
@@ -871,16 +845,12 @@ class InorganicComplex(BaseModel):
     @property
     def net_charge(self) -> int:
         """Calculate net electrostatic charge: Q_net = z_metal + sum(q_ligands)."""
-        return self.metal_center.oxidation_state + sum(
-            lig.charge for lig in self.ligands
-        )
+        return self.metal_center.oxidation_state + sum(lig.charge for lig in self.ligands)
 
     @property
     def spin_multiplicity(self) -> int:
         """Spin multiplicity calculated for the coordination complex."""
-        return self.metal_center.determine_spin_multiplicity(
-            self.geometry.polyhedron
-        )
+        return self.metal_center.determine_spin_multiplicity(self.geometry.polyhedron)
 
     @property
     def molecular_weight(self) -> float:

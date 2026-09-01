@@ -148,8 +148,12 @@ def save_complex_to_hdf5(
                     del h5_file[grp_path]
 
                 grp = h5_file.create_group(grp_path)
-                grp.create_dataset("coordinates", data=coordinates.astype(np.float64), dtype="float64")
-                grp.create_dataset("atomic_numbers", data=atomic_numbers.astype(np.int32), dtype="int32")
+                grp.create_dataset(
+                    "coordinates", data=coordinates.astype(np.float64), dtype="float64"
+                )
+                grp.create_dataset(
+                    "atomic_numbers", data=atomic_numbers.astype(np.int32), dtype="int32"
+                )
 
                 meta_json = json.dumps(metadata, sort_keys=True)
                 grp.attrs["metadata_json"] = meta_json

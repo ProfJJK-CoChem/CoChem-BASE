@@ -120,7 +120,7 @@ def evaluate_steric_clashes(
             if dist < cutoff:
                 clash_pairs.append((i, j))
                 overlap = cutoff - dist
-                total_penalty += overlap ** 2
+                total_penalty += overlap**2
 
     if min_observed_distance == float("inf"):
         min_observed_distance = 0.0

@@ -13,9 +13,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures  # zero-stub anti-spoof ThreadPoolExecutor
 import logging
-import os
 from pathlib import Path
-import tempfile
 from types import TracebackType
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -117,11 +115,17 @@ class RDKit3DResult(BaseModel):
     force_field_method: str = Field(description="Forcefield applied: MMFF94s, UFF, or NONE")
     converged: bool = Field(description="True if geometry optimization converged")
     atomic_symbols: List[str] = Field(description="List of IUPAC chemical element symbols")
-    atomic_masses: List[float] = Field(description="Dynamic IUPAC atomic weights from Mendeleev (amu)")
+    atomic_masses: List[float] = Field(
+        description="Dynamic IUPAC atomic weights from Mendeleev (amu)"
+    )
     total_mass_amu: float = Field(gt=0.0, description="Summed molecular mass in amu/Da")
-    coordinates_3d: List[List[float]] = Field(description="Cartesian Nx3 coordinate matrix in Angstroms")
+    coordinates_3d: List[List[float]] = Field(
+        description="Cartesian Nx3 coordinate matrix in Angstroms"
+    )
     xyz_block: str = Field(description="Standard 3-part quantum-ready XYZ string")
-    xyz_file_path: Optional[str] = Field(default=None, description="Path to serialized .xyz file if written")
+    xyz_file_path: Optional[str] = Field(
+        default=None, description="Path to serialized .xyz file if written"
+    )
 
     def save_xyz(self, file_path: Union[str, Path]) -> Path:
         """Serialize quantum-ready XYZ block to disk with strict LF line endings."""
@@ -239,7 +243,9 @@ def generate_deterministic_3d_coordinates(
     params.useExpTorsionAnglePrefs = True
     params.useBasicKnowledge = True
 
-    attempted_tiers.append("Default ETKDGv3 (seed=42, enforceChirality=True, useExpTorsionAnglePrefs=True)")
+    attempted_tiers.append(
+        "Default ETKDGv3 (seed=42, enforceChirality=True, useExpTorsionAnglePrefs=True)"
+    )
     embed_code = AllChem.EmbedMolecule(mol, params)
 
     # Tier 1 Fallback: Random coordinates initialization
@@ -256,7 +262,9 @@ def generate_deterministic_3d_coordinates(
 
     # Tier 3 Fallback: Standard distance geometry (disable experimental torsions & basic knowledge)
     if embed_code == -1:
-        attempted_tiers.append("Tier 3: Standard distance geometry (useExpTorsionAnglePrefs=False, useBasicKnowledge=False)")
+        attempted_tiers.append(
+            "Tier 3: Standard distance geometry (useExpTorsionAnglePrefs=False, useBasicKnowledge=False)"
+        )
         params.useExpTorsionAnglePrefs = False
         params.useBasicKnowledge = False
         embed_code = AllChem.EmbedMolecule(mol, params)
@@ -301,7 +309,7 @@ def relax_geometry_and_calculate_energy(
             opt_status = AllChem.MMFFOptimizeMolecule(
                 mol, mmffVariant="MMFF94s", maxIters=max_iters
             )
-            converged = (opt_status == 0)
+            converged = opt_status == 0
             mp = AllChem.MMFFGetMoleculeProperties(mol, mmffVariant="MMFF94s")
             if mp is not None:
                 ff = AllChem.MMFFGetMoleculeForceField(mol, mp)
@@ -316,7 +324,7 @@ def relax_geometry_and_calculate_energy(
     # Tier 2: UFF fallback forcefield
     try:
         opt_status = AllChem.UFFOptimizeMolecule(mol, maxIters=max_iters)
-        converged = (opt_status == 0)
+        converged = opt_status == 0
         ff = AllChem.UFFGetMoleculeForceField(mol)
         if ff is not None:
             energy = float(ff.CalcEnergy())
@@ -444,9 +452,7 @@ def smiles_to_3d(
     )
 
     # 4. Forcefield Relaxation Hierarchy (REQ-MOB-043)
-    energy, method, converged = relax_geometry_and_calculate_energy(
-        mol_3d, max_iters=max_iters
-    )
+    energy, method, converged = relax_geometry_and_calculate_energy(mol_3d, max_iters=max_iters)
 
     # 5. Quantum Electronic States Computation (REQ-MOB-043)
     formal_charge, spin_multiplicity = compute_quantum_electronic_states(mol_3d)
@@ -547,9 +553,7 @@ class Smiles3DConformerEngine:
         """Synchronously execute conversion on the managed thread pool."""
         if self._closed:
             raise RuntimeError("Smiles3DConformerEngine executor is closed.")
-        future = self._executor.submit(
-            smiles_to_3d, smiles, output_path, random_seed, max_iters
-        )
+        future = self._executor.submit(smiles_to_3d, smiles, output_path, random_seed, max_iters)
         return future.result()
 
     async def convert_async(

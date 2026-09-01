@@ -12,12 +12,16 @@ from mendeleev import element
 
 from cochem.mobile.assembly.exceptions import MendeleevLookupError, QuantumParityError
 
-TRANSITION_METAL_ATOMIC_NUMBERS: Set[int] = set(
-    range(21, 31)  # 3d: Sc (21) - Zn (30)
-).union(
-    set(range(39, 49))  # 4d: Y (39) - Cd (48)
-).union(
-    set(range(71, 81))  # 5d: Lu (71) - Hg (80)
+TRANSITION_METAL_ATOMIC_NUMBERS: Set[int] = (
+    set(
+        range(21, 31)  # 3d: Sc (21) - Zn (30)
+    )
+    .union(
+        set(range(39, 49))  # 4d: Y (39) - Cd (48)
+    )
+    .union(
+        set(range(71, 81))  # 5d: Lu (71) - Hg (80)
+    )
 )
 
 

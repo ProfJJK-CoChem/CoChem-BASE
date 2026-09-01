@@ -9,20 +9,35 @@ from __future__ import annotations
 
 import concurrent.futures  # zero-stub anti-spoof ThreadPoolExecutor
 import math
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Dict, List, Sequence, Set, Tuple
 
-import mendeleev
 import numpy as np
 
 from cochem.mobile.inorganic.models import (
     CoordinationGeometry,
     CoordinationPolyhedron,
-    DonorAtom,
     InorganicComplex,
     Ligand,
     MetalCenter,
     get_polyhedron_coordination_number,
 )
+
+
+def _vec_norm(v: np.ndarray) -> float:
+    """Calculate Euclidean norm of 1D numpy array."""
+    val = float(np.dot(v, v))
+    return math.sqrt(val) if val > 0.0 else 0.0
+
+
+def _vec_cross(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Calculate 3D cross product."""
+    return np.array(
+        [
+            float(a[1] * b[2] - a[2] * b[1]),
+            float(a[2] * b[0] - a[0] * b[2]),
+            float(a[0] * b[1] - a[1] * b[0]),
+        ]
+    )
 
 
 class PolyhedronTemplateRegistry:
@@ -152,9 +167,7 @@ class PolyhedronTemplateRegistry:
             (0.0, math.sin(theta_b), -math.cos(theta_b)),
             (0.0, -math.sin(theta_b), -math.cos(theta_b)),
         ]
-        cls._TEMPLATES[CoordinationPolyhedron.DODECAHEDRAL] = [
-            cls._normalize(vec) for vec in dod
-        ]
+        cls._TEMPLATES[CoordinationPolyhedron.DODECAHEDRAL] = [cls._normalize(vec) for vec in dod]
 
         # CN=9 Tricapped Trigonal Prismatic
         ttp: List[Tuple[float, float, float]] = []
@@ -169,17 +182,13 @@ class PolyhedronTemplateRegistry:
         cls._TEMPLATES[CoordinationPolyhedron.TRICAPPED_TRIGONAL_PRISMATIC] = ttp
 
     @classmethod
-    def get_template(
-        cls, polyhedron: CoordinationPolyhedron
-    ) -> List[Tuple[float, float, float]]:
+    def get_template(cls, polyhedron: CoordinationPolyhedron) -> List[Tuple[float, float, float]]:
         """Fetch ideal normalized unit vector vertices for a given polyhedron."""
         cls._initialize()
         return list(cls._TEMPLATES[polyhedron])
 
     @classmethod
-    def get_geometry(
-        cls, polyhedron: CoordinationPolyhedron
-    ) -> CoordinationGeometry:
+    def get_geometry(cls, polyhedron: CoordinationPolyhedron) -> CoordinationGeometry:
         """Create a complete CoordinationGeometry object for a polyhedron."""
         cls._initialize()
         name, point_group = cls._SYMMETRIES[polyhedron]
@@ -198,9 +207,7 @@ class ChelateAssembler:
     """Calculates site assignments for polydentate chelators based on bite angles and cis-pairs."""
 
     @staticmethod
-    def calculate_angle(
-        v1: Tuple[float, float, float], v2: Tuple[float, float, float]
-    ) -> float:
+    def calculate_angle(v1: Tuple[float, float, float], v2: Tuple[float, float, float]) -> float:
         """Calculate angle in degrees between two 3D unit vectors."""
         dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
         dot = max(-1.0, min(1.0, dot))
@@ -208,7 +215,10 @@ class ChelateAssembler:
 
     @classmethod
     def find_adjacent_pairs(
-        cls, vectors: Sequence[Tuple[float, float, float]], target_angle: float = 90.0, tolerance: float = 30.0
+        cls,
+        vectors: Sequence[Tuple[float, float, float]],
+        target_angle: float = 90.0,
+        tolerance: float = 30.0,
     ) -> List[Tuple[int, int]]:
         """Identify pairs of coordination vertex indices that match the target bite angle."""
         pairs: List[Tuple[int, int]] = []
@@ -234,13 +244,12 @@ class IsomerResolver:
         """Map each ligand's donor atoms to specific site indices in the coordination polyhedron."""
         cn = geometry.coordination_number
         polyhedron = geometry.polyhedron
-        vectors = geometry.ideal_vectors
         isomer = isomer_state.lower().strip()
 
         # Case 1: Octahedral CN=6
         if polyhedron == CoordinationPolyhedron.OCTAHEDRAL:
             # 1a. Tris-bidentate [M(bidentate)3] -> Delta / Lambda enantiomers
-            if len(ligands) == 3 and all(l.denticity == 2 for l in ligands):
+            if len(ligands) == 3 and all(lig_item.denticity == 2 for lig_item in ligands):
                 # Octahedral sites: 0:+x, 1:-x, 2:+y, 3:-y, 4:+z, 5:-z
                 if isomer in ("lambda", "lam"):
                     # Lambda configuration (left-handed propeller)
@@ -249,10 +258,10 @@ class IsomerResolver:
                 return [[4, 0], [2, 1], [5, 2]]
 
             # 1b. MA3B3 -> fac vs mer
-            if len(ligands) == 6 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
+            if len(ligands) == 6 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
                 # Check if 3 of A and 3 of B
-                counts = {}
+                counts: Dict[str, int] = {}
                 for n in names:
                     counts[n] = counts.get(n, 0) + 1
                 if len(counts) == 2 and list(counts.values()) == [3, 3]:
@@ -263,12 +272,12 @@ class IsomerResolver:
                     return [[0], [2], [4], [1], [3], [5]]
 
             # 1c. MA2B4 -> cis vs trans
-            if len(ligands) == 6 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
-                counts = {}
+            if len(ligands) == 6 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
+                counts_ma2b4: Dict[str, int] = {}
                 for n in names:
-                    counts[n] = counts.get(n, 0) + 1
-                if len(counts) == 2 and set(counts.values()) == {2, 4}:
+                    counts_ma2b4[n] = counts_ma2b4.get(n, 0) + 1
+                if len(counts_ma2b4) == 2 and set(counts_ma2b4.values()) == {2, 4}:
                     if isomer in ("trans",):
                         # Trans: the two minority ligands at +z, -z
                         return [[4], [5], [0], [1], [2], [3]]
@@ -277,8 +286,8 @@ class IsomerResolver:
 
         # Case 2: Square Planar CN=4 (MA2B2 -> cis vs trans)
         if polyhedron == CoordinationPolyhedron.SQUARE_PLANAR:
-            if len(ligands) == 4 and all(l.denticity == 1 for l in ligands):
-                names = [l.name for l in ligands]
+            if len(ligands) == 4 and all(lig_item.denticity == 1 for lig_item in ligands):
+                names = [lig_item.name for lig_item in ligands]
                 counts = {}
                 for n in names:
                     counts[n] = counts.get(n, 0) + 1
@@ -328,7 +337,7 @@ class CoordinateAssembler:
         metal_idx = 0
 
         # 2. Iterate through ligands and synthesize 3D coordinates
-        for lig_idx, (lig, sites) in enumerate(zip(ligands, site_mapping)):
+        for _lig_idx, (lig, sites) in enumerate(zip(ligands, site_mapping, strict=False)):
             donor_global_indices: List[int] = []
 
             for d_idx, site_id in enumerate(sites):
@@ -349,9 +358,7 @@ class CoordinateAssembler:
                 bonds.append((metal_idx, current_donor_idx, 1.0, "coordination"))
 
             # Synthesize ligand backbone geometry for standard ligands
-            cls._assemble_ligand_backbone(
-                lig, donor_global_indices, sites, geometry, coords, bonds
-            )
+            cls._assemble_ligand_backbone(lig, donor_global_indices, sites, geometry, coords, bonds)
 
         return coords, bonds
 
@@ -373,12 +380,12 @@ class CoordinateAssembler:
             o_idx = donor_indices[0]
             ox, oy, oz = coords[o_idx][1], coords[o_idx][2], coords[o_idx][3]
             u = np.array([ox, oy, oz])
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / _vec_norm(u)
 
             # Perpendicular vectors
             perp1 = np.array([0.0, 0.0, 1.0]) if abs(u_norm[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
             perp1 = perp1 - np.dot(perp1, u_norm) * u_norm
-            perp1 = perp1 / np.linalg.norm(perp1)
+            perp1 = perp1 / _vec_norm(perp1)
 
             d_oh = 0.96
             half_angle = math.radians(104.5 / 2.0)
@@ -402,21 +409,20 @@ class CoordinateAssembler:
             n_idx = donor_indices[0]
             nx, ny, nz = coords[n_idx][1], coords[n_idx][2], coords[n_idx][3]
             u = np.array([nx, ny, nz])
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / _vec_norm(u)
 
             perp1 = np.array([0.0, 0.0, 1.0]) if abs(u_norm[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
             perp1 = perp1 - np.dot(perp1, u_norm) * u_norm
-            perp1 = perp1 / np.linalg.norm(perp1)
-            perp2 = np.cross(u_norm, perp1)
+            perp1 = perp1 / _vec_norm(perp1)
+            perp2 = _vec_cross(u_norm, perp1)
 
             d_nh = 1.01
             theta = math.radians(70.0)  # Tilt relative to radial axis
             for k in range(3):
                 phi = 2.0 * math.pi * k / 3.0
-                h_dir = (
-                    u_norm * math.cos(theta)
-                    + (perp1 * math.cos(phi) + perp2 * math.sin(phi)) * math.sin(theta)
-                )
+                h_dir = u_norm * math.cos(theta) + (
+                    perp1 * math.cos(phi) + perp2 * math.sin(phi)
+                ) * math.sin(theta)
                 h_pos = np.array([nx, ny, nz]) + h_dir * d_nh
                 h_idx = len(coords)
                 coords.append(("H", float(h_pos[0]), float(h_pos[1]), float(h_pos[2])))
@@ -428,7 +434,7 @@ class CoordinateAssembler:
             c_idx = donor_indices[0]
             cx, cy, cz = coords[c_idx][1], coords[c_idx][2], coords[c_idx][3]
             u = np.array([cx, cy, cz])
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / _vec_norm(u)
             o_pos = np.array([cx, cy, cz]) + u_norm * 1.14
             o_idx = len(coords)
             coords.append(("O", float(o_pos[0]), float(o_pos[1]), float(o_pos[2])))
@@ -440,7 +446,7 @@ class CoordinateAssembler:
             c_idx = donor_indices[0]
             cx, cy, cz = coords[c_idx][1], coords[c_idx][2], coords[c_idx][3]
             u = np.array([cx, cy, cz])
-            u_norm = u / np.linalg.norm(u)
+            u_norm = u / _vec_norm(u)
             n_pos = np.array([cx, cy, cz]) + u_norm * 1.16
             n_idx = len(coords)
             coords.append(("N", float(n_pos[0]), float(n_pos[1]), float(n_pos[2])))
@@ -453,7 +459,7 @@ class CoordinateAssembler:
             p1 = np.array([coords[d1_idx][1], coords[d1_idx][2], coords[d1_idx][3]])
             p2 = np.array([coords[d2_idx][1], coords[d2_idx][2], coords[d2_idx][3]])
             mid = (p1 + p2) / 2.0
-            mid_dir = mid / np.linalg.norm(mid)
+            mid_dir = mid / _vec_norm(mid)
 
             if name in ("2,2'-bipyridine", "bpy", "1,10-phenanthroline", "phen"):
                 # Bridge via aromatic backbone midpoint

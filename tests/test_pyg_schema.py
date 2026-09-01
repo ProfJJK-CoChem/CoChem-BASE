@@ -27,6 +27,7 @@ from torch_geometric.loader import DataLoader
 from cochem_geom.data.featurizer import (
     MolecularData,
     get_atomic_mass,
+    get_isotopic_mass,
 )
 from cochem_geom.data.geom_parser import (
     ConformerRecord,
@@ -56,6 +57,11 @@ WATER_POS = [
 ]
 WATER_ENERGY_EV = -2079.35  # ~ -76.4 Hartree
 WATER_DIPOLE = [0.0, 0.0, 1.8546]  # Debye (along z-axis)
+WATER_FORCES = [
+    [0.000000, 0.000000, 0.050000],
+    [0.000000, -0.025000, -0.025000],
+    [0.000000, 0.025000, -0.025000],
+]  # eV/Angstrom
 
 # Methane (CH4, Td) - Ground State Geometry (Angstroms)
 METHANE_SYMBOLS = ["C", "H", "H", "H", "H"]
@@ -207,7 +213,7 @@ class TestValidationFailFast:
             ConformerData(
                 z=torch.tensor(WATER_Z, dtype=torch.long),
                 pos=torch.tensor(WATER_POS, dtype=torch.float32),
-                forces=torch.zeros((3, 3), dtype=torch.float64),
+                forces=torch.tensor(WATER_FORCES, dtype=torch.float64),
             )
 
     def test_rejection_of_invalid_dipole_shape(self) -> None:
@@ -402,10 +408,7 @@ class TestSE3EquivarianceAndInvariance:
 
     def test_spatial_translation_equivariance(self) -> None:
         """Spatial translation T transforms pos equivariantly while forces, dipole, and scalars remain invariant."""
-        forces_water = torch.tensor(
-            [[0.0, 0.0, 0.05], [0.0, -0.025, -0.025], [0.0, 0.025, -0.025]],
-            dtype=torch.float32,
-        )
+        forces_water = torch.tensor(WATER_FORCES, dtype=torch.float32)
         data = ConformerData(
             z=torch.tensor(WATER_Z, dtype=torch.long),
             pos=torch.tensor(WATER_POS, dtype=torch.float32),
@@ -439,10 +442,7 @@ class TestSE3EquivarianceAndInvariance:
 
     def test_3d_rotation_equivariance(self) -> None:
         """3D rotation R transforms pos, forces, and dipole equivariantly while scalars remain invariant."""
-        forces_water = torch.tensor(
-            [[0.0, 0.0, 0.05], [0.0, -0.025, -0.025], [0.0, 0.025, -0.025]],
-            dtype=torch.float32,
-        )
+        forces_water = torch.tensor(WATER_FORCES, dtype=torch.float32)
         data = ConformerData(
             z=torch.tensor(WATER_Z, dtype=torch.long),
             pos=torch.tensor(WATER_POS, dtype=torch.float32),
@@ -548,8 +548,9 @@ class TestDynamicMendeleevSpectroscopy:
             z=torch.tensor(WATER_Z, dtype=torch.long),
             pos=torch.tensor(WATER_POS, dtype=torch.float32),
         )
-        # Explicit Deuterium mass ~ 2.0141 u
-        masses_d2o = [get_atomic_mass(8), 2.0141017781, 2.0141017781]
+        # Dynamic Mendeleev Deuterium mass retrieval (NEVER hardcoded)
+        m_d = get_isotopic_mass("H", 2)
+        masses_d2o = [get_atomic_mass(8), m_d, m_d]
         rc_h2o = data_h2o.compute_principal_rotational_constants()
         rc_d2o = data_h2o.compute_principal_rotational_constants(masses=masses_d2o)
 
@@ -573,7 +574,7 @@ class TestInterSchemaConversions:
             z=torch.tensor(WATER_Z, dtype=torch.long),
             pos=torch.tensor(WATER_POS, dtype=torch.float32),
             y=torch.tensor([WATER_ENERGY_EV], dtype=torch.float32),
-            forces=torch.randn((3, 3), dtype=torch.float32),
+            forces=torch.tensor(WATER_FORCES, dtype=torch.float32),
             dipole=torch.tensor(WATER_DIPOLE, dtype=torch.float32),
             rotational_constants=torch.tensor([835000.0, 435000.0, 278000.0], dtype=torch.float32),
             symbols=WATER_SYMBOLS,
@@ -601,7 +602,7 @@ class TestInterSchemaConversions:
             energy=WATER_ENERGY_EV,
             relative_energy=0.0,
             boltzmann_weight=0.995,
-            forces=np.zeros((3, 3), dtype=np.float64),
+            forces=np.array(WATER_FORCES, dtype=np.float64),
             dipole=np.array(WATER_DIPOLE, dtype=np.float64),
             rotational_constants=np.array([835000.0, 435000.0, 278000.0], dtype=np.float64),
             qm_method="DFT/wB97M-V/def2-QZVPP",
@@ -684,7 +685,7 @@ class TestStateImmutability:
     def test_rotate_immutability(self) -> None:
         """rotate() must return a fresh instance without altering original tensors."""
         orig_pos = torch.tensor(WATER_POS, dtype=torch.float32)
-        orig_forces = torch.randn((3, 3), dtype=torch.float32)
+        orig_forces = torch.tensor(WATER_FORCES, dtype=torch.float32)
         data = ConformerData(
             z=torch.tensor(WATER_Z, dtype=torch.long),
             pos=orig_pos,

@@ -18,6 +18,7 @@ Strict Invariants:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import math
@@ -815,11 +816,9 @@ FINAL SINGLE POINT ENERGY      -152.880000000000
         assert schema_dict["properties"]["return_energy"] == -152.88457291
 
         # Clean up read-only permissions for tempdir teardown
-        try:
+        with contextlib.suppress(OSError):
             target_log.chmod(stat.S_IWRITE | stat.S_IREAD)
             json_path.chmod(stat.S_IWRITE | stat.S_IREAD)
-        except Exception:
-            pass
 
     def test_hdf5_ontology_enforcer_basin_record(self, tmp_path: Path) -> None:
         h5_path = tmp_path / "landscape.h5"
@@ -851,7 +850,11 @@ FINAL SINGLE POINT ENERGY      -152.880000000000
         h5_path = tmp_path / "matrix_state.h5"
         enforcer = HDF5OntologyEnforcer(h5_path)
 
-        data_matrix = np.eye(6)
+        dimer = Molecule(name="water_dimer_metric")
+        for sym, x, y, z in WATER_DIMER_ATOMS:
+            dimer.add_atom(Atom(symbol=sym, x=x, y=y, z=z))
+        data_matrix = np.array(dimer.distance_matrix(), dtype=np.float64)
+
         metadata = {
             "molecule_name": "water_dimer_metric",
             "energy": -152.88457291,

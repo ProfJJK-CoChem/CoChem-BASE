@@ -26,63 +26,157 @@ from ase.calculators.emt import EMT
 from ase.calculators.lj import LennardJones
 from mendeleev import element
 
-from mechanics.cochem_topos_goat import (
-    ALPBSolvationManager,
-    ASEOptimizerAdapter,
-    BaseOptimizer,
-    BatchedMLFFInference,
-    CascadeCycleRecord,
-    GOATCascadeConfig,
-    GOATCascadeReport,
-    GOATCascadeResult,
-    GradientNoiseOptimizer,
-    GradientNoiseQuenchResult,
-    MLFFSingletonLoader,
-    OptimizerToggleEvent,
-    OptimizerToggleReason,
-    OrphanedProcessReaper,
-    ScratchPurgeManager,
-    ToposGOATCascade,
-    get_global_reaper,
-    get_system_charge,
-    load_system_config,
-    reap_all_child_processes,
-)
-from mechanics.cochem_topos_memory import (
-    DeviceType,
-    EngineTier,
-    GeometryRecord,
-    HardwareResourceBroker,
-    PrecisionMode,
-    ToposHDF5MemoryManager,
-)
-from mechanics.cochem_topos_quench import (
-    QuenchAlgorithm,
-    QuenchConfig,
-    QuenchStatus,
-    ToposQuenchOrchestrator,
-    TorchMLFFCalculator,
-)
-from mechanics.cochem_topos_escape import (
-    EscapeConfig,
-    EscapeMechanism,
-    ToposEscapeOrchestrator,
-)
+try:
+    from cochem_topos.cochem_topos_goat import (
+        ALPBSolvationManager,
+        ASEOptimizerAdapter,
+        BaseOptimizer,
+        BatchedMLFFInference,
+        CascadeCycleRecord,
+        GOATCascadeConfig,
+        GOATCascadeReport,
+        GOATCascadeResult,
+        GradientNoiseOptimizer,
+        GradientNoiseQuenchResult,
+        MLFFSingletonLoader,
+        OptimizerToggleEvent,
+        OptimizerToggleReason,
+        OrphanedProcessReaper,
+        ScratchPurgeManager,
+        ToposGOATCascade,
+        get_global_reaper,
+        get_system_charge,
+        load_system_config,
+        reap_all_child_processes,
+    )
+    from cochem_topos.cochem_topos_memory import (
+        DeviceType,
+        EngineTier,
+        GeometryRecord,
+        HardwareResourceBroker,
+        PrecisionMode,
+        ToposHDF5MemoryManager,
+    )
+    from cochem_topos.cochem_topos_quench import (
+        QuenchAlgorithm,
+        QuenchConfig,
+        QuenchStatus,
+        ToposQuenchOrchestrator,
+        TorchMLFFCalculator,
+    )
+    from cochem_topos.cochem_topos_escape import (
+        EscapeConfig,
+        EscapeMechanism,
+        ToposEscapeOrchestrator,
+    )
+except ImportError:
+    try:
+        from mechanics.cochem_topos_goat import (  # type: ignore[no-redef]
+            ALPBSolvationManager,
+            ASEOptimizerAdapter,
+            BaseOptimizer,
+            BatchedMLFFInference,
+            CascadeCycleRecord,
+            GOATCascadeConfig,
+            GOATCascadeReport,
+            GOATCascadeResult,
+            GradientNoiseOptimizer,
+            GradientNoiseQuenchResult,
+            MLFFSingletonLoader,
+            OptimizerToggleEvent,
+            OptimizerToggleReason,
+            OrphanedProcessReaper,
+            ScratchPurgeManager,
+            ToposGOATCascade,
+            get_global_reaper,
+            get_system_charge,
+            load_system_config,
+            reap_all_child_processes,
+        )
+        from mechanics.cochem_topos_memory import (  # type: ignore[no-redef]
+            DeviceType,
+            EngineTier,
+            GeometryRecord,
+            HardwareResourceBroker,
+            PrecisionMode,
+            ToposHDF5MemoryManager,
+        )
+        from mechanics.cochem_topos_quench import (  # type: ignore[no-redef]
+            QuenchAlgorithm,
+            QuenchConfig,
+            QuenchStatus,
+            ToposQuenchOrchestrator,
+            TorchMLFFCalculator,
+        )
+        from mechanics.cochem_topos_escape import (  # type: ignore[no-redef]
+            EscapeConfig,
+            EscapeMechanism,
+            ToposEscapeOrchestrator,
+        )
+    except ImportError:
+        from cochem_topos_goat import (  # type: ignore[no-redef]
+            ALPBSolvationManager,
+            ASEOptimizerAdapter,
+            BaseOptimizer,
+            BatchedMLFFInference,
+            CascadeCycleRecord,
+            GOATCascadeConfig,
+            GOATCascadeReport,
+            GOATCascadeResult,
+            GradientNoiseOptimizer,
+            GradientNoiseQuenchResult,
+            MLFFSingletonLoader,
+            OptimizerToggleEvent,
+            OptimizerToggleReason,
+            OrphanedProcessReaper,
+            ScratchPurgeManager,
+            ToposGOATCascade,
+            get_global_reaper,
+            get_system_charge,
+            load_system_config,
+            reap_all_child_processes,
+        )
+        from cochem_topos_memory import (  # type: ignore[no-redef]
+            DeviceType,
+            EngineTier,
+            GeometryRecord,
+            HardwareResourceBroker,
+            PrecisionMode,
+            ToposHDF5MemoryManager,
+        )
+        from cochem_topos_quench import (  # type: ignore[no-redef]
+            QuenchAlgorithm,
+            QuenchConfig,
+            QuenchStatus,
+            ToposQuenchOrchestrator,
+            TorchMLFFCalculator,
+        )
+        from cochem_topos_escape import (  # type: ignore[no-redef]
+            EscapeConfig,
+            EscapeMechanism,
+            ToposEscapeOrchestrator,
+        )
 
 try:
-    from topology.cochem_topos_crusher import (
+    from cochem_topos.cochem_topos_crusher import (
         DeduplicationVerdict,
         TopologyCrusher,
     )
 except (ImportError, AttributeError, Exception):
     try:
-        from core_engine.cochem_topos_crusher import (  # type: ignore[import-not-found]
-            TopologyCrusher,  # type: ignore[misc]
+        from topology.cochem_topos_crusher import (  # type: ignore[no-redef]
+            DeduplicationVerdict,
+            TopologyCrusher,
         )
-        DeduplicationVerdict = None  # type: ignore[assignment,misc]
     except (ImportError, AttributeError, Exception):
-        DeduplicationVerdict = None  # type: ignore[assignment,misc]
-        TopologyCrusher = None  # type: ignore[assignment,misc]
+        try:
+            from core_engine.cochem_topos_crusher import (  # type: ignore[import-not-found,no-redef]
+                TopologyCrusher,  # type: ignore[misc]
+            )
+            DeduplicationVerdict = None  # type: ignore[assignment,misc]
+        except (ImportError, AttributeError, Exception):
+            DeduplicationVerdict = None  # type: ignore[assignment,misc]
+            TopologyCrusher = None  # type: ignore[assignment,misc]
 
 
 # ============================================================================

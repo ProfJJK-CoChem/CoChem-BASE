@@ -1,4 +1,4 @@
-"""Physical Zero-Mock Test Suite for Copy of Method_Matrix.md Refactoring.
+"""Physical Zero-Mock Test Suite for Method_Matrix.md Refactoring.
 
 Verifies strict Unix LF line endings, UTF-8 encoding without BOM, zero personal path leakage,
 canonical token compliance, complete structural sections, Method Matrix invariants,
@@ -12,28 +12,22 @@ from pathlib import Path
 import pytest
 
 from cochem_base.config_loader import get_base_root
-from cochem_base.path_sanitization import (
-    find_path_leaks,
-    leak_patterns,
-    placeholder_values,
-)
+from cochem_base.path_sanitization import find_path_leaks
 
 
 @pytest.fixture(params=[
-    Path(r"D:\__CoChem\GitHub-Repo\.old_plan_docs\20260810_docs\Copy of Method_Matrix.md"),
     get_base_root() / "Method_Matrix.md",
 ])
 def target_file(request: pytest.FixtureRequest) -> Path:
     target: Path = request.param
-    if not target.exists():
-        pytest.skip(f"Target file does not exist at {target}")
+    assert target.exists(), f"Target file does not exist at {target}"
     return target
 
 
 def test_file_exists_and_non_empty(target_file: Path) -> None:
     """Verify that the Method Matrix exists and has comprehensive content (>500 KB)."""
     stat = target_file.stat()
-    assert stat.st_size > 100_000, f"File size too small ({stat.st_size} bytes)"
+    assert stat.st_size > 500_000, f"File size too small ({stat.st_size} bytes)"
 
 
 def test_unix_lf_line_endings(target_file: Path) -> None:
@@ -153,11 +147,11 @@ def test_provenance_and_method_matrix_invariants(target_file: Path) -> None:
     # Hessian & Grid invariants
     assert "InHess XTB2" in content
     assert "Lindh" in content
-    assert "Calc_Hess true" in content or "Calc_Hess" in content
-    assert "DEFGRID2" in content or "DEFGRID3" in content or "DEFGRID4" in content
+    assert "Calc_Hess true" in content and "Forbidden" in content
+    assert "DEFGRID3" in content
     assert "TightOpt" in content
     assert "TightSCF" in content
-    assert "TolMaxG 1e-5" in content or "TolMaxG" in content
+    assert "TolMaxG 1e-5" in content
 
     # Method & Hardware rules
     assert "Frozen-Monomer" in content or "frozen monomer" in content.lower()

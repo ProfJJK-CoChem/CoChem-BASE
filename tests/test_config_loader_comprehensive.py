@@ -12,9 +12,13 @@ Validates all functionality:
 from __future__ import annotations
 
 import json
+import os
 import platform
 import re
+import shutil
 import socket
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -81,25 +85,41 @@ def test_get_cochem_root_outside_repo_fallback(tmp_path: Path, monkeypatch: pyte
     """Verify get_cochem_root falls back to ~/.cochem when outside repo structure."""
     monkeypatch.delenv("COCHEM_ROOT", raising=False)
     monkeypatch.delenv("COCHEM_WORKSPACE_ROOT", raising=False)
-    
-    # We remove the mock of cochem_base.config_loader.__file__ and instead physically test
-    # by writing a script in an isolated directory and running it.
-    isolated_dir = tmp_path / "standalone"
-    isolated_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Copy the config loader file to the isolated dir to run it physically outside a repo
-    import shutil
-    import subprocess
-    
-    # Find the real config_loader.py
+
     import cochem_base.config_loader
-    real_file = Path(cochem_base.config_loader.__file__)
-    
-    # We just run a python snippet that modifies its own __file__? 
-    # Actually the instruction is just to remove monkeypatch.setattr on __file__.
-    # But wait, if we copy it, it might have dependencies.
-    # We can just skip this test if we can't easily reproduce the physical state without mocking.
-    pytest.skip("Requires physical relocation outside repository to test fallback without mocks")
+    real_file = Path(cochem_base.config_loader.__file__).resolve()
+
+    isolated_dir = tmp_path / "standalone_env" / "isolated_pkg"
+    isolated_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(real_file, isolated_dir / "config_loader.py")
+
+    runner_script = tmp_path / "standalone_env" / "run_fallback_check.py"
+    runner_script.write_text(
+        "import sys\n"
+        "from pathlib import Path\n"
+        "sys.path.insert(0, str(Path(__file__).parent / 'isolated_pkg'))\n"
+        "import config_loader\n"
+        "resolved = config_loader.get_cochem_root()\n"
+        "expected = (Path.home() / '.cochem').resolve()\n"
+        "assert resolved == expected, f'Expected {expected}, got {resolved}'\n"
+        "print(f'RESOLVED_FALLBACK:{resolved}')\n",
+        encoding="utf-8",
+    )
+
+    env = os.environ.copy()
+    env.pop("COCHEM_ROOT", None)
+    env.pop("COCHEM_WORKSPACE_ROOT", None)
+
+    result = subprocess.run(
+        [sys.executable, str(runner_script)],
+        cwd=str(tmp_path / "standalone_env"),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    expected_root = (Path.home() / ".cochem").resolve()
+    assert f"RESOLVED_FALLBACK:{expected_root}" in result.stdout
 
 
 def test_get_base_root_default() -> None:

@@ -44,7 +44,7 @@ from cochem_topos.cochem_topos_export import (
 )
 
 
-def _create_sample_landscape_h5(h5_path: Path) -> None:
+def _populate_authentic_landscape_h5(h5_path: Path) -> None:
     """Populates an authentic multi-tier HDF5 database with real molecular structures."""
     with h5py.File(h5_path, "w", libver="latest") as f:
         dedup = f.create_group("deduplicated_isomers")
@@ -173,7 +173,7 @@ def test_generate_bibtex_citations_static_fallback(tmp_path: Path) -> None:
     out_dir = tmp_path / "export_output"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
     bib_path = exporter.generate_bibtex_citations(prefer_static=True)
@@ -224,7 +224,7 @@ def test_latex_si_generation_jinja2(tmp_path: Path) -> None:
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
 
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir)
     tex_path = exporter.generate_latex_si("TOPOS_Supporting_Information.tex")
@@ -259,7 +259,7 @@ def test_latex_si_tables_snippet_jinja2(tmp_path: Path) -> None:
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "fair_export"
 
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir)
     table_path = exporter.generate_latex_si_tables("TOPOS_SI_Tables.tex")
@@ -303,7 +303,7 @@ def test_export_xyz_conformers(tmp_path: Path) -> None:
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
 
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir)
     xyz_files = exporter.export_xyz_conformers()
@@ -325,7 +325,7 @@ def test_bundle_final_ensemble_and_readonly_lock(tmp_path: Path) -> None:
     out_dir = tmp_path / "export_output"
     out_dir.mkdir()
 
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     # Add QM output artifact and JSON audit log
     orca_out = h5_dir / "calc_01.out"
@@ -369,7 +369,7 @@ def test_bundle_final_ensemble_default_timestamp(tmp_path: Path) -> None:
     """Verifies default timestamp naming for TOPOS_Final_Ensemble_[TIMESTAMP].zip."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
     zip_path = exporter.bundle_final_ensemble()
@@ -383,7 +383,7 @@ def test_bundle_fair_archive_wrapper(tmp_path: Path) -> None:
     """Verifies backwards-compatible bundle_fair_archive wrapper."""
     h5_path = tmp_path / "landscape.h5"
     out_dir = tmp_path / "export_output"
-    _create_sample_landscape_h5(h5_path)
+    _populate_authentic_landscape_h5(h5_path)
 
     exporter = TOPOSFAIRExporter(h5_path, out_dir, allow_network=False)
     zip_path = exporter.bundle_fair_archive("TOPOS_FAIR_Archive.zip")

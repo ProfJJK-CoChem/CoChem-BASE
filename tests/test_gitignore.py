@@ -12,9 +12,7 @@ from __future__ import annotations
 
 import ast
 import subprocess
-import sys
 from pathlib import Path
-from typing import List, Tuple
 
 import pytest
 
@@ -117,7 +115,11 @@ def test_gitignore_contains_all_six_sections(gitignore_file: Path) -> None:
 def test_gitignore_contains_all_patterns(gitignore_file: Path) -> None:
     """Validate that all required patterns from SRS Document 1 are present."""
     content = gitignore_file.read_text(encoding="utf-8")
-    lines = [line.strip() for line in content.splitlines() if line.strip() and not line.strip().startswith("#")]
+    lines = [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
 
     for pattern in EXPECTED_PATTERNS:
         assert pattern in lines, f"Required pattern '{pattern}' missing from .gitignore"

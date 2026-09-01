@@ -54,7 +54,7 @@ import tempfile
 import time
 import warnings
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Optional
 
 import psutil
 import pytest
@@ -1111,7 +1111,7 @@ class TestExitCodeSegfaultHexDumping:
         scratch_dir.mkdir(parents=True, exist_ok=True)
 
         # Stage authentic scratch crash dump
-        tmp_dump = scratch_dir = scratch_dir / "orca_scf_integral_dump.tmp"
+        tmp_dump = scratch_dir / "orca_scf_integral_dump.tmp"
         crash_payload = b"\xde\xad\xbe\xef" * 64  # 256 bytes
         tmp_dump.write_bytes(crash_payload)
 

@@ -70,6 +70,7 @@ from topology.cochem_topos_crusher import (
     evaluate_coulomb_eigenspectrum,
     evaluate_molsym_symmetry_filter,
     evaluate_networkx_connectivity_hash,
+    get_monoisotopic_masses,
     is_enantiomer_pair,
 )
 
@@ -242,6 +243,7 @@ class TestMemoryMappedTriage:
             buffer.write_candidate(index=i, coords=perturbed_coords)
 
         buffer.flush()
+        buffer.close()
 
         # Re-open in read-only mode
         reader = MemmapIsomerBuffer(
@@ -250,10 +252,13 @@ class TestMemoryMappedTriage:
             n_atoms=n_atoms,
             mode="r",
         )
-        for i in range(n_candidates):
-            read_c = reader.read_candidate(index=i)
-            expected = WATER_COORDS + float(i) * 0.01
-            assert np.allclose(read_c, expected, atol=1e-8)
+        try:
+            for i in range(n_candidates):
+                read_c = reader.read_candidate(index=i)
+                expected = WATER_COORDS + float(i) * 0.01
+                assert np.allclose(read_c, expected, atol=1e-8)
+        finally:
+            reader.close()
 
     def test_memmap_sha256_checksum_verification(self, tmp_path: Path) -> None:
         """Verify SHA-256 header and payload checksum integrity validation."""
@@ -264,14 +269,17 @@ class TestMemoryMappedTriage:
             n_atoms=len(METHANE_SYMBOLS),
             mode="w+",
         )
-        buffer.write_candidate(0, METHANE_COORDS)
-        buffer.write_candidate(1, METHANE_COORDS + 0.05)
-        buffer.flush()
+        try:
+            buffer.write_candidate(0, METHANE_COORDS)
+            buffer.write_candidate(1, METHANE_COORDS + 0.05)
+            buffer.flush()
 
-        checksum = buffer.compute_sha256_checksum()
-        assert isinstance(checksum, str)
-        assert len(checksum) == 64
-        assert buffer.verify_checksum(expected_checksum=checksum) is True
+            checksum = buffer.compute_sha256_checksum()
+            assert isinstance(checksum, str)
+            assert len(checksum) == 64
+            assert buffer.verify_checksum(expected_checksum=checksum) is True
+        finally:
+            buffer.close()
 
     def test_memmap_corruption_recovery_from_hdf5(self, tmp_path: Path) -> None:
         """Verify automatic corruption detection and recovery from raw HDF5 backup."""
@@ -291,12 +299,20 @@ class TestMemoryMappedTriage:
             dataset_group="raw_candidates",
         )
         assert buffer.verify_integrity() is True
+        buffer.close()
 
         # Corrupt the raw binary file
         with open(mmap_path, "r+b") as fh:
             fh.seek(10)
             fh.write(b"\xFF\xFF\xFF\xFF")
 
+        # Re-open buffer
+        buffer = MemmapIsomerBuffer(
+            filepath=mmap_path,
+            n_candidates=2,
+            n_atoms=len(WATER_SYMBOLS),
+            mode="r+",
+        )
         # Corruption detection
         is_valid = buffer.verify_integrity()
         assert is_valid is False
@@ -306,18 +322,22 @@ class TestMemoryMappedTriage:
             h5_path=h5_backup,
             dataset_group="raw_candidates",
         )
-        assert healed_buffer.verify_integrity() is True
-        assert np.allclose(healed_buffer.read_candidate(0), WATER_COORDS)
+        try:
+            assert healed_buffer.verify_integrity() is True
+            assert np.allclose(healed_buffer.read_candidate(0), WATER_COORDS)
+        finally:
+            healed_buffer.close()
 
     def test_preflight_energy_sorting(self) -> None:
         """Verify sorting candidates by electronic energy and designating lowest as basin_00000."""
+        water_masses = get_monoisotopic_masses(WATER_SYMBOLS).tolist()
         candidates = [
             ConformerCandidate(
                 candidate_id="cand_high",
                 symbols=WATER_SYMBOLS,
                 atomic_numbers=[8, 1, 1],
                 coordinates=WATER_COORDS.tolist(),
-                monoisotopic_masses=[15.994915, 1.007825, 1.007825],
+                monoisotopic_masses=water_masses,
                 energy_kcal=-50.0,
             ),
             ConformerCandidate(
@@ -325,7 +345,7 @@ class TestMemoryMappedTriage:
                 symbols=WATER_SYMBOLS,
                 atomic_numbers=[8, 1, 1],
                 coordinates=WATER_COORDS.tolist(),
-                monoisotopic_masses=[15.994915, 1.007825, 1.007825],
+                monoisotopic_masses=water_masses,
                 energy_kcal=-76.4,
             ),
             ConformerCandidate(
@@ -333,7 +353,7 @@ class TestMemoryMappedTriage:
                 symbols=WATER_SYMBOLS,
                 atomic_numbers=[8, 1, 1],
                 coordinates=WATER_COORDS.tolist(),
-                monoisotopic_masses=[15.994915, 1.007825, 1.007825],
+                monoisotopic_masses=water_masses,
                 energy_kcal=-65.2,
             ),
         ]
@@ -636,12 +656,15 @@ class TestStateSerializationAndHDF5:
         h5_path = tmp_path / "landscape.h5"
         crusher = TopologyCrusher(hdf5_path=h5_path)
 
+        masses_r = get_monoisotopic_masses(CHFCLBR_R_SYMBOLS).tolist()
+        masses_s = get_monoisotopic_masses(CHFCLBR_S_SYMBOLS).tolist()
+
         cand_r = ConformerCandidate(
             candidate_id="chfclbr_r",
             symbols=CHFCLBR_R_SYMBOLS,
             atomic_numbers=[6, 1, 9, 17, 35],
             coordinates=CHFCLBR_R_COORDS.tolist(),
-            monoisotopic_masses=[12.0, 1.007825, 18.9984, 34.96885, 78.9183],
+            monoisotopic_masses=masses_r,
             energy_kcal=-120.5,
         )
         cand_s = ConformerCandidate(
@@ -649,7 +672,7 @@ class TestStateSerializationAndHDF5:
             symbols=CHFCLBR_S_SYMBOLS,
             atomic_numbers=[6, 1, 9, 17, 35],
             coordinates=CHFCLBR_S_COORDS.tolist(),
-            monoisotopic_masses=[12.0, 1.007825, 18.9984, 34.96885, 78.9183],
+            monoisotopic_masses=masses_s,
             energy_kcal=-120.5,
         )
 

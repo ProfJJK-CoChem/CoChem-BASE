@@ -7,14 +7,14 @@ and blueprint markdown generation.
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 import subprocess
 import sys
+from pathlib import Path
+
 import pytest
 
-from cochem_base.path_sanitization import leak_patterns
 import generate_blueprint as gb
+from cochem_base.path_sanitization import leak_patterns
 
 
 @pytest.fixture
@@ -105,7 +105,7 @@ def test_discover_files_in_temp_tree(tmp_path: Path) -> None:
     (tmp_path / "src" / "b.py").write_text("print('b')", encoding="utf-8")
     (tmp_path / "docs").mkdir()
     (tmp_path / "docs" / "guide.md").write_text("# Guide", encoding="utf-8")
-    
+
     # Excluded files
     (tmp_path / "src" / "__pycache__").mkdir()
     (tmp_path / "src" / "__pycache__" / "a.cpython-314.pyc").write_text("bytecode", encoding="utf-8")
@@ -231,7 +231,7 @@ def test_cli_parsing_and_main(tmp_path: Path) -> None:
 def test_subprocess_cli_execution(tmp_path: Path) -> None:
     """Test real subprocess execution of generate_blueprint.py."""
     target_script = Path(__file__).resolve().parent.parent / "generate_blueprint.py"
-    
+
     test_dir = tmp_path / "sub_repo"
     test_dir.mkdir()
     (test_dir / "app.py").write_text("app", encoding="utf-8")

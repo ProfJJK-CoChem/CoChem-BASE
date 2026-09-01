@@ -25,15 +25,9 @@ Covers:
 
 from __future__ import annotations
 
-import math
-from pathlib import Path
-from typing import Any
-
-import mendeleev  # type: ignore[import-untyped]
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.calculators.lj import LennardJones
 from scipy.spatial.transform import Rotation
 
 from topology.cochem_topos_wiggle import (
@@ -44,7 +38,6 @@ from topology.cochem_topos_wiggle import (
     execute_lightning_quench,
     jiggle_perturb_pair,
 )
-
 
 # ===========================================================================
 # Physical Molecular Test Fixtures (Real Cartesian Coordinates in Angstroms)
@@ -190,6 +183,24 @@ class TestJigglePerturbationDynamics:
         )
         assert np.allclose(jiggle_a, DCE_ANTI_COORDS, atol=1e-8)
         assert np.allclose(jiggle_b, DCE_ANTI_COORDS, atol=1e-8)
+
+    def test_water_dimer_near_duplicate_perturbation(self) -> None:
+        """Perturbing a water dimer pair maintains bounded displacements."""
+        pert_shift = np.zeros_like(WATER_DIMER_COORDS)
+        pert_shift[0] = np.array([0.05, 0.05, 0.05])
+        target_dimer = WATER_DIMER_COORDS + pert_shift
+
+        jiggle_a, jiggle_b = jiggle_perturb_pair(
+            coords_ref=WATER_DIMER_COORDS,
+            coords_target=target_dimer,
+            symbols=WATER_DIMER_SYMBOLS,
+            fraction=0.25,
+            max_displacement=0.10,
+        )
+        assert jiggle_a.shape == WATER_DIMER_COORDS.shape
+        assert jiggle_b.shape == WATER_DIMER_COORDS.shape
+        disp_a = np.linalg.norm(jiggle_a - WATER_DIMER_COORDS, axis=1)
+        assert np.all(disp_a <= 0.10)
 
 
 # ===========================================================================

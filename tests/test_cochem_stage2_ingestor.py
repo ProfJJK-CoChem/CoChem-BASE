@@ -22,7 +22,6 @@ Authoritative Standards:
 from __future__ import annotations
 
 import ast
-import base64
 import math
 from pathlib import Path
 from typing import List, Set
@@ -39,6 +38,7 @@ from intake.cochem_stage2_ingestor import (
     JiggleQuenchDeduplicator,
     ConformerClusterResult,
     Stage2Ingestor,
+    get_atomic_mass,
     get_covalent_radius,
     get_vdw_radius,
     is_ghost_symbol,
@@ -597,8 +597,150 @@ def test_deduplicate_scrambled_atom_orderings() -> None:
     assert res.unique_conformer_count == 1, "Scrambled orderings of identical geometry must deduplicate to 1 cluster"
 
 
+
 # ==============================================================================
-# 7. Zero-Mock AST Compliance
+# 8. Legacy Stage 2 Pre-Filter & Symbol Re-export Validation
+# ==============================================================================
+
+def test_legacy_stage2_prefilter_engine(tmp_path: Path) -> None:
+    """Validate Stage2PreFilter geometry evaluations and batch ensemble sifting."""
+    import intake.stage2_ingestor as legacy_s2
+
+    config = legacy_s2.PreFilterConfig(
+        min_atomic_distance=0.55,
+        clash_factor=0.55,
+        max_interatomic_distance=20.0,
+        energy_window_kcal=12.0,
+        rmsd_threshold=0.08,
+    )
+    prefilter = legacy_s2.Stage2PreFilter(config)
+
+    # 1. Authentic Water Monomer (Should Pass)
+    rec_pass = prefilter.evaluate_candidate(WATER_COORDS, WATER_SYMBOLS, name="water_clean")
+    assert rec_pass.passed
+    assert rec_pass.verdict == legacy_s2.PreFilterVerdict.PASSED
+
+    # 2. Clashing Geometry
+    clash_coords = np.array([
+        [0.0, 0.0, 0.117790],
+        [0.0, 0.0, 0.300000],  # Interatomic dist = 0.182 A < 0.55 A
+        [0.0, -0.755453, -0.471161],
+    ], dtype=np.float64)
+    rec_clash = prefilter.evaluate_candidate(clash_coords, WATER_SYMBOLS, name="water_clash")
+    assert not rec_clash.passed
+    assert rec_clash.verdict == legacy_s2.PreFilterVerdict.CLASH_DETECTED
+    assert rec_clash.num_clashes >= 1
+
+    # 3. Dissociated Fragment
+    dissoc_coords = np.array([
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 50.0],
+    ], dtype=np.float64)
+    rec_dissoc = prefilter.evaluate_candidate(dissoc_coords, ["O", "O"], name="o2_dissoc")
+    assert not rec_dissoc.passed
+    assert rec_dissoc.verdict == legacy_s2.PreFilterVerdict.DISSOCIATION_ERROR
+
+    # 4. Energy Window Violation
+    rec_energy = prefilter.evaluate_candidate(
+        WATER_COORDS,
+        WATER_SYMBOLS,
+        name="water_high_e",
+        energy_kcal=25.0,
+        min_energy_kcal=0.0,
+    )
+    assert not rec_energy.passed
+    assert rec_energy.verdict == legacy_s2.PreFilterVerdict.ENERGY_OUT_OF_BOUNDS
+
+    # 5. Batch Ensemble Sifting with Redundant Conformer
+    conf_dup = WATER_COORDS + 0.001
+    passed_coords, passed_names, summary = prefilter.filter_ensemble(
+        conformers=[WATER_COORDS, conf_dup, clash_coords],
+        symbols=WATER_SYMBOLS,
+        names=["water_orig", "water_dup", "water_clash"],
+    )
+    assert len(passed_coords) == 1
+    assert passed_names == ["water_orig"]
+    assert summary.total_candidates == 3
+    assert summary.passed_count == 1
+    assert summary.clash_rejected_count == 1
+    assert summary.duplicate_rejected_count == 1
+
+    # 6. File IO & XYZ formatting
+    xyz_path = tmp_path / "water.xyz"
+    written_path = legacy_s2.write_xyz_file(xyz_path, WATER_COORDS, WATER_SYMBOLS, comment="Test Water")
+    assert written_path.exists()
+    content = written_path.read_text(encoding="utf-8")
+    assert "Test Water" in content
+    assert "O" in content and "H" in content
+
+    # 7. Valency Violation Pre-Filter Rejection
+    hypervalent_h_coords = np.array([
+        [0.0, 0.0, -1.0],   # C0
+        [0.0, 0.0, 1.0],    # C1
+        [0.0, 0.0, 0.0],    # H2 (bridging hydrogen with degree 2)
+    ], dtype=np.float64)
+    rec_val = prefilter.evaluate_candidate(hypervalent_h_coords, ["C", "C", "H"], name="bridging_h")
+    assert not rec_val.passed
+    assert rec_val.verdict == legacy_s2.PreFilterVerdict.VALENCY_VIOLATION
+
+
+def test_dynamic_mendeleev_mass_and_radii_compliance() -> None:
+    """Validate dynamic Mendeleev atomic mass and radii lookups for diverse periodic elements."""
+    # Hydrogen
+    m_h = get_atomic_mass("H")
+    assert math.isclose(m_h, 1.008, rel_tol=1e-2), f"Expected H mass ~1.008, got {m_h}"
+    r_cov_h = get_covalent_radius("H")
+    assert r_cov_h == 0.37
+
+    # Carbon
+    m_c = get_atomic_mass("C")
+    assert math.isclose(m_c, 12.011, rel_tol=1e-2), f"Expected C mass ~12.011, got {m_c}"
+    r_cov_c = get_covalent_radius("C")
+    assert 0.70 <= r_cov_c <= 0.80
+
+    # Silicon
+    m_si = get_atomic_mass("Si")
+    assert math.isclose(m_si, 28.085, rel_tol=1e-2), f"Expected Si mass ~28.085, got {m_si}"
+
+    # Xenon
+    m_xe = get_atomic_mass("Xe")
+    assert math.isclose(m_xe, 131.293, rel_tol=1e-2), f"Expected Xe mass ~131.293, got {m_xe}"
+
+    # Ghost atom mass and radii must strictly return 0.0
+    assert get_atomic_mass("Gh") == 0.0
+    assert get_atomic_mass("Bq") == 0.0
+    assert get_covalent_radius("Gh") == 0.0
+    assert get_vdw_radius("Gh") == 0.0
+
+
+def test_mass_weighted_kabsch_alignment() -> None:
+    """Validate mass-weighted Kabsch SVD alignment centers on center-of-mass and computes mass-weighted RMSD."""
+    aligner = HungarianKabschAligner()
+    masses = np.array([get_atomic_mass(s) for s in WATER_SYMBOLS], dtype=np.float64)
+
+    # Shift and rotate water
+    theta = math.radians(35.0)
+    R_z = np.array([
+        [math.cos(theta), -math.sin(theta), 0.0],
+        [math.sin(theta), math.cos(theta), 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float64)
+    target = (WATER_COORDS @ R_z.T) + np.array([10.0, -5.0, 3.0])
+
+    res = aligner.align(
+        target_coords=target,
+        ref_coords=WATER_COORDS,
+        symbols=WATER_SYMBOLS,
+        masses=masses,
+        allow_permutation=False,
+    )
+
+    assert res.rmsd < 1e-10, f"Mass-weighted rigid alignment RMSD was {res.rmsd}"
+    assert np.isclose(np.linalg.det(res.rotation_matrix), 1.0, atol=1e-7)
+
+
+# ==============================================================================
+# 9. Zero-Mock AST Compliance
 # ==============================================================================
 
 def test_zero_mock_mandate_compliance() -> None:
@@ -607,12 +749,9 @@ def test_zero_mock_mandate_compliance() -> None:
     content = test_file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(test_file_path))
 
-    forbidden_mod_name = base64.b64decode(b"dW5pdHRlc3QubW9jaw==").decode("utf-8")
-    forbidden_standalone = base64.b64decode(b"bW9jaw==").decode("utf-8")
-
     prohibited_in_test: Set[str] = {
-        forbidden_mod_name,
-        forbidden_standalone,
+        "unittest.mock",
+        "mock",
     }
 
     for node in ast.walk(tree):

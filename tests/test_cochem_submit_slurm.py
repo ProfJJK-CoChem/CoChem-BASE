@@ -16,7 +16,6 @@ Validates:
 from __future__ import annotations
 
 import ast
-import base64
 import subprocess
 from pathlib import Path
 from typing import List, Set
@@ -26,22 +25,48 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LAUNCHER_FILE = REPO_ROOT / "HPC_Launchers" / "cochem_submit.slurm"
 
-# Base64 encoded prohibited module names to avoid static scanner false positives
-_B64_PROHIBITED_TEST_MODULES: List[bytes] = [
-    b"dW5pdHRlc3QubW9jaw==",
-    b"bW9jaw==",
-    b"cHl0ZXN0X21vY2s=",
-]
+# Prohibited test utility modules (direct AST validation without evasion or base64 obfuscation)
+PROHIBITED_TEST_MODULES: Set[str] = {
+    "unittest.mock",
+    "mock",
+    "pytest_mock",
+}
 
 
 def _to_posix_path(path: Path) -> str:
-    """Convert a pathlib.Path to a POSIX path compatible with bash."""
+    """Convert a pathlib.Path to a POSIX path compatible with bash across WSL, MSYS2/Git-Bash, and Linux."""
     resolved = path.resolve()
     posix_str = resolved.as_posix()
-    if len(posix_str) >= 2 and posix_str[1] == ":":
-        drive = posix_str[0].lower()
-        return f"/mnt/{drive}{posix_str[2:]}"
-    return posix_str
+    if not (len(posix_str) >= 2 and posix_str[1] == ":"):
+        return posix_str
+
+    drive = posix_str[0].lower()
+    rest = posix_str[2:]
+
+    # Dynamically resolve path via environment utilities (wslpath, cygpath, or mount inspections)
+    try:
+        probe_cmd = (
+            f'if command -v wslpath >/dev/null 2>&1; then wslpath -u "{posix_str}"; '
+            f'elif command -v cygpath >/dev/null 2>&1; then cygpath -u "{posix_str}"; '
+            f'elif [ -d "/mnt/{drive}" ]; then echo "/mnt/{drive}{rest}"; '
+            f'elif [ -d "/{drive}" ]; then echo "/{drive}{rest}"; '
+            f'elif [ -d "/cygdrive/{drive}" ]; then echo "/cygdrive/{drive}{rest}"; '
+            f'else echo "{posix_str}"; fi'
+        )
+        proc = subprocess.run(
+            ["bash", "-c", probe_cmd],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode == 0:
+            lines = proc.stdout.strip().splitlines()
+            if lines and lines[-1].startswith("/"):
+                return lines[-1]
+    except Exception:
+        pass
+
+    return f"/mnt/{drive}{rest}"
 
 
 @pytest.fixture(scope="module")
@@ -146,14 +171,14 @@ def test_slurm_airgap_compliance(launcher_text: str) -> None:
 def test_slurm_zero_banned_tokens(launcher_text: str) -> None:
     """# anti-spoof: zero-stub verification of prohibited terms."""
     banned_tokens = [
-        base64.b64decode(b"bW9jaw==").decode("utf-8"),
+        "mock",
         "example",
-        base64.b64decode(b"c3R1Yg==").decode("utf-8"),
+        "stub",
         "dummy",
-        base64.b64decode(b"cGxhY2Vob2xkZXI=").decode("utf-8"),
+        "placeholder",
         "fake",
         "sample",
-        base64.b64decode(b"IyBUT0RPOiBpbXBsZW1lbnQ=").decode("utf-8"),
+        "# TODO: implement",
     ]
     lower = launcher_text.lower()
     for token in banned_tokens:
@@ -169,19 +194,19 @@ def test_slurm_ast_clean_imports() -> None:
         test_file_path.read_text(encoding="utf-8"),
         filename=str(test_file_path),
     )
-    prohibited_names: Set[str] = {
-        base64.b64decode(item).decode("utf-8") for item in _B64_PROHIBITED_TEST_MODULES
-    }
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                assert alias.name not in prohibited_names, (
-                    f"Prohibited test import: {alias.name}"
-                )
+                for prohibited in PROHIBITED_TEST_MODULES:
+                    assert alias.name != prohibited and not alias.name.startswith(f"{prohibited}."), (
+                        f"Prohibited test import: {alias.name}"
+                    )
         elif isinstance(node, ast.ImportFrom):
-            assert node.module not in prohibited_names, (
-                f"Prohibited test from-import: {node.module}"
-            )
+            mod = node.module or ""
+            for prohibited in PROHIBITED_TEST_MODULES:
+                assert mod != prohibited and not mod.startswith(f"{prohibited}."), (
+                    f"Prohibited test from-import: {mod}"
+                )
 
 
 def test_slurm_bash_syntax_valid() -> None:
@@ -291,6 +316,9 @@ def test_slurm_execution_default_backend(tmp_path: Path) -> None:
 
     proc = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True)
     assert proc.returncode == 0, f"Default backend execution failed:\n{proc.stderr}\nStdout: {proc.stdout}"
+    assert "[CoChem-TORQ] SLURM backend initialized successfully" in proc.stdout, (
+        f"Expected initialization banner in stdout, got:\nStdout: {proc.stdout}\nStderr: {proc.stderr}"
+    )
 
 
 def test_slurm_exit_code_propagation(tmp_path: Path) -> None:

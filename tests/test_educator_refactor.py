@@ -61,6 +61,9 @@ def test_zero_personal_path_leaks(target_file: Path) -> None:
                 leaks.append((lineno, placeholder, line.strip()))
 
     assert len(leaks) == 0, f"Detected {len(leaks)} path leak(s): {leaks}"
+    content = target_file.read_text(encoding="utf-8")
+    assert "<COCHEM_WORKSPACE>" in content, "Expected <COCHEM_WORKSPACE> placeholder token"
+    assert "<GDRIVE_ROOT>" in content, "Expected <GDRIVE_ROOT> placeholder token"
 
 
 def test_yaml_frontmatter_validity(target_file: Path) -> None:
@@ -79,7 +82,14 @@ def test_yaml_frontmatter_validity(target_file: Path) -> None:
         "Missing or insufficient description"
     )
     assert "argument-hint" in data, "Missing argument-hint in frontmatter"
+    assert data.get("version") == "2.0.0"
+    assert data.get("domain") == "education"
+    assert isinstance(data.get("routes_to"), list)
+    assert "0rchestrator" in data["routes_to"]
+    assert "teacher" in data["routes_to"]
+    assert "cochem-scribe" in data["routes_to"]
     assert data.get("enable_write_tools") is True, "enable_write_tools must be true"
+    assert data.get("enable_subagent_tools") is False, "enable_subagent_tools must be false"
     assert data.get("enable_mcp_tools") is True, "enable_mcp_tools must be true"
 
 

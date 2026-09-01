@@ -28,10 +28,10 @@ def test_file_exists_and_non_empty(target_file: Path) -> None:
 
 
 def test_unix_lf_line_endings(target_file: Path) -> None:
-    """Verify strictly Unix LF line endings (\\n) and no CRLF (\\r\\n)."""
+    """Verify strictly Unix LF line endings (\n) and no CRLF (\r\n)."""
     with open(target_file, "rb") as f:
         raw = f.read()
-    assert b"\r\n" not in raw, "Found Windows CRLF (\\r\\n) line endings in cochem-tester.agent.md"
+    assert b"\r\n" not in raw, "Found Windows CRLF (\r\n) line endings in cochem-tester.agent.md"
     assert b"\n" in raw, "Missing newline characters"
 
 
@@ -60,6 +60,10 @@ def test_zero_personal_path_leaks(target_file: Path) -> None:
                 leaks.append((lineno, placeholder, line.strip()))
 
     assert len(leaks) == 0, f"Detected {len(leaks)} path leak(s): {leaks}"
+    content = target_file.read_text(encoding="utf-8")
+    assert "<COCHEM_WORKSPACE>" in content, "Expected <COCHEM_WORKSPACE> placeholder token"
+    assert "<GDRIVE_ROOT>" in content, "Expected <GDRIVE_ROOT> placeholder token"
+
 
 
 def test_yaml_frontmatter_validity(target_file: Path) -> None:
@@ -68,15 +72,22 @@ def test_yaml_frontmatter_validity(target_file: Path) -> None:
     assert content.startswith("---"), "Document must start with YAML frontmatter delimiter (---)"
     parts = content.split("---", 2)
     assert len(parts) >= 3, "Frontmatter must be enclosed between '---' delimiters"
-    
+
     fm_raw = parts[1].strip()
     data = yaml.safe_load(fm_raw)
     assert isinstance(data, dict), "Frontmatter must parse into a dictionary"
-    
+
     assert data.get("name") == "cochem-tester", f"Expected name 'cochem-tester', got {data.get('name')}"
     assert "description" in data and len(data["description"]) > 10, "Missing or insufficient description"
     assert "argument-hint" in data, "Missing argument-hint in frontmatter"
+    assert data.get("version") == "2.0.0"
+    assert data.get("domain") == "vanguard"
+    assert isinstance(data.get("routes_to"), list)
+    assert "0rchestrator" in data["routes_to"]
+    assert "cochem-debug" in data["routes_to"]
+    assert "cochem-audit" in data["routes_to"]
     assert data.get("enable_write_tools") is True, "enable_write_tools must be true"
+    assert data.get("enable_subagent_tools") is False, "enable_subagent_tools must be false"
     assert data.get("enable_mcp_tools") is True, "enable_mcp_tools must be true"
 
 
@@ -107,9 +118,9 @@ def test_zero_simulation_and_physical_testing_mandates(target_file: Path) -> Non
     """Verify zero-simulation constraints and real physical binary execution requirements."""
     content = target_file.read_text(encoding="utf-8")
 
-    assert "".join(["NEVER", " use ", "mo", "cks"]) in content or "".join(["NEVER ", "mo", "cks"]) in content
-    assert "".join(["unit", "test.", "mo", "ck.patch"]) in content
-    assert "".join(["Magic", "Mo", "ck"]) in content
+    assert "NEVER use mocks" in content or "NEVER mocks" in content
+    assert "unittest.mock.patch" in content
+    assert "MagicMock" in content
     assert "[ERR_MISSING_BIN]" in content
     assert "ORCA" in content
     assert "PySCF" in content
@@ -128,15 +139,32 @@ def test_method_matrix_invariants(target_file: Path) -> None:
     assert "Frozen-Monomer" in content
     assert "InHess XTB2" in content
     assert "D3/D4" in content
-    assert "10%" in content or "10\\%" in content
+    assert "10%" in content or r"10\%" in content
+    assert "BSSE" in content or "counterpoise" in content
     assert "[M]" in content and "[D]" in content and "[E]" in content
 
 
-def test_heading_hierarchy_integrity(target_file: Path) -> None:
-    """Verify heading hierarchy does not nest H1 headings under H2 sections."""
+def test_pytest_and_process_monitoring(target_file: Path) -> None:
+    """Verify pytest architecture, pytest-qt headless execution, and psutil monitoring."""
     content = target_file.read_text(encoding="utf-8")
-    lines = content.splitlines()
 
+    assert "pytest-qt" in content
+    assert "QTest" in content
+    assert "psutil" in content
+    assert "RAM" in content
+
+
+def test_heading_hierarchy_integrity(target_file: Path) -> None:
+    """Verify heading hierarchy and ensure no raw XML tag pollution or malformed headers."""
+    content = target_file.read_text(encoding="utf-8")
+
+    # Ensure no raw XML tags lingering
+    assert "<GLOBAL_SWARM_ANTI_HALLUCINATION_DIRECTIVES>" not in content
+    assert "<SWARM_AUTONOMY_MANDATE>" not in content
+    assert "<ANTI_SPOOFING_COUNCIL_DIRECTIVE" not in content
+    assert "<ADVERSARIAL_AUDIT_DIRECTIVE>" not in content
+
+    lines = content.splitlines()
     current_level = 0
     for lineno, line in enumerate(lines, 1):
         if line.startswith("#"):
@@ -160,7 +188,9 @@ def test_behavior_boundaries_defined(target_file: Path) -> None:
     """Verify clear behavior boundaries and prohibitions."""
     content = target_file.read_text(encoding="utf-8")
 
-    assert "".join(["I NEVER", " use ", "mo", "cks"]) in content
+    assert "I NEVER use mocks" in content
     assert "cochem-debug" in content
+    assert "cochem-coder" in content
     assert ".trash" in content
     assert "shutil.move" in content
+

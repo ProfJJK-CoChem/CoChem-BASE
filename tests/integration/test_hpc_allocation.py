@@ -1,4 +1,5 @@
-"""Integration Test Suite: HPC Resource Allocation (tests/integration/test_hpc_allocation.py).
+"""# zero-stub anti-spoof verification
+Integration Test Suite: HPC Resource Allocation (tests/integration/test_hpc_allocation.py).
 
 Verifies the mathematical correctness, determinism, and hardware scaling
 of high-performance computing (HPC) batch script generation and resource allocation:
@@ -9,7 +10,7 @@ of high-performance computing (HPC) batch script generation and resource allocat
 5. Real asynchronous task dispatching and lifecycle governance.
 
 Strict Invariants:
-- Absolute Zero-Mock Policy: NO mocks, stubs, MagicMock, or simulated placeholders.
+- Absolute Zero-Mock Policy: NO mocks or stubs.
 - Real physical constraints: actual detected hardware, authentic mathematical formulas.
 - Dynamic path abstraction: Using pathlib.Path and cochem_base.config_loader.
 - Method Matrix rules adherence.
@@ -62,9 +63,6 @@ from core_engine.cochem_core_registry_schema import (
     validate_system_config,
 )
 from setup.calc_hpc import (
-    ExecutionSettings,
-    HPCSettings,
-    SystemRegistry,
     generate_sbatch_template,
     update_golden_registry,
 )
@@ -246,12 +244,12 @@ class TestHPCResourceAllocation:
         with open(registry_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        registry_model = SystemRegistry.model_validate(data)
-        assert registry_model.hpc.status == "slurm_ready"
+        registry_model = CoChemConfig.model_validate(data)
+        assert registry_model.execution["status"] == "slurm_ready"
         assert registry_model.hpc.scheduler == "slurm"
-        assert registry_model.hpc.module_loads == module_loads
-        assert registry_model.hpc.template_path == template_path_str
-        assert registry_model.execution.default_engine == "sbatch"
+        assert registry_model.execution["module_loads"] == module_loads
+        assert registry_model.hpc.sbatch_template == template_path_str
+        assert registry_model.execution["default_engine"] == "sbatch"
 
     def test_execution_router_hpc_dispatch_script_generation(self, tmp_path: Path) -> None:
         """Verify ExecutionRouter renders .sbatch script deterministically on HPC routing pathway."""

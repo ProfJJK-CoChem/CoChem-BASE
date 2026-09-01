@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 
 try:
-    from escalation.cochem_topos_iso_recycle import (
+    from cochem_topos.cochem_topos_iso_recycle import (
         HESSIAN_UNIT_FACTORS,
         HessianUnit,
         IsotopeSubstitution,
@@ -37,7 +37,7 @@ try:
         recycle_hessian_frequencies,
     )
 except ImportError:
-    from cochem_topos.cochem_topos_iso_recycle import (  # type: ignore[no-redef]
+    from escalation.cochem_topos_iso_recycle import (  # type: ignore[no-redef]
         HESSIAN_UNIT_FACTORS,
         HessianUnit,
         IsotopeSubstitution,
@@ -56,9 +56,9 @@ except ImportError:
     )
 
 try:
-    from mechanics.cochem_topos_memory import GeometryRecord, ToposHDF5MemoryManager
+    from cochem_topos.cochem_topos_memory import GeometryRecord, ToposHDF5MemoryManager
 except ImportError:
-    from cochem_topos.cochem_topos_memory import (  # type: ignore[no-redef]
+    from mechanics.cochem_topos_memory import (  # type: ignore[no-redef]
         GeometryRecord,
         ToposHDF5MemoryManager,
     )

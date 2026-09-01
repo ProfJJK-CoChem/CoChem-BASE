@@ -142,7 +142,7 @@ def test_method_matrix_and_zero_deception_invariants(target_file: Path) -> None:
     assert "Frozen-Monomer" in content
     assert "InHess XTB2" in content
     assert "D3/D4" in content
-    assert "".join(["Zero-", "Mo", "ck"]) in content or "".join(["zero-", "mo", "ck"]) in content
+    assert "Zero-Mock" in content or "zero-mock" in content
 
 
 def test_state_artifacts_referenced(target_file: Path) -> None:
@@ -191,9 +191,8 @@ def test_zero_simulation_ast_inspection() -> None:
     this_file = Path(__file__)
     tree = ast.parse(this_file.read_text(encoding="utf-8"))
 
-    m_kw = "".join(["mo", "ck"])
-    banned_modules = {"unittest." + m_kw, m_kw, "pytest_" + m_kw, "responses", "freezegun"}
-    banned_calls = {"Magic" + m_kw.capitalize(), m_kw.capitalize(), "patch", "monkeypatch", "Property" + m_kw.capitalize()}
+    banned_modules = {"unittest.mock", "mock", "pytest_mock", "responses", "freezegun"}
+    banned_calls = {"MagicMock", "Mock", "patch", "monkeypatch", "PropertyMock"}
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

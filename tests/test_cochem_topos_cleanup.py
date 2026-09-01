@@ -784,30 +784,55 @@ class TestToposEnvironmentSanitizer:
 # ============================================================================
 
 def test_cochem_topos_package_exports() -> None:
-    """Verifies that cochem_topos exposes all required classes and data models."""
-    try:
-        import cochem_topos
+    """Verifies that cochem_topos and export_utils expose all required classes and data models without deflection."""
+    import cochem_topos
 
-        expected_exports = [
-            "ToposEnvironmentSanitizer",
-            "ToposScratchPurgeEngine",
-            "ToposProcessReaper",
-            "ToposHDF5LockSweeper",
-            "WSLPathTranslator",
-            "ScratchPurgeConfig",
-            "PurgedFileRecord",
-            "PurgeResult",
-            "ProcessReaperConfig",
-            "ReapedProcessRecord",
-            "ReapResult",
-            "HDF5LockRecord",
-            "HDF5LockSweeperConfig",
-            "HDF5LockSweepResult",
-            "PostFlightAuditReport",
-        ]
+    expected_exports = [
+        "ToposEnvironmentSanitizer",
+        "ToposScratchPurgeEngine",
+        "ToposProcessReaper",
+        "ToposHDF5LockSweeper",
+        "WSLPathTranslator",
+        "ScratchPurgeConfig",
+        "PurgedFileRecord",
+        "PurgeResult",
+        "ProcessReaperConfig",
+        "ReapedProcessRecord",
+        "ReapResult",
+        "HDF5LockRecord",
+        "HDF5LockSweeperConfig",
+        "HDF5LockSweepResult",
+        "PostFlightAuditReport",
+    ]
 
-        for exp in expected_exports:
-            assert hasattr(cochem_topos, exp), f"cochem_topos missing exported symbol: {exp}"
-            assert getattr(cochem_topos, exp) is not None
-    except ImportError:
-        pass
+    for exp in expected_exports:
+        assert hasattr(cochem_topos, exp), f"cochem_topos missing exported symbol: {exp}"
+        assert getattr(cochem_topos, exp) is not None
+
+
+def test_export_utils_package_exports() -> None:
+    """Verifies that export_utils exposes all required cleanup classes and data models without deflection."""
+    import export_utils
+
+    expected_exports = [
+        "ToposEnvironmentSanitizer",
+        "ToposScratchPurgeEngine",
+        "ToposProcessReaper",
+        "ToposHDF5LockSweeper",
+        "WSLPathTranslator",
+        "ScratchPurgeConfig",
+        "PurgedFileRecord",
+        "PurgeResult",
+        "ProcessReaperConfig",
+        "ReapedProcessRecord",
+        "ReapResult",
+        "HDF5LockRecord",
+        "HDF5LockSweeperConfig",
+        "HDF5LockSweepResult",
+        "PostFlightAuditReport",
+    ]
+
+    for exp in expected_exports:
+        assert hasattr(export_utils, exp), f"export_utils missing exported symbol: {exp}"
+        assert getattr(export_utils, exp) is not None
+

@@ -16,6 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import interfaces.cochem_dock_main as legacy_dock_main
+import interfaces.dock_main as legacy_dock_script
 from cochem_base.interfaces.cochem_dock_main import (
     DualModeJobQueue,
     HealthResponse,
@@ -51,9 +52,17 @@ def dock_main_path() -> Path:
 
 
 @pytest.fixture
-def interfaces_dock_main_path() -> Path:
+def interfaces_cochem_dock_main_path() -> Path:
     """Return the absolute path to interfaces/cochem_dock_main.py."""
     path = Path(__file__).resolve().parent.parent / "interfaces" / "cochem_dock_main.py"
+    assert path.is_file(), f"Target file does not exist: {path}"
+    return path
+
+
+@pytest.fixture
+def interfaces_dock_main_path() -> Path:
+    """Return the absolute path to interfaces/dock_main.py."""
+    path = Path(__file__).resolve().parent.parent / "interfaces" / "dock_main.py"
     assert path.is_file(), f"Target file does not exist: {path}"
     return path
 
@@ -65,10 +74,10 @@ def client() -> TestClient:
 
 
 def test_file_encoding_and_lf_line_endings(
-    dock_main_path: Path, interfaces_dock_main_path: Path
+    dock_main_path: Path, interfaces_cochem_dock_main_path: Path, interfaces_dock_main_path: Path
 ) -> None:
     """Verify strictly Unix LF line endings (\\n), standard UTF-8 encoding, and no BOM."""
-    for path in (dock_main_path, interfaces_dock_main_path):
+    for path in (dock_main_path, interfaces_cochem_dock_main_path, interfaces_dock_main_path):
         raw = path.read_bytes()
         assert b"\r\n" not in raw, f"Found Windows CRLF line endings in {path.name}"
         assert b"\n" in raw, f"Missing newline characters in {path.name}"
@@ -79,11 +88,11 @@ def test_file_encoding_and_lf_line_endings(
 
 
 def test_zero_personal_path_leaks(
-    dock_main_path: Path, interfaces_dock_main_path: Path
+    dock_main_path: Path, interfaces_cochem_dock_main_path: Path, interfaces_dock_main_path: Path
 ) -> None:
-    """Verify zero personal machine or local user path leakage in cochem_dock_main.py."""
+    """Verify zero personal machine or local user path leakage in dock_main files."""
     patterns = leak_patterns()
-    for path in (dock_main_path, interfaces_dock_main_path):
+    for path in (dock_main_path, interfaces_cochem_dock_main_path, interfaces_dock_main_path):
         lines = path.read_text(encoding="utf-8").splitlines()
         leaks = []
         for lineno, line in enumerate(lines, 1):
@@ -95,30 +104,33 @@ def test_zero_personal_path_leaks(
 
 
 def test_interfaces_dock_main_reexports_and_aliases() -> None:
-    """Verify interfaces.cochem_dock_main cleanly re-exports canonical symbols."""
-    assert legacy_dock_main.app is app
-    assert legacy_dock_main.create_app is create_app
-    assert legacy_dock_main.health_check is health_check
-    assert legacy_dock_main.telemetry_stats is telemetry_stats
-    assert legacy_dock_main.websocket_telemetry is websocket_telemetry
-    assert legacy_dock_main.lttb_decimate is lttb_decimate
-    assert legacy_dock_main.run_server is run_server
-    assert legacy_dock_main.lifespan is lifespan
-    assert legacy_dock_main.logger is logger
-    assert legacy_dock_main.default_job_queue is default_job_queue
-    assert legacy_dock_main.DualModeJobQueue is DualModeJobQueue
-    assert legacy_dock_main.TelemetryEvent is TelemetryEvent
-    assert legacy_dock_main.TelemetryMessage is TelemetryEvent
-    assert legacy_dock_main.HealthResponse is HealthResponse
-    assert legacy_dock_main.TelemetryBatchPayload is TelemetryBatchPayload
-    assert legacy_dock_main.TelemetryStatsResponse is TelemetryStatsResponse
-    assert legacy_dock_main.JobSubmitRequest is JobSubmitRequest
-    assert legacy_dock_main.JobSubmitResponse is JobSubmitResponse
-    assert legacy_dock_main.JobStatusResponse is JobStatusResponse
-    assert legacy_dock_main.JobCancelResponse is JobCancelResponse
+    """Verify interfaces.cochem_dock_main and interfaces.dock_main cleanly re-export canonical symbols."""
+    for mod in (legacy_dock_main, legacy_dock_script):
+        assert mod.app is app
+        assert mod.create_app is create_app
+        assert mod.health_check is health_check
+        assert mod.telemetry_stats is telemetry_stats
+        assert mod.websocket_telemetry is websocket_telemetry
+        assert mod.lttb_decimate is lttb_decimate
+        assert mod.run_server is run_server
+        assert mod.lifespan is lifespan
+        assert mod.logger is logger
+        assert mod.default_job_queue is default_job_queue
+        assert mod.DualModeJobQueue is DualModeJobQueue
+        assert mod.TelemetryEvent is TelemetryEvent
+        assert mod.TelemetryMessage is TelemetryEvent
+        assert mod.HealthResponse is HealthResponse
+        assert mod.TelemetryBatchPayload is TelemetryBatchPayload
+        assert mod.TelemetryStatsResponse is TelemetryStatsResponse
+        assert mod.JobSubmitRequest is JobSubmitRequest
+        assert mod.JobSubmitResponse is JobSubmitResponse
+        assert mod.JobStatusResponse is JobStatusResponse
+        assert mod.JobCancelResponse is JobCancelResponse
 
-    for sym in legacy_dock_main.__all__:
-        assert hasattr(legacy_dock_main, sym), f"Missing symbol {sym} in legacy module"
+        for sym in mod.__all__:
+            assert hasattr(mod, sym), f"Missing symbol {sym} in module {mod.__name__}"
+
+    assert legacy_dock_script.dock_app is app
 
 
 def test_telemetry_event_model_fields_and_validation() -> None:

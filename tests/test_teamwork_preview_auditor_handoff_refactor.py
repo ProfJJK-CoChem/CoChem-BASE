@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+
 import pytest
 
 from cochem_base.path_sanitization import (
     find_path_leaks,
     get_agents_dir,
-    leak_patterns,
-    placeholder_values,
 )
 
 

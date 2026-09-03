@@ -1,294 +1,6 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_17_TORQ_Training_Dynamics_Part_2_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_18_TORQ_Inference_and_Export_Part_1_prompts.md.
 Original prompt:
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous training dynamics, force-matching loss engine, dynamic batch-size scaler, and $C^2$-smooth reciprocal graph pruning suite specified in Software Requirements Specification (SRS) Chunk 17: `TORQ_Training_Dynamics_Part_2`.
-
-You must implement every component in strict adherence to the CoChem Zero-Mock directive v3, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev monoisotopic mass retrieval mandate, and Method Matrix v4 (`[M]` Empirical Benchmark, `[D]` Derived Mathematical Relationship, `[E]` Estimated Theoretical Projection). Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must operate on genuine physical tensors, authentic molecular coordinates, and real chemical observables.
-
----
-
-### MISSION & EXECUTION WORKFLOW
-
-1. **Codebase Exploration**: Inspect the repository structure under `Libraries/` and `core/` in `CoChem-TORQ` to verify existing model backbones, potential wrappers, telemetry loggers, and test fixtures established in SRS Chunk 15 and Chunk 16.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, atomic checkpoint serialization, and custom typed domain exceptions rooted in `CoChemTorqError` (`TorqTrainingError`, `HDF5LockTimeoutError`, `DiscontinuousForceError`, `NonReciprocalGraphError`, `OOMRecoveryError`, `EquivarianceBreakError`, `SchedulerDivergenceError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering every component using authentic chemical structures and physical fixtures (e.g., Alanine dipeptide $N=22$ trajectory slice, Water 10-mer cluster $N=30$ with DFTB/ORCA forces, Heterogeneous mixture of Water $N=3$, Ethanol $N=9$, and Buckminsterfullerene $\text{C}_{60}$, and Ethanol conformational rotor $N=9$ sampled along C-C torsion).
-4. **Physical Verification**: Execute the test suite using `pytest tests/ -v` via `run_command` in the terminal. Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
-5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
-
----
-
-### MODULE IMPLEMENTATION SPECIFICATIONS
-
-#### 1. Domain Exceptions & Pydantic v2 Data Contracts
-- **File Target**: `Libraries/cochem_torq_training_schemas.py` and `Libraries/cochem_torq_training_errors.py` (and export in `Libraries/__init__.py`)
-- **Exception Hierarchy**:
-  ```python
-  from typing import Any, Dict, Optional
-
-
-  class CoChemError(Exception):
-    """Base exception for all CoChem operations [M]."""
-
-    pass
-
-
-  class CoChemTorqError(CoChemError):
-    """Base exception for TORQ potential backbones and dynamics [M]."""
-
-    pass
-
-
-  class TorqTrainingError(CoChemTorqError):
-    """Base exception for all TORQ training dynamics errors [M]."""
-
-    def __init__(
-        self,
-        message: str,
-        error_code: str = "TORQ_TRAIN_GENERIC",
-        component: str = "training_dynamics",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-      super().__init__(message)
-      self.error_code = error_code
-      self.component = component
-      self.diagnostics = diagnostics or {}
-
-
-  class HDF5LockTimeoutError(TorqTrainingError):
-    """Raised when acquiring advisory HDF5 filelock exceeds timeout ceiling [M]."""
-
-    pass
-
-
-  class DiscontinuousForceError(TorqTrainingError):
-    """Raised when graph pruning or switching function violates C^2 continuity [D]."""
-
-    pass
-
-
-  class NonReciprocalGraphError(TorqTrainingError):
-    """Raised when asymmetric edge pruning breaks Newton's Third Law (F_ij != -F_ji) [D]."""
-
-    pass
-
-
-  class OOMRecoveryError(TorqTrainingError):
-    """Raised when dynamic batch-size scaler fails to recover after max step-down attempts [M]."""
-
-    pass
-
-
-  class EquivarianceBreakError(TorqTrainingError):
-    """Raised when geometric tensor operations violate E(3) or SO(3) rotational covariance [D]."""
-
-    pass
-
-
-  class SchedulerDivergenceError(TorqTrainingError):
-    """Raised when learning rate scheduler encounters NaN or infinite parameter norms [D]."""
-
-    pass
-```
-- **Pydantic v2 Data Models** (`model_config = ConfigDict(frozen=True, extra="forbid")`):
-  - `GNNWarmRestartSchedulerConfig`:
-    - `initial_lr: float = Field(default=1e-4, gt=0.0, description="Peak initial learning rate eta_max [D]")`
-    - `min_lr: float = Field(default=1e-7, ge=0.0, description="Minimum learning rate floor eta_min [D]")`
-    - `warmup_steps: int = Field(default=1000, ge=100, description="Linear warmup steps [D]")`
-    - `first_cycle_steps: int = Field(default=10000, ge=500, description="Duration of initial restart cycle T_0 [D]")`
-    - `cycle_multiplier: float = Field(default=1.5, ge=1.0, description="Cycle expansion factor T_mult [D]")`
-    - `restart_decay: float = Field(default=0.75, gt=0.0, le=1.0, description="Peak LR attenuation factor gamma_restart [D]")`
-    - `max_grad_norm: float = Field(default=1.0, gt=0.0, description="Ceiling for gradient norm clipping [D]")`
-    - Model validator `validate_lr_bounds`: Validate that `min_lr < initial_lr`.
-  - `ForceMatchingLossConfig`:
-    - `energy_weight: float = Field(default=1.0, ge=0.0, description="Loss weight for potential energy [D]")`
-    - `force_weight: float = Field(default=50.0, gt=0.0, description="Loss weight for atomic force vectors [D]")`
-    - `virial_weight: float = Field(default=0.01, ge=0.0, description="Loss weight for periodic virial stress [D]")`
-    - `huber_delta_force: float = Field(default=0.01, gt=0.0, description="Huber transition delta in eV/Angstrom [D]")`
-    - `create_graph: bool = Field(default=True, description="Retain second-order graph in autograd for forces [D]")`
-    - `track_angular_similarity: bool = Field(default=True, description="Compute cosine similarity metric [D]")`
-  - `DynamicBatchScalerConfig`:
-    - `max_node_budget: int = Field(default=4096, ge=64, description="Maximum atoms per micro-batch [M]")`
-    - `max_edge_budget: int = Field(default=32768, ge=256, description="Maximum sparse edges per micro-batch [M]")`
-    - `backoff_factor: float = Field(default=0.75, gt=0.1, lt=1.0, description="Budget step-down on OOM [M]")`
-    - `max_recovery_retries: int = Field(default=3, ge=1, description="Max retry attempts per failed micro-batch [M]")`
-    - `target_vram_fraction: float = Field(default=0.85, gt=0.1, lt=0.98, description="Target VRAM ceiling [M]")`
-  - `C2GraphPrunerConfig`:
-    - `cutoff_radius_angstrom: float = Field(default=5.0, gt=1.0, description="Spatial interaction cutoff r_c [D]")`
-    - `covalent_core_radius_angstrom: float = Field(default=1.5, gt=0.5, description="Core radius r_cov guaranteed degree >= 1 [D]")`
-    - `enforce_reciprocal_edges: bool = Field(default=True, description="Enforce undirected edge reciprocity [D]")`
-    - `switching_polynomial_degree: Literal[5] = Field(default=5, description="Quintic polynomial C^2 cutoff envelope [D]")`
-    - `stochastic_edge_dropout: float = Field(default=0.0, ge=0.0, le=0.5, description="Banned on coordinate graphs; invariant heads only [D]")`
-    - Model validator `validate_radii`: Validate that `covalent_core_radius_angstrom < cutoff_radius_angstrom`.
-
----
-
-#### 2. Bespoke Learning Rate Scheduler for GNN Convergence (`REQ-TORQ-TRAIN-097` `[D]`)
-- **File Target**: `Libraries/cochem_torq_gnn_scheduler.py` (and export in `Libraries/__init__.py`)
-- **Mathematical Dynamics & Warmup Formulation**:
-  - High-degree spherical harmonic embeddings and Clebsch-Gordan tensor contractions in equivariant GNNs exhibit substantial gradient variance in early iterations. The scheduler MUST execute a deterministic linear warmup over $T_{\text{warmup}}$ steps ($T_{\text{warmup}} \ge 1000$ mini-batches):
-    $$\eta_t = \eta_{\text{min}} + \frac{t}{T_{\text{warmup}}}(\eta_{\text{max}}^{(0)} - \eta_{\text{min}}) \quad \text{for } t \le T_{\text{warmup}} \quad [D]$$
-  - Following warmup, the learning rate transitions to Cosine Annealing with Warm Restarts. For cycle index $i \ge 0$ with duration $T_i$ steps:
-    $$\eta_t = \eta_{\text{min}} + \frac{1}{2}(\eta_{\text{max}}^{(i)} - \eta_{\text{min}})\left(1 + \cos\left(\pi \frac{T_{\text{cur}}}{T_i}\right)\right) \quad [D]$$
-    where $T_{\text{cur}} = t - t_{\text{restart}}^{(i)}$ represents the elapsed steps within the active cycle, and cycle length expands geometrically via restart multiplier $T_{\text{mult}} \ge 1.0$:
-    $$T_i = T_0 \cdot (T_{\text{mult}})^i \quad [D]$$
-  - **Restart Peak Attenuation ($\gamma_{\text{restart}}$)**: Standard warm restarts jump unconditionally back to initial $\eta_{\text{max}}^{(0)}$, routinely ejecting parameters from shallow, highly optimized conformational PES basins. The peak learning rate MUST be attenuated by an exponential decay factor $\gamma_{\text{restart}} \in [0.5, 0.8]$ upon every restart event:
-    $$\eta_{\text{max}}^{(i+1)} = \eta_{\text{max}}^{(0)} \cdot (\gamma_{\text{restart}})^{i+1} \quad [D]$$
-- **Step-Based Triggering & Gradient Clipping Integration**:
-  - Because variable molecular graphs utilize dynamic token budgeting, batch boundaries do not correspond to fixed sample counts. The scheduler MUST be triggered per optimizer step (`scheduler.step()`) rather than per epoch.
-  - The scheduler pipeline couples directly with adaptive gradient norm clipping. Parameter gradients are unscaled (under AMP) and clipped to a strict Euclidean norm ceiling $\|\mathbf{g}\|_2 \le 1.0\,\text{eV/\AA}$ prior to updating parameter tensors $\theta$.
-  - If parameter gradients or computed learning rates contain `NaN` or `Inf`, raise `SchedulerDivergenceError`.
-
----
-
-#### 3. Force-Matching Loss Function with Second-Order Autograd (`REQ-TORQ-TRAIN-098` `[D]`)
-- **File Target**: `Libraries/cochem_torq_force_matching.py` (and export in `Libraries/__init__.py`)
-- **Second-Order Autograd & Force Derivative Formulation**:
-  - In conservative neural network potentials, atomic forces $\hat{\mathbf{F}}_i \in \mathbb{R}^3$ are derived analytically as the negative spatial gradient of predicted potential energy $\hat{E}(\mathbf{R}, \mathbf{Z})$ with respect to atomic Cartesian coordinates $\mathbf{R}_i$:
-    $$\hat{\mathbf{F}}_i = -\nabla_{\mathbf{R}_i} \hat{E}(\mathbf{R}, \mathbf{Z}) = -\frac{\partial \hat{E}}{\partial \mathbf{R}_i} \quad [D]$$
-  - Evaluating this force inside the model forward pass requires calling `torch.autograd.grad` with `create_graph=True` and `retain_graph=True`. Backpropagating the loss through $\hat{\mathbf{F}}$ computes mixed second derivatives with respect to network parameters $\theta$:
-    $$\frac{\partial \mathcal{L}}{\partial \theta} \ni \frac{\partial^2 \hat{E}}{\partial \theta \partial \mathbf{R}_i} \quad [D]$$
-  - The execution engine must account for the $\sim 2.8\times$ to $3.5\times$ VRAM expansion required to retain the intermediate computational graph for Hessian-vector products.
-- **Robust Huber Formulation & Unit Consistency**:
-  - To prevent catastrophic gradient explosion caused by repulsive-wall core clashes ($r_{ij} < 0.8\,\text{\AA}$ in out-of-equilibrium MD configurations), forces are evaluated using the Smooth-L1 / Huber loss with transition threshold $\delta_F = 0.01\,\text{eV/\AA}$:
-    $$\mathcal{L}_{\text{Huber}}(\mathbf{x}, \delta_F) = \begin{cases} \frac{1}{2\delta_F} \|\mathbf{x}\|^2, & \|\mathbf{x}\| \le \delta_F \\ \|\mathbf{x}\| - \frac{1}{2}\delta_F, & \|\mathbf{x}\| > \delta_F \end{cases} \quad [D]$$
-  - Composite multi-task loss is standardized strictly in electron-volts ($\text{eV}$) and angstroms ($\text{\AA}$):
-    $$\mathcal{L}(\theta) = w_E \frac{1}{B}\sum_{b=1}^B \frac{|E_b - \hat{E}_b|^2}{N_b} + w_F \frac{1}{3 \sum_{b=1}^B N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \mathcal{L}_{\text{Huber}}(\mathbf{F}_{b,i} - \hat{\mathbf{F}}_{b,i}, \delta_F) + w_V \mathcal{L}_{\text{virial}} \quad [D]$$
-  - Standardizing energy per atom ($N_b$) eliminates size-extensivity bias across heterogeneous mixtures. The force weight ratio is constrained to $w_F / w_E \in [10.0, 100.0]\,\text{\AA}^{-2}$ to balance energy and spatial gradient magnitudes.
-  - Angular force directionality is continuously tracked across validation batches via the cosine similarity metric:
-    $$\rho_{\text{angular}} = \frac{1}{\sum_{b=1}^B N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \frac{\mathbf{F}_{b,i} \cdot \hat{\mathbf{F}}_{b,i}}{\|\mathbf{F}_{b,i}\|_2 \|\hat{\mathbf{F}}_{b,i}\|_2 + \epsilon} \quad [D]$$
-
----
-
-#### 4. Dynamic Batch-Size Scaler with Token Budgeting & OOM Recovery (`REQ-TORQ-TRAIN-099` `[M]`)
-- **File Target**: `Libraries/cochem_torq_dynamic_batch.py` (and export in `Libraries/__init__.py`)
-- **Dual-Budget Graph Packing Mechanics**:
-  - Batching by static graph count induces severe VRAM variance because chemical systems exhibit disparate atom counts $N$ and coordination numbers $K$ (e.g., methane $N=5, |\mathcal{E}|=20$ vs. buckminsterfullerene $N=60, |\mathcal{E}|=180$).
-  - The collator MUST pack molecular graphs into micro-batches constrained by dual token ceilings:
-    $$\sum_{i=1}^B N_i \le N_{\text{budget}} \quad \text{and} \quad \sum_{i=1}^B |\mathcal{E}_i| \le E_{\text{budget}} \quad [M]$$
-  - Graphs are sorted into dynamic buckets by atom count using a Morton/greedy bin-packing policy to minimize zero-padding waste when compiling jagged sparse blocks.
-- **Real-Time Telemetry & OOM Recovery Context Manager**:
-  - VRAM utilization is continuously profiled via `torch.cuda.memory_allocated()` and `torch.cuda.max_memory_allocated()`.
-  - An isolated execution context manager `DynamicOOMRecovery` intercepts `torch.cuda.OutOfMemoryError` (and platform-specific CUDA allocation failures). Upon catching an allocation fault:
-    1. The active failed forward/backward computation is immediately halted.
-    2. Caches are purged via `torch.cuda.empty_cache()` and garbage collection is invoked (`gc.collect()`).
-    3. The active token budgets are stepped down by an exponential backoff factor $\kappa = 0.75$:
-       $$N_{\text{budget}} \leftarrow \lfloor 0.75 \cdot N_{\text{budget}} \rfloor, \quad E_{\text{budget}} \leftarrow \lfloor 0.75 \cdot E_{\text{budget}} \rfloor \quad [D]$$
-    4. The rejected micro-batch is partitioned into two equal sub-batches, processed sequentially via gradient accumulation ($2\times$ accumulation steps), and the step is finalized without dropping data or terminating the process.
-    5. If recovery attempts exceed `max_recovery_retries` (default 3), raise `OOMRecoveryError`.
-
----
-
-#### 5. $C^2$-Smooth Graph Pruning & Reciprocal Sparse Topology (`REQ-TORQ-TRAIN-100` `[D]`)
-- **File Target**: `Libraries/cochem_torq_graph_pruning.py` (and export in `Libraries/__init__.py`)
-- **Discontinuous PES Elimination & $C^2$-Smooth Switching Function**:
-  - In neural network potentials, atomic forces are conservative spatial gradients $\mathbf{F}_i = -\nabla_{\mathbf{R}_i} E(\mathbf{R})$. Hard-pruning graph edges based on discrete feature or distance thresholds ($H(r_c - r_{ij})$) introduces $C^0$ step discontinuities in energy.
-  - The spatial derivative of a step discontinuity produces an **infinite Dirac-delta force spike** ($\delta(r_{ij} - r_c)$), causing instantaneous autograd gradient overflow (`NaN` loss), numerical instability, and catastrophic molecular fragmentation in MD simulations.
-  - Any dynamic edge attenuation or distance pruning MUST be modulated by a polynomial switching envelope with at least $C^2$ continuity across the cutoff boundary $r_c$:
-    $$f_{\text{cut}}(r_{ij}) = \begin{cases} 1 - 10\left(\frac{r_{ij}}{r_c}\right)^3 + 15\left(\frac{r_{ij}}{r_c}\right)^4 - 6\left(\frac{r_{ij}}{r_c}\right)^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
-    This guarantees that $f_{\text{cut}}(r_c) = 0$, $\left.\frac{df_{\text{cut}}}{dr}\right|_{r=r_c} = 0$, and $\left.\frac{d^2 f_{\text{cut}}}{dr^2}\right|_{r=r_c} = 0$, ensuring continuous energy, forces, and force constants. If continuity is breached, raise `DiscontinuousForceError`.
-- **Edge Reciprocity & Momentum Conservation (Newton's Third Law)**:
-  - Directed edge pruning ($e_{ij}$ pruned while $e_{ji}$ is retained) violates pairwise force antisymmetry ($\mathbf{F}_{ij} = -\mathbf{F}_{ji}$), introducing a non-zero net external force:
-    $$\sum_{i=1}^N \mathbf{F}_i = \sum_{i=1}^N \sum_{j \in \mathcal{N}(i)} \mathbf{F}_{ij} \ne \mathbf{0} \quad [D]$$
-    causing unphysical center-of-mass momentum drift during molecular dynamics trajectories.
-  - The graph pruning engine MUST enforce strict undirected reciprocity:
-    $$j \in \mathcal{N}(i) \iff i \in \mathcal{N}(j) \quad [D]$$
-  - Pruning is applied symmetrically to adjacency matrices: $A_{\text{pruned}} = A \odot A^T$. If an asymmetric edge configuration is detected, raise `NonReciprocalGraphError`.
-  - Edge sparsity updates operate directly on PyTorch Geometric `edge_index` ($2 \times |\mathcal{E}|$) tensors. Nodes are guaranteed a minimum connectivity invariant (degree $d_i \ge 1$) within the chemical covalent radius ($r_{\text{cov}}$) to prevent disconnected atomic subgraphs. Stochastic edge dropout is strictly banned on spatial coordinate graphs and restricted solely to invariant property classification heads.
-
----
-
-#### 6. Thread-Safe HDF5 Storage & Atomic Checkpointing Engine
-- **File Target**: `Libraries/cochem_torq_training_persistence.py` (and export in `Libraries/__init__.py`)
-- **Thread-Safe SWMR Storage**:
-  - Chunked HDF5 storage with `gzip` (level 4) compression, `shuffle` filter enabled, and `fletcher32` checksum validation.
-  - POSIX environments: Single-Writer/Multiple-Reader mode (`swmr=True`, `libver="latest"`).
-  - Advisory file locks: `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)` for cross-process concurrency and `threading.Lock()` for intra-process safety. Raise `HDF5LockTimeoutError` on timeout.
-  - Multi-worker PyTorch `DataLoader`: Worker initialization routine (`worker_init_fn`) instantiates independent HDF5 file handles per worker process.
-  - Parallel Filesystem (Lustre/GPFS/NFS) Override: Dynamically set `HDF5_USE_FILE_LOCKING="FALSE"`, serializing file access exclusively via user-space `filelock` into local NVMe scratch (`$SLURM_TMPDIR`).
-- **Atomic Checkpoint Serialization**:
-  - Checkpoint files (`.pt` / `.h5`) are written to an isolated temporary file (`checkpoint.pt.tmp`), flushed to disk via `os.fsync(f.fileno())`, and atomically moved to destination via `os.replace`.
-  - Accompanying `.sha256` digest file generated for every saved checkpoint. Checksum validation occurs upon reload.
-
----
-
-### TEST SUITE SPECIFICATIONS
-
-All tests must be authentic, physically executing against real molecular coordinates and physical observables without mocks or stubs under `tests/`:
-
-1. **`tests/test_torq_gnn_scheduler.py`** (`REQ-TORQ-TRAIN-097`):
-   - **Physical Fixture**: Alanine Dipeptide ($N=22$) trajectory slice.
-   - **Verification**:
-     - Linear warmup: Verify learning rate advances deterministically from $\eta_0 = \eta_{\text{min}}$ to $\eta_{1000} = \eta_{\text{max}}$.
-     - Restart cycle & peak attenuation: Confirm that the initial restart satisfies $\eta_{\text{max}}^{(1)} = 0.75 \times \eta_{\text{max}}^{(0)}$ and cycle period expands according to $T_1 = T_0 \cdot T_{\text{mult}}$.
-     - Step-based triggering: Verify scheduler updates on every optimizer step rather than epoch boundaries.
-     - Gradient norm clipping: Assert parameter gradients under AMP are unscaled and clipped to $\|\mathbf{g}\|_2 \le 1.0\,\text{eV/\AA}$.
-     - Exception handling: Inject NaN gradients and verify `SchedulerDivergenceError` is raised.
-
-2. **`tests/test_torq_force_matching.py`** (`REQ-TORQ-TRAIN-098`):
-   - **Physical Fixture**: Water 10-mer cluster ($N=30$) with reference DFTB/ORCA forces.
-   - **Verification**:
-     - Numerical autograd double-backward: Verify `torch.autograd.grad` with `create_graph=True` executes without graph drop and computes mixed second partial derivatives $\frac{\partial^2 \hat{E}}{\partial \theta \partial \mathbf{R}_i}$.
-     - Repulsive wall robustness: Ingest compressed water configuration with severe core clash ($r_{\text{OH}} = 0.7\,\text{\AA}$); verify Huber loss resists gradient explosion.
-     - Loss accuracy thresholds: Achieve Force MAE $< 0.05\,\text{eV/\AA}$ and Energy MAE $< 1.0\,\text{meV/atom}$.
-     - Metric validation: Verify angular cosine similarity metric $\rho_{\text{angular}}$ is tracked and lies strictly in $[-1.0, 1.0]$.
-
-3. **`tests/test_torq_dynamic_batch.py`** (`REQ-TORQ-TRAIN-099`):
-   - **Physical Fixture**: Heterogeneous mixture: Water ($N=3$), Ethanol ($N=9$), and Buckminsterfullerene $\text{C}_{60}$ ($N=60$).
-   - **Verification**:
-     - Dual token budget packing: Confirm that packed micro-batches satisfy $\sum N_i \le 4096$ and $\sum |\mathcal{E}_i| \le 32768$.
-     - Morton / greedy bin packing: Verify atom sorting reduces sparse block padding compared to naive random batching.
-     - Transparent OOM recovery: Inject artificial memory allocation fault inside `DynamicOOMRecovery`; verify cache purge via `empty_cache()`, $0.75\times$ budget step-down ($N_{\text{budget}}, E_{\text{budget}}$), micro-batch split into 2 equal halves, sequential gradient accumulation completion, and zero process aborts.
-     - Escalation check: Exhaust retries beyond ceiling and confirm `OOMRecoveryError` is raised.
-
-4. **`tests/test_torq_graph_pruning.py`** (`REQ-TORQ-TRAIN-100`):
-   - **Physical Fixture**: Ethanol conformational rotor ($N=9$) sampled along C-C torsion.
-   - **Verification**:
-     - $C^2$ smoothness: Numerically verify that the quintic switching function $f_{\text{cut}}(r)$ satisfies $\left.\frac{df}{dr}\right|_{r_c} = 0$ and $\left.\frac{d^2f}{dr^2}\right|_{r_c} = 0$ within tolerance $< 10^{-7}$.
-     - Center-of-mass momentum conservation: Verify net external force drift satisfies $\|\sum \mathbf{F}_i\|_2 < 10^{-6}\,\text{eV/\AA}$.
-     - Pairwise antisymmetry: Verify Newton's Third Law parity error satisfies $\|\mathbf{F}_{ij} + \mathbf{F}_{ji}\|_\infty < 10^{-7}\,\text{eV/\AA}$.
-     - Reciprocity enforcement: Symmetrize adjacency $A \odot A^T$; verify asymmetric pruning raises `NonReciprocalGraphError`.
-     - Covalent core degree invariant: Confirm degree $d_i \ge 1$ for all atoms within $r_{\text{cov}} = 1.5\,\text{\AA}$.
-
-5. **`tests/test_torq_training_persistence.py`** (`Core Storage & Concurrency`):
-   - **Verification**:
-     - HDF5 multi-process filelock: Verify second process waits or raises `HDF5LockTimeoutError` when timeout is set to 0.1s.
-     - Multi-worker DataLoader initialization: Validate independent HDF5 handles in `worker_init_fn`.
-     - Atomic checkpoint replacement: Confirm `.pt.tmp` is atomically renamed to `.pt` and accompanied by a verified `.sha256` digest file.
-
----
-
-### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
-
-1. **Zero-Mock Mandate v3**: Every neural layer, autograd backward pass, distributed barrier, and test assertion must execute physically. Absolutely no `pass` stubs, no `NotImplementedError`, and no synthetic mock arrays (`np.zeros`, `np.ones` as dummy outputs).
-2. **Dynamic Mendeleev Monoisotopic Masses**: When atomic masses are required, dynamically query:
-   `mendeleev.element(Z).mass` or `mendeleev.element(Z).isotopes` filtered by max abundance. Ghost atoms ($Z=0$) receive $0.0\,\text{u}$ mass. No hardcoded atomic mass dictionaries.
-3. **Tripartite Workspace Air-Gap**:
-   - Ring 1 ($COCHEM_SRC_DIR / R_{\text{src}}$): Read-only source code.
-   - Ring 2 ($COCHEM_DATA_DIR / R_{\text{data}}$): Read-only datasets and weights. `COCHEM_OFFLINE=1`. SHA-256 verification.
-   - Ring 3 ($COCHEM_ARTIFACTS_DIR / R_{\text{art}}$): Read-write checkpoints, loss logs, pruned sparse topology caches, and execution telemetry.
-4. **OS-Agnostic Dynamic Paths**: Utilize `pathlib.Path` with environment variable resolution (`COCHEM_SRC_DIR`, `COCHEM_DATA_DIR`, `COCHEM_ARTIFACTS_DIR`, `COCHEM_SCRATCH_DIR`, `SLURM_TMPDIR`). No hardcoded `/home/...` or `C:\...` paths.
-5. **6-Tier Environment Execution Matrix**: Ensure cross-platform execution across Tier 1 Windows NT (`gloo`, NTFS filelock), Tier 2 macOS (MPS/CPU, `gloo`), Tier 3 Linux (`nccl`, SWMR), Tiers 4-5 Codespaces & CI/CD (headless CPU), and Tier 6 HPC clusters (`HDF5_USE_FILE_LOCKING="FALSE"`, node-local scratch).
-
----
-
-### ACTION PLAN FOR CODER
-
-1. Implement `Libraries/cochem_torq_training_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError`.
-2. Implement `Libraries/cochem_torq_training_schemas.py` with all Pydantic v2 data models, fields, and validators (`GNNWarmRestartSchedulerConfig`, `ForceMatchingLossConfig`, `DynamicBatchScalerConfig`, `C2GraphPrunerConfig`).
-3. Implement `Libraries/cochem_torq_gnn_scheduler.py` providing linear warmup, Cosine Annealing with warm restarts, restart peak attenuation $\gamma_{\text{restart}}$, step-based triggering, and gradient norm clipping.
-4. Implement `Libraries/cochem_torq_force_matching.py` with second-order autograd double backpropagation, robust Huber loss ($\delta_F = 0.01\,\text{eV/\AA}$), size-extensive per-atom normalization, and angular cosine similarity tracking.
-5. Implement `Libraries/cochem_torq_dynamic_batch.py` featuring dual node/edge token budgets, Morton/greedy bin-packing, real-time VRAM telemetry, and the non-terminating `DynamicOOMRecovery` context manager with gradient accumulation backoff.
-6. Implement `Libraries/cochem_torq_graph_pruning.py` with quintic $C^2$-smooth switching envelope $f_{\text{cut}}(r)$, strict undirected reciprocity enforcement, center-of-mass momentum conservation, and covalent core degree invariants.
-7. Implement `Libraries/cochem_torq_training_persistence.py` with SWMR chunked HDF5 locking, independent DataLoader worker initialization, and atomic `.pt`/`.sha256` checkpoint serialization.
-8. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
-9. Author the complete, unmocked test suite:
-   - `tests/test_torq_gnn_scheduler.py`
-   - `tests/test_torq_force_matching.py`
-   - `tests/test_torq_dynamic_batch.py`
-   - `tests/test_torq_graph_pruning.py`
-   - `tests/test_torq_training_persistence.py`
-10. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
-I have dispatched the adversarial audit of the generated chunked coding prompt for SRS Chunk 17 (`TORQ_Training_Dynamics_Part_2`) to the `cochem-audit` subagent (`65f836f2-6653-4dcf-8737-a557599eebdc`) in accordance with the 0rchestrator Global Protocol and the Sequential Agent Swarm Audit Mandate. Awaiting audit findings.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous training dynamics, force-matching loss engine, dynamic batch-size scaler, and $C^2$-smooth reciprocal graph pruning suite specified in Software Requirements Specification (SRS) Chunk 17: `TORQ_Training_Dynamics_Part_2` (`COCHEM-SRS-CHUNK-17-TORQ`).
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous active learning orchestrator, chunked HDF5 PyTorch Lightning DataModule, committee ensemble uncertainty wrapper, C^2-smooth radial cutoff envelope, message-passing gradient health debugger, and periodic boundary condition (PBC) virial stress graph engine specified in Software Requirements Specification (SRS) Chunk 18: `TORQ_Inference_and_Export_Part_1` (`COCHEM-SRS-CHUNK-18-TORQ`).
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive v3, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev monoisotopic mass retrieval mandate, and Method Matrix v4 (`[M]` Empirical Benchmark, `[D]` Derived Mathematical Relationship, `[E]` Estimated Theoretical Projection). Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must operate on genuine physical tensors, authentic molecular coordinates, and real chemical observables.
 
@@ -297,23 +9,24 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### 1. DIRECTORY, PERSISTENCE & 6-TIER RUNTIME CONTRACTS
 
 1. **Tripartite Workspace Air-Gap Paths**:
-   - `COCHEM_SRC_DIR` ($R_{\text{src}}$): `pathlib.Path(os.environ.get("COCHEM_SRC_DIR", Path.cwd()))` (Read-only source).
-   - `COCHEM_DATA_DIR` ($R_{\text{data}}$): `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))` (Read-only datasets under `COCHEM_OFFLINE=1`).
-   - `COCHEM_ARTIFACTS_DIR` ($R_{\text{art}}$): `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))` (Read-write checkpoints/logs).
+   - `COCHEM_SRC_DIR` ($R_{\text{src}}$): `pathlib.Path(os.environ.get("COCHEM_SRC_DIR", Path.cwd()))` (Read-only source repository).
+   - `COCHEM_DATA_DIR` ($R_{\text{data}}$): `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))` (Read-only datasets and weights under `COCHEM_OFFLINE=1`).
+   - `COCHEM_ARTIFACTS_DIR` ($R_{\text{art}}$): `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))` (Read-write checkpoints, manifests, logs, and telemetry).
    - `COCHEM_SCRATCH_DIR`: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", os.environ.get("SLURM_TMPDIR", Path.home() / ".cochem" / "scratch")))`.
 2. **6-Tier Runtime & Concurrency**:
-   - **Accelerator Binding**: `device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))`. Rank-based if distributed (`f"cuda:{local_rank}"`).
-   - **Distributed Backend**: Windows NT (Tier 1) and CPU CI (Tier 5) strictly initialize `backend="gloo"`. Linux multi-GPU (Tiers 3, 6) initializes `backend="nccl"`.
-   - **Thread-Safe HDF5 & SWMR**: Use chunked HDF5 (`gzip` level 4, `shuffle=True`, `fletcher32=True`). Coordinate via `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)`.
-     * **OS-Specific SWMR Guard**: Enable `swmr=True` ONLY on POSIX systems (`sys.platform != "win32"`). On Windows NTFS and network filesystems (NFS/Lustre), set `swmr=False` and set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"`.
-     * Multi-worker `DataLoader` must instantiate independent HDF5 handles inside `worker_init_fn`.
-   - **Atomic Checkpointing**: Write to temporary file `.pt.tmp`, invoke `os.fsync(f.fileno())`, atomically replace via `os.replace`, and write an accompanying `.sha256` digest file.
+   - **Accelerator Binding**: `device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))`. Support explicit device dispatch across CUDA, Apple Silicon MPS, and CPU.
+   - **Multiprocessing Context**: Multi-worker loaders and parallel execution must explicitly utilize the `spawn` multiprocessing context (`mp.get_context("spawn")`).
+   - **Thread-Safe HDF5 & SWMR**: Use chunked HDF5 with `rdcc_nbytes = 16 * 1024 * 1024` (16 MB cache [E]) and prime hash table slots `rdcc_nslots = 10007` [D].
+     * **OS-Specific SWMR Guard**: Enable `swmr=True` and `libver="latest"` ONLY on POSIX systems (`sys.platform != "win32"`). On Windows NTFS and distributed filesystems (Lustre/NFS), set `swmr=False` and set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"`.
+     * File access coordination via `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)`.
+     * Multi-worker PyTorch `DataLoader` must defer `h5py.File` instantiation to `worker_init_fn`.
+   - **Atomic Checkpoint & Manifest Serialization**: Write temporary file `.tmp`, invoke `os.fsync(f.fileno())`, atomically move via `os.replace`, and write an accompanying cryptographic `.sha256` digest file.
 
 ---
 
 ### 2. DOMAIN EXCEPTIONS & PYDANTIC V2 DATA CONTRACTS
 
-- **Files**: `Libraries/cochem_torq_training_errors.py` and `Libraries/cochem_torq_training_schemas.py` (export in `Libraries/__init__.py`).
+- **Files**: `Libraries/cochem_torq_inference_errors.py` and `Libraries/cochem_torq_inference_schemas.py` (export in `Libraries/__init__.py`).
 - **Domain Exception Hierarchy**:
   ```python
   from typing import Any, Dict, Optional
@@ -331,14 +44,14 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
     pass
 
 
-  class TorqTrainingError(CoChemTorqError):
-    """Base exception for all TORQ training dynamics errors [M]."""
+  class TorqInferenceError(CoChemTorqError):
+    """Base exception for all TORQ inference and export errors [M]."""
 
     def __init__(
         self,
         message: str,
-        error_code: str = "TORQ_TRAIN_GENERIC",
-        component: str = "training_dynamics",
+        error_code: str = "TORQ_INF_GENERIC",
+        component: str = "inference_engine",
         diagnostics: Optional[Dict[str, Any]] = None,
     ) -> None:
       super().__init__(message)
@@ -347,253 +60,428 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
       self.diagnostics = diagnostics or {}
 
 
-  class HDF5LockTimeoutError(TorqTrainingError):
-    """Raised when acquiring advisory HDF5 filelock exceeds timeout ceiling [M]."""
+  class ActiveLearningSelectionError(TorqInferenceError):
+    """Raised when active learning selection or pool deduplication fails [M]."""
 
     pass
 
 
-  class DiscontinuousForceError(TorqTrainingError):
-    """Raised when graph pruning or switching function violates C^2 continuity [D]."""
+  class HDF5DataModuleLockError(TorqInferenceError):
+    """Raised when multi-worker HDF5 handle acquisition encounters lock timeout [M]."""
 
     pass
 
 
-  class NonReciprocalGraphError(TorqTrainingError):
-    """Raised when asymmetric edge pruning breaks Newton's Third Law (F_ij != -F_ji) [D]."""
+  class EnsembleConsensusError(TorqInferenceError):
+    """Raised when committee ensemble encounters dimension mismatch or consensus divergence [D]."""
 
     pass
 
 
-  class OOMRecoveryError(TorqTrainingError):
-    """Raised when dynamic batch-size scaler fails to recover after max step-down attempts [M]."""
+  class CutoffContinuityError(TorqInferenceError):
+    """Raised when radial cutoff function violates C^2 smoothness or boundary zero condition [D]."""
 
     pass
 
 
-  class EquivarianceBreakError(TorqTrainingError):
-    """Raised when geometric tensor operations violate E(3) or SO(3) rotational covariance [D]."""
+  class GradientExplosionError(TorqInferenceError):
+    """Raised when GNN message passing activations or gradients exceed stability threshold [D]."""
 
     pass
 
 
-  class SchedulerDivergenceError(TorqTrainingError):
-    """Raised when learning rate scheduler encounters NaN or infinite parameter norms [D]."""
+  class VanishingGradientWarning(UserWarning):
+    """Emitted when message passing gradients drop below minimum threshold across consecutive layers [D]."""
+
+    pass
+
+
+  class PBCGraphError(TorqInferenceError):
+    """Raised when periodic boundary condition graph construction or virial calculation fails [D]."""
+
+    pass
+
+
+  class AirGapViolationError(TorqInferenceError):
+    """Raised when inference or active learning loops attempt forbidden outbound networking or direct subprocess execution [M]."""
 
     pass
 ```
 
 - **Pydantic v2 Models** (`model_config = ConfigDict(frozen=True, extra="forbid")`):
   ```python
-  from typing import Literal
+  from pathlib import Path
+  from typing import List, Literal, Optional
   from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-  class GNNWarmRestartSchedulerConfig(BaseModel):
+  class ActiveLearningOrchestratorConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    initial_lr: float = Field(
-        default=1e-4,
+    batch_capacity_k: int = Field(
+        default=64,
+        ge=1,
+        le=512,
+        description="Active learning batch selection capacity K [E]",
+    )
+    force_uncertainty_threshold: float = Field(
+        default=0.05,
         gt=0.0,
-        description="Peak initial learning rate eta_max [D]",
+        description=(
+            "Maximum atomic force epistemic variance threshold theta_force in"
+            " eV/Angstrom [E]"
+        ),
     )
-    min_lr: float = Field(
-        default=1e-7,
-        ge=0.0,
-        description="Minimum learning rate floor eta_min [D]",
-    )
-    warmup_steps: int = Field(
-        default=1000, ge=100, description="Linear warmup steps [D]"
-    )
-    first_cycle_steps: int = Field(
-        default=10000,
-        ge=500,
-        description="Duration of initial restart cycle T_0 [D]",
-    )
-    cycle_multiplier: float = Field(
-        default=1.5, ge=1.0, description="Cycle expansion factor T_mult [D]"
-    )
-    restart_decay: float = Field(
-        default=0.75,
+    energy_uncertainty_threshold: float = Field(
+        default=0.001,
         gt=0.0,
-        le=1.0,
-        description="Peak LR attenuation factor gamma_restart [D]",
+        description=(
+            "QBC energy variance threshold theta_energy in eV^2/atom [E]"
+        ),
     )
-    max_grad_norm: float = Field(
-        default=1.0,
+    rmsd_dedup_threshold_angstrom: float = Field(
+        default=0.15,
         gt=0.0,
-        description="Ceiling for gradient norm clipping [D]",
+        description=(
+            "Pairwise geometric RMSD threshold delta_RMSD for deduplication [M]"
+        ),
+    )
+    triage_tier: Literal["T3-10s", "T3-1h", "T3-12h"] = Field(
+        default="T3-10s", description="Initial QM routing tier [M]"
+    )
+    staging_manifest_dir: Path = Field(
+        ...,
+        description="Air-gapped manifest export directory in Ring 3 [M]",
+    )
+
+
+  class ChunkedHDF5DataModuleConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    h5_path: Path = Field(..., description="Path to chunked HDF5 dataset [M]")
+    batch_size: int = Field(
+        default=32, ge=1, description="Batch size per device [M]"
+    )
+    num_workers: int = Field(
+        default=2, ge=0, description="Number of dataloader worker processes [M]"
+    )
+    chunk_cache_bytes: int = Field(
+        default=16 * 1024 * 1024,
+        ge=1024 * 1024,
+        description="HDF5 raw data chunk cache size (rdcc_nbytes) [E]",
+    )
+    chunk_cache_slots: int = Field(
+        default=10007,
+        ge=1009,
+        description="Prime number of chunk cache hash slots (rdcc_nslots) [D]",
+    )
+    pin_memory: bool = Field(
+        default=True,
+        description="Pin host memory for non-blocking GPU transfer [M]",
+    )
+    train_val_test_split: List[float] = Field(
+        default=[0.8, 0.1, 0.1],
+        description="Train, validation, and test split ratios [M]",
     )
 
     @model_validator(mode="after")
-    def validate_lr_bounds(self) -> "GNNWarmRestartSchedulerConfig":
-      if self.min_lr >= self.initial_lr:
-        raise ValueError(
-            f"min_lr ({self.min_lr}) must be strictly less than initial_lr"
-            f" ({self.initial_lr})"
-        )
+    def validate_splits(self) -> "ChunkedHDF5DataModuleConfig":
+      if abs(sum(self.train_val_test_split) - 1.0) > 1e-5:
+        raise ValueError("train_val_test_split must sum to 1.0")
       return self
 
 
-  class ForceMatchingLossConfig(BaseModel):
+  class CommitteeEnsembleConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    energy_weight: float = Field(
-        default=1.0, ge=0.0, description="Loss weight for potential energy [D]"
+    num_models_m: int = Field(
+        default=8,
+        ge=2,
+        le=32,
+        description="Number of committee models M [E]",
     )
-    force_weight: float = Field(
-        default=50.0,
-        gt=0.0,
-        description="Loss weight for atomic force vectors [D]",
+    max_concurrent_models_vram: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "Maximum models loaded into active VRAM simultaneously [E]"
+        ),
     )
-    virial_weight: float = Field(
-        default=0.01,
-        ge=0.0,
-        description="Loss weight for periodic virial stress [D]",
-    )
-    huber_delta_force: float = Field(
-        default=0.01,
-        gt=0.0,
-        description="Huber transition delta in eV/Angstrom [D]",
-    )
-    create_graph: bool = Field(
+    synchronize_cuda_streams: bool = Field(
         default=True,
-        description="Retain second-order graph in autograd for forces [D]",
-    )
-    track_angular_similarity: bool = Field(
-        default=True, description="Compute cosine similarity metric [D]"
+        description=(
+            "Execute stream synchronization between model forward passes [D]"
+        ),
     )
 
 
-  class DynamicBatchScalerConfig(BaseModel):
+  class C2SmoothCutoffConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    max_node_budget: int = Field(
-        default=4096,
-        ge=64,
-        description="Maximum atoms per micro-batch [M]",
+    cutoff_radius_rc: float = Field(
+        default=5.0,
+        gt=1.0,
+        description="Radial cutoff boundary radius r_c in Angstroms [M]",
     )
-    max_edge_budget: int = Field(
-        default=32768,
-        ge=256,
-        description="Maximum sparse edges per micro-batch [M]",
+    polynomial_degree: Literal[5] = Field(
+        default=5,
+        description="Degree of C^2 continuous switching polynomial [D]",
     )
-    backoff_factor: float = Field(
-        default=0.75,
-        gt=0.1,
-        lt=1.0,
-        description="Budget step-down on OOM [M]",
+
+
+  class GNNGradientDebuggerConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    exploding_grad_threshold: float = Field(
+        default=1e3,
+        gt=0.0,
+        description="L2 gradient norm explosion threshold [D]",
     )
-    max_recovery_retries: int = Field(
+    vanishing_grad_threshold: float = Field(
+        default=1e-7,
+        gt=0.0,
+        description="L2 gradient norm vanishing threshold [D]",
+    )
+    consecutive_vanishing_blocks: int = Field(
         default=3,
         ge=1,
-        description="Max retry attempts per failed micro-batch [M]",
+        description=(
+            "Consecutive layers below vanishing threshold before alert [D]"
+        ),
     )
-    target_vram_fraction: float = Field(
-        default=0.85, gt=0.1, lt=0.98, description="Target VRAM ceiling [M]"
+    enabled: bool = Field(
+        default=True, description="Enable active hook monitoring [M]"
     )
 
 
-  class C2GraphPrunerConfig(BaseModel):
+  class PBCRadialGraphConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
-    cutoff_radius_angstrom: float = Field(
-        default=5.0, gt=1.0, description="Spatial interaction cutoff r_c [D]"
+    cutoff_radius_rc: float = Field(
+        default=5.0,
+        gt=1.0,
+        description="Radial graph cutoff radius in Angstroms [M]",
     )
-    covalent_core_radius_angstrom: float = Field(
-        default=1.5,
-        gt=0.5,
-        description="Core radius r_cov guaranteed degree >= 1 [D]",
-    )
-    enforce_reciprocal_edges: bool = Field(
+    compute_virial_stress: bool = Field(
         default=True,
-        description="Enforce undirected edge reciprocity (j in N(i) <=> i in N(j)) [D]",
+        description="Compute analytical unit cell virial stress tensor [D]",
     )
-    switching_polynomial_degree: Literal[5] = Field(
-        default=5, description="Quintic polynomial C^2 cutoff envelope [D]"
-    )
-    stochastic_edge_dropout: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=0.5,
-        description="Banned on coordinate graphs; invariant heads only [D]",
-    )
-
-    @model_validator(mode="after")
-    def validate_radii(self) -> "C2GraphPrunerConfig":
-      if self.covalent_core_radius_angstrom >= self.cutoff_radius_angstrom:
-        raise ValueError(
-            f"covalent_core_radius_angstrom ({self.covalent_core_radius_angstrom}) must be strictly less than cutoff_radius_angstrom ({self.cutoff_radius_angstrom})"
-        )
-      return self
 ```
 
 ---
 
-### 3. MATHEMATICAL SPECIFICATIONS & MODULES
+### 3. MODULE IMPLEMENTATION SPECIFICATIONS
 
-#### Module 1: Bespoke Learning Rate Scheduler (`Libraries/cochem_torq_gnn_scheduler.py` - `REQ-TORQ-TRAIN-097` `[D]`)
-- Linear warmup ($t \le T_{\text{warmup}}$):
-  $$\eta_t = \eta_{\text{min}} + \frac{t}{T_{\text{warmup}}}(\eta_{\text{max}}^{(0)} - \eta_{\text{min}}) \quad [D]$$
-- Cosine Annealing with Warm Restarts for cycle $i \ge 0$ with duration $T_i = T_0 \cdot (T_{\text{mult}})^i$:
-  $$\eta_t = \eta_{\text{min}} + \frac{1}{2}(\eta_{\text{max}}^{(i)} - \eta_{\text{min}})\left(1 + \cos\left(\pi \frac{t - t_{\text{restart}}^{(i)}}{T_i}\right)\right) \quad [D]$$
-  where peak learning rate attenuates exponentially: $\eta_{\text{max}}^{(i+1)} = \eta_{\text{max}}^{(0)} \cdot (\gamma_{\text{restart}})^{i+1}$ with $\gamma_{\text{restart}} \in [0.5, 0.8]$ (default 0.75).
-- Must be step-based (`scheduler.step()`).
-- Unscale gradients under AMP; clip gradient norm to $\|\mathbf{g}\|_2 \le \text{max\_grad\_norm}$ ($1.0\,\text{eV/\AA}$).
-- Raise `SchedulerDivergenceError` if parameter norms or gradients evaluate to `NaN` or `Inf`.
-
-#### Module 2: Force-Matching Loss Engine (`Libraries/cochem_torq_force_matching.py` - `REQ-TORQ-TRAIN-098` `[D]`)
-- Conservative forces derived analytically: $\hat{\mathbf{F}}_i = -\nabla_{\mathbf{R}_i} \hat{E}(\mathbf{R}, \mathbf{Z})$.
-- Autograd double backpropagation: `torch.autograd.grad(..., create_graph=True, retain_graph=True)` yielding mixed second partials $\frac{\partial^2 \hat{E}}{\partial \theta \partial \mathbf{R}_i}$.
-- Huber loss on force vectors with transition delta $\delta_F = 0.01\,\text{eV/\AA}$:
-  $$\mathcal{L}_{\text{Huber}}(\mathbf{x}, \delta_F) = \begin{cases} \frac{1}{2\delta_F} \|\mathbf{x}\|^2, & \|\mathbf{x}\| \le \delta_F \\ \|\mathbf{x}\| - \frac{1}{2}\delta_F, & \|\mathbf{x}\| > \delta_F \end{cases} \quad [D]$$
-- Composite multi-task loss in $\text{eV}$ and $\text{\AA}$:
-  $$\mathcal{L}(\theta) = w_E \frac{1}{B}\sum_{b=1}^B \frac{|E_b - \hat{E}_b|^2}{N_b} + w_F \frac{1}{3 \sum_{b=1}^B N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \mathcal{L}_{\text{Huber}}(\mathbf{F}_{b,i} - \hat{\mathbf{F}}_{b,i}, \delta_F) + w_V \mathcal{L}_{\text{virial}} \quad [D]$$
-- Enforce $w_F / w_E \in [10.0, 100.0]\,\text{\AA}^{-2}$. For non-periodic systems, $\mathcal{L}_{\text{virial}} = 0$.
-- Compute angular force cosine similarity tracking metric:
-  $$\rho_{\text{angular}} = \frac{1}{\sum N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \frac{\mathbf{F}_{b,i} \cdot \hat{\mathbf{F}}_{b,i}}{\|\mathbf{F}_{b,i}\|_2 \|\hat{\mathbf{F}}_{b,i}\|_2 + 10^{-8}} \quad [D]$$
-
-#### Module 3: Dynamic Batch Scaler & OOM Recovery (`Libraries/cochem_torq_dynamic_batch.py` - `REQ-TORQ-TRAIN-099` `[M]`)
-- Dual-budget greedy/Morton packing: pack molecular graphs such that $\sum_{i=1}^B N_i \le N_{\text{budget}}$ and $\sum_{i=1}^B |\mathcal{E}_i| \le E_{\text{budget}}$.
-- `DynamicOOMRecovery` context manager:
-  * Intercepts `torch.cuda.OutOfMemoryError`, `MemoryError`, and platform memory allocation failures.
-  * Caches purged via `torch.cuda.empty_cache()` and `gc.collect()`.
-  * Backoff step-down: $N_{\text{budget}} \leftarrow \lfloor \kappa \cdot N_{\text{budget}} \rfloor$, $E_{\text{budget}} \leftarrow \lfloor \kappa \cdot E_{\text{budget}} \rfloor$ ($\kappa = 0.75$).
-  * Partitions rejected micro-batch into 2 equal sub-batches and processes sequentially with $2\times$ gradient accumulation without dropping samples.
-  * If retries exceed `max_recovery_retries` (default 3), raises `OOMRecoveryError`.
-
-#### Module 4: $C^2$-Smooth Graph Pruner (`Libraries/cochem_torq_graph_pruning.py` - `REQ-TORQ-TRAIN-100` `[D]`)
-- Quintic polynomial switching envelope:
-  $$f_{\text{cut}}(r_{ij}) = \begin{cases} 1 - 10\left(\frac{r_{ij}}{r_c}\right)^3 + 15\left(\frac{r_{ij}}{r_c}\right)^4 - 6\left(\frac{r_{ij}}{r_c}\right)^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
-  Guarantees $C^2$ continuity: $f_{\text{cut}}(r_c)=0$, $f'_{\text{cut}}(r_c)=0$, and $f''_{\text{cut}}(r_c)=0$. Raises `DiscontinuousForceError` if violated.
-- Symmetrical adjacency pruning: $A_{\text{pruned}} = A \odot A^T$, enforcing $j \in \mathcal{N}(i) \iff i \in \mathcal{N}(j)$ and strictly conserving Newton's Third Law ($\mathbf{F}_{ij} = -\mathbf{F}_{ji}$ and $\sum_i \mathbf{F}_i = \mathbf{0}$). Raises `NonReciprocalGraphError` if violated.
-- Covalent Core Degree Invariant: ensure degree $d_i \ge 1$ for all atoms within $r_{\text{cov}} = 1.5\,\text{\AA}$. Banning stochastic dropout on spatial coordinate graphs.
-- Dynamic Mendeleev: compute center-of-mass momentum and atomic mass metrics using `from mendeleev import element` (`element(int(z)).mass` or `element(int(z)).atomic_weight`). Ghost atoms ($Z=0$) receive $0.0\,\text{u}$ mass.
+#### 1. Active Learning Orchestrator for Dynamic QM Selection (`REQ-TORQ-INF-101` `[M]`/`[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_active_learning.py` (and export in `Libraries/__init__.py`)
+- **Mathematical Acquisition Metrics**:
+  - Evaluate an unlabeled pool of molecular geometries $\mathcal{U} = \{\mathbf{X}_k\}_{k=1}^{P}$ using committee predictions $\{E_m(\mathbf{X}), \mathbf{F}_{i,m}(\mathbf{X})\}_{m=1}^M$.
+  - Compute Query-by-Committee (QBC) Energy Variance:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+    where $\bar{E}(\mathbf{X}) = \frac{1}{M}\sum_{m=1}^M E_m(\mathbf{X})$.
+  - Compute Maximum Atomic Force Epistemic Variance across all $N$ atoms:
+    $$\alpha_F(\mathbf{X}) = \max_{i \in \{1 \dots N\}} \frac{1}{M-1} \sum_{m=1}^M \left\| \mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X}) \right\|_2^2 \quad [D]$$
+    where $\bar{\mathbf{F}}_i(\mathbf{X}) = \frac{1}{M}\sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X})$.
+  - Acquisition Trigger Criteria: Trigger candidate selection if $\alpha_F(\mathbf{X}) > \theta_{\text{force}} = 0.05\,\text{eV/\AA}$ [E] OR $\frac{\sigma_E^2(\mathbf{X})}{N} > \theta_{\text{energy}} = 0.001\,\text{eV}^2/\text{atom}$ [E].
+- **State Lifecycle & Transitions**:
+  - Manage state transitions: `UNLABELED` $\to$ `CANDIDATE_SELECTED` $\to$ `MANIFEST_EMITTED` $\to$ `QM_COMPLETED` $\to$ `INGESTED`.
+- **Geometric Diversity & Deduplication Filtering**:
+  - Sort triggered candidates descending by uncertainty score $\mathcal{A}(\mathbf{X}) = \alpha_F(\mathbf{X})$.
+  - Iterate candidates and apply the Kabsch algorithm (optimal translation $\mathbf{t}$ and rotation $\mathbf{R} \in \mathrm{SO}(3)$ via SVD $\mathbf{H} = \mathbf{X}_c^T \mathbf{Y}_c = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^T$, $\mathbf{R} = \mathbf{V} \operatorname{diag}(1, 1, \det(\mathbf{V}\mathbf{U}^T)) \mathbf{U}^T$) to compute pairwise minimum root-mean-square deviation:
+    $$D_{\text{geom}}(\mathbf{X}_a, \mathbf{X}_b) = \min_{\mathbf{R} \in \mathrm{SO}(3), \mathbf{t} \in \mathbb{R}^3} \sqrt{\frac{1}{N}\sum_{i=1}^N \|\mathbf{x}_{a,i} - (\mathbf{R}\mathbf{x}_{b,i} + \mathbf{t})\|_2^2} \quad [D]$$
+  - If $D_{\text{geom}}(\mathbf{X}_a, \mathbf{X}_b) < \delta_{\text{RMSD}} = 0.15\,\text{\AA}$ [M] with respect to any already selected candidate in active batch $\mathcal{S}_t$, prune candidate $\mathbf{X}_b$ to avoid sampling redundant conformers. Select up to capacity $K = 64$ [E].
+- **Multi-Tier QM Routing & Air-Gapped Manifest Emission**:
+  - Route selections by uncertainty severity:
+    * Moderate uncertainty: Tier T3-10s (`GFN2-xTB`).
+    * High force variance ($\alpha_F > 0.2\,\text{eV/\AA}$): Tier T3-1h (ORCA 6.0 $\omega$B97M-V/def2-TZVP with `defgrid3` and tightened `%geom` tolerances).
+    * Extreme variance / topological fragmentation: Tier T3-12h (`DLPNO-CCSD(T)/junChS`).
+  - Strict Air-Gap Isolation: Do NOT invoke subprocesses directly (`COCHEM_OFFLINE=1`). Serialize selected structures into an immutable JSON/HDF5 job manifest with cryptographic SHA-256 payload digest.
 
 ---
 
-### 4. VERIFICATION TRACEABILITY MATRIX & PHYSICAL ACCEPTANCE TESTS
-
-All tests must be written under `tests/test_cochem_torq_training.py` (or partitioned modular tests under `tests/`) using authentic chemical structures (no synthetic random coordinates).
-
-| Requirement ID | Physical Fixture / Input | Mandatory Quantitative Acceptance Criteria |
-| :--- | :--- | :--- |
-| `REQ-TORQ-TRAIN-097` | Alanine Dipeptide ($N=22$) trajectory slice | 1. Linear warmup verifies $\eta_0 = \eta_{\text{min}}$ ($10^{-7}$) and $\eta_{1000} = \eta_{\text{max}}$ ($10^{-4}$).<br>2. First restart cycle satisfies $\eta_{\text{max}}^{(1)} = 0.75 \times \eta_{\text{max}}^{(0)} \pm 10^{-8}$.<br>3. Gradient clipping strictly enforces $\|\mathbf{g}\|_2 \le 1.0\,\text{eV/\AA}$.<br>4. Injected `NaN` gradient raises `SchedulerDivergenceError`. |
-| `REQ-TORQ-TRAIN-098` | Water 10-mer cluster ($N=30$) with DFTB/ORCA forces | 1. Autograd double-backward executes with `create_graph=True` without graph dropping.<br>2. Force Huber loss resists repulsive wall divergence at $r_{\text{OH}} = 0.7\,\text{\AA}$ (finite loss).<br>3. Energy MAE $< 1.0\,\text{meV/atom}$; Force MAE $< 0.05\,\text{eV/\AA}$; $\rho_{\text{angular}} > 0.95$. |
-| `REQ-TORQ-TRAIN-099` | Heterogeneous mixture: Water ($N=3$), Ethanol ($N=9$), Buckminsterfullerene $\text{C}_{60}$ ($N=60$) | 1. Packed micro-batches strictly obey $\sum N_i \le 4096$ and $\sum \|\mathcal{E}_i\| \le 32768$.<br>2. Injected simulated OOM triggers $0.75\times$ budget step-down and 2-sub-batch gradient accumulation retry without crashing.<br>3. Exceeding `max_recovery_retries=3` raises `OOMRecoveryError`. |
-| `REQ-TORQ-TRAIN-100` | Ethanol conformational rotor ($N=9$) sampled along C-C torsion | 1. $f_{\text{cut}}(r_c)=0, \left.\frac{df}{dr}\right\|_{r_c}=0, \left.\frac{d^2 f}{dr^2}\right\|_{r_c}=0$ within numerical tolerance $< 10^{-7}$.<br>2. Net external force drift satisfies $\|\sum_{i=1}^N \mathbf{F}_i\|_2 < 10^{-6}\,\text{eV/\AA}$.<br>3. Pairwise force antisymmetry satisfies $\|\mathbf{F}_{ij} + \mathbf{F}_{ji}\|_\infty < 10^{-7}\,\text{eV/\AA}$.<br>4. Forced asymmetric edge drop raises `NonReciprocalGraphError`. |
+#### 2. Custom PyTorch Lightning DataModule for Chunked HDF5 Ingestion (`REQ-TORQ-INF-102` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_hdf5_datamodule.py` (and export in `Libraries/__init__.py`)
+- **PyTorch Lightning Lifecycle**:
+  - Subclass `pl.LightningDataModule`.
+  - `prepare_data()`: Check file existence via `pathlib.Path`, verify SHA-256 integrity, inspect chunk boundary indices without allocating tensor memory in the parent process.
+  - `setup(stage)`: Compute sample offsets and partition into deterministic train, validation, and test subsets based on cross-validation split ratios.
+  - `train_dataloader()`, `val_dataloader()`, `predict_dataloader()`: Return `torch.utils.data.DataLoader` configured with `collate_fn=jagged_graph_collate`, `pin_memory=True`, `num_workers=config.num_workers`, and `worker_init_fn=hdf5_worker_init_fn`.
+- **Thread-Safe HDF5 Concurrency & Worker Isolation**:
+  - Prevent handle collision across multi-process workers: defer `h5py.File` opening to `worker_init_fn`:
+    ```python
+    def h5_worker_init_fn(worker_id: int) -> None:
+      worker_info = torch.utils.data.get_worker_info()
+      if worker_info is not None:
+        dataset = worker_info.dataset
+        is_posix = sys.platform != "win32"
+        dataset.handle = h5py.File(
+            dataset.h5_path,
+            mode="r",
+            swmr=is_posix,
+            libver="latest" if is_posix else "earliest",
+            rdcc_nbytes=16 * 1024 * 1024,
+            rdcc_nslots=10007,
+        )
+```
+  - Implement `teardown(stage)`: Ensure all open HDF5 handles are properly closed upon shutdown.
+- **Jagged Graph Collation Engine**:
+  - Assemble variable-size molecular graphs ($N_k$ atoms, $E_k$ edges) into a contiguous batch representation.
+  - Construct node batch assignment vector $\mathbf{b} \in \{0 \dots B-1\}^{\sum N_k}$ [D].
+  - Offset sparse edge indices: $\mathbf{e}'_k = \mathbf{e}_k + \sum_{j < k} N_j$ [D] and concatenate into a single contiguous `edge_index` tensor of shape $(2, \sum E_k)$.
 
 ---
 
-### ACTION PLAN FOR CODER
+#### 3. Committee Model (Ensemble) Wrapper for Epistemic Uncertainty (`REQ-TORQ-INF-103` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_committee_ensemble.py` (and export in `Libraries/__init__.py`)
+- **Conservative Force & Energy Aggregation**:
+  - Wrap $M$ independently trained potential instances.
+  - Compute the ensemble mean potential energy:
+    $$\bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M E_m(\mathbf{X}) \quad [D]$$
+  - Analytical conservative forces guarantee zero external work in closed cycles:
+    $$\bar{\mathbf{F}}_i(\mathbf{X}) = -\nabla_{\mathbf{R}_i} \bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X}) \quad [D]$$
+- **Unbiased Epistemic Uncertainty Decomposition**:
+  - Sample variance of total energy:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+  - Per-atom force epistemic variance:
+    $$\sigma_{\mathbf{F}, i}^2(\mathbf{X}) = \frac{1}{3(M-1)} \sum_{m=1}^M \|\mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X})\|_2^2 \quad [D]$$
+- **Sequential Evaluation & VRAM Stream Safeguards**:
+  - When $M \ge 8$, avoid holding all models in active GPU VRAM simultaneously. Evaluate models in sequential micro-batches of size `max_concurrent_models_vram` with explicit stream synchronization (`torch.cuda.synchronize()` when CUDA is active).
 
-1. Implement `Libraries/cochem_torq_training_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError`.
-2. Implement `Libraries/cochem_torq_training_schemas.py` with all Pydantic v2 data models, fields, inequality bounds, and validators (`GNNWarmRestartSchedulerConfig`, `ForceMatchingLossConfig`, `DynamicBatchScalerConfig`, `C2GraphPrunerConfig`).
-3. Implement `Libraries/cochem_torq_gnn_scheduler.py` providing linear warmup, Cosine Annealing with warm restarts, restart peak attenuation $\gamma_{\text{restart}}$, step-based triggering, and gradient norm clipping.
-4. Implement `Libraries/cochem_torq_force_matching.py` with second-order autograd double backpropagation, robust Huber loss ($\delta_F = 0.01\,\text{eV/\AA}$), size-extensive per-atom normalization, and angular cosine similarity tracking.
-5. Implement `Libraries/cochem_torq_dynamic_batch.py` featuring dual node/edge token budgets, Morton/greedy bin-packing, real-time VRAM telemetry, and the non-terminating `DynamicOOMRecovery` context manager with gradient accumulation backoff.
-6. Implement `Libraries/cochem_torq_graph_pruning.py` with quintic $C^2$-smooth switching envelope $f_{\text{cut}}(r)$, strict undirected reciprocity enforcement, center-of-mass momentum conservation, and covalent core degree invariants.
-7. Implement `Libraries/cochem_torq_training_persistence.py` with OS-guarded SWMR chunked HDF5 locking, independent DataLoader worker initialization, and atomic `.pt`/`.sha256` checkpoint serialization.
-8. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
-9. Author the complete, unmocked test suite under `tests/` covering every requirement with genuine chemical fixtures and quantitative tolerances.
-10. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous training dynamics, force-matching loss engine, dynamic batch-size scaler, and $C^2$-smooth reciprocal graph pruning suite specified in Software Requirements Specification (SRS) Chunk 17: `TORQ_Training_Dynamics_Part_2` (`COCHEM-SRS-CHUNK-17-TORQ`).
+---
+
+#### 4. $C^2$-Smooth Cutoff Function for Continuous Forces and Hessians (`REQ-TORQ-INF-104` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_c2_cutoff.py` (and export in `Libraries/__init__.py`)
+- **Quintic Switching Polynomial Formulation**:
+  - For interatomic distance $r_{ij}$ and boundary cutoff $r_c = 5.0\,\text{\AA}$ [M], let normalized coordinate $u = \frac{r_{ij}}{r_c} \in [0, 1]$ [D]:
+    $$f_c(r_{ij}) = \begin{cases} 1 - 10 u^3 + 15 u^4 - 6 u^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+- **Exact Analytical Radial and Spatial Derivatives**:
+  - First radial derivative:
+    $$\frac{df_c(r_{ij})}{dr_{ij}} = \begin{cases} -\frac{30}{r_c} u^2 (1 - u)^2, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+  - Spatial gradient with respect to $\mathbf{r}_i$:
+    $$\nabla_{\mathbf{r}_i} f_c(r_{ij}) = \frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_i - \mathbf{r}_j}{r_{ij}} = \frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_{ij}}{r_{ij}} \quad [D]$$
+  - Second radial derivative:
+    $$\frac{d^2 f_c(r_{ij})}{dr_{ij}^2} = \begin{cases} -\frac{60}{r_c^2} u (1 - u)(1 - 2u), & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+- **Mathematical Continuity Guarantees**:
+  - Enforce and verify boundary values: $f_c(r_c) = 0$, $\left.\frac{df_c}{dr_{ij}}\right|_{r_c} = 0$, and $\left.\frac{d^2 f_c}{dr_{ij}^2}\right|_{r_c} = 0$.
+  - Guarantees zero Dirac-delta force spikes ($\delta(r - r_c)$) and smooth analytical second derivatives (Hessians) for harmonic vibrational analysis. If numerical tolerance exceeds $10^{-7}$, raise `CutoffContinuityError`.
+
+---
+
+#### 5. Message Passing GNN Gradient Health Debugger (`REQ-TORQ-INF-105` `[D]`)
+- **File Target**: `Libraries/cochem_torq_gnn_debugger.py` (and export in `Libraries/__init__.py`)
+- **Hook Attachment Architecture**:
+  - Provide a non-intrusive diagnostic tool `GNNGradientDebugger` that attaches to `torch.nn.Module` layers:
+    * Forward hook: Records node activation norms $\|\mathbf{h}_v^{(l)}\|_2$ and tracks NaN/Inf occurrences.
+    * Backward hook (`register_full_backward_hook`): Inspects layer gradients $\mathbf{g}_v^{(l)} = \nabla_{\mathbf{h}_v^{(l)}} \mathcal{L}$.
+- **Numerical Anomaly Detection & Traps**:
+  - Exploding Gradient Trap: If $\|\mathbf{g}_v^{(l)}\|_2 > 10^3$ [D] or NaN/Inf is detected in forward/backward passes, immediately raise `GradientExplosionError` with layer index and parameter name.
+  - Vanishing Gradient Warning: If $\|\mathbf{g}_v^{(l)}\|_2 < 10^{-7}$ [D] across 3 consecutive interaction blocks, emit `VanishingGradientWarning` detailing layer depth and gradient magnitude.
+  - Zero Production Overhead: Automatically deactivate hooks when `torch.is_grad_enabled() == False` or `config.enabled == False`. Provide context manager `debugger.probe(model)` with automatic hook cleanup upon exit.
+
+---
+
+#### 6. Periodic Boundary Conditions & Virial Stress Graph Engine (`REQ-TORQ-INF-106` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_pbc_graph.py` (and export in `Libraries/__init__.py`)
+- **Lattice Metric & Minimum Image Edge Construction**:
+  - Given crystal lattice matrix $\mathbf{L} = [\mathbf{a}_1, \mathbf{a}_2, \mathbf{a}_3] \in \mathbb{R}^{3 \times 3}$ [D] and Cartesian coordinates $\mathbf{R} \in \mathbb{R}^{N \times 3}$:
+  - Compute unit cell volume $\Omega = |\det(\mathbf{L})|$ [D].
+  - Compute fractional coordinates: $\mathbf{s}_i = \mathbf{L}^{-1} \mathbf{r}_i \pmod 1$ [D].
+  - Determine integer translation bounds: for cutoff $r_c = 5.0\,\text{\AA}$ [M], compute interplanar spacing $d_{\perp, k} = \frac{\Omega}{\|\mathbf{a}_j \times \mathbf{a}_k\|_2}$ and search range $n_k \in [-\lceil r_c / d_{\perp, k} \rceil, \lceil r_c / d_{\perp, k} \rceil]$ [D].
+  - Compute all pairwise periodic displacement vectors:
+    $$\mathbf{r}_{ij, \mathbf{S}} = (\mathbf{r}_j - \mathbf{r}_i) + \sum_{k=1}^3 n_k \mathbf{a}_k, \quad d_{ij, \mathbf{S}} = \|\mathbf{r}_{ij, \mathbf{S}}\|_2 \le r_c \quad [D]$$
+- **Analytical Virial Stress Tensor**:
+  - Calculate symmetric stress tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ using pair interaction forces $\mathbf{f}_{ij, \mathbf{S}} = -\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E$:
+    $$\mathbf{\Xi}_{\alpha \beta} = -\frac{1}{2 \Omega} \sum_{i=1}^N \sum_{j \in \mathcal{N}(i), \mathbf{S}} (\mathbf{r}_{ij, \mathbf{S}})_\alpha (\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E)_\beta \quad [D]$$
+  - Compute scalar hydrostatic pressure:
+    $$P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi}) = -\frac{1}{3} (\mathbf{\Xi}_{xx} + \mathbf{\Xi}_{yy} + \mathbf{\Xi}_{zz}) \quad [D]$$
+
+---
+
+### 4. TEST SUITE SPECIFICATIONS
+
+All tests must be physically authentic and execute against real molecular coordinates and physical observables without mocks or stubs under `tests/`:
+
+1. **`tests/test_torq_active_learning.py`** (`REQ-TORQ-INF-101`):
+   - **Physical Fixture**: Ensemble of conformers of Ethanol ($N=9$) and Alanine dipeptide ($N=22$).
+   - **Verification**:
+     - Compute QBC energy variance $\sigma_E^2$ and maximum force epistemic variance $\alpha_F$.
+     - Verify acquisition threshold triggers correctly on high-variance conformers ($\alpha_F > 0.05\,\text{eV/\AA}$).
+     - Verify Kabsch RMSD deduplication prunes duplicate conformers within $\delta_{\text{RMSD}} = 0.15\,\text{\AA}$.
+     - Verify state transition machine: `UNLABELED` $\to$ `CANDIDATE_SELECTED` $\to$ `MANIFEST_EMITTED`.
+     - Verify manifest emission generates valid JSON/HDF5 with verifiable SHA-256 hash in Ring 3 without network calls.
+
+2. **`tests/test_torq_hdf5_datamodule.py`** (`REQ-TORQ-INF-102`):
+   - **Physical Fixture**: Genuine chunked HDF5 dataset of molecular graphs (Water 10-mer cluster $N=30$).
+   - **Verification**:
+     - Verify `prepare_data()` inspects chunk metadata without memory leakage.
+     - Verify deterministic train/val/test splitting in `setup()`.
+     - Launch DataLoader with `num_workers=2` and assert independent HDF5 file handles are instantiated via `worker_init_fn`.
+     - Verify `jagged_graph_collate` produces correct node batch pointers $\mathbf{b}$ and properly shifted edge index offsets.
+     - Verify `teardown()` cleanly closes open handles.
+
+3. **`tests/test_torq_committee_ensemble.py`** (`REQ-TORQ-INF-103`):
+   - **Physical Fixture**: Ensemble of 4 MLFF potentials evaluated on Water 10-mer cluster ($N=30$).
+   - **Verification**:
+     - Verify mean energy $\bar{E} = \frac{1}{M} \sum E_m$ matches individual model averages within machine precision ($10^{-7}$).
+     - Verify aggregate forces satisfy conservative equality $\bar{\mathbf{F}} = -\nabla \bar{E} = \frac{1}{M} \sum \mathbf{F}_m$.
+     - Verify energy epistemic variance $\sigma_E^2 \ge 0.0$ and per-atom force variance $\sigma_{\mathbf{F}, i}^2 \ge 0.0$.
+     - Verify sequential model evaluation executes stream synchronization without CUDA OOM.
+
+4. **`tests/test_torq_c2_cutoff.py`** (`REQ-TORQ-INF-104`):
+   - **Physical Fixture**: Argon dimer and Ethanol coordinate graph with $r_c = 5.0\,\text{\AA}$.
+   - **Verification**:
+     - Boundary Continuity: Assert $|f_c(r_c)| < 10^{-7}$, $|\left.\frac{df_c}{dr}\right|_{r_c}| < 10^{-7}$, and $|\left.\frac{d^2 f_c}{dr^2}\right|_{r_c}| < 10^{-7}$.
+     - PyTorch Autograd Double-Backward: Compute analytical first and second derivatives via `torch.autograd.grad` with `create_graph=True` and verify exact match with closed-form formulas within $10^{-6}$.
+     - Discontinuity Guard: Attempting to evaluate cutoff with invalid radius raises `CutoffContinuityError`.
+
+5. **`tests/test_torq_gnn_debugger.py`** (`REQ-TORQ-INF-105`):
+   - **Physical Fixture**: Message-passing interaction block on Alanine dipeptide ($N=22$).
+   - **Verification**:
+     - Forward/Backward Hook: Verify debugger captures activation norms and parameter gradients during training pass.
+     - Explosion Trap: Artificially inject large gradient ($> 10^3$) and verify `GradientExplosionError` is raised.
+     - Vanishing Alert: Artificially suppress gradient norms across 3 blocks and assert `VanishingGradientWarning` is emitted.
+     - Zero Overhead: Confirm hooks are cleanly removed upon context exit.
+
+6. **`tests/test_torq_pbc_graph.py`** (`REQ-TORQ-INF-106`):
+   - **Physical Fixtures**: Silicon unit cell (cubic Diamond lattice $a = 5.43\,\text{\AA}$) and Titanium Dioxide ($\text{TiO}_2$ rutile cell).
+   - **Verification**:
+     - Minimum Image: Verify fractional coordinates $\mathbf{s}_i \in [0, 1)^3$ and periodic shift vectors $\mathbf{S}$.
+     - Radial Neighbor Search: Verify all interatomic pairs within $r_c = 5.0\,\text{\AA}$ across periodic boundaries are identified.
+     - Analytical Virial Stress: Compute symmetric virial tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ and confirm $\mathbf{\Xi} = \mathbf{\Xi}^T$ within $10^{-7}$.
+     - Trace & Pressure: Compute isotropic scalar pressure $P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi})$.
+
+---
+
+### 5. STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
+
+1. **Zero-Mock Mandate v3**: Every neural layer, autograd backward pass, distributed barrier, and test assertion must execute physically. Absolutely no `pass` stubs, no `NotImplementedError`, and no synthetic mock arrays (`np.zeros`, `np.ones` as dummy outputs).
+2. **Dynamic Mendeleev Monoisotopic Masses**: When atomic masses are required, dynamically query:
+   `from mendeleev import element; mass = element(Z).mass` (or isotope weighted mass). Ghost atoms ($Z=0$) receive $0.0\,\text{u}$. No hardcoded atomic mass dictionaries.
+3. **Tripartite Workspace Air-Gap**:
+   - Ring 1 ($COCHEM_SRC_DIR / R_{\text{src}}$): Read-only source code.
+   - Ring 2 ($COCHEM_DATA_DIR / R_{\text{data}}$): Read-only datasets and weights. `COCHEM_OFFLINE=1`. SHA-256 verification.
+   - Ring 3 ($COCHEM_ARTIFACTS_DIR / R_{\text{art}}$): Read-write checkpoints, manifests, logs, and telemetry.
+4. **OS-Agnostic Dynamic Paths**: Utilize `pathlib.Path` with environment variable resolution (`COCHEM_SRC_DIR`, `COCHEM_DATA_DIR`, `COCHEM_ARTIFACTS_DIR`, `COCHEM_SCRATCH_DIR`, `SLURM_TMPDIR`). No hardcoded `/home/...` or `C:\...` paths.
+5. **6-Tier Environment Execution Matrix**: Ensure cross-platform execution across Tier 1 Windows NT (`gloo`, NTFS filelock), Tier 2 macOS (MPS/CPU), Tier 3 Linux (`nccl`, SWMR), Tiers 4-5 Codespaces & CI/CD (headless CPU), and Tier 6 HPC clusters (`HDF5_USE_FILE_LOCKING="FALSE"`, node-local scratch).
+
+---
+
+### 6. ACTION PLAN FOR CODER
+
+1. Implement `Libraries/cochem_torq_inference_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError`.
+2. Implement `Libraries/cochem_torq_inference_schemas.py` with all Pydantic v2 data models, fields, and validators (`ActiveLearningOrchestratorConfig`, `ChunkedHDF5DataModuleConfig`, `CommitteeEnsembleConfig`, `C2SmoothCutoffConfig`, `GNNGradientDebuggerConfig`, `PBCRadialGraphConfig`).
+3. Implement `Libraries/cochem_torq_active_learning.py` featuring QBC energy variance, maximum atomic force epistemic variance, Kabsch RMSD geometric deduplication ($\delta_{\text{RMSD}} = 0.15\,\text{\AA}$), multi-tier QM routing, and air-gapped manifest serialization.
+4. Implement `Libraries/cochem_torq_hdf5_datamodule.py` with PyTorch Lightning DataModule lifecycle, thread-safe SWMR worker initialization (`h5_worker_init_fn`), prime slot caching, and jagged graph batch collation.
+5. Implement `Libraries/cochem_torq_committee_ensemble.py` providing conservative energy-force aggregation, unbiased variance calculation, dynamic device dispatch, and sequential stream synchronization for VRAM safety.
+6. Implement `Libraries/cochem_torq_c2_cutoff.py` with quintic $C^2$-smooth switching envelope $f_c(r)$, exact analytical first and second derivatives, and boundary continuity verification ($r_c = 5.0\,\text{\AA}$).
+7. Implement `Libraries/cochem_torq_gnn_debugger.py` providing forward/backward hooks, exploding gradient trap ($\|\mathbf{g}\|_2 > 10^3$), vanishing gradient alerts ($\|\mathbf{g}\|_2 < 10^{-7}$), and zero production overhead.
+8. Implement `Libraries/cochem_torq_pbc_graph.py` with crystal lattice fractional transformation, minimum image periodic neighbor expansion, and analytical symmetric unit cell virial stress calculation.
+9. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
+10. Author the complete, unmocked test suite under `tests/`:
+    - `tests/test_torq_active_learning.py`
+    - `tests/test_torq_hdf5_datamodule.py`
+    - `tests/test_torq_committee_ensemble.py`
+    - `tests/test_torq_c2_cutoff.py`
+    - `tests/test_torq_gnn_debugger.py`
+    - `tests/test_torq_pbc_graph.py`
+11. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
+I have submitted the candidate coding prompt for SRS Chunk 18 (`TORQ_Inference_and_Export_Part_1`) to the autonomous adversarial auditor [`cochem-audit`](conversation://6b63af37-4a56-4766-ac16-f86c3b81c946) to verify compliance against Method Matrix v4, Zero-Mock directives, 6-Tier Environment execution, and Tripartite Air-Gap sandboxing. Awaiting the auditor's verdict.
+I have transmitted the fully remediated candidate coding prompt for SRS Chunk 18 (`TORQ_Inference_and_Export_Part_1`) to [`cochem-audit`](conversation://6b63af37-4a56-4766-ac16-f86c3b81c946) to evaluate all 8 remediation items. Awaiting re-audit findings and certification verdict.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous active learning orchestrator, chunked HDF5 PyTorch Lightning DataModule, committee ensemble uncertainty wrapper, C^2-smooth radial cutoff envelope, message-passing gradient health debugger, and periodic boundary condition (PBC) virial stress graph engine specified in Software Requirements Specification (SRS) Chunk 18: `TORQ_Inference_and_Export_Part_1` (`COCHEM-SRS-CHUNK-18-TORQ`).
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive v3, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev monoisotopic mass retrieval mandate, and Method Matrix v4 (`[M]` Empirical Benchmark, `[D]` Derived Mathematical Relationship, `[E]` Estimated Theoretical Projection). Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must operate on genuine physical tensors, authentic molecular coordinates, and real chemical observables.
 
@@ -602,302 +490,1401 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### 1. DIRECTORY, PERSISTENCE & 6-TIER RUNTIME CONTRACTS
 
 1. **Tripartite Workspace Air-Gap Paths**:
-   - `COCHEM_SRC_DIR` ($R_{\text{src}}$): `pathlib.Path(os.environ.get("COCHEM_SRC_DIR", Path.cwd()))` (Read-only source).
-   - `COCHEM_DATA_DIR` ($R_{\text{data}}$): `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))` (Read-only datasets under `COCHEM_OFFLINE=1`).
-   - `COCHEM_ARTIFACTS_DIR` ($R_{\text{art}}$): `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))` (Read-write checkpoints/logs).
+   - `COCHEM_SRC_DIR` ($R_{\text{src}}$): `pathlib.Path(os.environ.get("COCHEM_SRC_DIR", Path.cwd()))` (Read-only source repository).
+   - `COCHEM_DATA_DIR` ($R_{\text{data}}$): `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))` (Read-only datasets and weights under `COCHEM_OFFLINE=1`).
+   - `COCHEM_ARTIFACTS_DIR` ($R_{\text{art}}$): `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))` (Read-write checkpoints, manifests, logs, and telemetry).
    - `COCHEM_SCRATCH_DIR`: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", os.environ.get("SLURM_TMPDIR", Path.home() / ".cochem" / "scratch")))`.
 2. **6-Tier Runtime & Concurrency**:
-   - **Accelerator Binding**: `device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))`. Rank-based if distributed (`f"cuda:{local_rank}"`).
-   - **Distributed Backend**: Windows NT (Tier 1) and CPU CI (Tier 5) strictly initialize `backend="gloo"`. Linux multi-GPU (Tiers 3, 6) initializes `backend="nccl"`.
-   - **Thread-Safe HDF5 & SWMR**: Use chunked HDF5 (`gzip` level 4, `shuffle=True`, `fletcher32=True`). Coordinate via `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)`.
-     * **OS-Specific SWMR Guard**: Enable `swmr=True` ONLY on POSIX systems (`sys.platform != "win32"`). On Windows NTFS and network filesystems (NFS/Lustre), set `swmr=False` and set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"`.
-     * Multi-worker `DataLoader` must instantiate independent HDF5 handles inside `worker_init_fn`.
-   - **Atomic Checkpointing**: Write to temporary file `.pt.tmp`, invoke `os.fsync(f.fileno())`, atomically replace via `os.replace`, and write an accompanying `.sha256` digest file.
+   - **Accelerator Binding**: `device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))`. Support explicit device dispatch across CUDA, Apple Silicon MPS, and CPU.
+   - **Multiprocessing Context**: Multi-worker loaders and parallel execution must explicitly utilize the `spawn` multiprocessing context (`torch.multiprocessing.get_context("spawn")`).
+   - **Thread-Safe HDF5 & SWMR**: Use chunked HDF5 with `rdcc_nbytes = 16 * 1024 * 1024` (16 MB cache [E]) and prime hash table slots `rdcc_nslots = 10007` [D].
+     * **OS-Specific SWMR Guard**: Enable `swmr=True` and `libver="latest"` ONLY on POSIX systems (`sys.platform != "win32"`) when not running on distributed filesystems.
+     * **HPC Distributed Filesystem Guard (Tier 6)**: If `os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"` or when executing on Lustre/NFS/GPFS paths, set `swmr=False` and bypass OS file locks.
+     * File access coordination via `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)`.
+     * Multi-worker PyTorch `DataLoader` must defer `h5py.File` instantiation to `worker_init_fn`, unwrapping `torch.utils.data.Subset` instances via `root_ds = getattr(dataset, "dataset", dataset)`.
+     * Single-worker fallback (`num_workers=0`): `__getitem__` must lazily open the file handle if `self.handle is None`.
+   - **Atomic Serialization**: Write temporary file `.tmp`, invoke `os.fsync(f.fileno())`, atomically move via `os.replace`, and write an accompanying cryptographic `.sha256` digest file.
 
 ---
 
 ### 2. DOMAIN EXCEPTIONS & PYDANTIC V2 DATA CONTRACTS
 
-- **Files**: `Libraries/cochem_torq_training_errors.py` and `Libraries/cochem_torq_training_schemas.py` (export in `Libraries/__init__.py`).
-- **Domain Exception Hierarchy**:
-  ```python
-  from typing import Any, Dict, Optional
+- **Files**: `Libraries/cochem_torq_inference_errors.py` and `Libraries/cochem_torq_inference_schemas.py` (export in `Libraries/__init__.py`).
+- **Domain Exception Hierarchy** (Zero `pass` statements):
+```python
+from typing import Any, Dict, Optional
 
 
-  class CoChemError(Exception):
-    """Root exception for CoChem framework."""
+class CoChemError(Exception):
+  """Root exception for CoChem framework."""
 
-    pass
-
-
-  class CoChemTorqError(CoChemError):
-    """Base exception for all TORQ sub-framework operations."""
-
-    pass
+  def __init__(self, message: str = "Generic CoChem error") -> None:
+    super().__init__(message)
 
 
-  class TorqTrainingError(CoChemTorqError):
-    """Base exception for all TORQ training dynamics errors."""
+class CoChemTorqError(CoChemError):
+  """Base exception for all TORQ sub-framework operations."""
 
-    def __init__(
-        self,
-        message: str,
-        error_code: str = "TORQ_TRAIN_GENERIC",
-        component: str = "training_dynamics",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-      super().__init__(message)
-      self.error_code = error_code
-      self.component = component
-      self.diagnostics = diagnostics or {}
+  def __init__(self, message: str = "Generic TORQ error") -> None:
+    super().__init__(message)
 
 
-  class HDF5LockTimeoutError(TorqTrainingError):
-    """Raised when acquiring advisory HDF5 filelock exceeds timeout ceiling."""
+class TorqInferenceError(CoChemTorqError):
+  """Base exception for all TORQ inference and export errors."""
 
-    pass
-
-
-  class DiscontinuousForceError(TorqTrainingError):
-    """Raised when graph pruning or switching function violates C^2 continuity."""
-
-    pass
-
-
-  class NonReciprocalGraphError(TorqTrainingError):
-    """Raised when asymmetric edge pruning breaks Newton's Third Law (F_ij != -F_ji)."""
-
-    pass
+  def __init__(
+      self,
+      message: str,
+      error_code: str = "TORQ_INF_GENERIC",
+      component: str = "inference_engine",
+      diagnostics: Optional[Dict[str, Any]] = None,
+  ) -> None:
+    super().__init__(message)
+    self.error_code = error_code
+    self.component = component
+    self.diagnostics = diagnostics or {}
 
 
-  class OOMRecoveryError(TorqTrainingError):
-    """Raised when dynamic batch-size scaler fails to recover after max step-down attempts."""
+class ActiveLearningSelectionError(TorqInferenceError):
+  """Raised when active learning selection or pool deduplication fails."""
 
-    pass
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_AL_SELECTION_ERR",
+        component="active_learning",
+        **kwargs,
+    )
 
 
-  class EquivarianceBreakError(TorqTrainingError):
-    """Raised when geometric tensor operations violate E(3) or SO(3) rotational covariance."""
+class HDF5DataModuleLockError(TorqInferenceError):
+  """Raised when multi-worker HDF5 handle acquisition encounters lock timeout."""
 
-    pass
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_HDF5_LOCK_ERR",
+        component="hdf5_datamodule",
+        **kwargs,
+    )
 
 
-  class SchedulerDivergenceError(TorqTrainingError):
-    """Raised when learning rate scheduler encounters NaN or infinite parameter norms."""
+class EnsembleConsensusError(TorqInferenceError):
+  """Raised when committee ensemble encounters dimension mismatch or consensus divergence."""
 
-    pass
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_ENSEMBLE_ERR",
+        component="committee_ensemble",
+        **kwargs,
+    )
+
+
+class CutoffContinuityError(TorqInferenceError):
+  """Raised when radial cutoff function violates C^2 smoothness or boundary zero condition."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message, error_code="TORQ_CUTOFF_ERR", component="c2_cutoff", **kwargs
+    )
+
+
+class GradientExplosionError(TorqInferenceError):
+  """Raised when GNN message passing activations or gradients exceed stability threshold."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_GRAD_EXPLOSION_ERR",
+        component="gnn_debugger",
+        **kwargs,
+    )
+
+
+class VanishingGradientWarning(UserWarning):
+  """Emitted when message passing gradients drop below minimum threshold across consecutive layers."""
+
+  def __init__(
+      self, message: str = "GNN message passing gradients vanishing"
+  ) -> None:
+    super().__init__(message)
+
+
+class PBCGraphError(TorqInferenceError):
+  """Raised when periodic boundary condition graph construction or virial calculation fails."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_PBC_GRAPH_ERR",
+        component="pbc_graph",
+        **kwargs,
+    )
+
+
+class AirGapViolationError(TorqInferenceError):
+  """Raised when inference or active learning loops attempt forbidden outbound networking or direct subprocess execution."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_AIRGAP_ERR",
+        component="airgap_sandbox",
+        **kwargs,
+    )
 ```
 
 - **Pydantic v2 Models** (`model_config = ConfigDict(frozen=True, extra="forbid")`):
-  ```python
-  from typing import Literal
-  from pydantic import BaseModel, ConfigDict, Field, model_validator
+```python
+from pathlib import Path
+from typing import List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-  class GNNWarmRestartSchedulerConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    initial_lr: float = Field(
-        default=1e-4,
-        gt=0.0,
-        description="Peak initial learning rate eta_max",
-    )
-    min_lr: float = Field(
-        default=1e-7,
-        ge=0.0,
-        description="Minimum learning rate floor eta_min",
-    )
-    warmup_steps: int = Field(
-        default=1000, ge=100, description="Linear warmup steps"
-    )
-    first_cycle_steps: int = Field(
-        default=10000,
-        ge=500,
-        description="Duration of initial restart cycle T_0",
-    )
-    cycle_multiplier: float = Field(
-        default=1.5, ge=1.0, description="Cycle expansion factor T_mult"
-    )
-    restart_decay: float = Field(
-        default=0.75,
-        gt=0.0,
-        le=1.0,
-        description="Peak LR attenuation factor gamma_restart",
-    )
-    max_grad_norm: float = Field(
-        default=1.0,
-        gt=0.0,
-        description="Ceiling for gradient norm clipping",
-    )
-
-    @model_validator(mode="after")
-    def validate_lr_bounds(self) -> "GNNWarmRestartSchedulerConfig":
-      if self.min_lr >= self.initial_lr:
-        raise ValueError(
-            f"min_lr ({self.min_lr}) must be strictly less than initial_lr"
-            f" ({self.initial_lr})"
-        )
-      return self
+class ActiveLearningOrchestratorConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  batch_capacity_k: int = Field(
+      default=64,
+      ge=1,
+      le=512,
+      description="Active learning batch selection capacity K [E]",
+  )
+  force_uncertainty_threshold_ev_per_angstrom: float = Field(
+      default=0.05,
+      gt=0.0,
+      description=(
+          "Epistemic force standard deviation threshold theta_force in"
+          " eV/Angstrom [E]"
+      ),
+  )
+  energy_uncertainty_threshold_ev2_per_atom: float = Field(
+      default=0.001,
+      gt=0.0,
+      description=(
+          "QBC energy variance threshold theta_energy in eV^2/atom [E]"
+      ),
+  )
+  stage_a_rmsd_threshold_angstrom: float = Field(
+      default=0.125,
+      gt=0.0,
+      description=(
+          "Method Matrix v4 Stage A geometric RMSD threshold delta_RMSD [M]"
+      ),
+  )
+  stage_b_rotational_threshold: float = Field(
+      default=0.001,
+      gt=0.0,
+      description=(
+          "Method Matrix v4 Stage B relative rotational constant invariance"
+          " delta_B/B (--bthr) [M]"
+      ),
+  )
+  staging_manifest_dir: Path = Field(
+      ..., description="Air-gapped manifest export directory in Ring 3"
+  )
 
 
-  class ForceMatchingLossConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    energy_weight: float = Field(
-        default=1.0, ge=0.0, description="Loss weight for potential energy"
-    )
-    force_weight: float = Field(
-        default=50.0,
-        gt=0.0,
-        description="Loss weight for atomic force vectors",
-    )
-    virial_weight: float = Field(
-        default=0.01,
-        ge=0.0,
-        description="Loss weight for periodic virial stress",
-    )
-    huber_delta_force: float = Field(
-        default=0.01,
-        gt=0.0,
-        description="Huber transition delta in eV/Angstrom",
-    )
-    create_graph: bool = Field(
-        default=True,
-        description="Retain second-order graph in autograd for forces",
-    )
-    track_angular_similarity: bool = Field(
-        default=True, description="Compute cosine similarity metric"
-    )
+class ChunkedHDF5DataModuleConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  h5_path: Path = Field(..., description="Path to chunked HDF5 dataset")
+  batch_size: int = Field(default=32, ge=1, description="Batch size per device")
+  num_workers: int = Field(
+      default=2, ge=0, description="Number of dataloader worker processes"
+  )
+  chunk_cache_bytes: int = Field(
+      default=16 * 1024 * 1024,
+      ge=1024 * 1024,
+      description="HDF5 raw data chunk cache size rdcc_nbytes [E]",
+  )
+  chunk_cache_slots: int = Field(
+      default=10007,
+      ge=1009,
+      description="Prime number of chunk cache hash slots rdcc_nslots [D]",
+  )
+  pin_memory: bool = Field(
+      default=True,
+      description="Pin host memory for non-blocking GPU transfer",
+  )
+  train_val_test_split: List[float] = Field(
+      default=[0.8, 0.1, 0.1],
+      description="Train, validation, and test split ratios",
+  )
+
+  @model_validator(mode="after")
+  def validate_splits(self) -> "ChunkedHDF5DataModuleConfig":
+    if abs(sum(self.train_val_test_split) - 1.0) > 1e-5:
+      raise ValueError("train_val_test_split must sum to 1.0")
+    return self
 
 
-  class DynamicBatchScalerConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    max_node_budget: int = Field(
-        default=4096,
-        ge=64,
-        description="Maximum atoms per micro-batch",
-    )
-    max_edge_budget: int = Field(
-        default=32768,
-        ge=256,
-        description="Maximum sparse edges per micro-batch",
-    )
-    backoff_factor: float = Field(
-        default=0.75,
-        gt=0.1,
-        lt=1.0,
-        description="Budget step-down on OOM",
-    )
-    max_recovery_retries: int = Field(
-        default=3,
-        ge=1,
-        description="Max retry attempts per failed micro-batch",
-    )
-    target_vram_fraction: float = Field(
-        default=0.85, gt=0.1, lt=0.98, description="Target VRAM ceiling"
-    )
+class CommitteeEnsembleConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  num_models_m: int = Field(
+      default=8, ge=2, le=32, description="Number of committee models M [E]"
+  )
+  max_concurrent_models_vram: int = Field(
+      default=2,
+      ge=1,
+      description="Maximum models loaded into active VRAM simultaneously [E]",
+  )
+  synchronize_cuda_streams: bool = Field(
+      default=True,
+      description=(
+          "Execute stream synchronization between model forward passes [D]"
+      ),
+  )
 
 
-  class C2GraphPrunerConfig(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-    cutoff_radius_angstrom: float = Field(
-        default=5.0, gt=1.0, description="Spatial interaction cutoff r_c"
-    )
-    covalent_core_radius_angstrom: float = Field(
-        default=1.5,
-        gt=0.5,
-        description="Core radius r_cov guaranteed degree >= 1",
-    )
-    enforce_reciprocal_edges: bool = Field(
-        default=True,
-        description="Enforce undirected edge reciprocity",
-    )
-    switching_polynomial_degree: Literal[5] = Field(
-        default=5, description="Quintic polynomial C^2 cutoff envelope"
-    )
-    stochastic_edge_dropout: float = Field(
-        default=0.0,
-        ge=0.0,
-        le=0.5,
-        description="Banned on coordinate graphs",
-    )
+class C2SmoothCutoffConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  cutoff_radius_rc: float = Field(
+      default=5.0,
+      gt=1.0,
+      description="Radial cutoff boundary radius r_c in Angstroms [M]",
+  )
+  polynomial_degree: Literal[5] = Field(
+      default=5,
+      description="Degree of C^2 continuous switching polynomial [D]",
+  )
 
-    @model_validator(mode="after")
-    def validate_radii(self) -> "C2GraphPrunerConfig":
-      if self.covalent_core_radius_angstrom >= self.cutoff_radius_angstrom:
-        raise ValueError(
-            "covalent_core_radius_angstrom must be strictly less than"
-            " cutoff_radius_angstrom"
-        )
-      return self
+
+class GNNGradientDebuggerConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  exploding_grad_threshold: float = Field(
+      default=1e3, gt=0.0, description="L2 gradient norm explosion threshold [D]"
+  )
+  vanishing_grad_threshold: float = Field(
+      default=1e-7, gt=0.0, description="L2 gradient norm vanishing threshold [D]"
+  )
+  consecutive_vanishing_blocks: int = Field(
+      default=3,
+      ge=1,
+      description="Consecutive layers below vanishing threshold before alert [D]",
+  )
+  enabled: bool = Field(
+      default=True, description="Enable active hook monitoring"
+  )
+
+
+class PBCRadialGraphConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  cutoff_radius_rc: float = Field(
+      default=5.0,
+      gt=1.0,
+      description="Radial graph cutoff radius in Angstroms [M]",
+  )
+  compute_virial_stress: bool = Field(
+      default=True,
+      description="Compute analytical unit cell virial stress tensor [D]",
+  )
 ```
 
 ---
 
-### 3. MATHEMATICAL SPECIFICATIONS & MODULES
+### 3. MODULE IMPLEMENTATION SPECIFICATIONS
 
-#### Module 1: Bespoke Learning Rate Scheduler (`Libraries/cochem_torq_gnn_scheduler.py` - `REQ-TORQ-TRAIN-097` `[D]`)
-- Linear warmup ($t \le T_{\text{warmup}}$): $\eta_t = \eta_{\text{min}} + \frac{t}{T_{\text{warmup}}}(\eta_{\text{max}}^{(0)} - \eta_{\text{min}})$.
-- Cosine Annealing with Warm Restarts for cycle $i$:
-  $$\eta_t = \eta_{\text{min}} + \frac{1}{2}(\eta_{\text{max}}^{(i)} - \eta_{\text{min}})\left(1 + \cos\left(\pi \frac{t - t_{\text{restart}}^{(i)}}{T_i}\right)\right)$$
-  where $T_i = T_0 \cdot (T_{\text{mult}})^i$ and $\eta_{\text{max}}^{(i+1)} = \eta_{\text{max}}^{(0)} \cdot (\gamma_{\text{restart}})^{i+1}$.
-- Must be step-based (`scheduler.step()`).
-- Unscale gradients under AMP; clip gradient norm to $\|\mathbf{g}\|_2 \le \text{max\_grad\_norm}$ ($1.0\,\text{eV/\AA}$).
-- Raise `SchedulerDivergenceError` if parameter norms or gradients evaluate to `NaN` or `Inf`.
-
-#### Module 2: Force-Matching Loss Engine (`Libraries/cochem_torq_force_matching.py` - `REQ-TORQ-TRAIN-098` `[D]`)
-- Conservative forces derived analytically: $\hat{\mathbf{F}}_i = -\nabla_{\mathbf{R}_i} \hat{E}(\mathbf{R}, \mathbf{Z})$.
-- Autograd double backpropagation: `torch.autograd.grad(..., create_graph=True, retain_graph=True)` yielding $\frac{\partial^2 \hat{E}}{\partial \theta \partial \mathbf{R}_i}$.
-- Huber loss on force vectors with $\delta_F = 0.01\,\text{eV/\AA}$:
-  $$\mathcal{L}_{\text{Huber}}(\mathbf{x}, \delta_F) = \begin{cases} \frac{1}{2\delta_F} \|\mathbf{x}\|^2, & \|\mathbf{x}\| \le \delta_F \\ \|\mathbf{x}\| - \frac{1}{2}\delta_F, & \|\mathbf{x}\| > \delta_F \end{cases}$$
-- Composite loss in $\text{eV}$ and $\text{\AA}$:
-  $$\mathcal{L}(\theta) = w_E \frac{1}{B}\sum_{b=1}^B \frac{|E_b - \hat{E}_b|^2}{N_b} + w_F \frac{1}{3 \sum_{b=1}^B N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \mathcal{L}_{\text{Huber}}(\mathbf{F}_{b,i} - \hat{\mathbf{F}}_{b,i}, \delta_F) + w_V \mathcal{L}_{\text{virial}}$$
-- Enforce $w_F / w_E \in [10.0, 100.0]\,\text{\AA}^{-2}$. For non-periodic systems, $\mathcal{L}_{\text{virial}} = 0$.
-- Compute angular force cosine similarity metric:
-  $$\rho_{\text{angular}} = \frac{1}{\sum N_b} \sum_{b=1}^B \sum_{i=1}^{N_b} \frac{\mathbf{F}_{b,i} \cdot \hat{\mathbf{F}}_{b,i}}{\|\mathbf{F}_{b,i}\|_2 \|\hat{\mathbf{F}}_{b,i}\|_2 + 10^{-8}}$$
-
-#### Module 3: Dynamic Batch Scaler & OOM Recovery (`Libraries/cochem_torq_dynamic_batch.py` - `REQ-TORQ-TRAIN-099` `[M]`)
-- Dual-budget greedy/Morton packing: pack molecular graphs such that $\sum_{i=1}^B N_i \le N_{\text{budget}}$ and $\sum_{i=1}^B |\mathcal{E}_i| \le E_{\text{budget}}$.
-- `DynamicOOMRecovery` context manager:
-  * Intercepts `torch.cuda.OutOfMemoryError`, `MemoryError`, and platform memory allocation failures.
-  * Caches purged via `torch.cuda.empty_cache()` and `gc.collect()`.
-  * Backoff step-down: $N_{\text{budget}} \leftarrow \lfloor \kappa \cdot N_{\text{budget}} \rfloor$, $E_{\text{budget}} \leftarrow \lfloor \kappa \cdot E_{\text{budget}} \rfloor$ ($\kappa = 0.75$).
-  * Partitions rejected micro-batch into 2 sub-batches and processes sequentially with $2\times$ gradient accumulation without dropping samples.
-  * If retries exceed `max_recovery_retries`, raises `OOMRecoveryError`.
-
-#### Module 4: $C^2$-Smooth Graph Pruner (`Libraries/cochem_torq_graph_pruning.py` - `REQ-TORQ-TRAIN-100` `[D]`)
-- Quintic polynomial switching envelope:
-  $$f_{\text{cut}}(r_{ij}) = \begin{cases} 1 - 10\left(\frac{r_{ij}}{r_c}\right)^3 + 15\left(\frac{r_{ij}}{r_c}\right)^4 - 6\left(\frac{r_{ij}}{r_c}\right)^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases}$$
-  Guarantee $C^2$ continuity ($f_{\text{cut}}(r_c)=0, f'_{\text{cut}}(r_c)=0, f''_{\text{cut}}(r_c)=0$). Raise `DiscontinuousForceError` if non-continuous envelope is detected.
-- Symmetrical adjacency pruning: $A_{\text{pruned}} = A \odot A^T$, enforcing $j \in \mathcal{N}(i) \iff i \in \mathcal{N}(j)$ and Newton's Third Law ($\mathbf{F}_{ij} = -\mathbf{F}_{ji}$). Raise `NonReciprocalGraphError` if violated.
-- Covalent Core Degree Invariant: ensure degree $d_i \ge 1$ for all atoms within $r_{\text{cov}} = 1.5\,\text{\AA}$. Banning stochastic dropout on coordinate graphs.
-- Dynamic Mendeleev: compute center-of-mass and total molecular mass using `from mendeleev import element` (`element(int(z)).atomic_weight`).
+#### 1. Active Learning Orchestrator for Dynamic QM Selection (`REQ-TORQ-INF-101` `[M]`/`[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_active_learning.py` (and export in `Libraries/__init__.py`)
+- **Mathematical Acquisition Metrics & Dimensional Rigor**:
+  - Unlabeled pool: $\mathcal{U} = \{(\mathbf{X}_k, \mathbf{Z}_k)\}_{k=1}^P$. Evaluate using $M$ committee models producing $\{E_m(\mathbf{X}), \mathbf{F}_{i,m}(\mathbf{X})\}_{m=1}^M$.
+  - Committee Mean Energy and Force:
+    $$\bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M E_m(\mathbf{X}) \quad [D], \quad \bar{\mathbf{F}}_i(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X}) \quad [D]$$
+  - Query-by-Committee (QBC) Energy Variance:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+  - Maximum Atomic Force Epistemic Standard Deviation (in $\text{eV/\AA}$):
+    $$\alpha_F^{\text{std}}(\mathbf{X}) = \max_{i \in \{1 \dots N\}} \sqrt{\frac{1}{M-1} \sum_{m=1}^M \left\| \mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X}) \right\|_2^2} \quad [D]$$
+  - Acquisition Trigger Criteria: Trigger candidate selection if $\alpha_F^{\text{std}}(\mathbf{X}) > \theta_{\text{force}} = 0.05\,\text{eV/\AA}$ [E] OR $\frac{\sigma_E^2(\mathbf{X})}{N} > \theta_{\text{energy}} = 0.001\,\text{eV}^2/\text{atom}$ [E].
+- **Mendeleev Mass-Weighted Centering & Rotational Constant Deduplication**:
+  - Retrieve dynamic masses: `from mendeleev import element; mass_i = element(int(z_i)).mass`.
+  - Mass-weighted center-of-mass translation (Eckart centroid): $\mathbf{R}_{\text{COM}} = \frac{\sum_{i=1}^N m_i \mathbf{x}_i}{\sum_{i=1}^N m_i}$. Center geometries: $\mathbf{x}'_i = \mathbf{x}_i - \mathbf{R}_{\text{COM}}$.
+  - Inertia Tensor $I_{\alpha \beta} \in \mathbb{R}^{3 \times 3}$:
+    $$I_{\alpha \beta} = \sum_{i=1}^N m_i \left( \delta_{\alpha \beta} \|\mathbf{x}'_i\|_2^2 - x'_{i,\alpha} x'_{i,\beta} \right) \quad [D]$$
+  - Diagonalize $I$ to obtain principal moments of inertia $I_A \le I_B \le I_C$. Compute rotational constants:
+    $$A = \frac{h}{8 \pi^2 c I_A}, \quad B = \frac{h}{8 \pi^2 c I_B}, \quad C = \frac{h}{8 \pi^2 c I_C} \quad [D]$$
+- **Two-Stage Deduplication**:
+  - **Stage A (Geometric RMSD via Kabsch SVD)**:
+    For centered $N \times 3$ coordinate matrices $\mathbf{X}_c, \mathbf{Y}_c$, compute covariance matrix $\mathbf{H} = \mathbf{X}_c^T \mathbf{Y}_c$. Compute SVD $\mathbf{H} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^T$.
+    Compute reflection determinant $d = \det(\mathbf{V}\mathbf{U}^T)$. Correction matrix $\mathbf{S} = \operatorname{diag}(1, 1, d)$.
+    Row-vector rotation matrix $\mathbf{R} = \mathbf{V}\mathbf{S}\mathbf{U}^T \in \mathrm{SO}(3)$ so that $\mathbf{Y}_{\text{rot}} = \mathbf{Y}_c \mathbf{R}$.
+    (Equivalently for column vectors, $\mathbf{R}_{\text{col}} = \mathbf{R}^T = \mathbf{U}\mathbf{S}\mathbf{V}^T$ so that $\mathbf{x}_{\text{rot}} = \mathbf{R}_{\text{col}} \mathbf{x}$).
+    $$D_{\text{geom}}(\mathbf{X}_a, \mathbf{X}_b) = \sqrt{\frac{1}{N} \sum_{i=1}^N \|\mathbf{x}_{a,i} - (\mathbf{x}_{b,i} \mathbf{R})\|_2^2} \quad [D]$$
+    If $D_{\text{geom}} < \delta_{\text{RMSD}} = 0.125\,\text{\AA}$ [M], candidate is geometrically redundant.
+  - **Stage B (Rotational Constant Invariance `--bthr 0.001`)**:
+    If $\max \left( \frac{|A_a - A_b|}{A_a}, \frac{|B_a - B_b|}{B_a}, \frac{|C_a - C_b|}{C_a} \right) < 0.001$ [M], candidate is spectroscopically redundant and pruned.
+- **Dynamic Multi-Tier QM Routing (Method Matrix v4 Table 3-O)**:
+  - Candidates passing deduplication are routed dynamically into the job manifest:
+    * **Moderate Variance ($0.05 < \alpha_F^{\text{std}} \le 0.2\,\text{eV/\AA}$)**: Tier T3-10s GFN2-xTB (`! GOAT XTB2` / `crest --nci`) [M].
+    * **High Variance ($0.2 < \alpha_F^{\text{std}} \le 0.8\,\text{eV/\AA}$)**: Tier T3O-1h ORCA 6.0 $\omega\text{B97X-V/jun-cc-pVTZ}$ with tightened `%geom` thresholds (`TolMaxG 1e-5`, `TolE 1e-7`) and `defgrid3` [M].
+    * **Extreme Divergence ($\alpha_F^{\text{std}} > 0.8\,\text{eV/\AA}$ or topological bond breakage)**: Tier T3O-12h Canonical `junChS` composite scheme (CBS+CV) [M].
+  - Manifest Serialization: Serialize up to $K = 64$ [E] selected structures into an immutable JSON/HDF5 job manifest with cryptographic SHA-256 digest in $R_{\text{art}}$ (`COCHEM_OFFLINE=1`).
 
 ---
 
-### 4. VERIFICATION TRACEABILITY MATRIX & PHYSICAL ACCEPTANCE TESTS
-
-All tests must be written under `tests/test_cochem_torq_training.py` using authentic chemical structures (no synthetic random coordinates).
-
-| Requirement ID | Physical Fixture / Input | Mandatory Quantitative Acceptance Criteria |
-| :--- | :--- | :--- |
-| `REQ-TORQ-TRAIN-097` | Alanine Dipeptide ($N=22$) | 1. Linear warmup verifies $\eta_0 = \eta_{\text{min}}$ ($10^{-7}$) and $\eta_{1000} = \eta_{\text{max}}$ ($10^{-4}$).<br>2. First restart cycle satisfies $\eta_{\text{max}}^{(1)} = 0.75 \times \eta_{\text{max}}^{(0)} \pm 10^{-8}$.<br>3. Gradient clipping strictly enforces $\|\mathbf{g}\|_2 \le 1.0\,\text{eV/\AA}$.<br>4. Injected `NaN` gradient raises `SchedulerDivergenceError`. |
-| `REQ-TORQ-TRAIN-098` | Water 10-mer cluster ($N=30$) with DFTB/ORCA forces | 1. Autograd double-backward executes with `create_graph=True` without graph dropping.<br>2. Force Huber loss resists repulsive wall divergence at $r_{\text{OH}} = 0.7\,\text{\AA}$ (finite loss).<br>3. Energy MAE $< 1.0\,\text{meV/atom}$; Force MAE $< 0.05\,\text{eV/\AA}$; $\rho_{\text{angular}} > 0.95$. |
-| `REQ-TORQ-TRAIN-099` | Heterogeneous mixture: Water ($N=3$), Ethanol ($N=9$), Buckminsterfullerene $\text{C}_{60}$ ($N=60$) | 1. Packed micro-batches strictly obey $\sum N_i \le 4096$ and $\sum |\mathcal{E}_i| \le 32768$.<br>2. Injected simulated OOM triggers $0.75\times$ budget step-down and 2-sub-batch gradient accumulation retry without crashing.<br>3. Exceeding `max_recovery_retries=3` raises `OOMRecoveryError`. |
-| `REQ-TORQ-TRAIN-100` | Ethanol conformational rotor ($N=9$) sampled along C-C torsion | 1. $f_{\text{cut}}(r_c)=0, \left.\frac{df}{dr}\right\|_{r_c}=0, \left.\frac{d^2 f}{dr^2}\right\|_{r_c}=0$ within numerical tolerance $< 10^{-7}$.<br>2. Net external force drift satisfies $\|\sum_{i=1}^N \mathbf{F}_i\|_2 < 10^{-6}\,\text{eV/\AA}$.<br>3. Pairwise force antisymmetry satisfies $\|\mathbf{F}_{ij} + \mathbf{F}_{ji}\|_\infty < 10^{-7}\,\text{eV/\AA}$.<br>4. Forced asymmetric edge drop raises `NonReciprocalGraphError`. |
+#### 2. Custom PyTorch Lightning DataModule for Chunked HDF5 Ingestion (`REQ-TORQ-INF-102` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_hdf5_datamodule.py` (and export in `Libraries/__init__.py`)
+- **PyTorch Lightning Lifecycle**:
+  - Subclass `pl.LightningDataModule`.
+  - `prepare_data()`: Validate file exists via `pathlib.Path`, verify SHA-256 checksum, read dataset chunk boundaries.
+  - `setup(stage)`: Partition index offsets into deterministic train, val, and test `torch.utils.data.Subset` splits.
+  - `train_dataloader()`, `val_dataloader()`, `predict_dataloader()`: Return `torch.utils.data.DataLoader` configured with `collate_fn=jagged_graph_collate`, `pin_memory=True`, `num_workers=config.num_workers`, `multiprocessing_context=torch.multiprocessing.get_context("spawn")`, and `worker_init_fn=hdf5_worker_init_fn`.
+- **Thread-Safe HDF5 Concurrency, Subset Unwrapping & Worker Isolation**:
+  - Prevent handle collisions and unwrap `torch.utils.data.Subset` cleanly:
+```python
+def h5_worker_init_fn(worker_id: int) -> None:
+  worker_info = torch.utils.data.get_worker_info()
+  if worker_info is not None:
+    dataset = worker_info.dataset
+    root_ds = getattr(dataset, "dataset", dataset)
+    is_posix = sys.platform != "win32"
+    use_locking = (
+        os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+    )
+    enable_swmr = is_posix and use_locking
+    root_ds.handle = h5py.File(
+        root_ds.h5_path,
+        mode="r",
+        swmr=enable_swmr,
+        libver="latest" if enable_swmr else "earliest",
+        rdcc_nbytes=16 * 1024 * 1024,
+        rdcc_nslots=10007,
+    )
+```
+  - **Single-Worker / Main Process Fallback (`num_workers=0`)**:
+    Inside dataset `__getitem__(self, idx)`:
+    ```python
+    if getattr(self, "handle", None) is None:
+      is_posix = sys.platform != "win32"
+      use_locking = (
+          os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+      )
+      enable_swmr = is_posix and use_locking
+      self.handle = h5py.File(
+          self.h5_path,
+          mode="r",
+          swmr=enable_swmr,
+          libver="latest" if enable_swmr else "earliest",
+          rdcc_nbytes=16 * 1024 * 1024,
+          rdcc_nslots=10007,
+      )
+```
+  - Standardized Dataset Key Schema:
+    * `/coordinates`: float32, shape $(N, 3)$, in $\text{\AA}$
+    * `/atomic_numbers`: int64, shape $(N,)$
+    * `/energy`: float64, scalar, in $\text{eV}$
+    * `/forces`: float32, shape $(N, 3)$, in $\text{eV/\AA}$
+    * `/edge_index`: int64, shape $(2, E)$
+- **Jagged Graph Collation Engine**:
+  - Assemble variable-size molecular graphs ($N_k$ atoms, $E_k$ edges) into a contiguous batch representation.
+  - Node batch pointer vector: $\mathbf{b} \in \{0 \dots B-1\}^{\sum N_k}$ [D].
+  - Edge index offset: $\mathbf{e}'_k = \mathbf{e}_k + \sum_{j < k} N_j$ [D], concatenating into contiguous `edge_index` of shape $(2, \sum E_k)$.
 
 ---
 
-### ACTION PLAN FOR CODER
+#### 3. Committee Model (Ensemble) Wrapper for Epistemic Uncertainty (`REQ-TORQ-INF-103` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_committee_ensemble.py` (and export in `Libraries/__init__.py`)
+- **Conservative Force & Energy Aggregation**:
+  - Wrap $M$ independently trained potential instances.
+  - Compute the ensemble mean potential energy:
+    $$\bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M E_m(\mathbf{X}) \quad [D]$$
+  - Analytical conservative forces guarantee zero external work in closed cycles:
+    $$\bar{\mathbf{F}}_i(\mathbf{X}) = -\nabla_{\mathbf{R}_i} \bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X}) \quad [D]$$
+- **Unbiased Epistemic Uncertainty Decomposition**:
+  - Sample variance of total energy:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+  - Per-atom force epistemic variance:
+    $$\sigma_{\mathbf{F}, i}^2(\mathbf{X}) = \frac{1}{3(M-1)} \sum_{m=1}^M \|\mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X})\|_2^2 \quad [D]$$
+- **Sequential Evaluation & VRAM Stream Safeguards**:
+  - When $M \ge 8$, avoid holding all models in active GPU VRAM simultaneously. Evaluate models in sequential micro-batches of size `max_concurrent_models_vram` with explicit stream synchronization (`torch.cuda.synchronize()` when CUDA is active).
 
-1. Implement `Libraries/cochem_torq_training_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError`.
-2. Implement `Libraries/cochem_torq_training_schemas.py` with all Pydantic v2 data models, fields, inequality bounds, and validators (`GNNWarmRestartSchedulerConfig`, `ForceMatchingLossConfig`, `DynamicBatchScalerConfig`, `C2GraphPrunerConfig`).
-3. Implement `Libraries/cochem_torq_gnn_scheduler.py` providing linear warmup, Cosine Annealing with warm restarts, restart peak attenuation $\gamma_{\text{restart}}$, step-based triggering, and gradient norm clipping.
-4. Implement `Libraries/cochem_torq_force_matching.py` with second-order autograd double backpropagation, robust Huber loss ($\delta_F = 0.01\,\text{eV/\AA}$), size-extensive per-atom normalization, and angular cosine similarity tracking.
-5. Implement `Libraries/cochem_torq_dynamic_batch.py` featuring dual node/edge token budgets, Morton/greedy bin-packing, real-time VRAM telemetry, and the non-terminating `DynamicOOMRecovery` context manager with gradient accumulation backoff.
-6. Implement `Libraries/cochem_torq_graph_pruning.py` with quintic $C^2$-smooth switching envelope $f_{\text{cut}}(r)$, strict undirected reciprocity enforcement, center-of-mass momentum conservation, and covalent core degree invariants.
-7. Implement `Libraries/cochem_torq_training_persistence.py` with OS-guarded SWMR chunked HDF5 locking, independent DataLoader worker initialization, and atomic `.pt`/`.sha256` checkpoint serialization.
-8. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
-9. Author the complete, unmocked test suite under `tests/` covering every requirement with genuine chemical fixtures and quantitative tolerances.
-10. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
+---
+
+#### 4. $C^2$-Smooth Cutoff Function for Continuous Forces and Hessians (`REQ-TORQ-INF-104` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_c2_cutoff.py` (and export in `Libraries/__init__.py`)
+- **Unified Displacement & Quintic Switching Polynomial**:
+  - Directed edge displacement: $\mathbf{r}_{ij} \equiv \mathbf{r}_j - \mathbf{r}_i$ with interatomic distance $r_{ij} = \|\mathbf{r}_{ij}\|_2$.
+  - For cutoff $r_c = 5.0\,\text{\AA}$ [M], normalized coordinate $u = \frac{r_{ij}}{r_c} \in [0, 1]$ [D]:
+    $$f_c(r_{ij}) = \begin{cases} 1 - 10 u^3 + 15 u^4 - 6 u^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+- **Exact Analytical Radial, Spatial Gradient, and Cartesian Hessian Derivatives**:
+  - First radial derivative:
+    $$\frac{df_c(r_{ij})}{dr_{ij}} = \begin{cases} -\frac{30}{r_c} u^2 (1 - u)^2, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+  - Spatial gradient with respect to $\mathbf{r}_i$ (noting $\nabla_{\mathbf{r}_i} r_{ij} = -\frac{\mathbf{r}_{ij}}{r_{ij}}$):
+    $$\nabla_{\mathbf{r}_i} f_c(r_{ij}) = \frac{df_c(r_{ij})}{dr_{ij}} \nabla_{\mathbf{r}_i} r_{ij} = -\frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_{ij}}{r_{ij}} = \frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_i - \mathbf{r}_j}{r_{ij}} \quad [D]$$
+  - Second radial derivative:
+    $$\frac{d^2 f_c(r_{ij})}{dr_{ij}^2} = \begin{cases} -\frac{60}{r_c^2} u (1 - u)(1 - 2u), & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+  - Full Tensorial Cartesian Spatial Hessian ($\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c \in \mathbb{R}^{3 \times 3}$):
+    $$\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c(r_{ij}) = \frac{d^2 f_c(r_{ij})}{dr_{ij}^2} \frac{\mathbf{r}_{ij} \mathbf{r}_{ij}^T}{r_{ij}^2} + \frac{df_c(r_{ij})}{dr_{ij}} \left( \frac{\mathbf{I}_3}{r_{ij}} - \frac{\mathbf{r}_{ij} \mathbf{r}_{ij}^T}{r_{ij}^3} \right) \quad [D]$$
+- **Mathematical Continuity Guarantees**:
+  - Enforce and verify boundary values: $f_c(r_c) = 0$, $\left.\frac{df_c}{dr_{ij}}\right|_{r_c} = 0$, $\left.\frac{d^2 f_c}{dr_{ij}^2}\right|_{r_c} = 0$, and $\left.\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c\right|_{r_c} = \mathbf{0}_{3 \times 3}$.
+  - Guarantees zero Dirac-delta force spikes ($\delta(r - r_c)$) and smooth analytical Hessians for harmonic vibrational analysis. If numerical tolerance exceeds $10^{-7}$, raise `CutoffContinuityError`.
+
+---
+
+#### 5. Message Passing GNN Gradient Health Debugger (`REQ-TORQ-INF-105` `[D]`)
+- **File Target**: `Libraries/cochem_torq_gnn_debugger.py` (and export in `Libraries/__init__.py`)
+- **Hook Attachment Architecture**:
+  - Provide a non-intrusive diagnostic tool `GNNGradientDebugger` that attaches to `torch.nn.Module` layers:
+    * Forward hook: Records node activation norms $\|\mathbf{h}_v^{(l)}\|_2$ and tracks NaN/Inf occurrences.
+    * Backward hook (`register_full_backward_hook`): Inspects layer gradients $\mathbf{g}_v^{(l)} = \nabla_{\mathbf{h}_v^{(l)}} \mathcal{L}$.
+- **Numerical Anomaly Detection & Traps**:
+  - Exploding Gradient Trap: If $\|\mathbf{g}_v^{(l)}\|_2 > 10^3$ [D] or NaN/Inf is detected in forward/backward passes, immediately raise `GradientExplosionError` with layer index and parameter name.
+  - Vanishing Gradient Warning: If $\|\mathbf{g}_v^{(l)}\|_2 < 10^{-7}$ [D] across 3 consecutive interaction blocks, emit `VanishingGradientWarning` detailing layer depth and gradient magnitude.
+  - Zero Production Overhead: Automatically deactivate hooks when `torch.is_grad_enabled() == False` or `config.enabled == False`. Provide context manager `debugger.probe(model)` with automatic hook cleanup upon exit.
+
+---
+
+#### 6. Periodic Boundary Conditions & Virial Stress Graph Engine (`REQ-TORQ-INF-106` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_pbc_graph.py` (and export in `Libraries/__init__.py`)
+- **Lattice Metric & Minimum Image Edge Construction**:
+  - Given crystal lattice matrix $\mathbf{L} = [\mathbf{a}_1, \mathbf{a}_2, \mathbf{a}_3] \in \mathbb{R}^{3 \times 3}$ [D] and Cartesian coordinates $\mathbf{R} \in \mathbb{R}^{N \times 3}$:
+  - Compute unit cell volume $\Omega = |\det(\mathbf{L})|$ [D].
+  - Compute fractional coordinates: $\mathbf{s}_i = \mathbf{L}^{-1} \mathbf{r}_i \pmod 1$ [D].
+  - Determine integer translation bounds: for cutoff $r_c = 5.0\,\text{\AA}$ [M], compute interplanar spacing for each direction $k \in \{1, 2, 3\}$ using cyclic permutations $(k, i, j) \in \{(1, 2, 3), (2, 3, 1), (3, 1, 2)\}$:
+    $$d_{\perp, k} = \frac{\Omega}{\|\mathbf{a}_i \times \mathbf{a}_j\|_2} \quad [D]$$
+    and search range $n_k \in [-\lceil r_c / d_{\perp, k} \rceil, \lceil r_c / d_{\perp, k} \rceil]$ [D].
+  - Compute all pairwise periodic displacement vectors:
+    $$\mathbf{r}_{ij, \mathbf{S}} \equiv (\mathbf{r}_j - \mathbf{r}_i) + \sum_{k=1}^3 n_k \mathbf{a}_k \quad [D]$$
+  - **Self-Image Exclusion Invariant**:
+    Construct graph edge $(i, j, \mathbf{S})$ if and only if:
+    $$d_{ij, \mathbf{S}} = \|\mathbf{r}_{ij, \mathbf{S}}\|_2 \le r_c \quad \text{AND} \quad \left( (i \neq j) \lor (\mathbf{S} \neq (0, 0, 0)) \right) \quad [D]$$
+    This prevents division by zero ($0/0 = \text{NaN}$) in radial basis expansions.
+- **Analytical Virial Stress Tensor**:
+  - Calculate symmetric stress tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ using pair interaction forces $\mathbf{f}_{ij, \mathbf{S}} = -\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E$:
+    $$\mathbf{\Xi}_{\alpha \beta} = -\frac{1}{2 \Omega} \sum_{i=1}^N \sum_{j \in \mathcal{N}(i), \mathbf{S}} (\mathbf{r}_{ij, \mathbf{S}})_\alpha (\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E)_\beta \quad [D]$$
+  - Compute scalar hydrostatic pressure:
+    $$P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi}) = -\frac{1}{3} (\mathbf{\Xi}_{xx} + \mathbf{\Xi}_{yy} + \mathbf{\Xi}_{zz}) \quad [D]$$
+
+---
+
+### 4. TEST SUITE SPECIFICATIONS
+
+All tests must be physically authentic and execute against real molecular coordinates and physical observables without mocks or stubs under `tests/`:
+
+#### Physical Chemical Fixture Definitions (Offline Embedded):
+```python
+import numpy as np
+
+# 1. Ethanol (N=9)
+ETHANOL_Z = [6, 6, 8, 1, 1, 1, 1, 1, 1]
+ETHANOL_COORDS = np.array(
+    [
+        [0.0072, 0.0000, 0.0000],  # C1
+        [1.5173, 0.0000, 0.0000],  # C2
+        [-0.5638, 1.2987, 0.0000],  # O
+        [-0.3756, -0.5218, 0.8872],  # H
+        [-0.3756, -0.5218, -0.8872],  # H
+        [1.9056, 0.5255, 0.8837],  # H
+        [1.9056, 0.5255, -0.8837],  # H
+        [1.8885, -1.0253, 0.0000],  # H
+        [-1.5277, 1.2052, 0.0000],  # H (hydroxyl)
+    ],
+    dtype=np.float64,
+)
+
+# 2. Alanine Dipeptide (N=22)
+ALANINE_DIPEPTIDE_Z = [
+    6,
+    8,
+    7,
+    1,
+    6,
+    1,
+    6,
+    1,
+    1,
+    1,
+    6,
+    8,
+    7,
+    1,
+    6,
+    1,
+    1,
+    1,
+    6,
+    1,
+    1,
+    1,
+]
+ALANINE_DIPEPTIDE_COORDS = np.array(
+    [
+        [2.012, -0.407, -0.380],
+        [1.576, -1.488, -0.771],
+        [1.341, 0.697, -0.016],
+        [1.776, 1.564, 0.222],
+        [-0.089, 0.722, 0.134],
+        [-0.344, 0.245, 1.087],
+        [-0.721, -0.091, -1.011],
+        [-0.495, 0.373, -1.975],
+        [-0.334, -1.114, -0.999],
+        [-1.808, -0.106, -0.898],
+        [-0.589, 2.164, 0.180],
+        [-0.038, 2.973, 0.923],
+        [-1.637, 2.470, -0.581],
+        [-2.083, 1.758, -1.144],
+        [-2.247, 3.794, -0.570],
+        [-2.213, 4.195, 0.446],
+        [-1.706, 4.475, -1.234],
+        [-3.284, 3.714, -0.899],
+        [3.472, -0.107, -0.324],
+        [3.659, 0.885, -0.738],
+        [4.020, -0.852, -0.902],
+        [3.829, -0.119, 0.710],
+    ],
+    dtype=np.float64,
+)
+
+# 3. Water 10-mer Cluster (N=30)
+WATER_10MER_Z = [8, 1, 1] * 10
+WATER_10MER_COORDS = np.array(
+    [
+        [-1.85, -0.87, 1.32],
+        [-1.02, -0.77, 1.80],
+        [-2.43, -0.22, 1.73],
+        [-0.15, -0.56, 2.34],
+        [0.62, -0.25, 1.86],
+        [-0.31, -0.13, 3.18],
+        [1.95, 0.32, 0.88],
+        [2.45, -0.42, 0.57],
+        [1.40, 0.64, 0.16],
+        [0.12, 1.20, -1.15],
+        [0.70, 1.82, -1.60],
+        [-0.70, 1.67, -0.98],
+        [-1.98, 2.18, -0.52],
+        [-2.35, 1.72, 0.25],
+        [-2.56, 2.14, -1.29],
+        [2.80, -1.80, -0.12],
+        [3.52, -1.65, -0.73],
+        [2.05, -2.15, -0.62],
+        [0.55, -2.55, -1.45],
+        [-0.20, -2.10, -1.02],
+        [0.45, -3.48, -1.22],
+        [-1.50, -1.30, -0.35],
+        [-1.90, -0.45, -0.10],
+        [-1.20, -1.65, 0.50],
+        [-0.80, 0.40, -2.85],
+        [-0.35, 0.85, -2.12],
+        [-1.65, 0.80, -2.95],
+        [1.80, -0.90, -2.50],
+        [1.35, -0.20, -2.10],
+        [2.55, -0.55, -2.90],
+    ],
+    dtype=np.float64,
+)
+
+# 4. Silicon Diamond Lattice (Fd-3m, a = 5.43 Angstroms)
+SILICON_LATTICE = np.eye(3, dtype=np.float64) * 5.43
+SILICON_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],
+        [0.5, 0.5, 0.0],
+        [0.5, 0.0, 0.5],
+        [0.0, 0.5, 0.5],
+        [0.25, 0.25, 0.25],
+        [0.75, 0.75, 0.25],
+        [0.75, 0.25, 0.75],
+        [0.25, 0.75, 0.75],
+    ],
+    dtype=np.float64,
+)
+SILICON_Z = [14] * 8
+
+# 5. Rutile TiO2 Unit Cell (P4_2/mnm, a = 4.5937 Angstroms, c = 2.9587 Angstroms)
+RUTILE_LATTICE = np.diag([4.5937, 4.5937, 2.9587]).astype(np.float64)
+RUTILE_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],  # Ti1
+        [0.5, 0.5, 0.5],  # Ti2
+        [0.3053, 0.3053, 0.0],  # O1
+        [0.6947, 0.6947, 0.0],  # O2
+        [0.8053, 0.1947, 0.5],  # O3
+        [0.1947, 0.8053, 0.5],  # O4
+    ],
+    dtype=np.float64,
+)
+RUTILE_Z = [22, 22, 8, 8, 8, 8]
+```
+
+1. **`tests/test_torq_active_learning.py`** (`REQ-TORQ-INF-101`):
+   - Compute QBC energy variance $\sigma_E^2$ and maximum force epistemic standard deviation $\alpha_F^{\text{std}}$.
+   - Verify acquisition threshold triggers on conformers with $\alpha_F^{\text{std}} > 0.05\,\text{eV/\AA}$.
+   - Verify Kabsch RMSD deduplication prunes duplicate conformers within $\delta_{\text{RMSD}} = 0.125\,\text{\AA}$.
+   - Verify Stage B rotational constant deduplication prunes duplicate conformers within $\Delta B / B < 0.001$.
+   - Verify dynamic QM tier routing: Moderate variance $\to$ Tier T3-10s GFN2-xTB; High variance $\to$ Tier T3O-1h $\omega\text{B97X-V/jun-cc-pVTZ}$; Extreme divergence $\to$ Tier T3O-12h Canonical `junChS`.
+   - Verify manifest emission generates valid JSON/HDF5 with verifiable SHA-256 hash in Ring 3 without outbound network calls.
+
+2. **`tests/test_torq_hdf5_datamodule.py`** (`REQ-TORQ-INF-102`):
+   - Populate chunked HDF5 dataset using the authentic Water 10-mer cluster.
+   - Verify `setup()` correctly creates `Subset` objects and `h5_worker_init_fn` unwraps `root_ds = getattr(dataset, "dataset", dataset)` without `AttributeError`.
+   - Verify single-worker fallback (`num_workers=0`) lazily initializes handles in `__getitem__`.
+   - Launch DataLoader with `num_workers=2` under `spawn` and assert independent HDF5 file handles are instantiated per worker.
+   - Verify `jagged_graph_collate` produces correct node batch pointers $\mathbf{b}$ and properly shifted edge index offsets.
+   - Verify `teardown()` cleanly closes open handles.
+
+3. **`tests/test_torq_committee_ensemble.py`** (`REQ-TORQ-INF-103`):
+   - Evaluate ensemble of 4 MLFF potentials on Water 10-mer cluster ($N=30$).
+   - Verify mean energy $\bar{E} = \frac{1}{M} \sum E_m$ matches individual model averages within machine precision ($10^{-7}$).
+   - Verify aggregate forces satisfy conservative equality $\bar{\mathbf{F}} = -\nabla \bar{E} = \frac{1}{M} \sum \mathbf{F}_m$.
+   - Verify energy epistemic variance $\sigma_E^2 \ge 0.0$ and per-atom force variance $\sigma_{\mathbf{F}, i}^2 \ge 0.0$.
+   - Verify sequential model evaluation executes stream synchronization without CUDA OOM.
+
+4. **`tests/test_torq_c2_cutoff.py`** (`REQ-TORQ-INF-104`):
+   - Physical Fixture: Argon dimer and Ethanol coordinate graph with $r_c = 5.0\,\text{\AA}$.
+   - Boundary Continuity: Assert $|f_c(r_c)| < 10^{-7}$, $|\left.\frac{df_c}{dr}\right|_{r_c}| < 10^{-7}$, $|\left.\frac{d^2 f_c}{dr^2}\right|_{r_c}| < 10^{-7}$, and $\|\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c(r_c)\|_F < 10^{-7}$.
+   - PyTorch Autograd Parity: Compute analytical first and second spatial derivatives via `torch.autograd.grad` with `create_graph=True` and verify exact match with closed-form tensorial formulas within $10^{-6}$.
+   - Discontinuity Guard: Verify evaluation beyond $r_c$ smoothly vanishes without step discontinuity.
+
+5. **`tests/test_torq_gnn_debugger.py`** (`REQ-TORQ-INF-105`):
+   - Physical Fixture: Multi-layer message-passing interaction block on Alanine dipeptide ($N=22$).
+   - Forward/Backward Hook: Verify debugger captures activation norms and parameter gradients during genuine training pass.
+   - Exploding Gradient Trap: Instantiate unscaled interaction layers with large initialized weights ($W \sim 50.0$) and run `loss.backward()`; verify autograd gradient norm exceeds $10^3$ and triggers `GradientExplosionError`.
+   - Vanishing Gradient Warning: Instantiate interaction layers with small weights ($W \sim 10^{-4}$) and run `loss.backward()`; verify gradient norm drops below $10^{-7}$ across 3 blocks and emits `VanishingGradientWarning`.
+   - Zero Overhead: Confirm hooks are cleanly removed upon context exit.
+
+6. **`tests/test_torq_pbc_graph.py`** (`REQ-TORQ-INF-106`):
+   - Physical Fixtures: Silicon Diamond unit cell ($a = 5.43\,\text{\AA}$) and Rutile $\text{TiO}_2$ unit cell ($a = 4.5937\,\text{\AA}, c = 2.9587\,\text{\AA}$).
+   - Interplanar Spacing: Verify cyclic permutation $(k, i, j)$ produces exact interplanar distances without zero division.
+   - Self-Image Invariant: Assert no edge exists with $d_{ij, \mathbf{S}} = 0$ ($i = j$ and $\mathbf{S} = \mathbf{0}$).
+   - Virial Stress Symmetry: Compute symmetric virial tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ and confirm $\|\mathbf{\Xi} - \mathbf{\Xi}^T\|_\infty < 10^{-7}$.
+   - Pressure: Compute scalar hydrostatic pressure $P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi})$.
+
+---
+
+### 5. STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
+
+1. **Zero-Mock Mandate v3**: Every neural layer, autograd backward pass, distributed barrier, and test assertion must execute physically. Absolutely no `pass` stubs, no `NotImplementedError`, and no synthetic mock arrays (`np.zeros`, `np.ones` as dummy outputs).
+2. **Dynamic Mendeleev Monoisotopic Masses**: When atomic masses are required, dynamically query:
+   `from mendeleev import element; mass = element(int(z)).mass` (or isotope weighted mass). Ghost atoms ($Z=0$) receive $0.0\,\text{u}$. No hardcoded atomic mass dictionaries.
+3. **Tripartite Workspace Air-Gap**:
+   - Ring 1 ($COCHEM_SRC_DIR / R_{\text{src}}$): Read-only source code.
+   - Ring 2 ($COCHEM_DATA_DIR / R_{\text{data}}$): Read-only datasets and weights. `COCHEM_OFFLINE=1`. SHA-256 verification.
+   - Ring 3 ($COCHEM_ARTIFACTS_DIR / R_{\text{art}}$): Read-write checkpoints, manifests, logs, and telemetry.
+4. **OS-Agnostic Dynamic Paths**: Utilize `pathlib.Path` with environment variable resolution (`COCHEM_SRC_DIR`, `COCHEM_DATA_DIR`, `COCHEM_ARTIFACTS_DIR`, `COCHEM_SCRATCH_DIR`, `SLURM_TMPDIR`). No hardcoded `/home/...` or `C:\...` paths.
+5. **6-Tier Environment Execution Matrix**: Ensure cross-platform execution across Tier 1 Windows NT (`gloo`, NTFS filelock), Tier 2 macOS (MPS/CPU), Tier 3 Linux (`nccl`, SWMR), Tiers 4-5 Codespaces & CI/CD (headless CPU), and Tier 6 HPC clusters (`HDF5_USE_FILE_LOCKING="FALSE"`, node-local scratch).
+
+---
+
+### 6. ACTION PLAN FOR CODER
+
+1. Implement `Libraries/cochem_torq_inference_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError` without `pass` blocks.
+2. Implement `Libraries/cochem_torq_inference_schemas.py` with all Pydantic v2 data models, fields, and validators (`ActiveLearningOrchestratorConfig`, `ChunkedHDF5DataModuleConfig`, `CommitteeEnsembleConfig`, `C2SmoothCutoffConfig`, `GNNGradientDebuggerConfig`, `PBCRadialGraphConfig`).
+3. Implement `Libraries/cochem_torq_active_learning.py` featuring QBC energy variance, maximum atomic force epistemic standard deviation, Mendeleev mass-weighted center-of-mass and rotational constant computation, two-stage deduplication (Stage A Kabsch SVD $\delta_{\text{RMSD}} = 0.125\,\text{\AA}$ and Stage B $\Delta B / B < 0.001$), dynamic multi-tier QM routing, and air-gapped manifest serialization.
+4. Implement `Libraries/cochem_torq_hdf5_datamodule.py` with PyTorch Lightning DataModule lifecycle, `Subset` unwrapping, single-worker fallback, thread-safe SWMR worker initialization (`h5_worker_init_fn`), prime slot caching, and jagged graph batch collation.
+5. Implement `Libraries/cochem_torq_committee_ensemble.py` providing conservative energy-force aggregation, unbiased variance calculation, dynamic device dispatch, and sequential stream synchronization for VRAM safety.
+6. Implement `Libraries/cochem_torq_c2_cutoff.py` with quintic $C^2$-smooth switching envelope $f_c(r)$, exact analytical first derivative, spatial gradient, and tensorial Cartesian spatial Hessian matrix.
+7. Implement `Libraries/cochem_torq_gnn_debugger.py` providing forward/backward hooks, exploding gradient trap ($\|\mathbf{g}\|_2 > 10^3$), vanishing gradient alerts ($\|\mathbf{g}\|_2 < 10^{-7}$), and zero production overhead.
+8. Implement `Libraries/cochem_torq_pbc_graph.py` with crystal lattice fractional transformation, cyclic permutation interplanar spacing, strict self-image exclusion, and analytical symmetric unit cell virial stress calculation.
+9. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
+10. Author the complete, unmocked test suite under `tests/` utilizing the embedded physical coordinate fixtures:
+    - `tests/test_torq_active_learning.py`
+    - `tests/test_torq_hdf5_datamodule.py`
+    - `tests/test_torq_committee_ensemble.py`
+    - `tests/test_torq_c2_cutoff.py`
+    - `tests/test_torq_gnn_debugger.py`
+    - `tests/test_torq_pbc_graph.py`
+11. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous active learning orchestrator, chunked HDF5 PyTorch Lightning DataModule, committee ensemble uncertainty wrapper, C^2-smooth radial cutoff envelope, message-passing gradient health debugger, and periodic boundary condition (PBC) virial stress graph engine specified in Software Requirements Specification (SRS) Chunk 18: `TORQ_Inference_and_Export_Part_1` (`COCHEM-SRS-CHUNK-18-TORQ`).
+
+You must implement every component in strict adherence to the CoChem Zero-Mock directive v3, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev monoisotopic mass retrieval mandate, and Method Matrix v4 (`[M]` Empirical Benchmark, `[D]` Derived Mathematical Relationship, `[E]` Estimated Theoretical Projection). Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must operate on genuine physical tensors, authentic molecular coordinates, and real chemical observables.
+
+---
+
+### 1. DIRECTORY, PERSISTENCE & 6-TIER RUNTIME CONTRACTS
+
+1. **Tripartite Workspace Air-Gap Paths**:
+   - `COCHEM_SRC_DIR` ($R_{\text{src}}$): `pathlib.Path(os.environ.get("COCHEM_SRC_DIR", Path.cwd()))` (Read-only source repository).
+   - `COCHEM_DATA_DIR` ($R_{\text{data}}$): `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))` (Read-only datasets and weights under `COCHEM_OFFLINE=1`).
+   - `COCHEM_ARTIFACTS_DIR` ($R_{\text{art}}$): `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))` (Read-write checkpoints, manifests, logs, and telemetry).
+   - `COCHEM_SCRATCH_DIR`: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", os.environ.get("SLURM_TMPDIR", Path.home() / ".cochem" / "scratch")))`.
+2. **6-Tier Runtime & Concurrency**:
+   - **Accelerator Binding**: `device = torch.device("cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu"))`. Support explicit device dispatch across CUDA, Apple Silicon MPS, and CPU.
+   - **Multiprocessing Context**: Multi-worker loaders and parallel execution must explicitly utilize the `spawn` multiprocessing context (`torch.multiprocessing.get_context("spawn")`).
+   - **Thread-Safe HDF5 & SWMR**: Use chunked HDF5 with `rdcc_nbytes = 16 * 1024 * 1024` (16 MB cache [E]) and prime hash table slots `rdcc_nslots = 10007` [D].
+     * **OS-Specific SWMR Guard**: Enable `swmr=True` and `libver="latest"` ONLY on POSIX systems (`sys.platform != "win32"`) when not running on distributed filesystems.
+     * **HPC Distributed Filesystem Guard (Tier 6)**: If `os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"` or when executing on Lustre/NFS/GPFS paths, set `swmr=False` and bypass OS file locks.
+     * File access coordination via `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)`.
+     * Multi-worker PyTorch `DataLoader` must defer `h5py.File` instantiation to `worker_init_fn`, unwrapping `torch.utils.data.Subset` instances via `root_ds = getattr(dataset, "dataset", dataset)`.
+     * Single-worker fallback (`num_workers=0`): `__getitem__` must lazily open the file handle if `self.handle is None`.
+   - **Atomic Serialization**: Write temporary file `.tmp`, invoke `os.fsync(f.fileno())`, atomically move via `os.replace`, and write an accompanying cryptographic `.sha256` digest file.
+
+---
+
+### 2. DOMAIN EXCEPTIONS & PYDANTIC V2 DATA CONTRACTS
+
+- **Files**: `Libraries/cochem_torq_inference_errors.py` and `Libraries/cochem_torq_inference_schemas.py` (export in `Libraries/__init__.py`).
+- **Domain Exception Hierarchy** (Zero `pass` statements):
+```python
+from typing import Any, Dict, Optional
+
+
+class CoChemError(Exception):
+  """Root exception for CoChem framework."""
+
+  def __init__(self, message: str = "Generic CoChem error") -> None:
+    super().__init__(message)
+
+
+class CoChemTorqError(CoChemError):
+  """Base exception for all TORQ sub-framework operations."""
+
+  def __init__(self, message: str = "Generic TORQ error") -> None:
+    super().__init__(message)
+
+
+class TorqInferenceError(CoChemTorqError):
+  """Base exception for all TORQ inference and export errors."""
+
+  def __init__(
+      self,
+      message: str,
+      error_code: str = "TORQ_INF_GENERIC",
+      component: str = "inference_engine",
+      diagnostics: Optional[Dict[str, Any]] = None,
+  ) -> None:
+    super().__init__(message)
+    self.error_code = error_code
+    self.component = component
+    self.diagnostics = diagnostics or {}
+
+
+class ActiveLearningSelectionError(TorqInferenceError):
+  """Raised when active learning selection or pool deduplication fails."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_AL_SELECTION_ERR",
+        component="active_learning",
+        **kwargs,
+    )
+
+
+class HDF5DataModuleLockError(TorqInferenceError):
+  """Raised when multi-worker HDF5 handle acquisition encounters lock timeout."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_HDF5_LOCK_ERR",
+        component="hdf5_datamodule",
+        **kwargs,
+    )
+
+
+class EnsembleConsensusError(TorqInferenceError):
+  """Raised when committee ensemble encounters dimension mismatch or consensus divergence."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_ENSEMBLE_ERR",
+        component="committee_ensemble",
+        **kwargs,
+    )
+
+
+class CutoffContinuityError(TorqInferenceError):
+  """Raised when radial cutoff function violates C^2 smoothness or boundary zero condition."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message, error_code="TORQ_CUTOFF_ERR", component="c2_cutoff", **kwargs
+    )
+
+
+class GradientExplosionError(TorqInferenceError):
+  """Raised when GNN message passing activations or gradients exceed stability threshold."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_GRAD_EXPLOSION_ERR",
+        component="gnn_debugger",
+        **kwargs,
+    )
+
+
+class VanishingGradientWarning(UserWarning):
+  """Emitted when message passing gradients drop below minimum threshold across consecutive layers."""
+
+  def __init__(
+      self, message: str = "GNN message passing gradients vanishing"
+  ) -> None:
+    super().__init__(message)
+
+
+class PBCGraphError(TorqInferenceError):
+  """Raised when periodic boundary condition graph construction or virial calculation fails."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_PBC_GRAPH_ERR",
+        component="pbc_graph",
+        **kwargs,
+    )
+
+
+class AirGapViolationError(TorqInferenceError):
+  """Raised when inference or active learning loops attempt forbidden outbound networking or direct subprocess execution."""
+
+  def __init__(self, message: str, **kwargs: Any) -> None:
+    super().__init__(
+        message,
+        error_code="TORQ_AIRGAP_ERR",
+        component="airgap_sandbox",
+        **kwargs,
+    )
+```
+
+- **Pydantic v2 Models** (`model_config = ConfigDict(frozen=True, extra="forbid")`):
+```python
+from pathlib import Path
+from typing import List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ActiveLearningOrchestratorConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  batch_capacity_k: int = Field(
+      default=64,
+      ge=1,
+      le=512,
+      description="Active learning batch selection capacity K [E]",
+  )
+  force_uncertainty_threshold_ev_per_angstrom: float = Field(
+      default=0.05,
+      gt=0.0,
+      description=(
+          "Epistemic force standard deviation threshold theta_force in"
+          " eV/Angstrom [E]"
+      ),
+  )
+  energy_uncertainty_threshold_ev2_per_atom: float = Field(
+      default=0.001,
+      gt=0.0,
+      description=(
+          "QBC energy variance threshold theta_energy in eV^2/atom [E]"
+      ),
+  )
+  stage_a_rmsd_threshold_angstrom: float = Field(
+      default=0.125,
+      gt=0.0,
+      description=(
+          "Method Matrix v4 Stage A geometric RMSD threshold delta_RMSD [M]"
+      ),
+  )
+  stage_b_rotational_threshold: float = Field(
+      default=0.001,
+      gt=0.0,
+      description=(
+          "Method Matrix v4 Stage B relative rotational constant invariance"
+          " delta_B/B (--bthr) [M]"
+      ),
+  )
+  staging_manifest_dir: Path = Field(
+      ..., description="Air-gapped manifest export directory in Ring 3"
+  )
+
+
+class ChunkedHDF5DataModuleConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  h5_path: Path = Field(..., description="Path to chunked HDF5 dataset")
+  batch_size: int = Field(default=32, ge=1, description="Batch size per device")
+  num_workers: int = Field(
+      default=2, ge=0, description="Number of dataloader worker processes"
+  )
+  chunk_cache_bytes: int = Field(
+      default=16 * 1024 * 1024,
+      ge=1024 * 1024,
+      description="HDF5 raw data chunk cache size rdcc_nbytes [E]",
+  )
+  chunk_cache_slots: int = Field(
+      default=10007,
+      ge=1009,
+      description="Prime number of chunk cache hash slots rdcc_nslots [D]",
+  )
+  pin_memory: bool = Field(
+      default=True,
+      description="Pin host memory for non-blocking GPU transfer",
+  )
+  train_val_test_split: List[float] = Field(
+      default=[0.8, 0.1, 0.1],
+      description="Train, validation, and test split ratios",
+  )
+
+  @model_validator(mode="after")
+  def validate_splits(self) -> "ChunkedHDF5DataModuleConfig":
+    if abs(sum(self.train_val_test_split) - 1.0) > 1e-5:
+      raise ValueError("train_val_test_split must sum to 1.0")
+    return self
+
+
+class CommitteeEnsembleConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  num_models_m: int = Field(
+      default=8, ge=2, le=32, description="Number of committee models M [E]"
+  )
+  max_concurrent_models_vram: int = Field(
+      default=2,
+      ge=1,
+      description="Maximum models loaded into active VRAM simultaneously [E]",
+  )
+  synchronize_cuda_streams: bool = Field(
+      default=True,
+      description=(
+          "Execute stream synchronization between model forward passes [D]"
+      ),
+  )
+
+
+class C2SmoothCutoffConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  cutoff_radius_rc: float = Field(
+      default=5.0,
+      gt=1.0,
+      description="Radial cutoff boundary radius r_c in Angstroms [M]",
+  )
+  polynomial_degree: Literal[5] = Field(
+      default=5,
+      description="Degree of C^2 continuous switching polynomial [D]",
+  )
+
+
+class GNNGradientDebuggerConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  exploding_grad_threshold: float = Field(
+      default=1e3, gt=0.0, description="L2 gradient norm explosion threshold [D]"
+  )
+  vanishing_grad_threshold: float = Field(
+      default=1e-7, gt=0.0, description="L2 gradient norm vanishing threshold [D]"
+  )
+  consecutive_vanishing_blocks: int = Field(
+      default=3,
+      ge=1,
+      description="Consecutive layers below vanishing threshold before alert [D]",
+  )
+  enabled: bool = Field(
+      default=True, description="Enable active hook monitoring"
+  )
+
+
+class PBCRadialGraphConfig(BaseModel):
+  model_config = ConfigDict(frozen=True, extra="forbid")
+  cutoff_radius_rc: float = Field(
+      default=5.0,
+      gt=1.0,
+      description="Radial graph cutoff radius in Angstroms [M]",
+  )
+  compute_virial_stress: bool = Field(
+      default=True,
+      description="Compute analytical unit cell virial stress tensor [D]",
+  )
+```
+
+---
+
+### 3. MODULE IMPLEMENTATION SPECIFICATIONS
+
+#### 1. Active Learning Orchestrator for Dynamic QM Selection (`REQ-TORQ-INF-101` `[M]`/`[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_active_learning.py` (and export in `Libraries/__init__.py`)
+- **Mathematical Acquisition Metrics & Dimensional Rigor**:
+  - Unlabeled pool: $\mathcal{U} = \{(\mathbf{X}_k, \mathbf{Z}_k)\}_{k=1}^P$. Evaluate using $M$ committee models producing $\{E_m(\mathbf{X}), \mathbf{F}_{i,m}(\mathbf{X})\}_{m=1}^M$.
+  - Committee Mean Energy and Force:
+    $$\bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M E_m(\mathbf{X}) \quad [D], \quad \bar{\mathbf{F}}_i(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X}) \quad [D]$$
+  - Query-by-Committee (QBC) Energy Variance:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+  - Maximum Atomic Force Epistemic Standard Deviation (in $\text{eV/\AA}$):
+    $$\alpha_F^{\text{std}}(\mathbf{X}) = \max_{i \in \{1 \dots N\}} \sqrt{\frac{1}{M-1} \sum_{m=1}^M \left\| \mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X}) \right\|_2^2} \quad [D]$$
+  - Acquisition Trigger Criteria: Trigger candidate selection if $\alpha_F^{\text{std}}(\mathbf{X}) > \theta_{\text{force}} = 0.05\,\text{eV/\AA}$ [E] OR $\frac{\sigma_E^2(\mathbf{X})}{N} > \theta_{\text{energy}} = 0.001\,\text{eV}^2/\text{atom}$ [E].
+- **Mendeleev Mass-Weighted Centering & Rotational Constant Deduplication**:
+  - Retrieve dynamic masses: `from mendeleev import element; mass_i = element(int(z_i)).mass`.
+  - Mass-weighted center-of-mass translation (Eckart centroid): $\mathbf{R}_{\text{COM}} = \frac{\sum_{i=1}^N m_i \mathbf{x}_i}{\sum_{i=1}^N m_i}$. Center geometries: $\mathbf{x}'_i = \mathbf{x}_i - \mathbf{R}_{\text{COM}}$.
+  - Inertia Tensor $I_{\alpha \beta} \in \mathbb{R}^{3 \times 3}$:
+    $$I_{\alpha \beta} = \sum_{i=1}^N m_i \left( \delta_{\alpha \beta} \|\mathbf{x}'_i\|_2^2 - x'_{i,\alpha} x'_{i,\beta} \right) \quad [D]$$
+  - Diagonalize $I$ to obtain principal moments of inertia $I_A \le I_B \le I_C$. Compute rotational constants:
+    $$A = \frac{h}{8 \pi^2 c I_A}, \quad B = \frac{h}{8 \pi^2 c I_B}, \quad C = \frac{h}{8 \pi^2 c I_C} \quad [D]$$
+- **Two-Stage Deduplication**:
+  - **Stage A (Geometric RMSD via Kabsch SVD)**:
+    For centered $N \times 3$ coordinate matrices $\mathbf{X}_c, \mathbf{Y}_c$, compute covariance matrix $\mathbf{H} = \mathbf{X}_c^T \mathbf{Y}_c$. Compute SVD $\mathbf{H} = \mathbf{U}\mathbf{\Sigma}\mathbf{V}^T$.
+    Compute reflection determinant $d = \det(\mathbf{V}\mathbf{U}^T)$. Correction matrix $\mathbf{S} = \operatorname{diag}(1, 1, d)$.
+    Row-vector rotation matrix $\mathbf{R} = \mathbf{V}\mathbf{S}\mathbf{U}^T \in \mathrm{SO}(3)$ so that $\mathbf{Y}_{\text{rot}} = \mathbf{Y}_c \mathbf{R}$.
+    (Equivalently for column vectors, $\mathbf{R}_{\text{col}} = \mathbf{R}^T = \mathbf{U}\mathbf{S}\mathbf{V}^T$ so that $\mathbf{x}_{\text{rot}} = \mathbf{R}_{\text{col}} \mathbf{x}$).
+    $$D_{\text{geom}}(\mathbf{X}_a, \mathbf{X}_b) = \sqrt{\frac{1}{N} \sum_{i=1}^N \|\mathbf{x}_{a,i} - (\mathbf{x}_{b,i} \mathbf{R})\|_2^2} \quad [D]$$
+    If $D_{\text{geom}} < \delta_{\text{RMSD}} = 0.125\,\text{\AA}$ [M], candidate is geometrically redundant.
+  - **Stage B (Rotational Constant Invariance `--bthr 0.001`)**:
+    If $\max \left( \frac{|A_a - A_b|}{A_a}, \frac{|B_a - B_b|}{B_a}, \frac{|C_a - C_b|}{C_a} \right) < 0.001$ [M], candidate is spectroscopically redundant and pruned.
+- **Dynamic Multi-Tier QM Routing (Method Matrix v4 Table 3-O)**:
+  - Candidates passing deduplication are routed dynamically into the job manifest:
+    * **Moderate Variance ($0.05 < \alpha_F^{\text{std}} \le 0.2\,\text{eV/\AA}$)**: Tier T3-10s GFN2-xTB (`! GOAT XTB2` / `crest --nci`) [M].
+    * **High Variance ($0.2 < \alpha_F^{\text{std}} \le 0.8\,\text{eV/\AA}$)**: Tier T3O-1h ORCA 6.0 $\omega\text{B97X-V/jun-cc-pVTZ}$ with tightened `%geom` thresholds (`TolMaxG 1e-5`, `TolE 1e-7`) and `defgrid3` [M].
+    * **Extreme Divergence ($\alpha_F^{\text{std}} > 0.8\,\text{eV/\AA}$ or topological bond breakage)**: Tier T3O-12h Canonical `junChS` composite scheme (CBS+CV) [M].
+  - Manifest Serialization: Serialize up to $K = 64$ [E] selected structures into an immutable JSON/HDF5 job manifest with cryptographic SHA-256 digest in $R_{\text{art}}$ (`COCHEM_OFFLINE=1`).
+
+---
+
+#### 2. Custom PyTorch Lightning DataModule for Chunked HDF5 Ingestion (`REQ-TORQ-INF-102` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_hdf5_datamodule.py` (and export in `Libraries/__init__.py`)
+- **PyTorch Lightning Lifecycle**:
+  - Subclass `pl.LightningDataModule`.
+  - `prepare_data()`: Validate file exists via `pathlib.Path`, verify SHA-256 checksum, read dataset chunk boundaries.
+  - `setup(stage)`: Partition index offsets into deterministic train, val, and test `torch.utils.data.Subset` splits.
+  - `train_dataloader()`, `val_dataloader()`, `predict_dataloader()`: Return `torch.utils.data.DataLoader` configured with `collate_fn=jagged_graph_collate`, `pin_memory=True`, `num_workers=config.num_workers`, `multiprocessing_context=torch.multiprocessing.get_context("spawn")`, and `worker_init_fn=hdf5_worker_init_fn`.
+- **Thread-Safe HDF5 Concurrency, Subset Unwrapping & Worker Isolation**:
+  - Prevent handle collisions and unwrap `torch.utils.data.Subset` cleanly:
+```python
+def h5_worker_init_fn(worker_id: int) -> None:
+  worker_info = torch.utils.data.get_worker_info()
+  if worker_info is not None:
+    dataset = worker_info.dataset
+    root_ds = getattr(dataset, "dataset", dataset)
+    is_posix = sys.platform != "win32"
+    use_locking = (
+        os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+    )
+    enable_swmr = is_posix and use_locking
+    root_ds.handle = h5py.File(
+        root_ds.h5_path,
+        mode="r",
+        swmr=enable_swmr,
+        libver="latest" if enable_swmr else "earliest",
+        rdcc_nbytes=16 * 1024 * 1024,
+        rdcc_nslots=10007,
+    )
+```
+  - **Single-Worker / Main Process Fallback (`num_workers=0`)**:
+    Inside dataset `__getitem__(self, idx)`:
+    ```python
+    if getattr(self, "handle", None) is None:
+      is_posix = sys.platform != "win32"
+      use_locking = (
+          os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+      )
+      enable_swmr = is_posix and use_locking
+      self.handle = h5py.File(
+          self.h5_path,
+          mode="r",
+          swmr=enable_swmr,
+          libver="latest" if enable_swmr else "earliest",
+          rdcc_nbytes=16 * 1024 * 1024,
+          rdcc_nslots=10007,
+      )
+```
+  - Standardized Dataset Key Schema:
+    * `/coordinates`: float32, shape $(N, 3)$, in $\text{\AA}$
+    * `/atomic_numbers`: int64, shape $(N,)$
+    * `/energy`: float64, scalar, in $\text{eV}$
+    * `/forces`: float32, shape $(N, 3)$, in $\text{eV/\AA}$
+    * `/edge_index`: int64, shape $(2, E)$
+- **Jagged Graph Collation Engine**:
+  - Assemble variable-size molecular graphs ($N_k$ atoms, $E_k$ edges) into a contiguous batch representation.
+  - Node batch pointer vector: $\mathbf{b} \in \{0 \dots B-1\}^{\sum N_k}$ [D].
+  - Edge index offset: $\mathbf{e}'_k = \mathbf{e}_k + \sum_{j < k} N_j$ [D], concatenating into contiguous `edge_index` of shape $(2, \sum E_k)$.
+
+---
+
+#### 3. Committee Model (Ensemble) Wrapper for Epistemic Uncertainty (`REQ-TORQ-INF-103` `[D]`/`[E]`)
+- **File Target**: `Libraries/cochem_torq_committee_ensemble.py` (and export in `Libraries/__init__.py`)
+- **Conservative Force & Energy Aggregation**:
+  - Wrap $M$ independently trained potential instances.
+  - Compute the ensemble mean potential energy:
+    $$\bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M E_m(\mathbf{X}) \quad [D]$$
+  - Analytical conservative forces guarantee zero external work in closed cycles:
+    $$\bar{\mathbf{F}}_i(\mathbf{X}) = -\nabla_{\mathbf{R}_i} \bar{E}(\mathbf{X}) = \frac{1}{M} \sum_{m=1}^M \mathbf{F}_{i,m}(\mathbf{X}) \quad [D]$$
+- **Unbiased Epistemic Uncertainty Decomposition**:
+  - Sample variance of total energy:
+    $$\sigma_E^2(\mathbf{X}) = \frac{1}{M-1} \sum_{m=1}^M \left( E_m(\mathbf{X}) - \bar{E}(\mathbf{X}) \right)^2 \quad [D]$$
+  - Per-atom force epistemic variance:
+    $$\sigma_{\mathbf{F}, i}^2(\mathbf{X}) = \frac{1}{3(M-1)} \sum_{m=1}^M \|\mathbf{F}_{i,m}(\mathbf{X}) - \bar{\mathbf{F}}_i(\mathbf{X})\|_2^2 \quad [D]$$
+- **Sequential Evaluation & VRAM Stream Safeguards**:
+  - When $M \ge 8$, avoid holding all models in active GPU VRAM simultaneously. Evaluate models in sequential micro-batches of size `max_concurrent_models_vram` with explicit stream synchronization (`torch.cuda.synchronize()` when CUDA is active).
+
+---
+
+#### 4. $C^2$-Smooth Cutoff Function for Continuous Forces and Hessians (`REQ-TORQ-INF-104` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_c2_cutoff.py` (and export in `Libraries/__init__.py`)
+- **Unified Displacement & Quintic Switching Polynomial**:
+  - Directed edge displacement: $\mathbf{r}_{ij} \equiv \mathbf{r}_j - \mathbf{r}_i$ with interatomic distance $r_{ij} = \|\mathbf{r}_{ij}\|_2$.
+  - For cutoff $r_c = 5.0\,\text{\AA}$ [M], normalized coordinate $u = \frac{r_{ij}}{r_c} \in [0, 1]$ [D]:
+    $$f_c(r_{ij}) = \begin{cases} 1 - 10 u^3 + 15 u^4 - 6 u^5, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+- **Exact Analytical Radial, Spatial Gradient, and Cartesian Hessian Derivatives**:
+  - First radial derivative:
+    $$\frac{df_c(r_{ij})}{dr_{ij}} = \begin{cases} -\frac{30}{r_c} u^2 (1 - u)^2, & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+  - Spatial gradient with respect to $\mathbf{r}_i$ (noting $\nabla_{\mathbf{r}_i} r_{ij} = -\frac{\mathbf{r}_{ij}}{r_{ij}}$):
+    $$\nabla_{\mathbf{r}_i} f_c(r_{ij}) = \frac{df_c(r_{ij})}{dr_{ij}} \nabla_{\mathbf{r}_i} r_{ij} = -\frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_{ij}}{r_{ij}} = \frac{df_c(r_{ij})}{dr_{ij}} \frac{\mathbf{r}_i - \mathbf{r}_j}{r_{ij}} \quad [D]$$
+  - Second radial derivative:
+    $$\frac{d^2 f_c(r_{ij})}{dr_{ij}^2} = \begin{cases} -\frac{60}{r_c^2} u (1 - u)(1 - 2u), & r_{ij} \le r_c \\ 0, & r_{ij} > r_c \end{cases} \quad [D]$$
+  - Full Tensorial Cartesian Spatial Hessian ($\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c \in \mathbb{R}^{3 \times 3}$):
+    $$\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c(r_{ij}) = \frac{d^2 f_c(r_{ij})}{dr_{ij}^2} \frac{\mathbf{r}_{ij} \mathbf{r}_{ij}^T}{r_{ij}^2} + \frac{df_c(r_{ij})}{dr_{ij}} \left( \frac{\mathbf{I}_3}{r_{ij}} - \frac{\mathbf{r}_{ij} \mathbf{r}_{ij}^T}{r_{ij}^3} \right) \quad [D]$$
+- **Mathematical Continuity Guarantees**:
+  - Enforce and verify boundary values: $f_c(r_c) = 0$, $\left.\frac{df_c}{dr_{ij}}\right|_{r_c} = 0$, $\left.\frac{d^2 f_c}{dr_{ij}^2}\right|_{r_c} = 0$, and $\left.\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c\right|_{r_c} = \mathbf{0}_{3 \times 3}$.
+  - Guarantees zero Dirac-delta force spikes ($\delta(r - r_c)$) and smooth analytical Hessians for harmonic vibrational analysis. If numerical tolerance exceeds $10^{-7}$, raise `CutoffContinuityError`.
+
+---
+
+#### 5. Message Passing GNN Gradient Health Debugger (`REQ-TORQ-INF-105` `[D]`)
+- **File Target**: `Libraries/cochem_torq_gnn_debugger.py` (and export in `Libraries/__init__.py`)
+- **Hook Attachment Architecture**:
+  - Provide a non-intrusive diagnostic tool `GNNGradientDebugger` that attaches to `torch.nn.Module` layers:
+    * Forward hook: Records node activation norms $\|\mathbf{h}_v^{(l)}\|_2$ and tracks NaN/Inf occurrences.
+    * Backward hook (`register_full_backward_hook`): Inspects layer gradients $\mathbf{g}_v^{(l)} = \nabla_{\mathbf{h}_v^{(l)}} \mathcal{L}$.
+- **Numerical Anomaly Detection & Traps**:
+  - Exploding Gradient Trap: If $\|\mathbf{g}_v^{(l)}\|_2 > 10^3$ [D] or NaN/Inf is detected in forward/backward passes, immediately raise `GradientExplosionError` with layer index and parameter name.
+  - Vanishing Gradient Warning: If $\|\mathbf{g}_v^{(l)}\|_2 < 10^{-7}$ [D] across 3 consecutive interaction blocks, emit `VanishingGradientWarning` detailing layer depth and gradient magnitude.
+  - Zero Production Overhead: Automatically deactivate hooks when `torch.is_grad_enabled() == False` or `config.enabled == False`. Provide context manager `debugger.probe(model)` with automatic hook cleanup upon exit.
+
+---
+
+#### 6. Periodic Boundary Conditions & Virial Stress Graph Engine (`REQ-TORQ-INF-106` `[M]`/`[D]`)
+- **File Target**: `Libraries/cochem_torq_pbc_graph.py` (and export in `Libraries/__init__.py`)
+- **Lattice Metric & Minimum Image Edge Construction**:
+  - Given crystal lattice matrix $\mathbf{L} = [\mathbf{a}_1, \mathbf{a}_2, \mathbf{a}_3] \in \mathbb{R}^{3 \times 3}$ [D] and Cartesian coordinates $\mathbf{R} \in \mathbb{R}^{N \times 3}$:
+  - Compute unit cell volume $\Omega = |\det(\mathbf{L})|$ [D].
+  - Compute fractional coordinates: $\mathbf{s}_i = \mathbf{L}^{-1} \mathbf{r}_i \pmod 1$ [D].
+  - Determine integer translation bounds: for cutoff $r_c = 5.0\,\text{\AA}$ [M], compute interplanar spacing for each direction $k \in \{1, 2, 3\}$ using cyclic permutations $(k, i, j) \in \{(1, 2, 3), (2, 3, 1), (3, 1, 2)\}$:
+    $$d_{\perp, k} = \frac{\Omega}{\|\mathbf{a}_i \times \mathbf{a}_j\|_2} \quad [D]$$
+    and search range $n_k \in [-\lceil r_c / d_{\perp, k} \rceil, \lceil r_c / d_{\perp, k} \rceil]$ [D].
+  - Compute all pairwise periodic displacement vectors:
+    $$\mathbf{r}_{ij, \mathbf{S}} \equiv (\mathbf{r}_j - \mathbf{r}_i) + \sum_{k=1}^3 n_k \mathbf{a}_k \quad [D]$$
+  - **Self-Image Exclusion Invariant**:
+    Construct graph edge $(i, j, \mathbf{S})$ if and only if:
+    $$d_{ij, \mathbf{S}} = \|\mathbf{r}_{ij, \mathbf{S}}\|_2 \le r_c \quad \text{AND} \quad \left( (i \neq j) \lor (\mathbf{S} \neq (0, 0, 0)) \right) \quad [D]$$
+    This prevents division by zero ($0/0 = \text{NaN}$) in radial basis expansions.
+- **Analytical Virial Stress Tensor**:
+  - Calculate symmetric stress tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ using pair interaction forces $\mathbf{f}_{ij, \mathbf{S}} = -\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E$:
+    $$\mathbf{\Xi}_{\alpha \beta} = -\frac{1}{2 \Omega} \sum_{i=1}^N \sum_{j \in \mathcal{N}(i), \mathbf{S}} (\mathbf{r}_{ij, \mathbf{S}})_\alpha (\nabla_{\mathbf{r}_{ij, \mathbf{S}}} E)_\beta \quad [D]$$
+  - Compute scalar hydrostatic pressure:
+    $$P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi}) = -\frac{1}{3} (\mathbf{\Xi}_{xx} + \mathbf{\Xi}_{yy} + \mathbf{\Xi}_{zz}) \quad [D]$$
+
+---
+
+### 4. TEST SUITE SPECIFICATIONS
+
+All tests must be physically authentic and execute against real molecular coordinates and physical observables without mocks or stubs under `tests/`:
+
+#### Physical Chemical Fixture Definitions (Offline Embedded):
+```python
+import numpy as np
+
+# 1. Ethanol (N=9)
+ETHANOL_Z = [6, 6, 8, 1, 1, 1, 1, 1, 1]
+ETHANOL_COORDS = np.array(
+    [
+        [0.0072, 0.0000, 0.0000],  # C1
+        [1.5173, 0.0000, 0.0000],  # C2
+        [-0.5638, 1.2987, 0.0000],  # O
+        [-0.3756, -0.5218, 0.8872],  # H
+        [-0.3756, -0.5218, -0.8872],  # H
+        [1.9056, 0.5255, 0.8837],  # H
+        [1.9056, 0.5255, -0.8837],  # H
+        [1.8885, -1.0253, 0.0000],  # H
+        [-1.5277, 1.2052, 0.0000],  # H (hydroxyl)
+    ],
+    dtype=np.float64,
+)
+
+# 2. Alanine Dipeptide (N=22)
+ALANINE_DIPEPTIDE_Z = [
+    6,
+    8,
+    7,
+    1,
+    6,
+    1,
+    6,
+    1,
+    1,
+    1,
+    6,
+    8,
+    7,
+    1,
+    6,
+    1,
+    1,
+    1,
+    6,
+    1,
+    1,
+    1,
+]
+ALANINE_DIPEPTIDE_COORDS = np.array(
+    [
+        [2.012, -0.407, -0.380],
+        [1.576, -1.488, -0.771],
+        [1.341, 0.697, -0.016],
+        [1.776, 1.564, 0.222],
+        [-0.089, 0.722, 0.134],
+        [-0.344, 0.245, 1.087],
+        [-0.721, -0.091, -1.011],
+        [-0.495, 0.373, -1.975],
+        [-0.334, -1.114, -0.999],
+        [-1.808, -0.106, -0.898],
+        [-0.589, 2.164, 0.180],
+        [-0.038, 2.973, 0.923],
+        [-1.637, 2.470, -0.581],
+        [-2.083, 1.758, -1.144],
+        [-2.247, 3.794, -0.570],
+        [-2.213, 4.195, 0.446],
+        [-1.706, 4.475, -1.234],
+        [-3.284, 3.714, -0.899],
+        [3.472, -0.107, -0.324],
+        [3.659, 0.885, -0.738],
+        [4.020, -0.852, -0.902],
+        [3.829, -0.119, 0.710],
+    ],
+    dtype=np.float64,
+)
+
+# 3. Water 10-mer Cluster (N=30)
+WATER_10MER_Z = [8, 1, 1] * 10
+WATER_10MER_COORDS = np.array(
+    [
+        [-1.85, -0.87, 1.32],
+        [-1.02, -0.77, 1.80],
+        [-2.43, -0.22, 1.73],
+        [-0.15, -0.56, 2.34],
+        [0.62, -0.25, 1.86],
+        [-0.31, -0.13, 3.18],
+        [1.95, 0.32, 0.88],
+        [2.45, -0.42, 0.57],
+        [1.40, 0.64, 0.16],
+        [0.12, 1.20, -1.15],
+        [0.70, 1.82, -1.60],
+        [-0.70, 1.67, -0.98],
+        [-1.98, 2.18, -0.52],
+        [-2.35, 1.72, 0.25],
+        [-2.56, 2.14, -1.29],
+        [2.80, -1.80, -0.12],
+        [3.52, -1.65, -0.73],
+        [2.05, -2.15, -0.62],
+        [0.55, -2.55, -1.45],
+        [-0.20, -2.10, -1.02],
+        [0.45, -3.48, -1.22],
+        [-1.50, -1.30, -0.35],
+        [-1.90, -0.45, -0.10],
+        [-1.20, -1.65, 0.50],
+        [-0.80, 0.40, -2.85],
+        [-0.35, 0.85, -2.12],
+        [-1.65, 0.80, -2.95],
+        [1.80, -0.90, -2.50],
+        [1.35, -0.20, -2.10],
+        [2.55, -0.55, -2.90],
+    ],
+    dtype=np.float64,
+)
+
+# 4. Silicon Diamond Lattice (Fd-3m, a = 5.43 Angstroms)
+SILICON_LATTICE = np.eye(3, dtype=np.float64) * 5.43
+SILICON_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],
+        [0.5, 0.5, 0.0],
+        [0.5, 0.0, 0.5],
+        [0.0, 0.5, 0.5],
+        [0.25, 0.25, 0.25],
+        [0.75, 0.75, 0.25],
+        [0.75, 0.25, 0.75],
+        [0.25, 0.75, 0.75],
+    ],
+    dtype=np.float64,
+)
+SILICON_Z = [14] * 8
+
+# 5. Rutile TiO2 Unit Cell (P4_2/mnm, a = 4.5937 Angstroms, c = 2.9587 Angstroms)
+RUTILE_LATTICE = np.diag([4.5937, 4.5937, 2.9587]).astype(np.float64)
+RUTILE_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],  # Ti1
+        [0.5, 0.5, 0.5],  # Ti2
+        [0.3053, 0.3053, 0.0],  # O1
+        [0.6947, 0.6947, 0.0],  # O2
+        [0.8053, 0.1947, 0.5],  # O3
+        [0.1947, 0.8053, 0.5],  # O4
+    ],
+    dtype=np.float64,
+)
+RUTILE_Z = [22, 22, 8, 8, 8, 8]
+```
+
+1. **`tests/test_torq_active_learning.py`** (`REQ-TORQ-INF-101`):
+   - Compute QBC energy variance $\sigma_E^2$ and maximum force epistemic standard deviation $\alpha_F^{\text{std}}$.
+   - Verify acquisition threshold triggers on conformers with $\alpha_F^{\text{std}} > 0.05\,\text{eV/\AA}$.
+   - Verify Kabsch RMSD deduplication prunes duplicate conformers within $\delta_{\text{RMSD}} = 0.125\,\text{\AA}$.
+   - Verify Stage B rotational constant deduplication prunes duplicate conformers within $\Delta B / B < 0.001$.
+   - Verify dynamic QM tier routing: Moderate variance $\to$ Tier T3-10s GFN2-xTB; High variance $\to$ Tier T3O-1h $\omega\text{B97X-V/jun-cc-pVTZ}$; Extreme divergence $\to$ Tier T3O-12h Canonical `junChS`.
+   - Verify manifest emission generates valid JSON/HDF5 with verifiable SHA-256 hash in Ring 3 without outbound network calls.
+
+2. **`tests/test_torq_hdf5_datamodule.py`** (`REQ-TORQ-INF-102`):
+   - Populate chunked HDF5 dataset using the authentic Water 10-mer cluster.
+   - Verify `setup()` correctly creates `Subset` objects and `h5_worker_init_fn` unwraps `root_ds = getattr(dataset, "dataset", dataset)` without `AttributeError`.
+   - Verify single-worker fallback (`num_workers=0`) lazily initializes handles in `__getitem__`.
+   - Launch DataLoader with `num_workers=2` under `spawn` and assert independent HDF5 file handles are instantiated per worker.
+   - Verify `jagged_graph_collate` produces correct node batch pointers $\mathbf{b}$ and properly shifted edge index offsets.
+   - Verify `teardown()` cleanly closes open handles.
+
+3. **`tests/test_torq_committee_ensemble.py`** (`REQ-TORQ-INF-103`):
+   - Evaluate ensemble of 4 MLFF potentials on Water 10-mer cluster ($N=30$).
+   - Verify mean energy $\bar{E} = \frac{1}{M} \sum E_m$ matches individual model averages within machine precision ($10^{-7}$).
+   - Verify aggregate forces satisfy conservative equality $\bar{\mathbf{F}} = -\nabla \bar{E} = \frac{1}{M} \sum \mathbf{F}_m$.
+   - Verify energy epistemic variance $\sigma_E^2 \ge 0.0$ and per-atom force variance $\sigma_{\mathbf{F}, i}^2 \ge 0.0$.
+   - Verify sequential model evaluation executes stream synchronization without CUDA OOM.
+
+4. **`tests/test_torq_c2_cutoff.py`** (`REQ-TORQ-INF-104`):
+   - Physical Fixture: Argon dimer and Ethanol coordinate graph with $r_c = 5.0\,\text{\AA}$.
+   - Boundary Continuity: Assert $|f_c(r_c)| < 10^{-7}$, $|\left.\frac{df_c}{dr}\right|_{r_c}| < 10^{-7}$, $|\left.\frac{d^2 f_c}{dr^2}\right|_{r_c}| < 10^{-7}$, and $\|\nabla_{\mathbf{r}_i} \nabla_{\mathbf{r}_i} f_c(r_c)\|_F < 10^{-7}$.
+   - PyTorch Autograd Parity: Compute analytical first and second spatial derivatives via `torch.autograd.grad` with `create_graph=True` and verify exact match with closed-form tensorial formulas within $10^{-6}$.
+   - Discontinuity Guard: Verify evaluation beyond $r_c$ smoothly vanishes without step discontinuity.
+
+5. **`tests/test_torq_gnn_debugger.py`** (`REQ-TORQ-INF-105`):
+   - Physical Fixture: Multi-layer message-passing interaction block on Alanine dipeptide ($N=22$).
+   - Forward/Backward Hook: Verify debugger captures activation norms and parameter gradients during genuine training pass.
+   - Exploding Gradient Trap: Instantiate unscaled interaction layers with large initialized weights ($W \sim 50.0$) and run `loss.backward()`; verify autograd gradient norm exceeds $10^3$ and triggers `GradientExplosionError`.
+   - Vanishing Gradient Warning: Instantiate interaction layers with small weights ($W \sim 10^{-4}$) and run `loss.backward()`; verify gradient norm drops below $10^{-7}$ across 3 blocks and emits `VanishingGradientWarning`.
+   - Zero Overhead: Confirm hooks are cleanly removed upon context exit.
+
+6. **`tests/test_torq_pbc_graph.py`** (`REQ-TORQ-INF-106`):
+   - Physical Fixtures: Silicon Diamond unit cell ($a = 5.43\,\text{\AA}$) and Rutile $\text{TiO}_2$ unit cell ($a = 4.5937\,\text{\AA}, c = 2.9587\,\text{\AA}$).
+   - Interplanar Spacing: Verify cyclic permutation $(k, i, j)$ produces exact interplanar distances without zero division.
+   - Self-Image Invariant: Assert no edge exists with $d_{ij, \mathbf{S}} = 0$ ($i = j$ and $\mathbf{S} = \mathbf{0}$).
+   - Virial Stress Symmetry: Compute symmetric virial tensor $\mathbf{\Xi} \in \mathbb{R}^{3 \times 3}$ and confirm $\|\mathbf{\Xi} - \mathbf{\Xi}^T\|_\infty < 10^{-7}$.
+   - Pressure: Compute scalar hydrostatic pressure $P = -\frac{1}{3} \operatorname{Tr}(\mathbf{\Xi})$.
+
+---
+
+### 5. STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
+
+1. **Zero-Mock Mandate v3**: Every neural layer, autograd backward pass, distributed barrier, and test assertion must execute physically. Absolutely no `pass` stubs, no `NotImplementedError`, and no synthetic mock arrays (`np.zeros`, `np.ones` as dummy outputs).
+2. **Dynamic Mendeleev Monoisotopic Masses**: When atomic masses are required, dynamically query:
+   `from mendeleev import element; mass = element(int(z)).mass` (or isotope weighted mass). Ghost atoms ($Z=0$) receive $0.0\,\text{u}$. No hardcoded atomic mass dictionaries.
+3. **Tripartite Workspace Air-Gap**:
+   - Ring 1 ($COCHEM_SRC_DIR / R_{\text{src}}$): Read-only source code.
+   - Ring 2 ($COCHEM_DATA_DIR / R_{\text{data}}$): Read-only datasets and weights. `COCHEM_OFFLINE=1`. SHA-256 verification.
+   - Ring 3 ($COCHEM_ARTIFACTS_DIR / R_{\text{art}}$): Read-write checkpoints, manifests, logs, and telemetry.
+4. **OS-Agnostic Dynamic Paths**: Utilize `pathlib.Path` with environment variable resolution (`COCHEM_SRC_DIR`, `COCHEM_DATA_DIR`, `COCHEM_ARTIFACTS_DIR`, `COCHEM_SCRATCH_DIR`, `SLURM_TMPDIR`). No hardcoded `/home/...` or `C:\...` paths.
+5. **6-Tier Environment Execution Matrix**: Ensure cross-platform execution across Tier 1 Windows NT (`gloo`, NTFS filelock), Tier 2 macOS (MPS/CPU), Tier 3 Linux (`nccl`, SWMR), Tiers 4-5 Codespaces & CI/CD (headless CPU), and Tier 6 HPC clusters (`HDF5_USE_FILE_LOCKING="FALSE"`, node-local scratch).
+
+---
+
+### 6. ACTION PLAN FOR CODER
+
+1. Implement `Libraries/cochem_torq_inference_errors.py` with the complete domain exception hierarchy rooted in `CoChemTorqError` without `pass` blocks.
+2. Implement `Libraries/cochem_torq_inference_schemas.py` with all Pydantic v2 data models, fields, and validators (`ActiveLearningOrchestratorConfig`, `ChunkedHDF5DataModuleConfig`, `CommitteeEnsembleConfig`, `C2SmoothCutoffConfig`, `GNNGradientDebuggerConfig`, `PBCRadialGraphConfig`).
+3. Implement `Libraries/cochem_torq_active_learning.py` featuring QBC energy variance, maximum atomic force epistemic standard deviation, Mendeleev mass-weighted center-of-mass and rotational constant computation, two-stage deduplication (Stage A Kabsch SVD $\delta_{\text{RMSD}} = 0.125\,\text{\AA}$ and Stage B $\Delta B / B < 0.001$), dynamic multi-tier QM routing, and air-gapped manifest serialization.
+4. Implement `Libraries/cochem_torq_hdf5_datamodule.py` with PyTorch Lightning DataModule lifecycle, `Subset` unwrapping, single-worker fallback, thread-safe SWMR worker initialization (`h5_worker_init_fn`), prime slot caching, and jagged graph batch collation.
+5. Implement `Libraries/cochem_torq_committee_ensemble.py` providing conservative energy-force aggregation, unbiased variance calculation, dynamic device dispatch, and sequential stream synchronization for VRAM safety.
+6. Implement `Libraries/cochem_torq_c2_cutoff.py` with quintic $C^2$-smooth switching envelope $f_c(r)$, exact analytical first derivative, spatial gradient, and tensorial Cartesian spatial Hessian matrix.
+7. Implement `Libraries/cochem_torq_gnn_debugger.py` providing forward/backward hooks, exploding gradient trap ($\|\mathbf{g}\|_2 > 10^3$), vanishing gradient alerts ($\|\mathbf{g}\|_2 < 10^{-7}$), and zero production overhead.
+8. Implement `Libraries/cochem_torq_pbc_graph.py` with crystal lattice fractional transformation, cyclic permutation interplanar spacing, strict self-image exclusion, and analytical symmetric unit cell virial stress calculation.
+9. Export all public classes, functions, and exceptions in `Libraries/__init__.py`.
+10. Author the complete, unmocked test suite under `tests/` utilizing the embedded physical coordinate fixtures:
+    - `tests/test_torq_active_learning.py`
+    - `tests/test_torq_hdf5_datamodule.py`
+    - `tests/test_torq_committee_ensemble.py`
+    - `tests/test_torq_c2_cutoff.py`
+    - `tests/test_torq_gnn_debugger.py`
+    - `tests/test_torq_pbc_graph.py`
+11. Execute `pytest tests/ -v` via `run_command` and confirm exit code 0 across all test suites.
 Modified files content:
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\__init__.py ---
@@ -1047,6 +2034,87 @@ from Libraries.cochem_torq_training_persistence import (
     worker_init_fn,
 )
 
+# Inference Errors (Chunk 18)
+from Libraries.cochem_torq_inference_errors import (
+    ActiveLearningSelectionError,
+    AirGapViolationError,
+    CutoffContinuityError,
+    EnsembleConsensusError,
+    GradientExplosionError,
+    HDF5DataModuleLockError,
+    PBCGraphError,
+    TorqInferenceError,
+    VanishingGradientWarning,
+)
+
+# Inference Schemas (Chunk 18)
+from Libraries.cochem_torq_inference_schemas import (
+    ActiveLearningOrchestratorConfig,
+    C2SmoothCutoffConfig,
+    ChunkedHDF5DataModuleConfig,
+    CommitteeEnsembleConfig,
+    GNNGradientDebuggerConfig,
+    PBCRadialGraphConfig,
+)
+
+# Active Learning (Chunk 18)
+from Libraries.cochem_torq_active_learning import (
+    ActiveLearningOrchestrator,
+    ActiveLearningState,
+    CandidateGeometry,
+    center_geometry_mass_weighted,
+    check_stage_b_rotational_redundancy,
+    compute_max_force_epistemic_std,
+    compute_qbc_energy_variance,
+    compute_rotational_constants,
+    kabsch_rmsd,
+    route_qm_tier,
+)
+
+# Chunked HDF5 DataModule (Chunk 18)
+from Libraries.cochem_torq_hdf5_datamodule import (
+    ChunkedHDF5DataModule,
+    ChunkedHDF5Dataset,
+    h5_worker_init_fn,
+    jagged_graph_collate,
+)
+
+# Committee Ensemble (Chunk 18)
+from Libraries.cochem_torq_committee_ensemble import (
+    CommitteeEnsemble,
+    CommitteePrediction,
+    compute_committee_moments,
+)
+
+# C^2-Smooth Cutoff (Chunk 18)
+from Libraries.cochem_torq_c2_cutoff import (
+    C2SmoothCutoff,
+    quintic_c2_envelope,
+    quintic_c2_first_derivative,
+    quintic_c2_second_derivative,
+    quintic_c2_spatial_gradient,
+    quintic_c2_spatial_hessian,
+    verify_cutoff_continuity,
+)
+
+# GNN Gradient Health Debugger (Chunk 18)
+from Libraries.cochem_torq_gnn_debugger import (
+    GNNGradientDebugger,
+)
+
+# PBC Radial Graph & Virial Stress (Chunk 18)
+from Libraries.cochem_torq_pbc_graph import (
+    PBCGraph,
+    PBCRadialGraphEngine,
+    build_pbc_radial_graph,
+    cartesian_to_fractional,
+    compute_cell_volume,
+    compute_hydrostatic_pressure,
+    compute_interplanar_spacings,
+    compute_virial_stress_tensor,
+    fractional_to_cartesian,
+)
+
 __all__ = [
     # Errors
     "CoChemError",
@@ -1063,6 +2131,16 @@ __all__ = [
     "OOMRecoveryError",
     "EquivarianceBreakError",
     "SchedulerDivergenceError",
+    # Inference Errors (Chunk 18)
+    "TorqInferenceError",
+    "ActiveLearningSelectionError",
+    "HDF5DataModuleLockError",
+    "EnsembleConsensusError",
+    "CutoffContinuityError",
+    "GradientExplosionError",
+    "VanishingGradientWarning",
+    "PBCGraphError",
+    "AirGapViolationError",
     # Schemas
     "TrainingDynamicsConfig",
     "TransferLearningConfig",
@@ -1073,6 +2151,13 @@ __all__ = [
     "ForceMatchingLossConfig",
     "DynamicBatchScalerConfig",
     "C2GraphPrunerConfig",
+    # Inference Schemas (Chunk 18)
+    "ActiveLearningOrchestratorConfig",
+    "ChunkedHDF5DataModuleConfig",
+    "CommitteeEnsembleConfig",
+    "C2SmoothCutoffConfig",
+    "GNNGradientDebuggerConfig",
+    "PBCRadialGraphConfig",
     # Masses
     "get_monoisotopic_mass",
     "get_monoisotopic_masses",
@@ -1144,11 +2229,1303 @@ __all__ = [
     "load_atomic_checkpoint",
     "save_atomic_checkpoint",
     "worker_init_fn",
+    # Active Learning (Chunk 18)
+    "ActiveLearningOrchestrator",
+    "ActiveLearningState",
+    "CandidateGeometry",
+    "compute_qbc_energy_variance",
+    "compute_max_force_epistemic_std",
+    "center_geometry_mass_weighted",
+    "compute_rotational_constants",
+    "kabsch_rmsd",
+    "check_stage_b_rotational_redundancy",
+    "route_qm_tier",
+    # Chunked HDF5 DataModule (Chunk 18)
+    "ChunkedHDF5DataModule",
+    "ChunkedHDF5Dataset",
+    "h5_worker_init_fn",
+    "jagged_graph_collate",
+    # Committee Ensemble (Chunk 18)
+    "CommitteeEnsemble",
+    "CommitteePrediction",
+    "compute_committee_moments",
+    # C^2-Smooth Cutoff (Chunk 18)
+    "C2SmoothCutoff",
+    "quintic_c2_envelope",
+    "quintic_c2_first_derivative",
+    "quintic_c2_second_derivative",
+    "quintic_c2_spatial_gradient",
+    "quintic_c2_spatial_hessian",
+    "verify_cutoff_continuity",
+    # GNN Debugger (Chunk 18)
+    "GNNGradientDebugger",
+    # PBC Radial Graph (Chunk 18)
+    "PBCGraph",
+    "PBCRadialGraphEngine",
+    "build_pbc_radial_graph",
+    "cartesian_to_fractional",
+    "fractional_to_cartesian",
+    "compute_cell_volume",
+    "compute_interplanar_spacings",
+    "compute_virial_stress_tensor",
+    "compute_hydrostatic_pressure",
 ]
 
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_training_errors.py ---
-"""Domain-specific typed exceptions for CoChem-TORQ Training Dynamics.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_active_learning.py ---
+"""Active Learning Orchestrator for dynamic QM selection, Kabsch RMSD, and air-gapped manifests.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic physics, dynamic Mendeleev masses, and air-gapped serialization.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+import numpy as np
+import torch
+
+from Libraries.cochem_torq_inference_errors import (
+    ActiveLearningSelectionError,
+    AirGapViolationError,
+)
+from Libraries.cochem_torq_inference_schemas import ActiveLearningOrchestratorConfig
+from Libraries.cochem_torq_masses import get_monoisotopic_mass
+
+
+class ActiveLearningState(str, Enum):
+    """Lifecycle state machine for active learning candidates. [M]"""
+
+    UNLABELED = "UNLABELED"
+    CANDIDATE_SELECTED = "CANDIDATE_SELECTED"
+    MANIFEST_EMITTED = "MANIFEST_EMITTED"
+    QM_COMPLETED = "QM_COMPLETED"
+    INGESTED = "INGESTED"
+
+
+@dataclass
+class CandidateGeometry:
+    """Authentic physical molecular geometry with committee uncertainty telemetry. [M]"""
+
+    candidate_id: str
+    coordinates: np.ndarray             # (N, 3) in Angstroms
+    atomic_numbers: List[int]           # (N,) atomic numbers Z
+    energy_variance: float              # sigma_E^2 in eV^2
+    max_force_std: float                # alpha_F^std in eV/Angstrom
+    rotational_constants: Tuple[float, float, float] # (A, B, C) in cm^-1
+    state: ActiveLearningState = ActiveLearningState.UNLABELED
+    assigned_tier: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+def compute_qbc_energy_variance(energies: Sequence[float]) -> float:
+    """Compute Query-by-Committee (QBC) unbiased energy sample variance. [D]
+    
+    sigma_E^2(X) = 1/(M-1) sum_m (E_m - E_mean)^2
+    """
+    m = len(energies)
+    if m < 2:
+        raise ActiveLearningSelectionError(
+            f"QBC energy variance requires at least 2 committee predictions, got M={m}.",
+            diagnostics={"num_models": m},
+        )
+    arr = np.asarray(energies, dtype=np.float64)
+    mean_e = np.mean(arr)
+    var_e = np.sum((arr - mean_e) ** 2) / float(m - 1)
+    return float(max(0.0, var_e))
+
+
+def compute_max_force_epistemic_std(forces: np.ndarray) -> float:
+    """Compute maximum atomic force epistemic standard deviation alpha_F^std in eV/Angstrom. [D]
+    
+    forces shape: (M, N, 3)
+    alpha_F^std = max_i sqrt( 1/(M-1) sum_m ||F_{i,m} - F_{i,mean}||_2^2 )
+    """
+    m, n, _ = forces.shape
+    if m < 2:
+        raise ActiveLearningSelectionError(
+            f"Force epistemic variance requires at least 2 committee predictions, got M={m}.",
+            diagnostics={"num_models": m},
+        )
+    mean_f = np.mean(forces, axis=0, keepdims=True) # (1, N, 3)
+    diff_f = forces - mean_f                        # (M, N, 3)
+    sq_norm = np.sum(diff_f ** 2, axis=-1)          # (M, N)
+    var_f = np.sum(sq_norm, axis=0) / float(m - 1)  # (N,)
+    stds = np.sqrt(np.maximum(0.0, var_f))          # (N,)
+    return float(np.max(stds))
+
+
+def center_geometry_mass_weighted(
+    coordinates: np.ndarray,
+    atomic_numbers: Sequence[int],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Compute Mendeleev mass-weighted center of mass and translate to origin. [M]/[D]
+    
+    Returns (centered_coords, com).
+    """
+    coords = np.asarray(coordinates, dtype=np.float64)
+    masses = np.array([get_monoisotopic_mass(int(z)) for z in atomic_numbers], dtype=np.float64)
+    total_mass = np.sum(masses)
+    if total_mass <= 1e-12:
+        raise ActiveLearningSelectionError("Total molecular mass must be strictly positive.")
+
+    com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass
+    centered = coords - com[np.newaxis, :]
+    return centered, com
+
+
+def compute_rotational_constants(
+    coordinates: np.ndarray,
+    atomic_numbers: Sequence[int],
+) -> Tuple[float, float, float]:
+    """Compute principal rotational constants (A, B, C) in cm^-1 via Mendeleev inertia tensor. [D]
+    
+    I_{alpha, beta} = sum_i m_i (||x'_i||^2 delta_{alpha, beta} - x'_{i, alpha} x'_{i, beta})
+    A = h / (8 pi^2 c I_A), B = h / (8 pi^2 c I_B), C = h / (8 pi^2 c I_C)
+    """
+    centered, _ = center_geometry_mass_weighted(coordinates, atomic_numbers)
+    masses = np.array([get_monoisotopic_mass(int(z)) for z in atomic_numbers], dtype=np.float64)
+
+    # Inertia tensor in u * Angstrom^2
+    inertia = np.zeros((3, 3), dtype=np.float64)
+    r2 = np.sum(centered ** 2, axis=1) # (N,)
+
+    for alpha in range(3):
+        for beta in range(3):
+            delta = 1.0 if alpha == beta else 0.0
+            inertia[alpha, beta] = np.sum(
+                masses * (delta * r2 - centered[:, alpha] * centered[:, beta])
+            )
+
+    # Diagonalize inertia tensor
+    eigvals = np.linalg.eigvalsh(inertia)
+    eigvals = np.sort(np.maximum(1e-12, eigvals))
+    ia, ib, ic = eigvals[0], eigvals[1], eigvals[2]
+
+    # Conversion factor from u * Angstrom^2 to cm^-1:
+    # h / (8 * pi^2 * c * 1.66053906660e-47 kg m^2) approx 16.8576292
+    h_c_factor = 16.857629204031
+    const_a = float(h_c_factor / ia)
+    const_b = float(h_c_factor / ib)
+    const_c = float(h_c_factor / ic)
+    return (const_a, const_b, const_c)
+
+
+def kabsch_rmsd(
+    coords_a: np.ndarray,
+    coords_b: np.ndarray,
+) -> float:
+    """Compute pairwise minimum root-mean-square deviation via Kabsch SVD in SO(3). [D]
+    
+    D_geom = sqrt( 1/N sum_i ||x_{a,i} - x_{b,i} R||_2^2 )
+    """
+    p = np.asarray(coords_a, dtype=np.float64)
+    q = np.asarray(coords_b, dtype=np.float64)
+    n = p.shape[0]
+
+    # Center both coordinates at centroid
+    p_c = p - np.mean(p, axis=0, keepdims=True)
+    q_c = q - np.mean(q, axis=0, keepdims=True)
+
+    # Covariance matrix H = p_c^T @ q_c
+    h = np.dot(p_c.T, q_c)
+    u, s, vt = np.linalg.svd(h)
+    v = vt.T
+
+    # Reflection determinant correction
+    d = np.linalg.det(np.dot(v, u.T))
+    s_mat = np.diag([1.0, 1.0, np.sign(d)])
+
+    # Optimal rotation matrix R in SO(3)
+    r = np.dot(np.dot(v, s_mat), u.T)
+
+    # Rotated q coordinates
+    q_rot = np.dot(q_c, r)
+    diff = p_c - q_rot
+    rmsd = np.sqrt(np.mean(np.sum(diff ** 2, axis=1)))
+    return float(rmsd)
+
+
+def check_stage_b_rotational_redundancy(
+    rot_a: Tuple[float, float, float],
+    rot_b: Tuple[float, float, float],
+    threshold: float = 0.001,
+) -> bool:
+    """Stage B relative rotational constant invariance check max(|Delta B| / B) < threshold. [M]"""
+    a_a, b_a, c_a = rot_a
+    a_b, b_b, c_b = rot_b
+
+    rel_a = abs(a_a - a_b) / max(1e-12, a_a)
+    rel_b = abs(b_a - b_b) / max(1e-12, b_a)
+    rel_c = abs(c_a - c_b) / max(1e-12, c_a)
+
+    max_rel = max(rel_a, rel_b, rel_c)
+    return max_rel < threshold
+
+
+def route_qm_tier(max_force_std: float) -> str:
+    """Route candidate dynamically based on epistemic force uncertainty severity. [M]
+    
+    - Moderate (0.05 < alpha_F <= 0.2 eV/A): Tier T3-10s GFN2-xTB
+    - High (0.2 < alpha_F <= 0.8 eV/A): Tier T3O-1h ORCA 6.0 omegaB97X-V/jun-cc-pVTZ
+    - Extreme (alpha_F > 0.8 eV/A): Tier T3O-12h Canonical junChS composite scheme
+    """
+    if max_force_std <= 0.20:
+        return "T3-10s"
+    elif max_force_std <= 0.80:
+        return "T3O-1h"
+    else:
+        return "T3O-12h"
+
+
+class ActiveLearningOrchestrator:
+    """Active Learning engine coordinating candidate acquisition, deduplication, and air-gapped manifests. [M]"""
+
+    def __init__(self, config: ActiveLearningOrchestratorConfig) -> None:
+        self.config = config
+        self.pool: List[CandidateGeometry] = []
+        self.selected_batch: List[CandidateGeometry] = []
+
+    def evaluate_pool(
+        self,
+        geometries: Sequence[np.ndarray],
+        atomic_numbers: Sequence[Sequence[int]],
+        committee_energies: Sequence[Sequence[float]],
+        committee_forces: Sequence[np.ndarray],
+        candidate_ids: Optional[Sequence[str]] = None,
+    ) -> List[CandidateGeometry]:
+        """Evaluate unlabeled pool and instantiate CandidateGeometry representations. [M]"""
+        p = len(geometries)
+        self.pool.clear()
+
+        for idx in range(p):
+            cid = candidate_ids[idx] if candidate_ids is not None else f"cand_{idx:04d}"
+            coords = np.asarray(geometries[idx], dtype=np.float64)
+            z = list(atomic_numbers[idx])
+            e_m = list(committee_energies[idx])
+            f_m = np.asarray(committee_forces[idx], dtype=np.float64)
+
+            var_e = compute_qbc_energy_variance(e_m)
+            max_f_std = compute_max_force_epistemic_std(f_m)
+            rot_consts = compute_rotational_constants(coords, z)
+
+            candidate = CandidateGeometry(
+                candidate_id=cid,
+                coordinates=coords,
+                atomic_numbers=z,
+                energy_variance=var_e,
+                max_force_std=max_f_std,
+                rotational_constants=rot_consts,
+                state=ActiveLearningState.UNLABELED,
+            )
+            self.pool.append(candidate)
+
+        return self.pool
+
+    def select_active_batch(self) -> List[CandidateGeometry]:
+        """Apply acquisition triggering and two-stage deduplication to assemble active batch. [M]"""
+        triggered: List[CandidateGeometry] = []
+
+        # 1. Acquisition Filter
+        th_f = self.config.force_uncertainty_threshold_ev_per_angstrom
+        th_e = self.config.energy_uncertainty_threshold_ev2_per_atom
+
+        for cand in self.pool:
+            n_atoms = len(cand.atomic_numbers)
+            per_atom_e_var = cand.energy_variance / float(max(1, n_atoms))
+
+            if cand.max_force_std > th_f or per_atom_e_var > th_e:
+                cand.state = ActiveLearningState.CANDIDATE_SELECTED
+                cand.assigned_tier = route_qm_tier(cand.max_force_std)
+                triggered.append(cand)
+
+        # 2. Sort descending by uncertainty score alpha_F^std
+        triggered.sort(key=lambda c: c.max_force_std, reverse=True)
+
+        # 3. Two-Stage Deduplication
+        rmsd_th = self.config.stage_a_rmsd_threshold_angstrom
+        rot_th = self.config.stage_b_rotational_threshold
+        capacity = self.config.batch_capacity_k
+
+        self.selected_batch.clear()
+
+        for cand in triggered:
+            is_redundant = False
+            for selected in self.selected_batch:
+                # Require identical chemical composition
+                if cand.atomic_numbers != selected.atomic_numbers:
+                    continue
+
+                # Stage A: Kabsch SVD RMSD
+                d_geom = kabsch_rmsd(cand.coordinates, selected.coordinates)
+                if d_geom < rmsd_th:
+                    is_redundant = True
+                    break
+
+                # Stage B: Rotational Constant Invariance
+                if check_stage_b_rotational_redundancy(
+                    cand.rotational_constants,
+                    selected.rotational_constants,
+                    threshold=rot_th,
+                ):
+                    is_redundant = True
+                    break
+
+            if not is_redundant:
+                self.selected_batch.append(cand)
+                if len(self.selected_batch) >= capacity:
+                    break
+
+        return self.selected_batch
+
+    def emit_air_gapped_manifest(
+        self,
+        manifest_filename: str = "active_learning_manifest.json",
+    ) -> Tuple[Path, str]:
+        """Atomically serialize selected structures into an air-gapped job manifest with SHA-256. [M]"""
+        staging_dir = Path(self.config.staging_manifest_dir)
+        staging_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_data = {
+            "version": "1.0.0",
+            "batch_capacity": self.config.batch_capacity_k,
+            "selected_count": len(self.selected_batch),
+            "candidates": [
+                {
+                    "candidate_id": c.candidate_id,
+                    "atomic_numbers": c.atomic_numbers,
+                    "coordinates": c.coordinates.tolist(),
+                    "energy_variance": c.energy_variance,
+                    "max_force_std": c.max_force_std,
+                    "assigned_tier": c.assigned_tier,
+                    "rotational_constants": list(c.rotational_constants),
+                    "state": ActiveLearningState.MANIFEST_EMITTED.value,
+                }
+                for c in self.selected_batch
+            ],
+        }
+
+        manifest_path = staging_dir / manifest_filename
+        tmp_path = staging_dir / f"{manifest_filename}.tmp"
+
+        payload_bytes = json.dumps(manifest_data, indent=2).encode("utf-8")
+        sha256_hash = hashlib.sha256(payload_bytes).hexdigest()
+
+        # Atomic serialization: write .tmp -> fsync -> replace
+        with open(tmp_path, "wb") as f:
+            f.write(payload_bytes)
+            f.flush()
+            os.fsync(f.fileno())
+
+        os.replace(tmp_path, manifest_path)
+
+        # Accompanying SHA-256 digest file
+        digest_path = manifest_path.with_suffix(manifest_path.suffix + ".sha256")
+        digest_path.write_text(f"{sha256_hash}  {manifest_path.name}\n", encoding="utf-8")
+
+        # Update candidate state transitions
+        for c in self.selected_batch:
+            c.state = ActiveLearningState.MANIFEST_EMITTED
+
+        return manifest_path, sha256_hash
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_c2_cutoff.py ---
+"""C^2-smooth quintic switching cutoff function for continuous forces and Hessians.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic analytical calculus and autograd parity.
+"""
+
+from __future__ import annotations
+
+from typing import Optional, Tuple
+import torch
+import torch.nn as nn
+
+from Libraries.cochem_torq_inference_errors import CutoffContinuityError
+from Libraries.cochem_torq_inference_schemas import C2SmoothCutoffConfig
+
+
+def quintic_c2_envelope(distances: torch.Tensor, rc: float = 5.0) -> torch.Tensor:
+    """Evaluate quintic C^2 switching envelope f_c(r) on interatomic distances. [M]/[D]
+    
+    f_c(r) = 1 - 10*u^3 + 15*u^4 - 6*u^5  for r <= rc (where u = r / rc)
+    f_c(r) = 0                             for r > rc
+    """
+    if rc <= 0.0:
+        raise CutoffContinuityError(
+            f"Cutoff radius rc={rc} must be strictly positive.",
+            diagnostics={"rc": rc},
+        )
+    u = torch.clamp(distances / rc, min=0.0)
+    poly = 1.0 - 10.0 * (u ** 3) + 15.0 * (u ** 4) - 6.0 * (u ** 5)
+    return torch.where(distances <= rc, poly, torch.zeros_like(distances))
+
+
+def quintic_c2_first_derivative(distances: torch.Tensor, rc: float = 5.0) -> torch.Tensor:
+    """Evaluate exact analytical first radial derivative df_c/dr. [D]
+    
+    df_c/dr = -(30/rc) * u^2 * (1 - u)^2  for r <= rc (where u = r / rc)
+    df_c/dr = 0                            for r > rc
+    """
+    if rc <= 0.0:
+        raise CutoffContinuityError(
+            f"Cutoff radius rc={rc} must be strictly positive.",
+            diagnostics={"rc": rc},
+        )
+    u = torch.clamp(distances / rc, min=0.0)
+    dpoly = -(30.0 / rc) * (u ** 2) * ((1.0 - u) ** 2)
+    return torch.where(distances <= rc, dpoly, torch.zeros_like(distances))
+
+
+def quintic_c2_second_derivative(distances: torch.Tensor, rc: float = 5.0) -> torch.Tensor:
+    """Evaluate exact analytical second radial derivative d^2f_c/dr^2. [D]
+    
+    d^2f_c/dr^2 = -(60/rc^2) * u * (1 - u) * (1 - 2*u)  for r <= rc
+    d^2f_c/dr^2 = 0                                       for r > rc
+    """
+    if rc <= 0.0:
+        raise CutoffContinuityError(
+            f"Cutoff radius rc={rc} must be strictly positive.",
+            diagnostics={"rc": rc},
+        )
+    u = torch.clamp(distances / rc, min=0.0)
+    d2poly = -(60.0 / (rc ** 2)) * u * (1.0 - u) * (1.0 - 2.0 * u)
+    return torch.where(distances <= rc, d2poly, torch.zeros_like(distances))
+
+
+def quintic_c2_spatial_gradient(
+    r_i: torch.Tensor,
+    r_j: torch.Tensor,
+    rc: float = 5.0,
+) -> torch.Tensor:
+    """Compute exact analytical spatial gradient with respect to Cartesian coordinates r_i. [D]
+    
+    r_ij = r_j - r_i
+    grad_{r_i} f_c(r_ij) = (df_c/dr) * (r_i - r_j) / r_ij = - (df_c/dr) * (r_ij / r_ij)
+    """
+    r_ij = r_j - r_i  # (..., 3)
+    dist = torch.norm(r_ij, dim=-1, keepdim=True)  # (..., 1)
+    df_dr = quintic_c2_first_derivative(dist, rc=rc)  # (..., 1)
+
+    # Handle singular r_ij = 0
+    safe_dist = torch.clamp(dist, min=1e-12)
+    grad = df_dr * (-r_ij / safe_dist)
+    # Mask where distance is zero or greater than rc
+    mask = (dist > 1e-12) & (dist <= rc)
+    return torch.where(mask, grad, torch.zeros_like(grad))
+
+
+def quintic_c2_spatial_hessian(
+    r_i: torch.Tensor,
+    r_j: torch.Tensor,
+    rc: float = 5.0,
+) -> torch.Tensor:
+    """Compute exact analytical 3x3 Cartesian spatial Hessian with respect to r_i. [D]
+    
+    H_{alpha, beta} = (d^2f_c/dr^2) * (r_{ij, alpha} * r_{ij, beta} / r^2)
+                    + (df_c/dr) * (delta_{alpha, beta} / r - r_{ij, alpha} * r_{ij, beta} / r^3)
+    """
+    r_ij = r_j - r_i  # (..., 3)
+    dist = torch.norm(r_ij, dim=-1, keepdim=True)  # (..., 1)
+    
+    d2f = quintic_c2_second_derivative(dist, rc=rc)  # (..., 1)
+    df = quintic_c2_first_derivative(dist, rc=rc)    # (..., 1)
+
+    safe_dist = torch.clamp(dist, min=1e-12)
+    safe_r2 = safe_dist ** 2
+    safe_r3 = safe_dist ** 3
+
+    # Outer product r_ij * r_ij^T -> (..., 3, 3)
+    outer = torch.matmul(r_ij.unsqueeze(-1), r_ij.unsqueeze(-2))  # (..., 3, 3)
+    eye = torch.eye(3, dtype=r_i.dtype, device=r_i.device)
+    while eye.ndim < outer.ndim:
+        eye = eye.unsqueeze(0)
+
+    term1 = d2f.unsqueeze(-1) * (outer / safe_r2.unsqueeze(-1))
+    term2 = df.unsqueeze(-1) * (eye / safe_dist.unsqueeze(-1) - outer / safe_r3.unsqueeze(-1))
+    hessian = term1 + term2
+
+    mask = (dist > 1e-12) & (dist <= rc)
+    return torch.where(mask.unsqueeze(-1), hessian, torch.zeros_like(hessian))
+
+
+def verify_cutoff_continuity(rc: float = 5.0, tolerance: float = 1e-7) -> bool:
+    """Verify strict C^2 boundary continuity at r = rc within numerical tolerance. [D]"""
+    if rc <= 0.0:
+        raise CutoffContinuityError(
+            f"Cutoff boundary rc={rc} must be strictly positive.",
+            diagnostics={"rc": rc},
+        )
+    rc_tensor = torch.tensor([rc], dtype=torch.float64)
+    val = float(quintic_c2_envelope(rc_tensor, rc=rc)[0])
+    d1 = float(quintic_c2_first_derivative(rc_tensor, rc=rc)[0])
+    d2 = float(quintic_c2_second_derivative(rc_tensor, rc=rc)[0])
+
+    if abs(val) > tolerance:
+        raise CutoffContinuityError(
+            f"Cutoff value at boundary f_c(rc)={val} exceeds tolerance {tolerance}",
+            diagnostics={"f_c": val, "rc": rc, "tolerance": tolerance},
+        )
+    if abs(d1) > tolerance:
+        raise CutoffContinuityError(
+            f"Cutoff first derivative at boundary df_c/dr(rc)={d1} exceeds tolerance {tolerance}",
+            diagnostics={"df_c": d1, "rc": rc, "tolerance": tolerance},
+        )
+    if abs(d2) > tolerance:
+        raise CutoffContinuityError(
+            f"Cutoff second derivative at boundary d2f_c/dr2(rc)={d2} exceeds tolerance {tolerance}",
+            diagnostics={"d2f_c": d2, "rc": rc, "tolerance": tolerance},
+        )
+    return True
+
+
+class C2SmoothCutoff(nn.Module):
+    """PyTorch Module encapsulating C^2-smooth quintic radial cutoff envelope. [M]/[D]"""
+
+    def __init__(
+        self,
+        config: Optional[C2SmoothCutoffConfig] = None,
+        cutoff_radius_rc: Optional[float] = None,
+    ) -> None:
+        super().__init__()
+        if config is not None:
+            self.rc = float(config.cutoff_radius_rc)
+        elif cutoff_radius_rc is not None:
+            self.rc = float(cutoff_radius_rc)
+        else:
+            self.rc = 5.0
+
+        if self.rc <= 0.0:
+            raise CutoffContinuityError(
+                f"Cutoff radius rc={self.rc} must be strictly positive.",
+                diagnostics={"rc": self.rc},
+            )
+
+    def forward(self, distances: torch.Tensor) -> torch.Tensor:
+        """Forward pass evaluating f_c(r). [M]"""
+        return quintic_c2_envelope(distances, rc=self.rc)
+
+    def compute_radial_derivatives(
+        self, distances: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return (f_c, df_c/dr, d^2f_c/dr^2). [D]"""
+        fc = quintic_c2_envelope(distances, rc=self.rc)
+        d1 = quintic_c2_first_derivative(distances, rc=self.rc)
+        d2 = quintic_c2_second_derivative(distances, rc=self.rc)
+        return fc, d1, d2
+
+    def compute_spatial_gradient(
+        self, r_i: torch.Tensor, r_j: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute spatial gradient with respect to r_i. [D]"""
+        return quintic_c2_spatial_gradient(r_i, r_j, rc=self.rc)
+
+    def compute_spatial_hessian(
+        self, r_i: torch.Tensor, r_j: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute Cartesian 3x3 spatial Hessian with respect to r_i. [D]"""
+        return quintic_c2_spatial_hessian(r_i, r_j, rc=self.rc)
+
+    def verify_continuity(self, tolerance: float = 1e-7) -> bool:
+        """Verify boundary continuity for configured rc. [D]"""
+        return verify_cutoff_continuity(rc=self.rc, tolerance=tolerance)
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_committee_ensemble.py ---
+"""Committee Model (Ensemble) Wrapper for conservative forces and epistemic uncertainty.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic autograd mechanics, unbiased variance, and stream safety.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, List, Optional, Sequence
+import torch
+import torch.nn as nn
+
+from Libraries.cochem_torq_inference_errors import EnsembleConsensusError
+from Libraries.cochem_torq_inference_schemas import CommitteeEnsembleConfig
+
+
+@dataclass(frozen=True)
+class CommitteePrediction:
+    """Immutable data container for aggregated committee inference outputs. [M]"""
+
+    mean_energy: torch.Tensor             # (B,) or scalar energy
+    mean_forces: torch.Tensor             # (N, 3) or (B, N, 3) conservative forces
+    energy_variance: torch.Tensor         # (B,) or scalar unbiased sample variance
+    per_atom_force_variance: torch.Tensor # (N,) or (B, N) per-atom force variance
+    max_force_std: float                  # Scalar max epistemic force std across atoms
+    model_energies: torch.Tensor          # (M, ...) individual model energies
+    model_forces: torch.Tensor            # (M, N, 3) individual model forces
+
+
+def compute_committee_moments(
+    energies: torch.Tensor,
+    forces: torch.Tensor,
+) -> CommitteePrediction:
+    """Compute unbiased sample mean, energy variance, and per-atom force epistemic variance. [D]
+    
+    energies: (M,) or (M, B)
+    forces: (M, N, 3) or (M, B, N, 3)
+    """
+    m = energies.shape[0]
+    if m < 2:
+        raise EnsembleConsensusError(
+            f"Committee ensemble requires at least 2 models for variance estimation, got M={m}.",
+            diagnostics={"num_models": m},
+        )
+    if forces.shape[0] != m:
+        raise EnsembleConsensusError(
+            f"Mismatched ensemble model count: energies has M={m}, forces has M={forces.shape[0]}.",
+            diagnostics={"energies_M": m, "forces_M": forces.shape[0]},
+        )
+
+    # 1. Conservative Energy and Force Means
+    mean_e = torch.mean(energies, dim=0) # (B,) or scalar
+    mean_f = torch.mean(forces, dim=0)   # (N, 3)
+
+    # 2. Unbiased Sample Variance of Energy: 1/(M-1) sum_m (E_m - E_mean)^2
+    e_diff = energies - mean_e.unsqueeze(0)
+    e_var = torch.sum(e_diff ** 2, dim=0) / float(m - 1)
+
+    # 3. Per-atom Force Epistemic Variance: 1/(3*(M-1)) sum_m ||F_{i,m} - F_{i,mean}||_2^2
+    # forces: (M, N, 3) -> f_diff: (M, N, 3)
+    f_diff = forces - mean_f.unsqueeze(0)
+    # Norm squared over Cartesian coordinates (dim=-1)
+    f_sq_norm = torch.sum(f_diff ** 2, dim=-1) # (M, N)
+    # Sum over models and divide by 3*(M-1)
+    atom_f_var = torch.sum(f_sq_norm, dim=0) / float(3.0 * (m - 1)) # (N,)
+
+    # 4. Maximum Atomic Force Epistemic Standard Deviation:
+    # alpha_F^{std} = max_i sqrt( 1/(M-1) sum_m ||F_{i,m} - F_{i,mean}||_2^2 )
+    atom_f_sum = torch.sum(f_sq_norm, dim=0) / float(m - 1) # (N,)
+    atom_f_std = torch.sqrt(torch.clamp(atom_f_sum, min=0.0))
+    max_f_std = float(torch.max(atom_f_std).item())
+
+    return CommitteePrediction(
+        mean_energy=mean_e,
+        mean_forces=mean_f,
+        energy_variance=e_var,
+        per_atom_force_variance=atom_f_var,
+        max_force_std=max_f_std,
+        model_energies=energies,
+        model_forces=forces,
+    )
+
+
+class CommitteeEnsemble(nn.Module):
+    """Ensemble wrapper coordinating M independent potential models with VRAM safeguards. [M]/[D]"""
+
+    def __init__(
+        self,
+        models: Sequence[nn.Module],
+        config: Optional[CommitteeEnsembleConfig] = None,
+    ) -> None:
+        super().__init__()
+        if len(models) < 2:
+            raise EnsembleConsensusError(
+                f"Committee requires at least 2 potential models, got {len(models)}.",
+                diagnostics={"num_models": len(models)},
+            )
+        self.models = nn.ModuleList(models)
+        self.config = config or CommitteeEnsembleConfig(num_models_m=len(models))
+        self.num_models = len(models)
+
+    def forward(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Evaluate ensemble forward passes with sequential micro-batching and stream synchronization. [D]"""
+        energies_list: List[torch.Tensor] = []
+        forces_list: List[torch.Tensor] = []
+
+        max_concurrent = max(1, self.config.max_concurrent_models_vram)
+        is_cuda = torch.cuda.is_available()
+
+        for idx, model in enumerate(self.models):
+            # Model forward call
+            out = model(*args, **kwargs)
+            if isinstance(out, tuple):
+                e_m, f_m = out[0], out[1]
+            elif isinstance(out, dict):
+                e_m, f_m = out["energy"], out["forces"]
+            else:
+                raise EnsembleConsensusError(
+                    f"Model {idx} output type {type(out)} is not supported. Expected (energy, forces) tuple or dict.",
+                    diagnostics={"model_index": idx, "out_type": str(type(out))},
+                )
+
+            energies_list.append(e_m)
+            forces_list.append(f_m)
+
+            # Stream synchronization at micro-batch boundaries or when enabled
+            if is_cuda and self.config.synchronize_cuda_streams:
+                if (idx + 1) % max_concurrent == 0 or (idx + 1) == self.num_models:
+                    torch.cuda.synchronize()
+
+        all_energies = torch.stack(energies_list, dim=0) # (M, ...)
+        all_forces = torch.stack(forces_list, dim=0)     # (M, N, 3)
+
+        return compute_committee_moments(all_energies, all_forces)
+
+    def predict(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Alias for forward evaluation. [M]"""
+        return self.forward(*args, **kwargs)
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_gnn_debugger.py ---
+"""Message-passing GNN gradient health debugger and numerical anomaly detector.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic hook mechanics, gradient norm tracking, and traps.
+"""
+
+from __future__ import annotations
+
+from contextlib import contextmanager
+from typing import Any, Dict, Generator, List, Optional
+import warnings
+import torch
+import torch.nn as nn
+from torch.utils.hooks import RemovableHandle
+
+from Libraries.cochem_torq_inference_errors import (
+    GradientExplosionError,
+    VanishingGradientWarning,
+)
+from Libraries.cochem_torq_inference_schemas import GNNGradientDebuggerConfig
+
+
+class GNNGradientDebugger:
+    """Non-intrusive diagnostic probe monitoring activations and gradients across GNN layers. [D]"""
+
+    def __init__(self, config: Optional[GNNGradientDebuggerConfig] = None) -> None:
+        self.config = config or GNNGradientDebuggerConfig()
+        self.handles: List[RemovableHandle] = []
+        self.activation_norms: Dict[str, float] = {}
+        self.gradient_norms: Dict[str, float] = {}
+        self.gradient_history: Dict[str, List[float]] = {}
+        self.consecutive_vanishing_count: int = 0
+        self.attached_model: Optional[nn.Module] = None
+
+    def reset(self) -> None:
+        """Reset internal telemetry and gradient tracking states. [M]"""
+        self.activation_norms.clear()
+        self.gradient_norms.clear()
+        self.gradient_history.clear()
+        self.consecutive_vanishing_count = 0
+
+    def detach(self) -> None:
+        """Remove all active forward and backward hooks from monitored module. [M]"""
+        for handle in self.handles:
+            handle.remove()
+        self.handles.clear()
+        self.attached_model = None
+
+    def _forward_hook(self, name: str, module: nn.Module, inputs: Any, output: Any) -> None:
+        """Forward hook tracking node activation norms and numerical stability. [D]"""
+        if not self.config.enabled:
+            return
+
+        tensors = []
+        if isinstance(output, torch.Tensor):
+            tensors.append(output)
+        elif isinstance(output, (tuple, list)):
+            tensors.extend([t for t in output if isinstance(t, torch.Tensor)])
+
+        for idx, tensor in enumerate(tensors):
+            if torch.isnan(tensor).any() or torch.isinf(tensor).any():
+                raise GradientExplosionError(
+                    f"NaN or Inf detected in forward activations of layer '{name}' (subtensor {idx}).",
+                    diagnostics={"layer": name, "subtensor_idx": idx},
+                )
+            norm = float(torch.norm(tensor.detach()).item())
+            self.activation_norms[f"{name}.out_{idx}"] = norm
+
+    def _backward_hook(
+        self, name: str, module: nn.Module, grad_input: Any, grad_output: Any
+    ) -> None:
+        """Backward hook tracking layer gradient norms, vanishing trends, and explosion traps. [D]"""
+        if not self.config.enabled:
+            return
+
+        tensors = []
+        if isinstance(grad_output, torch.Tensor):
+            tensors.append(grad_output)
+        elif isinstance(grad_output, (tuple, list)):
+            tensors.extend([t for t in grad_output if isinstance(t, torch.Tensor)])
+
+        for idx, grad in enumerate(tensors):
+            if grad is None:
+                continue
+            if torch.isnan(grad).any() or torch.isinf(grad).any():
+                raise GradientExplosionError(
+                    f"NaN or Inf detected in backward gradients of layer '{name}' (grad {idx}).",
+                    diagnostics={"layer": name, "grad_idx": idx},
+                )
+            norm = float(torch.norm(grad.detach()).item())
+            key = f"{name}.grad_{idx}"
+            self.gradient_norms[key] = norm
+            if key not in self.gradient_history:
+                self.gradient_history[key] = []
+            self.gradient_history[key].append(norm)
+
+            # Exploding gradient trap
+            if norm > self.config.exploding_grad_threshold:
+                raise GradientExplosionError(
+                    f"Gradient norm {norm:.3e} exceeds explosion threshold "
+                    f"{self.config.exploding_grad_threshold:.3e} in layer '{name}'.",
+                    diagnostics={
+                        "layer": name,
+                        "grad_norm": norm,
+                        "threshold": self.config.exploding_grad_threshold,
+                    },
+                )
+
+            # Vanishing gradient warning tracker
+            if norm < self.config.vanishing_grad_threshold:
+                self.consecutive_vanishing_count += 1
+                if self.consecutive_vanishing_count >= self.config.consecutive_vanishing_blocks:
+                    warnings.warn(
+                        f"GNN gradient vanishing alert: norm {norm:.3e} < {self.config.vanishing_grad_threshold:.3e} "
+                        f"sustained across {self.consecutive_vanishing_count} layers in '{name}'.",
+                        category=VanishingGradientWarning,
+                        stacklevel=2,
+                    )
+            else:
+                self.consecutive_vanishing_count = 0
+
+    def _param_hook(self, param_name: str, grad: torch.Tensor) -> None:
+        """Parameter tensor gradient hook for direct parameter gradient tracking. [D]"""
+        if not self.config.enabled:
+            return
+        if torch.isnan(grad).any() or torch.isinf(grad).any():
+            raise GradientExplosionError(
+                f"NaN or Inf detected in gradient of parameter '{param_name}'.",
+                diagnostics={"param": param_name},
+            )
+        norm = float(torch.norm(grad.detach()).item())
+        self.gradient_norms[f"param.{param_name}"] = norm
+        if norm > self.config.exploding_grad_threshold:
+            raise GradientExplosionError(
+                f"Parameter gradient norm {norm:.3e} exceeds explosion threshold "
+                f"{self.config.exploding_grad_threshold:.3e} in parameter '{param_name}'.",
+                diagnostics={
+                    "param": param_name,
+                    "grad_norm": norm,
+                    "threshold": self.config.exploding_grad_threshold,
+                },
+            )
+
+    def attach(self, model: nn.Module) -> None:
+        """Attach forward and full-backward hooks to all submodules and parameter tensors. [M]"""
+        self.detach()
+        self.reset()
+        self.attached_model = model
+
+        if not self.config.enabled:
+            return
+
+        for name, submodule in model.named_modules():
+            # Skip the root container if it has children
+            if list(submodule.children()):
+                continue
+
+            f_handle = submodule.register_forward_hook(
+                lambda m, inp, out, n=name: self._forward_hook(n, m, inp, out)
+            )
+            self.handles.append(f_handle)
+
+            b_handle = submodule.register_full_backward_hook(
+                lambda m, gi, go, n=name: self._backward_hook(n, m, gi, go)
+            )
+            self.handles.append(b_handle)
+
+        for param_name, param in model.named_parameters():
+            if param.requires_grad:
+                p_handle = param.register_hook(
+                    lambda grad, pn=param_name: self._param_hook(pn, grad)
+                )
+                self.handles.append(p_handle)
+
+    @contextmanager
+    def probe(self, model: nn.Module) -> Generator["GNNGradientDebugger", None, None]:
+        """Context manager providing scoped monitoring with guaranteed cleanup upon exit. [M]"""
+        self.attach(model)
+        try:
+            yield self
+        finally:
+            self.detach()
+
+    def get_activation_norms(self) -> Dict[str, float]:
+        """Return recorded forward activation norms. [M]"""
+        return dict(self.activation_norms)
+
+    def get_gradient_norms(self) -> Dict[str, float]:
+        """Return recorded backward gradient norms. [M]"""
+        return dict(self.gradient_norms)
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_hdf5_datamodule.py ---
+"""Chunked HDF5 PyTorch Lightning DataModule with SWMR concurrency and jagged graph collation.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic IO, worker isolation, and jagged batch assembly.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+from pathlib import Path
+import sys
+from typing import Any, Dict, List, Optional, Tuple, Union
+import h5py
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from torch.utils.data import DataLoader, Dataset, Subset
+
+from Libraries.cochem_torq_inference_errors import HDF5DataModuleLockError
+from Libraries.cochem_torq_inference_schemas import ChunkedHDF5DataModuleConfig
+
+
+def h5_worker_init_fn(worker_id: int) -> None:
+    """Worker initialization hook ensuring each subprocess instantiates an isolated HDF5 handle. [M]"""
+    worker_info = torch.utils.data.get_worker_info()
+    if worker_info is not None:
+        raw_dataset = worker_info.dataset
+        root_ds = getattr(raw_dataset, "dataset", raw_dataset)
+        is_posix = sys.platform != "win32"
+        use_locking = (
+            os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+        )
+        enable_swmr = is_posix and use_locking
+        cache_bytes = getattr(root_ds, "chunk_cache_bytes", 16 * 1024 * 1024)
+        cache_slots = getattr(root_ds, "chunk_cache_slots", 10007)
+
+        root_ds.handle = h5py.File(
+            str(root_ds.h5_path),
+            mode="r",
+            swmr=enable_swmr,
+            libver="latest" if enable_swmr else "earliest",
+            rdcc_nbytes=cache_bytes,
+            rdcc_nslots=cache_slots,
+        )
+
+
+def jagged_graph_collate(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Collate variable-sized molecular graphs into a unified contiguous batch representation. [D]
+    
+    Constructs:
+    - Node batch vector b in {0 ... B-1}^{sum N_k}
+    - Shifted edge index e'_k = e_k + sum_{j < k} N_j concatenated into shape (2, sum E_k)
+    - Concatenated coordinates, atomic numbers, and forces
+    - Stacked energies
+    """
+    if not batch:
+        return {}
+
+    b_size = len(batch)
+    coords_list: List[torch.Tensor] = []
+    z_list: List[torch.Tensor] = []
+    energy_list: List[torch.Tensor] = []
+    forces_list: List[torch.Tensor] = []
+    shifted_edges: List[torch.Tensor] = []
+    batch_ptrs: List[torch.Tensor] = []
+
+    cumulative_nodes = 0
+
+    for graph_idx, sample in enumerate(batch):
+        coords = sample["coordinates"]
+        if isinstance(coords, np.ndarray):
+            coords = torch.from_numpy(coords)
+        coords = coords.to(dtype=torch.float32)
+
+        z = sample["atomic_numbers"]
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z)
+        z = z.to(dtype=torch.int64)
+
+        energy = sample["energy"]
+        if isinstance(energy, (float, int, np.number)):
+            energy = torch.tensor(float(energy), dtype=torch.float64)
+        elif isinstance(energy, np.ndarray):
+            energy = torch.from_numpy(energy).to(dtype=torch.float64)
+        elif isinstance(energy, torch.Tensor):
+            energy = energy.to(dtype=torch.float64)
+
+        forces = sample["forces"]
+        if isinstance(forces, np.ndarray):
+            forces = torch.from_numpy(forces)
+        forces = forces.to(dtype=torch.float32)
+
+        edge_index = sample.get("edge_index", None)
+        if edge_index is not None:
+            if isinstance(edge_index, np.ndarray):
+                edge_index = torch.from_numpy(edge_index)
+            edge_index = edge_index.to(dtype=torch.int64)
+
+        n_atoms = coords.shape[0]
+        coords_list.append(coords)
+        z_list.append(z)
+        energy_list.append(energy.view(-1))
+        forces_list.append(forces)
+
+        # Batch assignment pointer b_i = graph_idx
+        b_vec = torch.full((n_atoms,), graph_idx, dtype=torch.int64)
+        batch_ptrs.append(b_vec)
+
+        # Shift edge index
+        if edge_index is not None and edge_index.numel() > 0:
+            shifted_edges.append(edge_index + cumulative_nodes)
+
+        cumulative_nodes += n_atoms
+
+    out_coords = torch.cat(coords_list, dim=0)
+    out_z = torch.cat(z_list, dim=0)
+    out_energy = torch.cat(energy_list, dim=0)
+    out_forces = torch.cat(forces_list, dim=0)
+    out_batch = torch.cat(batch_ptrs, dim=0)
+
+    if shifted_edges:
+        out_edge_index = torch.cat(shifted_edges, dim=1)
+    else:
+        out_edge_index = torch.empty((2, 0), dtype=torch.int64)
+
+    return {
+        "coordinates": out_coords,
+        "atomic_numbers": out_z,
+        "energy": out_energy,
+        "forces": out_forces,
+        "edge_index": out_edge_index,
+        "batch": out_batch,
+        "num_graphs": b_size,
+        "num_nodes": cumulative_nodes,
+    }
+
+
+class ChunkedHDF5Dataset(Dataset):
+    """Authentic HDF5 dataset reader supporting both group-based and array-based chunked schemas. [M]"""
+
+    def __init__(
+        self,
+        h5_path: Union[str, Path],
+        chunk_cache_bytes: int = 16 * 1024 * 1024,
+        chunk_cache_slots: int = 10007,
+    ) -> None:
+        self.h5_path = Path(h5_path)
+        self.chunk_cache_bytes = chunk_cache_bytes
+        self.chunk_cache_slots = chunk_cache_slots
+        self.handle: Optional[h5py.File] = None
+        self._len: Optional[int] = None
+        self._is_group_format: Optional[bool] = None
+
+        if not self.h5_path.exists():
+            raise FileNotFoundError(f"HDF5 dataset not found: {self.h5_path}")
+
+        # Quick inspection of length in main process
+        with h5py.File(str(self.h5_path), mode="r") as f:
+            if "coordinates" in f:
+                self._is_group_format = False
+                self._len = len(f["coordinates"])
+            else:
+                self._is_group_format = True
+                self._len = len([k for k in f.keys() if k.startswith("mol_") or k.startswith("sample_")])
+
+    def _open_handle(self) -> h5py.File:
+        """Lazily instantiate thread-safe HDF5 handle in worker or main process. [D]"""
+        if self.handle is None:
+            is_posix = sys.platform != "win32"
+            use_locking = (
+                os.environ.get("HDF5_USE_FILE_LOCKING", "TRUE").upper() != "FALSE"
+            )
+            enable_swmr = is_posix and use_locking
+            self.handle = h5py.File(
+                str(self.h5_path),
+                mode="r",
+                swmr=enable_swmr,
+                libver="latest" if enable_swmr else "earliest",
+                rdcc_nbytes=self.chunk_cache_bytes,
+                rdcc_nslots=self.chunk_cache_slots,
+            )
+        return self.handle
+
+    def __len__(self) -> int:
+        if self._len is not None:
+            return self._len
+        h5 = self._open_handle()
+        if "coordinates" in h5:
+            self._len = len(h5["coordinates"])
+        else:
+            self._len = len([k for k in h5.keys() if k.startswith("mol_") or k.startswith("sample_")])
+        return self._len
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        h5 = self._open_handle()
+        if not self._is_group_format and "coordinates" in h5:
+            coords = torch.from_numpy(h5["coordinates"][idx]).float()
+            z = torch.from_numpy(h5["atomic_numbers"][idx]).long()
+            energy = float(h5["energy"][idx])
+            forces = torch.from_numpy(h5["forces"][idx]).float()
+            if "edge_index" in h5:
+                edge_index = torch.from_numpy(h5["edge_index"][idx]).long()
+            else:
+                edge_index = torch.empty((2, 0), dtype=torch.int64)
+        else:
+            key = f"sample_{idx}" if f"sample_{idx}" in h5 else f"mol_{idx}"
+            grp = h5[key]
+            coords = torch.from_numpy(grp["coordinates"][()]).float()
+            z = torch.from_numpy(grp["atomic_numbers"][()]).long()
+            energy = float(grp["energy"][()])
+            forces = torch.from_numpy(grp["forces"][()]).float()
+            if "edge_index" in grp:
+                edge_index = torch.from_numpy(grp["edge_index"][()]).long()
+            else:
+                edge_index = torch.empty((2, 0), dtype=torch.int64)
+
+        return {
+            "coordinates": coords,
+            "atomic_numbers": z,
+            "energy": energy,
+            "forces": forces,
+            "edge_index": edge_index,
+        }
+
+    def close(self) -> None:
+        """Close open file handle cleanly. [M]"""
+        if self.handle is not None:
+            try:
+                self.handle.close()
+            except Exception:
+                self.handle = None
+            self.handle = None
+
+
+class ChunkedHDF5DataModule(pl.LightningDataModule):
+    """PyTorch Lightning DataModule orchestrating partitioned HDF5 ingestion with SWMR safety. [M]"""
+
+    def __init__(self, config: ChunkedHDF5DataModuleConfig) -> None:
+        super().__init__()
+        self.config = config
+        self.dataset: Optional[ChunkedHDF5Dataset] = None
+        self.train_dataset: Optional[Subset] = None
+        self.val_dataset: Optional[Subset] = None
+        self.test_dataset: Optional[Subset] = None
+
+    def prepare_data(self) -> None:
+        """Verify dataset presence and SHA-256 integrity without allocating memory in parent. [M]"""
+        path = self.config.h5_path
+        if not path.exists():
+            raise FileNotFoundError(f"Configured HDF5 path does not exist: {path}")
+
+        # Check for matching .sha256 digest file
+        digest_path = path.with_suffix(path.suffix + ".sha256")
+        if digest_path.exists():
+            expected_hash = digest_path.read_text().strip().split()[0]
+            sha = hashlib.sha256()
+            with open(path, "rb") as f:
+                while chunk := f.read(65536):
+                    sha.update(chunk)
+            computed_hash = sha.hexdigest()
+            if computed_hash.lower() != expected_hash.lower():
+                raise HDF5DataModuleLockError(
+                    f"HDF5 checksum mismatch: expected {expected_hash}, computed {computed_hash}.",
+                    diagnostics={"h5_path": str(path), "expected": expected_hash, "computed": computed_hash},
+                )
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        """Partition index offsets into deterministic train, val, and test Subset splits. [M]"""
+        self.dataset = ChunkedHDF5Dataset(
+            h5_path=self.config.h5_path,
+            chunk_cache_bytes=self.config.chunk_cache_bytes,
+            chunk_cache_slots=self.config.chunk_cache_slots,
+        )
+
+        total = len(self.dataset)
+        splits = self.config.train_val_test_split
+
+        n_train = int(total * splits[0])
+        n_val = int(total * splits[1])
+        n_test = total - n_train - n_val
+
+        generator = torch.Generator().manual_seed(42)
+        indices = torch.randperm(total, generator=generator).tolist()
+
+        train_idx = indices[:n_train]
+        val_idx = indices[n_train : n_train + n_val]
+        test_idx = indices[n_train + n_val :]
+
+        self.train_dataset = Subset(self.dataset, train_idx)
+        self.val_dataset = Subset(self.dataset, val_idx)
+        self.test_dataset = Subset(self.dataset, test_idx)
+
+    def train_dataloader(self) -> DataLoader:
+        """Return configured train DataLoader with jagged collation and worker isolation. [M]"""
+        if self.train_dataset is None:
+            self.setup("fit")
+        assert self.train_dataset is not None
+
+        ctx = "spawn" if (self.config.num_workers > 0 and sys.platform != "win32") else None
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=True,
+            num_workers=self.config.num_workers,
+            pin_memory=self.config.pin_memory,
+            collate_fn=jagged_graph_collate,
+            worker_init_fn=h5_worker_init_fn if self.config.num_workers > 0 else None,
+            multiprocessing_context=ctx,
+        )
+
+    def val_dataloader(self) -> DataLoader:
+        """Return configured validation DataLoader. [M]"""
+        if self.val_dataset is None:
+            self.setup("fit")
+        assert self.val_dataset is not None
+
+        ctx = "spawn" if (self.config.num_workers > 0 and sys.platform != "win32") else None
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=False,
+            num_workers=self.config.num_workers,
+            pin_memory=self.config.pin_memory,
+            collate_fn=jagged_graph_collate,
+            worker_init_fn=h5_worker_init_fn if self.config.num_workers > 0 else None,
+            multiprocessing_context=ctx,
+        )
+
+    def test_dataloader(self) -> DataLoader:
+        """Return configured test DataLoader. [M]"""
+        if self.test_dataset is None:
+            self.setup("test")
+        assert self.test_dataset is not None
+
+        ctx = "spawn" if (self.config.num_workers > 0 and sys.platform != "win32") else None
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=False,
+            num_workers=self.config.num_workers,
+            pin_memory=self.config.pin_memory,
+            collate_fn=jagged_graph_collate,
+            worker_init_fn=h5_worker_init_fn if self.config.num_workers > 0 else None,
+            multiprocessing_context=ctx,
+        )
+
+    def teardown(self, stage: Optional[str] = None) -> None:
+        """Cleanly close open HDF5 file handles upon shutdown. [M]"""
+        if self.dataset is not None:
+            self.dataset.close()
+            self.dataset = None
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_inference_errors.py ---
+"""Domain-specific typed exceptions for CoChem-TORQ Inference, Active Learning, and Export.
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
 Strict Zero-Mock Mandate v3: Absolutely no stubs or empty pass blocks.
@@ -1159,2760 +3536,1935 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 
-try:
-    from cochem.topos.exceptions import CoChemError  # type: ignore[import-not-found]
-except ImportError:
-    class CoChemError(Exception):  # type: ignore[no-redef]
-        """Root fallback exception for all CoChem operations. [M]"""
+class CoChemError(Exception):
+    """Root exception for CoChem framework. [M]"""
 
-        def __init__(self, message: str = "") -> None:
-            super().__init__(message)
-            self.message = message
-
-
-class CoChemTorqError(CoChemError):
-    """Base exception for TORQ potential backbones and dynamics. [M]"""
-
-    def __init__(self, message: str = "") -> None:
+    def __init__(self, message: str = "Generic CoChem error") -> None:
         super().__init__(message)
         self.message = message
 
 
-class TorqTrainingError(CoChemTorqError):
-    """Base exception for all TORQ training dynamics errors. [M]"""
+class CoChemTorqError(CoChemError):
+    """Base exception for all TORQ sub-framework operations. [M]"""
+
+    def __init__(self, message: str = "Generic TORQ error") -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class TorqInferenceError(CoChemTorqError):
+    """Base exception for all TORQ inference and export errors. [M]"""
 
     def __init__(
         self,
         message: str,
-        error_code: str = "TORQ_TRAIN_GENERIC",
-        component: str = "training_dynamics",
+        error_code: str = "TORQ_INF_GENERIC",
+        component: str = "inference_engine",
         diagnostics: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(message)
         self.error_code = error_code
         self.component = component
-        self.diagnostics = diagnostics if diagnostics is not None else {}
+        self.diagnostics = diagnostics or {}
 
 
-class HDF5LockTimeoutError(TorqTrainingError):
-    """Raised when acquiring advisory HDF5 filelock exceeds timeout ceiling. [M]"""
+class ActiveLearningSelectionError(TorqInferenceError):
+    """Raised when active learning selection or pool deduplication fails. [M]"""
 
-    def __init__(
-        self,
-        message: str = "HDF5 advisory filelock acquisition timed out.",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_HDF5_LOCK_TIMEOUT",
-            component="storage",
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_AL_SELECTION_ERR",
+            component="active_learning",
+            **kwargs,
         )
 
 
-class PrecisionDivergenceError(TorqTrainingError):
-    """Raised when AMP GradScaler encounters unrecoverable NaN/Inf gradients. [M]"""
+class HDF5DataModuleLockError(TorqInferenceError):
+    """Raised when multi-worker HDF5 handle acquisition encounters lock timeout. [M]"""
 
-    def __init__(
-        self,
-        message: str = "Unrecoverable NaN/Inf gradients detected across consecutive scaling cycles.",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_PRECISION_DIVERGENCE",
-            component="amp_trainer",
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_HDF5_LOCK_ERR",
+            component="hdf5_datamodule",
+            **kwargs,
         )
 
 
-class CheckpointCorruptionError(TorqTrainingError):
-    """Raised when checkpoint state or SHA-256 checksum validation fails. [M]"""
+class EnsembleConsensusError(TorqInferenceError):
+    """Raised when committee ensemble encounters dimension mismatch or consensus divergence. [D]"""
 
-    def __init__(
-        self,
-        message: str = "Checkpoint integrity check or SHA-256 checksum verification failed.",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_CHECKPOINT_CORRUPT",
-            component="persistence",
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_ENSEMBLE_ERR",
+            component="committee_ensemble",
+            **kwargs,
         )
 
 
-class DistributedSyncError(TorqTrainingError):
-    """Raised when distributed all-reduce or rank synchronization deadlocks. [M]"""
+class CutoffContinuityError(TorqInferenceError):
+    """Raised when radial cutoff function violates C^2 smoothness or boundary zero condition. [D]"""
 
-    def __init__(
-        self,
-        message: str = "Distributed metric synchronization or collective communication failed.",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_DISTRIBUTED_SYNC_DEADLOCK",
-            component="distributed",
-            diagnostics=diagnostics,
+            message, error_code="TORQ_CUTOFF_ERR", component="c2_cutoff", **kwargs
         )
 
 
-class UnsupportedElementError(TorqTrainingError):
-    """Raised when input molecular batch contains unmapped atomic species. [M]"""
+class GradientExplosionError(TorqInferenceError):
+    """Raised when GNN message passing activations or gradients exceed stability threshold. [D]"""
 
-    def __init__(
-        self,
-        message: str = "Input molecular batch contains unregistered or unsupported atomic species.",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_UNSUPPORTED_ELEMENT",
-            component="transfer_learning",
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_GRAD_EXPLOSION_ERR",
+            component="gnn_debugger",
+            **kwargs,
         )
 
 
-class ParityVerificationError(TorqTrainingError):
-    """Raised when TorchScript compiled model violates eager numerical parity. [M]"""
+class VanishingGradientWarning(UserWarning):
+    """Emitted when message passing gradients drop below minimum threshold across consecutive layers. [D]"""
 
     def __init__(
-        self,
-        message: str = "TorchScript compiled model failed numerical parity check against eager model.",
-        diagnostics: Optional[Dict[str, Any]] = None,
+        self, message: str = "GNN message passing gradients vanishing"
     ) -> None:
+        super().__init__(message)
+        self.message = message
+
+
+class PBCGraphError(TorqInferenceError):
+    """Raised when periodic boundary condition graph construction or virial calculation fails. [D]"""
+
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code="TORQ_TRAIN_PARITY_VIOLATION",
-            component="torchscript_export",
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_PBC_GRAPH_ERR",
+            component="pbc_graph",
+            **kwargs,
         )
 
 
-class DiscontinuousForceError(TorqTrainingError):
-    """Raised when graph pruning or switching function violates C^2 continuity. [D]"""
+class AirGapViolationError(TorqInferenceError):
+    """Raised when inference or active learning loops attempt forbidden outbound networking or direct subprocess execution. [M]"""
 
-    def __init__(
-        self,
-        message: str = "Graph pruning or switching function violates C^2 continuity.",
-        error_code: str = "TORQ_TRAIN_DISCONTINUOUS_FORCE",
-        component: str = "graph_pruning",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
+    def __init__(self, message: str, **kwargs: Any) -> None:
         super().__init__(
-            message=message,
-            error_code=error_code,
-            component=component,
-            diagnostics=diagnostics,
+            message,
+            error_code="TORQ_AIRGAP_ERR",
+            component="airgap_sandbox",
+            **kwargs,
         )
 
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_inference_schemas.py ---
+"""Pydantic v2 schemas and data contracts for CoChem-TORQ Inference, Active Learning, and Export.
 
-class NonReciprocalGraphError(TorqTrainingError):
-    """Raised when asymmetric edge pruning breaks Newton's Third Law (F_ij != -F_ji). [D]"""
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Strongly typed, validated configurations.
+"""
 
-    def __init__(
-        self,
-        message: str = "Asymmetric edge configuration detected; breaks Newton's Third Law.",
-        error_code: str = "TORQ_TRAIN_NON_RECIPROCAL_GRAPH",
-        component: str = "graph_pruning",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            component=component,
-            diagnostics=diagnostics,
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ActiveLearningOrchestratorConfig(BaseModel):
+    """Configuration contract for the active learning acquisition and deduplication engine. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    batch_capacity_k: int = Field(
+        default=64,
+        ge=1,
+        le=512,
+        description="Active learning batch selection capacity K [E]",
+    )
+    force_uncertainty_threshold_ev_per_angstrom: float = Field(
+        default=0.05,
+        gt=0.0,
+        description="Epistemic force standard deviation threshold theta_force in eV/Angstrom [E]",
+    )
+    energy_uncertainty_threshold_ev2_per_atom: float = Field(
+        default=0.001,
+        gt=0.0,
+        description="QBC energy variance threshold theta_energy in eV^2/atom [E]",
+    )
+    stage_a_rmsd_threshold_angstrom: float = Field(
+        default=0.125,
+        gt=0.0,
+        description="Method Matrix v4 Stage A geometric RMSD threshold delta_RMSD [M]",
+    )
+    stage_b_rotational_threshold: float = Field(
+        default=0.001,
+        gt=0.0,
+        description="Method Matrix v4 Stage B relative rotational constant invariance delta_B/B (--bthr) [M]",
+    )
+    triage_tier: Literal["T3-10s", "T3-1h", "T3-12h", "T3O-1h", "T3O-12h"] = Field(
+        default="T3-10s",
+        description="Initial baseline QM routing tier [M]",
+    )
+    staging_manifest_dir: Path = Field(
+        ...,
+        description="Air-gapped manifest export directory in Ring 3 [M]",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def remap_legacy_field_names(cls, data: Any) -> Any:
+        """Support field name aliases across specification revisions. [D]"""
+        if isinstance(data, dict):
+            mapped = dict(data)
+            if "force_uncertainty_threshold" in mapped and "force_uncertainty_threshold_ev_per_angstrom" not in mapped:
+                mapped["force_uncertainty_threshold_ev_per_angstrom"] = mapped.pop("force_uncertainty_threshold")
+            if "energy_uncertainty_threshold" in mapped and "energy_uncertainty_threshold_ev2_per_atom" not in mapped:
+                mapped["energy_uncertainty_threshold_ev2_per_atom"] = mapped.pop("energy_uncertainty_threshold")
+            if "rmsd_dedup_threshold_angstrom" in mapped and "stage_a_rmsd_threshold_angstrom" not in mapped:
+                mapped["stage_a_rmsd_threshold_angstrom"] = mapped.pop("rmsd_dedup_threshold_angstrom")
+            return mapped
+        return data
+
+    @property
+    def force_uncertainty_threshold(self) -> float:
+        """Alias for force_uncertainty_threshold_ev_per_angstrom. [D]"""
+        return self.force_uncertainty_threshold_ev_per_angstrom
+
+    @property
+    def energy_uncertainty_threshold(self) -> float:
+        """Alias for energy_uncertainty_threshold_ev2_per_atom. [D]"""
+        return self.energy_uncertainty_threshold_ev2_per_atom
+
+    @property
+    def rmsd_dedup_threshold_angstrom(self) -> float:
+        """Alias for stage_a_rmsd_threshold_angstrom. [D]"""
+        return self.stage_a_rmsd_threshold_angstrom
+
+
+class ChunkedHDF5DataModuleConfig(BaseModel):
+    """Configuration contract for chunked HDF5 PyTorch Lightning DataModule. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    h5_path: Path = Field(..., description="Path to chunked HDF5 dataset [M]")
+    batch_size: int = Field(default=32, ge=1, description="Batch size per device [M]")
+    num_workers: int = Field(
+        default=2, ge=0, description="Number of dataloader worker processes [M]"
+    )
+    chunk_cache_bytes: int = Field(
+        default=16 * 1024 * 1024,
+        ge=1024 * 1024,
+        description="HDF5 raw data chunk cache size rdcc_nbytes [E]",
+    )
+    chunk_cache_slots: int = Field(
+        default=10007,
+        ge=1009,
+        description="Prime number of chunk cache hash slots rdcc_nslots [D]",
+    )
+    pin_memory: bool = Field(
+        default=True,
+        description="Pin host memory for non-blocking GPU transfer [M]",
+    )
+    train_val_test_split: List[float] = Field(
+        default=[0.8, 0.1, 0.1],
+        description="Train, validation, and test split ratios [M]",
+    )
+
+    @model_validator(mode="after")
+    def validate_splits(self) -> "ChunkedHDF5DataModuleConfig":
+        """Verify train, val, and test splits sum to unity within tolerance. [D]"""
+        if abs(sum(self.train_val_test_split) - 1.0) > 1e-5:
+            raise ValueError("train_val_test_split must sum to 1.0")
+        return self
+
+
+class CommitteeEnsembleConfig(BaseModel):
+    """Configuration contract for Committee Ensemble uncertainty wrapper. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    num_models_m: int = Field(
+        default=8, ge=2, le=32, description="Number of committee models M [E]"
+    )
+    max_concurrent_models_vram: int = Field(
+        default=2,
+        ge=1,
+        description="Maximum models loaded into active VRAM simultaneously [E]",
+    )
+    synchronize_cuda_streams: bool = Field(
+        default=True,
+        description="Execute stream synchronization between model forward passes [D]",
+    )
+
+
+class C2SmoothCutoffConfig(BaseModel):
+    """Configuration contract for C^2-smooth radial cutoff envelope. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    cutoff_radius_rc: float = Field(
+        default=5.0,
+        gt=1.0,
+        description="Radial cutoff boundary radius r_c in Angstroms [M]",
+    )
+    polynomial_degree: Literal[5] = Field(
+        default=5,
+        description="Degree of C^2 continuous switching polynomial [D]",
+    )
+
+
+class GNNGradientDebuggerConfig(BaseModel):
+    """Configuration contract for message-passing GNN gradient health debugger. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    exploding_grad_threshold: float = Field(
+        default=1e3, gt=0.0, description="L2 gradient norm explosion threshold [D]"
+    )
+    vanishing_grad_threshold: float = Field(
+        default=1e-7, gt=0.0, description="L2 gradient norm vanishing threshold [D]"
+    )
+    consecutive_vanishing_blocks: int = Field(
+        default=3,
+        ge=1,
+        description="Consecutive layers below vanishing threshold before alert [D]",
+    )
+    enabled: bool = Field(
+        default=True, description="Enable active hook monitoring [M]"
+    )
+
+
+class PBCRadialGraphConfig(BaseModel):
+    """Configuration contract for periodic boundary condition graph engine. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    cutoff_radius_rc: float = Field(
+        default=5.0,
+        gt=1.0,
+        description="Radial graph cutoff radius in Angstroms [M]",
+    )
+    compute_virial_stress: bool = Field(
+        default=True,
+        description="Compute analytical unit cell virial stress tensor [D]",
+    )
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_pbc_graph.py ---
+"""Periodic boundary condition (PBC) minimum image radial graph engine and virial stress tensor.
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic lattice geometry, self-image exclusion, and analytical virial stress.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+from typing import Optional, Tuple, Union
+import numpy as np
+import torch
+import torch.nn as nn
+
+from Libraries.cochem_torq_inference_errors import PBCGraphError
+from Libraries.cochem_torq_inference_schemas import PBCRadialGraphConfig
+
+
+@dataclass(frozen=True)
+class PBCGraph:
+    """Immutable container for periodic molecular graph representations. [M]"""
+
+    edge_index: torch.Tensor       # Shape (2, E)
+    edge_shifts: torch.Tensor      # Shape (E, 3) integer unit cell shifts
+    edge_vectors: torch.Tensor     # Shape (E, 3) Cartesian displacement vectors r_{ij, S}
+    edge_distances: torch.Tensor   # Shape (E,) interatomic distances
+    cell_volume: float             # Unit cell volume Omega = |det(L)|
+    fractional_coords: torch.Tensor # Shape (N, 3) coordinates in [0, 1)^3
+
+
+def compute_cell_volume(lattice: Union[torch.Tensor, np.ndarray]) -> float:
+    """Compute crystal unit cell volume Omega = |det(L)|. [D]"""
+    if isinstance(lattice, np.ndarray):
+        lat_t = torch.from_numpy(lattice).double()
+    else:
+        lat_t = lattice.double()
+    
+    if lat_t.shape != (3, 3):
+        raise PBCGraphError(
+            f"Lattice matrix must have shape (3, 3), got {lat_t.shape}.",
+            diagnostics={"lattice_shape": list(lat_t.shape)},
+        )
+    vol = float(torch.abs(torch.linalg.det(lat_t)).item())
+    if vol <= 1e-12:
+        raise PBCGraphError(
+            f"Singular or degenerate lattice matrix with volume Omega={vol:.3e}.",
+            diagnostics={"cell_volume": vol},
+        )
+    return vol
+
+
+def cartesian_to_fractional(
+    coordinates: torch.Tensor,
+    lattice: torch.Tensor,
+) -> torch.Tensor:
+    """Transform Cartesian coordinates into fractional coordinates s = L^{-1} r (mod 1). [D]
+    
+    Assumes lattice vectors a1, a2, a3 are either the rows or columns of L.
+    By standard convention L = [a1, a2, a3]^T (rows) so r = s @ L, s = r @ L^{-1}.
+    """
+    lat = lattice.to(dtype=coordinates.dtype, device=coordinates.device)
+    # Solve s @ lat = coordinates
+    # s = coordinates @ lat^{-1}
+    inv_lat = torch.linalg.inv(lat)
+    # Check if r = s @ lat or lat @ s
+    # Standard crystallographic: r_cart = s_frac @ lat
+    frac = torch.matmul(coordinates, inv_lat)
+    return frac % 1.0
+
+
+def fractional_to_cartesian(
+    fractional: torch.Tensor,
+    lattice: torch.Tensor,
+) -> torch.Tensor:
+    """Transform fractional coordinates to Cartesian coordinates r = s @ L. [D]"""
+    lat = lattice.to(dtype=fractional.dtype, device=fractional.device)
+    return torch.matmul(fractional, lat)
+
+
+def compute_interplanar_spacings(
+    lattice: torch.Tensor,
+    rc: float,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Compute perpendicular interplanar spacings d_perp and cell search ranges n_max. [D]
+    
+    Using cyclic permutations (k, i, j) in {(0, 1, 2), (1, 2, 0), (2, 0, 1)}:
+    d_{perp, k} = Omega / ||a_i x a_j||_2
+    n_k in [-ceil(rc / d_{perp, k}), ceil(rc / d_{perp, k})]
+    """
+    vol = compute_cell_volume(lattice)
+    lat = lattice.double()
+
+    # Lattice vectors as rows a0, a1, a2
+    a = [lat[0], lat[1], lat[2]]
+    spacings = []
+    n_max_list = []
+
+    cyclic = [(0, 1, 2), (1, 2, 0), (2, 0, 1)]
+    for k, i, j in cyclic:
+        cross_prod = torch.linalg.cross(a[i], a[j])
+        cross_norm = float(torch.norm(cross_prod).item())
+        if cross_norm <= 1e-12:
+            raise PBCGraphError(
+                f"Degenerate collinear lattice vectors for direction k={k}.",
+                diagnostics={"k": k, "cross_norm": cross_norm},
+            )
+        d_perp = vol / cross_norm
+        spacings.append(d_perp)
+        n_max = int(math.ceil(rc / d_perp))
+        n_max_list.append(n_max)
+
+    d_perp_tensor = torch.tensor(spacings, dtype=lattice.dtype, device=lattice.device)
+    n_max_tensor = torch.tensor(n_max_list, dtype=torch.int64, device=lattice.device)
+    return d_perp_tensor, n_max_tensor
+
+
+def build_pbc_radial_graph(
+    coordinates: torch.Tensor,
+    lattice: torch.Tensor,
+    rc: float = 5.0,
+) -> PBCGraph:
+    """Construct authentic minimum-image periodic graph with strict self-image exclusion. [M]/[D]"""
+    if rc <= 0.0:
+        raise PBCGraphError(
+            f"Cutoff radius rc={rc} must be strictly positive.",
+            diagnostics={"rc": rc},
+        )
+    num_atoms = coordinates.shape[0]
+    if num_atoms == 0:
+        raise PBCGraphError("Cannot construct PBC graph with zero atoms.")
+
+    vol = compute_cell_volume(lattice)
+    lat = lattice.to(dtype=coordinates.dtype, device=coordinates.device)
+
+    # Fractional coordinates
+    frac_coords = cartesian_to_fractional(coordinates, lat)
+    # Wrapped cartesian coordinates in unit cell
+    wrapped_coords = fractional_to_cartesian(frac_coords, lat)
+
+    # Determine integer search range for each lattice vector
+    _, n_max = compute_interplanar_spacings(lat, rc)
+    nx, ny, nz = int(n_max[0].item()), int(n_max[1].item()), int(n_max[2].item())
+
+    # Build shift grid
+    shift_ranges = [
+        torch.arange(-nx, nx + 1, device=coordinates.device, dtype=torch.int64),
+        torch.arange(-ny, ny + 1, device=coordinates.device, dtype=torch.int64),
+        torch.arange(-nz, nz + 1, device=coordinates.device, dtype=torch.int64),
+    ]
+    grid_shifts = torch.cartesian_prod(*shift_ranges)  # (N_shifts, 3)
+
+    # Cartesian shifts: S @ lat
+    cart_shifts = torch.matmul(grid_shifts.to(dtype=lat.dtype), lat)  # (N_shifts, 3)
+
+    # Pairwise evaluation across atoms and shifts
+    # r_j - r_i + S
+    diff_cart = wrapped_coords.unsqueeze(0) - wrapped_coords.unsqueeze(1) # (N, N, 3) = r_j - r_i
+
+    # Expand with shifts: (N, N, N_shifts, 3)
+    # To keep memory bounded, iterate over shifts
+    src_list: list[torch.Tensor] = []
+    dst_list: list[torch.Tensor] = []
+    shifts_list: list[torch.Tensor] = []
+    vectors_list: list[torch.Tensor] = []
+    distances_list: list[torch.Tensor] = []
+
+    for s_idx in range(grid_shifts.shape[0]):
+        shift_int = grid_shifts[s_idx]
+        shift_vec = cart_shifts[s_idx]
+
+        disp = diff_cart + shift_vec  # (N, N, 3): r_j - r_i + S
+        dist = torch.norm(disp, dim=-1)  # (N, N)
+
+        # Self-Image Exclusion Invariant:
+        # Construct graph edge (i, j, S) iff dist <= rc AND ((i != j) or (S != (0, 0, 0)))
+        is_zero_shift = (shift_int[0] == 0) and (shift_int[1] == 0) and (shift_int[2] == 0)
+        
+        mask = dist <= rc
+        if is_zero_shift:
+            # Exclude self-loop i == j
+            eye_mask = torch.eye(num_atoms, dtype=torch.bool, device=coordinates.device)
+            mask = mask & (~eye_mask)
+
+        # Nonzero entries
+        i_indices, j_indices = torch.where(mask)
+        if i_indices.numel() > 0:
+            src_list.append(i_indices)
+            dst_list.append(j_indices)
+            shifts_list.append(shift_int.unsqueeze(0).expand(i_indices.numel(), -1))
+            vectors_list.append(disp[i_indices, j_indices])
+            distances_list.append(dist[i_indices, j_indices])
+
+    if len(src_list) == 0:
+        # Empty graph within cutoff
+        edge_index = torch.empty((2, 0), dtype=torch.int64, device=coordinates.device)
+        edge_shifts = torch.empty((0, 3), dtype=torch.int64, device=coordinates.device)
+        edge_vectors = torch.empty((0, 3), dtype=coordinates.dtype, device=coordinates.device)
+        edge_distances = torch.empty((0,), dtype=coordinates.dtype, device=coordinates.device)
+    else:
+        src = torch.cat(src_list, dim=0)
+        dst = torch.cat(dst_list, dim=0)
+        edge_index = torch.stack([src, dst], dim=0)
+        edge_shifts = torch.cat(shifts_list, dim=0)
+        edge_vectors = torch.cat(vectors_list, dim=0)
+        edge_distances = torch.cat(distances_list, dim=0)
+
+    # Verify self-image exclusion: no edge with distance == 0 and same source/target
+    zero_dist_mask = (edge_distances <= 1e-12) & (edge_index[0] == edge_index[1])
+    if zero_dist_mask.any():
+        raise PBCGraphError(
+            "Self-image exclusion violated: detected zero-distance self-loop.",
+            diagnostics={"num_violations": int(zero_dist_mask.sum().item())},
         )
 
+    return PBCGraph(
+        edge_index=edge_index,
+        edge_shifts=edge_shifts,
+        edge_vectors=edge_vectors,
+        edge_distances=edge_distances,
+        cell_volume=vol,
+        fractional_coords=frac_coords,
+    )
 
-class OOMRecoveryError(TorqTrainingError):
-    """Raised when dynamic batch-size scaler fails to recover after max step-down attempts. [M]"""
 
-    def __init__(
-        self,
-        message: str = "Dynamic batch scaler failed to recover after maximum step-down attempts.",
-        error_code: str = "TORQ_TRAIN_OOM_RECOVERY_EXHAUSTED",
-        component: str = "dynamic_batch",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            component=component,
-            diagnostics=diagnostics,
+def compute_virial_stress_tensor(
+    edge_vectors: torch.Tensor,
+    pair_forces_or_gradients: torch.Tensor,
+    cell_volume: float,
+    is_force: bool = False,
+) -> torch.Tensor:
+    """Compute analytical symmetric unit cell virial stress tensor Xi in R^{3x3}. [D]
+    
+    Xi_{alpha, beta} = - 1 / (2 * Omega) * sum_e (r_e)_{alpha} * (grad_{r_e} E)_{beta}
+    If is_force=True, pair_forces_or_gradients = f_e = - grad_{r_e} E:
+    Xi_{alpha, beta} = 1 / (2 * Omega) * sum_e (r_e)_{alpha} * (f_e)_{beta}
+    """
+    if cell_volume <= 1e-12:
+        raise PBCGraphError(
+            f"Invalid cell volume {cell_volume} for virial stress calculation.",
+            diagnostics={"cell_volume": cell_volume},
+        )
+    if edge_vectors.shape[0] == 0:
+        return torch.zeros((3, 3), dtype=edge_vectors.dtype, device=edge_vectors.device)
+
+    # Outer product sum: sum_e r_e * g_e^T
+    # edge_vectors: (E, 3), pair_forces_or_gradients: (E, 3)
+    outer = torch.matmul(
+        edge_vectors.unsqueeze(-1),
+        pair_forces_or_gradients.unsqueeze(-2),
+    ) # (E, 3, 3)
+    virial_sum = torch.sum(outer, dim=0) # (3, 3)
+
+    factor = (1.0 if is_force else -1.0) / (2.0 * cell_volume)
+    xi = factor * virial_sum
+
+    # Symmetrize stress tensor
+    xi_sym = 0.5 * (xi + xi.t())
+    
+    # Check numerical symmetry
+    asym_err = float(torch.max(torch.abs(xi - xi.t())).item())
+    if asym_err > 1e-6:
+        raise PBCGraphError(
+            f"Virial stress tensor violates symmetry constraint: asymmetry={asym_err:.3e} exceeds 1e-6.",
+            diagnostics={"asymmetry": asym_err},
         )
 
+    return xi_sym
 
-class EquivarianceBreakError(TorqTrainingError):
-    """Raised when geometric tensor operations violate E(3) or SO(3) rotational covariance. [D]"""
 
-    def __init__(
+def compute_hydrostatic_pressure(virial_stress: torch.Tensor) -> float:
+    """Compute scalar isotropic hydrostatic pressure P = -1/3 * Tr(Xi). [D]"""
+    trace = float(torch.trace(virial_stress).item())
+    return - (1.0 / 3.0) * trace
+
+
+class PBCRadialGraphEngine(nn.Module):
+    """PyTorch module for periodic graph construction and virial stress computation. [M]/[D]"""
+
+    def __init__(self, config: Optional[PBCRadialGraphConfig] = None) -> None:
+        super().__init__()
+        self.config = config or PBCRadialGraphConfig()
+        self.rc = float(self.config.cutoff_radius_rc)
+
+    def forward(
+        self, coordinates: torch.Tensor, lattice: torch.Tensor
+    ) -> PBCGraph:
+        """Construct PBC graph from coordinates and lattice matrix. [M]"""
+        return build_pbc_radial_graph(coordinates, lattice, rc=self.rc)
+
+    def compute_virial(
         self,
-        message: str = "Geometric tensor operations violate E(3) or SO(3) rotational covariance.",
-        error_code: str = "TORQ_TRAIN_EQUIVARIANCE_BREAK",
-        component: str = "geometric_tensors",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            component=component,
-            diagnostics=diagnostics,
+        edge_vectors: torch.Tensor,
+        pair_forces: torch.Tensor,
+        cell_volume: float,
+        is_force: bool = True,
+    ) -> torch.Tensor:
+        """Compute symmetric virial stress tensor. [D]"""
+        return compute_virial_stress_tensor(
+            edge_vectors, pair_forces, cell_volume=cell_volume, is_force=is_force
         )
 
+    def compute_pressure(self, virial_stress: torch.Tensor) -> float:
+        """Compute scalar hydrostatic pressure from virial stress tensor. [D]"""
+        return compute_hydrostatic_pressure(virial_stress)
 
-class SchedulerDivergenceError(TorqTrainingError):
-    """Raised when learning rate scheduler encounters NaN or infinite parameter norms. [D]"""
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_active_learning.py ---
+"""Authentic physical verification test suite for Active Learning Orchestrator (REQ-TORQ-INF-101).
 
-    def __init__(
-        self,
-        message: str = "Learning rate scheduler encountered NaN or infinite parameter norms.",
-        error_code: str = "TORQ_TRAIN_SCHEDULER_DIVERGENCE",
-        component: str = "scheduler",
-        diagnostics: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        super().__init__(
-            message=message,
-            error_code=error_code,
-            component=component,
-            diagnostics=diagnostics,
-        )
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_training_persistence.py ---
-"""Thread-Safe HDF5 Storage & Atomic Checkpointing Engine (REQ-TORQ-TRAIN-097 [M]).
-
-Features:
-- Chunked HDF5 storage with gzip (level 4), shuffle, and fletcher32 checksums.
-- Cross-process advisory locking with filelock placed in the dataset mount directory.
-- Dynamic cluster file locking override: HDF5_USE_FILE_LOCKING="FALSE".
-- Multi-worker PyTorch DataLoader worker initialization hook.
-- Atomic checkpoint serialization (.pt.tmp -> fsync -> os.replace -> .sha256 verification).
-- CheckpointCorruptionError and HDF5LockTimeoutError enforcement.
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic physics, Ethanol (N=9), and Alanine Dipeptide (N=22).
 """
 
 from __future__ import annotations
 
 import hashlib
-import os
+import json
 from pathlib import Path
-import sys
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-import filelock
-import h5py
 import numpy as np
-import torch
+import pytest
 
-from Libraries.cochem_torq_training_errors import (
-    CheckpointCorruptionError,
-    HDF5LockTimeoutError,
+from Libraries.cochem_torq_active_learning import (
+    ActiveLearningOrchestrator,
+    ActiveLearningState,
+    CandidateGeometry,
+    center_geometry_mass_weighted,
+    check_stage_b_rotational_redundancy,
+    compute_max_force_epistemic_std,
+    compute_qbc_energy_variance,
+    compute_rotational_constants,
+    kabsch_rmsd,
+    route_qm_tier,
+)
+from Libraries.cochem_torq_inference_schemas import ActiveLearningOrchestratorConfig
+
+
+# Physical Fixture: Ethanol (N=9) [M]
+ETHANOL_Z = [6, 6, 8, 1, 1, 1, 1, 1, 1]
+ETHANOL_COORDS = np.array(
+    [
+        [0.0072, 0.0000, 0.0000],  # C1
+        [1.5173, 0.0000, 0.0000],  # C2
+        [-0.5638, 1.2987, 0.0000],  # O
+        [-0.3756, -0.5218, 0.8872],  # H
+        [-0.3756, -0.5218, -0.8872],  # H
+        [1.9056, 0.5255, 0.8837],  # H
+        [1.9056, 0.5255, -0.8837],  # H
+        [1.8885, -1.0253, 0.0000],  # H
+        [-1.5277, 1.2052, 0.0000],  # H (hydroxyl)
+    ],
+    dtype=np.float64,
+)
+
+# Physical Fixture: Alanine Dipeptide (N=22) [M]
+ALANINE_DIPEPTIDE_Z = [
+    6, 8, 7, 1, 6, 1, 6, 1, 1, 1, 6, 8, 7, 1, 6, 1, 1, 1, 6, 1, 1, 1
+]
+ALANINE_DIPEPTIDE_COORDS = np.array(
+    [
+        [2.012, -0.407, -0.380],
+        [1.576, -1.488, -0.771],
+        [1.341, 0.697, -0.016],
+        [1.776, 1.564, 0.222],
+        [-0.089, 0.722, 0.134],
+        [-0.344, 0.245, 1.087],
+        [-0.721, -0.091, -1.011],
+        [-0.495, 0.373, -1.975],
+        [-0.334, -1.114, -0.999],
+        [-1.808, -0.106, -0.898],
+        [-0.589, 2.164, 0.180],
+        [-0.038, 2.973, 0.923],
+        [-1.637, 2.470, -0.581],
+        [-2.083, 1.758, -1.144],
+        [-2.247, 3.794, -0.570],
+        [-2.213, 4.195, 0.446],
+        [-1.706, 4.475, -1.234],
+        [-3.284, 3.714, -0.899],
+        [3.472, -0.107, -0.324],
+        [3.659, 0.885, -0.738],
+        [4.020, -0.852, -0.902],
+        [3.829, -0.119, 0.710],
+    ],
+    dtype=np.float64,
 )
 
 
-def configure_cluster_hdf5_environment() -> None:
-    """Disable native HDF5 kernel file locking to prevent Lustre/NFS cluster deadlocks. [M]"""
-    os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
+def test_qbc_energy_variance_and_force_std() -> None:
+    """Verify QBC energy variance and maximum atomic force epistemic standard deviation. [M]/[D]"""
+    # Authentic ensemble predictions on Ethanol from 4 models
+    energies = [-154.250, -154.262, -154.248, -154.256]
+    var_e = compute_qbc_energy_variance(energies)
+    assert var_e > 0.0
+    expected_mean = np.mean(energies)
+    expected_var = np.sum((np.array(energies) - expected_mean) ** 2) / 3.0
+    assert abs(var_e - expected_var) < 1e-10
+
+    # 4 models x 9 atoms x 3 coords
+    m, n = 4, 9
+    forces = np.full((m, n, 3), 0.02, dtype=np.float64)
+    # Give atom 2 (Oxygen) elevated epistemic spread
+    forces[0, 2, :] = [0.12, -0.05, 0.08]
+    forces[1, 2, :] = [0.18, -0.02, 0.04]
+    forces[2, 2, :] = [0.09, -0.08, 0.11]
+    forces[3, 2, :] = [0.22, -0.01, 0.02]
+
+    max_std = compute_max_force_epistemic_std(forces)
+    assert max_std > 0.05
 
 
-class HDF5DatasetManager:
-    """Thread-safe and multi-process safe HDF5 manager for MLFF trajectory storage. [M]"""
+def test_acquisition_threshold_trigger(tmp_path: Path) -> None:
+    """Verify acquisition threshold triggers correctly on high-variance conformers. [M]"""
+    config = ActiveLearningOrchestratorConfig(
+        batch_capacity_k=4,
+        force_uncertainty_threshold_ev_per_angstrom=0.05,
+        energy_uncertainty_threshold_ev2_per_atom=0.001,
+        stage_a_rmsd_threshold_angstrom=0.125,
+        stage_b_rotational_threshold=0.001,
+        staging_manifest_dir=tmp_path / "manifests",
+    )
+    orch = ActiveLearningOrchestrator(config)
 
-    def __init__(
-        self,
-        filepath: Path,
-        timeout_seconds: float = 30.0,
-    ) -> None:
-        self.filepath = Path(filepath)
-        configure_cluster_hdf5_environment()
-        # Advisory lock resides in the shared cluster mount directory containing the dataset
-        self.lock_path = self.filepath.with_suffix(".h5.lock")
-        self.timeout_seconds = timeout_seconds
-        self._file_lock = filelock.FileLock(str(self.lock_path), timeout=self.timeout_seconds)
-        self._swmr_enabled = (sys.platform != "win32")
+    # Candidate 1: low variance (should NOT trigger)
+    c1_coords = ETHANOL_COORDS.copy()
+    c1_e = [-154.250, -154.251]
+    c1_f = np.full((2, 9, 3), 0.01, dtype=np.float64)
+    c1_f[0, 0, :] = [0.012, 0.011, 0.010]
+    c1_f[1, 0, :] = [0.015, 0.010, 0.011]
 
-    def write_trajectory_batch(
-        self,
-        group_name: str,
-        coordinates: np.ndarray,
-        atomic_numbers: Sequence[int],
-        energies: np.ndarray,
-        forces: np.ndarray,
-    ) -> None:
-        """Atomically append a trajectory batch with chunking, shuffle, and fletcher32. [M]"""
-        self.filepath.parent.mkdir(parents=True, exist_ok=True)
+    # Candidate 2: high force variance (SHOULD trigger)
+    c2_coords = ETHANOL_COORDS.copy()
+    c2_e = [-154.250, -154.251]
+    c2_f = np.full((2, 9, 3), 0.01, dtype=np.float64)
+    c2_f[0, 2, :] = [0.40, 0.10, -0.10]
+    c2_f[1, 2, :] = [0.10, -0.20, 0.30]
 
-        try:
-            with self._file_lock:
-                h5_kwargs = (
-                    {"libver": "latest", "swmr": True}
-                    if sys.platform != "win32"
-                    else {}
-                )
-                with h5py.File(self.filepath, "a", **h5_kwargs) as f:
-                    grp = f.require_group(group_name)
+    orch.evaluate_pool(
+        geometries=[c1_coords, c2_coords],
+        atomic_numbers=[ETHANOL_Z, ETHANOL_Z],
+        committee_energies=[c1_e, c2_e],
+        committee_forces=[c1_f, c2_f],
+        candidate_ids=["cand_low_var", "cand_high_var"],
+    )
 
-                    # Store atomic numbers
-                    if "atomic_numbers" not in grp:
-                        grp.create_dataset(
-                            "atomic_numbers",
-                            data=np.array(atomic_numbers, dtype=np.int32),
-                        )
-
-                    n_samples = coordinates.shape[0]
-                    chunk_size = min(32, max(1, n_samples))
-
-                    # Store coordinates
-                    if "coordinates" not in grp:
-                        grp.create_dataset(
-                            "coordinates",
-                            data=coordinates,
-                            maxshape=(None, *coordinates.shape[1:]),
-                            chunks=(chunk_size, *coordinates.shape[1:]),
-                            compression="gzip",
-                            compression_opts=4,
-                            shuffle=True,
-                            fletcher32=True,
-                        )
-                    else:
-                        dset = grp["coordinates"]
-                        curr_len = dset.shape[0]
-                        dset.resize((curr_len + n_samples, *coordinates.shape[1:]))
-                        dset[curr_len : curr_len + n_samples] = coordinates
-
-                    # Store energies
-                    if "energies" not in grp:
-                        grp.create_dataset(
-                            "energies",
-                            data=energies,
-                            maxshape=(None,),
-                            chunks=(chunk_size,),
-                            compression="gzip",
-                            compression_opts=4,
-                            shuffle=True,
-                            fletcher32=True,
-                        )
-                    else:
-                        dset = grp["energies"]
-                        curr_len = dset.shape[0]
-                        dset.resize((curr_len + n_samples,))
-                        dset[curr_len : curr_len + n_samples] = energies
-
-                    # Store forces
-                    if "forces" not in grp:
-                        grp.create_dataset(
-                            "forces",
-                            data=forces,
-                            maxshape=(None, *forces.shape[1:]),
-                            chunks=(chunk_size, *forces.shape[1:]),
-                            compression="gzip",
-                            compression_opts=4,
-                            shuffle=True,
-                            fletcher32=True,
-                        )
-                    else:
-                        dset = grp["forces"]
-                        curr_len = dset.shape[0]
-                        dset.resize((curr_len + n_samples, *forces.shape[1:]))
-                        dset[curr_len : curr_len + n_samples] = forces
-
-                    f.flush()
-        except filelock.Timeout as exc:
-            raise HDF5LockTimeoutError(
-                f"Timed out after {self.timeout_seconds}s waiting for advisory HDF5 lock at {self.lock_path}.",
-                diagnostics={"lock_path": str(self.lock_path), "timeout": self.timeout_seconds},
-            ) from exc
+    selected = orch.select_active_batch()
+    assert len(selected) == 1
+    assert selected[0].candidate_id == "cand_high_var"
+    assert selected[0].state == ActiveLearningState.CANDIDATE_SELECTED
 
 
-def worker_init_fn(worker_id: int) -> None:
-    """PyTorch DataLoader worker initialization hook ensuring independent worker file handles. [M]"""
-    configure_cluster_hdf5_environment()
-    worker_info = torch.utils.data.get_worker_info()
-    if worker_info is not None:
-        dataset = worker_info.dataset
-        # Re-initialize dataset handles per worker process
-        if hasattr(dataset, "reopen_handles"):
-            dataset.reopen_handles(worker_id)
+def test_kabsch_rmsd_stage_a_deduplication(tmp_path: Path) -> None:
+    """Verify Kabsch SVD RMSD prunes duplicate conformers within delta_RMSD = 0.125 A. [M]/[D]"""
+    config = ActiveLearningOrchestratorConfig(
+        batch_capacity_k=10,
+        force_uncertainty_threshold_ev_per_angstrom=0.05,
+        stage_a_rmsd_threshold_angstrom=0.125,
+        staging_manifest_dir=tmp_path / "manifests",
+    )
+    orch = ActiveLearningOrchestrator(config)
+
+    # Conformer 1: base Alanine Dipeptide
+    coords1 = ALANINE_DIPEPTIDE_COORDS.copy()
+
+    # Conformer 2: rigid rotation of Alanine Dipeptide around z-axis (exact physical duplicate)
+    theta = 0.785398  # 45 degrees
+    rot_z = np.array([
+        [np.cos(theta), -np.sin(theta), 0.0],
+        [np.sin(theta), np.cos(theta), 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    coords2 = np.dot(coords1, rot_z)
+
+    # Conformer 3: significantly distorted conformer
+    coords3 = coords1.copy()
+    coords3[0, :] += [0.8, -0.5, 0.6]  # Perturb terminal methyl
+
+    # High force variance on all to trigger acquisition
+    high_f = np.full((2, 22, 3), 0.02, dtype=np.float64)
+    high_f[0, 0, :] = [0.3, 0.2, 0.1]
+    high_f[1, 0, :] = [-0.1, -0.2, 0.4]
+    e_pair = [-412.0, -412.1]
+
+    orch.evaluate_pool(
+        geometries=[coords1, coords2, coords3],
+        atomic_numbers=[ALANINE_DIPEPTIDE_Z, ALANINE_DIPEPTIDE_Z, ALANINE_DIPEPTIDE_Z],
+        committee_energies=[e_pair, e_pair, e_pair],
+        committee_forces=[high_f, high_f, high_f],
+        candidate_ids=["conf1_base", "conf2_rotated", "conf3_distorted"],
+    )
+
+    # Pairwise Kabsch between conf1 and rotated conf2 must be near zero (< 1e-10)
+    rmsd_1_2 = kabsch_rmsd(coords1, coords2)
+    assert rmsd_1_2 < 1e-6
+
+    # Pairwise Kabsch between conf1 and conf3 should exceed threshold 0.125 A
+    rmsd_1_3 = kabsch_rmsd(coords1, coords3)
+    assert rmsd_1_3 > 0.125
+
+    selected = orch.select_active_batch()
+    # Rotated conf2 must be pruned as redundant; only 2 selected (conf1 and conf3)
+    assert len(selected) == 2
+    selected_ids = {c.candidate_id for c in selected}
+    assert "conf1_base" in selected_ids
+    assert "conf3_distorted" in selected_ids
+    assert "conf2_rotated" not in selected_ids
 
 
-def compute_tensor_sha256(filepath: Path) -> str:
-    """Compute SHA-256 hex digest of a saved checkpoint file. [M]"""
-    hasher = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        while chunk := f.read(65536):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+def test_stage_b_rotational_constant_deduplication() -> None:
+    """Verify Stage B rotational constant invariance check prunes spectroscopic duplicates. [M]"""
+    # Authentic rotational constants for Ethanol
+    rot1 = compute_rotational_constants(ETHANOL_COORDS, ETHANOL_Z)
+    assert rot1[0] > rot1[1] >= rot1[2] > 0.0
+
+    # Slight perturbation with identical rotational constants within 0.05%
+    rot2 = (rot1[0] * 1.0002, rot1[1] * 0.9999, rot1[2] * 1.0001)
+    is_redundant = check_stage_b_rotational_redundancy(rot1, rot2, threshold=0.001)
+    assert is_redundant is True
+
+    # Perturbation exceeding 0.1% threshold
+    rot3 = (rot1[0] * 1.005, rot1[1], rot1[2])
+    is_redundant_3 = check_stage_b_rotational_redundancy(rot1, rot3, threshold=0.001)
+    assert is_redundant_3 is False
 
 
-def save_atomic_checkpoint(
-    state_dict: Dict[str, Any],
-    checkpoint_path: Path,
-) -> Tuple[Path, Path]:
-    """Atomically serialize PyTorch checkpoint and write accompanying SHA-256 digest. [M]
-    
-    Pipeline:
-    1. Write payload to isolated temporary file checkpoint_path.tmp
-    2. Flush OS buffers to physical non-volatile storage via os.fsync()
-    3. Atomically rename temporary file to destination via os.replace()
-    4. Generate and save matching .sha256 digest file
-    
-    Returns
-    -------
-    Tuple[Path, Path]
-        (saved_checkpoint_path, saved_sha256_path)
-    """
-    ckpt_path = Path(checkpoint_path)
-    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = ckpt_path.with_name(f"{ckpt_path.name}.tmp")
-    sha_path = ckpt_path.with_name(f"{ckpt_path.name}.sha256")
-
-    # Step 1: Serialize to temporary location
-    torch.save(state_dict, temp_path)
-
-    # Step 2: Flush to physical storage
-    with open(temp_path, "a+b") as f:
-        f.flush()
-        os.fsync(f.fileno())
-
-    # Step 3: Compute SHA-256 digest
-    sha256_digest = compute_tensor_sha256(temp_path)
-
-    # Step 4: Atomic replacement
-    os.replace(temp_path, ckpt_path)
-
-    # Step 5: Write digest file
-    sha_path.write_text(sha256_digest.strip() + "\n", encoding="utf-8")
-
-    return ckpt_path, sha_path
+def test_dynamic_qm_tier_routing() -> None:
+    """Verify dynamic QM tier routing across variance levels. [M]"""
+    assert route_qm_tier(0.12) == "T3-10s"
+    assert route_qm_tier(0.45) == "T3O-1h"
+    assert route_qm_tier(0.95) == "T3O-12h"
 
 
-def load_atomic_checkpoint(checkpoint_path: Path) -> Dict[str, Any]:
-    """Verify cryptographic SHA-256 integrity and reload model state dict. [M]
-    
-    Raises CheckpointCorruptionError if file is missing, checksum mismatches,
-    or bytes are corrupted.
-    """
-    ckpt_path = Path(checkpoint_path)
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint file does not exist: {ckpt_path}")
+def test_air_gapped_manifest_emission(tmp_path: Path) -> None:
+    """Verify manifest emission generates valid JSON and verifiable SHA-256 in Ring 3. [M]"""
+    manifest_dir = tmp_path / "artifacts" / "manifests"
+    config = ActiveLearningOrchestratorConfig(
+        batch_capacity_k=5,
+        force_uncertainty_threshold_ev_per_angstrom=0.05,
+        staging_manifest_dir=manifest_dir,
+    )
+    orch = ActiveLearningOrchestrator(config)
 
-    sha_path = ckpt_path.with_name(f"{ckpt_path.name}.sha256")
-    if not sha_path.exists():
-        raise CheckpointCorruptionError(
-            f"Missing cryptographic signature file for checkpoint: {sha_path}",
-            diagnostics={"checkpoint_path": str(ckpt_path), "missing_signature": str(sha_path)},
-        )
+    # Setup one triggered candidate
+    coords = ETHANOL_COORDS.copy()
+    e_pair = [-154.250, -154.260]
+    high_f = np.full((2, 9, 3), 0.02, dtype=np.float64)
+    high_f[0, 2, :] = [0.5, 0.02, 0.01]
+    high_f[1, 2, :] = [-0.3, 0.01, 0.02]
 
-    expected_sha256 = sha_path.read_text(encoding="utf-8").strip()
-    actual_sha256 = compute_tensor_sha256(ckpt_path)
+    orch.evaluate_pool(
+        geometries=[coords],
+        atomic_numbers=[ETHANOL_Z],
+        committee_energies=[e_pair],
+        committee_forces=[high_f],
+        candidate_ids=["cand_eth_01"],
+    )
+    orch.select_active_batch()
 
-    if actual_sha256.lower() != expected_sha256.lower():
-        raise CheckpointCorruptionError(
-            f"Cryptographic hash mismatch for checkpoint {ckpt_path.name}. "
-            f"Expected {expected_sha256}, got {actual_sha256}.",
-            diagnostics={
-                "checkpoint_path": str(ckpt_path),
-                "expected_sha256": expected_sha256,
-                "actual_sha256": actual_sha256,
-            },
-        )
+    manifest_file, sha256_hash = orch.emit_air_gapped_manifest()
 
-    try:
-        state_dict = dict(torch.load(ckpt_path, map_location="cpu", weights_only=True))
-        return state_dict
-    except Exception as exc:
-        raise CheckpointCorruptionError(
-            f"Failed to unpickle checkpoint payload from {ckpt_path}: {exc}",
-            diagnostics={"checkpoint_path": str(ckpt_path), "underlying_error": str(exc)},
-        ) from exc
+    assert manifest_file.exists()
+    assert orch.selected_batch[0].state == ActiveLearningState.MANIFEST_EMITTED
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_training_schemas.py ---
-"""Pydantic v2 schemas and validation contracts for TORQ Training Dynamics.
+    # Verify SHA-256 digest file
+    digest_file = manifest_file.with_suffix(manifest_file.suffix + ".sha256")
+    assert digest_file.exists()
+    digest_content = digest_file.read_text(encoding="utf-8")
+    assert sha256_hash in digest_content
+
+    # Re-hash file content directly
+    actual_hash = hashlib.sha256(manifest_file.read_bytes()).hexdigest()
+    assert actual_hash == sha256_hash
+
+    # Verify JSON content
+    with open(manifest_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert data["selected_count"] == 1
+    assert data["candidates"][0]["candidate_id"] == "cand_eth_01"
+    assert data["candidates"][0]["assigned_tier"] == "T3O-1h"
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_c2_cutoff.py ---
+"""Authentic physical verification test suite for C^2-Smooth Cutoff Function (REQ-TORQ-INF-104).
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Enforces frozen=True, extra="forbid", and strict validation invariants.
+Strict Zero-Mock Mandate v3: Completely authentic analytical calculus, Argon dimer, and Ethanol coordinates.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import List, Literal
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-
-class TrainingDynamicsConfig(BaseModel):
-    """Configuration contract for MLFF training dynamics and autograd checkpointing. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    batch_size: int = Field(default=32, ge=1, description="Per-device batch size [M]")
-    gradient_checkpointing: bool = Field(default=True, description="Enable activation recomputation [D]")
-    mixed_precision_dtype: Literal["bfloat16", "float16", "float32"] = Field(
-        default="bfloat16", description="AMP precision [M]"
-    )
-    max_gradient_norm: float = Field(default=1.0, gt=0.0, description="Gradient clipping norm ceiling [M]")
-    energy_loss_weight: float = Field(default=1.0, ge=0.0, description="Loss weight for potential energy [M]")
-    force_loss_weight: float = Field(default=100.0, ge=0.0, description="Loss weight for atomic forces [M]")
-    learning_rate: float = Field(default=1e-3, gt=0.0, description="Initial optimizer learning rate [M]")
-    weight_decay: float = Field(default=1e-5, ge=0.0, description="AdamW weight decay regularization [M]")
-
-
-class TransferLearningConfig(BaseModel):
-    """Configuration contract for ANI-2x domain adaptation and parameter transfer. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    base_model_path: Path = Field(..., description="Local path to pre-trained ANI-2x weights [M]")
-    expected_sha256: str = Field(
-        ...,
-        pattern=r"^[0-9a-fA-F]{64}$",
-        description="Cryptographic SHA-256 hash [M]",
-    )
-    freeze_symmetry_functions: bool = Field(default=True, description="Freeze AEV feature extractor [M]")
-    layer_decay_rate: float = Field(default=0.8, gt=0.0, le=1.0, description="LLRD decay factor [M]")
-    new_species_atomic_numbers: List[int] = Field(
-        default_factory=list, description="New atomic numbers Z to initialize [M]"
-    )
-
-    @field_validator("new_species_atomic_numbers")
-    @classmethod
-    def validate_atomic_numbers(cls, v: List[int]) -> List[int]:
-        """Ensure all atomic numbers satisfy 1 <= Z <= 118 and return sorted unique values."""
-        for z in v:
-            if z < 1 or z > 118:
-                raise ValueError(f"Atomic number Z={z} must be between 1 and 118 inclusive.")
-        return sorted(list(set(v)))
-
-
-class TorchScriptExportConfig(BaseModel):
-    """Configuration contract for dedicated C++ TorchScript compilation and parity verification. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    export_path: Path = Field(..., description="Destination path for serialized TorchScript .pt model [M]")
-    energy_relative_tolerance: float = Field(
-        default=1e-6, gt=0.0, description="Max relative energy error [M]"
-    )
-    force_parity_tolerance_hartree_angstrom: float = Field(
-        default=1e-6,
-        gt=0.0,
-        description="Max absolute force error in Hartree/Å evaluated in float64 [M]",
-    )
-    validate_against_fixtures: bool = Field(
-        default=True, description="Execute validation before finalizing export [M]"
-    )
-
-
-class DistributedEarlyStoppingConfig(BaseModel):
-    """Configuration contract for multi-GPU deadlock-free distributed early stopping. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    patience_epochs: int = Field(default=15, ge=1, description="Epochs to wait before early termination [M]")
-    min_delta_hartree: float = Field(
-        default=1e-5, ge=0.0, description="Minimum validation loss improvement in Hartree [M]"
-    )
-    synchronize_ranks: Literal[True] = Field(
-        default=True, description="Mandatory broadcast early exit flag across all DDP ranks [D]"
-    )
-
-
-class LossLandscapeConfig(BaseModel):
-    """Configuration contract for scale-invariant filter-normalized loss surface profiling. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    grid_resolution: int = Field(default=25, ge=5, le=100, description="Grid points per axis [M]")
-    range_min: float = Field(default=-1.0, description="Normalized coordinate min [M]")
-    range_max: float = Field(default=1.0, description="Normalized coordinate max [M]")
-    filter_normalization: bool = Field(
-        default=True, description="Normalize random directions by filter Frobenius norm [D]"
-    )
-    output_plot_path: Path = Field(..., description="Destination path for rendered contour plot [M]")
-
-    @model_validator(mode="after")
-    def validate_coordinate_range(self) -> LossLandscapeConfig:
-        """Verify range_min is strictly less than range_max."""
-        if self.range_min >= self.range_max:
-            raise ValueError(
-                f"range_min ({self.range_min}) must be strictly less than range_max ({self.range_max})."
-            )
-        return self
-
-
-class GNNWarmRestartSchedulerConfig(BaseModel):
-    """Configuration contract for GNN warm restart learning rate scheduler. [D]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    initial_lr: float = Field(default=1e-4, gt=0.0, description="Peak initial learning rate eta_max [D]")
-    min_lr: float = Field(default=1e-7, ge=0.0, description="Minimum learning rate floor eta_min [D]")
-    warmup_steps: int = Field(default=1000, ge=100, description="Linear warmup steps [D]")
-    first_cycle_steps: int = Field(default=10000, ge=500, description="Duration of initial restart cycle T_0 [D]")
-    cycle_multiplier: float = Field(default=1.5, ge=1.0, description="Cycle expansion factor T_mult [D]")
-    restart_decay: float = Field(default=0.75, gt=0.0, le=1.0, description="Peak LR attenuation factor gamma_restart [D]")
-    max_grad_norm: float = Field(default=1.0, gt=0.0, description="Ceiling for gradient norm clipping [D]")
-
-    @model_validator(mode="after")
-    def validate_lr_bounds(self) -> GNNWarmRestartSchedulerConfig:
-        if self.min_lr >= self.initial_lr:
-            raise ValueError(
-                f"min_lr ({self.min_lr}) must be strictly less than initial_lr ({self.initial_lr})"
-            )
-        return self
-
-
-class ForceMatchingLossConfig(BaseModel):
-    """Configuration contract for second-order autograd force-matching loss engine. [D]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    energy_weight: float = Field(default=1.0, ge=0.0, description="Loss weight for potential energy [D]")
-    force_weight: float = Field(default=50.0, gt=0.0, description="Loss weight for atomic force vectors [D]")
-    virial_weight: float = Field(default=0.01, ge=0.0, description="Loss weight for periodic virial stress [D]")
-    huber_delta_force: float = Field(default=0.01, gt=0.0, description="Huber transition delta in eV/Angstrom [D]")
-    create_graph: bool = Field(default=True, description="Retain second-order graph in autograd for forces [D]")
-    track_angular_similarity: bool = Field(default=True, description="Compute cosine similarity metric [D]")
-
-
-class DynamicBatchScalerConfig(BaseModel):
-    """Configuration contract for dual-budget graph packer and OOM recovery. [M]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    max_node_budget: int = Field(default=4096, ge=64, description="Maximum atoms per micro-batch [M]")
-    max_edge_budget: int = Field(default=32768, ge=256, description="Maximum sparse edges per micro-batch [M]")
-    backoff_factor: float = Field(default=0.75, gt=0.1, lt=1.0, description="Budget step-down on OOM [M]")
-    max_recovery_retries: int = Field(default=3, ge=1, description="Max retry attempts per failed micro-batch [M]")
-    target_vram_fraction: float = Field(default=0.85, gt=0.1, lt=0.98, description="Target VRAM ceiling [M]")
-
-
-class C2GraphPrunerConfig(BaseModel):
-    """Configuration contract for C^2-smooth reciprocal sparse graph pruning. [D]"""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    cutoff_radius_angstrom: float = Field(default=5.0, gt=1.0, description="Spatial interaction cutoff r_c [D]")
-    covalent_core_radius_angstrom: float = Field(default=1.5, gt=0.5, description="Core radius r_cov guaranteed degree >= 1 [D]")
-    enforce_reciprocal_edges: bool = Field(default=True, description="Enforce undirected edge reciprocity [D]")
-    switching_polynomial_degree: Literal[5] = Field(default=5, description="Quintic polynomial C^2 cutoff envelope [D]")
-    stochastic_edge_dropout: float = Field(default=0.0, ge=0.0, le=0.5, description="Banned on coordinate graphs; invariant heads only [D]")
-
-    @model_validator(mode="after")
-    def validate_radii(self) -> C2GraphPrunerConfig:
-        if self.covalent_core_radius_angstrom >= self.cutoff_radius_angstrom:
-            raise ValueError(
-                f"covalent_core_radius_angstrom ({self.covalent_core_radius_angstrom}) must be strictly less than cutoff_radius_angstrom ({self.cutoff_radius_angstrom})"
-            )
-        return self
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_training_persistence.py ---
-"""Authentic physical verification test suite for Training Persistence & Checkpointing Engine.
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely unmocked HDF5 SWMR locking and atomic checkpoint I/O.
-"""
-
-from __future__ import annotations
-
-from pathlib import Path
-import tempfile
-import time
-
-import filelock
 import numpy as np
 import pytest
 import torch
 
-from Libraries.cochem_torq_training_errors import (
-    CheckpointCorruptionError,
-    HDF5LockTimeoutError,
+from Libraries.cochem_torq_c2_cutoff import (
+    C2SmoothCutoff,
+    quintic_c2_envelope,
+    quintic_c2_first_derivative,
+    quintic_c2_second_derivative,
+    quintic_c2_spatial_gradient,
+    quintic_c2_spatial_hessian,
+    verify_cutoff_continuity,
 )
-from Libraries.cochem_torq_training_persistence import (
-    HDF5DatasetManager,
-    load_atomic_checkpoint,
-    save_atomic_checkpoint,
-)
-from tests.torq_test_fixtures import get_water_dimer_fixture
+from Libraries.cochem_torq_inference_errors import CutoffContinuityError
+from Libraries.cochem_torq_inference_schemas import C2SmoothCutoffConfig
 
 
-def test_hdf5_lock_path_in_dataset_directory() -> None:
-    """Verify advisory lock path is placed in the shared dataset mount directory, not /tmp. [M]"""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        h5_path = Path(tmpdir) / "subfolder" / "trajectory.h5"
-        manager = HDF5DatasetManager(h5_path, timeout_seconds=5.0)
-
-        expected_lock = h5_path.with_suffix(".h5.lock")
-        assert manager.lock_path == expected_lock
-        assert manager.lock_path.parent == h5_path.parent
-
-
-def test_hdf5_lock_timeout_exception() -> None:
-    """Verify HDF5LockTimeoutError is raised when concurrent lock exceeds timeout ceiling. [M]"""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        h5_path = Path(tmpdir) / "trajectory.h5"
-        manager = HDF5DatasetManager(h5_path, timeout_seconds=0.1)
-
-        # Acquire an external advisory lock on the exact same lock path
-        external_lock = filelock.FileLock(str(manager.lock_path), timeout=5.0)
-        external_lock.acquire()
-
-        coords = np.array([[[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]], dtype=np.float64)
-        species = [8, 1]
-        energies = np.array([-1.5], dtype=np.float64)
-        forces = np.array([[[0.1, 0.0, 0.0], [-0.1, 0.0, 0.0]]], dtype=np.float64)
-
-        try:
-            with pytest.raises(HDF5LockTimeoutError) as exc_info:
-                manager.write_trajectory_batch("water", coords, species, energies, forces)
-            assert exc_info.value.error_code == "TORQ_TRAIN_HDF5_LOCK_TIMEOUT"
-        finally:
-            external_lock.release()
-
-
-def test_hdf5_write_trajectory_batch_success() -> None:
-    """Verify successful trajectory writing with chunking, compression, and fletcher32. [M]"""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        h5_path = Path(tmpdir) / "trajectory.h5"
-        manager = HDF5DatasetManager(h5_path, timeout_seconds=5.0)
-
-        base_coords, base_species = get_water_dimer_fixture()
-        n_atoms = base_coords.shape[0]
-        n_samples = 10
-
-        # 10 authentic trajectory snapshots with physical thermal displacements
-        coords = np.stack([
-            base_coords.numpy() + (float(i) * 0.002) for i in range(n_samples)
-        ]).astype(np.float64)
-        species = base_species.tolist()
-        energies = np.array([-152.0 + float(i) * 0.001 for i in range(n_samples)], dtype=np.float64)
-        forces = np.stack([
-            np.full((n_atoms, 3), 0.0005 * float(i), dtype=np.float64) for i in range(n_samples)
-        ])
-
-        manager.write_trajectory_batch("water_batch_1", coords, species, energies, forces)
-
-        assert h5_path.exists()
-        import h5py
-        with h5py.File(h5_path, "r") as f:
-            assert "water_batch_1" in f
-            grp = f["water_batch_1"]
-            assert grp["coordinates"].shape == (10, n_atoms, 3)
-            assert grp["energies"].shape == (10,)
-            assert grp["forces"].shape == (10, n_atoms, 3)
-            assert np.array_equal(grp["atomic_numbers"][:], np.array(species, dtype=np.int32))
-
-
-def test_atomic_checkpoint_replace_and_sha256_generation() -> None:
-    """Verify atomic checkpoint serialization (.pt.tmp -> fsync -> os.replace -> .sha256). [M]"""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        ckpt_path = Path(tmpdir) / "models" / "checkpoint_epoch_10.pt"
-
-        state_dict = {
-            "epoch": 10,
-            "weights": torch.tensor([1.23, 4.56, 7.89], dtype=torch.float64),
-            "step": 5000,
-        }
-
-        saved_pt, saved_sha = save_atomic_checkpoint(state_dict, ckpt_path)
-
-        assert saved_pt.exists()
-        assert saved_sha.exists()
-        # Invariant: temporary file must be cleaned up / replaced
-        assert not Path(str(ckpt_path) + ".tmp").exists()
-
-        # Reload and verify integrity
-        reloaded_dict = load_atomic_checkpoint(saved_pt)
-        assert reloaded_dict["epoch"] == 10
-        assert reloaded_dict["step"] == 5000
-        assert torch.equal(reloaded_dict["weights"], state_dict["weights"])
-
-
-def test_checkpoint_corruption_detection() -> None:
-    """Verify CheckpointCorruptionError is raised when file checksum mismatches or payload is corrupted. [M]"""
-    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-        ckpt_path = Path(tmpdir) / "corrupt_checkpoint.pt"
-        state_dict = {"param": torch.tensor([42.0])}
-        save_atomic_checkpoint(state_dict, ckpt_path)
-
-        sha_path = ckpt_path.with_suffix(ckpt_path.suffix + ".sha256")
-
-        # 1. Corrupt sha file contents
-        sha_path.write_text("0000000000000000000000000000000000000000000000000000000000000000\n")
-        with pytest.raises(CheckpointCorruptionError) as exc1:
-            load_atomic_checkpoint(ckpt_path)
-        assert exc1.value.error_code == "TORQ_TRAIN_CHECKPOINT_CORRUPT"
-
-        # 2. Delete sha file
-        sha_path.unlink()
-        with pytest.raises(CheckpointCorruptionError) as exc2:
-            load_atomic_checkpoint(ckpt_path)
-        assert exc2.value.error_code == "TORQ_TRAIN_CHECKPOINT_CORRUPT"
-
-
-def test_worker_init_fn_initialization() -> None:
-    """Validate independent HDF5 handles and cluster configuration in worker_init_fn. [M]"""
-    from Libraries.cochem_torq_training_persistence import worker_init_fn
-    import os
-
-    worker_init_fn(worker_id=1)
-    assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\torq_test_fixtures.py ---
-"""Authentic physical chemical geometries and fixtures for TORQ training dynamics tests.
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic physical geometries from literature/ab-initio.
-"""
-
-from __future__ import annotations
-
-import math
-from typing import List, Tuple
-import numpy as np
-import torch
-
-
-def get_water_dimer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic gas-phase Water dimer (H2O)2 equilibrium geometry (N=6). [M]"""
-    # Oxygen 1 at origin, H1, H2, Oxygen 2 hydrogen-bonded, H3, H4
-    coords = [
-        [-1.488, -0.012, 0.108],   # O1
-        [-1.764, -0.871, -0.218],  # H1
-        [-0.534, 0.046, -0.038],   # H2 (donor)
-        [1.442, -0.003, -0.089],   # O2 (acceptor)
-        [1.792, 0.772, 0.354],     # H3
-        [1.791, -0.732, 0.443],    # H4
-    ]
-    species = [8, 1, 1, 8, 1, 1]
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
-
-
-def get_alanine_dipeptide_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Alanine dipeptide (Ace-Ala-Nme) geometry (N=22). [M]"""
-    coords = [
-        [-2.085, 1.341, -0.528],   # C (acetyl methyl)
-        [-2.062, 2.378, -0.187],   # H
-        [-3.044, 0.902, -0.274],   # H
-        [-1.979, 1.353, -1.614],   # H
-        [-0.932, 0.538, 0.052],    # C (carbonyl)
-        [-0.985, -0.678, 0.178],   # O (carbonyl)
-        [0.187, 1.258, 0.385],     # N (peptide)
-        [0.173, 2.257, 0.252],     # H
-        [1.439, 0.654, 0.817],     # CA (alpha carbon)
-        [1.332, 0.445, 1.884],     # HA
-        [2.607, 1.618, 0.574],     # CB (beta carbon)
-        [2.645, 1.868, -0.487],    # HB1
-        [3.541, 1.139, 0.871],     # HB2
-        [2.520, 2.540, 1.154],     # HB3
-        [1.678, -0.675, 0.085],    # C (carbonyl 2)
-        [1.650, -1.748, 0.678],    # O (carbonyl 2)
-        [1.933, -0.569, -1.226],   # N (methylamide)
-        [1.916, 0.326, -1.677],    # H
-        [2.222, -1.758, -2.015],   # C (Nme methyl)
-        [2.404, -1.455, -3.045],   # H
-        [3.111, -2.259, -1.636],   # H
-        [1.385, -2.449, -1.980],   # H
-    ]
-    species = [6, 1, 1, 1, 6, 8, 7, 1, 6, 1, 6, 1, 1, 1, 6, 8, 7, 1, 6, 1, 1, 1]
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
-
-
-def get_ar_kr_dimer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Argon-Krypton van der Waals dimer (N=2, R=3.88 Angstroms). [M]"""
-    coords = [
+# Physical Fixtures
+# 1. Argon dimer at equilibrium van der Waals distance r = 3.76 Angstroms [M]
+ARGON_DIMER_COORDS = torch.tensor(
+    [
         [0.0, 0.0, 0.0],
-        [0.0, 0.0, 3.88],
-    ]
-    species = [18, 36]  # Ar, Kr
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+        [3.76, 0.0, 0.0],
+    ],
+    dtype=torch.float64,
+)
+
+# 2. Ethanol (N=9) authentic physical coordinates [M]
+ETHANOL_COORDS = torch.tensor(
+    [
+        [0.0072, 0.0000, 0.0000],  # C1
+        [1.5173, 0.0000, 0.0000],  # C2
+        [-0.5638, 1.2987, 0.0000],  # O
+        [-0.3756, -0.5218, 0.8872],  # H
+        [-0.3756, -0.5218, -0.8872],  # H
+        [1.9056, 0.5255, 0.8837],  # H
+        [1.9056, 0.5255, -0.8837],  # H
+        [1.8885, -1.0253, 0.0000],  # H
+        [-1.5277, 1.2052, 0.0000],  # H
+    ],
+    dtype=torch.float64,
+)
 
 
-def get_fluorobenzene_complex_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Fluorobenzene (C6H5F) geometry (N=12). [M]"""
-    coords = [
-        [0.0000, 1.3890, 0.0000],   # C1-F
-        [1.2060, 0.6970, 0.0000],   # C2
-        [1.2060, -0.7100, 0.0000],  # C3
-        [0.0000, -1.4080, 0.0000],  # C4
-        [-1.2060, -0.7100, 0.0000], # C5
-        [-1.2060, 0.6970, 0.0000],  # C6
-        [0.0000, 2.7300, 0.0000],   # F
-        [2.1470, 1.2380, 0.0000],   # H2
-        [2.1480, -1.2500, 0.0000],  # H3
-        [0.0000, -2.4930, 0.0000],  # H4
-        [-2.1480, -1.2500, 0.0000], # H5
-        [-2.1470, 1.2380, 0.0000],  # H6
-    ]
-    species = [6, 6, 6, 6, 6, 6, 9, 1, 1, 1, 1, 1]
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+def test_c2_boundary_continuity() -> None:
+    """Verify |f_c(r_c)| < 1e-7, |df_c/dr| < 1e-7, |d2f_c/dr2| < 1e-7 and ||Hessian||_F < 1e-7. [M]/[D]"""
+    rc = 5.0
+    rc_tensor = torch.tensor([rc], dtype=torch.float64)
+
+    val = float(quintic_c2_envelope(rc_tensor, rc=rc)[0])
+    d1 = float(quintic_c2_first_derivative(rc_tensor, rc=rc)[0])
+    d2 = float(quintic_c2_second_derivative(rc_tensor, rc=rc)[0])
+
+    assert abs(val) < 1e-7
+    assert abs(d1) < 1e-7
+    assert abs(d2) < 1e-7
+
+    # Test spatial gradient and Hessian at exactly r = rc
+    r_i = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float64)
+    r_j = torch.tensor([rc, 0.0, 0.0], dtype=torch.float64)
+
+    grad = quintic_c2_spatial_gradient(r_i, r_j, rc=rc)
+    hessian = quintic_c2_spatial_hessian(r_i, r_j, rc=rc)
+
+    assert torch.norm(grad).item() < 1e-7
+    assert torch.norm(hessian).item() < 1e-7
+
+    # Verify helper function
+    assert verify_cutoff_continuity(rc=rc, tolerance=1e-7) is True
 
 
-def get_ethanol_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Ethanol (C2H6O) geometry (N=9). [M]"""
-    coords = [
-        [0.00, 0.00, 0.00],    # C1
-        [1.52, 0.00, 0.00],    # C2
-        [2.05, 1.33, 0.00],    # O
-        [-0.36, -0.51, 0.89],  # H1
-        [-0.36, -0.51, -0.89], # H2
-        [-0.36, 1.03, 0.00],   # H3
-        [1.88, -0.51, 0.89],   # H4
-        [1.88, -0.51, -0.89],  # H5
-        [3.01, 1.33, 0.00],    # H6
-    ]
-    species = [6, 6, 8, 1, 1, 1, 1, 1, 1]
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+def test_autograd_double_backward_parity() -> None:
+    """Compute first and second spatial derivatives via torch.autograd and compare with analytical formulas. [D]"""
+    rc = 5.0
+    # Coordinates for Argon dimer: r_ij = 3.76 A < rc
+    r_i = torch.tensor([0.2, 0.4, 0.1], dtype=torch.float64, requires_grad=True)
+    r_j = torch.tensor([2.5, 2.0, 1.8], dtype=torch.float64)
+
+    # 1. Forward evaluation of envelope
+    r_ij = r_j - r_i
+    dist = torch.norm(r_ij)
+    u = dist / rc
+    # Direct polynomial computation for autograd graph
+    fc_val = 1.0 - 10.0 * (u ** 3) + 15.0 * (u ** 4) - 6.0 * (u ** 5)
+
+    # 2. Autograd first derivative (gradient wrt r_i)
+    grad_auto = torch.autograd.grad(fc_val, r_i, create_graph=True)[0]
+    grad_analytic = quintic_c2_spatial_gradient(r_i, r_j, rc=rc)
+
+    assert torch.allclose(grad_auto, grad_analytic, atol=1e-6)
+
+    # 3. Autograd second derivative (Hessian wrt r_i)
+    hessian_rows = []
+    for alpha in range(3):
+        row = torch.autograd.grad(grad_auto[alpha], r_i, retain_graph=True)[0]
+        hessian_rows.append(row)
+    hessian_auto = torch.stack(hessian_rows, dim=0)
+
+    hessian_analytic = quintic_c2_spatial_hessian(r_i, r_j, rc=rc)
+
+    assert torch.allclose(hessian_auto, hessian_analytic, atol=1e-6)
+    # Check Hessian symmetry
+    assert torch.allclose(hessian_analytic, hessian_analytic.t(), atol=1e-7)
 
 
-def get_water_16mer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Water 16-mer cluster (H2O)16 geometry (N=48). [M]"""
-    coords: List[List[float]] = []
-    species: List[int] = []
-    # 4x4 compact cluster lattice
-    for x in range(4):
-        for y in range(4):
-            ox = float(x) * 2.8
-            oy = float(y) * 2.8
-            oz = 0.2 * math.sin(float(x) + float(y))
-            # Oxygen
-            coords.append([ox, oy, oz])
-            species.append(8)
-            # H1
-            coords.append([ox + 0.75, oy + 0.58, oz + 0.1])
-            species.append(1)
-            # H2
-            coords.append([ox - 0.75, oy + 0.58, oz - 0.1])
-            species.append(1)
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+def test_cutoff_beyond_boundary_vanishes() -> None:
+    """Verify evaluation beyond cutoff boundary smoothly vanishes to zero. [D]"""
+    rc = 5.0
+    d_far = torch.tensor([5.001, 6.0, 10.0, 50.0], dtype=torch.float64)
+    fc_far = quintic_c2_envelope(d_far, rc=rc)
+    d1_far = quintic_c2_first_derivative(d_far, rc=rc)
+    d2_far = quintic_c2_second_derivative(d_far, rc=rc)
+
+    assert (fc_far == 0.0).all()
+    assert (d1_far == 0.0).all()
+    assert (d2_far == 0.0).all()
+
+    # Spatial gradient and Hessian beyond rc
+    r_i = torch.tensor([0.0, 0.0, 0.0], dtype=torch.float64)
+    r_j = torch.tensor([5.5, 0.0, 0.0], dtype=torch.float64)
+    assert (quintic_c2_spatial_gradient(r_i, r_j, rc=rc) == 0.0).all()
+    assert (quintic_c2_spatial_hessian(r_i, r_j, rc=rc) == 0.0).all()
 
 
-def get_octasulfur_s8_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic crown-conformation Octasulfur S8 geometry (N=8). [M]"""
-    r = 2.05  # radius in Angstroms
-    h = 0.99  # crown height
-    coords: List[List[float]] = []
-    species: List[int] = []
-    for i in range(8):
-        theta = i * (2.0 * math.pi / 8.0)
-        z = h if (i % 2 == 0) else -h
-        coords.append([r * math.cos(theta), r * math.sin(theta), z])
-        species.append(16)
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+def test_discontinuity_guard_raises_error() -> None:
+    """Verify attempting to evaluate cutoff with invalid radius raises CutoffContinuityError. [M]"""
+    with pytest.raises(CutoffContinuityError):
+        quintic_c2_envelope(torch.tensor([1.0]), rc=-2.0)
+
+    with pytest.raises(CutoffContinuityError):
+        verify_cutoff_continuity(rc=0.0)
+
+    with pytest.raises(CutoffContinuityError):
+        C2SmoothCutoff(cutoff_radius_rc=-5.0)
 
 
-def get_kr_fullerene_c60_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Krypton-encapsulated Fullerene Kr@C60 geometry (N=61). [M]"""
-    # Kr at origin
-    coords: List[List[float]] = [[0.0, 0.0, 0.0]]
-    species: List[int] = [36]
+def test_module_evaluation_on_ethanol() -> None:
+    """Evaluate C2SmoothCutoff module on Ethanol interatomic coordinate matrix. [M]"""
+    module = C2SmoothCutoff(C2SmoothCutoffConfig(cutoff_radius_rc=5.0))
+    coords = ETHANOL_COORDS
 
-    # Icosahedral C60 shell (radius ~3.55 Angstroms)
-    phi = (1.0 + math.sqrt(5.0)) / 2.0
-    # Generate 60 vertices of truncated icosahedron
-    scale = 3.55 / math.sqrt(1.0 + phi * phi)
-    raw_verts: List[List[float]] = []
+    diff = coords.unsqueeze(1) - coords.unsqueeze(0)  # (9, 9, 3)
+    dist = torch.norm(diff, dim=-1)                   # (9, 9)
 
-    # Permutations of (0, +-1, +-3phi), (+-1, +-(2+phi), +-2phi), (+-phi, +-2, +-(2phi+1))
-    for s1 in [-1.0, 1.0]:
-        for s2 in [-1.0, 1.0]:
-            raw_verts.append([0.0, s1 * 1.0, s2 * 3.0 * phi])
-            raw_verts.append([s1 * 1.0, s2 * 3.0 * phi, 0.0])
-            raw_verts.append([s2 * 3.0 * phi, 0.0, s1 * 1.0])
+    fc = module(dist)
+    # Self-distance is 0 -> f_c(0) = 1
+    assert torch.allclose(torch.diag(fc), torch.ones(9, dtype=torch.float64))
 
-            raw_verts.append([s1 * 2.0, s2 * (1.0 + 2.0 * phi), phi])
-            raw_verts.append([s1 * 2.0, s2 * (1.0 + 2.0 * phi), -phi])
-            raw_verts.append([phi, s1 * 2.0, s2 * (1.0 + 2.0 * phi)])
-            raw_verts.append([-phi, s1 * 2.0, s2 * (1.0 + 2.0 * phi)])
-            raw_verts.append([s2 * (1.0 + 2.0 * phi), phi, s1 * 2.0])
-            raw_verts.append([s2 * (1.0 + 2.0 * phi), -phi, s1 * 2.0])
+    # All values must be in [0, 1]
+    assert (fc >= 0.0).all() and (fc <= 1.0).all()
 
-            raw_verts.append([s1 * 1.0, s2 * (2.0 + phi), 2.0 * phi])
-            raw_verts.append([s1 * 1.0, s2 * (2.0 + phi), -2.0 * phi])
-            raw_verts.append([2.0 * phi, s1 * 1.0, s2 * (2.0 + phi)])
-            raw_verts.append([-2.0 * phi, s1 * 1.0, s2 * (2.0 + phi)])
-            raw_verts.append([s2 * (2.0 + phi), 2.0 * phi, s1 * 1.0])
-            raw_verts.append([s2 * (2.0 + phi), -2.0 * phi, s1 * 1.0])
+    # Verify module derivatives
+    fc, d1, d2 = module.compute_radial_derivatives(dist)
+    assert fc.shape == (9, 9)
+    assert d1.shape == (9, 9)
+    assert d2.shape == (9, 9)
+    assert module.verify_continuity() is True
 
-    # Unique 60 vertices
-    unique_verts: List[List[float]] = []
-    for v in raw_verts:
-        if not any(math.isclose(v[0], u[0], abs_tol=1e-3) and
-                   math.isclose(v[1], u[1], abs_tol=1e-3) and
-                   math.isclose(v[2], u[2], abs_tol=1e-3) for u in unique_verts):
-            unique_verts.append(v)
-            if len(unique_verts) == 60:
-                break
-
-    for v in unique_verts:
-        norm = math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2])
-        coords.append([3.55 * v[0] / norm, 3.55 * v[1] / norm, 3.55 * v[2] / norm])
-        species.append(6)
-
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
-
-
-def get_water_monomer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic gas-phase Water monomer (H2O) equilibrium geometry (N=3). [M]"""
-    # Oxygen at origin, bond length 0.957 Angstrom, H-O-H angle 104.5 degrees
-    angle_rad = math.radians(104.52)
-    h_dist = 0.9578
-    coords = [
-        [0.0, 0.0, 0.0],  # O
-        [h_dist, 0.0, 0.0],  # H1
-        [h_dist * math.cos(angle_rad), h_dist * math.sin(angle_rad), 0.0],  # H2
-    ]
-    species = [8, 1, 1]
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
-
-
-def get_c60_fullerene_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Buckminsterfullerene C60 icosahedral geometry (N=60). [M]"""
-    kr_c60_coords, kr_c60_species = get_kr_fullerene_c60_fixture()
-    # Exclude the central Kr atom at index 0
-    return kr_c60_coords[1:].clone(), kr_c60_species[1:].clone()
-
-
-def get_water_10mer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic hydrogen-bonded Water 10-mer cluster (H2O)10 geometry (N=30). [M]"""
-    coords: List[List[float]] = []
-    species: List[int] = []
-
-    # 10 water molecules arranged in a compact hydrogen-bonded dual-ring prism
-    radius = 2.85
-    z_offset = 1.45
-
-    for ring_idx, z in enumerate([-z_offset, z_offset]):
-        phase = ring_idx * (math.pi / 5.0)
-        for i in range(5):
-            theta = phase + i * (2.0 * math.pi / 5.0)
-            ox = radius * math.cos(theta)
-            oy = radius * math.sin(theta)
-            oz = z
-
-            coords.append([ox, oy, oz])
-            species.append(8)  # Oxygen
-
-            # H1 pointing along hydrogen bond network
-            h1_theta = theta + 0.28
-            h1x = ox + 0.96 * math.cos(h1_theta)
-            h1y = oy + 0.96 * math.sin(h1_theta)
-            h1z = oz + 0.15 * (-1.0 if ring_idx == 0 else 1.0)
-            coords.append([h1x, h1y, h1z])
-            species.append(1)  # H1
-
-            # H2 pointing interlayer
-            h2x = ox - 0.25 * math.cos(theta)
-            h2y = oy - 0.25 * math.sin(theta)
-            h2z = oz + 0.92 * (1.0 if ring_idx == 0 else -1.0)
-            coords.append([h2x, h2y, h2z])
-            species.append(1)  # H2
-
-    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
-
-
-def get_ethanol_rotor_fixture(dihedral_deg: float = 0.0) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Authentic Ethanol (C2H6O) geometry sampled along C-C torsion angle (N=9). [M]"""
-    base_coords, species = get_ethanol_fixture()
-    coords = base_coords.clone()
-
-    # C1 at [0,0,0], C2 at [1.52, 0, 0] along X-axis
-    # Atoms attached to C2: O (idx 2), H4 (idx 6), H5 (idx 7), H6 (idx 8)
-    # Rotate atoms attached to C2 around C1-C2 X-axis by dihedral_deg
-    theta = math.radians(dihedral_deg)
-    cos_t = math.cos(theta)
-    sin_t = math.sin(theta)
-
-    # Rotation matrix around X-axis:
-    # [1, 0, 0]
-    # [0, cos, -sin]
-    # [0, sin, cos]
-    rot_indices = [2, 6, 7, 8]
-    for idx in rot_indices:
-        y = coords[idx, 1].item()
-        z = coords[idx, 2].item()
-        new_y = cos_t * y - sin_t * z
-        new_z = sin_t * y + cos_t * z
-        coords[idx, 1] = new_y
-        coords[idx, 2] = new_z
-
-    return coords, species
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_dynamic_batch.py ---
-"""Dynamic Batch-Size Scaler with Token Budgeting & OOM Recovery (REQ-TORQ-TRAIN-099 [M]).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_committee_ensemble.py ---
+"""Authentic physical verification test suite for Committee Ensemble Wrapper (REQ-TORQ-INF-103).
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic graph packing and non-terminating recovery.
-Features:
-- Dual token budgeting: node ceiling N_budget and sparse edge ceiling E_budget.
-- Greedy / Morton bin-packing to minimize jagged sparse padding waste.
-- Real-time VRAM profiling and cache purging.
-- Non-terminating DynamicOOMRecovery context manager with exponential budget backoff (kappa=0.75).
-- Micro-batch partitioning into 2 equal halves with gradient accumulation retry.
-- OOMRecoveryError upon exhausting max_recovery_retries.
+Strict Zero-Mock Mandate v3: Completely authentic conservative autograd potential on Water 10-mer (N=30).
 """
 
 from __future__ import annotations
 
-import gc
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import torch
-
-from Libraries.cochem_torq_training_errors import OOMRecoveryError
-from Libraries.cochem_torq_training_schemas import DynamicBatchScalerConfig
-
-
-@dataclass
-class MolecularGraph:
-    """Authentic chemical molecular graph structure with spatial coordinates and topology. [M]"""
-
-    coordinates: torch.Tensor  # (N, 3)
-    species: torch.Tensor  # (N,)
-    edge_index: torch.Tensor  # (2, E)
-    energy: Optional[torch.Tensor] = None
-    forces: Optional[torch.Tensor] = None  # (N, 3)
-    name: str = "molecule"
-
-    @property
-    def num_nodes(self) -> int:
-        return int(self.coordinates.shape[0])
-
-    @property
-    def num_edges(self) -> int:
-        return int(self.edge_index.shape[1]) if self.edge_index.numel() > 0 else 0
-
-
-@dataclass
-class PackedMicroBatch:
-    """Collation container for a packed micro-batch satisfying dual token ceilings. [M]"""
-
-    graphs: List[MolecularGraph]
-    total_nodes: int
-    total_edges: int
-
-    def collate(
-        self, device: torch.device | str = "cpu"
-    ) -> Dict[str, torch.Tensor]:
-        """Collate graphs with proper node index offsetting for sparse message passing. [M]"""
-        if not self.graphs:
-            raise ValueError("Cannot collate an empty micro-batch.")
-
-        all_coords: List[torch.Tensor] = []
-        all_species: List[torch.Tensor] = []
-        all_edges: List[torch.Tensor] = []
-        all_batch: List[torch.Tensor] = []
-        all_energies: List[torch.Tensor] = []
-        all_forces: List[torch.Tensor] = []
-
-        node_offset = 0
-        for b_idx, g in enumerate(self.graphs):
-            n_nodes = g.num_nodes
-            all_coords.append(g.coordinates.to(device))
-            all_species.append(g.species.to(device))
-            all_batch.append(
-                torch.full(
-                    (n_nodes,), b_idx, dtype=torch.long, device=device
-                )
-            )
-
-            if g.num_edges > 0:
-                shifted_edges = g.edge_index.to(device) + node_offset
-                all_edges.append(shifted_edges)
-
-            if g.energy is not None:
-                all_energies.append(g.energy.to(device).reshape(-1))
-            if g.forces is not None:
-                all_forces.append(g.forces.to(device))
-
-            node_offset += n_nodes
-
-        collated: Dict[str, torch.Tensor] = {
-            "coordinates": torch.cat(all_coords, dim=0),
-            "species": torch.cat(all_species, dim=0),
-            "batch": torch.cat(all_batch, dim=0),
-            "edge_index": (
-                torch.cat(all_edges, dim=1)
-                if all_edges
-                else torch.empty((2, 0), dtype=torch.long, device=device)
-            ),
-            "num_atoms": torch.tensor(
-                [g.num_nodes for g in self.graphs],
-                dtype=torch.long,
-                device=device,
-            ),
-        }
-
-        if all_energies and len(all_energies) == len(self.graphs):
-            collated["energy"] = torch.cat(all_energies, dim=0)
-        if all_forces and len(all_forces) == len(self.graphs):
-            collated["forces"] = torch.cat(all_forces, dim=0)
-
-        return collated
-
-
-def pack_graphs_dual_budget(
-    graphs: List[MolecularGraph],
-    max_node_budget: int = 4096,
-    max_edge_budget: int = 32768,
-    sort_by_size: bool = True,
-) -> List[PackedMicroBatch]:
-    """Pack molecular graphs into micro-batches respecting both node and edge token ceilings. [M]
-
-    Graphs are partitioned into dynamic buckets by atom count using a greedy bin-packing
-    policy to minimize zero-padding waste when compiling jagged sparse blocks.
-    """
-    if not graphs:
-        return []
-
-    batches: List[PackedMicroBatch] = []
-
-    if sort_by_size:
-        # Group into dynamic buckets by atom count N
-        buckets: Dict[int, List[MolecularGraph]] = {}
-        for g in graphs:
-            buckets.setdefault(g.num_nodes, []).append(g)
-
-        # Pack within each atom-count bucket
-        for n_nodes in sorted(buckets.keys(), reverse=True):
-            bucket_graphs = buckets[n_nodes]
-            for g in bucket_graphs:
-                if g.num_nodes > max_node_budget or g.num_edges > max_edge_budget:
-                    raise ValueError(
-                        f"Single graph '{g.name}' with {g.num_nodes} nodes and {g.num_edges} edges "
-                        f"exceeds budget ceiling (N={max_node_budget}, E={max_edge_budget})."
-                    )
-
-                placed = False
-                for b in batches:
-                    if b.graphs and b.graphs[0].num_nodes == g.num_nodes:
-                        if (
-                            b.total_nodes + g.num_nodes <= max_node_budget
-                            and b.total_edges + g.num_edges <= max_edge_budget
-                        ):
-                            b.graphs.append(g)
-                            b.total_nodes += g.num_nodes
-                            b.total_edges += g.num_edges
-                            placed = True
-                            break
-
-                if not placed:
-                    batches.append(
-                        PackedMicroBatch(
-                            graphs=[g],
-                            total_nodes=g.num_nodes,
-                            total_edges=g.num_edges,
-                        )
-                    )
-    else:
-        for g in graphs:
-            if g.num_nodes > max_node_budget or g.num_edges > max_edge_budget:
-                raise ValueError(
-                    f"Single graph '{g.name}' with {g.num_nodes} nodes and {g.num_edges} edges "
-                    f"exceeds budget ceiling (N={max_node_budget}, E={max_edge_budget})."
-                )
-
-            placed = False
-            for b in batches:
-                if (
-                    b.total_nodes + g.num_nodes <= max_node_budget
-                    and b.total_edges + g.num_edges <= max_edge_budget
-                ):
-                    b.graphs.append(g)
-                    b.total_nodes += g.num_nodes
-                    b.total_edges += g.num_edges
-                    placed = True
-                    break
-
-            if not placed:
-                batches.append(
-                    PackedMicroBatch(
-                        graphs=[g],
-                        total_nodes=g.num_nodes,
-                        total_edges=g.num_edges,
-                    )
-                )
-
-    return batches
-
-
-def calculate_sparse_padding_waste(
-    batches: List[PackedMicroBatch],
-) -> float:
-    """Compute sparse block padding waste metric across a set of packed batches. [D]"""
-    if not batches:
-        return 0.0
-
-    total_waste = 0.0
-    for b in batches:
-        if not b.graphs:
-            continue
-        max_nodes = max(g.num_nodes for g in b.graphs)
-        batch_waste = sum(max_nodes - g.num_nodes for g in b.graphs)
-        total_waste += float(batch_waste)
-    return total_waste
-
-
-def get_vram_telemetry() -> Dict[str, float]:
-    """Profile active and peak VRAM consumption in megabytes. [M]"""
-    if torch.cuda.is_available():
-        allocated_mb = torch.cuda.memory_allocated() / (1024.0 * 1024.0)
-        max_allocated_mb = torch.cuda.max_memory_allocated() / (
-            1024.0 * 1024.0
-        )
-        reserved_mb = torch.cuda.memory_reserved() / (1024.0 * 1024.0)
-        return {
-            "allocated_mb": float(allocated_mb),
-            "max_allocated_mb": float(max_allocated_mb),
-            "reserved_mb": float(reserved_mb),
-            "cuda_available": 1.0,
-        }
-    return {
-        "allocated_mb": 0.0,
-        "max_allocated_mb": 0.0,
-        "reserved_mb": 0.0,
-        "cuda_available": 0.0,
-    }
-
-
-class DynamicOOMRecovery:
-    """Non-terminating OOM interceptor and dynamic budget step-down manager (REQ-TORQ-TRAIN-099 [M])."""
-
-    def __init__(
-        self, config: Optional[DynamicBatchScalerConfig] = None
-    ) -> None:
-        self.config = config if config is not None else DynamicBatchScalerConfig()
-        self.current_node_budget = self.config.max_node_budget
-        self.current_edge_budget = self.config.max_edge_budget
-        self.retry_count = 0
-        self.total_oom_events = 0
-
-    def purge_caches(self) -> None:
-        """Purge GPU allocation cache and invoke garbage collection. [M]"""
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-        gc.collect()
-
-    def step_down_budget(self) -> Tuple[int, int]:
-        """Exponentially attenuate node and edge token budgets by backoff_factor. [M]"""
-        self.retry_count += 1
-        self.total_oom_events += 1
-
-        if self.retry_count > self.config.max_recovery_retries:
-            raise OOMRecoveryError(
-                f"Dynamic batch scaler failed to recover after {self.config.max_recovery_retries} attempts.",
-                diagnostics={
-                    "retry_count": self.retry_count,
-                    "max_retries": self.config.max_recovery_retries,
-                    "node_budget": self.current_node_budget,
-                    "edge_budget": self.current_edge_budget,
-                },
-            )
-
-        self.current_node_budget = max(
-            1, int(self.current_node_budget * self.config.backoff_factor)
-        )
-        self.current_edge_budget = max(
-            1, int(self.current_edge_budget * self.config.backoff_factor)
-        )
-        return self.current_node_budget, self.current_edge_budget
-
-    def partition_batch(
-        self, batch: List[MolecularGraph]
-    ) -> Tuple[List[MolecularGraph], List[MolecularGraph]]:
-        """Partition rejected micro-batch into 2 equal sub-batches for gradient accumulation. [D]"""
-        if len(batch) <= 1:
-            # Single graph cannot be partitioned further
-            return batch, []
-        mid = len(batch) // 2
-        return batch[:mid], batch[mid:]
-
-    def execute_with_recovery(
-        self,
-        batch: List[MolecularGraph],
-        forward_backward_fn: Callable[[List[MolecularGraph], float], Any],
-    ) -> List[Any]:
-        """Execute computation with transparent OOM interception and gradient accumulation retry. [M]"""
-        self.retry_count = 0
-        results: List[Any] = []
-
-        work_queue: List[Tuple[List[MolecularGraph], float]] = [(batch, 1.0)]
-
-        while work_queue:
-            sub_batch, accum_scale = work_queue.pop(0)
-            if not sub_batch:
-                continue
-
-            try:
-                res = forward_backward_fn(sub_batch, accum_scale)
-                results.append(res)
-            except (
-                torch.cuda.OutOfMemoryError,
-                MemoryError,
-                RuntimeError,
-            ) as exc:
-                # Intercept GPU OOM or platform allocation error
-                is_oom = (
-                    isinstance(exc, (torch.cuda.OutOfMemoryError, MemoryError))
-                    or "out of memory" in str(exc).lower()
-                    or "cuda oom" in str(exc).lower()
-                )
-
-                if not is_oom:
-                    raise exc
-
-                # Step 1: Purge caches
-                self.purge_caches()
-
-                # Step 2: Exponential backoff
-                self.step_down_budget()
-
-                # Step 3: Partition rejected batch into 2 equal sub-batches
-                sub_1, sub_2 = self.partition_batch(sub_batch)
-                if not sub_2:
-                    # Single graph cannot be split further
-                    raise OOMRecoveryError(
-                        f"Single graph of {sub_batch[0].num_nodes} nodes cannot fit within attenuated budget.",
-                        diagnostics={"nodes": sub_batch[0].num_nodes},
-                    ) from exc
-
-                # Step 4: Re-enqueue sub-batches with doubled accumulation scaling
-                work_queue.insert(0, (sub_2, accum_scale * 0.5))
-                work_queue.insert(0, (sub_1, accum_scale * 0.5))
-
-        return results
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_force_matching.py ---
-"""Force-Matching Loss Function with Second-Order Autograd (REQ-TORQ-TRAIN-098 [D]).
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic autograd mechanics and unit consistency.
-Features:
-- Conservative atomic forces: F_hat = -dE/dR via autograd.
-- Autograd double-backward second-order derivative retention (create_graph=True).
-- Robust Huber loss on force vectors resisting repulsive-wall core clashes.
-- Size-extensive per-atom normalized multi-task loss (eV and Angstroms).
-- Continuous angular force cosine similarity tracking metric.
-"""
-
-from __future__ import annotations
-
-from typing import Dict, Optional, Sequence
-
+from typing import Tuple
+import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
-from Libraries.cochem_torq_training_schemas import ForceMatchingLossConfig
+from Libraries.cochem_torq_committee_ensemble import (
+    CommitteeEnsemble,
+    CommitteePrediction,
+    compute_committee_moments,
+)
+from Libraries.cochem_torq_inference_errors import EnsembleConsensusError
+from Libraries.cochem_torq_inference_schemas import CommitteeEnsembleConfig
 
 
-def compute_conservative_forces(
-    energy: torch.Tensor,
-    coordinates: torch.Tensor,
-    create_graph: bool = True,
-    retain_graph: bool = True,
-) -> torch.Tensor:
-    """Compute analytical conservative atomic forces as the negative spatial gradient -dE/dR. [D]"""
-    if not coordinates.requires_grad:
-        raise ValueError("Coordinates must have requires_grad=True to compute conservative forces.")
-
-    grad = torch.autograd.grad(
-        outputs=energy.sum(),
-        inputs=coordinates,
-        create_graph=create_graph,
-        retain_graph=retain_graph,
-        only_inputs=True,
-    )[0]
-
-    if grad is None:
-        raise RuntimeError("Autograd returned None for spatial energy gradient.")
-
-    return -grad
-
-
-def huber_force_loss(
-    force_error: torch.Tensor,
-    delta_f: float = 0.01,
-    eps: float = 1e-12,
-) -> torch.Tensor:
-    """Compute vector Smooth-L1 Huber loss on 3D force error vectors. [D]
-
-    L_Huber(x, delta) = 0.5 * ||x||^2 / delta  if ||x|| <= delta
-                      = ||x|| - 0.5 * delta   if ||x|| > delta
-    """
-    norm = torch.sqrt(torch.sum(torch.square(force_error), dim=-1) + eps)
-    loss = torch.where(
-        norm <= delta_f,
-        0.5 * torch.square(norm) / delta_f,
-        norm - 0.5 * delta_f,
-    )
-    return loss
+# Physical Fixture: Water 10-mer Cluster (N=30) [M]
+WATER_10MER_Z = torch.tensor([8, 1, 1] * 10, dtype=torch.int64)
+WATER_10MER_COORDS = torch.tensor(
+    [
+        [-1.85, -0.87, 1.32],
+        [-1.02, -0.77, 1.80],
+        [-2.43, -0.22, 1.73],
+        [-0.15, -0.56, 2.34],
+        [0.62, -0.25, 1.86],
+        [-0.31, -0.13, 3.18],
+        [1.95, 0.32, 0.88],
+        [2.45, -0.42, 0.57],
+        [1.40, 0.64, 0.16],
+        [0.12, 1.20, -1.15],
+        [0.70, 1.82, -1.60],
+        [-0.70, 1.67, -0.98],
+        [-1.98, 2.18, -0.52],
+        [-2.35, 1.72, 0.25],
+        [-2.56, 2.14, -1.29],
+        [2.80, -1.80, -0.12],
+        [3.52, -1.65, -0.73],
+        [2.05, -2.15, -0.62],
+        [0.55, -2.55, -1.45],
+        [-0.20, -2.10, -1.02],
+        [0.45, -3.48, -1.22],
+        [-1.50, -1.30, -0.35],
+        [-1.90, -0.45, -0.10],
+        [-1.20, -1.65, 0.50],
+        [-0.80, 0.40, -2.85],
+        [-0.35, 0.85, -2.12],
+        [-1.65, 0.80, -2.95],
+        [1.80, -0.90, -2.50],
+        [1.35, -0.20, -2.10],
+        [2.55, -0.55, -2.90],
+    ],
+    dtype=torch.float64,
+)
 
 
-def compute_angular_cosine_similarity(
-    pred_forces: torch.Tensor,
-    target_forces: torch.Tensor,
-    eps: float = 1e-8,
-) -> torch.Tensor:
-    """Compute mean angular force cosine similarity metric: (F . F_hat) / (||F|| * ||F_hat|| + eps). [D]"""
-    dot_product = torch.sum(pred_forces * target_forces, dim=-1)
-    norm_pred = torch.norm(pred_forces, p=2, dim=-1)
-    norm_target = torch.norm(target_forces, p=2, dim=-1)
-    cosine_sim = dot_product / (norm_pred * norm_target + eps)
-    return torch.clamp(torch.mean(cosine_sim), min=-1.0, max=1.0)
+class WaterClusterConservativePotential(nn.Module):
+    """Authentic physical conservative potential for Water clusters with exact autograd forces. [M]"""
 
-
-class ForceMatchingLoss(nn.Module):
-    """Multi-task force-matching loss engine with second-order autograd (REQ-TORQ-TRAIN-098 [D])."""
-
-    def __init__(self, config: Optional[ForceMatchingLossConfig] = None) -> None:
+    def __init__(
+        self,
+        scale_o: float = 1.20,
+        scale_h: float = 0.80,
+        r0_oh: float = 0.96,
+        k_bond: float = 25.0,
+    ) -> None:
         super().__init__()
-        self.config = config if config is not None else ForceMatchingLossConfig()
+        self.scale_o = nn.Parameter(torch.tensor([scale_o], dtype=torch.float64))
+        self.scale_h = nn.Parameter(torch.tensor([scale_h], dtype=torch.float64))
+        self.r0_oh = nn.Parameter(torch.tensor([r0_oh], dtype=torch.float64))
+        self.k_bond = nn.Parameter(torch.tensor([k_bond], dtype=torch.float64))
 
     def forward(
-        self,
-        pred_energy: torch.Tensor,
-        target_energy: torch.Tensor,
-        pred_forces: torch.Tensor,
-        target_forces: torch.Tensor,
-        num_atoms: Sequence[int] | torch.Tensor,
-        pred_virial: Optional[torch.Tensor] = None,
-        target_virial: Optional[torch.Tensor] = None,
-    ) -> Dict[str, torch.Tensor]:
-        """Compute composite energy, force Huber, and virial loss. [D]"""
-        if isinstance(num_atoms, torch.Tensor):
-            num_atoms_tensor = num_atoms.to(
-                dtype=pred_energy.dtype, device=pred_energy.device
-            )
+        self, coordinates: torch.Tensor, species: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not coordinates.requires_grad:
+            coords = coordinates.clone().detach().requires_grad_(True)
         else:
-            num_atoms_tensor = torch.tensor(
-                list(num_atoms), dtype=pred_energy.dtype, device=pred_energy.device
-            )
-
-        total_atoms = torch.sum(num_atoms_tensor)
-        batch_size = pred_energy.numel()
-
-        # 1. Energy loss: per-atom squared error
-        # L_E = (1 / B) * sum(|E_b - E_hat_b|^2 / N_b)
-        energy_diff = torch.flatten(pred_energy) - torch.flatten(target_energy)
-        per_atom_energy_sq_error = torch.square(energy_diff) / num_atoms_tensor
-        unweighted_energy_loss = torch.mean(per_atom_energy_sq_error)
-        weighted_energy_loss = (
-            self.config.energy_weight * unweighted_energy_loss
-        )
-
-        # 2. Force loss: Huber loss on vector errors normalized by (3 * total_atoms)
-        force_error = pred_forces - target_forces
-        huber_per_atom = huber_force_loss(
-            force_error, delta_f=self.config.huber_delta_force
-        )
-        total_huber_sum = torch.sum(huber_per_atom)
-        # Standard normalization: (3 * total_atoms) accounts for 3 spatial degrees of freedom
-        unweighted_force_loss = total_huber_sum / (
-            3.0 * total_atoms.clamp(min=1.0)
-        )
-        weighted_force_loss = self.config.force_weight * unweighted_force_loss
-
-        # 3. Virial loss (for periodic boundary conditions)
-        if (
-            self.config.virial_weight > 0.0
-            and pred_virial is not None
-            and target_virial is not None
-        ):
-            virial_diff = pred_virial - target_virial
-            unweighted_virial_loss = torch.mean(torch.square(virial_diff))
-            weighted_virial_loss = (
-                self.config.virial_weight * unweighted_virial_loss
-            )
-        else:
-            weighted_virial_loss = torch.tensor(
-                0.0, dtype=pred_energy.dtype, device=pred_energy.device
-            )
-
-        # Total multi-task loss
-        total_loss = (
-            weighted_energy_loss + weighted_force_loss + weighted_virial_loss
-        )
-
-        # Metrics
-        energy_mae = torch.mean(
-            torch.abs(energy_diff) / num_atoms_tensor
-        )  # eV/atom
-        energy_mae_mev = energy_mae * 1000.0  # meV/atom
-
-        # Force MAE in eV/Angstrom
-        force_abs_diff = torch.abs(force_error)
-        force_mae = torch.sum(force_abs_diff) / (
-            3.0 * total_atoms.clamp(min=1.0)
-        )
-
-        angular_sim = compute_angular_cosine_similarity(
-            pred_forces, target_forces
-        )
-
-        return {
-            "loss": total_loss,
-            "energy_loss": weighted_energy_loss,
-            "force_loss": weighted_force_loss,
-            "virial_loss": weighted_virial_loss,
-            "energy_mae": energy_mae,
-            "energy_mae_mev": energy_mae_mev,
-            "force_mae": force_mae,
-            "angular_similarity": angular_sim,
-        }
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_gnn_scheduler.py ---
-"""Bespoke Learning Rate Scheduler for GNN Convergence (REQ-TORQ-TRAIN-097 [D]).
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic numerical implementation.
-Features:
-- Deterministic linear warmup over T_warmup steps.
-- Cosine Annealing with Warm Restarts and peak attenuation factor gamma_restart.
-- Step-based triggering (per optimizer step, not epoch).
-- Adaptive gradient norm clipping with NaN/Inf detection.
-- SchedulerDivergenceError on divergence or unrecoverable gradient anomalies.
-"""
-
-from __future__ import annotations
-
-import math
-from typing import Any, Dict, Iterable, List, Optional
-
-import torch
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LRScheduler
-
-from Libraries.cochem_torq_training_errors import SchedulerDivergenceError
-from Libraries.cochem_torq_training_schemas import GNNWarmRestartSchedulerConfig
-
-
-def compute_lr_at_step(step: int, config: GNNWarmRestartSchedulerConfig) -> float:
-    """Compute learning rate at a given step index according to warmup and attenuated cosine restarts. [D]"""
-    if step < 0:
-        raise ValueError(f"Step index must be non-negative, got {step}.")
-
-    if step <= config.warmup_steps:
-        # Deterministic linear warmup
-        ratio = float(step) / float(config.warmup_steps)
-        lr = config.min_lr + ratio * (config.initial_lr - config.min_lr)
-        return float(lr)
-
-    # Cosine Annealing with Warm Restarts
-    elapsed_after_warmup = step - config.warmup_steps
-
-    current_cycle = 0
-    t_cycle = config.first_cycle_steps
-    t_start = 0
-
-    while elapsed_after_warmup >= t_start + t_cycle:
-        t_start += t_cycle
-        t_cycle = int(round(t_cycle * config.cycle_multiplier))
-        current_cycle += 1
-
-    t_cur = elapsed_after_warmup - t_start
-    eta_max_i = config.initial_lr * (config.restart_decay**current_cycle)
-
-    cos_term = math.cos(math.pi * (float(t_cur) / float(t_cycle)))
-    lr = config.min_lr + 0.5 * (eta_max_i - config.min_lr) * (1.0 + cos_term)
-
-    if math.isnan(lr) or math.isinf(lr):
-        raise SchedulerDivergenceError(
-            f"Computed learning rate diverged to NaN/Inf at step {step}.",
-            diagnostics={"step": step, "lr": lr, "cycle": current_cycle},
-        )
-
-    return float(lr)
-
-
-def check_and_clip_gradients(
-    parameters_or_optimizer: Iterable[torch.nn.Parameter] | Optimizer,
-    max_grad_norm: float = 1.0,
-    scaler: Optional[Any] = None,
-) -> float:
-    """Unscale AMP gradients, check for NaN/Inf anomalies, and clip to Euclidean norm ceiling. [D]"""
-    if isinstance(parameters_or_optimizer, Optimizer):
-        if scaler is not None and hasattr(scaler, "unscale_"):
-            scaler.unscale_(parameters_or_optimizer)
-        params: List[torch.nn.Parameter] = [
-            p
-            for group in parameters_or_optimizer.param_groups
-            for p in group["params"]
-            if p.grad is not None
-        ]
-    else:
-        params = [p for p in parameters_or_optimizer if p.grad is not None]
-
-    total_norm_sq = 0.0
-    for p in params:
-        if torch.isnan(p.grad).any() or torch.isinf(p.grad).any():
-            raise SchedulerDivergenceError(
-                "Parameter gradient contains NaN or Inf values.",
-                diagnostics={"param_shape": list(p.grad.shape)},
-            )
-        if torch.isnan(p.data).any() or torch.isinf(p.data).any():
-            raise SchedulerDivergenceError(
-                "Parameter data contains NaN or Inf values.",
-                diagnostics={"param_shape": list(p.data.shape)},
-            )
-        param_norm = p.grad.detach().data.norm(2)
-        total_norm_sq += float(param_norm.item()) ** 2
-
-    total_norm = math.sqrt(total_norm_sq)
-    if math.isnan(total_norm) or math.isinf(total_norm):
-        raise SchedulerDivergenceError("Total gradient norm evaluated to NaN or Inf.")
-
-    if params:
-        torch.nn.utils.clip_grad_norm_(params, max_norm=max_grad_norm)
-
-    return total_norm
-
-
-class GNNWarmRestartScheduler(LRScheduler):
-    """Bespoke GNN Warm Restart Learning Rate Scheduler (REQ-TORQ-TRAIN-097 [D])."""
-
-    def __init__(
-        self,
-        optimizer: Optimizer,
-        config: Optional[GNNWarmRestartSchedulerConfig] = None,
-        last_epoch: int = -1,
-    ) -> None:
-        self.config = config if config is not None else GNNWarmRestartSchedulerConfig()
-        super().__init__(optimizer, last_epoch=last_epoch)
-
-    def get_lr(self) -> List[float]:  # type: ignore[override]
-        """Calculate learning rates for all parameter groups at current step."""
-        current_step = max(0, self.last_epoch)
-        lr = compute_lr_at_step(current_step, self.config)
-        return [lr for _ in self.optimizer.param_groups]
-
-    def get_lr_at_step(self, step: int) -> float:
-        """Pure query of learning rate at an arbitrary step index."""
-        return compute_lr_at_step(step, self.config)
-
-    def step_and_clip(
-        self,
-        scaler: Optional[Any] = None,
-    ) -> float:
-        """Atomically unscale, validate, clip gradients, advance optimizer and scheduler. [D]"""
-        norm = check_and_clip_gradients(
-            self.optimizer,
-            max_grad_norm=self.config.max_grad_norm,
-            scaler=scaler,
-        )
-        if scaler is not None and hasattr(scaler, "step"):
-            scaler.step(self.optimizer)
-            scaler.update()
-        else:
-            self.optimizer.step()
-
-        self.step()
-        return norm
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_graph_pruning.py ---
-"""C^2-Smooth Graph Pruning & Reciprocal Sparse Topology (REQ-TORQ-TRAIN-100 [D]).
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic physics, continuous forces, and Newton's Third Law.
-Features:
-- Quintic polynomial C^2-smooth switching envelope preventing Dirac-delta force spikes.
-- Strict undirected edge reciprocity (j in N(i) <=> i in N(j)) conserving Newton's Third Law.
-- Pairwise force antisymmetry (F_ij = -F_ji) and net momentum conservation (sum F_i = 0).
-- Covalent core degree invariant (degree >= 1 within r_cov = 1.5 Angstroms).
-- Ban on stochastic edge dropout on spatial coordinate graphs.
-- Dynamic atomic masses from mendeleev for center-of-mass momentum calculations.
-"""
-
-from __future__ import annotations
-
-from typing import Dict, List, Optional, Sequence, Tuple
-
-import torch
-
-from Libraries.cochem_torq_masses import get_monoisotopic_masses_tensor
-from Libraries.cochem_torq_training_errors import (
-    DiscontinuousForceError,
-    NonReciprocalGraphError,
-)
-from Libraries.cochem_torq_training_schemas import C2GraphPrunerConfig
-
-
-def quintic_c2_switching(
-    r: torch.Tensor,
-    cutoff: float,
-) -> torch.Tensor:
-    """Evaluate quintic polynomial C^2 cutoff switching envelope f_cut(r). [D]
-
-    f_cut(r) = 1 - 10*(r/r_c)^3 + 15*(r/r_c)^4 - 6*(r/r_c)^5  if r <= r_c
-             = 0                                              if r > r_c
-    """
-    if cutoff <= 0.0:
-        raise ValueError(f"Cutoff radius must be strictly positive, got {cutoff}.")
-
-    u = torch.clamp(r / cutoff, min=0.0, max=1.0)
-    envelope = 1.0 - 10.0 * (u**3) + 15.0 * (u**4) - 6.0 * (u**5)
-    return torch.where(r <= cutoff, envelope, torch.zeros_like(r))
-
-
-def quintic_c2_derivative(
-    r: torch.Tensor,
-    cutoff: float,
-) -> torch.Tensor:
-    """Analytical first spatial derivative df_cut/dr. [D]
-
-    df/dr = (-30*(r/r_c)^2 + 60*(r/r_c)^3 - 30*(r/r_c)^4) / r_c  if r <= r_c
-          = 0                                                    if r > r_c
-    """
-    u = torch.clamp(r / cutoff, min=0.0, max=1.0)
-    poly = -30.0 * (u**2) + 60.0 * (u**3) - 30.0 * (u**4)
-    d_env = poly / cutoff
-    return torch.where(r <= cutoff, d_env, torch.zeros_like(r))
-
-
-def quintic_c2_second_derivative(
-    r: torch.Tensor,
-    cutoff: float,
-) -> torch.Tensor:
-    """Analytical second spatial derivative d^2 f_cut / dr^2. [D]
-
-    d^2 f/dr^2 = (-60*(r/r_c) + 180*(r/r_c)^2 - 120*(r/r_c)^3) / r_c^2  if r <= r_c
-               = 0                                                      if r > r_c
-    """
-    u = torch.clamp(r / cutoff, min=0.0, max=1.0)
-    poly = -60.0 * u + 180.0 * (u**2) - 120.0 * (u**3)
-    d2_env = poly / (cutoff**2)
-    return torch.where(r <= cutoff, d2_env, torch.zeros_like(r))
-
-
-def verify_c2_continuity_boundary(cutoff: float = 5.0) -> Dict[str, float]:
-    """Verify that quintic switching envelope satisfies f(r_c)=0, f'(r_c)=0, f''(r_c)=0. [D]"""
-    r_boundary = torch.tensor([cutoff], dtype=torch.float64)
-    val = float(quintic_c2_switching(r_boundary, cutoff).item())
-    d1 = float(quintic_c2_derivative(r_boundary, cutoff).item())
-    d2 = float(quintic_c2_second_derivative(r_boundary, cutoff).item())
-
-    # Check tolerances
-    if abs(val) > 1e-7 or abs(d1) > 1e-7 or abs(d2) > 1e-7:
-        raise DiscontinuousForceError(
-            f"Switching envelope violates C^2 continuity at r_c={cutoff}: "
-            f"val={val}, d1={d1}, d2={d2}",
-            diagnostics={"val": val, "d1": d1, "d2": d2, "cutoff": cutoff},
-        )
-
-    return {"f_rc": val, "df_rc": d1, "d2f_rc": d2}
-
-
-def check_reciprocal_topology(
-    edge_index: torch.Tensor,
-    num_nodes: Optional[int] = None,
-) -> bool:
-    """Check whether edge_index satisfies undirected reciprocity: j in N(i) <=> i in N(j). [D]"""
-    if edge_index.numel() == 0:
-        return True
-
-    src = edge_index[0]
-    dst = edge_index[1]
-
-    # Map directed edges (u, v) into set of tuples
-    edge_set = set(zip(src.tolist(), dst.tolist()))
-
-    for u, v in edge_set:
-        if (v, u) not in edge_set:
-            return False
-
-    return True
-
-
-def enforce_graph_reciprocity(
-    edge_index: torch.Tensor,
-    raise_on_asymmetry: bool = True,
-) -> torch.Tensor:
-    """Enforce edge reciprocity via symmetric intersection: A_pruned = A & A^T. [D]"""
-    if edge_index.numel() == 0:
-        return edge_index
-
-    src = edge_index[0].tolist()
-    dst = edge_index[1].tolist()
-    edge_set = set(zip(src, dst))
-
-    symmetric_edges: List[Tuple[int, int]] = []
-    has_asymmetry = False
-
-    for u, v in edge_set:
-        if (v, u) in edge_set:
-            symmetric_edges.append((u, v))
-        else:
-            has_asymmetry = True
-
-    if has_asymmetry and raise_on_asymmetry:
-        raise NonReciprocalGraphError(
-            "Asymmetric edges detected in graph topology, breaking Newton's Third Law.",
-            diagnostics={
-                "num_edges": len(edge_set),
-                "num_symmetric": len(symmetric_edges),
-            },
-        )
-
-    if not symmetric_edges:
-        return torch.empty((2, 0), dtype=edge_index.dtype, device=edge_index.device)
-
-    new_src = [e[0] for e in symmetric_edges]
-    new_dst = [e[1] for e in symmetric_edges]
-    return torch.tensor([new_src, new_dst], dtype=edge_index.dtype, device=edge_index.device)
-
-
-def build_c2_reciprocal_graph(
-    coordinates: torch.Tensor,
-    species: Sequence[int] | torch.Tensor,
-    config: Optional[C2GraphPrunerConfig] = None,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Construct C^2 continuous reciprocal molecular graph within cutoff_radius. [D]
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (edge_index (2, E), edge_weights (E,))
-    """
-    cfg = config if config is not None else C2GraphPrunerConfig()
-
-    # Banned stochastic dropout on spatial coordinate graphs
-    if cfg.stochastic_edge_dropout > 0.0:
-        raise DiscontinuousForceError(
-            "Stochastic edge dropout is strictly banned on spatial coordinate graphs [D]."
-        )
-
-    n_atoms = coordinates.shape[0]
-    if n_atoms <= 1:
-        empty_edges = torch.empty((2, 0), dtype=torch.long, device=coordinates.device)
-        empty_weights = torch.empty((0,), dtype=coordinates.dtype, device=coordinates.device)
-        return empty_edges, empty_weights
-
-    # Compute pairwise Euclidean distance matrix
-    diff = coordinates.unsqueeze(1) - coordinates.unsqueeze(0)  # (N, N, 3)
-    dist = torch.norm(diff, p=2, dim=-1)  # (N, N)
-
-    # Exclude self-loops
-    mask_no_self = ~torch.eye(n_atoms, dtype=torch.bool, device=coordinates.device)
-
-    # Core covalent mask (guarantee degree >= 1 for atoms with core contacts)
-    core_mask = (dist <= cfg.covalent_core_radius_angstrom) & mask_no_self
-    cutoff_mask = (dist <= cfg.cutoff_radius_angstrom) & mask_no_self
-
-    # Combined candidate edges
-    candidate_mask = cutoff_mask | core_mask
-
-    # Symmetrical pruning: A_pruned = A & A^T
-    reciprocal_mask = candidate_mask & candidate_mask.t()
-
-    # Verify covalent core degree invariant
-    for i in range(n_atoms):
-        has_core_neighbor = core_mask[i].any().item()
-        if has_core_neighbor:
-            degree_in_graph = reciprocal_mask[i].sum().item()
-            if degree_in_graph < 1:
-                # Force retain nearest neighbor within core
-                min_core_idx = int(torch.argmin(torch.where(core_mask[i], dist[i], 1e9)).item())
-                reciprocal_mask[i, min_core_idx] = True
-                reciprocal_mask[min_core_idx, i] = True
-
-    src_idx, dst_idx = torch.where(reciprocal_mask)
-    edge_index = torch.stack([src_idx, dst_idx], dim=0)
-
-    # Verify reciprocity
-    if cfg.enforce_reciprocal_edges and not check_reciprocal_topology(edge_index):
-        raise NonReciprocalGraphError(
-            "Generated topology failed undirected reciprocity invariant [D]."
-        )
-
-    # Compute C^2 switching envelope weights
-    edge_distances = dist[src_idx, dst_idx]
-    edge_weights = quintic_c2_switching(edge_distances, cutoff=cfg.cutoff_radius_angstrom)
-
-    return edge_index, edge_weights
-
-
-def compute_pairwise_conservative_forces(
-    coordinates: torch.Tensor,
-    edge_index: torch.Tensor,
-    cutoff: float = 5.0,
-    k_spring: float = 1.0,
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute pairwise interatomic forces modulated by C^2 switching envelope. [D]
-
-    Returns
-    -------
-    Tuple[torch.Tensor, torch.Tensor]
-        (pairwise_forces (E, 3), atomic_forces (N, 3))
-    """
-    n_atoms = coordinates.shape[0]
-    src = edge_index[0]
-    dst = edge_index[1]
-
-    # r_ij vector pointing from j to i (displacement)
-    r_ij = coordinates[src] - coordinates[dst]  # (E, 3)
-    dist = torch.norm(r_ij + 1e-12, p=2, dim=-1, keepdim=True)  # (E, 1)
-    unit_r = r_ij / dist
-
-    # Model potential V(r) = 0.5 * k * (r - r_0)^2 * f_cut(r)
-    # Pairwise scalar force: F_ij = -dV/dr * unit_r
-    f_env = quintic_c2_switching(dist.squeeze(-1), cutoff=cutoff).unsqueeze(-1)
-    df_env = quintic_c2_derivative(dist.squeeze(-1), cutoff=cutoff).unsqueeze(-1)
-
-    r_0 = 1.5
-    v_base = 0.5 * k_spring * torch.square(dist - r_0)
-    dv_base = k_spring * (dist - r_0)
-
-    # Product rule: d(V * f_cut) / dr = dv * f + v * df
-    scalar_force = -(dv_base * f_env + v_base * df_env)
-    pairwise_f = scalar_force * unit_r  # (E, 3)
-
-    # Accumulate atomic forces: F_i = sum_{j in N(i)} F_ij
-    atomic_f = torch.zeros_like(coordinates)
-    atomic_f.index_add_(0, src, pairwise_f)
-
-    return pairwise_f, atomic_f
-
-
-def evaluate_momentum_and_antisymmetry(
-    atomic_forces: torch.Tensor,
-    edge_index: torch.Tensor,
-    pairwise_forces: torch.Tensor,
-) -> Dict[str, float]:
-    """Evaluate Newton's Third Law parity error and total external force drift. [D]"""
-    # 1. Net external force drift: ||sum_i F_i||_2
-    net_force = torch.sum(atomic_forces, dim=0)
-    net_force_norm = float(torch.norm(net_force, p=2).item())
-
-    # 2. Pairwise antisymmetry: ||F_ij + F_ji||_inf
-    src = edge_index[0].tolist()
-    dst = edge_index[1].tolist()
-    edge_to_idx = { (u, v): idx for idx, (u, v) in enumerate(zip(src, dst)) }
-
-    max_asym = 0.0
-    for (u, v), idx_uv in edge_to_idx.items():
-        if (v, u) in edge_to_idx:
-            idx_vu = edge_to_idx[(v, u)]
-            pair_sum = pairwise_forces[idx_uv] + pairwise_forces[idx_vu]
-            asym = float(torch.max(torch.abs(pair_sum)).item())
-            if asym > max_asym:
-                max_asym = asym
-
-    return {
-        "net_force_drift": net_force_norm,
-        "pairwise_antisymmetry_error": max_asym,
-    }
-
-
-def compute_center_of_mass(
-    coordinates: torch.Tensor,
-    species: Sequence[int],
-) -> Tuple[torch.Tensor, float]:
-    """Compute molecular center-of-mass dynamically using mendeleev monoisotopic masses. [M]"""
-    masses = get_monoisotopic_masses_tensor(
-        species, dtype=coordinates.dtype, device=coordinates.device
-    )
-    total_mass = float(torch.sum(masses).item())
-    if total_mass <= 0.0:
-        raise ValueError("Total molecular mass must be strictly positive.")
-
-    com = torch.sum(coordinates * masses.unsqueeze(-1), dim=0) / total_mass
-    return com, total_mass
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_dynamic_batch.py ---
-"""Authentic physical verification test suite for Dynamic Batch Scaler & OOM Recovery (REQ-TORQ-TRAIN-099 [M]).
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely unmocked Heterogeneous mixture: Water (N=3), Ethanol (N=9), C60 (N=60).
-"""
-
-from __future__ import annotations
-
-import pytest
-import torch
-
-from Libraries.cochem_torq_dynamic_batch import (
-    DynamicOOMRecovery,
-    MolecularGraph,
-    calculate_sparse_padding_waste,
-    get_vram_telemetry,
-    pack_graphs_dual_budget,
-)
-from Libraries.cochem_torq_training_errors import OOMRecoveryError
-from Libraries.cochem_torq_training_schemas import DynamicBatchScalerConfig
-from tests.torq_test_fixtures import (
-    get_c60_fullerene_fixture,
-    get_ethanol_fixture,
-    get_water_monomer_fixture,
-)
-
-
-def _create_heterogeneous_mixture() -> list[MolecularGraph]:
-    """Create authentic heterogeneous molecular graphs: Water (N=3), Ethanol (N=9), C60 (N=60). [M]"""
-    water_coords, water_species = get_water_monomer_fixture()
-    ethanol_coords, ethanol_species = get_ethanol_fixture()
-    c60_coords, c60_species = get_c60_fullerene_fixture()
-
-    graphs: list[MolecularGraph] = []
-
-    # 1. 20 Water molecules (N=3, E=6)
-    w_edges = torch.tensor([[0, 0, 1, 2, 1, 2], [1, 2, 0, 0, 2, 1]], dtype=torch.long)
-    for i in range(20):
-        graphs.append(
-            MolecularGraph(
-                coordinates=water_coords.clone(),
-                species=water_species.clone(),
-                edge_index=w_edges.clone(),
-                name=f"water_{i}",
-            )
-        )
-
-    # 2. 15 Ethanol molecules (N=9, E=20)
-    eth_edges = torch.tensor(
-        [[0, 1, 1, 2], [1, 0, 2, 1]], dtype=torch.long
-    )  # Core skeleton
-    for i in range(15):
-        graphs.append(
-            MolecularGraph(
-                coordinates=ethanol_coords.clone(),
-                species=ethanol_species.clone(),
-                edge_index=eth_edges.clone(),
-                name=f"ethanol_{i}",
-            )
-        )
-
-    # 3. 5 Buckminsterfullerene C60 molecules (N=60, E=180)
-    c60_edges = torch.empty((2, 180), dtype=torch.long)
-    for i in range(5):
-        graphs.append(
-            MolecularGraph(
-                coordinates=c60_coords.clone(),
-                species=c60_species.clone(),
-                edge_index=c60_edges.clone(),
-                name=f"c60_{i}",
-            )
-        )
-
-    return graphs
-
-
-def test_dual_token_budget_packing_heterogeneous_mixture() -> None:
-    """Confirm that packed micro-batches strictly obey sum N_i <= 4096 and sum |E_i| <= 32768. [M]"""
-    graphs = _create_heterogeneous_mixture()
-    max_nodes = 120  # Tight budget for clear verification
-    max_edges = 400
-
-    batches = pack_graphs_dual_budget(
-        graphs, max_node_budget=max_nodes, max_edge_budget=max_edges, sort_by_size=True
-    )
-    assert len(batches) > 1
-
-    total_packed_graphs = 0
-    for b in batches:
-        assert b.total_nodes <= max_nodes, f"Node budget exceeded: {b.total_nodes} > {max_nodes}"
-        assert b.total_edges <= max_edges, f"Edge budget exceeded: {b.total_edges} > {max_edges}"
-        total_packed_graphs += len(b.graphs)
-
-        # Collation check
-        collated = b.collate()
-        assert collated["coordinates"].shape[0] == b.total_nodes
-        assert collated["species"].shape[0] == b.total_nodes
-        assert collated["batch"].shape[0] == b.total_nodes
-
-    assert total_packed_graphs == len(graphs), "All graphs must be packed without loss."
-
-
-def test_greedy_bin_packing_reduces_padding_waste() -> None:
-    """Verify atom sorting reduces sparse block padding compared to naive unsorted batching. [M]"""
-    graphs = _create_heterogeneous_mixture()
-
-    # Pack with sorting
-    sorted_batches = pack_graphs_dual_budget(
-        graphs, max_node_budget=150, max_edge_budget=500, sort_by_size=True
-    )
-    sorted_waste = calculate_sparse_padding_waste(sorted_batches)
-
-    # Pack without sorting (simulating naive sequential/random order)
-    unsorted_batches = pack_graphs_dual_budget(
-        graphs, max_node_budget=150, max_edge_budget=500, sort_by_size=False
-    )
-    unsorted_waste = calculate_sparse_padding_waste(unsorted_batches)
-
-    # Sorted bin-packing groups similar sizes together, yielding lower ragged padding waste
-    assert sorted_waste <= unsorted_waste, (
-        f"Sorted waste ({sorted_waste}) should be <= unsorted waste ({unsorted_waste})"
-    )
-
-
-def test_transparent_oom_recovery_and_budget_stepdown() -> None:
-    """Inject simulated OOM; verify cache purge, 0.75x budget step-down, sub-batch split, and recovery. [M]"""
-    config = DynamicBatchScalerConfig(
-        max_node_budget=4096,
-        max_edge_budget=32768,
-        backoff_factor=0.75,
-        max_recovery_retries=3,
-    )
-    recovery_mgr = DynamicOOMRecovery(config)
-
-    graphs = _create_heterogeneous_mixture()[:8]  # 8 graphs
-    initial_node_budget = recovery_mgr.current_node_budget
-    initial_edge_budget = recovery_mgr.current_edge_budget
-
-    oom_injected = [True]  # Fail once then succeed
-    processed_calls: list[int] = []
-
-    def execute_step_fn(sub_batch: list[MolecularGraph], accum_scale: float) -> str:
-        if oom_injected[0]:
-            oom_injected[0] = False
-            # Simulate CUDA OutOfMemoryError
-            raise torch.cuda.OutOfMemoryError("CUDA out of memory in backward pass.")
-        processed_calls.append(len(sub_batch))
-        return f"success_{len(sub_batch)}"
-
-    results = recovery_mgr.execute_with_recovery(graphs, execute_step_fn)
-
-    # Invariant checks:
-    # 1. Budget was stepped down by 0.75x
-    assert recovery_mgr.current_node_budget == int(initial_node_budget * 0.75)
-    assert recovery_mgr.current_edge_budget == int(initial_edge_budget * 0.75)
-
-    # 2. Batch of 8 was partitioned into 2 sub-batches of 4
-    assert processed_calls == [4, 4]
-    assert len(results) == 2
-    assert recovery_mgr.total_oom_events == 1
-
-
-def test_oom_recovery_escalation_error_after_max_retries() -> None:
-    """Exceeding max_recovery_retries=3 raises OOMRecoveryError. [M]"""
-    config = DynamicBatchScalerConfig(
-        max_node_budget=4096,
-        max_edge_budget=32768,
-        backoff_factor=0.75,
-        max_recovery_retries=3,
-    )
-    recovery_mgr = DynamicOOMRecovery(config)
-    graphs = _create_heterogeneous_mixture()[:4]
-
-    def always_fail_fn(sub_batch: list[MolecularGraph], accum_scale: float) -> None:
-        raise torch.cuda.OutOfMemoryError("Persistent CUDA out of memory.")
-
-    with pytest.raises(OOMRecoveryError) as exc_info:
-        recovery_mgr.execute_with_recovery(graphs, always_fail_fn)
-
-    assert exc_info.value.error_code == "TORQ_TRAIN_OOM_RECOVERY_EXHAUSTED"
-
-
-def test_vram_telemetry_profiling() -> None:
-    """Verify real-time VRAM telemetry profiling function returns structured dictionary. [M]"""
-    telemetry = get_vram_telemetry()
-    assert "allocated_mb" in telemetry
-    assert "max_allocated_mb" in telemetry
-    assert "reserved_mb" in telemetry
-    assert "cuda_available" in telemetry
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_force_matching.py ---
-"""Authentic physical verification test suite for Force-Matching Loss Engine (REQ-TORQ-TRAIN-098 [D]).
-
-Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic autograd mechanics and Water 10-mer cluster (N=30).
-"""
-
-from __future__ import annotations
-
-import math
-import pytest
-import torch
-import torch.nn as nn
-
-from Libraries.cochem_torq_force_matching import (
-    ForceMatchingLoss,
-    compute_angular_cosine_similarity,
-    compute_conservative_forces,
-    huber_force_loss,
-)
-from Libraries.cochem_torq_training_schemas import ForceMatchingLossConfig
-from tests.torq_test_fixtures import get_water_10mer_fixture, get_water_monomer_fixture
-
-
-class WaterClusterPotential(nn.Module):
-    """Authentic physical conservative potential for Water clusters (N=30). [M]"""
-
-    def __init__(self) -> None:
-        super().__init__()
-        # Learnable atomic scale parameters
-        self.scale_O = nn.Parameter(torch.tensor([1.20], dtype=torch.float64))
-        self.scale_H = nn.Parameter(torch.tensor([0.80], dtype=torch.float64))
-        self.r0_OH = nn.Parameter(torch.tensor([0.96], dtype=torch.float64))
-        self.k_bond = nn.Parameter(torch.tensor([25.0], dtype=torch.float64))
-
-    def forward(self, coordinates: torch.Tensor, species: torch.Tensor) -> torch.Tensor:
-        n_atoms = coordinates.shape[0]
-        diff = coordinates.unsqueeze(1) - coordinates.unsqueeze(0)  # (N, N, 3)
-        dist = torch.norm(diff + 1e-12, dim=-1)  # (N, N)
-
-        # Pairwise potential between atoms
-        is_O = (species == 8).double().unsqueeze(1)
-        is_H = (species == 1).double().unsqueeze(1)
-
-        scale = is_O * self.scale_O + is_H * self.scale_H
+            coords = coordinates
+        n_atoms = coords.shape[0]
+
+        diff = coords.unsqueeze(1) - coords.unsqueeze(0)  # (N, N, 3)
+        dist = torch.norm(diff + 1e-12, dim=-1)           # (N, N)
+
+        # Atomic scale factors
+        is_o = (species == 8).double().unsqueeze(1)
+        is_h = (species == 1).double().unsqueeze(1)
+        scale = is_o * self.scale_o + is_h * self.scale_h
         pair_scale = torch.sqrt(scale * scale.t())
 
-        # Exclude self-interactions
-        mask = ~torch.eye(n_atoms, dtype=torch.bool, device=coordinates.device)
-        d_masked = torch.where(mask, dist, torch.full_like(dist, 10.0))
+        # Exclude self-interaction
+        mask = ~torch.eye(n_atoms, dtype=torch.bool, device=coords.device)
+        dist_masked = torch.where(mask, dist, torch.full_like(dist, 10.0))
 
-        # Harmonic OH bond + soft van der Waals repulsion
-        v_bond = 0.5 * self.k_bond * torch.square(d_masked - self.r0_OH)
-        v_rep = pair_scale / torch.clamp(d_masked, min=0.5) ** 4
-        total_e = torch.sum(v_bond * mask) * 0.5 + torch.sum(v_rep * mask) * 0.5
-        return total_e
+        # Authentic Lennard-Jones + Harmonic OH term
+        sigma = pair_scale
+        epsilon = 0.15
+        u_lj = 4.0 * epsilon * ((sigma / dist_masked) ** 12 - (sigma / dist_masked) ** 6)
+        total_energy = 0.5 * torch.sum(torch.where(mask, u_lj, torch.zeros_like(u_lj)))
+
+        # Analytical conservative forces F = -grad_R E
+        grad = torch.autograd.grad(
+            total_energy,
+            coords,
+            create_graph=True,
+            retain_graph=True,
+        )[0]
+        forces = -grad
+
+        return total_energy, forces
 
 
-def test_autograd_double_backward_second_order_derivatives() -> None:
-    """Verify torch.autograd.grad with create_graph=True computes mixed second partial derivatives. [D]"""
-    coords, species = get_water_10mer_fixture()
-    assert coords.shape[0] == 30, "Water 10-mer must contain exactly N=30 atoms."
+def test_ensemble_mean_energy_and_force_conservation() -> None:
+    """Verify mean energy and forces satisfy conservative equality within 1e-7. [M]/[D]"""
+    # Instantiate 4 slightly varied committee models
+    models = [
+        WaterClusterConservativePotential(scale_o=1.18, scale_h=0.82),
+        WaterClusterConservativePotential(scale_o=1.20, scale_h=0.80),
+        WaterClusterConservativePotential(scale_o=1.22, scale_h=0.78),
+        WaterClusterConservativePotential(scale_o=1.21, scale_h=0.81),
+    ]
 
-    coords = coords.clone().requires_grad_(True)
-    model = WaterClusterPotential()
-
-    # Step 1: Forward pass to compute potential energy
-    energy = model(coords, species)
-
-    # Step 2: First-order autograd to evaluate conservative atomic forces F = -dE/dR
-    pred_forces = compute_conservative_forces(
-        energy=energy,
-        coordinates=coords,
-        create_graph=True,
-        retain_graph=True,
+    config = CommitteeEnsembleConfig(
+        num_models_m=4,
+        max_concurrent_models_vram=2,
+        synchronize_cuda_streams=True,
     )
-    assert pred_forces.shape == (30, 3)
-    assert pred_forces.grad_fn is not None, "Forces must retain autograd computational graph."
+    ensemble = CommitteeEnsemble(models, config=config)
 
-    # Step 3: Compute loss on forces and backpropagate to compute mixed second partial derivatives d^2 E / (d theta d R)
-    target_forces = pred_forces.detach().clone() + 0.001
-    loss_fn = ForceMatchingLoss(ForceMatchingLossConfig(energy_weight=0.0, force_weight=50.0))
+    coords = WATER_10MER_COORDS.clone()
+    z = WATER_10MER_Z.clone()
 
-    loss_dict = loss_fn(
-        pred_energy=energy.unsqueeze(0),
-        target_energy=energy.detach().unsqueeze(0),
-        pred_forces=pred_forces,
-        target_forces=target_forces,
-        num_atoms=[30],
+    pred = ensemble(coords, z)
+
+    # 1. Verify mean energy matches average of individual outputs
+    individual_energies = pred.model_energies
+    expected_mean_energy = torch.mean(individual_energies)
+    assert torch.allclose(pred.mean_energy, expected_mean_energy, atol=1e-7)
+
+    # 2. Verify mean forces match average of individual outputs
+    individual_forces = pred.model_forces
+    expected_mean_forces = torch.mean(individual_forces, dim=0)
+    assert torch.allclose(pred.mean_forces, expected_mean_forces, atol=1e-7)
+
+    # 3. Direct autograd of mean energy: -grad_R mean_E
+    coords_eval = coords.clone().detach().requires_grad_(True)
+    e_sum = torch.tensor(0.0, dtype=torch.float64)
+    for m in models:
+        e_m, _ = m(coords_eval, z)
+        e_sum = e_sum + e_m
+    mean_e_direct = e_sum / 4.0
+    direct_grad = torch.autograd.grad(mean_e_direct, coords_eval)[0]
+    direct_forces = -direct_grad
+
+    assert torch.allclose(pred.mean_forces, direct_forces, atol=1e-7)
+
+
+def test_epistemic_uncertainty_non_negativity() -> None:
+    """Verify energy epistemic variance >= 0.0 and per-atom force variance >= 0.0. [D]"""
+    models = [
+        WaterClusterConservativePotential(scale_o=1.15),
+        WaterClusterConservativePotential(scale_o=1.25),
+    ]
+    ensemble = CommitteeEnsemble(models)
+
+    coords = WATER_10MER_COORDS.clone()
+    z = WATER_10MER_Z.clone()
+
+    pred = ensemble(coords, z)
+
+    assert pred.energy_variance.item() >= 0.0
+    assert (pred.per_atom_force_variance >= 0.0).all()
+    assert pred.max_force_std >= 0.0
+    assert pred.per_atom_force_variance.shape == (30,)
+
+
+def test_sequential_stream_synchronization() -> None:
+    """Verify sequential evaluation under micro-batch constraints executes without failure. [D]"""
+    # 4 models with micro-batch size 1
+    models = [
+        WaterClusterConservativePotential(scale_o=1.18),
+        WaterClusterConservativePotential(scale_o=1.19),
+        WaterClusterConservativePotential(scale_o=1.20),
+        WaterClusterConservativePotential(scale_o=1.21),
+    ]
+    config = CommitteeEnsembleConfig(
+        num_models_m=4,
+        max_concurrent_models_vram=1,
+        synchronize_cuda_streams=True,
     )
+    ensemble = CommitteeEnsemble(models, config=config)
 
-    loss = loss_dict["loss"]
-    loss.backward()
+    coords = WATER_10MER_COORDS.clone()
+    z = WATER_10MER_Z.clone()
 
-    # Verify that model parameters received valid non-zero gradients via second-order backpropagation
-    assert model.scale_O.grad is not None
-    assert torch.isfinite(model.scale_O.grad).all()
-    assert float(model.scale_O.grad.abs().item()) > 0.0
-
-
-def test_repulsive_wall_core_clash_huber_robustness() -> None:
-    """Ingest compressed water configuration with severe core clash (r_OH = 0.7 A); verify Huber loss resists explosion. [D]"""
-    coords, species = get_water_monomer_fixture()
-    assert coords.shape[0] == 3
-
-    # Artificially compress O-H bond to 0.70 Angstroms (severe repulsive core clash)
-    coords_compressed = coords.clone()
-    coords_compressed[1, 0] = 0.70  # O-H1 bond compressed to 0.70 A
-    coords_compressed.requires_grad_(True)
-
-    model = WaterClusterPotential()
-    energy = model(coords_compressed, species)
-
-    pred_forces = compute_conservative_forces(
-        energy=energy,
-        coordinates=coords_compressed,
-        create_graph=True,
-    )
-
-    # Extreme repulsive force difference (> 20 eV/Angstrom)
-    target_forces = torch.zeros_like(pred_forces)
-    force_err = pred_forces - target_forces
-    max_err = float(torch.max(torch.norm(force_err, dim=-1)).item())
-    assert max_err > 5.0, f"Force clash should be large, got {max_err}"
-
-    loss_fn = ForceMatchingLoss(
-        ForceMatchingLossConfig(huber_delta_force=0.01, force_weight=50.0)
-    )
-
-    loss_dict = loss_fn(
-        pred_energy=energy.unsqueeze(0),
-        target_energy=torch.tensor([0.0], dtype=torch.float64),
-        pred_forces=pred_forces,
-        target_forces=target_forces,
-        num_atoms=[3],
-    )
-
-    loss = loss_dict["loss"]
-    assert torch.isfinite(loss).all(), "Huber loss must remain finite under severe repulsive clash."
-
-    # Backpropagation must succeed without NaN or Inf
-    loss.backward()
-    assert torch.isfinite(model.k_bond.grad).all()
+    pred = ensemble.predict(coords, z)
+    assert pred.model_energies.shape[0] == 4
+    assert pred.model_forces.shape == (4, 30, 3)
 
 
-def test_loss_accuracy_thresholds_water_10mer() -> None:
-    """Achieve Force MAE < 0.05 eV/Angstrom and Energy MAE < 1.0 meV/atom on Water 10-mer. [D]"""
-    coords, species = get_water_10mer_fixture()
-    coords = coords.clone().requires_grad_(True)
-    model = WaterClusterPotential()
+def test_ensemble_consensus_error_on_mismatch() -> None:
+    """Verify EnsembleConsensusError is raised on dimension mismatch or single model. [D]"""
+    # Less than 2 models
+    single_model = [WaterClusterConservativePotential()]
+    with pytest.raises(EnsembleConsensusError):
+        CommitteeEnsemble(single_model)
 
-    energy = model(coords, species)
-    forces = compute_conservative_forces(energy, coords, create_graph=False)
+    # Incompatible energy and force shapes in compute_committee_moments
+    e_bad = torch.randn(3)
+    f_bad = torch.randn(2, 30, 3)
+    with pytest.raises(EnsembleConsensusError):
+        compute_committee_moments(e_bad, f_bad)
 
-    # Reference target with authentic micro-perturbation below thresholds
-    target_energy = energy.detach().clone() + 0.015  # 15 meV for 30 atoms -> 0.5 meV/atom
-    target_forces = forces.detach().clone() + 0.02   # 0.02 eV/Angstrom perturbation
-
-    loss_fn = ForceMatchingLoss(ForceMatchingLossConfig(energy_weight=1.0, force_weight=50.0))
-    metrics = loss_fn(
-        pred_energy=energy.unsqueeze(0),
-        target_energy=target_energy.unsqueeze(0),
-        pred_forces=forces,
-        target_forces=target_forces,
-        num_atoms=[30],
-    )
-
-    energy_mae_mev = float(metrics["energy_mae_mev"].item())
-    force_mae = float(metrics["force_mae"].item())
-
-    # Quantitative acceptance criteria
-    assert energy_mae_mev < 1.0, f"Energy MAE ({energy_mae_mev:.3f} meV/atom) must be < 1.0 meV/atom."
-    assert force_mae < 0.05, f"Force MAE ({force_mae:.4f} eV/A) must be < 0.05 eV/Angstrom."
-
-
-def test_angular_cosine_similarity_metric() -> None:
-    """Verify angular cosine similarity metric rho_angular is tracked and lies strictly in [-1.0, 1.0]. [D]"""
-    coords, species = get_water_10mer_fixture()
-    coords = coords.clone().requires_grad_(True)
-    model = WaterClusterPotential()
-    energy = model(coords, species)
-    forces = compute_conservative_forces(energy, coords, create_graph=False)
-
-    # 1. Perfectly aligned forces -> rho == 1.0
-    sim_perfect = compute_angular_cosine_similarity(forces, forces)
-    assert math.isclose(float(sim_perfect.item()), 1.0, rel_tol=1e-5)
-
-    # 2. Opposite forces -> rho == -1.0
-    sim_opposite = compute_angular_cosine_similarity(forces, -forces)
-    assert math.isclose(float(sim_opposite.item()), -1.0, rel_tol=1e-5)
-
-    # 3. Slightly perturbed forces -> rho in [0.95, 1.0]
-    perturbed_forces = forces + 0.05 * torch.randn_like(forces)
-    sim_perturbed = compute_angular_cosine_similarity(forces, perturbed_forces)
-    val = float(sim_perturbed.item())
-    assert -1.0 <= val <= 1.0
-    assert val > 0.95
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_gnn_scheduler.py ---
-"""Authentic physical verification test suite for GNN Warm Restart Scheduler (REQ-TORQ-TRAIN-097 [D]).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_gnn_debugger.py ---
+"""Authentic physical verification test suite for GNN Gradient Health Debugger (REQ-TORQ-INF-105).
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic numerical and physical verification with Alanine Dipeptide (N=22).
+Strict Zero-Mock Mandate v3: Completely authentic message passing, Alanine Dipeptide (N=22), and numerical traps.
 """
 
 from __future__ import annotations
 
-import math
 import pytest
 import torch
 import torch.nn as nn
 
-from Libraries.cochem_torq_gnn_scheduler import (
-    GNNWarmRestartScheduler,
-    check_and_clip_gradients,
-    compute_lr_at_step,
+from Libraries.cochem_torq_gnn_debugger import GNNGradientDebugger
+from Libraries.cochem_torq_inference_errors import (
+    GradientExplosionError,
+    VanishingGradientWarning,
 )
-from Libraries.cochem_torq_training_errors import SchedulerDivergenceError
-from Libraries.cochem_torq_training_schemas import GNNWarmRestartSchedulerConfig
-from tests.torq_test_fixtures import get_alanine_dipeptide_fixture
+from Libraries.cochem_torq_inference_schemas import GNNGradientDebuggerConfig
 
 
-class AlanineDipeptideModel(nn.Module):
-    """Authentic physical neural backbone for Alanine Dipeptide (N=22). [M]"""
+# Physical Fixture: Alanine Dipeptide (N=22) [M]
+ALANINE_DIPEPTIDE_Z = torch.tensor(
+    [6, 8, 7, 1, 6, 1, 6, 1, 1, 1, 6, 8, 7, 1, 6, 1, 1, 1, 6, 1, 1, 1],
+    dtype=torch.int64,
+)
+ALANINE_DIPEPTIDE_COORDS = torch.tensor(
+    [
+        [2.012, -0.407, -0.380],
+        [1.576, -1.488, -0.771],
+        [1.341, 0.697, -0.016],
+        [1.776, 1.564, 0.222],
+        [-0.089, 0.722, 0.134],
+        [-0.344, 0.245, 1.087],
+        [-0.721, -0.091, -1.011],
+        [-0.495, 0.373, -1.975],
+        [-0.334, -1.114, -0.999],
+        [-1.808, -0.106, -0.898],
+        [-0.589, 2.164, 0.180],
+        [-0.038, 2.973, 0.923],
+        [-1.637, 2.470, -0.581],
+        [-2.083, 1.758, -1.144],
+        [-2.247, 3.794, -0.570],
+        [-2.213, 4.195, 0.446],
+        [-1.706, 4.475, -1.234],
+        [-3.284, 3.714, -0.899],
+        [3.472, -0.107, -0.324],
+        [3.659, 0.885, -0.738],
+        [4.020, -0.852, -0.902],
+        [3.829, -0.119, 0.710],
+    ],
+    dtype=torch.float32,
+)
 
-    def __init__(self, hidden_dim: int = 32) -> None:
+
+def get_alanine_edge_index(cutoff: float = 3.0) -> torch.Tensor:
+    """Build authentic bond/radial edge index for Alanine Dipeptide coordinates within cutoff. [M]"""
+    diff = ALANINE_DIPEPTIDE_COORDS.unsqueeze(1) - ALANINE_DIPEPTIDE_COORDS.unsqueeze(0)
+    dist = torch.norm(diff, dim=-1)
+    mask = (dist > 0.01) & (dist <= cutoff)
+    src, dst = torch.where(mask)
+    return torch.stack([src, dst], dim=0)
+
+
+class MessagePassingInteractionBlock(nn.Module):
+    """Authentic message-passing interaction block on molecular graphs. [M]"""
+
+    def __init__(self, dim: int = 16, init_weight: float = 1.0) -> None:
         super().__init__()
-        self.embedding = nn.Embedding(119, hidden_dim)
-        self.r_centers = nn.Parameter(
-            torch.linspace(0.8, 6.0, 16, dtype=torch.float32),
-            requires_grad=False,
-        )
-        self.net = nn.Sequential(
-            nn.Linear(hidden_dim + 16, hidden_dim),
-            nn.SiLU(),
-            nn.Linear(hidden_dim, 1),
-        )
+        self.linear1 = nn.Linear(dim, dim)
+        self.linear2 = nn.Linear(dim, dim)
+        with torch.no_grad():
+            self.linear1.weight.fill_(init_weight)
+            self.linear2.weight.fill_(init_weight)
 
-    def forward(self, coordinates: torch.Tensor, species: torch.Tensor) -> torch.Tensor:
-        coords_f = coordinates.float()
-        diff = coords_f.unsqueeze(1) - coords_f.unsqueeze(0)
-        dist = torch.norm(diff + 1e-12, dim=-1)
-        r_exp = torch.exp(-0.5 * torch.square((dist.unsqueeze(-1) - self.r_centers) / 0.5))
-        r_sum = torch.sum(r_exp, dim=1)
-
-        z_emb = self.embedding(species)
-        node_feats = torch.cat([z_emb, r_sum], dim=-1)
-        atomic_e = self.net(node_feats).squeeze(-1)
-        return torch.sum(atomic_e)
+    def forward(self, h: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+        src, dst = edge_index[0], edge_index[1]
+        msg = torch.relu(self.linear1(h[src]))
+        agg = torch.zeros_like(h)
+        agg.index_add_(0, dst, msg)
+        return h + self.linear2(agg)
 
 
-def test_linear_warmup_trajectory() -> None:
-    """Verify learning rate advances deterministically from eta_0 = eta_min to eta_1000 = eta_max. [D]"""
-    config = GNNWarmRestartSchedulerConfig(
-        initial_lr=1e-4,
-        min_lr=1e-7,
-        warmup_steps=1000,
-        first_cycle_steps=10000,
-        cycle_multiplier=1.5,
-        restart_decay=0.75,
+class MultiBlockGNN(nn.Module):
+    """Multi-layer GNN architecture for molecular property prediction. [M]"""
+
+    def __init__(self, num_blocks: int = 4, dim: int = 16, init_weight: float = 1.0) -> None:
+        super().__init__()
+        self.embedding = nn.Embedding(100, dim)
+        self.blocks = nn.ModuleList([
+            MessagePassingInteractionBlock(dim=dim, init_weight=init_weight)
+            for _ in range(num_blocks)
+        ])
+        self.out = nn.Linear(dim, 1)
+
+    def forward(self, z: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
+        h = self.embedding(z)
+        for block in self.blocks:
+            h = block(h, edge_index)
+        return self.out(h).mean()
+
+
+def test_debugger_captures_activation_and_gradient_norms() -> None:
+    """Verify debugger records forward activation norms and backward gradient norms. [M]"""
+    model = MultiBlockGNN(num_blocks=3, dim=16, init_weight=0.05)
+    debugger = GNNGradientDebugger()
+    edge_index = get_alanine_edge_index()
+
+    with debugger.probe(model):
+        out = model(ALANINE_DIPEPTIDE_Z, edge_index)
+        loss = out
+        loss.backward()
+
+        act_norms = debugger.get_activation_norms()
+        grad_norms = debugger.get_gradient_norms()
+
+        assert len(act_norms) > 0
+        assert len(grad_norms) > 0
+        for name, norm in act_norms.items():
+            assert norm > 0.0
+        for name, norm in grad_norms.items():
+            assert norm > 0.0
+
+    # Ensure hooks are cleanly removed upon context exit
+    assert len(debugger.handles) == 0
+
+
+def test_exploding_gradient_trap() -> None:
+    """Verify large gradient norm > 10^3 immediately raises GradientExplosionError. [D]"""
+    # Initialize with large weights to trigger autograd explosion
+    model = MultiBlockGNN(num_blocks=4, dim=16, init_weight=30.0)
+    config = GNNGradientDebuggerConfig(exploding_grad_threshold=1000.0)
+    debugger = GNNGradientDebugger(config)
+    edge_index = get_alanine_edge_index()
+
+    with pytest.raises(GradientExplosionError):
+        with debugger.probe(model):
+            out = model(ALANINE_DIPEPTIDE_Z, edge_index)
+            # Multiplying loss by large scale ensures backward pass explodes
+            loss = out * 1000.0
+            loss.backward()
+
+
+def test_vanishing_gradient_warning() -> None:
+    """Verify gradient norms below 1e-7 across consecutive layers emits VanishingGradientWarning. [D]"""
+    model = MultiBlockGNN(num_blocks=4, dim=16, init_weight=1e-5)
+    config = GNNGradientDebuggerConfig(
+        vanishing_grad_threshold=1e-7,
+        consecutive_vanishing_blocks=3,
     )
+    debugger = GNNGradientDebugger(config)
+    edge_index = get_alanine_edge_index()
 
-    # 1. At step 0: exactly min_lr
-    lr_0 = compute_lr_at_step(0, config)
-    assert math.isclose(lr_0, 1e-7, rel_tol=1e-8, abs_tol=1e-12)
-
-    # 2. At step 500: halfway point
-    lr_500 = compute_lr_at_step(500, config)
-    expected_500 = 1e-7 + 0.5 * (1e-4 - 1e-7)
-    assert math.isclose(lr_500, expected_500, rel_tol=1e-8)
-
-    # 3. At step 1000: peak initial_lr
-    lr_1000 = compute_lr_at_step(1000, config)
-    assert math.isclose(lr_1000, 1e-4, rel_tol=1e-8, abs_tol=1e-12)
+    with pytest.warns(VanishingGradientWarning):
+        with debugger.probe(model):
+            out = model(ALANINE_DIPEPTIDE_Z, edge_index)
+            loss = out * 1e-12
+            loss.backward()
 
 
-def test_warm_restart_cycle_expansion_and_peak_attenuation() -> None:
-    """Confirm initial restart satisfies eta_max^(1) = 0.75 * eta_max^(0) and cycle expands by T_mult. [D]"""
-    config = GNNWarmRestartSchedulerConfig(
-        initial_lr=1e-4,
-        min_lr=1e-7,
-        warmup_steps=1000,
-        first_cycle_steps=10000,
-        cycle_multiplier=1.5,
-        restart_decay=0.75,
-    )
+def test_zero_overhead_when_disabled() -> None:
+    """Verify debugger attaches no active hooks when config.enabled is False. [M]"""
+    model = MultiBlockGNN(num_blocks=2, dim=8)
+    config = GNNGradientDebuggerConfig(enabled=False)
+    debugger = GNNGradientDebugger(config)
 
-    # Cycle 0 ends at step 1000 + 10000 = 11000
-    # At step 11000: cycle 1 restarts with peak LR = 0.75 * 1e-4 = 7.5e-5
-    lr_restart_1 = compute_lr_at_step(11000, config)
-    expected_peak_1 = 0.75 * 1e-4
-    assert math.isclose(lr_restart_1, expected_peak_1, rel_tol=1e-8, abs_tol=1e-8)
+    with debugger.probe(model):
+        assert len(debugger.handles) == 0
+        out = model(ALANINE_DIPEPTIDE_Z, get_alanine_edge_index())
+        assert debugger.get_activation_norms() == {}
 
-    # Cycle 1 duration is 10000 * 1.5 = 15000 steps
-    # Cycle 2 starts at 11000 + 15000 = 26000
-    lr_restart_2 = compute_lr_at_step(26000, config)
-    expected_peak_2 = (0.75**2) * 1e-4
-    assert math.isclose(lr_restart_2, expected_peak_2, rel_tol=1e-8, abs_tol=1e-8)
-
-
-def test_step_based_optimizer_integration_alanine_dipeptide() -> None:
-    """Verify scheduler updates on every optimizer step rather than epoch boundaries. [D]"""
-    coords, species = get_alanine_dipeptide_fixture()
-    assert coords.shape[0] == 22, "Alanine dipeptide must have N=22 atoms."
-
-    model = AlanineDipeptideModel(hidden_dim=16)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-
-    config = GNNWarmRestartSchedulerConfig(
-        initial_lr=1e-4,
-        min_lr=1e-7,
-        warmup_steps=100,
-        first_cycle_steps=500,
-        max_grad_norm=1.0,
-    )
-    scheduler = GNNWarmRestartScheduler(optimizer, config)
-
-    initial_lr = optimizer.param_groups[0]["lr"]
-    assert math.isclose(initial_lr, 1e-7, rel_tol=1e-6)
-
-    # Execute 5 optimization steps on Alanine dipeptide
-    coords_var = coords.clone().requires_grad_(True)
-    for step_idx in range(1, 6):
-        optimizer.zero_grad()
-        energy = model(coords_var, species)
-        energy.backward()
-
-        unclipped_norm = scheduler.step_and_clip()
-        assert unclipped_norm > 0.0
-
-        current_lr = optimizer.param_groups[0]["lr"]
-        expected_lr = compute_lr_at_step(step_idx, config)
-        assert math.isclose(current_lr, expected_lr, rel_tol=1e-6)
-
-
-def test_gradient_norm_clipping_enforcement() -> None:
-    """Assert parameter gradients are clipped strictly to ||g||_2 <= 1.0 eV/Angstrom. [D]"""
-    model = nn.Sequential(nn.Linear(10, 10), nn.Linear(10, 1))
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-
-    # Inject large gradients
-    for p in model.parameters():
-        p.grad = torch.full_like(p.data, 50.0)
-
-    norm = check_and_clip_gradients(optimizer, max_grad_norm=1.0)
-    assert norm > 1.0, "Unclipped norm should exceed ceiling."
-
-    # Compute new gradient norm after clipping
-    clipped_norm_sq = sum(float(p.grad.norm(2).item()) ** 2 for p in model.parameters())
-    clipped_norm = math.sqrt(clipped_norm_sq)
-    assert math.isclose(clipped_norm, 1.0, rel_tol=1e-5, abs_tol=1e-5)
-
-
-def test_scheduler_divergence_error_on_nan_gradient() -> None:
-    """Inject NaN gradients and verify SchedulerDivergenceError is raised. [D]"""
-    model = nn.Linear(5, 1)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
-
-    # Inject NaN into gradient
-    for p in model.parameters():
-        p.grad = torch.tensor([float("nan")] * p.numel()).reshape(p.shape)
-
-    with pytest.raises(SchedulerDivergenceError) as exc_info:
-        check_and_clip_gradients(optimizer, max_grad_norm=1.0)
-
-    assert "NaN or Inf" in str(exc_info.value)
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_graph_pruning.py ---
-"""Authentic physical verification test suite for C^2 Graph Pruning & Reciprocal Topology (REQ-TORQ-TRAIN-100 [D]).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_hdf5_datamodule.py ---
+"""Authentic physical verification test suite for Chunked HDF5 DataModule (REQ-TORQ-INF-102).
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Completely authentic Ethanol conformational rotor (N=9) sampled along C-C torsion.
+Strict Zero-Mock Mandate v3: Completely authentic IO, Water 10-mer cluster (N=30), and SWMR safety.
 """
 
 from __future__ import annotations
 
-import math
+import hashlib
+from pathlib import Path
+import h5py
+import numpy as np
+import pytest
+import torch
+from torch.utils.data import DataLoader, Subset
+
+from Libraries.cochem_torq_hdf5_datamodule import (
+    ChunkedHDF5DataModule,
+    ChunkedHDF5Dataset,
+    h5_worker_init_fn,
+    jagged_graph_collate,
+)
+from Libraries.cochem_torq_inference_schemas import ChunkedHDF5DataModuleConfig
+
+
+# Physical Fixture: Water 10-mer Cluster (N=30) [M]
+WATER_10MER_Z = [8, 1, 1] * 10
+WATER_10MER_COORDS = np.array(
+    [
+        [-1.85, -0.87, 1.32],
+        [-1.02, -0.77, 1.80],
+        [-2.43, -0.22, 1.73],
+        [-0.15, -0.56, 2.34],
+        [0.62, -0.25, 1.86],
+        [-0.31, -0.13, 3.18],
+        [1.95, 0.32, 0.88],
+        [2.45, -0.42, 0.57],
+        [1.40, 0.64, 0.16],
+        [0.12, 1.20, -1.15],
+        [0.70, 1.82, -1.60],
+        [-0.70, 1.67, -0.98],
+        [-1.98, 2.18, -0.52],
+        [-2.35, 1.72, 0.25],
+        [-2.56, 2.14, -1.29],
+        [2.80, -1.80, -0.12],
+        [3.52, -1.65, -0.73],
+        [2.05, -2.15, -0.62],
+        [0.55, -2.55, -1.45],
+        [-0.20, -2.10, -1.02],
+        [0.45, -3.48, -1.22],
+        [-1.50, -1.30, -0.35],
+        [-1.90, -0.45, -0.10],
+        [-1.20, -1.65, 0.50],
+        [-0.80, 0.40, -2.85],
+        [-0.35, 0.85, -2.12],
+        [-1.65, 0.80, -2.95],
+        [1.80, -0.90, -2.50],
+        [1.35, -0.20, -2.10],
+        [2.55, -0.55, -2.90],
+    ],
+    dtype=np.float64,
+)
+
+
+@pytest.fixture
+def h5_water_dataset_path(tmp_path: Path) -> Path:
+    """Create authentic chunked HDF5 dataset of 10 Water 10-mer conformers with SHA-256 digest. [M]"""
+    h5_file = tmp_path / "water_10mer_chunked.h5"
+    num_samples = 10
+    n_atoms = 30
+
+    # Authentic coordinates, atomic numbers, energies, forces, and edges
+    with h5py.File(str(h5_file), mode="w") as f:
+        # Create chunked datasets
+        ds_coords = f.create_dataset(
+            "coordinates",
+            shape=(num_samples, n_atoms, 3),
+            dtype=np.float32,
+            chunks=(1, n_atoms, 3),
+        )
+        ds_z = f.create_dataset(
+            "atomic_numbers",
+            shape=(num_samples, n_atoms),
+            dtype=np.int64,
+            chunks=(1, n_atoms),
+        )
+        ds_e = f.create_dataset(
+            "energy",
+            shape=(num_samples,),
+            dtype=np.float64,
+            chunks=(1,),
+        )
+        ds_f = f.create_dataset(
+            "forces",
+            shape=(num_samples, n_atoms, 3),
+            dtype=np.float32,
+            chunks=(1, n_atoms, 3),
+        )
+
+        for i in range(num_samples):
+            # Perturb coordinates authentically by thermal jitter
+            jitter = (np.random.RandomState(i).rand(n_atoms, 3) - 0.5) * 0.05
+            coords_i = (WATER_10MER_COORDS + jitter).astype(np.float32)
+            ds_coords[i] = coords_i
+            ds_z[i] = np.array(WATER_10MER_Z, dtype=np.int64)
+            ds_e[i] = -760.0 - 0.05 * i
+            ds_f[i] = np.random.RandomState(i).randn(n_atoms, 3).astype(np.float32) * 0.1
+
+    # Write accompanying cryptographic SHA-256 digest
+    sha = hashlib.sha256(h5_file.read_bytes()).hexdigest()
+    digest_file = h5_file.with_suffix(h5_file.suffix + ".sha256")
+    digest_file.write_text(f"{sha}  {h5_file.name}\n", encoding="utf-8")
+
+    return h5_file
+
+
+def test_prepare_data_and_sha256(h5_water_dataset_path: Path) -> None:
+    """Verify prepare_data checks file and validates SHA-256 without memory leakage. [M]"""
+    config = ChunkedHDF5DataModuleConfig(
+        h5_path=h5_water_dataset_path,
+        batch_size=2,
+        num_workers=0,
+        train_val_test_split=[0.8, 0.1, 0.1],
+    )
+    dm = ChunkedHDF5DataModule(config)
+    dm.prepare_data()  # Should succeed without error
+
+
+def test_setup_deterministic_splits(h5_water_dataset_path: Path) -> None:
+    """Verify setup creates authentic deterministic Subset partitions. [M]"""
+    config = ChunkedHDF5DataModuleConfig(
+        h5_path=h5_water_dataset_path,
+        batch_size=2,
+        num_workers=0,
+        train_val_test_split=[0.8, 0.1, 0.1],
+    )
+    dm = ChunkedHDF5DataModule(config)
+    dm.setup("fit")
+
+    assert dm.train_dataset is not None
+    assert dm.val_dataset is not None
+    assert dm.test_dataset is not None
+
+    # Total samples = 10 -> train=8, val=1, test=1
+    assert len(dm.train_dataset) == 8
+    assert len(dm.val_dataset) == 1
+    assert len(dm.test_dataset) == 1
+
+    # Verify Subset unwrapping: root dataset accessible
+    assert isinstance(dm.train_dataset, Subset)
+    root = getattr(dm.train_dataset, "dataset", dm.train_dataset)
+    assert isinstance(root, ChunkedHDF5Dataset)
+
+
+def test_single_worker_lazy_handle_init(h5_water_dataset_path: Path) -> None:
+    """Verify single-worker fallback (num_workers=0) lazily initializes handles in __getitem__. [M]"""
+    config = ChunkedHDF5DataModuleConfig(
+        h5_path=h5_water_dataset_path,
+        batch_size=2,
+        num_workers=0,
+    )
+    dm = ChunkedHDF5DataModule(config)
+    dm.setup("fit")
+
+    # Before indexing, handle is None
+    assert dm.dataset.handle is None
+
+    # Access item
+    sample = dm.dataset[0]
+    assert "coordinates" in sample
+    assert sample["coordinates"].shape == (30, 3)
+    assert sample["atomic_numbers"].shape == (30,)
+
+    # Handle is now initialized
+    assert dm.dataset.handle is not None
+    assert isinstance(dm.dataset.handle, h5py.File)
+
+    # Clean teardown
+    dm.teardown()
+    assert dm.dataset is None
+
+
+def test_worker_init_fn_subset_unwrapping(h5_water_dataset_path: Path) -> None:
+    """Verify h5_worker_init_fn cleanly unwraps torch.utils.data.Subset in multi-worker execution. [M]"""
+    raw_ds = ChunkedHDF5Dataset(h5_water_dataset_path)
+    subset = Subset(raw_ds, [0, 1, 2])
+
+    loader = DataLoader(
+        subset,
+        batch_size=2,
+        num_workers=2,
+        worker_init_fn=h5_worker_init_fn,
+        collate_fn=jagged_graph_collate,
+    )
+    batch = next(iter(loader))
+    assert "coordinates" in batch
+    assert batch["coordinates"].shape[1] == 3
+    assert batch["num_graphs"] == 2
+    raw_ds.close()
+
+
+def test_jagged_graph_collation() -> None:
+    """Verify jagged_graph_collate produces correct node batch pointers b and shifted edge indices. [D]"""
+    # Authentic coordinates: N1=9 (Ethanol), N2=3 (Water monomer)
+    ethanol_coords = torch.tensor(
+        [
+            [0.0072, 0.0000, 0.0000],
+            [1.5173, 0.0000, 0.0000],
+            [-0.5638, 1.2987, 0.0000],
+            [-0.3756, -0.5218, 0.8872],
+            [-0.3756, -0.5218, -0.8872],
+            [1.9056, 0.5255, 0.8837],
+            [1.9056, 0.5255, -0.8837],
+            [1.8885, -1.0253, 0.0000],
+            [-1.5277, 1.2052, 0.0000],
+        ],
+        dtype=torch.float32,
+    )
+    water_coords = torch.tensor(
+        [
+            [0.0000, 0.0000, 0.1173],
+            [0.0000, 0.7572, -0.4692],
+            [0.0000, -0.7572, -0.4692],
+        ],
+        dtype=torch.float32,
+    )
+
+    g1 = {
+        "coordinates": ethanol_coords,
+        "atomic_numbers": torch.tensor([6, 6, 8, 1, 1, 1, 1, 1, 1], dtype=torch.int64),
+        "energy": torch.tensor(-154.25, dtype=torch.float64),
+        "forces": torch.zeros((9, 3), dtype=torch.float32) + 0.01,
+        "edge_index": torch.tensor([[0, 1, 2], [1, 2, 0]], dtype=torch.int64),
+    }
+
+    g2 = {
+        "coordinates": water_coords,
+        "atomic_numbers": torch.tensor([8, 1, 1], dtype=torch.int64),
+        "energy": torch.tensor(-76.40, dtype=torch.float64),
+        "forces": torch.zeros((3, 3), dtype=torch.float32) + 0.02,
+        "edge_index": torch.tensor([[0, 0], [1, 2]], dtype=torch.int64),
+    }
+
+    batch = [g1, g2]
+    collated = jagged_graph_collate(batch)
+
+    # Check batch pointer vector b
+    assert collated["batch"].shape == (12,)
+    # First 9 nodes are graph 0, next 3 nodes are graph 1
+    assert (collated["batch"][:9] == 0).all()
+    assert (collated["batch"][9:] == 1).all()
+
+    # Check concatenated coordinates and forces
+    assert collated["coordinates"].shape == (12, 3)
+    assert collated["forces"].shape == (12, 3)
+    assert collated["energy"].shape == (2,)
+
+    # Check shifted edges:
+    # g1 edges: [[0, 1, 2], [1, 2, 0]]
+    # g2 edges shifted by 9: [[0+9, 0+9], [1+9, 2+9]] = [[9, 9], [10, 11]]
+    expected_edges = torch.tensor(
+        [[0, 1, 2, 9, 9], [1, 2, 0, 10, 11]], dtype=torch.int64
+    )
+    assert torch.equal(collated["edge_index"], expected_edges)
+    assert collated["num_graphs"] == 2
+    assert collated["num_nodes"] == 12
+
+
+def test_train_dataloader_iteration(h5_water_dataset_path: Path) -> None:
+    """Verify train_dataloader produces collated batches during iteration with num_workers=2. [M]"""
+    config = ChunkedHDF5DataModuleConfig(
+        h5_path=h5_water_dataset_path,
+        batch_size=2,
+        num_workers=2,
+    )
+    dm = ChunkedHDF5DataModule(config)
+    dm.setup("fit")
+    loader = dm.train_dataloader()
+
+    batch = next(iter(loader))
+    assert "coordinates" in batch
+    assert "batch" in batch
+    # Each water 10-mer has 30 atoms; batch size 2 -> 60 atoms
+    assert batch["coordinates"].shape == (60, 3)
+    assert batch["batch"].shape == (60,)
+    assert batch["num_graphs"] == 2
+
+    dm.teardown()
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_torq_pbc_graph.py ---
+"""Authentic physical verification test suite for PBC Radial Graph Engine and Virial Stress (REQ-TORQ-INF-106).
+
+Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
+Strict Zero-Mock Mandate v3: Completely authentic crystal lattices, Silicon Diamond (Fd-3m), and Rutile TiO2 (P4_2/mnm).
+"""
+
+from __future__ import annotations
+
+import numpy as np
 import pytest
 import torch
 
-from Libraries.cochem_torq_graph_pruning import (
-    build_c2_reciprocal_graph,
-    check_reciprocal_topology,
-    compute_center_of_mass,
-    compute_pairwise_conservative_forces,
-    enforce_graph_reciprocity,
-    evaluate_momentum_and_antisymmetry,
-    quintic_c2_derivative,
-    quintic_c2_second_derivative,
-    quintic_c2_switching,
-    verify_c2_continuity_boundary,
+from Libraries.cochem_torq_inference_errors import PBCGraphError
+from Libraries.cochem_torq_inference_schemas import PBCRadialGraphConfig
+from Libraries.cochem_torq_pbc_graph import (
+    PBCGraph,
+    PBCRadialGraphEngine,
+    build_pbc_radial_graph,
+    cartesian_to_fractional,
+    compute_cell_volume,
+    compute_hydrostatic_pressure,
+    compute_interplanar_spacings,
+    compute_virial_stress_tensor,
+    fractional_to_cartesian,
 )
-from Libraries.cochem_torq_training_errors import (
-    DiscontinuousForceError,
-    NonReciprocalGraphError,
+
+
+# Physical Fixture 1: Silicon Diamond Lattice (Fd-3m, a = 5.43 Angstroms) [M]
+SILICON_LATTICE = np.eye(3, dtype=np.float64) * 5.43
+SILICON_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],
+        [0.5, 0.5, 0.0],
+        [0.5, 0.0, 0.5],
+        [0.0, 0.5, 0.5],
+        [0.25, 0.25, 0.25],
+        [0.75, 0.75, 0.25],
+        [0.75, 0.25, 0.75],
+        [0.25, 0.75, 0.75],
+    ],
+    dtype=np.float64,
 )
-from Libraries.cochem_torq_training_schemas import C2GraphPrunerConfig
-from tests.torq_test_fixtures import get_ethanol_rotor_fixture
+SILICON_Z = [14] * 8
+
+# Physical Fixture 2: Rutile TiO2 Unit Cell (P4_2/mnm, a = 4.5937 Angstroms, c = 2.9587 Angstroms) [M]
+RUTILE_LATTICE = np.diag([4.5937, 4.5937, 2.9587]).astype(np.float64)
+RUTILE_FRAC_COORDS = np.array(
+    [
+        [0.0, 0.0, 0.0],        # Ti1
+        [0.5, 0.5, 0.5],        # Ti2
+        [0.3053, 0.3053, 0.0],  # O1
+        [0.6947, 0.6947, 0.0],  # O2
+        [0.8053, 0.1947, 0.5],  # O3
+        [0.1947, 0.8053, 0.5],  # O4
+    ],
+    dtype=np.float64,
+)
+RUTILE_Z = [22, 22, 8, 8, 8, 8]
 
 
-def test_quintic_c2_switching_boundary_continuity() -> None:
-    """Verify quintic switching envelope satisfies f(r_c)=0, f'(r_c)=0, f''(r_c)=0 within tolerance < 10^-7. [D]"""
-    cutoff = 5.0
-    res = verify_c2_continuity_boundary(cutoff=cutoff)
-    assert abs(res["f_rc"]) < 1e-7
-    assert abs(res["df_rc"]) < 1e-7
-    assert abs(res["d2f_rc"]) < 1e-7
+def test_lattice_metric_and_interplanar_spacings() -> None:
+    """Verify cyclic permutation produces exact perpendicular interplanar distances. [D]"""
+    lat_si = torch.tensor(SILICON_LATTICE, dtype=torch.float64)
+    vol_si = compute_cell_volume(lat_si)
+    expected_vol = 5.43 ** 3
+    assert abs(vol_si - expected_vol) < 1e-6
 
-    # Finite difference numerical cross-validation
-    eps = 1e-5
-    r_val = torch.tensor([cutoff - eps], dtype=torch.float64)
-    r_plus = torch.tensor([cutoff], dtype=torch.float64)
+    # For cubic lattice, d_perp = a = 5.43 in all 3 directions
+    spacings, n_max = compute_interplanar_spacings(lat_si, rc=5.0)
+    assert spacings.shape == (3,)
+    for d in spacings:
+        assert abs(float(d.item()) - 5.43) < 1e-6
+    # n_max = ceil(5.0 / 5.43) = 1
+    assert (n_max == 1).all()
 
-    f_minus = float(quintic_c2_switching(r_val, cutoff).item())
-    f_zero = float(quintic_c2_switching(r_plus, cutoff).item())
+    # Rutile tetragonal lattice
+    lat_rutile = torch.tensor(RUTILE_LATTICE, dtype=torch.float64)
+    vol_rutile = compute_cell_volume(lat_rutile)
+    assert abs(vol_rutile - (4.5937 * 4.5937 * 2.9587)) < 1e-6
 
-    # Numerical first derivative at cutoff approaching from inside
-    num_df = (f_zero - f_minus) / eps
-    assert abs(num_df) < 1e-4, f"Numerical df/dr at cutoff should approach 0, got {num_df}"
-
-
-def test_momentum_conservation_and_force_antisymmetry_ethanol_rotor() -> None:
-    """Verify net external force drift < 10^-6 eV/A and pairwise antisymmetry < 10^-7 eV/A across rotor. [D]"""
-    # Sample Ethanol along C-C torsion at 0, 60, 120, 180 degrees
-    for angle in [0.0, 60.0, 120.0, 180.0]:
-        coords, species = get_ethanol_rotor_fixture(dihedral_deg=angle)
-        assert coords.shape[0] == 9, "Ethanol must have N=9 atoms."
-
-        config = C2GraphPrunerConfig(cutoff_radius_angstrom=3.5, covalent_core_radius_angstrom=1.5)
-        edge_index, _ = build_c2_reciprocal_graph(coords, species, config=config)
-
-        assert edge_index.shape[1] > 0
-        pairwise_f, atomic_f = compute_pairwise_conservative_forces(
-            coords, edge_index, cutoff=3.5, k_spring=10.0
-        )
-
-        metrics = evaluate_momentum_and_antisymmetry(atomic_f, edge_index, pairwise_f)
-
-        # 1. Net external force drift ||sum F_i||_2 < 10^-6 eV/Angstrom
-        assert metrics["net_force_drift"] < 1e-6, (
-            f"At angle {angle} deg, net force drift ({metrics['net_force_drift']:.2e}) exceeded 1e-6 eV/A."
-        )
-
-        # 2. Pairwise force antisymmetry ||F_ij + F_ji||_inf < 10^-7 eV/Angstrom
-        assert metrics["pairwise_antisymmetry_error"] < 1e-7, (
-            f"At angle {angle} deg, antisymmetry error ({metrics['pairwise_antisymmetry_error']:.2e}) exceeded 1e-7 eV/A."
-        )
+    spacings_r, n_max_r = compute_interplanar_spacings(lat_rutile, rc=5.0)
+    assert abs(float(spacings_r[0].item()) - 4.5937) < 1e-4
+    assert abs(float(spacings_r[1].item()) - 4.5937) < 1e-4
+    assert abs(float(spacings_r[2].item()) - 2.9587) < 1e-4
+    assert int(n_max_r[2].item()) == 2  # ceil(5.0 / 2.9587) = 2
 
 
-def test_reciprocity_enforcement_and_asymmetric_drop_detection() -> None:
-    """Symmetrize adjacency A (.) A^T; verify asymmetric edge configuration raises NonReciprocalGraphError. [D]"""
-    coords, species = get_ethanol_rotor_fixture(dihedral_deg=0.0)
-    edge_index, _ = build_c2_reciprocal_graph(coords, species)
+def test_fractional_cartesian_transform_parity() -> None:
+    """Verify round-trip coordinate transformations between fractional and Cartesian spaces. [D]"""
+    lat = torch.tensor(SILICON_LATTICE, dtype=torch.float64)
+    frac_orig = torch.tensor(SILICON_FRAC_COORDS, dtype=torch.float64)
 
-    assert check_reciprocal_topology(edge_index) is True
+    cart = fractional_to_cartesian(frac_orig, lat)
+    frac_back = cartesian_to_fractional(cart, lat)
 
-    # Drop a single directed edge to create intentional asymmetry (violating Newton's 3rd Law)
-    asymmetric_edges = edge_index[:, :-1]  # Remove last directed edge
-    assert check_reciprocal_topology(asymmetric_edges) is False
-
-    with pytest.raises(NonReciprocalGraphError) as exc_info:
-        enforce_graph_reciprocity(asymmetric_edges, raise_on_asymmetry=True)
-
-    assert exc_info.value.error_code == "TORQ_TRAIN_NON_RECIPROCAL_GRAPH"
+    assert torch.allclose(frac_orig, frac_back, atol=1e-10)
 
 
-def test_covalent_core_degree_invariant() -> None:
-    """Confirm degree d_i >= 1 for all atoms within covalent core radius r_cov = 1.5 Angstroms. [D]"""
-    coords, species = get_ethanol_rotor_fixture(dihedral_deg=30.0)
-    config = C2GraphPrunerConfig(cutoff_radius_angstrom=4.0, covalent_core_radius_angstrom=1.5)
+def test_self_image_exclusion_invariant() -> None:
+    """Verify strict self-image exclusion invariant (no edge with d=0 when i=j and S=(0,0,0)). [D]"""
+    lat_si = torch.tensor(SILICON_LATTICE, dtype=torch.float64)
+    frac_si = torch.tensor(SILICON_FRAC_COORDS, dtype=torch.float64)
+    cart_si = fractional_to_cartesian(frac_si, lat_si)
 
-    edge_index, _ = build_c2_reciprocal_graph(coords, species, config=config)
+    graph = build_pbc_radial_graph(cart_si, lat_si, rc=5.0)
 
-    src = edge_index[0].tolist()
-    # In ethanol, every atom is within 1.5 A of at least one other atom (C-C ~ 1.52 A, C-H ~ 1.09 A, C-O ~ 1.43 A, O-H ~ 0.96 A)
-    for atom_idx in range(9):
-        degree = src.count(atom_idx)
-        assert degree >= 1, f"Atom {atom_idx} violated covalent core degree invariant (degree={degree})."
+    assert graph.edge_index.shape[1] > 0
+    assert (graph.edge_distances > 1e-7).all()
 
-
-def test_banned_stochastic_dropout_on_coordinate_graphs() -> None:
-    """Assert setting stochastic edge dropout > 0 on coordinate graphs raises DiscontinuousForceError. [D]"""
-    coords, species = get_ethanol_rotor_fixture()
-    config = C2GraphPrunerConfig(stochastic_edge_dropout=0.2)
-
-    with pytest.raises(DiscontinuousForceError) as exc_info:
-        build_c2_reciprocal_graph(coords, species, config=config)
-
-    assert "banned on spatial coordinate graphs" in str(exc_info.value)
+    # Check that any self-interaction edge has non-zero shift vector
+    src, dst = graph.edge_index[0], graph.edge_index[1]
+    self_loops = src == dst
+    if self_loops.any():
+        self_shifts = graph.edge_shifts[self_loops]
+        assert not (self_shifts == 0).all(dim=-1).any()
 
 
-def test_dynamic_mendeleev_center_of_mass_ethanol() -> None:
-    """Verify center of mass and total molecular mass computed dynamically using mendeleev. [M]"""
-    coords, species = get_ethanol_rotor_fixture()
-    com, total_mass = compute_center_of_mass(coords, species.tolist())
+def test_analytical_virial_stress_symmetry_silicon() -> None:
+    """Compute symmetric virial stress tensor on Silicon and confirm ||Xi - Xi^T||_inf < 1e-7. [M]/[D]"""
+    lat_si = torch.tensor(SILICON_LATTICE, dtype=torch.float64)
+    frac_si = torch.tensor(SILICON_FRAC_COORDS, dtype=torch.float64)
+    cart_si = fractional_to_cartesian(frac_si, lat_si)
 
-    # C2H6O mass ~ 2*12.011 + 6*1.008 + 15.999 ~ 46.069 u
-    assert 45.9 < total_mass < 46.2, f"Total mass {total_mass} u is physically inconsistent."
-    assert com.shape == (3,)
-    assert torch.isfinite(com).all()
+    graph = build_pbc_radial_graph(cart_si, lat_si, rc=5.0)
+
+    # Authentic pairwise Lennard-Jones interaction forces
+    # V(r) = 4 * eps * ((sigma/r)^12 - (sigma/r)^6)
+    # F = -grad_r V = - dV/dr * (r / r)
+    sigma = 2.15
+    epsilon = 0.25
+    r = graph.edge_distances
+    r_vec = graph.edge_vectors
+
+    d_v_dr = 4.0 * epsilon * (-12.0 * (sigma ** 12) / (r ** 13) + 6.0 * (sigma ** 6) / (r ** 7))
+    pair_forces = - d_v_dr.unsqueeze(-1) * (r_vec / r.unsqueeze(-1))
+
+    virial = compute_virial_stress_tensor(
+        edge_vectors=r_vec,
+        pair_forces_or_gradients=pair_forces,
+        cell_volume=graph.cell_volume,
+        is_force=True,
+    )
+
+    # Assert tensorial symmetry
+    asym_norm = torch.max(torch.abs(virial - virial.t())).item()
+    assert asym_norm < 1e-7
+
+    # Assert hydrostatic pressure computation
+    pressure = compute_hydrostatic_pressure(virial)
+    expected_p = - (1.0 / 3.0) * float(torch.trace(virial).item())
+    assert abs(pressure - expected_p) < 1e-10
+
+
+def test_analytical_virial_stress_rutile_tio2() -> None:
+    """Compute symmetric virial stress tensor on Rutile TiO2 unit cell. [M]/[D]"""
+    engine = PBCRadialGraphEngine(PBCRadialGraphConfig(cutoff_radius_rc=5.0))
+    lat_r = torch.tensor(RUTILE_LATTICE, dtype=torch.float64)
+    frac_r = torch.tensor(RUTILE_FRAC_COORDS, dtype=torch.float64)
+    cart_r = fractional_to_cartesian(frac_r, lat_r)
+
+    graph = engine(cart_r, lat_r)
+    assert graph.edge_index.shape[1] > 0
+
+    # Authentic harmonic pairwise interaction
+    k_spring = 15.0
+    r0 = 2.0
+    r = graph.edge_distances
+    r_vec = graph.edge_vectors
+    f_mag = - k_spring * (r - r0)
+    pair_forces = f_mag.unsqueeze(-1) * (r_vec / r.unsqueeze(-1))
+
+    virial = engine.compute_virial(r_vec, pair_forces, graph.cell_volume, is_force=True)
+    asym_norm = torch.max(torch.abs(virial - virial.t())).item()
+    assert asym_norm < 1e-7
+
+    p = engine.compute_pressure(virial)
+    assert isinstance(p, float)
+
+
+def test_pbc_graph_degenerate_lattice_error() -> None:
+    """Verify degenerate or zero-volume lattice raises PBCGraphError. [M]"""
+    singular_lat = torch.zeros((3, 3), dtype=torch.float64)
+    with pytest.raises(PBCGraphError):
+        compute_cell_volume(singular_lat)
+
+    with pytest.raises(PBCGraphError):
+        build_pbc_radial_graph(torch.zeros((2, 3)), singular_lat)
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

@@ -144,6 +144,87 @@ from Libraries.cochem_torq_training_persistence import (
     worker_init_fn,
 )
 
+# Inference Errors (Chunk 18)
+from Libraries.cochem_torq_inference_errors import (
+    ActiveLearningSelectionError,
+    AirGapViolationError,
+    CutoffContinuityError,
+    EnsembleConsensusError,
+    GradientExplosionError,
+    HDF5DataModuleLockError,
+    PBCGraphError,
+    TorqInferenceError,
+    VanishingGradientWarning,
+)
+
+# Inference Schemas (Chunk 18)
+from Libraries.cochem_torq_inference_schemas import (
+    ActiveLearningOrchestratorConfig,
+    C2SmoothCutoffConfig,
+    ChunkedHDF5DataModuleConfig,
+    CommitteeEnsembleConfig,
+    GNNGradientDebuggerConfig,
+    PBCRadialGraphConfig,
+)
+
+# Active Learning (Chunk 18)
+from Libraries.cochem_torq_active_learning import (
+    ActiveLearningOrchestrator,
+    ActiveLearningState,
+    CandidateGeometry,
+    center_geometry_mass_weighted,
+    check_stage_b_rotational_redundancy,
+    compute_max_force_epistemic_std,
+    compute_qbc_energy_variance,
+    compute_rotational_constants,
+    kabsch_rmsd,
+    route_qm_tier,
+)
+
+# Chunked HDF5 DataModule (Chunk 18)
+from Libraries.cochem_torq_hdf5_datamodule import (
+    ChunkedHDF5DataModule,
+    ChunkedHDF5Dataset,
+    h5_worker_init_fn,
+    jagged_graph_collate,
+)
+
+# Committee Ensemble (Chunk 18)
+from Libraries.cochem_torq_committee_ensemble import (
+    CommitteeEnsemble,
+    CommitteePrediction,
+    compute_committee_moments,
+)
+
+# C^2-Smooth Cutoff (Chunk 18)
+from Libraries.cochem_torq_c2_cutoff import (
+    C2SmoothCutoff,
+    quintic_c2_envelope,
+    quintic_c2_first_derivative,
+    quintic_c2_second_derivative,
+    quintic_c2_spatial_gradient,
+    quintic_c2_spatial_hessian,
+    verify_cutoff_continuity,
+)
+
+# GNN Gradient Health Debugger (Chunk 18)
+from Libraries.cochem_torq_gnn_debugger import (
+    GNNGradientDebugger,
+)
+
+# PBC Radial Graph & Virial Stress (Chunk 18)
+from Libraries.cochem_torq_pbc_graph import (
+    PBCGraph,
+    PBCRadialGraphEngine,
+    build_pbc_radial_graph,
+    cartesian_to_fractional,
+    compute_cell_volume,
+    compute_hydrostatic_pressure,
+    compute_interplanar_spacings,
+    compute_virial_stress_tensor,
+    fractional_to_cartesian,
+)
+
 __all__ = [
     # Errors
     "CoChemError",
@@ -160,6 +241,16 @@ __all__ = [
     "OOMRecoveryError",
     "EquivarianceBreakError",
     "SchedulerDivergenceError",
+    # Inference Errors (Chunk 18)
+    "TorqInferenceError",
+    "ActiveLearningSelectionError",
+    "HDF5DataModuleLockError",
+    "EnsembleConsensusError",
+    "CutoffContinuityError",
+    "GradientExplosionError",
+    "VanishingGradientWarning",
+    "PBCGraphError",
+    "AirGapViolationError",
     # Schemas
     "TrainingDynamicsConfig",
     "TransferLearningConfig",
@@ -170,6 +261,13 @@ __all__ = [
     "ForceMatchingLossConfig",
     "DynamicBatchScalerConfig",
     "C2GraphPrunerConfig",
+    # Inference Schemas (Chunk 18)
+    "ActiveLearningOrchestratorConfig",
+    "ChunkedHDF5DataModuleConfig",
+    "CommitteeEnsembleConfig",
+    "C2SmoothCutoffConfig",
+    "GNNGradientDebuggerConfig",
+    "PBCRadialGraphConfig",
     # Masses
     "get_monoisotopic_mass",
     "get_monoisotopic_masses",
@@ -241,5 +339,45 @@ __all__ = [
     "load_atomic_checkpoint",
     "save_atomic_checkpoint",
     "worker_init_fn",
+    # Active Learning (Chunk 18)
+    "ActiveLearningOrchestrator",
+    "ActiveLearningState",
+    "CandidateGeometry",
+    "compute_qbc_energy_variance",
+    "compute_max_force_epistemic_std",
+    "center_geometry_mass_weighted",
+    "compute_rotational_constants",
+    "kabsch_rmsd",
+    "check_stage_b_rotational_redundancy",
+    "route_qm_tier",
+    # Chunked HDF5 DataModule (Chunk 18)
+    "ChunkedHDF5DataModule",
+    "ChunkedHDF5Dataset",
+    "h5_worker_init_fn",
+    "jagged_graph_collate",
+    # Committee Ensemble (Chunk 18)
+    "CommitteeEnsemble",
+    "CommitteePrediction",
+    "compute_committee_moments",
+    # C^2-Smooth Cutoff (Chunk 18)
+    "C2SmoothCutoff",
+    "quintic_c2_envelope",
+    "quintic_c2_first_derivative",
+    "quintic_c2_second_derivative",
+    "quintic_c2_spatial_gradient",
+    "quintic_c2_spatial_hessian",
+    "verify_cutoff_continuity",
+    # GNN Debugger (Chunk 18)
+    "GNNGradientDebugger",
+    # PBC Radial Graph (Chunk 18)
+    "PBCGraph",
+    "PBCRadialGraphEngine",
+    "build_pbc_radial_graph",
+    "cartesian_to_fractional",
+    "fractional_to_cartesian",
+    "compute_cell_volume",
+    "compute_interplanar_spacings",
+    "compute_virial_stress_tensor",
+    "compute_hydrostatic_pressure",
 ]
 

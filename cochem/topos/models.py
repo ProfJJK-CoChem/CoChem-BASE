@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -217,3 +217,102 @@ class ECFP4FingerprintPayload(BaseModel):
     features_de_duplicated: int = Field(
         ..., description="Total count of duplicate subgraphs pruned"
     )
+
+
+class ExitVector(BaseModel):
+    """Exit vector and normal reference frame at a severed scaffold-substituent bond."""
+
+    model_config = ConfigDict(frozen=True)
+    anchor_idx: int = Field(..., ge=0, description="0-based atom index of scaffold anchor")
+    substituent_idx: int = Field(..., ge=0, description="0-based atom index of substituent atom")
+    anchor_coord: List[float] = Field(..., min_length=3, max_length=3, description="Anchor Cartesian [x, y, z] in Angstrom")
+    vector: List[float] = Field(..., min_length=3, max_length=3, description="Unit direction vector [vx, vy, vz]")
+    normal_vector: List[float] = Field(..., min_length=3, max_length=3, description="Reference normal vector [nx, ny, nz]")
+
+
+class ScaffoldHopResult(BaseModel):
+    """Result of scaffold replacement including 3D alignment and multi-objective scoring."""
+
+    model_config = ConfigDict(frozen=True)
+    candidate_smiles: str = Field(..., description="SMILES of generated candidate")
+    aligned_coordinates: List[List[float]] = Field(..., description="Nx3 Cartesian coordinates in Angstrom")
+    shape_tanimoto: float = Field(..., ge=0.0, le=1.0)
+    electrostatic_tanimoto: float = Field(..., ge=0.0, le=1.0)
+    strain_energy_kcal_mol: float = Field(...)
+    composite_score: float = Field(..., ge=0.0, le=1.0)
+
+
+class GeometricViolation(BaseModel):
+    """Geometric parameter exceeding tolerance threshold."""
+
+    model_config = ConfigDict(frozen=True)
+    violation_type: Literal["bond_length", "bond_angle", "steric_clash"]
+    atom_indices: List[int] = Field(..., min_length=2, max_length=3)
+    measured_value: float = Field(..., description="Measured distance (Angstrom) or angle (degrees)")
+    reference_value: float = Field(..., description="Reference expected value")
+    z_score: float = Field(..., ge=0.0)
+
+
+class GeometryValidationResult(BaseModel):
+    """Validation report containing statistical plausibility and any geometric violations."""
+
+    model_config = ConfigDict(frozen=True)
+    is_physically_plausible: bool
+    max_z_score: float = Field(..., ge=0.0)
+    violations: List[GeometricViolation] = Field(default_factory=list)
+
+
+class PyMOLExportResult(BaseModel):
+    """Outcome and metadata from PyMOL session or script export."""
+
+    model_config = ConfigDict(frozen=True)
+    session_path: str = Field(..., description="Absolute path to exported .pse or .pml file")
+    export_mode: Literal["headless_api", "cli_script_bundle"]
+    colored_domains_count: int = Field(..., ge=0)
+    metal_centers_rendered: int = Field(..., ge=0)
+    file_size_bytes: int = Field(..., gt=0)
+
+
+class PolyhedronScore(BaseModel):
+    """Continuous Shape Measure score against a canonical coordination polyhedron."""
+
+    model_config = ConfigDict(frozen=True)
+    polyhedron_name: str = Field(..., description="Canonical geometry (e.g., 'Octahedral', 'Square_Planar')")
+    cshm_value: float = Field(..., ge=0.0, description="Continuous Shape Measure value S_P(Q)")
+
+
+class CoordinationCenter(BaseModel):
+    """Perceived metal center coordination environment and geometry."""
+
+    model_config = ConfigDict(frozen=True)
+    metal_idx: int = Field(..., ge=0)
+    metal_element: str = Field(..., min_length=1, max_length=2)
+    coordination_number: int = Field(..., ge=1, le=12)
+    assigned_geometry: str
+    formal_oxidation_state: int
+    ligand_atom_indices: List[int]
+    is_chelated: bool
+    hapticities: Dict[str, int] = Field(default_factory=dict, description="Ligand group to eta^n mapping")
+    polyhedron_scores: List[PolyhedronScore] = Field(default_factory=list)
+
+
+class CoordinationPerceptionResult(BaseModel):
+    """Overall metal perception analysis across all metal centers."""
+
+    model_config = ConfigDict(frozen=True)
+    coordination_centers: List[CoordinationCenter] = Field(default_factory=list)
+    unassigned_metal_indices: List[int] = Field(default_factory=list)
+    total_metals_detected: int = Field(..., ge=0)
+
+
+class TopologySanitizationResult(BaseModel):
+    """Sanitized topology result with stripped counterions and neutralized formal charges."""
+
+    model_config = ConfigDict(frozen=True)
+    sanitized_smiles: str
+    sanitized_coordinates: Optional[List[List[float]]] = None
+    formal_net_charge: int
+    is_zwitterion: bool
+    removed_counterions: List[str] = Field(default_factory=list)
+    retained_atom_count: int = Field(..., gt=0)
+

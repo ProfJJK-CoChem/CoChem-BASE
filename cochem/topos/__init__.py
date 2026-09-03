@@ -31,6 +31,12 @@ from cochem.topos.exceptions import (
     TopologyDiffError,
     TopologyError,
     ToposError,
+    BioisostereNotFoundError,
+    CoordinationPerceptionError,
+    GeometricPlausibilityError,
+    PyMOLExportError,
+    SanitizationError,
+    ScaffoldMatchingError,
     TPSACalculationError,
     UnparameterizedAtomError,
 )
@@ -72,6 +78,15 @@ from cochem.topos.models import (
     SubgraphDeltaRecord,
     SynthonRecord,
     TopologyDelta,
+    CoordinationCenter,
+    CoordinationPerceptionResult,
+    ExitVector,
+    GeometricViolation,
+    GeometryValidationResult,
+    PolyhedronScore,
+    PyMOLExportResult,
+    ScaffoldHopResult,
+    TopologySanitizationResult,
 )
 from cochem.topos.perception import perceive_bond_orders_from_xyz
 from cochem.topos.pharmacophore import (
@@ -110,6 +125,11 @@ from cochem.topos.tpsa import (
     TPSAResult,
 )
 from cochem.topos.visualization import TOPOSpy3DmolWidget
+from cochem.topos.scaffold_hopper import ScaffoldHopper
+from cochem.topos.geometry_validation import DynamicBondDictionary
+from cochem.topos.pymol_export import PyMOLExportEngine
+from cochem.topos.metal_coordination import MetalCoordinationEngine
+from cochem.topos.sanitizer import TopologySanitizer
 
 __all__ = [
     "TopologyGraph",
@@ -194,4 +214,25 @@ __all__ = [
     "generate_ecfp4_fingerprint",
     "compute_tanimoto_similarity",
     "compute_dice_similarity",
+    # Chunk 12 additions
+    "BioisostereNotFoundError",
+    "CoordinationPerceptionError",
+    "GeometricPlausibilityError",
+    "PyMOLExportError",
+    "SanitizationError",
+    "ScaffoldMatchingError",
+    "ExitVector",
+    "ScaffoldHopResult",
+    "GeometricViolation",
+    "GeometryValidationResult",
+    "PyMOLExportResult",
+    "PolyhedronScore",
+    "CoordinationCenter",
+    "CoordinationPerceptionResult",
+    "TopologySanitizationResult",
+    "ScaffoldHopper",
+    "DynamicBondDictionary",
+    "PyMOLExportEngine",
+    "MetalCoordinationEngine",
+    "TopologySanitizer",
 ]

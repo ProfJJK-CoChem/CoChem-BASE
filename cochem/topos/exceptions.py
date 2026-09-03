@@ -158,3 +158,46 @@ class FingerprintGenerationError(ToposError):
 
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
+
+
+class ScaffoldMatchingError(ToposError):
+    """Raised when target scaffold substructure cannot be mapped onto input molecule."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class BioisostereNotFoundError(ToposError):
+    """Raised when no geometrically viable bioisostere satisfies exit-vector tolerances."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class GeometricPlausibilityError(ToposError):
+    """Raised when 3D geometry exhibits critical steric clashes or unphysical valence strains."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class PyMOLExportError(ToposError):
+    """Raised when .pse session or fallback .pml export fails to serialize."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class CoordinationPerceptionError(ToposError):
+    """Raised when metal coordination polyhedra cannot be perceived or are heavily distorted."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class SanitizationError(ToposError):
+    """Raised when charge neutralization violates octet rules or fragments essential complexes."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+

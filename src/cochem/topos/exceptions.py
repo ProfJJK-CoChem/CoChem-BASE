@@ -4,9 +4,9 @@ from __future__ import annotations
 
 
 try:
-    from cochem_base.exceptions import CoChemError
+    from cochem_base.exceptions import CoChemError  # type: ignore[import-not-found]
 except ImportError:
-    class CoChemError(Exception):
+    class CoChemError(Exception):  # type: ignore[no-redef]
         """Root fallback exception for CoChem errors."""
 
 
@@ -24,3 +24,22 @@ class IsomorphismMismatchError(CoChemError):
 
 class ChiralityAssignmentError(CoChemError):
     """Raised when stereocenter assignment encounters degenerate, planar, or collinear geometries."""
+
+
+class CoChemToposException(TopologyError):
+    """Root domain exception for CoChem-TOPOS Graph Theory operations."""
+
+
+class SolventBuilderError(CoChemToposException):
+    """Raised when explicit solvent builder encounters invalid geometry, density, or bounding box."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TopologicalCanonicalizationError(CoChemToposException):
+    """Raised when topological graph canonicalization or isomorphism invariant indexing fails."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+

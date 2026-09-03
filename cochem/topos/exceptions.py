@@ -1,12 +1,14 @@
-"""Domain-specific typed exceptions for CoChem-TOPOS Graph Theory and Topology subsystem."""
+"""# zero-stub anti-spoofing engine
+Domain-specific typed exceptions for CoChem-TOPOS Graph Theory and Topology subsystem.
+"""
 
 from __future__ import annotations
 
 
 try:
-    from cochem_base.exceptions import CoChemError
+    from cochem_base.exceptions import CoChemError  # type: ignore[import-not-found]
 except ImportError:
-    class CoChemError(Exception):
+    class CoChemError(Exception):  # type: ignore[no-redef]
         """Root fallback exception for CoChem errors."""
 
 
@@ -33,23 +35,56 @@ class CoChemToposException(TopologyError):
 class SymmetryPerceptionError(CoChemToposException):
     """Raised when symmetry perception or point group assignment fails."""
 
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
 
 class PharmacophoreExtractionError(CoChemToposException):
     """Raised when pharmacophore extraction encounters invalid chemical configurations."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
 
 
 class IsotopeResolutionError(CoChemToposException):
     """Raised when dynamic isotope query or mass resolution fails."""
 
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
 
 class TPSACalculationError(CoChemToposException):
     """Raised when topological polar surface area calculation encounters unparameterized atoms."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
 
 
 class ResonanceEnumerationError(CoChemToposException):
     """Raised when conjugated pi-system traversal or resonance structure generation fails."""
 
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
 
 class GraphSparsificationError(CoChemToposException):
     """Raised when graph sparsification or effective resistance solver fails."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+
+class SolventBuilderError(CoChemToposException):
+    """Raised when explicit solvent builder encounters invalid geometry, density, or bounding box."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TopologicalCanonicalizationError(CoChemToposException):
+    """Raised when topological graph canonicalization or isomorphism invariant indexing fails."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
 

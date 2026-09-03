@@ -12,7 +12,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import networkx as nx
 import numpy as np
@@ -297,11 +297,24 @@ class TopologyGraph(nx.Graph):
         """Assigns an isotope dynamically to a specified node via Mendeleev database."""
         from cochem.topos.isotopes import IsotopeManager
 
-        return IsotopeManager.assign_isotope(self, atom_idx, mass_number)
+        return cast("TopologyGraph", IsotopeManager.assign_isotope(self, atom_idx, mass_number))
 
     def get_mass_matrix(self) -> np.ndarray:
         """Returns diagonal mass matrix M = diag(m_1, ..., m_|V|)."""
         from cochem.topos.isotopes import IsotopeManager
 
-        return IsotopeManager.compute_mass_matrix(self)
+        return cast("np.ndarray", IsotopeManager.compute_mass_matrix(self))
+
+    def canonicalize(self, max_leaves: int = 5000) -> tuple[TopologyGraph, dict[Any, int]]:
+        """Computes canonical topological graph and bijective permutation mapping."""
+        from cochem.topos.canonicalization import TopologicalCanonicalizer
+
+        return cast("tuple[TopologyGraph, dict[Any, int]]", TopologicalCanonicalizer.canonicalize(self, max_leaves=max_leaves))
+
+    @property
+    def canonical_hash(self) -> str:
+        """Computes deterministic 64-character SHA-256 canonical hash of the topology."""
+        from cochem.topos.canonicalization import TopologicalCanonicalizer
+
+        return str(TopologicalCanonicalizer.compute_canonical_hash(self))
 

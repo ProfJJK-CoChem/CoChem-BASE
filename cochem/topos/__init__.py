@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from cochem.topos.canonicalization import (
+    TopologicalCanonicalizer,
+    compute_node_invariant,
+    compute_smallest_rings,
+)
 from cochem.topos.clash import ClashPair, GeometricClashDetector
 from cochem.topos.coarse_grain import GraphCrusherConfig, crush_macromolecule
 from cochem.topos.exceptions import (
@@ -12,12 +17,15 @@ from cochem.topos.exceptions import (
     IsotopeResolutionError,
     PharmacophoreExtractionError,
     ResonanceEnumerationError,
+    SolventBuilderError,
     StericClashError,
     SymmetryPerceptionError,
+    TopologicalCanonicalizationError,
     TopologyError,
     TPSACalculationError,
 )
 from cochem.topos.graph import TopologyGraph
+from cochem.topos.solvent import ExplicitSolventBuilder, SolventBox
 from cochem.topos.isotopes import (
     IsotopeManager,
     IsotopeNodeSpec,
@@ -102,5 +110,12 @@ __all__ = [
     "SparsifiedGraphResult",
     "GraphSparsifier",
     "load_pdb_topology",
+    "SolventBuilderError",
+    "TopologicalCanonicalizationError",
+    "ExplicitSolventBuilder",
+    "SolventBox",
+    "TopologicalCanonicalizer",
+    "compute_node_invariant",
+    "compute_smallest_rings",
 ]
 

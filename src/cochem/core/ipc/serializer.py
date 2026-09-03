@@ -39,7 +39,7 @@ NUMPY_EXT_CODE: int = 42
 def _msgpack_encoder(obj: Any) -> Any:
     """Encode custom structures (NumPy arrays, Pydantic models, Path/UUID) for Msgpack."""
     if isinstance(obj, np.ndarray):
-        dtype_str = obj.dtype.str
+        dtype_str = obj.dtype.str  # type: ignore[attr-defined]
         shape_tuple = tuple(obj.shape)
         raw_buffer = obj.tobytes()
         payload = msgpack.packb((dtype_str, shape_tuple, raw_buffer), use_bin_type=True)
@@ -85,13 +85,13 @@ class SharedMemoryBuffer:
         """Allocate shared memory buffer, copy array memory, and generate transfer descriptor."""
         total_bytes = max(1, arr.nbytes)
         shm = sm.SharedMemory(create=True, size=total_bytes)
-        shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)
-        shm_array[...] = arr[...]
+        shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)  # type: ignore[arg-type]
+        shm_array[:] = arr[:]
 
         desc = {
             "name": shm.name,
             "shape": list(arr.shape),
-            "dtype": arr.dtype.str,
+            "dtype": arr.dtype.str,  # type: ignore[attr-defined]
             "size": total_bytes,
         }
         return cls(shm=shm, descriptor=desc)

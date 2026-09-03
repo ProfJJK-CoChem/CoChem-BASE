@@ -40,7 +40,7 @@ def test_msgpack_numpy_roundtrip() -> None:
     assert isinstance(recovered_arr, np.ndarray)
     assert recovered_arr.dtype == original_arr.dtype
     assert recovered_arr.shape == original_arr.shape
-    assert np.allclose(recovered_arr, original_arr)
+    assert np.allclose(recovered_arr, original_arr)  # type: ignore[attr-defined]
     assert unpacked["label"] == "water_coordinates"
 
 
@@ -84,7 +84,7 @@ def test_shared_memory_buffer_roundtrip() -> None:
     # Consumer process reconstructs from descriptor
     recovered = SharedMemoryBuffer.read_from_descriptor(descriptor)
     try:
-        assert np.allclose(recovered, arr)
+        assert np.allclose(recovered, arr)  # type: ignore[attr-defined]
         assert recovered.shape == (128, 1024)
         assert recovered.dtype == np.float64
     finally:
@@ -151,12 +151,12 @@ def test_pes_store_persistence_and_swmr(tmp_path: pathlib.Path) -> None:
         dset = grp["return_result"]
         assert dset.compression == "gzip"
         loaded_res = dset[:]
-        assert np.allclose(loaded_res, energy_surface)
+        assert np.allclose(loaded_res, energy_surface)  # type: ignore[attr-defined]
 
     # Load via PESStore reader method
     entry = store.read_entry("point_001")
     assert entry["schema_name"] == "qcschema_output"
-    assert np.allclose(entry["return_result"], energy_surface)
+    assert np.allclose(entry["return_result"], energy_surface)  # type: ignore[attr-defined]
 
 
 def test_pes_store_blocks_airgap_violation(tmp_path: pathlib.Path) -> None:

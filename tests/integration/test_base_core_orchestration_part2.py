@@ -278,7 +278,7 @@ def test_ipc_serializer_and_pes_store(tmp_path: pathlib.Path) -> None:
     packed = pack_payload({"coords": coords, "value": 42})
     unpacked = unpack_payload(packed)
 
-    assert np.allclose(unpacked["coords"], coords)
+    assert np.allclose(unpacked["coords"], coords)  # type: ignore[attr-defined]
     assert unpacked["coords"].dtype == np.float64
 
     # PESStore
@@ -293,7 +293,7 @@ def test_ipc_serializer_and_pes_store(tmp_path: pathlib.Path) -> None:
     )
     loaded = store.read_entry("pt1")
     assert loaded["schema_name"] == "qcschema_output"
-    assert np.allclose(loaded["return_result"], coords)
+    assert np.allclose(loaded["return_result"], coords)  # type: ignore[attr-defined]
 
 
 # ==============================================================================

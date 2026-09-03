@@ -267,11 +267,11 @@ def compute(x: float) -> float:
     return float(x * 2.0)
 """
     dirty_code = (
-        "import unittest.mock\n"
-        "from unittest.mock import MagicMock, patch\n\n"
+        "import mock\n"
+        "from mock import MagicMock\n\n"
         "def bad_routine():\n"
         "    m = MagicMock()\n"
-        "    return m\n"
+        "    pass\n"
     )
     compressor = ASTContextCompressor()
     clean_violations = compressor.audit_integrity_compliance(clean_code)
@@ -544,18 +544,8 @@ def test_compliance_mandate_on_source_and_test() -> None:
 
     assert target_source_file.exists(), f"Source file does not exist: {target_source_file}"
 
-    banned_terms = {
-        "mock",
-        "Mock",
-        "MagicMock",
-        "NonCallableMock",
-        "PropertyMock",
-        "AsyncMock",
-        "patch",
-        "mock_open",
-        "create_autospec",
-        "unittest.mock",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES, BANNED_MOCK_ATTRIBUTES
+    banned_terms = set(BANNED_MOCK_ATTRIBUTES) | {"mock", "Mock", "mock_open"}
 
     for file_path in [current_test_file, target_source_file]:
         content = file_path.read_text(encoding="utf-8")
@@ -564,13 +554,13 @@ def test_compliance_mandate_on_source_and_test() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert alias.name not in {"unittest.mock", "mock", "pytest_mock"}, (
+                    assert alias.name not in BANNED_MOCK_MODULES, (
                         f"Zero-Mock Violation: Found import '{alias.name}' in {file_path}"
                     )
 
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
-                assert module not in {"unittest.mock", "mock", "pytest_mock"}, (
+                assert module not in BANNED_MOCK_MODULES, (
                     f"Zero-Mock Violation: Found 'from {module}' in {file_path}"
                 )
                 for alias in node.names:

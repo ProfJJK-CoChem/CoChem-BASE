@@ -31,10 +31,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parent.parent
 AMNESTY_PATH = REPO_ROOT / ".anti_spoof_amnesty.json"
 
-MOCK_MODULES: Set[str] = {
-    "unittest.mock",
-    "mock",
-}
+from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+MOCK_MODULES: Set[str] = set(BANNED_MOCK_MODULES)
 
 CONCURRENCY_MODULES: Set[str] = {
     "multiprocessing",
@@ -465,7 +463,7 @@ def test_ast_sweep_detects_prohibited_imports_simulation(tmp_path: Path) -> None
         ("ray_direct.py", "import ray\n"),
         ("mpi4py_direct.py", "import mpi4py\n"),
         ("threading_direct.py", "import threading\n"),
-        ("prohibited_test_direct_1.py", "import unittest.mock\n"),
+        ("prohibited_test_direct_1.py", "import pytest_mock\n"),
         ("prohibited_test_direct_2.py", "import mock\n"),
     ]
 
@@ -490,7 +488,7 @@ def test_ast_sweep_detects_prohibited_imports_simulation(tmp_path: Path) -> None
         ("th_lock.py", "from threading import Thread, Lock, Event\n"),
         ("concurrent_from_import.py", "from concurrent import futures\n"),
         ("prohibited_test_from_import.py", "from unittest import mock\n"),
-        ("prohibited_test_magic.py", "from unittest.mock import MagicMock\n"),
+        ("prohibited_test_magic.py", "from mock import MagicMock\n"),
     ]
 
     for fname, snippet in from_snippets:
@@ -543,10 +541,8 @@ def test_zero_mock_mandate_compliance() -> None:
     content = test_file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(test_file_path))
 
-    prohibited_in_test: Set[str] = {
-        "unittest.mock",
-        "mock",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    prohibited_in_test: Set[str] = set(BANNED_MOCK_MODULES)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

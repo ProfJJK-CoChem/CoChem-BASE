@@ -191,7 +191,8 @@ def test_zero_simulation_ast_inspection() -> None:
     this_file = Path(__file__)
     tree = ast.parse(this_file.read_text(encoding="utf-8"))
 
-    banned_modules = {"unittest.mock", "mock", "pytest_mock", "responses", "freezegun"}
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    banned_modules = set(BANNED_MOCK_MODULES) | {"responses", "freezegun"}
     banned_calls = {"MagicMock", "Mock", "patch", "monkeypatch", "PropertyMock"}
 
     for node in ast.walk(tree):

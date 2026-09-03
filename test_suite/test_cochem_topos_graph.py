@@ -234,7 +234,8 @@ def test_anti_spoof_zero_mock_ast_purity() -> None:
     assert target_file.is_file()
     tree = ast.parse(target_file.read_text(encoding="utf-8"))
 
-    banned_imports = {"unittest.mock", "pytest_mock", "mock", "multiprocessing", "concurrent.futures", "dask", "ray", "mpi4py", "celery"}
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES, BANNED_CONCURRENCY_MODULES
+    banned_imports = set(BANNED_MOCK_MODULES) | set(BANNED_CONCURRENCY_MODULES)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:

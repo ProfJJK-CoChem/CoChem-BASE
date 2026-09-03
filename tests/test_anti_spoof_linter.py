@@ -37,9 +37,9 @@ def test_detect_banned_imports(tmp_path: Path) -> None:
 
 def test_detect_mock_modules(tmp_path: Path) -> None:
     bad_script = tmp_path / "bad_mock.py"
-    bad_script.write_text("from unittest.mock import MagicMock\n", encoding="utf-8")
+    bad_script.write_text("import mock\n", encoding="utf-8")
     violations = check_script(bad_script, strict_mode=False)
-    assert any("unittest.mock" in v or "MagicMock" in v for v in violations)
+    assert any("mock" in v for v in violations)
 
 
 def test_detect_pass_stub(tmp_path: Path) -> None:

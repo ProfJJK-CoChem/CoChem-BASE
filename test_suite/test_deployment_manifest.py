@@ -36,12 +36,8 @@ from setup.cochem_setup_orchestrator import (
 REPO_ROOT: Path = get_base_root()
 MANIFEST_PATH: Path = REPO_ROOT / "cochem_deployment_manifest.json"
 
-# Prohibited test double module names for AST anti-spoofing verification
-PROHIBITED_IMPORT_NAMES: Set[str] = {
-    "unittest.mock",
-    "mock",
-    "pytest_mock",
-}
+from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+PROHIBITED_IMPORT_NAMES: Set[str] = set(BANNED_MOCK_MODULES)
 
 # Complete list of expected downstream module identifiers in CoChem ecosystem
 EXPECTED_DOWNSTREAM_MODULES: List[str] = [

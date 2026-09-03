@@ -91,14 +91,16 @@ def test_runner_ast_anti_spoof_compliance(runner_path: Path) -> None:
     text = runner_path.read_text(encoding="utf-8")
     tree = ast.parse(text, filename=str(runner_path))
 
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                assert alias.name not in {"unittest.mock", "mock", "pytest_mock"}, (
+                assert alias.name not in BANNED_MOCK_MODULES, (
                     f"Forbidden mock import '{alias.name}' detected in zero_trust_runner.py at line {node.lineno}"
                 )
         elif isinstance(node, ast.ImportFrom):
-            assert node.module not in {"unittest.mock", "mock", "pytest_mock"}, (
+            assert node.module not in BANNED_MOCK_MODULES, (
                 f"Forbidden mock from-import '{node.module}' detected in zero_trust_runner.py at line {node.lineno}"
             )
         elif isinstance(node, ast.Raise):

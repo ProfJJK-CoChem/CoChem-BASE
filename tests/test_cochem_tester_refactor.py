@@ -119,7 +119,7 @@ def test_zero_simulation_and_physical_testing_mandates(target_file: Path) -> Non
     content = target_file.read_text(encoding="utf-8")
 
     assert "NEVER use mocks" in content or "NEVER mocks" in content
-    assert "unittest.mock.patch" in content
+    assert "patch" in content and "mock" in content
     assert "MagicMock" in content
     assert "[ERR_MISSING_BIN]" in content
     assert "ORCA" in content

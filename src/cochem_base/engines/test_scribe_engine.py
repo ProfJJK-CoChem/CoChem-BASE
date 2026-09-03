@@ -676,11 +676,8 @@ def test_anti_spoof_ast_compliance() -> None:
         current_test_file,
     ]
 
-    banned_imported_modules = {
-        "unittest.mock",
-        "mock",
-        "pytest_mock",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    banned_imported_modules = set(BANNED_MOCK_MODULES)
 
     for target_path in target_files:
         if not target_path.exists():

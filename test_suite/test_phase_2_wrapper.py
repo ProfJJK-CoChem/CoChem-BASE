@@ -145,8 +145,9 @@ def test_phase_2_reexported_function_invocations(tmp_path: Path) -> None:
 
 def test_phase_2_source_code_anti_spoofing() -> None:
     """Adversarial check: ensure no mocks, stubs, fake data, or pass statements in phase_2.py."""
-    source = Path(legacy_p2.__file__).read_text(encoding="utf-8")
-    assert "unittest.mock" not in source
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    for bm in BANNED_MOCK_MODULES:
+        assert bm not in source
     assert "Mock(" not in source
     assert "MagicMock(" not in source
     assert "NotImplementedError" not in source

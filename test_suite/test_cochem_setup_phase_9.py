@@ -825,10 +825,8 @@ def test_zero_mock_mandate_compliance() -> None:
     content = test_file_path.read_text(encoding="utf-8")
     tree = ast.parse(content, filename=str(test_file_path))
 
-    prohibited_in_test: Set[str] = {
-        "unittest.mock",
-        "mock",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    prohibited_in_test: Set[str] = set(BANNED_MOCK_MODULES)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

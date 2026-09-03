@@ -639,18 +639,8 @@ def test_lttb_zero_mock_ast_audit() -> None:
     test_filepath = Path(__file__)
     src_filepath = test_filepath.parent.parent / "cochem_core" / "ai" / "lttb_downsampling.py"
 
-    forbidden_names = {
-        "mock",
-        "Mock",
-        "MagicMock",
-        "AsyncMock",
-        "PropertyMock",
-        "patch",
-        "patch.object",
-        "unittest.mock",
-        "pytest_mock",
-        "mocker",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_ATTRIBUTES, BANNED_MOCK_MODULES
+    forbidden_names = set(BANNED_MOCK_ATTRIBUTES) | set(BANNED_MOCK_MODULES) | {"mock", "Mock", "patch.object"}
 
     files_to_audit = [test_filepath]
     if src_filepath.exists():

@@ -26,11 +26,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 LAUNCHER_FILE = REPO_ROOT / "HPC_Launchers" / "cochem_submit.slurm"
 
 # Prohibited test utility modules (direct AST validation without evasion or base64 obfuscation)
-PROHIBITED_TEST_MODULES: Set[str] = {
-    "unittest.mock",
-    "mock",
-    "pytest_mock",
-}
+from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+PROHIBITED_TEST_MODULES: Set[str] = set(BANNED_MOCK_MODULES)
 
 
 def _to_posix_path(path: Path) -> str:

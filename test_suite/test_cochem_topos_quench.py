@@ -512,11 +512,8 @@ def test_zero_test_double_ast_audit() -> None:
         Path(__file__).resolve(),
     ]
 
-    banned_modules = {
-        "unittest.mock",
-        "mock",
-        "pytest_mock",
-    }
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    banned_modules = set(BANNED_MOCK_MODULES)
     banned_names = {
         "MagicMock",
         "Mock",

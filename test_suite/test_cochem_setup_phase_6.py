@@ -702,7 +702,8 @@ def test_enforce_storage_permissions_nonexistent() -> None:
 
 def test_zero_mock_ast_compliance() -> None:
     """Verify orchestrator and test suite contain zero prohibited mock utilities or intercepts."""
-    banned_modules = {"unittest.mock", "mock", "pytest_mock"}
+    from ci_tools.anti_spoof_linter import BANNED_MOCK_MODULES
+    banned_modules = BANNED_MOCK_MODULES
     files_to_check = [
         Path(__file__).resolve(),
         Path(__file__).resolve().parent.parent / "orchestrator" / "cochem_setup_phase_6.py",
@@ -714,9 +715,7 @@ def test_zero_mock_ast_compliance() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert alias.name not in banned_modules, f"Forbidden import {alias.name} in {file_path}"
-                    assert not alias.name.startswith("unittest.mock"), f"Forbidden import {alias.name} in {file_path}"
+                    assert not any(alias.name == m or alias.name.startswith(m + ".") for m in banned_modules), f"Forbidden import {alias.name} in {file_path}"
             elif isinstance(node, ast.ImportFrom):
                 if node.module:
-                    assert node.module not in banned_modules, f"Forbidden import from {node.module} in {file_path}"
-                    assert not node.module.startswith("unittest.mock"), f"Forbidden import from {node.module} in {file_path}"
+                    assert not any(node.module == m or node.module.startswith(m + ".") for m in banned_modules), f"Forbidden import from {node.module} in {file_path}"

@@ -21,6 +21,7 @@ dependencies = [
     "pyqtgraph",
     "pyvista",
     "pyvistaqt",
+    "scipy>=1.17.1",
     "vtk",
 ]
 

@@ -1,1 +1,6 @@
-Cycle 1: Implement code for prompt at D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_02_BASE_UI_and_Web_Part_2_prompts.md strictly adhering to Zero-Mock mandate. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE. Generate unit tests first. IMPORTANT: You MUST update/create `pytest.ini` to restrict `testpaths` to ONLY the tests you are writing for this prompt, otherwise the global 1500+ test suite will run and crash your context. 
+Cycle 3: Remediate HPC & Scaling (Part 1) per Adversarial Council Veto in D:\__CoChem\GitHub-Repo\CoChem-BASE.
+Council Rejection Reasons (Cycle 2 FAILED):
+1. 36 Mypy violations: Add cross-platform OS guards for POSIX process controls (os.killpg, os.getpgid, signal.SIGKILL, os.setsid) on Windows in src/cochem/runners/mpi_supervisor.py; fix Path type unions in src/cochem/runners/async_process_runner.py; add type annotations to all test functions.
+2. 20 Ruff violations: Remove unused imports (F401), sort import blocks (I001), and fix exception chaining with 'raise ... from None' (B904).
+3. Tripartite Storage violation: Ephemeral per-job scratch directories in AsyncProcessRunner.dispatch_task are created but never cleaned up on completion/exit. Enforce scratch cleanup.
+4. Hardcoded GPU device_id=0: Make GPU device allocation dynamic.

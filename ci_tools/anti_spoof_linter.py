@@ -723,9 +723,17 @@ def run_linter(
     target_paths: List[Path] = []
     if targets:
         for t in targets:
-            tp = Path(t).resolve()
-            if tp.exists():
-                target_paths.append(tp)
+            t_str = str(t)
+            if "*" in t_str or "?" in t_str:
+                pattern = Path(t_str).as_posix()
+                matched = list(repo_root.glob(pattern)) if not Path(t_str).is_absolute() else [Path(p) for p in Path(pattern).parent.glob(Path(pattern).name)]
+                for m in matched:
+                    if m.exists():
+                        target_paths.append(m.resolve())
+            else:
+                tp = Path(t).resolve()
+                if tp.exists():
+                    target_paths.append(tp)
     else:
         target_paths = [repo_root]
 

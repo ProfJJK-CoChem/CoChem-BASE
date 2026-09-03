@@ -6,6 +6,7 @@ VF2 subgraph isomorphism searching, QCSchema dictionary export, and thread-safe 
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -29,6 +30,14 @@ VALID_HYBRIDIZATIONS: frozenset[str] = frozenset({
 FORBIDDEN_COORDINATE_KEYS: frozenset[str] = frozenset({
     "coords", "coordinates", "x", "y", "z", "pos"
 })
+
+
+@functools.lru_cache(maxsize=256)
+def _query_mendeleev_element(symbol: str) -> tuple[int, float]:
+    """Dynamically queries atomic number and standard mass from Mendeleev with caching."""
+    elem = element(symbol)
+    return int(elem.atomic_number), float(elem.mass)
+
 
 
 class TopologyGraph(nx.Graph):
@@ -73,9 +82,9 @@ class TopologyGraph(nx.Graph):
             calc_mass = 0.0 if mass is None else mass
         else:
             try:
-                elem = element(resolved_symbol)
-                calc_atomic_num = int(elem.atomic_number) if atomic_number is None else atomic_number
-                calc_mass = float(elem.mass) if mass is None else mass
+                elem_z, elem_m = _query_mendeleev_element(resolved_symbol)
+                calc_atomic_num = elem_z if atomic_number is None else atomic_number
+                calc_mass = elem_m if mass is None else mass
             except Exception as exc:
                 raise TopologyError(f"Unknown element symbol '{resolved_symbol}': {exc}") from exc
 
@@ -276,3 +285,23 @@ class TopologyGraph(nx.Graph):
             )
 
         return graph
+
+    def calculate_tpsa(self) -> float:
+        """Calculates molecular topological polar surface area (TPSA) via Ertl 2000 rules."""
+        from cochem.topos.tpsa import TPSACalculator
+
+        res = TPSACalculator.calculate(self)
+        return float(res.total_tpsa)
+
+    def assign_isotope(self, atom_idx: int, mass_number: int) -> TopologyGraph:
+        """Assigns an isotope dynamically to a specified node via Mendeleev database."""
+        from cochem.topos.isotopes import IsotopeManager
+
+        return IsotopeManager.assign_isotope(self, atom_idx, mass_number)
+
+    def get_mass_matrix(self) -> np.ndarray:
+        """Returns diagonal mass matrix M = diag(m_1, ..., m_|V|)."""
+        from cochem.topos.isotopes import IsotopeManager
+
+        return IsotopeManager.compute_mass_matrix(self)
+

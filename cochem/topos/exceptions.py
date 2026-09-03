@@ -24,3 +24,32 @@ class IsomorphismMismatchError(CoChemError):
 
 class ChiralityAssignmentError(CoChemError):
     """Raised when stereocenter assignment encounters degenerate, planar, or collinear geometries."""
+
+
+class CoChemToposException(TopologyError):
+    """Root domain exception for CoChem-TOPOS Graph Theory operations."""
+
+
+class SymmetryPerceptionError(CoChemToposException):
+    """Raised when symmetry perception or point group assignment fails."""
+
+
+class PharmacophoreExtractionError(CoChemToposException):
+    """Raised when pharmacophore extraction encounters invalid chemical configurations."""
+
+
+class IsotopeResolutionError(CoChemToposException):
+    """Raised when dynamic isotope query or mass resolution fails."""
+
+
+class TPSACalculationError(CoChemToposException):
+    """Raised when topological polar surface area calculation encounters unparameterized atoms."""
+
+
+class ResonanceEnumerationError(CoChemToposException):
+    """Raised when conjugated pi-system traversal or resonance structure generation fails."""
+
+
+class GraphSparsificationError(CoChemToposException):
+    """Raised when graph sparsification or effective resistance solver fails."""
+

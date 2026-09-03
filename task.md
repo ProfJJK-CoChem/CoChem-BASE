@@ -1,8 +1,8 @@
 # Target Execution Checklist
 
-- [x] d:\__CoChem\GitHub-Repo\CoChem-BASE [UI supported]
-- [x] d:\__CoChem\GitHub-Repo\CoChem-TOPOS
-- [x] d:\__CoChem\GitHub-Repo\CoChem-TORQ
+- [ ] d:\__CoChem\GitHub-Repo\CoChem-BASE [UI supported]
+- [ ] d:\__CoChem\GitHub-Repo\CoChem-TOPOS
+- [ ] d:\__CoChem\GitHub-Repo\CoChem-TORQ
 - [ ] d:\__CoChem\GitHub-Repo\CoChem-SpycFit
 - [ ] d:\__CoChem\GitHub-Repo\CoChem-SCRIBE
 - [ ] d:\__CoChem\GitHub-Repo\CoChem-BENCH

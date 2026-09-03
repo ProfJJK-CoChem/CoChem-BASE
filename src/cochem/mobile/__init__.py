@@ -80,6 +80,13 @@ from cochem.mobile.payload_serializer import (
     validate_xyz_structure_dynamic,
     verify_payload_signature,
 )
+from cochem.mobile.pwa_cache import (
+    OfflineStorageExceededError,
+    PWACacheManager,
+    PWACacheValidationError,
+    QueueStatus,
+    SyncReport,
+)
 from cochem.mobile.rdkit_bridge import (
     AtomCoordinate3DRecord,
     ConformerEmbeddingError,
@@ -133,6 +140,11 @@ __all__ = [
     "DracoStateError",
     "DracoStateJournal",
     "DracoStateJournalEntry",
+    "OfflineStorageExceededError",
+    "PWACacheManager",
+    "PWACacheValidationError",
+    "QueueStatus",
+    "SyncReport",
     "DracoTransitionError",
     "DracoUIState",
     "STAGE_THRESHOLD_BYTES",

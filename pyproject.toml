@@ -73,7 +73,6 @@ module = [
     "numpy.*",
     "rich.*",
     "scipy.*",
-    "rdkit.*",
     "psutil.*",
     "mendeleev.*",
     "ipywidgets.*",
@@ -96,3 +95,11 @@ module = [
     "setuptools.*"
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "rdkit",
+    "rdkit.*"
+]
+ignore_missing_imports = true
+ignore_errors = true

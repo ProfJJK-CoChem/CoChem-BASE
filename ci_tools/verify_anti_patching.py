@@ -11,10 +11,8 @@ from __future__ import annotations
 
 import argparse
 import ast
-import json
 import logging
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -27,12 +25,19 @@ EXCLUDED_DIRS: Set[str] = {
     "dist",
     ".venv",
     ".conda",
+    "venv",
+    "site-packages",
+    "artifacts",
+    "datasets",
+    "data",
     "__pycache__",
     ".pytest_cache",
     ".git",
     ".vscode",
     ".idea",
     ".trash",
+    "Report_Archive",
+    "scratch",
     "node_modules",
 }
 
@@ -61,8 +66,42 @@ CORE_ENGINE_DIRS: Set[str] = {
 }
 
 
+def _extract_exception_names(node: Optional[ast.AST]) -> Set[str]:
+    """Extract exception names from an AST exception handler type node."""
+    if node is None:
+        return set()
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.Attribute):
+        return {node.attr}
+    if isinstance(node, ast.Tuple):
+        result: Set[str] = set()
+        for elt in node.elts:
+            result.update(_extract_exception_names(elt))
+        return result
+    return set()
+
+
+def _is_noop_stmt(stmt: ast.AST) -> bool:
+    """Check if an AST statement is a no-op (pass, ..., docstring)."""
+    if isinstance(stmt, ast.Pass):
+        return True
+    if isinstance(stmt, ast.Expr):
+        if isinstance(stmt.value, ast.Constant):
+            if stmt.value.value is ...:
+                return True
+            if isinstance(stmt.value.value, str):
+                return True
+    return False
+
+
 class AntiPatchingVisitor(ast.NodeVisitor):
-    def __init__(self, filepath: Path, rel_path: str, is_core: bool):
+    def __init__(
+        self,
+        filepath: Optional[Path] = None,
+        rel_path: str = "",
+        is_core: bool = True,
+    ):
         self.filepath = filepath
         self.rel_path = rel_path
         self.is_core = is_core
@@ -78,17 +117,9 @@ class AntiPatchingVisitor(ast.NodeVisitor):
             return
 
         # 2. Check for broad Exception / BaseException swallowing
-        exc_names: Set[str] = set()
-        if isinstance(node.type, ast.Name):
-            exc_names.add(node.type.id)
-        elif isinstance(node.type, ast.Tuple):
-            for elt in node.type.elts:
-                if isinstance(elt, ast.Name):
-                    exc_names.add(elt.id)
-
+        exc_names = _extract_exception_names(node.type)
         broad_caught = exc_names.intersection({"Exception", "BaseException"})
         if broad_caught:
-            # Check if any statement in the body is a pass or ellipsis
             has_pass = any(isinstance(stmt, ast.Pass) for stmt in node.body)
             has_ellipsis = any(
                 isinstance(stmt, ast.Expr)
@@ -96,15 +127,38 @@ class AntiPatchingVisitor(ast.NodeVisitor):
                 and stmt.value.value is ...
                 for stmt in node.body
             )
+            has_docstring_only = len(node.body) == 1 and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant) and isinstance(node.body[0].value.value, str)
+
             if has_pass:
                 self.violations.append(
-                    f"Line {node.lineno}: Banned broad exception swallowing 'except {', '.join(broad_caught)}:' with 'pass'"
+                    f"Line {node.lineno}: Banned broad exception swallowing 'except {', '.join(sorted(broad_caught))}:' with 'pass'"
                 )
             elif has_ellipsis:
                 self.violations.append(
-                    f"Line {node.lineno}: Banned broad exception swallowing 'except {', '.join(broad_caught)}:' with '...'"
+                    f"Line {node.lineno}: Banned broad exception swallowing 'except {', '.join(sorted(broad_caught))}:' with '...'"
+                )
+            elif has_docstring_only or all(_is_noop_stmt(s) for s in node.body):
+                self.violations.append(
+                    f"Line {node.lineno}: Banned broad exception swallowing 'except {', '.join(sorted(broad_caught))}:' with docstring/no-op body"
                 )
 
+        self.generic_visit(node)
+
+    def visit_If(self, node: ast.If) -> None:
+        if isinstance(node.test, ast.Constant):
+            val = node.test.value
+            if val is True:
+                self.violations.append(
+                    f"Line {node.lineno}: Banned hardcoded constant condition 'if True:' (symptom-level patch)"
+                )
+            elif val is False:
+                self.violations.append(
+                    f"Line {node.lineno}: Banned hardcoded constant condition 'if False:' (symptom-level patch)"
+                )
+            elif isinstance(val, int) and val in (0, 1):
+                self.violations.append(
+                    f"Line {node.lineno}: Banned hardcoded constant condition 'if {val}:' (symptom-level patch)"
+                )
         self.generic_visit(node)
 
 
@@ -126,7 +180,10 @@ def audit_file(filepath: Path, repo_root: Path) -> List[str]:
     return visitor.violations
 
 
-def audit_repository(repo_root: Path, target_dirs: Optional[List[str]] = None) -> Tuple[bool, Dict[str, List[str]]]:
+def audit_repository(
+    repo_root: Path,
+    target_dirs: Optional[List[str]] = None,
+) -> Tuple[bool, Dict[str, List[str]]]:
     """Audit repository files for anti-patching violations."""
     all_violations: Dict[str, List[str]] = {}
 
@@ -134,14 +191,19 @@ def audit_repository(repo_root: Path, target_dirs: Optional[List[str]] = None) -
         dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS and not d.startswith(".")]
         rel_root = Path(root).relative_to(repo_root)
 
-        if target_dirs:
-            if not any(str(rel_root).startswith(td) or rel_root == Path(".") for td in target_dirs):
+        if any(part in EXCLUDED_DIRS for part in rel_root.parts):
+            continue
+
+        if target_dirs is not None:
+            if rel_root == Path("."):
+                continue
+            if rel_root.parts[0] not in target_dirs:
                 continue
 
         for f in files:
             if f.endswith(".py"):
                 p = Path(root) / f
-                if "Report_Archive" in p.parts or "scratch" in p.parts:
+                if any(part in EXCLUDED_DIRS for part in p.relative_to(repo_root).parts):
                     continue
                 v = audit_file(p, repo_root)
                 if v:
@@ -151,11 +213,11 @@ def audit_repository(repo_root: Path, target_dirs: Optional[List[str]] = None) -
     return passed, all_violations
 
 
-def main() -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="CoChem Root Cause & Anti-Patching Standards Verifier")
     parser.add_argument("target", nargs="?", default=".", help="Root path to scan")
     parser.add_argument("--core-only", action="store_true", help="Audit only core engines")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     repo_root = Path(args.target).resolve()
     if not repo_root.exists():

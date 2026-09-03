@@ -164,6 +164,17 @@ The primary entry point for configuring and interacting with CoChem-BASE is our 
 - **Environment Manager**: `conda`, `mamba`, or `micromamba` accessible in the system path.
 - **Voilà**: Installed in your environment (`pip install voila`).
 
+### 6-Tier Environment Matrix & Device Setup
+
+CoChem-BASE supports heterogeneous deployment across various hardware and operating systems. Below is the setup and access matrix for running jobs across different device architectures:
+
+| Device Type | Compute Role | Access Method | Setup & Execution Instructions |
+| :--- | :--- | :--- | :--- |
+| **Native Windows** | Primary Compute Node / Client | Localhost GUI | Install Python 3.11+ and Conda. Run `git clone`, then `voila Start_Here.ipynb`. Access the UI at `http://localhost:8866`. |
+| **macOS (Apple Silicon/Intel)** | Primary Compute Node / Client | Localhost GUI | Install Python 3.11+ and Conda/Mamba. Run `git clone`, then `voila Start_Here.ipynb`. Access at `http://localhost:8866`. |
+| **Linux (Debian/Ubuntu/HPC)**| Heavy Compute Node / Server | Localhost or Headless | **Local**: Run `voila Start_Here.ipynb`. <br>**Headless**: Bind to all IPs using `voila Start_Here.ipynb --no-browser --port=8866 --Voila.ip=0.0.0.0` and access via SSH tunnel or VPN. |
+| **Mobile / Tablet (iOS/Android)**| Thin Client (Remote Control) | Remote Web Browser | Mobile devices act as **Thin Clients**. You cannot run quantum calculations natively on the mobile processor. <br>1. Launch Voilà on your host PC, Mac, or HPC server using `--Voila.ip=0.0.0.0`. <br>2. Connect your mobile device to the same local network or VPN. <br>3. Open Safari/Chrome on your tablet/phone and navigate to `http://<host-ip-address>:8866` to monitor telemetry and dispatch jobs remotely! |
+
 ### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/ProfJJK-CoChem/CoChem-BASE.git

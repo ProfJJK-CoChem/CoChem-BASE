@@ -9,29 +9,71 @@ from cochem.topos.canonicalization import (
 )
 from cochem.topos.clash import ClashPair, GeometricClashDetector
 from cochem.topos.coarse_grain import GraphCrusherConfig, crush_macromolecule
+from cochem.topos.diff import compute_topology_diff
 from cochem.topos.exceptions import (
+    BondPerceptionError,
     ChiralityAssignmentError,
+    CoChemError,
     CoChemToposException,
+    FingerprintGenerationError,
+    FragmentationError,
     GraphSparsificationError,
     IsomorphismMismatchError,
     IsotopeResolutionError,
+    MalformedRecordError,
+    ParsingAirGapError,
     PharmacophoreExtractionError,
     ResonanceEnumerationError,
     SolventBuilderError,
     StericClashError,
     SymmetryPerceptionError,
     TopologicalCanonicalizationError,
+    TopologyDiffError,
     TopologyError,
+    ToposError,
     TPSACalculationError,
+    UnparameterizedAtomError,
+)
+from cochem.topos.fingerprint import (
+    compute_dice_similarity,
+    compute_tanimoto_similarity,
+    generate_ecfp4_fingerprint,
+)
+from cochem.topos.forcefield import (
+    assign_forcefield_parameters,
+    geometric_combine,
+    lorentz_berthelot_combine,
+)
+from cochem.topos.fragmentation import (
+    fragment_by_brics,
+    fragment_by_recap,
 )
 from cochem.topos.graph import TopologyGraph
-from cochem.topos.solvent import ExplicitSolventBuilder, SolventBox
+from cochem.topos.io import (
+    Mol2StreamReader,
+    Mol2Writer,
+    SDFStreamReader,
+    SDFWriter,
+)
 from cochem.topos.isotopes import (
     IsotopeManager,
     IsotopeNodeSpec,
     get_isotope_info,
     get_isotope_mass,
 )
+from cochem.topos.models import (
+    AttachmentSite,
+    BondOrderEdge,
+    BondPerceptionResult,
+    ECFP4FingerprintPayload,
+    ForceFieldAssignmentResult,
+    MoleculeRecord,
+    NonBondedParameter,
+    SubgraphDeltaRecord,
+    SynthonRecord,
+    TopologyDelta,
+)
+from cochem.topos.perception import perceive_bond_orders_from_xyz
 from cochem.topos.pharmacophore import (
     PharmacophoreExtractor,
     PharmacophoreFeature,
@@ -47,6 +89,7 @@ from cochem.topos.rings import (
     perceive_aromaticity,
     perceive_cycle_basis,
 )
+from cochem.topos.solvent import ExplicitSolventBuilder, SolventBox
 from cochem.topos.sparsification import (
     GraphSparsifier,
     SparsifiedGraphResult,
@@ -81,6 +124,8 @@ __all__ = [
     "TOPOSpy3DmolWidget",
     "GeometricClashDetector",
     "ClashPair",
+    "CoChemError",
+    "ToposError",
     "TopologyError",
     "StericClashError",
     "IsomorphismMismatchError",
@@ -117,5 +162,36 @@ __all__ = [
     "TopologicalCanonicalizer",
     "compute_node_invariant",
     "compute_smallest_rings",
+    # Chunk 11 additions
+    "MalformedRecordError",
+    "UnparameterizedAtomError",
+    "BondPerceptionError",
+    "ParsingAirGapError",
+    "TopologyDiffError",
+    "FragmentationError",
+    "FingerprintGenerationError",
+    "BondOrderEdge",
+    "MoleculeRecord",
+    "SubgraphDeltaRecord",
+    "TopologyDelta",
+    "AttachmentSite",
+    "SynthonRecord",
+    "NonBondedParameter",
+    "ForceFieldAssignmentResult",
+    "BondPerceptionResult",
+    "ECFP4FingerprintPayload",
+    "SDFStreamReader",
+    "Mol2StreamReader",
+    "SDFWriter",
+    "Mol2Writer",
+    "assign_forcefield_parameters",
+    "lorentz_berthelot_combine",
+    "geometric_combine",
+    "fragment_by_brics",
+    "fragment_by_recap",
+    "perceive_bond_orders_from_xyz",
+    "compute_topology_diff",
+    "generate_ecfp4_fingerprint",
+    "compute_tanimoto_similarity",
+    "compute_dice_similarity",
 ]
-

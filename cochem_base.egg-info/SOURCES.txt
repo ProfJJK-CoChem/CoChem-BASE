@@ -59,12 +59,14 @@ tests/test_cochem_stage2_ingestor.py
 tests/test_cochem_submit_slurm.py
 tests/test_cochem_tester_refactor.py
 tests/test_cochem_topos_alignment.py
+tests/test_cochem_topos_canonicalization.py
 tests/test_cochem_topos_cleanup.py
 tests/test_cochem_topos_export.py
 tests/test_cochem_topos_goat.py
 tests/test_cochem_topos_graph.py
 tests/test_cochem_topos_iso_recycle.py
 tests/test_cochem_topos_memory.py
+tests/test_cochem_topos_solvent.py
 tests/test_cochem_topos_wiggle.py
 tests/test_cochem_unity_fast_pass_widget.py
 tests/test_cochem_unity_installer_dashboard.py

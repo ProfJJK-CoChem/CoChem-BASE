@@ -10,11 +10,14 @@ Requires-Dist: PySide6
 Requires-Dist: cryptography>=50.0.1
 Requires-Dist: filelock>=3.32.5
 Requires-Dist: mendeleev>=1.2.0
+Requires-Dist: mmh3>=5.3.0
+Requires-Dist: networkx>=3.6.1
 Requires-Dist: pluggy
 Requires-Dist: pydantic>=2
 Requires-Dist: pyqtgraph
 Requires-Dist: pyvista
 Requires-Dist: pyvistaqt
+Requires-Dist: rdkit>=2026.3.5
 Requires-Dist: scipy>=1.17.1
 Requires-Dist: vtk
 Provides-Extra: dev

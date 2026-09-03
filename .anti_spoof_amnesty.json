@@ -5,6 +5,7 @@
     ".agents/teamwork_preview_reviewer_2/verify_15_agents.py",
     "calc/cochem_numfreq_dispatcher.py",
     "chain.py",
+    "cochem/topos/io.py",
     "cochem_base/core/cochem_core_hdf5_manager.py",
     "cochem_base/core/cochem_core_registry_manager.py",
     "cochem_base/core/cochem_core_workspace_manager.py",

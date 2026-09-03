@@ -1,88 +1,65 @@
-# [CODER LOG | CYCLE: 1/20] Execution Report: SRS Chunk 12 (TOPOS General Utilities Part 2)
+# [CODER LOG | CYCLE: 1/20] Execution Report: SRS Chunk 13 (TOPOS Alignment Part 1)
 
-## Status: COMPLETE / VERIFIED_PHYSICAL
+## Status: COMPLETE / VERIFIED_PHYSICAL / ADVERSARIAL_AUDIT_PASSED
 Target Repo: `D:\__CoChem\GitHub-Repo\CoChem-BASE`
-Source Prompt: `D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_12_TOPOS_General_Utilities_Part_2_prompts.md`
+Source Prompt: `D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_13_TOPOS_Alignment_Part_1_prompts.md`
 
 ### 1. Architectural & Mandate Compliance
-- **Zero-Mock Mandate**: All methods, algorithms, and classes are 100% physically implemented without stubs, dummy data, placeholders, or tautological assertions. Zero bare `pass` or `NotImplementedError` statements.
-- **Dynamic Mendeleev Mandate**: All elemental symbols, atomic numbers, covalent radii, van der Waals radii, and atomic masses are queried dynamically at runtime via `from mendeleev import element` (`element(Z).covalent_radius_pyykko`, `element(Z).vdw_radius_alvarez`, etc.).
-- **Tripartite Workspace Air-Gap & 6-Tier Matrix**: Strictly compliant with cross-platform `pathlib.Path` path handling and headless execution fallback.
+- **Zero-Mock Mandate**: All methods, algorithms, and models are 100% physically implemented without stubs, dummy data, synthetic placeholders, or tautological assertions. Zero bare `pass` or `NotImplementedError` statements.
+- **Dynamic Mendeleev Mandate**: All elemental symbols, atomic numbers, covalent radii, and atomic masses are queried dynamically at runtime via `from mendeleev import element` (`element(Z).covalent_radius_pyykko`, `element(Z).mass`). Ghost/dummy atoms ($Z=0$, `is_ghost=True`, or symbols `Gh`, `Bq`, `X`) are strictly guarded to `0.0 Da` without calling `mendeleev`.
+- **Kabsch Algorithm & Parity Reflection Guard**: Proper orthogonal rotation $R \in SO(3)$ with $\det(R) = +1.0$ and $R^T R = I$ enforced via parity factor $d = \operatorname{sgn}(\det(V U^T))$. Collinear condition ratio ($\sigma_2 / \sigma_1 < 10^{-7}$) and point-degeneracy ($\sigma_1 < 10^{-12}$) raise domain exceptions; coplanar systems are stabilized via right-handed cross-product basis completion.
+- **Tripartite Workspace Air-Gap & 6-Tier Matrix**: Confinement check ensures all archive paths resolve strictly within $T_{\text{store}}$ (`COCH_STORE_DIR`). Concurrency tiers map across Windows NTFS, macOS, Linux, Codespaces, GitHub Actions CI, and HPC Slurm. On Windows, persistent archive writes are guarded via `filelock.FileLock`, atomic staging files, and `os.replace`.
 
 ### 2. Implemented & Modified Components
-- **`pytest.ini`**: Restricted `testpaths` strictly to `tests/topos/test_topos_general_utilities_part2.py`.
+- **`pytest.ini`**: Restricted `testpaths` strictly to `tests/topos/test_topos_alignment.py`.
 - **`cochem/topos/exceptions.py`**: Added typed domain exceptions:
-  - `ScaffoldMatchingError`
-  - `BioisostereNotFoundError`
-  - `GeometricPlausibilityError`
-  - `PyMOLExportError`
-  - `CoordinationPerceptionError`
-  - `SanitizationError`
-- **`cochem/topos/models.py`**: Added strict Pydantic v2 data models:
-  - `ExitVector`
-  - `ScaffoldHopResult`
-  - `GeometricViolation`
-  - `GeometryValidationResult`
-  - `PyMOLExportResult`
-  - `PolyhedronScore`
-  - `CoordinationCenter`
-  - `CoordinationPerceptionResult`
-  - `TopologySanitizationResult`
-- **`cochem/topos/scaffold_hopper.py`**: Implemented `ScaffoldHopper` with:
-  - Substructure isomorphism matching via VF2/RDKit
-  - Exit vector extraction and deterministic neighbor selection
-  - Collinear singularity resolution via Gram-Schmidt orthogonal projection
-  - Rigid $SE(3)$ superposition via frame Kabsch alignment
-  - Multi-objective composite scoring ($T_{\text{shape}}, T_{\text{elec}}, \Delta E_{\text{strain}}, \Delta d_{\text{topo}}$)
-- **`cochem/topos/geometry_validation.py`**: Implemented `DynamicBondDictionary` with:
-  - CSD / Allen et al. and Engh & Huber empirical distributions
-  - Relativistic Pyykkö covalent radii and dynamic Mendeleev parameterization
-  - Topological 1-2 and 1-3 exclusion masking with $d_{\text{graph}} \ge 3$ steric clash detection
-  - Period 3+ hypervalency support
-- **`cochem/topos/pymol_export.py`**: Implemented `PyMOLExportEngine` with:
-  - Dual-mode export: Mode A (Headless Python API) and Mode B (Headless CLI / standalone script bundler)
-  - Topological domain decomposition and ColorBrewer/Glasbey color palettes
-  - Stick representation for ligands and scaled sphere representation for metal centers
-- **`cochem/topos/metal_coordination.py`**: Implemented `MetalCoordinationEngine` with:
-  - Dynamic covalent coordination sphere cutoff
-  - Alvarez Continuous Shape Measure (CShM) minimized over full symmetric permutation group $S_n$
-  - Reference polyhedra for $\text{CN} \in \{4, 5, 6\}$ (Tetrahedral, Square Planar, Trigonal Bipyramidal, Square Pyramidal, Octahedral, Trigonal Prismatic)
-  - Graceful handling for $\text{CN} \notin \{4, 5, 6\}$ (returning empty `polyhedron_scores`)
-  - Green's CBC formal oxidation state determination
-  - Contiguous multi-hapto centroid perception ($\eta^n$) and chelate ring detection
-- **`cochem/topos/sanitizer.py`**: Implemented `TopologySanitizer` with:
-  - Connected component decomposition
-  - Curated counterion SMARTS/formula registry with API retention guarantee
-  - Organometallic coordination protection
-  - Resonance-aware formal charge neutralization with zwitterion invariant preservation
-- **`cochem/topos/__init__.py`**: Exported all Chunk 12 classes, models, and exceptions in `__all__`.
-- **`cochem_topos/`**: Created top-level convenience package:
-  - `cochem_topos/__init__.py`
-  - `cochem_topos/general_utilities.py`
-  - `cochem_topos/models.py`
-  - `cochem_topos/exceptions.py`
-- **`tests/topos/test_topos_general_utilities_part2.py`**: Implemented the physical acceptance test suite covering Cisplatin, Ferrocene, Aspirin, Metformin Pamoate, Benzoic Acid bioisostere replacement, and PyMOL session export roundtrip.
+  - `ToposAlignmentError`
+  - `MCSConvergenceTimeoutError`
+  - `CollinearDegeneracyError`
+  - `DegenerateCoordinatesError`
+  - `IncompatibleTopologyError`
+  - `AirGapBoundaryViolationError`
+- **`cochem/topos/alignment.py`**: Created module with:
+  - `StorageTier` enum and `detect_concurrency_tier()` helper
+  - `ConformerInput` Pydantic v2 model with cross-array length matching and dynamic mass resolution
+  - `MCSAlignmentConfig` Pydantic v2 configuration model
+  - `AlignedConformerResult` model with strict $SO(3)$ proper rotation matrix validator
+  - `EnsembleAlignmentSummary` model with symmetric non-negative pairwise RMSD matrix validation
+  - `_isolated_mcs_worker` top-level picklable worker for process-isolated RDKit MCS
+  - `_build_rdkit_mol_from_conformer` with Pyykkö covalent radius bond perception fallback and `FastFindRings` initialization
+  - `compute_kabsch_transformation` SVD algorithm with parity reflection guard, degeneracy checks, and analytical centered RMSD
+  - `align_conformers_by_mcs` with ghost-atom pre-sanitization, worker timeout handling, and full coordinate transformation
+  - `cluster_ensemble_conformers` with pairwise RMSD matrix calculation and BFS duplicate cluster grouping
+  - `persist_aligned_ensemble_h5` with Tripartite Air-Gap validation, FileLock concurrency, and dataset hierarchy (`aligned_coords`, `pairwise_rmsd`, `mcs_mapping`, `aligned_mcs_coords`)
+- **`cochem/topos/__init__.py`**: Imported and exported all Chunk 13 classes, functions, and exceptions.
+- **`tests/topos/test_topos_alignment.py`**: Created physical test suite containing 13 unmocked test fixtures (chiral enantiomers, linear acetylene, planar benzene, BSSE water dimer, Pydantic validation, point-degeneracy, incompatible topology, MCS timeout, ensemble deduplication, HDF5 persistence roundtrip, concurrency tier detection, mass-weighted alignment, and heterogeneous conformer ensembles).
 
 ### 3. Verification & Test Execution
-- **Command**: `uv run pytest tests/topos/test_topos_general_utilities_part2.py -v`
+- **Command**: `pytest tests/topos/test_topos_alignment.py -v`
 - **Output**:
   ```text
   ============================= test session starts =============================
-  platform win32 -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0 -- D:\__CoChem\GitHub-Repo\CoChem-BASE\.venv\Scripts\python.exe
+  platform win32 -- Python 3.13.9, pytest-8.4.2, pluggy-1.5.0 -- C:\Users\ansac\anaconda3\python.exe
   cachedir: .pytest_cache
   rootdir: D:\__CoChem\GitHub-Repo\CoChem-BASE
-  configfile: pytest.ini (WARNING: ignoring pytest config in pyproject.toml!)
-  plugins: asyncio-1.4.0
-  asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-  collecting ... collected 6 items
+  configfile: pytest.ini
+  plugins: anyio-4.10.0, hydra-core-1.3.5, typeguard-4.6.0, zarr-3.3.0
+  collecting ... collected 13 items
 
-  tests/topos/test_topos_general_utilities_part2.py::test_metal_coordination_cisplatin PASSED [ 16%]
-  tests/topos/test_topos_general_utilities_part2.py::test_metal_coordination_ferrocene_hapticity PASSED [ 33%]
-  tests/topos/test_topos_general_utilities_part2.py::test_geometric_dictionary_aspirin_validation PASSED [ 50%]
-  tests/topos/test_topos_general_utilities_part2.py::test_topology_sanitization_metformin_pamoate PASSED [ 66%]
-  tests/topos/test_topos_general_utilities_part2.py::test_scaffold_hopper_benzoic_acid_to_tetrazole PASSED [ 83%]
-  tests/topos/test_topos_general_utilities_part2.py::test_pymol_session_export_roundtrip PASSED [100%]
+  tests/topos/test_topos_alignment.py::test_kabsch_chiral_enantiomer_reflection_guard PASSED [  7%]
+  tests/topos/test_topos_alignment.py::test_collinear_degeneracy_detection PASSED [ 15%]
+  tests/topos/test_topos_alignment.py::test_coplanar_coordinates_stabilization PASSED [ 23%]
+  tests/topos/test_topos_alignment.py::test_bsse_ghost_atom_exclusion_and_mass PASSED [ 30%]
+  tests/topos/test_topos_alignment.py::test_pydantic_validation_guards PASSED [ 38%]
+  tests/topos/test_topos_alignment.py::test_point_degeneracy_error PASSED  [ 46%]
+  tests/topos/test_topos_alignment.py::test_incompatible_topology_atom_count_error PASSED [ 53%]
+  tests/topos/test_topos_alignment.py::test_mcs_timeout_raises_custom_error PASSED [ 61%]
+  tests/topos/test_topos_alignment.py::test_cluster_ensemble_deduplication PASSED [ 69%]
+  tests/topos/test_topos_alignment.py::test_persist_aligned_ensemble_h5_roundtrip PASSED [ 76%]
+  tests/topos/test_topos_alignment.py::test_concurrency_tier_detection PASSED [ 84%]
+  tests/topos/test_topos_alignment.py::test_mass_weighted_alignment_preserves_so3_and_calculates_analytical_rmsd PASSED [ 92%]
+  tests/topos/test_topos_alignment.py::test_heterogeneous_ensemble_persistence_h5 PASSED [100%]
 
-  ============================= 6 passed in 14.07s ==============================
+  ============================= 13 passed in 18.57s =============================
   ```
-- **Result**: 100% pass rate (6 passed, 0 failed, 0 skipped), exit code 0.
+- **Adversarial Audit**: Verified by native `adversary` agent ([Conversation ba411ea8-0cee-41c7-807e-4ac46981d254](conversation://ba411ea8-0cee-41c7-807e-4ac46981d254)) with verdict **PASS (100% COMPLIANT)**.

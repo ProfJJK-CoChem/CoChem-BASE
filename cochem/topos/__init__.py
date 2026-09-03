@@ -130,6 +130,24 @@ from cochem.topos.geometry_validation import DynamicBondDictionary
 from cochem.topos.pymol_export import PyMOLExportEngine
 from cochem.topos.metal_coordination import MetalCoordinationEngine
 from cochem.topos.sanitizer import TopologySanitizer
+from cochem.topos.alignment import (
+    AirGapBoundaryViolationError,
+    AlignedConformerResult,
+    CollinearDegeneracyError,
+    ConformerInput,
+    DegenerateCoordinatesError,
+    EnsembleAlignmentSummary,
+    IncompatibleTopologyError,
+    MCSAlignmentConfig,
+    MCSConvergenceTimeoutError,
+    StorageTier,
+    ToposAlignmentError,
+    align_conformers_by_mcs,
+    cluster_ensemble_conformers,
+    compute_kabsch_transformation,
+    detect_concurrency_tier,
+    persist_aligned_ensemble_h5,
+)
 
 __all__ = [
     "TopologyGraph",
@@ -235,4 +253,21 @@ __all__ = [
     "PyMOLExportEngine",
     "MetalCoordinationEngine",
     "TopologySanitizer",
+    # Chunk 13 additions
+    "ToposAlignmentError",
+    "MCSConvergenceTimeoutError",
+    "CollinearDegeneracyError",
+    "DegenerateCoordinatesError",
+    "IncompatibleTopologyError",
+    "AirGapBoundaryViolationError",
+    "ConformerInput",
+    "MCSAlignmentConfig",
+    "AlignedConformerResult",
+    "EnsembleAlignmentSummary",
+    "StorageTier",
+    "detect_concurrency_tier",
+    "compute_kabsch_transformation",
+    "align_conformers_by_mcs",
+    "cluster_ensemble_conformers",
+    "persist_aligned_ensemble_h5",
 ]

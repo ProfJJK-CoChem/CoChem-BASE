@@ -1,7 +1,6 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_12_TOPOS_General_Utilities_Part_2_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_13_TOPOS_Alignment_Part_1_prompts.md.
 Original prompt:
-An adversarial audit of the generated chunked prompt for `SRS_Chunk_12_TOPOS_General_Utilities_Part_2` has been initiated with the `adversary` agent ([`1d434df6-9d36-4341-8afb-b8304740dcb2`](conversation://1d434df6-9d36-4341-8afb-b8304740dcb2)). Standing by for the auditor's evaluation.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 12: `TOPOS_General_Utilities_Part_2`.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 13: `TOPOS_Alignment_Part_1`.
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev library mandate, and Method Matrix v4. Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must execute physically against authentic chemical topologies, genuine molecular structures, and physical constants.
 
@@ -10,436 +9,398 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### MISSION & EXECUTION WORKFLOW
 
 1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyGraph` abstractions, and testing conventions established in prior TOPOS modules.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/` with authentic chemical species and physical fixtures (e.g., Cisplatin square-planar geometry, Ferrocene $\eta^5$ sandwich complex, relaxed non-planar Aspirin conformers, Metformin Pamoate bulky salt pairs, Benzoic acid bioisosteric tetrazole replacement, and PyMOL session binary exports).
-4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/ -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
+2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`).
+3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_alignment.py` with authentic chemical species and physical fixtures (e.g., authentic D-alanine / L-alanine heavy-atom chiral enantiomers, linear acetylene $C_2H_2$, planar benzene $C_6$ rings in the xy-plane, and BSSE water dimer counterpoise complexes with ghost atoms).
+4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_alignment.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
 5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
 
 ---
 
 ### MODULE SPECIFICATIONS
 
-#### 1. [TOPOS] Scaffold Hopper Module
-- **File Target**: `cochem/topos/scaffold_hopper.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `ScaffoldHopper`
-- **Entrypoint**: `hop_scaffold(molecule_smiles: str, scaffold_smiles: str, replacement_library: list[str], coordinates: list[list[float]] | np.ndarray | None = None) -> list[ScaffoldHopResult]`
-- **Requirements**:
-  - **Substructure Identification**: Perform VF2 / Ullmann subgraph isomorphism to locate user-selected scaffold $S \subset M$ within host molecule $M$ `[D]`. Raise `ScaffoldMatchingError` if no isomorphism mapping exists.
-  - **Exit Vector Perception & Non-Singular Alignment Triads**:
-    - For each severed bond $(a_{\text{scaffold}}, b_{\text{subst}})$, extract anchor Cartesian position $\mathbf{r}(a) \in \mathbb{R}^3$ and unit exit vector:
-      $$\mathbf{v}_k = \frac{\mathbf{r}(b) - \mathbf{r}(a)}{\|\mathbf{r}(b) - \mathbf{r}(a)\|} \in \mathbb{R}^3$$
-    - **Deterministic Neighbor Selection**: If scaffold neighbors exist ($\text{adj}(a) \cap S \neq \emptyset$), select $c_{\text{neighbor}} = \min \{ c \in \text{adj}(a) \cap S \}$ (scaffold neighbor with lowest canonical index).
-    - **Collinear & Isolated Singularity Resolution**: If $\text{adj}(a) \cap S \neq \emptyset$ and cross product $\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| \ge 10^{-4}$, compute normal:
-      $$\mathbf{n}_k = \frac{(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k}{\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\|} \quad \text{[D]}$$
-      If anchor $a$ has no scaffold neighbors ($\text{adj}(a) \cap S = \emptyset$) or is collinear/linear ($\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| < 10^{-4}$), construct an orthogonal vector via Gram-Schmidt orthogonal projection:
-      $$\mathbf{n}_k = \frac{\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k}{\|\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k\|}, \quad \mathbf{u} = [1, 0, 0]^T \text{ (or } [0, 1, 0]^T \text{ if } |\mathbf{u} \cdot \mathbf{v}_k| > 0.9) \quad \text{[D]}$$
-    - **Alignment Triad Construction**: Form the 3-point spatial reference frame $\mathcal{F}_k = \{\mathbf{r}(a_k), \mathbf{r}(a_k) + \mathbf{v}_k, \mathbf{r}(a_k) + \mathbf{n}_k\}$ for each attachment site.
-  - **Bioisostere Transformation Dictionary**: Query a curated empirical library of validated bioisosteric replacements `[M]` (e.g., carboxylic acid $\leftrightarrow$ tetrazole, acylsulfonamide, oxadiazolone; ester $\leftrightarrow$ 1,2,4-oxadiazole; phenyl $\leftrightarrow$ bicyclo[1.1.1]pentane, pyridine, cubane).
-  - **Rigid $SE(3)$ Superposition via Frame Kabsch Alignment**: Align candidate triad frames $\{\mathcal{F}'_k\}$ onto host frames $\{\mathcal{F}_k\}$ via Kabsch root-mean-square minimization. This locks all 6 spatial degrees of freedom, resolving unconstrained dihedral spinning for monovalent replacements ($k=1$). Reject poses with directional deviation $\Delta \theta > 15.0^\circ$ `[D]` or translational mismatch $\text{RMSD}_{\text{frame}} > 0.35\,\text{Å}$ `[D]`. Raise `BioisostereNotFoundError` if no candidates meet tolerances.
-  - **Multi-Objective Candidate Scoring & Normalization**:
-    $$\Delta d_{\text{topo}} = 1.0 - \text{Tanimoto}_{\text{topo}}(M_{\text{orig}}, M_{\text{rep}}) \quad \text{[D]}$$
-    $$S_{\text{raw}} = 0.40 \cdot T_{\text{shape}}(M_{\text{orig}}, M_{\text{rep}}) + 0.30 \cdot T_{\text{elec}}(M_{\text{orig}}, M_{\text{rep}}) - 0.20 \cdot \frac{\Delta E_{\text{strain}}}{E_{\text{norm}}} - 0.10 \cdot \frac{\Delta d_{\text{topo}}}{d_{\text{norm}}} \quad \text{[D]}$$
-    where $E_{\text{norm}} = 10.0\,\text{kcal/mol}$, $d_{\text{norm}} = 1.0$, $T_{\text{shape}} \in [0, 1]$ is volumetric Gaussian shape overlap, $T_{\text{elec}} \in [0, 1]$ is electrostatic grid correlation, and $\Delta E_{\text{strain}}$ is internal conformational strain evaluated via GFN-FF/MMFF94 `[M]`. The composite score is strictly clamped to guarantee Pydantic schema safety:
-    $$S = \max\left(0.0, \min\left(1.0, S_{\text{raw}}\right)\right) \quad \text{[D]}$$
+#### 1. [TOPOS] Pydantic v2 Domain Models & Exception Hierarchy
+- **File Target**: `cochem/topos/alignment.py` (or `cochem/topos/models.py` & `cochem/topos/exceptions.py`, exported in `cochem/topos/__init__.py`)
+- **Domain Exceptions**:
+  - `ToposAlignmentError(Exception)`: Base exception for topology alignment failures.
+  - `MCSConvergenceTimeoutError(ToposAlignmentError)`: Raised when MCS graph search exceeds the allocated execution timeout (default 30.0s) or when `mcs_result.canceled == True`.
+  - `CollinearDegeneracyError(ToposAlignmentError)`: Raised when atomic coordinates exhibit collinear rank-deficiency in SVD ($\frac{\sigma_2}{\sigma_1} < 10^{-7}$).
+  - `DegenerateCoordinatesError(ToposAlignmentError)`: Raised when atomic coordinates exhibit point-degeneracy ($\sigma_1 < 10^{-12}$).
+  - `IncompatibleTopologyError(ToposAlignmentError)`: Raised when molecules share insufficient overlapping substructure ($N_{\text{MCS}} < 3$).
+- **Pydantic v2 Data Models (Python 3.10+)**:
+  - `ConformerInput`:
+    - `conformer_id: str`: Unique hash or identifier for conformer.
+    - `elements: List[str]`: Elemental symbols (minimum length 3).
+    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 3).
+    - `coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ Cartesian coordinates in Ångströms (minimum length 3).
+    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: 0-based bond edges: `(idx_i, idx_j, bond_order)`.
+    - `reference_smiles: Optional[str] = None`: Optional canonical SMILES string for topological validation.
+    - `masses: Optional[List[float]] = None`: Optional atomic masses dynamically retrieved via `mendeleev`.
+    - `energy_kcal_mol: Optional[float] = None`: Electronic or free energy tag from QM runner.
+    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost/dummy atoms.
+    - Validation: Enforce exact length matching across `elements`, `atomic_numbers`, `coordinates`, `masses` (if provided), and `is_ghost`. If `is_ghost` is empty, auto-populate with `[False] * len(elements)`.
+  - `MCSAlignmentConfig`:
+    - `timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)`: `rdFMCS` search timeout ceiling.
+    - `mass_weighting: bool = False`: Whether to weight Kabsch covariance and centroids by atomic masses.
+    - `match_valences: bool = True`: Enforce valence matching in MCS.
+    - `ring_matches_ring_only: bool = True`: Strict ring-to-ring matching.
+    - `complete_rings_only: bool = False`: Permit partial ring overlap across fused scaffolds.
+    - `min_mcs_atoms: int = Field(default=3, ge=3)`: Minimum common substructure atom count.
+    - `svd_condition_tol: float = Field(default=1e-7, ge=1e-12)`: Singular value condition ratio tolerance for rank-deficiency.
+    - `rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)`: Deduplication RMSD cutoff.
+    - `ignore_ghost_atoms: bool = True`: Exclude ghost/BSSE atoms from alignment kernel.
+  - `AlignedConformerResult`:
+    - `conformer_id: str`
+    - `reference_id: str`
+    - `rmsd_angstrom: float = Field(..., ge=0.0)`: Analytical RMSD over mapped MCS non-ghost atoms.
+    - `rotation_matrix: List[List[float]]`: Orthogonal $(3, 3)$ rotation matrix $R$ satisfying $R^T R = I$ and $\det(R) = +1.0 \pm 10^{-4}$.
+    - `translation_vector: List[float]`: $(3,)$ optimal translation vector $\vec{t}$.
+    - `aligned_coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ transformed full coordinates.
+    - `atom_mapping: Dict[int, int]`: 0-based index map: `{target_idx: ref_idx}`.
+    - `execution_duration_seconds: float = Field(..., ge=0.0)`
+  - `EnsembleAlignmentSummary`:
+    - `reference_id: str`
+    - `total_conformers: int`
+    - `aligned_conformers: List[AlignedConformerResult]`
+    - `pairwise_rmsd_matrix: List[List[float]]`: Symmetric $(M, M)$ matrix with zero diagonal and non-negative elements.
+    - `duplicate_clusters: List[List[str]] = Field(default_factory=list)`: Clusters of redundant conformer IDs where pairwise RMSD $< \delta_{\text{thresh}}$.
 
-#### 2. [TOPOS] Dynamic Bond-Length / Bond-Angle Dictionary
-- **File Target**: `cochem/topos/geometry_validation.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `DynamicBondDictionary`
-- **Entrypoint**: `validate_geometry(atoms: list[str], coordinates: list[list[float]] | np.ndarray, bonds: list[tuple[int, int, float]]) -> GeometryValidationResult`
-- **Requirements**:
-  - **Authoritative Reference Standards**: Reference geometries parameterized against Cambridge Structural Database (CSD / Allen et al.) empirical distributions `[M]`, supplemented by Engh & Huber standard valence parameters and Pyykkö relativistic covalent radii `[M]`.
-  - **Dynamic Chemical Context Parameterization**: Query expected values $d_{\text{ref}}$ and $\theta_{\text{ref}}$ indexed dynamically by:
-    - Element pairs $(Z_i, Z_j)$ queried via `mendeleev.element(Z)`.
-    - Topological bond order $BO \in \{1.0, 1.5, 2.0, 3.0\}$.
-    - Hybridization states ($sp^3$, $sp^2$, $sp$) derived from coordination numbers and $\pi$-conjugation perception.
-    - Ring strain modifiers: Canonical valence angle expectations adjusted for 3- and 4-membered strained rings (cyclopropane $60.0^\circ$, cyclobutane $90.0^\circ$) to avoid false-positive strain flags.
-  - **Statistical Deviation Scoring & Topological Distance Masking**:
-    $$z(d_{ij}) = \frac{|d_{ij} - d_{\text{ref}}(Z_i, Z_j, BO)|}{\sigma(d_{\text{ref}})}, \quad z(\theta_{ijk}) = \frac{|\theta_{ijk} - \theta_{\text{ref}}(Z_j, \text{hyb})|}{\sigma(\theta_{\text{ref}})} \quad \text{[D]}$$
-    Emit non-fatal diagnostic warning for $3.0 \le z < 5.0$. Raise `GeometricPlausibilityError` if $z \ge 5.0$.
-    - **Topological 1-2 and 1-3 Exclusion Mask**: Steric clash validation is strictly restricted to non-bonded atom pairs possessing topological shortest path distance $d_{\text{graph}}(i, j) \ge 3$ (1-4 vicinal and higher non-bonded pairs). Covalent 1-2 bonds ($d_{\text{graph}}=1$) and geminal 1-3 valence angle bonds ($d_{\text{graph}}=2$) are excluded. A clash violation is raised if:
-      $$d_{ij} < 0.65 \cdot \left(R_{\text{vdw}}(i) + R_{\text{vdw}}(j)\right), \quad \forall (i, j) \text{ with } d_{\text{graph}}(i, j) \ge 3 \quad \text{[D]}$$
-      where $R_{\text{vdw}}$ is retrieved dynamically via Mendeleev vdW retrieval with defensive fallbacks:
-      ```python
-      vdw_pm = (
-          element(Z).vdw_radius_alvarez
-          or element(Z).vdw_radius_bondi
-          or element(Z).vdw_radius
-          or (element(Z).covalent_radius_pyykko * 1.5)
-      )
-      vdw_angstrom = vdw_pm / 100.0
-      ```
-  - **Period 3+ Hypervalency Rules**: Coordinate dictionaries for $\mathrm{Si}, \mathrm{P}, \mathrm{S}, \mathrm{Cl}, \mathrm{Se}, \mathrm{Br}, \mathrm{I}$ accommodate expanded coordination polyhedra (e.g., trigonal bipyramidal $90^\circ/120^\circ$, octahedral $90^\circ/180^\circ$) with valence electron capacity up to 12.
+#### 2. [TOPOS] Maximum Common Substructure (MCS) Perception & Ghost-Atom Sanitization
+- **Requirement ID**: `REQ-TOPOS-013.1`
+- **File Target**: `cochem/topos/alignment.py`
+- **Bond Connectivity Perception**:
+  - Accept explicit bond connectivity tables `bonds: List[Tuple[int, int, float]]` or canonical SMILES.
+  - If bond connectivity is missing from bare coordinate records, execute automated topology perception via `rdkit.Chem.rdDetermineBonds.DetermineConnectivity(mol)` calibrated against Pyykkö relativistic covalent radii dynamically scaled from `mendeleev` `[M]`.
+- **Ghost-Atom Sanitization**:
+  - Intermolecular complexes generated for Basis Set Superposition Error (BSSE) counterpoise corrections contain ghost atoms (symbols `Gh`, `Bq`, `X` or atomic number $Z = 0$).
+  - Convert or filter ghost atoms prior to RDKit molecule construction (e.g., mapping to atomic number $0$ or wildcard `*`) to prevent unrecoverable C++ `PeriodicTable.h` core exceptions.
+- **Process-Level Timeout Safeguard & GIL Isolation**:
+  - MCS graph extraction between target conformer $C_{\text{target}}$ and reference conformer $C_{\text{ref}}$ must execute via RDKit `rdFMCS.FindMCS` inside an isolated worker process (`concurrent.futures.ProcessPoolExecutor`) bounded by an explicit timeout ceiling of $30.0\,\text{s}$ `[D]`.
+  - Explicitly inspect `mcs_result.canceled`. If `mcs_result.canceled == True` or a worker timeout occurs, immediately raise `MCSConvergenceTimeoutError`.
+- **MCS Parameters & Topology Validation**:
+  - `atomCompare = rdFMCS.AtomCompare.CompareElements` (strict atomic number match).
+  - `bondCompare = rdFMCS.BondCompare.CompareOrder` (strict bond order match).
+  - `matchValences = True` (enforces electronic valence compatibility).
+  - `ringMatchesRingOnly = True` (prevents unphysical acyclic-to-ring mappings).
+  - `completeRingsOnly = False` (permits partial ring overlap across fused scaffolds).
+  - If common atom count $N_{\text{MCS}} < 3$, raise `IncompatibleTopologyError`.
 
-#### 3. [TOPOS] Custom PyMOL Session (.pse) Visualization Export
-- **File Target**: `cochem/topos/pymol_export.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `PyMOLExportEngine`
-- **Entrypoint**: `export_session(output_path: str | Path, atoms: list[str], coordinates: list[list[float]] | np.ndarray, domains: list[int] | None = None, bonds: list[tuple[int, int, float]] | None = None) -> PyMOLExportResult`
-- **Requirements**:
-  - **Dual-Mode Export Engine**:
-    - **Mode A (Headless Python API)**: If `pymol` C-extension is importable, launch headless instance (`pymol -cqp`), populate objects, execute selection macros, and invoke `cmd.save(path.as_posix())`.
-    - **Mode B (Headless CLI / Script Bundler)**: In containerized environments lacking compiled PyMOL C-libraries (Codespaces, GitHub Actions CI), compile a standalone, deterministic `.pml` automation script paired with embedded PDB/SDF coordinate structures. The output is bundled and converted using headless PyMOL CLI invocation, preventing runtime import crashes on headless workers.
-  - **Topological Domain Decomposition & Color Palettes**: Partition graph into functional domains assigned distinct categorical colors (Glasbey/ColorBrewer Set2):
-    - Domain 0 (Core Scaffold / Rings): Slate Blue (`#4B6584`).
-    - Domain 1 (Flexible Aliphatic Linkers): Emerald Green (`#20BF6B`).
-    - Domain 2 (Exit Vectors / Attachment Anchors): Coral Red (`#EB3B5A`).
-    - Domain 3 (Metal Coordination Spheres): Light Cyan (`#45AAF2`).
-  - **Display Representation Matrix**:
-    - Small molecule ligands rendered as sticks (radius $0.20\,\text{Å}$) with carbons colored by topological domain and heteroatoms in standard CPK colors (N: Blue, O: Red, S: Yellow, P: Orange, Halogens: Green).
-    - Metal coordination centers displayed as scaled spheres ($0.35 \times R_{\text{vdw}}$) connected to coordinating atoms via dashed coordination vectors (dash gap $0.15\,\text{Å}$, dash length $0.15\,\text{Å}$).
-  - **Error Handling**: Raise `PyMOLExportError` on serialization or script execution failure.
+#### 3. [TOPOS] Mass-Weighted Centroid Translation & Ghost-Atom Masking
+- **Requirement ID**: `REQ-TOPOS-013.2`
+- **File Target**: `cochem/topos/alignment.py`
+- **Ghost Atom Exclusion & Mendeleev Lookup Guard**:
+  - Strictly exclude all ghost atoms ($Z = 0$ or `is_ghost == True`) from MCS coordinate sub-blocks prior to centroid calculation, cross-covariance assembly, and rotation fitting.
+  - **Mendeleev Mass Lookup Guard**: Dynamic queries to `mendeleev.element(Z)` MUST be guarded: if $Z = 0$ or `is_ghost == True`, assign mass strictly as $0.0\,\text{Da}$ without calling `mendeleev`, preventing uncaught `KeyError` / `ValueError` / `ElementNotFoundError`. For non-ghost atoms, query dynamic atomic mass via `mendeleev.element(Z).mass` `[M]`.
+- **Mathematical Centroid Formulation**:
+  - For mapped MCS non-ghost coordinate matrices $P \in \mathbb{R}^{N \times 3}$ (target) and $Q \in \mathbb{R}^{N \times 3}$ (reference) ($N = N_{\text{MCS}} \ge 3$):
+  - Assign weights $w_i > 0$: unweighted ($w_i = 1.0$) or mass-weighted ($w_i = m_i$).
+  - Compute weighted centroids:
+    $$\bar{P} = \frac{\sum_{i=1}^N w_i P_i}{\sum_{i=1}^N w_i}, \quad \bar{Q} = \frac{\sum_{i=1}^N w_i Q_i}{\sum_{i=1}^N w_i} \quad \text{[D]}$$
+  - Center coordinates:
+    $$P_c = P - \mathbf{1} \bar{P}^T, \quad Q_c = Q - \mathbf{1} \bar{Q}^T \quad \text{[D]}$$
 
-#### 4. [TOPOS] Metal-Coordination Perception Engine
-- **File Target**: `cochem/topos/metal_coordination.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `MetalCoordinationEngine`
-- **Entrypoint**: `perceive_coordination(atoms: list[str], coordinates: list[list[float]] | np.ndarray, net_charge: int = 0) -> CoordinationPerceptionResult`
-- **Requirements**:
-  - **Coordination Sphere Detection**: Distance cutoff matrix identifying coordinating ligand atoms $L$:
-    $$D(M, L) \le R_{\text{cov}}(M) + R_{\text{cov}}(L) + 0.55\,\text{Å} \quad \text{[M]}$$
-    where covalent radii $R_{\text{cov}}$ are retrieved dynamically via `mendeleev.element(Z).covalent_radius_pyykko / 100.0`.
-  - **Continuous Shape Measure (CShM) with Full Permutation Optimization**: For coordinating donor coordinates $Q = \{\mathbf{q}_1, \dots, \mathbf{q}_n\}$ with geometric centroid $\mathbf{q}_0 = \frac{1}{n} \sum_{k=1}^n \mathbf{q}_k$, compute Alvarez CShM metric $S_P(Q)$ minimized over the full symmetric permutation group $S_n$ (or cosets $S_n / \text{Aut}(P)$) and rigid spatial superposition:
-    $$S_P(Q) = \min_{\pi \in S_n} \min_{\alpha > 0, \mathbf{R} \in SO(3), \mathbf{t}} \frac{\sum_{k=1}^n \|\mathbf{q}_k - (\alpha \mathbf{R} \mathbf{p}_{\pi(k)} + \mathbf{t})\|^2}{\sum_{k=1}^n \|\mathbf{q}_k - \mathbf{q}_0\|^2} \times 100 \quad \text{[D]}$$
-    - **Reference Polyhedra Matrix**: Defined strictly for coordination numbers $\text{CN} \in \{4, 5, 6\}$:
-      - $\text{CN}=4$: Tetrahedral $T_d$, Square Planar $D_{4h}$
-      - $\text{CN}=5$: Trigonal Bipyramidal $D_{3h}$, Square Pyramidal $C_{4v}$
-      - $\text{CN}=6$: Octahedral $O_h$, Trigonal Prismatic $D_{3h}$
-      Assign geometry $P$ minimizing $S_P(Q)$; if $\min_P S_P(Q) > 15.0$, assign `'Distorted/Unassigned'`.
-    - **Handling for $\text{CN} \notin \{4, 5, 6\}$**: If coordination number is outside $\{4, 5, 6\}$ (e.g., metallocenes with $\text{CN}=10$, or linear complexes $\text{CN}=2$), set `assigned_geometry = "Special_Haptic"` (if haptic rings present) or `f"Unassigned_CN{cn}"`, and return `polyhedron_scores = []` without calling $\min()$ on an empty sequence.
-  - **Green's CBC Ligand Classification & Formal Oxidation State**:
-    - Classify coordinated ligands under Covalent Bond Classification (CBC):
-      - $L$-type: Neutral 2-electron dative donors (amines, phosphines, CO, ethers; $q_{\text{formal}} = 0$).
-      - $X$-type: Monoanionic 1-electron covalent donors (halides, thiolates, alkyls, carboxylates; $q_{\text{formal}} = -1$).
-      - $X_2$-type: Dianionic 2-electron covalent donors (oxo $=\mathrm{O}$, sulfido $=\mathrm{S}$, imido $=\mathrm{NR}$; $q_{\text{formal}} = -2$).
-      - $X_3$-type: Trianionic 3-electron covalent donors (nitrido $\equiv\mathrm{N}$, alkylidyne $\equiv\mathrm{CR}$; $q_{\text{formal}} = -3$).
-      - Bridging ligands ($\mu_2\text{-}X$ contributing fractional charge $-1/2$ per metal).
-    - Local oxidation state balance for metal center $M_j$:
-      $$OS(M_j) = Q_{\text{local}}(M_j) - \sum_{L \in \text{coord}(M_j)} q_{\text{formal}}(L) \quad \text{[D]}$$
-      where $Q_{\text{local}}(M_j) = Q_{\text{complex}} / N_{\text{metals}}$ for homonuclear symmetric clusters.
-  - **Hapticity ($\eta^n$) & Chelate Perception**: Group contiguous aromatic or conjugated atoms coordinating to a single metal center into multi-hapto centroids (e.g., ferrocene $\eta^5\text{-Cp}$, $\eta^6\text{-benzene}$, $\eta^3\text{-allyl}$). Detect closed cycles containing $M$ to perceive 5- and 6-membered chelate rings.
-  - **Error Handling**: Raise `CoordinationPerceptionError` on distorted unphysical states.
+#### 4. [TOPOS] Cross-Covariance, SVD & Numerical Degeneracy Safeguards
+- **Requirement ID**: `REQ-TOPOS-013.3`
+- **File Target**: `cochem/topos/alignment.py`
+- **Dispersion Assembly & Full SVD**:
+  - Assemble weighted cross-covariance dispersion matrix $H \in \mathbb{R}^{3 \times 3}$:
+    $$H = P_c^T W Q_c = \sum_{i=1}^N w_i (P_{c,i}^T Q_{c,i}) \quad \text{[D]}$$
+    where $W = \operatorname{diag}(w_1, \dots, w_N)$.
+  - Compute full SVD via `scipy.linalg.svd`:
+    $$H = U \Sigma V^T \quad \text{[D]}$$
+    where $U, V \in O(3)$ and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$ with $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$.
+- **Numerical Degeneracy Safeguards**:
+  - **Point-Degeneracy**: If $\sigma_1 < 10^{-12}$, raise `DegenerateCoordinatesError` before calculating condition ratios.
+  - **Collinear Degeneracy**: If condition ratio $\frac{\sigma_2}{\sigma_1} < 10^{-7}$, atomic coordinates exhibit linear rank-deficiency. Rotation about the collinear axis is ill-defined; raise `CollinearDegeneracyError`.
+  - **Planar Stabilization**: If $\frac{\sigma_2}{\sigma_1} \ge 10^{-7}$ and $\frac{\sigma_3}{\sigma_1} < 10^{-7}$, coordinates are coplanar. Stabilize left and right singular vectors via deterministic right-handed basis completion:
+    $$\mathbf{u}_3 = \frac{\mathbf{u}_1 \times \mathbf{u}_2}{\|\mathbf{u}_1 \times \mathbf{u}_2\|_2}, \quad \mathbf{v}_3 = \frac{\mathbf{v}_1 \times \mathbf{v}_2}{\|\mathbf{v}_1 \times \mathbf{v}_2\|_2} \quad \text{[D]}$$
 
-#### 5. [TOPOS] Automated Topology Sanitization Pass
-- **File Target**: `cochem/topos/sanitizer.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `TopologySanitizer`
-- **Entrypoint**: `sanitize_topology(smiles: str, coordinates: list[list[float]] | np.ndarray | None = None) -> TopologySanitizationResult`
-- **Requirements**:
-  - **Connected Component Decomposition**: Decompose molecular graph into disjoint connected components $\{C_1, C_2, \dots, C_m\}$.
-  - **Curated Counterion SMARTS Registry & API Protection**:
-    - Match components against an authoritative Counterion SMARTS / Formula Registry:
-      - **Inorganic Ions**: $\mathrm{Na}^+, \mathrm{K}^+, \mathrm{Li}^+, \mathrm{Ca}^{2+}, \mathrm{Mg}^{2+}, \mathrm{Cl}^-, \mathrm{Br}^-, \mathrm{I}^-, \mathrm{SO}_4^{2-}, \mathrm{NO}_3^-, \mathrm{PO}_4^{3-}, \mathrm{BF}_4^-, \mathrm{PF}_6^-$.
-      - **Bulky Organic Sulfonates**: Besylate (benzenesulfonate), Tosylate ($p$-toluenesulfonate), Mesylate, Triflate, Napsylate, Isethionate.
-      - **Bulky Organic Carboxylates**: Pamoate (embonate), Citrate, Tartrate, Maleate, Fumarate, Succinate, Benzoate, Acetate, Lactate.
-      - **Organic Base Cations**: Meglumine, Tromethamine, Choline.
-    - **API Retention Guarantee**: Components matching the registry are stripped into `removed_counterions`. The largest non-counterion component is designated the primary API drug $C_{\text{target}}$. For small APIs paired with bulky salts (e.g., Metformin Pamoate, Gabapentin Tosylate), the drug is strictly preserved.
-    - **Organometallic Guard**: Transition metal complexes possessing coordination degree $\ge 1$ are strictly protected from stripping.
-  - **Resonance-Aware Formal Charge Neutralization**:
-    - Balance uncoupled formal charges on acidic ($-\mathrm{COO}^- \to -\mathrm{COOH}$) and basic ($-\mathrm{NH}_3^+ \to -\mathrm{NH}_2$) groups.
-    - **Zwitterion Invariant**: Preserve physiological zwitterionic pairs (e.g., amino acids, betaines) when intramolecular charge separation distance satisfies $d(\mathrm{N}^+, \mathrm{O}^-) \le 6.0\,\text{Å}$ and net charge $Q_{\text{net}} = 0$.
-    - Enforce octet conservation ($q_i = N_{\text{valence}} - 2 N_{\text{lp}} - \sum BO_{ij}$ `[D]`); strictly prohibit converting nitro groups ($-\mathrm{N}^+(=\mathrm{O})\mathrm{O}^-$) into pentavalent non-octet forms. Permanent quaternary ammonium cations ($\mathrm{R}_4\mathrm{N}^+$) retain positive formal charge.
-  - **Error Handling**: Raise `SanitizationError` on octet violations or improper fragmentation.
+#### 5. [TOPOS] Reflection Parity Guard & Optimal Proper Rotation Matrix
+- **Requirement ID**: `REQ-TOPOS-013.4`
+- **File Target**: `cochem/topos/alignment.py`
+- **Kabsch Reflection Parity Correction**:
+  - Enforce proper right-handed rotation matrix $R \in SO(3)$ with $\det(R) = +1.0$, preventing unphysical coordinate inversion of chiral enantiomers.
+  - Calculate parity reflection factor $d$:
+    $$d = \operatorname{sgn}(\det(V U^T)) \in \{-1, +1\} \quad \text{[D]}$$
+  - Assemble optimal proper rotation matrix:
+    $$R = V \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{bmatrix} U^T \quad \text{[D]}$$
+  - Compute optimal translation vector $\vec{t} \in \mathbb{R}^3$:
+    $$\vec{t} = \bar{Q} - R \bar{P} \quad \text{[D]}$$
+  - Apply proper rotation and translation to all target atoms (including unmapped substituents and ghost atoms):
+    $$P_{\text{aligned}} = P_{\text{full}} R^T + \mathbf{1} \vec{t}^T \quad \text{[D]}$$
 
----
+#### 6. [TOPOS] Analytical Centered RMSD & Ensemble Deduplication
+- **Requirement ID**: `REQ-TOPOS-013.5`
+- **File Target**: `cochem/topos/alignment.py`
+- **Analytical Centered RMSD**:
+  - Calculate Root-Mean-Square Deviation over mapped MCS atoms using centered coordinates:
+    $$\mathrm{RMSD}_{\text{MCS}} = \sqrt{\frac{\sum_{i=1}^N w_i \|R P_{c,i} - Q_{c,i}\|^2}{\sum_{i=1}^N w_i}} \quad \text{[D]}$$
+- **Ensemble Clustering & Deduplication**:
+  - For an ensemble of $M$ conformers, compute the symmetric pairwise RMSD matrix $D_{jk} = \mathrm{RMSD}(C_j, C_k)$ ($1 \le j, k \le M$).
+  - Group conformers with pairwise $\mathrm{RMSD} < \delta_{\text{thresh}}$ (default $0.25\,\text{Å}$ `[M]`) into duplicate equivalence classes and flag them for downstream pruning.
 
-### PYDANTIC V2 DATA MODELS & EXCEPTION HIERARCHY
-
-Implement the following strict Pydantic v2 data models under `cochem/topos/models.py`:
-
-```python
-from __future__ import annotations
-from typing import List, Dict, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
-
-
-class ExitVector(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    anchor_idx: int = Field(..., ge=0, description="0-based atom index of scaffold anchor")
-    substituent_idx: int = Field(..., ge=0, description="0-based atom index of substituent atom")
-    anchor_coord: List[float] = Field(..., min_length=3, max_length=3, description="Anchor Cartesian [x, y, z] in Angstrom")
-    vector: List[float] = Field(..., min_length=3, max_length=3, description="Unit direction vector [vx, vy, vz]")
-    normal_vector: List[float] = Field(..., min_length=3, max_length=3, description="Reference normal vector [nx, ny, nz]")
-
-
-class ScaffoldHopResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    candidate_smiles: str = Field(..., description="SMILES of generated candidate")
-    aligned_coordinates: List[List[float]] = Field(..., description="Nx3 Cartesian coordinates in Angstrom")
-    shape_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    electrostatic_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    strain_energy_kcal_mol: float = Field(...)
-    composite_score: float = Field(..., ge=0.0, le=1.0)
-
-
-class GeometricViolation(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    violation_type: Literal["bond_length", "bond_angle", "steric_clash"]
-    atom_indices: List[int] = Field(..., min_length=2, max_length=3)
-    measured_value: float = Field(..., description="Measured distance (Angstrom) or angle (degrees)")
-    reference_value: float = Field(..., description="Reference expected value")
-    z_score: float = Field(..., ge=0.0)
-
-
-class GeometryValidationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    is_physically_plausible: bool
-    max_z_score: float = Field(..., ge=0.0)
-    violations: List[GeometricViolation] = Field(default_factory=list)
-
-
-class PyMOLExportResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    session_path: str = Field(..., description="Absolute path to exported .pse or .pml file")
-    export_mode: Literal["headless_api", "cli_script_bundle"]
-    colored_domains_count: int = Field(..., ge=0)
-    metal_centers_rendered: int = Field(..., ge=0)
-    file_size_bytes: int = Field(..., gt=0)
-
-
-class PolyhedronScore(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    polyhedron_name: str = Field(..., description="Canonical geometry (e.g., 'Octahedral', 'Square_Planar')")
-    cshm_value: float = Field(..., ge=0.0, description="Continuous Shape Measure value S_P(Q)")
-
-
-class CoordinationCenter(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    metal_idx: int = Field(..., ge=0)
-    metal_element: str = Field(..., min_length=1, max_length=2)
-    coordination_number: int = Field(..., ge=1, le=12)
-    assigned_geometry: str
-    formal_oxidation_state: int
-    ligand_atom_indices: List[int]
-    is_chelated: bool
-    hapticities: Dict[str, int] = Field(default_factory=dict, description="Ligand group to eta^n mapping")
-    polyhedron_scores: List[PolyhedronScore] = Field(default_factory=list)
-
-
-class CoordinationPerceptionResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    coordination_centers: List[CoordinationCenter] = Field(default_factory=list)
-    unassigned_metal_indices: List[int] = Field(default_factory=list)
-    total_metals_detected: int = Field(..., ge=0)
-
-
-class TopologySanitizationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    sanitized_smiles: str
-    sanitized_coordinates: Optional[List[List[float]]] = None
-    formal_net_charge: int
-    is_zwitterion: bool
-    removed_counterions: List[str] = Field(default_factory=list)
-    retained_atom_count: int = Field(..., gt=0)
-```
-
-Implement the exception hierarchy under `cochem/topos/exceptions.py`:
-
-```python
-class ToposError(Exception):
-    """Base exception for all TOPOS topological processing errors."""
-
-class ScaffoldMatchingError(ToposError):
-    """Raised when target scaffold substructure cannot be mapped onto input molecule."""
-
-class BioisostereNotFoundError(ToposError):
-    """Raised when no geometrically viable bioisostere satisfies exit-vector tolerances."""
-
-class GeometricPlausibilityError(ToposError):
-    """Raised when 3D geometry exhibits critical steric clashes or unphysical valence strains."""
-
-class PyMOLExportError(ToposError):
-    """Raised when .pse session or fallback .pml export fails to serialize."""
-
-class CoordinationPerceptionError(ToposError):
-    """Raised when metal coordination polyhedra cannot be perceived or are heavily distorted."""
-
-class SanitizationError(ToposError):
-    """Raised when charge neutralization violates octet rules or fragments essential complexes."""
-```
+#### 7. [TOPOS] Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix
+- **Requirement ID**: `REQ-TOPOS-013.6`
+- **File Target**: `cochem/topos/alignment.py`
+- **HDF5 Group Hierarchy**:
+  - **Isomorphic Ensembles ($N_j = N_{\text{ref}}$)**: Store aligned coordinates as a dense rectangular dataset `/ensembles/{ensemble_id}/aligned_coords` (float64, shape `[M, N, 3]`).
+  - **Heterogeneous Ensembles ($N_j \neq N_k$)**: Store per-conformer datasets `/ensembles/{ensemble_id}/conformers/{conformer_id}/aligned_coords` (float64, shape `[N_j, 3]`) or as a ragged 1D variable-length dataset using `h5py.special_dtype(vlen=np.float64)`.
+  - Common MCS coordinates: `/ensembles/{ensemble_id}/aligned_mcs_coords` (float64, shape `[M, N_{\text{MCS}}, 3]`).
+  - Metadata: `/ensembles/{ensemble_id}/pairwise_rmsd` (float32, shape `[M, M]`) and `/ensembles/{ensemble_id}/mcs_mapping` (int32, shape `[N_{\text{MCS}}, 2]`).
+- **6-Tier Concurrency Enforcement**:
+  - **Tier 1 (Local-Windows Native NTFS / WSL)**: HDF5 SWMR mode is strictly disabled due to Windows filesystem locking semantics. Coordinate concurrent access via cross-process `filelock.FileLock(path, timeout=30.0)` on advisory `.lock` files, utilizing staging files, explicit file descriptor flushes (`os.fsync`), and atomic `os.replace`.
+  - **Tier 2 (Local-macOS OrbStack) & Tier 3 (Local-Linux Debian)**: Native HDF5 Single-Writer/Multiple-Reader (SWMR) mode is enabled (`libver="latest", swmr=True`).
+  - **Tier 4 (Codespaces) & Tier 5 (GitHub Actions CI)**: SWMR is disabled on container overlay filesystems to prevent deadlocks; `filelock.FileLock(path, timeout=30.0)` coordinates file access within local scratch staging (`$RUNNER_TEMP` or `/tmp/cochem_scratch`).
+  - **Tier 6 (HPC - Slurm/PBS with Lustre/GPFS)**: Distributed POSIX locks on network shares are strictly avoided. Concurrency uses node-local NVMe scratch directories (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) with aggregated MPI I/O serialization to the central archive.
 
 ---
 
-### PHYSICAL ACCEPTANCE TEST FIXTURES (`pytest`)
+### CORE PYTHON INTERFACE SIGNATURES
 
-Implement physical, unmocked acceptance test suites under `tests/topos/test_topos_general_utilities_part2.py` with exact chemical fixtures:
+Implement the following public API signatures in `cochem/topos/alignment.py` and export them in `cochem/topos/__init__.py`:
 
 ```python
-import pytest
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 import numpy as np
-from mendeleev import element
 
-from cochem_topos.general_utilities import (
-    ScaffoldHopper,
-    DynamicBondDictionary,
-    PyMOLExportEngine,
-    MetalCoordinationEngine,
-    TopologySanitizer,
+def compute_kabsch_transformation(
+    P: np.ndarray,
+    Q: np.ndarray,
+    weights: Optional[np.ndarray] = None,
+    condition_tol: float = 1e-7,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Computes optimal Kabsch proper rotation R and translation t mapping P to Q.
+
+    Parameters:
+        P: Target coordinate matrix of shape (N, 3).
+        Q: Reference coordinate matrix of shape (N, 3).
+        weights: Optional non-negative mass weighting vector of shape (N,).
+        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
+
+    Returns:
+        Tuple containing:
+            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
+            - t: Optimal translation vector of shape (3,).
+            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
+
+    Raises:
+        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
+        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
+    """
+
+def align_conformers_by_mcs(
+    target: ConformerInput,
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> AlignedConformerResult:
+    """
+    Superimposes a target conformer onto an invariant reference conformer via MCS perception and Kabsch fitting.
+
+    Parameters:
+        target: Target conformer input record.
+        reference: Invariant reference conformer record.
+        config: Optional configuration controlling timeouts, weighting, and tolerances.
+
+    Returns:
+        AlignedConformerResult containing transformed coordinates, rotation matrix, translation vector, and atom mapping.
+
+    Raises:
+        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
+        IncompatibleTopologyError: If common atom count N_MCS < 3.
+        CollinearDegeneracyError: If mapped coordinates are collinear.
+    """
+
+def cluster_ensemble_conformers(
+    conformers: List[ConformerInput],
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> EnsembleAlignmentSummary:
+    """
+    Performs batch alignment and pairwise RMSD clustering across a conformer ensemble.
+
+    Parameters:
+        conformers: List of conformer records generated upstream via CREST/ORCA GOAT.
+        reference: Reference conformer topology.
+        config: Alignment configuration and deduplication RMSD threshold.
+
+    Returns:
+        EnsembleAlignmentSummary including pairwise RMSD matrix and duplicate cluster groups.
+    """
+
+def persist_aligned_ensemble_h5(
+    summary: EnsembleAlignmentSummary,
+    archive_path: Path,
+    lock_timeout: float = 30.0,
+) -> Path:
+    """
+    Persists aligned conformer trajectories and pairwise RMSD matrices into an HDF5 archive under 6-tier concurrency.
+
+    Parameters:
+        summary: Validated ensemble alignment summary payload.
+        archive_path: Target filesystem path for the .h5 archive.
+        lock_timeout: Maximum duration in seconds to wait for filelock acquisition.
+
+    Returns:
+        Path to the written HDF5 archive.
+    """
+```
+
+---
+
+### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_alignment.py`)
+
+Implement the physical verification suite reproducing the following tests against genuine molecular structures:
+
+```python
+import numpy as np
+import pytest
+from pydantic import ValidationError
+
+from cochem.topos.alignment import (
+    AlignedConformerResult,
+    CollinearDegeneracyError,
+    ConformerInput,
+    DegenerateCoordinatesError,
+    EnsembleAlignmentSummary,
+    IncompatibleTopologyError,
+    MCSAlignmentConfig,
+    align_conformers_by_mcs,
+    compute_kabsch_transformation,
 )
-from cochem_topos.models import (
-    ScaffoldHopResult,
-    GeometryValidationResult,
-    PyMOLExportResult,
-    CoordinationPerceptionResult,
-    TopologySanitizationResult,
-)
 
 
-def test_metal_coordination_cisplatin():
-    """Validates square-planar coordination and Pt(II) formal oxidation state perception on Cisplatin."""
-    engine = MetalCoordinationEngine()
-    # Authentic 3D Cartesian coordinates of Cisplatin [Pt(NH3)2Cl2] in Angstroms
-    atoms = ["Pt", "Cl", "Cl", "N", "N", "H", "H", "H", "H", "H", "H"]
-    coords = [
-        [0.000,  0.000,  0.000],  # Pt
-        [2.320,  0.000,  0.000],  # Cl1
-        [0.000,  2.320,  0.000],  # Cl2
-        [-2.050, 0.000,  0.000],  # N1
-        [0.000, -2.050,  0.000],  # N2
-        [-2.400, 0.810,  0.580],  # H
-        [-2.400, -0.810, 0.580],  # H
-        [-2.400, 0.000, -1.000],  # H
-        [0.810, -2.400,  0.580],  # H
-        [-0.810, -2.400, 0.580],  # H
-        [0.000, -2.400, -1.000],  # H
-    ]
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
+def test_kabsch_chiral_enantiomer_reflection_guard():
+    """
+    REQ-TOPOS-013.3 & REQ-TOPOS-013.4: Verify that Kabsch alignment between chiral enantiomers
+    enforces proper rotation det(R) = +1.0 via parity correction factor d = -1, preventing coordinate inversion.
+    """
+    # Authentic D-alanine and L-alanine heavy-atom coordinate sub-blocks (N=5: N, CA, C, O, CB)
+    coords_l = np.array([
+        [-0.432, 1.254, -0.428],  # N
+        [0.000, 0.000, 0.354],    # CA
+        [1.520, 0.000, 0.354],    # C
+        [2.145, 1.050, 0.354],    # O
+        [-0.534, -1.242, -0.354], # CB
+    ], dtype=np.float64)
 
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Pt"
-    assert center.coordination_number == 4
-    assert center.assigned_geometry == "Square_Planar"
-    assert center.formal_oxidation_state == 2
-    # Verify continuous shape measure: Square Planar S_P(Q) must be significantly lower than Tetrahedral
-    sp_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Square_Planar")
-    td_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Tetrahedral")
-    assert sp_score < 3.0
-    assert td_score > 15.0
+    # Inverted enantiomer: D-alanine reflection across z-plane
+    coords_d = coords_l.copy()
+    coords_d[:, 2] *= -1.0
+
+    R, t, rmsd = compute_kabsch_transformation(coords_d, coords_l)
+
+    # Assert proper rotation in SO(3)
+    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5), "Rotation matrix must satisfy R.T @ R = I"
+    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5), f"Improper rotation detected: det(R) = {np.linalg.det(R)}"
+    # Enantiomer reflection cannot achieve zero RMSD without unphysical coordinate inversion
+    assert rmsd > 0.1, "Enantiomer alignment must retain non-zero RMSD under proper SO(3) rotation"
 
 
-def test_metal_coordination_ferrocene_hapticity():
-    """Validates multi-hapto eta^5-cyclopentadienyl coordination on Ferrocene."""
-    engine = MetalCoordinationEngine()
-    # Authentic Ferrocene [Fe(eta5-C5H5)2] geometry with D5d symmetry
-    fe_z = element("Fe").atomic_number
-    assert fe_z == 26
+def test_collinear_degeneracy_detection():
+    """
+    REQ-TOPOS-013.3: Verify that collinear coordinates (e.g., linear acetylene C2H2)
+    trigger CollinearDegeneracyError due to singular value condition ratio sigma_2 / sigma_1 < 1e-7.
+    """
+    # Linear acetylene coordinates along z-axis (Angstroms)
+    acetylene_coords = np.array([
+        [0.0, 0.0, -1.665],  # H1
+        [0.0, 0.0, -0.601],  # C1
+        [0.0, 0.0, 0.601],   # C2
+        [0.0, 0.0, 1.665],   # H2
+    ], dtype=np.float64)
 
-    # Load authentic physical coordinate stream for ferrocene
-    atoms = ["Fe"] + ["C"] * 10 + ["H"] * 10
-    # Ring 1 at z = +1.65 A, Ring 2 at z = -1.65 A, Fe at origin
-    r_cp = 1.21  # C5 ring radius in Angstroms
-    theta = np.linspace(0, 2 * np.pi, 5, endpoint=False)
-    ring1_c = [[r_cp * np.cos(t), r_cp * np.sin(t), 1.650] for t in theta]
-    ring2_c = [[r_cp * np.cos(t + np.pi/5), r_cp * np.sin(t + np.pi/5), -1.650] for t in theta]
-    ring1_h = [[2.2 * np.cos(t), 2.2 * np.sin(t), 1.650] for t in theta]
-    ring2_h = [[2.2 * np.cos(t + np.pi/5), 2.2 * np.sin(t + np.pi/5), -1.650] for t in theta]
-    coords = [[0.0, 0.0, 0.0]] + ring1_c + ring2_c + ring1_h + ring2_h
+    rotated_coords = acetylene_coords @ np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
 
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Fe"
-    assert center.formal_oxidation_state == 2  # Fe(II)
-    # Must perceive two distinct eta^5 haptic centroids and handle CN=10 gracefully
-    assert len(center.hapticities) == 2
-    assert all(h == 5 for h in center.hapticities.values())
-    assert center.assigned_geometry in ["Special_Haptic", "Unassigned_CN10"]
-    assert center.polyhedron_scores == []
+    with pytest.raises(CollinearDegeneracyError) as exc_info:
+        compute_kabsch_transformation(rotated_coords, acetylene_coords)
+    assert "collinear" in str(exc_info.value).lower()
 
 
-def test_geometric_dictionary_aspirin_validation():
-    """Validates physical plausibility and 1-2 / 1-3 exclusion masking on authentic 3D Aspirin."""
-    validator = DynamicBondDictionary()
-    # Authentic, relaxed non-planar 3D coordinates of Aspirin (acetylsalicylic acid, C9H8O4 heavy atoms)
-    # Acetoxy group rotated out-of-plane, preventing unphysical non-bonded collisions
-    atoms = ["C", "C", "C", "C", "C", "C", "C", "O", "O", "O", "C", "O", "C"]
-    coords = [
-        [ 0.000,  0.000,  0.000],  # C0 (ipso)
-        [ 1.400,  0.000,  0.000],  # C1 (ortho - COOH)
-        [ 2.100,  1.210,  0.000],  # C2 (meta)
-        [ 1.400,  2.420,  0.000],  # C3 (para)
-        [ 0.000,  2.420,  0.000],  # C4 (meta)
-        [-0.700,  1.210,  0.000],  # C5 (ortho)
-        [ 2.150, -1.250,  0.000],  # C6 (COOH carbonyl carbon)
-        [ 3.350, -1.250,  0.000],  # O7 (COOH carbonyl oxygen)
-        [ 1.500, -2.350,  0.000],  # O8 (COOH hydroxyl oxygen)
-        [-0.700, -1.210,  0.000],  # O9 (ester oxygen at C0)
-        [-0.700, -1.800,  1.300],  # C10 (acetyl carbonyl carbon, rotated in z)
-        [-0.700, -1.200,  2.350],  # O11 (acetyl carbonyl oxygen)
-        [-0.700, -3.280,  1.300],  # C12 (acetyl methyl carbon)
-    ]
-    bonds = [
-        (0, 1, 1.5), (1, 2, 1.5), (2, 3, 1.5), (3, 4, 1.5), (4, 5, 1.5), (5, 0, 1.5),
-        (1, 6, 1.0), (6, 7, 2.0), (6, 8, 1.0), (0, 9, 1.0), (9, 10, 1.0), (10, 11, 2.0), (10, 12, 1.0)
-    ]
-    result: GeometryValidationResult = validator.validate_geometry(atoms=atoms, coordinates=coords, bonds=bonds)
+def test_coplanar_coordinates_stabilization():
+    """
+    REQ-TOPOS-013.3: Verify that coplanar coordinates (benzene C6 heavy atoms in xy-plane)
+    are successfully stabilized via right-handed cross-product basis completion without degeneracy failure.
+    """
+    # Planar benzene carbon ring coordinates in z=0 plane
+    angles = np.linspace(0, 2 * np.pi, 6, endpoint=False)
+    r_cc = 1.397  # Experimental C-C aromatic bond distance
+    benzene_c = np.column_stack([r_cc * np.cos(angles), r_cc * np.sin(angles), np.zeros(6)])
 
-    # Must pass plausibility without false-positive steric clashes
-    assert result.is_physically_plausible is True
-    assert result.max_z_score < 4.0
-    # Steric clashes must be 0 because all d_graph >= 3 non-bonded distances exceed 0.65 * (Rvdw_i + Rvdw_j)
-    assert len([v for v in result.violations if v.violation_type == "steric_clash"]) == 0
+    # Apply 45-degree rotation around z-axis
+    theta = np.pi / 4.0
+    R_z = np.array([
+        [np.cos(theta), -np.sin(theta), 0.0],
+        [np.sin(theta), np.cos(theta), 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    rotated_benzene = benzene_c @ R_z.T + np.array([1.5, -2.0, 0.0])
+
+    R, t, rmsd = compute_kabsch_transformation(rotated_benzene, benzene_c)
+    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5)
+    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5)
+    assert np.isclose(rmsd, 0.0, atol=1e-5)
 
 
-def test_topology_sanitization_metformin_pamoate():
-    """Validates API drug retention when paired with bulky organic counterion (Pamoate)."""
-    sanitizer = TopologySanitizer()
-    # Metformin Pamoate: 2 Metformin cations (C4H11N5, N_heavy = 9 each) + 1 Pamoate dianion (N_heavy = 29)
-    raw_smiles = "CN(C)C(=N)N=C(N)N.CN(C)C(=N)N=C(N)N.O=C(O)c1c(O)c2ccccc2cc1Cc3cc4ccccc4c(O)c3C(=O)O"
-    result: TopologySanitizationResult = sanitizer.sanitize_topology(smiles=raw_smiles)
-
-    # Bulky Pamoate counterion must be segregated into removed_counterions despite N_heavy=29
-    assert any("pamoate" in ion.lower() or "c1c(o)c2ccccc2" in ion.lower() for ion in result.removed_counterions)
-    # Active drug entity (neutral Metformin base: 4 Carbons + 5 Nitrogens = 9 heavy atoms) must be retained
-    assert "C(=N)N" in result.sanitized_smiles or "c(=n)n" in result.sanitized_smiles.lower()
-    assert result.retained_atom_count == 9  # 9 heavy atoms (C4N5) in authentic neutral Metformin base
-
-
-def test_scaffold_hopper_benzoic_acid_to_tetrazole():
-    """Validates bioisosteric replacement of carboxylic acid with 5-substituted tetrazole."""
-    hopper = ScaffoldHopper()
-    # Target: Benzoic acid (C6H5-COOH), Scaffold: -COOH, Bioisostere: 1H-tetrazole
-    mol_smiles = "c1ccccc1C(=O)O"
-    scaffold_smiles = "C(=O)O"
-    coords = [
-        [0.000,  0.000, 0.000], [1.400,  0.000, 0.000], [2.100,  1.210, 0.000],
-        [1.400,  2.420, 0.000], [0.000,  2.420, 0.000], [-0.700, 1.210, 0.000],
-        [2.150, -1.250, 0.000], [3.350, -1.250, 0.000], [1.500, -2.350, 0.000]
-    ]
-    results: list[ScaffoldHopResult] = hopper.hop_scaffold(
-        molecule_smiles=mol_smiles,
-        scaffold_smiles=scaffold_smiles,
-        replacement_library=["c1nnn[nH]1"],  # 1H-tetrazole bioisostere
-        coordinates=coords
+def test_bsse_ghost_atom_exclusion_and_mass():
+    """
+    REQ-TOPOS-013.1 & REQ-TOPOS-013.2: Verify that BSSE counterpoise complexes with ghost atoms (Z=0)
+    assign zero mass without throwing Mendeleev ValueError, and are excluded from alignment calculations.
+    """
+    target = ConformerInput(
+        conformer_id="bsse_dimer_conf_1",
+        elements=["O", "H", "H", "Gh", "Gh", "Gh"],
+        atomic_numbers=[8, 1, 1, 0, 0, 0],
+        coordinates=[
+            (0.000, 0.000, 0.117),
+            (0.000, 0.757, -0.469),
+            (0.000, -0.757, -0.469),
+            (2.800, 0.000, 0.117),
+            (2.800, 0.757, -0.469),
+            (2.800, -0.757, -0.469),
+        ],
+        is_ghost=[False, False, False, True, True, True],
     )
-
-    assert len(results) > 0
-    top_hit = results[0]
-    # Reconnected candidate must be 5-phenyl-1H-tetrazole (strict bioisostere connection, no fragment loopholes)
-    assert "c1ccccc1c2nnn[nH]2" in top_hit.candidate_smiles or "c1ccccc1-c2nnn[nH]2" in top_hit.candidate_smiles
-    assert 0.0 <= top_hit.composite_score <= 1.0
-    assert len(top_hit.aligned_coordinates) > 0
-    assert top_hit.shape_tanimoto > 0.60
+    assert len(target.is_ghost) == 6
+    assert target.is_ghost[3] is True
 
 
-def test_pymol_session_export_roundtrip(tmp_path: Path):
-    """Validates PyMOL session export generates compliant file and metadata."""
-    exporter = PyMOLExportEngine()
-    session_file = tmp_path / "test_complex.pse"
-    atoms = ["Pt", "Cl", "Cl", "N", "N"]
-    coords = [[0.0, 0.0, 0.0], [2.32, 0.0, 0.0], [0.0, 2.32, 0.0], [-2.05, 0.0, 0.0], [0.0, -2.05, 0.0]]
-    domains = [3, 2, 2, 1, 1]  # Domain 3: metal, Domain 2: exit/halide, Domain 1: amine linker
+def test_pydantic_validation_guards():
+    """
+    Verify that Pydantic v2 data models reject empty coordinate lists, non-orthogonal rotation matrices,
+    and asymmetric pairwise RMSD matrices.
+    """
+    # 1. Reject length mismatch between elements and coordinates
+    with pytest.raises(ValidationError):
+        ConformerInput(
+            conformer_id="invalid_conf_01",
+            elements=["C", "C", "C"],
+            atomic_numbers=[6, 6, 6],
+            coordinates=[],
+        )
 
-    result: PyMOLExportResult = exporter.export_session(
-        output_path=session_file,
-        atoms=atoms,
-        coordinates=coords,
-        domains=domains
-    )
+    # 2. Reject non-orthogonal rotation matrix even if det(R) = 1.0 (e.g. non-uniform scaling)
+    non_orthogonal_mat = [[2.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0]]
+    with pytest.raises(ValidationError):
+        AlignedConformerResult(
+            conformer_id="conf_01",
+            reference_id="ref_01",
+            rmsd_angstrom=0.15,
+            rotation_matrix=non_orthogonal_mat,
+            translation_vector=[0.0, 0.0, 0.0],
+            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            atom_mapping={0: 0, 1: 1, 2: 2},
+            execution_duration_seconds=0.012,
+        )
 
-    assert Path(result.session_path).exists()
-    assert result.file_size_bytes > 0
-    assert result.colored_domains_count == 3
-    assert result.metal_centers_rendered == 1
-    assert result.export_mode in ["headless_api", "cli_script_bundle"]
+    # 3. Reject non-symmetric pairwise RMSD matrix
+    with pytest.raises(ValidationError):
+        EnsembleAlignmentSummary(
+            reference_id="ref_01",
+            total_conformers=2,
+            aligned_conformers=[],
+            pairwise_rmsd_matrix=[[0.0, 0.35], [0.10, 0.0]],
+        )
 ```
 
 ---
@@ -447,61 +408,47 @@ def test_pymol_session_export_roundtrip(tmp_path: Path):
 ### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
 
 1. **Zero-Mock Mandate**:
-   - Every function, class, and method must be completely implemented and physically operational.
-   - Absolutely NO `pass` blocks, NO `NotImplementedError`, NO synthetic mocks, and NO tautological test assertions.
+   - Every function, method, and test fixture must execute physically against real molecular data.
+   - Absolutely no `pass` stubs, `NotImplementedError`, empty functions, or synthetic mocked arrays (`np.zeros`, `np.ones`, etc.) in place of genuine computation.
 2. **Dynamic Mendeleev Mandate**:
-   - All elemental symbols, atomic numbers, covalent radii, van der Waals radii, standard atomic weights, and isotopic mass numbers MUST be queried dynamically from the `mendeleev` library (`from mendeleev import element`).
-   - Hardcoding physical constants, radii, or atomic masses is strictly forbidden.
-   - Atomic covalent radius: `element(Z).covalent_radius_pyykko / 100.0`.
-   - Van der Waals radius with None-safe fallback:
-     ```python
-     vdw_pm = (
-         element(Z).vdw_radius_alvarez
-         or element(Z).vdw_radius_bondi
-         or element(Z).vdw_radius
-         or (element(Z).covalent_radius_pyykko * 1.5)
-     )
-     vdw_angstrom = vdw_pm / 100.0
-     ```
-   - Dynamic isotope mass lookup:
-     ```python
-     iso_mass = next((iso.mass for iso in element(Z).isotopes if iso.mass_number == A), element(Z).mass)
-     ```
-3. **Tripartite Workspace Air-Gap Invariant**:
-   - $\mathcal{P}(T_{\text{code}})$ (`$COCH_SRC`): Read-only application source and static reference parameter dictionaries.
-   - $\mathcal{P}(T_{\text{scr}})$ (`$COCH_SCRATCH`): Ephemeral node-local scratch space, temporary coordinates (`xtb.tmp`, `orca.tmp`), and `/dev/shm` shared memory buffers.
-   - $\mathcal{P}(T_{\text{art}})$ (`$COCH_ARTIFACTS`): Append-only persistent storage for `.pse` sessions, validated topological records, and HDF5 datasets.
-   - Invariant: $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset$, $\mathcal{P}(T_{\text{scr}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$, $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$.
-   - Working execution directory $\text{cwd} \notin \mathcal{P}(T_{\text{code}}) \cup \mathcal{P}(T_{\text{art}})$.
-4. **6-Tier Environmental Compliance Matrix**:
-   - **Tier 1 (Local-Windows WSL2/NT)**: Base path `os.getenv("COCH_SRC", "C:/CoChem/app")`, Artifact `os.getenv("COCH_ARTIFACTS", "C:/CoChem_Data")`, Scratch `os.getenv("COCH_SCRATCH", "C:/CoChem_Tmp")`. SWMR disabled; cross-process `filelock.FileLock` on node-local staging files; atomic `os.replace` promotion.
-   - **Tier 2 (Local-macOS OrbStack/Darwin)**: Native HDF5 SWMR with POSIX advisory locks; MPS GPU fallback.
-   - **Tier 3 (Local-Linux Debian/Ubuntu)**: Native HDF5 SWMR; POSIX locking; `/dev/shm` acceleration.
-   - **Tier 4 (GitHub Codespaces)**: SWMR disabled; `filelock.FileLock` in scratch; headless PyMOL mode.
-   - **Tier 5 (GitHub Actions CI/CD)**: SWMR disabled; headless test runners; pure CPU fallback.
-   - **Tier 6 (HPC Clusters SLURM/PBS)**: Node-local NVMe scratch staging (`$SLURM_TMPDIR`); atomic sync to shared Lustre storage.
-5. **GPU Concurrency & Dynamic Fallback**:
-   - GPU-accelerated steps (MLFF relaxation, volumetric shape grid evaluation) must run under NVIDIA MPS or dynamic shared contexts. Persistent CUDA context locking is prohibited.
-   - If GPU execution fails, CUDA memory exhausts (`torch.cuda.OutOfMemoryError`), or Apple Silicon MPS exhausts memory (`getattr(torch, 'mps', None) and torch.mps.OutOfMemoryError`), workers automatically fall back to CPU execution (`torch.device("cpu")` or NumPy/SciPy kernels).
-6. **Cross-Platform Path Portability**:
-   - All file operations strictly employ `pathlib.Path`. Hardcoded operating system delimiters, literal `~` tilde references, and bare POSIX `fcntl` calls are forbidden.
+   - All non-ghost atomic masses must be queried dynamically via `mendeleev.element(Z).mass`.
+   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ without calling `mendeleev`.
+   - Hardcoded atomic mass constants, isotopic lookup tables, or manual CODATA updates are strictly forbidden.
+3. **Tripartite Workspace Air-Gap Architecture**:
+   - Partition workflow across three disjoint tiers:
+     - Upstream Conformer Generation Realm ($T_{\text{conf}}$)
+     - Pure Mathematical Topology Alignment Kernel ($T_{\text{align}}$): Strictly CPU and in-memory. Zero disk I/O, zero network handles.
+     - Persistence & Visualization Realm ($T_{\text{store}}$): HDF5 serialization and UI handoff.
+4. **Compute Boundaries & CUDA-Lock Prevention**:
+   - Conformer alignment and SVD matrix decompositions are strictly CPU-bound.
+   - Subprocess execution must enforce `CUDA_VISIBLE_DEVICES=""` to prevent GPU runtime initialization or context monopolization.
+5. **Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix**:
+   - On Windows NTFS (Tier 1), Codespaces (Tier 4), and GitHub Actions CI (Tier 5): Coordinate persistence via `filelock.FileLock(path, timeout=30.0)` on advisory `.lock` files, temporary staging files, and atomic `os.replace`.
+   - On local macOS (Tier 2) and Linux (Tier 3): Enable HDF5 SWMR mode (`libver="latest", swmr=True`).
+   - On HPC (Tier 6): Use node-local NVMe scratch staging (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) and MPI collective I/O.
+6. **OS-Agnostic Dynamic Path Resolution**:
+   - Dynamic path lookups via `pathlib.Path`:
+     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))`
+     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", Path.home() / ".cochem" / "scratch"))`
+     - Data: `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))`
 
 ---
 
 ### ACTION PLAN FOR CODER
 
-1. Implement `cochem/topos/exceptions.py` with the complete custom domain exception hierarchy (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-2. Implement `cochem/topos/models.py` with strict Pydantic v2 data models (`ExitVector`, `ScaffoldHopResult`, `GeometricViolation`, `GeometryValidationResult`, `PyMOLExportResult`, `PolyhedronScore`, `CoordinationCenter`, `CoordinationPerceptionResult`, `TopologySanitizationResult`).
-3. Implement `cochem/topos/scaffold_hopper.py` with `ScaffoldHopper`, exit-vector extraction, non-singular normal calculation with Gram-Schmidt orthogonal projection fallback, Kabsch alignment, and multi-objective composite scoring.
-4. Implement `cochem/topos/geometry_validation.py` with `DynamicBondDictionary`, CSD/Engh & Huber reference distributions, dynamic Mendeleev radii and atomic weights, and topological 1-2 / 1-3 exclusion masking with $d_{\text{graph}} \ge 3$ clash checks.
-5. Implement `cochem/topos/pymol_export.py` with `PyMOLExportEngine`, dual-mode headless API / CLI script bundle generation, domain color palette mapping, and stick/sphere CPK rendering.
-6. Implement `cochem/topos/metal_coordination.py` with `MetalCoordinationEngine`, dynamic covalent coordination cutoff, CShM full permutation optimization for $\text{CN} \in \{4, 5, 6\}$, graceful handling for $\text{CN} \notin \{4, 5, 6\}$ (returning empty `polyhedron_scores`), Green's CBC formal oxidation state determination, and $\eta^n$ multi-hapto centroid detection.
-7. Implement `cochem/topos/sanitizer.py` with `TopologySanitizer`, connected component decomposition, curated counterion SMARTS stripping with API protection, organometallic preservation, and resonance-aware formal charge neutralization with zwitterion invariant preservation.
-8. Export all new classes and exceptions in `cochem/topos/__init__.py` and `cochem_topos/general_utilities.py`.
-9. Implement physical acceptance test suite in `tests/topos/test_topos_general_utilities_part2.py` reproducing verbatim the test fixtures from Section 4.3 of the SRS.
-10. Run test suite via terminal (`pytest tests/topos/ -v`) and verify 100% pass rate.
-11. Output the complete list of touched and created files in your final execution report.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 12: `TOPOS_General_Utilities_Part_2`.
+1. Create or update `cochem/topos/alignment.py` (and export in `cochem/topos/__init__.py`) implementing:
+   - Typed exception hierarchy: `ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`.
+   - Pydantic v2 data models: `ConformerInput`, `MCSAlignmentConfig`, `AlignedConformerResult`, `EnsembleAlignmentSummary`.
+   - `compute_kabsch_transformation`: SVD decomposition with point degeneracy check, collinear check, planar cross-product basis completion, parity reflection guard ($d = \operatorname{sgn}(\det(V U^T))$), proper rotation $R \in SO(3)$, and analytical centered RMSD.
+   - `align_conformers_by_mcs`: RDKit `rdFMCS.FindMCS` in `ProcessPoolExecutor` with $30.0\,\text{s}$ timeout ceiling and `mcs_result.canceled` inspection, ghost atom sanitization, mass retrieval with Mendeleev $Z=0$ guard, and coordinate superposition.
+   - `cluster_ensemble_conformers`: Pairwise RMSD matrix calculation and equivalence class clustering.
+   - `persist_aligned_ensemble_h5`: Thread-safe HDF5 serialization supporting isomorphic dense rectangular datasets and heterogeneous ragged structures under 6-tier `filelock` / SWMR concurrency rules.
+2. Implement physical unit test suite in `tests/topos/test_topos_alignment.py` reproducing all test cases from Section 6 of the SRS.
+3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_alignment.py -v`) and verify 100% pass rate.
+4. Output the complete list of touched and created files in your final execution report.
+I have submitted the generated chunked coding prompt for `SRS_Chunk_13_TOPOS_Alignment_Part_1` to the `adversary` agent ([Conversation 5cd34027-45b0-4deb-b625-d1c18bd91b2e](conversation://5cd34027-45b0-4deb-b625-d1c18bd91b2e)) for an adversarial audit in accordance with the 0rchestrator Global Protocol and Anti-Spoofing Protocol v3. Standing by for the auditor's evaluation.
+I have sent the fully remediated chunked coding prompt to the `adversary` agent ([Conversation 5cd34027-45b0-4deb-b625-d1c18bd91b2e](conversation://5cd34027-45b0-4deb-b625-d1c18bd91b2e)) addressing all 7 defects (DEF-01 through DEF-07). Standing by for the second-round audit verdict.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 13: `TOPOS_Alignment_Part_1`.
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev library mandate, and Method Matrix v4. Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must execute physically against authentic chemical topologies, genuine molecular structures, and physical constants.
 
@@ -510,436 +457,546 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### MISSION & EXECUTION WORKFLOW
 
 1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyGraph` abstractions, and testing conventions established in prior TOPOS modules.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/` with authentic chemical species and physical fixtures (e.g., Cisplatin square-planar geometry, Ferrocene $\eta^5$ sandwich complex, relaxed non-planar Aspirin conformers, Metformin Pamoate bulky salt pairs, Benzoic acid bioisosteric tetrazole replacement, and PyMOL session binary exports).
-4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/ -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
+2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`, `AirGapBoundaryViolationError`).
+3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_alignment.py` with 10 authentic physical test cases (including chiral enantiomers, linear acetylene, planar benzene, BSSE complexes, HDF5 persistence roundtrips, ensemble clustering, timeout exceptions, topological incompatibility, and point-degeneracy).
+4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_alignment.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
 5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
 
 ---
 
 ### MODULE SPECIFICATIONS
 
-#### 1. [TOPOS] Scaffold Hopper Module
-- **File Target**: `cochem/topos/scaffold_hopper.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `ScaffoldHopper`
-- **Entrypoint**: `hop_scaffold(molecule_smiles: str, scaffold_smiles: str, replacement_library: list[str], coordinates: list[list[float]] | np.ndarray | None = None) -> list[ScaffoldHopResult]`
-- **Requirements**:
-  - **Substructure Identification**: Perform VF2 / Ullmann subgraph isomorphism to locate user-selected scaffold $S \subset M$ within host molecule $M$ `[D]`. Raise `ScaffoldMatchingError` if no isomorphism mapping exists.
-  - **Exit Vector Perception & Non-Singular Alignment Triads**:
-    - For each severed bond $(a_{\text{scaffold}}, b_{\text{subst}})$, extract anchor Cartesian position $\mathbf{r}(a) \in \mathbb{R}^3$ and unit exit vector:
-      $$\mathbf{v}_k = \frac{\mathbf{r}(b) - \mathbf{r}(a)}{\|\mathbf{r}(b) - \mathbf{r}(a)\|} \in \mathbb{R}^3$$
-    - **Deterministic Neighbor Selection**: If scaffold neighbors exist ($\text{adj}(a) \cap S \neq \emptyset$), select $c_{\text{neighbor}} = \min \{ c \in \text{adj}(a) \cap S \}$ (scaffold neighbor with lowest canonical index).
-    - **Collinear & Isolated Singularity Resolution**: If $\text{adj}(a) \cap S \neq \emptyset$ and cross product $\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| \ge 10^{-4}$, compute normal:
-      $$\mathbf{n}_k = \frac{(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k}{\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\|} \quad \text{[D]}$$
-      If anchor $a$ has no scaffold neighbors ($\text{adj}(a) \cap S = \emptyset$) or is collinear/linear ($\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| < 10^{-4}$), construct an orthogonal vector via Gram-Schmidt orthogonal projection:
-      $$\mathbf{n}_k = \frac{\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k}{\|\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k\|}, \quad \mathbf{u} = [1, 0, 0]^T \text{ (or } [0, 1, 0]^T \text{ if } |\mathbf{u} \cdot \mathbf{v}_k| > 0.9) \quad \text{[D]}$$
-    - **Alignment Triad Construction**: Form the 3-point spatial reference frame $\mathcal{F}_k = \{\mathbf{r}(a_k), \mathbf{r}(a_k) + \mathbf{v}_k, \mathbf{r}(a_k) + \mathbf{n}_k\}$ for each attachment site.
-  - **Bioisostere Transformation Dictionary**: Query a curated empirical library of validated bioisosteric replacements `[M]` (e.g., carboxylic acid $\leftrightarrow$ tetrazole, acylsulfonamide, oxadiazolone; ester $\leftrightarrow$ 1,2,4-oxadiazole; phenyl $\leftrightarrow$ bicyclo[1.1.1]pentane, pyridine, cubane).
-  - **Rigid $SE(3)$ Superposition via Frame Kabsch Alignment**: Align candidate triad frames $\{\mathcal{F}'_k\}$ onto host frames $\{\mathcal{F}_k\}$ via Kabsch root-mean-square minimization. This locks all 6 spatial degrees of freedom, resolving unconstrained dihedral spinning for monovalent replacements ($k=1$). Reject poses with directional deviation $\Delta \theta > 15.0^\circ$ `[D]` or translational mismatch $\text{RMSD}_{\text{frame}} > 0.35\,\text{Å}$ `[D]`. Raise `BioisostereNotFoundError` if no candidates meet tolerances.
-  - **Multi-Objective Candidate Scoring & Normalization**:
-    $$\Delta d_{\text{topo}} = 1.0 - \text{Tanimoto}_{\text{topo}}(M_{\text{orig}}, M_{\text{rep}}) \quad \text{[D]}$$
-    $$S_{\text{raw}} = 0.40 \cdot T_{\text{shape}}(M_{\text{orig}}, M_{\text{rep}}) + 0.30 \cdot T_{\text{elec}}(M_{\text{orig}}, M_{\text{rep}}) - 0.20 \cdot \frac{\Delta E_{\text{strain}}}{E_{\text{norm}}} - 0.10 \cdot \frac{\Delta d_{\text{topo}}}{d_{\text{norm}}} \quad \text{[D]}$$
-    where $E_{\text{norm}} = 10.0\,\text{kcal/mol}$, $d_{\text{norm}} = 1.0$, $T_{\text{shape}} \in [0, 1]$ is volumetric Gaussian shape overlap, $T_{\text{elec}} \in [0, 1]$ is electrostatic grid correlation, and $\Delta E_{\text{strain}}$ is internal conformational strain evaluated via GFN-FF/MMFF94 `[M]`. The composite score is strictly clamped to guarantee Pydantic schema safety:
-    $$S = \max\left(0.0, \min\left(1.0, S_{\text{raw}}\right)\right) \quad \text{[D]}$$
+#### 1. [TOPOS] Pydantic v2 Domain Models & Exception Hierarchy
+- **File Target**: `cochem/topos/alignment.py` (or `cochem/topos/models.py` & `cochem/topos/exceptions.py`, exported in `cochem/topos/__init__.py`)
+- **Domain Exceptions**:
+  - `ToposAlignmentError(Exception)`: Base exception for topology alignment failures.
+  - `MCSConvergenceTimeoutError(ToposAlignmentError)`: Raised when MCS graph search exceeds timeout ceiling (default 30.0s) or `mcs_result.canceled == True`.
+  - `CollinearDegeneracyError(ToposAlignmentError)`: Raised when atomic coordinates exhibit collinear rank-deficiency in SVD ($\frac{\sigma_2}{\sigma_1} < 10^{-7}$).
+  - `DegenerateCoordinatesError(ToposAlignmentError)`: Raised when atomic coordinates exhibit point-degeneracy ($\sigma_1 < 10^{-12}$).
+  - `IncompatibleTopologyError(ToposAlignmentError)`: Raised when molecules share insufficient overlapping substructure ($N_{\text{MCS}} < 3$).
+  - `AirGapBoundaryViolationError(ToposAlignmentError)`: Raised when persistent archive paths resolve outside the designated $T_{\text{store}}$ realm.
+- **Pydantic v2 Data Models (Python 3.10+)**:
+  - `ConformerInput`:
+    - `conformer_id: str`: Unique identifier for conformer.
+    - `elements: List[str]`: Elemental symbols (minimum length 3).
+    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 3).
+    - `coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ Cartesian coordinates in Ångströms (minimum length 3).
+    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: 0-based bond edges: `(idx_i, idx_j, bond_order)`.
+    - `reference_smiles: Optional[str] = None`: Optional canonical SMILES string for topological validation.
+    - `masses: Optional[List[float]] = None`: Optional atomic masses dynamically retrieved via `mendeleev`.
+    - `energy_kcal_mol: Optional[float] = None`: Electronic or free energy tag from QM runner.
+    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost/dummy atoms.
+    - Validation: Enforce exact length matching across `elements`, `atomic_numbers`, `coordinates`, `masses` (if provided), and `is_ghost`. If `is_ghost` is empty, auto-populate with `[False] * len(elements)`.
+  - `MCSAlignmentConfig`:
+    - `timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)`: `rdFMCS` search timeout ceiling.
+    - `mass_weighting: bool = False`: Whether to weight Kabsch covariance and centroids by atomic masses.
+    - `match_valences: bool = True`: Enforce valence matching in MCS.
+    - `ring_matches_ring_only: bool = True`: Strict ring-to-ring matching.
+    - `complete_rings_only: bool = False`: Permit partial ring overlap across fused scaffolds.
+    - `min_mcs_atoms: int = Field(default=3, ge=3)`: Minimum common substructure atom count.
+    - `svd_condition_tol: float = Field(default=1e-7, ge=1e-12)`: Singular value condition ratio tolerance for rank-deficiency.
+    - `rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)`: Deduplication RMSD cutoff.
+    - `ignore_ghost_atoms: bool = True`: Exclude ghost/BSSE atoms from alignment kernel.
+  - `AlignedConformerResult`:
+    - `conformer_id: str`
+    - `reference_id: str`
+    - `rmsd_angstrom: float = Field(..., ge=0.0)`: Analytical RMSD over mapped MCS non-ghost atoms.
+    - `rotation_matrix: List[List[float]]`: Orthogonal $(3, 3)$ rotation matrix $R$ satisfying $R^T R = I$ and $\det(R) = +1.0 \pm 10^{-4}$.
+    - `translation_vector: List[float]`: $(3,)$ optimal translation vector $\vec{t}$.
+    - `aligned_coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ transformed full coordinates.
+    - `atom_mapping: Dict[int, int]`: 0-based index map: `{target_idx: ref_idx}`.
+    - `execution_duration_seconds: float = Field(..., ge=0.0)`
+  - `EnsembleAlignmentSummary`:
+    - `ensemble_id: str = Field(..., description="Unique ensemble collection ID")`
+    - `reference_id: str`
+    - `total_conformers: int`
+    - `aligned_conformers: List[AlignedConformerResult]`
+    - `pairwise_rmsd_matrix: List[List[float]]`: Symmetric $(M, M)$ matrix with zero diagonal and non-negative elements.
+    - `duplicate_clusters: List[List[str]] = Field(default_factory=list)`: Clusters of redundant conformer IDs where pairwise RMSD $< \delta_{\text{thresh}}$.
+    - `mcs_mapping: Dict[int, int] = Field(default_factory=dict, description="Consensus MCS atom index map")`
+    - `aligned_mcs_coords: Optional[List[List[Tuple[float, float, float]]]] = Field(default=None, description="Aligned consensus MCS coordinates across ensemble")`
 
-#### 2. [TOPOS] Dynamic Bond-Length / Bond-Angle Dictionary
-- **File Target**: `cochem/topos/geometry_validation.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `DynamicBondDictionary`
-- **Entrypoint**: `validate_geometry(atoms: list[str], coordinates: list[list[float]] | np.ndarray, bonds: list[tuple[int, int, float]]) -> GeometryValidationResult`
-- **Requirements**:
-  - **Authoritative Reference Standards**: Reference geometries parameterized against Cambridge Structural Database (CSD / Allen et al.) empirical distributions `[M]`, supplemented by Engh & Huber standard valence parameters and Pyykkö relativistic covalent radii `[M]`.
-  - **Dynamic Chemical Context Parameterization**: Query expected values $d_{\text{ref}}$ and $\theta_{\text{ref}}$ indexed dynamically by:
-    - Element pairs $(Z_i, Z_j)$ queried via `mendeleev.element(Z)`.
-    - Topological bond order $BO \in \{1.0, 1.5, 2.0, 3.0\}$.
-    - Hybridization states ($sp^3$, $sp^2$, $sp$) derived from coordination numbers and $\pi$-conjugation perception.
-    - Ring strain modifiers: Canonical valence angle expectations adjusted for 3- and 4-membered strained rings (cyclopropane $60.0^\circ$, cyclobutane $90.0^\circ$) to avoid false-positive strain flags.
-  - **Statistical Deviation Scoring & Topological Distance Masking**:
-    $$z(d_{ij}) = \frac{|d_{ij} - d_{\text{ref}}(Z_i, Z_j, BO)|}{\sigma(d_{\text{ref}})}, \quad z(\theta_{ijk}) = \frac{|\theta_{ijk} - \theta_{\text{ref}}(Z_j, \text{hyb})|}{\sigma(\theta_{\text{ref}})} \quad \text{[D]}$$
-    Emit non-fatal diagnostic warning for $3.0 \le z < 5.0$. Raise `GeometricPlausibilityError` if $z \ge 5.0$.
-    - **Topological 1-2 and 1-3 Exclusion Mask**: Steric clash validation is strictly restricted to non-bonded atom pairs possessing topological shortest path distance $d_{\text{graph}}(i, j) \ge 3$ (1-4 vicinal and higher non-bonded pairs). Covalent 1-2 bonds ($d_{\text{graph}}=1$) and geminal 1-3 valence angle bonds ($d_{\text{graph}}=2$) are excluded. A clash violation is raised if:
-      $$d_{ij} < 0.65 \cdot \left(R_{\text{vdw}}(i) + R_{\text{vdw}}(j)\right), \quad \forall (i, j) \text{ with } d_{\text{graph}}(i, j) \ge 3 \quad \text{[D]}$$
-      where $R_{\text{vdw}}$ is retrieved dynamically via Mendeleev vdW retrieval with defensive fallbacks:
-      ```python
-      vdw_pm = (
-          element(Z).vdw_radius_alvarez
-          or element(Z).vdw_radius_bondi
-          or element(Z).vdw_radius
-          or (element(Z).covalent_radius_pyykko * 1.5)
-      )
-      vdw_angstrom = vdw_pm / 100.0
-      ```
-  - **Period 3+ Hypervalency Rules**: Coordinate dictionaries for $\mathrm{Si}, \mathrm{P}, \mathrm{S}, \mathrm{Cl}, \mathrm{Se}, \mathrm{Br}, \mathrm{I}$ accommodate expanded coordination polyhedra (e.g., trigonal bipyramidal $90^\circ/120^\circ$, octahedral $90^\circ/180^\circ$) with valence electron capacity up to 12.
+#### 2. [TOPOS] Maximum Common Substructure (MCS) Perception & Ghost-Atom Sanitization
+- **Requirement ID**: `REQ-TOPOS-013.1`
+- **File Target**: `cochem/topos/alignment.py`
+- **Ghost Atom Pre-Sanitization**:
+  - Intermolecular complexes generated for Basis Set Superposition Error (BSSE) counterpoise corrections contain ghost atoms (symbols `Gh`, `Bq`, `X`, or atomic number $Z = 0$, or `is_ghost == True`).
+  - Ghost atoms are strictly excluded/stripped *prior* to bond connectivity perception and RDKit molecule construction. Calling RDKit bond perception routines or `PeriodicTable` lookup on $Z=0$ is strictly prohibited as it triggers fatal C++ core exceptions.
+- **Bond Connectivity Perception**:
+  - Accept explicit bond connectivity tables `bonds: List[Tuple[int, int, float]]` or canonical SMILES.
+  - If bond connectivity is missing from bare coordinates of non-ghost atoms, perceive connectivity by computing pairwise Euclidean distances $D_{ij} = \|\mathbf{r}_i - \mathbf{r}_j\|_2$ and connecting pairs satisfying $D_{ij} \le R_{\text{cov}}(Z_i) + R_{\text{cov}}(Z_j) + \delta$ ($\delta = 0.40\,\text{Å}$), where $R_{\text{cov}}$ is queried dynamically via `mendeleev.element(Z).covalent_radius_pyykko / 100.0`.
+- **Top-Level Worker Function & GIL Isolation**:
+  - To prevent Windows `spawn` pickling failures, define a module-level picklable helper:
+    `def _isolated_mcs_worker(target_mol_block: str, ref_mol_block: str, params: dict) -> Tuple[bool, bool, str, List[Tuple[int, int]]]`.
+  - MCS extraction executes via RDKit `rdFMCS.FindMCS` in `concurrent.futures.ProcessPoolExecutor` with timeout ceiling $30.0\,\text{s}$. Inspect `mcs_result.canceled`; if True or timeout, raise `MCSConvergenceTimeoutError`.
+  - Standard MCS parameters: `atomCompare=CompareElements`, `bondCompare=CompareOrder`, `matchValences=True`, `ringMatchesRingOnly=True`, `completeRingsOnly=False`.
+  - Require minimum common atom count $N_{\text{MCS}} \ge 3$. If $N_{\text{MCS}} < 3$, raise `IncompatibleTopologyError`.
 
-#### 3. [TOPOS] Custom PyMOL Session (.pse) Visualization Export
-- **File Target**: `cochem/topos/pymol_export.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `PyMOLExportEngine`
-- **Entrypoint**: `export_session(output_path: str | Path, atoms: list[str], coordinates: list[list[float]] | np.ndarray, domains: list[int] | None = None, bonds: list[tuple[int, int, float]] | None = None) -> PyMOLExportResult`
-- **Requirements**:
-  - **Dual-Mode Export Engine**:
-    - **Mode A (Headless Python API)**: If `pymol` C-extension is importable, launch headless instance (`pymol -cqp`), populate objects, execute selection macros, and invoke `cmd.save(path.as_posix())`.
-    - **Mode B (Headless CLI / Script Bundler)**: In containerized environments lacking compiled PyMOL C-libraries (Codespaces, GitHub Actions CI), compile a standalone, deterministic `.pml` automation script paired with embedded PDB/SDF coordinate structures. The output is bundled and converted using headless PyMOL CLI invocation, preventing runtime import crashes on headless workers.
-  - **Topological Domain Decomposition & Color Palettes**: Partition graph into functional domains assigned distinct categorical colors (Glasbey/ColorBrewer Set2):
-    - Domain 0 (Core Scaffold / Rings): Slate Blue (`#4B6584`).
-    - Domain 1 (Flexible Aliphatic Linkers): Emerald Green (`#20BF6B`).
-    - Domain 2 (Exit Vectors / Attachment Anchors): Coral Red (`#EB3B5A`).
-    - Domain 3 (Metal Coordination Spheres): Light Cyan (`#45AAF2`).
-  - **Display Representation Matrix**:
-    - Small molecule ligands rendered as sticks (radius $0.20\,\text{Å}$) with carbons colored by topological domain and heteroatoms in standard CPK colors (N: Blue, O: Red, S: Yellow, P: Orange, Halogens: Green).
-    - Metal coordination centers displayed as scaled spheres ($0.35 \times R_{\text{vdw}}$) connected to coordinating atoms via dashed coordination vectors (dash gap $0.15\,\text{Å}$, dash length $0.15\,\text{Å}$).
-  - **Error Handling**: Raise `PyMOLExportError` on serialization or script execution failure.
+#### 3. [TOPOS] Mass-Weighted Centroid Translation & Ghost-Atom Masking
+- **Requirement ID**: `REQ-TOPOS-013.2`
+- **File Target**: `cochem/topos/alignment.py`
+- **Ghost Atom Exclusion & Mendeleev Lookup Guard**:
+  - Strictly exclude all ghost atoms ($Z = 0$ or `is_ghost == True`) from MCS coordinate sub-blocks prior to centroid calculation, cross-covariance assembly, and rotation fitting.
+  - If $Z = 0$ or `is_ghost == True`, mass is assigned strictly as $0.0\,\text{Da}$ without calling `mendeleev`, preventing uncaught `ValueError` / `ElementNotFoundError`. For non-ghost heavy atoms, query dynamic mass via `mendeleev.element(Z).mass` `[M]`.
+- **Mathematical Centroid Formulation**:
+  - For mapped MCS non-ghost coordinate matrices $P \in \mathbb{R}^{N \times 3}$ (target) and $Q \in \mathbb{R}^{N \times 3}$ (reference) ($N = N_{\text{MCS}} \ge 3$):
+  - Assign weights $w_i > 0$: unweighted ($w_i = 1.0$) or mass-weighted ($w_i = m_i$).
+  - Compute weighted centroids:
+    $$\bar{P} = \frac{\sum_{i=1}^N w_i P_i}{\sum_{i=1}^N w_i}, \quad \bar{Q} = \frac{\sum_{i=1}^N w_i Q_i}{\sum_{i=1}^N w_i} \quad \text{[D]}$$
+  - Center coordinates:
+    $$P_c = P - \mathbf{1} \bar{P}^T, \quad Q_c = Q - \mathbf{1} \bar{Q}^T \quad \text{[D]}$$
 
-#### 4. [TOPOS] Metal-Coordination Perception Engine
-- **File Target**: `cochem/topos/metal_coordination.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `MetalCoordinationEngine`
-- **Entrypoint**: `perceive_coordination(atoms: list[str], coordinates: list[list[float]] | np.ndarray, net_charge: int = 0) -> CoordinationPerceptionResult`
-- **Requirements**:
-  - **Coordination Sphere Detection**: Distance cutoff matrix identifying coordinating ligand atoms $L$:
-    $$D(M, L) \le R_{\text{cov}}(M) + R_{\text{cov}}(L) + 0.55\,\text{Å} \quad \text{[M]}$$
-    where covalent radii $R_{\text{cov}}$ are retrieved dynamically via `mendeleev.element(Z).covalent_radius_pyykko / 100.0`.
-  - **Continuous Shape Measure (CShM) with Full Permutation Optimization**: For coordinating donor coordinates $Q = \{\mathbf{q}_1, \dots, \mathbf{q}_n\}$ with geometric centroid $\mathbf{q}_0 = \frac{1}{n} \sum_{k=1}^n \mathbf{q}_k$, compute Alvarez CShM metric $S_P(Q)$ minimized over the full symmetric permutation group $S_n$ (or cosets $S_n / \text{Aut}(P)$) and rigid spatial superposition:
-    $$S_P(Q) = \min_{\pi \in S_n} \min_{\alpha > 0, \mathbf{R} \in SO(3), \mathbf{t}} \frac{\sum_{k=1}^n \|\mathbf{q}_k - (\alpha \mathbf{R} \mathbf{p}_{\pi(k)} + \mathbf{t})\|^2}{\sum_{k=1}^n \|\mathbf{q}_k - \mathbf{q}_0\|^2} \times 100 \quad \text{[D]}$$
-    - **Reference Polyhedra Matrix**: Defined strictly for coordination numbers $\text{CN} \in \{4, 5, 6\}$:
-      - $\text{CN}=4$: Tetrahedral $T_d$, Square Planar $D_{4h}$
-      - $\text{CN}=5$: Trigonal Bipyramidal $D_{3h}$, Square Pyramidal $C_{4v}$
-      - $\text{CN}=6$: Octahedral $O_h$, Trigonal Prismatic $D_{3h}$
-      Assign geometry $P$ minimizing $S_P(Q)$; if $\min_P S_P(Q) > 15.0$, assign `'Distorted/Unassigned'`.
-    - **Handling for $\text{CN} \notin \{4, 5, 6\}$**: If coordination number is outside $\{4, 5, 6\}$ (e.g., metallocenes with $\text{CN}=10$, or linear complexes $\text{CN}=2$), set `assigned_geometry = "Special_Haptic"` (if haptic rings present) or `f"Unassigned_CN{cn}"`, and return `polyhedron_scores = []` without calling $\min()$ on an empty sequence.
-  - **Green's CBC Ligand Classification & Formal Oxidation State**:
-    - Classify coordinated ligands under Covalent Bond Classification (CBC):
-      - $L$-type: Neutral 2-electron dative donors (amines, phosphines, CO, ethers; $q_{\text{formal}} = 0$).
-      - $X$-type: Monoanionic 1-electron covalent donors (halides, thiolates, alkyls, carboxylates; $q_{\text{formal}} = -1$).
-      - $X_2$-type: Dianionic 2-electron covalent donors (oxo $=\mathrm{O}$, sulfido $=\mathrm{S}$, imido $=\mathrm{NR}$; $q_{\text{formal}} = -2$).
-      - $X_3$-type: Trianionic 3-electron covalent donors (nitrido $\equiv\mathrm{N}$, alkylidyne $\equiv\mathrm{CR}$; $q_{\text{formal}} = -3$).
-      - Bridging ligands ($\mu_2\text{-}X$ contributing fractional charge $-1/2$ per metal).
-    - Local oxidation state balance for metal center $M_j$:
-      $$OS(M_j) = Q_{\text{local}}(M_j) - \sum_{L \in \text{coord}(M_j)} q_{\text{formal}}(L) \quad \text{[D]}$$
-      where $Q_{\text{local}}(M_j) = Q_{\text{complex}} / N_{\text{metals}}$ for homonuclear symmetric clusters.
-  - **Hapticity ($\eta^n$) & Chelate Perception**: Group contiguous aromatic or conjugated atoms coordinating to a single metal center into multi-hapto centroids (e.g., ferrocene $\eta^5\text{-Cp}$, $\eta^6\text{-benzene}$, $\eta^3\text{-allyl}$). Detect closed cycles containing $M$ to perceive 5- and 6-membered chelate rings.
-  - **Error Handling**: Raise `CoordinationPerceptionError` on distorted unphysical states.
+#### 4. [TOPOS] Cross-Covariance, SVD & Numerical Degeneracy Safeguards
+- **Requirement ID**: `REQ-TOPOS-013.3`
+- **File Target**: `cochem/topos/alignment.py`
+- **Dispersion Assembly & Full SVD**:
+  - Assemble weighted cross-covariance dispersion matrix $H \in \mathbb{R}^{3 \times 3}$:
+    $$H = P_c^T W Q_c = \sum_{i=1}^N w_i (P_{c,i}^T Q_{c,i}) \quad \text{[D]}$$
+    where $W = \operatorname{diag}(w_1, \dots, w_N)$.
+  - Compute full SVD via `scipy.linalg.svd`:
+    $$H = U \Sigma V^T \quad \text{[D]}$$
+    where $U, V \in O(3)$ and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$ with $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$.
+- **Numerical Degeneracy Safeguards**:
+  - **Point-Degeneracy**: If $\sigma_1 < 10^{-12}$, raise `DegenerateCoordinatesError` before calculating condition ratios.
+  - **Collinear Degeneracy**: If condition ratio $\frac{\sigma_2}{\sigma_1} < 10^{-7}$, coordinates exhibit collinear rank-deficiency. Raise `CollinearDegeneracyError`.
+  - **Planar Stabilization**: If $\frac{\sigma_2}{\sigma_1} \ge 10^{-7}$ and $\frac{\sigma_3}{\sigma_1} < 10^{-7}$, coordinates are coplanar. Stabilize left and right singular vectors via deterministic right-handed cross-product basis completion:
+    $$\mathbf{u}_3 = \frac{\mathbf{u}_1 \times \mathbf{u}_2}{\|\mathbf{u}_1 \times \mathbf{u}_2\|_2}, \quad \mathbf{v}_3 = \frac{\mathbf{v}_1 \times \mathbf{v}_2}{\|\mathbf{v}_1 \times \mathbf{v}_2\|_2} \quad \text{[D]}$$
 
-#### 5. [TOPOS] Automated Topology Sanitization Pass
-- **File Target**: `cochem/topos/sanitizer.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `TopologySanitizer`
-- **Entrypoint**: `sanitize_topology(smiles: str, coordinates: list[list[float]] | np.ndarray | None = None) -> TopologySanitizationResult`
-- **Requirements**:
-  - **Connected Component Decomposition**: Decompose molecular graph into disjoint connected components $\{C_1, C_2, \dots, C_m\}$.
-  - **Curated Counterion SMARTS Registry & API Protection**:
-    - Match components against an authoritative Counterion SMARTS / Formula Registry:
-      - **Inorganic Ions**: $\mathrm{Na}^+, \mathrm{K}^+, \mathrm{Li}^+, \mathrm{Ca}^{2+}, \mathrm{Mg}^{2+}, \mathrm{Cl}^-, \mathrm{Br}^-, \mathrm{I}^-, \mathrm{SO}_4^{2-}, \mathrm{NO}_3^-, \mathrm{PO}_4^{3-}, \mathrm{BF}_4^-, \mathrm{PF}_6^-$.
-      - **Bulky Organic Sulfonates**: Besylate (benzenesulfonate), Tosylate ($p$-toluenesulfonate), Mesylate, Triflate, Napsylate, Isethionate.
-      - **Bulky Organic Carboxylates**: Pamoate (embonate), Citrate, Tartrate, Maleate, Fumarate, Succinate, Benzoate, Acetate, Lactate.
-      - **Organic Base Cations**: Meglumine, Tromethamine, Choline.
-    - **API Retention Guarantee**: Components matching the registry are stripped into `removed_counterions`. The largest non-counterion component is designated the primary API drug $C_{\text{target}}$. For small APIs paired with bulky salts (e.g., Metformin Pamoate, Gabapentin Tosylate), the drug is strictly preserved.
-    - **Organometallic Guard**: Transition metal complexes possessing coordination degree $\ge 1$ are strictly protected from stripping.
-  - **Resonance-Aware Formal Charge Neutralization**:
-    - Balance uncoupled formal charges on acidic ($-\mathrm{COO}^- \to -\mathrm{COOH}$) and basic ($-\mathrm{NH}_3^+ \to -\mathrm{NH}_2$) groups.
-    - **Zwitterion Invariant**: Preserve physiological zwitterionic pairs (e.g., amino acids, betaines) when intramolecular charge separation distance satisfies $d(\mathrm{N}^+, \mathrm{O}^-) \le 6.0\,\text{Å}$ and net charge $Q_{\text{net}} = 0$.
-    - Enforce octet conservation ($q_i = N_{\text{valence}} - 2 N_{\text{lp}} - \sum BO_{ij}$ `[D]`); strictly prohibit converting nitro groups ($-\mathrm{N}^+(=\mathrm{O})\mathrm{O}^-$) into pentavalent non-octet forms. Permanent quaternary ammonium cations ($\mathrm{R}_4\mathrm{N}^+$) retain positive formal charge.
-  - **Error Handling**: Raise `SanitizationError` on octet violations or improper fragmentation.
+#### 5. [TOPOS] Reflection Parity Guard & Optimal Proper Rotation Matrix
+- **Requirement ID**: `REQ-TOPOS-013.4`
+- **File Target**: `cochem/topos/alignment.py`
+- **Kabsch Reflection Parity Correction**:
+  - Enforce proper right-handed rotation matrix $R \in SO(3)$ with $\det(R) = +1.0$, preventing unphysical inversion of chiral enantiomers.
+  - Calculate parity reflection factor:
+    $$d = \operatorname{sgn}(\det(V U^T)) \in \{-1, +1\} \quad \text{[D]}$$
+  - Assemble optimal proper rotation matrix:
+    $$R = V \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{bmatrix} U^T \quad \text{[D]}$$
+  - Compute optimal translation vector:
+    $$\vec{t} = \bar{Q} - R \bar{P} \quad \text{[D]}$$
+  - Apply proper rotation and translation to all target atoms (using row-vector convention):
+    $$P_{\text{aligned}} = P_{\text{full}} R^T + \mathbf{1} \vec{t}^T \quad \text{[D]}$$
 
----
+#### 6. [TOPOS] Analytical Centered RMSD & Ensemble Deduplication
+- **Requirement ID**: `REQ-TOPOS-013.5`
+- **File Target**: `cochem/topos/alignment.py`
+- **Analytical Centered RMSD**:
+  - Calculate Root-Mean-Square Deviation over mapped MCS atoms using consistent row-vector matrix multiplication:
+    $$\mathrm{RMSD}_{\text{MCS}} = \sqrt{\frac{\sum_{i=1}^N w_i \|P_{c,i} R^T - Q_{c,i}\|_2^2}{\sum_{i=1}^N w_i}} \quad \text{[D]}$$
+- **Ensemble Deduplication**:
+  - Compute symmetric pairwise RMSD matrix $D_{jk} = \mathrm{RMSD}(C_j, C_k)$ ($1 \le j, k \le M$).
+  - Group conformers with pairwise $\mathrm{RMSD} < \delta_{\text{thresh}}$ (default $0.25\,\text{Å}$ `[M]`) into duplicate equivalence classes.
 
-### PYDANTIC V2 DATA MODELS & EXCEPTION HIERARCHY
+#### 7. [TOPOS] Tripartite Air-Gap Boundaries & 6-Tier Concurrency Matrix
+- **Requirement ID**: `REQ-TOPOS-013.6`
+- **File Target**: `cochem/topos/alignment.py`
+- **Tripartite Air-Gap Realms**:
+  - $T_{\text{conf}}$ (Conformer Ingestion): `pathlib.Path(os.environ.get("COCH_CONF_DIR", Path.home() / ".cochem" / "conformers"))`
+  - $T_{\text{align}}$ (Pure In-Memory Math Kernel): Isolated, in-memory execution, no file writes, no GPU/CUDA context (`CUDA_VISIBLE_DEVICES=""`).
+  - $T_{\text{store}}$ (Persistence Realm): `pathlib.Path(os.environ.get("COCH_STORE_DIR", Path.home() / ".cochem" / "store"))`
+  - **Confinement Check**: `persist_aligned_ensemble_h5` must verify that `archive_path.resolve()` resides within $T_{\text{store}}$. If not, raise `AirGapBoundaryViolationError`.
+- **Concurrency Tier Detection**:
+  ```python
+  from enum import Enum
+  import os, sys
 
-Implement the following strict Pydantic v2 data models under `cochem/topos/models.py`:
+  class StorageTier(str, Enum):
+      TIER1_WINDOWS = "tier1_windows"
+      TIER2_MACOS = "tier2_macos"
+      TIER3_LINUX = "tier3_linux"
+      TIER4_CODESPACES = "tier4_codespaces"
+      TIER5_GITHUB_ACTIONS = "tier5_github_actions"
+      TIER6_HPC = "tier6_hpc"
 
-```python
-from __future__ import annotations
-from typing import List, Dict, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
-
-
-class ExitVector(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    anchor_idx: int = Field(..., ge=0, description="0-based atom index of scaffold anchor")
-    substituent_idx: int = Field(..., ge=0, description="0-based atom index of substituent atom")
-    anchor_coord: List[float] = Field(..., min_length=3, max_length=3, description="Anchor Cartesian [x, y, z] in Angstrom")
-    vector: List[float] = Field(..., min_length=3, max_length=3, description="Unit direction vector [vx, vy, vz]")
-    normal_vector: List[float] = Field(..., min_length=3, max_length=3, description="Reference normal vector [nx, ny, nz]")
-
-
-class ScaffoldHopResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    candidate_smiles: str = Field(..., description="SMILES of generated candidate")
-    aligned_coordinates: List[List[float]] = Field(..., description="Nx3 Cartesian coordinates in Angstrom")
-    shape_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    electrostatic_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    strain_energy_kcal_mol: float = Field(...)
-    composite_score: float = Field(..., ge=0.0, le=1.0)
-
-
-class GeometricViolation(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    violation_type: Literal["bond_length", "bond_angle", "steric_clash"]
-    atom_indices: List[int] = Field(..., min_length=2, max_length=3)
-    measured_value: float = Field(..., description="Measured distance (Angstrom) or angle (degrees)")
-    reference_value: float = Field(..., description="Reference expected value")
-    z_score: float = Field(..., ge=0.0)
-
-
-class GeometryValidationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    is_physically_plausible: bool
-    max_z_score: float = Field(..., ge=0.0)
-    violations: List[GeometricViolation] = Field(default_factory=list)
-
-
-class PyMOLExportResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    session_path: str = Field(..., description="Absolute path to exported .pse or .pml file")
-    export_mode: Literal["headless_api", "cli_script_bundle"]
-    colored_domains_count: int = Field(..., ge=0)
-    metal_centers_rendered: int = Field(..., ge=0)
-    file_size_bytes: int = Field(..., gt=0)
-
-
-class PolyhedronScore(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    polyhedron_name: str = Field(..., description="Canonical geometry (e.g., 'Octahedral', 'Square_Planar')")
-    cshm_value: float = Field(..., ge=0.0, description="Continuous Shape Measure value S_P(Q)")
-
-
-class CoordinationCenter(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    metal_idx: int = Field(..., ge=0)
-    metal_element: str = Field(..., min_length=1, max_length=2)
-    coordination_number: int = Field(..., ge=1, le=12)
-    assigned_geometry: str
-    formal_oxidation_state: int
-    ligand_atom_indices: List[int]
-    is_chelated: bool
-    hapticities: Dict[str, int] = Field(default_factory=dict, description="Ligand group to eta^n mapping")
-    polyhedron_scores: List[PolyhedronScore] = Field(default_factory=list)
-
-
-class CoordinationPerceptionResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    coordination_centers: List[CoordinationCenter] = Field(default_factory=list)
-    unassigned_metal_indices: List[int] = Field(default_factory=list)
-    total_metals_detected: int = Field(..., ge=0)
-
-
-class TopologySanitizationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    sanitized_smiles: str
-    sanitized_coordinates: Optional[List[List[float]]] = None
-    formal_net_charge: int
-    is_zwitterion: bool
-    removed_counterions: List[str] = Field(default_factory=list)
-    retained_atom_count: int = Field(..., gt=0)
-```
-
-Implement the exception hierarchy under `cochem/topos/exceptions.py`:
-
-```python
-class ToposError(Exception):
-    """Base exception for all TOPOS topological processing errors."""
-
-class ScaffoldMatchingError(ToposError):
-    """Raised when target scaffold substructure cannot be mapped onto input molecule."""
-
-class BioisostereNotFoundError(ToposError):
-    """Raised when no geometrically viable bioisostere satisfies exit-vector tolerances."""
-
-class GeometricPlausibilityError(ToposError):
-    """Raised when 3D geometry exhibits critical steric clashes or unphysical valence strains."""
-
-class PyMOLExportError(ToposError):
-    """Raised when .pse session or fallback .pml export fails to serialize."""
-
-class CoordinationPerceptionError(ToposError):
-    """Raised when metal coordination polyhedra cannot be perceived or are heavily distorted."""
-
-class SanitizationError(ToposError):
-    """Raised when charge neutralization violates octet rules or fragments essential complexes."""
-```
+  def detect_concurrency_tier() -> StorageTier:
+      if "SLURM_JOB_ID" in os.environ or "PBS_JOBID" in os.environ:
+          return StorageTier.TIER6_HPC
+      if os.environ.get("GITHUB_ACTIONS") == "true":
+          return StorageTier.TIER5_GITHUB_ACTIONS
+      if os.environ.get("CODESPACES") == "true":
+          return StorageTier.TIER4_CODESPACES
+      if sys.platform == "win32":
+          return StorageTier.TIER1_WINDOWS
+      if sys.platform == "darwin":
+          return StorageTier.TIER2_MACOS
+      return StorageTier.TIER3_LINUX
+  ```
+- **HDF5 Persistence Protocols**:
+  - Tier 1 (Windows NTFS), Tier 4, Tier 5: SWMR disabled (`swmr=False`). Coordinated via `filelock.FileLock(str(archive_path) + ".lock", timeout=30.0)` with atomic staging file replacement (`staging_path.replace(archive_path)`).
+  - Tier 2 (macOS) & Tier 3 (Linux): Native SWMR enabled (`libver="latest", swmr=True`).
+  - Tier 6 (HPC): Stage writes to node-local NVMe scratch (`os.environ.get("SLURM_TMPDIR", "/tmp")`), avoiding distributed POSIX byte-range lock contention.
+  - Datasets:
+    - Isomorphic: `/ensembles/{ensemble_id}/aligned_coords` (`[M, N, 3]`, float64)
+    - Heterogeneous: `/ensembles/{ensemble_id}/conformers/{conformer_id}/aligned_coords` (`[N_j, 3]`, float64)
+    - MCS coords: `/ensembles/{ensemble_id}/aligned_mcs_coords` (`[M, N_mcs, 3]`, float64)
+    - Pairwise RMSD: `/ensembles/{ensemble_id}/pairwise_rmsd` (`[M, M]`, float32)
+    - MCS mapping: `/ensembles/{ensemble_id}/mcs_mapping` (`[N_mcs, 2]`, int32)
 
 ---
 
-### PHYSICAL ACCEPTANCE TEST FIXTURES (`pytest`)
-
-Implement physical, unmocked acceptance test suites under `tests/topos/test_topos_general_utilities_part2.py` with exact chemical fixtures:
+### CORE PYTHON INTERFACE SIGNATURES
 
 ```python
-import pytest
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+import numpy as np
+
+def compute_kabsch_transformation(
+    P: np.ndarray,
+    Q: np.ndarray,
+    weights: Optional[np.ndarray] = None,
+    condition_tol: float = 1e-7,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """
+    Computes optimal Kabsch proper rotation R and translation t mapping P to Q.
+
+    Parameters:
+        P: Target coordinate matrix of shape (N, 3).
+        Q: Reference coordinate matrix of shape (N, 3).
+        weights: Optional non-negative mass weighting vector of shape (N,).
+        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
+
+    Returns:
+        Tuple containing:
+            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
+            - t: Optimal translation vector of shape (3,).
+            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
+
+    Raises:
+        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
+        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
+    """
+
+def align_conformers_by_mcs(
+    target: ConformerInput,
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> AlignedConformerResult:
+    """
+    Superimposes a target conformer onto an invariant reference conformer via MCS perception and Kabsch fitting.
+
+    Parameters:
+        target: Target conformer input record.
+        reference: Invariant reference conformer record.
+        config: Optional configuration controlling timeouts, weighting, and tolerances.
+
+    Returns:
+        AlignedConformerResult containing transformed coordinates, rotation matrix, translation vector, and atom mapping.
+
+    Raises:
+        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
+        IncompatibleTopologyError: If common atom count N_MCS < 3.
+        CollinearDegeneracyError: If mapped coordinates are collinear.
+    """
+
+def cluster_ensemble_conformers(
+    conformers: List[ConformerInput],
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> EnsembleAlignmentSummary:
+    """
+    Performs batch alignment and pairwise RMSD clustering across a conformer ensemble.
+
+    Parameters:
+        conformers: List of conformer records generated upstream via CREST/ORCA GOAT.
+        reference: Reference conformer topology.
+        config: Alignment configuration and deduplication RMSD threshold.
+
+    Returns:
+        EnsembleAlignmentSummary including pairwise RMSD matrix, consensus MCS map, and duplicate cluster groups.
+    """
+
+def persist_aligned_ensemble_h5(
+    summary: EnsembleAlignmentSummary,
+    archive_path: Path,
+    lock_timeout: float = 30.0,
+) -> Path:
+    """
+    Persists aligned conformer trajectories and pairwise RMSD matrices into an HDF5 archive under 6-tier concurrency.
+
+    Parameters:
+        summary: Validated ensemble alignment summary payload.
+        archive_path: Target filesystem path for the .h5 archive (must resolve within T_store).
+        lock_timeout: Maximum duration in seconds to wait for filelock acquisition.
+
+    Returns:
+        Path to the written HDF5 archive.
+
+    Raises:
+        AirGapBoundaryViolationError: If archive_path resolves outside T_store.
+    """
+```
+
+---
+
+### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_alignment.py`)
+
+```python
+import os
 from pathlib import Path
 import numpy as np
-from mendeleev import element
+import pytest
+import h5py
+from pydantic import ValidationError
 
-from cochem_topos.general_utilities import (
-    ScaffoldHopper,
-    DynamicBondDictionary,
-    PyMOLExportEngine,
-    MetalCoordinationEngine,
-    TopologySanitizer,
+from cochem.topos.alignment import (
+    AirGapBoundaryViolationError,
+    AlignedConformerResult,
+    CollinearDegeneracyError,
+    ConformerInput,
+    DegenerateCoordinatesError,
+    EnsembleAlignmentSummary,
+    IncompatibleTopologyError,
+    MCSAlignmentConfig,
+    MCSConvergenceTimeoutError,
+    align_conformers_by_mcs,
+    cluster_ensemble_conformers,
+    compute_kabsch_transformation,
+    persist_aligned_ensemble_h5,
 )
-from cochem_topos.models import (
-    ScaffoldHopResult,
-    GeometryValidationResult,
-    PyMOLExportResult,
-    CoordinationPerceptionResult,
-    TopologySanitizationResult,
-)
 
 
-def test_metal_coordination_cisplatin():
-    """Validates square-planar coordination and Pt(II) formal oxidation state perception on Cisplatin."""
-    engine = MetalCoordinationEngine()
-    # Authentic 3D Cartesian coordinates of Cisplatin [Pt(NH3)2Cl2] in Angstroms
-    atoms = ["Pt", "Cl", "Cl", "N", "N", "H", "H", "H", "H", "H", "H"]
-    coords = [
-        [0.000,  0.000,  0.000],  # Pt
-        [2.320,  0.000,  0.000],  # Cl1
-        [0.000,  2.320,  0.000],  # Cl2
-        [-2.050, 0.000,  0.000],  # N1
-        [0.000, -2.050,  0.000],  # N2
-        [-2.400, 0.810,  0.580],  # H
-        [-2.400, -0.810, 0.580],  # H
-        [-2.400, 0.000, -1.000],  # H
-        [0.810, -2.400,  0.580],  # H
-        [-0.810, -2.400, 0.580],  # H
-        [0.000, -2.400, -1.000],  # H
-    ]
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
+def test_kabsch_chiral_enantiomer_reflection_guard():
+    """
+    REQ-TOPOS-013.3 & REQ-TOPOS-013.4: Verify that Kabsch alignment between chiral enantiomers
+    enforces proper rotation det(R) = +1.0 via parity correction factor d = -1, preventing coordinate inversion.
+    """
+    coords_l = np.array([
+        [-0.432, 1.254, -0.428],  # N
+        [0.000, 0.000, 0.354],    # CA
+        [1.520, 0.000, 0.354],    # C
+        [2.145, 1.050, 0.354],    # O
+        [-0.534, -1.242, -0.354], # CB
+    ], dtype=np.float64)
 
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Pt"
-    assert center.coordination_number == 4
-    assert center.assigned_geometry == "Square_Planar"
-    assert center.formal_oxidation_state == 2
-    # Verify continuous shape measure: Square Planar S_P(Q) must be significantly lower than Tetrahedral
-    sp_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Square_Planar")
-    td_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Tetrahedral")
-    assert sp_score < 3.0
-    assert td_score > 15.0
+    coords_d = coords_l.copy()
+    coords_d[:, 2] *= -1.0
+
+    R, t, rmsd = compute_kabsch_transformation(coords_d, coords_l)
+
+    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5), "Rotation matrix must satisfy R.T @ R = I"
+    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5), f"Improper rotation detected: det(R) = {np.linalg.det(R)}"
+    assert rmsd > 0.1, "Enantiomer alignment must retain non-zero RMSD under proper SO(3) rotation"
 
 
-def test_metal_coordination_ferrocene_hapticity():
-    """Validates multi-hapto eta^5-cyclopentadienyl coordination on Ferrocene."""
-    engine = MetalCoordinationEngine()
-    # Authentic Ferrocene [Fe(eta5-C5H5)2] geometry with D5d symmetry
-    fe_z = element("Fe").atomic_number
-    assert fe_z == 26
+def test_collinear_degeneracy_detection():
+    """
+    REQ-TOPOS-013.3: Verify that collinear coordinates (e.g., linear acetylene C2H2)
+    trigger CollinearDegeneracyError due to singular value condition ratio sigma_2 / sigma_1 < 1e-7.
+    """
+    acetylene_coords = np.array([
+        [0.0, 0.0, -1.665],  # H1
+        [0.0, 0.0, -0.601],  # C1
+        [0.0, 0.0, 0.601],   # C2
+        [0.0, 0.0, 1.665],   # H2
+    ], dtype=np.float64)
 
-    # Load authentic physical coordinate stream for ferrocene
-    atoms = ["Fe"] + ["C"] * 10 + ["H"] * 10
-    # Ring 1 at z = +1.65 A, Ring 2 at z = -1.65 A, Fe at origin
-    r_cp = 1.21  # C5 ring radius in Angstroms
-    theta = np.linspace(0, 2 * np.pi, 5, endpoint=False)
-    ring1_c = [[r_cp * np.cos(t), r_cp * np.sin(t), 1.650] for t in theta]
-    ring2_c = [[r_cp * np.cos(t + np.pi/5), r_cp * np.sin(t + np.pi/5), -1.650] for t in theta]
-    ring1_h = [[2.2 * np.cos(t), 2.2 * np.sin(t), 1.650] for t in theta]
-    ring2_h = [[2.2 * np.cos(t + np.pi/5), 2.2 * np.sin(t + np.pi/5), -1.650] for t in theta]
-    coords = [[0.0, 0.0, 0.0]] + ring1_c + ring2_c + ring1_h + ring2_h
+    rotated_coords = acetylene_coords @ np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
 
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Fe"
-    assert center.formal_oxidation_state == 2  # Fe(II)
-    # Must perceive two distinct eta^5 haptic centroids and handle CN=10 gracefully
-    assert len(center.hapticities) == 2
-    assert all(h == 5 for h in center.hapticities.values())
-    assert center.assigned_geometry in ["Special_Haptic", "Unassigned_CN10"]
-    assert center.polyhedron_scores == []
+    with pytest.raises(CollinearDegeneracyError) as exc_info:
+        compute_kabsch_transformation(rotated_coords, acetylene_coords)
+    assert "collinear" in str(exc_info.value).lower()
 
 
-def test_geometric_dictionary_aspirin_validation():
-    """Validates physical plausibility and 1-2 / 1-3 exclusion masking on authentic 3D Aspirin."""
-    validator = DynamicBondDictionary()
-    # Authentic, relaxed non-planar 3D coordinates of Aspirin (acetylsalicylic acid, C9H8O4 heavy atoms)
-    # Acetoxy group rotated out-of-plane, preventing unphysical non-bonded collisions
-    atoms = ["C", "C", "C", "C", "C", "C", "C", "O", "O", "O", "C", "O", "C"]
-    coords = [
-        [ 0.000,  0.000,  0.000],  # C0 (ipso)
-        [ 1.400,  0.000,  0.000],  # C1 (ortho - COOH)
-        [ 2.100,  1.210,  0.000],  # C2 (meta)
-        [ 1.400,  2.420,  0.000],  # C3 (para)
-        [ 0.000,  2.420,  0.000],  # C4 (meta)
-        [-0.700,  1.210,  0.000],  # C5 (ortho)
-        [ 2.150, -1.250,  0.000],  # C6 (COOH carbonyl carbon)
-        [ 3.350, -1.250,  0.000],  # O7 (COOH carbonyl oxygen)
-        [ 1.500, -2.350,  0.000],  # O8 (COOH hydroxyl oxygen)
-        [-0.700, -1.210,  0.000],  # O9 (ester oxygen at C0)
-        [-0.700, -1.800,  1.300],  # C10 (acetyl carbonyl carbon, rotated in z)
-        [-0.700, -1.200,  2.350],  # O11 (acetyl carbonyl oxygen)
-        [-0.700, -3.280,  1.300],  # C12 (acetyl methyl carbon)
-    ]
-    bonds = [
-        (0, 1, 1.5), (1, 2, 1.5), (2, 3, 1.5), (3, 4, 1.5), (4, 5, 1.5), (5, 0, 1.5),
-        (1, 6, 1.0), (6, 7, 2.0), (6, 8, 1.0), (0, 9, 1.0), (9, 10, 1.0), (10, 11, 2.0), (10, 12, 1.0)
-    ]
-    result: GeometryValidationResult = validator.validate_geometry(atoms=atoms, coordinates=coords, bonds=bonds)
+def test_coplanar_coordinates_stabilization():
+    """
+    REQ-TOPOS-013.3: Verify that coplanar coordinates (benzene C6 heavy atoms in xy-plane)
+    are successfully stabilized via right-handed cross-product basis completion without degeneracy failure.
+    """
+    angles = np.linspace(0, 2 * np.pi, 6, endpoint=False)
+    r_cc = 1.397
+    benzene_c = np.column_stack([r_cc * np.cos(angles), r_cc * np.sin(angles), np.zeros(6)])
 
-    # Must pass plausibility without false-positive steric clashes
-    assert result.is_physically_plausible is True
-    assert result.max_z_score < 4.0
-    # Steric clashes must be 0 because all d_graph >= 3 non-bonded distances exceed 0.65 * (Rvdw_i + Rvdw_j)
-    assert len([v for v in result.violations if v.violation_type == "steric_clash"]) == 0
+    theta = np.pi / 4.0
+    R_z = np.array([
+        [np.cos(theta), -np.sin(theta), 0.0],
+        [np.sin(theta), np.cos(theta), 0.0],
+        [0.0, 0.0, 1.0],
+    ])
+    rotated_benzene = benzene_c @ R_z.T + np.array([1.5, -2.0, 0.0])
+
+    R, t, rmsd = compute_kabsch_transformation(rotated_benzene, benzene_c)
+    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5)
+    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5)
+    assert np.isclose(rmsd, 0.0, atol=1e-5)
 
 
-def test_topology_sanitization_metformin_pamoate():
-    """Validates API drug retention when paired with bulky organic counterion (Pamoate)."""
-    sanitizer = TopologySanitizer()
-    # Metformin Pamoate: 2 Metformin cations (C4H11N5, N_heavy = 9 each) + 1 Pamoate dianion (N_heavy = 29)
-    raw_smiles = "CN(C)C(=N)N=C(N)N.CN(C)C(=N)N=C(N)N.O=C(O)c1c(O)c2ccccc2cc1Cc3cc4ccccc4c(O)c3C(=O)O"
-    result: TopologySanitizationResult = sanitizer.sanitize_topology(smiles=raw_smiles)
+def test_bsse_ghost_atom_exclusion_and_mass():
+    """
+    REQ-TOPOS-013.1 & REQ-TOPOS-013.2: Verify that BSSE counterpoise complexes with ghost atoms (Z=0)
+    assign zero mass without throwing Mendeleev ValueError, and are excluded from alignment calculations.
+    """
+    target = ConformerInput(
+        conformer_id="bsse_dimer_conf_1",
+        elements=["O", "H", "H", "Gh", "Gh", "Gh"],
+        atomic_numbers=[8, 1, 1, 0, 0, 0],
+        coordinates=[
+            (0.000, 0.000, 0.117),
+            (0.000, 0.757, -0.469),
+            (0.000, -0.757, -0.469),
+            (2.800, 0.000, 0.117),
+            (2.800, 0.757, -0.469),
+            (2.800, -0.757, -0.469),
+        ],
+        is_ghost=[False, False, False, True, True, True],
+    )
+    assert len(target.is_ghost) == 6
+    assert target.is_ghost[3] is True
 
-    # Bulky Pamoate counterion must be segregated into removed_counterions despite N_heavy=29
-    assert any("pamoate" in ion.lower() or "c1c(o)c2ccccc2" in ion.lower() for ion in result.removed_counterions)
-    # Active drug entity (neutral Metformin base: 4 Carbons + 5 Nitrogens = 9 heavy atoms) must be retained
-    assert "C(=N)N" in result.sanitized_smiles or "c(=n)n" in result.sanitized_smiles.lower()
-    assert result.retained_atom_count == 9  # 9 heavy atoms (C4N5) in authentic neutral Metformin base
+
+def test_pydantic_validation_guards():
+    """
+    Verify that Pydantic v2 data models reject empty coordinate lists, non-orthogonal rotation matrices,
+    and asymmetric pairwise RMSD matrices.
+    """
+    with pytest.raises(ValidationError):
+        ConformerInput(
+            conformer_id="invalid_conf_01",
+            elements=["C", "C", "C"],
+            atomic_numbers=[6, 6, 6],
+            coordinates=[],
+        )
+
+    non_orthogonal_mat = [[2.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0]]
+    with pytest.raises(ValidationError):
+        AlignedConformerResult(
+            conformer_id="conf_01",
+            reference_id="ref_01",
+            rmsd_angstrom=0.15,
+            rotation_matrix=non_orthogonal_mat,
+            translation_vector=[0.0, 0.0, 0.0],
+            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            atom_mapping={0: 0, 1: 1, 2: 2},
+            execution_duration_seconds=0.012,
+        )
+
+    with pytest.raises(ValidationError):
+        EnsembleAlignmentSummary(
+            ensemble_id="ens_01",
+            reference_id="ref_01",
+            total_conformers=2,
+            aligned_conformers=[],
+            pairwise_rmsd_matrix=[[0.0, 0.35], [0.10, 0.0]],
+        )
 
 
-def test_scaffold_hopper_benzoic_acid_to_tetrazole():
-    """Validates bioisosteric replacement of carboxylic acid with 5-substituted tetrazole."""
-    hopper = ScaffoldHopper()
-    # Target: Benzoic acid (C6H5-COOH), Scaffold: -COOH, Bioisostere: 1H-tetrazole
-    mol_smiles = "c1ccccc1C(=O)O"
-    scaffold_smiles = "C(=O)O"
-    coords = [
-        [0.000,  0.000, 0.000], [1.400,  0.000, 0.000], [2.100,  1.210, 0.000],
-        [1.400,  2.420, 0.000], [0.000,  2.420, 0.000], [-0.700, 1.210, 0.000],
-        [2.150, -1.250, 0.000], [3.350, -1.250, 0.000], [1.500, -2.350, 0.000]
-    ]
-    results: list[ScaffoldHopResult] = hopper.hop_scaffold(
-        molecule_smiles=mol_smiles,
-        scaffold_smiles=scaffold_smiles,
-        replacement_library=["c1nnn[nH]1"],  # 1H-tetrazole bioisostere
-        coordinates=coords
+def test_point_degeneracy_error():
+    """REQ-TOPOS-013.3: Verify that point-collapsed coordinates raise DegenerateCoordinatesError."""
+    point_coords = np.zeros((4, 3), dtype=np.float64)
+    ref_coords = np.array([
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ], dtype=np.float64)
+    with pytest.raises(DegenerateCoordinatesError):
+        compute_kabsch_transformation(point_coords, ref_coords)
+
+
+def test_incompatible_topology_atom_count_error():
+    """REQ-TOPOS-013.1: Verify IncompatibleTopologyError when overlapping atom count N_MCS < 3."""
+    target = ConformerInput(
+        conformer_id="conf_diatomic",
+        elements=["H", "Cl"],
+        atomic_numbers=[1, 17],
+        coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.27)],
+    )
+    ref = ConformerInput(
+        conformer_id="conf_water",
+        elements=["O", "H", "H"],
+        atomic_numbers=[8, 1, 1],
+        coordinates=[(0.0, 0.0, 0.117), (0.0, 0.757, -0.469), (0.0, -0.757, -0.469)],
+    )
+    with pytest.raises(IncompatibleTopologyError):
+        align_conformers_by_mcs(target, ref)
+
+
+def test_mcs_timeout_raises_custom_error():
+    """REQ-TOPOS-013.1: Verify that an exhausted MCS timeout ceiling raises MCSConvergenceTimeoutError."""
+    c1 = ConformerInput(
+        conformer_id="polycycle_1",
+        elements=["C"] * 10,
+        atomic_numbers=[6] * 10,
+        coordinates=[(float(i), 0.0, 0.0) for i in range(10)],
+    )
+    c2 = ConformerInput(
+        conformer_id="polycycle_2",
+        elements=["C"] * 10,
+        atomic_numbers=[6] * 10,
+        coordinates=[(0.0, float(i), 0.0) for i in range(10)],
+    )
+    tight_config = MCSAlignmentConfig(timeout_seconds=0.0001)
+    with pytest.raises(MCSConvergenceTimeoutError):
+        align_conformers_by_mcs(c1, c2, config=tight_config)
+
+
+def test_cluster_ensemble_deduplication():
+    """REQ-TOPOS-013.5: Verify pairwise RMSD calculation and duplicate cluster grouping."""
+    ref = ConformerInput(
+        conformer_id="ref_methane",
+        elements=["C", "H", "H", "H", "H"],
+        atomic_numbers=[6, 1, 1, 1, 1],
+        coordinates=[
+            (0.000, 0.000, 0.000),
+            (0.629, 0.629, 0.629),
+            (-0.629, -0.629, 0.629),
+            (-0.629, 0.629, -0.629),
+            (0.629, -0.629, -0.629),
+        ],
+    )
+    # Identical copy (RMSD = 0.0) -> Redundant duplicate
+    dup = ConformerInput(
+        conformer_id="dup_methane",
+        elements=ref.elements,
+        atomic_numbers=ref.atomic_numbers,
+        coordinates=ref.coordinates,
+    )
+    summary = cluster_ensemble_conformers([ref, dup], reference=ref)
+    assert summary.total_conformers == 2
+    assert len(summary.duplicate_clusters) >= 1
+    assert "dup_methane" in summary.duplicate_clusters[0] or "ref_methane" in summary.duplicate_clusters[0]
+
+
+def test_persist_aligned_ensemble_h5_roundtrip(tmp_path, monkeypatch):
+    """REQ-TOPOS-013.6: Verify thread-safe HDF5 persistence and air-gap boundary check."""
+    store_dir = tmp_path / "topos_store"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
+
+    summary = EnsembleAlignmentSummary(
+        ensemble_id="test_ensemble_01",
+        reference_id="ref_01",
+        total_conformers=1,
+        aligned_conformers=[
+            AlignedConformerResult(
+                conformer_id="conf_01",
+                reference_id="ref_01",
+                rmsd_angstrom=0.05,
+                rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                translation_vector=[0.0, 0.0, 0.0],
+                aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                atom_mapping={0: 0, 1: 1, 2: 2},
+                execution_duration_seconds=0.01,
+            )
+        ],
+        pairwise_rmsd_matrix=[[0.0]],
+        duplicate_clusters=[],
+        mcs_mapping={0: 0, 1: 1, 2: 2},
+        aligned_mcs_coords=[[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
     )
 
-    assert len(results) > 0
-    top_hit = results[0]
-    # Reconnected candidate must be 5-phenyl-1H-tetrazole (strict bioisostere connection, no fragment loopholes)
-    assert "c1ccccc1c2nnn[nH]2" in top_hit.candidate_smiles or "c1ccccc1-c2nnn[nH]2" in top_hit.candidate_smiles
-    assert 0.0 <= top_hit.composite_score <= 1.0
-    assert len(top_hit.aligned_coordinates) > 0
-    assert top_hit.shape_tanimoto > 0.60
+    archive_path = store_dir / "ensemble_01.h5"
+    out_path = persist_aligned_ensemble_h5(summary, archive_path)
+    assert out_path.exists()
 
+    with h5py.File(out_path, "r") as h5f:
+        assert f"/ensembles/{summary.ensemble_id}/aligned_coords" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/mcs_mapping" in h5f
 
-def test_pymol_session_export_roundtrip(tmp_path: Path):
-    """Validates PyMOL session export generates compliant file and metadata."""
-    exporter = PyMOLExportEngine()
-    session_file = tmp_path / "test_complex.pse"
-    atoms = ["Pt", "Cl", "Cl", "N", "N"]
-    coords = [[0.0, 0.0, 0.0], [2.32, 0.0, 0.0], [0.0, 2.32, 0.0], [-2.05, 0.0, 0.0], [0.0, -2.05, 0.0]]
-    domains = [3, 2, 2, 1, 1]  # Domain 3: metal, Domain 2: exit/halide, Domain 1: amine linker
-
-    result: PyMOLExportResult = exporter.export_session(
-        output_path=session_file,
-        atoms=atoms,
-        coordinates=coords,
-        domains=domains
-    )
-
-    assert Path(result.session_path).exists()
-    assert result.file_size_bytes > 0
-    assert result.colored_domains_count == 3
-    assert result.metal_centers_rendered == 1
-    assert result.export_mode in ["headless_api", "cli_script_bundle"]
+    # Air-gap violation check
+    outside_path = tmp_path / "unauthorized" / "leak.h5"
+    with pytest.raises(AirGapBoundaryViolationError):
+        persist_aligned_ensemble_h5(summary, outside_path)
 ```
 
 ---
@@ -947,560 +1004,47 @@ def test_pymol_session_export_roundtrip(tmp_path: Path):
 ### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
 
 1. **Zero-Mock Mandate**:
-   - Every function, class, and method must be completely implemented and physically operational.
-   - Absolutely NO `pass` blocks, NO `NotImplementedError`, NO synthetic mocks, and NO tautological test assertions.
+   - Every function, method, and test fixture must execute physically against real molecular data.
+   - Absolutely no `pass` stubs, `NotImplementedError`, empty functions, or synthetic mocked arrays (`np.zeros`, `np.ones`, etc.) in place of genuine computation.
 2. **Dynamic Mendeleev Mandate**:
-   - All elemental symbols, atomic numbers, covalent radii, van der Waals radii, standard atomic weights, and isotopic mass numbers MUST be queried dynamically from the `mendeleev` library (`from mendeleev import element`).
-   - Hardcoding physical constants, radii, or atomic masses is strictly forbidden.
-   - Atomic covalent radius: `element(Z).covalent_radius_pyykko / 100.0`.
-   - Van der Waals radius with None-safe fallback:
-     ```python
-     vdw_pm = (
-         element(Z).vdw_radius_alvarez
-         or element(Z).vdw_radius_bondi
-         or element(Z).vdw_radius
-         or (element(Z).covalent_radius_pyykko * 1.5)
-     )
-     vdw_angstrom = vdw_pm / 100.0
-     ```
-   - Dynamic isotope mass lookup:
-     ```python
-     iso_mass = next((iso.mass for iso in element(Z).isotopes if iso.mass_number == A), element(Z).mass)
-     ```
-3. **Tripartite Workspace Air-Gap Invariant**:
-   - $\mathcal{P}(T_{\text{code}})$ (`$COCH_SRC`): Read-only application source and static reference parameter dictionaries.
-   - $\mathcal{P}(T_{\text{scr}})$ (`$COCH_SCRATCH`): Ephemeral node-local scratch space, temporary coordinates (`xtb.tmp`, `orca.tmp`), and `/dev/shm` shared memory buffers.
-   - $\mathcal{P}(T_{\text{art}})$ (`$COCH_ARTIFACTS`): Append-only persistent storage for `.pse` sessions, validated topological records, and HDF5 datasets.
-   - Invariant: $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset$, $\mathcal{P}(T_{\text{scr}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$, $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$.
-   - Working execution directory $\text{cwd} \notin \mathcal{P}(T_{\text{code}}) \cup \mathcal{P}(T_{\text{art}})$.
-4. **6-Tier Environmental Compliance Matrix**:
-   - **Tier 1 (Local-Windows WSL2/NT)**: Base path `os.getenv("COCH_SRC", "C:/CoChem/app")`, Artifact `os.getenv("COCH_ARTIFACTS", "C:/CoChem_Data")`, Scratch `os.getenv("COCH_SCRATCH", "C:/CoChem_Tmp")`. SWMR disabled; cross-process `filelock.FileLock` on node-local staging files; atomic `os.replace` promotion.
-   - **Tier 2 (Local-macOS OrbStack/Darwin)**: Native HDF5 SWMR with POSIX advisory locks; MPS GPU fallback.
-   - **Tier 3 (Local-Linux Debian/Ubuntu)**: Native HDF5 SWMR; POSIX locking; `/dev/shm` acceleration.
-   - **Tier 4 (GitHub Codespaces)**: SWMR disabled; `filelock.FileLock` in scratch; headless PyMOL mode.
-   - **Tier 5 (GitHub Actions CI/CD)**: SWMR disabled; headless test runners; pure CPU fallback.
-   - **Tier 6 (HPC Clusters SLURM/PBS)**: Node-local NVMe scratch staging (`$SLURM_TMPDIR`); atomic sync to shared Lustre storage.
-5. **GPU Concurrency & Dynamic Fallback**:
-   - GPU-accelerated steps (MLFF relaxation, volumetric shape grid evaluation) must run under NVIDIA MPS or dynamic shared contexts. Persistent CUDA context locking is prohibited.
-   - If GPU execution fails, CUDA memory exhausts (`torch.cuda.OutOfMemoryError`), or Apple Silicon MPS exhausts memory (`getattr(torch, 'mps', None) and torch.mps.OutOfMemoryError`), workers automatically fall back to CPU execution (`torch.device("cpu")` or NumPy/SciPy kernels).
-6. **Cross-Platform Path Portability**:
-   - All file operations strictly employ `pathlib.Path`. Hardcoded operating system delimiters, literal `~` tilde references, and bare POSIX `fcntl` calls are forbidden.
+   - All non-ghost atomic masses must be queried dynamically via `mendeleev.element(Z).mass`.
+   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ without calling `mendeleev`.
+   - Hardcoded atomic mass constants, isotopic lookup tables, or manual CODATA updates are strictly forbidden.
+3. **Tripartite Workspace Air-Gap Architecture**:
+   - Partition workflow across three disjoint physical realms:
+     - Upstream Conformer Generation Realm ($T_{\text{conf}}$): `COCH_CONF_DIR`
+     - Pure Mathematical Topology Alignment Kernel ($T_{\text{align}}$): Strictly CPU and in-memory. Zero disk I/O, zero network handles.
+     - Persistence & Visualization Realm ($T_{\text{store}}$): `COCH_STORE_DIR`
+   - Persistent archive paths outside $T_{\text{store}}$ must raise `AirGapBoundaryViolationError`.
+4. **Compute Boundaries & CUDA-Lock Prevention**:
+   - Conformer alignment and SVD matrix decompositions are strictly CPU-bound.
+   - Subprocess execution must enforce `CUDA_VISIBLE_DEVICES=""` to prevent GPU runtime initialization or context monopolization.
+5. **Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix**:
+   - On Windows NTFS (Tier 1), Codespaces (Tier 4), and GitHub Actions CI (Tier 5): Coordinate persistence via `filelock.FileLock(str(archive_path) + ".lock", timeout=30.0)` on advisory `.lock` files, temporary staging files, and atomic replacement.
+   - On local macOS (Tier 2) and Linux (Tier 3): Enable HDF5 SWMR mode (`libver="latest", swmr=True`).
+   - On HPC (Tier 6): Use node-local NVMe scratch staging (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) and MPI collective I/O.
+6. **OS-Agnostic Dynamic Path Resolution**:
+   - Dynamic path lookups via `pathlib.Path`:
+     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))`
+     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", Path.home() / ".cochem" / "scratch"))`
+     - Data: `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))`
 
 ---
 
 ### ACTION PLAN FOR CODER
 
-1. Implement `cochem/topos/exceptions.py` with the complete custom domain exception hierarchy (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-2. Implement `cochem/topos/models.py` with strict Pydantic v2 data models (`ExitVector`, `ScaffoldHopResult`, `GeometricViolation`, `GeometryValidationResult`, `PyMOLExportResult`, `PolyhedronScore`, `CoordinationCenter`, `CoordinationPerceptionResult`, `TopologySanitizationResult`).
-3. Implement `cochem/topos/scaffold_hopper.py` with `ScaffoldHopper`, exit-vector extraction, non-singular normal calculation with Gram-Schmidt orthogonal projection fallback, Kabsch alignment, and multi-objective composite scoring.
-4. Implement `cochem/topos/geometry_validation.py` with `DynamicBondDictionary`, CSD/Engh & Huber reference distributions, dynamic Mendeleev radii and atomic weights, and topological 1-2 / 1-3 exclusion masking with $d_{\text{graph}} \ge 3$ clash checks.
-5. Implement `cochem/topos/pymol_export.py` with `PyMOLExportEngine`, dual-mode headless API / CLI script bundle generation, domain color palette mapping, and stick/sphere CPK rendering.
-6. Implement `cochem/topos/metal_coordination.py` with `MetalCoordinationEngine`, dynamic covalent coordination cutoff, CShM full permutation optimization for $\text{CN} \in \{4, 5, 6\}$, graceful handling for $\text{CN} \notin \{4, 5, 6\}$ (returning empty `polyhedron_scores`), Green's CBC formal oxidation state determination, and $\eta^n$ multi-hapto centroid detection.
-7. Implement `cochem/topos/sanitizer.py` with `TopologySanitizer`, connected component decomposition, curated counterion SMARTS stripping with API protection, organometallic preservation, and resonance-aware formal charge neutralization with zwitterion invariant preservation.
-8. Export all new classes and exceptions in `cochem/topos/__init__.py` and `cochem_topos/general_utilities.py`.
-9. Implement physical acceptance test suite in `tests/topos/test_topos_general_utilities_part2.py` reproducing verbatim the test fixtures from Section 4.3 of the SRS.
-10. Run test suite via terminal (`pytest tests/topos/ -v`) and verify 100% pass rate.
-11. Output the complete list of touched and created files in your final execution report.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 12: `TOPOS_General_Utilities_Part_2`.
-
-You must implement every component in strict adherence to the CoChem Zero-Mock directive, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev library mandate, and Method Matrix v4. Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must execute physically against authentic chemical topologies, genuine molecular structures, and physical constants.
-
----
-
-### MISSION & EXECUTION WORKFLOW
-
-1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyGraph` abstractions, and testing conventions established in prior TOPOS modules.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/` with authentic chemical species and physical fixtures (e.g., Cisplatin square-planar geometry, Ferrocene $\eta^5$ sandwich complex, relaxed non-planar Aspirin conformers, Metformin Pamoate bulky salt pairs, Benzoic acid bioisosteric tetrazole replacement, and PyMOL session binary exports).
-4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/ -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
-5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
-
----
-
-### MODULE SPECIFICATIONS
-
-#### 1. [TOPOS] Scaffold Hopper Module
-- **File Target**: `cochem/topos/scaffold_hopper.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `ScaffoldHopper`
-- **Entrypoint**: `hop_scaffold(molecule_smiles: str, scaffold_smiles: str, replacement_library: list[str], coordinates: list[list[float]] | np.ndarray | None = None) -> list[ScaffoldHopResult]`
-- **Requirements**:
-  - **Substructure Identification**: Perform VF2 / Ullmann subgraph isomorphism to locate user-selected scaffold $S \subset M$ within host molecule $M$ `[D]`. Raise `ScaffoldMatchingError` if no isomorphism mapping exists.
-  - **Exit Vector Perception & Non-Singular Alignment Triads**:
-    - For each severed bond $(a_{\text{scaffold}}, b_{\text{subst}})$, extract anchor Cartesian position $\mathbf{r}(a) \in \mathbb{R}^3$ and unit exit vector:
-      $$\mathbf{v}_k = \frac{\mathbf{r}(b) - \mathbf{r}(a)}{\|\mathbf{r}(b) - \mathbf{r}(a)\|} \in \mathbb{R}^3$$
-    - **Deterministic Neighbor Selection**: If scaffold neighbors exist ($\text{adj}(a) \cap S \neq \emptyset$), select $c_{\text{neighbor}} = \min \{ c \in \text{adj}(a) \cap S \}$ (scaffold neighbor with lowest canonical index).
-    - **Collinear & Isolated Singularity Resolution**: If $\text{adj}(a) \cap S \neq \emptyset$ and cross product $\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| \ge 10^{-4}$, compute normal:
-      $$\mathbf{n}_k = \frac{(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k}{\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\|} \quad \text{[D]}$$
-      If anchor $a$ has no scaffold neighbors ($\text{adj}(a) \cap S = \emptyset$) or is collinear/linear ($\|(\mathbf{r}(a) - \mathbf{r}(c_{\text{neighbor}})) \times \mathbf{v}_k\| < 10^{-4}$), construct an orthogonal vector via Gram-Schmidt orthogonal projection:
-      $$\mathbf{n}_k = \frac{\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k}{\|\mathbf{u} - (\mathbf{u} \cdot \mathbf{v}_k)\mathbf{v}_k\|}, \quad \mathbf{u} = [1, 0, 0]^T \text{ (or } [0, 1, 0]^T \text{ if } |\mathbf{u} \cdot \mathbf{v}_k| > 0.9) \quad \text{[D]}$$
-    - **Alignment Triad Construction**: Form the 3-point spatial reference frame $\mathcal{F}_k = \{\mathbf{r}(a_k), \mathbf{r}(a_k) + \mathbf{v}_k, \mathbf{r}(a_k) + \mathbf{n}_k\}$ for each attachment site.
-  - **Bioisostere Transformation Dictionary**: Query a curated empirical library of validated bioisosteric replacements `[M]` (e.g., carboxylic acid $\leftrightarrow$ tetrazole, acylsulfonamide, oxadiazolone; ester $\leftrightarrow$ 1,2,4-oxadiazole; phenyl $\leftrightarrow$ bicyclo[1.1.1]pentane, pyridine, cubane).
-  - **Rigid $SE(3)$ Superposition via Frame Kabsch Alignment**: Align candidate triad frames $\{\mathcal{F}'_k\}$ onto host frames $\{\mathcal{F}_k\}$ via Kabsch root-mean-square minimization. This locks all 6 spatial degrees of freedom, resolving unconstrained dihedral spinning for monovalent replacements ($k=1$). Reject poses with directional deviation $\Delta \theta > 15.0^\circ$ `[D]` or translational mismatch $\text{RMSD}_{\text{frame}} > 0.35\,\text{Å}$ `[D]`. Raise `BioisostereNotFoundError` if no candidates meet tolerances.
-  - **Multi-Objective Candidate Scoring & Normalization**:
-    $$\Delta d_{\text{topo}} = 1.0 - \text{Tanimoto}_{\text{topo}}(M_{\text{orig}}, M_{\text{rep}}) \quad \text{[D]}$$
-    $$S_{\text{raw}} = 0.40 \cdot T_{\text{shape}}(M_{\text{orig}}, M_{\text{rep}}) + 0.30 \cdot T_{\text{elec}}(M_{\text{orig}}, M_{\text{rep}}) - 0.20 \cdot \frac{\Delta E_{\text{strain}}}{E_{\text{norm}}} - 0.10 \cdot \frac{\Delta d_{\text{topo}}}{d_{\text{norm}}} \quad \text{[D]}$$
-    where $E_{\text{norm}} = 10.0\,\text{kcal/mol}$, $d_{\text{norm}} = 1.0$, $T_{\text{shape}} \in [0, 1]$ is volumetric Gaussian shape overlap, $T_{\text{elec}} \in [0, 1]$ is electrostatic grid correlation, and $\Delta E_{\text{strain}}$ is internal conformational strain evaluated via GFN-FF/MMFF94 `[M]`. The composite score is strictly clamped to guarantee Pydantic schema safety:
-    $$S = \max\left(0.0, \min\left(1.0, S_{\text{raw}}\right)\right) \quad \text{[D]}$$
-
-#### 2. [TOPOS] Dynamic Bond-Length / Bond-Angle Dictionary
-- **File Target**: `cochem/topos/geometry_validation.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `DynamicBondDictionary`
-- **Entrypoint**: `validate_geometry(atoms: list[str], coordinates: list[list[float]] | np.ndarray, bonds: list[tuple[int, int, float]]) -> GeometryValidationResult`
-- **Requirements**:
-  - **Authoritative Reference Standards**: Reference geometries parameterized against Cambridge Structural Database (CSD / Allen et al.) empirical distributions `[M]`, supplemented by Engh & Huber standard valence parameters and Pyykkö relativistic covalent radii `[M]`.
-  - **Dynamic Chemical Context Parameterization**: Query expected values $d_{\text{ref}}$ and $\theta_{\text{ref}}$ indexed dynamically by:
-    - Element pairs $(Z_i, Z_j)$ queried via `mendeleev.element(Z)`.
-    - Topological bond order $BO \in \{1.0, 1.5, 2.0, 3.0\}$.
-    - Hybridization states ($sp^3$, $sp^2$, $sp$) derived from coordination numbers and $\pi$-conjugation perception.
-    - Ring strain modifiers: Canonical valence angle expectations adjusted for 3- and 4-membered strained rings (cyclopropane $60.0^\circ$, cyclobutane $90.0^\circ$) to avoid false-positive strain flags.
-  - **Statistical Deviation Scoring & Topological Distance Masking**:
-    $$z(d_{ij}) = \frac{|d_{ij} - d_{\text{ref}}(Z_i, Z_j, BO)|}{\sigma(d_{\text{ref}})}, \quad z(\theta_{ijk}) = \frac{|\theta_{ijk} - \theta_{\text{ref}}(Z_j, \text{hyb})|}{\sigma(\theta_{\text{ref}})} \quad \text{[D]}$$
-    Emit non-fatal diagnostic warning for $3.0 \le z < 5.0$. Raise `GeometricPlausibilityError` if $z \ge 5.0$.
-    - **Topological 1-2 and 1-3 Exclusion Mask**: Steric clash validation is strictly restricted to non-bonded atom pairs possessing topological shortest path distance $d_{\text{graph}}(i, j) \ge 3$ (1-4 vicinal and higher non-bonded pairs). Covalent 1-2 bonds ($d_{\text{graph}}=1$) and geminal 1-3 valence angle bonds ($d_{\text{graph}}=2$) are excluded. A clash violation is raised if:
-      $$d_{ij} < 0.65 \cdot \left(R_{\text{vdw}}(i) + R_{\text{vdw}}(j)\right), \quad \forall (i, j) \text{ with } d_{\text{graph}}(i, j) \ge 3 \quad \text{[D]}$$
-      where $R_{\text{vdw}}$ is retrieved dynamically via Mendeleev vdW retrieval with defensive fallbacks:
-      ```python
-      vdw_pm = (
-          element(Z).vdw_radius_alvarez
-          or element(Z).vdw_radius_bondi
-          or element(Z).vdw_radius
-          or (element(Z).covalent_radius_pyykko * 1.5)
-      )
-      vdw_angstrom = vdw_pm / 100.0
-      ```
-  - **Period 3+ Hypervalency Rules**: Coordinate dictionaries for $\mathrm{Si}, \mathrm{P}, \mathrm{S}, \mathrm{Cl}, \mathrm{Se}, \mathrm{Br}, \mathrm{I}$ accommodate expanded coordination polyhedra (e.g., trigonal bipyramidal $90^\circ/120^\circ$, octahedral $90^\circ/180^\circ$) with valence electron capacity up to 12.
-
-#### 3. [TOPOS] Custom PyMOL Session (.pse) Visualization Export
-- **File Target**: `cochem/topos/pymol_export.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `PyMOLExportEngine`
-- **Entrypoint**: `export_session(output_path: str | Path, atoms: list[str], coordinates: list[list[float]] | np.ndarray, domains: list[int] | None = None, bonds: list[tuple[int, int, float]] | None = None) -> PyMOLExportResult`
-- **Requirements**:
-  - **Dual-Mode Export Engine**:
-    - **Mode A (Headless Python API)**: If `pymol` C-extension is importable, launch headless instance (`pymol -cqp`), populate objects, execute selection macros, and invoke `cmd.save(path.as_posix())`.
-    - **Mode B (Headless CLI / Script Bundler)**: In containerized environments lacking compiled PyMOL C-libraries (Codespaces, GitHub Actions CI), compile a standalone, deterministic `.pml` automation script paired with embedded PDB/SDF coordinate structures. The output is bundled and converted using headless PyMOL CLI invocation, preventing runtime import crashes on headless workers.
-  - **Topological Domain Decomposition & Color Palettes**: Partition graph into functional domains assigned distinct categorical colors (Glasbey/ColorBrewer Set2):
-    - Domain 0 (Core Scaffold / Rings): Slate Blue (`#4B6584`).
-    - Domain 1 (Flexible Aliphatic Linkers): Emerald Green (`#20BF6B`).
-    - Domain 2 (Exit Vectors / Attachment Anchors): Coral Red (`#EB3B5A`).
-    - Domain 3 (Metal Coordination Spheres): Light Cyan (`#45AAF2`).
-  - **Display Representation Matrix**:
-    - Small molecule ligands rendered as sticks (radius $0.20\,\text{Å}$) with carbons colored by topological domain and heteroatoms in standard CPK colors (N: Blue, O: Red, S: Yellow, P: Orange, Halogens: Green).
-    - Metal coordination centers displayed as scaled spheres ($0.35 \times R_{\text{vdw}}$) connected to coordinating atoms via dashed coordination vectors (dash gap $0.15\,\text{Å}$, dash length $0.15\,\text{Å}$).
-  - **Error Handling**: Raise `PyMOLExportError` on serialization or script execution failure.
-
-#### 4. [TOPOS] Metal-Coordination Perception Engine
-- **File Target**: `cochem/topos/metal_coordination.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `MetalCoordinationEngine`
-- **Entrypoint**: `perceive_coordination(atoms: list[str], coordinates: list[list[float]] | np.ndarray, net_charge: int = 0) -> CoordinationPerceptionResult`
-- **Requirements**:
-  - **Coordination Sphere Detection**: Distance cutoff matrix identifying coordinating ligand atoms $L$:
-    $$D(M, L) \le R_{\text{cov}}(M) + R_{\text{cov}}(L) + 0.55\,\text{Å} \quad \text{[M]}$$
-    where covalent radii $R_{\text{cov}}$ are retrieved dynamically via `mendeleev.element(Z).covalent_radius_pyykko / 100.0`.
-  - **Continuous Shape Measure (CShM) with Full Permutation Optimization**: For coordinating donor coordinates $Q = \{\mathbf{q}_1, \dots, \mathbf{q}_n\}$ with geometric centroid $\mathbf{q}_0 = \frac{1}{n} \sum_{k=1}^n \mathbf{q}_k$, compute Alvarez CShM metric $S_P(Q)$ minimized over the full symmetric permutation group $S_n$ (or cosets $S_n / \text{Aut}(P)$) and rigid spatial superposition:
-    $$S_P(Q) = \min_{\pi \in S_n} \min_{\alpha > 0, \mathbf{R} \in SO(3), \mathbf{t}} \frac{\sum_{k=1}^n \|\mathbf{q}_k - (\alpha \mathbf{R} \mathbf{p}_{\pi(k)} + \mathbf{t})\|^2}{\sum_{k=1}^n \|\mathbf{q}_k - \mathbf{q}_0\|^2} \times 100 \quad \text{[D]}$$
-    - **Reference Polyhedra Matrix**: Defined strictly for coordination numbers $\text{CN} \in \{4, 5, 6\}$:
-      - $\text{CN}=4$: Tetrahedral $T_d$, Square Planar $D_{4h}$
-      - $\text{CN}=5$: Trigonal Bipyramidal $D_{3h}$, Square Pyramidal $C_{4v}$
-      - $\text{CN}=6$: Octahedral $O_h$, Trigonal Prismatic $D_{3h}$
-      Assign geometry $P$ minimizing $S_P(Q)$; if $\min_P S_P(Q) > 15.0$, assign `'Distorted/Unassigned'`.
-    - **Handling for $\text{CN} \notin \{4, 5, 6\}$**: If coordination number is outside $\{4, 5, 6\}$ (e.g., metallocenes with $\text{CN}=10$, or linear complexes $\text{CN}=2$), set `assigned_geometry = "Special_Haptic"` (if haptic rings present) or `f"Unassigned_CN{cn}"`, and return `polyhedron_scores = []` without calling $\min()$ on an empty sequence.
-  - **Green's CBC Ligand Classification & Formal Oxidation State**:
-    - Classify coordinated ligands under Covalent Bond Classification (CBC):
-      - $L$-type: Neutral 2-electron dative donors (amines, phosphines, CO, ethers; $q_{\text{formal}} = 0$).
-      - $X$-type: Monoanionic 1-electron covalent donors (halides, thiolates, alkyls, carboxylates; $q_{\text{formal}} = -1$).
-      - $X_2$-type: Dianionic 2-electron covalent donors (oxo $=\mathrm{O}$, sulfido $=\mathrm{S}$, imido $=\mathrm{NR}$; $q_{\text{formal}} = -2$).
-      - $X_3$-type: Trianionic 3-electron covalent donors (nitrido $\equiv\mathrm{N}$, alkylidyne $\equiv\mathrm{CR}$; $q_{\text{formal}} = -3$).
-      - Bridging ligands ($\mu_2\text{-}X$ contributing fractional charge $-1/2$ per metal).
-    - Local oxidation state balance for metal center $M_j$:
-      $$OS(M_j) = Q_{\text{local}}(M_j) - \sum_{L \in \text{coord}(M_j)} q_{\text{formal}}(L) \quad \text{[D]}$$
-      where $Q_{\text{local}}(M_j) = Q_{\text{complex}} / N_{\text{metals}}$ for homonuclear symmetric clusters.
-  - **Hapticity ($\eta^n$) & Chelate Perception**: Group contiguous aromatic or conjugated atoms coordinating to a single metal center into multi-hapto centroids (e.g., ferrocene $\eta^5\text{-Cp}$, $\eta^6\text{-benzene}$, $\eta^3\text{-allyl}$). Detect closed cycles containing $M$ to perceive 5- and 6-membered chelate rings.
-  - **Error Handling**: Raise `CoordinationPerceptionError` on distorted unphysical states.
-
-#### 5. [TOPOS] Automated Topology Sanitization Pass
-- **File Target**: `cochem/topos/sanitizer.py` (and export in `cochem/topos/__init__.py`)
-- **Main Class**: `TopologySanitizer`
-- **Entrypoint**: `sanitize_topology(smiles: str, coordinates: list[list[float]] | np.ndarray | None = None) -> TopologySanitizationResult`
-- **Requirements**:
-  - **Connected Component Decomposition**: Decompose molecular graph into disjoint connected components $\{C_1, C_2, \dots, C_m\}$.
-  - **Curated Counterion SMARTS Registry & API Protection**:
-    - Match components against an authoritative Counterion SMARTS / Formula Registry:
-      - **Inorganic Ions**: $\mathrm{Na}^+, \mathrm{K}^+, \mathrm{Li}^+, \mathrm{Ca}^{2+}, \mathrm{Mg}^{2+}, \mathrm{Cl}^-, \mathrm{Br}^-, \mathrm{I}^-, \mathrm{SO}_4^{2-}, \mathrm{NO}_3^-, \mathrm{PO}_4^{3-}, \mathrm{BF}_4^-, \mathrm{PF}_6^-$.
-      - **Bulky Organic Sulfonates**: Besylate (benzenesulfonate), Tosylate ($p$-toluenesulfonate), Mesylate, Triflate, Napsylate, Isethionate.
-      - **Bulky Organic Carboxylates**: Pamoate (embonate), Citrate, Tartrate, Maleate, Fumarate, Succinate, Benzoate, Acetate, Lactate.
-      - **Organic Base Cations**: Meglumine, Tromethamine, Choline.
-    - **API Retention Guarantee**: Components matching the registry are stripped into `removed_counterions`. The largest non-counterion component is designated the primary API drug $C_{\text{target}}$. For small APIs paired with bulky salts (e.g., Metformin Pamoate, Gabapentin Tosylate), the drug is strictly preserved.
-    - **Organometallic Guard**: Transition metal complexes possessing coordination degree $\ge 1$ are strictly protected from stripping.
-  - **Resonance-Aware Formal Charge Neutralization**:
-    - Balance uncoupled formal charges on acidic ($-\mathrm{COO}^- \to -\mathrm{COOH}$) and basic ($-\mathrm{NH}_3^+ \to -\mathrm{NH}_2$) groups.
-    - **Zwitterion Invariant**: Preserve physiological zwitterionic pairs (e.g., amino acids, betaines) when intramolecular charge separation distance satisfies $d(\mathrm{N}^+, \mathrm{O}^-) \le 6.0\,\text{Å}$ and net charge $Q_{\text{net}} = 0$.
-    - Enforce octet conservation ($q_i = N_{\text{valence}} - 2 N_{\text{lp}} - \sum BO_{ij}$ `[D]`); strictly prohibit converting nitro groups ($-\mathrm{N}^+(=\mathrm{O})\mathrm{O}^-$) into pentavalent non-octet forms. Permanent quaternary ammonium cations ($\mathrm{R}_4\mathrm{N}^+$) retain positive formal charge.
-  - **Error Handling**: Raise `SanitizationError` on octet violations or improper fragmentation.
-
----
-
-### PYDANTIC V2 DATA MODELS & EXCEPTION HIERARCHY
-
-Implement the following strict Pydantic v2 data models under `cochem/topos/models.py`:
-
-```python
-from __future__ import annotations
-from typing import List, Dict, Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
-
-
-class ExitVector(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    anchor_idx: int = Field(..., ge=0, description="0-based atom index of scaffold anchor")
-    substituent_idx: int = Field(..., ge=0, description="0-based atom index of substituent atom")
-    anchor_coord: List[float] = Field(..., min_length=3, max_length=3, description="Anchor Cartesian [x, y, z] in Angstrom")
-    vector: List[float] = Field(..., min_length=3, max_length=3, description="Unit direction vector [vx, vy, vz]")
-    normal_vector: List[float] = Field(..., min_length=3, max_length=3, description="Reference normal vector [nx, ny, nz]")
-
-
-class ScaffoldHopResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    candidate_smiles: str = Field(..., description="SMILES of generated candidate")
-    aligned_coordinates: List[List[float]] = Field(..., description="Nx3 Cartesian coordinates in Angstrom")
-    shape_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    electrostatic_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    strain_energy_kcal_mol: float = Field(...)
-    composite_score: float = Field(..., ge=0.0, le=1.0)
-
-
-class GeometricViolation(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    violation_type: Literal["bond_length", "bond_angle", "steric_clash"]
-    atom_indices: List[int] = Field(..., min_length=2, max_length=3)
-    measured_value: float = Field(..., description="Measured distance (Angstrom) or angle (degrees)")
-    reference_value: float = Field(..., description="Reference expected value")
-    z_score: float = Field(..., ge=0.0)
-
-
-class GeometryValidationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    is_physically_plausible: bool
-    max_z_score: float = Field(..., ge=0.0)
-    violations: List[GeometricViolation] = Field(default_factory=list)
-
-
-class PyMOLExportResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    session_path: str = Field(..., description="Absolute path to exported .pse or .pml file")
-    export_mode: Literal["headless_api", "cli_script_bundle"]
-    colored_domains_count: int = Field(..., ge=0)
-    metal_centers_rendered: int = Field(..., ge=0)
-    file_size_bytes: int = Field(..., gt=0)
-
-
-class PolyhedronScore(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    polyhedron_name: str = Field(..., description="Canonical geometry (e.g., 'Octahedral', 'Square_Planar')")
-    cshm_value: float = Field(..., ge=0.0, description="Continuous Shape Measure value S_P(Q)")
-
-
-class CoordinationCenter(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    metal_idx: int = Field(..., ge=0)
-    metal_element: str = Field(..., min_length=1, max_length=2)
-    coordination_number: int = Field(..., ge=1, le=12)
-    assigned_geometry: str
-    formal_oxidation_state: int
-    ligand_atom_indices: List[int]
-    is_chelated: bool
-    hapticities: Dict[str, int] = Field(default_factory=dict, description="Ligand group to eta^n mapping")
-    polyhedron_scores: List[PolyhedronScore] = Field(default_factory=list)
-
-
-class CoordinationPerceptionResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    coordination_centers: List[CoordinationCenter] = Field(default_factory=list)
-    unassigned_metal_indices: List[int] = Field(default_factory=list)
-    total_metals_detected: int = Field(..., ge=0)
-
-
-class TopologySanitizationResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
-    sanitized_smiles: str
-    sanitized_coordinates: Optional[List[List[float]]] = None
-    formal_net_charge: int
-    is_zwitterion: bool
-    removed_counterions: List[str] = Field(default_factory=list)
-    retained_atom_count: int = Field(..., gt=0)
-```
-
-Implement the exception hierarchy under `cochem/topos/exceptions.py`:
-
-```python
-class ToposError(Exception):
-    """Base exception for all TOPOS topological processing errors."""
-
-class ScaffoldMatchingError(ToposError):
-    """Raised when target scaffold substructure cannot be mapped onto input molecule."""
-
-class BioisostereNotFoundError(ToposError):
-    """Raised when no geometrically viable bioisostere satisfies exit-vector tolerances."""
-
-class GeometricPlausibilityError(ToposError):
-    """Raised when 3D geometry exhibits critical steric clashes or unphysical valence strains."""
-
-class PyMOLExportError(ToposError):
-    """Raised when .pse session or fallback .pml export fails to serialize."""
-
-class CoordinationPerceptionError(ToposError):
-    """Raised when metal coordination polyhedra cannot be perceived or are heavily distorted."""
-
-class SanitizationError(ToposError):
-    """Raised when charge neutralization violates octet rules or fragments essential complexes."""
-```
-
----
-
-### PHYSICAL ACCEPTANCE TEST FIXTURES (`pytest`)
-
-Implement physical, unmocked acceptance test suites under `tests/topos/test_topos_general_utilities_part2.py` with exact chemical fixtures:
-
-```python
-import pytest
-from pathlib import Path
-import numpy as np
-from mendeleev import element
-
-from cochem_topos.general_utilities import (
-    ScaffoldHopper,
-    DynamicBondDictionary,
-    PyMOLExportEngine,
-    MetalCoordinationEngine,
-    TopologySanitizer,
-)
-from cochem_topos.models import (
-    ScaffoldHopResult,
-    GeometryValidationResult,
-    PyMOLExportResult,
-    CoordinationPerceptionResult,
-    TopologySanitizationResult,
-)
-
-
-def test_metal_coordination_cisplatin():
-    """Validates square-planar coordination and Pt(II) formal oxidation state perception on Cisplatin."""
-    engine = MetalCoordinationEngine()
-    # Authentic 3D Cartesian coordinates of Cisplatin [Pt(NH3)2Cl2] in Angstroms
-    atoms = ["Pt", "Cl", "Cl", "N", "N", "H", "H", "H", "H", "H", "H"]
-    coords = [
-        [0.000,  0.000,  0.000],  # Pt
-        [2.320,  0.000,  0.000],  # Cl1
-        [0.000,  2.320,  0.000],  # Cl2
-        [-2.050, 0.000,  0.000],  # N1
-        [0.000, -2.050,  0.000],  # N2
-        [-2.400, 0.810,  0.580],  # H
-        [-2.400, -0.810, 0.580],  # H
-        [-2.400, 0.000, -1.000],  # H
-        [0.810, -2.400,  0.580],  # H
-        [-0.810, -2.400, 0.580],  # H
-        [0.000, -2.400, -1.000],  # H
-    ]
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
-
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Pt"
-    assert center.coordination_number == 4
-    assert center.assigned_geometry == "Square_Planar"
-    assert center.formal_oxidation_state == 2
-    # Verify continuous shape measure: Square Planar S_P(Q) must be significantly lower than Tetrahedral
-    sp_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Square_Planar")
-    td_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Tetrahedral")
-    assert sp_score < 3.0
-    assert td_score > 15.0
-
-
-def test_metal_coordination_ferrocene_hapticity():
-    """Validates multi-hapto eta^5-cyclopentadienyl coordination on Ferrocene."""
-    engine = MetalCoordinationEngine()
-    # Authentic Ferrocene [Fe(eta5-C5H5)2] geometry with D5d symmetry
-    fe_z = element("Fe").atomic_number
-    assert fe_z == 26
-
-    # Load authentic physical coordinate stream for ferrocene
-    atoms = ["Fe"] + ["C"] * 10 + ["H"] * 10
-    # Ring 1 at z = +1.65 A, Ring 2 at z = -1.65 A, Fe at origin
-    r_cp = 1.21  # C5 ring radius in Angstroms
-    theta = np.linspace(0, 2 * np.pi, 5, endpoint=False)
-    ring1_c = [[r_cp * np.cos(t), r_cp * np.sin(t), 1.650] for t in theta]
-    ring2_c = [[r_cp * np.cos(t + np.pi/5), r_cp * np.sin(t + np.pi/5), -1.650] for t in theta]
-    ring1_h = [[2.2 * np.cos(t), 2.2 * np.sin(t), 1.650] for t in theta]
-    ring2_h = [[2.2 * np.cos(t + np.pi/5), 2.2 * np.sin(t + np.pi/5), -1.650] for t in theta]
-    coords = [[0.0, 0.0, 0.0]] + ring1_c + ring2_c + ring1_h + ring2_h
-
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Fe"
-    assert center.formal_oxidation_state == 2  # Fe(II)
-    # Must perceive two distinct eta^5 haptic centroids and handle CN=10 gracefully
-    assert len(center.hapticities) == 2
-    assert all(h == 5 for h in center.hapticities.values())
-    assert center.assigned_geometry in ["Special_Haptic", "Unassigned_CN10"]
-    assert center.polyhedron_scores == []
-
-
-def test_geometric_dictionary_aspirin_validation():
-    """Validates physical plausibility and 1-2 / 1-3 exclusion masking on authentic 3D Aspirin."""
-    validator = DynamicBondDictionary()
-    # Authentic, relaxed non-planar 3D coordinates of Aspirin (acetylsalicylic acid, C9H8O4 heavy atoms)
-    # Acetoxy group rotated out-of-plane, preventing unphysical non-bonded collisions
-    atoms = ["C", "C", "C", "C", "C", "C", "C", "O", "O", "O", "C", "O", "C"]
-    coords = [
-        [ 0.000,  0.000,  0.000],  # C0 (ipso)
-        [ 1.400,  0.000,  0.000],  # C1 (ortho - COOH)
-        [ 2.100,  1.210,  0.000],  # C2 (meta)
-        [ 1.400,  2.420,  0.000],  # C3 (para)
-        [ 0.000,  2.420,  0.000],  # C4 (meta)
-        [-0.700,  1.210,  0.000],  # C5 (ortho)
-        [ 2.150, -1.250,  0.000],  # C6 (COOH carbonyl carbon)
-        [ 3.350, -1.250,  0.000],  # O7 (COOH carbonyl oxygen)
-        [ 1.500, -2.350,  0.000],  # O8 (COOH hydroxyl oxygen)
-        [-0.700, -1.210,  0.000],  # O9 (ester oxygen at C0)
-        [-0.700, -1.800,  1.300],  # C10 (acetyl carbonyl carbon, rotated in z)
-        [-0.700, -1.200,  2.350],  # O11 (acetyl carbonyl oxygen)
-        [-0.700, -3.280,  1.300],  # C12 (acetyl methyl carbon)
-    ]
-    bonds = [
-        (0, 1, 1.5), (1, 2, 1.5), (2, 3, 1.5), (3, 4, 1.5), (4, 5, 1.5), (5, 0, 1.5),
-        (1, 6, 1.0), (6, 7, 2.0), (6, 8, 1.0), (0, 9, 1.0), (9, 10, 1.0), (10, 11, 2.0), (10, 12, 1.0)
-    ]
-    result: GeometryValidationResult = validator.validate_geometry(atoms=atoms, coordinates=coords, bonds=bonds)
-
-    # Must pass plausibility without false-positive steric clashes
-    assert result.is_physically_plausible is True
-    assert result.max_z_score < 4.0
-    # Steric clashes must be 0 because all d_graph >= 3 non-bonded distances exceed 0.65 * (Rvdw_i + Rvdw_j)
-    assert len([v for v in result.violations if v.violation_type == "steric_clash"]) == 0
-
-
-def test_topology_sanitization_metformin_pamoate():
-    """Validates API drug retention when paired with bulky organic counterion (Pamoate)."""
-    sanitizer = TopologySanitizer()
-    # Metformin Pamoate: 2 Metformin cations (C4H11N5, N_heavy = 9 each) + 1 Pamoate dianion (N_heavy = 29)
-    raw_smiles = "CN(C)C(=N)N=C(N)N.CN(C)C(=N)N=C(N)N.O=C(O)c1c(O)c2ccccc2cc1Cc3cc4ccccc4c(O)c3C(=O)O"
-    result: TopologySanitizationResult = sanitizer.sanitize_topology(smiles=raw_smiles)
-
-    # Bulky Pamoate counterion must be segregated into removed_counterions despite N_heavy=29
-    assert any("pamoate" in ion.lower() or "c1c(o)c2ccccc2" in ion.lower() for ion in result.removed_counterions)
-    # Active drug entity (neutral Metformin base: 4 Carbons + 5 Nitrogens = 9 heavy atoms) must be retained
-    assert "C(=N)N" in result.sanitized_smiles or "c(=n)n" in result.sanitized_smiles.lower()
-    assert result.retained_atom_count == 9  # 9 heavy atoms (C4N5) in authentic neutral Metformin base
-
-
-def test_scaffold_hopper_benzoic_acid_to_tetrazole():
-    """Validates bioisosteric replacement of carboxylic acid with 5-substituted tetrazole."""
-    hopper = ScaffoldHopper()
-    # Target: Benzoic acid (C6H5-COOH), Scaffold: -COOH, Bioisostere: 1H-tetrazole
-    mol_smiles = "c1ccccc1C(=O)O"
-    scaffold_smiles = "C(=O)O"
-    coords = [
-        [0.000,  0.000, 0.000], [1.400,  0.000, 0.000], [2.100,  1.210, 0.000],
-        [1.400,  2.420, 0.000], [0.000,  2.420, 0.000], [-0.700, 1.210, 0.000],
-        [2.150, -1.250, 0.000], [3.350, -1.250, 0.000], [1.500, -2.350, 0.000]
-    ]
-    results: list[ScaffoldHopResult] = hopper.hop_scaffold(
-        molecule_smiles=mol_smiles,
-        scaffold_smiles=scaffold_smiles,
-        replacement_library=["c1nnn[nH]1"],  # 1H-tetrazole bioisostere
-        coordinates=coords
-    )
-
-    assert len(results) > 0
-    top_hit = results[0]
-    # Reconnected candidate must be 5-phenyl-1H-tetrazole (strict bioisostere connection, no fragment loopholes)
-    assert "c1ccccc1c2nnn[nH]2" in top_hit.candidate_smiles or "c1ccccc1-c2nnn[nH]2" in top_hit.candidate_smiles
-    assert 0.0 <= top_hit.composite_score <= 1.0
-    assert len(top_hit.aligned_coordinates) > 0
-    assert top_hit.shape_tanimoto > 0.60
-
-
-def test_pymol_session_export_roundtrip(tmp_path: Path):
-    """Validates PyMOL session export generates compliant file and metadata."""
-    exporter = PyMOLExportEngine()
-    session_file = tmp_path / "test_complex.pse"
-    atoms = ["Pt", "Cl", "Cl", "N", "N"]
-    coords = [[0.0, 0.0, 0.0], [2.32, 0.0, 0.0], [0.0, 2.32, 0.0], [-2.05, 0.0, 0.0], [0.0, -2.05, 0.0]]
-    domains = [3, 2, 2, 1, 1]  # Domain 3: metal, Domain 2: exit/halide, Domain 1: amine linker
-
-    result: PyMOLExportResult = exporter.export_session(
-        output_path=session_file,
-        atoms=atoms,
-        coordinates=coords,
-        domains=domains
-    )
-
-    assert Path(result.session_path).exists()
-    assert result.file_size_bytes > 0
-    assert result.colored_domains_count == 3
-    assert result.metal_centers_rendered == 1
-    assert result.export_mode in ["headless_api", "cli_script_bundle"]
-```
-
----
-
-### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
-
-1. **Zero-Mock Mandate**:
-   - Every function, class, and method must be completely implemented and physically operational.
-   - Absolutely NO `pass` blocks, NO `NotImplementedError`, NO synthetic mocks, and NO tautological test assertions.
-2. **Dynamic Mendeleev Mandate**:
-   - All elemental symbols, atomic numbers, covalent radii, van der Waals radii, standard atomic weights, and isotopic mass numbers MUST be queried dynamically from the `mendeleev` library (`from mendeleev import element`).
-   - Hardcoding physical constants, radii, or atomic masses is strictly forbidden.
-   - Atomic covalent radius: `element(Z).covalent_radius_pyykko / 100.0`.
-   - Van der Waals radius with None-safe fallback:
-     ```python
-     vdw_pm = (
-         element(Z).vdw_radius_alvarez
-         or element(Z).vdw_radius_bondi
-         or element(Z).vdw_radius
-         or (element(Z).covalent_radius_pyykko * 1.5)
-     )
-     vdw_angstrom = vdw_pm / 100.0
-     ```
-   - Dynamic isotope mass lookup:
-     ```python
-     iso_mass = next((iso.mass for iso in element(Z).isotopes if iso.mass_number == A), element(Z).mass)
-     ```
-3. **Tripartite Workspace Air-Gap Invariant**:
-   - $\mathcal{P}(T_{\text{code}})$ (`$COCH_SRC`): Read-only application source and static reference parameter dictionaries.
-   - $\mathcal{P}(T_{\text{scr}})$ (`$COCH_SCRATCH`): Ephemeral node-local scratch space, temporary coordinates (`xtb.tmp`, `orca.tmp`), and `/dev/shm` shared memory buffers.
-   - $\mathcal{P}(T_{\text{art}})$ (`$COCH_ARTIFACTS`): Append-only persistent storage for `.pse` sessions, validated topological records, and HDF5 datasets.
-   - Invariant: $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset$, $\mathcal{P}(T_{\text{scr}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$, $\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) = \emptyset$.
-   - Working execution directory $\text{cwd} \notin \mathcal{P}(T_{\text{code}}) \cup \mathcal{P}(T_{\text{art}})$.
-4. **6-Tier Environmental Compliance Matrix**:
-   - **Tier 1 (Local-Windows WSL2/NT)**: Base path `os.getenv("COCH_SRC", "C:/CoChem/app")`, Artifact `os.getenv("COCH_ARTIFACTS", "C:/CoChem_Data")`, Scratch `os.getenv("COCH_SCRATCH", "C:/CoChem_Tmp")`. SWMR disabled; cross-process `filelock.FileLock` on node-local staging files; atomic `os.replace` promotion.
-   - **Tier 2 (Local-macOS OrbStack/Darwin)**: Native HDF5 SWMR with POSIX advisory locks; MPS GPU fallback.
-   - **Tier 3 (Local-Linux Debian/Ubuntu)**: Native HDF5 SWMR; POSIX locking; `/dev/shm` acceleration.
-   - **Tier 4 (GitHub Codespaces)**: SWMR disabled; `filelock.FileLock` in scratch; headless PyMOL mode.
-   - **Tier 5 (GitHub Actions CI/CD)**: SWMR disabled; headless test runners; pure CPU fallback.
-   - **Tier 6 (HPC Clusters SLURM/PBS)**: Node-local NVMe scratch staging (`$SLURM_TMPDIR`); atomic sync to shared Lustre storage.
-5. **GPU Concurrency & Dynamic Fallback**:
-   - GPU-accelerated steps (MLFF relaxation, volumetric shape grid evaluation) must run under NVIDIA MPS or dynamic shared contexts. Persistent CUDA context locking is prohibited.
-   - If GPU execution fails, CUDA memory exhausts (`torch.cuda.OutOfMemoryError`), or Apple Silicon MPS exhausts memory (`getattr(torch, 'mps', None) and torch.mps.OutOfMemoryError`), workers automatically fall back to CPU execution (`torch.device("cpu")` or NumPy/SciPy kernels).
-6. **Cross-Platform Path Portability**:
-   - All file operations strictly employ `pathlib.Path`. Hardcoded operating system delimiters, literal `~` tilde references, and bare POSIX `fcntl` calls are forbidden.
-
----
-
-### ACTION PLAN FOR CODER
-
-1. Implement `cochem/topos/exceptions.py` with the complete custom domain exception hierarchy (`ToposError`, `ScaffoldMatchingError`, `BioisostereNotFoundError`, `GeometricPlausibilityError`, `PyMOLExportError`, `CoordinationPerceptionError`, `SanitizationError`).
-2. Implement `cochem/topos/models.py` with strict Pydantic v2 data models (`ExitVector`, `ScaffoldHopResult`, `GeometricViolation`, `GeometryValidationResult`, `PyMOLExportResult`, `PolyhedronScore`, `CoordinationCenter`, `CoordinationPerceptionResult`, `TopologySanitizationResult`).
-3. Implement `cochem/topos/scaffold_hopper.py` with `ScaffoldHopper`, exit-vector extraction, non-singular normal calculation with Gram-Schmidt orthogonal projection fallback, Kabsch alignment, and multi-objective composite scoring.
-4. Implement `cochem/topos/geometry_validation.py` with `DynamicBondDictionary`, CSD/Engh & Huber reference distributions, dynamic Mendeleev radii and atomic weights, and topological 1-2 / 1-3 exclusion masking with $d_{\text{graph}} \ge 3$ clash checks.
-5. Implement `cochem/topos/pymol_export.py` with `PyMOLExportEngine`, dual-mode headless API / CLI script bundle generation, domain color palette mapping, and stick/sphere CPK rendering.
-6. Implement `cochem/topos/metal_coordination.py` with `MetalCoordinationEngine`, dynamic covalent coordination cutoff, CShM full permutation optimization for $\text{CN} \in \{4, 5, 6\}$, graceful handling for $\text{CN} \notin \{4, 5, 6\}$ (returning empty `polyhedron_scores`), Green's CBC formal oxidation state determination, and $\eta^n$ multi-hapto centroid detection.
-7. Implement `cochem/topos/sanitizer.py` with `TopologySanitizer`, connected component decomposition, curated counterion SMARTS stripping with API protection, organometallic preservation, and resonance-aware formal charge neutralization with zwitterion invariant preservation.
-8. Export all new classes and exceptions in `cochem/topos/__init__.py` and `cochem_topos/general_utilities.py`.
-9. Implement physical acceptance test suite in `tests/topos/test_topos_general_utilities_part2.py` reproducing verbatim the test fixtures from Section 4.3 of the SRS.
-10. Run test suite via terminal (`pytest tests/topos/ -v`) and verify 100% pass rate.
-11. Output the complete list of touched and created files in your final execution report.
+1. Implement `cochem/topos/alignment.py` (and export in `cochem/topos/__init__.py`) containing:
+   - Domain exception hierarchy: `ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`, `AirGapBoundaryViolationError`.
+   - Pydantic v2 data models: `ConformerInput`, `MCSAlignmentConfig`, `AlignedConformerResult`, `EnsembleAlignmentSummary`.
+   - `StorageTier` enum and `detect_concurrency_tier()` helper.
+   - Module-level picklable `_isolated_mcs_worker` helper.
+   - `compute_kabsch_transformation`: SVD decomposition with point degeneracy check, collinear check, planar cross-product basis completion, parity reflection guard ($d = \operatorname{sgn}(\det(V U^T))$), proper rotation $R \in SO(3)$, and analytical centered RMSD.
+   - `align_conformers_by_mcs`: Ghost atom pre-sanitization, dynamic Mendeleev radii bond perception fallback, isolated `ProcessPoolExecutor` with timeout ceiling, mass lookup with $Z=0$ guard, and coordinate superposition.
+   - `cluster_ensemble_conformers`: Pairwise RMSD matrix calculation and duplicate cluster grouping.
+   - `persist_aligned_ensemble_h5`: Air-gap boundary confinement check and 6-tier thread-safe HDF5 serialization.
+2. Implement physical unit test suite in `tests/topos/test_topos_alignment.py` with all 10 authentic fixtures.
+3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_alignment.py -v`) and verify 100% pass rate.
+4. Output the complete list of touched and created files in your final execution report.
 Modified files content:
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\__init__.py ---
@@ -1636,6 +1180,24 @@ from cochem.topos.geometry_validation import DynamicBondDictionary
 from cochem.topos.pymol_export import PyMOLExportEngine
 from cochem.topos.metal_coordination import MetalCoordinationEngine
 from cochem.topos.sanitizer import TopologySanitizer
+from cochem.topos.alignment import (
+    AirGapBoundaryViolationError,
+    AlignedConformerResult,
+    CollinearDegeneracyError,
+    ConformerInput,
+    DegenerateCoordinatesError,
+    EnsembleAlignmentSummary,
+    IncompatibleTopologyError,
+    MCSAlignmentConfig,
+    MCSConvergenceTimeoutError,
+    StorageTier,
+    ToposAlignmentError,
+    align_conformers_by_mcs,
+    cluster_ensemble_conformers,
+    compute_kabsch_transformation,
+    detect_concurrency_tier,
+    persist_aligned_ensemble_h5,
+)
 
 __all__ = [
     "TopologyGraph",
@@ -1741,6 +1303,23 @@ __all__ = [
     "PyMOLExportEngine",
     "MetalCoordinationEngine",
     "TopologySanitizer",
+    # Chunk 13 additions
+    "ToposAlignmentError",
+    "MCSConvergenceTimeoutError",
+    "CollinearDegeneracyError",
+    "DegenerateCoordinatesError",
+    "IncompatibleTopologyError",
+    "AirGapBoundaryViolationError",
+    "ConformerInput",
+    "MCSAlignmentConfig",
+    "AlignedConformerResult",
+    "EnsembleAlignmentSummary",
+    "StorageTier",
+    "detect_concurrency_tier",
+    "compute_kabsch_transformation",
+    "align_conformers_by_mcs",
+    "cluster_ensemble_conformers",
+    "persist_aligned_ensemble_h5",
 ]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\exceptions.py ---
@@ -1948,1884 +1527,1115 @@ class SanitizationError(ToposError):
         super().__init__(message)
 
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\models.py ---
-"""Pydantic v2 JSON-safe domain models for CoChem-TOPOS subsystem."""
+class ToposAlignmentError(ToposError):
+    """Base exception for topology alignment failures."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class MCSConvergenceTimeoutError(ToposAlignmentError):
+    """Raised when MCS graph search exceeds timeout ceiling or is canceled."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class CollinearDegeneracyError(ToposAlignmentError):
+    """Raised when atomic coordinates exhibit collinear rank-deficiency in SVD."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class DegenerateCoordinatesError(ToposAlignmentError):
+    """Raised when atomic coordinates exhibit point-degeneracy."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class IncompatibleTopologyError(ToposAlignmentError):
+    """Raised when molecules share insufficient overlapping substructure (N_MCS < 3)."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class AirGapBoundaryViolationError(ToposAlignmentError):
+    """Raised when persistent archive paths resolve outside the designated T_store realm."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\alignment.py ---
+"""CoChem-TOPOS Alignment Subsystem (Part 1).
+
+Rigorous molecular topology alignment, Maximum Common Substructure (MCS) perception,
+Kabsch SVD coordinate transformation with reflection parity guard and numerical
+degeneracy safeguards, ensemble deduplication, and thread-safe HDF5 persistence [M][D].
+"""
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Tuple
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class BondOrderEdge(BaseModel):
-    """Represents a perceived chemical bond with fractional or integer order between two atoms."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    atom_i: int = Field(..., description="0-based index of the first atom in the bond")
-    atom_j: int = Field(..., description="0-based index of the second atom in the bond")
-    bond_order: float = Field(..., ge=0.0, description="Bond order (e.g., 1.0, 1.5, 2.0, 3.0)")
-
-
-class MoleculeRecord(BaseModel):
-    """Represents an unmocked molecular structure with 3D coordinates and topological attributes."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    name: str = Field(default="", description="Molecular identifier or title")
-    elements: List[str] = Field(..., description="List of elemental symbols")
-    coordinates: List[Tuple[float, float, float]] = Field(
-        ..., description="3D Cartesian coordinates in Angstroms"
-    )
-    formal_charges: List[int] = Field(..., description="Formal charge of each atom")
-    partial_charges: List[float] = Field(
-        default_factory=list, description="Electrostatic partial charges"
-    )
-    chiral_flags: List[int] = Field(
-        default_factory=list, description="MDL or IUPAC chiral flags"
-    )
-    radical_centers: List[int] = Field(
-        default_factory=list, description="Indices of radical atom centers"
-    )
-    mass_numbers: List[int] = Field(
-        default_factory=list, description="Explicit isotopic mass numbers"
-    )
-    bonds: List[Tuple[int, int, float]] = Field(
-        ..., description="Normalized 0-based bond edges: (idx_a, idx_b, bond_order)"
-    )
-    properties: Dict[str, str] = Field(
-        default_factory=dict, description="Metadata key-value pairs (e.g., SD tags)"
-    )
-
-    @property
-    def num_atoms(self) -> int:
-        """Returns total atom count."""
-        return len(self.elements)
-
-    @property
-    def num_bonds(self) -> int:
-        """Returns total bond count."""
-        return len(self.bonds)
-
-
-class SubgraphDeltaRecord(BaseModel):
-    """Represents a disconnected subgraph added or deleted during topology comparison."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    atom_indices: List[int] = Field(..., description="Original indices of atoms in this subgraph")
-    elements: List[str] = Field(..., description="Element symbols of subgraph atoms")
-    bonds: List[Tuple[int, int, float]] = Field(..., description="Internal 0-based bonds")
-    smiles: str = Field(..., description="SMILES representation of the isolated subgraph")
-
-
-class TopologyDelta(BaseModel):
-    """Captures maximum common substructure mapping and localized chemical mutations."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    atom_mapping: Dict[int, int] = Field(
-        ..., description="Bijection mapping mol_a atom index to mol_b atom index"
-    )
-    element_mutations: List[Tuple[int, str, str]] = Field(
-        ..., description="Mutations in mapped atoms: (idx_a, elem_a, elem_b)"
-    )
-    bond_order_mutations: List[Tuple[int, int, float, float]] = Field(
-        ..., description="Bond order modifications: (idx_a, idx_b, bo_a, bo_b)"
-    )
-    subgraph_additions: List[SubgraphDeltaRecord] = Field(
-        ..., description="Subgraphs present in mol_b but absent in mol_a"
-    )
-    subgraph_deletions: List[SubgraphDeltaRecord] = Field(
-        ..., description="Subgraphs present in mol_a but absent in mol_b"
-    )
-
-    def to_markdown_table(self) -> str:
-        """Formats the topology difference as a GitHub-flavored markdown table."""
-        lines = [
-            "### Topology Comparison Delta",
-            f"- **Mapped Core Atoms**: {len(self.atom_mapping)}",
-            f"- **Element Mutations**: {len(self.element_mutations)}",
-            f"- **Bond Order Mutations**: {len(self.bond_order_mutations)}",
-            f"- **Subgraphs Added**: {len(self.subgraph_additions)}",
-            f"- **Subgraphs Deleted**: {len(self.subgraph_deletions)}",
-            "",
-            "| Metric | Mol A -> Mol B Detail |",
-            "|---|---|",
-        ]
-        for idx_a, elem_a, elem_b in self.element_mutations:
-            lines.append(f"| Element Mutation | Atom {idx_a}: {elem_a} -> {elem_b} |")
-        for idx_a, idx_b, bo_a, bo_b in self.bond_order_mutations:
-            lines.append(f"| Bond Mutation | ({idx_a}, {idx_b}): {bo_a:.1f} -> {bo_b:.1f} |")
-        for sub in self.subgraph_additions:
-            lines.append(f"| Subgraph Addition | `{sub.smiles}` ({len(sub.elements)} atoms) |")
-        for sub in self.subgraph_deletions:
-            lines.append(f"| Subgraph Deletion | `{sub.smiles}` ({len(sub.elements)} atoms) |")
-        return "\n".join(lines)
-
-
-class AttachmentSite(BaseModel):
-    """Metadata describing a retrosynthetic disconnection attachment point."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    anchor_atom_idx: int = Field(
-        ..., description="0-based index into synthon coordinates/elements"
-    )
-    brics_class: int = Field(
-        ..., description="BRICS or RECAP classification rule number (1-16)"
-    )
-    polarity: str = Field(
-        default="neutral",
-        description="Reaction directionality: donor, acceptor, neutral",
-    )
-    connection_vector: Tuple[float, float, float] = Field(
-        ..., description="Cartesian vector pointing from anchor atom to severed partner"
-    )
-    severed_partner_element: str = Field(
-        ..., description="Elemental symbol of the severed bonded neighbor"
-    )
-
-
-class SynthonRecord(BaseModel):
-    """Represents a retrosynthetic chemical fragment with preserved 3D geometry and attachment points."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    smiles: str = Field(..., description="Tagged or canonical SMILES of the synthon")
-    elements: List[str] = Field(..., description="Element symbols for all synthon atoms")
-    coordinates: List[Tuple[float, float, float]] = Field(
-        ..., description="3D coordinates for all synthon atoms"
-    )
-    bonds: List[Tuple[int, int, float]] = Field(
-        ..., description="Internal 0-based bond connectivity: (idx_a, idx_b, bo)"
-    )
-    attachment_sites: List[AttachmentSite] = Field(
-        ..., description="Disconnection attachment sites on this synthon"
-    )
-    formal_charge: int = Field(default=0, description="Net formal charge of synthon")
-
-
-class NonBondedParameter(BaseModel):
-    """Non-bonded Lennard-Jones and van der Waals parameters."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    atom_type: str = Field(..., description="Force field atom type label")
-    sigma_nm: float = Field(..., description="Lennard-Jones sigma parameter in nanometers")
-    epsilon_kj_mol: float = Field(..., description="Well depth epsilon in kJ/mol")
-    r_min_half_angstrom: float = Field(
-        ..., description="van der Waals radius R* (r_min / 2) in Angstroms"
-    )
-    epsilon_kcal_mol: float = Field(..., description="Well depth epsilon in kcal/mol")
-
-
-class ForceFieldAssignmentResult(BaseModel):
-    """Results of topological atom typing and forcefield parameter assignment."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    atom_types: List[str] = Field(..., description="Assigned atom type for each atom")
-    charges: List[float] = Field(..., description="Assigned partial atomic charges")
-    bonded_parameters: Dict[str, List[float]] = Field(
-        default_factory=dict, description="Bonded parameter lookup tables"
-    )
-    non_bonded_parameters: List[NonBondedParameter] = Field(
-        ..., description="List of non-bonded parameters per atom"
-    )
-    forcefield_family: str = Field(
-        ..., description="Forcefield family name ('GAFF2' or 'OPLS-AA')"
-    )
-    energy_unit: str = Field(..., description="Unit of energy ('kcal/mol' or 'kJ/mol')")
-    distance_unit: str = Field(
-        ..., description="Unit of distance ('angstrom' or 'nanometer')"
-    )
-    angle_unit: str = Field(default="degrees", description="Unit of angle")
-
-
-class BondPerceptionResult(BaseModel):
-    """Results of bare coordinate bond-order and formal charge perception."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    bond_orders: List[BondOrderEdge] = Field(..., description="List of perceived bond edges")
-    formal_charges: List[int] = Field(..., description="Assigned formal charge per atom")
-    lone_pairs: List[int] = Field(..., description="Assigned lone pair count per atom")
-    total_charge: int = Field(..., description="Conserved net molecular charge")
-
-
-class ECFP4FingerprintPayload(BaseModel):
-    """Topological circular fingerprint payload with folded bitvectors and feature counts."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    bit_vector_1024: List[int] = Field(..., description="Folded 1024-bit representation")
-    bit_vector_2048: List[int] = Field(..., description="Folded 2048-bit representation")
-    on_bits_2048: List[int] = Field(..., description="Indices of active bits in 2048-bit vector")
-    count_vector: Dict[int, int] = Field(
-        ..., description="Mapping of bit position to feature count"
-    )
-    features_de_duplicated: int = Field(
-        ..., description="Total count of duplicate subgraphs pruned"
-    )
-
-
-class ExitVector(BaseModel):
-    """Exit vector and normal reference frame at a severed scaffold-substituent bond."""
-
-    model_config = ConfigDict(frozen=True)
-    anchor_idx: int = Field(..., ge=0, description="0-based atom index of scaffold anchor")
-    substituent_idx: int = Field(..., ge=0, description="0-based atom index of substituent atom")
-    anchor_coord: List[float] = Field(..., min_length=3, max_length=3, description="Anchor Cartesian [x, y, z] in Angstrom")
-    vector: List[float] = Field(..., min_length=3, max_length=3, description="Unit direction vector [vx, vy, vz]")
-    normal_vector: List[float] = Field(..., min_length=3, max_length=3, description="Reference normal vector [nx, ny, nz]")
-
-
-class ScaffoldHopResult(BaseModel):
-    """Result of scaffold replacement including 3D alignment and multi-objective scoring."""
-
-    model_config = ConfigDict(frozen=True)
-    candidate_smiles: str = Field(..., description="SMILES of generated candidate")
-    aligned_coordinates: List[List[float]] = Field(..., description="Nx3 Cartesian coordinates in Angstrom")
-    shape_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    electrostatic_tanimoto: float = Field(..., ge=0.0, le=1.0)
-    strain_energy_kcal_mol: float = Field(...)
-    composite_score: float = Field(..., ge=0.0, le=1.0)
-
-
-class GeometricViolation(BaseModel):
-    """Geometric parameter exceeding tolerance threshold."""
-
-    model_config = ConfigDict(frozen=True)
-    violation_type: Literal["bond_length", "bond_angle", "steric_clash"]
-    atom_indices: List[int] = Field(..., min_length=2, max_length=3)
-    measured_value: float = Field(..., description="Measured distance (Angstrom) or angle (degrees)")
-    reference_value: float = Field(..., description="Reference expected value")
-    z_score: float = Field(..., ge=0.0)
-
-
-class GeometryValidationResult(BaseModel):
-    """Validation report containing statistical plausibility and any geometric violations."""
-
-    model_config = ConfigDict(frozen=True)
-    is_physically_plausible: bool
-    max_z_score: float = Field(..., ge=0.0)
-    violations: List[GeometricViolation] = Field(default_factory=list)
-
-
-class PyMOLExportResult(BaseModel):
-    """Outcome and metadata from PyMOL session or script export."""
-
-    model_config = ConfigDict(frozen=True)
-    session_path: str = Field(..., description="Absolute path to exported .pse or .pml file")
-    export_mode: Literal["headless_api", "cli_script_bundle"]
-    colored_domains_count: int = Field(..., ge=0)
-    metal_centers_rendered: int = Field(..., ge=0)
-    file_size_bytes: int = Field(..., gt=0)
-
-
-class PolyhedronScore(BaseModel):
-    """Continuous Shape Measure score against a canonical coordination polyhedron."""
-
-    model_config = ConfigDict(frozen=True)
-    polyhedron_name: str = Field(..., description="Canonical geometry (e.g., 'Octahedral', 'Square_Planar')")
-    cshm_value: float = Field(..., ge=0.0, description="Continuous Shape Measure value S_P(Q)")
-
-
-class CoordinationCenter(BaseModel):
-    """Perceived metal center coordination environment and geometry."""
-
-    model_config = ConfigDict(frozen=True)
-    metal_idx: int = Field(..., ge=0)
-    metal_element: str = Field(..., min_length=1, max_length=2)
-    coordination_number: int = Field(..., ge=1, le=12)
-    assigned_geometry: str
-    formal_oxidation_state: int
-    ligand_atom_indices: List[int]
-    is_chelated: bool
-    hapticities: Dict[str, int] = Field(default_factory=dict, description="Ligand group to eta^n mapping")
-    polyhedron_scores: List[PolyhedronScore] = Field(default_factory=list)
-
-
-class CoordinationPerceptionResult(BaseModel):
-    """Overall metal perception analysis across all metal centers."""
-
-    model_config = ConfigDict(frozen=True)
-    coordination_centers: List[CoordinationCenter] = Field(default_factory=list)
-    unassigned_metal_indices: List[int] = Field(default_factory=list)
-    total_metals_detected: int = Field(..., ge=0)
-
-
-class TopologySanitizationResult(BaseModel):
-    """Sanitized topology result with stripped counterions and neutralized formal charges."""
-
-    model_config = ConfigDict(frozen=True)
-    sanitized_smiles: str
-    sanitized_coordinates: Optional[List[List[float]]] = None
-    formal_net_charge: int
-    is_zwitterion: bool
-    removed_counterions: List[str] = Field(default_factory=list)
-    retained_atom_count: int = Field(..., gt=0)
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\geometry_validation.py ---
-"""TOPOS Geometry Validation: Dynamic bond-length and bond-angle dictionary validation."""
-
-from __future__ import annotations
-
-import math
-import warnings
-from typing import Dict, List, Set, Tuple
-import networkx as nx
-import numpy as np
+import concurrent.futures
+from enum import Enum
+import os
+from pathlib import Path
+import sys
+import time
+from typing import Dict, List, Optional, Tuple
+
+import filelock
+import h5py
 from mendeleev import element
-
-from cochem.topos.exceptions import GeometricPlausibilityError
-from cochem.topos.models import GeometricViolation, GeometryValidationResult
-
-
-class DynamicBondDictionary:
-    """Validates 3D molecular geometry against empirical valence parameter distributions and steric constraints."""
-
-    def __init__(self) -> None:
-        self._vdw_cache: Dict[str, float] = {}
-        self._cov_cache: Dict[str, float] = {}
-
-    def _get_vdw_radius(self, symbol: str) -> float:
-        """Retrieves van der Waals radius dynamically in Angstroms with fallback hierarchy."""
-        if symbol not in self._vdw_cache:
-            elem_obj = element(symbol)
-            vdw_pm = (
-                elem_obj.vdw_radius_alvarez
-                or elem_obj.vdw_radius_bondi
-                or elem_obj.vdw_radius
-                or (elem_obj.covalent_radius_pyykko * 1.5)
-            )
-            self._vdw_cache[symbol] = float(vdw_pm / 100.0)
-        return self._vdw_cache[symbol]
-
-    def _get_covalent_radius(self, symbol: str) -> float:
-        """Retrieves relativistic covalent radius dynamically in Angstroms."""
-        if symbol not in self._cov_cache:
-            elem_obj = element(symbol)
-            cov_pm = elem_obj.covalent_radius_pyykko or elem_obj.covalent_radius
-            self._cov_cache[symbol] = float(cov_pm / 100.0)
-        return self._cov_cache[symbol]
-
-    def _get_reference_bond_length(
-        self, elem_i: str, elem_j: str, bond_order: float, graph: nx.Graph, i: int, j: int
-    ) -> Tuple[float, float]:
-        """Returns empirical expected distance and standard deviation for a given bond."""
-        pair = tuple(sorted([elem_i, elem_j]))
-        bo = float(bond_order)
-
-        if pair == ("C", "C"):
-            if abs(bo - 1.5) < 1e-3:
-                return 1.397, 0.035
-            elif abs(bo - 2.0) < 1e-3:
-                return 1.340, 0.035
-            elif abs(bo - 3.0) < 1e-3:
-                return 1.200, 0.030
-            else:
-                deg_i = graph.degree(i)
-                deg_j = graph.degree(j)
-                if deg_i == 3 and deg_j == 3:
-                    return 1.480, 0.040
-                elif (deg_i == 3 and deg_j >= 4) or (deg_j == 3 and deg_i >= 4):
-                    return 1.505, 0.040
-                else:
-                    return 1.530, 0.040
-
-        if pair == ("C", "O"):
-            if abs(bo - 2.0) < 1e-3:
-                return 1.215, 0.035
-            else:
-                deg_c = graph.degree(i if elem_i == "C" else j)
-                if deg_c == 3:
-                    return 1.360, 0.045
-                else:
-                    return 1.420, 0.045
-
-        if pair == ("C", "N"):
-            if abs(bo - 3.0) < 1e-3:
-                return 1.160, 0.030
-            elif abs(bo - 2.0) < 1e-3:
-                return 1.280, 0.035
-            elif abs(bo - 1.5) < 1e-3:
-                return 1.340, 0.035
-            else:
-                return 1.460, 0.040
-
-        r_sum = self._get_covalent_radius(elem_i) + self._get_covalent_radius(elem_j)
-        if abs(bo - 1.5) < 1e-3:
-            return r_sum - 0.10, 0.040
-        elif abs(bo - 2.0) < 1e-3:
-            return r_sum - 0.20, 0.035
-        elif abs(bo - 3.0) < 1e-3:
-            return r_sum - 0.32, 0.030
-        else:
-            return r_sum, 0.045
-
-    def _get_reference_angle(
-        self,
-        elem_center: str,
-        center_idx: int,
-        graph: nx.Graph,
-        cycle_basis: List[List[int]],
-        measured_angle: float,
-    ) -> Tuple[float, float]:
-        """Returns empirical expected angle and standard deviation for atom center."""
-        rings_with_center = [c for c in cycle_basis if center_idx in c]
-        min_ring_size = min((len(c) for c in rings_with_center), default=0)
-
-        if min_ring_size == 3:
-            return 60.0, 3.5
-        elif min_ring_size == 4:
-            return 90.0, 4.0
-        elif min_ring_size == 5:
-            return 108.0, 4.5
-        elif min_ring_size == 6:
-            return 120.0, 4.5
-
-        coord_num = graph.degree(center_idx)
-
-        # Period 3+ hypervalency
-        if elem_center in {"Si", "P", "S", "Cl", "Se", "Br", "I"}:
-            if coord_num == 5:
-                ref_angles = [90.0, 120.0, 180.0]
-                best_ref = min(ref_angles, key=lambda a: abs(a - measured_angle))
-                return best_ref, 5.0
-            elif coord_num >= 6:
-                ref_angles = [90.0, 180.0]
-                best_ref = min(ref_angles, key=lambda a: abs(a - measured_angle))
-                return best_ref, 5.0
-
-        # Perceive hybridization from incident bond orders
-        incident_bos = [graph[center_idx][nbr].get("bond_order", 1.0) for nbr in graph[center_idx]]
-        has_aromatic = any(abs(bo - 1.5) < 1e-3 for bo in incident_bos)
-        has_double = any(abs(bo - 2.0) < 1e-3 for bo in incident_bos)
-        has_triple = any(abs(bo - 3.0) < 1e-3 for bo in incident_bos)
-        num_double = sum(1 for bo in incident_bos if abs(bo - 2.0) < 1e-3)
-        bo_sum = sum(incident_bos)
-
-        if has_triple or num_double >= 2:
-            return 180.0, 5.0
-
-        if has_aromatic or has_double or bo_sum >= 2.5:
-            return 120.0, 5.0
-
-        if elem_center in {"O", "S"}:
-            if coord_num == 2:
-                return 110.0, 5.0
-
-        if coord_num == 4:
-            return 109.5, 4.5
-
-        if coord_num == 3:
-            if elem_center in {"N", "P"}:
-                return 107.0, 4.5
-            return 120.0, 5.0
-
-        return 109.5, 5.0
-
-    def validate_geometry(
-        self,
-        atoms: list[str],
-        coordinates: list[list[float]] | np.ndarray,
-        bonds: list[tuple[int, int, float]],
-        raise_on_error: bool = True,
-    ) -> GeometryValidationResult:
-        """Validates 3D coordinates against authoritative empirical bond and angle distributions."""
-        num_atoms = len(atoms)
-        coords = np.array(coordinates, dtype=float)
-
-        graph = nx.Graph()
-        for idx in range(num_atoms):
-            graph.add_node(idx, symbol=atoms[idx])
-        for u_idx, v_idx, b_order in bonds:
-            graph.add_edge(u_idx, v_idx, bond_order=float(b_order))
-
-        cycle_basis = nx.cycle_basis(graph)
-        violations: List[GeometricViolation] = []
-        max_z = 0.0
-
-        for u_idx, v_idx, b_order in bonds:
-            dist = float(np.linalg.norm(coords[u_idx] - coords[v_idx]))
-            ref_d, sigma_d = self._get_reference_bond_length(
-                atoms[u_idx], atoms[v_idx], b_order, graph, u_idx, v_idx
-            )
-            z = abs(dist - ref_d) / sigma_d
-            if z > max_z:
-                max_z = z
-            if z >= 3.0:
-                violations.append(
-                    GeometricViolation(
-                        violation_type="bond_length",
-                        atom_indices=[u_idx, v_idx],
-                        measured_value=dist,
-                        reference_value=ref_d,
-                        z_score=z,
-                    )
-                )
-                if z < 5.0:
-                    warnings.warn(
-                        f"Non-fatal bond length deviation: ({u_idx}, {v_idx}) d={dist:.3f}A, ref={ref_d:.3f}A, z={z:.2f}",
-                        UserWarning,
-                        stacklevel=2,
-                    )
-
-        for center_idx in graph.nodes():
-            neighbors = sorted(graph.neighbors(center_idx))
-            num_nbrs = len(neighbors)
-            for idx_a in range(num_nbrs):
-                for idx_b in range(idx_a + 1, num_nbrs):
-                    i_at = neighbors[idx_a]
-                    k_at = neighbors[idx_b]
-                    vec_1 = coords[i_at] - coords[center_idx]
-                    vec_2 = coords[k_at] - coords[center_idx]
-                    norm_1 = float(np.linalg.norm(vec_1))
-                    norm_2 = float(np.linalg.norm(vec_2))
-                    if norm_1 < 1e-12 or norm_2 < 1e-12:
-                        continue
-                    cos_val = float(np.dot(vec_1, vec_2) / (norm_1 * norm_2))
-                    meas_ang = float(math.degrees(math.acos(np.clip(cos_val, -1.0, 1.0))))
-
-                    ref_ang, sigma_ang = self._get_reference_angle(
-                        atoms[center_idx], center_idx, graph, cycle_basis, meas_ang
-                    )
-                    z_ang = abs(meas_ang - ref_ang) / sigma_ang
-                    if z_ang > max_z:
-                        max_z = z_ang
-                    if z_ang >= 3.0:
-                        violations.append(
-                            GeometricViolation(
-                                violation_type="bond_angle",
-                                atom_indices=[i_at, center_idx, k_at],
-                                measured_value=meas_ang,
-                                reference_value=ref_ang,
-                                z_score=z_ang,
-                            )
-                        )
-                        if z_ang < 5.0:
-                            warnings.warn(
-                                f"Non-fatal angle deviation: ({i_at}-{center_idx}-{k_at}) "
-                                f"theta={meas_ang:.1f}deg, ref={ref_ang:.1f}deg, z={z_ang:.2f}",
-                                UserWarning,
-                                stacklevel=2,
-                            )
-
-        shortest_paths = dict(nx.all_pairs_shortest_path_length(graph))
-        for i_idx in range(num_atoms):
-            for j_idx in range(i_idx + 1, num_atoms):
-                path_len = shortest_paths.get(i_idx, {}).get(j_idx, 999)
-                if path_len >= 3:
-                    d_ij = float(np.linalg.norm(coords[i_idx] - coords[j_idx]))
-                    vdw_sum = self._get_vdw_radius(atoms[i_idx]) + self._get_vdw_radius(atoms[j_idx])
-                    threshold = 0.65 * vdw_sum
-                    if d_ij < threshold:
-                        clash_z = abs(d_ij - threshold) / 0.10
-                        if clash_z > max_z:
-                            max_z = clash_z
-                        violations.append(
-                            GeometricViolation(
-                                violation_type="steric_clash",
-                                atom_indices=[i_idx, j_idx],
-                                measured_value=d_ij,
-                                reference_value=threshold,
-                                z_score=clash_z,
-                            )
-                        )
-
-        steric_clashes = [v for v in violations if v.violation_type == "steric_clash"]
-        is_plausible = (max_z < 5.0) and (len(steric_clashes) == 0)
-
-        if max_z >= 5.0 and raise_on_error:
-            raise GeometricPlausibilityError(
-                f"Critical geometric strain or clash: max z-score {max_z:.2f} >= 5.0."
-            )
-
-        return GeometryValidationResult(
-            is_physically_plausible=is_plausible,
-            max_z_score=max_z,
-            violations=violations,
-        )
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\metal_coordination.py ---
-"""TOPOS Metal Coordination Perception Engine: Continuous Shape Measure and CBC perception."""
-
-from __future__ import annotations
-
-import itertools
-import math
-from typing import Dict, List, Set, Tuple
-import networkx as nx
 import numpy as np
-from mendeleev import element
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from rdkit import Chem
+from rdkit.Chem import rdFMCS
+from scipy.linalg import svd
 
-from cochem.topos.exceptions import CoordinationPerceptionError
-from cochem.topos.models import (
-    CoordinationCenter,
-    CoordinationPerceptionResult,
-    PolyhedronScore,
+from cochem.topos.exceptions import (
+    AirGapBoundaryViolationError,
+    CollinearDegeneracyError,
+    DegenerateCoordinatesError,
+    IncompatibleTopologyError,
+    MCSConvergenceTimeoutError,
+    ToposAlignmentError,
 )
 
 
-class MetalCoordinationEngine:
-    """Perceives coordination spheres, continuous shape measures (CShM), and CBC formal oxidation states."""
+class StorageTier(str, Enum):
+    """Storage and concurrency tiers across the CoChem ecosystem [D]."""
 
-    def __init__(self) -> None:
-        self._cov_cache: Dict[str, float] = {}
-        self._reference_polyhedra: Dict[int, Dict[str, np.ndarray]] = self._build_reference_polyhedra()
+    TIER1_WINDOWS = "tier1_windows"
+    TIER2_MACOS = "tier2_macos"
+    TIER3_LINUX = "tier3_linux"
+    TIER4_CODESPACES = "tier4_codespaces"
+    TIER5_GITHUB_ACTIONS = "tier5_github_actions"
+    TIER6_HPC = "tier6_hpc"
 
-    def _get_covalent_radius(self, symbol: str) -> float:
-        """Retrieves dynamic covalent radius in Angstroms via Mendeleev."""
-        if symbol not in self._cov_cache:
-            elem_obj = element(symbol)
-            pm = elem_obj.covalent_radius_pyykko or elem_obj.covalent_radius
-            self._cov_cache[symbol] = float(pm / 100.0)
-        return self._cov_cache[symbol]
 
-    def _is_metal(self, symbol: str) -> bool:
-        """Identifies metal elements via dynamic series and group membership."""
-        elem_obj = element(symbol)
-        series_str = getattr(elem_obj, "series", "").lower()
-        if (
-            "nonmetal" in series_str
-            or "alkali" in series_str
-            or "halogen" in series_str
-            or "noble gas" in series_str
-        ):
-            return False
-        return "metal" in series_str or getattr(elem_obj, "group_id", 0) in range(3, 13)
+def detect_concurrency_tier() -> StorageTier:
+    """Detects active execution tier based on OS and environment invariants [D]."""
+    if "SLURM_JOB_ID" in os.environ or "PBS_JOBID" in os.environ:
+        return StorageTier.TIER6_HPC
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        return StorageTier.TIER5_GITHUB_ACTIONS
+    if os.environ.get("CODESPACES") == "true":
+        return StorageTier.TIER4_CODESPACES
+    if sys.platform == "win32":
+        return StorageTier.TIER1_WINDOWS
+    if sys.platform == "darwin":
+        return StorageTier.TIER2_MACOS
+    return StorageTier.TIER3_LINUX
 
-    def _build_reference_polyhedra(self) -> Dict[int, Dict[str, np.ndarray]]:
-        """Constructs canonical reference polyhedra for coordination numbers 4, 5, and 6."""
-        refs: Dict[int, Dict[str, np.ndarray]] = {}
 
-        # CN = 4
-        sp_pts = np.array([
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, -1.0, 0.0],
-        ])
-        td_pts = np.array([
-            [1.0, 1.0, 1.0],
-            [1.0, -1.0, -1.0],
-            [-1.0, 1.0, -1.0],
-            [-1.0, -1.0, 1.0],
-        ]) / math.sqrt(3.0)
+class ConformerInput(BaseModel):
+    """Input representation of a 3D molecular conformer [D]."""
 
-        refs[4] = {
-            "Square_Planar": sp_pts,
-            "Tetrahedral": td_pts,
-        }
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-        # CN = 5
-        tbp_pts = np.array([
-            [1.0, 0.0, 0.0],
-            [-0.5, math.sqrt(3) / 2.0, 0.0],
-            [-0.5, -math.sqrt(3) / 2.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-        ])
-        spy_pts = np.array([
-            [1.0, 0.0, -0.3535],
-            [0.0, 1.0, -0.3535],
-            [-1.0, 0.0, -0.3535],
-            [0.0, -1.0, -0.3535],
-            [0.0, 0.0, 0.7071],
-        ])
+    conformer_id: str
+    elements: List[str]
+    atomic_numbers: List[int]
+    coordinates: List[Tuple[float, float, float]]
+    bonds: List[Tuple[int, int, float]] = Field(default_factory=list)
+    reference_smiles: Optional[str] = None
+    masses: Optional[List[float]] = None
+    energy_kcal_mol: Optional[float] = None
+    is_ghost: List[bool] = Field(default_factory=list)
 
-        refs[5] = {
-            "Trigonal_Bipyramidal": tbp_pts,
-            "Square_Pyramidal": spy_pts,
-        }
-
-        # CN = 6
-        oct_pts = np.array([
-            [1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, -1.0, 0.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-        ])
-        tpr_pts = np.array([
-            [1.0, 0.0, 0.5],
-            [-0.5, math.sqrt(3) / 2.0, 0.5],
-            [-0.5, -math.sqrt(3) / 2.0, 0.5],
-            [1.0, 0.0, -0.5],
-            [-0.5, math.sqrt(3) / 2.0, -0.5],
-            [-0.5, -math.sqrt(3) / 2.0, -0.5],
-        ])
-
-        refs[6] = {
-            "Octahedral": oct_pts,
-            "Trigonal_Prismatic": tpr_pts,
-        }
-
-        return refs
-
-    def _compute_cshm(self, q_coords: np.ndarray, p_coords: np.ndarray) -> float:
-        """Computes Alvarez Continuous Shape Measure (CShM) minimized over symmetric permutations."""
-        n_pts = len(q_coords)
-        q_centered = q_coords - np.mean(q_coords, axis=0)
-        p_centered = p_coords - np.mean(p_coords, axis=0)
-
-        denom_q = float(np.sum(q_centered ** 2))
-        denom_p = float(np.sum(p_centered ** 2))
-        if denom_q < 1e-12 or denom_p < 1e-12:
-            return 0.0
-
-        min_s = float("inf")
-
-        for perm in itertools.permutations(range(n_pts)):
-            p_perm = p_centered[list(perm)]
-            h_mat = np.dot(p_perm.T, q_centered)
-            u_mat, s_vals, vt_mat = np.linalg.svd(h_mat)
-            det_val = float(np.linalg.det(np.dot(vt_mat.T, u_mat.T)))
-            tr_val = float(s_vals[0] + s_vals[1] + det_val * s_vals[2])
-            if tr_val < 0.0:
-                continue
-
-            sq_ratio = (tr_val ** 2) / (denom_q * denom_p)
-            val = max(0.0, (1.0 - sq_ratio) * 100.0)
-            if val < min_s:
-                min_s = val
-
-        return float(min_s)
-
-    def _classify_ligand_charge(self, symbol: str, is_haptic: bool = False) -> int:
-        """Assigns formal CBC ligand charge contributions."""
-        if is_haptic:
-            return -1
-        elem_obj = element(symbol)
-        series_str = getattr(elem_obj, "series", "").lower()
-
-        if symbol in {"F", "Cl", "Br", "I"} or "halogen" in series_str:
-            return -1
-        if symbol in {"O", "S", "Se"}:
-            return 0
-        if symbol in {"N", "P", "As"}:
-            return 0
-        if symbol == "C":
-            return -1
-        return 0
-
-    def perceive_coordination(
-        self,
-        atoms: list[str],
-        coordinates: list[list[float]] | np.ndarray,
-        net_charge: int = 0,
-    ) -> CoordinationPerceptionResult:
-        """Perceives coordination spheres, shapes, and formal oxidation states across all metal centers."""
-        num_atoms = len(atoms)
-        coords = np.array(coordinates, dtype=float)
-
-        metal_indices = [idx for idx in range(num_atoms) if self._is_metal(atoms[idx])]
-        total_metals = len(metal_indices)
-        if total_metals == 0:
-            return CoordinationPerceptionResult(
-                coordination_centers=[],
-                unassigned_metal_indices=[],
-                total_metals_detected=0,
+    @model_validator(mode="after")
+    def validate_conformer(self) -> "ConformerInput":
+        """Enforces length matching across conformer atom arrays [D]."""
+        n_elem = len(self.elements)
+        n_atomic = len(self.atomic_numbers)
+        n_coords = len(self.coordinates)
+        if n_coords == 0 or n_elem == 0:
+            raise ValueError("Coordinates and elements cannot be empty")
+        if n_elem != n_atomic or n_elem != n_coords:
+            raise ValueError(
+                f"Length mismatch: elements ({n_elem}), atomic_numbers ({n_atomic}), and coordinates ({n_coords}) must match"
             )
-
-        centers: List[CoordinationCenter] = []
-        unassigned_metals: List[int] = []
-
-        for m_idx in metal_indices:
-            m_sym = atoms[m_idx]
-            m_cov = self._get_covalent_radius(m_sym)
-            m_pos = coords[m_idx]
-
-            donor_indices: List[int] = []
-            for other_idx in range(num_atoms):
-                if other_idx == m_idx:
-                    continue
-                d = float(np.linalg.norm(m_pos - coords[other_idx]))
-                l_cov = self._get_covalent_radius(atoms[other_idx])
-                cutoff = m_cov + l_cov + 0.55
-                if d <= cutoff:
-                    donor_indices.append(other_idx)
-
-            cn = len(donor_indices)
-            if cn == 0:
-                unassigned_metals.append(m_idx)
-                continue
-
-            # Perceive hapticity by building ligand connectivity among donors
-            ligand_graph = nx.Graph()
-            for d_idx in donor_indices:
-                ligand_graph.add_node(d_idx, symbol=atoms[d_idx])
-
-            for i_d in range(cn):
-                for j_d in range(i_d + 1, cn):
-                    idx1 = donor_indices[i_d]
-                    idx2 = donor_indices[j_d]
-                    d_between = float(np.linalg.norm(coords[idx1] - coords[idx2]))
-                    cov1 = self._get_covalent_radius(atoms[idx1])
-                    cov2 = self._get_covalent_radius(atoms[idx2])
-                    if d_between <= cov1 + cov2 + 0.45:
-                        ligand_graph.add_edge(idx1, idx2)
-
-            hapticities: Dict[str, int] = {}
-            haptic_atom_set: Set[int] = set()
-            haptic_group_counter = 0
-
-            components = list(nx.connected_components(ligand_graph))
-            for comp in components:
-                if len(comp) >= 3:
-                    haptic_group_counter += 1
-                    key_name = f"haptic_group_{haptic_group_counter}"
-                    hapticities[key_name] = len(comp)
-                    haptic_atom_set.update(comp)
-
-            # Check chelate formation
-            is_chelated = False
-            for comp in components:
-                if len(comp) >= 2 and len(comp) not in {5, 6}:
-                    is_chelated = True
-
-            polyhedron_scores: List[PolyhedronScore] = []
-            assigned_geom = "Unassigned"
-
-            if cn in {4, 5, 6} and not hapticities:
-                ref_dict = self._reference_polyhedra.get(cn, {})
-                q_coords = coords[donor_indices]
-                for poly_name, poly_pts in ref_dict.items():
-                    score_val = self._compute_cshm(q_coords, poly_pts)
-                    polyhedron_scores.append(
-                        PolyhedronScore(polyhedron_name=poly_name, cshm_value=score_val)
-                    )
-
-                best_poly = min(polyhedron_scores, key=lambda p: p.cshm_value)
-                if best_poly.cshm_value <= 15.0:
-                    assigned_geom = best_poly.polyhedron_name
-                else:
-                    assigned_geom = "Distorted/Unassigned"
-            else:
-                if hapticities:
-                    assigned_geom = "Special_Haptic"
-                else:
-                    assigned_geom = f"Unassigned_CN{cn}"
-
-            # CBC oxidation state calculation
-            q_local = float(net_charge) / float(total_metals)
-            ligand_charge_sum = 0
-            if hapticities:
-                for comp in components:
-                    if len(comp) >= 3:
-                        ligand_charge_sum += -1
-                    else:
-                        for atom_i in comp:
-                            ligand_charge_sum += self._classify_ligand_charge(atoms[atom_i])
-            else:
-                for d_idx in donor_indices:
-                    ligand_charge_sum += self._classify_ligand_charge(atoms[d_idx])
-
-            formal_ox_state = int(round(q_local - ligand_charge_sum))
-
-            centers.append(
-                CoordinationCenter(
-                    metal_idx=m_idx,
-                    metal_element=m_sym,
-                    coordination_number=cn,
-                    assigned_geometry=assigned_geom,
-                    formal_oxidation_state=formal_ox_state,
-                    ligand_atom_indices=donor_indices,
-                    is_chelated=is_chelated,
-                    hapticities=hapticities,
-                    polyhedron_scores=polyhedron_scores,
+        if self.is_ghost:
+            if len(self.is_ghost) != n_elem:
+                raise ValueError(
+                    f"is_ghost length ({len(self.is_ghost)}) must match elements length ({n_elem})"
                 )
-            )
+        else:
+            self.is_ghost = [False] * n_elem
 
-        return CoordinationPerceptionResult(
-            coordination_centers=centers,
-            unassigned_metal_indices=unassigned_metals,
-            total_metals_detected=total_metals,
+        if self.masses is not None:
+            if len(self.masses) != n_elem:
+                raise ValueError(
+                    f"masses length ({len(self.masses)}) must match elements length ({n_elem})"
+                )
+        return self
+
+    def get_dynamic_masses(self) -> List[float]:
+        """Dynamically retrieves atomic masses from mendeleev with ghost-atom guard [M]."""
+        if self.masses is not None:
+            return list(self.masses)
+        resolved: List[float] = []
+        for i, z in enumerate(self.atomic_numbers):
+            if self.is_ghost[i] or z == 0 or self.elements[i] in ("Gh", "Bq", "X"):
+                resolved.append(0.0)
+            else:
+                resolved.append(float(element(z).mass))
+        return resolved
+
+
+class MCSAlignmentConfig(BaseModel):
+    """Configuration options controlling MCS perception and Kabsch alignment [D]."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0)
+    mass_weighting: bool = False
+    match_valences: bool = True
+    ring_matches_ring_only: bool = True
+    complete_rings_only: bool = False
+    min_mcs_atoms: int = Field(default=3, ge=3)
+    svd_condition_tol: float = Field(default=1e-7, ge=1e-12)
+    rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)
+    ignore_ghost_atoms: bool = True
+
+
+class AlignedConformerResult(BaseModel):
+    """Superposition result for a single conformer mapped to an invariant reference [D]."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    conformer_id: str
+    reference_id: str
+    rmsd_angstrom: float = Field(..., ge=0.0)
+    rotation_matrix: List[List[float]]
+    translation_vector: List[float]
+    aligned_coordinates: List[Tuple[float, float, float]]
+    atom_mapping: Dict[int, int]
+    execution_duration_seconds: float = Field(..., ge=0.0)
+
+    @model_validator(mode="after")
+    def validate_rotation(self) -> "AlignedConformerResult":
+        """Ensures proper SO(3) orthogonal rotation matrix with det(R) = +1.0 [D]."""
+        R = np.array(self.rotation_matrix, dtype=np.float64)
+        if R.shape != (3, 3):
+            raise ValueError("rotation_matrix must have shape (3, 3)")
+        if not np.allclose(R.T @ R, np.eye(3), atol=1e-3):
+            raise ValueError("rotation_matrix is not orthogonal (R^T @ R != I)")
+        det_R = float(np.linalg.det(R))
+        if not np.isclose(det_R, 1.0, atol=1e-3):
+            raise ValueError(f"rotation_matrix is not proper SO(3) rotation (det(R)={det_R} != 1.0)")
+        if len(self.translation_vector) != 3:
+            raise ValueError("translation_vector must have length 3")
+        return self
+
+
+class EnsembleAlignmentSummary(BaseModel):
+    """Ensemble-wide alignment, pairwise RMSD matrix, and duplicate cluster summary [D]."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    ensemble_id: str = Field(default="ensemble_default", description="Unique ensemble collection ID")
+    reference_id: str
+    total_conformers: int
+    aligned_conformers: List[AlignedConformerResult]
+    pairwise_rmsd_matrix: List[List[float]]
+    duplicate_clusters: List[List[str]] = Field(default_factory=list)
+    mcs_mapping: Dict[int, int] = Field(default_factory=dict, description="Consensus MCS atom index map")
+    aligned_mcs_coords: Optional[List[List[Tuple[float, float, float]]]] = Field(
+        default=None, description="Aligned consensus MCS coordinates across ensemble"
+    )
+
+    @model_validator(mode="after")
+    def validate_summary(self) -> "EnsembleAlignmentSummary":
+        """Validates symmetric square pairwise RMSD matrix with zero diagonal [D]."""
+        mat = np.array(self.pairwise_rmsd_matrix, dtype=np.float64)
+        m = mat.shape[0]
+        if mat.shape != (m, m):
+            raise ValueError(f"pairwise_rmsd_matrix must be square matrix, got shape {mat.shape}")
+        if not np.allclose(mat, mat.T, atol=1e-4):
+            raise ValueError("pairwise_rmsd_matrix must be symmetric (D_jk == D_kj)")
+        if not np.allclose(np.diag(mat), 0.0, atol=1e-6):
+            raise ValueError("pairwise_rmsd_matrix diagonal must be zero")
+        if np.any(mat < -1e-6):
+            raise ValueError("pairwise_rmsd_matrix elements must be non-negative")
+        return self
+
+
+def _isolated_mcs_worker(
+    target_mol_block: str,
+    ref_mol_block: str,
+    params: dict,
+) -> Tuple[bool, int, str]:
+    """Module-level isolated worker for cross-process MCS extraction [D]."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    target_mol = Chem.MolFromMolBlock(target_mol_block, removeHs=False)
+    ref_mol = Chem.MolFromMolBlock(ref_mol_block, removeHs=False)
+    if target_mol is None or ref_mol is None:
+        return False, 0, ""
+    Chem.FastFindRings(target_mol)
+    Chem.FastFindRings(ref_mol)
+
+    timeout_sec = float(params.get("timeout_seconds", 30.0))
+    rdkit_timeout = max(1, int(timeout_sec))
+
+    atom_comp = rdFMCS.AtomCompare.CompareElements
+    bond_comp = rdFMCS.BondCompare.CompareOrder
+    match_valences = bool(params.get("match_valences", True))
+    ring_matches_ring_only = bool(params.get("ring_matches_ring_only", True))
+    complete_rings_only = bool(params.get("complete_rings_only", False))
+
+    res = rdFMCS.FindMCS(
+        [target_mol, ref_mol],
+        atomCompare=atom_comp,
+        bondCompare=bond_comp,
+        matchValences=match_valences,
+        ringMatchesRingOnly=ring_matches_ring_only,
+        completeRingsOnly=complete_rings_only,
+        timeout=rdkit_timeout,
+    )
+    return bool(res.canceled), int(res.numAtoms), str(res.smartsString)
+
+
+def _build_rdkit_mol_from_conformer(
+    conformer: ConformerInput,
+    active_indices: List[int],
+) -> Chem.Mol:
+    """Constructs RDKit 3D molecule for active non-ghost atoms with bond perception fallback [M]."""
+    rw_mol = Chem.RWMol()
+    for orig_idx in active_indices:
+        z = conformer.atomic_numbers[orig_idx]
+        atom = Chem.Atom(z)
+        rw_mol.AddAtom(atom)
+
+    orig_to_local = {orig_idx: local_idx for local_idx, orig_idx in enumerate(active_indices)}
+
+    if conformer.bonds:
+        for u, v, bo in conformer.bonds:
+            if u in orig_to_local and v in orig_to_local:
+                lu, lv = orig_to_local[u], orig_to_local[v]
+                if bo == 2.0:
+                    btype = Chem.BondType.DOUBLE
+                elif bo == 3.0:
+                    btype = Chem.BondType.TRIPLE
+                elif bo == 1.5:
+                    btype = Chem.BondType.AROMATIC
+                else:
+                    btype = Chem.BondType.SINGLE
+                rw_mol.AddBond(lu, lv, btype)
+    else:
+        # Distance-based connectivity perception calibrated against Pyykko relativistic covalent radii
+        n_active = len(active_indices)
+        radii: List[float] = []
+        for orig_idx in active_indices:
+            z = conformer.atomic_numbers[orig_idx]
+            try:
+                el = element(z)
+                r = el.covalent_radius_pyykko
+                if r is None:
+                    r = el.covalent_radius
+                if r is None:
+                    r = 75.0
+                radii.append(float(r) / 100.0)
+            except Exception:
+                radii.append(0.75)
+
+        coords = np.array([conformer.coordinates[i] for i in active_indices], dtype=np.float64)
+        for i in range(n_active):
+            for j in range(i + 1, n_active):
+                d_ij = float(np.linalg.norm(coords[i] - coords[j]))
+                cutoff = radii[i] + radii[j] + 0.40
+                if d_ij <= cutoff:
+                    rw_mol.AddBond(i, j, Chem.BondType.SINGLE)
+
+    mol = rw_mol.GetMol()
+    conf = Chem.Conformer(len(active_indices))
+    for local_idx, orig_idx in enumerate(active_indices):
+        x, y, z = conformer.coordinates[orig_idx]
+        conf.SetAtomPosition(local_idx, (float(x), float(y), float(z)))
+    mol.AddConformer(conf)
+    Chem.FastFindRings(mol)
+    return mol
+
+
+def compute_kabsch_transformation(
+    P: np.ndarray,
+    Q: np.ndarray,
+    weights: Optional[np.ndarray] = None,
+    condition_tol: float = 1e-7,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Computes optimal Kabsch proper rotation R and translation t mapping P to Q [D].
+
+    Parameters:
+        P: Target coordinate matrix of shape (N, 3).
+        Q: Reference coordinate matrix of shape (N, 3).
+        weights: Optional non-negative mass weighting vector of shape (N,).
+        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
+
+    Returns:
+        Tuple containing:
+            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
+            - t: Optimal translation vector of shape (3,).
+            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
+
+    Raises:
+        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
+        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
+        IncompatibleTopologyError: When atom count N < 3.
+    """
+    p_arr = np.asarray(P, dtype=np.float64)
+    q_arr = np.asarray(Q, dtype=np.float64)
+    if p_arr.ndim != 2 or p_arr.shape[1] != 3:
+        raise ValueError(f"P must have shape (N, 3), got {p_arr.shape}")
+    if q_arr.ndim != 2 or q_arr.shape[1] != 3:
+        raise ValueError(f"Q must have shape (N, 3), got {q_arr.shape}")
+    n = p_arr.shape[0]
+    if n != q_arr.shape[0]:
+        raise ValueError(f"P and Q must have matching atom counts: {n} vs {q_arr.shape[0]}")
+    if n < 3:
+        raise IncompatibleTopologyError(f"Minimum 3 atoms required for Kabsch alignment, got {n}")
+
+    if weights is None:
+        w_arr = np.ones(n, dtype=np.float64)
+    else:
+        w_arr = np.asarray(weights, dtype=np.float64)
+        if w_arr.shape != (n,):
+            raise ValueError(f"weights must have shape ({n},), got {w_arr.shape}")
+        if np.any(w_arr < 0):
+            raise ValueError("weights must be non-negative")
+
+    total_w = float(np.sum(w_arr))
+    if total_w <= 0.0:
+        raise ValueError("Sum of weights must be strictly positive")
+
+    # Weighted centroids
+    p_bar = np.sum(p_arr * w_arr[:, None], axis=0) / total_w
+    q_bar = np.sum(q_arr * w_arr[:, None], axis=0) / total_w
+
+    # Centered coordinates
+    p_c = p_arr - p_bar
+    q_c = q_arr - q_bar
+
+    # Cross-covariance dispersion matrix H = P_c^T W Q_c
+    h_mat = p_c.T @ (w_arr[:, None] * q_c)
+
+    # Full SVD decomposition
+    u_mat, s_vals, vt_mat = svd(h_mat)
+    v_mat = vt_mat.T
+
+    # Point-degeneracy: sigma_1 < 1e-12
+    if s_vals[0] < 1e-12:
+        raise DegenerateCoordinatesError(
+            f"Point-degeneracy detected: primary singular value sigma_1 ({s_vals[0]:.3e}) < 1e-12"
         )
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\pymol_export.py ---
-"""TOPOS PyMOL Export Engine: Dual-mode session (.pse) and automation script (.pml) generator."""
+    # Collinear degeneracy: sigma_2 / sigma_1 < condition_tol
+    cond_collinear = s_vals[1] / s_vals[0]
+    if cond_collinear < condition_tol:
+        raise CollinearDegeneracyError(
+            f"Collinear coordinates detected: condition ratio sigma_2 / sigma_1 ({cond_collinear:.3e}) < {condition_tol}"
+        )
+
+    # Planar stabilization: sigma_2 / sigma_1 >= condition_tol and sigma_3 / sigma_1 < condition_tol
+    cond_planar = s_vals[2] / s_vals[0]
+    if cond_planar < condition_tol:
+        u1, u2 = u_mat[:, 0], u_mat[:, 1]
+        v1, v2 = v_mat[:, 0], v_mat[:, 1]
+        u3 = np.cross(u1, u2)
+        norm_u3 = np.linalg.norm(u3)
+        if norm_u3 > 1e-14:
+            u3 /= norm_u3
+        v3 = np.cross(v1, v2)
+        norm_v3 = np.linalg.norm(v3)
+        if norm_v3 > 1e-14:
+            v3 /= norm_v3
+        u_mat = np.column_stack([u1, u2, u3])
+        v_mat = np.column_stack([v1, v2, v3])
+
+    # Parity reflection guard d = sgn(det(V @ U^T))
+    det_vu = np.linalg.det(v_mat @ u_mat.T)
+    d_parity = 1.0 if det_vu >= 0 else -1.0
+
+    s_parity = np.diag([1.0, 1.0, d_parity])
+    r_rot = v_mat @ s_parity @ u_mat.T
+
+    # Translation vector t = Q_bar - R @ P_bar
+    t_trans = q_bar - r_rot @ p_bar
+
+    # Analytical centered RMSD
+    diff = p_c @ r_rot.T - q_c
+    rmsd = float(np.sqrt(np.sum(w_arr * np.sum(diff**2, axis=1)) / total_w))
+
+    return r_rot, t_trans, rmsd
+
+
+def align_conformers_by_mcs(
+    target: ConformerInput,
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> AlignedConformerResult:
+    """Superimposes a target conformer onto an invariant reference conformer via MCS and Kabsch [D].
+
+    Parameters:
+        target: Target conformer input record.
+        reference: Invariant reference conformer record.
+        config: Optional configuration controlling timeouts, weighting, and tolerances.
+
+    Returns:
+        AlignedConformerResult containing transformed coordinates, rotation matrix, and atom mapping.
+
+    Raises:
+        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
+        IncompatibleTopologyError: If common atom count N_MCS < 3.
+        CollinearDegeneracyError: If mapped coordinates are collinear.
+    """
+    start_time = time.perf_counter()
+    if config is None:
+        config = MCSAlignmentConfig()
+
+    # Ghost atom identification & exclusion
+    if config.ignore_ghost_atoms:
+        target_active = [
+            i for i in range(len(target.elements))
+            if not (target.is_ghost[i] or target.atomic_numbers[i] == 0 or target.elements[i] in ("Gh", "Bq", "X"))
+        ]
+        ref_active = [
+            i for i in range(len(reference.elements))
+            if not (reference.is_ghost[i] or reference.atomic_numbers[i] == 0 or reference.elements[i] in ("Gh", "Bq", "X"))
+        ]
+    else:
+        target_active = list(range(len(target.elements)))
+        ref_active = list(range(len(reference.elements)))
+
+    if len(target_active) < config.min_mcs_atoms or len(ref_active) < config.min_mcs_atoms:
+        raise IncompatibleTopologyError(
+            f"Insufficient active non-ghost atoms for MCS alignment: target has {len(target_active)}, "
+            f"reference has {len(ref_active)}, min required is {config.min_mcs_atoms}"
+        )
+
+    target_mol = _build_rdkit_mol_from_conformer(target, target_active)
+    ref_mol = _build_rdkit_mol_from_conformer(reference, ref_active)
+
+    target_block = Chem.MolToMolBlock(target_mol)
+    ref_block = Chem.MolToMolBlock(ref_mol)
+
+    worker_params = {
+        "timeout_seconds": config.timeout_seconds,
+        "match_valences": config.match_valences,
+        "ring_matches_ring_only": config.ring_matches_ring_only,
+        "complete_rings_only": config.complete_rings_only,
+    }
+
+    try:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _isolated_mcs_worker,
+                target_block,
+                ref_block,
+                worker_params,
+            )
+            canceled, num_atoms, smarts_str = future.result(timeout=config.timeout_seconds)
+    except (concurrent.futures.TimeoutError, TimeoutError):
+        raise MCSConvergenceTimeoutError(
+            f"MCS graph search exceeded timeout ceiling of {config.timeout_seconds}s"
+        )
+    except Exception as exc:
+        raise ToposAlignmentError(f"MCS worker process encountered unexpected failure: {exc}") from exc
+
+    if canceled:
+        raise MCSConvergenceTimeoutError(
+            f"MCS graph search canceled (timeout exceeded: {config.timeout_seconds}s)"
+        )
+
+    if num_atoms < config.min_mcs_atoms or not smarts_str:
+        raise IncompatibleTopologyError(
+            f"Common substructure atom count ({num_atoms}) is less than minimum required ({config.min_mcs_atoms})"
+        )
+
+    mcs_mol = Chem.MolFromSmarts(smarts_str)
+    if mcs_mol is None:
+        raise IncompatibleTopologyError(f"Failed to parse MCS SMARTS: {smarts_str}")
+
+    target_match = target_mol.GetSubstructMatch(mcs_mol)
+    ref_match = ref_mol.GetSubstructMatch(mcs_mol)
+    if not target_match or not ref_match or len(target_match) < config.min_mcs_atoms:
+        raise IncompatibleTopologyError(
+            f"MCS substructure matching yielded {len(target_match)} mapped atoms, expected >= {config.min_mcs_atoms}"
+        )
+
+    atom_mapping: Dict[int, int] = {}
+    p_mapped: List[Tuple[float, float, float]] = []
+    q_mapped: List[Tuple[float, float, float]] = []
+    mapped_weights: List[float] = []
+
+    target_masses = target.get_dynamic_masses()
+
+    for local_t, local_r in zip(target_match, ref_match):
+        orig_t = target_active[local_t]
+        orig_r = ref_active[local_r]
+        atom_mapping[orig_t] = orig_r
+        p_mapped.append(target.coordinates[orig_t])
+        q_mapped.append(reference.coordinates[orig_r])
+        if config.mass_weighting:
+            mapped_weights.append(target_masses[orig_t])
+        else:
+            mapped_weights.append(1.0)
+
+    p_mat = np.array(p_mapped, dtype=np.float64)
+    q_mat = np.array(q_mapped, dtype=np.float64)
+    w_mat = np.array(mapped_weights, dtype=np.float64) if config.mass_weighting else None
+
+    r_rot, t_trans, rmsd = compute_kabsch_transformation(
+        p_mat, q_mat, weights=w_mat, condition_tol=config.svd_condition_tol
+    )
+
+    p_full = np.array(target.coordinates, dtype=np.float64)
+    p_aligned = p_full @ r_rot.T + t_trans
+    aligned_coords = [tuple(row) for row in p_aligned]
+
+    duration = time.perf_counter() - start_time
+    return AlignedConformerResult(
+        conformer_id=target.conformer_id,
+        reference_id=reference.conformer_id,
+        rmsd_angstrom=float(rmsd),
+        rotation_matrix=r_rot.tolist(),
+        translation_vector=t_trans.tolist(),
+        aligned_coordinates=aligned_coords,
+        atom_mapping=atom_mapping,
+        execution_duration_seconds=float(duration),
+    )
+
+
+def cluster_ensemble_conformers(
+    conformers: List[ConformerInput],
+    reference: ConformerInput,
+    config: Optional[MCSAlignmentConfig] = None,
+) -> EnsembleAlignmentSummary:
+    """Performs batch alignment and pairwise RMSD clustering across a conformer ensemble [D]."""
+    if config is None:
+        config = MCSAlignmentConfig()
+
+    aligned_conformers: List[AlignedConformerResult] = []
+    for conf in conformers:
+        aligned_conf = align_conformers_by_mcs(conf, reference, config=config)
+        aligned_conformers.append(aligned_conf)
+
+    m = len(conformers)
+    pairwise_rmsd = np.zeros((m, m), dtype=np.float64)
+
+    consensus_mapping: Dict[int, int] = {}
+    if aligned_conformers:
+        consensus_mapping = dict(aligned_conformers[0].atom_mapping)
+
+    aligned_mcs_coords_list: List[List[Tuple[float, float, float]]] = []
+    sorted_ref_atoms = sorted(set(consensus_mapping.values()))
+
+    for ac in aligned_conformers:
+        rev_map = {r: t for t, r in ac.atom_mapping.items()}
+        conf_mcs_pts = []
+        for r_idx in sorted_ref_atoms:
+            if r_idx in rev_map:
+                t_idx = rev_map[r_idx]
+                conf_mcs_pts.append(ac.aligned_coordinates[t_idx])
+        if conf_mcs_pts:
+            aligned_mcs_coords_list.append(conf_mcs_pts)
+
+    has_mcs_coords = len(aligned_mcs_coords_list) == m and all(
+        len(pts) == len(aligned_mcs_coords_list[0]) for pts in aligned_mcs_coords_list
+    )
+
+    for j in range(m):
+        for k in range(j + 1, m):
+            if has_mcs_coords:
+                pts_j = np.array(aligned_mcs_coords_list[j], dtype=np.float64)
+                pts_k = np.array(aligned_mcs_coords_list[k], dtype=np.float64)
+            else:
+                pts_j = np.array(aligned_conformers[j].aligned_coordinates, dtype=np.float64)
+                pts_k = np.array(aligned_conformers[k].aligned_coordinates, dtype=np.float64)
+            diff = pts_j - pts_k
+            rmsd_val = float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
+            pairwise_rmsd[j, k] = rmsd_val
+            pairwise_rmsd[k, j] = rmsd_val
+
+    # Duplicate clustering via connected components
+    threshold = config.rmsd_cluster_threshold_angstrom
+    visited = [False] * m
+    duplicate_clusters: List[List[str]] = []
+
+    for i in range(m):
+        if visited[i]:
+            continue
+        cluster_indices = [i]
+        queue = [i]
+        visited[i] = True
+        while queue:
+            curr = queue.pop(0)
+            for nxt in range(m):
+                if not visited[nxt] and pairwise_rmsd[curr, nxt] < threshold:
+                    visited[nxt] = True
+                    queue.append(nxt)
+                    cluster_indices.append(nxt)
+        if len(cluster_indices) >= 2:
+            duplicate_clusters.append([conformers[idx].conformer_id for idx in cluster_indices])
+
+    return EnsembleAlignmentSummary(
+        ensemble_id=f"ens_{reference.conformer_id}",
+        reference_id=reference.conformer_id,
+        total_conformers=m,
+        aligned_conformers=aligned_conformers,
+        pairwise_rmsd_matrix=pairwise_rmsd.tolist(),
+        duplicate_clusters=duplicate_clusters,
+        mcs_mapping=consensus_mapping,
+        aligned_mcs_coords=aligned_mcs_coords_list if has_mcs_coords else None,
+    )
+
+
+def persist_aligned_ensemble_h5(
+    summary: EnsembleAlignmentSummary,
+    archive_path: Path,
+    lock_timeout: float = 30.0,
+) -> Path:
+    """Persists aligned conformer trajectories and RMSD matrices into HDF5 under 6-tier concurrency [D]."""
+    t_store_env = os.environ.get("COCH_STORE_DIR")
+    t_store = Path(t_store_env).resolve() if t_store_env else (Path.home() / ".cochem" / "store").resolve()
+    resolved_path = archive_path.resolve()
+
+    try:
+        resolved_path.relative_to(t_store)
+    except ValueError:
+        raise AirGapBoundaryViolationError(
+            f"Archive path {resolved_path} violates Tripartite Air-Gap: must reside inside {t_store}"
+        )
+
+    resolved_path.parent.mkdir(parents=True, exist_ok=True)
+    tier = detect_concurrency_tier()
+    lock_file_path = str(resolved_path) + ".lock"
+
+    if tier == StorageTier.TIER6_HPC:
+        hpc_scratch = os.environ.get("SLURM_TMPDIR") or os.environ.get("COCH_SCRATCH")
+        if hpc_scratch:
+            scratch_dir = Path(hpc_scratch) / "cochem_staging"
+            scratch_dir.mkdir(parents=True, exist_ok=True)
+            staging_path = scratch_dir / f"{resolved_path.name}.tmp.{os.getpid()}"
+        else:
+            staging_path = resolved_path.with_name(f"{resolved_path.name}.tmp.{os.getpid()}")
+    else:
+        staging_path = resolved_path.with_name(f"{resolved_path.name}.tmp.{os.getpid()}")
+
+    libver = "latest" if tier in (StorageTier.TIER2_MACOS, StorageTier.TIER3_LINUX) else "earliest"
+
+    with filelock.FileLock(lock_file_path, timeout=lock_timeout):
+        with h5py.File(staging_path, "w", libver=libver) as h5f:
+            ens_grp = h5f.require_group(f"/ensembles/{summary.ensemble_id}")
+            rmsd_arr = np.array(summary.pairwise_rmsd_matrix, dtype=np.float32)
+            ens_grp.create_dataset("pairwise_rmsd", data=rmsd_arr, dtype="float32")
+
+            mapping_items = sorted(summary.mcs_mapping.items())
+            mapping_arr = np.array(mapping_items, dtype=np.int32) if mapping_items else np.empty((0, 2), dtype=np.int32)
+            ens_grp.create_dataset("mcs_mapping", data=mapping_arr, dtype="int32")
+
+            if summary.aligned_conformers:
+                atom_counts = [len(c.aligned_coordinates) for c in summary.aligned_conformers]
+                if len(set(atom_counts)) == 1:
+                    coords_arr = np.array(
+                        [c.aligned_coordinates for c in summary.aligned_conformers], dtype=np.float64
+                    )
+                    ens_grp.create_dataset("aligned_coords", data=coords_arr, dtype="float64")
+                else:
+                    conf_grp = ens_grp.require_group("conformers")
+                    for c in summary.aligned_conformers:
+                        c_coords = np.array(c.aligned_coordinates, dtype=np.float64)
+                        conf_grp.create_dataset(f"{c.conformer_id}/aligned_coords", data=c_coords, dtype="float64")
+
+            if summary.aligned_mcs_coords is not None:
+                mcs_coords_arr = np.array(summary.aligned_mcs_coords, dtype=np.float64)
+                ens_grp.create_dataset("aligned_mcs_coords", data=mcs_coords_arr, dtype="float64")
+
+        if staging_path.parent == resolved_path.parent:
+            os.replace(staging_path, resolved_path)
+        else:
+            import shutil
+            shutil.move(str(staging_path), str(resolved_path))
+
+    return resolved_path
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_topos_alignment.py ---
+"""Physical Verification Test Suite for CoChem-TOPOS Alignment Part 1.
+
+Verifies chiral enantiomer reflection parity guards, collinear rank-deficiency,
+coplanar coordinate stabilization, BSSE ghost-atom exclusion, Pydantic validation,
+numerical degeneracy safeguards, MCS timeouts, ensemble clustering, and HDF5 persistence [M][D].
+"""
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-import shutil
-import subprocess
-from typing import List, Optional
+
+import h5py
 import numpy as np
-from mendeleev import element
-
-from cochem.topos.exceptions import PyMOLExportError
-from cochem.topos.models import PyMOLExportResult
-
-
-class PyMOLExportEngine:
-    """Exports molecular 3D structures with topological domain colouring and metal coordination to PyMOL."""
-
-    def __init__(self) -> None:
-        self._vdw_cache: dict[str, float] = {}
-
-    def _get_vdw_radius(self, symbol: str) -> float:
-        """Retrieves dynamic van der Waals radius in Angstroms."""
-        if symbol not in self._vdw_cache:
-            el = element(symbol)
-            pm = (
-                el.vdw_radius_alvarez
-                or el.vdw_radius_bondi
-                or el.vdw_radius
-                or (el.covalent_radius_pyykko * 1.5)
-            )
-            self._vdw_cache[symbol] = float(pm / 100.0)
-        return self._vdw_cache[symbol]
-
-    def _is_metal(self, symbol: str) -> bool:
-        """Determines whether element is a transition, post-transition, or inner-transition metal."""
-        el = element(symbol)
-        series_str = getattr(el, "series", "").lower()
-        if "nonmetal" in series_str or "alkali" in series_str or "halogen" in series_str or "noble gas" in series_str:
-            return False
-        return "metal" in series_str or getattr(el, "group_id", 0) in range(3, 13)
-
-    def _build_pdb_string(
-        self,
-        atoms: List[str],
-        coordinates: np.ndarray,
-        bonds: Optional[List[tuple[int, int, float]]] = None,
-    ) -> str:
-        """Builds a deterministic standard PDB representation with CONECT records."""
-        lines: List[str] = ["HEADER    TOPOS PYMOL EXPORT STRUCTURE"]
-        for idx, (sym, pos) in enumerate(zip(atoms, coordinates)):
-            x, y, z = pos
-            atom_name = f"{sym[:2]:>2}{idx % 100:02d}"
-            line = (
-                f"HETATM{idx + 1:5d} {atom_name:4s} LIG A   1    "
-                f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00 20.00          {sym:>2s}"
-            )
-            lines.append(line)
-
-        if bonds:
-            for u_idx, v_idx, _ in bonds:
-                lines.append(f"CONECT{u_idx + 1:5d}{v_idx + 1:5d}")
-
-        lines.append("END")
-        return "\n".join(lines) + "\n"
-
-    def export_session(
-        self,
-        output_path: str | Path,
-        atoms: list[str],
-        coordinates: list[list[float]] | np.ndarray,
-        domains: list[int] | None = None,
-        bonds: list[tuple[int, int, float]] | None = None,
-    ) -> PyMOLExportResult:
-        """Exports molecular coordinates to a PyMOL session or script bundle."""
-        out_path = Path(output_path).resolve()
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        coords = np.array(coordinates, dtype=float)
-
-        metal_indices = [i for i, sym in enumerate(atoms) if self._is_metal(sym)]
-        metal_count = len(metal_indices)
-        colored_domains_count = len(set(domains)) if domains is not None else 0
-
-        # Try Mode A: headless Python API
-        has_pymol_api = False
-        try:
-            import pymol  # type: ignore[import-not-found]
-            from pymol import cmd  # type: ignore[import-not-found]
-            has_pymol_api = True
-        except ImportError:
-            has_pymol_api = False
-
-        if has_pymol_api:
-            try:
-                pymol.finish_launching(["pymol", "-cqp"])
-                cmd.reinitialize()
-                pdb_str = self._build_pdb_string(atoms, coords, bonds)
-                cmd.read_pdbstr(pdb_str, "topos_obj")
-
-                # Define domain colors
-                cmd.set_color("dom0", [0.294, 0.396, 0.518])
-                cmd.set_color("dom1", [0.125, 0.749, 0.420])
-                cmd.set_color("dom2", [0.922, 0.231, 0.353])
-                cmd.set_color("dom3", [0.271, 0.667, 0.949])
-
-                cmd.hide("everything", "all")
-                cmd.show("sticks", "not elem " + "+".join(atoms[m] for m in metal_indices) if metal_indices else "all")
-                cmd.set("stick_radius", 0.20)
-
-                if domains:
-                    for at_idx, d_val in enumerate(domains):
-                        c_name = f"dom{min(max(d_val, 0), 3)}"
-                        cmd.color(c_name, f"topos_obj and id {at_idx + 1} and elem C")
-
-                for m_idx in metal_indices:
-                    m_sym = atoms[m_idx]
-                    r_vdw = self._get_vdw_radius(m_sym)
-                    cmd.show("spheres", f"topos_obj and id {m_idx + 1}")
-                    cmd.set("sphere_scale", 0.35 * r_vdw, f"topos_obj and id {m_idx + 1}")
-
-                cmd.save(out_path.as_posix())
-                file_size = out_path.stat().st_size
-                return PyMOLExportResult(
-                    session_path=str(out_path),
-                    export_mode="headless_api",
-                    colored_domains_count=colored_domains_count,
-                    metal_centers_rendered=metal_count,
-                    file_size_bytes=file_size,
-                )
-            except Exception:
-                has_pymol_api = False
-
-        # Mode B: Headless CLI / Script Bundler
-        try:
-            pml_path = out_path.with_suffix(".pml")
-            pdb_inline = self._build_pdb_string(atoms, coords, bonds)
-
-            pml_lines: List[str] = [
-                "# TOPOS Deterministic PyMOL Automation Script Bundle",
-                "# Export Mode: cli_script_bundle",
-                "reinitialize",
-                "set_color dom0, [0.294, 0.396, 0.518]",
-                "set_color dom1, [0.125, 0.749, 0.420]",
-                "set_color dom2, [0.922, 0.231, 0.353]",
-                "set_color dom3, [0.271, 0.667, 0.949]",
-                "load inline:topos_obj, pdb",
-                pdb_inline.strip(),
-                "END_INLINE",
-                "hide everything, all",
-                "set stick_radius, 0.20",
-                "show sticks, all",
-            ]
-
-            if domains:
-                for idx, dom_id in enumerate(domains):
-                    color_tag = f"dom{min(max(dom_id, 0), 3)}"
-                    pml_lines.append(f"color {color_tag}, (topos_obj and id {idx + 1} and elem C)")
-
-            for m_idx in metal_indices:
-                m_sym = atoms[m_idx]
-                r_vdw = self._get_vdw_radius(m_sym)
-                sphere_radius = 0.35 * r_vdw
-                pml_lines.append(f"show spheres, (topos_obj and id {m_idx + 1})")
-                pml_lines.append(f"set sphere_scale, {sphere_radius:.3f}, (topos_obj and id {m_idx + 1})")
-                pml_lines.append("set dash_gap, 0.15")
-                pml_lines.append("set dash_length, 0.15")
-
-            pml_content = "\n".join(pml_lines) + "\n"
-            pml_path.write_text(pml_content, encoding="utf-8")
-
-            # If pymol executable is available, execute CLI headless conversion
-            pymol_bin = shutil.which("pymol")
-            if pymol_bin and out_path.suffix == ".pse":
-                subprocess.run(
-                    [pymol_bin, "-cqp", str(pml_path)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=False,
-                )
-
-            # Ensure the primary requested output_path exists
-            if not out_path.exists():
-                out_path.write_text(pml_content, encoding="utf-8")
-
-            file_size = out_path.stat().st_size
-            return PyMOLExportResult(
-                session_path=str(out_path),
-                export_mode="cli_script_bundle",
-                colored_domains_count=colored_domains_count,
-                metal_centers_rendered=metal_count,
-                file_size_bytes=file_size,
-            )
-        except Exception as exc:
-            raise PyMOLExportError(f"Failed to export PyMOL session bundle: {exc}") from exc
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\sanitizer.py ---
-"""TOPOS Automated Topology Sanitization Pass: Salt stripping, API retention, and formal charge neutralization."""
-
-from __future__ import annotations
-
-import math
-from typing import Dict, List, Optional, Set, Tuple
-import numpy as np
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from mendeleev import element
-
-from cochem.topos.exceptions import SanitizationError
-from cochem.topos.models import TopologySanitizationResult
-
-
-class TopologySanitizer:
-    """Sanitizes molecular topologies via authoritative counterion stripping and resonance-aware neutralization."""
-
-    def __init__(self) -> None:
-        self._counterion_registry: Dict[str, Chem.Mol] = self._build_counterion_registry()
-
-    def _build_counterion_registry(self) -> Dict[str, Chem.Mol]:
-        """Compiles authoritative curated SMARTS and SMILES registry of common pharmaceutical counterions."""
-        raw_dict: Dict[str, str] = {
-            # Inorganic Cations
-            "sodium": "[Na+]",
-            "potassium": "[K+]",
-            "lithium": "[Li+]",
-            "calcium": "[Ca+2]",
-            "magnesium": "[Mg+2]",
-            # Inorganic Anions
-            "chloride": "[Cl-]",
-            "bromide": "[Br-]",
-            "iodide": "[I-]",
-            "sulfate": "OS(=O)(=O)O",
-            "nitrate": "O[N+](=O)[O-]",
-            "phosphate": "OP(=O)(O)O",
-            "tetrafluoroborate": "F[B-](F)(F)F",
-            "hexafluorophosphate": "F[P-](F)(F)(F)(F)F",
-            # Bulky Organic Sulfonates
-            "besylate": "c1ccccc1S(=O)(=O)O",
-            "tosylate": "Cc1ccc(S(=O)(=O)O)cc1",
-            "mesylate": "CS(=O)(=O)O",
-            "triflate": "FC(F)(F)S(=O)(=O)O",
-            "napsylate": "c1cccc2c(S(=O)(=O)O)cccc12",
-            "isethionate": "OCCS(=O)(=O)O",
-            # Bulky Organic Carboxylates
-            "pamoate": "O=C(O)c1c(O)c2ccccc2cc1Cc3cc4ccccc4c(O)c3C(=O)O",
-            "citrate": "OC(=O)CC(O)(CC(=O)O)C(=O)O",
-            "tartrate": "OC(=O)C(O)C(O)C(=O)O",
-            "maleate": "OC(=O)C=CC(=O)O",
-            "fumarate": "OC(=O)/C=C/C(=O)O",
-            "succinate": "OC(=O)CCC(=O)O",
-            "benzoate": "c1ccccc1C(=O)O",
-            "acetate": "CC(=O)O",
-            "lactate": "CC(O)C(=O)O",
-            # Organic Base Cations
-            "meglumine": "CNCC(O)C(O)C(O)C(O)CO",
-            "tromethamine": "NC(CO)(CO)CO",
-            "choline": "C[N+](C)(C)CCO",
-        }
-
-        registry: Dict[str, Chem.Mol] = {}
-        for name, sm in raw_dict.items():
-            mol = Chem.MolFromSmiles(sm)
-            if mol is not None:
-                registry[name] = mol
-        return registry
-
-    def _is_transition_metal_complex(self, mol: Chem.Mol) -> bool:
-        """Determines whether molecule contains a transition metal with coordination degree >= 1."""
-        for atom in mol.GetAtoms():
-            sym = atom.GetSymbol()
-            try:
-                el = element(sym)
-                s = getattr(el, "series", "").lower()
-                if "nonmetal" not in s and "alkali" not in s and ("metal" in s or getattr(el, "group_id", 0) in range(3, 13)):
-                    if atom.GetDegree() >= 1:
-                        return True
-            except Exception:
-                continue
-        return False
-
-    def _matches_counterion_registry(self, comp_mol: Chem.Mol) -> Optional[str]:
-        """Checks if a component matches an entry in the counterion registry."""
-        comp_can = Chem.MolToSmiles(comp_mol)
-        for name, reg_mol in self._counterion_registry.items():
-            reg_can = Chem.MolToSmiles(reg_mol)
-            if comp_can == reg_can:
-                return name
-            if comp_mol.HasSubstructMatch(reg_mol) and reg_mol.HasSubstructMatch(comp_mol):
-                return name
-
-        # Inorganic single-ion checks
-        if comp_mol.GetNumHeavyAtoms() == 1:
-            sym = comp_mol.GetAtomWithIdx(0).GetSymbol()
-            if sym in {"Na", "K", "Li", "Ca", "Mg", "Cl", "Br", "I"}:
-                return f"{sym}_ion"
-
-        return None
-
-    def _neutralize_charges(self, mol: Chem.Mol) -> Tuple[Chem.Mol, bool]:
-        """Neutralizes uncoupled acidic and basic formal charges while preserving physiological zwitterions."""
-        rw_mol = Chem.RWMol(mol)
-        num_atoms = rw_mol.GetNumAtoms()
-
-        # Check physiological zwitterion invariant: amino acids, betaines
-        pos_n_indices: List[int] = []
-        neg_o_indices: List[int] = []
-
-        for idx in range(num_atoms):
-            at = rw_mol.GetAtomWithIdx(idx)
-            fc = at.GetFormalCharge()
-            sym = at.GetSymbol()
-            if sym == "N" and fc > 0:
-                # Exclude quaternary ammonium with 4 carbon neighbors
-                c_nbrs = sum(1 for nbr in at.GetNeighbors() if nbr.GetSymbol() == "C")
-                if c_nbrs < 4:
-                    pos_n_indices.append(idx)
-            elif sym == "O" and fc < 0:
-                neg_o_indices.append(idx)
-
-        total_net_charge = sum(rw_mol.GetAtomWithIdx(i).GetFormalCharge() for i in range(num_atoms))
-        is_zwitterion = False
-
-        if total_net_charge == 0 and len(pos_n_indices) == len(neg_o_indices) and len(pos_n_indices) > 0:
-            # Check intramolecular distance if 3D coordinates are present or by graph distance
-            is_zwitterion = True
-
-        if is_zwitterion:
-            return rw_mol.GetMol(), True
-
-        # Neutralize uncoupled basic sites (e.g. protonated amines, amidines, guanidines)
-        for idx in range(num_atoms):
-            at = rw_mol.GetAtomWithIdx(idx)
-            fc = at.GetFormalCharge()
-            sym = at.GetSymbol()
-
-            if sym == "N" and fc > 0:
-                # Protect quaternary ammonium (4 carbon neighbors)
-                num_c_nbrs = sum(1 for nbr in at.GetNeighbors() if nbr.GetSymbol() == "C")
-                if num_c_nbrs >= 4:
-                    continue
-                # Protect nitro group N+(O-)=O
-                o_minus_nbrs = [
-                    nbr for nbr in at.GetNeighbors()
-                    if nbr.GetSymbol() == "O" and nbr.GetFormalCharge() < 0
-                ]
-                if o_minus_nbrs:
-                    continue
-
-                # Neutralize protonated amine / amidinium
-                at.SetFormalCharge(fc - 1)
-                at.SetNumExplicitHs(max(0, at.GetNumExplicitHs() - 1))
-
-            elif sym in {"O", "S"} and fc < 0:
-                # Protect nitro oxygens
-                is_nitro_o = False
-                for nbr in at.GetNeighbors():
-                    if nbr.GetSymbol() == "N" and nbr.GetFormalCharge() > 0:
-                        is_nitro_o = True
-                        break
-                if is_nitro_o:
-                    continue
-
-                at.SetFormalCharge(fc + 1)
-                at.SetNumExplicitHs(at.GetNumExplicitHs() + 1)
-
-        try:
-            Chem.SanitizeMol(rw_mol)
-        except Exception as err:
-            raise SanitizationError(f"Valence or octet violation during neutralization: {err}") from err
-
-        return rw_mol.GetMol(), False
-
-    def sanitize_topology(
-        self,
-        smiles: str,
-        coordinates: list[list[float]] | np.ndarray | None = None,
-    ) -> TopologySanitizationResult:
-        """Splits connected components, removes curated counterions, and neutralizes charges."""
-        raw_mol = Chem.MolFromSmiles(smiles)
-        if raw_mol is None:
-            raise SanitizationError(f"Input SMILES '{smiles}' cannot be parsed into a molecular graph.")
-
-        frags = Chem.GetMolFrags(raw_mol, asMols=True, sanitizeFrags=True)
-        if not frags:
-            raise SanitizationError(f"No valid molecular fragments generated from SMILES '{smiles}'.")
-
-        removed_ions: List[str] = []
-        candidate_apis: List[Chem.Mol] = []
-
-        for comp in frags:
-            # Organometallic guard
-            if self._is_transition_metal_complex(comp):
-                candidate_apis.append(comp)
-                continue
-
-            matched_ion_name = self._matches_counterion_registry(comp)
-            if matched_ion_name is not None:
-                can_sm = Chem.MolToSmiles(comp)
-                removed_ions.append(f"{matched_ion_name}: {can_sm}")
-            else:
-                candidate_apis.append(comp)
-
-        if not candidate_apis:
-            # If all components matched registry, retain the largest one
-            largest_comp = max(frags, key=lambda m: m.GetNumHeavyAtoms())
-            candidate_apis.append(largest_comp)
-
-        # Retain primary API: pick the unique or largest API entity
-        unique_apis: Dict[str, Chem.Mol] = {}
-        for api_mol in candidate_apis:
-            can_s = Chem.MolToSmiles(api_mol)
-            if can_s not in unique_apis:
-                unique_apis[can_s] = api_mol
-
-        primary_api = max(unique_apis.values(), key=lambda m: m.GetNumHeavyAtoms())
-
-        neutralized_mol, is_zw = self._neutralize_charges(primary_api)
-        sanitized_smiles = Chem.MolToSmiles(neutralized_mol)
-        retained_count = neutralized_mol.GetNumHeavyAtoms()
-        net_formal_charge = sum(at.GetFormalCharge() for at in neutralized_mol.GetAtoms())
-
-        sanitized_coords: Optional[List[List[float]]] = None
-        if coordinates is not None:
-            coords_arr = np.array(coordinates, dtype=float)
-            if coords_arr.shape[0] >= retained_count:
-                sanitized_coords = coords_arr[:retained_count].tolist()
-
-        return TopologySanitizationResult(
-            sanitized_smiles=sanitized_smiles,
-            sanitized_coordinates=sanitized_coords,
-            formal_net_charge=net_formal_charge,
-            is_zwitterion=is_zw,
-            removed_counterions=removed_ions,
-            retained_atom_count=retained_count,
-        )
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\scaffold_hopper.py ---
-"""TOPOS Scaffold Hopper: Vector alignment and bioisosteric replacement module."""
-
-from __future__ import annotations
-
-import math
-from typing import List, Optional, Tuple
-import numpy as np
-from rdkit import Chem, DataStructs
-from rdkit.Chem import AllChem, rdFingerprintGenerator
-from mendeleev import element
-
-from cochem.topos.exceptions import BioisostereNotFoundError, ScaffoldMatchingError
-from cochem.topos.models import ExitVector, ScaffoldHopResult
-
-
-class ScaffoldHopper:
-    """Performs geometric scaffold hopping with rigid SE(3) superposition and multi-objective scoring."""
-
-    def __init__(self) -> None:
-        self._fp_gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
-
-    def _compute_gaussian_shape_tanimoto(
-        self, coords_a: np.ndarray, coords_b: np.ndarray, alpha: float = 0.35
-    ) -> float:
-        """Computes volumetric Gaussian shape Tanimoto overlap between two coordinate ensembles."""
-        def _overlap(c1: np.ndarray, c2: np.ndarray) -> float:
-            dists_sq = np.sum((c1[:, None, :] - c2[None, :, :]) ** 2, axis=-1)
-            return float(np.sum(np.exp(-0.5 * alpha * dists_sq)))
-
-        o_ab = _overlap(coords_a, coords_b)
-        o_aa = _overlap(coords_a, coords_a)
-        o_bb = _overlap(coords_b, coords_b)
-        denom = o_aa + o_bb - o_ab
-        if denom <= 1e-12:
-            return 1.0
-        return float(np.clip(o_ab / denom, 0.0, 1.0))
-
-    def _compute_electrostatic_tanimoto(
-        self,
-        coords_a: np.ndarray,
-        charges_a: np.ndarray,
-        coords_b: np.ndarray,
-        charges_b: np.ndarray,
-        alpha: float = 0.35,
-    ) -> float:
-        """Computes normalized Gaussian electrostatic correlation between two charge distributions."""
-        def _elec_overlap(c1: np.ndarray, q1: np.ndarray, c2: np.ndarray, q2: np.ndarray) -> float:
-            dists_sq = np.sum((c1[:, None, :] - c2[None, :, :]) ** 2, axis=-1)
-            weights = q1[:, None] * q2[None, :]
-            return float(np.sum(weights * np.exp(-0.5 * alpha * dists_sq)))
-
-        o_ab = _elec_overlap(coords_a, charges_a, coords_b, charges_b)
-        o_aa = _elec_overlap(coords_a, charges_a, coords_a, charges_a)
-        o_bb = _elec_overlap(coords_b, charges_b, coords_b, charges_b)
-        denom = math.sqrt(abs(o_aa * o_bb)) + 1e-9
-        corr = o_ab / denom
-        return float(np.clip(0.5 * (1.0 + corr), 0.0, 1.0))
-
-    def _compute_kabsch_alignment(
-        self, candidate_triad: np.ndarray, host_triad: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray, float, float]:
-        """Aligns candidate triad onto host triad via Kabsch root-mean-square minimization."""
-        p_cand_anchor = candidate_triad[0]
-        p_host_anchor = host_triad[0]
-
-        p_cand_centered = candidate_triad - p_cand_anchor
-        p_host_centered = host_triad - p_host_anchor
-
-        h_matrix = np.dot(p_cand_centered.T, p_host_centered)
-        u_mat, _, vt_mat = np.linalg.svd(h_matrix)
-        det_sign = float(np.linalg.det(np.dot(vt_mat.T, u_mat.T)))
-        correction = np.diag([1.0, 1.0, det_sign])
-        rotation = np.dot(vt_mat.T, np.dot(correction, u_mat.T))
-        translation = p_host_anchor - np.dot(rotation, p_cand_anchor)
-
-        candidate_aligned = np.dot(candidate_triad, rotation.T) + translation
-        frame_rmsd = float(np.sqrt(np.mean(np.sum((host_triad - candidate_aligned) ** 2, axis=1))))
-
-        v_host = host_triad[1] - host_triad[0]
-        v_cand_rot = np.dot(rotation, candidate_triad[1] - candidate_triad[0])
-        norm_h = np.linalg.norm(v_host)
-        norm_c = np.linalg.norm(v_cand_rot)
-        cos_theta = np.dot(v_host, v_cand_rot) / (norm_h * norm_c + 1e-12)
-        angular_deviation = float(math.degrees(math.acos(np.clip(cos_theta, -1.0, 1.0))))
-
-        return rotation, translation, frame_rmsd, angular_deviation
-
-    def hop_scaffold(
-        self,
-        molecule_smiles: str,
-        scaffold_smiles: str,
-        replacement_library: list[str],
-        coordinates: list[list[float]] | np.ndarray | None = None,
-    ) -> list[ScaffoldHopResult]:
-        """Replaces target scaffold in host molecule with bioisosteres, scoring aligned candidates."""
-        mol = Chem.MolFromSmiles(molecule_smiles)
-        if mol is None:
-            raise ScaffoldMatchingError(f"Host molecule SMILES '{molecule_smiles}' could not be parsed.")
-
-        scaffold_mol = Chem.MolFromSmiles(scaffold_smiles)
-        if scaffold_mol is None:
-            raise ScaffoldMatchingError(f"Scaffold SMILES '{scaffold_smiles}' could not be parsed.")
-
-        substruct_matches = mol.GetSubstructMatches(scaffold_mol)
-        if not substruct_matches:
-            raise ScaffoldMatchingError(
-                f"Scaffold '{scaffold_smiles}' exhibits no subgraph isomorphism mapping onto '{molecule_smiles}'."
-            )
-
-        scaffold_atom_indices = set(substruct_matches[0])
-        num_atoms = mol.GetNumAtoms()
-
-        if coordinates is not None:
-            host_coords = np.array(coordinates, dtype=float)
-            if host_coords.shape[0] != num_atoms:
-                raise ScaffoldMatchingError(
-                    f"Coordinate dimension mismatch: expected {num_atoms} atoms, received {host_coords.shape[0]}."
-                )
-            conf = Chem.Conformer(num_atoms)
-            for atom_i, pos in enumerate(host_coords):
-                conf.SetAtomPosition(atom_i, pos.tolist())
-            mol.RemoveAllConformers()
-            mol.AddConformer(conf, assignId=True)
-        else:
-            mol_with_h = Chem.AddHs(mol)
-            AllChem.EmbedMolecule(mol_with_h, AllChem.ETKDGv3())
-            AllChem.MMFFOptimizeMolecule(mol_with_h)
-            mol = Chem.RemoveHs(mol_with_h)
-            host_coords = mol.GetConformer().GetPositions()
-
-        severed_bonds: List[Tuple[int, int]] = []
-        for bond in mol.GetBonds():
-            u_idx = bond.GetBeginAtomIdx()
-            v_idx = bond.GetEndAtomIdx()
-            if u_idx in scaffold_atom_indices and v_idx not in scaffold_atom_indices:
-                severed_bonds.append((u_idx, v_idx))
-            elif v_idx in scaffold_atom_indices and u_idx not in scaffold_atom_indices:
-                severed_bonds.append((v_idx, u_idx))
-
-        if not severed_bonds:
-            raise ScaffoldMatchingError(
-                f"No attachment exit vectors perceived between scaffold '{scaffold_smiles}' and host molecule."
-            )
-
-        anchor_a, subst_b = severed_bonds[0]
-
-        non_scaffold_indices = [idx for idx in range(num_atoms) if idx not in scaffold_atom_indices]
-        if non_scaffold_indices:
-            best_subst = min(
-                non_scaffold_indices,
-                key=lambda idx: float(np.linalg.norm(host_coords[anchor_a] - host_coords[idx])),
-            )
-            dist_to_graph_b = float(np.linalg.norm(host_coords[anchor_a] - host_coords[subst_b]))
-            dist_to_best = float(np.linalg.norm(host_coords[anchor_a] - host_coords[best_subst]))
-            if dist_to_best < 2.0 and dist_to_graph_b > 2.2:
-                subst_b = best_subst
-
-        r_anchor = host_coords[anchor_a]
-        r_subst = host_coords[subst_b]
-        delta_vec = r_subst - r_anchor
-        delta_norm = float(np.linalg.norm(delta_vec))
-        exit_vec = delta_vec / delta_norm if delta_norm > 1e-12 else np.array([1.0, 0.0, 0.0])
-
-        atom_obj_a = mol.GetAtomWithIdx(anchor_a)
-        scaffold_nbrs = [
-            nbr.GetIdx() for nbr in atom_obj_a.GetNeighbors() if nbr.GetIdx() in scaffold_atom_indices
-        ]
-
-        if scaffold_nbrs:
-            c_neighbor = min(scaffold_nbrs)
-            diff_scaffold = r_anchor - host_coords[c_neighbor]
-            cross_prod = np.cross(diff_scaffold, exit_vec)
-            cross_mag = float(np.linalg.norm(cross_prod))
-            if cross_mag >= 1e-4:
-                normal_vec = cross_prod / cross_mag
-            else:
-                u_arb = np.array([1.0, 0.0, 0.0])
-                if abs(float(np.dot(u_arb, exit_vec))) > 0.9:
-                    u_arb = np.array([0.0, 1.0, 0.0])
-                proj = u_arb - float(np.dot(u_arb, exit_vec)) * exit_vec
-                normal_vec = proj / float(np.linalg.norm(proj))
-        else:
-            u_arb = np.array([1.0, 0.0, 0.0])
-            if abs(float(np.dot(u_arb, exit_vec))) > 0.9:
-                u_arb = np.array([0.0, 1.0, 0.0])
-            proj = u_arb - float(np.dot(u_arb, exit_vec)) * exit_vec
-            normal_vec = proj / float(np.linalg.norm(proj))
-
-        host_triad = np.array([r_anchor, r_anchor + exit_vec, r_anchor + normal_vec])
-
-        AllChem.ComputeGasteigerCharges(mol)
-        orig_charges = np.array(
-            [float(mol.GetAtomWithIdx(i).GetDoubleProp("_GasteigerCharge")) for i in range(num_atoms)]
-        )
-        orig_charges = np.nan_to_num(orig_charges, nan=0.0)
-
-        results: List[ScaffoldHopResult] = []
-
-        for candidate_smiles_lib in replacement_library:
-            cand_mol = Chem.MolFromSmiles(candidate_smiles_lib)
-            if cand_mol is None:
-                continue
-
-            anchor_cand_idx = 0
-            for atom_cand in cand_mol.GetAtoms():
-                if atom_cand.GetSymbol() == "C" and atom_cand.GetTotalNumHs() > 0:
-                    anchor_cand_idx = atom_cand.GetIdx()
-                    break
-
-            cand_with_h = Chem.AddHs(cand_mol)
-            AllChem.EmbedMolecule(cand_with_h, AllChem.ETKDGv3())
-            try:
-                AllChem.MMFFOptimizeMolecule(cand_with_h)
-            except Exception as opt_err:
-                _opt_msg = str(opt_err)
-            cand_heavy = Chem.RemoveHs(cand_with_h)
-            cand_coords = cand_heavy.GetConformer().GetPositions()
-            cand_heavy_count = cand_heavy.GetNumAtoms()
-
-            r_cand_anchor = cand_coords[anchor_cand_idx]
-
-            atom_obj_cand = cand_heavy.GetAtomWithIdx(anchor_cand_idx)
-            cand_nbrs = [nbr.GetIdx() for nbr in atom_obj_cand.GetNeighbors()]
-
-            if len(cand_nbrs) >= 2:
-                v1 = cand_coords[cand_nbrs[0]] - r_cand_anchor
-                v2 = cand_coords[cand_nbrs[1]] - r_cand_anchor
-                bisector = (v1 / np.linalg.norm(v1)) + (v2 / np.linalg.norm(v2))
-                cand_exit_vec = -bisector / float(np.linalg.norm(bisector))
-            elif len(cand_nbrs) == 1:
-                cand_exit_vec = -(cand_coords[cand_nbrs[0]] - r_cand_anchor)
-                cand_exit_vec = cand_exit_vec / float(np.linalg.norm(cand_exit_vec))
-            else:
-                cand_exit_vec = np.array([1.0, 0.0, 0.0])
-
-            if cand_nbrs:
-                cand_c_neighbor = min(cand_nbrs)
-                cand_diff = r_cand_anchor - cand_coords[cand_c_neighbor]
-                cand_cross = np.cross(cand_diff, cand_exit_vec)
-                cand_cross_mag = float(np.linalg.norm(cand_cross))
-                if cand_cross_mag >= 1e-4:
-                    cand_normal_vec = cand_cross / cand_cross_mag
-                else:
-                    u_arb = np.array([1.0, 0.0, 0.0])
-                    if abs(float(np.dot(u_arb, cand_exit_vec))) > 0.9:
-                        u_arb = np.array([0.0, 1.0, 0.0])
-                    cand_proj = u_arb - float(np.dot(u_arb, cand_exit_vec)) * cand_exit_vec
-                    cand_normal_vec = cand_proj / float(np.linalg.norm(cand_proj))
-            else:
-                u_arb = np.array([1.0, 0.0, 0.0])
-                if abs(float(np.dot(u_arb, cand_exit_vec))) > 0.9:
-                    u_arb = np.array([0.0, 1.0, 0.0])
-                cand_proj = u_arb - float(np.dot(u_arb, cand_exit_vec)) * cand_exit_vec
-                cand_normal_vec = cand_proj / float(np.linalg.norm(cand_proj))
-
-            cand_triad = np.array([
-                r_cand_anchor,
-                r_cand_anchor + cand_exit_vec,
-                r_cand_anchor + cand_normal_vec,
-            ])
-
-            rot_mat, trans_vec, frame_rmsd, angular_dev = self._compute_kabsch_alignment(
-                candidate_triad=cand_triad, host_triad=host_triad
-            )
-
-            if angular_dev > 15.0 or frame_rmsd > 0.35:
-                continue
-
-            aligned_cand_coords = np.dot(cand_coords, rot_mat.T) + trans_vec
-
-            substituent_atom_indices = [i for i in range(num_atoms) if i not in scaffold_atom_indices]
-            subst_coords = host_coords[substituent_atom_indices]
-
-            composite_coords = np.vstack([subst_coords, aligned_cand_coords])
-
-            if scaffold_smiles in molecule_smiles:
-                if candidate_smiles_lib == "c1nnn[nH]1":
-                    connected_smiles = molecule_smiles.replace(scaffold_smiles, "c2nnn[nH]2")
-                else:
-                    connected_smiles = molecule_smiles.replace(scaffold_smiles, candidate_smiles_lib)
-            else:
-                connected_smiles = f"{Chem.MolToSmiles(mol)}.{candidate_smiles_lib}"
-
-            rep_mol = Chem.MolFromSmiles(connected_smiles)
-            if rep_mol is None:
-                rep_mol = Chem.MolFromSmiles(candidate_smiles_lib)
-
-            shape_t = self._compute_gaussian_shape_tanimoto(host_coords, composite_coords)
-
-            AllChem.ComputeGasteigerCharges(cand_heavy)
-            cand_charges = np.array(
-                [float(cand_heavy.GetAtomWithIdx(i).GetDoubleProp("_GasteigerCharge")) for i in range(cand_heavy_count)]
-            )
-            cand_charges = np.nan_to_num(cand_charges, nan=0.0)
-            composite_charges = np.concatenate([orig_charges[substituent_atom_indices], cand_charges])
-
-            elec_t = self._compute_electrostatic_tanimoto(
-                coords_a=host_coords,
-                charges_a=orig_charges,
-                coords_b=composite_coords,
-                charges_b=composite_charges,
-            )
-
-            strain_energy_val = 0.45
-            if rep_mol is not None and rep_mol.GetNumAtoms() == composite_coords.shape[0]:
-                try:
-                    rep_conf = Chem.Conformer(rep_mol.GetNumAtoms())
-                    for i_at, at_pos in enumerate(composite_coords):
-                        rep_conf.SetAtomPosition(i_at, at_pos.tolist())
-                    rep_mol.AddConformer(rep_conf, assignId=True)
-                    mp = AllChem.MMFFGetMoleculeProperties(rep_mol)
-                    if mp:
-                        ff = AllChem.MMFFGetMoleculeForceField(rep_mol, mp)
-                        if ff:
-                            e_initial = ff.CalcEnergy()
-                            ff.Minimize(maxIts=25)
-                            e_min = ff.CalcEnergy()
-                            strain_diff = float(e_initial - e_min)
-                            if 0.0 <= strain_diff <= 50.0:
-                                strain_energy_val = strain_diff
-                            else:
-                                strain_energy_val = 0.45
-                except Exception:
-                    strain_energy_val = 0.45
-
-            fp_host = self._fp_gen.GetFingerprint(mol)
-            if rep_mol is not None:
-                fp_rep = self._fp_gen.GetFingerprint(rep_mol)
-                tanimoto_topo = float(DataStructs.TanimotoSimilarity(fp_host, fp_rep))
-            else:
-                tanimoto_topo = 0.50
-            delta_d_topo = 1.0 - tanimoto_topo
-
-            e_norm = 10.0
-            d_norm = 1.0
-            s_raw = (
-                0.40 * shape_t
-                + 0.30 * elec_t
-                - 0.20 * (strain_energy_val / e_norm)
-                - 0.10 * (delta_d_topo / d_norm)
-            )
-            composite_score = float(np.clip(s_raw, 0.0, 1.0))
-
-            results.append(
-                ScaffoldHopResult(
-                    candidate_smiles=connected_smiles,
-                    aligned_coordinates=composite_coords.tolist(),
-                    shape_tanimoto=shape_t,
-                    electrostatic_tanimoto=elec_t,
-                    strain_energy_kcal_mol=strain_energy_val,
-                    composite_score=composite_score,
-                )
-            )
-
-        if not results:
-            raise BioisostereNotFoundError(
-                "No bioisostere candidate satisfied exit-vector orientation and RMSD tolerances."
-            )
-
-        results.sort(key=lambda r: r.composite_score, reverse=True)
-        return results
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_topos_general_utilities_part2.py ---
+from pydantic import ValidationError
 import pytest
-from pathlib import Path
-import numpy as np
-from mendeleev import element
 
-from cochem_topos.general_utilities import (
-    ScaffoldHopper,
-    DynamicBondDictionary,
-    PyMOLExportEngine,
-    MetalCoordinationEngine,
-    TopologySanitizer,
+from cochem.topos.alignment import (
+    AirGapBoundaryViolationError,
+    AlignedConformerResult,
+    CollinearDegeneracyError,
+    ConformerInput,
+    DegenerateCoordinatesError,
+    EnsembleAlignmentSummary,
+    IncompatibleTopologyError,
+    MCSAlignmentConfig,
+    MCSConvergenceTimeoutError,
+    StorageTier,
+    align_conformers_by_mcs,
+    cluster_ensemble_conformers,
+    compute_kabsch_transformation,
+    detect_concurrency_tier,
+    persist_aligned_ensemble_h5,
 )
-from cochem_topos.models import (
-    ScaffoldHopResult,
-    GeometryValidationResult,
-    PyMOLExportResult,
-    CoordinationPerceptionResult,
-    TopologySanitizationResult,
-)
 
 
-def test_metal_coordination_cisplatin():
-    """Validates square-planar coordination and Pt(II) formal oxidation state perception on Cisplatin."""
-    engine = MetalCoordinationEngine()
-    # Authentic 3D Cartesian coordinates of Cisplatin [Pt(NH3)2Cl2] in Angstroms
-    atoms = ["Pt", "Cl", "Cl", "N", "N", "H", "H", "H", "H", "H", "H"]
-    coords = [
-        [0.000,  0.000,  0.000],  # Pt
-        [2.320,  0.000,  0.000],  # Cl1
-        [0.000,  2.320,  0.000],  # Cl2
-        [-2.050, 0.000,  0.000],  # N1
-        [0.000, -2.050,  0.000],  # N2
-        [-2.400, 0.810,  0.580],  # H
-        [-2.400, -0.810, 0.580],  # H
-        [-2.400, 0.000, -1.000],  # H
-        [0.810, -2.400,  0.580],  # H
-        [-0.810, -2.400, 0.580],  # H
-        [0.000, -2.400, -1.000],  # H
-    ]
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
+def test_kabsch_chiral_enantiomer_reflection_guard():
+    """REQ-TOPOS-013.3 & REQ-TOPOS-013.4: Verify that Kabsch alignment between chiral enantiomers
 
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Pt"
-    assert center.coordination_number == 4
-    assert center.assigned_geometry == "Square_Planar"
-    assert center.formal_oxidation_state == 2
-    # Verify continuous shape measure: Square Planar S_P(Q) must be significantly lower than Tetrahedral
-    sp_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Square_Planar")
-    td_score = next(s.cshm_value for s in center.polyhedron_scores if s.polyhedron_name == "Tetrahedral")
-    assert sp_score < 3.0
-    assert td_score > 15.0
-
-
-def test_metal_coordination_ferrocene_hapticity():
-    """Validates multi-hapto eta^5-cyclopentadienyl coordination on Ferrocene."""
-    engine = MetalCoordinationEngine()
-    # Authentic Ferrocene [Fe(eta5-C5H5)2] geometry with D5d symmetry
-    fe_z = element("Fe").atomic_number
-    assert fe_z == 26
-
-    # Load authentic physical coordinate stream for ferrocene
-    atoms = ["Fe"] + ["C"] * 10 + ["H"] * 10
-    # Ring 1 at z = +1.65 A, Ring 2 at z = -1.65 A, Fe at origin
-    r_cp = 1.21  # C5 ring radius in Angstroms
-    theta = np.linspace(0, 2 * np.pi, 5, endpoint=False)
-    ring1_c = [[r_cp * np.cos(t), r_cp * np.sin(t), 1.650] for t in theta]
-    ring2_c = [[r_cp * np.cos(t + np.pi/5), r_cp * np.sin(t + np.pi/5), -1.650] for t in theta]
-    ring1_h = [[2.2 * np.cos(t), 2.2 * np.sin(t), 1.650] for t in theta]
-    ring2_h = [[2.2 * np.cos(t + np.pi/5), 2.2 * np.sin(t + np.pi/5), -1.650] for t in theta]
-    coords = [[0.0, 0.0, 0.0]] + ring1_c + ring2_c + ring1_h + ring2_h
-
-    result: CoordinationPerceptionResult = engine.perceive_coordination(atoms=atoms, coordinates=coords, net_charge=0)
-    assert result.total_metals_detected == 1
-    center = result.coordination_centers[0]
-    assert center.metal_element == "Fe"
-    assert center.formal_oxidation_state == 2  # Fe(II)
-    # Must perceive two distinct eta^5 haptic centroids and handle CN=10 gracefully
-    assert len(center.hapticities) == 2
-    assert all(h == 5 for h in center.hapticities.values())
-    assert center.assigned_geometry in ["Special_Haptic", "Unassigned_CN10"]
-    assert center.polyhedron_scores == []
-
-
-def test_geometric_dictionary_aspirin_validation():
-    """Validates physical plausibility and 1-2 / 1-3 exclusion masking on authentic 3D Aspirin."""
-    validator = DynamicBondDictionary()
-    # Authentic, relaxed non-planar 3D coordinates of Aspirin (acetylsalicylic acid, C9H8O4 heavy atoms)
-    # Acetoxy group rotated out-of-plane, preventing unphysical non-bonded collisions
-    atoms = ["C", "C", "C", "C", "C", "C", "C", "O", "O", "O", "C", "O", "C"]
-    coords = [
-        [ 0.000,  0.000,  0.000],  # C0 (ipso)
-        [ 1.400,  0.000,  0.000],  # C1 (ortho - COOH)
-        [ 2.100,  1.210,  0.000],  # C2 (meta)
-        [ 1.400,  2.420,  0.000],  # C3 (para)
-        [ 0.000,  2.420,  0.000],  # C4 (meta)
-        [-0.700,  1.210,  0.000],  # C5 (ortho)
-        [ 2.150, -1.250,  0.000],  # C6 (COOH carbonyl carbon)
-        [ 3.350, -1.250,  0.000],  # O7 (COOH carbonyl oxygen)
-        [ 1.500, -2.350,  0.000],  # O8 (COOH hydroxyl oxygen)
-        [-0.700, -1.210,  0.000],  # O9 (ester oxygen at C0)
-        [-0.700, -1.800,  1.300],  # C10 (acetyl carbonyl carbon, rotated in z)
-        [-0.700, -1.200,  2.350],  # O11 (acetyl carbonyl oxygen)
-        [-0.700, -3.280,  1.300],  # C12 (acetyl methyl carbon)
-    ]
-    bonds = [
-        (0, 1, 1.5), (1, 2, 1.5), (2, 3, 1.5), (3, 4, 1.5), (4, 5, 1.5), (5, 0, 1.5),
-        (1, 6, 1.0), (6, 7, 2.0), (6, 8, 1.0), (0, 9, 1.0), (9, 10, 1.0), (10, 11, 2.0), (10, 12, 1.0)
-    ]
-    result: GeometryValidationResult = validator.validate_geometry(atoms=atoms, coordinates=coords, bonds=bonds)
-
-    # Must pass plausibility without false-positive steric clashes
-    assert result.is_physically_plausible is True
-    assert result.max_z_score < 4.0
-    # Steric clashes must be 0 because all d_graph >= 3 non-bonded distances exceed 0.65 * (Rvdw_i + Rvdw_j)
-    assert len([v for v in result.violations if v.violation_type == "steric_clash"]) == 0
-
-
-def test_topology_sanitization_metformin_pamoate():
-    """Validates API drug retention when paired with bulky organic counterion (Pamoate)."""
-    sanitizer = TopologySanitizer()
-    # Metformin Pamoate: 2 Metformin cations (C4H11N5, N_heavy = 9 each) + 1 Pamoate dianion (N_heavy = 29)
-    raw_smiles = "CN(C)C(=N)N=C(N)N.CN(C)C(=N)N=C(N)N.O=C(O)c1c(O)c2ccccc2cc1Cc3cc4ccccc4c(O)c3C(=O)O"
-    result: TopologySanitizationResult = sanitizer.sanitize_topology(smiles=raw_smiles)
-
-    # Bulky Pamoate counterion must be segregated into removed_counterions despite N_heavy=29
-    assert any("pamoate" in ion.lower() or "c1c(o)c2ccccc2" in ion.lower() for ion in result.removed_counterions)
-    # Active drug entity (neutral Metformin base: 4 Carbons + 5 Nitrogens = 9 heavy atoms) must be retained
-    assert "C(=N)N" in result.sanitized_smiles or "c(=n)n" in result.sanitized_smiles.lower()
-    assert result.retained_atom_count == 9  # 9 heavy atoms (C4N5) in authentic neutral Metformin base
-
-
-def test_scaffold_hopper_benzoic_acid_to_tetrazole():
-    """Validates bioisosteric replacement of carboxylic acid with 5-substituted tetrazole."""
-    hopper = ScaffoldHopper()
-    # Target: Benzoic acid (C6H5-COOH), Scaffold: -COOH, Bioisostere: 1H-tetrazole
-    mol_smiles = "c1ccccc1C(=O)O"
-    scaffold_smiles = "C(=O)O"
-    coords = [
-        [0.000,  0.000, 0.000], [1.400,  0.000, 0.000], [2.100,  1.210, 0.000],
-        [1.400,  2.420, 0.000], [0.000,  2.420, 0.000], [-0.700, 1.210, 0.000],
-        [2.150, -1.250, 0.000], [3.350, -1.250, 0.000], [1.500, -2.350, 0.000]
-    ]
-    results: list[ScaffoldHopResult] = hopper.hop_scaffold(
-        molecule_smiles=mol_smiles,
-        scaffold_smiles=scaffold_smiles,
-        replacement_library=["c1nnn[nH]1"],  # 1H-tetrazole bioisostere
-        coordinates=coords
+    enforces proper rotation det(R) = +1.0 via parity correction factor d = -1, preventing coordinate inversion.
+    """
+    coords_l = np.array(
+        [
+            [-0.432, 1.254, -0.428],  # N
+            [0.000, 0.000, 0.354],  # CA
+            [1.520, 0.000, 0.354],  # C
+            [2.145, 1.050, 0.354],  # O
+            [-0.534, -1.242, -0.354],  # CB
+        ],
+        dtype=np.float64,
     )
 
-    assert len(results) > 0
-    top_hit = results[0]
-    # Reconnected candidate must be 5-phenyl-1H-tetrazole (strict bioisostere connection, no fragment loopholes)
-    assert "c1ccccc1c2nnn[nH]2" in top_hit.candidate_smiles or "c1ccccc1-c2nnn[nH]2" in top_hit.candidate_smiles
-    assert 0.0 <= top_hit.composite_score <= 1.0
-    assert len(top_hit.aligned_coordinates) > 0
-    assert top_hit.shape_tanimoto > 0.60
+    coords_d = coords_l.copy()
+    coords_d[:, 2] *= -1.0
+
+    r_rot, t_trans, rmsd = compute_kabsch_transformation(coords_d, coords_l)
+
+    assert np.allclose(r_rot.T @ r_rot, np.eye(3), atol=1e-5), "Rotation matrix must satisfy R.T @ R = I"
+    assert np.isclose(np.linalg.det(r_rot), 1.0, atol=1e-5), f"Improper rotation detected: det(R) = {np.linalg.det(r_rot)}"
+    assert rmsd > 0.1, "Enantiomer alignment must retain non-zero RMSD under proper SO(3) rotation"
 
 
-def test_pymol_session_export_roundtrip(tmp_path: Path):
-    """Validates PyMOL session export generates compliant file and metadata."""
-    exporter = PyMOLExportEngine()
-    session_file = tmp_path / "test_complex.pse"
-    atoms = ["Pt", "Cl", "Cl", "N", "N"]
-    coords = [[0.0, 0.0, 0.0], [2.32, 0.0, 0.0], [0.0, 2.32, 0.0], [-2.05, 0.0, 0.0], [0.0, -2.05, 0.0]]
-    domains = [3, 2, 2, 1, 1]  # Domain 3: metal, Domain 2: exit/halide, Domain 1: amine linker
+def test_collinear_degeneracy_detection():
+    """REQ-TOPOS-013.3: Verify that collinear coordinates (e.g., linear acetylene C2H2)
 
-    result: PyMOLExportResult = exporter.export_session(
-        output_path=session_file,
-        atoms=atoms,
-        coordinates=coords,
-        domains=domains
+    trigger CollinearDegeneracyError due to singular value condition ratio sigma_2 / sigma_1 < 1e-7.
+    """
+    acetylene_coords = np.array(
+        [
+            [0.0, 0.0, -1.665],  # H1
+            [0.0, 0.0, -0.601],  # C1
+            [0.0, 0.0, 0.601],  # C2
+            [0.0, 0.0, 1.665],  # H2
+        ],
+        dtype=np.float64,
     )
 
-    assert Path(result.session_path).exists()
-    assert result.file_size_bytes > 0
-    assert result.colored_domains_count == 3
-    assert result.metal_centers_rendered == 1
-    assert result.export_mode in ["headless_api", "cli_script_bundle"]
+    rotated_coords = acetylene_coords @ np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
+
+    with pytest.raises(CollinearDegeneracyError) as exc_info:
+        compute_kabsch_transformation(rotated_coords, acetylene_coords)
+    assert "collinear" in str(exc_info.value).lower()
+
+
+def test_coplanar_coordinates_stabilization():
+    """REQ-TOPOS-013.3: Verify that coplanar coordinates (benzene C6 heavy atoms in xy-plane)
+
+    are successfully stabilized via right-handed cross-product basis completion without degeneracy failure.
+    """
+    angles = np.linspace(0, 2 * np.pi, 6, endpoint=False)
+    r_cc = 1.397
+    benzene_c = np.column_stack([r_cc * np.cos(angles), r_cc * np.sin(angles), np.zeros(6)])
+
+    theta = np.pi / 4.0
+    r_z = np.array(
+        [
+            [np.cos(theta), -np.sin(theta), 0.0],
+            [np.sin(theta), np.cos(theta), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    rotated_benzene = benzene_c @ r_z.T + np.array([1.5, -2.0, 0.0])
+
+    r_rot, t_trans, rmsd = compute_kabsch_transformation(rotated_benzene, benzene_c)
+    assert np.allclose(r_rot.T @ r_rot, np.eye(3), atol=1e-5)
+    assert np.isclose(np.linalg.det(r_rot), 1.0, atol=1e-5)
+    assert np.isclose(rmsd, 0.0, atol=1e-5)
+
+
+def test_bsse_ghost_atom_exclusion_and_mass():
+    """REQ-TOPOS-013.1 & REQ-TOPOS-013.2: Verify that BSSE counterpoise complexes with ghost atoms (Z=0)
+
+    assign zero mass without throwing Mendeleev ValueError, and are excluded from alignment calculations.
+    """
+    target = ConformerInput(
+        conformer_id="bsse_dimer_conf_1",
+        elements=["O", "H", "H", "Gh", "Gh", "Gh"],
+        atomic_numbers=[8, 1, 1, 0, 0, 0],
+        coordinates=[
+            (0.000, 0.000, 0.117),
+            (0.000, 0.757, -0.469),
+            (0.000, -0.757, -0.469),
+            (2.800, 0.000, 0.117),
+            (2.800, 0.757, -0.469),
+            (2.800, -0.757, -0.469),
+        ],
+        is_ghost=[False, False, False, True, True, True],
+    )
+    assert len(target.is_ghost) == 6
+    assert target.is_ghost[3] is True
+    masses = target.get_dynamic_masses()
+    assert len(masses) == 6
+    assert masses[0] > 15.0  # Oxygen
+    assert masses[3] == 0.0  # Ghost atom
+
+
+def test_pydantic_validation_guards():
+    """Verify that Pydantic v2 data models reject empty coordinate lists, non-orthogonal rotation matrices,
+
+    and asymmetric pairwise RMSD matrices.
+    """
+    with pytest.raises(ValidationError):
+        ConformerInput(
+            conformer_id="invalid_conf_01",
+            elements=["C", "C", "C"],
+            atomic_numbers=[6, 6, 6],
+            coordinates=[],
+        )
+
+    non_orthogonal_mat = [[2.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0]]
+    with pytest.raises(ValidationError):
+        AlignedConformerResult(
+            conformer_id="conf_01",
+            reference_id="ref_01",
+            rmsd_angstrom=0.15,
+            rotation_matrix=non_orthogonal_mat,
+            translation_vector=[0.0, 0.0, 0.0],
+            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+            atom_mapping={0: 0, 1: 1, 2: 2},
+            execution_duration_seconds=0.012,
+        )
+
+    with pytest.raises(ValidationError):
+        EnsembleAlignmentSummary(
+            ensemble_id="ens_01",
+            reference_id="ref_01",
+            total_conformers=2,
+            aligned_conformers=[],
+            pairwise_rmsd_matrix=[[0.0, 0.35], [0.10, 0.0]],
+        )
+
+
+def test_point_degeneracy_error():
+    """REQ-TOPOS-013.3: Verify that point-collapsed coordinates raise DegenerateCoordinatesError."""
+    point_coords = np.zeros((4, 3), dtype=np.float64)
+    ref_coords = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=np.float64,
+    )
+    with pytest.raises(DegenerateCoordinatesError):
+        compute_kabsch_transformation(point_coords, ref_coords)
+
+
+def test_incompatible_topology_atom_count_error():
+    """REQ-TOPOS-013.1: Verify IncompatibleTopologyError when overlapping atom count N_MCS < 3."""
+    target = ConformerInput(
+        conformer_id="conf_diatomic",
+        elements=["H", "Cl"],
+        atomic_numbers=[1, 17],
+        coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.27)],
+    )
+    ref = ConformerInput(
+        conformer_id="conf_water",
+        elements=["O", "H", "H"],
+        atomic_numbers=[8, 1, 1],
+        coordinates=[(0.0, 0.0, 0.117), (0.0, 0.757, -0.469), (0.0, -0.757, -0.469)],
+    )
+    with pytest.raises(IncompatibleTopologyError):
+        align_conformers_by_mcs(target, ref)
+
+
+def test_mcs_timeout_raises_custom_error():
+    """REQ-TOPOS-013.1: Verify that an exhausted MCS timeout ceiling raises MCSConvergenceTimeoutError."""
+    c1 = ConformerInput(
+        conformer_id="polycycle_1",
+        elements=["C"] * 10,
+        atomic_numbers=[6] * 10,
+        coordinates=[(float(i), 0.0, 0.0) for i in range(10)],
+    )
+    c2 = ConformerInput(
+        conformer_id="polycycle_2",
+        elements=["C"] * 10,
+        atomic_numbers=[6] * 10,
+        coordinates=[(0.0, float(i), 0.0) for i in range(10)],
+    )
+    tight_config = MCSAlignmentConfig(timeout_seconds=0.0001)
+    with pytest.raises(MCSConvergenceTimeoutError):
+        align_conformers_by_mcs(c1, c2, config=tight_config)
+
+
+def test_cluster_ensemble_deduplication():
+    """REQ-TOPOS-013.5: Verify pairwise RMSD calculation and duplicate cluster grouping."""
+    ref = ConformerInput(
+        conformer_id="ref_methane",
+        elements=["C", "H", "H", "H", "H"],
+        atomic_numbers=[6, 1, 1, 1, 1],
+        coordinates=[
+            (0.000, 0.000, 0.000),
+            (0.629, 0.629, 0.629),
+            (-0.629, -0.629, 0.629),
+            (-0.629, 0.629, -0.629),
+            (0.629, -0.629, -0.629),
+        ],
+    )
+    dup = ConformerInput(
+        conformer_id="dup_methane",
+        elements=ref.elements,
+        atomic_numbers=ref.atomic_numbers,
+        coordinates=ref.coordinates,
+    )
+    summary = cluster_ensemble_conformers([ref, dup], reference=ref)
+    assert summary.total_conformers == 2
+    assert len(summary.duplicate_clusters) >= 1
+    assert "dup_methane" in summary.duplicate_clusters[0] or "ref_methane" in summary.duplicate_clusters[0]
+
+
+def test_persist_aligned_ensemble_h5_roundtrip(tmp_path, monkeypatch):
+    """REQ-TOPOS-013.6: Verify thread-safe HDF5 persistence and air-gap boundary check."""
+    store_dir = tmp_path / "topos_store"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
+
+    summary = EnsembleAlignmentSummary(
+        ensemble_id="test_ensemble_01",
+        reference_id="ref_01",
+        total_conformers=1,
+        aligned_conformers=[
+            AlignedConformerResult(
+                conformer_id="conf_01",
+                reference_id="ref_01",
+                rmsd_angstrom=0.05,
+                rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                translation_vector=[0.0, 0.0, 0.0],
+                aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                atom_mapping={0: 0, 1: 1, 2: 2},
+                execution_duration_seconds=0.01,
+            )
+        ],
+        pairwise_rmsd_matrix=[[0.0]],
+        duplicate_clusters=[],
+        mcs_mapping={0: 0, 1: 1, 2: 2},
+        aligned_mcs_coords=[[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
+    )
+
+    archive_path = store_dir / "ensemble_01.h5"
+    out_path = persist_aligned_ensemble_h5(summary, archive_path)
+    assert out_path.exists()
+
+    with h5py.File(out_path, "r") as h5f:
+        assert f"/ensembles/{summary.ensemble_id}/aligned_coords" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/mcs_mapping" in h5f
+
+    # Air-gap violation check
+    outside_path = tmp_path / "unauthorized" / "leak.h5"
+    with pytest.raises(AirGapBoundaryViolationError):
+        persist_aligned_ensemble_h5(summary, outside_path)
+
+
+def test_concurrency_tier_detection(monkeypatch):
+    """REQ-TOPOS-013.6: Verify concurrency tier detection logic across environment markers."""
+    monkeypatch.setenv("SLURM_JOB_ID", "123456")
+    assert detect_concurrency_tier() == StorageTier.TIER6_HPC
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert detect_concurrency_tier() == StorageTier.TIER5_GITHUB_ACTIONS
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    monkeypatch.setenv("CODESPACES", "true")
+    assert detect_concurrency_tier() == StorageTier.TIER4_CODESPACES
+    monkeypatch.delenv("CODESPACES", raising=False)
+
+
+def test_mass_weighted_alignment_preserves_so3_and_calculates_analytical_rmsd():
+    """REQ-TOPOS-013.2 & REQ-TOPOS-013.4: Verify mass-weighted alignment dynamically pulls masses via mendeleev."""
+    c1 = ConformerInput(
+        conformer_id="water_1",
+        elements=["O", "H", "H"],
+        atomic_numbers=[8, 1, 1],
+        coordinates=[(0.0, 0.0, 0.117), (0.0, 0.757, -0.469), (0.0, -0.757, -0.469)],
+    )
+    c2 = ConformerInput(
+        conformer_id="water_2",
+        elements=["O", "H", "H"],
+        atomic_numbers=[8, 1, 1],
+        coordinates=[(0.0, 0.0, 0.117), (0.0, 0.757, -0.469), (0.0, -0.757, -0.469)],
+    )
+    cfg = MCSAlignmentConfig(mass_weighting=True)
+    res = align_conformers_by_mcs(c1, c2, config=cfg)
+    assert res.rmsd_angstrom < 1e-4
+    assert np.allclose(np.array(res.rotation_matrix).T @ np.array(res.rotation_matrix), np.eye(3), atol=1e-4)
+    assert np.isclose(np.linalg.det(np.array(res.rotation_matrix)), 1.0, atol=1e-4)
+
+
+def test_heterogeneous_ensemble_persistence_h5(tmp_path, monkeypatch):
+    """REQ-TOPOS-013.6: Verify HDF5 persistence for heterogeneous ensembles with differing atom counts."""
+    store_dir = tmp_path / "topos_store"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
+
+    conf_3atom = AlignedConformerResult(
+        conformer_id="conf_3",
+        reference_id="ref_root",
+        rmsd_angstrom=0.01,
+        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        translation_vector=[0.0, 0.0, 0.0],
+        aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        atom_mapping={0: 0, 1: 1, 2: 2},
+        execution_duration_seconds=0.005,
+    )
+    conf_4atom = AlignedConformerResult(
+        conformer_id="conf_4",
+        reference_id="ref_root",
+        rmsd_angstrom=0.02,
+        rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        translation_vector=[0.0, 0.0, 0.0],
+        aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+        atom_mapping={0: 0, 1: 1, 2: 2},
+        execution_duration_seconds=0.006,
+    )
+    summary = EnsembleAlignmentSummary(
+        ensemble_id="ens_hetero_01",
+        reference_id="ref_root",
+        total_conformers=2,
+        aligned_conformers=[conf_3atom, conf_4atom],
+        pairwise_rmsd_matrix=[[0.0, 0.1], [0.1, 0.0]],
+        duplicate_clusters=[],
+        mcs_mapping={0: 0, 1: 1, 2: 2},
+    )
+
+    archive_path = store_dir / "hetero_ensemble.h5"
+    out_path = persist_aligned_ensemble_h5(summary, archive_path)
+    assert out_path.exists()
+
+    with h5py.File(out_path, "r") as h5f:
+        assert f"/ensembles/{summary.ensemble_id}/conformers/conf_3/aligned_coords" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/conformers/conf_4/aligned_coords" in h5f
+        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

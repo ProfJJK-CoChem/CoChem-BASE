@@ -201,3 +201,45 @@ class SanitizationError(ToposError):
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
 
+
+class ToposAlignmentError(ToposError):
+    """Base exception for topology alignment failures."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class MCSConvergenceTimeoutError(ToposAlignmentError):
+    """Raised when MCS graph search exceeds timeout ceiling or is canceled."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class CollinearDegeneracyError(ToposAlignmentError):
+    """Raised when atomic coordinates exhibit collinear rank-deficiency in SVD."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class DegenerateCoordinatesError(ToposAlignmentError):
+    """Raised when atomic coordinates exhibit point-degeneracy."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class IncompatibleTopologyError(ToposAlignmentError):
+    """Raised when molecules share insufficient overlapping substructure (N_MCS < 3)."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class AirGapBoundaryViolationError(ToposAlignmentError):
+    """Raised when persistent archive paths resolve outside the designated T_store realm."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+

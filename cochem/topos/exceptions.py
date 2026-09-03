@@ -243,3 +243,18 @@ class AirGapBoundaryViolationError(ToposAlignmentError):
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
 
+
+# Chunk 14 Domain Exceptions
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    QuantumChemistryHandshakeError,
+    TautomerCanonicalizationError,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnumerationTimeoutError,
+    TautomerPersistenceError,
+    TautomerStorageLockTimeoutError,
+    ToposPerceptionError,
+    ValenceConservationError,
+)
+

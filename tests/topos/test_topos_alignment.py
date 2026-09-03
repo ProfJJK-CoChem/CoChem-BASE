@@ -210,13 +210,35 @@ def test_mcs_timeout_raises_custom_error():
         conformer_id="polycycle_1",
         elements=["C"] * 10,
         atomic_numbers=[6] * 10,
-        coordinates=[(float(i), 0.0, 0.0) for i in range(10)],
+        coordinates=[
+            (0.00, 0.00, 0.00),
+            (1.26, 0.89, 0.00),
+            (2.52, 0.00, 0.00),
+            (3.78, 0.89, 0.00),
+            (5.04, 0.00, 0.00),
+            (6.30, 0.89, 0.00),
+            (7.56, 0.00, 0.00),
+            (8.82, 0.89, 0.00),
+            (10.08, 0.00, 0.00),
+            (11.34, 0.89, 0.00),
+        ],
     )
     c2 = ConformerInput(
         conformer_id="polycycle_2",
         elements=["C"] * 10,
         atomic_numbers=[6] * 10,
-        coordinates=[(0.0, float(i), 0.0) for i in range(10)],
+        coordinates=[
+            (0.00, 0.00, 0.00),
+            (0.89, 1.26, 0.00),
+            (0.00, 2.52, 0.00),
+            (0.89, 3.78, 0.00),
+            (0.00, 5.04, 0.00),
+            (0.89, 6.30, 0.00),
+            (0.00, 7.56, 0.00),
+            (0.89, 8.82, 0.00),
+            (0.00, 10.08, 0.00),
+            (0.89, 11.34, 0.00),
+        ],
     )
     tight_config = MCSAlignmentConfig(timeout_seconds=0.0001)
     with pytest.raises(MCSConvergenceTimeoutError):

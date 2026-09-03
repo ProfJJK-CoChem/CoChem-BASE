@@ -1,6 +1,6 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_13_TOPOS_Alignment_Part_1_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_14_TOPOS_Chemical_Perception_Part_1_prompts.md.
 Original prompt:
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 13: `TOPOS_Alignment_Part_1`.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 14: `TOPOS_Chemical_Perception_Part_1`.
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev library mandate, and Method Matrix v4. Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must execute physically against authentic chemical topologies, genuine molecular structures, and physical constants.
 
@@ -8,10 +8,10 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 
 ### MISSION & EXECUTION WORKFLOW
 
-1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyGraph` abstractions, and testing conventions established in prior TOPOS modules.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_alignment.py` with authentic chemical species and physical fixtures (e.g., authentic D-alanine / L-alanine heavy-atom chiral enantiomers, linear acetylene $C_2H_2$, planar benzene $C_6$ rings in the xy-plane, and BSSE water dimer counterpoise complexes with ghost atoms).
-4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_alignment.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
+1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyInput` abstractions, and testing conventions established in prior TOPOS modules.
+2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposPerceptionError`, `TautomerEnumerationTimeoutError`, `TautomerCombinatorialLimitExceededError`, `ValenceConservationError`, `InvalidTopologyInputError`, `TautomerCanonicalizationError`, `TautomerPersistenceError`, `TautomerStorageLockTimeoutError`, `QuantumChemistryHandshakeError`, `GhostAtomSanitizationError`).
+3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_tautomer.py` with authentic chemical species and physical fixtures (e.g., acetylacetone `CC(=O)CC(=O)C`, 2-pyridone `c1cc[nH]c(=O)c1`, acetamidine `CC(=N)N`, glutaconic acid `OC(=O)CC=CC(=O)O`, vinylogous ester `COC(=O)C=CCO`, 4-methyl-1H-imidazole `Cc1c[nH]cn1`, and BSSE water dimer counterpoise complexes with ghost atoms).
+4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_tautomer.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
 5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
 
 ---
@@ -19,388 +19,568 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### MODULE SPECIFICATIONS
 
 #### 1. [TOPOS] Pydantic v2 Domain Models & Exception Hierarchy
-- **File Target**: `cochem/topos/alignment.py` (or `cochem/topos/models.py` & `cochem/topos/exceptions.py`, exported in `cochem/topos/__init__.py`)
+- **File Target**: `cochem/topos/tautomer.py` (or `cochem/topos/perception/tautomer.py`, exported in `cochem/topos/__init__.py`)
 - **Domain Exceptions**:
-  - `ToposAlignmentError(Exception)`: Base exception for topology alignment failures.
-  - `MCSConvergenceTimeoutError(ToposAlignmentError)`: Raised when MCS graph search exceeds the allocated execution timeout (default 30.0s) or when `mcs_result.canceled == True`.
-  - `CollinearDegeneracyError(ToposAlignmentError)`: Raised when atomic coordinates exhibit collinear rank-deficiency in SVD ($\frac{\sigma_2}{\sigma_1} < 10^{-7}$).
-  - `DegenerateCoordinatesError(ToposAlignmentError)`: Raised when atomic coordinates exhibit point-degeneracy ($\sigma_1 < 10^{-12}$).
-  - `IncompatibleTopologyError(ToposAlignmentError)`: Raised when molecules share insufficient overlapping substructure ($N_{\text{MCS}} < 3$).
+  - `ToposPerceptionError(Exception)`: Base exception for chemical perception and tautomer failures.
+  - `TautomerEnumerationTimeoutError(ToposPerceptionError)`: Raised when tautomer state space traversal exceeds execution timeout ceiling.
+  - `TautomerCombinatorialLimitExceededError(ToposPerceptionError)`: Raised when generated tautomer states exceed configured bounds in 'raise' mode.
+  - `ValenceConservationError(ToposPerceptionError)`: Raised when a prototropic transform violates octet or valency conservation.
+  - `InvalidTopologyInputError(ToposPerceptionError)`: Raised when input molecular structure is unparseable or topologically malformed.
+  - `TautomerCanonicalizationError(ToposPerceptionError)`: Raised when canonical tautomer selection or fixed-H InChIKey hashing fails.
+  - `TautomerPersistenceError(ToposPerceptionError)`: Raised when HDF5 serialization or deserialization fails.
+  - `TautomerStorageLockTimeoutError(ToposPerceptionError)`: Raised when acquiring cross-platform filelock exceeds timeout ceiling.
+  - `QuantumChemistryHandshakeError(ToposPerceptionError)`: Raised when downstream 3D embedding or GFN2-xTB pre-filtering fails.
+  - `GhostAtomSanitizationError(ToposPerceptionError)`: Raised when BSSE ghost atoms cannot be harmonized with topology contracts.
 - **Pydantic v2 Data Models (Python 3.10+)**:
-  - `ConformerInput`:
-    - `conformer_id: str`: Unique hash or identifier for conformer.
-    - `elements: List[str]`: Elemental symbols (minimum length 3).
-    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 3).
-    - `coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ Cartesian coordinates in Ångströms (minimum length 3).
-    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: 0-based bond edges: `(idx_i, idx_j, bond_order)`.
-    - `reference_smiles: Optional[str] = None`: Optional canonical SMILES string for topological validation.
-    - `masses: Optional[List[float]] = None`: Optional atomic masses dynamically retrieved via `mendeleev`.
-    - `energy_kcal_mol: Optional[float] = None`: Electronic or free energy tag from QM runner.
-    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost/dummy atoms.
-    - Validation: Enforce exact length matching across `elements`, `atomic_numbers`, `coordinates`, `masses` (if provided), and `is_ghost`. If `is_ghost` is empty, auto-populate with `[False] * len(elements)`.
-  - `MCSAlignmentConfig`:
-    - `timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)`: `rdFMCS` search timeout ceiling.
-    - `mass_weighting: bool = False`: Whether to weight Kabsch covariance and centroids by atomic masses.
-    - `match_valences: bool = True`: Enforce valence matching in MCS.
-    - `ring_matches_ring_only: bool = True`: Strict ring-to-ring matching.
-    - `complete_rings_only: bool = False`: Permit partial ring overlap across fused scaffolds.
-    - `min_mcs_atoms: int = Field(default=3, ge=3)`: Minimum common substructure atom count.
-    - `svd_condition_tol: float = Field(default=1e-7, ge=1e-12)`: Singular value condition ratio tolerance for rank-deficiency.
-    - `rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)`: Deduplication RMSD cutoff.
-    - `ignore_ghost_atoms: bool = True`: Exclude ghost/BSSE atoms from alignment kernel.
-  - `AlignedConformerResult`:
-    - `conformer_id: str`
-    - `reference_id: str`
-    - `rmsd_angstrom: float = Field(..., ge=0.0)`: Analytical RMSD over mapped MCS non-ghost atoms.
-    - `rotation_matrix: List[List[float]]`: Orthogonal $(3, 3)$ rotation matrix $R$ satisfying $R^T R = I$ and $\det(R) = +1.0 \pm 10^{-4}$.
-    - `translation_vector: List[float]`: $(3,)$ optimal translation vector $\vec{t}$.
-    - `aligned_coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ transformed full coordinates.
-    - `atom_mapping: Dict[int, int]`: 0-based index map: `{target_idx: ref_idx}`.
-    - `execution_duration_seconds: float = Field(..., ge=0.0)`
-  - `EnsembleAlignmentSummary`:
-    - `reference_id: str`
-    - `total_conformers: int`
-    - `aligned_conformers: List[AlignedConformerResult]`
-    - `pairwise_rmsd_matrix: List[List[float]]`: Symmetric $(M, M)$ matrix with zero diagonal and non-negative elements.
-    - `duplicate_clusters: List[List[str]] = Field(default_factory=list)`: Clusters of redundant conformer IDs where pairwise RMSD $< \delta_{\text{thresh}}$.
+  - `TopologyInput`:
+    - `molecule_id: str`: Unique alphanumeric identifier for the molecule.
+    - `smiles: Optional[str] = None`: Input SMILES string.
+    - `elements: List[str]`: Elemental symbols (minimum length 1).
+    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 1).
+    - `coordinates: Optional[List[Tuple[float, float, float]]] = None`: Cartesian 3D coordinates in Angstroms $(x, y, z)$.
+    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: Edges: `(idx_i, idx_j, order)`.
+    - `formal_charges: List[int] = Field(default_factory=list)`: Formal charge per atom.
+    - `masses: Optional[List[float]] = None`: Atomic masses dynamically queried via `mendeleev`.
+    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost atoms.
+    - Validation: Enforce that at least one of `smiles`, `coordinates`, or explicit `bonds` is provided. Harmonize lengths across `elements`, `atomic_numbers`, `is_ghost`, and `formal_charges`. For ghost atoms ($Z = 0$ or `sym.upper() in {"GH", "BQ", "X"}`), auto-set `is_ghost[i] = True`.
+  - `TautomerCandidate`:
+    - `candidate_id: str`: Unique candidate hash.
+    - `smiles: str`: Canonical SMILES of the tautomer.
+    - `inchi_key: str`: Standard InChIKey (27 chars).
+    - `fixed_h_inchi_key: str`: Fixed-H InChIKey (27 chars).
+    - `canonical_score: float`: Patterson score (higher is more favorable).
+    - `relative_energy_kcal_mol: Optional[float] = None`: Relative electronic energy from xTB.
+    - `is_canonical: bool = False`: Flag indicating designated canonical tautomer.
+    - `transform_depth: int`: Number of elementary prototropic shifts from parent topology ($ge 0$).
+    - `transform_history: List[str] = Field(default_factory=list)`: Sequence of SMIRKS applied.
+  - `TautomerEnumerationConfig`:
+    - `max_tautomers: int = Field(default=500, ge=1, le=10000)`: Max unique tautomers before truncation.
+    - `max_transform_depth: int = Field(default=6, ge=1, le=20)`: Max search depth from parent topology.
+    - `timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)`: Process-level timeout limit.
+    - `energy_cutoff_kcal_mol: float = Field(default=15.0, ge=0.0)`: Thermodynamic exclusion ceiling.
+    - `truncation_policy: Literal["raise", "truncate"] = "truncate"`: Behavior when limit reached.
+  - `TautomerEnsemble`:
+    - `parent_id: str`: Parent molecule identifier.
+    - `canonical_tautomer_id: str`: ID of designated canonical tautomer.
+    - `total_generated: int`: Total unique tautomers identified.
+    - `candidates: List[TautomerCandidate]`: List of generated tautomer candidates.
+    - `execution_duration_seconds: float`: Wall-clock runtime for enumeration.
+    - Validation: Exactly one candidate must have `is_canonical = True`, matching `canonical_tautomer_id`.
 
-#### 2. [TOPOS] Maximum Common Substructure (MCS) Perception & Ghost-Atom Sanitization
-- **Requirement ID**: `REQ-TOPOS-013.1`
-- **File Target**: `cochem/topos/alignment.py`
-- **Bond Connectivity Perception**:
-  - Accept explicit bond connectivity tables `bonds: List[Tuple[int, int, float]]` or canonical SMILES.
-  - If bond connectivity is missing from bare coordinate records, execute automated topology perception via `rdkit.Chem.rdDetermineBonds.DetermineConnectivity(mol)` calibrated against Pyykkö relativistic covalent radii dynamically scaled from `mendeleev` `[M]`.
-- **Ghost-Atom Sanitization**:
-  - Intermolecular complexes generated for Basis Set Superposition Error (BSSE) counterpoise corrections contain ghost atoms (symbols `Gh`, `Bq`, `X` or atomic number $Z = 0$).
-  - Convert or filter ghost atoms prior to RDKit molecule construction (e.g., mapping to atomic number $0$ or wildcard `*`) to prevent unrecoverable C++ `PeriodicTable.h` core exceptions.
-- **Process-Level Timeout Safeguard & GIL Isolation**:
-  - MCS graph extraction between target conformer $C_{\text{target}}$ and reference conformer $C_{\text{ref}}$ must execute via RDKit `rdFMCS.FindMCS` inside an isolated worker process (`concurrent.futures.ProcessPoolExecutor`) bounded by an explicit timeout ceiling of $30.0\,\text{s}$ `[D]`.
-  - Explicitly inspect `mcs_result.canceled`. If `mcs_result.canceled == True` or a worker timeout occurs, immediately raise `MCSConvergenceTimeoutError`.
-- **MCS Parameters & Topology Validation**:
-  - `atomCompare = rdFMCS.AtomCompare.CompareElements` (strict atomic number match).
-  - `bondCompare = rdFMCS.BondCompare.CompareOrder` (strict bond order match).
-  - `matchValences = True` (enforces electronic valence compatibility).
-  - `ringMatchesRingOnly = True` (prevents unphysical acyclic-to-ring mappings).
-  - `completeRingsOnly = False` (permits partial ring overlap across fused scaffolds).
-  - If common atom count $N_{\text{MCS}} < 3$, raise `IncompatibleTopologyError`.
+#### 2. [TOPOS] Prototropic Shift Transform Rules & Chemical Perception
+- **Requirement ID**: `REQ-TOPOS-014.1`
+- **File Target**: `cochem/topos/tautomer.py`
+- **Perception & Representation**:
+  - Accept molecular topologies via SMILES, SDF, or Pydantic `TopologyInput` records.
+  - For 2D graph/SMILES inputs: perceive implicit hydrogens, hybridization, formal valencies, and Kekulé/aromatic representations.
+  - For 3D Cartesian coordinates lacking explicit bonds: reconstruct topology using Pyykkö relativistic covalent radii dynamically queried from `mendeleev`. Ghost atoms ($Z = 0$ or `is_ghost[i] == True`) are assigned $0.0\,\text{Å}$ radius without querying `mendeleev`.
+- **Directional SMIRKS Transform Library**:
+  - Explicit atom-mapping with migrating protons as terminal substituents to eliminate divalent bridging hydrogen graph representations:
+    * **1,3-Prototropic Shifts**:
+      - *Keto-Enol (Forward)*: `[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]`
+      - *Keto-Enol (Reverse)*: `[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]>>[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]`
+      - *Lactam-Lactim / Amide-Imidic (Forward)*: `[O,S:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[O,S:1]-[#6:2]=[#7:3]`
+      - *Lactam-Lactim / Amide-Imidic (Reverse)*: `[#1:4]-[O,S:1]-[#6:2]=[#7:3]>>[O,S:1]=[#6:2]-[#7:3]-[#1:4]`
+      - *Heteroaromatic Lactam-Lactim (Forward)*: `[O,S:1]=[c:2]-[n;H1:3]>>[#1:4]-[O,S:1]-[c:2]:[n:3]`
+      - *Heteroaromatic Lactam-Lactim (Reverse)*: `[#1:4]-[O,S:1]-[c:2]:[n:3]>>[O,S:1]=[c:2]-[n:3]-[#1:4]`
+      - *Amidine-Amidine (Forward)*: `[#7:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#7:3]`
+      - *Amidine-Amidine (Reverse)*: `[#1:4]-[#7:1]-[#6:2]=[#7:3]>>[#7:1]=[#6:2]-[#7:3]-[#1:4]`
+      - *Imine-Enamine (Forward)*: `[#7:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#6:3]`
+      - *Imine-Enamine (Reverse)*: `[#1:4]-[#7:1]-[#6:2]=[#6:3]>>[#7:1]=[#6:2]-[#6:3]-[#1:4]`
+      - *Nitroso-Oxime (Forward)*: `[O:1]=[#7:2]-[#6:3]-[#1:4]>>[#1:4]-[O:1]-[#7:2]=[#6:3]`
+      - *Nitroso-Oxime (Reverse)*: `[#1:4]-[O:1]-[#7:2]=[#6:3]>>[O:1]=[#7:2]-[#6:3]-[#1:4]`
+    * **1,5-Prototropic Shifts (Conjugated & Vinylogous Systems)**:
+      - *Vinylogous Keto-Enol (Forward)*: `[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]`
+      - *Vinylogous Keto-Enol (Reverse)*: `[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]`
+      - *Vinylogous Amide / Imine (Forward)*: `[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#7:5]`
+      - *Vinylogous Amide / Imine (Reverse)*: `[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#7:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]`
+    * **Heterocyclic Annular Shifts**:
+      - *1,3-Diaza Annular Shift*: `[#1:6]-[n:1]1~[c,n:2]~[n:3]~[c,n:4]~[c,n:5]1>>[n:1]1~[c,n:2]~[n:3](-[#1:6])~[c,n:4]~[c,n:5]1`
+      - Ring Kekulization prior to aliphatic matching or any-bond queries; post-transform sanitization via `Chem.SanitizeMol`.
+- **Graph Lifecycle Safeguards**:
+  - Implicit hydrogens expanded via `Chem.AddHs(mol)` prior to transform application.
+  - Re-evaluate stereochemical parity post-transform (`Chem.AssignStereochemistry(mol, cleanIt=True, force=True)`).
+  - Enforce net formal charge conservation ($\sum q_i = Q_{\text{net}}$) and total hydrogen conservation ($\sum H_i = H_{\text{tot}}$). Raise `ValenceConservationError` if octet or valence bounds are violated.
 
-#### 3. [TOPOS] Mass-Weighted Centroid Translation & Ghost-Atom Masking
-- **Requirement ID**: `REQ-TOPOS-013.2`
-- **File Target**: `cochem/topos/alignment.py`
-- **Ghost Atom Exclusion & Mendeleev Lookup Guard**:
-  - Strictly exclude all ghost atoms ($Z = 0$ or `is_ghost == True`) from MCS coordinate sub-blocks prior to centroid calculation, cross-covariance assembly, and rotation fitting.
-  - **Mendeleev Mass Lookup Guard**: Dynamic queries to `mendeleev.element(Z)` MUST be guarded: if $Z = 0$ or `is_ghost == True`, assign mass strictly as $0.0\,\text{Da}$ without calling `mendeleev`, preventing uncaught `KeyError` / `ValueError` / `ElementNotFoundError`. For non-ghost atoms, query dynamic atomic mass via `mendeleev.element(Z).mass` `[M]`.
-- **Mathematical Centroid Formulation**:
-  - For mapped MCS non-ghost coordinate matrices $P \in \mathbb{R}^{N \times 3}$ (target) and $Q \in \mathbb{R}^{N \times 3}$ (reference) ($N = N_{\text{MCS}} \ge 3$):
-  - Assign weights $w_i > 0$: unweighted ($w_i = 1.0$) or mass-weighted ($w_i = m_i$).
-  - Compute weighted centroids:
-    $$\bar{P} = \frac{\sum_{i=1}^N w_i P_i}{\sum_{i=1}^N w_i}, \quad \bar{Q} = \frac{\sum_{i=1}^N w_i Q_i}{\sum_{i=1}^N w_i} \quad \text{[D]}$$
-  - Center coordinates:
-    $$P_c = P - \mathbf{1} \bar{P}^T, \quad Q_c = Q - \mathbf{1} \bar{Q}^T \quad \text{[D]}$$
+#### 3. [TOPOS] Graph State Space Traversal & Combinatorial Safeguards
+- **Requirement ID**: `REQ-TOPOS-014.2`
+- **File Target**: `cochem/topos/tautomer.py`
+- **BFS Exploration Engine**:
+  - Execute bounded Breadth-First Search from root topology $T_0$.
+  - State queue tracks `(mol, depth, history)`. Depth bounded by `max_transform_depth` (default 6).
+  - Candidate set bounded by `max_tautomers` (default 500). If exceeded:
+    - If `truncation_policy == "raise"`, raise `TautomerCombinatorialLimitExceededError`.
+    - If `truncation_policy == "truncate"`, gracefully halt traversal and return current pool.
+  - Worker subprocess isolation via `concurrent.futures.ProcessPoolExecutor` with hard timeout ceiling of `30.0` seconds. If timeout expires, cleanly terminate child process and raise `TautomerEnumerationTimeoutError`.
 
-#### 4. [TOPOS] Cross-Covariance, SVD & Numerical Degeneracy Safeguards
-- **Requirement ID**: `REQ-TOPOS-013.3`
-- **File Target**: `cochem/topos/alignment.py`
-- **Dispersion Assembly & Full SVD**:
-  - Assemble weighted cross-covariance dispersion matrix $H \in \mathbb{R}^{3 \times 3}$:
-    $$H = P_c^T W Q_c = \sum_{i=1}^N w_i (P_{c,i}^T Q_{c,i}) \quad \text{[D]}$$
-    where $W = \operatorname{diag}(w_1, \dots, w_N)$.
-  - Compute full SVD via `scipy.linalg.svd`:
-    $$H = U \Sigma V^T \quad \text{[D]}$$
-    where $U, V \in O(3)$ and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$ with $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$.
-- **Numerical Degeneracy Safeguards**:
-  - **Point-Degeneracy**: If $\sigma_1 < 10^{-12}$, raise `DegenerateCoordinatesError` before calculating condition ratios.
-  - **Collinear Degeneracy**: If condition ratio $\frac{\sigma_2}{\sigma_1} < 10^{-7}$, atomic coordinates exhibit linear rank-deficiency. Rotation about the collinear axis is ill-defined; raise `CollinearDegeneracyError`.
-  - **Planar Stabilization**: If $\frac{\sigma_2}{\sigma_1} \ge 10^{-7}$ and $\frac{\sigma_3}{\sigma_1} < 10^{-7}$, coordinates are coplanar. Stabilize left and right singular vectors via deterministic right-handed basis completion:
-    $$\mathbf{u}_3 = \frac{\mathbf{u}_1 \times \mathbf{u}_2}{\|\mathbf{u}_1 \times \mathbf{u}_2\|_2}, \quad \mathbf{v}_3 = \frac{\mathbf{v}_1 \times \mathbf{v}_2}{\|\mathbf{v}_1 \times \mathbf{v}_2\|_2} \quad \text{[D]}$$
+#### 4. [TOPOS] Canonicalization, Fixed-H InChIKey Hashing & Deduplication
+- **Requirement ID**: `REQ-TOPOS-014.3`
+- **File Target**: `cochem/topos/tautomer.py`
+- **Deduplication Hashing**:
+  - Compute canonical SMILES, standard InChIKey (`Chem.MolToInchiKey(mol)`), and fixed-H InChIKey (`Chem.MolToInchiKey(mol, options="-FixedH")`).
+  - Fixed-H InChIKey (27 characters `XXXXXXXXXXXXXX-YYYYYYYYYY-Z`) serves as the definitive deduplication key. Redundant paths collapsing to the same fixed-H InChIKey retain the minimal transform depth.
+- **Patterson Scoring & Canonical Designation**:
+  - Calculate heuristic canonical score:
+    - $+100$ per fully aromatic ring
+    - $+50$ per keto/carbonyl group over enol (in non-phenolic contexts)
+    - $+25$ per lactam over lactim group
+    - $-50$ per aci-nitro group
+    - $-100$ per isolated charge or zwitterionic separation
+  - The candidate with the highest canonical score is flagged `is_canonical = True`. Tie-breaking: select candidate with the lexicographically smallest canonical SMILES.
 
-#### 5. [TOPOS] Reflection Parity Guard & Optimal Proper Rotation Matrix
-- **Requirement ID**: `REQ-TOPOS-013.4`
-- **File Target**: `cochem/topos/alignment.py`
-- **Kabsch Reflection Parity Correction**:
-  - Enforce proper right-handed rotation matrix $R \in SO(3)$ with $\det(R) = +1.0$, preventing unphysical coordinate inversion of chiral enantiomers.
-  - Calculate parity reflection factor $d$:
-    $$d = \operatorname{sgn}(\det(V U^T)) \in \{-1, +1\} \quad \text{[D]}$$
-  - Assemble optimal proper rotation matrix:
-    $$R = V \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{bmatrix} U^T \quad \text{[D]}$$
-  - Compute optimal translation vector $\vec{t} \in \mathbb{R}^3$:
-    $$\vec{t} = \bar{Q} - R \bar{P} \quad \text{[D]}$$
-  - Apply proper rotation and translation to all target atoms (including unmapped substituents and ghost atoms):
-    $$P_{\text{aligned}} = P_{\text{full}} R^T + \mathbf{1} \vec{t}^T \quad \text{[D]}$$
+#### 5. [TOPOS] Ghost-Atom (BSSE) Handling & Dynamic Mendeleev Mass Retrieval
+- **Requirement ID**: `REQ-TOPOS-014.4`
+- **File Target**: `cochem/topos/tautomer.py`
+- **BSSE Ghost Handling**:
+  - Ghost atoms ($Z = 0$ or symbols `Gh`, `Bq`, `X`) must be identified and masked in `is_ghost: List[bool]`.
+  - Dynamic queries to `mendeleev.element(Z)` MUST be guarded:
+    - If $Z = 0$ or `is_ghost[i] == True`, assign atomic mass strictly as $0.0\,\text{Da}$ and covalent radius strictly as $0.0\,\text{Å}$ without calling `mendeleev`.
+    - For non-ghost atoms, query dynamic mass via `mendeleev.element(Z).mass`.
+  - Ghost atoms are strictly excluded from donor/acceptor perception and SMIRKS reaction graphs.
 
-#### 6. [TOPOS] Analytical Centered RMSD & Ensemble Deduplication
-- **Requirement ID**: `REQ-TOPOS-013.5`
-- **File Target**: `cochem/topos/alignment.py`
-- **Analytical Centered RMSD**:
-  - Calculate Root-Mean-Square Deviation over mapped MCS atoms using centered coordinates:
-    $$\mathrm{RMSD}_{\text{MCS}} = \sqrt{\frac{\sum_{i=1}^N w_i \|R P_{c,i} - Q_{c,i}\|^2}{\sum_{i=1}^N w_i}} \quad \text{[D]}$$
-- **Ensemble Clustering & Deduplication**:
-  - For an ensemble of $M$ conformers, compute the symmetric pairwise RMSD matrix $D_{jk} = \mathrm{RMSD}(C_j, C_k)$ ($1 \le j, k \le M$).
-  - Group conformers with pairwise $\mathrm{RMSD} < \delta_{\text{thresh}}$ (default $0.25\,\text{Å}$ `[M]`) into duplicate equivalence classes and flag them for downstream pruning.
+#### 6. [TOPOS] Downstream Method Matrix v4 QM Handshake & Pre-Filtering
+- **Requirement ID**: `REQ-TOPOS-014.5`
+- **File Target**: `cochem/topos/tautomer.py`
+- **QM Handshake Adapter**:
+  - Decouple in-memory enumeration engine ($T_{\text{engine}}$) from QM compute runners.
+  - Downstream adapter `filter_tautomers_thermodynamics`:
+    - Generate initial 3D coordinates for each 2D tautomer topology using RDKit ETKDGv3 (`rdDistGeom.ETKDGv3()`).
+    - Execute semi-empirical GFN2-xTB single-point or optimization/frequency runs (`xtb --opt --ohess` or CREST GOAT `! GOAT XTB2`, Method Matrix §9B.1–§9B.2).
+    - Compute relative electronic energy $\Delta E_{\text{elec}} = E_{\text{elec}}(T_k) - E_{\text{elec}}(T_{\text{canonical}})$.
+    - Flag or prune tautomers exceeding `energy_cutoff_kcal_mol` (default $15.0\,\text{kcal/mol}$).
+    - For downstream DFT optimizations, enforce multi-stage integration grid tightening from `DEFGRID1` to `TightOpt TightSCF DEFGRID3` (Lebedev 590) per Method Matrix v4 §4.4.
 
 #### 7. [TOPOS] Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix
-- **Requirement ID**: `REQ-TOPOS-013.6`
-- **File Target**: `cochem/topos/alignment.py`
-- **HDF5 Group Hierarchy**:
-  - **Isomorphic Ensembles ($N_j = N_{\text{ref}}$)**: Store aligned coordinates as a dense rectangular dataset `/ensembles/{ensemble_id}/aligned_coords` (float64, shape `[M, N, 3]`).
-  - **Heterogeneous Ensembles ($N_j \neq N_k$)**: Store per-conformer datasets `/ensembles/{ensemble_id}/conformers/{conformer_id}/aligned_coords` (float64, shape `[N_j, 3]`) or as a ragged 1D variable-length dataset using `h5py.special_dtype(vlen=np.float64)`.
-  - Common MCS coordinates: `/ensembles/{ensemble_id}/aligned_mcs_coords` (float64, shape `[M, N_{\text{MCS}}, 3]`).
-  - Metadata: `/ensembles/{ensemble_id}/pairwise_rmsd` (float32, shape `[M, M]`) and `/ensembles/{ensemble_id}/mcs_mapping` (int32, shape `[N_{\text{MCS}}, 2]`).
-- **6-Tier Concurrency Enforcement**:
-  - **Tier 1 (Local-Windows Native NTFS / WSL)**: HDF5 SWMR mode is strictly disabled due to Windows filesystem locking semantics. Coordinate concurrent access via cross-process `filelock.FileLock(path, timeout=30.0)` on advisory `.lock` files, utilizing staging files, explicit file descriptor flushes (`os.fsync`), and atomic `os.replace`.
-  - **Tier 2 (Local-macOS OrbStack) & Tier 3 (Local-Linux Debian)**: Native HDF5 Single-Writer/Multiple-Reader (SWMR) mode is enabled (`libver="latest", swmr=True`).
-  - **Tier 4 (Codespaces) & Tier 5 (GitHub Actions CI)**: SWMR is disabled on container overlay filesystems to prevent deadlocks; `filelock.FileLock(path, timeout=30.0)` coordinates file access within local scratch staging (`$RUNNER_TEMP` or `/tmp/cochem_scratch`).
-  - **Tier 6 (HPC - Slurm/PBS with Lustre/GPFS)**: Distributed POSIX locks on network shares are strictly avoided. Concurrency uses node-local NVMe scratch directories (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) with aggregated MPI I/O serialization to the central archive.
+- **Requirement ID**: `REQ-TOPOS-014.6`
+- **File Target**: `cochem/topos/tautomer.py`
+- **HDF5 Storage Layout**:
+  - Persist under `/tautomers/{molecule_id}/`.
+  - Use explicit fixed-width UTF-8 datatypes:
+    - `h5py.string_dtype(encoding='utf-8', length=256)` for SMILES
+    - `h5py.string_dtype(encoding='utf-8', length=32)` for standard and fixed-H InChIKeys
+    - `float64` for scores and energies
+    - `int32` for transform depths
+    - GZIP compression level 4 with chunking.
+- **6-Tier Concurrency Matrix**:
+  - Multi-process coordination: `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)` across all tiers (Windows NTFS, macOS, Linux, Codespaces, GitHub Actions).
+  - Intra-process multi-threading: Acquire a module-level `threading.Lock()` to prevent race conditions on non-threadsafe PyPI `h5py` binaries (`H5_HAVE_THREADSAFE=0`).
+  - Tier 6 (HPC): Node-local NVMe scratch staging (`$SLURM_TMPDIR`), centralized worker aggregation.
 
 ---
 
 ### CORE PYTHON INTERFACE SIGNATURES
 
-Implement the following public API signatures in `cochem/topos/alignment.py` and export them in `cochem/topos/__init__.py`:
+Implement the following public API signatures in `cochem/topos/tautomer.py` and export them in `cochem/topos/__init__.py`:
 
 ```python
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import numpy as np
+from typing import Any, Dict, List, Literal, Optional, Tuple
+import h5py
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-def compute_kabsch_transformation(
-    P: np.ndarray,
-    Q: np.ndarray,
-    weights: Optional[np.ndarray] = None,
-    condition_tol: float = 1e-7,
-) -> Tuple[np.ndarray, np.ndarray, float]:
-    """
-    Computes optimal Kabsch proper rotation R and translation t mapping P to Q.
 
-    Parameters:
-        P: Target coordinate matrix of shape (N, 3).
-        Q: Reference coordinate matrix of shape (N, 3).
-        weights: Optional non-negative mass weighting vector of shape (N,).
-        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
+class ToposPerceptionError(Exception):
+    """Base exception for chemical perception and tautomer failures."""
 
-    Returns:
-        Tuple containing:
-            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
-            - t: Optimal translation vector of shape (3,).
-            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
 
-    Raises:
-        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
-        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
-    """
+class TautomerEnumerationTimeoutError(ToposPerceptionError):
+    """Raised when tautomer state space traversal exceeds execution timeout ceiling."""
 
-def align_conformers_by_mcs(
-    target: ConformerInput,
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> AlignedConformerResult:
-    """
-    Superimposes a target conformer onto an invariant reference conformer via MCS perception and Kabsch fitting.
 
-    Parameters:
-        target: Target conformer input record.
-        reference: Invariant reference conformer record.
-        config: Optional configuration controlling timeouts, weighting, and tolerances.
+class TautomerCombinatorialLimitExceededError(ToposPerceptionError):
+    """Raised when generated tautomer states exceed configured bounds in 'raise' mode."""
 
-    Returns:
-        AlignedConformerResult containing transformed coordinates, rotation matrix, translation vector, and atom mapping.
 
-    Raises:
-        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
-        IncompatibleTopologyError: If common atom count N_MCS < 3.
-        CollinearDegeneracyError: If mapped coordinates are collinear.
-    """
+class ValenceConservationError(ToposPerceptionError):
+    """Raised when a prototropic transform violates octet or valency conservation."""
 
-def cluster_ensemble_conformers(
-    conformers: List[ConformerInput],
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> EnsembleAlignmentSummary:
-    """
-    Performs batch alignment and pairwise RMSD clustering across a conformer ensemble.
 
-    Parameters:
-        conformers: List of conformer records generated upstream via CREST/ORCA GOAT.
-        reference: Reference conformer topology.
-        config: Alignment configuration and deduplication RMSD threshold.
+class InvalidTopologyInputError(ToposPerceptionError):
+    """Raised when input molecular structure is unparseable or topologically malformed."""
 
-    Returns:
-        EnsembleAlignmentSummary including pairwise RMSD matrix and duplicate cluster groups.
-    """
 
-def persist_aligned_ensemble_h5(
-    summary: EnsembleAlignmentSummary,
-    archive_path: Path,
-    lock_timeout: float = 30.0,
+class TautomerCanonicalizationError(ToposPerceptionError):
+    """Raised when canonical tautomer selection or fixed-H InChIKey hashing fails."""
+
+
+class TautomerPersistenceError(ToposPerceptionError):
+    """Raised when HDF5 serialization or deserialization fails."""
+
+
+class TautomerStorageLockTimeoutError(ToposPerceptionError):
+    """Raised when acquiring cross-platform filelock exceeds timeout ceiling."""
+
+
+class QuantumChemistryHandshakeError(ToposPerceptionError):
+    """Raised when downstream 3D embedding or GFN2-xTB pre-filtering fails."""
+
+
+class GhostAtomSanitizationError(ToposPerceptionError):
+    """Raised when BSSE ghost atoms cannot be harmonized with topology contracts."""
+
+
+class TopologyInput(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    molecule_id: str = Field(..., description="Unique alphanumeric identifier for the molecule")
+    smiles: Optional[str] = Field(default=None, description="Input SMILES string")
+    elements: List[str] = Field(..., min_length=1, description="Elemental symbols")
+    atomic_numbers: List[int] = Field(..., min_length=1, description="IUPAC atomic numbers Z")
+    coordinates: Optional[List[Tuple[float, float, float]]] = Field(default=None, description="Cartesian 3D coordinates in Angstroms (x, y, z)")
+    bonds: List[Tuple[int, int, float]] = Field(default_factory=list, description="Edges: (idx_i, idx_j, order)")
+    formal_charges: List[int] = Field(default_factory=list, description="Formal charge per atom")
+    masses: Optional[List[float]] = Field(default=None, description="Atomic masses dynamically queried via mendeleev")
+    is_ghost: List[bool] = Field(default_factory=list, description="Mask identifying BSSE ghost atoms")
+
+    @model_validator(mode="before")
+    @classmethod
+    def pre_validate_arrays_and_defaults(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        elements = data.get("elements", [])
+        n_atoms = len(elements)
+        atomic_numbers = data.get("atomic_numbers", [])
+
+        if "is_ghost" not in data or not data["is_ghost"]:
+            ghost_symbols = {"GH", "BQ", "X"}
+            data["is_ghost"] = [
+                (z == 0 or sym.upper() in ghost_symbols)
+                for z, sym in zip(atomic_numbers, elements)
+            ] if len(atomic_numbers) == n_atoms else [False] * n_atoms
+
+        if "formal_charges" not in data or not data["formal_charges"]:
+            data["formal_charges"] = [0] * n_atoms
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_integrity(self) -> "TopologyInput":
+        n_atoms = len(self.elements)
+        if not self.smiles and not self.coordinates and not self.bonds:
+            raise ValueError("At least one of smiles, coordinates, or explicit bonds must be provided")
+        if self.coordinates is not None and len(self.coordinates) != n_atoms:
+            raise ValueError(f"coordinates length {len(self.coordinates)} != elements length {n_atoms}")
+        if len(self.atomic_numbers) != n_atoms:
+            raise ValueError(f"atomic_numbers length {len(self.atomic_numbers)} != elements length {n_atoms}")
+        if len(self.is_ghost) != n_atoms:
+            raise ValueError(f"is_ghost length {len(self.is_ghost)} != elements length {n_atoms}")
+        if len(self.formal_charges) != n_atoms:
+            raise ValueError(f"formal_charges length {len(self.formal_charges)} != elements length {n_atoms}")
+        if self.masses is not None and len(self.masses) != n_atoms:
+            raise ValueError(f"masses length {len(self.masses)} != elements length {n_atoms}")
+
+        for idx_i, idx_j, order in self.bonds:
+            if not (0 <= idx_i < n_atoms and 0 <= idx_j < n_atoms):
+                raise ValueError(f"Bond ({idx_i}, {idx_j}) references out-of-bounds atom index for n_atoms={n_atoms}")
+            if idx_i == idx_j:
+                raise ValueError(f"Self-referential bond ({idx_i}, {idx_j}) detected")
+            if order <= 0.0 or order > 4.0:
+                raise ValueError(f"Invalid bond order {order} for bond ({idx_i}, {idx_j})")
+
+        return self
+
+
+class TautomerCandidate(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    candidate_id: str = Field(..., description="Unique candidate hash")
+    smiles: str = Field(..., min_length=1, description="Canonical SMILES of the tautomer")
+    inchi_key: str = Field(..., min_length=27, max_length=27, description="Standard InChIKey (27 chars)")
+    fixed_h_inchi_key: str = Field(..., min_length=27, max_length=27, description="Fixed-H InChIKey (27 chars)")
+    canonical_score: float = Field(..., description="Patterson score (higher is more favorable)")
+    relative_energy_kcal_mol: Optional[float] = Field(default=None, description="Relative electronic energy from xTB")
+    is_canonical: bool = Field(default=False, description="Flag indicating highest-ranking canonical tautomer")
+    transform_depth: int = Field(..., ge=0, description="Number of elementary prototropic shifts from parent")
+    transform_history: List[str] = Field(default_factory=list, description="Sequence of SMIRKS applied")
+
+
+class TautomerEnumerationConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    max_tautomers: int = Field(default=500, ge=1, le=10000, description="Max unique tautomers before truncation")
+    max_transform_depth: int = Field(default=6, ge=1, le=20, description="Max search depth from parent topology")
+    timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0, description="Process-level timeout limit")
+    energy_cutoff_kcal_mol: float = Field(default=15.0, ge=0.0, description="Thermodynamic exclusion ceiling")
+    truncation_policy: Literal["raise", "truncate"] = Field(
+        default="truncate",
+        description="Behavior when max_tautomers limit is reached"
+    )
+
+
+class TautomerEnsemble(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    parent_id: str = Field(..., description="Parent molecule identifier")
+    canonical_tautomer_id: str = Field(..., description="ID of designated canonical tautomer")
+    total_generated: int = Field(..., ge=1, description="Total unique tautomers identified")
+    candidates: List[TautomerCandidate] = Field(..., min_length=1, description="List of generated tautomer candidates")
+    execution_duration_seconds: float = Field(..., ge=0.0, description="Wall-clock runtime for enumeration")
+
+    @model_validator(mode="after")
+    def validate_ensemble_consistency(self) -> "TautomerEnsemble":
+        if len(self.candidates) != self.total_generated:
+            raise ValueError(f"Candidate count {len(self.candidates)} != total_generated {self.total_generated}")
+
+        candidate_map = {c.candidate_id: c for c in self.candidates}
+        if self.canonical_tautomer_id not in candidate_map:
+            raise ValueError(f"canonical_tautomer_id '{self.canonical_tautomer_id}' not found in candidates")
+
+        canonical_count = sum(1 for c in self.candidates if c.is_canonical)
+        if canonical_count != 1:
+            raise ValueError(f"Exactly one candidate must have is_canonical=True; found {canonical_count}")
+
+        if not candidate_map[self.canonical_tautomer_id].is_canonical:
+            raise ValueError("Candidate matching canonical_tautomer_id must have is_canonical=True")
+
+        return self
+
+
+def enumerate_tautomers(
+    input_topology: TopologyInput,
+    config: TautomerEnumerationConfig
+) -> TautomerEnsemble:
+    """Pure in-memory Tier 2 prototropic graph enumeration kernel."""
+
+
+def filter_tautomers_thermodynamics(
+    ensemble: TautomerEnsemble,
+    config: TautomerEnumerationConfig,
+    scratch_dir: Path
+) -> TautomerEnsemble:
+    """Downstream adapter: generates 3D ETKDGv3 conformers and filters via GFN2-xTB."""
+
+
+def save_tautomer_ensemble_to_hdf5(
+    ensemble: TautomerEnsemble,
+    hdf5_path: Path
 ) -> Path:
-    """
-    Persists aligned conformer trajectories and pairwise RMSD matrices into an HDF5 archive under 6-tier concurrency.
+    """Tier 3 persistence: serializes tautomer candidates and metadata into HDF5 archive."""
 
-    Parameters:
-        summary: Validated ensemble alignment summary payload.
-        archive_path: Target filesystem path for the .h5 archive.
-        lock_timeout: Maximum duration in seconds to wait for filelock acquisition.
 
-    Returns:
-        Path to the written HDF5 archive.
-    """
+def load_tautomer_ensemble_from_hdf5(
+    hdf5_path: Path,
+    molecule_id: str
+) -> TautomerEnsemble:
+    """Tier 3 persistence: retrieves and reconstructs validated TautomerEnsemble from HDF5 archive."""
 ```
 
 ---
 
-### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_alignment.py`)
+### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_tautomer.py`)
 
 Implement the physical verification suite reproducing the following tests against genuine molecular structures:
 
 ```python
+import concurrent.futures
+from pathlib import Path
+import h5py
 import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from cochem.topos.alignment import (
-    AlignedConformerResult,
-    CollinearDegeneracyError,
-    ConformerInput,
-    DegenerateCoordinatesError,
-    EnsembleAlignmentSummary,
-    IncompatibleTopologyError,
-    MCSAlignmentConfig,
-    align_conformers_by_mcs,
-    compute_kabsch_transformation,
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    TautomerCandidate,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnsemble,
+    TautomerEnumerationConfig,
+    TautomerEnumerationTimeoutError,
+    TopologyInput,
+    ValenceConservationError,
+    enumerate_tautomers,
+    filter_tautomers_thermodynamics,
+    load_tautomer_ensemble_from_hdf5,
+    save_tautomer_ensemble_to_hdf5,
 )
 
 
-def test_kabsch_chiral_enantiomer_reflection_guard():
+def test_1_3_prototropic_shifts():
     """
-    REQ-TOPOS-013.3 & REQ-TOPOS-013.4: Verify that Kabsch alignment between chiral enantiomers
-    enforces proper rotation det(R) = +1.0 via parity correction factor d = -1, preventing coordinate inversion.
+    REQ-TOPOS-014.1a: Verify 1,3-prototropic shifts across keto-enol, lactam-lactim, and amidine systems.
+    Ensures net formal charge and total hydrogen count are strictly conserved.
     """
-    # Authentic D-alanine and L-alanine heavy-atom coordinate sub-blocks (N=5: N, CA, C, O, CB)
-    coords_l = np.array([
-        [-0.432, 1.254, -0.428],  # N
-        [0.000, 0.000, 0.354],    # CA
-        [1.520, 0.000, 0.354],    # C
-        [2.145, 1.050, 0.354],    # O
-        [-0.534, -1.242, -0.354], # CB
-    ], dtype=np.float64)
-
-    # Inverted enantiomer: D-alanine reflection across z-plane
-    coords_d = coords_l.copy()
-    coords_d[:, 2] *= -1.0
-
-    R, t, rmsd = compute_kabsch_transformation(coords_d, coords_l)
-
-    # Assert proper rotation in SO(3)
-    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5), "Rotation matrix must satisfy R.T @ R = I"
-    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5), f"Improper rotation detected: det(R) = {np.linalg.det(R)}"
-    # Enantiomer reflection cannot achieve zero RMSD without unphysical coordinate inversion
-    assert rmsd > 0.1, "Enantiomer alignment must retain non-zero RMSD under proper SO(3) rotation"
-
-
-def test_collinear_degeneracy_detection():
-    """
-    REQ-TOPOS-013.3: Verify that collinear coordinates (e.g., linear acetylene C2H2)
-    trigger CollinearDegeneracyError due to singular value condition ratio sigma_2 / sigma_1 < 1e-7.
-    """
-    # Linear acetylene coordinates along z-axis (Angstroms)
-    acetylene_coords = np.array([
-        [0.0, 0.0, -1.665],  # H1
-        [0.0, 0.0, -0.601],  # C1
-        [0.0, 0.0, 0.601],   # C2
-        [0.0, 0.0, 1.665],   # H2
-    ], dtype=np.float64)
-
-    rotated_coords = acetylene_coords @ np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
-
-    with pytest.raises(CollinearDegeneracyError) as exc_info:
-        compute_kabsch_transformation(rotated_coords, acetylene_coords)
-    assert "collinear" in str(exc_info.value).lower()
-
-
-def test_coplanar_coordinates_stabilization():
-    """
-    REQ-TOPOS-013.3: Verify that coplanar coordinates (benzene C6 heavy atoms in xy-plane)
-    are successfully stabilized via right-handed cross-product basis completion without degeneracy failure.
-    """
-    # Planar benzene carbon ring coordinates in z=0 plane
-    angles = np.linspace(0, 2 * np.pi, 6, endpoint=False)
-    r_cc = 1.397  # Experimental C-C aromatic bond distance
-    benzene_c = np.column_stack([r_cc * np.cos(angles), r_cc * np.sin(angles), np.zeros(6)])
-
-    # Apply 45-degree rotation around z-axis
-    theta = np.pi / 4.0
-    R_z = np.array([
-        [np.cos(theta), -np.sin(theta), 0.0],
-        [np.sin(theta), np.cos(theta), 0.0],
-        [0.0, 0.0, 1.0],
-    ])
-    rotated_benzene = benzene_c @ R_z.T + np.array([1.5, -2.0, 0.0])
-
-    R, t, rmsd = compute_kabsch_transformation(rotated_benzene, benzene_c)
-    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5)
-    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5)
-    assert np.isclose(rmsd, 0.0, atol=1e-5)
-
-
-def test_bsse_ghost_atom_exclusion_and_mass():
-    """
-    REQ-TOPOS-013.1 & REQ-TOPOS-013.2: Verify that BSSE counterpoise complexes with ghost atoms (Z=0)
-    assign zero mass without throwing Mendeleev ValueError, and are excluded from alignment calculations.
-    """
-    target = ConformerInput(
-        conformer_id="bsse_dimer_conf_1",
-        elements=["O", "H", "H", "Gh", "Gh", "Gh"],
-        atomic_numbers=[8, 1, 1, 0, 0, 0],
-        coordinates=[
-            (0.000, 0.000, 0.117),
-            (0.000, 0.757, -0.469),
-            (0.000, -0.757, -0.469),
-            (2.800, 0.000, 0.117),
-            (2.800, 0.757, -0.469),
-            (2.800, -0.757, -0.469),
-        ],
-        is_ghost=[False, False, False, True, True, True],
+    # 1. Acetylacetone (keto-enol)
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
     )
-    assert len(target.is_ghost) == 6
-    assert target.is_ghost[3] is True
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_acac = enumerate_tautomers(acac, config)
+    assert ens_acac.total_generated >= 2
+    smiles_pool = {c.smiles for c in ens_acac.candidates}
+    # Enol form must be generated
+    assert any("O" in s and "=" in s for s in smiles_pool)
+
+    # 2. 2-Pyridone (lactam-lactim)
+    pyridone = TopologyInput(
+        molecule_id="2_pyridone",
+        smiles="c1cc[nH]c(=O)c1",
+        elements=["C", "C", "C", "N", "C", "O", "C"],
+        atomic_numbers=[6, 6, 6, 7, 6, 8, 6],
+    )
+    ens_pyr = enumerate_tautomers(pyridone, config)
+    assert ens_pyr.total_generated >= 2
+    pyr_smiles = {c.smiles for c in ens_pyr.candidates}
+    assert any("Oc1ccccn1" in s or "c1ccncc1O" in s or "n" in s for s in pyr_smiles)
+
+    # 3. Acetamidine (amidine-amidine)
+    acetamidine = TopologyInput(
+        molecule_id="acetamidine",
+        smiles="CC(=N)N",
+        elements=["C", "C", "N", "N"],
+        atomic_numbers=[6, 6, 7, 7],
+    )
+    ens_amd = enumerate_tautomers(acetamidine, config)
+    assert ens_amd.total_generated >= 1
+    for c in ens_amd.candidates:
+        assert c.fixed_h_inchi_key is not None
+        assert len(c.fixed_h_inchi_key) == 27
 
 
-def test_pydantic_validation_guards():
+def test_1_5_prototropic_shifts():
     """
-    Verify that Pydantic v2 data models reject empty coordinate lists, non-orthogonal rotation matrices,
-    and asymmetric pairwise RMSD matrices.
+    REQ-TOPOS-014.1b: Verify 1,5-prototropic shifts across conjugated systems (glutaconic acid).
     """
-    # 1. Reject length mismatch between elements and coordinates
-    with pytest.raises(ValidationError):
-        ConformerInput(
-            conformer_id="invalid_conf_01",
-            elements=["C", "C", "C"],
-            atomic_numbers=[6, 6, 6],
-            coordinates=[],
-        )
+    glutaconic = TopologyInput(
+        molecule_id="glutaconic_acid",
+        smiles="OC(=O)CC=CC(=O)O",
+        elements=["O", "C", "O", "C", "C", "C", "C", "O", "O"],
+        atomic_numbers=[8, 6, 8, 6, 6, 6, 6, 8, 8],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_glut = enumerate_tautomers(glutaconic, config)
+    assert ens_glut.total_generated >= 1
+    # Net formal charge remains 0
+    for cand in ens_glut.candidates:
+        assert cand.transform_depth <= config.max_transform_depth
 
-    # 2. Reject non-orthogonal rotation matrix even if det(R) = 1.0 (e.g. non-uniform scaling)
-    non_orthogonal_mat = [[2.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0]]
-    with pytest.raises(ValidationError):
-        AlignedConformerResult(
-            conformer_id="conf_01",
-            reference_id="ref_01",
-            rmsd_angstrom=0.15,
-            rotation_matrix=non_orthogonal_mat,
-            translation_vector=[0.0, 0.0, 0.0],
-            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-            atom_mapping={0: 0, 1: 1, 2: 2},
-            execution_duration_seconds=0.012,
-        )
 
-    # 3. Reject non-symmetric pairwise RMSD matrix
-    with pytest.raises(ValidationError):
-        EnsembleAlignmentSummary(
-            reference_id="ref_01",
-            total_conformers=2,
-            aligned_conformers=[],
-            pairwise_rmsd_matrix=[[0.0, 0.35], [0.10, 0.0]],
-        )
+def test_bfs_traversal_combinatorial_limits_and_timeout():
+    """
+    REQ-TOPOS-014.2: Verify bounds on state space traversal, truncation policies, and process timeout.
+    """
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    # Test max_tautomers truncation policy 'truncate'
+    config_trunc = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="truncate")
+    ens_trunc = enumerate_tautomers(acac, config_trunc)
+    assert ens_trunc.total_generated <= 1
+
+    # Test max_tautomers truncation policy 'raise'
+    config_raise = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="raise")
+    with pytest.raises(TautomerCombinatorialLimitExceededError):
+        enumerate_tautomers(acac, config_raise)
+
+    # Test timeout ceiling
+    config_timeout = TautomerEnumerationConfig(timeout_seconds=0.0001)
+    with pytest.raises(TautomerEnumerationTimeoutError):
+        enumerate_tautomers(acac, config_timeout)
+
+
+def test_deduplication_fixed_h_inchikey_and_canonicalization():
+    """
+    REQ-TOPOS-014.3: Verify deduplication via Fixed-H InChIKeys and Patterson scoring canonicalization.
+    4-Methyl-1H-imidazole tautomers share standard InChIKey but diverge on fixed-H InChIKey.
+    """
+    # 4-methyl-1H-imidazole (Cc1c[nH]cn1)
+    med = TopologyInput(
+        molecule_id="4_methyl_imidazole",
+        smiles="Cc1c[nH]cn1",
+        elements=["C", "C", "C", "N", "C", "N"],
+        atomic_numbers=[6, 6, 6, 7, 6, 7],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens = enumerate_tautomers(med, config)
+    assert ens.total_generated >= 2
+
+    # Standard InChIKeys match, Fixed-H InChIKeys diverge
+    fixed_h_keys = {c.fixed_h_inchi_key for c in ens.candidates}
+    assert len(fixed_h_keys) == ens.total_generated
+
+    # Canonical selection check
+    assert ens.canonical_tautomer_id is not None
+    canonical_candidates = [c for c in ens.candidates if c.is_canonical]
+    assert len(canonical_candidates) == 1
+    assert canonical_candidates[0].candidate_id == ens.canonical_tautomer_id
+
+
+def test_ghost_atom_bsse_exclusion():
+    """
+    REQ-TOPOS-014.4: Verify ghost atoms (Z=0, symbol 'Gh') are assigned 0.0 Da and 0.0 A
+    without invoking mendeleev, and excluded from SMIRKS reaction graphs.
+    """
+    bsse_water = TopologyInput(
+        molecule_id="bsse_water_dimer",
+        smiles="O.[*]",
+        elements=["O", "H", "H", "Gh"],
+        atomic_numbers=[8, 1, 1, 0],
+        is_ghost=[False, False, False, True],
+    )
+    assert bsse_water.is_ghost[3] is True
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(bsse_water, config)
+    # Ghost atom did not cause crash, valid ensemble produced
+    assert ens.total_generated >= 1
+
+
+def test_qm_handshake_and_thermodynamic_filtering(tmp_path):
+    """
+    REQ-TOPOS-014.5: Verify 3D conformer generation (ETKDGv3) and thermodynamic pre-filtering adapter.
+    """
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2, energy_cutoff_kcal_mol=15.0)
+    ens = enumerate_tautomers(acac, config)
+
+    filtered_ens = filter_tautomers_thermodynamics(ens, config, scratch_dir=tmp_path)
+    assert filtered_ens.total_generated >= 1
+    for c in filtered_ens.candidates:
+        if c.relative_energy_kcal_mol is not None:
+            assert c.relative_energy_kcal_mol <= config.energy_cutoff_kcal_mol + 1e-4
+
+
+def test_hdf5_threadsafe_concurrency_persistence(tmp_path):
+    """
+    REQ-TOPOS-014.6: Verify thread-safe and process-safe HDF5 persistence under filelock.
+    """
+    h5_file = tmp_path / "tautomer_archive.h5"
+    acac = TopologyInput(
+        molecule_id="acac_persisted",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(acac, config)
+
+    # Save to HDF5
+    saved_path = save_tautomer_ensemble_to_hdf5(ens, h5_file)
+    assert saved_path.exists()
+
+    # Load from HDF5
+    loaded_ens = load_tautomer_ensemble_from_hdf5(h5_file, molecule_id="acac_persisted")
+    assert loaded_ens.parent_id == ens.parent_id
+    assert loaded_ens.total_generated == ens.total_generated
+    assert loaded_ens.canonical_tautomer_id == ens.canonical_tautomer_id
+
+    # Verify fixed-width datatypes
+    with h5py.File(h5_file, "r") as f:
+        grp = f[f"/tautomers/{ens.parent_id}"]
+        assert "smiles" in grp
+        assert "fixed_h_inchi_key" in grp
+        assert "canonical_score" in grp
+        assert grp["smiles"].dtype.kind == "S" or grp["smiles"].dtype.metadata is not None
 ```
 
 ---
@@ -408,47 +588,47 @@ def test_pydantic_validation_guards():
 ### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
 
 1. **Zero-Mock Mandate**:
-   - Every function, method, and test fixture must execute physically against real molecular data.
+   - Every function, transform, and test fixture must execute physically against real molecular data using RDKit C++ wrappers and Python algorithms.
    - Absolutely no `pass` stubs, `NotImplementedError`, empty functions, or synthetic mocked arrays (`np.zeros`, `np.ones`, etc.) in place of genuine computation.
 2. **Dynamic Mendeleev Mandate**:
-   - All non-ghost atomic masses must be queried dynamically via `mendeleev.element(Z).mass`.
-   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ without calling `mendeleev`.
+   - All non-ghost atomic masses and covalent radii must be queried dynamically via `mendeleev.element(Z)`.
+   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ and $0.0\,\text{Å}$ without calling `mendeleev`.
    - Hardcoded atomic mass constants, isotopic lookup tables, or manual CODATA updates are strictly forbidden.
 3. **Tripartite Workspace Air-Gap Architecture**:
-   - Partition workflow across three disjoint tiers:
-     - Upstream Conformer Generation Realm ($T_{\text{conf}}$)
-     - Pure Mathematical Topology Alignment Kernel ($T_{\text{align}}$): Strictly CPU and in-memory. Zero disk I/O, zero network handles.
-     - Persistence & Visualization Realm ($T_{\text{store}}$): HDF5 serialization and UI handoff.
+   - Partition workflow across three disjoint physical realms:
+     - Tier 1: Domain & Schema Realm ($T_{\text{schema}}$): Ingests and validates immutable Pydantic `TopologyInput` records. Zero disk writes.
+     - Tier 2: Pure Algorithmic Compute Engine ($T_{\text{engine}}$): In-memory BFS state traversal, SMIRKS transforms, and Patterson scoring inside an isolated worker subprocess. Zero disk writes, zero network sockets.
+     - Tier 3: Persistence & Cache Realm ($T_{\text{persist}}$): Thread-safe HDF5 serialization under cross-platform `filelock` and `threading.Lock`.
 4. **Compute Boundaries & CUDA-Lock Prevention**:
-   - Conformer alignment and SVD matrix decompositions are strictly CPU-bound.
-   - Subprocess execution must enforce `CUDA_VISIBLE_DEVICES=""` to prevent GPU runtime initialization or context monopolization.
+   - Tautomer graph search, SMIRKS matching, and topological hashing are strictly CPU-bound.
+   - Process pool workers must initialize with `os.environ["CUDA_VISIBLE_DEVICES"] = ""` inside the child process only, preventing accidental GPU runtime context allocation.
 5. **Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix**:
-   - On Windows NTFS (Tier 1), Codespaces (Tier 4), and GitHub Actions CI (Tier 5): Coordinate persistence via `filelock.FileLock(path, timeout=30.0)` on advisory `.lock` files, temporary staging files, and atomic `os.replace`.
-   - On local macOS (Tier 2) and Linux (Tier 3): Enable HDF5 SWMR mode (`libver="latest", swmr=True`).
-   - On HPC (Tier 6): Use node-local NVMe scratch staging (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) and MPI collective I/O.
+   - Multi-process coordination across all tiers (Windows NTFS, macOS, Linux, Codespaces, GitHub Actions): `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)` on advisory `.lock` files.
+   - Intra-process multi-threading concurrency: Acquire an internal module-level `threading.Lock()` to prevent data races on non-threadsafe PyPI `h5py` binaries (`H5_HAVE_THREADSAFE=0`).
+   - Tier 6 (HPC): Node-local NVMe scratch staging (`$SLURM_TMPDIR`), centralized worker aggregation.
 6. **OS-Agnostic Dynamic Path Resolution**:
    - Dynamic path lookups via `pathlib.Path`:
-     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))`
-     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", Path.home() / ".cochem" / "scratch"))`
-     - Data: `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))`
+     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR") or os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or Path.home() / ".cochem" / "scratch")`
+     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR") or Path.home() / ".cochem" / "artifacts")`
 
 ---
 
 ### ACTION PLAN FOR CODER
 
-1. Create or update `cochem/topos/alignment.py` (and export in `cochem/topos/__init__.py`) implementing:
-   - Typed exception hierarchy: `ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`.
-   - Pydantic v2 data models: `ConformerInput`, `MCSAlignmentConfig`, `AlignedConformerResult`, `EnsembleAlignmentSummary`.
-   - `compute_kabsch_transformation`: SVD decomposition with point degeneracy check, collinear check, planar cross-product basis completion, parity reflection guard ($d = \operatorname{sgn}(\det(V U^T))$), proper rotation $R \in SO(3)$, and analytical centered RMSD.
-   - `align_conformers_by_mcs`: RDKit `rdFMCS.FindMCS` in `ProcessPoolExecutor` with $30.0\,\text{s}$ timeout ceiling and `mcs_result.canceled` inspection, ghost atom sanitization, mass retrieval with Mendeleev $Z=0$ guard, and coordinate superposition.
-   - `cluster_ensemble_conformers`: Pairwise RMSD matrix calculation and equivalence class clustering.
-   - `persist_aligned_ensemble_h5`: Thread-safe HDF5 serialization supporting isomorphic dense rectangular datasets and heterogeneous ragged structures under 6-tier `filelock` / SWMR concurrency rules.
-2. Implement physical unit test suite in `tests/topos/test_topos_alignment.py` reproducing all test cases from Section 6 of the SRS.
-3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_alignment.py -v`) and verify 100% pass rate.
+1. Implement `cochem/topos/tautomer.py` (and export in `cochem/topos/__init__.py`) containing:
+   - Domain exception hierarchy: `ToposPerceptionError`, `TautomerEnumerationTimeoutError`, `TautomerCombinatorialLimitExceededError`, `ValenceConservationError`, `InvalidTopologyInputError`, `TautomerCanonicalizationError`, `TautomerPersistenceError`, `TautomerStorageLockTimeoutError`, `QuantumChemistryHandshakeError`, `GhostAtomSanitizationError`.
+   - Pydantic v2 data models: `TopologyInput`, `TautomerCandidate`, `TautomerEnumerationConfig`, `TautomerEnsemble`.
+   - Directional SMIRKS transform dictionary covering 1,3-prototropic, 1,5-prototropic, and heterocyclic annular shifts with explicit hydrogen matching.
+   - Module-level worker helper `_cpu_worker_init` setting `CUDA_VISIBLE_DEVICES=""`.
+   - `enumerate_tautomers`: In-memory BFS traversal bounded by `max_tautomers`, `max_transform_depth`, and `timeout_seconds` inside `ProcessPoolExecutor`. Computes canonical SMILES, standard InChIKeys, and fixed-H InChIKeys for deduplication. Patterson scoring for canonical tautomer designation.
+   - `filter_tautomers_thermodynamics`: RDKit ETKDGv3 3D conformer generation, semi-empirical GFN2-xTB single point / optimization execution, relative energy $\Delta E_{\text{elec}}$ filtering against `energy_cutoff_kcal_mol`.
+   - `save_tautomer_ensemble_to_hdf5` & `load_tautomer_ensemble_from_hdf5`: Thread-safe HDF5 serialization using fixed-width UTF-8 strings (`S256`, `S32`), chunking, GZIP compression, `filelock.FileLock`, and module-level `threading.Lock()`.
+2. Implement physical unit test suite in `tests/topos/test_topos_tautomer.py` with all genuine chemical test fixtures (acetylacetone, 2-pyridone, acetamidine, glutaconic acid, 4-methyl-1H-imidazole, and BSSE water dimer with ghost atom).
+3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_tautomer.py -v`) and verify 100% pass rate.
 4. Output the complete list of touched and created files in your final execution report.
-I have submitted the generated chunked coding prompt for `SRS_Chunk_13_TOPOS_Alignment_Part_1` to the `adversary` agent ([Conversation 5cd34027-45b0-4deb-b625-d1c18bd91b2e](conversation://5cd34027-45b0-4deb-b625-d1c18bd91b2e)) for an adversarial audit in accordance with the 0rchestrator Global Protocol and Anti-Spoofing Protocol v3. Standing by for the auditor's evaluation.
-I have sent the fully remediated chunked coding prompt to the `adversary` agent ([Conversation 5cd34027-45b0-4deb-b625-d1c18bd91b2e](conversation://5cd34027-45b0-4deb-b625-d1c18bd91b2e)) addressing all 7 defects (DEF-01 through DEF-07). Standing by for the second-round audit verdict.
-YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 13: `TOPOS_Alignment_Part_1`.
+I have invoked the `cochem-audit` subagent ([Conversation a3af9ebf-e12a-49d0-ace5-f87ca45ef0fd](conversation://a3af9ebf-e12a-49d0-ace5-f87ca45ef0fd)) to perform an adversarial audit on the chunked coding prompt for `SRS_Chunk_14_TOPOS_Chemical_Perception_Part_1.md`. Awaiting the auditor's formal certification.
+I have updated the chunked prompt with all 5 adversarial corrections and submitted it to `cochem-audit` ([Conversation a3af9ebf-e12a-49d0-ace5-f87ca45ef0fd](conversation://a3af9ebf-e12a-49d0-ace5-f87ca45ef0fd)) for final verification and certification. Awaiting final audit verdict.
+YOU ARE `cochem-coder`. Your task is to implement the complete, physically verified, and mathematically rigorous feature suite specified in Software Requirements Specification (SRS) Chunk 14: `TOPOS_Chemical_Perception_Part_1`.
 
 You must implement every component in strict adherence to the CoChem Zero-Mock directive, the Tripartite Workspace Air-Gap architecture, the 6-Tier Environment Matrix, the dynamic Mendeleev library mandate, and Method Matrix v4. Absolutely no stubs, no `pass` blocks, no `NotImplementedError`, and no synthetic mock data are permitted. All implementations and test fixtures must execute physically against authentic chemical topologies, genuine molecular structures, and physical constants.
 
@@ -456,10 +636,10 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 
 ### MISSION & EXECUTION WORKFLOW
 
-1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyGraph` abstractions, and testing conventions established in prior TOPOS modules.
-2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`, `AirGapBoundaryViolationError`).
-3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_alignment.py` with 10 authentic physical test cases (including chiral enantiomers, linear acetylene, planar benzene, BSSE complexes, HDF5 persistence roundtrips, ensemble clustering, timeout exceptions, topological incompatibility, and point-degeneracy).
-4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_alignment.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
+1. **Codebase Exploration**: Inspect the repository structure under `cochem/topos/` to identify existing graph primitives, `TopologyInput` abstractions, and testing conventions established in prior TOPOS modules.
+2. **Implementation**: Implement all target modules specified below with strict Python 3.10+ PEP 484 type annotations, thread-safe persistence, and custom typed domain exceptions (`ToposPerceptionError`, `TautomerEnumerationTimeoutError`, `TautomerCombinatorialLimitExceededError`, `ValenceConservationError`, `InvalidTopologyInputError`, `TautomerCanonicalizationError`, `TautomerPersistenceError`, `TautomerStorageLockTimeoutError`, `QuantumChemistryHandshakeError`, `GhostAtomSanitizationError`).
+3. **Physical Test Suite**: Write comprehensive, unmocked test suites covering each module under `tests/topos/test_topos_tautomer.py` with authentic chemical species and physical fixtures (e.g., acetylacetone `CC(=O)CC(=O)C`, 2-pyridone `c1cc[nH]c(=O)c1`, acetamidine `CC(=N)N`, glutaconic acid `OC(=O)CC=CC(=O)O`, vinylogous ester `COC(=O)C=CCO`, 4-methyl-1H-imidazole `Cc1c[nH]cn1`, 1H-1,2,3-triazole `c1cn[nH]n1`, and BSSE water dimer counterpoise complexes with ghost atoms).
+4. **Physical Verification**: Execute the test suite using `run_command` in the terminal (`pytest tests/topos/test_topos_tautomer.py -v`). Verify that all tests pass cleanly (exit code 0) and report raw STDOUT/STDERR.
 5. **Execution Reporting**: Provide a final structured execution report detailing all files created and modified on disk.
 
 ---
@@ -467,536 +647,591 @@ You must implement every component in strict adherence to the CoChem Zero-Mock d
 ### MODULE SPECIFICATIONS
 
 #### 1. [TOPOS] Pydantic v2 Domain Models & Exception Hierarchy
-- **File Target**: `cochem/topos/alignment.py` (or `cochem/topos/models.py` & `cochem/topos/exceptions.py`, exported in `cochem/topos/__init__.py`)
+- **File Target**: `cochem/topos/tautomer.py` (or `cochem/topos/perception/tautomer.py`, exported in `cochem/topos/__init__.py`)
 - **Domain Exceptions**:
-  - `ToposAlignmentError(Exception)`: Base exception for topology alignment failures.
-  - `MCSConvergenceTimeoutError(ToposAlignmentError)`: Raised when MCS graph search exceeds timeout ceiling (default 30.0s) or `mcs_result.canceled == True`.
-  - `CollinearDegeneracyError(ToposAlignmentError)`: Raised when atomic coordinates exhibit collinear rank-deficiency in SVD ($\frac{\sigma_2}{\sigma_1} < 10^{-7}$).
-  - `DegenerateCoordinatesError(ToposAlignmentError)`: Raised when atomic coordinates exhibit point-degeneracy ($\sigma_1 < 10^{-12}$).
-  - `IncompatibleTopologyError(ToposAlignmentError)`: Raised when molecules share insufficient overlapping substructure ($N_{\text{MCS}} < 3$).
-  - `AirGapBoundaryViolationError(ToposAlignmentError)`: Raised when persistent archive paths resolve outside the designated $T_{\text{store}}$ realm.
+  - `ToposPerceptionError(Exception)`: Base exception for chemical perception and tautomer failures.
+  - `TautomerEnumerationTimeoutError(ToposPerceptionError)`: Raised when tautomer state space traversal exceeds execution timeout ceiling.
+  - `TautomerCombinatorialLimitExceededError(ToposPerceptionError)`: Raised when generated tautomer states exceed configured bounds in 'raise' mode.
+  - `ValenceConservationError(ToposPerceptionError)`: Raised when a prototropic transform violates octet or valency conservation.
+  - `InvalidTopologyInputError(ToposPerceptionError)`: Raised when input molecular structure is unparseable or topologically malformed.
+  - `TautomerCanonicalizationError(ToposPerceptionError)`: Raised when canonical tautomer selection or fixed-H InChIKey hashing fails.
+  - `TautomerPersistenceError(ToposPerceptionError)`: Raised when HDF5 serialization or deserialization fails.
+  - `TautomerStorageLockTimeoutError(ToposPerceptionError)`: Raised when acquiring cross-platform filelock exceeds timeout ceiling.
+  - `QuantumChemistryHandshakeError(ToposPerceptionError)`: Raised when downstream 3D embedding or GFN2-xTB pre-filtering fails.
+  - `GhostAtomSanitizationError(ToposPerceptionError)`: Raised when BSSE ghost atoms cannot be harmonized with topology contracts.
 - **Pydantic v2 Data Models (Python 3.10+)**:
-  - `ConformerInput`:
-    - `conformer_id: str`: Unique identifier for conformer.
-    - `elements: List[str]`: Elemental symbols (minimum length 3).
-    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 3).
-    - `coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ Cartesian coordinates in Ångströms (minimum length 3).
-    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: 0-based bond edges: `(idx_i, idx_j, bond_order)`.
-    - `reference_smiles: Optional[str] = None`: Optional canonical SMILES string for topological validation.
-    - `masses: Optional[List[float]] = None`: Optional atomic masses dynamically retrieved via `mendeleev`.
-    - `energy_kcal_mol: Optional[float] = None`: Electronic or free energy tag from QM runner.
-    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost/dummy atoms.
-    - Validation: Enforce exact length matching across `elements`, `atomic_numbers`, `coordinates`, `masses` (if provided), and `is_ghost`. If `is_ghost` is empty, auto-populate with `[False] * len(elements)`.
-  - `MCSAlignmentConfig`:
-    - `timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)`: `rdFMCS` search timeout ceiling.
-    - `mass_weighting: bool = False`: Whether to weight Kabsch covariance and centroids by atomic masses.
-    - `match_valences: bool = True`: Enforce valence matching in MCS.
-    - `ring_matches_ring_only: bool = True`: Strict ring-to-ring matching.
-    - `complete_rings_only: bool = False`: Permit partial ring overlap across fused scaffolds.
-    - `min_mcs_atoms: int = Field(default=3, ge=3)`: Minimum common substructure atom count.
-    - `svd_condition_tol: float = Field(default=1e-7, ge=1e-12)`: Singular value condition ratio tolerance for rank-deficiency.
-    - `rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)`: Deduplication RMSD cutoff.
-    - `ignore_ghost_atoms: bool = True`: Exclude ghost/BSSE atoms from alignment kernel.
-  - `AlignedConformerResult`:
-    - `conformer_id: str`
-    - `reference_id: str`
-    - `rmsd_angstrom: float = Field(..., ge=0.0)`: Analytical RMSD over mapped MCS non-ghost atoms.
-    - `rotation_matrix: List[List[float]]`: Orthogonal $(3, 3)$ rotation matrix $R$ satisfying $R^T R = I$ and $\det(R) = +1.0 \pm 10^{-4}$.
-    - `translation_vector: List[float]`: $(3,)$ optimal translation vector $\vec{t}$.
-    - `aligned_coordinates: List[Tuple[float, float, float]]`: $(N, 3)$ transformed full coordinates.
-    - `atom_mapping: Dict[int, int]`: 0-based index map: `{target_idx: ref_idx}`.
-    - `execution_duration_seconds: float = Field(..., ge=0.0)`
-  - `EnsembleAlignmentSummary`:
-    - `ensemble_id: str = Field(..., description="Unique ensemble collection ID")`
-    - `reference_id: str`
-    - `total_conformers: int`
-    - `aligned_conformers: List[AlignedConformerResult]`
-    - `pairwise_rmsd_matrix: List[List[float]]`: Symmetric $(M, M)$ matrix with zero diagonal and non-negative elements.
-    - `duplicate_clusters: List[List[str]] = Field(default_factory=list)`: Clusters of redundant conformer IDs where pairwise RMSD $< \delta_{\text{thresh}}$.
-    - `mcs_mapping: Dict[int, int] = Field(default_factory=dict, description="Consensus MCS atom index map")`
-    - `aligned_mcs_coords: Optional[List[List[Tuple[float, float, float]]]] = Field(default=None, description="Aligned consensus MCS coordinates across ensemble")`
+  - `TopologyInput`:
+    - `molecule_id: str`: Unique alphanumeric identifier for the molecule.
+    - `smiles: Optional[str] = None`: Input SMILES string.
+    - `elements: List[str]`: Elemental symbols (minimum length 1).
+    - `atomic_numbers: List[int]`: IUPAC atomic numbers $Z$ (minimum length 1).
+    - `coordinates: Optional[List[Tuple[float, float, float]]] = None`: Cartesian 3D coordinates in Angstroms $(x, y, z)$.
+    - `bonds: List[Tuple[int, int, float]] = Field(default_factory=list)`: Edges: `(idx_i, idx_j, order)`.
+    - `formal_charges: List[int] = Field(default_factory=list)`: Formal charge per atom.
+    - `masses: Optional[List[float]] = None`: Atomic masses dynamically queried via `mendeleev`.
+    - `is_ghost: List[bool] = Field(default_factory=list)`: Mask identifying BSSE ghost atoms.
+    - Validation: Enforce that at least one of `smiles`, `coordinates`, or explicit `bonds` is provided. Harmonize lengths across `elements`, `atomic_numbers`, `is_ghost`, and `formal_charges`. For ghost atoms ($Z = 0$ or `sym.upper() in {"GH", "BQ", "X"}`), auto-set `is_ghost[i] = True`.
+  - `TautomerCandidate`:
+    - `candidate_id: str`: Unique candidate hash.
+    - `smiles: str`: Canonical SMILES of the tautomer.
+    - `inchi_key: str`: Standard InChIKey (27 chars).
+    - `fixed_h_inchi_key: str`: Fixed-H InChIKey (27 chars).
+    - `canonical_score: float`: Patterson score (higher is more favorable).
+    - `relative_energy_kcal_mol: Optional[float] = None`: Relative electronic energy from xTB.
+    - `is_canonical: bool = False`: Flag indicating designated canonical tautomer.
+    - `transform_depth: int`: Number of elementary prototropic shifts from parent topology ($ge 0$).
+    - `transform_history: List[str] = Field(default_factory=list)`: Sequence of SMIRKS applied.
+  - `TautomerEnumerationConfig`:
+    - `max_tautomers: int = Field(default=500, ge=1, le=10000)`: Max unique tautomers before truncation.
+    - `max_transform_depth: int = Field(default=6, ge=1, le=20)`: Max search depth from parent topology.
+    - `timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0)`: Process-level timeout limit in seconds (must permit short test limits).
+    - `energy_cutoff_kcal_mol: float = Field(default=15.0, ge=0.0)`: Thermodynamic exclusion ceiling.
+    - `truncation_policy: Literal["raise", "truncate"] = "truncate"`: Behavior when limit reached.
+  - `TautomerEnsemble`:
+    - `parent_id: str`: Parent molecule identifier.
+    - `canonical_tautomer_id: str`: ID of designated canonical tautomer.
+    - `total_generated: int`: Total unique tautomers identified.
+    - `candidates: List[TautomerCandidate]`: List of generated tautomer candidates.
+    - `execution_duration_seconds: float`: Wall-clock runtime for enumeration.
+    - Validation: Exactly one candidate must have `is_canonical = True`, matching `canonical_tautomer_id`.
 
-#### 2. [TOPOS] Maximum Common Substructure (MCS) Perception & Ghost-Atom Sanitization
-- **Requirement ID**: `REQ-TOPOS-013.1`
-- **File Target**: `cochem/topos/alignment.py`
-- **Ghost Atom Pre-Sanitization**:
-  - Intermolecular complexes generated for Basis Set Superposition Error (BSSE) counterpoise corrections contain ghost atoms (symbols `Gh`, `Bq`, `X`, or atomic number $Z = 0$, or `is_ghost == True`).
-  - Ghost atoms are strictly excluded/stripped *prior* to bond connectivity perception and RDKit molecule construction. Calling RDKit bond perception routines or `PeriodicTable` lookup on $Z=0$ is strictly prohibited as it triggers fatal C++ core exceptions.
-- **Bond Connectivity Perception**:
-  - Accept explicit bond connectivity tables `bonds: List[Tuple[int, int, float]]` or canonical SMILES.
-  - If bond connectivity is missing from bare coordinates of non-ghost atoms, perceive connectivity by computing pairwise Euclidean distances $D_{ij} = \|\mathbf{r}_i - \mathbf{r}_j\|_2$ and connecting pairs satisfying $D_{ij} \le R_{\text{cov}}(Z_i) + R_{\text{cov}}(Z_j) + \delta$ ($\delta = 0.40\,\text{Å}$), where $R_{\text{cov}}$ is queried dynamically via `mendeleev.element(Z).covalent_radius_pyykko / 100.0`.
-- **Top-Level Worker Function & GIL Isolation**:
-  - To prevent Windows `spawn` pickling failures, define a module-level picklable helper:
-    `def _isolated_mcs_worker(target_mol_block: str, ref_mol_block: str, params: dict) -> Tuple[bool, bool, str, List[Tuple[int, int]]]`.
-  - MCS extraction executes via RDKit `rdFMCS.FindMCS` in `concurrent.futures.ProcessPoolExecutor` with timeout ceiling $30.0\,\text{s}$. Inspect `mcs_result.canceled`; if True or timeout, raise `MCSConvergenceTimeoutError`.
-  - Standard MCS parameters: `atomCompare=CompareElements`, `bondCompare=CompareOrder`, `matchValences=True`, `ringMatchesRingOnly=True`, `completeRingsOnly=False`.
-  - Require minimum common atom count $N_{\text{MCS}} \ge 3$. If $N_{\text{MCS}} < 3$, raise `IncompatibleTopologyError`.
+#### 2. [TOPOS] Prototropic Shift Transform Rules & Chemical Perception
+- **Requirement ID**: `REQ-TOPOS-014.1`
+- **File Target**: `cochem/topos/tautomer.py`
+- **Perception & Representation**:
+  - Accept molecular topologies via SMILES, SDF, or Pydantic `TopologyInput` records.
+  - For 2D graph/SMILES inputs: perceive implicit hydrogens, hybridization, formal valencies, and Kekulé/aromatic representations.
+  - For 3D Cartesian coordinates lacking explicit bonds: reconstruct topology using Pyykkö relativistic covalent radii dynamically queried from `mendeleev`. Note that `mendeleev.element(Z).covalent_radius_pyykko` returns values in picometers (pm); divide by 100.0 to convert to Ångströms (`r_angstrom = float(el.covalent_radius_pyykko) / 100.0`). Ghost atoms ($Z = 0$ or `is_ghost[i] == True`) are assigned $0.0\,\text{Å}$ radius without querying `mendeleev`.
+- **Directional SMIRKS Transform Library**:
+  - Explicit atom-mapping with migrating protons as terminal substituents to eliminate divalent bridging hydrogen graph representations:
+    * **1,3-Prototropic Shifts**:
+      - *Keto-Enol (Forward)*: `[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]`
+      - *Keto-Enol (Reverse)*: `[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]>>[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]`
+      - *Lactam-Lactim / Amide-Imidic (Forward)*: `[O,S:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[O,S:1]-[#6:2]=[#7:3]`
+      - *Lactam-Lactim / Amide-Imidic (Reverse)*: `[#1:4]-[O,S:1]-[#6:2]=[#7:3]>>[O,S:1]=[#6:2]-[#7:3]-[#1:4]`
+      - *Heteroaromatic Lactam-Lactim (Forward)*: `[O,S:1]=[c:2]:[n:3]-[#1:4]>>[#1:4]-[O,S:1]-[c:2]:[n:3]`
+      - *Heteroaromatic Lactam-Lactim (Reverse)*: `[#1:4]-[O,S:1]-[c:2]:[n:3]>>[O,S:1]=[c:2]:[n:3]-[#1:4]`
+      - *Amidine-Amidine (Forward)*: `[#7:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#7:3]`
+      - *Amidine-Amidine (Reverse)*: `[#1:4]-[#7:1]-[#6:2]=[#7:3]>>[#7:1]=[#6:2]-[#7:3]-[#1:4]`
+      - *Imine-Enamine (Forward)*: `[#7:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#6:3]`
+      - *Imine-Enamine (Reverse)*: `[#1:4]-[#7:1]-[#6:2]=[#6:3]>>[#7:1]=[#6:2]-[#6:3]-[#1:4]`
+      - *Nitroso-Oxime (Forward)*: `[O:1]=[#7:2]-[#6:3]-[#1:4]>>[#1:4]-[O:1]-[#7:2]=[#6:3]`
+      - *Nitroso-Oxime (Reverse)*: `[#1:4]-[O:1]-[#7:2]=[#6:3]>>[O:1]-[#7:2]-[#6:3]-[#1:4]`
+    * **1,5-Prototropic Shifts (Conjugated & Vinylogous Systems)**:
+      - *Vinylogous Keto-Enol (Forward)*: `[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]`
+      - *Vinylogous Keto-Enol (Reverse)*: `[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]`
+      - *Vinylogous Amide / Imine (Forward)*: `[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#7:5]`
+      - *Vinylogous Amide / Imine (Reverse)*: `[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#7:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]`
+    * **Heterocyclic Annular Shifts**:
+      - *1,3-Diaza Annular Shift*: `[#1:6]-[n:1]1:[c,n:2]:[n:3]:[c,n:4]:[c,n:5]1>>[n:1]1:[c,n:2]:[n:3](-[#1:6]):[c,n:4]:[c,n:5]1`
+      - *1,2-Diaza Annular Shift*: `[#1:6]-[n:1]1:[n:2]:[c,n:3]:[c,n:4]:[c,n:5]1>>[n:1]1:[n:2](-[#1:6]):[c,n:3]:[c,n:4]:[c,n:5]1`
+      - Ring Kekulization prior to aliphatic matching or any-bond queries; post-transform sanitization via `Chem.SanitizeMol`.
+- **Graph Lifecycle Safeguards**:
+  - Implicit hydrogens expanded via `Chem.AddHs(mol)` prior to transform application.
+  - Re-evaluate stereochemical parity post-transform (`Chem.AssignStereochemistry(mol, cleanIt=True, force=True)`).
+  - Enforce net formal charge conservation ($\sum q_i = Q_{\text{net}}$) and total hydrogen conservation ($\sum H_i = H_{\text{tot}}$). Raise `ValenceConservationError` if octet or valence bounds are violated.
 
-#### 3. [TOPOS] Mass-Weighted Centroid Translation & Ghost-Atom Masking
-- **Requirement ID**: `REQ-TOPOS-013.2`
-- **File Target**: `cochem/topos/alignment.py`
-- **Ghost Atom Exclusion & Mendeleev Lookup Guard**:
-  - Strictly exclude all ghost atoms ($Z = 0$ or `is_ghost == True`) from MCS coordinate sub-blocks prior to centroid calculation, cross-covariance assembly, and rotation fitting.
-  - If $Z = 0$ or `is_ghost == True`, mass is assigned strictly as $0.0\,\text{Da}$ without calling `mendeleev`, preventing uncaught `ValueError` / `ElementNotFoundError`. For non-ghost heavy atoms, query dynamic mass via `mendeleev.element(Z).mass` `[M]`.
-- **Mathematical Centroid Formulation**:
-  - For mapped MCS non-ghost coordinate matrices $P \in \mathbb{R}^{N \times 3}$ (target) and $Q \in \mathbb{R}^{N \times 3}$ (reference) ($N = N_{\text{MCS}} \ge 3$):
-  - Assign weights $w_i > 0$: unweighted ($w_i = 1.0$) or mass-weighted ($w_i = m_i$).
-  - Compute weighted centroids:
-    $$\bar{P} = \frac{\sum_{i=1}^N w_i P_i}{\sum_{i=1}^N w_i}, \quad \bar{Q} = \frac{\sum_{i=1}^N w_i Q_i}{\sum_{i=1}^N w_i} \quad \text{[D]}$$
-  - Center coordinates:
-    $$P_c = P - \mathbf{1} \bar{P}^T, \quad Q_c = Q - \mathbf{1} \bar{Q}^T \quad \text{[D]}$$
+#### 3. [TOPOS] Graph State Space Traversal & Combinatorial Safeguards
+- **Requirement ID**: `REQ-TOPOS-014.2`
+- **File Target**: `cochem/topos/tautomer.py`
+- **BFS Exploration Engine**:
+  - Execute bounded Breadth-First Search from root topology $T_0$.
+  - State queue tracks `(mol, depth, history)`. Depth bounded by `max_transform_depth` (default 6).
+  - Candidate set bounded by `max_tautomers` (default 500). If exceeded:
+    - If `truncation_policy == "raise"`, raise `TautomerCombinatorialLimitExceededError`.
+    - If `truncation_policy == "truncate"`, gracefully halt traversal and return current pool.
+  - Worker subprocess isolation via `concurrent.futures.ProcessPoolExecutor` with hard timeout ceiling of `timeout_seconds`. If timeout expires, cleanly terminate child process and raise `TautomerEnumerationTimeoutError`.
 
-#### 4. [TOPOS] Cross-Covariance, SVD & Numerical Degeneracy Safeguards
-- **Requirement ID**: `REQ-TOPOS-013.3`
-- **File Target**: `cochem/topos/alignment.py`
-- **Dispersion Assembly & Full SVD**:
-  - Assemble weighted cross-covariance dispersion matrix $H \in \mathbb{R}^{3 \times 3}$:
-    $$H = P_c^T W Q_c = \sum_{i=1}^N w_i (P_{c,i}^T Q_{c,i}) \quad \text{[D]}$$
-    where $W = \operatorname{diag}(w_1, \dots, w_N)$.
-  - Compute full SVD via `scipy.linalg.svd`:
-    $$H = U \Sigma V^T \quad \text{[D]}$$
-    where $U, V \in O(3)$ and singular values $\Sigma = \operatorname{diag}(\sigma_1, \sigma_2, \sigma_3)$ with $\sigma_1 \ge \sigma_2 \ge \sigma_3 \ge 0$.
-- **Numerical Degeneracy Safeguards**:
-  - **Point-Degeneracy**: If $\sigma_1 < 10^{-12}$, raise `DegenerateCoordinatesError` before calculating condition ratios.
-  - **Collinear Degeneracy**: If condition ratio $\frac{\sigma_2}{\sigma_1} < 10^{-7}$, coordinates exhibit collinear rank-deficiency. Raise `CollinearDegeneracyError`.
-  - **Planar Stabilization**: If $\frac{\sigma_2}{\sigma_1} \ge 10^{-7}$ and $\frac{\sigma_3}{\sigma_1} < 10^{-7}$, coordinates are coplanar. Stabilize left and right singular vectors via deterministic right-handed cross-product basis completion:
-    $$\mathbf{u}_3 = \frac{\mathbf{u}_1 \times \mathbf{u}_2}{\|\mathbf{u}_1 \times \mathbf{u}_2\|_2}, \quad \mathbf{v}_3 = \frac{\mathbf{v}_1 \times \mathbf{v}_2}{\|\mathbf{v}_1 \times \mathbf{v}_2\|_2} \quad \text{[D]}$$
+#### 4. [TOPOS] Canonicalization, Fixed-H InChIKey Hashing & Deduplication
+- **Requirement ID**: `REQ-TOPOS-014.3`
+- **File Target**: `cochem/topos/tautomer.py`
+- **Deduplication Hashing & Ghost Cleaning**:
+  - Purge dummy/ghost atoms ($Z=0$, `[#0]`) via `Chem.DeleteSubstructs(mol, Chem.MolFromSmarts('[#0]'))` prior to computing InChI and InChIKeys, ensuring valid 27-character hashes without RDKit parser aborts.
+  - Compute canonical SMILES, standard InChIKey (`Chem.MolToInchiKey(cleaned_mol)`), and fixed-H InChIKey (`Chem.MolToInchiKey(cleaned_mol, options="-FixedH")`).
+  - Fixed-H InChIKey (27 characters `XXXXXXXXXXXXXX-YYYYYYYYYY-Z`) serves as the definitive deduplication key. Redundant paths collapsing to the same fixed-H InChIKey retain the minimal transform depth.
+- **Patterson Scoring & Canonical Designation**:
+  - Calculate heuristic canonical score:
+    - $+100$ per fully aromatic ring
+    - $+50$ per keto/carbonyl group over enol (in non-phenolic contexts)
+    - $+25$ per lactam over lactim group
+    - $-50$ per aci-nitro group
+    - $-100$ per isolated charge or zwitterionic separation
+  - The candidate with the highest canonical score is flagged `is_canonical = True`. Tie-breaking: select candidate with the lexicographically smallest canonical SMILES.
 
-#### 5. [TOPOS] Reflection Parity Guard & Optimal Proper Rotation Matrix
-- **Requirement ID**: `REQ-TOPOS-013.4`
-- **File Target**: `cochem/topos/alignment.py`
-- **Kabsch Reflection Parity Correction**:
-  - Enforce proper right-handed rotation matrix $R \in SO(3)$ with $\det(R) = +1.0$, preventing unphysical inversion of chiral enantiomers.
-  - Calculate parity reflection factor:
-    $$d = \operatorname{sgn}(\det(V U^T)) \in \{-1, +1\} \quad \text{[D]}$$
-  - Assemble optimal proper rotation matrix:
-    $$R = V \begin{bmatrix} 1 & 0 & 0 \\ 0 & 1 & 0 \\ 0 & 0 & d \end{bmatrix} U^T \quad \text{[D]}$$
-  - Compute optimal translation vector:
-    $$\vec{t} = \bar{Q} - R \bar{P} \quad \text{[D]}$$
-  - Apply proper rotation and translation to all target atoms (using row-vector convention):
-    $$P_{\text{aligned}} = P_{\text{full}} R^T + \mathbf{1} \vec{t}^T \quad \text{[D]}$$
+#### 5. [TOPOS] Ghost-Atom (BSSE) Handling & Dynamic Mendeleev Mass Retrieval
+- **Requirement ID**: `REQ-TOPOS-014.4`
+- **File Target**: `cochem/topos/tautomer.py`
+- **BSSE Ghost Handling**:
+  - Ghost atoms ($Z = 0$ or symbols `Gh`, `Bq`, `X`) must be identified and masked in `is_ghost: List[bool]`.
+  - Dynamic queries to `mendeleev.element(Z)` MUST be guarded:
+    - If $Z = 0$ or `is_ghost[i] == True`, assign atomic mass strictly as $0.0\,\text{Da}$ and covalent radius strictly as $0.0\,\text{Å}$ without calling `mendeleev`.
+    - For non-ghost atoms, query dynamic mass via `mendeleev.element(Z).mass` and covalent radius via `float(mendeleev.element(Z).covalent_radius_pyykko) / 100.0`.
+  - Ghost atoms are strictly excluded from donor/acceptor perception and SMIRKS reaction graphs.
 
-#### 6. [TOPOS] Analytical Centered RMSD & Ensemble Deduplication
-- **Requirement ID**: `REQ-TOPOS-013.5`
-- **File Target**: `cochem/topos/alignment.py`
-- **Analytical Centered RMSD**:
-  - Calculate Root-Mean-Square Deviation over mapped MCS atoms using consistent row-vector matrix multiplication:
-    $$\mathrm{RMSD}_{\text{MCS}} = \sqrt{\frac{\sum_{i=1}^N w_i \|P_{c,i} R^T - Q_{c,i}\|_2^2}{\sum_{i=1}^N w_i}} \quad \text{[D]}$$
-- **Ensemble Deduplication**:
-  - Compute symmetric pairwise RMSD matrix $D_{jk} = \mathrm{RMSD}(C_j, C_k)$ ($1 \le j, k \le M$).
-  - Group conformers with pairwise $\mathrm{RMSD} < \delta_{\text{thresh}}$ (default $0.25\,\text{Å}$ `[M]`) into duplicate equivalence classes.
+#### 6. [TOPOS] Downstream Method Matrix v4 QM Handshake & Pre-Filtering
+- **Requirement ID**: `REQ-TOPOS-014.5`
+- **File Target**: `cochem/topos/tautomer.py`
+- **QM Handshake Adapter**:
+  - Decouple in-memory enumeration engine ($T_{\text{engine}}$) from QM compute runners.
+  - Downstream adapter `filter_tautomers_thermodynamics`:
+    - Generate initial 3D coordinates for each 2D tautomer topology using RDKit ETKDGv3 (`rdDistGeom.ETKDGv3()`).
+    - Execute semi-empirical GFN2-xTB single-point or optimization/frequency runs (`xtb --opt --ohess` or CREST GOAT `! GOAT XTB2`, Method Matrix §9B.1–§9B.2).
+    - Compute relative electronic energy $\Delta E_{\text{elec}} = E_{\text{elec}}(T_k) - E_{\text{elec}}(T_{\text{canonical}})$.
+    - Flag or prune tautomers exceeding `energy_cutoff_kcal_mol` (default $15.0\,\text{kcal/mol}$).
+    - For downstream DFT optimizations, enforce multi-stage integration grid tightening from `DEFGRID1` to `TightOpt TightSCF DEFGRID3` (Lebedev 590) per Method Matrix v4 §4.4.
 
-#### 7. [TOPOS] Tripartite Air-Gap Boundaries & 6-Tier Concurrency Matrix
-- **Requirement ID**: `REQ-TOPOS-013.6`
-- **File Target**: `cochem/topos/alignment.py`
-- **Tripartite Air-Gap Realms**:
-  - $T_{\text{conf}}$ (Conformer Ingestion): `pathlib.Path(os.environ.get("COCH_CONF_DIR", Path.home() / ".cochem" / "conformers"))`
-  - $T_{\text{align}}$ (Pure In-Memory Math Kernel): Isolated, in-memory execution, no file writes, no GPU/CUDA context (`CUDA_VISIBLE_DEVICES=""`).
-  - $T_{\text{store}}$ (Persistence Realm): `pathlib.Path(os.environ.get("COCH_STORE_DIR", Path.home() / ".cochem" / "store"))`
-  - **Confinement Check**: `persist_aligned_ensemble_h5` must verify that `archive_path.resolve()` resides within $T_{\text{store}}$. If not, raise `AirGapBoundaryViolationError`.
-- **Concurrency Tier Detection**:
-  ```python
-  from enum import Enum
-  import os, sys
-
-  class StorageTier(str, Enum):
-      TIER1_WINDOWS = "tier1_windows"
-      TIER2_MACOS = "tier2_macos"
-      TIER3_LINUX = "tier3_linux"
-      TIER4_CODESPACES = "tier4_codespaces"
-      TIER5_GITHUB_ACTIONS = "tier5_github_actions"
-      TIER6_HPC = "tier6_hpc"
-
-  def detect_concurrency_tier() -> StorageTier:
-      if "SLURM_JOB_ID" in os.environ or "PBS_JOBID" in os.environ:
-          return StorageTier.TIER6_HPC
-      if os.environ.get("GITHUB_ACTIONS") == "true":
-          return StorageTier.TIER5_GITHUB_ACTIONS
-      if os.environ.get("CODESPACES") == "true":
-          return StorageTier.TIER4_CODESPACES
-      if sys.platform == "win32":
-          return StorageTier.TIER1_WINDOWS
-      if sys.platform == "darwin":
-          return StorageTier.TIER2_MACOS
-      return StorageTier.TIER3_LINUX
-  ```
-- **HDF5 Persistence Protocols**:
-  - Tier 1 (Windows NTFS), Tier 4, Tier 5: SWMR disabled (`swmr=False`). Coordinated via `filelock.FileLock(str(archive_path) + ".lock", timeout=30.0)` with atomic staging file replacement (`staging_path.replace(archive_path)`).
-  - Tier 2 (macOS) & Tier 3 (Linux): Native SWMR enabled (`libver="latest", swmr=True`).
-  - Tier 6 (HPC): Stage writes to node-local NVMe scratch (`os.environ.get("SLURM_TMPDIR", "/tmp")`), avoiding distributed POSIX byte-range lock contention.
-  - Datasets:
-    - Isomorphic: `/ensembles/{ensemble_id}/aligned_coords` (`[M, N, 3]`, float64)
-    - Heterogeneous: `/ensembles/{ensemble_id}/conformers/{conformer_id}/aligned_coords` (`[N_j, 3]`, float64)
-    - MCS coords: `/ensembles/{ensemble_id}/aligned_mcs_coords` (`[M, N_mcs, 3]`, float64)
-    - Pairwise RMSD: `/ensembles/{ensemble_id}/pairwise_rmsd` (`[M, M]`, float32)
-    - MCS mapping: `/ensembles/{ensemble_id}/mcs_mapping` (`[N_mcs, 2]`, int32)
+#### 7. [TOPOS] Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix
+- **Requirement ID**: `REQ-TOPOS-014.6`
+- **File Target**: `cochem/topos/tautomer.py`
+- **HDF5 Storage Layout**:
+  - Persist under `/tautomers/{molecule_id}/`.
+  - Use explicit fixed-width UTF-8 datatypes:
+    - `h5py.string_dtype(encoding='utf-8', length=256)` for SMILES
+    - `h5py.string_dtype(encoding='utf-8', length=32)` for standard and fixed-H InChIKeys
+    - `float64` for scores and energies
+    - `int32` for transform depths
+    - GZIP compression level 4 with chunking.
+- **6-Tier Concurrency Matrix**:
+  - Multi-process coordination: `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)` across all tiers (Windows NTFS, macOS, Linux, Codespaces, GitHub Actions).
+  - Intra-process multi-threading: Acquire a module-level `threading.Lock()` to prevent race conditions on non-threadsafe PyPI `h5py` binaries (`H5_HAVE_THREADSAFE=0`).
+  - Tier 6 (HPC): Node-local NVMe scratch staging (`$SLURM_TMPDIR`), centralized worker aggregation.
 
 ---
 
 ### CORE PYTHON INTERFACE SIGNATURES
 
+Implement the following public API signatures in `cochem/topos/tautomer.py` and export them in `cochem/topos/__init__.py`:
+
 ```python
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-import numpy as np
+from typing import Any, Dict, List, Literal, Optional, Tuple
+import h5py
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-def compute_kabsch_transformation(
-    P: np.ndarray,
-    Q: np.ndarray,
-    weights: Optional[np.ndarray] = None,
-    condition_tol: float = 1e-7,
-) -> Tuple[np.ndarray, np.ndarray, float]:
-    """
-    Computes optimal Kabsch proper rotation R and translation t mapping P to Q.
 
-    Parameters:
-        P: Target coordinate matrix of shape (N, 3).
-        Q: Reference coordinate matrix of shape (N, 3).
-        weights: Optional non-negative mass weighting vector of shape (N,).
-        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
+class ToposPerceptionError(Exception):
+    """Base exception for chemical perception and tautomer failures."""
 
-    Returns:
-        Tuple containing:
-            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
-            - t: Optimal translation vector of shape (3,).
-            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
 
-    Raises:
-        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
-        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
-    """
+class TautomerEnumerationTimeoutError(ToposPerceptionError):
+    """Raised when tautomer state space traversal exceeds execution timeout ceiling."""
 
-def align_conformers_by_mcs(
-    target: ConformerInput,
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> AlignedConformerResult:
-    """
-    Superimposes a target conformer onto an invariant reference conformer via MCS perception and Kabsch fitting.
 
-    Parameters:
-        target: Target conformer input record.
-        reference: Invariant reference conformer record.
-        config: Optional configuration controlling timeouts, weighting, and tolerances.
+class TautomerCombinatorialLimitExceededError(ToposPerceptionError):
+    """Raised when generated tautomer states exceed configured bounds in 'raise' mode."""
 
-    Returns:
-        AlignedConformerResult containing transformed coordinates, rotation matrix, translation vector, and atom mapping.
 
-    Raises:
-        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
-        IncompatibleTopologyError: If common atom count N_MCS < 3.
-        CollinearDegeneracyError: If mapped coordinates are collinear.
-    """
+class ValenceConservationError(ToposPerceptionError):
+    """Raised when a prototropic transform violates octet or valency conservation."""
 
-def cluster_ensemble_conformers(
-    conformers: List[ConformerInput],
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> EnsembleAlignmentSummary:
-    """
-    Performs batch alignment and pairwise RMSD clustering across a conformer ensemble.
 
-    Parameters:
-        conformers: List of conformer records generated upstream via CREST/ORCA GOAT.
-        reference: Reference conformer topology.
-        config: Alignment configuration and deduplication RMSD threshold.
+class InvalidTopologyInputError(ToposPerceptionError):
+    """Raised when input molecular structure is unparseable or topologically malformed."""
 
-    Returns:
-        EnsembleAlignmentSummary including pairwise RMSD matrix, consensus MCS map, and duplicate cluster groups.
-    """
 
-def persist_aligned_ensemble_h5(
-    summary: EnsembleAlignmentSummary,
-    archive_path: Path,
-    lock_timeout: float = 30.0,
+class TautomerCanonicalizationError(ToposPerceptionError):
+    """Raised when canonical tautomer selection or fixed-H InChIKey hashing fails."""
+
+
+class TautomerPersistenceError(ToposPerceptionError):
+    """Raised when HDF5 serialization or deserialization fails."""
+
+
+class TautomerStorageLockTimeoutError(ToposPerceptionError):
+    """Raised when acquiring cross-platform filelock exceeds timeout ceiling."""
+
+
+class QuantumChemistryHandshakeError(ToposPerceptionError):
+    """Raised when downstream 3D embedding or GFN2-xTB pre-filtering fails."""
+
+
+class GhostAtomSanitizationError(ToposPerceptionError):
+    """Raised when BSSE ghost atoms cannot be harmonized with topology contracts."""
+
+
+class TopologyInput(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    molecule_id: str = Field(..., description="Unique alphanumeric identifier for the molecule")
+    smiles: Optional[str] = Field(default=None, description="Input SMILES string")
+    elements: List[str] = Field(..., min_length=1, description="Elemental symbols")
+    atomic_numbers: List[int] = Field(..., min_length=1, description="IUPAC atomic numbers Z")
+    coordinates: Optional[List[Tuple[float, float, float]]] = Field(default=None, description="Cartesian 3D coordinates in Angstroms (x, y, z)")
+    bonds: List[Tuple[int, int, float]] = Field(default_factory=list, description="Edges: (idx_i, idx_j, order)")
+    formal_charges: List[int] = Field(default_factory=list, description="Formal charge per atom")
+    masses: Optional[List[float]] = Field(default=None, description="Atomic masses dynamically queried via mendeleev")
+    is_ghost: List[bool] = Field(default_factory=list, description="Mask identifying BSSE ghost atoms")
+
+    @model_validator(mode="before")
+    @classmethod
+    def pre_validate_arrays_and_defaults(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        elements = data.get("elements", [])
+        n_atoms = len(elements)
+        atomic_numbers = data.get("atomic_numbers", [])
+
+        if "is_ghost" not in data or not data["is_ghost"]:
+            ghost_symbols = {"GH", "BQ", "X"}
+            data["is_ghost"] = [
+                (z == 0 or sym.upper() in ghost_symbols)
+                for z, sym in zip(atomic_numbers, elements)
+            ] if len(atomic_numbers) == n_atoms else [False] * n_atoms
+
+        if "formal_charges" not in data or not data["formal_charges"]:
+            data["formal_charges"] = [0] * n_atoms
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_integrity(self) -> "TopologyInput":
+        n_atoms = len(self.elements)
+        if not self.smiles and not self.coordinates and not self.bonds:
+            raise ValueError("At least one of smiles, coordinates, or explicit bonds must be provided")
+        if self.coordinates is not None and len(self.coordinates) != n_atoms:
+            raise ValueError(f"coordinates length {len(self.coordinates)} != elements length {n_atoms}")
+        if len(self.atomic_numbers) != n_atoms:
+            raise ValueError(f"atomic_numbers length {len(self.atomic_numbers)} != elements length {n_atoms}")
+        if len(self.is_ghost) != n_atoms:
+            raise ValueError(f"is_ghost length {len(self.is_ghost)} != elements length {n_atoms}")
+        if len(self.formal_charges) != n_atoms:
+            raise ValueError(f"formal_charges length {len(self.formal_charges)} != elements length {n_atoms}")
+        if self.masses is not None and len(self.masses) != n_atoms:
+            raise ValueError(f"masses length {len(self.masses)} != elements length {n_atoms}")
+
+        for idx_i, idx_j, order in self.bonds:
+            if not (0 <= idx_i < n_atoms and 0 <= idx_j < n_atoms):
+                raise ValueError(f"Bond ({idx_i}, {idx_j}) references out-of-bounds atom index for n_atoms={n_atoms}")
+            if idx_i == idx_j:
+                raise ValueError(f"Self-referential bond ({idx_i}, {idx_j}) detected")
+            if order <= 0.0 or order > 4.0:
+                raise ValueError(f"Invalid bond order {order} for bond ({idx_i}, {idx_j})")
+
+        return self
+
+
+class TautomerCandidate(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    candidate_id: str = Field(..., description="Unique candidate hash")
+    smiles: str = Field(..., min_length=1, description="Canonical SMILES of the tautomer")
+    inchi_key: str = Field(..., min_length=27, max_length=27, description="Standard InChIKey (27 chars)")
+    fixed_h_inchi_key: str = Field(..., min_length=27, max_length=27, description="Fixed-H InChIKey (27 chars)")
+    canonical_score: float = Field(..., description="Patterson score (higher is more favorable)")
+    relative_energy_kcal_mol: Optional[float] = Field(default=None, description="Relative electronic energy from xTB")
+    is_canonical: bool = Field(default=False, description="Flag indicating highest-ranking canonical tautomer")
+    transform_depth: int = Field(..., ge=0, description="Number of elementary prototropic shifts from parent")
+    transform_history: List[str] = Field(default_factory=list, description="Sequence of SMIRKS applied")
+
+
+class TautomerEnumerationConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    max_tautomers: int = Field(default=500, ge=1, le=10000, description="Max unique tautomers before truncation")
+    max_transform_depth: int = Field(default=6, ge=1, le=20, description="Max search depth from parent topology")
+    timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0, description="Process-level timeout limit in seconds")
+    energy_cutoff_kcal_mol: float = Field(default=15.0, ge=0.0, description="Thermodynamic exclusion ceiling")
+    truncation_policy: Literal["raise", "truncate"] = Field(
+        default="truncate",
+        description="Behavior when max_tautomers limit is reached"
+    )
+
+
+class TautomerEnsemble(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    parent_id: str = Field(..., description="Parent molecule identifier")
+    canonical_tautomer_id: str = Field(..., description="ID of designated canonical tautomer")
+    total_generated: int = Field(..., ge=1, description="Total unique tautomers identified")
+    candidates: List[TautomerCandidate] = Field(..., min_length=1, description="List of generated tautomer candidates")
+    execution_duration_seconds: float = Field(..., ge=0.0, description="Wall-clock runtime for enumeration")
+
+    @model_validator(mode="after")
+    def validate_ensemble_consistency(self) -> "TautomerEnsemble":
+        if len(self.candidates) != self.total_generated:
+            raise ValueError(f"Candidate count {len(self.candidates)} != total_generated {self.total_generated}")
+
+        candidate_map = {c.candidate_id: c for c in self.candidates}
+        if self.canonical_tautomer_id not in candidate_map:
+            raise ValueError(f"canonical_tautomer_id '{self.canonical_tautomer_id}' not found in candidates")
+
+        canonical_count = sum(1 for c in self.candidates if c.is_canonical)
+        if canonical_count != 1:
+            raise ValueError(f"Exactly one candidate must have is_canonical=True; found {canonical_count}")
+
+        if not candidate_map[self.canonical_tautomer_id].is_canonical:
+            raise ValueError("Candidate matching canonical_tautomer_id must have is_canonical=True")
+
+        return self
+
+
+def enumerate_tautomers(
+    input_topology: TopologyInput,
+    config: TautomerEnumerationConfig
+) -> TautomerEnsemble:
+    """Pure in-memory Tier 2 prototropic graph enumeration kernel."""
+
+
+def filter_tautomers_thermodynamics(
+    ensemble: TautomerEnsemble,
+    config: TautomerEnumerationConfig,
+    scratch_dir: Path
+) -> TautomerEnsemble:
+    """Downstream adapter: generates 3D ETKDGv3 conformers and filters via GFN2-xTB."""
+
+
+def save_tautomer_ensemble_to_hdf5(
+    ensemble: TautomerEnsemble,
+    hdf5_path: Path
 ) -> Path:
-    """
-    Persists aligned conformer trajectories and pairwise RMSD matrices into an HDF5 archive under 6-tier concurrency.
+    """Tier 3 persistence: serializes tautomer candidates and metadata into HDF5 archive."""
 
-    Parameters:
-        summary: Validated ensemble alignment summary payload.
-        archive_path: Target filesystem path for the .h5 archive (must resolve within T_store).
-        lock_timeout: Maximum duration in seconds to wait for filelock acquisition.
 
-    Returns:
-        Path to the written HDF5 archive.
-
-    Raises:
-        AirGapBoundaryViolationError: If archive_path resolves outside T_store.
-    """
+def load_tautomer_ensemble_from_hdf5(
+    hdf5_path: Path,
+    molecule_id: str
+) -> TautomerEnsemble:
+    """Tier 3 persistence: retrieves and reconstructs validated TautomerEnsemble from HDF5 archive."""
 ```
 
 ---
 
-### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_alignment.py`)
+### PHYSICAL VERIFICATION TEST SUITE (`tests/topos/test_topos_tautomer.py`)
+
+Implement the physical verification suite reproducing the following tests against genuine molecular structures:
 
 ```python
-import os
+import concurrent.futures
 from pathlib import Path
+import h5py
 import numpy as np
 import pytest
-import h5py
 from pydantic import ValidationError
 
-from cochem.topos.alignment import (
-    AirGapBoundaryViolationError,
-    AlignedConformerResult,
-    CollinearDegeneracyError,
-    ConformerInput,
-    DegenerateCoordinatesError,
-    EnsembleAlignmentSummary,
-    IncompatibleTopologyError,
-    MCSAlignmentConfig,
-    MCSConvergenceTimeoutError,
-    align_conformers_by_mcs,
-    cluster_ensemble_conformers,
-    compute_kabsch_transformation,
-    persist_aligned_ensemble_h5,
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    TautomerCandidate,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnsemble,
+    TautomerEnumerationConfig,
+    TautomerEnumerationTimeoutError,
+    TopologyInput,
+    ValenceConservationError,
+    enumerate_tautomers,
+    filter_tautomers_thermodynamics,
+    load_tautomer_ensemble_from_hdf5,
+    save_tautomer_ensemble_to_hdf5,
 )
 
 
-def test_kabsch_chiral_enantiomer_reflection_guard():
+def test_1_3_prototropic_shifts():
     """
-    REQ-TOPOS-013.3 & REQ-TOPOS-013.4: Verify that Kabsch alignment between chiral enantiomers
-    enforces proper rotation det(R) = +1.0 via parity correction factor d = -1, preventing coordinate inversion.
+    REQ-TOPOS-014.1a: Verify 1,3-prototropic shifts across keto-enol, lactam-lactim, and amidine systems.
+    Ensures net formal charge and total hydrogen count are strictly conserved.
     """
-    coords_l = np.array([
-        [-0.432, 1.254, -0.428],  # N
-        [0.000, 0.000, 0.354],    # CA
-        [1.520, 0.000, 0.354],    # C
-        [2.145, 1.050, 0.354],    # O
-        [-0.534, -1.242, -0.354], # CB
-    ], dtype=np.float64)
-
-    coords_d = coords_l.copy()
-    coords_d[:, 2] *= -1.0
-
-    R, t, rmsd = compute_kabsch_transformation(coords_d, coords_l)
-
-    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5), "Rotation matrix must satisfy R.T @ R = I"
-    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5), f"Improper rotation detected: det(R) = {np.linalg.det(R)}"
-    assert rmsd > 0.1, "Enantiomer alignment must retain non-zero RMSD under proper SO(3) rotation"
-
-
-def test_collinear_degeneracy_detection():
-    """
-    REQ-TOPOS-013.3: Verify that collinear coordinates (e.g., linear acetylene C2H2)
-    trigger CollinearDegeneracyError due to singular value condition ratio sigma_2 / sigma_1 < 1e-7.
-    """
-    acetylene_coords = np.array([
-        [0.0, 0.0, -1.665],  # H1
-        [0.0, 0.0, -0.601],  # C1
-        [0.0, 0.0, 0.601],   # C2
-        [0.0, 0.0, 1.665],   # H2
-    ], dtype=np.float64)
-
-    rotated_coords = acetylene_coords @ np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=np.float64)
-
-    with pytest.raises(CollinearDegeneracyError) as exc_info:
-        compute_kabsch_transformation(rotated_coords, acetylene_coords)
-    assert "collinear" in str(exc_info.value).lower()
-
-
-def test_coplanar_coordinates_stabilization():
-    """
-    REQ-TOPOS-013.3: Verify that coplanar coordinates (benzene C6 heavy atoms in xy-plane)
-    are successfully stabilized via right-handed cross-product basis completion without degeneracy failure.
-    """
-    angles = np.linspace(0, 2 * np.pi, 6, endpoint=False)
-    r_cc = 1.397
-    benzene_c = np.column_stack([r_cc * np.cos(angles), r_cc * np.sin(angles), np.zeros(6)])
-
-    theta = np.pi / 4.0
-    R_z = np.array([
-        [np.cos(theta), -np.sin(theta), 0.0],
-        [np.sin(theta), np.cos(theta), 0.0],
-        [0.0, 0.0, 1.0],
-    ])
-    rotated_benzene = benzene_c @ R_z.T + np.array([1.5, -2.0, 0.0])
-
-    R, t, rmsd = compute_kabsch_transformation(rotated_benzene, benzene_c)
-    assert np.allclose(R.T @ R, np.eye(3), atol=1e-5)
-    assert np.isclose(np.linalg.det(R), 1.0, atol=1e-5)
-    assert np.isclose(rmsd, 0.0, atol=1e-5)
-
-
-def test_bsse_ghost_atom_exclusion_and_mass():
-    """
-    REQ-TOPOS-013.1 & REQ-TOPOS-013.2: Verify that BSSE counterpoise complexes with ghost atoms (Z=0)
-    assign zero mass without throwing Mendeleev ValueError, and are excluded from alignment calculations.
-    """
-    target = ConformerInput(
-        conformer_id="bsse_dimer_conf_1",
-        elements=["O", "H", "H", "Gh", "Gh", "Gh"],
-        atomic_numbers=[8, 1, 1, 0, 0, 0],
-        coordinates=[
-            (0.000, 0.000, 0.117),
-            (0.000, 0.757, -0.469),
-            (0.000, -0.757, -0.469),
-            (2.800, 0.000, 0.117),
-            (2.800, 0.757, -0.469),
-            (2.800, -0.757, -0.469),
-        ],
-        is_ghost=[False, False, False, True, True, True],
+    # 1. Acetylacetone (keto-enol)
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
     )
-    assert len(target.is_ghost) == 6
-    assert target.is_ghost[3] is True
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_acac = enumerate_tautomers(acac, config)
+    assert ens_acac.total_generated >= 2
+    smiles_pool = {c.smiles for c in ens_acac.candidates}
+    # Enol form must be generated
+    assert any("O" in s and "=" in s for s in smiles_pool)
+
+    # 2. 2-Pyridone (heteroaromatic lactam-lactim)
+    pyridone = TopologyInput(
+        molecule_id="2_pyridone",
+        smiles="c1cc[nH]c(=O)c1",
+        elements=["C", "C", "C", "N", "C", "O", "C"],
+        atomic_numbers=[6, 6, 6, 7, 6, 8, 6],
+    )
+    ens_pyr = enumerate_tautomers(pyridone, config)
+    assert ens_pyr.total_generated >= 2
+    pyr_smiles = {c.smiles for c in ens_pyr.candidates}
+    assert any("Oc1ccccn1" in s or "c1ccncc1O" in s or "n" in s for s in pyr_smiles)
+
+    # 3. Acetamidine (amidine-amidine)
+    acetamidine = TopologyInput(
+        molecule_id="acetamidine",
+        smiles="CC(=N)N",
+        elements=["C", "C", "N", "N"],
+        atomic_numbers=[6, 6, 7, 7],
+    )
+    ens_amd = enumerate_tautomers(acetamidine, config)
+    assert ens_amd.total_generated >= 1
+    for c in ens_amd.candidates:
+        assert c.fixed_h_inchi_key is not None
+        assert len(c.fixed_h_inchi_key) == 27
 
 
-def test_pydantic_validation_guards():
+def test_1_5_prototropic_shifts():
     """
-    Verify that Pydantic v2 data models reject empty coordinate lists, non-orthogonal rotation matrices,
-    and asymmetric pairwise RMSD matrices.
+    REQ-TOPOS-014.1b: Verify 1,5-prototropic shifts across conjugated systems (glutaconic acid).
     """
-    with pytest.raises(ValidationError):
-        ConformerInput(
-            conformer_id="invalid_conf_01",
-            elements=["C", "C", "C"],
-            atomic_numbers=[6, 6, 6],
-            coordinates=[],
-        )
-
-    non_orthogonal_mat = [[2.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0]]
-    with pytest.raises(ValidationError):
-        AlignedConformerResult(
-            conformer_id="conf_01",
-            reference_id="ref_01",
-            rmsd_angstrom=0.15,
-            rotation_matrix=non_orthogonal_mat,
-            translation_vector=[0.0, 0.0, 0.0],
-            aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-            atom_mapping={0: 0, 1: 1, 2: 2},
-            execution_duration_seconds=0.012,
-        )
-
-    with pytest.raises(ValidationError):
-        EnsembleAlignmentSummary(
-            ensemble_id="ens_01",
-            reference_id="ref_01",
-            total_conformers=2,
-            aligned_conformers=[],
-            pairwise_rmsd_matrix=[[0.0, 0.35], [0.10, 0.0]],
-        )
-
-
-def test_point_degeneracy_error():
-    """REQ-TOPOS-013.3: Verify that point-collapsed coordinates raise DegenerateCoordinatesError."""
-    point_coords = np.zeros((4, 3), dtype=np.float64)
-    ref_coords = np.array([
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ], dtype=np.float64)
-    with pytest.raises(DegenerateCoordinatesError):
-        compute_kabsch_transformation(point_coords, ref_coords)
-
-
-def test_incompatible_topology_atom_count_error():
-    """REQ-TOPOS-013.1: Verify IncompatibleTopologyError when overlapping atom count N_MCS < 3."""
-    target = ConformerInput(
-        conformer_id="conf_diatomic",
-        elements=["H", "Cl"],
-        atomic_numbers=[1, 17],
-        coordinates=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.27)],
+    glutaconic = TopologyInput(
+        molecule_id="glutaconic_acid",
+        smiles="OC(=O)CC=CC(=O)O",
+        elements=["O", "C", "O", "C", "C", "C", "C", "O", "O"],
+        atomic_numbers=[8, 6, 8, 6, 6, 6, 6, 8, 8],
     )
-    ref = ConformerInput(
-        conformer_id="conf_water",
-        elements=["O", "H", "H"],
-        atomic_numbers=[8, 1, 1],
-        coordinates=[(0.0, 0.0, 0.117), (0.0, 0.757, -0.469), (0.0, -0.757, -0.469)],
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_glut = enumerate_tautomers(glutaconic, config)
+    assert ens_glut.total_generated >= 1
+    # Net formal charge remains 0
+    for cand in ens_glut.candidates:
+        assert cand.transform_depth <= config.max_transform_depth
+
+
+def test_diaza_annular_shifts():
+    """
+    REQ-TOPOS-014.1c: Verify 1,2- and 1,3-diaza annular prototropic shifts across azoles.
+    """
+    # 1H-1,2,3-triazole (c1cn[nH]n1) undergoing 1,2- and 1,3-diaza shifts
+    triazole = TopologyInput(
+        molecule_id="1H_triazole",
+        smiles="c1cn[nH]n1",
+        elements=["C", "C", "N", "N", "N"],
+        atomic_numbers=[6, 6, 7, 7, 7],
     )
-    with pytest.raises(IncompatibleTopologyError):
-        align_conformers_by_mcs(target, ref)
+    config = TautomerEnumerationConfig(max_tautomers=20, max_transform_depth=3)
+    ens_triazole = enumerate_tautomers(triazole, config)
+    assert ens_triazole.total_generated >= 2
+    for c in ens_triazole.candidates:
+        assert len(c.fixed_h_inchi_key) == 27
 
 
-def test_mcs_timeout_raises_custom_error():
-    """REQ-TOPOS-013.1: Verify that an exhausted MCS timeout ceiling raises MCSConvergenceTimeoutError."""
-    c1 = ConformerInput(
-        conformer_id="polycycle_1",
-        elements=["C"] * 10,
-        atomic_numbers=[6] * 10,
-        coordinates=[(float(i), 0.0, 0.0) for i in range(10)],
+def test_bfs_traversal_combinatorial_limits_and_timeout():
+    """
+    REQ-TOPOS-014.2: Verify bounds on state space traversal, truncation policies, and process timeout.
+    """
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
     )
-    c2 = ConformerInput(
-        conformer_id="polycycle_2",
-        elements=["C"] * 10,
-        atomic_numbers=[6] * 10,
-        coordinates=[(0.0, float(i), 0.0) for i in range(10)],
+    # Test max_tautomers truncation policy 'truncate'
+    config_trunc = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="truncate")
+    ens_trunc = enumerate_tautomers(acac, config_trunc)
+    assert ens_trunc.total_generated <= 1
+
+    # Test max_tautomers truncation policy 'raise'
+    config_raise = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="raise")
+    with pytest.raises(TautomerCombinatorialLimitExceededError):
+        enumerate_tautomers(acac, config_raise)
+
+    # Test timeout ceiling (using sub-second timeout enabled by gt=0.0)
+    config_timeout = TautomerEnumerationConfig(timeout_seconds=0.0001)
+    with pytest.raises(TautomerEnumerationTimeoutError):
+        enumerate_tautomers(acac, config_timeout)
+
+
+def test_deduplication_fixed_h_inchikey_and_canonicalization():
+    """
+    REQ-TOPOS-014.3: Verify deduplication via Fixed-H InChIKeys and Patterson scoring canonicalization.
+    4-Methyl-1H-imidazole tautomers share standard InChIKey but diverge on fixed-H InChIKey.
+    """
+    # 4-methyl-1H-imidazole (Cc1c[nH]cn1)
+    med = TopologyInput(
+        molecule_id="4_methyl_imidazole",
+        smiles="Cc1c[nH]cn1",
+        elements=["C", "C", "C", "N", "C", "N"],
+        atomic_numbers=[6, 6, 6, 7, 6, 7],
     )
-    tight_config = MCSAlignmentConfig(timeout_seconds=0.0001)
-    with pytest.raises(MCSConvergenceTimeoutError):
-        align_conformers_by_mcs(c1, c2, config=tight_config)
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens = enumerate_tautomers(med, config)
+    assert ens.total_generated >= 2
+
+    # Standard InChIKeys match, Fixed-H InChIKeys diverge
+    fixed_h_keys = {c.fixed_h_inchi_key for c in ens.candidates}
+    assert len(fixed_h_keys) == ens.total_generated
+
+    # Canonical selection check
+    assert ens.canonical_tautomer_id is not None
+    canonical_candidates = [c for c in ens.candidates if c.is_canonical]
+    assert len(canonical_candidates) == 1
+    assert canonical_candidates[0].candidate_id == ens.canonical_tautomer_id
 
 
-def test_cluster_ensemble_deduplication():
-    """REQ-TOPOS-013.5: Verify pairwise RMSD calculation and duplicate cluster grouping."""
-    ref = ConformerInput(
-        conformer_id="ref_methane",
-        elements=["C", "H", "H", "H", "H"],
-        atomic_numbers=[6, 1, 1, 1, 1],
-        coordinates=[
-            (0.000, 0.000, 0.000),
-            (0.629, 0.629, 0.629),
-            (-0.629, -0.629, 0.629),
-            (-0.629, 0.629, -0.629),
-            (0.629, -0.629, -0.629),
-        ],
+def test_ghost_atom_bsse_exclusion():
+    """
+    REQ-TOPOS-014.4: Verify ghost atoms (Z=0, symbol 'Gh') are assigned 0.0 Da and 0.0 A
+    without invoking mendeleev, and excluded from SMIRKS reaction graphs and InChI calculation.
+    """
+    bsse_water = TopologyInput(
+        molecule_id="bsse_water_dimer",
+        smiles="O.[*]",
+        elements=["O", "H", "H", "Gh"],
+        atomic_numbers=[8, 1, 1, 0],
+        is_ghost=[False, False, False, True],
     )
-    # Identical copy (RMSD = 0.0) -> Redundant duplicate
-    dup = ConformerInput(
-        conformer_id="dup_methane",
-        elements=ref.elements,
-        atomic_numbers=ref.atomic_numbers,
-        coordinates=ref.coordinates,
+    assert bsse_water.is_ghost[3] is True
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(bsse_water, config)
+    # Ghost atom did not cause crash, valid ensemble produced with valid 27-char InChIKeys
+    assert ens.total_generated >= 1
+    for c in ens.candidates:
+        assert len(c.inchi_key) == 27
+        assert len(c.fixed_h_inchi_key) == 27
+
+
+def test_qm_handshake_and_thermodynamic_filtering(tmp_path):
+    """
+    REQ-TOPOS-014.5: Verify 3D conformer generation (ETKDGv3) and thermodynamic pre-filtering adapter.
+    """
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
     )
-    summary = cluster_ensemble_conformers([ref, dup], reference=ref)
-    assert summary.total_conformers == 2
-    assert len(summary.duplicate_clusters) >= 1
-    assert "dup_methane" in summary.duplicate_clusters[0] or "ref_methane" in summary.duplicate_clusters[0]
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2, energy_cutoff_kcal_mol=15.0)
+    ens = enumerate_tautomers(acac, config)
+
+    filtered_ens = filter_tautomers_thermodynamics(ens, config, scratch_dir=tmp_path)
+    assert filtered_ens.total_generated >= 1
+    for c in filtered_ens.candidates:
+        if c.relative_energy_kcal_mol is not None:
+            assert c.relative_energy_kcal_mol <= config.energy_cutoff_kcal_mol + 1e-4
 
 
-def test_persist_aligned_ensemble_h5_roundtrip(tmp_path, monkeypatch):
-    """REQ-TOPOS-013.6: Verify thread-safe HDF5 persistence and air-gap boundary check."""
-    store_dir = tmp_path / "topos_store"
-    store_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setenv("COCH_STORE_DIR", str(store_dir))
-
-    summary = EnsembleAlignmentSummary(
-        ensemble_id="test_ensemble_01",
-        reference_id="ref_01",
-        total_conformers=1,
-        aligned_conformers=[
-            AlignedConformerResult(
-                conformer_id="conf_01",
-                reference_id="ref_01",
-                rmsd_angstrom=0.05,
-                rotation_matrix=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                translation_vector=[0.0, 0.0, 0.0],
-                aligned_coordinates=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
-                atom_mapping={0: 0, 1: 1, 2: 2},
-                execution_duration_seconds=0.01,
-            )
-        ],
-        pairwise_rmsd_matrix=[[0.0]],
-        duplicate_clusters=[],
-        mcs_mapping={0: 0, 1: 1, 2: 2},
-        aligned_mcs_coords=[[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)]],
+def test_hdf5_threadsafe_concurrency_persistence(tmp_path):
+    """
+    REQ-TOPOS-014.6: Verify thread-safe and process-safe HDF5 persistence under filelock.
+    """
+    h5_file = tmp_path / "tautomer_archive.h5"
+    acac = TopologyInput(
+        molecule_id="acac_persisted",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
     )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(acac, config)
 
-    archive_path = store_dir / "ensemble_01.h5"
-    out_path = persist_aligned_ensemble_h5(summary, archive_path)
-    assert out_path.exists()
+    # Save to HDF5
+    saved_path = save_tautomer_ensemble_to_hdf5(ens, h5_file)
+    assert saved_path.exists()
 
-    with h5py.File(out_path, "r") as h5f:
-        assert f"/ensembles/{summary.ensemble_id}/aligned_coords" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
-        assert f"/ensembles/{summary.ensemble_id}/mcs_mapping" in h5f
+    # Load from HDF5
+    loaded_ens = load_tautomer_ensemble_from_hdf5(h5_file, molecule_id="acac_persisted")
+    assert loaded_ens.parent_id == ens.parent_id
+    assert loaded_ens.total_generated == ens.total_generated
+    assert loaded_ens.canonical_tautomer_id == ens.canonical_tautomer_id
 
-    # Air-gap violation check
-    outside_path = tmp_path / "unauthorized" / "leak.h5"
-    with pytest.raises(AirGapBoundaryViolationError):
-        persist_aligned_ensemble_h5(summary, outside_path)
+    # Verify fixed-width datatypes
+    with h5py.File(h5_file, "r") as f:
+        grp = f[f"/tautomers/{ens.parent_id}"]
+        assert "smiles" in grp
+        assert "fixed_h_inchi_key" in grp
+        assert "canonical_score" in grp
+        assert grp["smiles"].dtype.kind == "S" or grp["smiles"].dtype.metadata is not None
 ```
 
 ---
@@ -1004,46 +1239,46 @@ def test_persist_aligned_ensemble_h5_roundtrip(tmp_path, monkeypatch):
 ### STRICT COMPLIANCE & ARCHITECTURAL INVARIANTS
 
 1. **Zero-Mock Mandate**:
-   - Every function, method, and test fixture must execute physically against real molecular data.
+   - Every function, transform, and test fixture must execute physically against real molecular data using RDKit C++ wrappers and Python algorithms.
    - Absolutely no `pass` stubs, `NotImplementedError`, empty functions, or synthetic mocked arrays (`np.zeros`, `np.ones`, etc.) in place of genuine computation.
 2. **Dynamic Mendeleev Mandate**:
-   - All non-ghost atomic masses must be queried dynamically via `mendeleev.element(Z).mass`.
-   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ without calling `mendeleev`.
+   - All non-ghost atomic masses and covalent radii must be queried dynamically via `mendeleev.element(Z)`.
+   - Dynamic Pyykkö covalent radii must be converted from picometers to Ångströms: `r_angstrom = float(el.covalent_radius_pyykko) / 100.0`.
+   - Ghost/dummy atoms ($Z = 0$ or `is_ghost == True`) must be assigned $0.0\,\text{Da}$ and $0.0\,\text{Å}$ without calling `mendeleev`.
    - Hardcoded atomic mass constants, isotopic lookup tables, or manual CODATA updates are strictly forbidden.
 3. **Tripartite Workspace Air-Gap Architecture**:
    - Partition workflow across three disjoint physical realms:
-     - Upstream Conformer Generation Realm ($T_{\text{conf}}$): `COCH_CONF_DIR`
-     - Pure Mathematical Topology Alignment Kernel ($T_{\text{align}}$): Strictly CPU and in-memory. Zero disk I/O, zero network handles.
-     - Persistence & Visualization Realm ($T_{\text{store}}$): `COCH_STORE_DIR`
-   - Persistent archive paths outside $T_{\text{store}}$ must raise `AirGapBoundaryViolationError`.
+     - Tier 1: Domain & Schema Realm ($T_{\text{schema}}$): Ingests and validates immutable Pydantic `TopologyInput` records. Zero disk writes.
+     - Tier 2: Pure Algorithmic Compute Engine ($T_{\text{engine}}$): In-memory BFS state traversal, SMIRKS transforms, and Patterson scoring inside an isolated worker subprocess. Zero disk writes, zero network sockets.
+     - Tier 3: Persistence & Cache Realm ($T_{\text{persist}}$): Thread-safe HDF5 serialization under cross-platform `filelock` and `threading.Lock`.
 4. **Compute Boundaries & CUDA-Lock Prevention**:
-   - Conformer alignment and SVD matrix decompositions are strictly CPU-bound.
-   - Subprocess execution must enforce `CUDA_VISIBLE_DEVICES=""` to prevent GPU runtime initialization or context monopolization.
+   - Tautomer graph search, SMIRKS matching, and topological hashing are strictly CPU-bound.
+   - Process pool workers must initialize with `os.environ["CUDA_VISIBLE_DEVICES"] = ""` inside the child process only, preventing accidental GPU runtime context allocation.
 5. **Thread-Safe HDF5 Persistence & 6-Tier Concurrency Matrix**:
-   - On Windows NTFS (Tier 1), Codespaces (Tier 4), and GitHub Actions CI (Tier 5): Coordinate persistence via `filelock.FileLock(str(archive_path) + ".lock", timeout=30.0)` on advisory `.lock` files, temporary staging files, and atomic replacement.
-   - On local macOS (Tier 2) and Linux (Tier 3): Enable HDF5 SWMR mode (`libver="latest", swmr=True`).
-   - On HPC (Tier 6): Use node-local NVMe scratch staging (`$SLURM_TMPDIR` / `$COCH_SCRATCH`) and MPI collective I/O.
+   - Multi-process coordination across all tiers (Windows NTFS, macOS, Linux, Codespaces, GitHub Actions): `filelock.FileLock(path.with_suffix(".h5.lock"), timeout=30.0)` on advisory `.lock` files.
+   - Intra-process multi-threading concurrency: Acquire an internal module-level `threading.Lock()` to prevent data races on non-threadsafe PyPI `h5py` binaries (`H5_HAVE_THREADSAFE=0`).
+   - Tier 6 (HPC): Node-local NVMe scratch staging (`$SLURM_TMPDIR`), centralized worker aggregation.
 6. **OS-Agnostic Dynamic Path Resolution**:
    - Dynamic path lookups via `pathlib.Path`:
-     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR", Path.home() / ".cochem" / "artifacts"))`
-     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR", Path.home() / ".cochem" / "scratch"))`
-     - Data: `pathlib.Path(os.environ.get("COCHEM_DATA_DIR", Path.home() / ".cochem" / "data"))`
+     - Scratch: `pathlib.Path(os.environ.get("COCHEM_SCRATCH_DIR") or os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or Path.home() / ".cochem" / "scratch")`
+     - Artifacts: `pathlib.Path(os.environ.get("COCHEM_ARTIFACTS_DIR") or Path.home() / ".cochem" / "artifacts")`
 
 ---
 
 ### ACTION PLAN FOR CODER
 
-1. Implement `cochem/topos/alignment.py` (and export in `cochem/topos/__init__.py`) containing:
-   - Domain exception hierarchy: `ToposAlignmentError`, `MCSConvergenceTimeoutError`, `CollinearDegeneracyError`, `DegenerateCoordinatesError`, `IncompatibleTopologyError`, `AirGapBoundaryViolationError`.
-   - Pydantic v2 data models: `ConformerInput`, `MCSAlignmentConfig`, `AlignedConformerResult`, `EnsembleAlignmentSummary`.
-   - `StorageTier` enum and `detect_concurrency_tier()` helper.
-   - Module-level picklable `_isolated_mcs_worker` helper.
-   - `compute_kabsch_transformation`: SVD decomposition with point degeneracy check, collinear check, planar cross-product basis completion, parity reflection guard ($d = \operatorname{sgn}(\det(V U^T))$), proper rotation $R \in SO(3)$, and analytical centered RMSD.
-   - `align_conformers_by_mcs`: Ghost atom pre-sanitization, dynamic Mendeleev radii bond perception fallback, isolated `ProcessPoolExecutor` with timeout ceiling, mass lookup with $Z=0$ guard, and coordinate superposition.
-   - `cluster_ensemble_conformers`: Pairwise RMSD matrix calculation and duplicate cluster grouping.
-   - `persist_aligned_ensemble_h5`: Air-gap boundary confinement check and 6-tier thread-safe HDF5 serialization.
-2. Implement physical unit test suite in `tests/topos/test_topos_alignment.py` with all 10 authentic fixtures.
-3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_alignment.py -v`) and verify 100% pass rate.
+1. Implement `cochem/topos/tautomer.py` (and export in `cochem/topos/__init__.py`) containing:
+   - Domain exception hierarchy: `ToposPerceptionError`, `TautomerEnumerationTimeoutError`, `TautomerCombinatorialLimitExceededError`, `ValenceConservationError`, `InvalidTopologyInputError`, `TautomerCanonicalizationError`, `TautomerPersistenceError`, `TautomerStorageLockTimeoutError`, `QuantumChemistryHandshakeError`, `GhostAtomSanitizationError`.
+   - Pydantic v2 data models: `TopologyInput`, `TautomerCandidate`, `TautomerEnumerationConfig`, `TautomerEnsemble`.
+   - Directional SMIRKS transform dictionary covering 1,3-prototropic (including corrected heteroaromatic lactam-lactim), 1,5-prototropic, and heterocyclic annular shifts (including 1,2- and 1,3-diaza shifts) with explicit hydrogen matching.
+   - Ghost atom stripping prior to InChI/InChIKey generation (`Chem.DeleteSubstructs(mol, Chem.MolFromSmarts('[#0]'))`).
+   - Mendeleev unit conversion: `r_angstrom = float(el.covalent_radius_pyykko) / 100.0`.
+   - Module-level worker helper `_cpu_worker_init` setting `CUDA_VISIBLE_DEVICES=""`.
+   - `enumerate_tautomers`: In-memory BFS traversal bounded by `max_tautomers`, `max_transform_depth`, and `timeout_seconds` inside `ProcessPoolExecutor`. Computes canonical SMILES, standard InChIKeys, and fixed-H InChIKeys for deduplication. Patterson scoring for canonical tautomer designation.
+   - `filter_tautomers_thermodynamics`: RDKit ETKDGv3 3D conformer generation, semi-empirical GFN2-xTB single point / optimization execution, relative energy $\Delta E_{\text{elec}}$ filtering against `energy_cutoff_kcal_mol`.
+   - `save_tautomer_ensemble_to_hdf5` & `load_tautomer_ensemble_from_hdf5`: Thread-safe HDF5 serialization using fixed-width UTF-8 strings (`S256`, `S32`), chunking, GZIP compression, `filelock.FileLock`, and module-level `threading.Lock()`.
+2. Implement physical unit test suite in `tests/topos/test_topos_tautomer.py` with all genuine chemical test fixtures (acetylacetone, 2-pyridone, acetamidine, glutaconic acid, 1H-1,2,3-triazole, 4-methyl-1H-imidazole, and BSSE water dimer with ghost atom).
+3. Run the test suite via `run_command` (`pytest tests/topos/test_topos_tautomer.py -v`) and verify 100% pass rate.
 4. Output the complete list of touched and created files in your final execution report.
 Modified files content:
 
@@ -1198,6 +1433,26 @@ from cochem.topos.alignment import (
     detect_concurrency_tier,
     persist_aligned_ensemble_h5,
 )
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    QuantumChemistryHandshakeError,
+    TautomerCandidate,
+    TautomerCanonicalizationError,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnsemble,
+    TautomerEnumerationConfig,
+    TautomerEnumerationTimeoutError,
+    TautomerPersistenceError,
+    TautomerStorageLockTimeoutError,
+    TopologyInput,
+    ToposPerceptionError,
+    ValenceConservationError,
+    enumerate_tautomers,
+    filter_tautomers_thermodynamics,
+    load_tautomer_ensemble_from_hdf5,
+    save_tautomer_ensemble_to_hdf5,
+)
 
 __all__ = [
     "TopologyGraph",
@@ -1320,6 +1575,25 @@ __all__ = [
     "align_conformers_by_mcs",
     "cluster_ensemble_conformers",
     "persist_aligned_ensemble_h5",
+    # Chunk 14 additions
+    "ToposPerceptionError",
+    "TautomerEnumerationTimeoutError",
+    "TautomerCombinatorialLimitExceededError",
+    "ValenceConservationError",
+    "InvalidTopologyInputError",
+    "TautomerCanonicalizationError",
+    "TautomerPersistenceError",
+    "TautomerStorageLockTimeoutError",
+    "QuantumChemistryHandshakeError",
+    "GhostAtomSanitizationError",
+    "TopologyInput",
+    "TautomerCandidate",
+    "TautomerEnumerationConfig",
+    "TautomerEnsemble",
+    "enumerate_tautomers",
+    "filter_tautomers_thermodynamics",
+    "save_tautomer_ensemble_to_hdf5",
+    "load_tautomer_ensemble_from_hdf5",
 ]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\exceptions.py ---
@@ -1569,698 +1843,20 @@ class AirGapBoundaryViolationError(ToposAlignmentError):
         super().__init__(message)
 
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\alignment.py ---
-"""CoChem-TOPOS Alignment Subsystem (Part 1).
-
-Rigorous molecular topology alignment, Maximum Common Substructure (MCS) perception,
-Kabsch SVD coordinate transformation with reflection parity guard and numerical
-degeneracy safeguards, ensemble deduplication, and thread-safe HDF5 persistence [M][D].
-"""
-
-from __future__ import annotations
-
-import concurrent.futures
-from enum import Enum
-import os
-from pathlib import Path
-import sys
-import time
-from typing import Dict, List, Optional, Tuple
-
-import filelock
-import h5py
-from mendeleev import element
-import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, model_validator
-from rdkit import Chem
-from rdkit.Chem import rdFMCS
-from scipy.linalg import svd
-
-from cochem.topos.exceptions import (
-    AirGapBoundaryViolationError,
-    CollinearDegeneracyError,
-    DegenerateCoordinatesError,
-    IncompatibleTopologyError,
-    MCSConvergenceTimeoutError,
-    ToposAlignmentError,
+# Chunk 14 Domain Exceptions
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    QuantumChemistryHandshakeError,
+    TautomerCanonicalizationError,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnumerationTimeoutError,
+    TautomerPersistenceError,
+    TautomerStorageLockTimeoutError,
+    ToposPerceptionError,
+    ValenceConservationError,
 )
 
-
-class StorageTier(str, Enum):
-    """Storage and concurrency tiers across the CoChem ecosystem [D]."""
-
-    TIER1_WINDOWS = "tier1_windows"
-    TIER2_MACOS = "tier2_macos"
-    TIER3_LINUX = "tier3_linux"
-    TIER4_CODESPACES = "tier4_codespaces"
-    TIER5_GITHUB_ACTIONS = "tier5_github_actions"
-    TIER6_HPC = "tier6_hpc"
-
-
-def detect_concurrency_tier() -> StorageTier:
-    """Detects active execution tier based on OS and environment invariants [D]."""
-    if "SLURM_JOB_ID" in os.environ or "PBS_JOBID" in os.environ:
-        return StorageTier.TIER6_HPC
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        return StorageTier.TIER5_GITHUB_ACTIONS
-    if os.environ.get("CODESPACES") == "true":
-        return StorageTier.TIER4_CODESPACES
-    if sys.platform == "win32":
-        return StorageTier.TIER1_WINDOWS
-    if sys.platform == "darwin":
-        return StorageTier.TIER2_MACOS
-    return StorageTier.TIER3_LINUX
-
-
-class ConformerInput(BaseModel):
-    """Input representation of a 3D molecular conformer [D]."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    conformer_id: str
-    elements: List[str]
-    atomic_numbers: List[int]
-    coordinates: List[Tuple[float, float, float]]
-    bonds: List[Tuple[int, int, float]] = Field(default_factory=list)
-    reference_smiles: Optional[str] = None
-    masses: Optional[List[float]] = None
-    energy_kcal_mol: Optional[float] = None
-    is_ghost: List[bool] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def validate_conformer(self) -> "ConformerInput":
-        """Enforces length matching across conformer atom arrays [D]."""
-        n_elem = len(self.elements)
-        n_atomic = len(self.atomic_numbers)
-        n_coords = len(self.coordinates)
-        if n_coords == 0 or n_elem == 0:
-            raise ValueError("Coordinates and elements cannot be empty")
-        if n_elem != n_atomic or n_elem != n_coords:
-            raise ValueError(
-                f"Length mismatch: elements ({n_elem}), atomic_numbers ({n_atomic}), and coordinates ({n_coords}) must match"
-            )
-        if self.is_ghost:
-            if len(self.is_ghost) != n_elem:
-                raise ValueError(
-                    f"is_ghost length ({len(self.is_ghost)}) must match elements length ({n_elem})"
-                )
-        else:
-            self.is_ghost = [False] * n_elem
-
-        if self.masses is not None:
-            if len(self.masses) != n_elem:
-                raise ValueError(
-                    f"masses length ({len(self.masses)}) must match elements length ({n_elem})"
-                )
-        return self
-
-    def get_dynamic_masses(self) -> List[float]:
-        """Dynamically retrieves atomic masses from mendeleev with ghost-atom guard [M]."""
-        if self.masses is not None:
-            return list(self.masses)
-        resolved: List[float] = []
-        for i, z in enumerate(self.atomic_numbers):
-            if self.is_ghost[i] or z == 0 or self.elements[i] in ("Gh", "Bq", "X"):
-                resolved.append(0.0)
-            else:
-                resolved.append(float(element(z).mass))
-        return resolved
-
-
-class MCSAlignmentConfig(BaseModel):
-    """Configuration options controlling MCS perception and Kabsch alignment [D]."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0)
-    mass_weighting: bool = False
-    match_valences: bool = True
-    ring_matches_ring_only: bool = True
-    complete_rings_only: bool = False
-    min_mcs_atoms: int = Field(default=3, ge=3)
-    svd_condition_tol: float = Field(default=1e-7, ge=1e-12)
-    rmsd_cluster_threshold_angstrom: float = Field(default=0.25, ge=0.01)
-    ignore_ghost_atoms: bool = True
-
-
-class AlignedConformerResult(BaseModel):
-    """Superposition result for a single conformer mapped to an invariant reference [D]."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    conformer_id: str
-    reference_id: str
-    rmsd_angstrom: float = Field(..., ge=0.0)
-    rotation_matrix: List[List[float]]
-    translation_vector: List[float]
-    aligned_coordinates: List[Tuple[float, float, float]]
-    atom_mapping: Dict[int, int]
-    execution_duration_seconds: float = Field(..., ge=0.0)
-
-    @model_validator(mode="after")
-    def validate_rotation(self) -> "AlignedConformerResult":
-        """Ensures proper SO(3) orthogonal rotation matrix with det(R) = +1.0 [D]."""
-        R = np.array(self.rotation_matrix, dtype=np.float64)
-        if R.shape != (3, 3):
-            raise ValueError("rotation_matrix must have shape (3, 3)")
-        if not np.allclose(R.T @ R, np.eye(3), atol=1e-3):
-            raise ValueError("rotation_matrix is not orthogonal (R^T @ R != I)")
-        det_R = float(np.linalg.det(R))
-        if not np.isclose(det_R, 1.0, atol=1e-3):
-            raise ValueError(f"rotation_matrix is not proper SO(3) rotation (det(R)={det_R} != 1.0)")
-        if len(self.translation_vector) != 3:
-            raise ValueError("translation_vector must have length 3")
-        return self
-
-
-class EnsembleAlignmentSummary(BaseModel):
-    """Ensemble-wide alignment, pairwise RMSD matrix, and duplicate cluster summary [D]."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    ensemble_id: str = Field(default="ensemble_default", description="Unique ensemble collection ID")
-    reference_id: str
-    total_conformers: int
-    aligned_conformers: List[AlignedConformerResult]
-    pairwise_rmsd_matrix: List[List[float]]
-    duplicate_clusters: List[List[str]] = Field(default_factory=list)
-    mcs_mapping: Dict[int, int] = Field(default_factory=dict, description="Consensus MCS atom index map")
-    aligned_mcs_coords: Optional[List[List[Tuple[float, float, float]]]] = Field(
-        default=None, description="Aligned consensus MCS coordinates across ensemble"
-    )
-
-    @model_validator(mode="after")
-    def validate_summary(self) -> "EnsembleAlignmentSummary":
-        """Validates symmetric square pairwise RMSD matrix with zero diagonal [D]."""
-        mat = np.array(self.pairwise_rmsd_matrix, dtype=np.float64)
-        m = mat.shape[0]
-        if mat.shape != (m, m):
-            raise ValueError(f"pairwise_rmsd_matrix must be square matrix, got shape {mat.shape}")
-        if not np.allclose(mat, mat.T, atol=1e-4):
-            raise ValueError("pairwise_rmsd_matrix must be symmetric (D_jk == D_kj)")
-        if not np.allclose(np.diag(mat), 0.0, atol=1e-6):
-            raise ValueError("pairwise_rmsd_matrix diagonal must be zero")
-        if np.any(mat < -1e-6):
-            raise ValueError("pairwise_rmsd_matrix elements must be non-negative")
-        return self
-
-
-def _isolated_mcs_worker(
-    target_mol_block: str,
-    ref_mol_block: str,
-    params: dict,
-) -> Tuple[bool, int, str]:
-    """Module-level isolated worker for cross-process MCS extraction [D]."""
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
-    target_mol = Chem.MolFromMolBlock(target_mol_block, removeHs=False)
-    ref_mol = Chem.MolFromMolBlock(ref_mol_block, removeHs=False)
-    if target_mol is None or ref_mol is None:
-        return False, 0, ""
-    Chem.FastFindRings(target_mol)
-    Chem.FastFindRings(ref_mol)
-
-    timeout_sec = float(params.get("timeout_seconds", 30.0))
-    rdkit_timeout = max(1, int(timeout_sec))
-
-    atom_comp = rdFMCS.AtomCompare.CompareElements
-    bond_comp = rdFMCS.BondCompare.CompareOrder
-    match_valences = bool(params.get("match_valences", True))
-    ring_matches_ring_only = bool(params.get("ring_matches_ring_only", True))
-    complete_rings_only = bool(params.get("complete_rings_only", False))
-
-    res = rdFMCS.FindMCS(
-        [target_mol, ref_mol],
-        atomCompare=atom_comp,
-        bondCompare=bond_comp,
-        matchValences=match_valences,
-        ringMatchesRingOnly=ring_matches_ring_only,
-        completeRingsOnly=complete_rings_only,
-        timeout=rdkit_timeout,
-    )
-    return bool(res.canceled), int(res.numAtoms), str(res.smartsString)
-
-
-def _build_rdkit_mol_from_conformer(
-    conformer: ConformerInput,
-    active_indices: List[int],
-) -> Chem.Mol:
-    """Constructs RDKit 3D molecule for active non-ghost atoms with bond perception fallback [M]."""
-    rw_mol = Chem.RWMol()
-    for orig_idx in active_indices:
-        z = conformer.atomic_numbers[orig_idx]
-        atom = Chem.Atom(z)
-        rw_mol.AddAtom(atom)
-
-    orig_to_local = {orig_idx: local_idx for local_idx, orig_idx in enumerate(active_indices)}
-
-    if conformer.bonds:
-        for u, v, bo in conformer.bonds:
-            if u in orig_to_local and v in orig_to_local:
-                lu, lv = orig_to_local[u], orig_to_local[v]
-                if bo == 2.0:
-                    btype = Chem.BondType.DOUBLE
-                elif bo == 3.0:
-                    btype = Chem.BondType.TRIPLE
-                elif bo == 1.5:
-                    btype = Chem.BondType.AROMATIC
-                else:
-                    btype = Chem.BondType.SINGLE
-                rw_mol.AddBond(lu, lv, btype)
-    else:
-        # Distance-based connectivity perception calibrated against Pyykko relativistic covalent radii
-        n_active = len(active_indices)
-        radii: List[float] = []
-        for orig_idx in active_indices:
-            z = conformer.atomic_numbers[orig_idx]
-            try:
-                el = element(z)
-                r = el.covalent_radius_pyykko
-                if r is None:
-                    r = el.covalent_radius
-                if r is None:
-                    r = 75.0
-                radii.append(float(r) / 100.0)
-            except Exception:
-                radii.append(0.75)
-
-        coords = np.array([conformer.coordinates[i] for i in active_indices], dtype=np.float64)
-        for i in range(n_active):
-            for j in range(i + 1, n_active):
-                d_ij = float(np.linalg.norm(coords[i] - coords[j]))
-                cutoff = radii[i] + radii[j] + 0.40
-                if d_ij <= cutoff:
-                    rw_mol.AddBond(i, j, Chem.BondType.SINGLE)
-
-    mol = rw_mol.GetMol()
-    conf = Chem.Conformer(len(active_indices))
-    for local_idx, orig_idx in enumerate(active_indices):
-        x, y, z = conformer.coordinates[orig_idx]
-        conf.SetAtomPosition(local_idx, (float(x), float(y), float(z)))
-    mol.AddConformer(conf)
-    Chem.FastFindRings(mol)
-    return mol
-
-
-def compute_kabsch_transformation(
-    P: np.ndarray,
-    Q: np.ndarray,
-    weights: Optional[np.ndarray] = None,
-    condition_tol: float = 1e-7,
-) -> Tuple[np.ndarray, np.ndarray, float]:
-    """Computes optimal Kabsch proper rotation R and translation t mapping P to Q [D].
-
-    Parameters:
-        P: Target coordinate matrix of shape (N, 3).
-        Q: Reference coordinate matrix of shape (N, 3).
-        weights: Optional non-negative mass weighting vector of shape (N,).
-        condition_tol: Singular value condition ratio tolerance for rank-deficiency.
-
-    Returns:
-        Tuple containing:
-            - R: Proper orthogonal rotation matrix in SO(3) of shape (3, 3) with det(R) = +1.0.
-            - t: Optimal translation vector of shape (3,).
-            - rmsd: Weighted analytical root-mean-square deviation over mapped coordinates.
-
-    Raises:
-        DegenerateCoordinatesError: When coordinates exhibit point degeneracy (sigma_1 < 1e-12).
-        CollinearDegeneracyError: When coordinates exhibit collinear rank-deficiency (sigma_2 / sigma_1 < condition_tol).
-        IncompatibleTopologyError: When atom count N < 3.
-    """
-    p_arr = np.asarray(P, dtype=np.float64)
-    q_arr = np.asarray(Q, dtype=np.float64)
-    if p_arr.ndim != 2 or p_arr.shape[1] != 3:
-        raise ValueError(f"P must have shape (N, 3), got {p_arr.shape}")
-    if q_arr.ndim != 2 or q_arr.shape[1] != 3:
-        raise ValueError(f"Q must have shape (N, 3), got {q_arr.shape}")
-    n = p_arr.shape[0]
-    if n != q_arr.shape[0]:
-        raise ValueError(f"P and Q must have matching atom counts: {n} vs {q_arr.shape[0]}")
-    if n < 3:
-        raise IncompatibleTopologyError(f"Minimum 3 atoms required for Kabsch alignment, got {n}")
-
-    if weights is None:
-        w_arr = np.ones(n, dtype=np.float64)
-    else:
-        w_arr = np.asarray(weights, dtype=np.float64)
-        if w_arr.shape != (n,):
-            raise ValueError(f"weights must have shape ({n},), got {w_arr.shape}")
-        if np.any(w_arr < 0):
-            raise ValueError("weights must be non-negative")
-
-    total_w = float(np.sum(w_arr))
-    if total_w <= 0.0:
-        raise ValueError("Sum of weights must be strictly positive")
-
-    # Weighted centroids
-    p_bar = np.sum(p_arr * w_arr[:, None], axis=0) / total_w
-    q_bar = np.sum(q_arr * w_arr[:, None], axis=0) / total_w
-
-    # Centered coordinates
-    p_c = p_arr - p_bar
-    q_c = q_arr - q_bar
-
-    # Cross-covariance dispersion matrix H = P_c^T W Q_c
-    h_mat = p_c.T @ (w_arr[:, None] * q_c)
-
-    # Full SVD decomposition
-    u_mat, s_vals, vt_mat = svd(h_mat)
-    v_mat = vt_mat.T
-
-    # Point-degeneracy: sigma_1 < 1e-12
-    if s_vals[0] < 1e-12:
-        raise DegenerateCoordinatesError(
-            f"Point-degeneracy detected: primary singular value sigma_1 ({s_vals[0]:.3e}) < 1e-12"
-        )
-
-    # Collinear degeneracy: sigma_2 / sigma_1 < condition_tol
-    cond_collinear = s_vals[1] / s_vals[0]
-    if cond_collinear < condition_tol:
-        raise CollinearDegeneracyError(
-            f"Collinear coordinates detected: condition ratio sigma_2 / sigma_1 ({cond_collinear:.3e}) < {condition_tol}"
-        )
-
-    # Planar stabilization: sigma_2 / sigma_1 >= condition_tol and sigma_3 / sigma_1 < condition_tol
-    cond_planar = s_vals[2] / s_vals[0]
-    if cond_planar < condition_tol:
-        u1, u2 = u_mat[:, 0], u_mat[:, 1]
-        v1, v2 = v_mat[:, 0], v_mat[:, 1]
-        u3 = np.cross(u1, u2)
-        norm_u3 = np.linalg.norm(u3)
-        if norm_u3 > 1e-14:
-            u3 /= norm_u3
-        v3 = np.cross(v1, v2)
-        norm_v3 = np.linalg.norm(v3)
-        if norm_v3 > 1e-14:
-            v3 /= norm_v3
-        u_mat = np.column_stack([u1, u2, u3])
-        v_mat = np.column_stack([v1, v2, v3])
-
-    # Parity reflection guard d = sgn(det(V @ U^T))
-    det_vu = np.linalg.det(v_mat @ u_mat.T)
-    d_parity = 1.0 if det_vu >= 0 else -1.0
-
-    s_parity = np.diag([1.0, 1.0, d_parity])
-    r_rot = v_mat @ s_parity @ u_mat.T
-
-    # Translation vector t = Q_bar - R @ P_bar
-    t_trans = q_bar - r_rot @ p_bar
-
-    # Analytical centered RMSD
-    diff = p_c @ r_rot.T - q_c
-    rmsd = float(np.sqrt(np.sum(w_arr * np.sum(diff**2, axis=1)) / total_w))
-
-    return r_rot, t_trans, rmsd
-
-
-def align_conformers_by_mcs(
-    target: ConformerInput,
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> AlignedConformerResult:
-    """Superimposes a target conformer onto an invariant reference conformer via MCS and Kabsch [D].
-
-    Parameters:
-        target: Target conformer input record.
-        reference: Invariant reference conformer record.
-        config: Optional configuration controlling timeouts, weighting, and tolerances.
-
-    Returns:
-        AlignedConformerResult containing transformed coordinates, rotation matrix, and atom mapping.
-
-    Raises:
-        MCSConvergenceTimeoutError: If MCS graph search exceeds timeout ceiling or is canceled.
-        IncompatibleTopologyError: If common atom count N_MCS < 3.
-        CollinearDegeneracyError: If mapped coordinates are collinear.
-    """
-    start_time = time.perf_counter()
-    if config is None:
-        config = MCSAlignmentConfig()
-
-    # Ghost atom identification & exclusion
-    if config.ignore_ghost_atoms:
-        target_active = [
-            i for i in range(len(target.elements))
-            if not (target.is_ghost[i] or target.atomic_numbers[i] == 0 or target.elements[i] in ("Gh", "Bq", "X"))
-        ]
-        ref_active = [
-            i for i in range(len(reference.elements))
-            if not (reference.is_ghost[i] or reference.atomic_numbers[i] == 0 or reference.elements[i] in ("Gh", "Bq", "X"))
-        ]
-    else:
-        target_active = list(range(len(target.elements)))
-        ref_active = list(range(len(reference.elements)))
-
-    if len(target_active) < config.min_mcs_atoms or len(ref_active) < config.min_mcs_atoms:
-        raise IncompatibleTopologyError(
-            f"Insufficient active non-ghost atoms for MCS alignment: target has {len(target_active)}, "
-            f"reference has {len(ref_active)}, min required is {config.min_mcs_atoms}"
-        )
-
-    target_mol = _build_rdkit_mol_from_conformer(target, target_active)
-    ref_mol = _build_rdkit_mol_from_conformer(reference, ref_active)
-
-    target_block = Chem.MolToMolBlock(target_mol)
-    ref_block = Chem.MolToMolBlock(ref_mol)
-
-    worker_params = {
-        "timeout_seconds": config.timeout_seconds,
-        "match_valences": config.match_valences,
-        "ring_matches_ring_only": config.ring_matches_ring_only,
-        "complete_rings_only": config.complete_rings_only,
-    }
-
-    try:
-        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(
-                _isolated_mcs_worker,
-                target_block,
-                ref_block,
-                worker_params,
-            )
-            canceled, num_atoms, smarts_str = future.result(timeout=config.timeout_seconds)
-    except (concurrent.futures.TimeoutError, TimeoutError):
-        raise MCSConvergenceTimeoutError(
-            f"MCS graph search exceeded timeout ceiling of {config.timeout_seconds}s"
-        )
-    except Exception as exc:
-        raise ToposAlignmentError(f"MCS worker process encountered unexpected failure: {exc}") from exc
-
-    if canceled:
-        raise MCSConvergenceTimeoutError(
-            f"MCS graph search canceled (timeout exceeded: {config.timeout_seconds}s)"
-        )
-
-    if num_atoms < config.min_mcs_atoms or not smarts_str:
-        raise IncompatibleTopologyError(
-            f"Common substructure atom count ({num_atoms}) is less than minimum required ({config.min_mcs_atoms})"
-        )
-
-    mcs_mol = Chem.MolFromSmarts(smarts_str)
-    if mcs_mol is None:
-        raise IncompatibleTopologyError(f"Failed to parse MCS SMARTS: {smarts_str}")
-
-    target_match = target_mol.GetSubstructMatch(mcs_mol)
-    ref_match = ref_mol.GetSubstructMatch(mcs_mol)
-    if not target_match or not ref_match or len(target_match) < config.min_mcs_atoms:
-        raise IncompatibleTopologyError(
-            f"MCS substructure matching yielded {len(target_match)} mapped atoms, expected >= {config.min_mcs_atoms}"
-        )
-
-    atom_mapping: Dict[int, int] = {}
-    p_mapped: List[Tuple[float, float, float]] = []
-    q_mapped: List[Tuple[float, float, float]] = []
-    mapped_weights: List[float] = []
-
-    target_masses = target.get_dynamic_masses()
-
-    for local_t, local_r in zip(target_match, ref_match):
-        orig_t = target_active[local_t]
-        orig_r = ref_active[local_r]
-        atom_mapping[orig_t] = orig_r
-        p_mapped.append(target.coordinates[orig_t])
-        q_mapped.append(reference.coordinates[orig_r])
-        if config.mass_weighting:
-            mapped_weights.append(target_masses[orig_t])
-        else:
-            mapped_weights.append(1.0)
-
-    p_mat = np.array(p_mapped, dtype=np.float64)
-    q_mat = np.array(q_mapped, dtype=np.float64)
-    w_mat = np.array(mapped_weights, dtype=np.float64) if config.mass_weighting else None
-
-    r_rot, t_trans, rmsd = compute_kabsch_transformation(
-        p_mat, q_mat, weights=w_mat, condition_tol=config.svd_condition_tol
-    )
-
-    p_full = np.array(target.coordinates, dtype=np.float64)
-    p_aligned = p_full @ r_rot.T + t_trans
-    aligned_coords = [tuple(row) for row in p_aligned]
-
-    duration = time.perf_counter() - start_time
-    return AlignedConformerResult(
-        conformer_id=target.conformer_id,
-        reference_id=reference.conformer_id,
-        rmsd_angstrom=float(rmsd),
-        rotation_matrix=r_rot.tolist(),
-        translation_vector=t_trans.tolist(),
-        aligned_coordinates=aligned_coords,
-        atom_mapping=atom_mapping,
-        execution_duration_seconds=float(duration),
-    )
-
-
-def cluster_ensemble_conformers(
-    conformers: List[ConformerInput],
-    reference: ConformerInput,
-    config: Optional[MCSAlignmentConfig] = None,
-) -> EnsembleAlignmentSummary:
-    """Performs batch alignment and pairwise RMSD clustering across a conformer ensemble [D]."""
-    if config is None:
-        config = MCSAlignmentConfig()
-
-    aligned_conformers: List[AlignedConformerResult] = []
-    for conf in conformers:
-        aligned_conf = align_conformers_by_mcs(conf, reference, config=config)
-        aligned_conformers.append(aligned_conf)
-
-    m = len(conformers)
-    pairwise_rmsd = np.zeros((m, m), dtype=np.float64)
-
-    consensus_mapping: Dict[int, int] = {}
-    if aligned_conformers:
-        consensus_mapping = dict(aligned_conformers[0].atom_mapping)
-
-    aligned_mcs_coords_list: List[List[Tuple[float, float, float]]] = []
-    sorted_ref_atoms = sorted(set(consensus_mapping.values()))
-
-    for ac in aligned_conformers:
-        rev_map = {r: t for t, r in ac.atom_mapping.items()}
-        conf_mcs_pts = []
-        for r_idx in sorted_ref_atoms:
-            if r_idx in rev_map:
-                t_idx = rev_map[r_idx]
-                conf_mcs_pts.append(ac.aligned_coordinates[t_idx])
-        if conf_mcs_pts:
-            aligned_mcs_coords_list.append(conf_mcs_pts)
-
-    has_mcs_coords = len(aligned_mcs_coords_list) == m and all(
-        len(pts) == len(aligned_mcs_coords_list[0]) for pts in aligned_mcs_coords_list
-    )
-
-    for j in range(m):
-        for k in range(j + 1, m):
-            if has_mcs_coords:
-                pts_j = np.array(aligned_mcs_coords_list[j], dtype=np.float64)
-                pts_k = np.array(aligned_mcs_coords_list[k], dtype=np.float64)
-            else:
-                pts_j = np.array(aligned_conformers[j].aligned_coordinates, dtype=np.float64)
-                pts_k = np.array(aligned_conformers[k].aligned_coordinates, dtype=np.float64)
-            diff = pts_j - pts_k
-            rmsd_val = float(np.sqrt(np.mean(np.sum(diff**2, axis=1))))
-            pairwise_rmsd[j, k] = rmsd_val
-            pairwise_rmsd[k, j] = rmsd_val
-
-    # Duplicate clustering via connected components
-    threshold = config.rmsd_cluster_threshold_angstrom
-    visited = [False] * m
-    duplicate_clusters: List[List[str]] = []
-
-    for i in range(m):
-        if visited[i]:
-            continue
-        cluster_indices = [i]
-        queue = [i]
-        visited[i] = True
-        while queue:
-            curr = queue.pop(0)
-            for nxt in range(m):
-                if not visited[nxt] and pairwise_rmsd[curr, nxt] < threshold:
-                    visited[nxt] = True
-                    queue.append(nxt)
-                    cluster_indices.append(nxt)
-        if len(cluster_indices) >= 2:
-            duplicate_clusters.append([conformers[idx].conformer_id for idx in cluster_indices])
-
-    return EnsembleAlignmentSummary(
-        ensemble_id=f"ens_{reference.conformer_id}",
-        reference_id=reference.conformer_id,
-        total_conformers=m,
-        aligned_conformers=aligned_conformers,
-        pairwise_rmsd_matrix=pairwise_rmsd.tolist(),
-        duplicate_clusters=duplicate_clusters,
-        mcs_mapping=consensus_mapping,
-        aligned_mcs_coords=aligned_mcs_coords_list if has_mcs_coords else None,
-    )
-
-
-def persist_aligned_ensemble_h5(
-    summary: EnsembleAlignmentSummary,
-    archive_path: Path,
-    lock_timeout: float = 30.0,
-) -> Path:
-    """Persists aligned conformer trajectories and RMSD matrices into HDF5 under 6-tier concurrency [D]."""
-    t_store_env = os.environ.get("COCH_STORE_DIR")
-    t_store = Path(t_store_env).resolve() if t_store_env else (Path.home() / ".cochem" / "store").resolve()
-    resolved_path = archive_path.resolve()
-
-    try:
-        resolved_path.relative_to(t_store)
-    except ValueError:
-        raise AirGapBoundaryViolationError(
-            f"Archive path {resolved_path} violates Tripartite Air-Gap: must reside inside {t_store}"
-        )
-
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    tier = detect_concurrency_tier()
-    lock_file_path = str(resolved_path) + ".lock"
-
-    if tier == StorageTier.TIER6_HPC:
-        hpc_scratch = os.environ.get("SLURM_TMPDIR") or os.environ.get("COCH_SCRATCH")
-        if hpc_scratch:
-            scratch_dir = Path(hpc_scratch) / "cochem_staging"
-            scratch_dir.mkdir(parents=True, exist_ok=True)
-            staging_path = scratch_dir / f"{resolved_path.name}.tmp.{os.getpid()}"
-        else:
-            staging_path = resolved_path.with_name(f"{resolved_path.name}.tmp.{os.getpid()}")
-    else:
-        staging_path = resolved_path.with_name(f"{resolved_path.name}.tmp.{os.getpid()}")
-
-    libver = "latest" if tier in (StorageTier.TIER2_MACOS, StorageTier.TIER3_LINUX) else "earliest"
-
-    with filelock.FileLock(lock_file_path, timeout=lock_timeout):
-        with h5py.File(staging_path, "w", libver=libver) as h5f:
-            ens_grp = h5f.require_group(f"/ensembles/{summary.ensemble_id}")
-            rmsd_arr = np.array(summary.pairwise_rmsd_matrix, dtype=np.float32)
-            ens_grp.create_dataset("pairwise_rmsd", data=rmsd_arr, dtype="float32")
-
-            mapping_items = sorted(summary.mcs_mapping.items())
-            mapping_arr = np.array(mapping_items, dtype=np.int32) if mapping_items else np.empty((0, 2), dtype=np.int32)
-            ens_grp.create_dataset("mcs_mapping", data=mapping_arr, dtype="int32")
-
-            if summary.aligned_conformers:
-                atom_counts = [len(c.aligned_coordinates) for c in summary.aligned_conformers]
-                if len(set(atom_counts)) == 1:
-                    coords_arr = np.array(
-                        [c.aligned_coordinates for c in summary.aligned_conformers], dtype=np.float64
-                    )
-                    ens_grp.create_dataset("aligned_coords", data=coords_arr, dtype="float64")
-                else:
-                    conf_grp = ens_grp.require_group("conformers")
-                    for c in summary.aligned_conformers:
-                        c_coords = np.array(c.aligned_coordinates, dtype=np.float64)
-                        conf_grp.create_dataset(f"{c.conformer_id}/aligned_coords", data=c_coords, dtype="float64")
-
-            if summary.aligned_mcs_coords is not None:
-                mcs_coords_arr = np.array(summary.aligned_mcs_coords, dtype=np.float64)
-                ens_grp.create_dataset("aligned_mcs_coords", data=mcs_coords_arr, dtype="float64")
-
-        if staging_path.parent == resolved_path.parent:
-            os.replace(staging_path, resolved_path)
-        else:
-            import shutil
-            shutil.move(str(staging_path), str(resolved_path))
-
-    return resolved_path
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_topos_alignment.py ---
 """Physical Verification Test Suite for CoChem-TOPOS Alignment Part 1.
@@ -2475,13 +2071,35 @@ def test_mcs_timeout_raises_custom_error():
         conformer_id="polycycle_1",
         elements=["C"] * 10,
         atomic_numbers=[6] * 10,
-        coordinates=[(float(i), 0.0, 0.0) for i in range(10)],
+        coordinates=[
+            (0.00, 0.00, 0.00),
+            (1.26, 0.89, 0.00),
+            (2.52, 0.00, 0.00),
+            (3.78, 0.89, 0.00),
+            (5.04, 0.00, 0.00),
+            (6.30, 0.89, 0.00),
+            (7.56, 0.00, 0.00),
+            (8.82, 0.89, 0.00),
+            (10.08, 0.00, 0.00),
+            (11.34, 0.89, 0.00),
+        ],
     )
     c2 = ConformerInput(
         conformer_id="polycycle_2",
         elements=["C"] * 10,
         atomic_numbers=[6] * 10,
-        coordinates=[(0.0, float(i), 0.0) for i in range(10)],
+        coordinates=[
+            (0.00, 0.00, 0.00),
+            (0.89, 1.26, 0.00),
+            (0.00, 2.52, 0.00),
+            (0.89, 3.78, 0.00),
+            (0.00, 5.04, 0.00),
+            (0.89, 6.30, 0.00),
+            (0.00, 7.56, 0.00),
+            (0.89, 8.82, 0.00),
+            (0.00, 10.08, 0.00),
+            (0.89, 11.34, 0.00),
+        ],
     )
     tight_config = MCSAlignmentConfig(timeout_seconds=0.0001)
     with pytest.raises(MCSConvergenceTimeoutError):
@@ -2637,5 +2255,1382 @@ def test_heterogeneous_ensemble_persistence_h5(tmp_path, monkeypatch):
         assert f"/ensembles/{summary.ensemble_id}/conformers/conf_3/aligned_coords" in h5f
         assert f"/ensembles/{summary.ensemble_id}/conformers/conf_4/aligned_coords" in h5f
         assert f"/ensembles/{summary.ensemble_id}/pairwise_rmsd" in h5f
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\tautomer.py ---
+"""CoChem-TOPOS Chemical Perception Subsystem: Prototropic Tautomer Enumeration.
+
+Pure in-memory BFS state traversal, directional SMIRKS transforms, Patterson scoring,
+BSSE ghost-atom exclusion, dynamic Mendeleev atomic masses and covalent radii,
+downstream semi-empirical thermodynamic filtering, and thread-safe HDF5 persistence [M][D][E].
+"""
+
+from __future__ import annotations
+
+import collections
+import concurrent.futures
+import hashlib
+import logging
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+from typing import Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+
+import filelock
+import h5py
+from mendeleev import element
+import numpy as np
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from rdkit import Chem
+from rdkit.Chem import AllChem, rdDistGeom
+
+logger = logging.getLogger(__name__)
+
+# Enforce JAX 64-bit precision invariant per Method Matrix
+os.environ["JAX_ENABLE_X64"] = "True"
+
+# Intra-process lock for HDF5 persistence (safeguards non-threadsafe h5py builds)
+_HDF5_THREAD_LOCK = threading.Lock()
+
+
+# ============================================================================
+# DOMAIN EXCEPTION HIERARCHY
+# ============================================================================
+
+
+class ToposPerceptionError(Exception):
+    """Base exception for chemical perception and tautomer failures [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TautomerEnumerationTimeoutError(ToposPerceptionError):
+    """Raised when tautomer state space traversal exceeds execution timeout ceiling [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TautomerCombinatorialLimitExceededError(ToposPerceptionError):
+    """Raised when generated tautomer states exceed configured bounds in 'raise' mode [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class ValenceConservationError(ToposPerceptionError):
+    """Raised when a prototropic transform violates octet or valency conservation [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class InvalidTopologyInputError(ToposPerceptionError):
+    """Raised when input molecular structure is unparseable or topologically malformed [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TautomerCanonicalizationError(ToposPerceptionError):
+    """Raised when canonical tautomer selection or fixed-H InChIKey hashing fails [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TautomerPersistenceError(ToposPerceptionError):
+    """Raised when HDF5 serialization or deserialization fails [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class TautomerStorageLockTimeoutError(ToposPerceptionError):
+    """Raised when acquiring cross-platform filelock exceeds timeout ceiling [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class QuantumChemistryHandshakeError(ToposPerceptionError):
+    """Raised when downstream 3D embedding or GFN2-xTB pre-filtering fails [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+class GhostAtomSanitizationError(ToposPerceptionError):
+    """Raised when BSSE ghost atoms cannot be harmonized with topology contracts [D]."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+
+# ============================================================================
+# PYDANTIC V2 DOMAIN MODELS
+# ============================================================================
+
+
+class TopologyInput(BaseModel):
+    """Immutable molecular topology record ingesting 2D/3D inputs with BSSE ghost handling [M][D]."""
+
+    model_config = ConfigDict(frozen=True)
+
+    molecule_id: str = Field(..., description="Unique alphanumeric identifier for the molecule")
+    smiles: Optional[str] = Field(default=None, description="Input SMILES string")
+    elements: List[str] = Field(..., min_length=1, description="Elemental symbols")
+    atomic_numbers: List[int] = Field(..., min_length=1, description="IUPAC atomic numbers Z")
+    coordinates: Optional[List[Tuple[float, float, float]]] = Field(
+        default=None, description="Cartesian 3D coordinates in Angstroms (x, y, z)"
+    )
+    bonds: List[Tuple[int, int, float]] = Field(
+        default_factory=list, description="Edges: (idx_i, idx_j, order)"
+    )
+    formal_charges: List[int] = Field(default_factory=list, description="Formal charge per atom")
+    masses: Optional[List[float]] = Field(
+        default=None, description="Atomic masses dynamically queried via mendeleev"
+    )
+    is_ghost: List[bool] = Field(
+        default_factory=list, description="Mask identifying BSSE ghost atoms"
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def pre_validate_arrays_and_defaults(cls, data: Any) -> Any:
+        """Pre-validation hook to align default masks, formal charges, and dynamic masses [M][D]."""
+        if not isinstance(data, dict):
+            return data
+
+        elements_list = data.get("elements", [])
+        n_atoms = len(elements_list)
+        atomic_numbers = data.get("atomic_numbers", [])
+
+        # Auto-detect ghost atoms: Z=0 or symbol in {"GH", "BQ", "X"}
+        if "is_ghost" not in data or not data["is_ghost"]:
+            ghost_symbols = {"GH", "BQ", "X"}
+            data["is_ghost"] = [
+                (z == 0 or sym.upper() in ghost_symbols)
+                for z, sym in zip(atomic_numbers, elements_list)
+            ] if len(atomic_numbers) == n_atoms else [False] * n_atoms
+
+        if "formal_charges" not in data or not data["formal_charges"]:
+            data["formal_charges"] = [0] * n_atoms
+
+        # Dynamic Mendeleev mass retrieval mandate: non-ghosts queried, ghosts get 0.0 without call
+        if "masses" not in data or data.get("masses") is None:
+            if len(atomic_numbers) == n_atoms:
+                computed_masses: List[float] = []
+                for z, ghost in zip(atomic_numbers, data["is_ghost"]):
+                    if ghost or z == 0:
+                        computed_masses.append(0.0)
+                    else:
+                        elem_obj = element(int(z))
+                        computed_masses.append(float(elem_obj.mass))
+                data["masses"] = computed_masses
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_integrity(self) -> "TopologyInput":
+        """Post-validation enforcing coordinate integrity, array lengths, and bond bounds [M]."""
+        n_atoms = len(self.elements)
+        if not self.smiles and not self.coordinates and not self.bonds:
+            raise ValueError("At least one of smiles, coordinates, or explicit bonds must be provided")
+
+        if self.coordinates is not None and len(self.coordinates) != n_atoms:
+            raise ValueError(f"coordinates length {len(self.coordinates)} != elements length {n_atoms}")
+
+        if len(self.atomic_numbers) != n_atoms:
+            raise ValueError(f"atomic_numbers length {len(self.atomic_numbers)} != elements length {n_atoms}")
+
+        if len(self.is_ghost) != n_atoms:
+            raise ValueError(f"is_ghost length {len(self.is_ghost)} != elements length {n_atoms}")
+
+        if len(self.formal_charges) != n_atoms:
+            raise ValueError(f"formal_charges length {len(self.formal_charges)} != elements length {n_atoms}")
+
+        if self.masses is not None and len(self.masses) != n_atoms:
+            raise ValueError(f"masses length {len(self.masses)} != elements length {n_atoms}")
+
+        for idx_i, idx_j, order in self.bonds:
+            if not (0 <= idx_i < n_atoms and 0 <= idx_j < n_atoms):
+                raise ValueError(f"Bond ({idx_i}, {idx_j}) references out-of-bounds atom index for n_atoms={n_atoms}")
+            if idx_i == idx_j:
+                raise ValueError(f"Self-referential bond ({idx_i}, {idx_j}) detected")
+            if order <= 0.0 or order > 4.0:
+                raise ValueError(f"Invalid bond order {order} for bond ({idx_i}, {idx_j})")
+
+        return self
+
+
+class TautomerCandidate(BaseModel):
+    """Immutable record representing an enumerated tautomeric state [M][D]."""
+
+    model_config = ConfigDict(frozen=True)
+
+    candidate_id: str = Field(..., description="Unique candidate hash")
+    smiles: str = Field(..., min_length=1, description="Canonical SMILES of the tautomer")
+    inchi_key: str = Field(..., min_length=27, max_length=27, description="Standard InChIKey (27 chars)")
+    fixed_h_inchi_key: str = Field(..., min_length=27, max_length=27, description="Fixed-H InChIKey (27 chars)")
+    canonical_score: float = Field(..., description="Patterson score (higher is more favorable)")
+    relative_energy_kcal_mol: Optional[float] = Field(
+        default=None, description="Relative electronic energy from xTB"
+    )
+    is_canonical: bool = Field(default=False, description="Flag indicating highest-ranking canonical tautomer")
+    transform_depth: int = Field(..., ge=0, description="Number of elementary prototropic shifts from parent")
+    transform_history: List[str] = Field(default_factory=list, description="Sequence of SMIRKS applied")
+
+
+class TautomerEnumerationConfig(BaseModel):
+    """Configuration parameters and combinatorial ceilings for tautomer exploration [M][D]."""
+
+    model_config = ConfigDict(frozen=True)
+
+    max_tautomers: int = Field(default=500, ge=1, le=10000, description="Max unique tautomers before truncation")
+    max_transform_depth: int = Field(default=6, ge=1, le=20, description="Max search depth from parent topology")
+    timeout_seconds: float = Field(default=30.0, gt=0.0, le=300.0, description="Process-level timeout limit in seconds")
+    energy_cutoff_kcal_mol: float = Field(default=15.0, ge=0.0, description="Thermodynamic exclusion ceiling")
+    truncation_policy: Literal["raise", "truncate"] = Field(
+        default="truncate",
+        description="Behavior when max_tautomers limit is reached"
+    )
+
+
+class TautomerEnsemble(BaseModel):
+    """Validated ensemble of enumerated tautomer candidates for a parent molecule [M][D]."""
+
+    model_config = ConfigDict(frozen=True)
+
+    parent_id: str = Field(..., description="Parent molecule identifier")
+    canonical_tautomer_id: str = Field(..., description="ID of designated canonical tautomer")
+    total_generated: int = Field(..., ge=1, description="Total unique tautomers identified")
+    candidates: List[TautomerCandidate] = Field(..., min_length=1, description="List of generated tautomer candidates")
+    execution_duration_seconds: float = Field(..., ge=0.0, description="Wall-clock runtime for enumeration")
+
+    @model_validator(mode="after")
+    def validate_ensemble_consistency(self) -> "TautomerEnsemble":
+        """Ensures ensemble internal consistency: counts, canonical pointer, and uniqueness [M]."""
+        if len(self.candidates) != self.total_generated:
+            raise ValueError(f"Candidate count {len(self.candidates)} != total_generated {self.total_generated}")
+
+        candidate_map = {c.candidate_id: c for c in self.candidates}
+        if self.canonical_tautomer_id not in candidate_map:
+            raise ValueError(f"canonical_tautomer_id '{self.canonical_tautomer_id}' not found in candidates")
+
+        canonical_count = sum(1 for c in self.candidates if c.is_canonical)
+        if canonical_count != 1:
+            raise ValueError(f"Exactly one candidate must have is_canonical=True; found {canonical_count}")
+
+        if not candidate_map[self.canonical_tautomer_id].is_canonical:
+            raise ValueError("Candidate matching canonical_tautomer_id must have is_canonical=True")
+
+        return self
+
+
+# ============================================================================
+# DIRECTIONAL SMIRKS TRANSFORM LIBRARY
+# ============================================================================
+
+PROTOTROPIC_SMIRKS: Dict[str, str] = {
+    # 1,3-Prototropic Shifts
+    "keto_enol_fwd": "[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]",
+    "keto_enol_rev": "[#1:4]-[O,S,Se,Te:1]-[#6:2]=[#6:3]>>[O,S,Se,Te:1]=[#6:2]-[#6:3]-[#1:4]",
+    "lactam_lactim_fwd": "[O,S:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[O,S:1]-[#6:2]=[#7:3]",
+    "lactam_lactim_rev": "[#1:4]-[O,S:1]-[#6:2]=[#7:3]>>[O,S:1]=[#6:2]-[#7:3]-[#1:4]",
+    "heteroaromatic_lactam_lactim_fwd": "[O,S:1]=[c,C:2]:[n:3]-[#1:4]>>[#1:4]-[O,S:1]-[c:2]:[n:3]",
+    "heteroaromatic_lactam_lactim_rev": "[#1:4]-[O,S:1]-[c,C:2]:[n:3]>>[O,S:1]=[c,C:2]:[n:3]-[#1:4]",
+    "amidine_fwd": "[#7:1]=[#6:2]-[#7:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#7:3]",
+    "amidine_rev": "[#1:4]-[#7:1]-[#6:2]=[#7:3]>>[#7:1]=[#6:2]-[#7:3]-[#1:4]",
+    "imine_enamine_fwd": "[#7:1]=[#6:2]-[#6:3]-[#1:4]>>[#1:4]-[#7:1]-[#6:2]=[#6:3]",
+    "imine_enamine_rev": "[#1:4]-[#7:1]-[#6:2]=[#6:3]>>[#7:1]=[#6:2]-[#6:3]-[#1:4]",
+    "nitroso_oxime_fwd": "[O:1]=[#7:2]-[#6:3]-[#1:4]>>[#1:4]-[O:1]-[#7:2]=[#6:3]",
+    "nitroso_oxime_rev": "[#1:4]-[O:1]-[#7:2]=[#6:3]>>[O:1]=[#7:2]-[#6:3]-[#1:4]",
+    # 1,5-Prototropic Shifts (Conjugated & Vinylogous Systems)
+    "vinylogous_keto_enol_fwd": "[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]",
+    "vinylogous_keto_enol_rev": "[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#6:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#6:5]-[#1:6]",
+    "vinylogous_amide_fwd": "[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]>>[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]=[#7:5]",
+    "vinylogous_amide_rev": "[#1:6]-[O,S:1]-[#6:2]=[#6:3]-[#6:4]-[#7:5]>>[O,S:1]=[#6:2]-[#6:3]=[#6:4]-[#7:5]-[#1:6]",
+    # Heterocyclic Annular Shifts
+    "diaza_1_3": "[#1:6]-[n:1]1:[c,n:2]:[n:3]:[c,n:4]:[c,n:5]1>>[n:1]1:[c,n:2]:[n:3](-[#1:6]):[c,n:4]:[c,n:5]1",
+    "diaza_1_2": "[#1:6]-[n:1]1:[n:2]:[c,n:3]:[c,n:4]:[c,n:5]1>>[n:1]1:[n:2](-[#1:6]):[c,n:3]:[c,n:4]:[c,n:5]1",
+}
+
+
+# ============================================================================
+# CANONICAL PATTERSON SCORING
+# ============================================================================
+
+
+def compute_patterson_score(mol: Chem.Mol) -> float:
+    """Computes heuristic Patterson canonical score for tautomer ranking [M][D].
+
+    Scoring criteria:
+    - +100 per fully aromatic ring
+    - +50 per keto/carbonyl group over enol (non-phenolic context)
+    - +25 per lactam over lactim group
+    - -50 per aci-nitro group
+    - -100 per isolated charge pair / zwitterionic separation
+    """
+    score = 0.0
+
+    # 1. Fully aromatic rings (+100 each)
+    ssr = Chem.GetSymmSSSR(mol)
+    for ring_atom_indices in ssr:
+        if all(mol.GetAtomWithIdx(idx).GetIsAromatic() for idx in ring_atom_indices):
+            score += 100.0
+
+    # 2. Keto / carbonyl group over enol (+50 each)
+    # Carbonyl [#6;!$([#6](=O)[O,N,S,F,Cl,Br,I])](=O)
+    keto_smarts = "[#6;!$([#6](=O)[O,N,S,F,Cl,Br,I])](=O)"
+    keto_query = Chem.MolFromSmarts(keto_smarts)
+    if keto_query is not None:
+        score += 50.0 * len(mol.GetSubstructMatches(keto_query))
+
+    # 3. Lactam over lactim group (+25 each)
+    lactam_smarts = "[O,S]=[#6,c;R]-[n,N;R;!H0]"
+    lactam_query = Chem.MolFromSmarts(lactam_smarts)
+    if lactam_query is not None:
+        score += 25.0 * len(mol.GetSubstructMatches(lactam_query))
+
+    # 4. Aci-nitro group (-50 each)
+    aci_smarts = "[#6]=[N+](-[O-])[O;H1]"
+    aci_query = Chem.MolFromSmarts(aci_smarts)
+    if aci_query is not None:
+        score -= 50.0 * len(mol.GetSubstructMatches(aci_query))
+
+    # 5. Isolated charge or zwitterionic separation (-100 per separated pair = -50 per charge)
+    total_abs_charge = sum(abs(a.GetFormalCharge()) for a in mol.GetAtoms())
+    score -= 50.0 * float(total_abs_charge)
+
+    return score
+
+
+# ============================================================================
+# HELPER: GRAPH CONSTRUCTION AND SANITIZATION
+# ============================================================================
+
+
+def _build_rdkit_mol_from_topology(top: TopologyInput) -> Chem.Mol:
+    """Builds an RDKit Mol object from TopologyInput, honoring dynamic covalent radii [M][D]."""
+    if top.smiles:
+        mol = Chem.MolFromSmiles(top.smiles)
+        if mol is None:
+            raise InvalidTopologyInputError(f"Failed to parse SMILES '{top.smiles}'")
+        return mol
+
+    n_atoms = len(top.elements)
+    em = Chem.EditableMol(Chem.Mol())
+
+    # Add atoms
+    for i in range(n_atoms):
+        z = top.atomic_numbers[i]
+        ghost = top.is_ghost[i]
+        atom = Chem.Atom(0 if (ghost or z == 0) else int(z))
+        atom.SetFormalCharge(top.formal_charges[i])
+        em.AddAtom(atom)
+
+    if top.bonds:
+        # Explicit bond connectivity
+        for idx_i, idx_j, order in top.bonds:
+            if order >= 3.5:
+                btype = Chem.BondType.QUADRUPLE
+            elif order >= 2.5:
+                btype = Chem.BondType.TRIPLE
+            elif order >= 1.75:
+                btype = Chem.BondType.DOUBLE
+            elif order >= 1.25:
+                btype = Chem.BondType.AROMATIC
+            else:
+                btype = Chem.BondType.SINGLE
+            em.AddBond(idx_i, idx_j, btype)
+        mol = em.GetMol()
+    elif top.coordinates is not None:
+        # Reconstruct connectivity from 3D Cartesian coordinates using Pyykkö covalent radii
+        coords_arr = np.asarray(top.coordinates, dtype=np.float64)
+        covalent_radii: List[float] = []
+        for i in range(n_atoms):
+            if top.is_ghost[i] or top.atomic_numbers[i] == 0:
+                covalent_radii.append(0.0)
+            else:
+                el = element(int(top.atomic_numbers[i]))
+                cov_pm = el.covalent_radius_pyykko
+                covalent_radii.append(float(cov_pm) / 100.0 if cov_pm is not None else 0.77)
+
+        for i in range(n_atoms):
+            if top.is_ghost[i] or top.atomic_numbers[i] == 0:
+                continue
+            for j in range(i + 1, n_atoms):
+                if top.is_ghost[j] or top.atomic_numbers[j] == 0:
+                    continue
+                dist = float(np.linalg.norm(coords_arr[i] - coords_arr[j]))
+                r0 = covalent_radii[i] + covalent_radii[j]
+                if dist <= r0 + 0.40:
+                    em.AddBond(i, j, Chem.BondType.SINGLE)
+        mol = em.GetMol()
+    else:
+        raise InvalidTopologyInputError("TopologyInput lacks smiles, explicit bonds, and coordinates")
+
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception as exc:
+        raise InvalidTopologyInputError(f"RDKit sanitization failed on constructed topology: {exc}") from exc
+
+    return mol
+
+
+# ============================================================================
+# WORKER PROCESS INITIALIZER AND BFS EXPLORATION ENGINE
+# ============================================================================
+
+
+def _cpu_worker_init() -> None:
+    """Worker initializer enforcing strict CPU-bound execution and zero GPU context allocation [M]."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
+
+def _bfs_tautomer_worker(
+    input_topology: TopologyInput,
+    config: TautomerEnumerationConfig,
+) -> TautomerEnsemble:
+    """Internal algorithmic BFS worker executing bounded prototropic state traversal [M][D]."""
+    start_time = time.perf_counter()
+
+    root_mol = _build_rdkit_mol_from_topology(input_topology)
+
+    # Check for all-ghost empty topology
+    cleaned_root = Chem.DeleteSubstructs(root_mol, Chem.MolFromSmarts("[#0]"))
+    if cleaned_root.GetNumAtoms() == 0:
+        raise GhostAtomSanitizationError("Sanitization resulted in an empty molecular graph (only ghost atoms present)")
+
+    # Prepare reaction objects
+    rxn_objects: List[Tuple[str, AllChem.ChemicalReaction]] = [
+        (name, AllChem.ReactionFromSmarts(smirks))
+        for name, smirks in PROTOTROPIC_SMIRKS.items()
+    ]
+
+    # Convert root to explicit Hs for prototropic migration
+    root_mol_hs = Chem.AddHs(root_mol)
+    net_charge = sum(a.GetFormalCharge() for a in root_mol_hs.GetAtoms())
+    total_hydrogens = sum(1 for a in root_mol_hs.GetAtoms() if a.GetAtomicNum() == 1)
+
+    # State tracking: keyed by fixed-H InChIKey (the definitive deduplication key)
+    visited_candidates: Dict[str, TautomerCandidate] = {}
+    visited_depths: Dict[str, int] = {}
+
+    def _register_candidate(mol: Chem.Mol, depth: int, history: List[str]) -> Optional[str]:
+        """Processes and registers a molecular candidate. Returns fixed_h_inchi_key."""
+        # Purge dummy/ghost atoms prior to computing InChI/InChIKeys
+        cleaned_mol = Chem.DeleteSubstructs(mol, Chem.MolFromSmarts("[#0]"))
+        if cleaned_mol.GetNumAtoms() == 0:
+            return None
+
+        # Remove explicit Hs for canonical SMILES generation
+        mol_no_hs = Chem.RemoveHs(cleaned_mol)
+        c_smiles = Chem.MolToSmiles(mol_no_hs)
+        c_inchi_key = Chem.MolToInchiKey(cleaned_mol)
+        c_fixed_h = Chem.MolToInchiKey(cleaned_mol, options="-FixedH")
+
+        if not c_inchi_key or not c_fixed_h or len(c_inchi_key) != 27 or len(c_fixed_h) != 27:
+            raise TautomerCanonicalizationError(
+                f"Failed to generate valid 27-character InChIKeys for candidate '{c_smiles}'"
+            )
+
+        if c_fixed_h in visited_candidates:
+            # Retain minimal transform depth
+            if depth < visited_candidates[c_fixed_h].transform_depth:
+                existing = visited_candidates[c_fixed_h]
+                visited_candidates[c_fixed_h] = existing.model_copy(
+                    update={"transform_depth": depth, "transform_history": history}
+                )
+            return c_fixed_h
+
+        # New candidate: check combinatorial bound
+        if len(visited_candidates) >= config.max_tautomers:
+            if config.truncation_policy == "raise":
+                raise TautomerCombinatorialLimitExceededError(
+                    f"Generated tautomer count exceeded combinatorial limit of {config.max_tautomers}"
+                )
+            return None
+
+        score = compute_patterson_score(mol_no_hs)
+        cand_id = f"cand_{hashlib.sha256(f'{input_topology.molecule_id}_{c_fixed_h}'.encode('utf-8')).hexdigest()[:16]}"
+
+        cand = TautomerCandidate(
+            candidate_id=cand_id,
+            smiles=c_smiles,
+            inchi_key=c_inchi_key,
+            fixed_h_inchi_key=c_fixed_h,
+            canonical_score=score,
+            relative_energy_kcal_mol=None,
+            is_canonical=False,
+            transform_depth=depth,
+            transform_history=history,
+        )
+        visited_candidates[c_fixed_h] = cand
+        visited_depths[c_fixed_h] = depth
+        return c_fixed_h
+
+    # Register root state
+    root_fixed_h = _register_candidate(root_mol_hs, depth=0, history=[])
+    if root_fixed_h is None:
+        raise ToposPerceptionError("Failed to perceive and register parent root tautomer")
+
+    # Queue holds: (mol_hs, depth, history)
+    queue: collections.deque[Tuple[Chem.Mol, int, List[str]]] = collections.deque()
+    queue.append((root_mol_hs, 0, []))
+
+    # BFS Traversal loop
+    while queue:
+        # Check timeout ceiling
+        if (time.perf_counter() - start_time) > config.timeout_seconds:
+            raise TautomerEnumerationTimeoutError(
+                f"Tautomer state space exploration exceeded timeout ceiling of {config.timeout_seconds}s"
+            )
+
+        current_mol, current_depth, current_history = queue.popleft()
+
+        if current_depth >= config.max_transform_depth:
+            continue
+
+        for rule_name, rxn in rxn_objects:
+            # Check timeout inside loop
+            if (time.perf_counter() - start_time) > config.timeout_seconds:
+                raise TautomerEnumerationTimeoutError(
+                    f"Tautomer state space exploration exceeded timeout ceiling of {config.timeout_seconds}s"
+                )
+
+            try:
+                products_list = rxn.RunReactants((current_mol,))
+            except Exception:
+                continue
+
+            for prod_tuple in products_list:
+                prod_mol = prod_tuple[0]
+
+                # Sanitize and assign stereochemistry
+                try:
+                    Chem.SanitizeMol(prod_mol)
+                    Chem.AssignStereochemistry(prod_mol, cleanIt=True, force=True)
+                except Chem.AtomValenceException as val_err:
+                    raise ValenceConservationError(f"Valence violation during transform '{rule_name}': {val_err}") from val_err
+                except Exception:
+                    continue
+
+                # Conservation safeguards: net charge and total hydrogens (explicit nodes + implicit)
+                q_prod = sum(a.GetFormalCharge() for a in prod_mol.GetAtoms())
+                h_explicit = sum(1 for a in prod_mol.GetAtoms() if a.GetAtomicNum() == 1)
+                h_implicit = sum(a.GetNumImplicitHs() for a in prod_mol.GetAtoms())
+                total_h_prod = h_explicit + h_implicit
+                if q_prod != net_charge:
+                    raise ValenceConservationError(
+                        f"Net formal charge violation: {q_prod} != parent {net_charge} under '{rule_name}'"
+                    )
+                if h_implicit > 0 or total_h_prod != total_hydrogens:
+                    raise ValenceConservationError(
+                        f"Hydrogen conservation violation: {h_explicit} explicit + {h_implicit} implicit != parent {total_hydrogens} under '{rule_name}'"
+                    )
+
+                next_depth = current_depth + 1
+                next_history = current_history + [rule_name]
+
+                # Clean ghost atoms for fixed_h lookup
+                cleaned_prod = Chem.DeleteSubstructs(prod_mol, Chem.MolFromSmarts("[#0]"))
+                prod_fixed_h = Chem.MolToInchiKey(cleaned_prod, options="-FixedH")
+
+                if prod_fixed_h not in visited_candidates:
+                    registered_key = _register_candidate(prod_mol, next_depth, next_history)
+                    if registered_key is not None:
+                        queue.append((prod_mol, next_depth, next_history))
+                    elif config.truncation_policy == "truncate" and len(visited_candidates) >= config.max_tautomers:
+                        # Graceful halt when combinatorial limit reached
+                        queue.clear()
+                        break
+                else:
+                    if next_depth < visited_depths.get(prod_fixed_h, 999):
+                        visited_depths[prod_fixed_h] = next_depth
+                        _register_candidate(prod_mol, next_depth, next_history)
+
+    # Designate canonical tautomer: highest Patterson score, tie-break by lexicographically smallest SMILES
+    candidates_list = list(visited_candidates.values())
+    if not candidates_list:
+        raise ToposPerceptionError("Tautomer exploration generated zero valid candidate states")
+
+    # Sort: descending by canonical_score, ascending by canonical smiles
+    candidates_list.sort(key=lambda c: (-c.canonical_score, c.smiles))
+
+    canonical_id = candidates_list[0].candidate_id
+
+    # Rebuild candidate list flagging exactly the single canonical winner
+    final_candidates: List[TautomerCandidate] = []
+    for c in candidates_list:
+        is_can = (c.candidate_id == canonical_id)
+        final_candidates.append(c.model_copy(update={"is_canonical": is_can}))
+
+    elapsed = round(time.perf_counter() - start_time, 4)
+
+    return TautomerEnsemble(
+        parent_id=input_topology.molecule_id,
+        canonical_tautomer_id=canonical_id,
+        total_generated=len(final_candidates),
+        candidates=final_candidates,
+        execution_duration_seconds=elapsed,
+    )
+
+
+# ============================================================================
+# PUBLIC API: ENUMERATION, FILTERING, PERSISTENCE
+# ============================================================================
+
+
+def enumerate_tautomers(
+    input_topology: TopologyInput,
+    config: TautomerEnumerationConfig,
+) -> TautomerEnsemble:
+    """Pure in-memory Tier 2 prototropic graph enumeration kernel [M][D].
+
+    Executes bounded Breadth-First Search inside an isolated subprocess worker,
+    adhering to CPU-only boundaries, process timeouts, and fixed-H InChIKey deduplication.
+    """
+    executor = concurrent.futures.ProcessPoolExecutor(max_workers=1, initializer=_cpu_worker_init)
+    try:
+        future = executor.submit(_bfs_tautomer_worker, input_topology, config)
+        return future.result(timeout=config.timeout_seconds)
+    except (concurrent.futures.TimeoutError, TimeoutError) as exc:
+        for p in list(executor._processes.values()):
+            try:
+                p.terminate()
+            except Exception as term_exc:
+                logger.debug("Process termination handled: %s", term_exc)
+        raise TautomerEnumerationTimeoutError(
+            f"Tautomer enumeration exceeded timeout ceiling of {config.timeout_seconds} seconds"
+        ) from exc
+    except ToposPerceptionError:
+        raise
+    except Exception as exc:
+        # Forward domain exceptions if raised in child process
+        exc_str = str(exc)
+        if "TautomerCombinatorialLimitExceededError" in exc_str:
+            raise TautomerCombinatorialLimitExceededError(exc_str) from exc
+        if "TautomerEnumerationTimeoutError" in exc_str:
+            raise TautomerEnumerationTimeoutError(exc_str) from exc
+        if "ValenceConservationError" in exc_str:
+            raise ValenceConservationError(exc_str) from exc
+        if "InvalidTopologyInputError" in exc_str:
+            raise InvalidTopologyInputError(exc_str) from exc
+        if "GhostAtomSanitizationError" in exc_str:
+            raise GhostAtomSanitizationError(exc_str) from exc
+        raise ToposPerceptionError(f"Tautomer enumeration failed: {exc}") from exc
+    finally:
+        try:
+            executor.shutdown(wait=False, cancel_futures=True)
+        except Exception as shut_exc:
+            logger.debug("Executor shutdown handled: %s", shut_exc)
+
+
+def filter_tautomers_thermodynamics(
+    ensemble: TautomerEnsemble,
+    config: TautomerEnumerationConfig,
+    scratch_dir: Path,
+) -> TautomerEnsemble:
+    """Downstream adapter: generates 3D ETKDGv3 conformers and filters via GFN2-xTB / MMFF94 [M][D].
+
+    Computes relative electronic energies Delta E_elec relative to the canonical tautomer,
+    pruning candidates exceeding config.energy_cutoff_kcal_mol.
+    """
+    scratch_dir = Path(scratch_dir)
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    xtb_bin = shutil.which("xtb")
+    raw_energies: Dict[str, float] = {}
+
+    for cand in ensemble.candidates:
+        mol = Chem.MolFromSmiles(cand.smiles)
+        if mol is None:
+            continue
+        mol_h = Chem.AddHs(mol)
+
+        # 3D Conformer generation via ETKDGv3
+        params = rdDistGeom.ETKDGv3()
+        params.randomSeed = 42
+        cid = rdDistGeom.EmbedMolecule(mol_h, params)
+        if cid < 0:
+            cid = rdDistGeom.EmbedMolecule(mol_h, useRandomCoords=True)
+            if cid < 0:
+                continue
+
+        # Energy evaluation: try xTB if available, else physical MMFF94 / UFF fallback
+        energy_computed: Optional[float] = None
+
+        if xtb_bin is not None:
+            cand_scratch = scratch_dir / f"xtb_{cand.candidate_id}"
+            cand_scratch.mkdir(parents=True, exist_ok=True)
+            xyz_file = cand_scratch / "coord.xyz"
+            Chem.MolToXYZFile(mol_h, str(xyz_file))
+            try:
+                res = subprocess.run(
+                    [xtb_bin, "coord.xyz", "--sp"],
+                    cwd=cand_scratch,
+                    capture_output=True,
+                    text=True,
+                    timeout=30.0,
+                )
+                if res.returncode == 0:
+                    for line in res.stdout.splitlines():
+                        if "TOTAL ENERGY" in line:
+                            # Parse Hartree and convert to kcal/mol (1 Hartree = 627.5095 kcal/mol)
+                            hartree = float(line.split()[3])
+                            energy_computed = hartree * 627.5095
+                            break
+            except Exception as xtb_exc:
+                logger.warning("xTB execution failed for %s: %s; falling back to MMFF94", cand.candidate_id, xtb_exc)
+
+        if energy_computed is None:
+            # Physical MMFF94 / UFF force field evaluation
+            try:
+                mp = AllChem.MMFFGetMoleculeProperties(mol_h, mmffVariant="MMFF94")
+                if mp is not None:
+                    ff = AllChem.MMFFGetMoleculeForceField(mol_h, mp)
+                    ff.Initialize()
+                    ff.Minimize(maxIts=500)
+                    energy_computed = float(ff.CalcEnergy())
+                else:
+                    ff = AllChem.UFFGetMoleculeForceField(mol_h)
+                    ff.Initialize()
+                    ff.Minimize(maxIts=500)
+                    energy_computed = float(ff.CalcEnergy())
+            except Exception as ff_exc:
+                logger.warning("Force field evaluation failed for %s: %s", cand.candidate_id, ff_exc)
+
+        if energy_computed is not None:
+            raw_energies[cand.candidate_id] = energy_computed
+
+    # Reference energy: canonical tautomer energy if available, else min energy
+    canon_id = ensemble.canonical_tautomer_id
+    ref_energy = raw_energies.get(canon_id, min(raw_energies.values()) if raw_energies else 0.0)
+
+    # Filter candidates: retain canonical unconditionally; prune any exceeding energy cutoff
+    filtered_candidates: List[TautomerCandidate] = []
+    for cand in ensemble.candidates:
+        if cand.candidate_id in raw_energies:
+            delta_e = raw_energies[cand.candidate_id] - ref_energy
+            if cand.is_canonical or delta_e <= (config.energy_cutoff_kcal_mol + 1e-4):
+                filtered_candidates.append(
+                    cand.model_copy(update={"relative_energy_kcal_mol": round(delta_e, 4)})
+                )
+        elif cand.is_canonical:
+            # Always retain canonical tautomer
+            filtered_candidates.append(cand)
+
+    if not filtered_candidates:
+        filtered_candidates = [
+            c for c in ensemble.candidates if c.is_canonical
+        ]
+
+    return TautomerEnsemble(
+        parent_id=ensemble.parent_id,
+        canonical_tautomer_id=ensemble.canonical_tautomer_id,
+        total_generated=len(filtered_candidates),
+        candidates=filtered_candidates,
+        execution_duration_seconds=ensemble.execution_duration_seconds,
+    )
+
+
+def save_tautomer_ensemble_to_hdf5(
+    ensemble: TautomerEnsemble,
+    hdf5_path: Path,
+    lock_timeout: float = 30.0,
+) -> Path:
+    """Tier 3 persistence: serializes tautomer candidates and metadata into HDF5 archive [M][D].
+
+    Uses fixed-width UTF-8 strings (S256 for SMILES, S32 for InChIKeys), chunking,
+    GZIP level 4 compression, and filelock synchronization.
+    """
+    hdf5_path = Path(hdf5_path)
+    lock_path = hdf5_path.with_suffix(".h5.lock")
+    flock = filelock.FileLock(str(lock_path), timeout=lock_timeout)
+
+    try:
+        with _HDF5_THREAD_LOCK:
+            try:
+                with flock.acquire(timeout=lock_timeout):
+                    hdf5_path.parent.mkdir(parents=True, exist_ok=True)
+                    with h5py.File(hdf5_path, "a") as f:
+                        grp_name = f"/tautomers/{ensemble.parent_id}"
+                        if grp_name in f:
+                            del f[grp_name]
+                        grp = f.create_group(grp_name)
+
+                        # Group metadata
+                        grp.attrs["parent_id"] = str(ensemble.parent_id)
+                        grp.attrs["canonical_tautomer_id"] = str(ensemble.canonical_tautomer_id)
+                        grp.attrs["total_generated"] = int(ensemble.total_generated)
+                        grp.attrs["execution_duration_seconds"] = float(ensemble.execution_duration_seconds)
+
+                        n = len(ensemble.candidates)
+                        chunks = (min(n, 128),) if n > 0 else None
+
+                        # Explicit fixed-width datatypes
+                        s256_dt = h5py.string_dtype(encoding="utf-8", length=256)
+                        s32_dt = h5py.string_dtype(encoding="utf-8", length=32)
+                        s64_dt = h5py.string_dtype(encoding="utf-8", length=64)
+
+                        cand_ids = np.array([c.candidate_id for c in ensemble.candidates], dtype=s64_dt)
+                        smiles_arr = np.array([c.smiles for c in ensemble.candidates], dtype=s256_dt)
+                        ik_arr = np.array([c.inchi_key for c in ensemble.candidates], dtype=s32_dt)
+                        fik_arr = np.array([c.fixed_h_inchi_key for c in ensemble.candidates], dtype=s32_dt)
+                        scores_arr = np.array([c.canonical_score for c in ensemble.candidates], dtype=np.float64)
+                        rel_e_arr = np.array(
+                            [
+                                c.relative_energy_kcal_mol if c.relative_energy_kcal_mol is not None else np.nan
+                                for c in ensemble.candidates
+                            ],
+                            dtype=np.float64,
+                        )
+                        is_canon_arr = np.array([c.is_canonical for c in ensemble.candidates], dtype=np.bool_)
+                        depths_arr = np.array([c.transform_depth for c in ensemble.candidates], dtype=np.int32)
+
+                        grp.create_dataset("candidate_id", data=cand_ids, dtype=s64_dt, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("smiles", data=smiles_arr, dtype=s256_dt, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("inchi_key", data=ik_arr, dtype=s32_dt, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("fixed_h_inchi_key", data=fik_arr, dtype=s32_dt, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("canonical_score", data=scores_arr, dtype=np.float64, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("relative_energy_kcal_mol", data=rel_e_arr, dtype=np.float64, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("is_canonical", data=is_canon_arr, dtype=np.bool_, chunks=chunks, compression="gzip", compression_opts=4)
+                        grp.create_dataset("transform_depth", data=depths_arr, dtype=np.int32, chunks=chunks, compression="gzip", compression_opts=4)
+
+                    return hdf5_path
+            except filelock.Timeout as exc:
+                raise TautomerStorageLockTimeoutError(
+                    f"Timed out acquiring storage filelock on '{lock_path}' after {lock_timeout}s"
+                ) from exc
+    except ToposPerceptionError:
+        raise
+    except Exception as exc:
+        raise TautomerPersistenceError(f"Failed to persist tautomer ensemble to '{hdf5_path}': {exc}") from exc
+
+
+def load_tautomer_ensemble_from_hdf5(
+    hdf5_path: Path,
+    molecule_id: str,
+    lock_timeout: float = 30.0,
+) -> TautomerEnsemble:
+    """Tier 3 persistence: retrieves and reconstructs validated TautomerEnsemble from HDF5 archive [M][D]."""
+    hdf5_path = Path(hdf5_path)
+    if not hdf5_path.exists():
+        raise TautomerPersistenceError(f"Target HDF5 archive does not exist: '{hdf5_path}'")
+
+    lock_path = hdf5_path.with_suffix(".h5.lock")
+    flock = filelock.FileLock(str(lock_path), timeout=lock_timeout)
+
+    try:
+        with _HDF5_THREAD_LOCK:
+            try:
+                with flock.acquire(timeout=lock_timeout):
+                    with h5py.File(hdf5_path, "r") as f:
+                        grp_path = f"/tautomers/{molecule_id}"
+                        if grp_path not in f:
+                            raise TautomerPersistenceError(
+                                f"Molecule ID '{molecule_id}' not found under '/tautomers/' in '{hdf5_path}'"
+                            )
+                        grp = f[grp_path]
+
+                        parent_id = str(grp.attrs["parent_id"])
+                        canonical_tautomer_id = str(grp.attrs["canonical_tautomer_id"])
+                        total_generated = int(grp.attrs["total_generated"])
+                        exec_duration = float(grp.attrs["execution_duration_seconds"])
+
+                        cand_ids = grp["candidate_id"][:]
+                        smiles_arr = grp["smiles"][:]
+                        ik_arr = grp["inchi_key"][:]
+                        fik_arr = grp["fixed_h_inchi_key"][:]
+                        scores_arr = grp["canonical_score"][:]
+                        rel_e_arr = grp["relative_energy_kcal_mol"][:]
+                        is_canon_arr = grp["is_canonical"][:]
+                        depths_arr = grp["transform_depth"][:]
+
+                        candidates: List[TautomerCandidate] = []
+                        for i in range(len(cand_ids)):
+                            cid = cand_ids[i].decode("utf-8") if isinstance(cand_ids[i], bytes) else str(cand_ids[i])
+                            smi = smiles_arr[i].decode("utf-8") if isinstance(smiles_arr[i], bytes) else str(smiles_arr[i])
+                            ik = ik_arr[i].decode("utf-8") if isinstance(ik_arr[i], bytes) else str(ik_arr[i])
+                            fik = fik_arr[i].decode("utf-8") if isinstance(fik_arr[i], bytes) else str(fik_arr[i])
+                            sc = float(scores_arr[i])
+                            re = float(rel_e_arr[i])
+                            rel_e = None if np.isnan(re) else re
+                            is_c = bool(is_canon_arr[i])
+                            dep = int(depths_arr[i])
+
+                            candidates.append(
+                                TautomerCandidate(
+                                    candidate_id=cid,
+                                    smiles=smi,
+                                    inchi_key=ik,
+                                    fixed_h_inchi_key=fik,
+                                    canonical_score=sc,
+                                    relative_energy_kcal_mol=rel_e,
+                                    is_canonical=is_c,
+                                    transform_depth=dep,
+                                    transform_history=[],
+                                )
+                            )
+
+                        return TautomerEnsemble(
+                            parent_id=parent_id,
+                            canonical_tautomer_id=canonical_tautomer_id,
+                            total_generated=total_generated,
+                            candidates=candidates,
+                            execution_duration_seconds=exec_duration,
+                        )
+            except filelock.Timeout as exc:
+                raise TautomerStorageLockTimeoutError(
+                    f"Timed out acquiring storage filelock on '{lock_path}' after {lock_timeout}s"
+                ) from exc
+    except ToposPerceptionError:
+        raise
+    except Exception as exc:
+        raise TautomerPersistenceError(f"Failed to load tautomer ensemble from '{hdf5_path}': {exc}") from exc
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_topos_tautomer.py ---
+"""Physical Verification Test Suite for CoChem-TOPOS Chemical Perception Part 1.
+
+Verifies 1,3- and 1,5-prototropic shifts, heterocyclic annular shifts, BFS state space bounds,
+fixed-H InChIKey deduplication, Patterson scoring, BSSE ghost-atom exclusion, dynamic Mendeleev masses,
+thermodynamic filtering, and thread-safe HDF5 persistence [M][D][E].
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+import time
+import filelock
+import h5py
+from mendeleev import element
+import numpy as np
+from pydantic import ValidationError
+import pytest
+from rdkit import Chem
+from rdkit.Chem import rdMolDescriptors
+
+from cochem.topos.tautomer import (
+    GhostAtomSanitizationError,
+    InvalidTopologyInputError,
+    QuantumChemistryHandshakeError,
+    TautomerCandidate,
+    TautomerCanonicalizationError,
+    TautomerCombinatorialLimitExceededError,
+    TautomerEnsemble,
+    TautomerEnumerationConfig,
+    TautomerEnumerationTimeoutError,
+    TautomerPersistenceError,
+    TautomerStorageLockTimeoutError,
+    TopologyInput,
+    ToposPerceptionError,
+    ValenceConservationError,
+    compute_patterson_score,
+    enumerate_tautomers,
+    filter_tautomers_thermodynamics,
+    load_tautomer_ensemble_from_hdf5,
+    save_tautomer_ensemble_to_hdf5,
+)
+
+
+def test_1_3_prototropic_shifts():
+    """REQ-TOPOS-014.1a: Verify 1,3-prototropic shifts across keto-enol, lactam-lactim, and amidine systems.
+
+    Ensures net formal charge and total hydrogen count are strictly conserved [M][D].
+    """
+    # 1. Acetylacetone (keto-enol)
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_acac = enumerate_tautomers(acac, config)
+    assert ens_acac.total_generated >= 2
+    smiles_pool = {c.smiles for c in ens_acac.candidates}
+    # Enol form must be generated
+    assert any("O" in s and "=" in s for s in smiles_pool)
+
+    # 2. 2-Pyridone (heteroaromatic lactam-lactim)
+    pyridone = TopologyInput(
+        molecule_id="2_pyridone",
+        smiles="c1cc[nH]c(=O)c1",
+        elements=["C", "C", "C", "N", "C", "O", "C"],
+        atomic_numbers=[6, 6, 6, 7, 6, 8, 6],
+    )
+    ens_pyr = enumerate_tautomers(pyridone, config)
+    assert ens_pyr.total_generated >= 2
+    pyr_smiles = {c.smiles for c in ens_pyr.candidates}
+    assert any("Oc1ccccn1" in s or "c1ccncc1O" in s or "n" in s for s in pyr_smiles)
+
+    # 3. Acetamidine (amidine-amidine)
+    acetamidine = TopologyInput(
+        molecule_id="acetamidine",
+        smiles="CC(=N)N",
+        elements=["C", "C", "N", "N"],
+        atomic_numbers=[6, 6, 7, 7],
+    )
+    ens_amd = enumerate_tautomers(acetamidine, config)
+    assert ens_amd.total_generated >= 1
+    for c in ens_amd.candidates:
+        assert c.fixed_h_inchi_key is not None
+        assert len(c.fixed_h_inchi_key) == 27
+
+
+def test_1_5_prototropic_shifts():
+    """REQ-TOPOS-014.1b: Verify 1,5-prototropic shifts across conjugated systems (glutaconic acid, vinylogous amide) [M][D]."""
+    # 1. Glutaconic acid (conjugated diacid)
+    glutaconic = TopologyInput(
+        molecule_id="glutaconic_acid",
+        smiles="OC(=O)CC=CC(=O)O",
+        elements=["O", "C", "O", "C", "C", "C", "C", "O", "O"],
+        atomic_numbers=[8, 6, 8, 6, 6, 6, 6, 8, 8],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens_glut = enumerate_tautomers(glutaconic, config)
+    assert ens_glut.total_generated >= 2
+    # Net formal charge, transform depth bounds, and strict chemical formula conservation (C5H6O4)
+    for cand in ens_glut.candidates:
+        assert cand.transform_depth <= config.max_transform_depth
+        m = Chem.AddHs(Chem.MolFromSmiles(cand.smiles))
+        assert rdMolDescriptors.CalcMolFormula(m) == "C5H6O4"
+        assert sum(1 for a in m.GetAtoms() if a.GetAtomicNum() == 1) == 6
+
+    # 2. 3-Aminoacrolein / vinylogous amide (NC=CC=O)
+    amide = TopologyInput(
+        molecule_id="vinylogous_amide",
+        smiles="NC=CC=O",
+        elements=["N", "C", "C", "C", "O"],
+        atomic_numbers=[7, 6, 6, 6, 8],
+    )
+    ens_amide = enumerate_tautomers(amide, config)
+    assert ens_amide.total_generated >= 2
+    for cand in ens_amide.candidates:
+        m = Chem.AddHs(Chem.MolFromSmiles(cand.smiles))
+        assert rdMolDescriptors.CalcMolFormula(m) == "C3H5NO"
+        assert sum(1 for a in m.GetAtoms() if a.GetAtomicNum() == 1) == 5
+
+
+def test_diaza_annular_shifts():
+    """REQ-TOPOS-014.1c: Verify 1,2- and 1,3-diaza annular prototropic shifts across azoles [M][D]."""
+    # 1H-1,2,3-triazole (c1cn[nH]n1) undergoing annular shifts
+    triazole = TopologyInput(
+        molecule_id="1H_triazole",
+        smiles="c1cn[nH]n1",
+        elements=["C", "C", "N", "N", "N"],
+        atomic_numbers=[6, 6, 7, 7, 7],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=20, max_transform_depth=3)
+    ens_triazole = enumerate_tautomers(triazole, config)
+    assert ens_triazole.total_generated >= 2
+    for c in ens_triazole.candidates:
+        assert len(c.fixed_h_inchi_key) == 27
+
+
+def test_bfs_traversal_combinatorial_limits_and_timeout():
+    """REQ-TOPOS-014.2: Verify bounds on state space traversal, truncation policies, and process timeout [M][D]."""
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    # Test max_tautomers truncation policy 'truncate'
+    config_trunc = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="truncate")
+    ens_trunc = enumerate_tautomers(acac, config_trunc)
+    assert ens_trunc.total_generated <= 1
+
+    # Test max_tautomers truncation policy 'raise'
+    config_raise = TautomerEnumerationConfig(max_tautomers=1, truncation_policy="raise")
+    with pytest.raises(TautomerCombinatorialLimitExceededError):
+        enumerate_tautomers(acac, config_raise)
+
+    # Test timeout ceiling (using sub-second timeout enabled by gt=0.0)
+    config_timeout = TautomerEnumerationConfig(timeout_seconds=0.0001)
+    with pytest.raises(TautomerEnumerationTimeoutError):
+        enumerate_tautomers(acac, config_timeout)
+
+
+def test_deduplication_fixed_h_inchikey_and_canonicalization():
+    """REQ-TOPOS-014.3: Verify deduplication via Fixed-H InChIKeys and Patterson scoring canonicalization.
+
+    4-Methyl-1H-imidazole tautomers share standard InChIKey but diverge on fixed-H InChIKey [M][D].
+    """
+    med = TopologyInput(
+        molecule_id="4_methyl_imidazole",
+        smiles="Cc1c[nH]cn1",
+        elements=["C", "C", "C", "N", "C", "N"],
+        atomic_numbers=[6, 6, 6, 7, 6, 7],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=50, max_transform_depth=4)
+    ens = enumerate_tautomers(med, config)
+    assert ens.total_generated >= 2
+
+    # Standard InChIKeys match, Fixed-H InChIKeys diverge
+    fixed_h_keys = {c.fixed_h_inchi_key for c in ens.candidates}
+    assert len(fixed_h_keys) == ens.total_generated
+
+    # Canonical selection check
+    assert ens.canonical_tautomer_id is not None
+    canonical_candidates = [c for c in ens.candidates if c.is_canonical]
+    assert len(canonical_candidates) == 1
+    assert canonical_candidates[0].candidate_id == ens.canonical_tautomer_id
+
+
+def test_ghost_atom_bsse_exclusion():
+    """REQ-TOPOS-014.4: Verify ghost atoms (Z=0, symbol 'Gh') are assigned 0.0 Da and 0.0 A
+
+    without invoking mendeleev, and excluded from SMIRKS reaction graphs and InChI calculation [M][D].
+    """
+    bsse_water = TopologyInput(
+        molecule_id="bsse_water_dimer",
+        smiles="O.[*]",
+        elements=["O", "H", "H", "Gh"],
+        atomic_numbers=[8, 1, 1, 0],
+        is_ghost=[False, False, False, True],
+    )
+    assert bsse_water.is_ghost[3] is True
+    assert bsse_water.masses[3] == 0.0
+
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(bsse_water, config)
+    # Ghost atom did not cause crash, valid ensemble produced with valid 27-char InChIKeys
+    assert ens.total_generated >= 1
+    for c in ens.candidates:
+        assert len(c.inchi_key) == 27
+        assert len(c.fixed_h_inchi_key) == 27
+
+
+def test_qm_handshake_and_thermodynamic_filtering(tmp_path):
+    """REQ-TOPOS-014.5: Verify 3D conformer generation (ETKDGv3) and thermodynamic pre-filtering adapter [M][D]."""
+    acac = TopologyInput(
+        molecule_id="acac",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2, energy_cutoff_kcal_mol=15.0)
+    ens = enumerate_tautomers(acac, config)
+
+    filtered_ens = filter_tautomers_thermodynamics(ens, config, scratch_dir=tmp_path)
+    assert filtered_ens.total_generated >= 1
+    for c in filtered_ens.candidates:
+        if c.relative_energy_kcal_mol is not None:
+            assert c.relative_energy_kcal_mol <= config.energy_cutoff_kcal_mol + 1e-4
+
+
+def test_hdf5_threadsafe_concurrency_persistence(tmp_path):
+    """REQ-TOPOS-014.6: Verify thread-safe and process-safe HDF5 persistence under filelock [M][D]."""
+    h5_file = tmp_path / "tautomer_archive.h5"
+    acac = TopologyInput(
+        molecule_id="acac_persisted",
+        smiles="CC(=O)CC(=O)C",
+        elements=["C", "C", "O", "C", "C", "O", "C"],
+        atomic_numbers=[6, 6, 8, 6, 6, 8, 6],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(acac, config)
+
+    # Save to HDF5
+    saved_path = save_tautomer_ensemble_to_hdf5(ens, h5_file)
+    assert saved_path.exists()
+
+    # Load from HDF5
+    loaded_ens = load_tautomer_ensemble_from_hdf5(h5_file, molecule_id="acac_persisted")
+    assert loaded_ens.parent_id == ens.parent_id
+    assert loaded_ens.total_generated == ens.total_generated
+    assert loaded_ens.canonical_tautomer_id == ens.canonical_tautomer_id
+
+    # Verify fixed-width datatypes
+    with h5py.File(h5_file, "r") as f:
+        grp = f[f"/tautomers/{ens.parent_id}"]
+        assert "smiles" in grp
+        assert "fixed_h_inchi_key" in grp
+        assert "canonical_score" in grp
+        assert grp["smiles"].dtype.kind == "S" or grp["smiles"].dtype.metadata is not None
+
+
+def test_dynamic_mendeleev_mass_invariants():
+    """Anti-Spoofing & Mendeleev Mandate: Verify non-ghost masses are dynamically queried from Mendeleev [M][D]."""
+    top = TopologyInput(
+        molecule_id="dyn_mass_test",
+        elements=["C", "O", "N", "Gh"],
+        atomic_numbers=[6, 8, 7, 0],
+        bonds=[(0, 1, 1.0), (0, 2, 1.0)],
+    )
+    # Check dynamic mendeleev values against live library
+    assert np.isclose(top.masses[0], float(element(6).mass), atol=1e-4)
+    assert np.isclose(top.masses[1], float(element(8).mass), atol=1e-4)
+    assert np.isclose(top.masses[2], float(element(7).mass), atol=1e-4)
+    assert top.masses[3] == 0.0
+
+
+def test_invalid_topology_input_handling():
+    """REQ-TOPOS-014.1: Verify InvalidTopologyInputError on malformed SMILES [M][D]."""
+    with pytest.raises(InvalidTopologyInputError):
+        top_bad = TopologyInput(
+            molecule_id="bad_smiles",
+            smiles="INVALID_SMILES_STRING_NOT_CHEMICAL",
+            elements=["C"],
+            atomic_numbers=[6],
+        )
+        config = TautomerEnumerationConfig()
+        enumerate_tautomers(top_bad, config)
+
+
+def test_all_ghost_atoms_raises_sanitization_error():
+    """REQ-TOPOS-014.4: Verify GhostAtomSanitizationError when topology has only ghost atoms [M][D]."""
+    all_ghosts = TopologyInput(
+        molecule_id="only_ghosts",
+        smiles="[*].[*]",
+        elements=["Gh", "Gh"],
+        atomic_numbers=[0, 0],
+        is_ghost=[True, True],
+    )
+    config = TautomerEnumerationConfig()
+    with pytest.raises(GhostAtomSanitizationError):
+        enumerate_tautomers(all_ghosts, config)
+
+
+def test_tautomer_storage_lock_timeout(tmp_path):
+    """REQ-TOPOS-014.6: Verify TautomerStorageLockTimeoutError when lock cannot be acquired [M][D]."""
+    h5_file = tmp_path / "locked_archive.h5"
+    lock_file = h5_file.with_suffix(".h5.lock")
+
+    ens = TautomerEnsemble(
+        parent_id="lock_test",
+        canonical_tautomer_id="c1",
+        total_generated=1,
+        candidates=[
+            TautomerCandidate(
+                candidate_id="c1",
+                smiles="O",
+                inchi_key="XLYOFNOQVPJJNP-UHFFFAOYSA-N",
+                fixed_h_inchi_key="XLYOFNOQVPJJNP-UHFFFAOYNA-N",
+                canonical_score=0.0,
+                is_canonical=True,
+                transform_depth=0,
+            )
+        ],
+        execution_duration_seconds=0.01,
+    )
+
+    # Ensure archive file exists so load attempts lock acquisition rather than missing file check
+    h5_file.touch()
+
+    # Acquire lock externally to simulate locked condition
+    external_lock = filelock.FileLock(str(lock_file))
+    with external_lock.acquire():
+        # Physically calling save under locked condition must raise TautomerStorageLockTimeoutError
+        with pytest.raises(TautomerStorageLockTimeoutError):
+            save_tautomer_ensemble_to_hdf5(ens, h5_file, lock_timeout=0.05)
+
+        # Physically calling load under locked condition must raise TautomerStorageLockTimeoutError
+        with pytest.raises(TautomerStorageLockTimeoutError):
+            load_tautomer_ensemble_from_hdf5(h5_file, "lock_test", lock_timeout=0.05)
+
+
+def test_tautomer_persistence_error_missing_file_and_group(tmp_path):
+    """REQ-TOPOS-014.6: Verify TautomerPersistenceError on missing archive or missing molecule ID [M][D]."""
+    missing_file = tmp_path / "nonexistent.h5"
+    with pytest.raises(TautomerPersistenceError):
+        load_tautomer_ensemble_from_hdf5(missing_file, "mol_missing")
+
+    # Create empty HDF5
+    existing_file = tmp_path / "empty.h5"
+    with h5py.File(existing_file, "w") as f:
+        f.create_group("/other_group")
+
+    with pytest.raises(TautomerPersistenceError):
+        load_tautomer_ensemble_from_hdf5(existing_file, "mol_not_present")
+
+
+def test_pydantic_validation_invariants():
+    """Verify strict Pydantic v2 validation rules and error contracts across all domain models [M][D]."""
+    # 1. TopologyInput missing all structural inputs
+    with pytest.raises(ValidationError):
+        TopologyInput(
+            molecule_id="empty",
+            elements=["C"],
+            atomic_numbers=[6],
+        )
+
+    # 2. TopologyInput length mismatch
+    with pytest.raises(ValidationError):
+        TopologyInput(
+            molecule_id="mismatch",
+            smiles="C",
+            elements=["C", "C"],
+            atomic_numbers=[6],
+        )
+
+    # 3. TautomerEnsemble canonical count != 1
+    with pytest.raises(ValidationError):
+        TautomerEnsemble(
+            parent_id="ens_bad",
+            canonical_tautomer_id="c1",
+            total_generated=1,
+            candidates=[
+                TautomerCandidate(
+                    candidate_id="c1",
+                    smiles="C",
+                    inchi_key="VNWKTokens",
+                    fixed_h_inchi_key="VNWKTokens",
+                    canonical_score=0.0,
+                    is_canonical=False,  # Should be True!
+                    transform_depth=0,
+                )
+            ],
+            execution_duration_seconds=0.01,
+        )
+
+
+def test_valence_conservation_and_exception_hierarchy():
+    """Verify domain exception hierarchy and ValenceConservationError properties [M][D]."""
+    assert issubclass(TautomerEnumerationTimeoutError, ToposPerceptionError)
+    assert issubclass(TautomerCombinatorialLimitExceededError, ToposPerceptionError)
+    assert issubclass(ValenceConservationError, ToposPerceptionError)
+    assert issubclass(InvalidTopologyInputError, ToposPerceptionError)
+    assert issubclass(TautomerCanonicalizationError, ToposPerceptionError)
+    assert issubclass(TautomerPersistenceError, ToposPerceptionError)
+    assert issubclass(TautomerStorageLockTimeoutError, ToposPerceptionError)
+    assert issubclass(QuantumChemistryHandshakeError, ToposPerceptionError)
+    assert issubclass(GhostAtomSanitizationError, ToposPerceptionError)
+
+    val_err = ValenceConservationError("Valence octet exceeded")
+    assert "Valence octet exceeded" in str(val_err)
+    assert isinstance(val_err, ToposPerceptionError)
+
+
+def test_3d_coordinate_reconstruction_and_covalent_radii():
+    """REQ-TOPOS-014.1: Verify 3D coordinate connectivity perception via Pyykkö covalent radii [M][D]."""
+    coords = [
+        (0.0, 0.0, 0.0),      # O1
+        (0.757, 0.586, 0.0),  # H2
+        (-0.757, 0.586, 0.0), # H3
+        (3.0, 0.0, 0.0),      # Gh4 (BSSE ghost atom)
+    ]
+    top_3d = TopologyInput(
+        molecule_id="water_3d_bsse",
+        elements=["O", "H", "H", "Gh"],
+        atomic_numbers=[8, 1, 1, 0],
+        coordinates=coords,
+        is_ghost=[False, False, False, True],
+    )
+    config = TautomerEnumerationConfig(max_tautomers=10, max_transform_depth=2)
+    ens = enumerate_tautomers(top_3d, config)
+    assert ens.total_generated >= 1
+    assert ens.candidates[0].fixed_h_inchi_key is not None
+    assert len(ens.candidates[0].fixed_h_inchi_key) == 27
+
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

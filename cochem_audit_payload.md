@@ -1,333 +1,8 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_06_BASE_Core_Orchestration_Part_3_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260901-suggestions\.in-progress\Perfected_SRS_Chunk_07_BASE_Data_and_Storage_Part_1_prompts.md.
 Original prompt:
-# Sequential Execution Prompt Schedule: CoChem-BASE Core Orchestration (Part 3)
+# Sequential Execution Prompt Schedule: CoChem-BASE Data & Storage (Part 1)
 
-The **CoChem-BASE Software Requirements Specification (SRS): Core Orchestration Part 3 (SRS_Chunk_06_BASE_Core_Orchestration_Part_3)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
-
----
-
-## 1. Architectural Layout & Dependency DAG
-
-```mermaid
-graph TD
-    P1["Prompt 1: Ephemeral Sandbox Context & Path Jailbreak Defense (src/cochem/core/cochem_sandbox.py)"] --> P5["Prompt 5: Tripartite Storage Air-Gap Coordinator & Concurrency Governor (src/cochem/core/airgap_coordinator.py)"]
-    P2["Prompt 2: Centralized Physical Constants & Dynamic Mendeleev Registry (src/cochem/core/cochem_constants.py)"] --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_core_orchestration_part3.py)"]
-    P3["Prompt 3: Hardened Allowlist-Based AST Security Scanner (src/cochem/plugins/ast_scanner.py)"] --> P4["Prompt 4: OS-Agnostic Plugin Architecture & Dynamic Lifecycle Registry (src/cochem/plugins/cochem_plugin_manager.py)"]
-    P4 --> P6
-    P5 --> P6
-    P1 --> P6
-```
-
----
-
-## 2. Global Invariants & Mandates
-
-1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical OS resources, and real physical constraints.
-2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental masses, isotopic distributions, covalent radii (Pyykkö), and van der Waals radii (Bondi) MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual periodic table arrays in the codebase is strictly prohibited. All physical conversion constants must dynamically bind to CODATA 2018 (`scipy.constants.physical_constants`).
-3. **Tripartite Storage Air-Gap Topology**: Disjointness between Code ($T_{\text{code}}$), Artifacts ($T_{\text{art}}$), and Scratch ($T_{\text{scr}}$) must be maintained at all times:
-   $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
-   All runtime I/O operations are strictly confined to the allocated scratch root. Direct mutation access to $T_{\text{code}}$ (source trees) and unvalidated modification of $T_{\text{art}}$ (immutable deliverables) is blocked.
-4. **Multi-Tier Concurrency & Storage Invariants**:
-   - Cross-platform file locking: All concurrent cache access, plugin registrations, and multi-process state transitions must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
-   - Database concurrency: State persistence engines utilizing SQLite must operate in `WAL` (Write-Ahead Logging) mode with robust transaction timeouts (`timeout=30.0` / `busy_timeout=30000`).
-   - Thread safety: Dynamic registries and caching layers must be protected with `threading.RLock`.
-5. **6-Tier Environment Matrix Portability**:
-   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Explicit handling of path separators, NTFS Alternate Data Streams (`:`), Win32 reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), and cross-platform process isolation.
-   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Non-root execution compatibility, automated fallback when GPU/CUDA hardware is absent to thread-safe CPU execution paths.
-   - **HPC (SLURM/PBS)**: Multi-node safe file-locking pinned to node-local scratch storage (`$SLURM_TMPDIR` or local `/tmp` to avoid distributed NFS/Lustre locking bugs) and ephemeral scratch-space cleanup on job preemption or node evacuation.
-6. **Single Target File Rule**: Each prompt specifies exactly one physical production script or test file.
-
----
-
-## 3. Granular Execution Prompts
-
-### Prompt 1 of 6: Ephemeral Sandbox Context & Path Jailbreak Defense
-* **Target File**: `src/cochem/core/cochem_sandbox.py`
-* **Dependencies**: `atexit`, `signal`, `sys`, `os`, `tempfile`, `time`, `pathlib`, `re`, `typing`, `dataclasses`, Standard Library
-* **Task Summary**:
-  1. Implement the domain exception hierarchy:
-     - `SandboxSecurityViolationError(PermissionError)`: Raised when an operation attempts directory traversal, symlink escape, NTFS Alternate Data Stream injection, or reserved OS device access.
-     - `SandboxExecutionError(RuntimeError)`: Raised when execution within the sandbox fails, is invoked uninitialized, or encounters an unhandled runtime fault.
-  2. Implement frozen configuration dataclass `SandboxConfig`:
-     - `timeout_seconds: float = 300.0`: Default execution ceiling.
-     - `max_memory_mb: int = 4096`: Memory quota threshold.
-     - `allow_network: bool = False`: Network isolation flag.
-     - `scratch_parent_dir: Optional[pathlib.Path] = None`: Custom parent directory in $T_{\text{scr}}$ (defaults to system temporary directory).
-     - `max_cleanup_retries: int = 5`: Exponential backoff retry limit.
-     - `cleanup_backoff_base_s: float = 0.1`: Initial sleep interval in seconds.
-  3. Implement `SandboxContext` conforming to Python's context manager protocol (`__enter__`, `__exit__`):
-     - Maintain compiled regular expression for reserved Win32 device names:
-       ```python
-       RESERVED_WIN32_NAMES = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$", re.IGNORECASE)
-       ```
-     - `__enter__() -> SandboxContext`:
-       - Resolve parent scratch directory (`scratch_parent_dir`) and ensure existence via `mkdir(parents=True, exist_ok=True)`.
-       - Allocate root in $T_{\text{scr}}$ using `tempfile.TemporaryDirectory(prefix="cochem_sandbox_", dir=str(parent_dir) if parent_dir else None)`.
-       - Canonicalize and resolve root path: `self.root = pathlib.Path(self._temp_dir.name).resolve()`.
-       - Transition state `self._active = True`.
-       - Register process teardown traps via `_register_cleanup_traps()`.
-       - Return `self`.
-     - `__exit__(exc_type, exc_val, exc_tb) -> None`:
-       - Execute idempotent `self.cleanup()`.
-     - `validate_path(target: pathlib.Path) -> pathlib.Path`:
-       - Assert sandbox is active and root is allocated; raise `SandboxExecutionError("Sandbox is not active.")` otherwise.
-       - Rejection of NTFS Alternate Data Streams: check `if ":" in str(target).replace(":\\", "").replace(":/", ""):` and raise `SandboxSecurityViolationError(f"NTFS Alternate Data Stream detected in path: {target}")`.
-       - Rejection of reserved Win32 device names: inspect each component in `target.parts`; if `self.RESERVED_WIN32_NAMES.match(part)`, raise `SandboxSecurityViolationError(f"Reserved OS device name detected: {part}")`.
-       - Resolve absolute canonical path: `resolved = target.resolve()`.
-       - Path containment verification: invoke `resolved.relative_to(self.root)`. If a `ValueError` is raised, raise `SandboxSecurityViolationError(f"Path traversal detected: {resolved} is outside sandbox root {self.root}")`.
-       - Symlink escape prevention: ensure symlinks pointing outside `self.root` fail the containment check and raise `SandboxSecurityViolationError`.
-       - Return validated canonical `resolved`.
-     - `cleanup() -> None`:
-       - If not active or `_temp_dir` is `None`, return immediately.
-       - Mark `self._active = False`.
-       - Execute multi-pass directory deletion with exponential retry backoff: loop up to `max_cleanup_retries`. On `OSError` or `PermissionError`, if final attempt raise, else sleep `cleanup_backoff_base_s * (2 ** attempt)` (handles Windows file-lock contention and distributed Lustre/NFS metadata latency on HPC nodes).
-     - `_register_cleanup_traps() -> None`:
-       - Register `atexit.register(self.cleanup)`.
-       - Register signal handlers for `signal.SIGINT` and `signal.SIGTERM` using safe try-except guards: invoke `self.cleanup()` and exit with `128 + sig`.
-
----
-
-### Prompt 2 of 6: Centralized Physical Constants & Dynamic Mendeleev Registry
-* **Target File**: `src/cochem/core/cochem_constants.py`
-* **Dependencies**: `mendeleev`, `scipy.constants`, `dataclasses`, `functools`, `typing`, Standard Library
-* **Task Summary**:
-  1. Implement immutable domain data structures with `frozen=True`:
-     - `PhysicalConstant(frozen=True)`:
-       - `name: str`: Constant canonical identifier (e.g., `'Planck constant'`).
-       - `symbol: str`: Conventional scientific symbol (e.g., `'h'`).
-       - `value: float`: Numerical magnitude.
-       - `uncertainty: float`: Standard uncertainty.
-       - `unit: str`: SI or conventional unit representation.
-       - `provenance: str`: Provenance classification tag (`[M]` for Mendeleev, `[D]` for derived CODATA 2018, `[E]` for exact SI definition).
-       - `source: str = "CODATA 2018 / scipy.constants"`: Data provenance authority.
-     - `ElementProperties(frozen=True)`:
-       - `atomic_number: int`: Nuclear charge $Z \in [1, 118]$.
-       - `symbol: str`: IUPAC elemental symbol.
-       - `name: str`: Element full English name.
-       - `atomic_weight: float`: Standard atomic weight in unified atomic mass units ($u$).
-       - `covalent_radius_pyykko: Optional[float]`: Pyykkö covalent radius in picometers (pm).
-       - `vdw_radius_bondi: Optional[float]`: Bondi van der Waals radius in picometers (pm).
-       - `provenance: str = "[M]"`: Tag indicating dynamic Mendeleev origin.
-  2. Implement `PhysicalConstantsRegistry`:
-     - Standard Thermodynamic State Constants:
-       - `STANDARD_TEMPERATURE_K: float = 298.15` (Exact $25.0^\circ\text{C}$, provenance `[E]`).
-       - `STANDARD_PRESSURE_PA: float = 101325.0` (Exact $1.0\text{ atm} = 1.01325\text{ bar}$, provenance `[E]`).
-     - Dynamic CODATA 2018 Constant Lookup:
-       - Implement `@staticmethod @functools.lru_cache(maxsize=256) def get_constant(name: str) -> PhysicalConstant`:
-         - Query `scipy.constants.physical_constants`.
-         - If `name` not present, raise `KeyError(f"Constant '{name}' not found in CODATA 2018 registry.")`.
-         - Extract `(val, unit, unc) = scipy.constants.physical_constants[name]`.
-         - Determine provenance: assign `"[E]"` if `unc == 0.0` (exact SI definition), else `"[D]"` (derived measurement).
-         - Return initialized `PhysicalConstant`.
-         - Provide explicit dynamic bindings for fundamental constants: Planck's constant ($h$), Boltzmann constant ($k_B$), Speed of light ($c$), Avogadro constant ($N_A$), Elementary charge ($e$), Molar gas constant ($R$), and Atomic mass unit ($u$).
-     - Dynamic Mendeleev Integration (Strict Zero-Hardcoding Policy):
-       - Implement `@staticmethod @functools.lru_cache(maxsize=128) def get_element(symbol_or_z: Any) -> ElementProperties`:
-         - Dynamically retrieve element using `from mendeleev import element` -> `elem = element(symbol_or_z)`.
-         - Populate and return `ElementProperties` with `elem.atomic_number`, `elem.symbol`, `elem.name`, `atomic_weight=float(elem.mass)`, `elem.covalent_radius_pyykko`, and `elem.vdw_radius_bondi`.
-       - Implement `@staticmethod @functools.lru_cache(maxsize=128) def get_element_mass(symbol: str) -> float`:
-         - Dynamically query `float(element(symbol).mass)`.
-  3. Absolute Anti-Spoofing & Zero-Mock Enforcement:
-     - Strictly zero hardcoded atomic mass dictionaries, static lookup arrays, or periodic table lists in the codebase.
-     - All unit conversions and physical calculations throughout the engine must derive directly from `PhysicalConstantsRegistry`.
-
----
-
-### Prompt 3 of 6: Hardened Allowlist-Based AST Pre-Import Security Scanner
-* **Target File**: `src/cochem/plugins/ast_scanner.py`
-* **Dependencies**: `ast`, `typing`, `dataclasses`, Standard Library
-* **Task Summary**:
-  1. Implement domain exception:
-     - `PluginSecurityViolationError(PermissionError)`: Raised when untrusted plugin source code contains prohibited AST syntax, unauthorized module imports, dunder gadget traversals, or dangerous builtins.
-  2. Implement `PluginASTSecurityScanner(ast.NodeVisitor)` with strict allowlist and blacklist sets:
-     - `ALLOWED_MODULES: Set[str]`: Enforce strict allowlist permitting only verified scientific and utility modules:
-       ```python
-       ALLOWED_MODULES = {
-           "math", "numpy", "scipy", "mendeleev", "dataclasses",
-           "typing", "collections", "itertools", "functools", "json", "re"
-       }
-       ```
-     - `PROHIBITED_NAMES: Set[str]`: Blacklist dangerous builtins, execution vectors, reflection hooks, and dunder traversal tokens:
-       ```python
-       PROHIBITED_NAMES = {
-           "eval", "exec", "compile", "__import__", "globals", "locals", "vars",
-           "getattr", "setattr", "delattr", "hasattr", "open", "input", "breakpoint",
-           "memoryview", "__builtins__", "__subclasses__", "__bases__", "__class__"
-       }
-       ```
-     - `visit_Import(self, node: ast.Import) -> None`:
-       - Iterate over `node.names`.
-       - Extract root module: `root_mod = alias.name.split(".")[0]`.
-       - If `root_mod not in self.ALLOWED_MODULES`: raise `PluginSecurityViolationError(f"Prohibited module import: {alias.name}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_ImportFrom(self, node: ast.ImportFrom) -> None`:
-       - Ban relative imports without root: if `not node.module`, raise `PluginSecurityViolationError("Relative imports without module name are prohibited.")`.
-       - Extract root module: `root_mod = node.module.split(".")[0]`.
-       - If `root_mod not in self.ALLOWED_MODULES`: raise `PluginSecurityViolationError(f"Prohibited from-import module: {node.module}")`.
-       - Inspect imported members:
-         - If `alias.name == "*"`: raise `PluginSecurityViolationError("Wildcard imports ('from ... import *') are prohibited.")`.
-         - If `alias.name in self.PROHIBITED_NAMES` or `alias.name.startswith("_")`: raise `PluginSecurityViolationError(f"Prohibited member import: {alias.name}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Attribute(self, node: ast.Attribute) -> None`:
-       - Block private and dunder attribute traversal: if `node.attr.startswith("_")` or `node.attr in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited attribute or dunder access: {node.attr}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Name(self, node: ast.Name) -> None`:
-       - Block references to dangerous identifiers: if `node.id in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited identifier reference: {node.id}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Call(self, node: ast.Call) -> None`:
-       - Block direct calls to prohibited identifiers: if `isinstance(node.func, ast.Name) and node.func.id in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited call: {node.func.id}")`.
-       - Recurse via `self.generic_visit(node)`.
-  3. Implement helper function `scan_plugin_source(source_code: str, filename: str = "<plugin>") -> None`:
-     - Parse AST via `tree = ast.parse(source_code, filename=filename)`.
-     - Instantiate `PluginASTSecurityScanner()` and invoke `.visit(tree)`.
-
----
-
-### Prompt 4 of 6: OS-Agnostic Plugin Architecture & Dynamic Lifecycle Registry
-* **Target File**: `src/cochem/plugins/cochem_plugin_manager.py`
-* **Dependencies**: `abc`, `ast`, `dataclasses`, `importlib.util`, `logging`, `os`, `pathlib`, `threading`, `filelock`, `typing`, `src.cochem.plugins.ast_scanner`, Standard Library
-* **Task Summary**:
-  1. Implement exception hierarchy and re-exports:
-     - `PluginLoadError(RuntimeError)`: Raised when dynamic module specification loading, compilation, or class instantiation fails.
-     - Re-export `PluginSecurityViolationError` and `PluginASTSecurityScanner` from `src.cochem.plugins.ast_scanner`.
-  2. Define plugin contracts and interfaces:
-     - `PluginMetadata(frozen=True)`: `name: str`, `version: str`, `author: str`, `description: str`.
-     - `PluginInterface(abc.ABC)` abstract base class:
-       - `@property @abc.abstractmethod def metadata(self) -> PluginMetadata: ...`
-       - `@abc.abstractmethod def initialize(self, context: Dict[str, Any]) -> None: ...`
-       - `@abc.abstractmethod def execute(self, payload: Dict[str, Any]) -> Dict[str, Any]: ...`
-       - `@abc.abstractmethod def teardown(self) -> None: ...`
-  3. Implement `PluginRegistry`:
-     - OS-Agnostic Directory Discovery Resolution:
-       - `__init__(self, plugin_dir: Optional[pathlib.Path] = None) -> None`:
-         1. Explicit constructor argument `plugin_dir` (if provided, resolved to absolute path).
-         2. Environment variable `COCHEM_PLUGINS_PATH` (if set in `os.environ`).
-         3. Cross-platform user home default: `(pathlib.Path.home() / ".cochem" / "plugins").resolve()`.
-       - Thread-safety primitives: initialize `self._lock: threading.RLock = threading.RLock()`.
-       - Storage: `self._plugins: Dict[str, PluginInterface] = {}`.
-     - `scan_and_register(self) -> List[str]`:
-       - Guard with `with self._lock:`.
-       - If `self.plugin_dir` does not exist, create it via `self.plugin_dir.mkdir(parents=True, exist_ok=True)` and return `[]`.
-       - Scan for all `*.py` files in `self.plugin_dir`, skipping files starting with `"__"`.
-       - For each file, load via `self._load_plugin_file(filepath)` inside a try-except block catching `(PluginSecurityViolationError, PluginLoadError)`.
-       - Fault-Tolerant Engine Startup: Log a warning on skipped non-compliant or malicious plugins (`logger.warning(f"Skipping non-compliant plugin '{filepath.name}': {err}")`) without halting engine initialization.
-       - Store valid plugin instances in `self._plugins[plugin.metadata.name] = plugin` and return registered names.
-     - `_load_plugin_file(self, path: pathlib.Path) -> Optional[PluginInterface]`:
-       - Read file content: `code = path.read_text(encoding="utf-8")`.
-       - Pre-import AST inspection: parse AST via `ast.parse` and execute `PluginASTSecurityScanner().visit(tree)`. If violation occurs, raises `PluginSecurityViolationError` before dynamic loading.
-       - Dynamic spec compilation: `spec = importlib.util.spec_from_file_location(path.stem, str(path))`. If `spec is None or spec.loader is None`, raise `PluginLoadError(f"Cannot load module specification for {path}")`.
-       - Module execution: `module = importlib.util.module_from_spec(spec)`, execute via `spec.loader.exec_module(module)`.
-       - Interface inspection: iterate over `dir(module)`. Locate class objects where `isinstance(cls, type) and issubclass(cls, PluginInterface) and cls is not PluginInterface`.
-       - Instantiate and return `cls()`. Return `None` if no valid `PluginInterface` subclass is found.
-     - `get_plugin(self, name: str) -> PluginInterface`:
-       - Guard with `with self._lock:`.
-       - If `name not in self._plugins`, raise `KeyError(f"Plugin '{name}' is not registered.")`.
-       - Return `self._plugins[name]`.
-     - `execute_plugin(self, name: str, payload: Dict[str, Any]) -> Dict[str, Any]`:
-       - Look up plugin via `self.get_plugin(name)` and return `plugin.execute(payload)`.
-
----
-
-### Prompt 5 of 6: Tripartite Storage Air-Gap Coordinator & Concurrency Governor
-* **Target File**: `src/cochem/core/airgap_coordinator.py`
-* **Dependencies**: `pathlib`, `os`, `sys`, `shutil`, `hashlib`, `typing`, `dataclasses`, `filelock`, `sqlite3`, `src.cochem.core.cochem_sandbox`, Standard Library
-* **Task Summary**:
-  1. Define Tripartite Air-Gap Topology:
-     - Formal storage model enforcing the Disjointness Invariant:
-       $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
-     - Frozen dataclass `TripartiteStorageConfig`:
-       - `code_root: pathlib.Path`: Immutable source code root ($T_{\text{code}}$).
-       - `artifacts_root: pathlib.Path`: Append-only validated scientific deliverables and PES databases ($T_{\text{art}}$).
-       - `scratch_root: pathlib.Path`: Ephemeral per-job scratch space ($T_{\text{scr}}$).
-  2. Implement domain exception:
-     - `AirGapViolationError(PermissionError)`: Raised when storage paths intersect, overlap, or violate air-gap containment rules.
-  3. Implement `TripartiteAirGapCoordinator`:
-     - `__init__(self, config: TripartiteStorageConfig) -> None`:
-       - Canonicalize all roots via `p.resolve()`.
-       - Invoke `self.validate_disjointness()`.
-     - `validate_disjointness(self) -> None`:
-       - Verify that none of the three storage roots are identical or subdirectories of each other:
-         - Ensure `code_root` is not relative to `artifacts_root` or `scratch_root`.
-         - Ensure `artifacts_root` is not relative to `code_root` or `scratch_root`.
-         - Ensure `scratch_root` is not relative to `code_root` or `artifacts_root`.
-       - Verify that `pathlib.Path.cwd().resolve()` does not reside within `code_root`.
-       - Raise `AirGapViolationError` upon detecting any storage topology intersection.
-     - `create_sandboxed_workspace(self, job_id: str, timeout_seconds: float = 300.0) -> SandboxContext`:
-       - Generate job-specific ephemeral scratch path: `job_scratch = self.config.scratch_root / f"cochem_exec_{job_id}"`.
-       - Instantiate and return `SandboxContext(SandboxConfig(scratch_parent_dir=job_scratch, timeout_seconds=timeout_seconds))`.
-     - `publish_artifact(self, source_path: pathlib.Path, relative_dest: pathlib.Path, compute_sha256: bool = True) -> Tuple[pathlib.Path, Optional[str]]`:
-       - Canonicalize `source = source_path.resolve()`. Ensure it resides strictly inside `self.config.scratch_root`.
-       - Canonicalize destination: `dest = (self.config.artifacts_root / relative_dest).resolve()`. Ensure it resides strictly inside `self.config.artifacts_root`.
-       - Destination parent directory created via `dest.parent.mkdir(parents=True, exist_ok=True)`.
-       - Compute SHA-256 hash of `source` before transfer if `compute_sha256` is `True`.
-       - Execute atomic file transfer (atomic rename if on same filesystem, or copy-then-unlink with atomic `.tmp` swap).
-       - Return `(dest, sha256_hash)`.
-  4. Multi-Tier Concurrency Governor:
-     - Implement `get_tier_file_lock(lock_path: pathlib.Path, timeout_sec: float = 30.0) -> filelock.FileLock`:
-       - Enforce OS-agnostic file locking via `filelock.FileLock` (banning POSIX-only `fcntl`).
-       - On HPC tiers (SLURM/PBS), file locks must be pinned exclusively to node-local scratch storage (`/tmp`, `$SLURM_TMPDIR`, or `$T_{\text{scr}}`) to prevent distributed filesystem deadlocks on NFS/Lustre.
-     - Implement `configure_sqlite_connection(conn: sqlite3.Connection, timeout_sec: float = 30.0) -> None`:
-       - Configure connection pragmas:
-         ```sql
-         PRAGMA journal_mode = WAL;
-         PRAGMA busy_timeout = 30000;
-         PRAGMA synchronous = NORMAL;
-         PRAGMA foreign_keys = ON;
-         ```
-
----
-
-### Prompt 6 of 6: Physical Integration & Zero-Mock Verification Suite
-* **Target File**: `tests/integration/test_base_core_orchestration_part3.py`
-* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `signal`, `tempfile`, `mendeleev`, `scipy.constants`, `filelock`, `src.cochem.core.cochem_sandbox`, `src.cochem.core.cochem_constants`, `src.cochem.plugins.ast_scanner`, `src.cochem.plugins.cochem_plugin_manager`, `src.cochem.core.airgap_coordinator`, Standard Library
-* **Task Summary**:
-  1. Implement exhaustive integration and compliance tests without any mocks, stubs, or synthetic fixtures.
-  2. Sandbox Path Containment & Jailbreak Security Tests:
-     - Test valid file creation and canonical path validation inside `sandbox.root`.
-     - Test adversarial path traversal: assert `sandbox.validate_path(pathlib.Path("../../../etc/shadow"))` raises `SandboxSecurityViolationError`.
-     - Test sibling directory collision: assert `sandbox.validate_path(pathlib.Path(str(sandbox.root) + "_sibling") / "evil.txt")` raises `SandboxSecurityViolationError`.
-     - Test reserved Win32 device names: assert validating `sandbox.root / "NUL"` or `sandbox.root / "CON"` raises `SandboxSecurityViolationError`.
-     - Test NTFS Alternate Data Streams: assert validating `sandbox.root / "test.dat:hidden"` raises `SandboxSecurityViolationError`.
-     - Test multi-pass cleanup with exponential backoff on simulated contention.
-  3. Dynamic Mendeleev & CODATA Physical Constants Tests:
-     - Verify dynamic atomic mass retrieval for C, Fe, and U via `PhysicalConstantsRegistry.get_element_mass(...)`:
-       - Assert $12.010 < m_{\text{C}} < 12.012$.
-       - Assert $55.84 < m_{\text{Fe}} < 55.85$.
-       - Assert $238.02 < m_{\text{U}} < 238.04$.
-     - Verify fundamental CODATA 2018 constants via `PhysicalConstantsRegistry.get_constant(...)`:
-       - Planck's constant ($h \approx 6.62607015 \times 10^{-34}\text{ J s}$, provenance `[E]`).
-       - Speed of light ($c = 299792458.0\text{ m/s}$, provenance `[E]`).
-       - Avogadro constant ($N_A \approx 6.02214076 \times 10^{23}\text{ mol}^{-1}$, provenance `[E]`).
-       - Boltzmann constant ($k_B \approx 1.380649 \times 10^{-23}\text{ J/K}$, provenance `[E]`).
-       - Standard states: $T^\circ = 298.15\text{ K}$, $P^\circ = 101325.0\text{ Pa}$ (provenance `[E]`).
-     - Verify `@functools.lru_cache` operation and immutability of returned models.
-  4. AST Security Scanner Hardening Tests:
-     - Test direct execution blocking: `import os\nos.system('rm -rf /')` raises `PluginSecurityViolationError`.
-     - Test wildcard import evasion: `from os import *` raises `PluginSecurityViolationError`.
-     - Test from-import evasion: `from subprocess import run\nrun(['whoami'])` raises `PluginSecurityViolationError`.
-     - Test network socket blocking: `import socket` and `from socket import socket` raise `PluginSecurityViolationError`.
-     - Test dunder gadget traversal: `x = ().__class__.__bases__[0].__subclasses__()` raises `PluginSecurityViolationError`.
-     - Test dynamic evaluation: `getattr(__builtins__, 'eval')('1+1')` raises `PluginSecurityViolationError`.
-     - Test valid allowlisted plugin code (using `math`, `numpy`, `mendeleev`, `dataclasses`) passes cleanly.
-  5. OS-Agnostic Plugin Lifecycle & Fault Tolerance Tests:
-     - Provision an ephemeral plugin directory with one valid `PluginInterface` implementation and one malicious script.
-     - Verify `PluginRegistry.scan_and_register()` successfully registers the compliant plugin and skips the malicious plugin with a logged warning, without crashing the process.
-     - Test dynamic execution via `PluginRegistry.execute_plugin()`.
-  6. Tripartite Storage Air-Gap & Concurrency Governor Tests:
-     - Test disjoint storage configuration: assert `validate_disjointness()` succeeds for three separate roots.
-     - Test intersection detection: assert initializing with overlapping roots raises `AirGapViolationError`.
-     - Test sandboxed artifact publishing: create output in sandbox, publish to artifacts; verify atomic file placement and SHA-256 seal.
-     - Test multi-process file locking using `filelock.FileLock`.
-  7. Anti-Spoofing & Zero-Mock AST Audit:
-     - Parse AST of all target production files (`cochem_sandbox.py`, `cochem_constants.py`, `ast_scanner.py`, `cochem_plugin_manager.py`, `airgap_coordinator.py`).
-     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, empty `pass` blocks, and `NotImplementedError` stubs.
-I have submitted the decomposed sequential prompt schedule for **`Perfected_SRS_Chunk_06_BASE_Core_Orchestration_Part_3`** to the Council Auditor subagent (`adversary`, conversation ID: `8c107979-2cde-4c17-9dcf-e00198c407a3`) to conduct the mandatory adversarial audit verifying Zero-Mock compliance, Mendeleev dynamic lookup, Tripartite Air-Gap isolation, and Single Target File invariants. Awaiting auditor verdict.
-I have dispatched the remediated prompt schedule containing all requested fixes (expansion of `ALLOWED_MODULES` to support `abc`, `cochem`, and `src`; bare relative path anchoring against sandbox root; and `job_id` traversal validation) to `adversary` for final unconditional sign-off. Awaiting confirmation.
-# Sequential Execution Prompt Schedule: CoChem-BASE Core Orchestration (Part 3)
-
-The **CoChem-BASE Software Requirements Specification (SRS): Core Orchestration Part 3 (SRS_Chunk_06_BASE_Core_Orchestration_Part_3)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
+The **CoChem-BASE Software Requirements Specification (SRS): Data & Storage Part 1 (SRS_Chunk_07_BASE_Data_and_Storage_Part_1)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
 
 ---
 
@@ -335,1237 +10,2325 @@ The **CoChem-BASE Software Requirements Specification (SRS): Core Orchestration 
 
 ```mermaid
 graph TD
-    P1["Prompt 1: Ephemeral Sandbox Context & Path Jailbreak Defense (src/cochem/core/cochem_sandbox.py)"] --> P5["Prompt 5: Tripartite Storage Air-Gap Coordinator & Concurrency Governor (src/cochem/core/airgap_coordinator.py)"]
-    P2["Prompt 2: Centralized Physical Constants & Dynamic Mendeleev Registry (src/cochem/core/cochem_constants.py)"] --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_core_orchestration_part3.py)"]
-    P3["Prompt 3: Hardened Allowlist-Based AST Security Scanner (src/cochem/plugins/ast_scanner.py)"] --> P4["Prompt 4: OS-Agnostic Plugin Architecture & Dynamic Lifecycle Registry (src/cochem/plugins/cochem_plugin_manager.py)"]
-    P4 --> P6
+    P1["Prompt 1: Lossless Zstd HDF5 Compression Pipeline (src/cochem/storage/hdf5_zstd.py)"] --> P5["Prompt 5: High-Concurrency HDF5 SWMR PES Trajectory Store (src/cochem/storage/cochem_core_pes_store.py)"]
+    P2["Prompt 2: Cryptographic Merkle Provenance Stamper & Ed25519 Signer (src/cochem/provenance/provenance_stamper.py)"] --> P3["Prompt 3: Standardized .cochem_archive Container Engine (src/cochem/storage/cochem_archive.py)"]
+    P1 --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_data_and_storage_part1.py)"]
+    P2 --> P6
+    P3 --> P6
+    P4["Prompt 4: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine (src/cochem/intake/chemical_webhook.py)"] --> P6
     P5 --> P6
-    P1 --> P6
 ```
 
 ---
 
 ## 2. Global Invariants & Mandates
 
-1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical OS resources, and real physical constraints.
-2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental masses, isotopic distributions, covalent radii (Pyykkö), and van der Waals radii (Bondi) MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual periodic table arrays in the codebase is strictly prohibited. All physical conversion constants must dynamically bind to CODATA 2018 (`scipy.constants.physical_constants`).
+1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical HDF5 storage structures, real cryptographic primitives, and physical chemical invariants.
+2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental symbols, nuclear charges ($Z \in [1, 118]$), dynamic atomic masses, and isotopic distributions MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual mass lookup dictionaries in the codebase is strictly prohibited. All thermodynamic state constants must align with CODATA 2018.
 3. **Tripartite Storage Air-Gap Topology**: Disjointness between Code ($T_{\text{code}}$), Artifacts ($T_{\text{art}}$), and Scratch ($T_{\text{scr}}$) must be maintained at all times:
    $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
-   All runtime I/O operations are strictly confined to the allocated scratch root. Direct mutation access to $T_{\text{code}}$ (source trees) and unvalidated modification of $T_{\text{art}}$ (immutable deliverables) is blocked.
+   Webhook ingress validation, archive unpacking, and HDF5 temporary dataset generation must execute entirely within the ephemeral per-job scratch space ($T_{\text{scr}}$). No outbound network requests are permitted (Zero-Network Air-Gap).
 4. **Multi-Tier Concurrency & Storage Invariants**:
-   - Cross-platform file locking: All concurrent cache access, plugin registrations, and multi-process state transitions must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
-   - Database concurrency: State persistence engines utilizing SQLite must operate in `WAL` (Write-Ahead Logging) mode with robust transaction timeouts (`timeout=30.0` / `busy_timeout=30000`).
-   - Thread safety: Dynamic registries and caching layers must be protected with `threading.RLock`.
+   - Cross-platform file locking: All concurrent HDF5 initialization phases and writer lifecycle operations must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
+   - Driver-level locking bypass: Set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at process initialization before importing `h5py` to prevent distributed filesystem deadlocks on network mounts (NFS, Lustre).
+   - High-throughput SWMR mode: Single-Writer Multiple-Reader (SWMR) access must enforce `libver="latest"`, pre-allocated extensible chunked datasets, and atomic `dataset.flush()` / `file.flush()` boundaries. Readers must execute lockless concurrent reads accompanied by `dataset.refresh()`.
 5. **6-Tier Environment Matrix Portability**:
-   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Explicit handling of path separators, NTFS Alternate Data Streams (`:`), Win32 reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), and cross-platform process isolation.
-   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Non-root execution compatibility, automated fallback when GPU/CUDA hardware is absent to thread-safe CPU execution paths.
-   - **HPC (SLURM/PBS)**: Multi-node safe file-locking pinned to node-local scratch storage (`$SLURM_TMPDIR` or local `/tmp` to avoid distributed NFS/Lustre locking bugs) and ephemeral scratch-space cleanup on job preemption or node evacuation.
+   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Path sanitization via `pathlib.Path`, explicit rejection of NTFS Alternate Data Streams (`:`), Windows reserved device names, and cross-platform relative path traversal (`Zip Slip`) prevention.
+   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Native CPU userspace execution without GPU VRAM allocation or CUDA lock requirements during compression and telemetry serialization.
+   - **HPC (SLURM/PBS)**: Node-local scratch storage pinning (`$SLURM_TMPDIR` or local `/tmp`) for file locks and ephemeral archive unpacking to eliminate distributed filesystem lock contention.
 6. **Single Target File Rule**: Each prompt specifies exactly one physical production script or test file.
 
 ---
 
 ## 3. Granular Execution Prompts
 
-### Prompt 1 of 6: Ephemeral Sandbox Context & Path Jailbreak Defense
-* **Target File**: `src/cochem/core/cochem_sandbox.py`
-* **Dependencies**: `atexit`, `signal`, `sys`, `os`, `tempfile`, `time`, `pathlib`, `re`, `typing`, `dataclasses`, Standard Library
+### Prompt 1 of 6: Lossless Zstandard (Zstd) HDF5 Compression Pipeline
+* **Target File**: `src/cochem/storage/hdf5_zstd.py`
+* **Dependencies**: `dataclasses`, `typing`, `hdf5plugin`, `h5py`, `numpy`, Standard Library
 * **Task Summary**:
-  1. Implement the domain exception hierarchy:
-     - `SandboxSecurityViolationError(PermissionError)`: Raised when an operation attempts directory traversal, symlink escape, NTFS Alternate Data Stream injection, or reserved OS device access.
-     - `SandboxExecutionError(RuntimeError)`: Raised when execution within the sandbox fails, is invoked uninitialized, or encounters an unhandled runtime fault.
-  2. Implement frozen configuration dataclass `SandboxConfig`:
-     - `timeout_seconds: float = 300.0`: Default execution ceiling.
-     - `max_memory_mb: int = 4096`: Memory quota threshold.
-     - `allow_network: bool = False`: Network isolation flag.
-     - `scratch_parent_dir: Optional[pathlib.Path] = None`: Custom parent directory in $T_{\text{scr}}$ (defaults to system temporary directory).
-     - `max_cleanup_retries: int = 5`: Exponential backoff retry limit.
-     - `cleanup_backoff_base_s: float = 0.1`: Initial sleep interval in seconds.
-  3. Implement `SandboxContext` conforming to Python's context manager protocol (`__enter__`, `__exit__`):
-     - Maintain compiled regular expression for reserved Win32 device names:
-       ```python
-       RESERVED_WIN32_NAMES = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$", re.IGNORECASE)
-       ```
-     - `__enter__() -> SandboxContext`:
-       - Resolve parent scratch directory (`scratch_parent_dir`) and ensure existence via `mkdir(parents=True, exist_ok=True)`.
-       - Allocate root in $T_{\text{scr}}$ using `tempfile.TemporaryDirectory(prefix="cochem_sandbox_", dir=str(parent_dir) if parent_dir else None)`.
-       - Canonicalize and resolve root path: `self.root = pathlib.Path(self._temp_dir.name).resolve()`.
-       - Transition state `self._active = True`.
-       - Register process teardown traps via `_register_cleanup_traps()`.
-       - Return `self`.
-     - `__exit__(exc_type, exc_val, exc_tb) -> None`:
-       - Execute idempotent `self.cleanup()`.
-     - `validate_path(target: pathlib.Path) -> pathlib.Path`:
-       - Assert sandbox is active and root is allocated; raise `SandboxExecutionError("Sandbox is not active.")` otherwise.
-       - Rejection of NTFS Alternate Data Streams: check `if ":" in str(target).replace(":\\", "").replace(":/", ""):` and raise `SandboxSecurityViolationError(f"NTFS Alternate Data Stream detected in path: {target}")`.
-       - Rejection of reserved Win32 device names: inspect each component in `target.parts`; if `self.RESERVED_WIN32_NAMES.match(part)`, raise `SandboxSecurityViolationError(f"Reserved OS device name detected: {part}")`.
-       - Anchor relative paths to sandbox root: `resolved = (self.root / target).resolve() if not target.is_absolute() else target.resolve()`.
-       - Path containment verification: invoke `resolved.relative_to(self.root)`. If a `ValueError` is raised, raise `SandboxSecurityViolationError(f"Path traversal detected: {resolved} is outside sandbox root {self.root}")`.
-       - Symlink escape prevention: ensure symlinks pointing outside `self.root` fail the containment check and raise `SandboxSecurityViolationError`.
-       - Return validated canonical `resolved`.
-     - `cleanup() -> None`:
-       - If not active or `_temp_dir` is `None`, return immediately.
-       - Mark `self._active = False`.
-       - Execute multi-pass directory deletion with exponential retry backoff: loop up to `max_cleanup_retries`. On `OSError` or `PermissionError`, if final attempt raise, else sleep `cleanup_backoff_base_s * (2 ** attempt)` (handles Windows file-lock contention and distributed Lustre/NFS metadata latency on HPC nodes).
-     - `_register_cleanup_traps() -> None`:
-       - Register `atexit.register(self.cleanup)`.
-       - Register signal handlers for `signal.SIGINT` and `signal.SIGTERM` using safe try-except guards: invoke `self.cleanup()` and exit with `128 + sig`.
+  1. Implement frozen configuration dataclass `HDF5ZstdConfig`:
+     - Fields:
+       - `clevel: int = 3`: Zstd compression level (strictly bounded $1 \le \text{clevel} \le 22$).
+       - `enable_shuffle: bool = True`: Byte shuffling flag prior to Zstd compression to group significant mantissa/exponent bytes for floating-point tensors.
+       - `enable_fletcher32: bool = True`: Fletcher32 checksum filter flag for block-level corruption detection.
+       - `min_chunk_bytes: int = 64 * 1024`: Minimum chunk size boundary (64 KB).
+       - `max_chunk_bytes: int = 256 * 1024`: Maximum chunk size boundary (256 KB).
+     - Validation in `__post_init__()`:
+       - If `not (1 <= self.clevel <= 22)`: raise `ValueError(f"Zstd clevel must be in 1..22, got {self.clevel}")`.
+       - If `self.min_chunk_bytes <= 0 or self.max_chunk_bytes < self.min_chunk_bytes`: raise `ValueError(f"Invalid chunk byte bounds: [{self.min_chunk_bytes}, {self.max_chunk_bytes}]")`.
+     - Lossy Filter Prohibition: Strictly enforce a complete ban on lossy compression filters (e.g., `scaleoffset`), guaranteeing bit-for-bit lossless precision for IEEE 754 float64/float32 trajectories.
+  2. Implement dynamic chunk derivation methods:
+     - `resolve_chunk_shape_3d(self, n_atoms: int, spatial_dim: int = 3, itemsize: int = 8, max_frames: Optional[int] = None) -> Tuple[int, int, int]`:
+       - Assert `n_atoms > 0`, `spatial_dim > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Calculate frame byte footprint: `frame_bytes = n_atoms * spatial_dim * itemsize`.
+       - Derive target chunk size: `target_bytes = (self.min_chunk_bytes + self.max_chunk_bytes) // 2`.
+       - Calculate frame chunk count: `chunk_frames = max(1, target_bytes // frame_bytes)`.
+       - Pre-allocate frame coordinate chunks along the primary frame dimension to prevent single-frame chunking (`chunk_frames=1`) on small systems, eliminating HDF5 B-tree index bloat.
+       - If `max_frames is not None and max_frames > 0`: cap `chunk_frames = min(chunk_frames, max_frames)`.
+       - Return `(chunk_frames, n_atoms, spatial_dim)`.
+     - `resolve_chunk_shape_1d(self, itemsize: int = 8, max_len: Optional[int] = None) -> Tuple[int]`:
+       - Assert `itemsize > 0`; raise `ValueError` otherwise.
+       - Target 1D energy tensors bounded between 64 KB and 256 KB.
+       - Derive `chunk_len = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // itemsize)`.
+       - If `max_len is not None and max_len > 0`: cap `chunk_len = min(chunk_len, max_len)`.
+       - Return `(chunk_len,)`.
+     - `resolve_chunk_shape_2d(self, n_features: int, itemsize: int = 8, max_rows: Optional[int] = None) -> Tuple[int, int]`:
+       - Assert `n_features > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Derive `row_bytes = n_features * itemsize`.
+       - Derive `chunk_rows = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // row_bytes)`.
+       - If `max_rows is not None and max_rows > 0`: cap `chunk_rows = min(chunk_rows, max_rows)`.
+       - Return `(chunk_rows, n_features)`.
+  3. Implement dataset keyword generator:
+     - `get_dataset_kwargs(self, chunk_shape: Tuple[int, ...], is_numeric: bool = True) -> Dict[str, Any]`:
+       - Construct dictionary with `"chunks": chunk_shape` and unpack `hdf5plugin.Zstd(clevel=self.clevel)` (Filter ID `32015`).
+       - If `is_numeric and self.enable_shuffle`: set `kwargs["shuffle"] = True`.
+       - If `is_numeric and self.enable_fletcher32`: set `kwargs["fletcher32"] = True`.
+       - Return `kwargs`.
+  4. CPU Resource Isolation:
+     - Ensure all compression, decompression, and chunk checksumming operations execute strictly in CPU userspace I/O without allocating GPU VRAM or acquiring CUDA context locks.
 
 ---
 
-### Prompt 2 of 6: Centralized Physical Constants & Dynamic Mendeleev Registry
-* **Target File**: `src/cochem/core/cochem_constants.py`
-* **Dependencies**: `mendeleev`, `scipy.constants`, `dataclasses`, `functools`, `typing`, Standard Library
+### Prompt 2 of 6: Cryptographic Merkle Provenance Stamper & Ed25519 Signer
+* **Target File**: `src/cochem/provenance/provenance_stamper.py`
+* **Dependencies**: `base64`, `datetime`, `hashlib`, `json`, `pathlib`, `typing`, `cryptography`, `h5py`, `numpy`, `pydantic>=2.0.0`, Standard Library
 * **Task Summary**:
-  1. Implement immutable domain data structures with `frozen=True`:
-     - `PhysicalConstant(frozen=True)`:
-       - `name: str`: Constant canonical identifier (e.g., `'Planck constant'`).
-       - `symbol: str`: Conventional scientific symbol (e.g., `'h'`).
-       - `value: float`: Numerical magnitude.
-       - `uncertainty: float`: Standard uncertainty.
-       - `unit: str`: SI or conventional unit representation.
-       - `provenance: str`: Provenance classification tag (`[M]` for Mendeleev, `[D]` for derived CODATA 2018, `[E]` for exact SI definition).
-       - `source: str = "CODATA 2018 / scipy.constants"`: Data provenance authority.
-     - `ElementProperties(frozen=True)`:
-       - `atomic_number: int`: Nuclear charge $Z \in [1, 118]$.
-       - `symbol: str`: IUPAC elemental symbol.
-       - `name: str`: Element full English name.
-       - `atomic_weight: float`: Standard atomic weight in unified atomic mass units ($u$).
-       - `covalent_radius_pyykko: Optional[float]`: Pyykkö covalent radius in picometers (pm).
-       - `vdw_radius_bondi: Optional[float]`: Bondi van der Waals radius in picometers (pm).
-       - `provenance: str = "[M]"`: Tag indicating dynamic Mendeleev origin.
-  2. Implement `PhysicalConstantsRegistry`:
-     - Standard Thermodynamic State Constants:
-       - `STANDARD_TEMPERATURE_K: float = 298.15` (Exact $25.0^\circ\text{C}$, provenance `[E]`).
-       - `STANDARD_PRESSURE_PA: float = 101325.0` (Exact $1.0\text{ atm} = 1.01325\text{ bar}$, provenance `[E]`).
-     - Dynamic CODATA 2018 Constant Lookup:
-       - Implement `@staticmethod @functools.lru_cache(maxsize=256) def get_constant(name: str) -> PhysicalConstant`:
-         - Query `scipy.constants.physical_constants`.
-         - If `name` not present, raise `KeyError(f"Constant '{name}' not found in CODATA 2018 registry.")`.
-         - Extract `(val, unit, unc) = scipy.constants.physical_constants[name]`.
-         - Determine provenance: assign `"[E]"` if `unc == 0.0` (exact SI definition), else `"[D]"` (derived measurement).
-         - Return initialized `PhysicalConstant`.
-         - Provide explicit dynamic bindings for fundamental constants: Planck's constant ($h$), Boltzmann constant ($k_B$), Speed of light ($c$), Avogadro constant ($N_A$), Elementary charge ($e$), Molar gas constant ($R$), and Atomic mass unit ($u$).
-     - Dynamic Mendeleev Integration (Strict Zero-Hardcoding Policy):
-       - Implement `@staticmethod @functools.lru_cache(maxsize=128) def get_element(symbol_or_z: Any) -> ElementProperties`:
-         - Dynamically retrieve element using `from mendeleev import element` -> `elem = element(symbol_or_z)`.
-         - Populate and return `ElementProperties` with `elem.atomic_number`, `elem.symbol`, `elem.name`, `atomic_weight=float(elem.mass)`, `elem.covalent_radius_pyykko`, and `elem.vdw_radius_bondi`.
-       - Implement `@staticmethod @functools.lru_cache(maxsize=128) def get_element_mass(symbol: str) -> float`:
-         - Dynamically query `float(element(symbol).mass)`.
-  3. Absolute Anti-Spoofing & Zero-Mock Enforcement:
-     - Strictly zero hardcoded atomic mass dictionaries, static lookup arrays, or periodic table lists in the codebase.
-     - All unit conversions and physical calculations throughout the engine must derive directly from `PhysicalConstantsRegistry`.
+  1. Implement Pydantic v2 execution provenance model `ProvenanceMetadata`:
+     - `model_config = ConfigDict(extra="forbid", frozen=True)`
+     - Fields:
+       - `git_commit_hash: str = Field(..., pattern=r"^[a-f0-9]{40,64}$")`
+       - `git_dirty_flag: bool`
+       - `python_version: str`
+       - `cochem_version: str`
+       - `environment_lock_hash: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `codata_version: str = Field(default="CODATA 2018")`
+       - `timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cli_command: str`
+       - `thermodynamic_state: Dict[str, float] = Field(default_factory=lambda: {"T_K": 298.15, "P_atm": 1.0})`
+  2. Implement `ProvenanceStamper`:
+     - `@classmethod def compute_chunks_sha256(cls, h5_file: h5py.File) -> str`:
+       - Call `h5_file.flush()` to ensure disk synchronization.
+       - Initialize SHA-256 hasher: `hasher = hashlib.sha256()`.
+       - Recursively discover all dataset paths using `h5_file.visititems(...)`, collecting paths where `isinstance(obj, h5py.Dataset)`.
+       - Sort dataset paths in deterministic lexicographical order.
+       - For each dataset:
+         - Update hasher with dataset path UTF-8 bytes: `hasher.update(path.encode("utf-8"))`.
+         - Update hasher with data type: `hasher.update(str(dset.dtype).encode("utf-8"))`.
+         - Update hasher with tensor shape: `hasher.update(str(dset.shape).encode("utf-8"))`.
+         - Direct Chunk Reading without Array Allocations:
+           - If `dset.chunks is not None`:
+             - Iterate chunk slices via `dset.iter_chunks()`.
+             - Derive chunk start offset tuple: `tuple(chunk_info[i].start or 0 for i in range(len(chunk_info)))`.
+             - Read raw chunk bytes via `dset.id.read_direct_chunk(chunk_offset)`.
+             - Feed raw chunk bytes into `hasher.update(raw_chunk)`.
+             - Handle sparse unallocated chunks deterministically: catch `RuntimeError` where `"not allocated"` or `"chunk storage"` is in error message, and update hasher with `b"UNALLOCATED_CHUNK"`. Re-raise unexpected runtime errors.
+           - Else (contiguous or compact dataset):
+             - Extract contiguous bytes via `np.ascontiguousarray(dset[()]).tobytes()` and update hasher.
+       - Return `hasher.hexdigest()`.
+     - `@classmethod def stamp(cls, file_path: Path, metadata: ProvenanceMetadata, private_key: Optional[ed25519.Ed25519PrivateKey] = None) -> str`:
+       - Open HDF5 file in `"r+"` mode: `with h5py.File(file_path, "r+") as f:`.
+       - Compute chunk Merkle digest: `chunk_digest = cls.compute_chunks_sha256(f)`.
+       - Serialize `metadata` to JSON dictionary via `meta_dict = metadata.model_dump(mode="json")`.
+       - Inject chunk root hash: `meta_dict["chunk_sha256_root"] = chunk_digest`.
+       - Generate canonical JSON byte string: `canonical_json = json.dumps(meta_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")` to eliminate float/int type coercion ambiguities.
+       - If `private_key is not None`:
+         - Generate Ed25519 asymmetric signature: `sig = private_key.sign(canonical_json)`.
+         - Base64-encode signature string: `sig_b64 = base64.b64encode(sig).decode("ascii")`.
+       - Populate individual root attributes (`/ .attrs`):
+         - `f.attrs["git_commit_hash"] = metadata.git_commit_hash`
+         - `f.attrs["git_dirty_flag"] = metadata.git_dirty_flag`
+         - `f.attrs["python_version"] = metadata.python_version`
+         - `f.attrs["cochem_version"] = metadata.cochem_version`
+         - `f.attrs["environment_lock_hash"] = metadata.environment_lock_hash`
+         - `f.attrs["codata_version"] = metadata.codata_version`
+         - `f.attrs["timestamp_utc"] = metadata.timestamp_utc.isoformat()`
+         - `f.attrs["cli_command"] = metadata.cli_command`
+         - `f.attrs["thermodynamic_state"] = json.dumps(metadata.thermodynamic_state, sort_keys=True)`
+       - Populate root cryptographic manifest and signature:
+         - `f.attrs["canonical_manifest_json"] = canonical_json.decode("utf-8")`
+         - `f.attrs["chunk_sha256_root"] = chunk_digest`
+         - `f.attrs["provenance_signature"] = sig_b64`
+       - Call `f.flush()` and return `sig_b64`.
+     - `@classmethod def verify(cls, file_path: Path, public_key: Optional[ed25519.Ed25519PublicKey] = None) -> bool`:
+       - Open HDF5 file in `"r"` mode.
+       - Retrieve `stored_manifest_raw = f.attrs.get("canonical_manifest_json", "")` and `stored_sig = f.attrs.get("provenance_signature", "")`. Return `False` if manifest missing.
+       - Normalize manifest to string and UTF-8 bytes.
+       - Parse `meta_dict = json.loads(stored_manifest_str)`; return `False` on JSON decoding failure.
+       - Extract `expected_chunk_hash = meta_dict.get("chunk_sha256_root", "")`.
+       - Recompute `actual_chunk_hash = cls.compute_chunks_sha256(f)`.
+       - If not `expected_chunk_hash` or `expected_chunk_hash != actual_chunk_hash`: return `False`.
+       - If `public_key is not None`:
+         - If not `stored_sig`: return `False`.
+         - Decode signature: `sig_bytes = base64.b64decode(stored_sig)`.
+         - Verify signature: `public_key.verify(sig_bytes, stored_manifest_bytes)`. Return `False` on `(InvalidSignature, ValueError, TypeError)`.
+       - Return `True` upon full cryptographic and chunk digest verification.
 
 ---
 
-### Prompt 3 of 6: Hardened Allowlist-Based AST Pre-Import Security Scanner
-* **Target File**: `src/cochem/plugins/ast_scanner.py`
-* **Dependencies**: `ast`, `typing`, `dataclasses`, Standard Library
+### Prompt 3 of 6: Standardized `.cochem_archive` Container Format & Security Engine
+* **Target File**: `src/cochem/storage/cochem_archive.py`
+* **Dependencies**: `datetime`, `hashlib`, `io`, `pathlib`, `shutil`, `tarfile`, `typing`, `uuid`, `pydantic>=2.0.0`, `zstandard`, Standard Library
 * **Task Summary**:
   1. Implement domain exception:
-     - `PluginSecurityViolationError(PermissionError)`: Raised when untrusted plugin source code contains prohibited AST syntax, unauthorized module imports, dunder gadget traversals, or dangerous builtins.
-  2. Implement `PluginASTSecurityScanner(ast.NodeVisitor)` with strict allowlist and blacklist sets:
-     - `ALLOWED_MODULES: Set[str]`: Enforce strict allowlist permitting only verified scientific, utility, and legitimate core host plugin interfaces:
-       ```python
-       ALLOWED_MODULES = {
-           "math", "numpy", "scipy", "mendeleev", "dataclasses",
-           "typing", "collections", "itertools", "functools", "json", "re",
-           "abc", "cochem", "src"
-       }
-       ```
-     - `PROHIBITED_NAMES: Set[str]`: Blacklist dangerous builtins, execution vectors, reflection hooks, and dunder traversal tokens:
-       ```python
-       PROHIBITED_NAMES = {
-           "eval", "exec", "compile", "__import__", "globals", "locals", "vars",
-           "getattr", "setattr", "delattr", "hasattr", "open", "input", "breakpoint",
-           "memoryview", "__builtins__", "__subclasses__", "__bases__", "__class__"
-       }
-       ```
-     - `visit_Import(self, node: ast.Import) -> None`:
-       - Iterate over `node.names`.
-       - Extract root module: `root_mod = alias.name.split(".")[0]`.
-       - If `root_mod not in self.ALLOWED_MODULES`: raise `PluginSecurityViolationError(f"Prohibited module import: {alias.name}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_ImportFrom(self, node: ast.ImportFrom) -> None`:
-       - Ban relative imports without root: if `not node.module`, raise `PluginSecurityViolationError("Relative imports without module name are prohibited.")`.
-       - Extract root module: `root_mod = node.module.split(".")[0]`.
-       - If `root_mod not in self.ALLOWED_MODULES`: raise `PluginSecurityViolationError(f"Prohibited from-import module: {node.module}")`.
-       - Inspect imported members:
-         - If `alias.name == "*"`: raise `PluginSecurityViolationError("Wildcard imports ('from ... import *') are prohibited.")`.
-         - If `alias.name in self.PROHIBITED_NAMES` or `alias.name.startswith("_")`: raise `PluginSecurityViolationError(f"Prohibited member import: {alias.name}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Attribute(self, node: ast.Attribute) -> None`:
-       - Block private and dunder attribute traversal: if `node.attr.startswith("_")` or `node.attr in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited attribute or dunder access: {node.attr}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Name(self, node: ast.Name) -> None`:
-       - Block references to dangerous identifiers: if `node.id in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited identifier reference: {node.id}")`.
-       - Recurse via `self.generic_visit(node)`.
-     - `visit_Call(self, node: ast.Call) -> None`:
-       - Block direct calls to prohibited identifiers: if `isinstance(node.func, ast.Name) and node.func.id in self.PROHIBITED_NAMES`:
-         raise `PluginSecurityViolationError(f"Prohibited call: {node.func.id}")`.
-       - Recurse via `self.generic_visit(node)`.
-  3. Implement helper function `scan_plugin_source(source_code: str, filename: str = "<plugin>") -> None`:
-     - Parse AST via `tree = ast.parse(source_code, filename=filename)`.
-     - Instantiate `PluginASTSecurityScanner()` and invoke `.visit(tree)`.
+     - `ArchiveSecurityError(Exception)`: Raised when an archive violates sandbox isolation, containment boundaries, path traversal checks, symlink/hardlink restrictions, or member integrity checks.
+  2. Implement Pydantic v2 data models:
+     - `FileChecksum`:
+       - `model_config = ConfigDict(extra="forbid", frozen=True)`
+       - `sha256: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `size_bytes: int = Field(..., ge=0)`
+     - `ArchiveManifest`:
+       - `model_config = ConfigDict(extra="forbid")`
+       - `schema_version: str = Field(default="1.0.0", pattern=r"^\d+\.\d+\.\d+$")`
+       - `archive_id: UUID = Field(default_factory=uuid4)`
+       - `created_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cochem_version: str`
+       - `files: Dict[str, FileChecksum]`
+       - `metadata: Dict[str, Any] = Field(default_factory=dict)`
+       - `@model_validator(mode="after") def validate_core_files(self) -> "ArchiveManifest"`: Assert `"data.h5" in self.files`, raising `ValueError("Archive manifest must contain primary 'data.h5' store.")` if absent.
+  3. Implement archive packager and unpacker `CochemArchive`:
+     - Enforce `MAX_EXTRACTION_BYTES: int = 10 * 1024 * 1024 * 1024` (10 GB decompression bomb defense).
+     - Static helper `_compute_sha256(path: Path) -> str`: Read in 64 KB chunks and return hexdigest.
+     - `@classmethod def pack(cls, source_dir: Path, output_archive: Path, cochem_version: str, metadata: Optional[Dict[str, Any]] = None, cctx_level: int = 6) -> Path`:
+       - Resolve `source_dir = source_dir.resolve()`.
+       - Assert `(source_dir / "data.h5").exists()`; raise `FileNotFoundError` if missing.
+       - Walk directory via `sorted(source_dir.rglob("*"))`. For every regular file that is not a symlink and not named `"manifest.json"`, compute relative POSIX path, SHA-256 digest, and file size in bytes, recording in `files_map`.
+       - Instantiate `ArchiveManifest`, serialize via `manifest.model_dump_json(indent=2).encode("utf-8")`.
+       - Initialize `zstandard.ZstdCompressor(level=cctx_level)`.
+       - Create parent directories for `output_archive`.
+       - Open output file and wrap with `cctx.stream_writer(f_out)` and `tarfile.open(fileobj=compressor, mode="w|")`.
+       - Normalize `TarInfo` headers for reproducible archiving: fixed timestamp `manifest.created_utc`, `mode=0o644`, `uid=0`, `gid=0`, empty `uname` and `gname`.
+       - Write `manifest.json` as the initial archive member, followed by all files in deterministic sorted order.
+       - Return `output_archive`.
+     - `@classmethod def unpack(cls, archive_path: Path, destination_dir: Path) -> ArchiveManifest`:
+       - Resolve `destination_dir = destination_dir.resolve()`, creating directories via `mkdir(parents=True, exist_ok=True)`.
+       - Initialize `zstandard.ZstdDecompressor()`, stream reading from `archive_path`, and open `tarfile.open(fileobj=decompressor, mode="r|")`.
+       - Iterate over tar members:
+         - Reject links and special device nodes: if `member.islnk() or member.issym() or member.ischr() or member.isblk() or member.isfifo()`, raise `ArchiveSecurityError(f"Archive contains forbidden link or special file: '{member.name}'")`.
+         - Path sanitization: normalize path separators (`\\` to `/`), strip leading slashes.
+         - Reject path traversal attempts containing `:`, starting with `/`, or containing `..` path segments via `ArchiveSecurityError`.
+         - Resolve destination path: `target_path = (destination_dir / norm_name).resolve()`.
+         - Assert path containment: assert `target_path.is_relative_to(destination_dir)`; raise `ArchiveSecurityError(f"Path traversal detected for member: '{member.name}'")` otherwise.
+         - Enforce decompression quota: accumulate `total_extracted_bytes += member.size`. If `total_extracted_bytes > cls.MAX_EXTRACTION_BYTES`, raise `ArchiveSecurityError(f"Extraction exceeded maximum allowable limit ({cls.MAX_EXTRACTION_BYTES} bytes)")`.
+         - If directory: `target_path.mkdir(parents=True, exist_ok=True)`.
+         - If file: create parent directory, extract file via `tar.extractfile(member)`, stream write to `target_path`, and track in `extracted_rel_paths`.
+         - Any other member type: raise `ArchiveSecurityError`.
+       - Validate manifest existence: `manifest_path = destination_dir / "manifest.json"`; raise `FileNotFoundError` if missing.
+       - Parse manifest via `ArchiveManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))`.
+       - Verify member list completeness: assert `extracted_rel_paths == set(manifest.files.keys()) | {"manifest.json"}`; raise `ArchiveSecurityError` on any unmanifested or missing files.
+       - Verify file integrity: for each declared member, verify that physical file exists, file size matches `csum.size_bytes`, and SHA-256 digest matches `csum.sha256`. Raise `ArchiveSecurityError` on any mismatch.
+       - Return validated `manifest`.
 
 ---
 
-### Prompt 4 of 6: OS-Agnostic Plugin Architecture & Dynamic Lifecycle Registry
-* **Target File**: `src/cochem/plugins/cochem_plugin_manager.py`
-* **Dependencies**: `abc`, `ast`, `dataclasses`, `importlib.util`, `logging`, `os`, `pathlib`, `threading`, `filelock`, `typing`, `src.cochem.plugins.ast_scanner`, Standard Library
+### Prompt 4 of 6: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine
+* **Target File**: `src/cochem/intake/chemical_webhook.py`
+* **Dependencies**: `math`, `typing`, `pydantic>=2.0.0`, `mendeleev`, Standard Library
 * **Task Summary**:
-  1. Implement exception hierarchy and re-exports:
-     - `PluginLoadError(RuntimeError)`: Raised when dynamic module specification loading, compilation, or class instantiation fails.
-     - Re-export `PluginSecurityViolationError` and `PluginASTSecurityScanner` from `src.cochem.plugins.ast_scanner`.
-  2. Define plugin contracts and interfaces:
-     - `PluginMetadata(frozen=True)`: `name: str`, `version: str`, `author: str`, `description: str`.
-     - `PluginInterface(abc.ABC)` abstract base class:
-       - `@property @abc.abstractmethod def metadata(self) -> PluginMetadata: ...`
-       - `@abc.abstractmethod def initialize(self, context: Dict[str, Any]) -> None: ...`
-       - `@abc.abstractmethod def execute(self, payload: Dict[str, Any]) -> Dict[str, Any]: ...`
-       - `@abc.abstractmethod def teardown(self) -> None: ...`
-  3. Implement `PluginRegistry`:
-     - OS-Agnostic Directory Discovery Resolution:
-       - `__init__(self, plugin_dir: Optional[pathlib.Path] = None) -> None`:
-         1. Explicit constructor argument `plugin_dir` (if provided, resolved to absolute path).
-         2. Environment variable `COCHEM_PLUGINS_PATH` (if set in `os.environ`).
-         3. Cross-platform user home default: `(pathlib.Path.home() / ".cochem" / "plugins").resolve()`.
-       - Thread-safety primitives: initialize `self._lock: threading.RLock = threading.RLock()`.
-       - Storage: `self._plugins: Dict[str, PluginInterface] = {}`.
-     - `scan_and_register(self) -> List[str]`:
-       - Guard with `with self._lock:`.
-       - If `self.plugin_dir` does not exist, create it via `self.plugin_dir.mkdir(parents=True, exist_ok=True)` and return `[]`.
-       - Scan for all `*.py` files in `self.plugin_dir`, skipping files starting with `"__"`.
-       - For each file, load via `self._load_plugin_file(filepath)` inside a try-except block catching `(PluginSecurityViolationError, PluginLoadError)`.
-       - Fault-Tolerant Engine Startup: Log a warning on skipped non-compliant or malicious plugins (`logger.warning(f"Skipping non-compliant plugin '{filepath.name}': {err}")`) without halting engine initialization.
-       - Store valid plugin instances in `self._plugins[plugin.metadata.name] = plugin` and return registered names.
-     - `_load_plugin_file(self, path: pathlib.Path) -> Optional[PluginInterface]:`
-       - Read file content: `code = path.read_text(encoding="utf-8")`.
-       - Pre-import AST inspection: parse AST via `ast.parse` and execute `PluginASTSecurityScanner().visit(tree)`. If violation occurs, raises `PluginSecurityViolationError` before dynamic loading.
-       - Dynamic spec compilation: `spec = importlib.util.spec_from_file_location(path.stem, str(path))`. If `spec is None or spec.loader is None`, raise `PluginLoadError(f"Cannot load module specification for {path}")`.
-       - Module execution: `module = importlib.util.module_from_spec(spec)`, execute via `spec.loader.exec_module(module)`.
-       - Interface inspection: iterate over `dir(module)`. Locate class objects where `isinstance(cls, type) and issubclass(cls, PluginInterface) and cls is not PluginInterface`.
-       - Instantiate and return `cls()`. Return `None` if no valid `PluginInterface` subclass is found.
-     - `get_plugin(self, name: str) -> PluginInterface`:
-       - Guard with `with self._lock:`.
-       - If `name not in self._plugins`, raise `KeyError(f"Plugin '{name}' is not registered.")`.
-       - Return `self._plugins[name]`.
-     - `execute_plugin(self, name: str, payload: Dict[str, Any]) -> Dict[str, Any]`:
-       - Look up plugin via `self.get_plugin(name)` and return `plugin.execute(payload)`.
+  1. Define 3D coordinate type alias:
+     - `Coordinate3D = Annotated[List[float], Field(min_length=3, max_length=3)]`
+  2. Implement Pydantic v2 chemical ingress validator `ChemicalPayloadSchema`:
+     - `model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)`
+     - Fields:
+       - `job_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-\.]+$")`
+       - `smiles: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `inchi: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `symbols: Optional[List[str]] = Field(default=None, min_length=1, max_length=1000)`
+       - `coordinates_3d: Optional[List[Coordinate3D]] = Field(default=None, min_length=1, max_length=1000)`
+       - `charge: int = Field(default=0, ge=-20, le=20)`
+       - `spin_multiplicity: int = Field(default=1, ge=1, le=10)`
+       - `energy_unit: Literal["hartree", "kcal/mol", "eV"] = "hartree"`
+  3. Enforce chemical completeness and quantum invariants in `@model_validator(mode="after")`:
+     - Ingress Completeness:
+       - Assert that at least one valid representation is populated: `smiles`, `inchi`, or both `(coordinates_3d AND symbols)`. Raise `ValueError("Payload must contain at least one valid chemical representation: 'smiles', 'inchi', or both 'coordinates_3d' and 'symbols'.")` if none present.
+       - Assert coordinate and symbol symmetry: `coordinates_3d` requires `symbols` and vice-versa; raise `ValueError` if one is provided without the other.
+     - Coordinate & Element Validation:
+       - Assert length parity: `len(self.symbols) == len(self.coordinates_3d)`.
+       - Dynamic Element Resolution (Mendeleev Mandate): For each symbol in `self.symbols`, resolve its nuclear charge $Z$ dynamically via `mendeleev.element(canon_sym).atomic_number`. Validate that $1 \le Z \le 118$, raising `ValueError(f"Invalid chemical element: '{sym}'")` for unmapped symbols. Sum total nuclear charge: $Z_{\text{tot}} = \sum Z_i$.
+       - Coordinate Sanitization: Iterate through all coordinates in `self.coordinates_3d`; invoke `math.isfinite(coord)`. Raise `ValueError(f"Non-finite floating-point coordinate detected: {coord}")` on `NaN`, `+Inf`, or `-Inf`.
+     - Quantum Electron & Spin Parity Invariants:
+       - Net electron calculation: $N_{\text{elec}} = Z_{\text{tot}} - \text{charge}$.
+       - Assert positive electron count: if $N_{\text{elec}} \le 0$, raise `ValueError(f"Non-positive electron count (N_elec={N_elec}): total nuclear charge Z={Z_tot}, charge={self.charge}")`.
+       - Physical spin multiplicity upper bound: Assert $1 \le (2S+1) \le N_{\text{elec}} + 1$. If `self.spin_multiplicity > N_elec + 1`, raise `ValueError(f"Physical spin multiplicity bound violated: 2S+1={self.spin_multiplicity} exceeds maximum {N_elec + 1} for system with N_elec={N_elec} electrons.")`.
+       - Spin Parity Invariant ($N_{\text{elec}} \text{ even} \iff 2S+1 \text{ odd}$):
+         - Check parity condition: `if (n_electrons % 2) == (self.spin_multiplicity % 2):`
+         - Raise `ValueError(f"Quantum spin-parity violation: For N_elec={n_electrons}, spin_multiplicity (2S+1) must be {expected_parity}, got {self.spin_multiplicity}.")`.
+  4. Structured HTTP 422 Rejection Protocol:
+     - Implement helper function `format_validation_error_response(exc: Exception, job_id: Optional[str] = None) -> Dict[str, Any]` to return standardized JSON on validation failure:
+       ```json
+       {
+         "status": 422,
+         "error": "Unprocessable Entity",
+         "job_id": "JOB_ID",
+         "detail": "Error description",
+         "timestamp_utc": "ISO-8601"
+       }
+       ```
 
 ---
 
-### Prompt 5 of 6: Tripartite Storage Air-Gap Coordinator & Concurrency Governor
-* **Target File**: `src/cochem/core/airgap_coordinator.py`
-* **Dependencies**: `pathlib`, `os`, `sys`, `shutil`, `hashlib`, `typing`, `dataclasses`, `filelock`, `sqlite3`, `src.cochem.core.cochem_sandbox`, Standard Library
+### Prompt 5 of 6: High-Concurrency HDF5 SWMR PES Trajectory Store
+* **Target File**: `src/cochem/storage/cochem_core_pes_store.py`
+* **Dependencies**: `os`, `time`, `pathlib`, `typing`, `filelock`, `h5py`, `numpy`, `src.cochem.storage.hdf5_zstd`, Standard Library
 * **Task Summary**:
-  1. Define Tripartite Air-Gap Topology:
-     - Formal storage model enforcing the Disjointness Invariant:
-       $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
-     - Frozen dataclass `TripartiteStorageConfig`:
-       - `code_root: pathlib.Path`: Immutable source code root ($T_{\text{code}}$).
-       - `artifacts_root: pathlib.Path`: Append-only validated scientific deliverables and PES databases ($T_{\text{art}}$).
-       - `scratch_root: pathlib.Path`: Ephemeral per-job scratch space ($T_{\text{scr}}$).
-  2. Implement domain exception:
-     - `AirGapViolationError(PermissionError)`: Raised when storage paths intersect, overlap, or violate air-gap containment rules.
-  3. Implement `TripartiteAirGapCoordinator`:
-     - `__init__(self, config: TripartiteStorageConfig) -> None`:
-       - Canonicalize all roots via `p.resolve()`.
-       - Invoke `self.validate_disjointness()`.
-     - `validate_disjointness(self) -> None`:
-       - Verify that none of the three storage roots are identical or subdirectories of each other:
-         - Ensure `code_root` is not relative to `artifacts_root` or `scratch_root`.
-         - Ensure `artifacts_root` is not relative to `code_root` or `scratch_root`.
-         - Ensure `scratch_root` is not relative to `code_root` or `artifacts_root`.
-       - Verify that `pathlib.Path.cwd().resolve()` does not reside within `code_root`.
-       - Raise `AirGapViolationError` upon detecting any storage topology intersection.
-     - `create_sandboxed_workspace(self, job_id: str, timeout_seconds: float = 300.0) -> SandboxContext`:
-       - Generate job-specific ephemeral scratch path: `job_scratch = (self.config.scratch_root / f"cochem_exec_{job_id}").resolve()`.
-       - Path traversal validation: assert `job_scratch.is_relative_to(self.config.scratch_root)`; raise `AirGapViolationError(f"Job scratch path traversal detected: {job_id}")` if check fails.
-       - Instantiate and return `SandboxContext(SandboxConfig(scratch_parent_dir=job_scratch, timeout_seconds=timeout_seconds))`.
-     - `publish_artifact(self, source_path: pathlib.Path, relative_dest: pathlib.Path, compute_sha256: bool = True) -> Tuple[pathlib.Path, Optional[str]]`:
-       - Canonicalize `source = source_path.resolve()`. Ensure it resides strictly inside `self.config.scratch_root`.
-       - Canonicalize destination: `dest = (self.config.artifacts_root / relative_dest).resolve()`. Ensure it resides strictly inside `self.config.artifacts_root`.
-       - Destination parent directory created via `dest.parent.mkdir(parents=True, exist_ok=True)`.
-       - Compute SHA-256 hash of `source` before transfer if `compute_sha256` is `True`.
-       - Execute atomic file transfer (atomic rename if on same filesystem, or copy-then-unlink with atomic `.tmp` swap).
-       - Return `(dest, sha256_hash)`.
-  4. Multi-Tier Concurrency Governor:
-     - Implement `get_tier_file_lock(lock_path: pathlib.Path, timeout_sec: float = 30.0) -> filelock.FileLock`:
-       - Enforce OS-agnostic file locking via `filelock.FileLock` (banning POSIX-only `fcntl`).
-       - On HPC tiers (SLURM/PBS), file locks must be pinned exclusively to node-local scratch storage (`/tmp`, `$SLURM_TMPDIR`, or `$T_{\text{scr}}`) to prevent distributed filesystem deadlocks on NFS/Lustre.
-     - Implement `configure_sqlite_connection(conn: sqlite3.Connection, timeout_sec: float = 30.0) -> None`:
-       - Configure connection pragmas:
-         ```sql
-         PRAGMA journal_mode = WAL;
-         PRAGMA busy_timeout = 30000;
-         PRAGMA synchronous = NORMAL;
-         PRAGMA foreign_keys = ON;
-         ```
+  1. Early Environment & Process Configuration:
+     - Enforce `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at the top of the file before `h5py` import to disable driver-level filesystem locking across network and cluster mounts (NFS, Lustre).
+  2. Implement `SWMRPESStore`:
+     - `__init__(self, h5_path: Path, n_atoms: int = 1, zstd_config: Optional[HDF5ZstdConfig] = None, enable_swmr: bool = True) -> None`:
+       - Resolve paths: `self.h5_path = Path(h5_path).resolve()`, `self.lock_path = self.h5_path.with_suffix(".lock")`.
+       - Store `self.n_atoms = n_atoms`, `self.zstd_config = zstd_config or HDF5ZstdConfig()`, `self.enable_swmr = enable_swmr`.
+       - Initialize writer handle: `self._writer_file: Optional[h5py.File] = None`.
+       - Execute `self._preallocate_schema()`.
+     - `_preallocate_schema(self) -> None`:
+       - Create parent directory.
+       - Acquire exclusive file lock: `with FileLock(str(self.lock_path), timeout=10.0):`.
+       - If `not self.h5_path.exists()`:
+         - Open in `"w"` mode with `libver="latest"`.
+         - Derive chunk shapes and dataset kwargs via `self.zstd_config.resolve_chunk_shape_3d(self.n_atoms, 3, 8)` and `self.zstd_config.resolve_chunk_shape_1d(8)`.
+         - Pre-allocate extensible chunked datasets:
+           - `"coordinates"`: `shape=(0, self.n_atoms, 3)`, `maxshape=(None, self.n_atoms, 3)`, `dtype="float64"`, `**coords_kwargs`.
+           - `"energies"`: `shape=(0,)`, `maxshape=(None,)`, `dtype="float64"`, `**energy_kwargs`.
+         - Write root attributes: `f.attrs["schema_version"] = "1.0.0"`, `f.attrs["n_atoms"] = self.n_atoms`.
+         - Call `f.flush()`.
+     - `open_writer(self) -> None`:
+       - Open persistent writer handle: `self._writer_file = h5py.File(self.h5_path, "r+", libver="latest")`.
+       - If `self.enable_swmr and not self._writer_file.swmr_mode`: activate `self._writer_file.swmr_mode = True`.
+     - `close_writer(self) -> None`:
+       - If `self._writer_file is not None`: flush and close file, setting `self._writer_file = None`.
+     - `append_frames(self, coords: np.ndarray, energies: np.ndarray) -> None`:
+       - Convert to `np.float64` arrays; normalize dimensions: accept `(N, n_atoms, 3)` or `(n_atoms, 3)`, and `(N,)` or scalar.
+       - Assert coordinate shapes match `(N, self.n_atoms, 3)` and frame counts match energy points count.
+       - If inside persistent writer (`self._writer_file is not None`):
+         - Resize `ds_coords` and `ds_energy` datasets by $N$ frames.
+         - Assign newly written array slices.
+         - Atomically flush datasets and file: `ds_coords.flush()`, `ds_energy.flush()`, `self._writer_file.flush()`.
+       - Else:
+         - Acquire exclusive `FileLock(str(self.lock_path), timeout=30.0)`.
+         - Open `h5py.File(self.h5_path, "r+", libver="latest")`.
+         - Activate SWMR mode if enabled, resize datasets, write frames, and flush.
+     - `read_trajectory(self, max_retries: int = 5, retry_delay_s: float = 0.05) -> Dict[str, np.ndarray]`:
+       - Lockless non-blocking reader execution without acquiring the writer's `FileLock`.
+       - In retry loop up to `max_retries`:
+         - Open in read-only mode: `with h5py.File(self.h5_path, "r", libver="latest", swmr=self.enable_swmr) as f:`.
+         - If `self.enable_swmr`: invoke `f["coordinates"].refresh()` and `f["energies"].refresh()` to fetch updated chunk index pointers flushed by writer.
+         - Return `{"coordinates": f["coordinates"][:], "energies": f["energies"][:]}`.
+         - On `(RuntimeError, OSError)` during concurrent flush boundaries, sleep `retry_delay_s * (2 ** attempt)` and retry.
+         - Raise `RuntimeError("SWMR reader refresh failed to synchronize.")` if retries exhausted.
 
 ---
 
 ### Prompt 6 of 6: Physical Integration & Zero-Mock Verification Suite
-* **Target File**: `tests/integration/test_base_core_orchestration_part3.py`
-* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `signal`, `tempfile`, `mendeleev`, `scipy.constants`, `filelock`, `src.cochem.core.cochem_sandbox`, `src.cochem.core.cochem_constants`, `src.cochem.plugins.ast_scanner`, `src.cochem.plugins.cochem_plugin_manager`, `src.cochem.core.airgap_coordinator`, Standard Library
+* **Target File**: `tests/integration/test_base_data_and_storage_part1.py`
+* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `time`, `concurrent.futures`, `multiprocessing`, `cryptography`, `h5py`, `numpy`, `zstandard`, `mendeleev`, `src.cochem.storage.hdf5_zstd`, `src.cochem.provenance.provenance_stamper`, `src.cochem.storage.cochem_archive`, `src.cochem.intake.chemical_webhook`, `src.cochem.storage.cochem_core_pes_store`, Standard Library
 * **Task Summary**:
-  1. Implement exhaustive integration and compliance tests without any mocks, stubs, or synthetic fixtures.
-  2. Sandbox Path Containment & Jailbreak Security Tests:
-     - Test valid file creation and canonical path validation inside `sandbox.root`.
-     - Test adversarial path traversal: assert `sandbox.validate_path(pathlib.Path("../../../etc/shadow"))` raises `SandboxSecurityViolationError`.
-     - Test sibling directory collision: assert `sandbox.validate_path(pathlib.Path(str(sandbox.root) + "_sibling") / "evil.txt")` raises `SandboxSecurityViolationError`.
-     - Test reserved Win32 device names: assert validating `sandbox.root / "NUL"` or `sandbox.root / "CON"` raises `SandboxSecurityViolationError`.
-     - Test NTFS Alternate Data Streams: assert validating `sandbox.root / "test.dat:hidden"` raises `SandboxSecurityViolationError`.
-     - Test multi-pass cleanup with exponential backoff on simulated contention.
-  3. Dynamic Mendeleev & CODATA Physical Constants Tests:
-     - Verify dynamic atomic mass retrieval for C, Fe, and U via `PhysicalConstantsRegistry.get_element_mass(...)`:
-       - Assert $12.010 < m_{\text{C}} < 12.012$.
-       - Assert $55.84 < m_{\text{Fe}} < 55.85$.
-       - Assert $238.02 < m_{\text{U}} < 238.04$.
-     - Verify fundamental CODATA 2018 constants via `PhysicalConstantsRegistry.get_constant(...)`:
-       - Planck's constant ($h \approx 6.62607015 \times 10^{-34}\text{ J s}$, provenance `[E]`).
-       - Speed of light ($c = 299792458.0\text{ m/s}$, provenance `[E]`).
-       - Avogadro constant ($N_A \approx 6.02214076 \times 10^{23}\text{ mol}^{-1}$, provenance `[E]`).
-       - Boltzmann constant ($k_B \approx 1.380649 \times 10^{-23}\text{ J/K}$, provenance `[E]`).
-       - Standard states: $T^\circ = 298.15\text{ K}$, $P^\circ = 101325.0\text{ Pa}$ (provenance `[E]`).
-     - Verify `@functools.lru_cache` operation and immutability of returned models.
-  4. AST Security Scanner Hardening Tests:
-     - Test direct execution blocking: `import os\nos.system('rm -rf /')` raises `PluginSecurityViolationError`.
-     - Test wildcard import evasion: `from os import *` raises `PluginSecurityViolationError`.
-     - Test from-import evasion: `from subprocess import run\nrun(['whoami'])` raises `PluginSecurityViolationError`.
-     - Test network socket blocking: `import socket` and `from socket import socket` raise `PluginSecurityViolationError`.
-     - Test dunder gadget traversal: `x = ().__class__.__bases__[0].__subclasses__()` raises `PluginSecurityViolationError`.
-     - Test dynamic evaluation: `getattr(__builtins__, 'eval')('1+1')` raises `PluginSecurityViolationError`.
-     - Test valid allowlisted plugin code (using `math`, `numpy`, `mendeleev`, `dataclasses`, `src.cochem.plugins.cochem_plugin_manager`) passes cleanly without error.
-  5. OS-Agnostic Plugin Lifecycle & Fault Tolerance Tests:
-     - Provision an ephemeral plugin directory with one valid `PluginInterface` implementation and one malicious script.
-     - Verify `PluginRegistry.scan_and_register()` successfully registers the compliant plugin and skips the malicious plugin with a logged warning, without crashing the process.
-     - Test dynamic execution via `PluginRegistry.execute_plugin()`.
-  6. Tripartite Storage Air-Gap & Concurrency Governor Tests:
-     - Test disjoint storage configuration: assert `validate_disjointness()` succeeds for three separate roots.
-     - Test intersection detection: assert initializing with overlapping roots raises `AirGapViolationError`.
-     - Test sandboxed artifact publishing: create output in sandbox, publish to artifacts; verify atomic file placement and SHA-256 seal.
-     - Test multi-process file locking using `filelock.FileLock`.
+  1. Implement exhaustive integration and compliance tests executing exclusively against authentic filesystem resources in temporary directories (strictly zero mocks).
+  2. Lossless Zstd Compression & Fletcher32 Checksum Tests:
+     - Initialize `HDF5ZstdConfig(clevel=3, enable_shuffle=True, enable_fletcher32=True)`.
+     - Generate authentic double-precision floating-point molecular trajectory coordinate tensors (e.g. 500 frames, 12 atoms, 3 dimensions).
+     - Write to HDF5 store using generated chunk kwargs; close and re-open.
+     - Verify bit-for-bit lossless equality between original and decompressed coordinates via `np.testing.assert_array_equal()`.
+     - Verify HDF5 filter registration: assert Zstd filter (`32015`) and Fletcher32 checksum filter are present on the dataset chunks.
+  3. Cryptographic Merkle Provenance & Ed25519 Tamper Detection Tests:
+     - Generate an authentic Ed25519 private/public keypair.
+     - Populate `ProvenanceMetadata` with valid git commit SHA, environment hash, and thermodynamic conditions.
+     - Stamp HDF5 store via `ProvenanceStamper.stamp()`; verify root attributes (`canonical_manifest_json`, `chunk_sha256_root`, `provenance_signature`).
+     - Verify provenance via `ProvenanceStamper.verify(...)`: assert `verify == True`.
+     - Single-Bit Byte Alteration Attack: Open the stamped HDF5 file in binary mode (`"r+b"`), flip a single byte within an allocated dataset chunk, and call `verify(...)`: assert verification fails (`False`).
+     - Signature Forgery Test: Verify authentic file against an unauthenticated public key: assert verification fails (`False`).
+  4. Standardized `.cochem_archive` Security & Zip Slip Defense Tests:
+     - Package a directory containing `data.h5`, `logs/execution.log`, and `manifest.json` into `.cochem_archive` via `CochemArchive.pack()`.
+     - Unpack into sterile destination directory via `CochemArchive.unpack()`. Verify bit-level SHA-256 and size matching across all members.
+     - Zip Slip & Path Traversal Attack: Construct a malicious `.tar.zst` containing a member named `../../etc/passwd` or `../traversal.h5`. Assert `unpack()` aborts immediately and raises `ArchiveSecurityError`.
+     - Symlink Escape Attack: Construct an archive containing a symbolic link pointing to a target outside the destination root. Assert `unpack()` raises `ArchiveSecurityError`.
+     - Decompression Bomb Defense: Verify extraction aborts if member size exceeds `MAX_EXTRACTION_BYTES`.
+     - Checksum Tamper Test: Modify member payload after archive creation; assert `ArchiveSecurityError` on checksum mismatch.
+  5. Air-Gapped Chemical Webhook Validation & Quantum Invariant Tests:
+     - Test valid chemical payloads:
+       - Neutral singlet water molecule ($H_2O$, charge 0, spin multiplicity 1, valid coordinates): assert successful validation.
+       - Radical doublet hydroxyl ($OH^\bullet$, charge 0, spin multiplicity 2, valid coordinates): assert successful validation.
+     - Test quantum invariant rejections:
+       - Non-positive electron count: $H_2^{2+}$ (charge +2, $N_{\text{elec}} = 0$) -> assert raises `ValueError`.
+       - Physical spin bound exceeded: $H_2O$ with $2S+1 = 15 > 10 + 1$ -> assert raises `ValueError`.
+       - Spin parity violation: $H_2O$ ($N_{\text{elec}} = 10$, even) with even multiplicity ($2S+1 = 2$) -> assert raises `ValueError`.
+     - Test coordinate sanitization: coordinates containing `float('nan')` or `float('inf')` -> assert raises `ValueError`.
+     - Test dynamic element lookup: symbols containing invalid element `"Xx"` -> assert raises `ValueError`.
+  6. High-Concurrency SWMR Throughput & Zero-Stall Validation:
+     - Pre-allocate trajectory store for a 5-atom system with SWMR enabled.
+     - Launch live background writer process continuously appending 1,000 frames in batches of 50 frames with active flushing.
+     - Concurrently execute $\ge 4$ independent reader processes reading trajectories via `read_trajectory()`.
+     - Assert zero read-lock contention stalls, zero unhandled synchronization exceptions, and verify that extracted coordinate frames match written frames without corruption.
   7. Anti-Spoofing & Zero-Mock AST Audit:
-     - Parse AST of all target production files (`cochem_sandbox.py`, `cochem_constants.py`, `ast_scanner.py`, `cochem_plugin_manager.py`, `airgap_coordinator.py`).
-     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, empty `pass` blocks, and `NotImplementedError` stubs.
+     - Parse AST of all target production files (`hdf5_zstd.py`, `provenance_stamper.py`, `cochem_archive.py`, `chemical_webhook.py`, `cochem_core_pes_store.py`).
+     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, `MagicMock`, empty `pass` blocks, and `NotImplementedError` stubs.
+
+---
+
+## 4. Verification & Acceptance Criteria
+
+- **4.1 Compression Fidelity & Checksums**: Bit-for-bit equivalence between uncompressed and decompressed floating-point trajectory coordinates after Zstd roundtrip with active Fletcher32 checksum validation.
+- **4.2 Provenance Integrity & Tamper Detection**: Bit-level chunk digest verification using `ProvenanceStamper`, ensuring cryptographic verification passes on authentic files and fails immediately on single-bit byte alterations or unauthenticated signatures.
+- **4.3 Archive Traversal Security**: Rejection of malicious archive tarballs attempting path traversal (`Zip Slip`, symlink escapes, unmanifested files) outside destination directories with `ArchiveSecurityError`.
+- **4.4 Webhook Ingress Rejection**: Immediate rejection (HTTP 422) of chemical payloads missing valid representations, containing unmapped element symbols, exhibiting symbol-coordinate count mismatches, containing non-finite floats, or violating spin-parity constraints.
+- **4.5 SWMR Concurrency Throughput**: Concurrent execution of $\ge 4$ independent reader processes extracting trajectory metrics in real time from a live writer appending 10,000 frames, achieving zero read-lock stalls and zero data corruption.
+I have initiated the mandatory Council adversarial audit by invoking [`cochem-audit`](conversation://a5c8ec2d-03f3-4411-9df3-c0cf797bb69c) to inspect the decomposed prompt schedule for `SRS_Chunk_07_BASE_Data_and_Storage_Part_1`. Awaiting the auditor's verdict.
+I have provided the full decomposed prompt schedule to the [`cochem-audit`](conversation://a5c8ec2d-03f3-4411-9df3-c0cf797bb69c) subagent for rigorous adversarial verification against the Zero-Mock, Mendeleev, Single Target File, Tripartite Air-Gap, and SWMR directives. Standing by for the audit verdict.
+# Sequential Execution Prompt Schedule: CoChem-BASE Data & Storage (Part 1)
+
+The **CoChem-BASE Software Requirements Specification (SRS): Data & Storage Part 1 (SRS_Chunk_07_BASE_Data_and_Storage_Part_1)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
+
+---
+
+## 1. Architectural Layout & Dependency DAG
+
+```mermaid
+graph TD
+    P1["Prompt 1: Lossless Zstd HDF5 Compression Pipeline (src/cochem/storage/hdf5_zstd.py)"] --> P5["Prompt 5: High-Concurrency HDF5 SWMR PES Trajectory Store (src/cochem/storage/cochem_core_pes_store.py)"]
+    P2["Prompt 2: Cryptographic Merkle Provenance Stamper & Ed25519 Signer (src/cochem/provenance/provenance_stamper.py)"] --> P3["Prompt 3: Standardized .cochem_archive Container Engine (src/cochem/storage/cochem_archive.py)"]
+    P1 --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_data_and_storage_part1.py)"]
+    P2 --> P6
+    P3 --> P6
+    P4["Prompt 4: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine (src/cochem/intake/chemical_webhook.py)"] --> P6
+    P5 --> P6
+```
+
+---
+
+## 2. Global Invariants & Mandates
+
+1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical HDF5 storage structures, real cryptographic primitives, and physical chemical invariants.
+2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental symbols, nuclear charges ($Z \in [1, 118]$), dynamic atomic masses, and isotopic distributions MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual mass lookup dictionaries in the codebase is strictly prohibited. All thermodynamic state constants must align with CODATA 2018.
+3. **Tripartite Storage Air-Gap Topology**: Disjointness between Code ($T_{\text{code}}$), Artifacts ($T_{\text{art}}$), and Scratch ($T_{\text{scr}}$) must be maintained at all times:
+   $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
+   Webhook ingress validation, archive unpacking, and HDF5 temporary dataset generation must execute entirely within the ephemeral per-job scratch space ($T_{\text{scr}}$). No outbound network requests are permitted (Zero-Network Air-Gap).
+4. **Multi-Tier Concurrency & Storage Invariants**:
+   - Cross-platform file locking: All concurrent HDF5 initialization phases and writer lifecycle operations must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
+   - Driver-level locking bypass: Set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at process initialization before importing `h5py` to prevent distributed filesystem deadlocks on network mounts (NFS, Lustre).
+   - High-throughput SWMR mode: Single-Writer Multiple-Reader (SWMR) access must enforce `libver="latest"`, pre-allocated extensible chunked datasets, and atomic `dataset.flush()` / `file.flush()` boundaries. Readers must execute lockless concurrent reads accompanied by `dataset.refresh()`.
+5. **6-Tier Environment Matrix Portability**:
+   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Path sanitization via `pathlib.Path`, explicit rejection of NTFS Alternate Data Streams (`:`), Windows reserved device names, and cross-platform relative path traversal (`Zip Slip`) prevention.
+   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Native CPU userspace execution without GPU VRAM allocation or CUDA lock requirements during compression and telemetry serialization.
+   - **HPC (SLURM/PBS)**: Node-local scratch storage pinning (`$SLURM_TMPDIR` or local `/tmp`) for file locks and ephemeral archive unpacking to eliminate distributed filesystem lock contention.
+6. **Single Target File Rule**: Each prompt specifies exactly one physical production script or test file.
+
+---
+
+## 3. Granular Execution Prompts
+
+### Prompt 1 of 6: Lossless Zstandard (Zstd) HDF5 Compression Pipeline
+* **Target File**: `src/cochem/storage/hdf5_zstd.py`
+* **Dependencies**: `dataclasses`, `typing`, `hdf5plugin`, `h5py`, `numpy`, Standard Library
+* **Task Summary**:
+  1. Implement frozen configuration dataclass `HDF5ZstdConfig`:
+     - Fields:
+       - `clevel: int = 3`: Zstd compression level (strictly bounded $1 \le \text{clevel} \le 22$).
+       - `enable_shuffle: bool = True`: Byte shuffling flag prior to Zstd compression to group significant mantissa/exponent bytes for floating-point tensors.
+       - `enable_fletcher32: bool = True`: Fletcher32 checksum filter flag for block-level corruption detection.
+       - `min_chunk_bytes: int = 64 * 1024`: Minimum chunk size boundary (64 KB).
+       - `max_chunk_bytes: int = 256 * 1024`: Maximum chunk size boundary (256 KB).
+     - Validation in `__post_init__()`:
+       - If `not (1 <= self.clevel <= 22)`: raise `ValueError(f"Zstd clevel must be in 1..22, got {self.clevel}")`.
+       - If `self.min_chunk_bytes <= 0 or self.max_chunk_bytes < self.min_chunk_bytes`: raise `ValueError(f"Invalid chunk byte bounds: [{self.min_chunk_bytes}, {self.max_chunk_bytes}]")`.
+     - Lossy Filter Prohibition: Strictly enforce a complete ban on lossy compression filters (e.g., `scaleoffset`), guaranteeing bit-for-bit lossless precision for IEEE 754 float64/float32 trajectories.
+  2. Implement dynamic chunk derivation methods:
+     - `resolve_chunk_shape_3d(self, n_atoms: int, spatial_dim: int = 3, itemsize: int = 8, max_frames: Optional[int] = None) -> Tuple[int, int, int]`:
+       - Assert `n_atoms > 0`, `spatial_dim > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Calculate frame byte footprint: `frame_bytes = n_atoms * spatial_dim * itemsize`.
+       - Derive target chunk size: `target_bytes = (self.min_chunk_bytes + self.max_chunk_bytes) // 2`.
+       - Calculate frame chunk count: `chunk_frames = max(1, target_bytes // frame_bytes)`.
+       - Pre-allocate frame coordinate chunks along the primary frame dimension to prevent single-frame chunking (`chunk_frames=1`) on small systems, eliminating HDF5 B-tree index bloat.
+       - If `max_frames is not None and max_frames > 0`: cap `chunk_frames = min(chunk_frames, max_frames)`.
+       - Return `(chunk_frames, n_atoms, spatial_dim)`.
+     - `resolve_chunk_shape_1d(self, itemsize: int = 8, max_len: Optional[int] = None) -> Tuple[int]`:
+       - Assert `itemsize > 0`; raise `ValueError` otherwise.
+       - Target 1D energy tensors bounded between 64 KB and 256 KB.
+       - Derive `chunk_len = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // itemsize)`.
+       - If `max_len is not None and max_len > 0`: cap `chunk_len = min(chunk_len, max_len)`.
+       - Return `(chunk_len,)`.
+     - `resolve_chunk_shape_2d(self, n_features: int, itemsize: int = 8, max_rows: Optional[int] = None) -> Tuple[int, int]`:
+       - Assert `n_features > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Derive `row_bytes = n_features * itemsize`.
+       - Derive `chunk_rows = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // row_bytes)`.
+       - If `max_rows is not None and max_rows > 0`: cap `chunk_rows = min(chunk_rows, max_rows)`.
+       - Return `(chunk_rows, n_features)`.
+  3. Implement dataset keyword generator:
+     - `get_dataset_kwargs(self, chunk_shape: Tuple[int, ...], is_numeric: bool = True) -> Dict[str, Any]`:
+       - Construct dictionary with `"chunks": chunk_shape` and unpack `hdf5plugin.Zstd(clevel=self.clevel)` (Filter ID `32015`).
+       - If `is_numeric and self.enable_shuffle`: set `kwargs["shuffle"] = True`.
+       - If `is_numeric and self.enable_fletcher32`: set `kwargs["fletcher32"] = True`.
+       - Return `kwargs`.
+  4. CPU Resource Isolation:
+     - Ensure all compression, decompression, and chunk checksumming operations execute strictly in CPU userspace I/O without allocating GPU VRAM or acquiring CUDA context locks.
+
+---
+
+### Prompt 2 of 6: Cryptographic Merkle Provenance Stamper & Ed25519 Signer
+* **Target File**: `src/cochem/provenance/provenance_stamper.py`
+* **Dependencies**: `base64`, `datetime`, `hashlib`, `json`, `pathlib`, `typing`, `cryptography`, `h5py`, `numpy`, `pydantic>=2.0.0`, Standard Library
+* **Task Summary**:
+  1. Implement Pydantic v2 execution provenance model `ProvenanceMetadata`:
+     - `model_config = ConfigDict(extra="forbid", frozen=True)`
+     - Fields:
+       - `git_commit_hash: str = Field(..., pattern=r"^[a-f0-9]{40,64}$")`
+       - `git_dirty_flag: bool`
+       - `python_version: str`
+       - `cochem_version: str`
+       - `environment_lock_hash: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `codata_version: str = Field(default="CODATA 2018")`
+       - `timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cli_command: str`
+       - `thermodynamic_state: Dict[str, float] = Field(default_factory=lambda: {"T_K": 298.15, "P_atm": 1.0})`
+  2. Implement `ProvenanceStamper`:
+     - `@classmethod def compute_chunks_sha256(cls, h5_file: h5py.File) -> str`:
+       - Call `h5_file.flush()` to ensure disk synchronization.
+       - Initialize SHA-256 hasher: `hasher = hashlib.sha256()`.
+       - Recursively discover all dataset paths using `h5_file.visititems(...)`, collecting paths where `isinstance(obj, h5py.Dataset)`.
+       - Sort dataset paths in deterministic lexicographical order.
+       - For each dataset:
+         - Update hasher with dataset path UTF-8 bytes: `hasher.update(path.encode("utf-8"))`.
+         - Update hasher with data type: `hasher.update(str(dset.dtype).encode("utf-8"))`.
+         - Update hasher with tensor shape: `hasher.update(str(dset.shape).encode("utf-8"))`.
+         - Direct Chunk Reading without Array Allocations:
+           - If `dset.chunks is not None`:
+             - Iterate chunk slices via `dset.iter_chunks()`.
+             - Derive chunk start offset tuple: `tuple(chunk_info[i].start or 0 for i in range(len(chunk_info)))`.
+             - Read raw chunk bytes via `dset.id.read_direct_chunk(chunk_offset)`.
+             - Feed raw chunk bytes into `hasher.update(raw_chunk)`.
+             - Handle sparse unallocated chunks deterministically: catch `RuntimeError` where `"not allocated"` or `"chunk storage"` is in error message, and update hasher with `b"UNALLOCATED_CHUNK"`. Re-raise unexpected runtime errors.
+           - Else (contiguous or compact dataset):
+             - Extract contiguous bytes via `np.ascontiguousarray(dset[()]).tobytes()` and update hasher.
+       - Return `hasher.hexdigest()`.
+     - `@classmethod def stamp(cls, file_path: Path, metadata: ProvenanceMetadata, private_key: Optional[ed25519.Ed25519PrivateKey] = None) -> str`:
+       - Open HDF5 file in `"r+"` mode: `with h5py.File(file_path, "r+") as f:`.
+       - Compute chunk Merkle digest: `chunk_digest = cls.compute_chunks_sha256(f)`.
+       - Serialize `metadata` to JSON dictionary via `meta_dict = metadata.model_dump(mode="json")`.
+       - Inject chunk root hash: `meta_dict["chunk_sha256_root"] = chunk_digest`.
+       - Generate canonical JSON byte string: `canonical_json = json.dumps(meta_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")` to eliminate float/int type coercion ambiguities.
+       - If `private_key is not None`:
+         - Generate Ed25519 asymmetric signature: `sig = private_key.sign(canonical_json)`.
+         - Base64-encode signature string: `sig_b64 = base64.b64encode(sig).decode("ascii")`.
+       - Populate individual root attributes (`/ .attrs`):
+         - `f.attrs["git_commit_hash"] = metadata.git_commit_hash`
+         - `f.attrs["git_dirty_flag"] = metadata.git_dirty_flag`
+         - `f.attrs["python_version"] = metadata.python_version`
+         - `f.attrs["cochem_version"] = metadata.cochem_version`
+         - `f.attrs["environment_lock_hash"] = metadata.environment_lock_hash`
+         - `f.attrs["codata_version"] = metadata.codata_version`
+         - `f.attrs["timestamp_utc"] = metadata.timestamp_utc.isoformat()`
+         - `f.attrs["cli_command"] = metadata.cli_command`
+         - `f.attrs["thermodynamic_state"] = json.dumps(metadata.thermodynamic_state, sort_keys=True)`
+       - Populate root cryptographic manifest and signature:
+         - `f.attrs["canonical_manifest_json"] = canonical_json.decode("utf-8")`
+         - `f.attrs["chunk_sha256_root"] = chunk_digest`
+         - `f.attrs["provenance_signature"] = sig_b64`
+       - Call `f.flush()` and return `sig_b64`.
+     - `@classmethod def verify(cls, file_path: Path, public_key: Optional[ed25519.Ed25519PublicKey] = None) -> bool`:
+       - Open HDF5 file in `"r"` mode.
+       - Retrieve `stored_manifest_raw = f.attrs.get("canonical_manifest_json", "")` and `stored_sig = f.attrs.get("provenance_signature", "")`. Return `False` if manifest missing.
+       - Normalize manifest to string and UTF-8 bytes.
+       - Parse `meta_dict = json.loads(stored_manifest_str)`; return `False` on JSON decoding failure.
+       - Extract `expected_chunk_hash = meta_dict.get("chunk_sha256_root", "")`.
+       - Recompute `actual_chunk_hash = cls.compute_chunks_sha256(f)`.
+       - If not `expected_chunk_hash` or `expected_chunk_hash != actual_chunk_hash`: return `False`.
+       - If `public_key is not None`:
+         - If not `stored_sig`: return `False`.
+         - Decode signature: `sig_bytes = base64.b64decode(stored_sig)`.
+         - Verify signature: `public_key.verify(sig_bytes, stored_manifest_bytes)`. Return `False` on `(InvalidSignature, ValueError, TypeError)`.
+       - Return `True` upon full cryptographic and chunk digest verification.
+
+---
+
+### Prompt 3 of 6: Standardized `.cochem_archive` Container Format & Security Engine
+* **Target File**: `src/cochem/storage/cochem_archive.py`
+* **Dependencies**: `datetime`, `hashlib`, `io`, `pathlib`, `shutil`, `tarfile`, `typing`, `uuid`, `pydantic>=2.0.0`, `zstandard`, Standard Library
+* **Task Summary**:
+  1. Implement domain exception:
+     - `ArchiveSecurityError(Exception)`: Raised when an archive violates sandbox isolation, containment boundaries, path traversal checks, symlink/hardlink restrictions, or member integrity checks.
+  2. Implement Pydantic v2 data models:
+     - `FileChecksum`:
+       - `model_config = ConfigDict(extra="forbid", frozen=True)`
+       - `sha256: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `size_bytes: int = Field(..., ge=0)`
+     - `ArchiveManifest`:
+       - `model_config = ConfigDict(extra="forbid")`
+       - `schema_version: str = Field(default="1.0.0", pattern=r"^\d+\.\d+\.\d+$")`
+       - `archive_id: UUID = Field(default_factory=uuid4)`
+       - `created_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cochem_version: str`
+       - `files: Dict[str, FileChecksum]`
+       - `metadata: Dict[str, Any] = Field(default_factory=dict)`
+       - `@model_validator(mode="after") def validate_core_files(self) -> "ArchiveManifest"`: Assert `"data.h5" in self.files`, raising `ValueError("Archive manifest must contain primary 'data.h5' store.")` if absent.
+  3. Implement archive packager and unpacker `CochemArchive`:
+     - Enforce `MAX_EXTRACTION_BYTES: int = 10 * 1024 * 1024 * 1024` (10 GB decompression bomb defense).
+     - Static helper `_compute_sha256(path: Path) -> str`: Read in 64 KB chunks and return hexdigest.
+     - `@classmethod def pack(cls, source_dir: Path, output_archive: Path, cochem_version: str, metadata: Optional[Dict[str, Any]] = None, cctx_level: int = 6) -> Path`:
+       - Resolve `source_dir = source_dir.resolve()`.
+       - Assert `(source_dir / "data.h5").exists()`; raise `FileNotFoundError` if missing.
+       - Walk directory via `sorted(source_dir.rglob("*"))`. For every regular file that is not a symlink and not named `"manifest.json"`, compute relative POSIX path, SHA-256 digest, and file size in bytes, recording in `files_map`.
+       - Instantiate `ArchiveManifest`, serialize via `manifest.model_dump_json(indent=2).encode("utf-8")`.
+       - Initialize `zstandard.ZstdCompressor(level=cctx_level)`.
+       - Create parent directories for `output_archive`.
+       - Open output file and wrap with `cctx.stream_writer(f_out)` and `tarfile.open(fileobj=compressor, mode="w|")`.
+       - Normalize `TarInfo` headers for reproducible archiving: fixed timestamp `manifest.created_utc`, `mode=0o644`, `uid=0`, `gid=0`, empty `uname` and `gname`.
+       - Write `manifest.json` as the initial archive member, followed by all files in deterministic sorted order.
+       - Return `output_archive`.
+     - `@classmethod def unpack(cls, archive_path: Path, destination_dir: Path) -> ArchiveManifest`:
+       - Resolve `destination_dir = destination_dir.resolve()`, creating directories via `mkdir(parents=True, exist_ok=True)`.
+       - Initialize `zstandard.ZstdDecompressor()`, stream reading from `archive_path`, and open `tarfile.open(fileobj=decompressor, mode="r|")`.
+       - Iterate over tar members:
+         - Reject links and special device nodes: if `member.islnk() or member.issym() or member.ischr() or member.isblk() or member.isfifo()`, raise `ArchiveSecurityError(f"Archive contains forbidden link or special file: '{member.name}'")`.
+         - Path sanitization: normalize path separators (`\\` to `/`), strip leading slashes.
+         - Reject path traversal attempts containing `:`, starting with `/`, or containing `..` path segments via `ArchiveSecurityError`.
+         - Resolve destination path: `target_path = (destination_dir / norm_name).resolve()`.
+         - Assert path containment: assert `target_path.is_relative_to(destination_dir)`; raise `ArchiveSecurityError(f"Path traversal detected for member: '{member.name}'")` otherwise.
+         - Enforce decompression quota: accumulate `total_extracted_bytes += member.size`. If `total_extracted_bytes > cls.MAX_EXTRACTION_BYTES`, raise `ArchiveSecurityError(f"Extraction exceeded maximum allowable limit ({cls.MAX_EXTRACTION_BYTES} bytes)")`.
+         - If directory: `target_path.mkdir(parents=True, exist_ok=True)`.
+         - If file: create parent directory, extract file via `tar.extractfile(member)`, stream write to `target_path`, and track in `extracted_rel_paths`.
+         - Any other member type: raise `ArchiveSecurityError`.
+       - Validate manifest existence: `manifest_path = destination_dir / "manifest.json"`; raise `FileNotFoundError` if missing.
+       - Parse manifest via `ArchiveManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))`.
+       - Verify member list completeness: assert `extracted_rel_paths == set(manifest.files.keys()) | {"manifest.json"}`; raise `ArchiveSecurityError` on any unmanifested or missing files.
+       - Verify file integrity: for each declared member, verify that physical file exists, file size matches `csum.size_bytes`, and SHA-256 digest matches `csum.sha256`. Raise `ArchiveSecurityError` on any mismatch.
+       - Return validated `manifest`.
+
+---
+
+### Prompt 4 of 6: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine
+* **Target File**: `src/cochem/intake/chemical_webhook.py`
+* **Dependencies**: `math`, `typing`, `pydantic>=2.0.0`, `mendeleev`, Standard Library
+* **Task Summary**:
+  1. Define 3D coordinate type alias:
+     - `Coordinate3D = Annotated[List[float], Field(min_length=3, max_length=3)]`
+  2. Implement Pydantic v2 chemical ingress validator `ChemicalPayloadSchema`:
+     - `model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)`
+     - Fields:
+       - `job_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-\.]+$")`
+       - `smiles: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `inchi: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `symbols: Optional[List[str]] = Field(default=None, min_length=1, max_length=1000)`
+       - `coordinates_3d: Optional[List[Coordinate3D]] = Field(default=None, min_length=1, max_length=1000)`
+       - `charge: int = Field(default=0, ge=-20, le=20)`
+       - `spin_multiplicity: int = Field(default=1, ge=1, le=10)`
+       - `energy_unit: Literal["hartree", "kcal/mol", "eV"] = "hartree"`
+  3. Enforce chemical completeness and quantum invariants in `@model_validator(mode="after")`:
+     - Ingress Completeness:
+       - Assert that at least one valid representation is populated: `smiles`, `inchi`, or both `(coordinates_3d AND symbols)`. Raise `ValueError("Payload must contain at least one valid chemical representation: 'smiles', 'inchi', or both 'coordinates_3d' and 'symbols'.")` if none present.
+       - Assert coordinate and symbol symmetry: `coordinates_3d` requires `symbols` and vice-versa; raise `ValueError` if one is provided without the other.
+     - Coordinate & Element Validation:
+       - Assert length parity: `len(self.symbols) == len(self.coordinates_3d)`.
+       - Dynamic Element Resolution (Mendeleev Mandate): For each symbol in `self.symbols`, resolve its nuclear charge $Z$ dynamically via `mendeleev.element(canon_sym).atomic_number`. Validate that $1 \le Z \le 118$, raising `ValueError(f"Invalid chemical element: '{sym}'")` for unmapped symbols. Sum total nuclear charge: $Z_{\text{tot}} = \sum Z_i$.
+       - Coordinate Sanitization: Iterate through all coordinates in `self.coordinates_3d`; invoke `math.isfinite(coord)`. Raise `ValueError(f"Non-finite floating-point coordinate detected: {coord}")` on `NaN`, `+Inf`, or `-Inf`.
+     - Quantum Electron & Spin Parity Invariants:
+       - Net electron calculation: $N_{\text{elec}} = Z_{\text{tot}} - \text{charge}$.
+       - Assert positive electron count: if $N_{\text{elec}} \le 0$, raise `ValueError(f"Non-positive electron count (N_elec={N_elec}): total nuclear charge Z={Z_tot}, charge={self.charge}")`.
+       - Physical spin multiplicity upper bound: Assert $1 \le (2S+1) \le N_{\text{elec}} + 1$. If `self.spin_multiplicity > N_elec + 1`, raise `ValueError(f"Physical spin multiplicity bound violated: 2S+1={self.spin_multiplicity} exceeds maximum {N_elec + 1} for system with N_elec={N_elec} electrons.")`.
+       - Spin Parity Invariant ($N_{\text{elec}} \text{ even} \iff 2S+1 \text{ odd}$):
+         - Check parity condition: `if (n_electrons % 2) == (self.spin_multiplicity % 2):`
+         - Raise `ValueError(f"Quantum spin-parity violation: For N_elec={n_electrons}, spin_multiplicity (2S+1) must be {expected_parity}, got {self.spin_multiplicity}.")`.
+  4. Structured HTTP 422 Rejection Protocol:
+     - Implement helper function `format_validation_error_response(exc: Exception, job_id: Optional[str] = None) -> Dict[str, Any]` to return standardized JSON on validation failure:
+       ```json
+       {
+         "status": 422,
+         "error": "Unprocessable Entity",
+         "job_id": "JOB_ID",
+         "detail": "Error description",
+         "timestamp_utc": "ISO-8601"
+       }
+       ```
+
+---
+
+### Prompt 5 of 6: High-Concurrency HDF5 SWMR PES Trajectory Store
+* **Target File**: `src/cochem/storage/cochem_core_pes_store.py`
+* **Dependencies**: `os`, `time`, `pathlib`, `typing`, `filelock`, `h5py`, `numpy`, `src.cochem.storage.hdf5_zstd`, Standard Library
+* **Task Summary**:
+  1. Early Environment & Process Configuration:
+     - Enforce `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at the top of the file before `h5py` import to disable driver-level filesystem locking across network and cluster mounts (NFS, Lustre).
+  2. Implement `SWMRPESStore`:
+     - `__init__(self, h5_path: Path, n_atoms: int = 1, zstd_config: Optional[HDF5ZstdConfig] = None, enable_swmr: bool = True) -> None`:
+       - Resolve paths: `self.h5_path = Path(h5_path).resolve()`, `self.lock_path = self.h5_path.with_suffix(".lock")`.
+       - Store `self.n_atoms = n_atoms`, `self.zstd_config = zstd_config or HDF5ZstdConfig()`, `self.enable_swmr = enable_swmr`.
+       - Initialize writer handle: `self._writer_file: Optional[h5py.File] = None`.
+       - Execute `self._preallocate_schema()`.
+     - `_preallocate_schema(self) -> None`:
+       - Create parent directory.
+       - Acquire exclusive file lock: `with FileLock(str(self.lock_path), timeout=10.0):`.
+       - If `not self.h5_path.exists()`:
+         - Open in `"w"` mode with `libver="latest"`.
+         - Derive chunk shapes and dataset kwargs via `self.zstd_config.resolve_chunk_shape_3d(self.n_atoms, 3, 8)` and `self.zstd_config.resolve_chunk_shape_1d(8)`.
+         - Pre-allocate extensible chunked datasets:
+           - `"coordinates"`: `shape=(0, self.n_atoms, 3)`, `maxshape=(None, self.n_atoms, 3)`, `dtype="float64"`, `**coords_kwargs`.
+           - `"energies"`: `shape=(0,)`, `maxshape=(None,)`, `dtype="float64"`, `**energy_kwargs`.
+         - Write root attributes: `f.attrs["schema_version"] = "1.0.0"`, `f.attrs["n_atoms"] = self.n_atoms`.
+         - Call `f.flush()`.
+     - `open_writer(self) -> None`:
+       - Open persistent writer handle: `self._writer_file = h5py.File(self.h5_path, "r+", libver="latest")`.
+       - If `self.enable_swmr and not self._writer_file.swmr_mode`: activate `self._writer_file.swmr_mode = True`.
+     - `close_writer(self) -> None`:
+       - If `self._writer_file is not None`: flush and close file, setting `self._writer_file = None`.
+     - `append_frames(self, coords: np.ndarray, energies: np.ndarray) -> None`:
+       - Convert to `np.float64` arrays; normalize dimensions: accept `(N, n_atoms, 3)` or `(n_atoms, 3)`, and `(N,)` or scalar.
+       - Assert coordinate shapes match `(N, self.n_atoms, 3)` and frame counts match energy points count.
+       - If inside persistent writer (`self._writer_file is not None`):
+         - Resize `ds_coords` and `ds_energy` datasets by $N$ frames.
+         - Assign newly written array slices.
+         - Atomically flush datasets and file: `ds_coords.flush()`, `ds_energy.flush()`, `self._writer_file.flush()`.
+       - Else:
+         - Acquire exclusive `FileLock(str(self.lock_path), timeout=30.0)`.
+         - Open `h5py.File(self.h5_path, "r+", libver="latest")`.
+         - Activate SWMR mode if enabled, resize datasets, write frames, and flush.
+     - `read_trajectory(self, max_retries: int = 5, retry_delay_s: float = 0.05) -> Dict[str, np.ndarray]`:
+       - Lockless non-blocking reader execution without acquiring the writer's `FileLock`.
+       - In retry loop up to `max_retries`:
+         - Open in read-only mode: `with h5py.File(self.h5_path, "r", libver="latest", swmr=self.enable_swmr) as f:`.
+         - If `self.enable_swmr`: invoke `f["coordinates"].refresh()` and `f["energies"].refresh()` to fetch updated chunk index pointers flushed by writer.
+         - Return `{"coordinates": f["coordinates"][:], "energies": f["energies"][:]}`.
+         - On `(RuntimeError, OSError)` during concurrent flush boundaries, sleep `retry_delay_s * (2 ** attempt)` and retry.
+         - Raise `RuntimeError("SWMR reader refresh failed to synchronize.")` if retries exhausted.
+
+---
+
+### Prompt 6 of 6: Physical Integration & Zero-Mock Verification Suite
+* **Target File**: `tests/integration/test_base_data_and_storage_part1.py`
+* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `time`, `concurrent.futures`, `multiprocessing`, `cryptography`, `h5py`, `numpy`, `zstandard`, `mendeleev`, `src.cochem.storage.hdf5_zstd`, `src.cochem.provenance.provenance_stamper`, `src.cochem.storage.cochem_archive`, `src.cochem.intake.chemical_webhook`, `src.cochem.storage.cochem_core_pes_store`, Standard Library
+* **Task Summary**:
+  1. Implement exhaustive integration and compliance tests executing exclusively against authentic filesystem resources in temporary directories (strictly zero mocks).
+  2. Lossless Zstd Compression & Fletcher32 Checksum Tests:
+     - Initialize `HDF5ZstdConfig(clevel=3, enable_shuffle=True, enable_fletcher32=True)`.
+     - Generate authentic double-precision floating-point molecular trajectory coordinate tensors (e.g. 500 frames, 12 atoms, 3 dimensions).
+     - Write to HDF5 store using generated chunk kwargs; close and re-open.
+     - Verify bit-for-bit lossless equality between original and decompressed coordinates via `np.testing.assert_array_equal()`.
+     - Verify HDF5 filter registration: assert Zstd filter (`32015`) and Fletcher32 checksum filter are present on the dataset chunks.
+  3. Cryptographic Merkle Provenance & Ed25519 Tamper Detection Tests:
+     - Generate an authentic Ed25519 private/public keypair.
+     - Populate `ProvenanceMetadata` with valid git commit SHA, environment hash, and thermodynamic conditions.
+     - Stamp HDF5 store via `ProvenanceStamper.stamp()`; verify root attributes (`canonical_manifest_json`, `chunk_sha256_root`, `provenance_signature`).
+     - Verify provenance via `ProvenanceStamper.verify(...)`: assert `verify == True`.
+     - Single-Bit Byte Alteration Attack: Open the stamped HDF5 file in binary mode (`"r+b"`), flip a single byte within an allocated dataset chunk, and call `verify(...)`: assert verification fails (`False`).
+     - Signature Forgery Test: Verify authentic file against an unauthenticated public key: assert verification fails (`False`).
+  4. Standardized `.cochem_archive` Security & Zip Slip Defense Tests:
+     - Package a directory containing `data.h5`, `logs/execution.log`, and `manifest.json` into `.cochem_archive` via `CochemArchive.pack()`.
+     - Unpack into sterile destination directory via `CochemArchive.unpack()`. Verify bit-level SHA-256 and size matching across all members.
+     - Zip Slip & Path Traversal Attack: Construct a malicious `.tar.zst` containing a member named `../../etc/passwd` or `../traversal.h5`. Assert `unpack()` aborts immediately and raises `ArchiveSecurityError`.
+     - Symlink Escape Attack: Construct an archive containing a symbolic link pointing to a target outside the destination root. Assert `unpack()` raises `ArchiveSecurityError`.
+     - Decompression Bomb Defense: Verify extraction aborts if member size exceeds `MAX_EXTRACTION_BYTES`.
+     - Checksum Tamper Test: Modify member payload after archive creation; assert `ArchiveSecurityError` on checksum mismatch.
+  5. Air-Gapped Chemical Webhook Validation & Quantum Invariant Tests:
+     - Test valid chemical payloads:
+       - Neutral singlet water molecule ($H_2O$, charge 0, spin multiplicity 1, valid coordinates): assert successful validation.
+       - Radical doublet hydroxyl ($OH^\bullet$, charge 0, spin multiplicity 2, valid coordinates): assert successful validation.
+     - Test quantum invariant rejections:
+       - Non-positive electron count: $H_2^{2+}$ (charge +2, $N_{\text{elec}} = 0$) -> assert raises `ValueError`.
+       - Physical spin bound exceeded: $H_2O$ with $2S+1 = 15 > 10 + 1$ -> assert raises `ValueError`.
+       - Spin parity violation: $H_2O$ ($N_{\text{elec}} = 10$, even) with even multiplicity ($2S+1 = 2$) -> assert raises `ValueError`.
+     - Test coordinate sanitization: coordinates containing `float('nan')` or `float('inf')` -> assert raises `ValueError`.
+     - Test dynamic element lookup: symbols containing invalid element `"Xx"` -> assert raises `ValueError`.
+  6. High-Concurrency SWMR Throughput & Zero-Stall Validation:
+     - Pre-allocate trajectory store for a 5-atom system with SWMR enabled.
+     - Launch live background writer process continuously appending 1,000 frames in batches of 50 frames with active flushing.
+     - Concurrently execute $\ge 4$ independent reader processes reading trajectories via `read_trajectory()`.
+     - Assert zero read-lock contention stalls, zero unhandled synchronization exceptions, and verify that extracted coordinate frames match written frames without corruption.
+  7. Anti-Spoofing & Zero-Mock AST Audit:
+     - Parse AST of all target production files (`hdf5_zstd.py`, `provenance_stamper.py`, `cochem_archive.py`, `chemical_webhook.py`, `cochem_core_pes_store.py`).
+     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, `MagicMock`, empty `pass` blocks, and `NotImplementedError` stubs.
+
+---
+
+## 4. Verification & Acceptance Criteria
+
+- **4.1 Compression Fidelity & Checksums**: Bit-for-bit equivalence between uncompressed and decompressed floating-point trajectory coordinates after Zstd roundtrip with active Fletcher32 checksum validation.
+- **4.2 Provenance Integrity & Tamper Detection**: Bit-level chunk digest verification using `ProvenanceStamper`, ensuring cryptographic verification passes on authentic files and fails immediately on single-bit byte alterations or unauthenticated signatures.
+- **4.3 Archive Traversal Security**: Rejection of malicious archive tarballs attempting path traversal (`Zip Slip`, symlink escapes, unmanifested files) outside destination directories with `ArchiveSecurityError`.
+- **4.4 Webhook Ingress Rejection**: Immediate rejection (HTTP 422) of chemical payloads missing valid representations, containing unmapped element symbols, exhibiting symbol-coordinate count mismatches, containing non-finite floats, or violating spin-parity constraints.
+- **4.5 SWMR Concurrency Throughput**: Concurrent execution of $\ge 4$ independent reader processes extracting trajectory metrics in real time from a live writer appending 10,000 frames, achieving zero read-lock stalls and zero data corruption.
+# Sequential Execution Prompt Schedule: CoChem-BASE Data & Storage (Part 1)
+
+The **CoChem-BASE Software Requirements Specification (SRS): Data & Storage Part 1 (SRS_Chunk_07_BASE_Data_and_Storage_Part_1)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
+
+---
+
+## 1. Architectural Layout & Dependency DAG
+
+```mermaid
+graph TD
+    P1["Prompt 1: Lossless Zstd HDF5 Compression Pipeline (src/cochem/storage/hdf5_zstd.py)"] --> P5["Prompt 5: High-Concurrency HDF5 SWMR PES Trajectory Store (src/cochem/storage/cochem_core_pes_store.py)"]
+    P2["Prompt 2: Cryptographic Merkle Provenance Stamper & Ed25519 Signer (src/cochem/provenance/provenance_stamper.py)"] --> P3["Prompt 3: Standardized .cochem_archive Container Engine (src/cochem/storage/cochem_archive.py)"]
+    P1 --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_data_and_storage_part1.py)"]
+    P2 --> P6
+    P3 --> P6
+    P4["Prompt 4: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine (src/cochem/intake/chemical_webhook.py)"] --> P6
+    P5 --> P6
+```
+
+---
+
+## 2. Global Invariants & Mandates
+
+1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical HDF5 storage structures, real cryptographic primitives, and physical chemical invariants.
+2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental symbols, nuclear charges ($Z \in [1, 118]$), dynamic atomic masses, and isotopic distributions MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual mass lookup dictionaries in the codebase is strictly prohibited. All thermodynamic state constants must align with CODATA 2018.
+3. **Tripartite Storage Air-Gap Topology**: Disjointness between Code ($T_{\text{code}}$), Artifacts ($T_{\text{art}}$), and Scratch ($T_{\text{scr}}$) must be maintained at all times:
+   $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
+   Webhook ingress validation, archive unpacking, and HDF5 temporary dataset generation must execute entirely within the ephemeral per-job scratch space ($T_{\text{scr}}$). No outbound network requests are permitted (Zero-Network Air-Gap).
+4. **Multi-Tier Concurrency & Storage Invariants**:
+   - Cross-platform file locking: All concurrent HDF5 initialization phases and writer lifecycle operations must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
+   - Driver-level locking bypass: Set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at process initialization before importing `h5py` to prevent distributed filesystem deadlocks on network mounts (NFS, Lustre).
+   - High-throughput SWMR mode: Single-Writer Multiple-Reader (SWMR) access must enforce `libver="latest"`, pre-allocated extensible chunked datasets, and atomic `dataset.flush()` / `file.flush()` boundaries. Readers must execute lockless concurrent reads accompanied by `dataset.refresh()`.
+5. **6-Tier Environment Matrix Portability**:
+   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Path sanitization via `pathlib.Path`, explicit rejection of NTFS Alternate Data Streams (`:`), Windows reserved device names, and cross-platform relative path traversal (`Zip Slip`) prevention.
+   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Native CPU userspace execution without GPU VRAM allocation or CUDA lock requirements during compression and telemetry serialization.
+   - **HPC (SLURM/PBS)**: Node-local scratch storage pinning (`$SLURM_TMPDIR` or local `/tmp`) for file locks and ephemeral archive unpacking to eliminate distributed filesystem lock contention.
+6. **Single Target File Rule**: Each prompt specifies exactly one physical production script or test file.
+
+---
+
+## 3. Granular Execution Prompts
+
+### Prompt 1 of 6: Lossless Zstandard (Zstd) HDF5 Compression Pipeline
+* **Target File**: `src/cochem/storage/hdf5_zstd.py`
+* **Dependencies**: `dataclasses`, `typing`, `hdf5plugin`, `h5py`, `numpy`, Standard Library
+* **Task Summary**:
+  1. Implement frozen configuration dataclass `HDF5ZstdConfig`:
+     - Fields:
+       - `clevel: int = 3`: Zstd compression level (strictly bounded $1 \le \text{clevel} \le 22$).
+       - `enable_shuffle: bool = True`: Byte shuffling flag prior to Zstd compression to group significant mantissa/exponent bytes for floating-point tensors.
+       - `enable_fletcher32: bool = True`: Fletcher32 checksum filter flag for block-level corruption detection.
+       - `min_chunk_bytes: int = 64 * 1024`: Minimum chunk size boundary (64 KB).
+       - `max_chunk_bytes: int = 256 * 1024`: Maximum chunk size boundary (256 KB).
+     - Validation in `__post_init__()`:
+       - If `not (1 <= self.clevel <= 22)`: raise `ValueError(f"Zstd clevel must be in 1..22, got {self.clevel}")`.
+       - If `self.min_chunk_bytes <= 0 or self.max_chunk_bytes < self.min_chunk_bytes`: raise `ValueError(f"Invalid chunk byte bounds: [{self.min_chunk_bytes}, {self.max_chunk_bytes}]")`.
+     - Lossy Filter Prohibition: Strictly enforce a complete ban on lossy compression filters (e.g., `scaleoffset`), guaranteeing bit-for-bit lossless precision for IEEE 754 float64/float32 trajectories.
+  2. Implement dynamic chunk derivation methods:
+     - `resolve_chunk_shape_3d(self, n_atoms: int, spatial_dim: int = 3, itemsize: int = 8, max_frames: Optional[int] = None) -> Tuple[int, int, int]`:
+       - Assert `n_atoms > 0`, `spatial_dim > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Calculate frame byte footprint: `frame_bytes = n_atoms * spatial_dim * itemsize`.
+       - Derive target chunk size: `target_bytes = (self.min_chunk_bytes + self.max_chunk_bytes) // 2`.
+       - Calculate frame chunk count: `chunk_frames = max(1, target_bytes // frame_bytes)`.
+       - Pre-allocate frame coordinate chunks along the primary frame dimension to prevent single-frame chunking (`chunk_frames=1`) on small systems, eliminating HDF5 B-tree index bloat.
+       - If `max_frames is not None and max_frames > 0`: cap `chunk_frames = min(chunk_frames, max_frames)`.
+       - Return `(chunk_frames, n_atoms, spatial_dim)`.
+     - `resolve_chunk_shape_1d(self, itemsize: int = 8, max_len: Optional[int] = None) -> Tuple[int]`:
+       - Assert `itemsize > 0`; raise `ValueError` otherwise.
+       - Target 1D energy tensors bounded between 64 KB and 256 KB.
+       - Derive `chunk_len = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // itemsize)`.
+       - If `max_len is not None and max_len > 0`: cap `chunk_len = min(chunk_len, max_len)`.
+       - Return `(chunk_len,)`.
+     - `resolve_chunk_shape_2d(self, n_features: int, itemsize: int = 8, max_rows: Optional[int] = None) -> Tuple[int, int]`:
+       - Assert `n_features > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Derive `row_bytes = n_features * itemsize`.
+       - Derive `chunk_rows = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // row_bytes)`.
+       - If `max_rows is not None and max_rows > 0`: cap `chunk_rows = min(chunk_rows, max_rows)`.
+       - Return `(chunk_rows, n_features)`.
+  3. Implement dataset keyword generator:
+     - `get_dataset_kwargs(self, chunk_shape: Tuple[int, ...], is_numeric: bool = True) -> Dict[str, Any]`:
+       - Construct dictionary with `"chunks": chunk_shape` and unpack `hdf5plugin.Zstd(clevel=self.clevel)` (Filter ID `32015`).
+       - If `is_numeric and self.enable_shuffle`: set `kwargs["shuffle"] = True`.
+       - If `is_numeric and self.enable_fletcher32`: set `kwargs["fletcher32"] = True`.
+       - Return `kwargs`.
+  4. CPU Resource Isolation:
+     - Ensure all compression, decompression, and chunk checksumming operations execute strictly in CPU userspace I/O without allocating GPU VRAM or acquiring CUDA context locks.
+
+---
+
+### Prompt 2 of 6: Cryptographic Merkle Provenance Stamper & Ed25519 Signer
+* **Target File**: `src/cochem/provenance/provenance_stamper.py`
+* **Dependencies**: `base64`, `datetime`, `hashlib`, `json`, `pathlib`, `typing`, `cryptography`, `h5py`, `numpy`, `pydantic>=2.0.0`, Standard Library
+* **Task Summary**:
+  1. Implement Pydantic v2 execution provenance model `ProvenanceMetadata`:
+     - `model_config = ConfigDict(extra="forbid", frozen=True)`
+     - Fields:
+       - `git_commit_hash: str = Field(..., pattern=r"^[a-f0-9]{40,64}$")`
+       - `git_dirty_flag: bool`
+       - `python_version: str`
+       - `cochem_version: str`
+       - `environment_lock_hash: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `codata_version: str = Field(default="CODATA 2018")`
+       - `timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cli_command: str`
+       - `thermodynamic_state: Dict[str, float] = Field(default_factory=lambda: {"T_K": 298.15, "P_atm": 1.0})`
+  2. Implement `ProvenanceStamper`:
+     - `@classmethod def compute_chunks_sha256(cls, h5_file: h5py.File) -> str`:
+       - Call `h5_file.flush()` to ensure disk synchronization.
+       - Initialize SHA-256 hasher: `hasher = hashlib.sha256()`.
+       - Recursively discover all dataset paths using `h5_file.visititems(...)`, collecting paths where `isinstance(obj, h5py.Dataset)`.
+       - Sort dataset paths in deterministic lexicographical order.
+       - For each dataset:
+         - Update hasher with dataset path UTF-8 bytes: `hasher.update(path.encode("utf-8"))`.
+         - Update hasher with data type: `hasher.update(str(dset.dtype).encode("utf-8"))`.
+         - Update hasher with tensor shape: `hasher.update(str(dset.shape).encode("utf-8"))`.
+         - Direct Chunk Reading without Array Allocations:
+           - If `dset.chunks is not None`:
+             - Iterate chunk slices via `dset.iter_chunks()`.
+             - Derive chunk start offset tuple: `tuple(chunk_info[i].start or 0 for i in range(len(chunk_info)))`.
+             - Read raw chunk bytes via `dset.id.read_direct_chunk(chunk_offset)`.
+             - Feed raw chunk bytes into `hasher.update(raw_chunk)`.
+             - Handle sparse unallocated chunks deterministically: catch `RuntimeError` where `"not allocated"` or `"chunk storage"` is in error message, and update hasher with `b"UNALLOCATED_CHUNK"`. Re-raise unexpected runtime errors.
+           - Else (contiguous or compact dataset):
+             - Extract contiguous bytes via `np.ascontiguousarray(dset[()]).tobytes()` and update hasher.
+       - Return `hasher.hexdigest()`.
+     - `@classmethod def stamp(cls, file_path: Path, metadata: ProvenanceMetadata, private_key: Optional[ed25519.Ed25519PrivateKey] = None) -> str`:
+       - Open HDF5 file in `"r+"` mode: `with h5py.File(file_path, "r+") as f:`.
+       - Compute chunk Merkle digest: `chunk_digest = cls.compute_chunks_sha256(f)`.
+       - Serialize `metadata` to JSON dictionary via `meta_dict = metadata.model_dump(mode="json")`.
+       - Inject chunk root hash: `meta_dict["chunk_sha256_root"] = chunk_digest`.
+       - Generate canonical JSON byte string: `canonical_json = json.dumps(meta_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")` to eliminate float/int type coercion ambiguities.
+       - If `private_key is not None`:
+         - Generate Ed25519 asymmetric signature: `sig = private_key.sign(canonical_json)`.
+         - Base64-encode signature string: `sig_b64 = base64.b64encode(sig).decode("ascii")`.
+       - Populate individual root attributes (`/ .attrs`):
+         - `f.attrs["git_commit_hash"] = metadata.git_commit_hash`
+         - `f.attrs["git_dirty_flag"] = metadata.git_dirty_flag`
+         - `f.attrs["python_version"] = metadata.python_version`
+         - `f.attrs["cochem_version"] = metadata.cochem_version`
+         - `f.attrs["environment_lock_hash"] = metadata.environment_lock_hash`
+         - `f.attrs["codata_version"] = metadata.codata_version`
+         - `f.attrs["timestamp_utc"] = metadata.timestamp_utc.isoformat()`
+         - `f.attrs["cli_command"] = metadata.cli_command`
+         - `f.attrs["thermodynamic_state"] = json.dumps(metadata.thermodynamic_state, sort_keys=True)`
+       - Populate root cryptographic manifest and signature:
+         - `f.attrs["canonical_manifest_json"] = canonical_json.decode("utf-8")`
+         - `f.attrs["chunk_sha256_root"] = chunk_digest`
+         - `f.attrs["provenance_signature"] = sig_b64`
+       - Call `f.flush()` and return `sig_b64`.
+     - `@classmethod def verify(cls, file_path: Path, public_key: Optional[ed25519.Ed25519PublicKey] = None) -> bool`:
+       - Open HDF5 file in `"r"` mode.
+       - Retrieve `stored_manifest_raw = f.attrs.get("canonical_manifest_json", "")` and `stored_sig = f.attrs.get("provenance_signature", "")`. Return `False` if manifest missing.
+       - Normalize manifest to string and UTF-8 bytes.
+       - Parse `meta_dict = json.loads(stored_manifest_str)`; return `False` on JSON decoding failure.
+       - Extract `expected_chunk_hash = meta_dict.get("chunk_sha256_root", "")`.
+       - Recompute `actual_chunk_hash = cls.compute_chunks_sha256(f)`.
+       - If not `expected_chunk_hash` or `expected_chunk_hash != actual_chunk_hash`: return `False`.
+       - If `public_key is not None`:
+         - If not `stored_sig`: return `False`.
+         - Decode signature: `sig_bytes = base64.b64decode(stored_sig)`.
+         - Verify signature: `public_key.verify(sig_bytes, stored_manifest_bytes)`. Return `False` on `(InvalidSignature, ValueError, TypeError)`.
+       - Return `True` upon full cryptographic and chunk digest verification.
+
+---
+
+### Prompt 3 of 6: Standardized `.cochem_archive` Container Format & Security Engine
+* **Target File**: `src/cochem/storage/cochem_archive.py`
+* **Dependencies**: `datetime`, `hashlib`, `io`, `pathlib`, `shutil`, `tarfile`, `typing`, `uuid`, `pydantic>=2.0.0`, `zstandard`, Standard Library
+* **Task Summary**:
+  1. Implement domain exception:
+     - `ArchiveSecurityError(Exception)`: Raised when an archive violates sandbox isolation, containment boundaries, path traversal checks, symlink/hardlink restrictions, or member integrity checks.
+  2. Implement Pydantic v2 data models:
+     - `FileChecksum`:
+       - `model_config = ConfigDict(extra="forbid", frozen=True)`
+       - `sha256: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `size_bytes: int = Field(..., ge=0)`
+     - `ArchiveManifest`:
+       - `model_config = ConfigDict(extra="forbid")`
+       - `schema_version: str = Field(default="1.0.0", pattern=r"^\d+\.\d+\.\d+$")`
+       - `archive_id: UUID = Field(default_factory=uuid4)`
+       - `created_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cochem_version: str`
+       - `files: Dict[str, FileChecksum]`
+       - `metadata: Dict[str, Any] = Field(default_factory=dict)`
+       - `@model_validator(mode="after") def validate_core_files(self) -> "ArchiveManifest"`: Assert `"data.h5" in self.files`, raising `ValueError("Archive manifest must contain primary 'data.h5' store.")` if absent.
+  3. Implement archive packager and unpacker `CochemArchive`:
+     - Enforce `MAX_EXTRACTION_BYTES: int = 10 * 1024 * 1024 * 1024` (10 GB decompression bomb defense).
+     - Static helper `_compute_sha256(path: Path) -> str`: Read in 64 KB chunks and return hexdigest.
+     - `@classmethod def pack(cls, source_dir: Path, output_archive: Path, cochem_version: str, metadata: Optional[Dict[str, Any]] = None, cctx_level: int = 6) -> Path`:
+       - Resolve `source_dir = source_dir.resolve()`.
+       - Assert `(source_dir / "data.h5").exists()`; raise `FileNotFoundError` if missing.
+       - Walk directory via `sorted(source_dir.rglob("*"))`. For every regular file that is not a symlink and not named `"manifest.json"`, compute relative POSIX path, SHA-256 digest, and file size in bytes, recording in `files_map`.
+       - Instantiate `ArchiveManifest`, serialize via `manifest.model_dump_json(indent=2).encode("utf-8")`.
+       - Initialize `zstandard.ZstdCompressor(level=cctx_level)`.
+       - Create parent directories for `output_archive`.
+       - Open output file and wrap with `cctx.stream_writer(f_out)` and `tarfile.open(fileobj=compressor, mode="w|")`.
+       - Normalize `TarInfo` headers for reproducible archiving: fixed timestamp `manifest.created_utc`, `mode=0o644`, `uid=0`, `gid=0`, empty `uname` and `gname`.
+       - Write `manifest.json` as the initial archive member, followed by all files in deterministic sorted order.
+       - Return `output_archive`.
+     - `@classmethod def unpack(cls, archive_path: Path, destination_dir: Path) -> ArchiveManifest`:
+       - Resolve `destination_dir = destination_dir.resolve()`, creating directories via `mkdir(parents=True, exist_ok=True)`.
+       - Initialize `zstandard.ZstdDecompressor()`, stream reading from `archive_path`, and open `tarfile.open(fileobj=decompressor, mode="r|")`.
+       - Iterate over tar members:
+         - Reject links and special device nodes: if `member.islnk() or member.issym() or member.ischr() or member.isblk() or member.isfifo()`, raise `ArchiveSecurityError(f"Archive contains forbidden link or special file: '{member.name}'")`.
+         - Path sanitization: normalize path separators (`\\` to `/`), strip leading slashes.
+         - Reject path traversal attempts containing `:`, starting with `/`, or containing `..` path segments via `ArchiveSecurityError`.
+         - Resolve destination path: `target_path = (destination_dir / norm_name).resolve()`.
+         - Assert path containment: assert `target_path.is_relative_to(destination_dir)`; raise `ArchiveSecurityError(f"Path traversal detected for member: '{member.name}'")` otherwise.
+         - Enforce decompression quota: accumulate `total_extracted_bytes += member.size`. If `total_extracted_bytes > cls.MAX_EXTRACTION_BYTES`, raise `ArchiveSecurityError(f"Extraction exceeded maximum allowable limit ({cls.MAX_EXTRACTION_BYTES} bytes)")`.
+         - If directory: `target_path.mkdir(parents=True, exist_ok=True)`.
+         - If file: create parent directory, extract file via `tar.extractfile(member)`, stream write to `target_path`, and track in `extracted_rel_paths`.
+         - Any other member type: raise `ArchiveSecurityError`.
+       - Validate manifest existence: `manifest_path = destination_dir / "manifest.json"`; raise `FileNotFoundError` if missing.
+       - Parse manifest via `ArchiveManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))`.
+       - Verify member list completeness: assert `extracted_rel_paths == set(manifest.files.keys()) | {"manifest.json"}`; raise `ArchiveSecurityError` on any unmanifested or missing files.
+       - Verify file integrity: for each declared member, verify that physical file exists, file size matches `csum.size_bytes`, and SHA-256 digest matches `csum.sha256`. Raise `ArchiveSecurityError` on any mismatch.
+       - Return validated `manifest`.
+
+---
+
+### Prompt 4 of 6: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine
+* **Target File**: `src/cochem/intake/chemical_webhook.py`
+* **Dependencies**: `math`, `typing`, `pydantic>=2.0.0`, `mendeleev`, Standard Library
+* **Task Summary**:
+  1. Define 3D coordinate type alias:
+     - `Coordinate3D = Annotated[List[float], Field(min_length=3, max_length=3)]`
+  2. Implement Pydantic v2 chemical ingress validator `ChemicalPayloadSchema`:
+     - `model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)`
+     - Fields:
+       - `job_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-\.]+$")`
+       - `smiles: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `inchi: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `symbols: Optional[List[str]] = Field(default=None, min_length=1, max_length=1000)`
+       - `coordinates_3d: Optional[List[Coordinate3D]] = Field(default=None, min_length=1, max_length=1000)`
+       - `charge: int = Field(default=0, ge=-20, le=20)`
+       - `spin_multiplicity: int = Field(default=1, ge=1, le=10)`
+       - `energy_unit: Literal["hartree", "kcal/mol", "eV"] = "hartree"`
+  3. Enforce chemical completeness and quantum invariants in `@model_validator(mode="after")`:
+     - Ingress Completeness:
+       - Assert that at least one valid representation is populated: `smiles`, `inchi`, or both `(coordinates_3d AND symbols)`. Raise `ValueError("Payload must contain at least one valid chemical representation: 'smiles', 'inchi', or both 'coordinates_3d' and 'symbols'.")` if none present.
+       - Assert coordinate and symbol symmetry: `coordinates_3d` requires `symbols` and vice-versa; raise `ValueError` if one is provided without the other.
+     - Coordinate & Element Validation:
+       - Assert length parity: `len(self.symbols) == len(self.coordinates_3d)`.
+       - Dynamic Element Resolution (Mendeleev Mandate): For each symbol in `self.symbols`, resolve its nuclear charge $Z$ dynamically via `mendeleev.element(canon_sym).atomic_number`. Validate that $1 \le Z \le 118$, raising `ValueError(f"Invalid chemical element: '{sym}'")` for unmapped symbols. Sum total nuclear charge: $Z_{\text{tot}} = \sum Z_i$.
+       - Coordinate Sanitization: Iterate through all coordinates in `self.coordinates_3d`; invoke `math.isfinite(coord)`. Raise `ValueError(f"Non-finite floating-point coordinate detected: {coord}")` on `NaN`, `+Inf`, or `-Inf`.
+     - Quantum Electron & Spin Parity Invariants:
+       - Net electron calculation: $N_{\text{elec}} = Z_{\text{tot}} - \text{charge}$.
+       - Assert positive electron count: if $N_{\text{elec}} \le 0$, raise `ValueError(f"Non-positive electron count (N_elec={N_elec}): total nuclear charge Z={Z_tot}, charge={self.charge}")`.
+       - Physical spin multiplicity upper bound: Assert $1 \le (2S+1) \le N_{\text{elec}} + 1$. If `self.spin_multiplicity > N_elec + 1`, raise `ValueError(f"Physical spin multiplicity bound violated: 2S+1={self.spin_multiplicity} exceeds maximum {N_elec + 1} for system with N_elec={N_elec} electrons.")`.
+       - Spin Parity Invariant ($N_{\text{elec}} \text{ even} \iff 2S+1 \text{ odd}$):
+         - Check parity condition: `if (n_electrons % 2) == (self.spin_multiplicity % 2):`
+         - Raise `ValueError(f"Quantum spin-parity violation: For N_elec={n_electrons}, spin_multiplicity (2S+1) must be {expected_parity}, got {self.spin_multiplicity}.")`.
+  4. Structured HTTP 422 Rejection Protocol:
+     - Implement helper function `format_validation_error_response(exc: Exception, job_id: Optional[str] = None) -> Dict[str, Any]` to return standardized JSON on validation failure:
+       ```json
+       {
+         "status": 422,
+         "error": "Unprocessable Entity",
+         "job_id": "JOB_ID",
+         "detail": "Error description",
+         "timestamp_utc": "ISO-8601"
+       }
+       ```
+
+---
+
+### Prompt 5 of 6: High-Concurrency HDF5 SWMR PES Trajectory Store
+* **Target File**: `src/cochem/storage/cochem_core_pes_store.py`
+* **Dependencies**: `os`, `time`, `pathlib`, `typing`, `filelock`, `h5py`, `numpy`, `src.cochem.storage.hdf5_zstd`, Standard Library
+* **Task Summary**:
+  1. Early Environment & Process Configuration:
+     - Enforce `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at the top of the file before `h5py` import to disable driver-level filesystem locking across network and cluster mounts (NFS, Lustre).
+  2. Implement `SWMRPESStore`:
+     - `__init__(self, h5_path: Path, n_atoms: int = 1, zstd_config: Optional[HDF5ZstdConfig] = None, enable_swmr: bool = True) -> None`:
+       - Resolve paths: `self.h5_path = Path(h5_path).resolve()`, `self.lock_path = self.h5_path.with_suffix(".lock")`.
+       - Store `self.n_atoms = n_atoms`, `self.zstd_config = zstd_config or HDF5ZstdConfig()`, `self.enable_swmr = enable_swmr`.
+       - Initialize writer handle: `self._writer_file: Optional[h5py.File] = None`.
+       - Execute `self._preallocate_schema()`.
+     - `_preallocate_schema(self) -> None`:
+       - Create parent directory.
+       - Acquire exclusive file lock: `with FileLock(str(self.lock_path), timeout=10.0):`.
+       - If `not self.h5_path.exists()`:
+         - Open in `"w"` mode with `libver="latest"`.
+         - Derive chunk shapes and dataset kwargs via `self.zstd_config.resolve_chunk_shape_3d(self.n_atoms, 3, 8)` and `self.zstd_config.resolve_chunk_shape_1d(8)`.
+         - Pre-allocate extensible chunked datasets:
+           - `"coordinates"`: `shape=(0, self.n_atoms, 3)`, `maxshape=(None, self.n_atoms, 3)`, `dtype="float64"`, `**coords_kwargs`.
+           - `"energies"`: `shape=(0,)`, `maxshape=(None,)`, `dtype="float64"`, `**energy_kwargs`.
+         - Write root attributes: `f.attrs["schema_version"] = "1.0.0"`, `f.attrs["n_atoms"] = self.n_atoms`.
+         - Call `f.flush()`.
+     - `open_writer(self) -> None`:
+       - Open persistent writer handle: `self._writer_file = h5py.File(self.h5_path, "r+", libver="latest")`.
+       - If `self.enable_swmr and not self._writer_file.swmr_mode`: activate `self._writer_file.swmr_mode = True`.
+     - `close_writer(self) -> None`:
+       - If `self._writer_file is not None`: flush and close file, setting `self._writer_file = None`.
+     - `append_frames(self, coords: np.ndarray, energies: np.ndarray) -> None`:
+       - Convert to `np.float64` arrays; normalize dimensions: accept `(N, n_atoms, 3)` or `(n_atoms, 3)`, and `(N,)` or scalar.
+       - Assert coordinate shapes match `(N, self.n_atoms, 3)` and frame counts match energy points count.
+       - If inside persistent writer (`self._writer_file is not None`):
+         - Resize `ds_coords` and `ds_energy` datasets by $N$ frames.
+         - Assign newly written array slices.
+         - Atomically flush datasets and file: `ds_coords.flush()`, `ds_energy.flush()`, `self._writer_file.flush()`.
+       - Else:
+         - Acquire exclusive `FileLock(str(self.lock_path), timeout=30.0)`.
+         - Open `h5py.File(self.h5_path, "r+", libver="latest")`.
+         - Activate SWMR mode if enabled, resize datasets, write frames, and flush.
+     - `read_trajectory(self, max_retries: int = 5, retry_delay_s: float = 0.05) -> Dict[str, np.ndarray]`:
+       - Lockless non-blocking reader execution without acquiring the writer's `FileLock`.
+       - In retry loop up to `max_retries`:
+         - Open in read-only mode: `with h5py.File(self.h5_path, "r", libver="latest", swmr=self.enable_swmr) as f:`.
+         - If `self.enable_swmr`: invoke `f["coordinates"].refresh()` and `f["energies"].refresh()` to fetch updated chunk index pointers flushed by writer.
+         - Return `{"coordinates": f["coordinates"][:], "energies": f["energies"][:]}`.
+         - On `(RuntimeError, OSError)` during concurrent flush boundaries, sleep `retry_delay_s * (2 ** attempt)` and retry.
+         - Raise `RuntimeError("SWMR reader refresh failed to synchronize.")` if retries exhausted.
+
+---
+
+### Prompt 6 of 6: Physical Integration & Zero-Mock Verification Suite
+* **Target File**: `tests/integration/test_base_data_and_storage_part1.py`
+* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `time`, `concurrent.futures`, `multiprocessing`, `cryptography`, `h5py`, `numpy`, `zstandard`, `mendeleev`, `src.cochem.storage.hdf5_zstd`, `src.cochem.provenance.provenance_stamper`, `src.cochem.storage.cochem_archive`, `src.cochem.intake.chemical_webhook`, `src.cochem.storage.cochem_core_pes_store`, Standard Library
+* **Task Summary**:
+  1. Implement exhaustive integration and compliance tests executing exclusively against authentic filesystem resources in temporary directories (strictly zero mocks).
+  2. Lossless Zstd Compression & Fletcher32 Checksum Tests:
+     - Initialize `HDF5ZstdConfig(clevel=3, enable_shuffle=True, enable_fletcher32=True)`.
+     - Generate authentic double-precision floating-point molecular trajectory coordinate tensors (e.g. 500 frames, 12 atoms, 3 dimensions).
+     - Write to HDF5 store using generated chunk kwargs; close and re-open.
+     - Verify bit-for-bit lossless equality between original and decompressed coordinates via `np.testing.assert_array_equal()`.
+     - Verify HDF5 filter registration: assert Zstd filter (`32015`) and Fletcher32 checksum filter are present on the dataset chunks.
+  3. Cryptographic Merkle Provenance & Ed25519 Tamper Detection Tests:
+     - Generate an authentic Ed25519 private/public keypair.
+     - Populate `ProvenanceMetadata` with valid git commit SHA, environment hash, and thermodynamic conditions.
+     - Stamp HDF5 store via `ProvenanceStamper.stamp()`; verify root attributes (`canonical_manifest_json`, `chunk_sha256_root`, `provenance_signature`).
+     - Verify provenance via `ProvenanceStamper.verify(...)`: assert `verify == True`.
+     - Single-Bit Byte Alteration Attack: Open the stamped HDF5 file in binary mode (`"r+b"`), flip a single byte within an allocated dataset chunk, and call `verify(...)`: assert verification fails (`False`).
+     - Signature Forgery Test: Verify authentic file against an unauthenticated public key: assert verification fails (`False`).
+  4. Standardized `.cochem_archive` Security & Zip Slip Defense Tests:
+     - Package a directory containing `data.h5`, `logs/execution.log`, and `manifest.json` into `.cochem_archive` via `CochemArchive.pack()`.
+     - Unpack into sterile destination directory via `CochemArchive.unpack()`. Verify bit-level SHA-256 and size matching across all members.
+     - Zip Slip & Path Traversal Attack: Construct a malicious `.tar.zst` containing a member named `../../etc/passwd` or `../traversal.h5`. Assert `unpack()` aborts immediately and raises `ArchiveSecurityError`.
+     - Symlink Escape Attack: Construct an archive containing a symbolic link pointing to a target outside the destination root. Assert `unpack()` raises `ArchiveSecurityError`.
+     - Decompression Bomb Defense: Verify extraction aborts if member size exceeds `MAX_EXTRACTION_BYTES`.
+     - Checksum Tamper Test: Modify member payload after archive creation; assert `ArchiveSecurityError` on checksum mismatch.
+  5. Air-Gapped Chemical Webhook Validation & Quantum Invariant Tests:
+     - Test valid chemical payloads:
+       - Neutral singlet water molecule ($H_2O$, charge 0, spin multiplicity 1, valid coordinates): assert successful validation.
+       - Radical doublet hydroxyl ($OH^\bullet$, charge 0, spin multiplicity 2, valid coordinates): assert successful validation.
+     - Test quantum invariant rejections:
+       - Non-positive electron count: $H_2^{2+}$ (charge +2, $N_{\text{elec}} = 0$) -> assert raises `ValueError`.
+       - Physical spin bound exceeded: $H_2O$ with $2S+1 = 15 > 10 + 1$ -> assert raises `ValueError`.
+       - Spin parity violation: $H_2O$ ($N_{\text{elec}} = 10$, even) with even multiplicity ($2S+1 = 2$) -> assert raises `ValueError`.
+     - Test coordinate sanitization: coordinates containing `float('nan')` or `float('inf')` -> assert raises `ValueError`.
+     - Test dynamic element lookup: symbols containing invalid element `"Xx"` -> assert raises `ValueError`.
+  6. High-Concurrency SWMR Throughput & Zero-Stall Validation:
+     - Pre-allocate trajectory store for a 5-atom system with SWMR enabled.
+     - Launch live background writer process continuously appending 1,000 frames in batches of 50 frames with active flushing.
+     - Concurrently execute $\ge 4$ independent reader processes reading trajectories via `read_trajectory()`.
+     - Assert zero read-lock contention stalls, zero unhandled synchronization exceptions, and verify that extracted coordinate frames match written frames without corruption.
+  7. Anti-Spoofing & Zero-Mock AST Audit:
+     - Parse AST of all target production files (`hdf5_zstd.py`, `provenance_stamper.py`, `cochem_archive.py`, `chemical_webhook.py`, `cochem_core_pes_store.py`).
+     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, `MagicMock`, empty `pass` blocks, and `NotImplementedError` stubs.
+
+---
+
+## 4. Verification & Acceptance Criteria
+
+- **4.1 Compression Fidelity & Checksums**: Bit-for-bit equivalence between uncompressed and decompressed floating-point trajectory coordinates after Zstd roundtrip with active Fletcher32 checksum validation.
+- **4.2 Provenance Integrity & Tamper Detection**: Bit-level chunk digest verification using `ProvenanceStamper`, ensuring cryptographic verification passes on authentic files and fails immediately on single-bit byte alterations or unauthenticated signatures.
+- **4.3 Archive Traversal Security**: Rejection of malicious archive tarballs attempting path traversal (`Zip Slip`, symlink escapes, unmanifested files) outside destination directories with `ArchiveSecurityError`.
+- **4.4 Webhook Ingress Rejection**: Immediate rejection (HTTP 422) of chemical payloads missing valid representations, containing unmapped element symbols, exhibiting symbol-coordinate count mismatches, containing non-finite floats, or violating spin-parity constraints.
+- **4.5 SWMR Concurrency Throughput**: Concurrent execution of $\ge 4$ independent reader processes extracting trajectory metrics in real time from a live writer appending 10,000 frames, achieving zero read-lock stalls and zero data corruption.
+# Sequential Execution Prompt Schedule: CoChem-BASE Data & Storage (Part 1)
+
+The **CoChem-BASE Software Requirements Specification (SRS): Data & Storage Part 1 (SRS_Chunk_07_BASE_Data_and_Storage_Part_1)** has been decomposed into **6 context-safe, granular, sequential execution prompts** for the `cochem-coder` agent.
+
+---
+
+## 1. Architectural Layout & Dependency DAG
+
+```mermaid
+graph TD
+    P1["Prompt 1: Lossless Zstd HDF5 Compression Pipeline (src/cochem/storage/hdf5_zstd.py)"] --> P5["Prompt 5: High-Concurrency HDF5 SWMR PES Trajectory Store (src/cochem/storage/cochem_core_pes_store.py)"]
+    P2["Prompt 2: Cryptographic Merkle Provenance Stamper & Ed25519 Signer (src/cochem/provenance/provenance_stamper.py)"] --> P3["Prompt 3: Standardized .cochem_archive Container Engine (src/cochem/storage/cochem_archive.py)"]
+    P1 --> P6["Prompt 6: Physical Integration & Zero-Mock Verification Suite (tests/integration/test_base_data_and_storage_part1.py)"]
+    P2 --> P6
+    P3 --> P6
+    P4["Prompt 4: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine (src/cochem/intake/chemical_webhook.py)"] --> P6
+    P5 --> P6
+```
+
+---
+
+## 2. Global Invariants & Mandates
+
+1. **Zero-Mock Mandate**: Strictly zero placeholder `pass` stubs, dummy loops, synthetic arrays (`np.zeros`, `np.ones`), mock objects (`unittest.mock`), or `NotImplementedError` stubs. All business logic must operate on authentic system calls, physical HDF5 storage structures, real cryptographic primitives, and physical chemical invariants.
+2. **Dynamic Atomic & Physical Constants (Mendeleev Mandate)**: All elemental symbols, nuclear charges ($Z \in [1, 118]$), dynamic atomic masses, and isotopic distributions MUST be dynamically retrieved via the `mendeleev` Python library (`from mendeleev import element`). Hardcoding atomic masses, isotopic masses, or manual mass lookup dictionaries in the codebase is strictly prohibited. All thermodynamic state constants must align with CODATA 2018.
+3. **Tripartite Storage Air-Gap Topology**: Disjointness between Code ($T_{\text{code}}$), Artifacts ($T_{\text{art}}$), and Scratch ($T_{\text{scr}}$) must be maintained at all times:
+   $$\mathcal{P}(T_{\text{code}}) \cap \mathcal{P}(T_{\text{art}}) \cap \mathcal{P}(T_{\text{scr}}) = \emptyset \quad \land \quad \text{cwd} \notin \mathcal{P}(T_{\text{code}})$$
+   Webhook ingress validation, archive unpacking, and HDF5 temporary dataset generation must execute entirely within the ephemeral per-job scratch space ($T_{\text{scr}}$). No outbound network requests are permitted (Zero-Network Air-Gap).
+4. **Multi-Tier Concurrency & Storage Invariants**:
+   - Cross-platform file locking: All concurrent HDF5 initialization phases and writer lifecycle operations must utilize OS-agnostic file locking via `filelock.FileLock` (strictly replacing POSIX-only `fcntl`).
+   - Driver-level locking bypass: Set `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at process initialization before importing `h5py` to prevent distributed filesystem deadlocks on network mounts (NFS, Lustre).
+   - High-throughput SWMR mode: Single-Writer Multiple-Reader (SWMR) access must enforce `libver="latest"`, pre-allocated extensible chunked datasets, and atomic `dataset.flush()` / `file.flush()` boundaries. Readers must execute lockless concurrent reads accompanied by `dataset.refresh()`.
+5. **6-Tier Environment Matrix Portability**:
+   - **Local-Windows (WSL) & Local-MacOS (OrbStack)**: Path sanitization via `pathlib.Path`, explicit rejection of NTFS Alternate Data Streams (`:`), Windows reserved device names, and cross-platform relative path traversal (`Zip Slip`) prevention.
+   - **Local-Linux (Debian), Codespaces & GitHub Actions**: Native CPU userspace execution without GPU VRAM allocation or CUDA lock requirements during compression and telemetry serialization.
+   - **HPC (SLURM/PBS)**: Node-local scratch storage pinning (`$SLURM_TMPDIR` or local `/tmp`) for file locks and ephemeral archive unpacking to eliminate distributed filesystem lock contention.
+6. **Single Target File Rule**: Each prompt specifies exactly one physical production script or test file.
+
+---
+
+## 3. Granular Execution Prompts
+
+### Prompt 1 of 6: Lossless Zstandard (Zstd) HDF5 Compression Pipeline
+* **Target File**: `src/cochem/storage/hdf5_zstd.py`
+* **Dependencies**: `dataclasses`, `typing`, `hdf5plugin`, `h5py`, `numpy`, Standard Library
+* **Task Summary**:
+  1. Implement frozen configuration dataclass `HDF5ZstdConfig`:
+     - Fields:
+       - `clevel: int = 3`: Zstd compression level (strictly bounded $1 \le \text{clevel} \le 22$).
+       - `enable_shuffle: bool = True`: Byte shuffling flag prior to Zstd compression to group significant mantissa/exponent bytes for floating-point tensors.
+       - `enable_fletcher32: bool = True`: Fletcher32 checksum filter flag for block-level corruption detection.
+       - `min_chunk_bytes: int = 64 * 1024`: Minimum chunk size boundary (64 KB).
+       - `max_chunk_bytes: int = 256 * 1024`: Maximum chunk size boundary (256 KB).
+     - Validation in `__post_init__()`:
+       - If `not (1 <= self.clevel <= 22)`: raise `ValueError(f"Zstd clevel must be in 1..22, got {self.clevel}")`.
+       - If `self.min_chunk_bytes <= 0 or self.max_chunk_bytes < self.min_chunk_bytes`: raise `ValueError(f"Invalid chunk byte bounds: [{self.min_chunk_bytes}, {self.max_chunk_bytes}]")`.
+     - Lossy Filter Prohibition: Strictly enforce a complete ban on lossy compression filters (e.g., `scaleoffset`), guaranteeing bit-for-bit lossless precision for IEEE 754 float64/float32 trajectories.
+  2. Implement dynamic chunk derivation methods:
+     - `resolve_chunk_shape_3d(self, n_atoms: int, spatial_dim: int = 3, itemsize: int = 8, max_frames: Optional[int] = None) -> Tuple[int, int, int]`:
+       - Assert `n_atoms > 0`, `spatial_dim > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Calculate frame byte footprint: `frame_bytes = n_atoms * spatial_dim * itemsize`.
+       - Derive target chunk size: `target_bytes = (self.min_chunk_bytes + self.max_chunk_bytes) // 2`.
+       - Calculate frame chunk count: `chunk_frames = max(1, target_bytes // frame_bytes)`.
+       - Pre-allocate frame coordinate chunks along the primary frame dimension to prevent single-frame chunking (`chunk_frames=1`) on small systems, eliminating HDF5 B-tree index bloat.
+       - If `max_frames is not None and max_frames > 0`: cap `chunk_frames = min(chunk_frames, max_frames)`.
+       - Return `(chunk_frames, n_atoms, spatial_dim)`.
+     - `resolve_chunk_shape_1d(self, itemsize: int = 8, max_len: Optional[int] = None) -> Tuple[int]`:
+       - Assert `itemsize > 0`; raise `ValueError` otherwise.
+       - Target 1D energy tensors bounded between 64 KB and 256 KB.
+       - Derive `chunk_len = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // itemsize)`.
+       - If `max_len is not None and max_len > 0`: cap `chunk_len = min(chunk_len, max_len)`.
+       - Return `(chunk_len,)`.
+     - `resolve_chunk_shape_2d(self, n_features: int, itemsize: int = 8, max_rows: Optional[int] = None) -> Tuple[int, int]`:
+       - Assert `n_features > 0`, `itemsize > 0`; raise `ValueError` otherwise.
+       - Derive `row_bytes = n_features * itemsize`.
+       - Derive `chunk_rows = max(1, ((self.min_chunk_bytes + self.max_chunk_bytes) // 2) // row_bytes)`.
+       - If `max_rows is not None and max_rows > 0`: cap `chunk_rows = min(chunk_rows, max_rows)`.
+       - Return `(chunk_rows, n_features)`.
+  3. Implement dataset keyword generator:
+     - `get_dataset_kwargs(self, chunk_shape: Tuple[int, ...], is_numeric: bool = True) -> Dict[str, Any]`:
+       - Construct dictionary with `"chunks": chunk_shape` and unpack `hdf5plugin.Zstd(clevel=self.clevel)` (Filter ID `32015`).
+       - If `is_numeric and self.enable_shuffle`: set `kwargs["shuffle"] = True`.
+       - If `is_numeric and self.enable_fletcher32`: set `kwargs["fletcher32"] = True`.
+       - Return `kwargs`.
+  4. CPU Resource Isolation:
+     - Ensure all compression, decompression, and chunk checksumming operations execute strictly in CPU userspace I/O without allocating GPU VRAM or acquiring CUDA context locks.
+
+---
+
+### Prompt 2 of 6: Cryptographic Merkle Provenance Stamper & Ed25519 Signer
+* **Target File**: `src/cochem/provenance/provenance_stamper.py`
+* **Dependencies**: `base64`, `datetime`, `hashlib`, `json`, `pathlib`, `typing`, `cryptography`, `h5py`, `numpy`, `pydantic>=2.0.0`, Standard Library
+* **Task Summary**:
+  1. Implement Pydantic v2 execution provenance model `ProvenanceMetadata`:
+     - `model_config = ConfigDict(extra="forbid", frozen=True)`
+     - Fields:
+       - `git_commit_hash: str = Field(..., pattern=r"^[a-f0-9]{40,64}$")`
+       - `git_dirty_flag: bool`
+       - `python_version: str`
+       - `cochem_version: str`
+       - `environment_lock_hash: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `codata_version: str = Field(default="CODATA 2018")`
+       - `timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cli_command: str`
+       - `thermodynamic_state: Dict[str, float] = Field(default_factory=lambda: {"T_K": 298.15, "P_atm": 1.0})`
+  2. Implement `ProvenanceStamper`:
+     - `@classmethod def compute_chunks_sha256(cls, h5_file: h5py.File) -> str`:
+       - Call `h5_file.flush()` to ensure disk synchronization.
+       - Initialize SHA-256 hasher: `hasher = hashlib.sha256()`.
+       - Recursively discover all dataset paths using `h5_file.visititems(...)`, collecting paths where `isinstance(obj, h5py.Dataset)`.
+       - Sort dataset paths in deterministic lexicographical order.
+       - For each dataset:
+         - Update hasher with dataset path UTF-8 bytes: `hasher.update(path.encode("utf-8"))`.
+         - Update hasher with data type: `hasher.update(str(dset.dtype).encode("utf-8"))`.
+         - Update hasher with tensor shape: `hasher.update(str(dset.shape).encode("utf-8"))`.
+         - Direct Chunk Reading without Array Allocations:
+           - If `dset.chunks is not None`:
+             - Iterate chunk slices via `dset.iter_chunks()`.
+             - Derive chunk start offset tuple: `tuple(chunk_info[i].start or 0 for i in range(len(chunk_info)))`.
+             - Read raw chunk bytes via `dset.id.read_direct_chunk(chunk_offset)`.
+             - Feed raw chunk bytes into `hasher.update(raw_chunk)`.
+             - Handle sparse unallocated chunks deterministically: catch `RuntimeError` where `"not allocated"` or `"chunk storage"` is in error message, and update hasher with `b"UNALLOCATED_CHUNK"`. Re-raise unexpected runtime errors.
+           - Else (contiguous or compact dataset):
+             - Extract contiguous bytes via `np.ascontiguousarray(dset[()]).tobytes()` and update hasher.
+       - Return `hasher.hexdigest()`.
+     - `@classmethod def stamp(cls, file_path: Path, metadata: ProvenanceMetadata, private_key: Optional[ed25519.Ed25519PrivateKey] = None) -> str`:
+       - Open HDF5 file in `"r+"` mode: `with h5py.File(file_path, "r+") as f:`.
+       - Compute chunk Merkle digest: `chunk_digest = cls.compute_chunks_sha256(f)`.
+       - Serialize `metadata` to JSON dictionary via `meta_dict = metadata.model_dump(mode="json")`.
+       - Inject chunk root hash: `meta_dict["chunk_sha256_root"] = chunk_digest`.
+       - Generate canonical JSON byte string: `canonical_json = json.dumps(meta_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")` to eliminate float/int type coercion ambiguities.
+       - If `private_key is not None`:
+         - Generate Ed25519 asymmetric signature: `sig = private_key.sign(canonical_json)`.
+         - Base64-encode signature string: `sig_b64 = base64.b64encode(sig).decode("ascii")`.
+       - Populate individual root attributes (`/ .attrs`):
+         - `f.attrs["git_commit_hash"] = metadata.git_commit_hash`
+         - `f.attrs["git_dirty_flag"] = metadata.git_dirty_flag`
+         - `f.attrs["python_version"] = metadata.python_version`
+         - `f.attrs["cochem_version"] = metadata.cochem_version`
+         - `f.attrs["environment_lock_hash"] = metadata.environment_lock_hash`
+         - `f.attrs["codata_version"] = metadata.codata_version`
+         - `f.attrs["timestamp_utc"] = metadata.timestamp_utc.isoformat()`
+         - `f.attrs["cli_command"] = metadata.cli_command`
+         - `f.attrs["thermodynamic_state"] = json.dumps(metadata.thermodynamic_state, sort_keys=True)`
+       - Populate root cryptographic manifest and signature:
+         - `f.attrs["canonical_manifest_json"] = canonical_json.decode("utf-8")`
+         - `f.attrs["chunk_sha256_root"] = chunk_digest`
+         - `f.attrs["provenance_signature"] = sig_b64`
+       - Call `f.flush()` and return `sig_b64`.
+     - `@classmethod def verify(cls, file_path: Path, public_key: Optional[ed25519.Ed25519PublicKey] = None) -> bool`:
+       - Open HDF5 file in `"r"` mode.
+       - Retrieve `stored_manifest_raw = f.attrs.get("canonical_manifest_json", "")` and `stored_sig = f.attrs.get("provenance_signature", "")`. Return `False` if manifest missing.
+       - Normalize manifest to string and UTF-8 bytes.
+       - Parse `meta_dict = json.loads(stored_manifest_str)`; return `False` on JSON decoding failure.
+       - Extract `expected_chunk_hash = meta_dict.get("chunk_sha256_root", "")`.
+       - Recompute `actual_chunk_hash = cls.compute_chunks_sha256(f)`.
+       - If not `expected_chunk_hash` or `expected_chunk_hash != actual_chunk_hash`: return `False`.
+       - If `public_key is not None`:
+         - If not `stored_sig`: return `False`.
+         - Decode signature: `sig_bytes = base64.b64decode(stored_sig)`.
+         - Verify signature: `public_key.verify(sig_bytes, stored_manifest_bytes)`. Return `False` on `(InvalidSignature, ValueError, TypeError)`.
+       - Return `True` upon full cryptographic and chunk digest verification.
+
+---
+
+### Prompt 3 of 6: Standardized `.cochem_archive` Container Format & Security Engine
+* **Target File**: `src/cochem/storage/cochem_archive.py`
+* **Dependencies**: `datetime`, `hashlib`, `io`, `pathlib`, `shutil`, `tarfile`, `typing`, `uuid`, `pydantic>=2.0.0`, `zstandard`, Standard Library
+* **Task Summary**:
+  1. Implement domain exception:
+     - `ArchiveSecurityError(Exception)`: Raised when an archive violates sandbox isolation, containment boundaries, path traversal checks, symlink/hardlink restrictions, or member integrity checks.
+  2. Implement Pydantic v2 data models:
+     - `FileChecksum`:
+       - `model_config = ConfigDict(extra="forbid", frozen=True)`
+       - `sha256: str = Field(..., pattern=r"^[a-f0-9]{64}$")`
+       - `size_bytes: int = Field(..., ge=0)`
+     - `ArchiveManifest`:
+       - `model_config = ConfigDict(extra="forbid")`
+       - `schema_version: str = Field(default="1.0.0", pattern=r"^\d+\.\d+\.\d+$")`
+       - `archive_id: UUID = Field(default_factory=uuid4)`
+       - `created_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))`
+       - `cochem_version: str`
+       - `files: Dict[str, FileChecksum]`
+       - `metadata: Dict[str, Any] = Field(default_factory=dict)`
+       - `@model_validator(mode="after") def validate_core_files(self) -> "ArchiveManifest"`: Assert `"data.h5" in self.files`, raising `ValueError("Archive manifest must contain primary 'data.h5' store.")` if absent.
+  3. Implement archive packager and unpacker `CochemArchive`:
+     - Enforce `MAX_EXTRACTION_BYTES: int = 10 * 1024 * 1024 * 1024` (10 GB decompression bomb defense).
+     - Static helper `_compute_sha256(path: Path) -> str`: Read in 64 KB chunks and return hexdigest.
+     - `@classmethod def pack(cls, source_dir: Path, output_archive: Path, cochem_version: str, metadata: Optional[Dict[str, Any]] = None, cctx_level: int = 6) -> Path`:
+       - Resolve `source_dir = source_dir.resolve()`.
+       - Assert `(source_dir / "data.h5").exists()`; raise `FileNotFoundError` if missing.
+       - Walk directory via `sorted(source_dir.rglob("*"))`. For every regular file that is not a symlink and not named `"manifest.json"`, compute relative POSIX path, SHA-256 digest, and file size in bytes, recording in `files_map`.
+       - Instantiate `ArchiveManifest`, serialize via `manifest.model_dump_json(indent=2).encode("utf-8")`.
+       - Initialize `zstandard.ZstdCompressor(level=cctx_level)`.
+       - Create parent directories for `output_archive`.
+       - Open output file and wrap with `cctx.stream_writer(f_out)` and `tarfile.open(fileobj=compressor, mode="w|")`.
+       - Normalize `TarInfo` headers for reproducible archiving: fixed timestamp `manifest.created_utc`, `mode=0o644`, `uid=0`, `gid=0`, empty `uname` and `gname`.
+       - Write `manifest.json` as the initial archive member, followed by all files in deterministic sorted order.
+       - Return `output_archive`.
+     - `@classmethod def unpack(cls, archive_path: Path, destination_dir: Path) -> ArchiveManifest`:
+       - Resolve `destination_dir = destination_dir.resolve()`, creating directories via `mkdir(parents=True, exist_ok=True)`.
+       - Initialize `zstandard.ZstdDecompressor()`, stream reading from `archive_path`, and open `tarfile.open(fileobj=decompressor, mode="r|")`.
+       - Iterate over tar members:
+         - Reject links and special device nodes: if `member.islnk() or member.issym() or member.ischr() or member.isblk() or member.isfifo()`, raise `ArchiveSecurityError(f"Archive contains forbidden link or special file: '{member.name}'")`.
+         - Path sanitization: normalize path separators (`\\` to `/`), strip leading slashes.
+         - Reject path traversal attempts containing `:`, starting with `/`, or containing `..` path segments via `ArchiveSecurityError`.
+         - Resolve destination path: `target_path = (destination_dir / norm_name).resolve()`.
+         - Assert path containment: assert `target_path.is_relative_to(destination_dir)`; raise `ArchiveSecurityError(f"Path traversal detected for member: '{member.name}'")` otherwise.
+         - Enforce decompression quota: accumulate `total_extracted_bytes += member.size`. If `total_extracted_bytes > cls.MAX_EXTRACTION_BYTES`, raise `ArchiveSecurityError(f"Extraction exceeded maximum allowable limit ({cls.MAX_EXTRACTION_BYTES} bytes)")`.
+         - If directory: `target_path.mkdir(parents=True, exist_ok=True)`.
+         - If file: create parent directory, extract file via `tar.extractfile(member)`, stream write to `target_path`, and track in `extracted_rel_paths`.
+         - Any other member type: raise `ArchiveSecurityError`.
+       - Validate manifest existence: `manifest_path = destination_dir / "manifest.json"`; raise `FileNotFoundError` if missing.
+       - Parse manifest via `ArchiveManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))`.
+       - Verify member list completeness: assert `extracted_rel_paths == set(manifest.files.keys()) | {"manifest.json"}`; raise `ArchiveSecurityError` on any unmanifested or missing files.
+       - Verify file integrity: for each declared member, verify that physical file exists, file size matches `csum.size_bytes`, and SHA-256 digest matches `csum.sha256`. Raise `ArchiveSecurityError` on any mismatch.
+       - Return validated `manifest`.
+
+---
+
+### Prompt 4 of 6: Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Engine
+* **Target File**: `src/cochem/intake/chemical_webhook.py`
+* **Dependencies**: `math`, `typing`, `pydantic>=2.0.0`, `mendeleev`, Standard Library
+* **Task Summary**:
+  1. Define 3D coordinate type alias:
+     - `Coordinate3D = Annotated[List[float], Field(min_length=3, max_length=3)]`
+  2. Implement Pydantic v2 chemical ingress validator `ChemicalPayloadSchema`:
+     - `model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)`
+     - Fields:
+       - `job_id: str = Field(..., min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-\.]+$")`
+       - `smiles: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `inchi: Optional[str] = Field(default=None, min_length=1, max_length=4096, pattern=r"^[\x20-\x7E]+$")`
+       - `symbols: Optional[List[str]] = Field(default=None, min_length=1, max_length=1000)`
+       - `coordinates_3d: Optional[List[Coordinate3D]] = Field(default=None, min_length=1, max_length=1000)`
+       - `charge: int = Field(default=0, ge=-20, le=20)`
+       - `spin_multiplicity: int = Field(default=1, ge=1, le=10)`
+       - `energy_unit: Literal["hartree", "kcal/mol", "eV"] = "hartree"`
+  3. Enforce chemical completeness and quantum invariants in `@model_validator(mode="after")`:
+     - Ingress Completeness:
+       - Assert that at least one valid representation is populated: `smiles`, `inchi`, or both `(coordinates_3d AND symbols)`. Raise `ValueError("Payload must contain at least one valid chemical representation: 'smiles', 'inchi', or both 'coordinates_3d' and 'symbols'.")` if none present.
+       - Assert coordinate and symbol symmetry: `coordinates_3d` requires `symbols` and vice-versa; raise `ValueError` if one is provided without the other.
+     - Coordinate & Element Validation:
+       - Assert length parity: `len(self.symbols) == len(self.coordinates_3d)`.
+       - Dynamic Element Resolution (Mendeleev Mandate): For each symbol in `self.symbols`, resolve its nuclear charge $Z$ dynamically via `mendeleev.element(canon_sym).atomic_number`. Validate that $1 \le Z \le 118$, raising `ValueError(f"Invalid chemical element: '{sym}'")` for unmapped symbols. Sum total nuclear charge: $Z_{\text{tot}} = \sum Z_i$.
+       - Coordinate Sanitization: Iterate through all coordinates in `self.coordinates_3d`; invoke `math.isfinite(coord)`. Raise `ValueError(f"Non-finite floating-point coordinate detected: {coord}")` on `NaN`, `+Inf`, or `-Inf`.
+     - Quantum Electron & Spin Parity Invariants:
+       - Net electron calculation: $N_{\text{elec}} = Z_{\text{tot}} - \text{charge}$.
+       - Assert positive electron count: if $N_{\text{elec}} \le 0$, raise `ValueError(f"Non-positive electron count (N_elec={N_elec}): total nuclear charge Z={Z_tot}, charge={self.charge}")`.
+       - Physical spin multiplicity upper bound: Assert $1 \le (2S+1) \le N_{\text{elec}} + 1$. If `self.spin_multiplicity > N_elec + 1`, raise `ValueError(f"Physical spin multiplicity bound violated: 2S+1={self.spin_multiplicity} exceeds maximum {N_elec + 1} for system with N_elec={N_elec} electrons.")`.
+       - Spin Parity Invariant ($N_{\text{elec}} \text{ even} \iff 2S+1 \text{ odd}$):
+         - Check parity condition: `if (n_electrons % 2) == (self.spin_multiplicity % 2):`
+         - Raise `ValueError(f"Quantum spin-parity violation: For N_elec={n_electrons}, spin_multiplicity (2S+1) must be {expected_parity}, got {self.spin_multiplicity}.")`.
+  4. Structured HTTP 422 Rejection Protocol:
+     - Implement helper function `format_validation_error_response(exc: Exception, job_id: Optional[str] = None) -> Dict[str, Any]` to return standardized JSON on validation failure:
+       ```json
+       {
+         "status": 422,
+         "error": "Unprocessable Entity",
+         "job_id": "JOB_ID",
+         "detail": "Error description",
+         "timestamp_utc": "ISO-8601"
+       }
+       ```
+
+---
+
+### Prompt 5 of 6: High-Concurrency HDF5 SWMR PES Trajectory Store
+* **Target File**: `src/cochem/storage/cochem_core_pes_store.py`
+* **Dependencies**: `os`, `time`, `pathlib`, `typing`, `filelock`, `h5py`, `numpy`, `src.cochem.storage.hdf5_zstd`, Standard Library
+* **Task Summary**:
+  1. Early Environment & Process Configuration:
+     - Enforce `os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"` at the top of the file before `h5py` import to disable driver-level filesystem locking across network and cluster mounts (NFS, Lustre).
+  2. Implement `SWMRPESStore`:
+     - `__init__(self, h5_path: Path, n_atoms: int = 1, zstd_config: Optional[HDF5ZstdConfig] = None, enable_swmr: bool = True) -> None`:
+       - Resolve paths: `self.h5_path = Path(h5_path).resolve()`, `self.lock_path = self.h5_path.with_suffix(".lock")`.
+       - Store `self.n_atoms = n_atoms`, `self.zstd_config = zstd_config or HDF5ZstdConfig()`, `self.enable_swmr = enable_swmr`.
+       - Initialize writer handle: `self._writer_file: Optional[h5py.File] = None`.
+       - Execute `self._preallocate_schema()`.
+     - `_preallocate_schema(self) -> None`:
+       - Create parent directory.
+       - Acquire exclusive file lock: `with FileLock(str(self.lock_path), timeout=10.0):`.
+       - If `not self.h5_path.exists()`:
+         - Open in `"w"` mode with `libver="latest"`.
+         - Derive chunk shapes and dataset kwargs via `self.zstd_config.resolve_chunk_shape_3d(self.n_atoms, 3, 8)` and `self.zstd_config.resolve_chunk_shape_1d(8)`.
+         - Pre-allocate extensible chunked datasets:
+           - `"coordinates"`: `shape=(0, self.n_atoms, 3)`, `maxshape=(None, self.n_atoms, 3)`, `dtype="float64"`, `**coords_kwargs`.
+           - `"energies"`: `shape=(0,)`, `maxshape=(None,)`, `dtype="float64"`, `**energy_kwargs`.
+         - Write root attributes: `f.attrs["schema_version"] = "1.0.0"`, `f.attrs["n_atoms"] = self.n_atoms`.
+         - Call `f.flush()`.
+     - `open_writer(self) -> None`:
+       - Open persistent writer handle: `self._writer_file = h5py.File(self.h5_path, "r+", libver="latest")`.
+       - If `self.enable_swmr and not self._writer_file.swmr_mode`: activate `self._writer_file.swmr_mode = True`.
+     - `close_writer(self) -> None`:
+       - If `self._writer_file is not None`: flush and close file, setting `self._writer_file = None`.
+     - `append_frames(self, coords: np.ndarray, energies: np.ndarray) -> None`:
+       - Convert to `np.float64` arrays; normalize dimensions: accept `(N, n_atoms, 3)` or `(n_atoms, 3)`, and `(N,)` or scalar.
+       - Assert coordinate shapes match `(N, self.n_atoms, 3)` and frame counts match energy points count.
+       - If inside persistent writer (`self._writer_file is not None`):
+         - Resize `ds_coords` and `ds_energy` datasets by $N$ frames.
+         - Assign newly written array slices.
+         - Atomically flush datasets and file: `ds_coords.flush()`, `ds_energy.flush()`, `self._writer_file.flush()`.
+       - Else:
+         - Acquire exclusive `FileLock(str(self.lock_path), timeout=30.0)`.
+         - Open `h5py.File(self.h5_path, "r+", libver="latest")`.
+         - Activate SWMR mode if enabled, resize datasets, write frames, and flush.
+     - `read_trajectory(self, max_retries: int = 5, retry_delay_s: float = 0.05) -> Dict[str, np.ndarray]`:
+       - Lockless non-blocking reader execution without acquiring the writer's `FileLock`.
+       - In retry loop up to `max_retries`:
+         - Open in read-only mode: `with h5py.File(self.h5_path, "r", libver="latest", swmr=self.enable_swmr) as f:`.
+         - If `self.enable_swmr`: invoke `f["coordinates"].refresh()` and `f["energies"].refresh()` to fetch updated chunk index pointers flushed by writer.
+         - Return `{"coordinates": f["coordinates"][:], "energies": f["energies"][:]}`.
+         - On `(RuntimeError, OSError)` during concurrent flush boundaries, sleep `retry_delay_s * (2 ** attempt)` and retry.
+         - Raise `RuntimeError("SWMR reader refresh failed to synchronize.")` if retries exhausted.
+
+---
+
+### Prompt 6 of 6: Physical Integration & Zero-Mock Verification Suite
+* **Target File**: `tests/integration/test_base_data_and_storage_part1.py`
+* **Dependencies**: `pytest`, `pathlib`, `ast`, `os`, `sys`, `time`, `concurrent.futures`, `multiprocessing`, `cryptography`, `h5py`, `numpy`, `zstandard`, `mendeleev`, `src.cochem.storage.hdf5_zstd`, `src.cochem.provenance.provenance_stamper`, `src.cochem.storage.cochem_archive`, `src.cochem.intake.chemical_webhook`, `src.cochem.storage.cochem_core_pes_store`, Standard Library
+* **Task Summary**:
+  1. Implement exhaustive integration and compliance tests executing exclusively against authentic filesystem resources in temporary directories (strictly zero mocks).
+  2. Lossless Zstd Compression & Fletcher32 Checksum Tests:
+     - Initialize `HDF5ZstdConfig(clevel=3, enable_shuffle=True, enable_fletcher32=True)`.
+     - Generate authentic double-precision floating-point molecular trajectory coordinate tensors (e.g. 500 frames, 12 atoms, 3 dimensions).
+     - Write to HDF5 store using generated chunk kwargs; close and re-open.
+     - Verify bit-for-bit lossless equality between original and decompressed coordinates via `np.testing.assert_array_equal()`.
+     - Verify HDF5 filter registration: assert Zstd filter (`32015`) and Fletcher32 checksum filter are present on the dataset chunks.
+  3. Cryptographic Merkle Provenance & Ed25519 Tamper Detection Tests:
+     - Generate an authentic Ed25519 private/public keypair.
+     - Populate `ProvenanceMetadata` with valid git commit SHA, environment hash, and thermodynamic conditions.
+     - Stamp HDF5 store via `ProvenanceStamper.stamp()`; verify root attributes (`canonical_manifest_json`, `chunk_sha256_root`, `provenance_signature`).
+     - Verify provenance via `ProvenanceStamper.verify(...)`: assert `verify == True`.
+     - Single-Bit Byte Alteration Attack: Open the stamped HDF5 file in binary mode (`"r+b"`), flip a single byte within an allocated dataset chunk, and call `verify(...)`: assert verification fails (`False`).
+     - Signature Forgery Test: Verify authentic file against an unauthenticated public key: assert verification fails (`False`).
+  4. Standardized `.cochem_archive` Security & Zip Slip Defense Tests:
+     - Package a directory containing `data.h5`, `logs/execution.log`, and `manifest.json` into `.cochem_archive` via `CochemArchive.pack()`.
+     - Unpack into sterile destination directory via `CochemArchive.unpack()`. Verify bit-level SHA-256 and size matching across all members.
+     - Zip Slip & Path Traversal Attack: Construct a malicious `.tar.zst` containing a member named `../../etc/passwd` or `../traversal.h5`. Assert `unpack()` aborts immediately and raises `ArchiveSecurityError`.
+     - Symlink Escape Attack: Construct an archive containing a symbolic link pointing to a target outside the destination root. Assert `unpack()` raises `ArchiveSecurityError`.
+     - Decompression Bomb Defense: Verify extraction aborts if member size exceeds `MAX_EXTRACTION_BYTES`.
+     - Checksum Tamper Test: Modify member payload after archive creation; assert `ArchiveSecurityError` on checksum mismatch.
+  5. Air-Gapped Chemical Webhook Validation & Quantum Invariant Tests:
+     - Test valid chemical payloads:
+       - Neutral singlet water molecule ($H_2O$, charge 0, spin multiplicity 1, valid coordinates): assert successful validation.
+       - Radical doublet hydroxyl ($OH^\bullet$, charge 0, spin multiplicity 2, valid coordinates): assert successful validation.
+     - Test quantum invariant rejections:
+       - Non-positive electron count: $H_2^{2+}$ (charge +2, $N_{\text{elec}} = 0$) -> assert raises `ValueError`.
+       - Physical spin bound exceeded: $H_2O$ with $2S+1 = 15 > 10 + 1$ -> assert raises `ValueError`.
+       - Spin parity violation: $H_2O$ ($N_{\text{elec}} = 10$, even) with even multiplicity ($2S+1 = 2$) -> assert raises `ValueError`.
+     - Test coordinate sanitization: coordinates containing `float('nan')` or `float('inf')` -> assert raises `ValueError`.
+     - Test dynamic element lookup: symbols containing invalid element `"Xx"` -> assert raises `ValueError`.
+  6. High-Concurrency SWMR Throughput & Zero-Stall Validation:
+     - Pre-allocate trajectory store for a 5-atom system with SWMR enabled.
+     - Launch live background writer process continuously appending 1,000 frames in batches of 50 frames with active flushing.
+     - Concurrently execute $\ge 4$ independent reader processes reading trajectories via `read_trajectory()`.
+     - Assert zero read-lock contention stalls, zero unhandled synchronization exceptions, and verify that extracted coordinate frames match written frames without corruption.
+  7. Anti-Spoofing & Zero-Mock AST Audit:
+     - Parse AST of all target production files (`hdf5_zstd.py`, `provenance_stamper.py`, `cochem_archive.py`, `chemical_webhook.py`, `cochem_core_pes_store.py`).
+     - Certify zero occurrences of `unittest.mock`, `@patch`, `monkeypatch`, `MagicMock`, empty `pass` blocks, and `NotImplementedError` stubs.
+
+---
+
+## 4. Verification & Acceptance Criteria
+
+- **4.1 Compression Fidelity & Checksums**: Bit-for-bit equivalence between uncompressed and decompressed floating-point trajectory coordinates after Zstd roundtrip with active Fletcher32 checksum validation.
+- **4.2 Provenance Integrity & Tamper Detection**: Bit-level chunk digest verification using `ProvenanceStamper`, ensuring cryptographic verification passes on authentic files and fails immediately on single-bit byte alterations or unauthenticated signatures.
+- **4.3 Archive Traversal Security**: Rejection of malicious archive tarballs attempting path traversal (`Zip Slip`, symlink escapes, unmanifested files) outside destination directories with `ArchiveSecurityError`.
+- **4.4 Webhook Ingress Rejection**: Immediate rejection (HTTP 422) of chemical payloads missing valid representations, containing unmapped element symbols, exhibiting symbol-coordinate count mismatches, containing non-finite floats, or violating spin-parity constraints.
+- **4.5 SWMR Concurrency Throughput**: Concurrent execution of $\ge 4$ independent reader processes extracting trajectory metrics in real time from a live writer appending 10,000 frames, achieving zero read-lock stalls and zero data corruption.
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\airgap_coordinator.py ---
-"""Tripartite Storage Air-Gap Coordinator & Concurrency Governor.
-Enforces strict topological separation between Code (T_code), Artifacts (T_art), and Scratch (T_scr).
-Provides OS-agnostic file locking and SQLite WAL concurrency governance.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\test_anti_spoof_linter.py ---
+"""Physical unit tests for CoChem Anti-Spoofing Linter (ci_tools/anti_spoof_linter.py).
+
+Zero-Mock Mandate Compliance:
+- Real test files created in tmp_path.
+- Tests verify AST inspection, banned imports, and stubs.
 """
 
 from __future__ import annotations
 
-import hashlib
-import os
-import pathlib
-import shutil
-import sqlite3
-from dataclasses import dataclass
-from typing import Optional, Tuple
-
-import filelock
-
-from cochem.core.cochem_sandbox import SandboxConfig, SandboxContext
-
-
-class AirGapViolationError(PermissionError):
-    """Raised when storage paths intersect, overlap, or violate air-gap containment rules."""
-
-
-@dataclass(frozen=True)
-class TripartiteStorageConfig:
-    """Immutable topological layout configuration for tripartite storage."""
-
-    code_root: pathlib.Path
-    artifacts_root: pathlib.Path
-    scratch_root: pathlib.Path
-
-
-class TripartiteAirGapCoordinator:
-    """Storage coordinator enforcing zero-overlap air-gap and sandboxed publication."""
-
-    def __init__(self, config: TripartiteStorageConfig) -> None:
-        self.config: TripartiteStorageConfig = TripartiteStorageConfig(
-            code_root=config.code_root.resolve(),
-            artifacts_root=config.artifacts_root.resolve(),
-            scratch_root=config.scratch_root.resolve(),
-        )
-        self.validate_disjointness()
-
-    def validate_disjointness(self) -> None:
-        """Verify strict mutual disjointness between Code, Artifacts, and Scratch roots."""
-        code = self.config.code_root
-        art = self.config.artifacts_root
-        scr = self.config.scratch_root
-
-        if code == art or code == scr or art == scr:
-            raise AirGapViolationError(
-                "Tripartite storage roots must be strictly distinct directories."
-            )
-
-        if code.is_relative_to(art) or code.is_relative_to(scr):
-            raise AirGapViolationError(
-                f"code_root '{code}' overlaps with artifacts or scratch root."
-            )
-
-        if art.is_relative_to(code) or art.is_relative_to(scr):
-            raise AirGapViolationError(
-                f"artifacts_root '{art}' overlaps with code or scratch root."
-            )
-
-        if scr.is_relative_to(code) or scr.is_relative_to(art):
-            raise AirGapViolationError(
-                f"scratch_root '{scr}' overlaps with code or artifacts root."
-            )
-
-        cwd = pathlib.Path.cwd().resolve()
-        if cwd.is_relative_to(code):
-            raise AirGapViolationError(
-                f"CWD '{cwd}' resides within code_root '{code}'. Direct mutation access prohibited."
-            )
-
-    def create_sandboxed_workspace(
-        self, job_id: str, timeout_seconds: float = 300.0
-    ) -> SandboxContext:
-        """Allocate an ephemeral sandboxed workspace confined strictly to scratch storage."""
-        if ".." in job_id or "/" in job_id or "\\" in job_id:
-            raise AirGapViolationError(
-                f"Job scratch path traversal detected: {job_id}"
-            )
-
-        job_scratch = (self.config.scratch_root / f"cochem_exec_{job_id}").resolve()
-
-        if not job_scratch.is_relative_to(self.config.scratch_root):
-            raise AirGapViolationError(
-                f"Job scratch path traversal detected: {job_id}"
-            )
-
-        if job_scratch == self.config.scratch_root:
-            raise AirGapViolationError(
-                f"Invalid job identifier attempting root allocation: {job_id}"
-            )
-
-        config = SandboxConfig(
-            scratch_parent_dir=job_scratch,
-            timeout_seconds=timeout_seconds,
-        )
-        return SandboxContext(config)
-
-    def publish_artifact(
-        self,
-        source_path: pathlib.Path,
-        relative_dest: pathlib.Path,
-        compute_sha256: bool = True,
-    ) -> Tuple[pathlib.Path, Optional[str]]:
-        """Atomically transfer validated deliverable from scratch to append-only artifacts storage."""
-        source = source_path.resolve()
-        if not source.is_relative_to(self.config.scratch_root):
-            raise AirGapViolationError(
-                f"Source path '{source}' resides outside scratch root '{self.config.scratch_root}'"
-            )
-
-        if not source.is_file():
-            raise FileNotFoundError(f"Source artifact not found: {source}")
-
-        dest = (self.config.artifacts_root / relative_dest).resolve()
-        if not dest.is_relative_to(self.config.artifacts_root):
-            raise AirGapViolationError(
-                f"Destination path '{dest}' resides outside artifacts root '{self.config.artifacts_root}'"
-            )
-
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        sha256_hash: Optional[str] = None
-        if compute_sha256:
-            hasher = hashlib.sha256()
-            with open(source, "rb") as f:
-                while chunk := f.read(65536):
-                    hasher.update(chunk)
-            sha256_hash = hasher.hexdigest()
-
-        temp_dest = dest.with_name(f"{dest.name}.tmp_{os.getpid()}")
-        try:
-            shutil.copy2(source, temp_dest)
-            os.replace(temp_dest, dest)
-            source.unlink(missing_ok=True)
-        except Exception:
-            if temp_dest.exists():
-                temp_dest.unlink(missing_ok=True)
-            raise
-
-        return dest, sha256_hash
-
-
-def get_tier_file_lock(
-    lock_path: pathlib.Path, timeout_sec: float = 30.0
-) -> filelock.FileLock:
-    """Instantiate cross-platform, OS-agnostic file lock adhering to HPC scratch requirements."""
-    resolved_path = lock_path.resolve()
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    return filelock.FileLock(str(resolved_path), timeout=timeout_sec)
-
-
-def configure_sqlite_connection(
-    conn: sqlite3.Connection, timeout_sec: float = 30.0
-) -> None:
-    """Configure SQLite connection with WAL mode and robust transaction timeout pragmas."""
-    busy_timeout_ms = int(timeout_sec * 1000)
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms};")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    conn.execute("PRAGMA foreign_keys = ON;")
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\cochem_constants.py ---
-"""Centralized Physical Constants & Dynamic Mendeleev Registry.
-Strictly adheres to Mendeleev Mandate and CODATA 2018 Dynamic Lookup.
-Zero hardcoding of atomic masses or periodic tables.
-"""
-
-from __future__ import annotations
-
-import functools
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
-
-import scipy.constants
-from mendeleev import element
-
-
-@dataclass(frozen=True)
-class PhysicalConstant:
-    """Immutable representation of a physical constant with CODATA provenance."""
-
-    name: str
-    symbol: str
-    value: float
-    uncertainty: float
-    unit: str
-    provenance: str
-    source: str = "CODATA 2018 / scipy.constants"
-
-
-@dataclass(frozen=True)
-class ElementProperties:
-    """Immutable elemental structure dynamically populated from Mendeleev database."""
-
-    atomic_number: int
-    symbol: str
-    name: str
-    atomic_weight: float
-    covalent_radius_pyykko: Optional[float]
-    vdw_radius_bondi: Optional[float]
-    provenance: str = "[M]"
-
-
-class PhysicalConstantsRegistry:
-    """Authoritative scientific registry for physical constants and elemental data."""
-
-    STANDARD_TEMPERATURE_K: float = 298.15
-    STANDARD_PRESSURE_PA: float = 101325.0
-
-    _CONVENTIONAL_SYMBOLS: Dict[str, str] = {
-        "Planck constant": "h",
-        "Boltzmann constant": "k_B",
-        "speed of light in vacuum": "c",
-        "Avogadro constant": "N_A",
-        "elementary charge": "e",
-        "molar gas constant": "R",
-        "atomic mass constant": "u",
-    }
-
-    @staticmethod
-    @functools.lru_cache(maxsize=256)
-    def get_constant(name: str) -> PhysicalConstant:
-        """Query physical constant dynamically from scipy CODATA 2018 database."""
-        if name not in scipy.constants.physical_constants:
-            raise KeyError(f"Constant '{name}' not found in CODATA 2018 registry.")
-
-        val, unit, unc = scipy.constants.physical_constants[name]
-        provenance = "[E]" if unc == 0.0 else "[D]"
-        symbol = PhysicalConstantsRegistry._CONVENTIONAL_SYMBOLS.get(name, name)
-
-        return PhysicalConstant(
-            name=name,
-            symbol=symbol,
-            value=float(val),
-            uncertainty=float(unc),
-            unit=str(unit),
-            provenance=provenance,
-            source="CODATA 2018 / scipy.constants",
-        )
-
-    @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def get_element(symbol_or_z: Any) -> ElementProperties:
-        """Dynamically retrieve element properties from Mendeleev library."""
-        elem = element(symbol_or_z)
-
-        covalent_val = getattr(elem, "covalent_radius_pyykko", None)
-        vdw_val = getattr(elem, "vdw_radius_bondi", None)
-
-        covalent_radius: Optional[float] = (
-            float(covalent_val) if covalent_val is not None else None
-        )
-        vdw_radius: Optional[float] = (
-            float(vdw_val) if vdw_val is not None else None
-        )
-
-        return ElementProperties(
-            atomic_number=int(elem.atomic_number),
-            symbol=str(elem.symbol),
-            name=str(elem.name),
-            atomic_weight=float(elem.mass),
-            covalent_radius_pyykko=covalent_radius,
-            vdw_radius_bondi=vdw_radius,
-            provenance="[M]",
-        )
-
-    @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def get_element_mass(symbol: str) -> float:
-        """Dynamically retrieve IUPAC standard atomic mass from Mendeleev."""
-        elem = element(symbol)
-        return float(elem.mass)
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\cochem_sandbox.py ---
-"""Ephemeral Sandbox Context & Path Jailbreak Defense.
-Strictly adheres to CoChem Anti-Spoofing Protocol v3 and Tripartite Storage Air-Gap.
-"""
-
-from __future__ import annotations
-
-import atexit
-import os
-import pathlib
-import re
-import shutil
-import signal
-import sys
-import tempfile
-import time
-from dataclasses import dataclass
-from typing import Any, Optional
-
-
-class SandboxSecurityViolationError(PermissionError):
-    """Raised when an operation attempts directory traversal, symlink escape, NTFS ADS injection, or reserved OS device access."""
-
-
-class SandboxExecutionError(RuntimeError):
-    """Raised when execution within the sandbox fails, is invoked uninitialized, or encounters an unhandled runtime fault."""
-
-
-@dataclass(frozen=True)
-class SandboxConfig:
-    """Immutable configuration for ephemeral sandboxed execution contexts."""
-
-    timeout_seconds: float = 300.0
-    max_memory_mb: int = 4096
-    allow_network: bool = False
-    scratch_parent_dir: Optional[pathlib.Path] = None
-    max_cleanup_retries: int = 5
-    cleanup_backoff_base_s: float = 0.1
-
-
-class SandboxContext:
-    """OS-agnostic ephemeral scratch sandbox with strict jailbreak and path traversal defense."""
-
-    RESERVED_WIN32_NAMES: re.Pattern[str] = re.compile(
-        r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$", re.IGNORECASE
+from pathlib import Path
+
+from ci_tools.anti_spoof_linter import (
+    BANNED_CONCURRENCY_MODULES,
+    BANNED_MOCK_MODULES,
+    EXCLUDED_DIRS,
+    check_file,
+    load_amnesty,
+    run_linter,
+)
+
+
+def test_excluded_dirs() -> None:
+    assert ".git" in EXCLUDED_DIRS
+    assert "__pycache__" in EXCLUDED_DIRS
+    assert ".pytest_cache" in EXCLUDED_DIRS
+
+
+def test_detect_banned_imports(tmp_path: Path) -> None:
+    bad_script = tmp_path / "bad_import.py"
+    bad_script.write_text("import parsl\nimport dask\n", encoding="utf-8")
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("parsl" in v.symbol for v in violations)
+    assert any("dask" in v.symbol for v in violations)
+
+
+def test_detect_mock_modules(tmp_path: Path) -> None:
+    bad_script = tmp_path / "bad_mock.py"
+    bad_script.write_text("import mock\n", encoding="utf-8")
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("mock" in v.symbol for v in violations)
+
+
+def test_detect_pass_stub(tmp_path: Path) -> None:
+    bad_script = tmp_path / "bad_stub.py"
+    bad_script.write_text("def solve():\n    pass\n", encoding="utf-8")
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any("pass" in v.message.lower() for v in violations)
+
+
+def test_detect_not_implemented_error(tmp_path: Path) -> None:
+    bad_script = tmp_path / "bad_raise.py"
+    bad_script.write_text(
+        "def compute():\n    raise NotImplementedError('Not done')\n",
+        encoding="utf-8",
     )
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any(v.category == "NOT_IMPLEMENTED_ERROR" for v in violations)
 
-    def __init__(self, config: Optional[SandboxConfig] = None) -> None:
-        self.config: SandboxConfig = config if config is not None else SandboxConfig()
-        self._temp_dir: Optional[tempfile.TemporaryDirectory[str]] = None
-        self.root: Optional[pathlib.Path] = None
-        self._active: bool = False
-        self._trap_registered: bool = False
 
-    def __enter__(self) -> SandboxContext:
-        parent_dir: Optional[pathlib.Path] = None
-        if self.config.scratch_parent_dir is not None:
-            parent_dir = self.config.scratch_parent_dir.resolve()
-            parent_dir.mkdir(parents=True, exist_ok=True)
+def test_detect_banned_identifier(tmp_path: Path) -> None:
+    bad_script = tmp_path / "bad_ident.py"
+    bad_script.write_text("def run():\n    dummy_var = 123\n", encoding="utf-8")
+    violations = check_file(bad_script, tmp_path, amnesty_set=set())
+    assert any(v.category == "BANNED_IDENTIFIER" for v in violations)
 
-        self._temp_dir = tempfile.TemporaryDirectory(
-            prefix="cochem_sandbox_",
-            dir=str(parent_dir) if parent_dir is not None else None,
-        )
-        self.root = pathlib.Path(self._temp_dir.name).resolve()
-        self._active = True
-        self._register_cleanup_traps()
-        return self
 
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> None:
-        self.cleanup()
+def test_clean_script_passes(tmp_path: Path) -> None:
+    clean_script = tmp_path / "clean_module.py"
+    clean_script.write_text(
+        "def compute_energy(x: float) -> float:\n    return x * 2.5\n",
+        encoding="utf-8",
+    )
+    violations = check_file(clean_script, tmp_path, amnesty_set=set())
+    assert len(violations) == 0
 
-    def validate_path(self, target: pathlib.Path) -> pathlib.Path:
-        """Validate target path against NTFS ADS, Win32 reserved names, and traversal."""
-        if not self._active or self.root is None:
-            raise SandboxExecutionError("Sandbox is not active.")
 
-        # Rejection of NTFS Alternate Data Streams (colon check excluding drive letter)
-        target_str = str(target)
-        sanitized = target_str.replace(":\\", "").replace(":/", "")
-        if ":" in sanitized:
-            raise SandboxSecurityViolationError(
-                f"NTFS Alternate Data Stream detected in path: {target}"
-            )
+def test_run_linter_directory(tmp_path: Path) -> None:
+    sub_dir = tmp_path / "clean_dir"
+    sub_dir.mkdir(parents=True, exist_ok=True)
+    (sub_dir / "clean_mod.py").write_text(
+        "def add(a: int, b: int) -> int:\n    return a + b\n",
+        encoding="utf-8",
+    )
+    exit_code, violations = run_linter(
+        targets=[sub_dir], repo_root=sub_dir, strict_mode=True
+    )
+    assert exit_code == 0
+    assert len(violations) == 0
 
-        # Rejection of reserved Win32 device names
-        for part in target.parts:
-            if self.RESERVED_WIN32_NAMES.match(part):
-                raise SandboxSecurityViolationError(
-                    f"Reserved OS device name detected: {part}"
-                )
 
-        # Anchor relative paths to sandbox root
-        if not target.is_absolute():
-            resolved = (self.root / target).resolve()
-        else:
-            resolved = target.resolve()
+def test_amnesty_bypass(tmp_path: Path) -> None:
+    conc_script = tmp_path / "conc_worker.py"
+    conc_script.write_text("import parsl\n", encoding="utf-8")
+    # Without amnesty, it fails
+    v_un = check_file(conc_script, tmp_path, amnesty_set=set())
+    assert len(v_un) > 0
+    # With amnesty, it passes
+    v_am = check_file(conc_script, tmp_path, amnesty_set={"conc_worker.py"})
+    assert len(v_am) == 0
 
-        # Path containment verification
-        try:
-            resolved.relative_to(self.root)
-        except ValueError as err:
-            raise SandboxSecurityViolationError(
-                f"Path traversal detected: {resolved} is outside sandbox root {self.root}"
-            ) from err
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\__init__.py ---
+"""CoChem Root Package."""
 
-        return resolved
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\integration\test_base_data_and_storage_part1.py ---
+"""Physical Integration & Zero-Mock Verification Suite for CoChem-BASE Data & Storage (Part 1).
 
-    def cleanup(self) -> None:
-        """Execute multi-pass directory deletion with exponential retry backoff."""
-        if not self._active or self._temp_dir is None:
-            return
-
-        self._active = False
-        target_root = self.root
-
-        for attempt in range(self.config.max_cleanup_retries):
-            try:
-                if self._temp_dir is not None:
-                    self._temp_dir.cleanup()
-                elif target_root is not None and target_root.exists():
-                    shutil.rmtree(target_root)
-                break
-            except (OSError, PermissionError):
-                if attempt == self.config.max_cleanup_retries - 1:
-                    raise
-                backoff_time = self.config.cleanup_backoff_base_s * (2**attempt)
-                time.sleep(backoff_time)
-
-    def _register_cleanup_traps(self) -> None:
-        """Register atexit hooks and OS signal handlers for robust teardown."""
-        if self._trap_registered:
-            return
-
-        atexit.register(self.cleanup)
-        try:
-            for sig in (signal.SIGINT, signal.SIGTERM):
-                prev_handler = signal.getsignal(sig)
-
-                def _signal_handler(signum: int, frame: Any) -> None:
-                    self.cleanup()
-                    if callable(prev_handler) and prev_handler not in (
-                        signal.SIG_IGN,
-                        signal.SIG_DFL,
-                    ):
-                        prev_handler(signum, frame)
-                    sys.exit(128 + signum)
-
-                signal.signal(sig, _signal_handler)
-        except (ValueError, AttributeError):
-            pass
-
-        self._trap_registered = True
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\integration\test_base_core_orchestration_part3.py ---
-"""Comprehensive Physical Integration & Anti-Spoof Test Suite for CoChem-BASE Core Orchestration (Part 3).
-Covers Prompts 1 through 6 strictly adhering to the Zero-Mock mandate.
+Exhaustively verifies:
+1. Lossless Zstd HDF5 compression pipeline and Fletcher32 checksums
+2. Cryptographic Merkle provenance stamper, Ed25519 signer, and bit-flip tamper detection
+3. Standardized .cochem_archive security, decompression bomb defense, and Zip Slip rejection
+4. Air-gapped chemical webhook ingress, dynamic Mendeleev resolution, and quantum invariants
+5. High-concurrency SWMR PES trajectory store with concurrent writer and multiple readers
+6. Anti-spoofing and Zero-Mock AST compliance across all production modules
 """
 
 from __future__ import annotations
 
 import ast
-import hashlib
-import os
-import pathlib
-import sqlite3
-import tempfile
-from typing import Any, Dict
+import io
+import math
+import tarfile
+from pathlib import Path
+from typing import List
 
+import h5py
+import numpy as np
 import pytest
+import zstandard
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from cochem.core.cochem_sandbox import (
-    SandboxConfig,
-    SandboxContext,
-    SandboxExecutionError,
-    SandboxSecurityViolationError,
+from cochem.intake.chemical_webhook import (
+    ChemicalPayloadSchema,
+    format_validation_error_response,
 )
-from cochem.core.cochem_constants import (
-    PhysicalConstant,
-    ElementProperties,
-    PhysicalConstantsRegistry,
+from cochem.provenance.provenance_stamper import (
+    ProvenanceMetadata,
+    ProvenanceStamper,
 )
-from cochem.plugins.ast_scanner import (
-    PluginASTSecurityScanner,
-    PluginSecurityViolationError,
-    scan_plugin_source,
+from cochem.storage.cochem_archive import (
+    ArchiveSecurityError,
+    CochemArchive,
 )
-from cochem.plugins.cochem_plugin_manager import (
-    PluginInterface,
-    PluginLoadError,
-    PluginMetadata,
-    PluginRegistry,
-)
-from cochem.core.airgap_coordinator import (
-    AirGapViolationError,
-    TripartiteAirGapCoordinator,
-    TripartiteStorageConfig,
-    configure_sqlite_connection,
-    get_tier_file_lock,
-)
+from cochem.storage.cochem_core_pes_store import SWMRPESStore
+from cochem.storage.hdf5_zstd import HDF5ZstdConfig
+
+# ==============================================================================
+# 1. Lossless Zstandard HDF5 Compression Pipeline Tests
+# ==============================================================================
+
+def test_hdf5_zstd_config_bounds() -> None:
+    """Verify HDF5ZstdConfig enforces bounds on compression level and chunk sizes."""
+    cfg = HDF5ZstdConfig(clevel=3)
+    assert cfg.clevel == 3
+    assert cfg.enable_shuffle is True
+    assert cfg.enable_fletcher32 is True
+
+    cfg_edge_1 = HDF5ZstdConfig(clevel=1)
+    assert cfg_edge_1.clevel == 1
+
+    cfg_edge_22 = HDF5ZstdConfig(clevel=22)
+    assert cfg_edge_22.clevel == 22
+
+    with pytest.raises(ValueError, match="Zstd clevel must be in 1..22"):
+        HDF5ZstdConfig(clevel=0)
+
+    with pytest.raises(ValueError, match="Zstd clevel must be in 1..22"):
+        HDF5ZstdConfig(clevel=23)
+
+    with pytest.raises(ValueError, match="Invalid chunk byte bounds"):
+        HDF5ZstdConfig(min_chunk_bytes=0)
+
+    with pytest.raises(ValueError, match="Invalid chunk byte bounds"):
+        HDF5ZstdConfig(min_chunk_bytes=100000, max_chunk_bytes=50000)
+
+
+def test_hdf5_zstd_dynamic_chunk_resolution() -> None:
+    """Verify 3D, 2D, and 1D chunk geometry derivation and dimension bounds."""
+    cfg = HDF5ZstdConfig(min_chunk_bytes=64 * 1024, max_chunk_bytes=256 * 1024)
+
+    # 3D: (chunk_frames, n_atoms, spatial_dim)
+    c3d = cfg.resolve_chunk_shape_3d(n_atoms=12, spatial_dim=3, itemsize=8)
+    assert len(c3d) == 3
+    assert c3d[1] == 12
+    assert c3d[2] == 3
+    assert c3d[0] >= 1
+
+    # Cap max_frames
+    c3d_capped = cfg.resolve_chunk_shape_3d(
+        n_atoms=12, spatial_dim=3, itemsize=8, max_frames=5
+    )
+    assert c3d_capped[0] <= 5
+
+    # 1D: (chunk_len,)
+    c1d = cfg.resolve_chunk_shape_1d(itemsize=8, max_len=100)
+    assert len(c1d) == 1
+    assert c1d[0] <= 100
+
+    # 2D: (chunk_rows, n_features)
+    c2d = cfg.resolve_chunk_shape_2d(n_features=50, itemsize=8, max_rows=20)
+    assert len(c2d) == 2
+    assert c2d[1] == 50
+    assert c2d[0] <= 20
+
+    # Invalid input arguments
+    with pytest.raises(ValueError):
+        cfg.resolve_chunk_shape_3d(n_atoms=0)
+    with pytest.raises(ValueError):
+        cfg.resolve_chunk_shape_1d(itemsize=0)
+    with pytest.raises(ValueError):
+        cfg.resolve_chunk_shape_2d(n_features=-1)
+
+
+def test_zstd_lossless_compression_roundtrip(tmp_path: Path) -> None:
+    """Verify bit-for-bit lossless floating-point trajectory preservation through Zstd pipeline."""
+    cfg = HDF5ZstdConfig(clevel=4, enable_shuffle=True, enable_fletcher32=True)
+    frames = 120
+    n_atoms = 10
+
+    # Authentic coordinate grid without synthetic generators
+    atom_grid = (
+        np.arange(n_atoms * 3, dtype=np.float64) * (8.0 / (n_atoms * 3 - 1)) - 4.0
+    ).reshape(n_atoms, 3)
+    t_vals = np.arange(frames, dtype=np.float64) * (7.8 / (frames - 1)) + 0.2
+    t_steps = np.array([math.cos(v) * 0.45 for v in t_vals], dtype=np.float64)[:, np.newaxis, np.newaxis]
+    original_coords = t_steps + atom_grid[np.newaxis, :, :]
+
+    h5_file = tmp_path / "trajectory_zstd.h5"
+    chunk_shape = cfg.resolve_chunk_shape_3d(
+        n_atoms=n_atoms, spatial_dim=3, itemsize=8, max_frames=frames
+    )
+    ds_kwargs = cfg.get_dataset_kwargs(chunk_shape, is_numeric=True)
+
+    with h5py.File(h5_file, "w") as f:
+        dset = f.create_dataset(
+            "coordinates",
+            data=original_coords,
+            dtype="float64",
+            **ds_kwargs,
+        )
+        assert dset.chunks == chunk_shape
+
+    with h5py.File(h5_file, "r") as f:
+        decompressed_coords = f["coordinates"][:]
+        # Bit-for-bit lossless equality check
+        np.testing.assert_array_equal(original_coords, decompressed_coords)
+
+        # Inspect HDF5 filters on the dataset
+        plist = f["coordinates"].id.get_create_plist()
+        num_filters = plist.get_nfilters()
+        filter_ids = [plist.get_filter(i)[0] for i in range(num_filters)]
+
+        assert 32015 in filter_ids  # Zstandard Filter ID
+        assert 3 in filter_ids  # Fletcher32 Filter ID
+        assert 2 in filter_ids  # Shuffle Filter ID
 
 
 # ==============================================================================
-# 1. Ephemeral Sandbox Context & Path Jailbreak Defense Tests
+# 2. Cryptographic Merkle Provenance Stamper & Ed25519 Signer Tests
 # ==============================================================================
-def test_sandbox_lifecycle_and_valid_path_confinement(tmp_path: pathlib.Path) -> None:
-    """Verify clean sandbox allocation, root confinement, and valid file resolution."""
-    cfg = SandboxConfig(scratch_parent_dir=tmp_path, timeout_seconds=60.0)
-    with SandboxContext(cfg) as sbx:
-        assert sbx.root.exists()
-        assert sbx.root.is_dir()
 
-        child_file = sbx.root / "calc_output.dat"
-        child_file.write_text("energy=-76.42", encoding="utf-8")
+def test_provenance_stamper_lifecycle_and_verification(tmp_path: Path) -> None:
+    """Verify Merkle provenance root generation, Ed25519 asymmetric signing, and verification."""
+    priv_key = ed25519.Ed25519PrivateKey.generate()
+    pub_key = priv_key.public_key()
 
-        validated = sbx.validate_path(child_file)
-        assert validated == child_file.resolve()
-        assert validated.exists()
+    h5_path = tmp_path / "provenance_target.h5"
+    with h5py.File(h5_path, "w") as f:
+        data = (np.arange(300, dtype=np.float64) * (40.0 / 299.0) + 10.0).reshape(100, 3)
+        f.create_dataset("coords", data=data, chunks=(25, 3))
+        f.create_dataset("step_indices", data=np.array([42, 108, 999], dtype=np.int64))
 
-        # Relative path inside sandbox
-        rel_validated = sbx.validate_path(pathlib.Path("calc_output.dat"))
-        assert rel_validated == child_file.resolve()
+    metadata = ProvenanceMetadata(
+        git_commit_hash="e3b0c44298fc1c149afbf4c8996fb92427ae41e4",
+        git_dirty_flag=False,
+        python_version="3.12.3",
+        cochem_version="0.1.0",
+        environment_lock_hash="7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+        cli_command="cochem simulate --method dft",
+        thermodynamic_state={"T_K": 300.0, "P_atm": 1.0},
+    )
 
-    # Verify directory was deleted upon context exit
-    assert not sbx.root.exists()
+    sig_b64 = ProvenanceStamper.stamp(h5_path, metadata, private_key=priv_key)
+    assert len(sig_b64) > 0
 
+    with h5py.File(h5_path, "r") as f:
+        assert f.attrs["cochem_version"] == "0.1.0"
+        assert not f.attrs["git_dirty_flag"]
+        assert "chunk_sha256_root" in f.attrs
+        assert "canonical_manifest_json" in f.attrs
+        assert f.attrs["provenance_signature"] == sig_b64
 
-def test_sandbox_path_traversal_rejection(tmp_path: pathlib.Path) -> None:
-    """Verify path traversal outside sandbox root raises SandboxSecurityViolationError."""
-    with SandboxContext(SandboxConfig(scratch_parent_dir=tmp_path)) as sbx:
-        escape_targets = [
-            pathlib.Path("../../../etc/shadow"),
-            pathlib.Path("..") / "secret.key",
-            pathlib.Path(tmp_path) / "unauthorized.txt",
-        ]
-        for target in escape_targets:
-            with pytest.raises(SandboxSecurityViolationError):
-                sbx.validate_path(target)
+    # Verification against authentic public key
+    assert ProvenanceStamper.verify(h5_path, public_key=pub_key) is True
 
-
-def test_sandbox_sibling_directory_collision_rejection(tmp_path: pathlib.Path) -> None:
-    """Verify sibling directory path collision attacks are strictly rejected."""
-    with SandboxContext(SandboxConfig(scratch_parent_dir=tmp_path)) as sbx:
-        sibling_dir = pathlib.Path(str(sbx.root) + "_sibling")
-        sibling_dir.mkdir(parents=True, exist_ok=True)
-        sibling_target = sibling_dir / "adversarial.txt"
-        sibling_target.write_text("breach", encoding="utf-8")
-
-        with pytest.raises(SandboxSecurityViolationError):
-            sbx.validate_path(sibling_target)
-
-        sibling_target.unlink()
-        sibling_dir.rmdir()
+    # Verification without public key checks chunk digest integrity
+    assert ProvenanceStamper.verify(h5_path) is True
 
 
-def test_sandbox_reserved_win32_device_names(tmp_path: pathlib.Path) -> None:
-    """Verify reserved Win32 device names trigger SandboxSecurityViolationError."""
-    with SandboxContext(SandboxConfig(scratch_parent_dir=tmp_path)) as sbx:
-        reserved_devices = [
-            "CON",
-            "PRN",
-            "AUX",
-            "NUL",
-            "COM1",
-            "COM9",
-            "LPT1",
-            "LPT9",
-            "con.txt",
-            "nul.dat",
-        ]
-        for dev in reserved_devices:
-            with pytest.raises(SandboxSecurityViolationError):
-                sbx.validate_path(pathlib.Path(dev))
-            with pytest.raises(SandboxSecurityViolationError):
-                sbx.validate_path(sbx.root / dev)
+def test_provenance_tamper_detection_single_bit_flip(tmp_path: Path) -> None:
+    """Verify single-bit modification of HDF5 storage payload causes verification rejection."""
+    priv_key = ed25519.Ed25519PrivateKey.generate()
+    pub_key = priv_key.public_key()
+
+    h5_path = tmp_path / "tamper_target.h5"
+    with h5py.File(h5_path, "w") as f:
+        data = np.arange(500, dtype=np.float64) * (99.0 / 499.0) + 1.0
+        f.create_dataset("energies", data=data, chunks=(50,))
+
+    metadata = ProvenanceMetadata(
+        git_commit_hash="a" * 40,
+        git_dirty_flag=False,
+        python_version="3.12.0",
+        cochem_version="0.1.0",
+        environment_lock_hash="b" * 64,
+        cli_command="cochem energy --opt",
+    )
+    ProvenanceStamper.stamp(h5_path, metadata, priv_key)
+    assert ProvenanceStamper.verify(h5_path, pub_key) is True
+
+    # Execute single-bit flip in binary payload
+    raw_content = bytearray(h5_path.read_bytes())
+    flip_index = len(raw_content) // 2
+    raw_content[flip_index] ^= 0x01
+    h5_path.write_bytes(raw_content)
+
+    # Verification must fail
+    assert ProvenanceStamper.verify(h5_path, pub_key) is False
 
 
-def test_sandbox_ntfs_alternate_data_stream_rejection(tmp_path: pathlib.Path) -> None:
-    """Verify NTFS Alternate Data Streams (colon syntax) trigger SandboxSecurityViolationError."""
-    with SandboxContext(SandboxConfig(scratch_parent_dir=tmp_path)) as sbx:
-        ads_paths = [
-            "data.txt:hidden",
-            "output.log:$DATA",
-            "test.dat:secret_stream",
-        ]
-        for ads in ads_paths:
-            with pytest.raises(SandboxSecurityViolationError):
-                sbx.validate_path(pathlib.Path(ads))
+def test_provenance_signature_forgery_rejection(tmp_path: Path) -> None:
+    """Verify signature verification fails when presented with unauthenticated key."""
+    priv_key = ed25519.Ed25519PrivateKey.generate()
+    unauthorized_key = ed25519.Ed25519PrivateKey.generate().public_key()
+
+    h5_path = tmp_path / "forgery_target.h5"
+    with h5py.File(h5_path, "w") as f:
+        data = np.arange(60, dtype=np.float64) * (6.0 / 59.0) + 2.0
+        f.create_dataset("trajectory", data=data)
+
+    metadata = ProvenanceMetadata(
+        git_commit_hash="f" * 40,
+        git_dirty_flag=True,
+        python_version="3.12.0",
+        cochem_version="0.1.0",
+        environment_lock_hash="e" * 64,
+        cli_command="cochem run",
+    )
+    ProvenanceStamper.stamp(h5_path, metadata, priv_key)
+
+    assert ProvenanceStamper.verify(h5_path, unauthorized_key) is False
 
 
-def test_sandbox_inactive_validation_rejection() -> None:
-    """Verify uninitialized or cleaned-up sandbox raises SandboxExecutionError."""
-    sbx = SandboxContext(SandboxConfig())
-    with pytest.raises(SandboxExecutionError):
-        sbx.validate_path(pathlib.Path("test.txt"))
+def test_provenance_unallocated_chunks(tmp_path: Path) -> None:
+    """Verify compute_chunks_sha256 deterministically processes unallocated chunk regions."""
+    h5_path = tmp_path / "sparse_target.h5"
+    with h5py.File(h5_path, "w") as f:
+        dset = f.create_dataset(
+            "sparse_ds",
+            shape=(100, 3),
+            maxshape=(None, 3),
+            chunks=(25, 3),
+            dtype="float64",
+        )
+        # Allocate only the first chunk; subsequent chunks remain unallocated
+        dset[:25] = (np.arange(75, dtype=np.float64) * (74.0 / 74.0) + 1.0).reshape(25, 3)
 
-
-# ==============================================================================
-# 2. Centralized Physical Constants & Dynamic Mendeleev Registry Tests
-# ==============================================================================
-def test_dynamic_mendeleev_elemental_masses() -> None:
-    """Validate dynamic retrieval of atomic weights for C, Fe, and U via mendeleev."""
-    mass_c = PhysicalConstantsRegistry.get_element_mass("C")
-    mass_fe = PhysicalConstantsRegistry.get_element_mass("Fe")
-    mass_u = PhysicalConstantsRegistry.get_element_mass("U")
-
-    assert 12.010 < mass_c < 12.012
-    assert 55.84 < mass_fe < 55.85
-    assert 238.02 < mass_u < 238.04
-
-
-def test_dynamic_mendeleev_element_properties() -> None:
-    """Validate elemental properties record retrieval from mendeleev."""
-    carbon = PhysicalConstantsRegistry.get_element("C")
-    assert isinstance(carbon, ElementProperties)
-    assert carbon.atomic_number == 6
-    assert carbon.symbol == "C"
-    assert carbon.name == "Carbon"
-    assert 12.010 < carbon.atomic_weight < 12.012
-    assert carbon.provenance == "[M]"
-    assert carbon.covalent_radius_pyykko is not None
-    assert carbon.vdw_radius_bondi is not None
-
-    iron = PhysicalConstantsRegistry.get_element(26)
-    assert iron.symbol == "Fe"
-    assert iron.atomic_number == 26
-
-
-def test_fundamental_codata_physical_constants() -> None:
-    """Verify CODATA 2018 constants dynamic query and exact SI provenance."""
-    # Planck constant
-    h = PhysicalConstantsRegistry.get_constant("Planck constant")
-    assert isinstance(h, PhysicalConstant)
-    assert abs(h.value - 6.62607015e-34) < 1e-42
-    assert h.provenance == "[E]"
-
-    # Speed of light
-    c = PhysicalConstantsRegistry.get_constant("speed of light in vacuum")
-    assert c.value == 299792458.0
-    assert c.provenance == "[E]"
-
-    # Avogadro constant
-    na = PhysicalConstantsRegistry.get_constant("Avogadro constant")
-    assert abs(na.value - 6.02214076e23) < 1e15
-    assert na.provenance == "[E]"
-
-    # Boltzmann constant
-    kb = PhysicalConstantsRegistry.get_constant("Boltzmann constant")
-    assert abs(kb.value - 1.380649e-23) < 1e-30
-    assert kb.provenance == "[E]"
-
-    # Thermodynamic standard states
-    assert PhysicalConstantsRegistry.STANDARD_TEMPERATURE_K == 298.15
-    assert PhysicalConstantsRegistry.STANDARD_PRESSURE_PA == 101325.0
-
-
-def test_physical_constant_missing_key() -> None:
-    """Verify querying an invalid constant key raises KeyError."""
-    with pytest.raises(KeyError):
-        PhysicalConstantsRegistry.get_constant("NonExistentConstant_9999")
+    with h5py.File(h5_path, "r") as f:
+        digest = ProvenanceStamper.compute_chunks_sha256(f)
+        assert len(digest) == 64
 
 
 # ==============================================================================
-# 3. Hardened Allowlist-Based AST Security Scanner Tests
+# 3. Standardized .cochem_archive Container Format & Security Engine Tests
 # ==============================================================================
-def test_ast_scanner_blocks_dangerous_execution_vectors() -> None:
-    """Verify scanner intercepts direct prohibited modules and commands."""
-    malicious_snippets = [
-        "import os\nos.system('dir')",
-        "import sys\nsys.exit(1)",
-        "import subprocess\nsubprocess.run(['dir'])",
-        "import socket\ns = socket.socket()",
-        "from socket import socket",
-        "from subprocess import run",
-        "from os import *",
-    ]
-    for code in malicious_snippets:
-        with pytest.raises(PluginSecurityViolationError):
-            scan_plugin_source(code)
+
+def test_cochem_archive_pack_unpack_roundtrip(tmp_path: Path) -> None:
+    """Verify archive packaging, streaming decompression, and file digest validation."""
+    source_dir = tmp_path / "pack_source"
+    source_dir.mkdir()
+    destination_dir = tmp_path / "unpack_dest"
+
+    data_h5 = source_dir / "data.h5"
+    data_h5.write_bytes(b"HDF5_SAMPLE_PAYLOAD_TEST_BYTES")
+
+    nested_dir = source_dir / "telemetry"
+    nested_dir.mkdir()
+    nested_file = nested_dir / "metrics.json"
+    nested_file.write_text('{"converged": true, "scf_cycles": 14}', encoding="utf-8")
+
+    archive_path = tmp_path / "simulation_result.cochem_archive"
+
+    # Pack archive
+    out_path = CochemArchive.pack(
+        source_dir=source_dir,
+        output_archive=archive_path,
+        cochem_version="0.1.0",
+        metadata={"project": "water_dimer"},
+    )
+    assert out_path.exists()
+
+    # Unpack archive
+    manifest = CochemArchive.unpack(archive_path, destination_dir)
+    assert manifest.cochem_version == "0.1.0"
+    assert manifest.metadata["project"] == "water_dimer"
+    assert "data.h5" in manifest.files
+    assert "telemetry/metrics.json" in manifest.files
+
+    extracted_h5 = destination_dir / "data.h5"
+    assert extracted_h5.exists()
+    assert extracted_h5.read_bytes() == b"HDF5_SAMPLE_PAYLOAD_TEST_BYTES"
+
+    extracted_metrics = destination_dir / "telemetry" / "metrics.json"
+    assert extracted_metrics.exists()
+    assert "scf_cycles" in extracted_metrics.read_text(encoding="utf-8")
 
 
-def test_ast_scanner_blocks_dunder_and_reflection_gadgets() -> None:
-    """Verify scanner intercepts dunder navigation, builtins, and dynamic evaluation."""
-    gadget_snippets = [
-        "x = ().__class__.__bases__[0].__subclasses__()",
-        "getattr(__builtins__, 'eval')('1+1')",
-        "f = open('output.txt', 'w')",
-        "exec('a = 1')",
-        "eval('2 + 2')",
-        "v = globals()",
-        "l = locals()",
-        "compile('x = 1', '<str>', 'exec')",
-    ]
-    for code in gadget_snippets:
-        with pytest.raises(PluginSecurityViolationError):
-            scan_plugin_source(code)
+def test_cochem_archive_missing_data_h5_rejection(tmp_path: Path) -> None:
+    """Verify packaging fails immediately if primary data.h5 store is absent."""
+    empty_source = tmp_path / "empty_dir"
+    empty_source.mkdir()
+    out_archive = tmp_path / "invalid.cochem_archive"
+
+    with pytest.raises(FileNotFoundError, match="missing primary 'data.h5'"):
+        CochemArchive.pack(empty_source, out_archive, cochem_version="0.1.0")
 
 
-def test_ast_scanner_allows_whitelisted_scientific_code() -> None:
-    """Verify legitimate scientific plugin code passes scan without error."""
-    clean_scientific_code = '''
-import math
-from dataclasses import dataclass
-import numpy
-from cochem.plugins.cochem_plugin_manager import PluginInterface, PluginMetadata
+def test_cochem_archive_zip_slip_rejection(tmp_path: Path) -> None:
+    """Verify malicious archive attempting relative path traversal is strictly rejected."""
+    dest_dir = tmp_path / "safe_sandbox"
+    malicious_archive = tmp_path / "zip_slip.tar.zst"
 
-@dataclass
-class ValidComputeModel:
-    coefficient: float = 1.0
+    cctx = zstandard.ZstdCompressor(level=3)
+    with open(malicious_archive, "wb") as f_out:
+        with cctx.stream_writer(f_out) as comp:
+            with tarfile.open(fileobj=comp, mode="w|") as tar:
+                # Add traversal member
+                t_info = tarfile.TarInfo(name="../escaped_secret.txt")
+                content = b"adversarial_payload"
+                t_info.size = len(content)
+                tar.addfile(t_info, io.BytesIO(content))
 
-class ValidScientificPlugin(PluginInterface):
-    @property
-    def metadata(self) -> PluginMetadata:
-        return PluginMetadata(
-            name="valid_test_plugin",
-            version="1.0.0",
-            author="CoChem Test",
-            description="Verified scientific unit plugin"
+    with pytest.raises(ArchiveSecurityError, match="Path traversal detected"):
+        CochemArchive.unpack(malicious_archive, dest_dir)
+
+
+def test_cochem_archive_symlink_rejection(tmp_path: Path) -> None:
+    """Verify archive containing symbolic links is rejected by security sandbox."""
+    dest_dir = tmp_path / "symlink_dest"
+    symlink_archive = tmp_path / "symlink_attack.tar.zst"
+
+    cctx = zstandard.ZstdCompressor(level=3)
+    with open(symlink_archive, "wb") as f_out:
+        with cctx.stream_writer(f_out) as comp:
+            with tarfile.open(fileobj=comp, mode="w|") as tar:
+                t_info = tarfile.TarInfo(name="symlink_target")
+                t_info.type = tarfile.SYMTYPE
+                t_info.linkname = "/etc/passwd"
+                tar.addfile(t_info)
+
+    with pytest.raises(ArchiveSecurityError, match="forbidden link or special file"):
+        CochemArchive.unpack(symlink_archive, dest_dir)
+
+
+def test_cochem_archive_ntfs_colon_rejection(tmp_path: Path) -> None:
+    """Verify archive member with NTFS Alternate Data Stream colon syntax is rejected."""
+    dest_dir = tmp_path / "ads_dest"
+    ads_archive = tmp_path / "ads_attack.tar.zst"
+
+    cctx = zstandard.ZstdCompressor(level=3)
+    with open(ads_archive, "wb") as f_out:
+        with cctx.stream_writer(f_out) as comp:
+            with tarfile.open(fileobj=comp, mode="w|") as tar:
+                t_info = tarfile.TarInfo(name="data.h5:hidden_stream")
+                content = b"hidden_stream_data"
+                t_info.size = len(content)
+                tar.addfile(t_info, io.BytesIO(content))
+
+    with pytest.raises(ArchiveSecurityError, match="forbidden character ':'"):
+        CochemArchive.unpack(ads_archive, dest_dir)
+
+
+def test_cochem_archive_decompression_bomb_quota(tmp_path: Path) -> None:
+    """Verify archive member size exceeding 10 GB limit aborts extraction."""
+    dest_dir = tmp_path / "bomb_dest"
+    bomb_archive = tmp_path / "bomb.tar.zst"
+
+    cctx = zstandard.ZstdCompressor(level=3)
+    t_info = tarfile.TarInfo(name="massive_file.bin")
+    # Declare size exceeding 10 GB quota
+    t_info.size = CochemArchive.MAX_EXTRACTION_BYTES + 1024 * 1024
+    with open(bomb_archive, "wb") as f_out:
+        with cctx.stream_writer(f_out) as comp:
+            comp.write(t_info.tobuf())
+
+    with pytest.raises(ArchiveSecurityError, match="Extraction exceeded maximum allowable limit"):
+        CochemArchive.unpack(bomb_archive, dest_dir)
+
+
+def test_cochem_archive_checksum_tamper_rejection(tmp_path: Path) -> None:
+    """Verify archive extraction fails if a member's payload does not match manifest checksum."""
+    source_dir = tmp_path / "tamper_source"
+    source_dir.mkdir()
+    (source_dir / "data.h5").write_bytes(b"AUTHENTIC_HDF5_DATA")
+    archive_path = tmp_path / "valid.cochem_archive"
+    CochemArchive.pack(source_dir, archive_path, cochem_version="0.1.0")
+
+    dctx = zstandard.ZstdDecompressor()
+    with open(archive_path, "rb") as f_in:
+        with dctx.stream_reader(f_in) as comp_in:
+            with tarfile.open(fileobj=comp_in, mode="r|") as tar_in:
+                manifest_member = tar_in.next()
+                assert manifest_member is not None
+                f_man = tar_in.extractfile(manifest_member)
+                assert f_man is not None
+                manifest_bytes = f_man.read()
+
+    tampered_archive = tmp_path / "tampered.cochem_archive"
+    cctx = zstandard.ZstdCompressor(level=3)
+    with open(tampered_archive, "wb") as f_out:
+        with cctx.stream_writer(f_out) as comp_out:
+            with tarfile.open(fileobj=comp_out, mode="w|") as tar_out:
+                t_man = tarfile.TarInfo(name="manifest.json")
+                t_man.size = len(manifest_bytes)
+                tar_out.addfile(t_man, io.BytesIO(manifest_bytes))
+
+                # Same size (19 bytes) to trigger SHA-256 mismatch specifically
+                corrupted_bytes = b"CORRUPTED_HDF5_DATA"
+                assert len(corrupted_bytes) == len(b"AUTHENTIC_HDF5_DATA")
+                t_data = tarfile.TarInfo(name="data.h5")
+                t_data.size = len(corrupted_bytes)
+                tar_out.addfile(t_data, io.BytesIO(corrupted_bytes))
+
+    dest_dir = tmp_path / "tampered_dest"
+    with pytest.raises(ArchiveSecurityError, match="SHA-256 mismatch"):
+        CochemArchive.unpack(tampered_archive, dest_dir)
+
+
+
+
+# ==============================================================================
+# 4. Air-Gapped Chemical Webhook Payload Validator & Quantum Invariant Tests
+# ==============================================================================
+
+def test_chemical_webhook_neutral_singlet_water() -> None:
+    """Validate authentic neutral singlet water molecule (H2O, 10 electrons, 2S+1=1)."""
+    # Authentic experimental water geometry (Angstroms)
+    h2o_payload = {
+        "job_id": "job_h2o_singlet",
+        "symbols": ["O", "H", "H"],
+        "coordinates_3d": [
+            [0.0, 0.0, 0.1173],
+            [0.0, 0.7572, -0.4692],
+            [0.0, -0.7572, -0.4692],
+        ],
+        "charge": 0,
+        "spin_multiplicity": 1,
+        "energy_unit": "hartree",
+    }
+    validated = ChemicalPayloadSchema.model_validate(h2o_payload)
+    assert validated.job_id == "job_h2o_singlet"
+    assert validated.charge == 0
+    assert validated.spin_multiplicity == 1
+
+
+def test_chemical_webhook_radical_doublet_hydroxyl() -> None:
+    """Validate authentic neutral doublet hydroxyl radical (OH, 9 electrons, 2S+1=2)."""
+    oh_payload = {
+        "job_id": "job_oh_radical",
+        "symbols": ["O", "H"],
+        "coordinates_3d": [
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.9697],
+        ],
+        "charge": 0,
+        "spin_multiplicity": 2,
+    }
+    validated = ChemicalPayloadSchema.model_validate(oh_payload)
+    assert validated.job_id == "job_oh_radical"
+    assert validated.spin_multiplicity == 2
+
+
+def test_chemical_webhook_representations_completeness() -> None:
+    """Verify ingress completeness: requires at least one chemical representation."""
+    # SMILES alone is valid
+    smi = ChemicalPayloadSchema(job_id="job_smiles", smiles="O=C=O")
+    assert smi.smiles == "O=C=O"
+
+    # InChI alone is valid
+    inchi = ChemicalPayloadSchema(job_id="job_inchi", inchi="InChI=1S/H2O/h1H2")
+    assert inchi.inchi == "InChI=1S/H2O/h1H2"
+
+    # Missing all representations raises ValueError
+    with pytest.raises(ValueError, match="at least one valid chemical representation"):
+        ChemicalPayloadSchema(job_id="job_empty")
+
+    # Providing symbols without coordinates raises ValueError
+    with pytest.raises(ValueError, match="must be provided together"):
+        ChemicalPayloadSchema(job_id="job_no_coords", symbols=["H", "H"])
+
+    # Providing coordinates without symbols raises ValueError
+    with pytest.raises(ValueError, match="must be provided together"):
+        ChemicalPayloadSchema(
+            job_id="job_no_syms", coordinates_3d=[[0.0, 0.0, 0.0]]
         )
 
-    def initialize(self, context: dict) -> None:
-        self.ready = bool(context)
-
-    def execute(self, payload: dict) -> dict:
-        val = payload.get("input_val", 0.0)
-        return {"result": math.sqrt(abs(val))}
-
-    def teardown(self) -> None:
-        self.ready = False
-'''
-    scan_plugin_source(clean_scientific_code)
-
-
-# ==============================================================================
-# 4. OS-Agnostic Plugin Lifecycle & Fault Tolerance Tests
-# ==============================================================================
-def test_plugin_lifecycle_and_fault_tolerance(tmp_path: pathlib.Path) -> None:
-    """Verify registry registers compliant plugins and isolates non-compliant scripts."""
-    plugin_dir = tmp_path / "plugins"
-    plugin_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Compliant Plugin
-    valid_plugin_file = plugin_dir / "valid_calc_plugin.py"
-    valid_plugin_file.write_text(
-        '''
-import math
-from cochem.plugins.cochem_plugin_manager import PluginInterface, PluginMetadata
-
-class CompliantCalculator(PluginInterface):
-    @property
-    def metadata(self) -> PluginMetadata:
-        return PluginMetadata(
-            name="calc_plugin",
-            version="1.0.0",
-            author="QA Unit",
-            description="Authentic calculation plugin"
+    # Mismatched length between symbols and coordinates
+    with pytest.raises(ValueError, match="Length mismatch"):
+        ChemicalPayloadSchema(
+            job_id="job_mismatch",
+            symbols=["H", "H"],
+            coordinates_3d=[[0.0, 0.0, 0.0]],
         )
 
-    def initialize(self, context: dict) -> None:
-        self.init_val = context.get("multiplier", 2.0)
 
-    def execute(self, payload: dict) -> dict:
-        x = payload.get("x", 4.0)
-        return {"output": x * self.init_val}
-
-    def teardown(self) -> None:
-        self.init_val = 0.0
-''',
-        encoding="utf-8",
-    )
-
-    # 2. Malicious Plugin Attempting Subprocess Execution
-    malicious_plugin_file = plugin_dir / "malicious_script.py"
-    malicious_plugin_file.write_text(
-        '''
-import os
-class MaliciousPlugin:
-    def execute(self):
-        return os.system('echo compromised')
-''',
-        encoding="utf-8",
-    )
-
-    registry = PluginRegistry(plugin_dir=plugin_dir)
-    registered = registry.scan_and_register()
-
-    # The compliant plugin must be registered
-    assert "calc_plugin" in registered
-    assert len(registered) == 1
-
-    # The malicious plugin must have been skipped without halting the system
-    plugin = registry.get_plugin("calc_plugin")
-    plugin.initialize({"multiplier": 3.0})
-    result = registry.execute_plugin("calc_plugin", {"x": 5.0})
-    assert result == {"output": 15.0}
-    plugin.teardown()
-
-    # Querying unregistered plugin raises KeyError
-    with pytest.raises(KeyError):
-        registry.get_plugin("non_existent_plugin")
-
-
-# ==============================================================================
-# 5. Tripartite Storage Air-Gap Coordinator & Concurrency Governor Tests
-# ==============================================================================
-def test_tripartite_airgap_disjointness_validation(tmp_path: pathlib.Path) -> None:
-    """Verify disjoint storage roots validate cleanly and overlapping topologies fail."""
-    code_dir = tmp_path / "code_root"
-    art_dir = tmp_path / "artifacts_root"
-    scr_dir = tmp_path / "scratch_root"
-
-    code_dir.mkdir()
-    art_dir.mkdir()
-    scr_dir.mkdir()
-
-    cfg = TripartiteStorageConfig(
-        code_root=code_dir,
-        artifacts_root=art_dir,
-        scratch_root=scr_dir,
-    )
-    coordinator = TripartiteAirGapCoordinator(cfg)
-    assert coordinator.config.code_root == code_dir.resolve()
-
-    # Overlapping scratch inside artifacts
-    bad_cfg = TripartiteStorageConfig(
-        code_root=code_dir,
-        artifacts_root=art_dir,
-        scratch_root=art_dir / "nested_scratch",
-    )
-    with pytest.raises(AirGapViolationError):
-        TripartiteAirGapCoordinator(bad_cfg)
-
-
-def test_airgap_workspace_creation_and_artifact_publication(tmp_path: pathlib.Path) -> None:
-    """Verify sandboxed workspace creation, path traversal defense, and artifact publication."""
-    code_dir = tmp_path / "code_root"
-    art_dir = tmp_path / "artifacts_root"
-    scr_dir = tmp_path / "scratch_root"
-    code_dir.mkdir()
-    art_dir.mkdir()
-    scr_dir.mkdir()
-
-    coordinator = TripartiteAirGapCoordinator(
-        TripartiteStorageConfig(code_root=code_dir, artifacts_root=art_dir, scratch_root=scr_dir)
-    )
-
-    # Path traversal attempt in job_id
-    with pytest.raises(AirGapViolationError):
-        coordinator.create_sandboxed_workspace(job_id="../../escaped_job")
-
-    # Legitimate workspace
-    sbx = coordinator.create_sandboxed_workspace(job_id="job_42")
-    with sbx as ctx:
-        scratch_output = ctx.root / "final_state.json"
-        scratch_output.write_text('{"converged": true, "energy": -40.123}', encoding="utf-8")
-
-        # Publish artifact
-        dest_path, sha = coordinator.publish_artifact(
-            source_path=scratch_output,
-            relative_dest=pathlib.Path("runs/job_42_state.json"),
-            compute_sha256=True,
+def test_chemical_webhook_quantum_spin_parity_violations() -> None:
+    """Verify physical bounds and spin-parity conservation invariants."""
+    # Water: Z_tot = 8 + 1 + 1 = 10. Charge 0 -> N_elec = 10 (even).
+    # Even N_elec requires odd multiplicity (singlet 1, triplet 3, etc.).
+    # Multiplicity 2 (even) must be rejected.
+    with pytest.raises(ValueError, match="Quantum spin-parity violation"):
+        ChemicalPayloadSchema(
+            job_id="job_water_bad_spin",
+            symbols=["O", "H", "H"],
+            coordinates_3d=[
+                [0.0, 0.0, 0.0],
+                [0.0, 0.75, 0.5],
+                [0.0, -0.75, 0.5],
+            ],
+            charge=0,
+            spin_multiplicity=2,
         )
 
-        assert dest_path.exists()
-        assert dest_path.resolve().is_relative_to(art_dir.resolve())
-        assert sha is not None
-        assert len(sha) == 64
+    # Hydroxyl: Z_tot = 9, Charge 0 -> N_elec = 9 (odd).
+    # Odd N_elec requires even multiplicity (doublet 2, quartet 4, etc.).
+    # Multiplicity 1 (odd) must be rejected.
+    with pytest.raises(ValueError, match="Quantum spin-parity violation"):
+        ChemicalPayloadSchema(
+            job_id="job_oh_bad_spin",
+            symbols=["O", "H"],
+            coordinates_3d=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.97]],
+            charge=0,
+            spin_multiplicity=1,
+        )
 
-        # Verify content transferred intact
-        assert dest_path.read_text(encoding="utf-8") == '{"converged": true, "energy": -40.123}'
+    # Physical spin bound exceeded: 2S+1 > N_elec + 1
+    with pytest.raises(ValueError, match="Physical spin multiplicity bound violated"):
+        ChemicalPayloadSchema(
+            job_id="job_spin_bound",
+            symbols=["H", "H"],
+            coordinates_3d=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+            charge=0,
+            spin_multiplicity=5,  # For N_elec=2, max 2S+1 = 3
+        )
+
+    # Non-positive electron count: H2(2+) has Z_tot=2, charge=+2 -> N_elec = 0
+    with pytest.raises(ValueError, match="Non-positive electron count"):
+        ChemicalPayloadSchema(
+            job_id="job_no_electrons",
+            symbols=["H", "H"],
+            coordinates_3d=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+            charge=2,
+            spin_multiplicity=1,
+        )
 
 
-def test_airgap_concurrency_governor(tmp_path: pathlib.Path) -> None:
-    """Verify OS-agnostic file locking and SQLite WAL mode configuration."""
-    lock_file = tmp_path / "orchestrator.lock"
-    lock = get_tier_file_lock(lock_file, timeout_sec=5.0)
-    with lock:
-        assert lock.is_locked
+def test_chemical_webhook_coordinate_sanitization_and_dynamic_mendeleev() -> None:
+    """Verify coordinate finiteness checks and dynamic element resolution via Mendeleev."""
+    # Coordinate with NaN
+    with pytest.raises(ValueError, match="Non-finite floating-point coordinate"):
+        ChemicalPayloadSchema(
+            job_id="job_nan",
+            symbols=["H", "H"],
+            coordinates_3d=[[0.0, float("nan"), 0.0], [0.0, 0.0, 0.74]],
+            charge=0,
+            spin_multiplicity=1,
+        )
 
-    # SQLite WAL configuration verification
-    db_path = tmp_path / "concurrency_test.db"
-    conn = sqlite3.connect(str(db_path))
-    configure_sqlite_connection(conn)
+    # Coordinate with Inf
+    with pytest.raises(ValueError, match="Non-finite floating-point coordinate"):
+        ChemicalPayloadSchema(
+            job_id="job_inf",
+            symbols=["H", "H"],
+            coordinates_3d=[[0.0, float("inf"), 0.0], [0.0, 0.0, 0.74]],
+            charge=0,
+            spin_multiplicity=1,
+        )
 
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA journal_mode;")
-    mode = cursor.fetchone()[0]
-    assert mode.upper() == "WAL"
+    # Unmapped element symbol
+    with pytest.raises(ValueError, match="Invalid chemical element: 'Xx'"):
+        ChemicalPayloadSchema(
+            job_id="job_unknown_elem",
+            symbols=["Xx", "H"],
+            coordinates_3d=[[0.0, 0.0, 0.0], [0.0, 0.0, 1.0]],
+            charge=0,
+            spin_multiplicity=2,
+        )
 
-    cursor.execute("PRAGMA busy_timeout;")
-    timeout_val = cursor.fetchone()[0]
-    assert timeout_val >= 30000
 
-    cursor.execute("PRAGMA foreign_keys;")
-    fk_val = cursor.fetchone()[0]
-    assert fk_val == 1
-    conn.close()
+def test_format_validation_error_response_schema() -> None:
+    """Verify format_validation_error_response returns HTTP 422 JSON contract."""
+    err = ValueError("Specific invariant breached")
+    response = format_validation_error_response(err, job_id="job_failed_99")
+
+    assert response["status"] == 422
+    assert response["error"] == "Unprocessable Entity"
+    assert response["job_id"] == "job_failed_99"
+    assert "Specific invariant breached" in response["detail"]
+    assert "timestamp_utc" in response
 
 
 # ==============================================================================
-# 6. Anti-Spoofing & Zero-Mock AST Audit
+# 5. High-Concurrency HDF5 SWMR PES Trajectory Store Tests
 # ==============================================================================
-def test_zero_mock_ast_audit_across_production_files() -> None:
-    """AST audit certifying zero occurrences of stubs, empty pass blocks, or forbidden constructs."""
-    from ci_tools.anti_spoof_linter import check_file, load_amnesty
 
-    repo_root = pathlib.Path(__file__).resolve().parent.parent.parent
-    amnesty_set = load_amnesty(repo_root)
-    total_violations: list[str] = []
+def test_swmr_pes_store_lifecycle(tmp_path: Path) -> None:
+    """Verify schema pre-allocation, writer context management, and atomic appending."""
+    h5_path = tmp_path / "pes_trajectory.h5"
+    store = SWMRPESStore(h5_path, n_atoms=3)
 
-    target_production_files = [
-        "src/cochem/core/cochem_sandbox.py",
-        "src/cochem/core/cochem_constants.py",
-        "src/cochem/plugins/ast_scanner.py",
-        "src/cochem/plugins/cochem_plugin_manager.py",
-        "src/cochem/core/airgap_coordinator.py",
+    assert h5_path.exists()
+    assert store.lock_path == h5_path.with_suffix(".lock")
+
+    # Initial read returns empty arrays
+    traj0 = store.read_trajectory()
+    assert traj0["coordinates"].shape == (0, 3, 3)
+    assert traj0["energies"].shape == (0,)
+
+    # Append single frame
+    coords_frame = (np.arange(9, dtype=np.float64) * 0.1 + 0.1).reshape(3, 3)
+    energy_val = -76.4215
+    store.append_frames(coords_frame, energy_val)
+
+    traj1 = store.read_trajectory()
+    assert traj1["coordinates"].shape == (1, 3, 3)
+    assert traj1["energies"].shape == (1,)
+    np.testing.assert_allclose(traj1["coordinates"][0], coords_frame)
+    assert math.isclose(traj1["energies"][0], energy_val, rel_tol=1e-6)
+
+    # Context manager append
+    batch_coords = (
+        np.arange(27, dtype=np.float64) * (2.0 / 26.0) + 1.0
+    ).reshape(3, 3, 3)
+    batch_energies = np.array([-76.4210, -76.4205, -76.4200], dtype=np.float64)
+
+    with store:
+        store.append_frames(batch_coords, batch_energies)
+
+    traj2 = store.read_trajectory()
+    assert traj2["coordinates"].shape == (4, 3, 3)
+    assert traj2["energies"].shape == (4,)
+
+
+def test_swmr_concurrent_writer_and_readers(tmp_path: Path) -> None:
+    """Verify live writer appending 1,000 frames concurrently with >= 4 readers while writer is open."""
+    h5_path = tmp_path / "concurrent_swmr.h5"
+    n_atoms = 5
+    store = SWMRPESStore(h5_path, n_atoms=n_atoms, enable_swmr=True)
+
+    total_frames = 1000
+    batch_size = 50
+    batches = total_frames // batch_size
+
+    reader_trajectories: List[int] = []
+    reader_errors: List[Exception] = []
+
+    # Open persistent writer handle before reading to activate SWMR mode
+    store.open_writer()
+
+    try:
+        for b in range(batches):
+            base_val = float(b + 1)
+            coords = (
+                np.arange(batch_size * n_atoms * 3, dtype=np.float64)
+                * (2.0 / (batch_size * n_atoms * 3 - 1))
+                + base_val
+            ).reshape(batch_size, n_atoms, 3)
+            energies = (
+                np.arange(batch_size, dtype=np.float64) * (1.0 / (batch_size - 1))
+                + (-100.0 - base_val)
+            )
+            store.append_frames(coords, energies)
+
+            # Read across 4 independent reader handles while writer is actively open
+            for _ in range(4):
+                try:
+                    data = store.read_trajectory()
+                    reader_trajectories.append(data["coordinates"].shape[0])
+                except Exception as exc:
+                    reader_errors.append(exc)
+    finally:
+        store.close_writer()
+
+    # Verify zero synchronization errors occurred
+    assert len(reader_errors) == 0
+
+    # Verify final trajectory contains all 1,000 frames
+    final_traj = store.read_trajectory()
+    assert final_traj["coordinates"].shape == (total_frames, n_atoms, 3)
+    assert final_traj["energies"].shape == (total_frames,)
+
+    # Verify frames advanced monotonically across concurrent reads
+    assert len(reader_trajectories) > 0
+    assert max(reader_trajectories) == total_frames
+
+
+
+# ==============================================================================
+# 6. Anti-Spoofing & Zero-Mock AST Compliance Audit
+# ==============================================================================
+
+def test_zero_mock_and_anti_spoof_ast_compliance() -> None:
+    """Certify AST of all target production files contains zero mocks, stubs, or pass blocks."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    target_files = [
+        repo_root / "src" / "cochem" / "storage" / "hdf5_zstd.py",
+        repo_root / "src" / "cochem" / "provenance" / "provenance_stamper.py",
+        repo_root / "src" / "cochem" / "storage" / "cochem_archive.py",
+        repo_root / "src" / "cochem" / "intake" / "chemical_webhook.py",
+        repo_root / "src" / "cochem" / "storage" / "cochem_core_pes_store.py",
     ]
 
-    for rel_path in target_production_files:
-        full_path = repo_root / rel_path
-        assert full_path.is_file(), f"Target file '{rel_path}' does not exist!"
+    for target in target_files:
+        assert target.exists(), f"Target file missing: {target}"
+        source_code = target.read_text(encoding="utf-8")
+        tree = ast.parse(source_code, filename=str(target))
 
-        violations = check_file(full_path, repo_root, amnesty_set=amnesty_set)
-        for v in violations:
-            total_violations.append(f"{v.file_path}:{v.line} [{v.category}] {v.message}")
+        for node in ast.walk(tree):
+            # Assert zero ast.Pass nodes
+            assert not isinstance(
+                node, ast.Pass
+            ), f"Forbidden 'pass' statement found in {target} at line {getattr(node, 'lineno', '?')}"
 
-    assert len(total_violations) == 0, (
-        f"Zero-stub compliance violations detected ({len(total_violations)}):\n"
-        + "\n".join(total_violations)
-    )
+            # Assert zero testing simulator imports
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert "mock" not in alias.name.lower(), (
+                        f"anti-spoof: forbidden testing simulator import in {target}"
+                    )
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    assert "mock" not in node.module.lower(), (
+                        f"anti-spoof: forbidden testing simulator module in {target}"
+                    )
+
+            # Assert zero NotImplementedError
+            if isinstance(node, ast.Name):
+                assert node.id != "NotImplementedError", (
+                    f"Forbidden NotImplementedError stub in {target} at line {getattr(node, 'lineno', '?')}"
+                )
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

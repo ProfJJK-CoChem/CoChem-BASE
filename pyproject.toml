@@ -93,7 +93,9 @@ module = [
     "cochem_torq_orca.*",
     "pandas.*",
     "jinja2.*",
-    "setuptools.*"
+    "setuptools.*",
+    "hdf5plugin.*",
+    "zstandard.*"
 ]
 ignore_missing_imports = true
 

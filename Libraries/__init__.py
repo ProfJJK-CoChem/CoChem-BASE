@@ -11,17 +11,26 @@ from Libraries.cochem_torq_training_errors import (
     CheckpointCorruptionError,
     CoChemError,
     CoChemTorqError,
+    DiscontinuousForceError,
     DistributedSyncError,
+    EquivarianceBreakError,
     HDF5LockTimeoutError,
+    NonReciprocalGraphError,
+    OOMRecoveryError,
     ParityVerificationError,
     PrecisionDivergenceError,
+    SchedulerDivergenceError,
     TorqTrainingError,
     UnsupportedElementError,
 )
 
 # Pydantic v2 Schemas
 from Libraries.cochem_torq_training_schemas import (
+    C2GraphPrunerConfig,
     DistributedEarlyStoppingConfig,
+    DynamicBatchScalerConfig,
+    ForceMatchingLossConfig,
+    GNNWarmRestartSchedulerConfig,
     LossLandscapeConfig,
     TorchScriptExportConfig,
     TrainingDynamicsConfig,
@@ -33,6 +42,45 @@ from Libraries.cochem_torq_masses import (
     get_monoisotopic_mass,
     get_monoisotopic_masses,
     get_monoisotopic_masses_tensor,
+)
+
+# GNN Warm Restart Scheduler
+from Libraries.cochem_torq_gnn_scheduler import (
+    GNNWarmRestartScheduler,
+    check_and_clip_gradients,
+    compute_lr_at_step,
+)
+
+# Force-Matching Loss Engine
+from Libraries.cochem_torq_force_matching import (
+    ForceMatchingLoss,
+    compute_angular_cosine_similarity,
+    compute_conservative_forces,
+    huber_force_loss,
+)
+
+# Dynamic Batch Scaler & OOM Recovery
+from Libraries.cochem_torq_dynamic_batch import (
+    DynamicOOMRecovery,
+    MolecularGraph,
+    PackedMicroBatch,
+    calculate_sparse_padding_waste,
+    get_vram_telemetry,
+    pack_graphs_dual_budget,
+)
+
+# C^2-Smooth Graph Pruning
+from Libraries.cochem_torq_graph_pruning import (
+    build_c2_reciprocal_graph,
+    check_reciprocal_topology,
+    compute_center_of_mass,
+    compute_pairwise_conservative_forces,
+    enforce_graph_reciprocity,
+    evaluate_momentum_and_antisymmetry,
+    quintic_c2_derivative,
+    quintic_c2_second_derivative,
+    quintic_c2_switching,
+    verify_c2_continuity_boundary,
 )
 
 # Gradient Checkpointing
@@ -107,16 +155,52 @@ __all__ = [
     "DistributedSyncError",
     "UnsupportedElementError",
     "ParityVerificationError",
+    "DiscontinuousForceError",
+    "NonReciprocalGraphError",
+    "OOMRecoveryError",
+    "EquivarianceBreakError",
+    "SchedulerDivergenceError",
     # Schemas
     "TrainingDynamicsConfig",
     "TransferLearningConfig",
     "TorchScriptExportConfig",
     "DistributedEarlyStoppingConfig",
     "LossLandscapeConfig",
+    "GNNWarmRestartSchedulerConfig",
+    "ForceMatchingLossConfig",
+    "DynamicBatchScalerConfig",
+    "C2GraphPrunerConfig",
     # Masses
     "get_monoisotopic_mass",
     "get_monoisotopic_masses",
     "get_monoisotopic_masses_tensor",
+    # GNN Scheduler
+    "GNNWarmRestartScheduler",
+    "compute_lr_at_step",
+    "check_and_clip_gradients",
+    # Force Matching
+    "ForceMatchingLoss",
+    "compute_conservative_forces",
+    "huber_force_loss",
+    "compute_angular_cosine_similarity",
+    # Dynamic Batching
+    "MolecularGraph",
+    "PackedMicroBatch",
+    "pack_graphs_dual_budget",
+    "calculate_sparse_padding_waste",
+    "get_vram_telemetry",
+    "DynamicOOMRecovery",
+    # Graph Pruning
+    "quintic_c2_switching",
+    "quintic_c2_derivative",
+    "quintic_c2_second_derivative",
+    "verify_c2_continuity_boundary",
+    "check_reciprocal_topology",
+    "enforce_graph_reciprocity",
+    "build_c2_reciprocal_graph",
+    "compute_pairwise_conservative_forces",
+    "evaluate_momentum_and_antisymmetry",
+    "compute_center_of_mass",
     # Gradient Checkpointing
     "CheckpointedMLFF",
     "compute_composite_loss",
@@ -158,3 +242,4 @@ __all__ = [
     "save_atomic_checkpoint",
     "worker_init_fn",
 ]
+

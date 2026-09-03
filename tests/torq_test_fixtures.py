@@ -189,3 +189,91 @@ def get_kr_fullerene_c60_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
         species.append(6)
 
     return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+
+
+def get_water_monomer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
+    """Authentic gas-phase Water monomer (H2O) equilibrium geometry (N=3). [M]"""
+    # Oxygen at origin, bond length 0.957 Angstrom, H-O-H angle 104.5 degrees
+    angle_rad = math.radians(104.52)
+    h_dist = 0.9578
+    coords = [
+        [0.0, 0.0, 0.0],  # O
+        [h_dist, 0.0, 0.0],  # H1
+        [h_dist * math.cos(angle_rad), h_dist * math.sin(angle_rad), 0.0],  # H2
+    ]
+    species = [8, 1, 1]
+    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+
+
+def get_c60_fullerene_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
+    """Authentic Buckminsterfullerene C60 icosahedral geometry (N=60). [M]"""
+    kr_c60_coords, kr_c60_species = get_kr_fullerene_c60_fixture()
+    # Exclude the central Kr atom at index 0
+    return kr_c60_coords[1:].clone(), kr_c60_species[1:].clone()
+
+
+def get_water_10mer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
+    """Authentic hydrogen-bonded Water 10-mer cluster (H2O)10 geometry (N=30). [M]"""
+    coords: List[List[float]] = []
+    species: List[int] = []
+
+    # 10 water molecules arranged in a compact hydrogen-bonded dual-ring prism
+    radius = 2.85
+    z_offset = 1.45
+
+    for ring_idx, z in enumerate([-z_offset, z_offset]):
+        phase = ring_idx * (math.pi / 5.0)
+        for i in range(5):
+            theta = phase + i * (2.0 * math.pi / 5.0)
+            ox = radius * math.cos(theta)
+            oy = radius * math.sin(theta)
+            oz = z
+
+            coords.append([ox, oy, oz])
+            species.append(8)  # Oxygen
+
+            # H1 pointing along hydrogen bond network
+            h1_theta = theta + 0.28
+            h1x = ox + 0.96 * math.cos(h1_theta)
+            h1y = oy + 0.96 * math.sin(h1_theta)
+            h1z = oz + 0.15 * (-1.0 if ring_idx == 0 else 1.0)
+            coords.append([h1x, h1y, h1z])
+            species.append(1)  # H1
+
+            # H2 pointing interlayer
+            h2x = ox - 0.25 * math.cos(theta)
+            h2y = oy - 0.25 * math.sin(theta)
+            h2z = oz + 0.92 * (1.0 if ring_idx == 0 else -1.0)
+            coords.append([h2x, h2y, h2z])
+            species.append(1)  # H2
+
+    return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
+
+
+def get_ethanol_rotor_fixture(dihedral_deg: float = 0.0) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Authentic Ethanol (C2H6O) geometry sampled along C-C torsion angle (N=9). [M]"""
+    base_coords, species = get_ethanol_fixture()
+    coords = base_coords.clone()
+
+    # C1 at [0,0,0], C2 at [1.52, 0, 0] along X-axis
+    # Atoms attached to C2: O (idx 2), H4 (idx 6), H5 (idx 7), H6 (idx 8)
+    # Rotate atoms attached to C2 around C1-C2 X-axis by dihedral_deg
+    theta = math.radians(dihedral_deg)
+    cos_t = math.cos(theta)
+    sin_t = math.sin(theta)
+
+    # Rotation matrix around X-axis:
+    # [1, 0, 0]
+    # [0, cos, -sin]
+    # [0, sin, cos]
+    rot_indices = [2, 6, 7, 8]
+    for idx in rot_indices:
+        y = coords[idx, 1].item()
+        z = coords[idx, 2].item()
+        new_y = cos_t * y - sin_t * z
+        new_z = sin_t * y + cos_t * z
+        coords[idx, 1] = new_y
+        coords[idx, 2] = new_z
+
+    return coords, species
+

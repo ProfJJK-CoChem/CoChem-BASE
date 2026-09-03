@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import sys
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import filelock
@@ -46,6 +47,7 @@ class HDF5DatasetManager:
         self.lock_path = self.filepath.with_suffix(".h5.lock")
         self.timeout_seconds = timeout_seconds
         self._file_lock = filelock.FileLock(str(self.lock_path), timeout=self.timeout_seconds)
+        self._swmr_enabled = (sys.platform != "win32")
 
     def write_trajectory_batch(
         self,
@@ -60,8 +62,12 @@ class HDF5DatasetManager:
 
         try:
             with self._file_lock:
-                # Open in append mode
-                with h5py.File(self.filepath, "a") as f:
+                h5_kwargs = (
+                    {"libver": "latest", "swmr": True}
+                    if sys.platform != "win32"
+                    else {}
+                )
+                with h5py.File(self.filepath, "a", **h5_kwargs) as f:
                     grp = f.require_group(group_name)
 
                     # Store atomic numbers
@@ -230,7 +236,7 @@ def load_atomic_checkpoint(checkpoint_path: Path) -> Dict[str, Any]:
         )
 
     try:
-        state_dict = torch.load(ckpt_path, map_location="cpu", weights_only=True)
+        state_dict = dict(torch.load(ckpt_path, map_location="cpu", weights_only=True))
         return state_dict
     except Exception as exc:
         raise CheckpointCorruptionError(

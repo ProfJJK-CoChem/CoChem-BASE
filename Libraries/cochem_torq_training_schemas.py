@@ -110,3 +110,71 @@ class LossLandscapeConfig(BaseModel):
                 f"range_min ({self.range_min}) must be strictly less than range_max ({self.range_max})."
             )
         return self
+
+
+class GNNWarmRestartSchedulerConfig(BaseModel):
+    """Configuration contract for GNN warm restart learning rate scheduler. [D]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    initial_lr: float = Field(default=1e-4, gt=0.0, description="Peak initial learning rate eta_max [D]")
+    min_lr: float = Field(default=1e-7, ge=0.0, description="Minimum learning rate floor eta_min [D]")
+    warmup_steps: int = Field(default=1000, ge=100, description="Linear warmup steps [D]")
+    first_cycle_steps: int = Field(default=10000, ge=500, description="Duration of initial restart cycle T_0 [D]")
+    cycle_multiplier: float = Field(default=1.5, ge=1.0, description="Cycle expansion factor T_mult [D]")
+    restart_decay: float = Field(default=0.75, gt=0.0, le=1.0, description="Peak LR attenuation factor gamma_restart [D]")
+    max_grad_norm: float = Field(default=1.0, gt=0.0, description="Ceiling for gradient norm clipping [D]")
+
+    @model_validator(mode="after")
+    def validate_lr_bounds(self) -> GNNWarmRestartSchedulerConfig:
+        if self.min_lr >= self.initial_lr:
+            raise ValueError(
+                f"min_lr ({self.min_lr}) must be strictly less than initial_lr ({self.initial_lr})"
+            )
+        return self
+
+
+class ForceMatchingLossConfig(BaseModel):
+    """Configuration contract for second-order autograd force-matching loss engine. [D]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    energy_weight: float = Field(default=1.0, ge=0.0, description="Loss weight for potential energy [D]")
+    force_weight: float = Field(default=50.0, gt=0.0, description="Loss weight for atomic force vectors [D]")
+    virial_weight: float = Field(default=0.01, ge=0.0, description="Loss weight for periodic virial stress [D]")
+    huber_delta_force: float = Field(default=0.01, gt=0.0, description="Huber transition delta in eV/Angstrom [D]")
+    create_graph: bool = Field(default=True, description="Retain second-order graph in autograd for forces [D]")
+    track_angular_similarity: bool = Field(default=True, description="Compute cosine similarity metric [D]")
+
+
+class DynamicBatchScalerConfig(BaseModel):
+    """Configuration contract for dual-budget graph packer and OOM recovery. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_node_budget: int = Field(default=4096, ge=64, description="Maximum atoms per micro-batch [M]")
+    max_edge_budget: int = Field(default=32768, ge=256, description="Maximum sparse edges per micro-batch [M]")
+    backoff_factor: float = Field(default=0.75, gt=0.1, lt=1.0, description="Budget step-down on OOM [M]")
+    max_recovery_retries: int = Field(default=3, ge=1, description="Max retry attempts per failed micro-batch [M]")
+    target_vram_fraction: float = Field(default=0.85, gt=0.1, lt=0.98, description="Target VRAM ceiling [M]")
+
+
+class C2GraphPrunerConfig(BaseModel):
+    """Configuration contract for C^2-smooth reciprocal sparse graph pruning. [D]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    cutoff_radius_angstrom: float = Field(default=5.0, gt=1.0, description="Spatial interaction cutoff r_c [D]")
+    covalent_core_radius_angstrom: float = Field(default=1.5, gt=0.5, description="Core radius r_cov guaranteed degree >= 1 [D]")
+    enforce_reciprocal_edges: bool = Field(default=True, description="Enforce undirected edge reciprocity [D]")
+    switching_polynomial_degree: Literal[5] = Field(default=5, description="Quintic polynomial C^2 cutoff envelope [D]")
+    stochastic_edge_dropout: float = Field(default=0.0, ge=0.0, le=0.5, description="Banned on coordinate graphs; invariant heads only [D]")
+
+    @model_validator(mode="after")
+    def validate_radii(self) -> C2GraphPrunerConfig:
+        if self.covalent_core_radius_angstrom >= self.cutoff_radius_angstrom:
+            raise ValueError(
+                f"covalent_core_radius_angstrom ({self.covalent_core_radius_angstrom}) must be strictly less than cutoff_radius_angstrom ({self.cutoff_radius_angstrom})"
+            )
+        return self
+

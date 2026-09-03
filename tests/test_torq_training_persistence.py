@@ -139,3 +139,13 @@ def test_checkpoint_corruption_detection() -> None:
         with pytest.raises(CheckpointCorruptionError) as exc2:
             load_atomic_checkpoint(ckpt_path)
         assert exc2.value.error_code == "TORQ_TRAIN_CHECKPOINT_CORRUPT"
+
+
+def test_worker_init_fn_initialization() -> None:
+    """Validate independent HDF5 handles and cluster configuration in worker_init_fn. [M]"""
+    from Libraries.cochem_torq_training_persistence import worker_init_fn
+    import os
+
+    worker_init_fn(worker_id=1)
+    assert os.environ.get("HDF5_USE_FILE_LOCKING") == "FALSE"
+

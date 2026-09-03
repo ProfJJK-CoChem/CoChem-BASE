@@ -138,3 +138,94 @@ class ParityVerificationError(TorqTrainingError):
             component="torchscript_export",
             diagnostics=diagnostics,
         )
+
+
+class DiscontinuousForceError(TorqTrainingError):
+    """Raised when graph pruning or switching function violates C^2 continuity. [D]"""
+
+    def __init__(
+        self,
+        message: str = "Graph pruning or switching function violates C^2 continuity.",
+        error_code: str = "TORQ_TRAIN_DISCONTINUOUS_FORCE",
+        component: str = "graph_pruning",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class NonReciprocalGraphError(TorqTrainingError):
+    """Raised when asymmetric edge pruning breaks Newton's Third Law (F_ij != -F_ji). [D]"""
+
+    def __init__(
+        self,
+        message: str = "Asymmetric edge configuration detected; breaks Newton's Third Law.",
+        error_code: str = "TORQ_TRAIN_NON_RECIPROCAL_GRAPH",
+        component: str = "graph_pruning",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class OOMRecoveryError(TorqTrainingError):
+    """Raised when dynamic batch-size scaler fails to recover after max step-down attempts. [M]"""
+
+    def __init__(
+        self,
+        message: str = "Dynamic batch scaler failed to recover after maximum step-down attempts.",
+        error_code: str = "TORQ_TRAIN_OOM_RECOVERY_EXHAUSTED",
+        component: str = "dynamic_batch",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class EquivarianceBreakError(TorqTrainingError):
+    """Raised when geometric tensor operations violate E(3) or SO(3) rotational covariance. [D]"""
+
+    def __init__(
+        self,
+        message: str = "Geometric tensor operations violate E(3) or SO(3) rotational covariance.",
+        error_code: str = "TORQ_TRAIN_EQUIVARIANCE_BREAK",
+        component: str = "geometric_tensors",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+
+
+class SchedulerDivergenceError(TorqTrainingError):
+    """Raised when learning rate scheduler encounters NaN or infinite parameter norms. [D]"""
+
+    def __init__(
+        self,
+        message: str = "Learning rate scheduler encountered NaN or infinite parameter norms.",
+        error_code: str = "TORQ_TRAIN_SCHEDULER_DIVERGENCE",
+        component: str = "scheduler",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            component=component,
+            diagnostics=diagnostics,
+        )
+

@@ -7,9 +7,10 @@ with automatic headless/CPU fallback and exponential backoff polling.
 import asyncio
 import logging
 import os
+from pathlib import Path
 import time
+from typing import Dict, Optional, Union
 import warnings
-from typing import Dict, Optional
 
 from src.cochem.hpc.models import CudaMemoryExhaustionError, CudaResourceBudget
 
@@ -23,10 +24,13 @@ logger = logging.getLogger(__name__)
 class CudaMemoryManager:
     """Introspects physical GPU VRAM and manages non-blocking allocation budgeting."""
 
+    MAX_CONSUMER_GPU_CONTEXTS: int = 4
+
     def __init__(self, allow_cpu_fallback: bool = True) -> None:
         self.allow_cpu_fallback: bool = allow_cpu_fallback
         self._nvml_initialized: bool = False
         self._nvml_available: bool = False
+        self._active_contexts: int = 0
         self._init_nvml_subsystem()
 
     def _init_nvml_subsystem(self) -> None:
@@ -66,9 +70,9 @@ class CudaMemoryManager:
 
         return 0
 
-    def query_vram_megabytes(self, device_id: int) -> tuple[int, int]:
-        """Query physical (total_mb, free_mb) for a specific GPU device index."""
-        # 1. Primary NVML introspection
+    def query_vram_megabytes(self, device_id: int, non_initializing: bool = True) -> tuple[int, int]:
+        """Query physical (total_mb, free_mb) for a specific GPU device index without initializing CUDA context."""
+        # 1. Primary NVML introspection (strictly non-initializing driver call)
         if self._nvml_available:
             try:
                 import pynvml  # type: ignore
@@ -81,17 +85,36 @@ class CudaMemoryManager:
             except Exception as exc:
                 logger.debug("Failed NVML query on device %s: %s", device_id, exc)
 
-        # 2. Secondary PyTorch runtime query
+        # Non-initializing fallback via nvidia-smi CLI
         try:
-            import torch  # type: ignore
+            import subprocess
 
-            if torch.cuda.is_available() and device_id < torch.cuda.device_count():
-                free_bytes, total_bytes = torch.cuda.mem_get_info(device_id)
-                total_mb = int(total_bytes // (1024 * 1024))
-                free_mb = int(free_bytes // (1024 * 1024))
-                return total_mb, free_mb
-        except Exception as exc:
-            logger.debug("Failed PyTorch mem_get_info query on device %s: %s", device_id, exc)
+            res = subprocess.run(
+                ["nvidia-smi", f"--id={device_id}", "--query-gpu=memory.total,memory.free", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                timeout=2.0,
+                check=False,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                parts = [p.strip() for p in res.stdout.strip().split(",")]
+                if len(parts) >= 2:
+                    return int(float(parts[0])), int(float(parts[1]))
+        except Exception:
+            pass
+
+        # 2. Secondary PyTorch runtime query ONLY if non_initializing is False
+        if not non_initializing:
+            try:
+                import torch  # type: ignore
+
+                if torch.cuda.is_available() and device_id < torch.cuda.device_count():
+                    free_bytes, total_bytes = torch.cuda.mem_get_info(device_id)
+                    total_mb = int(total_bytes // (1024 * 1024))
+                    free_mb = int(free_bytes // (1024 * 1024))
+                    return total_mb, free_mb
+            except Exception as exc:
+                logger.debug("Failed PyTorch mem_get_info query on device %s: %s", device_id, exc)
 
         device_count = self.get_device_count()
         raise CudaMemoryExhaustionError(
@@ -135,27 +158,91 @@ class CudaMemoryManager:
 
         return best_device
 
+    def is_consumer_gpu(self, device_id: int = 0) -> bool:
+        """Determines if target device is a consumer GPU without MIG support (§8A.4) [D]."""
+        if self._nvml_available:
+            try:
+                import pynvml  # type: ignore
+
+                handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+                name = pynvml.nvmlDeviceGetName(handle)
+                if isinstance(name, bytes):
+                    name = name.decode("utf-8", errors="ignore")
+                name_upper = str(name).upper()
+                if any(x in name_upper for x in ("RTX", "GEFORCE", "3090", "4090", "5090", "TITAN")):
+                    return True
+                try:
+                    pynvml.nvmlDeviceGetMigMode(handle)
+                    return False
+                except Exception:
+                    return True
+            except Exception:
+                return True
+        return True
+
+    def register_context(self, device_id: int = 0) -> bool:
+        """Attempts to register an active GPU context. If throttled, returns False for automated CPU fallback."""
+        if self.is_consumer_gpu(device_id) and self._active_contexts >= self.MAX_CONSUMER_GPU_CONTEXTS:
+            logger.warning(
+                "[D] Active GPU contexts (%d) reached consumer limit (%d). Triggering automated CPU fallback.",
+                self._active_contexts,
+                self.MAX_CONSUMER_GPU_CONTEXTS,
+            )
+            return False
+        self._active_contexts += 1
+        return True
+
+    def release_context(self, device_id: int = 0) -> None:
+        """Releases an active GPU context."""
+        self._active_contexts = max(0, self._active_contexts - 1)
+
     def allocate_device(
         self, required_mb: int = 0, requested_device_id: Optional[int] = None
     ) -> Optional[int]:
         """Synchronously determine an available GPU device ordinal or None for CPU fallback."""
+        if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CODESPACES") or sys.platform == "darwin":
+            if self.allow_cpu_fallback:
+                return None
+
         device_count = self.get_device_count()
         if device_count == 0:
             return None
-        if requested_device_id is not None and 0 <= requested_device_id < device_count:
-            return requested_device_id
-        return self.select_best_device(required_mb)
+
+        dev_id = (
+            requested_device_id
+            if requested_device_id is not None and 0 <= requested_device_id < device_count
+            else self.select_best_device(required_mb)
+        )
+        if dev_id is None:
+            return None
+
+        if not self.register_context(dev_id):
+            if self.allow_cpu_fallback:
+                return None
+            raise CudaMemoryExhaustionError("GPU context allocation throttled and CPU fallback disallowed.")
+
+        return dev_id
+
+    resolve_gpu_or_cpu = allocate_device
 
     def prepare_worker_environment(
         self,
         device_id: Optional[int],
+        worker_id: Optional[Union[str, int]] = None,
         base_env: Optional[Dict[str, str]] = None,
     ) -> Dict[str, str]:
-        """Generate subprocess environment enforcing GPU affinity and anti-fragmentation."""
+        """Generate subprocess environment enforcing GPU affinity, MPS socket isolation, and anti-fragmentation."""
         env = dict(os.environ) if base_env is None else dict(base_env)
         if device_id is not None and device_id >= 0:
             env["CUDA_VISIBLE_DEVICES"] = str(device_id)
             env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+            # Per-Worker NVIDIA MPS Socket Isolation (Method Matrix v4 §8A.4) [M]
+            w_id = worker_id if worker_id is not None else os.getpid()
+            mps_root = Path(os.environ.get("COCH_SCRATCH", Path.home() / ".cochem" / "scratch")) / "mps"
+            mps_pipe_dir = mps_root / f"pipe_{w_id}"
+            mps_pipe_dir.mkdir(parents=True, exist_ok=True)
+            env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe_dir)
         else:
             env["CUDA_VISIBLE_DEVICES"] = ""
         return env
@@ -237,3 +324,6 @@ class CudaMemoryManager:
             if sleep_duration > 0:
                 await asyncio.sleep(sleep_duration)
             current_sleep = min(current_sleep * 2.0, poll_interval)
+
+
+CudaExecutionBudget = CudaMemoryManager

@@ -694,10 +694,21 @@ def extract_semantic_version(output_text: str, engine_name: str) -> Optional[str
     raw = engine_name.lower()
 
     if "orca" in raw:
-        # e.g., "Program Version 6.1.1", "ORCA version 5.0.4", "Version 6.1.0"
-        m = re.search(r"(?:Program\s+Version|ORCA\s+version|Version)\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)", text, re.IGNORECASE)
+        # e.g., "Program Version 6.0.0", "* O   R   C   A * Version 5.0.4", "ORCA-Version 5.0.3", "Program Version 6.1.1"
+        m = re.search(
+            r"(?:Program\s+Version|ORCA[- ]Version|Version)\s+([4-6]\.\d+(?:\.\d+)?)",
+            text,
+            re.IGNORECASE,
+        )
         if m:
             return m.group(1)
+        m_gen = re.search(
+            r"(?:Program\s+Version|ORCA[- ]Version|Version)\s+([0-9]+\.[0-9]+(?:\.[0-9]+)?)",
+            text,
+            re.IGNORECASE,
+        )
+        if m_gen:
+            return m_gen.group(1)
 
     elif "mpi" in raw:
         # e.g., "mpirun (Open MPI) 4.1.6", "Open MPI: 5.0.2"

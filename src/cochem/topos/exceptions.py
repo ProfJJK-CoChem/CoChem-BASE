@@ -43,3 +43,11 @@ class TopologicalCanonicalizationError(CoChemToposException):
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
 
+
+class GeometricPlausibilityError(CoChemToposException):
+    """Raised when 3D molecular geometry fails physical plausibility constraints or exhibits critical steric clashes."""
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(message)
+
+

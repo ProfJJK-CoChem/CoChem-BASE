@@ -254,5 +254,7 @@
     "topology/cochem_topos_crusher.py",
     "topology/cochem_topos_graph.py",
     "ui/voila_layout/cochem_gui.py",
-    "ui/voila_layout/scribe_gui_dashboard.py"
+    "ui/voila_layout/scribe_gui_dashboard.py",
+    "src/cochem_base/cochem_h5_healer.py",
+    "tests/chunk10/test_h5_healer_concurrency.py"
 ]

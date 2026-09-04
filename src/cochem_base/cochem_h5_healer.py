@@ -11,13 +11,15 @@ Authoritative Standards:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import logging
 import os
 import platform
+import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from filelock import FileLock
 import h5py
@@ -26,6 +28,9 @@ import psutil
 from cochem_base.exceptions import HDF5LockTimeoutError, ProvenanceErrorCode
 
 logger = logging.getLogger("CoChem-TORQ.H5Healer")
+
+# In-process mutex serialization (§8C) eliminating intra-process thread contention
+_IN_PROCESS_LOCK = threading.RLock()
 
 
 class TorqH5LockError(HDF5LockTimeoutError):
@@ -45,6 +50,19 @@ def get_lock_file_path(h5_path: Union[str, Path]) -> Path:
     return p.with_name(f"{p.name}.swmr.lock")
 
 
+def get_lease_metadata_path(h5_path: Union[str, Path]) -> Path:
+    """Returns companion JSON lease metadata path (f'{db_path}.lease.json') (§8C) [M]."""
+    p = Path(h5_path).resolve()
+    return Path(f"{p}.lease.json")
+
+
+def get_ipc_filelock(h5_path: Union[str, Path], timeout: float = 60.0) -> FileLock:
+    """Returns cross-platform filelock.FileLock located dynamically via COCH_STORE_DIR (§8C) [M]."""
+    lock_dir = Path(os.environ.get("COCH_STORE_DIR", Path.home() / ".cochem" / "locks"))
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    return FileLock(str(lock_dir / f"{Path(h5_path).name}.lock"), timeout=timeout)
+
+
 def create_swmr_lock(
     h5_path: Union[str, Path],
     pid: Optional[int] = None,
@@ -54,18 +72,21 @@ def create_swmr_lock(
 
     Follows the Tripartite Storage model:
     Host Client <---> Atomic Staging Lease (.tmp.<pid>) <---> Canonical Persistent Lock.
-    Protected under cross-platform IPC FileLock.
+    Protected under cross-platform IPC FileLock and in-process RLock.
     """
     target_h5 = Path(h5_path).resolve()
     lock_file = get_lock_file_path(target_h5)
-    ipc_lock = FileLock(f"{lock_file}.ipc.lock", timeout=60)
+    lease_file = get_lease_metadata_path(target_h5)
+    ipc_lock = get_ipc_filelock(target_h5, timeout=60.0)
 
     current_pid = pid if pid is not None else os.getpid()
+    now_ts = time.time()
     payload = {
         "h5_file": str(target_h5),
         "pid": current_pid,
         "hostname": platform.node(),
-        "timestamp_utc": time.time(),
+        "timestamp": now_ts,
+        "timestamp_utc": now_ts,
         "lease_start_monotonic": time.monotonic(),
         "lease_duration_sec": float(lease_duration_sec),
         "mode": "SWMR_WRITE",
@@ -74,59 +95,87 @@ def create_swmr_lock(
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     staging_path = lock_file.with_name(f"{lock_file.name}.tmp.{current_pid}")
 
-    with ipc_lock:
-        with open(staging_path, "w", encoding="utf-8") as fp:
-            json.dump(payload, fp, indent=2)
-        os.replace(staging_path, lock_file)
+    with _IN_PROCESS_LOCK:
+        with ipc_lock:
+            with open(staging_path, "w", encoding="utf-8") as fp:
+                json.dump(payload, fp, indent=2)
+            os.replace(staging_path, lock_file)
 
-    logger.debug("Created SWMR lock file: %s for PID %d", lock_file, current_pid)
+            # Companion JSON lease metadata (f"{db_path}.lease.json")
+            lease_staging = lease_file.with_name(f"{lease_file.name}.tmp.{current_pid}")
+            with open(lease_staging, "w", encoding="utf-8") as fp:
+                json.dump(
+                    {
+                        "pid": current_pid,
+                        "hostname": platform.node(),
+                        "timestamp": now_ts,
+                    },
+                    fp,
+                    indent=2,
+                )
+            os.replace(lease_staging, lease_file)
+
+    logger.debug("Created SWMR lock and lease for PID %d on %s", current_pid, lock_file)
     return lock_file
 
 
 def remove_swmr_lock(h5_path: Union[str, Path]) -> bool:
-    """Safely removes the SWMR lock file if it exists under IPC lock."""
-    lock_file = get_lock_file_path(h5_path)
-    ipc_lock = FileLock(f"{lock_file}.ipc.lock", timeout=60)
-    with ipc_lock:
-        if lock_file.exists():
-            try:
-                lock_file.unlink(missing_ok=True)
-                logger.debug("Removed SWMR lock file: %s", lock_file)
-                return True
-            except OSError as err:
-                logger.error("Failed to remove lock file %s: %s", lock_file, err)
-                raise TorqH5LockError(
-                    message=f"Failed to remove lock file {lock_file}: {err}",
-                    details={"field": "lock_file", "value": str(lock_file)},
-                ) from err
-    return False
+    """Safely removes the SWMR lock file and lease metadata if it exists under IPC lock."""
+    target_h5 = Path(h5_path).resolve()
+    lock_file = get_lock_file_path(target_h5)
+    lease_file = get_lease_metadata_path(target_h5)
+    ipc_lock = get_ipc_filelock(target_h5, timeout=60.0)
+
+    with _IN_PROCESS_LOCK:
+        with ipc_lock:
+            removed = False
+            for lf in (lock_file, lease_file):
+                if lf.exists():
+                    try:
+                        lf.unlink(missing_ok=True)
+                        removed = True
+                    except OSError as err:
+                        logger.error("Failed to remove lock/lease file %s: %s", lf, err)
+                        raise TorqH5LockError(
+                            message=f"Failed to remove lock file {lf}: {err}",
+                            details={"field": "lock_file", "value": str(lf)},
+                        ) from err
+            return removed
 
 
 def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
-    """Inspects companion lock files for the specified HDF5 path.
+    """Inspects companion lock and lease metadata files for the specified HDF5 path.
 
     Enforces strict host-identity gating:
     - If hostname == platform.node(): checks local PID liveness via psutil.pid_exists.
+      If PID is dead, evicts stale lock immediately.
     - If hostname != platform.node(): NEVER calls local psutil.pid_exists.
-      Checks monotonic heartbeat lease expiration (time.monotonic() > lease_start + lease_duration).
+      Enforces a 60.0-second lease expiration timeout: if time.time() - lease["timestamp"] > 60.0,
+      logs [SWMR-LEASE-EVICTION] and breaks expired lock.
     """
-    lock_file = get_lock_file_path(h5_path)
-    if not lock_file.exists():
+    target = Path(h5_path).resolve()
+    lock_file = get_lock_file_path(target)
+    lease_file = get_lease_metadata_path(target)
+
+    active_file = lease_file if lease_file.exists() else (lock_file if lock_file.exists() else None)
+    if active_file is None:
         return []
 
     zombie_pids: List[int] = []
     try:
-        with open(lock_file, "r", encoding="utf-8") as fp:
+        with open(active_file, "r", encoding="utf-8") as fp:
             data = json.load(fp)
 
         lock_pid = data.get("pid")
         lock_host = data.get("hostname")
+        now_ts = time.time()
+        lease_ts = float(data.get("timestamp", data.get("timestamp_utc", now_ts)))
 
         if lock_host == platform.node():
             # Local host: inspect local PID liveness
             if lock_pid is not None:
                 if not psutil.pid_exists(lock_pid):
-                    logger.warning("Detected dead process PID %d in lock file %s", lock_pid, lock_file)
+                    logger.warning("Detected dead process PID %d in lock file %s; evicting immediately", lock_pid, active_file)
                     zombie_pids.append(lock_pid)
                 else:
                     try:
@@ -137,7 +186,7 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
                                 "Detected zombie process PID %d (status=%s) in lock file %s",
                                 lock_pid,
                                 status,
-                                lock_file,
+                                active_file,
                             )
                             zombie_pids.append(lock_pid)
                     except psutil.NoSuchProcess:
@@ -146,25 +195,13 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
                         logger.debug(f"Ignored exception: {_e}")
         else:
             # Remote host: NEVER call local psutil.pid_exists!
-            # Evaluate wall-clock heartbeat lease expiration (monotonic clocks are not cross-host synchronized)
-            lease_duration = float(data.get("lease_duration_sec", 60.0))
-            timestamp_utc = data.get("timestamp_utc")
-            lease_start = data.get("lease_start_monotonic")
-
-            expired = False
-            if timestamp_utc is not None:
-                if time.time() > (float(timestamp_utc) + lease_duration):
-                    expired = True
-            elif lease_start is not None:
-                # Emergency fallback only if timestamp_utc was missing
-                if time.monotonic() > (float(lease_start) + lease_duration):
-                    expired = True
-
-            if expired:
+            # Enforce 60.0-second lease expiration timeout (§8C) [M]
+            if (now_ts - lease_ts) > 60.0:
                 logger.warning(
-                    "Remote SWMR lock from %s (PID %s) lease expired; classifying as stale.",
+                    "[SWMR-LEASE-EVICTION] Remote SWMR lease on host %s (PID %s) expired (age %.1fs > 60.0s); evicting stale lock.",
                     lock_host,
                     lock_pid,
+                    now_ts - lease_ts,
                 )
                 zombie_pids.append(lock_pid if lock_pid is not None else -1)
             else:
@@ -174,11 +211,74 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
 
     except (json.JSONDecodeError, OSError) as err:
         logger.warning(
-            "Corrupt or unreadable lock file %s: %s; treating as orphan lock", lock_file, err
+            "Corrupt or unreadable lock file %s: %s; treating as orphan lock", active_file, err
         )
         zombie_pids.append(-1)
 
     return zombie_pids
+
+
+def init_swmr_database(
+    h5_path: Union[str, Path],
+    datasets: Optional[Dict[str, Tuple[Tuple[int, ...], Any]]] = None,
+) -> Path:
+    """Safe SWMR Initialization Protocol (§8C).
+
+    Pre-allocates chunks, sets shuffle=True and Fletcher32=True filters,
+    creates root groups, flushes to disk, and activates SWMR mode (h5.swmr_mode = True).
+    Protected under threading.RLock and FileLock.
+    """
+    target = Path(h5_path).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    ipc_lock = get_ipc_filelock(target)
+
+    with _IN_PROCESS_LOCK:
+        with ipc_lock:
+            with h5py.File(target, "w", libver="latest") as f:
+                if datasets:
+                    for ds_name, (shape, dtype) in datasets.items():
+                        chunk_shape = tuple(max(1, min(s, 100)) for s in shape)
+                        f.create_dataset(
+                            ds_name,
+                            shape=shape,
+                            maxshape=tuple(None for _ in shape),
+                            chunks=chunk_shape,
+                            dtype=dtype,
+                            shuffle=True,
+                            fletcher32=True,
+                        )
+                f.flush()
+                f.swmr_mode = True
+    return target
+
+
+@contextmanager
+def swmr_locked_session(h5_path: Union[str, Path], mode: str = "a"):
+    """Context manager serializing h5py access under threading.RLock, FileLock, and lease tracking."""
+    target = Path(h5_path).resolve()
+    ipc_lock = get_ipc_filelock(target)
+    lease_file = get_lease_metadata_path(target)
+
+    with _IN_PROCESS_LOCK:
+        with ipc_lock:
+            now_ts = time.time()
+            lease_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(lease_file, "w", encoding="utf-8") as fp:
+                json.dump(
+                    {
+                        "pid": os.getpid(),
+                        "hostname": platform.node(),
+                        "timestamp": now_ts,
+                    },
+                    fp,
+                    indent=2,
+                )
+            try:
+                with h5py.File(target, mode, libver="latest", swmr=(mode == "r")) as h5_file:
+                    yield h5_file
+                    h5_file.flush()
+            finally:
+                lease_file.unlink(missing_ok=True)
 
 
 def inspect_h5_integrity(h5_path: Union[str, Path]) -> bool:

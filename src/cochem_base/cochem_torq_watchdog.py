@@ -12,6 +12,7 @@ Authoritative Standards:
 from __future__ import annotations
 
 import logging
+import pathlib
 from typing import Any, Dict, List, Optional, Sequence
 
 import psutil
@@ -247,6 +248,18 @@ def dynamic_memory_backoff(
             vm = psutil.virtual_memory()
             available_system_ram_mb = int(vm.available // (1024 * 1024))
 
+    # Cgroup memory limit clamp (§11, Suggestion #100) [M]
+    cgroup_file = pathlib.Path("/sys/fs/cgroup/memory.max")
+    if cgroup_file.exists():
+        try:
+            val_str = cgroup_file.read_text().strip()
+            if val_str != "max" and val_str.isdigit():
+                cgroup_mb = int(int(val_str) // (1024 * 1024))
+                if cgroup_mb > 0:
+                    available_system_ram_mb = min(available_system_ram_mb, cgroup_mb)
+        except Exception as _e:
+            logger.debug(f"Ignored exception reading cgroup memory.max: {_e}")
+
     pid_target = process_pid or kwargs.get("process_pid")
     if pid_target is not None and psutil.pid_exists(pid_target):
         try:
@@ -273,33 +286,36 @@ def dynamic_memory_backoff(
     usable_ram = max(0, available_system_ram_mb - min_os_reserve)
 
     effective_nprocs = max(1, int(nprocs))
-    direct_scf_required = False
+    # Bounded Memory Calculation: aggregate N_procs * %maxcore <= 85% available RAM [M]
+    safe_budget_mb = float(available_system_ram_mb) * 0.85
+    max_core_allowed = max(256, int(safe_budget_mb // effective_nprocs))
 
-    # Underflow check: usable_ram < 256 * nprocs
-    if usable_ram < 256 * effective_nprocs:
-        new_maxcore = 256
-        direct_scf_required = True
-        logger.warning(
-            "CRITICAL MEMORY UNDERFLOW: Usable RAM (%d MB) is below 256 MB * %d procs (%d MB). "
-            "Clamping new_maxcore to 256 MB. Integral evaluation must transition to direct SCF "
-            "(disk-based) to avoid an operating system OOM kill.",
-            usable_ram,
-            effective_nprocs,
-            256 * effective_nprocs,
-        )
+    if req_mb is not None:
+        target_mem = int(req_mb * backoff_factor)
+        new_maxcore = min(max_core_allowed, max(256, target_mem))
     else:
-        computed_core = int(usable_ram // effective_nprocs)
-        # Apply backoff constraint if requested exceeds per-core partition
-        target_mem = min(int(req_mb * backoff_factor), computed_core)
-        new_maxcore = max(256, target_mem)
+        new_maxcore = max_core_allowed
+
+    direct_scf_required = False
+    integral_mode_recommendation = None
+    if new_maxcore < 512:
+        direct_scf_required = True
+        integral_mode_recommendation = "! NoRifDirect"
+        logger.warning(
+            "CRITICAL MEMORY: %%maxcore (%d MB) is below 512 MB for %d MPI ranks. "
+            "Integral evaluation must transition to direct disk calculation (! NoRifDirect or ! Direct) "
+            "to prevent OOM crash.",
+            new_maxcore,
+            effective_nprocs,
+        )
 
     logger.info(
-        "Watchdog dynamically adjusted memory ceiling: %d MB -> %d MB (usable_ram=%d MB, min_os_reserve=%d MB, nprocs=%d)",
-        req_mb,
+        "Watchdog dynamically adjusted memory ceiling: %d MB -> %d MB (safe_budget=%.1f MB, nprocs=%d, direct_scf=%s)",
+        req_mb or new_maxcore,
         new_maxcore,
-        usable_ram,
-        min_os_reserve,
+        safe_budget_mb,
         effective_nprocs,
+        direct_scf_required,
     )
 
     return DynamicMemoryResult(
@@ -309,8 +325,10 @@ def dynamic_memory_backoff(
             "new_maxcore_mb": new_maxcore,
             "min_os_reserve_mb": min_os_reserve,
             "usable_ram_mb": usable_ram,
+            "safe_budget_mb": safe_budget_mb,
             "nprocs": effective_nprocs,
             "direct_scf_required": direct_scf_required,
+            "integral_mode_recommendation": integral_mode_recommendation,
             "backoff_factor": backoff_factor,
             "process_reaped": reaped,
             "reaped_children_count": reaped_children,

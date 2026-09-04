@@ -157,13 +157,14 @@ class SubprocessBroker:
         self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
         self.topology_engine: TopologyDiscoveryEngine = TopologyDiscoveryEngine()
 
-        # Tripartite Workspace Air-Gap dynamic scratch resolution
+        # Tripartite Workspace Air-Gap dynamic scratch resolution (§8B) [M]
         explicit_scratch = base_scratch_dir or scratch_dir
         if explicit_scratch is not None:
             self.base_scratch_dir: pathlib.Path = pathlib.Path(explicit_scratch).resolve()
         else:
             env_scratch = (
-                os.environ.get("SLURM_TMPDIR")
+                os.environ.get("COCH_SCRATCH")
+                or os.environ.get("SLURM_TMPDIR")
                 or os.environ.get("TMPDIR")
                 or os.environ.get("TEMP")
             )
@@ -175,6 +176,13 @@ class SubprocessBroker:
         assert_writable_path(self.base_scratch_dir)
         self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
         self.scratch_dir = self.base_scratch_dir
+
+        self.store_dir: pathlib.Path = pathlib.Path(
+            os.environ.get(
+                "COCH_STORE_DIR",
+                os.environ.get("COCHEM_ARTIFACTS_DIR", os.environ.get("COCHEM_ARTIFACTS", pathlib.Path.home() / ".cochem" / "store")),
+            )
+        ).resolve()
 
         self._job_handle: Optional[Any] = None
         self._init_process_group_guard()
@@ -300,7 +308,7 @@ class SubprocessBroker:
             if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
                 current_cmd = ["cmd.exe", "/c"] + current_cmd
 
-        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else self.cwd
+        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else job_scratch
         effective_cwd.mkdir(parents=True, exist_ok=True)
         assert_writable_path(effective_cwd)
 
@@ -395,17 +403,19 @@ class SubprocessBroker:
 
 
                     if code == 0:
-                        # Extract validated artifacts to artifacts dir if designated
-                        artifacts_env = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACTS")
-                        if artifacts_env:
-                            art_dir = pathlib.Path(artifacts_env)
-                            art_dir.mkdir(parents=True, exist_ok=True)
-                            for ext in [".out", ".property.txt", ".gbw"]:
-                                for f in job_scratch.glob(f"*{ext}"):
-                                    try:
-                                        shutil.copy2(str(f), str(art_dir / f.name))
-                                    except Exception as _e:
-                                        logger.debug(f"Ignored exception: {_e}")
+                        # Extract validated artifacts to persistent store (T_store) conforming to Tripartite Air-Gap
+                        if self.store_dir.exists() or os.environ.get("COCH_STORE_DIR") or os.environ.get("COCHEM_ARTIFACTS_DIR"):
+                            self.store_dir.mkdir(parents=True, exist_ok=True)
+                            search_dirs = [job_scratch]
+                            if effective_cwd != job_scratch:
+                                search_dirs.append(effective_cwd)
+                            for s_dir in search_dirs:
+                                for ext in [".out", ".property.txt", ".gbw", ".xyz", ".json"]:
+                                    for f in s_dir.glob(f"*{ext}"):
+                                        try:
+                                            shutil.copy2(str(f), str(self.store_dir / f.name))
+                                        except Exception as _e:
+                                            logger.debug(f"Ignored exception: {_e}")
 
                         return SubprocessExecutionResult(
                             success=True,
@@ -437,8 +447,8 @@ class SubprocessBroker:
                     # Tripartite Air-Gap scratch remediation (§8B) [M]
                     preserve_gbw = bool(
                         self.current_params.get("moread", False)
-                        or "gbw" in str(self.current_params).lower()
-                        or any(job_scratch.glob("*.gbw"))
+                        or "moread" in str(self.current_params).lower()
+                        or self.current_params.get("preserve_gbw", False)
                     )
                     self._sanitize_remediation_scratch(job_scratch, preserve_gbw=preserve_gbw)
 
@@ -469,14 +479,13 @@ class SubprocessBroker:
             # Lifecycle hygiene: sweep and delete ephemeral sandbox
             shutil.rmtree(str(job_scratch), ignore_errors=True)
 
-
     @staticmethod
     def _sanitize_remediation_scratch(scratch_dir: Union[str, pathlib.Path], preserve_gbw: bool = False) -> None:
         """Sanitizes ephemeral remediation scratch directory to prevent engine startup crashes (§8B) [M].
 
-        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess).
+        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess, *.densities).
         When preserve_gbw=True (MOREAD reuse / grid escalation), stages valid .gbw checkpoints
-        into a staging buffer and restores them after purging transients.
+        into a staging buffer and restores them after purging transients. Otherwise, .gbw files are purged.
         """
         s_path = pathlib.Path(scratch_dir).resolve()
         if not s_path.exists() or not s_path.is_dir():
@@ -493,7 +502,10 @@ class SubprocessBroker:
                 except Exception as _e:
                     logger.debug("Failed staging gbw checkpoint %s: %s", gbw_file, _e)
 
-        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess"]
+        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess", "*.densities"]
+        if not preserve_gbw:
+            transient_patterns.append("*.gbw")
+
         for pattern in transient_patterns:
             for transient_file in s_path.glob(pattern):
                 try:

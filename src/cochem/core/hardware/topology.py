@@ -6,8 +6,13 @@ Strictly adheres to Zero-Mock mandate and physical OS topology discovery.
 from __future__ import annotations
 
 import ctypes
+try:
+    from ctypes import wintypes
+except ImportError:
+    wintypes = None  # type: ignore[assignment]
 import dataclasses
 import logging
+import math
 import os
 import pathlib
 import subprocess
@@ -17,6 +22,34 @@ from typing import Dict, List, Optional, Tuple
 import psutil
 
 logger = logging.getLogger("cochem.core.hardware.topology")
+
+
+class GROUP_AFFINITY(ctypes.Structure):
+    """Win32 GROUP_AFFINITY structure for multi-group processor topologies (>64 cores)."""
+
+    _fields_ = [
+        ("Mask", ctypes.c_size_t),
+        ("Group", ctypes.c_ushort),
+        ("Reserved", ctypes.c_ushort * 3),
+    ]
+
+
+def get_windows_processor_group_count() -> int:
+    """Queries GetActiveProcessorGroupCount on Windows NT platforms (§19) [M]."""
+    if sys.platform != "win32":
+        return 1
+    try:
+        return int(ctypes.windll.kernel32.GetActiveProcessorGroupCount())
+    except Exception:
+        return 1
+
+
+def get_windows_group_affinity(core_index: int) -> Tuple[int, int]:
+    """Calculates Windows Processor Group and relative core bitmask for arbitrary core index (§19) [M]."""
+    group = int(core_index) // 64
+    relative_core = int(core_index) % 64
+    mask = 1 << relative_core
+    return group, mask
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -347,21 +380,10 @@ class TopologyDiscoveryEngine:
                 k32.SetProcessAffinityMask.restype = ctypes.c_int
 
                 if core_index >= 64 or total_cpus > 64:
-                    class GROUP_AFFINITY(ctypes.Structure):
-                        _fields_ = [
-                            ("Mask", ctypes.c_size_t),
-                            ("Group", ctypes.c_ushort),
-                            ("Reserved", ctypes.c_ushort * 3),
-                        ]
-
-                    group = int(core_index) // 64
-                    core_in_group = int(core_index) % 64
-                    mask = 1 << core_in_group
-
+                    group, mask = get_windows_group_affinity(core_index)
                     ga = GROUP_AFFINITY()
                     ga.Group = group
                     ga.Mask = mask
-                    prev_ga = GROUP_AFFINITY()
 
                     k32.SetThreadGroupAffinity.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
                     k32.SetThreadGroupAffinity.restype = ctypes.c_int
@@ -369,7 +391,7 @@ class TopologyDiscoveryEngine:
                     res = k32.SetThreadGroupAffinity(
                         thread_handle,
                         ctypes.byref(ga),
-                        ctypes.byref(prev_ga),
+                        None,
                     )
                     return bool(res != 0)
                 else:

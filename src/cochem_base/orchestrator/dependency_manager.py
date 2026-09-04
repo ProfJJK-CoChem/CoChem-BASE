@@ -84,9 +84,13 @@ class SubprocessExecutionRecord(BaseModel):
 class PipExecutionResult(SubprocessExecutionRecord):
     """Execution record specific to pip subprocess calls."""
 
+    model_config = ConfigDict(extra="ignore", validate_assignment=True)
+
 
 class CondaExecutionResult(SubprocessExecutionRecord):
     """Execution record specific to conda/mamba subprocess calls."""
+
+    model_config = ConfigDict(extra="ignore", validate_assignment=True)
 
 
 class DynamicVersionWalkStep(BaseModel):
@@ -299,6 +303,24 @@ def resolve_conda_binary(custom_path: Optional[Union[str, Path]] = None) -> Opti
     return None
 
 
+def is_wheel_compatible(
+    wheel_filename: Union[str, Path],
+    supported_tags: Optional[Set[Any]] = None,
+) -> bool:
+    """Verifies whether candidate wheel tags match host PEP 425 ABI and platform architecture (§17) [M]."""
+    from packaging.tags import sys_tags
+    from packaging.utils import InvalidWheelFilename, parse_wheel_filename
+
+    path_obj = Path(wheel_filename)
+    try:
+        _, _, _, tags = parse_wheel_filename(path_obj.name)
+    except InvalidWheelFilename:
+        return False
+
+    active_supported = set(sys_tags()) if supported_tags is None else set(supported_tags)
+    return bool(tags.intersection(active_supported))
+
+
 def scan_for_local_wheel_fallback(
     package_name: str,
     search_dirs: Optional[List[Union[str, Path]]] = None,
@@ -309,7 +331,7 @@ def scan_for_local_wheel_fallback(
     Validates candidate wheels against host platform tags using packaging.tags.sys_tags(),
     preventing platform-mismatched wheel selection in shared repository mounts (§17) [M].
     """
-    import packaging.tags
+    from packaging.tags import sys_tags
     from packaging.utils import InvalidWheelFilename, parse_wheel_filename
 
     clean_name = re.sub(r"[-_.]+", "_", package_name).lower()
@@ -322,11 +344,17 @@ def scan_for_local_wheel_fallback(
     if search_dirs:
         probe_dirs.extend([Path(d).resolve() for d in search_dirs if Path(d).exists()])
 
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
+    # Dynamically resolve offline wheel cache directories (§17) [M]
+    default_cochem_wheels = Path.home() / ".cochem" / "wheels"
+    if default_cochem_wheels.exists() and default_cochem_wheels not in probe_dirs:
+        probe_dirs.append(default_cochem_wheels)
+
+    env_art = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACT_DIR")
     if env_art:
-        wheel_dir = Path(env_art).resolve() / "wheels"
-        if wheel_dir.exists() and wheel_dir not in probe_dirs:
-            probe_dirs.append(wheel_dir)
+        art_path = Path(env_art).resolve()
+        for w_cand in (art_path / "wheels", art_path):
+            if w_cand.exists() and w_cand not in probe_dirs:
+                probe_dirs.append(w_cand)
 
     cwd_art = Path.cwd() / ".agent_artifacts" / "wheels"
     if cwd_art.exists() and cwd_art not in probe_dirs:
@@ -336,7 +364,7 @@ def scan_for_local_wheel_fallback(
     if cwd_dist.exists() and cwd_dist not in probe_dirs:
         probe_dirs.append(cwd_dist)
 
-    supported_tags = set(packaging.tags.sys_tags())
+    supported_tags = set(sys_tags())
     py_tag = f"cp{target_python.replace('.', '')}" if target_python else None
 
     candidate_wheels: List[Tuple[Path, bool, bool]] = []

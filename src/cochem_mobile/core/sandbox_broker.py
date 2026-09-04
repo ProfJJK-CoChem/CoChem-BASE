@@ -63,6 +63,61 @@ class ExecutionResult:
     engine_used: ContainerEngine
 
 
+def is_docker_active() -> bool:
+    """Active daemon ping to verify Docker runtime liveness (§20) [M].
+
+    Guards against CLI-installed but daemon-stopped hangs using a strict 1.5s timeout.
+    """
+    if not shutil.which("docker"):
+        return False
+    try:
+        res = subprocess.run(
+            ["docker", "info", "--format", "{{.ServerVersion}}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=1.5,
+            check=True,
+        )
+        return True
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
+def is_podman_active() -> bool:
+    """Active daemon ping to verify Podman runtime liveness (§20) [M]."""
+    if not shutil.which("podman"):
+        return False
+    try:
+        res = subprocess.run(
+            ["podman", "info"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=1.5,
+            check=True,
+        )
+        return True
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
+def is_apptainer_active() -> bool:
+    """Active binary ping to verify Apptainer/Singularity runtime liveness (§20) [M]."""
+    bin_name = "apptainer" if shutil.which("apptainer") else ("singularity" if shutil.which("singularity") else None)
+    if not bin_name:
+        return False
+    try:
+        res = subprocess.run(
+            [bin_name, "--version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=1.5,
+            check=True,
+        )
+        return True
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
 class SandboxBroker:
     """Orchestrates ephemeral quarantined execution with defense-in-depth boundaries."""
 
@@ -77,61 +132,16 @@ class SandboxBroker:
 
     @staticmethod
     def _probe_engine_liveness(engine_name: Union[str, ContainerEngine]) -> bool:
-        """Active daemon ping to verify physical container runtime liveness (§20) [M].
-
-        Guards against CLI-installed but daemon-stopped hangs using a strict 1.5s timeout.
-        """
+        """Active daemon ping to verify physical container runtime liveness (§20) [M]."""
         raw = str(engine_name.value if isinstance(engine_name, ContainerEngine) else engine_name).lower()
-
         if raw == "subprocess":
             return True
-
         if raw == "docker":
-            if shutil.which("docker") is None:
-                return False
-            try:
-                res = subprocess.run(
-                    ["docker", "info", "--format", "{{.ServerVersion}}"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=1.5,
-                    check=False,
-                )
-                return res.returncode == 0
-            except Exception:
-                return False
-
+            return is_docker_active()
         if raw == "podman":
-            if shutil.which("podman") is None:
-                return False
-            try:
-                res = subprocess.run(
-                    ["podman", "info"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=1.5,
-                    check=False,
-                )
-                return res.returncode == 0
-            except Exception:
-                return False
-
+            return is_podman_active()
         if raw in ("apptainer", "singularity"):
-            bin_name = "apptainer" if shutil.which("apptainer") else ("singularity" if shutil.which("singularity") else None)
-            if bin_name is None:
-                return False
-            try:
-                res = subprocess.run(
-                    [bin_name, "--version"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=1.5,
-                    check=False,
-                )
-                return res.returncode == 0
-            except Exception:
-                return False
-
+            return is_apptainer_active()
         return False
 
     @classmethod
@@ -236,11 +246,12 @@ class SandboxBroker:
             if engine != ContainerEngine.SUBPROCESS:
                 if not self._probe_engine_liveness(engine):
                     logger.warning(
-                        f"Container engine '{engine.value}' is unavailable or daemon is unresponsive. "
-                        f"Cascading to next fallback."
+                        f"[D] Container engine '{engine.value}' is unavailable or daemon is unresponsive. "
+                        f"Cascading down execution ladder."
                     )
                     continue
 
+            logger.info(f"[D] Active sandbox engine: {engine.value}")
             # Build full executable command based on selected engine
             final_cmd = self._compose_engine_command(cmd, engine, cfg, work_dir)
 

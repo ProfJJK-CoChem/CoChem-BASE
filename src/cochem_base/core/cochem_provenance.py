@@ -4,15 +4,19 @@ Complies strictly with:
 - W3C PROV-O Linked Data Standard (prov:Entity, prov:Activity, prov:wasDerivedFrom)
 - Tripartite Air-Gap Mandate (Offline local JSON-LD context catalog resolution)
 - FAIR Principles I1, I3, and R1.2
+- Method Matrix v4 §8B.4 & §9B (Quasi-Harmonic Thermodynamics Provenance)
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
 
+import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
+
+from cochem_base.core.models import ThermodynamicsProvenance
 
 
 def get_local_prov_context() -> Dict[str, Any]:
@@ -22,7 +26,6 @@ def get_local_prov_context() -> Dict[str, Any]:
     """
     ctx_path = Path(__file__).resolve().parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"
     if not ctx_path.exists():
-        # Fallback search if installed or relocated
         candidates = [
             Path(__file__).resolve().parent / "prov_o_context.jsonld",
             Path(__file__).resolve().parents[2] / "schemas" / "contexts" / "prov_o_context.jsonld",
@@ -67,6 +70,9 @@ class DAGNode(BaseModel):
     )
     rotational_constants_mhz: Optional[List[float]] = Field(
         default=None, description="Principal rotational constants [A, B, C] in MHz"
+    )
+    payload: Dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary execution payload and thermodynamic provenance"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Arbitrary execution or quantum chemistry metadata"
@@ -126,7 +132,56 @@ class DAGNode(BaseModel):
         return doc
 
 
+def compute_boltzmann_weights(
+    free_energies_kcal_mol: Sequence[float],
+    temperature_k: float = 298.15,
+    low_freq_cutoff_cm1: float = 100.0,
+    damping_model: str = "grimme_quasi_rrho",
+    pressure_atm: float = 1.0,
+    dag_node: Optional[Any] = None,
+) -> Tuple[List[float], ThermodynamicsProvenance]:
+    """Computes normalized Boltzmann weights while recording thermodynamic provenance.
+
+    Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
+    Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
+    """
+    R_KCAL_MOL_K: float = 0.00198720425864083
+
+    G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
+    if len(G) == 0:
+        return [], ThermodynamicsProvenance(
+            damping_model=damping_model,
+            low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+            temperature_k=float(temperature_k),
+            pressure_atm=float(pressure_atm),
+            provenance_tag="[D]",
+        )
+
+    delta_G = G - np.min(G)
+    beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
+    unnorm_weights = np.exp(-beta * delta_G)
+    weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
+
+    prov = ThermodynamicsProvenance(
+        damping_model=damping_model,
+        low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+        temperature_k=float(temperature_k),
+        pressure_atm=float(pressure_atm),
+        provenance_tag="[D]",
+    )
+
+    if dag_node is not None:
+        if hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
+            dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
+        elif hasattr(dag_node, "metadata") and isinstance(dag_node.metadata, dict):
+            dag_node.metadata["thermodynamics_provenance"] = prov.model_dump(mode="json")
+
+    return weights, prov
+
+
 __all__ = [
     "DAGNode",
     "get_local_prov_context",
+    "ThermodynamicsProvenance",
+    "compute_boltzmann_weights",
 ]

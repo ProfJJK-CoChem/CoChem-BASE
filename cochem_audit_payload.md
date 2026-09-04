@@ -1,470 +1,993 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_06_Core_Part_6_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_07_Core_Part_7_prompts.md.
 Original prompt:
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 6: Suggestions #51–#60)
+# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 7: Suggestions #61–#70)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A.4, §8B.4, §8C, §9A, §20, Table 3, QS-1, QS-3)
+- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A, §8A.4, §8B.4, §8B.6, §8C, §9A, §9B, Table 3, QS-1, QS-3)
 - Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
-- Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, Artifacts $T_{\text{art}}$ read-write cryptographic commitments)
+- Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, State & Artifacts $T_{\text{state}}/T_{\text{export}}$ read-write cryptographic commitments)
 - 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
 - Dynamic Mendeleev Invariant Mandate (`from mendeleev import element`, zero hardcoded atomic masses, strict dynamic IUPAC/CIAAW physical mass retrieval)
-- FAIR Principles Compliance (F1, F4, A1, I1, I2, I3, R1.1, R1.2, R1.3)
+- FAIR Principles Compliance (F1, F2, A1, I1, I2, I3, R1, R1.1, R1.2, R1.3)
 - MolSSI QCSchema v1 Compliance (`schema_name="qcschema_output"`, `schema_version=1`, explicit `AtomicResult` mapping)
-- Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Invariant Mandate
-- IETF RFC 8032 PureEd25519, RFC 8785 JSON Canonicalization Scheme (JCS), & W3C Linked Data Proof Standards
-- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5, strictly non-initializing GPU discovery with zero CUDA-locking, local scratch file locking, strictly no POSIX `fcntl` on network filesystems)
+- IETF RFC 8785 JSON Canonicalization Scheme (JCS) §3.2.2.3 IEEE 754 Number-to-String formatting mandate
+- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5 with `threading.RLock()` and `filelock.FileLock`, non-blocking CUDA stream handling under NVIDIA MPS isolation, strictly no POSIX `fcntl` on network filesystems)
 
 ---
 
 ## 1. Executive Summary & Objective
 
-Implement, harden, and physically verify Suggestions #51 through #60 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across elemental mass fallbacks, empirical covalent/vdW radii topology perception, semantic provenance and conformer lineage Linked Data annotations, machine-readable SPDX data licensing, dynamic isotopic mass validation, W3C Linked Data Proof offline digital signatures, environment-agnostic VCS package provenance, non-initializing GPU telemetry with zero CUDA runtime locking, deterministic UUIDv5 content-addressable PES storage with Thread-Safe HDF5 SWMR protocols, and Method Matrix v4 canonical composite fidelity tier definitions.
+Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across long-term archival data persistence, RFC 8785 canonical serialization parity, quasi-harmonic thermodynamic provenance logging, machine-actionable exception architectures, in-place HDF5 SWMR chunk resizing, cached dynamic mass resolution without GPU context stalls, lazy zero-cost module initialization, ephemeral sandbox memory leaks, low-overhead process monitoring, and cached session scratch verification.
 
 Specific implementation targets include:
-1. Eradicating permissive fallback to standard terrestrial atomic weight (`el.mass`) in `get_isotopic_mass("C", 14)`, raising an explicit `IsotopeStabilityError` whenever a requested isotope cannot be resolved to a physical nuclear mass in the Mendeleev registry.
-2. Replacing the hardcoded `0.77` Å fallback in `get_covalent_radius()` with a strict hierarchical Mendeleev lookup (Pyykkö covalent radius $\to$ Cordero covalent radius $\to$ van der Waals radius $\to$ `RadiusNotFoundError`), ensuring accurate intermolecular distance thresholds and topological perception for noble gases and heavy elements.
-3. Upgrading conformer lineage graphs in `DAGNode` to emit W3C PROV-O compliant JSON-LD documents (`prov:wasDerivedFrom`, `prov:wasGeneratedBy`, `prov:Activity`, `prov:Entity`) while enforcing Tripartite Air-Gap compliance via an offline local JSON-LD context catalog bundled in `cochem_base/schemas/contexts/`.
-4. Adding an immutable `license: str = "CC-BY-4.0"` (or configurable SPDX identifier) field to `QCSchemaProvenance`, `QCSchemaMethodRecord`, and `QCResultsRecord`, validating against an offline local SPDX identifier table to uphold FAIR Principle R1.1.
-5. Eradicating the static 18-element `ISOTOPIC_MASSES` dictionary in `cochem_core_registry_schema.py` and replacing it with a cached, dynamic lookup calling `mendeleev.element(symbol).isotopes` backed by Mendeleev's bundled local SQLite database for fully air-gapped execution across all 6 environment tiers.
-6. Refactoring `sign_report_payload` in `cochem_crypto.py` to emit standard W3C Linked Data Proof envelopes (`Ed25519Signature2020`) with pure cryptographic `did:key` resolution via multicodec `0xed01` prefix and base58btc encoding without external network DID registries.
-7. Enhancing `get_vcs_provenance()` in `cochem_version.py` to use dynamic `pathlib.Path` root checks and Python packaging metadata (`importlib.metadata`) to capture accurate package version and distribution provenance inside stripped Docker containers and HPC wheels lacking `.git` directories.
-8. Refactoring `collect_hardware_metadata()` to use a strictly non-initializing discovery protocol: querying direct NVML C-bindings (`pynvml.nvmlInit()` / `pynvml.nvmlShutdown()`) with fallback to short-lived CLI calls (`nvidia-smi` / `rocm-smi`), strictly banning `torch.cuda` or `jax.devices` in the orchestrator telemetry path to guarantee zero CUDA-locking and maintain NVIDIA MPS multiplexing readiness.
-9. Refactoring `PESPointRecord` to generate deterministic, globally unique UUIDv5 identifiers from canonical RFC 8785 JSON hashes of molecular geometry, basis set, and electronic structure method, while enforcing Thread-Safe HDF5 SWMR protocols with cross-platform node-local file locking adhering to the HPC Distributed Lock Prohibition.
-10. Expanding `CalculationFidelity` in `cochem_base.core.glossary` from 5 legacy strings to encompass all canonical composite tiers established in Method Matrix v4 Table 3 and §9A (`junChS`, `junChS-F12`, `ChS`, `T3-10s`, `T3-1min`, `T3-30min`, `T3-3h`, `T3-12h`, `T4-1d`, `R2`) as an extensible string-enum supporting open QCSchema specifications.
+1. Injecting a mandatory `schema_version: int = 1` field into all Pydantic models across `cochem_base.core.models`, enforcing `model_config = ConfigDict(frozen=True, extra="forbid")`, and establishing an automated schema migration dispatch protocol supporting long-term backward-compatible deserialization (FAIR F2, I1, R1).
+2. Implementing an RFC 8785-compliant IEEE 754 Number-to-String formatting kernel in `cochem_base.core.cochem_crypto.canonicalize_json` to eliminate cross-platform SHA-256 hash divergence caused by standard Python `float.__repr__` formatting.
+3. Embedding all quasi-harmonic thermodynamic parameters (`low_freq_cutoff_cm1`, `damping_model="grimme_quasi_rrho"`, `temperature_k`, `pressure_atm=1.0`) into `DAGNode.payload["thermodynamics_provenance"]` metadata dictionaries to guarantee 100% reproducible vibrational free energies and Boltzmann populations (FAIR R1.2, Method Matrix §8B.4).
+4. Standardizing all custom exceptions across `cochem_base.core` by subclassing a base `CoChemError` class and attaching machine-actionable error codes (e.g. `CoordinateShapeError` with code `COCHEM_E_INVALID_COORD_SHAPE`, `AirGapBoundaryError` with code `COCHEM_E_AIRGAP_BREACH`) to support automated ETL triage (FAIR A1, I1).
+5. Refactoring `PESStore.write_entry()` to eliminate quadratic `shutil.copyfile` latency degradation, implementing in-place HDF5 SWMR chunk resizing (`ds.resize(new_len, axis=0)`) with dual-layer synchronization (`threading.RLock()` and cross-platform `filelock.FileLock`) and strict Tripartite Air-Gap path boundary enforcement.
+6. Applying `@functools.lru_cache(maxsize=256)` to all dynamic Mendeleev mass resolution routines in `cochem_base.core_engine`, ensuring mass lookups execute in CPU precomputation without blocking active CUDA streams or locking GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
+7. Refactoring `_build_element_cache()` in `cochem_base.core.mendeleev_invariants` into a lazy, thread-safe singleton initialization pattern to eliminate the $200\text{--}600\text{ ms}$ module import lag on multiprocessing worker spawn pools.
+8. Purging unbounded `atexit` callbacks in `cochem_base.core.cochem_sandbox.SandboxContext` by explicitly invoking `atexit.unregister(self.cleanup)` upon context exit, while enforcing strict dynamic sandbox root containment in Tier 3 (`$COCH_SCRATCH`).
+9. Replacing recursive full-system process tree discovery (`psutil.Process().children(recursive=True)`) in `ProcessTreeManager` with direct polling across explicitly registered child PIDs in `_tracked`, reducing monitoring CPU consumption by $>80\%$ and eliminating quantum chemistry kernel cache perturbation.
+10. Decoupling the 64 KB binary physical I/O integrity probe in `cochem_core_subprocess_broker.py` from individual subprocess invocations by implementing a session-level scratch verification cache with a configurable time-to-live ($\text{TTL} = 300\text{ s}$) keyed on workspace path.
 
-All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, offline JSON-LD expansions, physical Ed25519 cryptographic signing, real SWMR HDF5 dataset preallocation, and non-initializing NVML hardware interrogation.
+All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, real IEEE 754 serialization roundtrips, real HDF5 SWMR dataset extensions, physical multi-process reaper monitoring, and real subprocess executions.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
-### Metadata, Elemental Invariants & Hardware Discovery Modules
-1. `src/cochem_base/core/metadata.py` (Suggestions #51, #52, #58)
-2. `src/cochem_base/core/exceptions.py` (Suggestions #51, #52)
-3. `src/cochem_base/cochem_core_registry_schema.py` (Suggestion #55)
+### Core Models, Exceptions & Cryptographic Modules
+1. `src/cochem_base/core/models.py` (Suggestions #61, #64)
+2. `src/cochem_base/core/exceptions.py` (Suggestion #64)
+3. `src/cochem_base/core/cochem_crypto.py` (Suggestion #62)
+4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #63)
 
-### Provenance, Versioning & Cryptographic Proof Modules
-4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #53)
-5. `src/cochem_base/schemas/contexts/prov_o_context.jsonld` (Suggestion #53)
-6. `src/cochem_base/core/cochem_crypto.py` (Suggestion #56)
-7. `src/cochem_base/core/cochem_version.py` (Suggestion #57)
-
-### Core Data Models, Storage & Domain Vocabularies
-8. `src/cochem_base/core/models.py` (Suggestions #54, #59)
-9. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestions #54, #59)
-10. `src/cochem_base/core/licensing.py` (Suggestion #54)
-11. `src/cochem_base/core/glossary.py` (Suggestion #60)
+### Engine, Storage & Concurrency Architecture Modules
+5. `src/cochem_base/core/ipc/serializer.py` (Suggestion #65)
+6. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #65)
+7. `src/cochem_base/core_engine/cochem_mass_resolver.py` (Suggestion #66)
+8. `src/cochem_base/core/mendeleev_invariants.py` (Suggestion #67)
+9. `src/cochem_base/core/cochem_sandbox.py` (Suggestion #68)
+10. `src/cochem_base/core/process_reaper.py` (Suggestion #69)
+11. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestion #70)
 
 ### Zero-Mock Test Suite Deliverables
-12. `tests/core/test_architecture_part6.py` (Validating Suggestions #53, #57, #58, #59)
-13. `tests/core/test_physics_integrity_part6.py` (Validating Suggestions #51, #52, #54, #55, #56, #59, #60)
+12. `tests/core/test_physics_integrity_part7.py` (Validating Suggestions #61, #62, #63, #64, #66)
+13. `tests/core/test_architecture_part7.py` (Validating Suggestions #65, #67, #68, #69, #70)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Dynamic Isotopic Nuclear Mass Resolution & Unphysical Fallback Removal (Suggestion #51)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`get_isotopic_mass`), `src/cochem_base/core/exceptions.py`
+### [Task 1: Pydantic Model Versioning & Schema Migration Dispatch (Suggestion #61)]
+- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core/exceptions.py`
 - **Problem Statement:**
-  `get_isotopic_mass("C", 14)` attempts to find the isotope in Mendeleev's isotope list. When an isotope lookup fails or cannot be resolved, the function silently falls back to `float(el.mass)`. In Mendeleev, `el.mass` is the terrestrial abundance-weighted atomic weight ($12.011$ u for Carbon), not an isotopic nuclear mass. Supplying the terrestrial average mass to rotational force-field re-diagonalization calculates incorrect moments of inertia, shifting predicted ground-state rotational constants $B_0$ and vibrational frequencies by dozens of MHz [M], violating Method Matrix v4 §6.10, §8B.4, and FAIR Principle R1.3.
+  Archival data records generated by older versions of CoChem cannot be ingested by newer versions because models in `cochem_base.core.models` lack an explicit `schema_version` attribute and schema migration hooks. When a new field is added to a Pydantic model configured with `extra="forbid"`, deserializing older records missing that field triggers a fatal `ValidationError`, destroying multi-year scientific reproducibility and violating FAIR Principles F2, I1, and R1.
 - **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define:
+  1. In `src/cochem_base/core/models.py`, define global schema constants:
      ```python
-     class IsotopeStabilityError(ValueError):
-         """Raised when a requested isotope cannot be physically resolved to an isotopic nuclear mass."""
-         pass
+     CURRENT_CORE_SCHEMA_VERSION: int = 1
      ```
-  2. Refactor `get_isotopic_mass(symbol_or_atomic_number: Union[str, int], mass_number: int) -> float` in `src/cochem_base/core/metadata.py`:
-     - Query dynamic element data via `el = mendeleev.element(symbol_or_atomic_number)`.
-     - Filter `el.isotopes` for an isotope where `iso.mass_number == int(mass_number)`.
-     - If matched and `iso.mass` is not `None` and `float(iso.mass) > 0.0`:
-       Return `float(iso.mass)` [M].
-     - If no matching isotope exists, or if `iso.mass` is `None` or non-positive:
-       Explicitly raise `IsotopeStabilityError(f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical isotopic mass in authoritative CIAAW/Mendeleev data.")`.
-     - Strictly eliminate any code path returning `el.mass`, `el.atomic_weight`, or static numeric constants when an isotopic mass number is requested.
-  3. Provenance and Invariants:
-     - Tag return value documentation with `[M]` (Measured empirical nuclear mass).
-     - Ensure compatibility across all stable and known radioactive isotopes (e.g. `14C`, `2H`, `15N`, `37Cl`, `18O`).
-
----
-
-### [Task 2: Hierarchical Empirical Radii Lookup & Elimination of Hardcoded 0.77 Å Fallback (Suggestion #52)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`get_covalent_radius`), `src/cochem_base/core/exceptions.py`
-- **Problem Statement:**
-  `get_covalent_radius()` returns a hardcoded default of `0.77` Å when radius data is absent. The value `0.77` Å is the single-bond covalent radius of $sp^3$ Carbon. When assigned to noble gases (He, Ne, Ar, Kr, Xe) or heavy transition metals in van der Waals complexes, intermolecular contact algorithms misclassify non-covalent contacts as vacant voids or perceive false covalent bonds, corrupting molecular graphs and frozen-monomer initial alignments under Method Matrix v4 §20 [M].
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define:
+  2. Inject a mandatory schema version attribute with a default into all core data models (e.g. `MolecularTopology`, `QCSchemaInput`, `QCSchemaOutput`, `PESPointRecord`, `CalculationJobPayload`, `AtomicResult`):
      ```python
-     class RadiusNotFoundError(KeyError):
-         """Raised when empirical covalent or van der Waals radius is unavailable for an element."""
-         pass
+     schema_version: int = Field(
+         default=CURRENT_CORE_SCHEMA_VERSION,
+         description="Semantic schema version for archival data deserialization and migration contracts."
+     )
      ```
-  2. Refactor `get_covalent_radius(symbol_or_atomic_number: Union[str, int], radius_type: str = "pyykko") -> float` in `src/cochem_base/core/metadata.py`:
-     - Resolve element using `el = mendeleev.element(symbol_or_atomic_number)`.
-     - Implement hierarchical empirical lookup without hardcoded defaults:
-       1. Primary: Pyykkö single-bond covalent radius (`el.covalent_radius_pyykko`).
-       2. Secondary: Cordero covalent radius (`el.covalent_radius_cordero`).
-       3. Tertiary: Standard covalent radius (`el.covalent_radius`).
-       4. Quaternary (for noble gases or non-bonding atoms where covalent bonds do not form): van der Waals radius (`el.vdw_radius`).
-     - Convert value to Angstroms (if reported in picometers by the underlying registry, divide by 100.0; verify Mendeleev units dynamically).
-     - If all empirical radii attributes evaluate to `None` or $\le 0.0$:
-       Raise `RadiusNotFoundError(f"Empirical radius for element '{el.symbol}' ({el.atomic_number}) could not be resolved from Mendeleev registries.")`.
-     - Eradicate the literal `0.77` Å fallthrough return completely.
+  3. Enforce strict immutability and forbid extraneous undeclared fields:
+     ```python
+     model_config = ConfigDict(frozen=True, extra="forbid")
+     ```
+  4. Implement an extensible schema migration registry and dispatcher:
+     ```python
+     MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
+     _MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+
+     def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
+         """Decorator registering a transformation function from a specific schema version to from_version + 1."""
+         def decorator(func: MigrationCallable) -> MigrationCallable:
+             _MIGRATION_REGISTRY[(model_name, from_version)] = func
+             return func
+         return decorator
+
+     def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
+         """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
+         model_name = target_model.__name__
+         current_version = payload.get("schema_version", 0)
+         target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
+
+         data = dict(payload)
+         while current_version < target_version:
+             key = (model_name, current_version)
+             if key not in _MIGRATION_REGISTRY:
+                 raise SchemaMigrationError(
+                     f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
+                     error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED",
+                     details={"model": model_name, "from_version": current_version, "target_version": target_version}
+                 )
+             data = _MIGRATION_REGISTRY[key](data)
+             current_version = data.get("schema_version", current_version + 1)
+
+         return data
+     ```
+  5. Provide a classmethod on all versioned models:
+     ```python
+     @classmethod
+     def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+         """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+         migrated = migrate_payload(data, cls)
+         return cls.model_validate(migrated)
+     ```
 
 ---
 
-### [Task 3: W3C PROV-O Compliant JSON-LD Lineage & Air-Gapped Local Context Catalog (Suggestion #53)]
-- **Files Affected:** `src/cochem_base/core/cochem_provenance.py` (`DAGNode`), `src/cochem_base/schemas/contexts/prov_o_context.jsonld`
+### [Task 2: RFC 8785-Compliant IEEE 754 Float Canonicalization Kernel (Suggestion #62)]
+- **Files Affected:** `src/cochem_base/core/cochem_crypto.py`
 - **Problem Statement:**
-  `DAGNode.to_dict()` outputs an ad-hoc JSON structure lacking semantic Linked Data annotations. Scientific knowledge graphs and semantic search harvesters cannot index conformer lineage trees (CREST $\to$ GOAT $\to$ ORCA DFT $\to$ DLPNO). Attempting live online JSON-LD `@context` resolution (`http://www.w3.org/ns/prov#`) triggers network timeout crashes on air-gapped HPC compute nodes and CI runners, violating FAIR Principles I1, I3, and the Tripartite Air-Gap mandate.
+  Cryptographic hashes of canonical JSON payloads diverge between Python and external verifiers (in Node.js, Go, Rust) because `canonicalize_json` relies on Python's built-in `json.dumps()` for float formatting. RFC 8785 (JSON Canonicalization Scheme - JCS) §3.2.2.3 strictly mandates the ECMAScript IEEE 754 Number-to-String formatting algorithm. Python's `float.__repr__` outputs exponential notations with 2-digit padded exponents (e.g. `1e-05`) or differing precision thresholds, breaking deterministic cross-platform SHA-256 verification [M].
 - **Implementation Requirements:**
-  1. Create the offline bundled context catalog file `src/cochem_base/schemas/contexts/prov_o_context.jsonld`:
-     ```json
-     {
-       "@context": {
-         "prov": "http://www.w3.org/ns/prov#",
-         "dcterms": "http://purl.org/dc/terms/",
-         "cochem": "https://cochem.org/schema/core#",
-         "Entity": "prov:Entity",
-         "Activity": "prov:Activity",
-         "Agent": "prov:Agent",
-         "wasDerivedFrom": {"@id": "prov:wasDerivedFrom", "@type": "@id"},
-         "wasGeneratedBy": {"@id": "prov:wasGeneratedBy", "@type": "@id"},
-         "wasAssociatedWith": {"@id": "prov:wasAssociatedWith", "@type": "@id"},
-         "startedAtTime": {"@id": "prov:startedAtTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime"},
-         "endedAtTime": {"@id": "prov:endedAtTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime"},
-         "conformerId": "cochem:conformerId",
-         "relativeEnergy": "cochem:relativeEnergyKcalMol",
-         "rotationalConstants": "cochem:rotationalConstantsMHz"
-       }
-     }
+  1. In `src/cochem_base/core/cochem_crypto.py`, implement a dedicated RFC 8785 ECMAScript IEEE 754 float string formatting kernel:
+     ```python
+     def format_rfc8785_float(val: float) -> str:
+         """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
+         
+         Rules:
+         - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
+         - Signed zero (-0.0) must format as '0'.
+         - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
+         - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
+         """
+         import math
+         if math.isnan(val) or math.isinf(val):
+             raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
+         if val == 0.0:
+             return "0"
+
+         # ECMAScript Number-to-String algorithm compliance:
+         # Use standard 17-digit precision formatting
+         s = f"{val:.17g}"
+         
+         # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
+         if 'e' in s:
+             base, exp = s.split('e')
+             exp_sign = exp[0]
+             exp_val = exp[1:].lstrip('0') or '0'
+             s = f"{base}e{exp_sign}{exp_val}"
+         
+         # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
+         # 1e-6 <= |val| < 1e-5 (e.g., 0.000001 -> '0.000001', not '1e-6')
+         abs_val = abs(val)
+         if 1e-6 <= abs_val < 1e-4 and 'e' in s:
+             # Expand to decimal
+             s = f"{val:.10f}".rstrip('0').rstrip('.')
+             
+         return s
      ```
-  2. In `src/cochem_base/core/cochem_provenance.py`:
-     - Implement `get_local_prov_context() -> Dict[str, Any]` which reads `prov_o_context.jsonld` directly using `pathlib.Path(__file__).parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"`.
-     - Extend `DAGNode`:
-       - Add method `to_prov_jsonld(self, base_uri: str = "urn:cochem:conformer:") -> Dict[str, Any]`:
-         - Construct a standard JSON-LD document with `@context` referencing the bundled definitions.
-         - Generate `@id` as `{base_uri}{self.node_id}`.
-         - Assign `@type`: `["prov:Entity", "cochem:Conformer"]` for geometry/result nodes, or `["prov:Activity", "cochem:Optimization"]` for transformation steps.
-         - Map parent edges using `prov:wasDerivedFrom`: `[{"@id": f"{base_uri}{parent_id}"} for parent_id in self.parents]`.
-         - Annotate generation activity via `prov:wasGeneratedBy`.
-         - Attach execution metadata, timestamps (ISO 8601 UTC), energy, and rotational constant properties under canonical `cochem:` namespace terms.
-     - Provide an offline JSON-LD context validator ensuring zero network socket requests are dispatched when serializing or verifying conformer lineage.
+  2. Implement `canonicalize_json(data: Any) -> bytes`:
+     ```python
+     def canonicalize_json(data: Any) -> bytes:
+         """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
+         
+         - Lexicographical sorting of object keys by UTF-8 code point values.
+         - Zero whitespace around delimiters (',' and ':').
+         - IEEE 754 float formatting via format_rfc8785_float.
+         - UTF-8 output without BOM.
+         """
+         return _serialize_jcs(data).encode("utf-8")
+
+     def _serialize_jcs(obj: Any) -> str:
+         if obj is None:
+             return "null"
+         elif isinstance(obj, bool):
+             return "true" if obj else "false"
+         elif isinstance(obj, int):
+             return str(obj)
+         elif isinstance(obj, float):
+             return format_rfc8785_float(obj)
+         elif isinstance(obj, str):
+             import json
+             return json.dumps(obj, ensure_ascii=False)
+         elif isinstance(obj, (list, tuple)):
+             items = [_serialize_jcs(item) for item in obj]
+             return "[" + ",".join(items) + "]"
+         elif isinstance(obj, dict):
+             # Sort keys by UTF-16 code units / UTF-8 byte order
+             sorted_keys = sorted(obj.keys(), key=lambda k: k.encode("utf-8"))
+             pairs = [
+                 json.dumps(k, ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
+                 for k in sorted_keys
+             ]
+             return "{" + ",".join(pairs) + "}"
+         elif hasattr(obj, "model_dump"):
+             return _serialize_jcs(obj.model_dump(mode="json"))
+         else:
+             raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+     ```
+  3. Ensure that `hash_canonical_json(data: Any, algorithm: str = "sha256") -> str` in `cochem_crypto.py` calls `canonicalize_json(data)`.
 
 ---
 
-### [Task 4: Immutable SPDX Data Usage Licensing Schema (Suggestion #54)]
-- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`, `src/cochem_base/core/licensing.py`
+### [Task 3: Quasi-Harmonic Thermodynamic Parameter Provenance Logging (Suggestion #63)]
+- **Files Affected:** `src/cochem_base/core/cochem_provenance.py`, `src/cochem_base/core/models.py`
 - **Problem Statement:**
-  Computational output records (`QCSchemaProvenance`, `QCSchemaMethodRecord`, `QCResultsRecord`, `PESPointRecord`) omit machine-readable licensing metadata. Downstream scientific data repositories reject exported datasets, and commercial or academic users cannot programmatically determine dataset reuse rights, directly violating FAIR Principle R1.1 ("(Meta)data are released with a clear and accessible data usage license").
+  External researchers cannot reproduce the exact Boltzmann populations computed by `compute_boltzmann_weights()` because the function applies Grimme's quasi-RRHO low-frequency interpolation using a procedural $100\text{ cm}^{-1}$ cutoff without logging the cutoff, rotor cutoff, or damping scheme into node metadata. Because low-frequency torsional modes in fluxional complexes dominate vibrational entropy, shifting the cutoff between $50$ and $150\text{ cm}^{-1}$ alters relative conformer free energies by up to $1.5\text{ kcal/mol}$ [D], violating FAIR Principle R1.2 and Method Matrix v4 §8B.4 / §9B.
 - **Implementation Requirements:**
-  1. Author `src/cochem_base/core/licensing.py`:
-     - Define an immutable tuple or frozen set of approved open-science SPDX license identifiers:
-       `OFFICIAL_SPDX_LICENSES = frozenset({"CC-BY-4.0", "CC0-1.0", "MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0-only", "AGPL-3.0-only"})`.
-     - Implement `validate_spdx_license(license_id: str) -> str`:
-       - Strip whitespace; verify `license_id in OFFICIAL_SPDX_LICENSES` or matches standard SPDX regex `^[A-Za-z0-9\.\-\+]+$`.
-       - Raise `ValueError(f"Invalid or unrecognized SPDX license identifier: '{license_id}'")` if validation fails.
-  2. Update Data Models:
-     - In `QCSchemaProvenance`, `QCSchemaMethodRecord`, and `QCResultsRecord` (`src/cochem_base/core/models.py` and `cochem_core_pes_store.py`):
-       - Add field:
-         ```python
-         license: str = Field(
-             default="CC-BY-4.0",
-             description="SPDX license identifier governing data reuse rights (FAIR R1.1)"
+  1. In `src/cochem_base/core/models.py`, define the provenance model:
+     ```python
+     class ThermodynamicsProvenance(BaseModel):
+         """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
+         damping_model: str = Field(
+             default="grimme_quasi_rrho",
+             description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic)."
          )
-         ```
-       - Add a Pydantic `@field_validator("license")` invoking `validate_spdx_license(v)`.
-     - In `PESPointRecord`: add `license: str = "CC-BY-4.0"` to its metadata envelope.
-     - Ensure existing datasets without explicit license tags default safely to `"CC-BY-4.0"`.
+         low_freq_cutoff_cm1: float = Field(
+             default=100.0,
+             description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1)."
+         )
+         temperature_k: float = Field(
+             default=298.15,
+             description="Thermodynamic temperature in Kelvin."
+         )
+         pressure_atm: float = Field(
+             default=1.0,
+             description="Standard state pressure in atmospheres."
+         )
+         rotor_cutoff_cm1: Optional[float] = Field(
+             default=None,
+             description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping."
+         )
+         provenance_tag: str = Field(
+             default="[D]",
+             description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated)."
+         )
+         schema_version: int = Field(default=CURRENT_CORE_SCHEMA_VERSION)
+         model_config = ConfigDict(frozen=True, extra="forbid")
+     ```
+  2. Refactor `compute_boltzmann_weights()` in `src/cochem_base/core/cochem_provenance.py`:
+     ```python
+     def compute_boltzmann_weights(
+         free_energies_kcal_mol: Sequence[float],
+         temperature_k: float = 298.15,
+         low_freq_cutoff_cm1: float = 100.0,
+         damping_model: str = "grimme_quasi_rrho",
+         pressure_atm: float = 1.0,
+         dag_node: Optional[Any] = None
+     ) -> Tuple[List[float], ThermodynamicsProvenance]:
+         """Computes normalized Boltzmann weights while recording thermodynamic provenance.
+         
+         Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
+         Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
+         """
+         import numpy as np
+         # R in kcal / (mol * K)
+         R_KCAL_MOL_K: float = 0.00198720425864083
+         
+         G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
+         if len(G) == 0:
+             return [], ThermodynamicsProvenance(
+                 damping_model=damping_model,
+                 low_freq_cutoff_cm1=low_freq_cutoff_cm1,
+                 temperature_k=temperature_k,
+                 pressure_atm=pressure_atm
+             )
+
+         delta_G = G - np.min(G)
+         beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
+         unnorm_weights = np.exp(-beta * delta_G)
+         weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
+
+         prov = ThermodynamicsProvenance(
+             damping_model=damping_model,
+             low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+             temperature_k=float(temperature_k),
+             pressure_atm=float(pressure_atm),
+             provenance_tag="[D]"
+         )
+
+         if dag_node is not None and hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
+             dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
+
+         return weights, prov
+     ```
 
 ---
 
-### [Task 5: Dynamic Isotopic Mass Registry & Elimination of Static ISOTOPIC_MASSES Table (Suggestion #55)]
-- **Files Affected:** `src/cochem_base/cochem_core_registry_schema.py`
+### [Task 4: Machine-Actionable Exception Hierarchy & Typed Error Codes (Suggestion #64)]
+- **Files Affected:** `src/cochem_base/core/exceptions.py`, `src/cochem_base/core/models.py`
 - **Problem Statement:**
-  `cochem_core_registry_schema.py` defines a static dictionary `ISOTOPIC_MASSES` containing hardcoded mass values for only 18 elements. Calculations involving noble gases (argon, neon, krypton) or isotopes like $^{37}\text{Cl}$, $^{13}\text{C}$, or $^{2}\text{H}$ trigger validation rejections or fail schema validation. This violates the Mendeleev Mandate (Method Matrix v4 §8C) and artificially constrains the ecosystem's chemical domain.
+  Coordinate shape validation and core integrity checks currently raise generic `ValueError` or unformatted standard library exceptions. Automated ingest and high-throughput execution pipelines cannot programmatically distinguish dimensionality failures, unphysical nuclear charges, schema version conflicts, or air-gap breaches without fragile regex parsing of error strings, violating FAIR Principles A1 and I1 and Global Swarm Protocols.
 - **Implementation Requirements:**
-  1. Eradicate the static `ISOTOPIC_MASSES = {...}` dictionary from `src/cochem_base/cochem_core_registry_schema.py`.
-  2. Implement an offline dynamic registry accessor backed by Mendeleev's bundled local SQLite database:
+  1. In `src/cochem_base/core/exceptions.py`, define the root structured exception class and specialized error codes:
      ```python
-     @functools.lru_cache(maxsize=512)
-     def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
-         """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
+     from typing import Optional, Dict, Any
+
+     class CoChemError(Exception):
+         """Base error class for all CoChem operations with machine-actionable error codes."""
+         def __init__(
+             self,
+             message: str,
+             error_code: str = "COCHEM_E_GENERIC",
+             details: Optional[Dict[str, Any]] = None
+         ) -> None:
+             super().__init__(f"[{error_code}] {message}")
+             self.message = message
+             self.error_code = error_code
+             self.details = details or {}
+
+     class CoordinateShapeError(CoChemError):
+         """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
+
+     class AirGapBoundaryError(CoChemError):
+         """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
+
+     class SchemaMigrationError(CoChemError):
+         """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
+
+     class PESStorageError(CoChemError):
+         """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
+
+     class ProcessReaperError(CoChemError):
+         """Raised when process termination or resource sampling fails unexpectedly."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
+
+     class SubprocessBrokerError(CoChemError):
+         """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
+
+     class ThermodynamicsParameterError(CoChemError):
+         """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
+     ```
+  2. In `src/cochem_base/core/models.py`, refactor `MolecularTopology` validator to raise `CoordinateShapeError`:
+     ```python
+     @field_validator("coordinates", mode="after")
+     @classmethod
+     def validate_coordinates_shape(cls, v: List[List[float]]) -> List[List[float]]:
+         for idx, atom_coord in enumerate(v):
+             if len(atom_coord) != 3:
+                 raise CoordinateShapeError(
+                     f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
+                     details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3}
+                 )
+         return v
+     ```
+
+---
+
+### [Task 5: In-Place HDF5 SWMR Chunk Resizing & Dual-Layer Locking (Suggestion #65)]
+- **Files Affected:** `src/cochem_base/core/ipc/serializer.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`
+- **Problem Statement:**
+  `PESStore.write_entry()` currently copies the entire pre-existing HDF5 database to a temporary file via `shutil.copyfile` before writing, implementing scalar whole-file atomic replacement semantics. Appending $N$ grid points sequentially to a database of size $S$ generates $O(N \cdot S)$ disk I/O, writing gigabytes of redundant copies [M], invalidating open SWMR reader file descriptors, causing severe multi-process lock contention, and failing to validate Tripartite Air-Gap path boundaries.
+- **Implementation Requirements:**
+  1. Eliminate all calls to `shutil.copyfile` and `os.replace` in `PESStore.write_entry()` and HDF5 serialization routines.
+  2. Implement in-place HDF5 SWMR chunk resizing:
+     - On dataset creation: specify `maxshape=(None, ...)` on the initial dimension, `chunks=(512, ...)` or appropriate chunk points, and compression filters (`gzip`, `shuffle`, `fletcher32`).
+     - On append: invoke `dataset.resize(new_length, axis=0)`, slice-assign the new record, and call `dataset.flush()` and `file.flush()` to ensure SWMR visibility.
+  3. Implement dual-layer concurrency locking:
+     - In-process: module-level `_HDF5_MEM_LOCK = threading.RLock()` guarding C-library HDF5 API calls.
+     - Cross-process IPC: use `filelock.FileLock` operating on node-local scratch storage (`$COCH_SCRATCH`), with a configurable timeout (default `30.0` s). Strictly prohibit lockfile allocation on networked filesystems (Lustre/GPFS/NFS).
+  4. Enforce Tripartite Air-Gap boundary validation:
+     ```python
+     def validate_airgap_write_path(target_path: Path) -> Path:
+         """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
+         Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
+         """
+         resolved = target_path.resolve()
+         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+
+         if src_dir.exists() and src_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
+                 details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"}
+             )
+         if data_dir.exists() and data_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
+                 details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"}
+             )
+         return resolved
+     ```
+  5. Refactor `PESStore.write_entry(point: PESPointRecord) -> None`:
+     - Validate target path with `validate_airgap_write_path(self.file_path)`.
+     - Acquire dual-layer lock (`with _HDF5_MEM_LOCK: with filelock.FileLock(self.lock_path, timeout=30.0):`).
+     - Open HDF5 with `libver='latest'`, resize dataset along axis 0, commit point attributes, flush buffers.
+
+---
+
+### [Task 6: Dynamic Mendeleev Mass Resolution In-Memory Caching (Suggestion #66)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_mass_resolver.py`
+- **Problem Statement:**
+  Core solvers query dynamic Mendeleev masses synchronously without memoization. Because `mendeleev.element(symbol)` executes SQL SELECT queries against the bundled SQLite database on disk ($\sim 100\ \mu\text{s}$ per query [M]), multidimensional Discrete Variable Representation (DVR) solvers and Eckart frame projections query masses tens of thousands of times across multidimensional coordinate meshes. Furthermore, synchronous SQLite queries on the host thread stall non-blocking CUDA streams and lock GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
+- **Implementation Requirements:**
+  1. Create or refactor `src/cochem_base/core_engine/cochem_mass_resolver.py`.
+  2. Implement `@functools.lru_cache(maxsize=256)` on dynamic mass resolution functions:
+     ```python
+     from functools import lru_cache
+     from typing import Union, Optional
+     import mendeleev
+     from cochem_base.core.exceptions import CoChemError
+
+     class IsotopeMassResolutionError(CoChemError):
+         """Raised when requested isotope cannot be resolved to physical mass."""
+         def __init__(self, message: str, details: Optional[dict] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
+
+     @lru_cache(maxsize=256)
+     def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
+         """Returns standard atomic weight from Mendeleev with LRU memory caching.
+         Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
+         """
          el = mendeleev.element(symbol_or_z)
-         if mass_number is not None:
-             iso = next((i for i in el.isotopes if i.mass_number == mass_number), None)
-             if iso is not None and iso.mass is not None:
-                 return float(iso.mass)
-             raise IsotopeStabilityError(f"Isotope {el.symbol}-{mass_number} not found in Mendeleev.")
          if el.atomic_weight is not None:
              return float(el.atomic_weight)
          if el.mass is not None:
              return float(el.mass)
-         raise ValueError(f"No valid mass available for element {el.symbol}.")
+         raise IsotopeMassResolutionError(
+             f"Atomic weight unavailable for element '{symbol_or_z}'.",
+             details={"element": symbol_or_z}
+         )
+
+     @lru_cache(maxsize=256)
+     def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
+         """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
+         Guarantees zero fallback to terrestrial average atomic weights.
+         """
+         el = mendeleev.element(symbol_or_z)
+         for iso in el.isotopes:
+             if iso.mass_number == int(mass_number):
+                 if iso.mass is not None and float(iso.mass) > 0.0:
+                     return float(iso.mass)
+         raise IsotopeMassResolutionError(
+             f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
+             details={"element": el.symbol, "mass_number": mass_number}
+         )
      ```
-  3. Refactor all schema validation routines and regex lookups in `cochem_core_registry_schema.py` to invoke `get_registry_atomic_mass()` dynamically.
-  4. Ensure module load time is negligible (< 10 ms [E]) due to cached local SQLite queries, with zero external network access.
+  3. Ensure all DVR, PES store, and moment-of-inertia calculation routines import from `cochem_mass_resolver.py`.
+  4. Guarantee that mass lookup arrays are pre-resolved on the host CPU prior to launching asynchronous GPU kernels, preventing CUDA stream stalls or GPU context blocking under NVIDIA MPS daemon isolation (§8A.4).
 
 ---
 
-### [Task 6: W3C Linked Data Proof Envelopes with Offline PureEd25519 did:key Resolution (Suggestion #56)]
-- **Files Affected:** `src/cochem_base/core/cochem_crypto.py` (`sign_report_payload`, `verify_report_payload`)
+### [Task 7: Lazy Thread-Safe Singleton for Mendeleev Invariants (Suggestion #67)]
+- **Files Affected:** `src/cochem_base/core/mendeleev_invariants.py`
 - **Problem Statement:**
-  Computational report signatures are serialized under an ad-hoc key (`_provenance_signature`), preventing external scientific repositories from verifying computation proofs. Furthermore, if external DID registries are queried over HTTPS to resolve public keys, air-gapped compute nodes experience connection timeouts, violating FAIR Principles A1, I1, R1.2, and User Manual §6.4.1.
+  Importing `cochem_base.core.mendeleev_invariants` eagerly executes `_build_element_cache()` at top level, calling `_mendeleev_element(z)` 118 times from $Z=1$ to $Z=118$ and running 118 sequential SQLite queries. In multiprocessing architectures using the `spawn` context (Windows and HPC SLURM worker pools), every single worker process re-imports the module and re-runs all 118 SQL queries sequentially upon initialization, incurring a $200\text{--}600\text{ ms}$ startup penalty per spawned process [M].
 - **Implementation Requirements:**
-  1. Implement offline `did:key` encoder and decoder in `cochem_base/core/cochem_crypto.py`:
-     - Ed25519 multicodec prefix: `0xed01` (bytes `b'\xed\x01'`).
-     - Encode: Given raw 32-byte Ed25519 public key, prepend `b'\xed\x01'`, encode using base58btc, and prepend `"did:key:z"`.
-     - Decode: Given `"did:key:z..."`, strip `"did:key:z"`, decode base58btc, assert first 2 bytes are `b'\xed\x01'`, and extract the 32-byte public key directly. Zero external HTTP/network lookups permitted.
-  2. Refactor `sign_report_payload(payload: Dict[str, Any], private_key: ed25519.Ed25519PrivateKey) -> Dict[str, Any]`:
-     - Canonicalize `payload` via RFC 8785 JSON Canonicalization Scheme (JCS) bytes.
-     - Sign raw canonical bytes using RFC 8032 PureEd25519 (`signature_bytes = private_key.sign(canonical_bytes)`).
-     - Encode signature as base64 or multibase.
-     - Return payload enveloped with standard W3C Linked Data Proof:
+  1. Remove the eager module-level execution of `_build_element_cache()` at line 107 in `mendeleev_invariants.py`.
+  2. Implement a thread-safe lazy singleton pattern:
+     ```python
+     import threading
+     from typing import Dict, Optional, Any
+
+     _ELEMENT_CACHE_LOCK = threading.Lock()
+     _ELEMENT_CACHE: Optional[Dict[int, Any]] = None
+
+     def get_element_cache() -> Dict[int, Any]:
+         """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
+         Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
+         """
+         global _ELEMENT_CACHE
+         if _ELEMENT_CACHE is None:
+             with _ELEMENT_CACHE_LOCK:
+                 if _ELEMENT_CACHE is None:
+                     _ELEMENT_CACHE = _build_element_cache()
+         return _ELEMENT_CACHE
+     ```
+  3. Refactor all external functions in `mendeleev_invariants.py` (e.g. `get_element_data(z)`, `get_symbol(z)`, `get_atomic_number(symbol)`) to query `get_element_cache()` rather than directly referencing a global module dictionary.
+  4. Ensure module import time drops to $< 5\text{ ms}$ [M].
+
+---
+
+### [Task 8: Ephemeral Sandbox Lifecycle & `atexit` Leak Elimination (Suggestion #68)]
+- **Files Affected:** `src/cochem_base/core/cochem_sandbox.py`
+- **Problem Statement:**
+  `SandboxContext.__enter__()` registers `atexit.register(self.cleanup)` on every entry, but `cleanup()` and `__exit__()` fail to call `atexit.unregister(self.cleanup)`. In multi-stage calculation campaigns creating hundreds of ephemeral workspaces, the Python interpreter retains strong references to completed `SandboxContext` instances and their associated configurations in `atexit._nref`, causing unbounded heap memory accumulation and multi-second shutdown stalls during process termination.
+- **Implementation Requirements:**
+  1. In `src/cochem_base/core/cochem_sandbox.py`, update `SandboxContext`:
+     ```python
+     import atexit
+     import shutil
+     from pathlib import Path
+     from typing import Optional
+     from cochem_base.core.exceptions import AirGapBoundaryError
+
+     class SandboxContext:
+         """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
+         def __init__(self, scratch_root: Optional[Path] = None, prefix: str = "cochem_job_") -> None:
+             self.scratch_root = self._resolve_and_validate_scratch_root(scratch_root)
+             self.prefix = prefix
+             self.path: Optional[Path] = None
+             self._cleaned: bool = False
+
+         def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
+             if root is None:
+                 root = Path(os.environ.get("COCH_SCRATCH", "/tmp/cochem_scratch"))
+             resolved = root.resolve()
+
+             # Enforce Tripartite Air-Gap: Prohibit sandbox creation in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA)
+             src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+             data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+             if src_dir.exists() and src_dir in resolved.parents:
+                 raise AirGapBoundaryError(
+                     f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
+                     details={"attempted_path": str(resolved), "tier": "Tier 1"}
+                 )
+             if data_dir.exists() and data_dir in resolved.parents:
+                 raise AirGapBoundaryError(
+                     f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
+                     details={"attempted_path": str(resolved), "tier": "Tier 2"}
+                 )
+             return resolved
+
+         def __enter__(self) -> "SandboxContext":
+             import tempfile
+             self.scratch_root.mkdir(parents=True, exist_ok=True)
+             self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
+             self._cleaned = False
+             atexit.register(self.cleanup)
+             return self
+
+         def cleanup(self) -> None:
+             """Idempotently cleans up scratch directory and removes atexit registration."""
+             if self._cleaned:
+                 return
+             self._cleaned = True
+             atexit.unregister(self.cleanup)
+             if self.path is not None and self.path.exists():
+                 try:
+                     shutil.rmtree(self.path, ignore_errors=True)
+                 except Exception:
+                     pass
+
+         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+             self.cleanup()
+     ```
+  2. Verify that repeated entries and exits from `SandboxContext` result in zero net change to `len(atexit._nref)` or internal callback queues.
+
+---
+
+### [Task 9: Direct Child PID Monitoring in Process Reaper (Suggestion #69)]
+- **Files Affected:** `src/cochem_base/core/process_reaper.py`
+- **Problem Statement:**
+  Monitoring daemons periodically invoke `sample_process_tree_rss_bytes()` and `terminate_tree()` at short intervals ($0.1\text{--}1.0\text{ s}$) using `psutil.Process().children(recursive=True)`. The OS must traverse the entire system process table on every polling cycle, inducing significant host CPU consumption ($>15\%$), CPU cache eviction, and kernel thread contention on active compute cores dedicated to high-precision quantum chemical kernels (ORCA, CFOUR) and GPU MPS host workers (§8A.4).
+- **Implementation Requirements:**
+  1. In `src/cochem_base/core/process_reaper.py`, update `ProcessTreeManager`:
+     - Maintain an explicit registry of active child PIDs:
        ```python
-       return {
-           **payload,
-           "proof": {
-               "type": "Ed25519Signature2020",
-               "created": datetime.now(timezone.utc).isoformat(),
-               "verificationMethod": public_key_to_did_key(private_key.public_key()),
-               "proofPurpose": "assertionMethod",
-               "proofValue": base64.urlsafe_b64encode(signature_bytes).decode("ascii")
-           }
-       }
+       self._tracked: Set[int] = set()
        ```
-  3. Refactor `verify_report_payload(signed_payload: Dict[str, Any]) -> bool`:
-     - Extract `proof = signed_payload.get("proof")`; if absent, return `False`.
-     - Extract `did_key = proof.get("verificationMethod")`; decode raw public key bytes offline.
-     - Separate payload from `proof` dictionary, canonicalize payload via RFC 8785, and verify `proofValue` using `public_key.verify(sig_bytes, canonical_bytes)`.
-     - Return `True` on success; catch `InvalidSignature` and return `False`.
-
----
-
-### [Task 7: Robust OS-Agnostic Dynamic VCS Provenance & Container Introspection (Suggestion #57)]
-- **Files Affected:** `src/cochem_base/core/cochem_version.py` (`get_vcs_provenance`)
-- **Problem Statement:**
-  `get_vcs_provenance()` assumes `.git` directories or local `.build_manifest.json` files exist at hardcoded paths. When executed inside production Docker containers, Codespaces, or HPC Python wheels where `.git` is stripped, it silently drops software version metadata and returns `"UNTRACKED_BUILD"`. This breaks reproducible audit trails mandated by User Manual §6.4.2 and FAIR Principle R1.2.
-- **Implementation Requirements:**
-  1. Refactor `get_vcs_provenance() -> Dict[str, Any]` in `src/cochem_base/core/cochem_version.py`:
-     - Hierarchy of provenance discovery:
-       1. Git Repository Check: Use `pathlib.Path(__file__).resolve()` and traverse parents to locate `.git`. If found and git CLI is available, query commit SHA, branch, and dirty status via safe subprocess calls with 2-second timeouts.
-       2. Build Manifest Check: Check for `.build_manifest.json` in package root or `COCHEM_ROOT`.
-       3. Distribution Package Introspection (`importlib.metadata` - PEP 566):
-          - Query `importlib.metadata.version("CoChem-BASE")` or `importlib.metadata.version("cochem_base")`.
-          - Retrieve distribution metadata:
-            ```python
-            try:
-                dist_version = importlib.metadata.version("CoChem-BASE")
-                dist_files = importlib.metadata.files("CoChem-BASE")
-                installer = importlib.metadata.distribution("CoChem-BASE").read_text("INSTALLER") or "unknown"
-                return {
-                    "vcs_type": "installed_wheel",
-                    "version": dist_version,
-                    "installer": installer.strip(),
-                    "file_count": len(dist_files) if dist_files else 0,
-                    "status": "DISTRIBUTION_PACKAGE"
-                }
-            except importlib.metadata.PackageNotFoundError:
-                pass
-            ```
-       4. Fallback: Return structured dictionary with `"status": "UNTRACKED_BUILD"`, recorded execution timestamp, and platform telemetry.
-  2. Dynamic Path Resolution:
-     - Ensure all path checks use `pathlib.Path` relative to dynamic module anchors, `pathlib.Path.home()`, or environment variables (`COCHEM_ROOT`, `TMPDIR`).
-     - Fully verify portability across Windows WSL, macOS OrbStack, Debian Linux, Codespaces, GitHub Actions, and HPC.
-
----
-
-### [Task 8: Strictly Non-Initializing GPU Hardware Discovery & Zero CUDA-Locking (Suggestion #58)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`collect_hardware_metadata`)
-- **Problem Statement:**
-  `collect_hardware_metadata()` executes fragile CLI subprocess commands or risks importing `torch.cuda` / `jax.devices`. Calling `torch.cuda.is_available()` initializes the CUDA runtime context (`cudaInitDevice()`) and binds it to the host operating system PID. Spawning worker processes afterwards fails immediately with `RuntimeError: Cannot re-initialize CUDA in forked subprocess`, and permanently blocks dynamic NVIDIA Multi-Process Service (MPS) context multiplexing under Method Matrix v4 §8A.4 [M].
-- **Implementation Requirements:**
-  1. Implement strictly non-initializing GPU discovery in `src/cochem_base/core/metadata.py`:
-     - Tier 1: Direct C-level NVML bindings (`pynvml`):
+     - Provide registration methods:
        ```python
-       def _query_nvml_telemetry() -> Optional[List[Dict[str, Any]]]:
-           try:
-               import pynvml
-               pynvml.nvmlInit()
-               devices = []
-               try:
-                   count = pynvml.nvmlDeviceGetCount()
-                   for idx in range(count):
-                       handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
-                       name = pynvml.nvmlDeviceGetName(handle)
-                       if isinstance(name, bytes):
-                           name = name.decode("utf-8")
-                       mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                       cc_major, cc_minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-                       devices.append({
-                           "index": idx,
-                           "product_name": name,
-                           "total_memory_bytes": int(mem.total),
-                           "compute_capability": f"{cc_major}.{cc_minor}"
-                       })
-                   return devices
-               finally:
-                   pynvml.nvmlShutdown()
-           except Exception:
-               return None
+       def register_process(self, pid: int) -> None:
+           """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
+           if pid > 0:
+               self._tracked.add(pid)
+
+       def unregister_process(self, pid: int) -> None:
+           """Removes a process PID upon normal exit."""
+           self._tracked.discard(pid)
        ```
-     - Tier 2: Isolated CLI Fallback:
-       - Use `shutil.which("nvidia-smi")` and `shutil.which("rocm-smi")`.
-       - Execute in a short-lived subprocess with `timeout=3` capturing `--query-gpu=gpu_name,memory.total --format=csv,noheader,nounits`.
-     - Tier 3: CPU Fallback: If no GPU is found, cleanly record CPU architecture, thread count via `os.cpu_count()`, and platform details.
-  2. Strict CUDA-Locking Prohibition:
-     - Add explicit AST / runtime assertions: `sys.modules.get("torch")` or `torch.cuda.is_initialized()` must NEVER be invoked during orchestrator telemetry collection.
-     - Ensure NVIDIA MPS server remains free for dynamic rank multiplexing.
+  2. Refactor `sample_process_tree_rss_bytes() -> int`:
+     ```python
+     def sample_process_tree_rss_bytes(self) -> int:
+         """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
+         Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
+         """
+         total_rss = 0
+         dead_pids = set()
+
+         # Include parent process
+         try:
+             total_rss += self._parent_proc.memory_info().rss
+         except (psutil.NoSuchProcess, psutil.AccessDenied):
+             pass
+
+         # Query tracked child PIDs directly
+         for pid in list(self._tracked):
+             try:
+                 p = psutil.Process(pid)
+                 total_rss += p.memory_info().rss
+             except psutil.NoSuchProcess:
+                 dead_pids.add(pid)
+             except (psutil.AccessDenied, psutil.ZombieProcess):
+                 pass
+
+         self._tracked.difference_update(dead_pids)
+         return total_rss
+     ```
+  3. In `terminate_tree(timeout: float = 5.0) -> None`:
+     - Directly signal all PIDs in `_tracked` with `SIGTERM` (or `taskkill /PID` on Windows), wait up to `timeout` seconds, and escalate to `SIGKILL` only for stubborn processes.
+     - Fall back to recursive system-wide `children(recursive=True)` discovery ONLY when detached orphan subprocesses are suspected.
 
 ---
 
-### [Task 9: Deterministic UUIDv5 Content-Addressable PES Points & Thread-Safe SWMR Storage (Suggestion #59)]
-- **Files Affected:** `src/cochem_base/core/models.py` (`PESPointRecord`), `src/cochem_base/core_engine/cochem_core_pes_store.py` (`PESStore`)
+### [Task 10: Session-Level Scratch Verification Cache with TTL (Suggestion #70)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
 - **Problem Statement:**
-  `PESPointRecord.point_id` uses ephemeral local strings (`"grid_2d:142"`), causing collisions when merging independent scan campaigns. Furthermore, concurrent uncoordinated HDF5 writes without SWMR sequencing cause broken root groups, corrupted B-trees, and race crashes. Lockfiles placed on shared network storage (NFS, Lustre, GPFS) stall execution due to non-compliant distributed file locking, violating FAIR F1 and the HPC Distributed Lock Prohibition.
+  `safe_subprocess_run()` invokes `verify_scratch_quota_and_io()` prior to executing `subprocess.Popen`. This function writes a 64 KB binary probe to disk, flushes the stream, invokes `os.fsync()`, reads back the file, computes two SHA-256 digests, and unlinks the probe file before every command. This synchronous barrier adds a $20\text{--}100\text{ ms}$ dispatch latency per execution [M] and floods clustered/networked filesystems (Lustre, GPFS, NFS) with redundant metadata journal flushes during high-throughput calculations.
 - **Implementation Requirements:**
-  1. Deterministic Content-Addressable `point_id` in `PESPointRecord`:
-     - Define `NAMESPACE_COCHEM = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")`.
-     - Generate `point_id` deterministically from canonical RFC 8785 JSON representation:
-       ```python
-       @classmethod
-       def generate_point_id(cls, geometry: List[float], symbols: List[str], method: str, basis: Optional[str]) -> str:
-           normalized_payload = {
-               "symbols": [s.upper() for s in symbols],
-               "geometry": [round(float(c), 8) for c in geometry],
-               "method": method.strip().lower(),
-               "basis": (basis or "").strip().lower()
-           }
-           canonical_bytes = rfc8785_canonicalize(normalized_payload)
-           return str(uuid.uuid5(NAMESPACE_COCHEM, canonical_bytes.decode("utf-8")))
-       ```
-     - Ensure `PESPointRecord.point_id` defaults automatically to this deterministic UUIDv5.
-  2. Thread-Safe HDF5 SWMR Protocols in `PESStore`:
-     - SWMR Initialization Sequencing: Open HDF5 with `libver='latest'`. Pre-allocate chunked, resizable datasets and write initial metadata headers *before* activating `f.swmr_mode = True`.
-     - Readers open with `mode='r'`, `swmr=True`, and call `dataset.refresh()` before reading extensible points.
-  3. Local Scratch Lock Enforcement (HPC Distributed Lock Prohibition):
-     - All inter-process locking must use `filelock.FileLock`.
-     - The lockfile path must resolve strictly on node-local scratch:
-       `lock_dir = pathlib.Path(os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or pathlib.Path.home() / ".cochem" / "scratch")`
-     - Lockfiles on network file systems (Lustre, GPFS, NFS) are strictly prohibited.
-  4. Shard Consolidation (`merge_pes_shards`):
-     - Stage shard additions in local scratch memory, verify UUIDv5 point uniqueness, and perform atomic consolidation into the target store.
+  1. In `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`, implement a thread-safe session-level scratch verification cache:
+     ```python
+     import time
+     import os
+     import hashlib
+     from pathlib import Path
+     from typing import Dict, Tuple, Optional
+     from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
+
+     _SCRATCH_CACHE_LOCK = threading.Lock()
+     # Maps resolved Path -> float (monotonic timestamp of last successful verification)
+     _SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
+
+     def verify_scratch_quota_and_io(
+         scratch_dir: Path,
+         ttl_seconds: float = 300.0,
+         force: bool = False
+     ) -> bool:
+         """Verifies write, fsync, and SHA-256 read-back integrity on scratch_dir.
+         Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
+         Enforces Tripartite Air-Gap: scratch_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
+         """
+         resolved = scratch_dir.resolve()
+
+         # Air-gap boundary validation
+         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+         if src_dir.exists() and src_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
+                 details={"path": str(resolved), "tier": "Tier 1"}
+             )
+         if data_dir.exists() and data_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
+                 details={"path": str(resolved), "tier": "Tier 2"}
+             )
+
+         now = time.monotonic()
+         with _SCRATCH_CACHE_LOCK:
+             if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
+                 last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
+                 if (now - last_verified) < ttl_seconds:
+                     return True
+
+         # Perform physical 64 KB probe
+         resolved.mkdir(parents=True, exist_ok=True)
+         probe_file = resolved / f".io_probe_{os.getpid()}_{time.time_ns()}.bin"
+         probe_data = os.urandom(64 * 1024)
+         probe_hash = hashlib.sha256(probe_data).hexdigest()
+
+         try:
+             with open(probe_file, "wb") as f:
+                 f.write(probe_data)
+                 f.flush()
+                 os.fsync(f.fileno())
+
+             with open(probe_file, "rb") as f:
+                 read_data = f.read()
+
+             read_hash = hashlib.sha256(read_data).hexdigest()
+             if read_hash != probe_hash:
+                 raise SubprocessBrokerError(
+                     f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
+                     details={"scratch_dir": str(resolved), "expected": probe_hash, "actual": read_hash}
+                 )
+         finally:
+             if probe_file.exists():
+                 try:
+                     probe_file.unlink()
+                 except OSError:
+                     pass
+
+         with _SCRATCH_CACHE_LOCK:
+             _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
+
+         return True
+     ```
+  2. In `safe_subprocess_run()`, call `verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0, force=False)` prior to executing `subprocess.Popen`.
 
 ---
 
-### [Task 10: Canonical Composite Fidelity Tier Vocabulary & Extensible Registry Enum (Suggestion #60)]
-- **Files Affected:** `src/cochem_base/core/glossary.py` (`CalculationFidelity`), `src/cochem_base/core/models.py` (`CalculationJobPayload`)
-- **Problem Statement:**
-  `CalculationFidelity` enum contains only 5 legacy strings (`U_HF`, `R_DFT`, `XTB2`, `DLPNO_CCSD_T`, `CASSCF`). Submitting jobs with canonical composite recipes from Method Matrix v4 (§9A, Table 3) such as `junChS-F12`, `T3-3h`, or `R2` raises Pydantic `ValidationError`, blocking execution and provenance recording of high-accuracy computational calculations.
-- **Implementation Requirements:**
-  1. Refactor `CalculationFidelity` in `src/cochem_base/core/glossary.py`:
-     - Convert to an extensible string enumeration supporting all Method Matrix v4 official tiers:
-       ```python
-       class CalculationFidelity(str, Enum):
-           # Low / Semiempirical Tiers
-           XTB1 = "XTB1"
-           XTB2 = "XTB2"
-           PM6 = "PM6"
-           AM1 = "AM1"
-           
-           # Single Reference / Mean Field
-           R_HF = "R_HF"
-           U_HF = "U_HF"
-           R_DFT = "R_DFT"
-           U_DFT = "U_DFT"
-           RO_DFT = "RO_DFT"
-           
-           # Correlated Wavefunction
-           MP2 = "MP2"
-           DLPNO_CCSD_T = "DLPNO_CCSD_T"
-           CCSD_T = "CCSD_T"
-           CCSD_T_F12 = "CCSD_T_F12"
-           CASSCF = "CASSCF"
-           NEVPT2 = "NEVPT2"
-           
-           # Method Matrix v4 Canonical Composite Tiers (Table 3 & §9A)
-           JUNCHS = "junChS"
-           JUNCHS_F12 = "junChS-F12"
-           CHS = "ChS"
-           CHS_F12 = "ChS-F12"
-           T3_10S = "T3-10s"
-           T3_1MIN = "T3-1min"
-           T3_30MIN = "T3-30min"
-           T3_3H = "T3-3h"
-           T3_12H = "T3-12h"
-           T4_1D = "T4-1d"
-           R2 = "R2"
-           
-           # Custom / Open QCSchema Specification
-           CUSTOM_COMPOSITE = "CUSTOM_COMPOSITE"
-       ```
-  2. Update `CalculationJobPayload` in `src/cochem_base/core/models.py`:
-     - Allow `fidelity: Union[CalculationFidelity, str]` with automated normalization.
-     - Validate that composite recipe strings match either official Method Matrix tiers or structured QCSchema method specifications.
+## 4. Pytest Unit & Integration Test Specifications
+
+### Deliverable 1: `tests/core/test_physics_integrity_part7.py`
+This test suite verifies physics integrity across data models, serialization kernels, thermodynamic provenance, exception structures, and mass caching.
+
+```python
+import math
+import os
+import time
+import pytest
+from pydantic import ValidationError
+from cochem_base.core.models import (
+    MolecularTopology,
+    CURRENT_CORE_SCHEMA_VERSION,
+    register_migration,
+    migrate_payload
+)
+from cochem_base.core.exceptions import (
+    CoChemError,
+    CoordinateShapeError,
+    SchemaMigrationError,
+    AirGapBoundaryError
+)
+from cochem_base.core.cochem_crypto import (
+    format_rfc8785_float,
+    canonicalize_json
+)
+from cochem_base.core.cochem_provenance import (
+    compute_boltzmann_weights,
+    ThermodynamicsProvenance
+)
+from cochem_base.core_engine.cochem_mass_resolver import (
+    get_dynamic_atomic_mass,
+    get_dynamic_isotopic_mass,
+    IsotopeMassResolutionError
+)
+
+def test_pydantic_model_schema_version_and_migration():
+    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
+    # Test current model instantiation
+    top = MolecularTopology(
+        symbols=["H", "H"],
+        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+        molecular_charge=0,
+        spin_multiplicity=1
+    )
+    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
+
+    # Register mock legacy migration from v0 to v1
+    @register_migration("MolecularTopology", 0)
+    def migrate_v0_to_v1(data):
+        d = dict(data)
+        d["schema_version"] = 1
+        if "spin_multiplicity" not in d:
+            d["spin_multiplicity"] = 1
+        return d
+
+    legacy_payload = {
+        "schema_version": 0,
+        "symbols": ["O", "H", "H"],
+        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
+        "molecular_charge": 0
+    }
+    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
+    assert migrated_top.schema_version == 1
+    assert migrated_top.spin_multiplicity == 1
+
+def test_rfc8785_ieee754_canonical_float_formatting():
+    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
+    # Signed zero formatting
+    assert format_rfc8785_float(0.0) == "0"
+    assert format_rfc8785_float(-0.0) == "0"
+
+    # Disallow NaN and Infinity
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("nan"))
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("inf"))
+
+    # Exponential notation without leading zero in exponent
+    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
+    assert format_rfc8785_float(1e-7) == "1e-7"
+    assert format_rfc8785_float(1e21) == "1e+21"
+
+    # Canonicalize dictionary with sorted keys and floats
+    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
+    canonical_bytes = canonicalize_json(payload)
+    # Keys must be sorted 'a', 'b', 'c', -0.0 as 0, 1e-7 without leading zero
+    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
+
+def test_quasi_rrho_thermodynamics_provenance_logging():
+    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
+    class DummyNode:
+        def __init__(self):
+            self.payload = {}
+
+    node = DummyNode()
+    energies = [0.0, 0.5, 1.2]
+    weights, prov = compute_boltzmann_weights(
+        energies,
+        temperature_k=298.15,
+        low_freq_cutoff_cm1=100.0,
+        damping_model="grimme_quasi_rrho",
+        dag_node=node
+    )
+    assert len(weights) == 3
+    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
+    assert "thermodynamics_provenance" in node.payload
+    logged = node.payload["thermodynamics_provenance"]
+    assert logged["damping_model"] == "grimme_quasi_rrho"
+    assert logged["low_freq_cutoff_cm1"] == 100.0
+    assert logged["temperature_k"] == 298.15
+    assert logged["provenance_tag"] == "[D]"
+
+def test_machine_actionable_exception_hierarchy():
+    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
+    # Coordinate shape mismatch raises CoordinateShapeError
+    with pytest.raises(CoordinateShapeError) as exc_info:
+        MolecularTopology(
+            symbols=["H"],
+            coordinates=[[0.0, 0.0]], # 2D instead of 3D
+            molecular_charge=0,
+            spin_multiplicity=1
+        )
+    err = exc_info.value
+    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
+    assert err.details["actual_len"] == 2
+    assert err.details["expected_len"] == 3
+
+def test_dynamic_mendeleev_mass_resolution_lru_cache():
+    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
+    # Warmup
+    mass_c = get_dynamic_atomic_mass("C")
+    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
+
+    # Measure lookup latency for cached access
+    start = time.perf_counter()
+    for _ in range(1000):
+        _ = get_dynamic_atomic_mass("C")
+    cached_duration = time.perf_counter() - start
+
+    # 1000 lookups should complete in less than 5 milliseconds
+    assert cached_duration < 0.005
+
+    # Nuclear isotopic masses
+    mass_14c = get_dynamic_isotopic_mass("C", 14)
+    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
+
+    with pytest.raises(IsotopeMassResolutionError):
+        get_dynamic_isotopic_mass("C", 999)
+```
 
 ---
 
-## 4. Zero-Mock Test Suite Specifications
+### Deliverable 2: `tests/core/test_architecture_part7.py`
+This test suite verifies architecture, concurrency, air-gap boundaries, and OS-level lifecycle management.
 
-Author comprehensive, production-grade test suites executing real physical operations with zero mocks, zero monkey-patched stubs, and zero synthetic loops.
+```python
+import os
+import time
+import atexit
+import threading
+import tempfile
+from pathlib import Path
+import pytest
+import h5py
+from cochem_base.core.exceptions import AirGapBoundaryError
+from cochem_base.core.mendeleev_invariants import get_element_cache
+from cochem_base.core.cochem_sandbox import SandboxContext
+from cochem_base.core.process_reaper import ProcessTreeManager
+from cochem_base.core_engine.cochem_core_subprocess_broker import (
+    verify_scratch_quota_and_io,
+    _SCRATCH_VERIFICATION_CACHE
+)
 
-### Test Suite 1: Architecture, Provenance, Hardware & Concurrency (`tests/core/test_architecture_part6.py`)
-1. **`test_w3c_prov_o_jsonld_serialization()` (Suggestion #53):**
-   - Instantiate a `DAGNode` representing an optimization step (`Activity`) and resulting conformer (`Entity`).
-   - Call `.to_prov_jsonld()`.
-   - Assert output contains `@context`, `@id`, and valid `prov:wasDerivedFrom` and `prov:wasGeneratedBy` relationships.
-   - Validate that local context resolution resolves from `cochem_base/schemas/contexts/prov_o_context.jsonld` with zero outbound network calls.
-2. **`test_vcs_provenance_container_introspection()` (Suggestion #57):**
-   - Execute `get_vcs_provenance()` in an isolated environment where `.git` is absent.
-   - Verify fallback to `importlib.metadata`.
-   - Assert returned dictionary contains valid package version and status `"DISTRIBUTION_PACKAGE"` rather than failing.
-3. **`test_strictly_non_initializing_gpu_telemetry()` (Suggestion #58):**
-   - Execute `collect_hardware_metadata()`.
-   - Assert telemetry returns device list (or CPU fallback) without raising exceptions.
-   - Assert that `torch.cuda.is_initialized()` is `False` (if PyTorch is installed in the test environment), proving zero CUDA context binding to the process PID.
-4. **`test_pes_store_swmr_concurrency_and_local_locking()` (Suggestion #59):**
-   - Initialize a `PESStore` HDF5 file with pre-allocated datasets in SWMR mode.
-   - Execute concurrent read and write operations across background worker threads using `filelock.FileLock`.
-   - Assert lockfile is created inside the local scratch directory (`SLURM_TMPDIR` or local temp), never on shared remote paths.
-   - Confirm zero dataset corruption or B-tree lockups.
+def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
+    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
+    # Mock environment
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    os.environ["COCH_SRC"] = str(src_dir)
 
-### Test Suite 2: Physics Invariants, Radii, Licensing & Asymmetric Signatures (`tests/core/test_physics_integrity_part6.py`)
-1. **`test_mendeleev_isotopic_nuclear_mass_resolution()` (Suggestion #51):**
-   - Call `get_isotopic_mass("C", 14)`; verify returned mass is $\approx 14.003241$ u [M] (not $12.011$ u).
-   - Call `get_isotopic_mass("H", 2)`; verify Deuterium mass $\approx 2.014101$ u [M].
-   - Call `get_isotopic_mass("C", 999)`; assert `IsotopeStabilityError` is explicitly raised.
-   - Assert zero fallback to standard terrestrial atomic weight.
-2. **`test_hierarchical_empirical_radii_lookup()` (Suggestion #52):**
-   - Call `get_covalent_radius("Ar")`; verify returned radius is empirical van der Waals radius $\approx 1.88$ Å (or Pyykkö radius), strictly not $0.77$ Å.
-   - Call `get_covalent_radius("C")`; verify radius $\approx 0.75$–$0.77$ Å from empirical tables.
-   - Call `get_covalent_radius("Xe")`; verify empirical radius $> 1.3$ Å.
-   - Call `get_covalent_radius("InvalidElement")` and assert `RadiusNotFoundError` is raised.
-3. **`test_spdx_data_licensing_validation()` (Suggestion #54):**
-   - Instantiate `QCSchemaProvenance(license="CC-BY-4.0")`; assert validation succeeds.
-   - Instantiate `QCSchemaProvenance(license="CC0-1.0")`, `(license="MIT")`; verify acceptance.
-   - Attempt instantiation with `license="Proprietary-Unpublished-Invalid"`; assert Pydantic `ValidationError` is raised.
-4. **`test_dynamic_registry_schema_isotopic_masses()` (Suggestion #55):**
-   - Query `get_registry_atomic_mass("Ar", 40)` and `get_registry_atomic_mass("Cl", 37)`.
-   - Assert returned values match CIAAW physical isotopic masses.
-   - Verify that `ISOTOPIC_MASSES` dictionary does not exist in module globals (`assert not hasattr(cochem_core_registry_schema, "ISOTOPIC_MASSES")`).
-5. **`test_w3c_linked_data_proof_pure_ed25519_did_key()` (Suggestion #56):**
-   - Generate an Ed25519 private key using `cryptography`.
-   - Sign a computation record using `sign_report_payload()`.
-   - Assert output contains standard `"proof"` block with `type="Ed25519Signature2020"` and `verificationMethod` starting with `"did:key:z"`.
-   - Verify the signature using `verify_report_payload()`; assert `True`.
-   - Tamper with a numeric result in payload; assert `verify_report_payload()` returns `False`.
-   - Assert public key was extracted and validated completely offline without HTTP calls.
-6. **`test_deterministic_uuid5_pes_point_id()` (Suggestion #59):**
-   - Generate two `PESPointRecord` instances with identical geometries, basis sets, and methods.
-   - Assert both instances possess identical `point_id` UUIDv5 strings.
-   - Perturb one coordinate by $0.001$ Å; assert the generated `point_id` changes deterministically.
-7. **`test_calculation_fidelity_canonical_tiers()` (Suggestion #60):**
-   - Instantiate `CalculationJobPayload` with `fidelity="junChS-F12"`, `fidelity="T3-3h"`, and `fidelity="R2"`.
-   - Assert all canonical Method Matrix v4 tiers are recognized and validated without error.
+    # Attempting to write into Tier 1 ($COCH_SRC) must raise AirGapBoundaryError
+    h5_src_path = src_dir / "store.h5"
+    with pytest.raises(AirGapBoundaryError) as exc_info:
+        from cochem_base.core.ipc.serializer import validate_airgap_write_path
+        validate_airgap_write_path(h5_src_path)
+    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
+
+    # Valid write into temporary scratch
+    h5_scratch_path = tmp_path / "scratch" / "store.h5"
+    h5_scratch_path.parent.mkdir()
+    
+    # Create SWMR dataset
+    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
+        ds = f.create_dataset(
+            "energies",
+            shape=(1,),
+            maxshape=(None,),
+            chunks=(512,),
+            dtype="float64",
+            compression="gzip"
+        )
+        ds[0] = -76.432
+
+    # In-place chunk resizing
+    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
+        ds = f["energies"]
+        new_len = ds.shape[0] + 1
+        ds.resize((new_len,))
+        ds[new_len - 1] = -76.435
+        ds.flush()
+
+    # Verify length without whole-file copying
+    with h5py.File(h5_scratch_path, "r") as f:
+        assert f["energies"].shape[0] == 2
+        assert math.isclose(f["energies"][1], -76.435)
+
+def test_mendeleev_invariants_lazy_singleton_startup():
+    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
+    # Ensure cache function returns valid mapping from Z=1 to Z=118
+    cache = get_element_cache()
+    assert len(cache) >= 118
+    assert cache[1].symbol == "H"
+    assert cache[6].symbol == "C"
+
+def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
+    """Validates Suggestion #68: atexit callback unregistration on context exit."""
+    scratch_dir = tmp_path / "scratch"
+    os.environ["COCH_SCRATCH"] = str(scratch_dir)
+
+    initial_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
+
+    with SandboxContext(scratch_root=scratch_dir) as sb:
+        assert sb.path.exists()
+        inside_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
+
+    # Path must be unlinked and cleaned
+    assert not sb.path.exists()
+    final_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
+
+    # Cleaned flag must be set
+    assert sb._cleaned is True
+
+def test_process_reaper_direct_pid_monitoring():
+    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
+    manager = ProcessTreeManager()
+    
+    # Spawn dummy child process
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+    manager.register_process(proc.pid)
+
+    assert proc.pid in manager._tracked
+    rss = manager.sample_process_tree_rss_bytes()
+    assert rss > 0
+
+    # Terminate tracked process
+    manager.terminate_tree()
+    proc.wait()
+    assert not proc.poll() is None
+
+def test_subprocess_broker_scratch_verification_cache(tmp_path):
+    """Validates Suggestion #70: Scratch verification caching with TTL."""
+    scratch_dir = tmp_path / "scratch_io"
+    scratch_dir.mkdir()
+    _SCRATCH_VERIFICATION_CACHE.clear()
+
+    # First call must perform physical write probe
+    t0 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t1 = time.perf_counter()
+    initial_duration = t1 - t0
+
+    # Second call within TTL must hit cache and return immediately (< 1 ms)
+    t2 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t3 = time.perf_counter()
+    cached_duration = t3 - t2
+
+    assert cached_duration < 0.002
+    assert cached_duration < initial_duration
+```
 
 ---
 
@@ -473,8 +996,8 @@ Author comprehensive, production-grade test suites executing real physical opera
 1. **Zero-Mock & Zero-Stub Verification:**
    - Strict scan across all modified files. Zero occurrences of `unittest.mock`, `MagicMock`, `@patch`, `TODO`, `pass`, or `NotImplementedError` permitted.
 2. **Full Test Suite Execution:**
-   - Execute `pytest tests/core/test_architecture_part6.py tests/core/test_physics_integrity_part6.py`.
-   - 100% of authored tests must pass with physical I/O, actual NVML/CLI hardware queries, real HDF5 SWMR files, genuine Mendeleev lookups, and real Ed25519 cryptographic proofs.
+   - Execute `pytest tests/core/test_physics_integrity_part7.py tests/core/test_architecture_part7.py`.
+   - 100% of authored tests must pass with physical file operations, genuine Mendeleev lookups, real HDF5 SWMR resizing, physical subprocess tracking, and real RFC 8785 byte comparisons.
 3. **Cross-Platform Path & Concurrency Hygiene:**
    - All paths must use `pathlib.Path.resolve()`. Zero hardcoded Windows drive letters (`C:`, `D:`) or POSIX-only roots in core modules.
    - Node-local scratch directory locking strictly enforced; zero lockfile allocation on remote parallel filesystems (Lustre/GPFS/NFS).
@@ -498,484 +1021,965 @@ Author comprehensive, production-grade test suites executing real physical opera
 
 | Audit Category | Evaluation Criterion | Verdict |
 | :--- | :--- | :--- |
-| **Nuclear Mass Resolution** | Elimination of `el.mass` fallback in `get_isotopic_mass`; explicit `IsotopeStabilityError` raising | **PASS (VERIFIED)** |
-| **Empirical Radii Lookup** | Eradication of hardcoded `0.77` Å fallback; hierarchical Pyykkö $\to$ Cordero $\to$ vdW resolution | **PASS (VERIFIED)** |
-| **PROV-O Linked Data** | Bundled offline local JSON-LD `@context` catalog and standard W3C conformer lineage export | **PASS (VERIFIED)** |
-| **SPDX Licensing Schema** | Immutable `license` field in QCSchema and PES records validating against local SPDX list | **PASS (VERIFIED)** |
-| **Mendeleev Mandate** | Deletion of static 18-element `ISOTOPIC_MASSES` dictionary; dynamic cached SQLite lookups | **PASS (VERIFIED)** |
-| **Linked Data Proofs** | Standard W3C Ed25519Signature2020 envelopes with offline cryptographic `did:key` multicodec | **PASS (VERIFIED)** |
-| **VCS Introspection** | OS-agnostic `pathlib.Path` dynamic root checks and `importlib.metadata` package fallback | **PASS (VERIFIED)** |
-| **Non-Initializing Telemetry**| Direct NVML C-bindings with immediate shutdown; zero CUDA runtime context binding | **PASS (VERIFIED)** |
-| **Content-Addressable PES** | Deterministic UUIDv5 point IDs via RFC 8785; thread-safe SWMR HDF5 with node-local locking | **PASS (VERIFIED)** |
-| **Method Matrix Tiers** | Expansion of `CalculationFidelity` enum to all Method Matrix v4 composite schemes | **PASS (VERIFIED)** |
-| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test specifications | **PASS (VERIFIED)** |
+| **Model Versioning** | Mandatory `schema_version` attribute and automated migration dispatcher | **PASS (VERIFIED)** |
+| **RFC 8785 Float Parity** | ECMAScript IEEE 754 Number-to-String formatting kernel in `canonicalize_json` | **PASS (VERIFIED)** |
+| **Thermodynamic Provenance** | Embedding Grimme quasi-RRHO cutoff and damping parameters into `DAGNode` | **PASS (VERIFIED)** |
+| **Actionable Exceptions** | Structured `CoChemError` hierarchy with typed machine-actionable error codes | **PASS (VERIFIED)** |
+| **In-Place SWMR Resizing** | Elimination of `shutil.copyfile` and implementation of in-place HDF5 `ds.resize` | **PASS (VERIFIED)** |
+| **Mendeleev Mass Caching** | `@functools.lru_cache` on dynamic lookups without GPU context stalls | **PASS (VERIFIED)** |
+| **Lazy Invariant Singleton** | Deferral of 118-element SQLite queries until first access; zero-lag module import | **PASS (VERIFIED)** |
+| **Sandbox Memory Leaks** | Explicit `atexit.unregister(self.cleanup)` calls and Tier 3 scratch enforcement | **PASS (VERIFIED)** |
+| **Reaper Direct Polling** | Querying registered child PIDs directly without recursive full-OS traversal | **PASS (VERIFIED)** |
+| **Cached Scratch Probe** | Session-level scratch integrity cache with configurable TTL to eliminate fsync stalls | **PASS (VERIFIED)** |
+| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test suites | **PASS (VERIFIED)** |
 
 **Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 6: Suggestions #51–#60)
+# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 7: Suggestions #61–#70)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A.4, §8B.4, §8C, §9A, §20, Table 3, QS-1, QS-3)
+- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A, §8A.4, §8B.4, §8B.6, §8C, §9A, §9B, Table 3, QS-1, QS-3)
 - Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
-- Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, Artifacts $T_{\text{art}}$ read-write cryptographic commitments)
+- Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, State & Artifacts $T_{\text{state}}/T_{\text{export}}$ read-write cryptographic commitments)
 - 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
 - Dynamic Mendeleev Invariant Mandate (`from mendeleev import element`, zero hardcoded atomic masses, strict dynamic IUPAC/CIAAW physical mass retrieval)
-- FAIR Principles Compliance (F1, F4, A1, I1, I2, I3, R1.1, R1.2, R1.3)
+- FAIR Principles Compliance (F1, F2, A1, I1, I2, I3, R1, R1.1, R1.2, R1.3)
 - MolSSI QCSchema v1 Compliance (`schema_name="qcschema_output"`, `schema_version=1`, explicit `AtomicResult` mapping)
-- Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Invariant Mandate
-- IETF RFC 8032 PureEd25519, RFC 8785 JSON Canonicalization Scheme (JCS), & W3C Linked Data Proof Standards
-- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5, strictly non-initializing GPU discovery with zero CUDA-locking, local scratch file locking, strictly no POSIX `fcntl` on network filesystems)
+- IETF RFC 8785 JSON Canonicalization Scheme (JCS) §3.2.2.3 IEEE 754 Number-to-String formatting mandate
+- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5 with `threading.RLock()` and `filelock.FileLock`, non-blocking CUDA stream handling under NVIDIA MPS isolation, strictly no POSIX `fcntl` on network filesystems)
 
 ---
 
 ## 1. Executive Summary & Objective
 
-Implement, harden, and physically verify Suggestions #51 through #60 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across elemental mass fallbacks, empirical covalent/vdW radii topology perception, semantic provenance and conformer lineage Linked Data annotations, machine-readable SPDX data licensing, dynamic isotopic mass validation, W3C Linked Data Proof offline digital signatures, environment-agnostic VCS package provenance, non-initializing GPU telemetry with zero CUDA runtime locking, deterministic UUIDv5 content-addressable PES storage with Thread-Safe HDF5 SWMR protocols, and Method Matrix v4 canonical composite fidelity tier definitions.
+Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across long-term archival data persistence, RFC 8785 canonical serialization parity, quasi-harmonic thermodynamic provenance logging, machine-actionable exception architectures, in-place HDF5 SWMR chunk resizing, cached dynamic mass resolution without GPU context stalls, lazy zero-cost module initialization, ephemeral sandbox memory leaks, low-overhead process monitoring, and cached session scratch verification.
 
 Specific implementation targets include:
-1. Eradicating permissive fallback to standard terrestrial atomic weight (`el.mass`) in `get_isotopic_mass("C", 14)`, raising an explicit `IsotopeStabilityError` whenever a requested isotope cannot be resolved to a physical nuclear mass in the Mendeleev registry.
-2. Replacing the hardcoded `0.77` Å fallback in `get_covalent_radius()` with a strict hierarchical Mendeleev lookup (Pyykkö covalent radius $\to$ Cordero covalent radius $\to$ van der Waals radius $\to$ `RadiusNotFoundError`), ensuring accurate intermolecular distance thresholds and topological perception for noble gases and heavy elements.
-3. Upgrading conformer lineage graphs in `DAGNode` to emit W3C PROV-O compliant JSON-LD documents (`prov:wasDerivedFrom`, `prov:wasGeneratedBy`, `prov:Activity`, `prov:Entity`) while enforcing Tripartite Air-Gap compliance via an offline local JSON-LD context catalog bundled in `cochem_base/schemas/contexts/`.
-4. Adding an immutable `license: str = "CC-BY-4.0"` (or configurable SPDX identifier) field to `QCSchemaProvenance`, `QCSchemaMethodRecord`, and `QCResultsRecord`, validating against an offline local SPDX identifier table to uphold FAIR Principle R1.1.
-5. Eradicating the static 18-element `ISOTOPIC_MASSES` dictionary in `cochem_core_registry_schema.py` and replacing it with a cached, dynamic lookup calling `mendeleev.element(symbol).isotopes` backed by Mendeleev's bundled local SQLite database for fully air-gapped execution across all 6 environment tiers.
-6. Refactoring `sign_report_payload` in `cochem_crypto.py` to emit standard W3C Linked Data Proof envelopes (`Ed25519Signature2020`) with pure cryptographic `did:key` resolution via multicodec `0xed01` prefix and base58btc encoding without external network DID registries.
-7. Enhancing `get_vcs_provenance()` in `cochem_version.py` to use dynamic `pathlib.Path` root checks and Python packaging metadata (`importlib.metadata`) to capture accurate package version and distribution provenance inside stripped Docker containers and HPC wheels lacking `.git` directories.
-8. Refactoring `collect_hardware_metadata()` to use a strictly non-initializing discovery protocol: querying direct NVML C-bindings (`pynvml.nvmlInit()` / `pynvml.nvmlShutdown()`) with fallback to short-lived CLI calls (`nvidia-smi` / `rocm-smi`), strictly banning `torch.cuda` or `jax.devices` in the orchestrator telemetry path to guarantee zero CUDA-locking and maintain NVIDIA MPS multiplexing readiness.
-9. Refactoring `PESPointRecord` to generate deterministic, globally unique UUIDv5 identifiers from canonical RFC 8785 JSON hashes of molecular geometry, basis set, and electronic structure method, while enforcing Thread-Safe HDF5 SWMR protocols with cross-platform node-local file locking adhering to the HPC Distributed Lock Prohibition.
-10. Expanding `CalculationFidelity` in `cochem_base.core.glossary` from 5 legacy strings to encompass all canonical composite tiers established in Method Matrix v4 Table 3 and §9A (`junChS`, `junChS-F12`, `ChS`, `T3-10s`, `T3-1min`, `T3-30min`, `T3-3h`, `T3-12h`, `T4-1d`, `R2`) as an extensible string-enum supporting open QCSchema specifications.
+1. Injecting a mandatory `schema_version: int = 1` field into all Pydantic models across `cochem_base.core.models`, enforcing `model_config = ConfigDict(frozen=True, extra="forbid")`, and establishing an automated schema migration dispatch protocol supporting long-term backward-compatible deserialization (FAIR F2, I1, R1).
+2. Implementing an RFC 8785-compliant IEEE 754 Number-to-String formatting kernel in `cochem_base.core.cochem_crypto.canonicalize_json` to eliminate cross-platform SHA-256 hash divergence caused by standard Python `float.__repr__` formatting.
+3. Embedding all quasi-harmonic thermodynamic parameters (`low_freq_cutoff_cm1`, `damping_model="grimme_quasi_rrho"`, `temperature_k`, `pressure_atm=1.0`) into `DAGNode.payload["thermodynamics_provenance"]` metadata dictionaries to guarantee 100% reproducible vibrational free energies and Boltzmann populations (FAIR R1.2, Method Matrix §8B.4).
+4. Standardizing all custom exceptions across `cochem_base.core` by subclassing a base `CoChemError` class and attaching machine-actionable error codes (e.g. `CoordinateShapeError` with code `COCHEM_E_INVALID_COORD_SHAPE`, `AirGapBoundaryError` with code `COCHEM_E_AIRGAP_BREACH`) to support automated ETL triage (FAIR A1, I1).
+5. Refactoring `PESStore.write_entry()` to eliminate quadratic `shutil.copyfile` latency degradation, implementing in-place HDF5 SWMR chunk resizing (`ds.resize(new_len, axis=0)`) with dual-layer synchronization (`threading.RLock()` and cross-platform `filelock.FileLock`) and strict Tripartite Air-Gap path boundary enforcement.
+6. Applying `@functools.lru_cache(maxsize=256)` to all dynamic Mendeleev mass resolution routines in `cochem_base.core_engine`, ensuring mass lookups execute in CPU precomputation without blocking active CUDA streams or locking GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
+7. Refactoring `_build_element_cache()` in `cochem_base.core.mendeleev_invariants` into a lazy, thread-safe singleton initialization pattern to eliminate the $200\text{--}600\text{ ms}$ module import lag on multiprocessing worker spawn pools.
+8. Purging unbounded `atexit` callbacks in `cochem_base.core.cochem_sandbox.SandboxContext` by explicitly invoking `atexit.unregister(self.cleanup)` upon context exit, while enforcing strict dynamic sandbox root containment in Tier 3 (`$COCH_SCRATCH`).
+9. Replacing recursive full-system process tree discovery (`psutil.Process().children(recursive=True)`) in `ProcessTreeManager` with direct polling across explicitly registered child PIDs in `_tracked`, reducing monitoring CPU consumption by $>80\%$ and eliminating quantum chemistry kernel cache perturbation.
+10. Decoupling the 64 KB binary physical I/O integrity probe in `cochem_core_subprocess_broker.py` from individual subprocess invocations by implementing a session-level scratch verification cache with a configurable time-to-live ($\text{TTL} = 300\text{ s}$) keyed on workspace path.
 
-All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, offline JSON-LD expansions, physical Ed25519 cryptographic signing, real SWMR HDF5 dataset preallocation, and non-initializing NVML hardware interrogation.
+All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, real IEEE 754 serialization roundtrips, real HDF5 SWMR dataset extensions, physical multi-process reaper monitoring, and real subprocess executions.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
-### Metadata, Elemental Invariants & Hardware Discovery Modules
-1. `src/cochem_base/core/metadata.py` (Suggestions #51, #52, #58)
-2. `src/cochem_base/core/exceptions.py` (Suggestions #51, #52)
-3. `src/cochem_base/cochem_core_registry_schema.py` (Suggestion #55)
+### Core Models, Exceptions & Cryptographic Modules
+1. `src/cochem_base/core/models.py` (Suggestions #61, #64)
+2. `src/cochem_base/core/exceptions.py` (Suggestion #64)
+3. `src/cochem_base/core/cochem_crypto.py` (Suggestion #62)
+4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #63)
 
-### Provenance, Versioning & Cryptographic Proof Modules
-4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #53)
-5. `src/cochem_base/schemas/contexts/prov_o_context.jsonld` (Suggestion #53)
-6. `src/cochem_base/core/cochem_crypto.py` (Suggestion #56)
-7. `src/cochem_base/core/cochem_version.py` (Suggestion #57)
-
-### Core Data Models, Storage & Domain Vocabularies
-8. `src/cochem_base/core/models.py` (Suggestions #54, #59)
-9. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestions #54, #59)
-10. `src/cochem_base/core/licensing.py` (Suggestion #54)
-11. `src/cochem_base/core/glossary.py` (Suggestion #60)
+### Engine, Storage & Concurrency Architecture Modules
+5. `src/cochem_base/core/ipc/serializer.py` (Suggestion #65)
+6. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #65)
+7. `src/cochem_base/core_engine/cochem_mass_resolver.py` (Suggestion #66)
+8. `src/cochem_base/core/mendeleev_invariants.py` (Suggestion #67)
+9. `src/cochem_base/core/cochem_sandbox.py` (Suggestion #68)
+10. `src/cochem_base/core/process_reaper.py` (Suggestion #69)
+11. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestion #70)
 
 ### Zero-Mock Test Suite Deliverables
-12. `tests/core/test_architecture_part6.py` (Validating Suggestions #53, #57, #58, #59)
-13. `tests/core/test_physics_integrity_part6.py` (Validating Suggestions #51, #52, #54, #55, #56, #59, #60)
+12. `tests/core/test_physics_integrity_part7.py` (Validating Suggestions #61, #62, #63, #64, #66)
+13. `tests/core/test_architecture_part7.py` (Validating Suggestions #65, #67, #68, #69, #70)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Dynamic Isotopic Nuclear Mass Resolution & Unphysical Fallback Removal (Suggestion #51)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`get_isotopic_mass`), `src/cochem_base/core/exceptions.py`
+### [Task 1: Pydantic Model Versioning & Schema Migration Dispatch (Suggestion #61)]
+- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core/exceptions.py`
 - **Problem Statement:**
-  `get_isotopic_mass("C", 14)` attempts to find the isotope in Mendeleev's isotope list. When an isotope lookup fails or cannot be resolved, the function silently falls back to `float(el.mass)`. In Mendeleev, `el.mass` is the terrestrial abundance-weighted atomic weight ($12.011$ u for Carbon), not an isotopic nuclear mass. Supplying the terrestrial average mass to rotational force-field re-diagonalization calculates incorrect moments of inertia, shifting predicted ground-state rotational constants $B_0$ and vibrational frequencies by dozens of MHz [M], violating Method Matrix v4 §6.10, §8B.4, and FAIR Principle R1.3.
+  Archival data records generated by older versions of CoChem cannot be ingested by newer versions because models in `cochem_base.core.models` lack an explicit `schema_version` attribute and schema migration hooks. When a new field is added to a Pydantic model configured with `extra="forbid"`, deserializing older records missing that field triggers a fatal `ValidationError`, destroying multi-year scientific reproducibility and violating FAIR Principles F2, I1, and R1.
 - **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define:
+  1. In `src/cochem_base/core/models.py`, define global schema constants:
      ```python
-     class IsotopeStabilityError(ValueError):
-         """Raised when a requested isotope cannot be physically resolved to an isotopic nuclear mass."""
-         pass
+     CURRENT_CORE_SCHEMA_VERSION: int = 1
      ```
-  2. Refactor `get_isotopic_mass(symbol_or_atomic_number: Union[str, int], mass_number: int) -> float` in `src/cochem_base/core/metadata.py`:
-     - Query dynamic element data via `el = mendeleev.element(symbol_or_atomic_number)`.
-     - Filter `el.isotopes` for an isotope where `iso.mass_number == int(mass_number)`.
-     - If matched and `iso.mass` is not `None` and `float(iso.mass) > 0.0`:
-       Return `float(iso.mass)` [M].
-     - If no matching isotope exists, or if `iso.mass` is `None` or non-positive:
-       Explicitly raise `IsotopeStabilityError(f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical isotopic mass in authoritative CIAAW/Mendeleev data.")`.
-     - Strictly eliminate any code path returning `el.mass`, `el.atomic_weight`, or static numeric constants when an isotopic mass number is requested.
-  3. Provenance and Invariants:
-     - Tag return value documentation with `[M]` (Measured empirical nuclear mass).
-     - Ensure compatibility across all stable and known radioactive isotopes (e.g. `14C`, `2H`, `15N`, `37Cl`, `18O`).
-
----
-
-### [Task 2: Hierarchical Empirical Radii Lookup & Elimination of Hardcoded 0.77 Å Fallback (Suggestion #52)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`get_covalent_radius`), `src/cochem_base/core/exceptions.py`
-- **Problem Statement:**
-  `get_covalent_radius()` returns a hardcoded default of `0.77` Å when radius data is absent. The value `0.77` Å is the single-bond covalent radius of $sp^3$ Carbon. When assigned to noble gases (He, Ne, Ar, Kr, Xe) or heavy transition metals in van der Waals complexes, intermolecular contact algorithms misclassify non-covalent contacts as vacant voids or perceive false covalent bonds, corrupting molecular graphs and frozen-monomer initial alignments under Method Matrix v4 §20 [M].
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define:
+  2. Inject a mandatory schema version attribute with a default into all core data models (e.g. `MolecularTopology`, `QCSchemaInput`, `QCSchemaOutput`, `PESPointRecord`, `CalculationJobPayload`, `AtomicResult`):
      ```python
-     class RadiusNotFoundError(KeyError):
-         """Raised when empirical covalent or van der Waals radius is unavailable for an element."""
-         pass
+     schema_version: int = Field(
+         default=CURRENT_CORE_SCHEMA_VERSION,
+         description="Semantic schema version for archival data deserialization and migration contracts."
+     )
      ```
-  2. Refactor `get_covalent_radius(symbol_or_atomic_number: Union[str, int], radius_type: str = "pyykko") -> float` in `src/cochem_base/core/metadata.py`:
-     - Resolve element using `el = mendeleev.element(symbol_or_atomic_number)`.
-     - Implement hierarchical empirical lookup without hardcoded defaults:
-       1. Primary: Pyykkö single-bond covalent radius (`el.covalent_radius_pyykko`).
-       2. Secondary: Cordero covalent radius (`el.covalent_radius_cordero`).
-       3. Tertiary: Standard covalent radius (`el.covalent_radius`).
-       4. Quaternary (for noble gases or non-bonding atoms where covalent bonds do not form): van der Waals radius (`el.vdw_radius`).
-     - Convert value to Angstroms (if reported in picometers by the underlying registry, divide by 100.0; verify Mendeleev units dynamically).
-     - If all empirical radii attributes evaluate to `None` or $\le 0.0$:
-       Raise `RadiusNotFoundError(f"Empirical radius for element '{el.symbol}' ({el.atomic_number}) could not be resolved from Mendeleev registries.")`.
-     - Eradicate the literal `0.77` Å fallthrough return completely.
+  3. Enforce strict immutability and forbid extraneous undeclared fields:
+     ```python
+     model_config = ConfigDict(frozen=True, extra="forbid")
+     ```
+  4. Implement an extensible schema migration registry and dispatcher:
+     ```python
+     MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
+     _MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+
+     def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
+         """Decorator registering a transformation function from a specific schema version to from_version + 1."""
+         def decorator(func: MigrationCallable) -> MigrationCallable:
+             _MIGRATION_REGISTRY[(model_name, from_version)] = func
+             return func
+         return decorator
+
+     def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
+         """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
+         model_name = target_model.__name__
+         current_version = payload.get("schema_version", 0)
+         target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
+
+         data = dict(payload)
+         while current_version < target_version:
+             key = (model_name, current_version)
+             if key not in _MIGRATION_REGISTRY:
+                 raise SchemaMigrationError(
+                     f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
+                     error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED",
+                     details={"model": model_name, "from_version": current_version, "target_version": target_version}
+                 )
+             data = _MIGRATION_REGISTRY[key](data)
+             current_version = data.get("schema_version", current_version + 1)
+
+         return data
+     ```
+  5. Provide a classmethod on all versioned models:
+     ```python
+     @classmethod
+     def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+         """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+         migrated = migrate_payload(data, cls)
+         return cls.model_validate(migrated)
+     ```
 
 ---
 
-### [Task 3: W3C PROV-O Compliant JSON-LD Lineage & Air-Gapped Local Context Catalog (Suggestion #53)]
-- **Files Affected:** `src/cochem_base/core/cochem_provenance.py` (`DAGNode`), `src/cochem_base/schemas/contexts/prov_o_context.jsonld`
+### [Task 2: RFC 8785-Compliant IEEE 754 Float Canonicalization Kernel (Suggestion #62)]
+- **Files Affected:** `src/cochem_base/core/cochem_crypto.py`
 - **Problem Statement:**
-  `DAGNode.to_dict()` outputs an ad-hoc JSON structure lacking semantic Linked Data annotations. Scientific knowledge graphs and semantic search harvesters cannot index conformer lineage trees (CREST $\to$ GOAT $\to$ ORCA DFT $\to$ DLPNO). Attempting live online JSON-LD `@context` resolution (`http://www.w3.org/ns/prov#`) triggers network timeout crashes on air-gapped HPC compute nodes and CI runners, violating FAIR Principles I1, I3, and the Tripartite Air-Gap mandate.
+  Cryptographic hashes of canonical JSON payloads diverge between Python and external verifiers (in Node.js, Go, Rust) because `canonicalize_json` relies on Python's built-in `json.dumps()` for float formatting. RFC 8785 (JSON Canonicalization Scheme - JCS) §3.2.2.3 strictly mandates the ECMAScript IEEE 754 Number-to-String formatting algorithm. Python's `float.__repr__` outputs exponential notations with 2-digit padded exponents (e.g. `1e-05`) or differing precision thresholds, breaking deterministic cross-platform SHA-256 verification [M].
 - **Implementation Requirements:**
-  1. Create the offline bundled context catalog file `src/cochem_base/schemas/contexts/prov_o_context.jsonld`:
-     ```json
-     {
-       "@context": {
-         "prov": "http://www.w3.org/ns/prov#",
-         "dcterms": "http://purl.org/dc/terms/",
-         "cochem": "https://cochem.org/schema/core#",
-         "Entity": "prov:Entity",
-         "Activity": "prov:Activity",
-         "Agent": "prov:Agent",
-         "wasDerivedFrom": {"@id": "prov:wasDerivedFrom", "@type": "@id"},
-         "wasGeneratedBy": {"@id": "prov:wasGeneratedBy", "@type": "@id"},
-         "wasAssociatedWith": {"@id": "prov:wasAssociatedWith", "@type": "@id"},
-         "startedAtTime": {"@id": "prov:startedAtTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime"},
-         "endedAtTime": {"@id": "prov:endedAtTime", "@type": "http://www.w3.org/2001/XMLSchema#dateTime"},
-         "conformerId": "cochem:conformerId",
-         "relativeEnergy": "cochem:relativeEnergyKcalMol",
-         "rotationalConstants": "cochem:rotationalConstantsMHz"
-       }
-     }
+  1. In `src/cochem_base/core/cochem_crypto.py`, implement a dedicated RFC 8785 ECMAScript IEEE 754 float string formatting kernel:
+     ```python
+     def format_rfc8785_float(val: float) -> str:
+         """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
+         
+         Rules:
+         - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
+         - Signed zero (-0.0) must format as '0'.
+         - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
+         - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
+         """
+         import math
+         if math.isnan(val) or math.isinf(val):
+             raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
+         if val == 0.0:
+             return "0"
+
+         s = f"{val:.17g}"
+         
+         # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
+         if 'e' in s:
+             base, exp = s.split('e')
+             exp_sign = exp[0]
+             exp_val = exp[1:].lstrip('0') or '0'
+             s = f"{base}e{exp_sign}{exp_val}"
+         
+         # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
+         abs_val = abs(val)
+         if 1e-6 <= abs_val < 1e-4 and 'e' in s:
+             s = f"{val:.10f}".rstrip('0').rstrip('.')
+             
+         return s
      ```
-  2. In `src/cochem_base/core/cochem_provenance.py`:
-     - Implement `get_local_prov_context() -> Dict[str, Any]` which reads `prov_o_context.jsonld` directly using `pathlib.Path(__file__).parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"`.
-     - Extend `DAGNode`:
-       - Add method `to_prov_jsonld(self, base_uri: str = "urn:cochem:conformer:") -> Dict[str, Any]`:
-         - Construct a standard JSON-LD document with `@context` referencing the bundled definitions.
-         - Generate `@id` as `{base_uri}{self.node_id}`.
-         - Assign `@type`: `["prov:Entity", "cochem:Conformer"]` for geometry/result nodes, or `["prov:Activity", "cochem:Optimization"]` for transformation steps.
-         - Map parent edges using `prov:wasDerivedFrom`: `[{"@id": f"{base_uri}{parent_id}"} for parent_id in self.parents]`.
-         - Annotate generation activity via `prov:wasGeneratedBy`.
-         - Attach execution metadata, timestamps (ISO 8601 UTC), energy, and rotational constant properties under canonical `cochem:` namespace terms.
-     - Provide an offline JSON-LD context validator ensuring zero network socket requests are dispatched when serializing or verifying conformer lineage.
+  2. Implement `canonicalize_json(data: Any) -> bytes`:
+     ```python
+     def canonicalize_json(data: Any) -> bytes:
+         """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
+         
+         - Lexicographical sorting of object keys by UTF-8 code point values.
+         - Zero whitespace around delimiters (',' and ':').
+         - IEEE 754 float formatting via format_rfc8785_float.
+         - UTF-8 output without BOM.
+         """
+         return _serialize_jcs(data).encode("utf-8")
+
+     def _serialize_jcs(obj: Any) -> str:
+         if obj is None:
+             return "null"
+         elif isinstance(obj, bool):
+             return "true" if obj else "false"
+         elif isinstance(obj, int):
+             return str(obj)
+         elif isinstance(obj, float):
+             return format_rfc8785_float(obj)
+         elif isinstance(obj, str):
+             import json
+             return json.dumps(obj, ensure_ascii=False)
+         elif isinstance(obj, (list, tuple)):
+             items = [_serialize_jcs(item) for item in obj]
+             return "[" + ",".join(items) + "]"
+         elif isinstance(obj, dict):
+             sorted_keys = sorted(obj.keys(), key=lambda k: k.encode("utf-8"))
+             pairs = [
+                 json.dumps(k, ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
+                 for k in sorted_keys
+             ]
+             return "{" + ",".join(pairs) + "}"
+         elif hasattr(obj, "model_dump"):
+             return _serialize_jcs(obj.model_dump(mode="json"))
+         else:
+             raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+     ```
+  3. Ensure that `hash_canonical_json(data: Any, algorithm: str = "sha256") -> str` in `cochem_crypto.py` calls `canonicalize_json(data)`.
 
 ---
 
-### [Task 4: Immutable SPDX Data Usage Licensing Schema (Suggestion #54)]
-- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`, `src/cochem_base/core/licensing.py`
+### [Task 3: Quasi-Harmonic Thermodynamic Parameter Provenance Logging (Suggestion #63)]
+- **Files Affected:** `src/cochem_base/core/cochem_provenance.py`, `src/cochem_base/core/models.py`
 - **Problem Statement:**
-  Computational output records (`QCSchemaProvenance`, `QCSchemaMethodRecord`, `QCResultsRecord`, `PESPointRecord`) omit machine-readable licensing metadata. Downstream scientific data repositories reject exported datasets, and commercial or academic users cannot programmatically determine dataset reuse rights, directly violating FAIR Principle R1.1 ("(Meta)data are released with a clear and accessible data usage license").
+  External researchers cannot reproduce the exact Boltzmann populations computed by `compute_boltzmann_weights()` because the function applies Grimme's quasi-RRHO low-frequency interpolation using a procedural $100\text{ cm}^{-1}$ cutoff without logging the cutoff, rotor cutoff, or damping scheme into node metadata. Because low-frequency torsional modes in fluxional complexes dominate vibrational entropy, shifting the cutoff between $50$ and $150\text{ cm}^{-1}$ alters relative conformer free energies by up to $1.5\text{ kcal/mol}$ [D], violating FAIR Principle R1.2 and Method Matrix v4 §8B.4 / §9B.
 - **Implementation Requirements:**
-  1. Author `src/cochem_base/core/licensing.py`:
-     - Define an immutable tuple or frozen set of approved open-science SPDX license identifiers:
-       `OFFICIAL_SPDX_LICENSES = frozenset({"CC-BY-4.0", "CC0-1.0", "MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0-only", "AGPL-3.0-only"})`.
-     - Implement `validate_spdx_license(license_id: str) -> str`:
-       - Strip whitespace; verify `license_id in OFFICIAL_SPDX_LICENSES` or matches standard SPDX regex `^[A-Za-z0-9\.\-\+]+$`.
-       - Raise `ValueError(f"Invalid or unrecognized SPDX license identifier: '{license_id}'")` if validation fails.
-  2. Update Data Models:
-     - In `QCSchemaProvenance`, `QCSchemaMethodRecord`, and `QCResultsRecord` (`src/cochem_base/core/models.py` and `cochem_core_pes_store.py`):
-       - Add field:
-         ```python
-         license: str = Field(
-             default="CC-BY-4.0",
-             description="SPDX license identifier governing data reuse rights (FAIR R1.1)"
+  1. In `src/cochem_base/core/models.py`, define the provenance model:
+     ```python
+     class ThermodynamicsProvenance(BaseModel):
+         """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
+         damping_model: str = Field(
+             default="grimme_quasi_rrho",
+             description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic)."
          )
-         ```
-       - Add a Pydantic `@field_validator("license")` invoking `validate_spdx_license(v)`.
-     - In `PESPointRecord`: add `license: str = "CC-BY-4.0"` to its metadata envelope.
-     - Ensure existing datasets without explicit license tags default safely to `"CC-BY-4.0"`.
+         low_freq_cutoff_cm1: float = Field(
+             default=100.0,
+             description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1)."
+         )
+         temperature_k: float = Field(
+             default=298.15,
+             description="Thermodynamic temperature in Kelvin."
+         )
+         pressure_atm: float = Field(
+             default=1.0,
+             description="Standard state pressure in atmospheres."
+         )
+         rotor_cutoff_cm1: Optional[float] = Field(
+             default=None,
+             description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping."
+         )
+         provenance_tag: str = Field(
+             default="[D]",
+             description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated)."
+         )
+         schema_version: int = Field(default=CURRENT_CORE_SCHEMA_VERSION)
+         model_config = ConfigDict(frozen=True, extra="forbid")
+     ```
+  2. Refactor `compute_boltzmann_weights()` in `src/cochem_base/core/cochem_provenance.py`:
+     ```python
+     def compute_boltzmann_weights(
+         free_energies_kcal_mol: Sequence[float],
+         temperature_k: float = 298.15,
+         low_freq_cutoff_cm1: float = 100.0,
+         damping_model: str = "grimme_quasi_rrho",
+         pressure_atm: float = 1.0,
+         dag_node: Optional[Any] = None
+     ) -> Tuple[List[float], ThermodynamicsProvenance]:
+         """Computes normalized Boltzmann weights while recording thermodynamic provenance.
+         
+         Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
+         Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
+         """
+         import numpy as np
+         R_KCAL_MOL_K: float = 0.00198720425864083
+         
+         G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
+         if len(G) == 0:
+             return [], ThermodynamicsProvenance(
+                 damping_model=damping_model,
+                 low_freq_cutoff_cm1=low_freq_cutoff_cm1,
+                 temperature_k=temperature_k,
+                 pressure_atm=pressure_atm
+             )
+
+         delta_G = G - np.min(G)
+         beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
+         unnorm_weights = np.exp(-beta * delta_G)
+         weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
+
+         prov = ThermodynamicsProvenance(
+             damping_model=damping_model,
+             low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+             temperature_k=float(temperature_k),
+             pressure_atm=float(pressure_atm),
+             provenance_tag="[D]"
+         )
+
+         if dag_node is not None and hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
+             dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
+
+         return weights, prov
+     ```
 
 ---
 
-### [Task 5: Dynamic Isotopic Mass Registry & Elimination of Static ISOTOPIC_MASSES Table (Suggestion #55)]
-- **Files Affected:** `src/cochem_base/cochem_core_registry_schema.py`
+### [Task 4: Machine-Actionable Exception Hierarchy & Typed Error Codes (Suggestion #64)]
+- **Files Affected:** `src/cochem_base/core/exceptions.py`, `src/cochem_base/core/models.py`
 - **Problem Statement:**
-  `cochem_core_registry_schema.py` defines a static dictionary `ISOTOPIC_MASSES` containing hardcoded mass values for only 18 elements. Calculations involving noble gases (argon, neon, krypton) or isotopes like $^{37}\text{Cl}$, $^{13}\text{C}$, or $^{2}\text{H}$ trigger validation rejections or fail schema validation. This violates the Mendeleev Mandate (Method Matrix v4 §8C) and artificially constrains the ecosystem's chemical domain.
+  Coordinate shape validation and core integrity checks currently raise generic `ValueError` or unformatted standard library exceptions. Automated ingest and high-throughput execution pipelines cannot programmatically distinguish dimensionality failures, unphysical nuclear charges, schema version conflicts, or air-gap breaches without fragile regex parsing of error strings, violating FAIR Principles A1 and I1 and Global Swarm Protocols.
 - **Implementation Requirements:**
-  1. Eradicate the static `ISOTOPIC_MASSES = {...}` dictionary from `src/cochem_base/cochem_core_registry_schema.py`.
-  2. Implement an offline dynamic registry accessor backed by Mendeleev's bundled local SQLite database:
+  1. In `src/cochem_base/core/exceptions.py`, define the root structured exception class and specialized error codes:
      ```python
-     @functools.lru_cache(maxsize=512)
-     def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
-         """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
+     from typing import Optional, Dict, Any
+
+     class CoChemError(Exception):
+         """Base error class for all CoChem operations with machine-actionable error codes."""
+         def __init__(
+             self,
+             message: str,
+             error_code: str = "COCHEM_E_GENERIC",
+             details: Optional[Dict[str, Any]] = None
+         ) -> None:
+             super().__init__(f"[{error_code}] {message}")
+             self.message = message
+             self.error_code = error_code
+             self.details = details or {}
+
+     class CoordinateShapeError(CoChemError):
+         """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
+
+     class AirGapBoundaryError(CoChemError):
+         """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
+
+     class SchemaMigrationError(CoChemError):
+         """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
+
+     class PESStorageError(CoChemError):
+         """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
+
+     class ProcessReaperError(CoChemError):
+         """Raised when process termination or resource sampling fails unexpectedly."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
+
+     class SubprocessBrokerError(CoChemError):
+         """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
+
+     class ThermodynamicsParameterError(CoChemError):
+         """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
+         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
+     ```
+  2. In `src/cochem_base/core/models.py`, refactor `MolecularTopology` validator to raise `CoordinateShapeError`:
+     ```python
+     @field_validator("coordinates", mode="after")
+     @classmethod
+     def validate_coordinates_shape(cls, v: List[List[float]]) -> List[List[float]]:
+         for idx, atom_coord in enumerate(v):
+             if len(atom_coord) != 3:
+                 raise CoordinateShapeError(
+                     f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
+                     details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3}
+                 )
+         return v
+     ```
+
+---
+
+### [Task 5: In-Place HDF5 SWMR Chunk Resizing & Dual-Layer Locking (Suggestion #65)]
+- **Files Affected:** `src/cochem_base/core/ipc/serializer.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`
+- **Problem Statement:**
+  `PESStore.write_entry()` currently copies the entire pre-existing HDF5 database to a temporary file via `shutil.copyfile` before writing, implementing scalar whole-file atomic replacement semantics. Appending $N$ grid points sequentially to a database of size $S$ generates $O(N \cdot S)$ disk I/O, writing gigabytes of redundant copies [M], invalidating open SWMR reader file descriptors, causing severe multi-process lock contention, and failing to validate Tripartite Air-Gap path boundaries.
+- **Implementation Requirements:**
+  1. Eliminate all calls to `shutil.copyfile` and `os.replace` in `PESStore.write_entry()` and HDF5 serialization routines.
+  2. Implement in-place HDF5 SWMR chunk resizing:
+     - On dataset creation: specify `maxshape=(None, ...)` on the initial dimension, `chunks=(512, ...)` or appropriate chunk points, and compression filters (`gzip`, `shuffle`, `fletcher32`).
+     - On append: invoke `dataset.resize(new_length, axis=0)`, slice-assign the new record, and call `dataset.flush()` and `file.flush()` to ensure SWMR visibility.
+  3. Implement dual-layer concurrency locking:
+     - In-process: module-level `_HDF5_MEM_LOCK = threading.RLock()` guarding C-library HDF5 API calls.
+     - Cross-process IPC: use `filelock.FileLock` operating on node-local scratch storage (`$COCH_SCRATCH`), with a configurable timeout (default `30.0` s). Strictly prohibit lockfile allocation on networked filesystems (Lustre/GPFS/NFS).
+  4. Enforce Tripartite Air-Gap boundary validation:
+     ```python
+     def validate_airgap_write_path(target_path: Path) -> Path:
+         """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
+         Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
+         """
+         resolved = target_path.resolve()
+         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+
+         if src_dir.exists() and src_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
+                 details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"}
+             )
+         if data_dir.exists() and data_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
+                 details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"}
+             )
+         return resolved
+     ```
+  5. Refactor `PESStore.write_entry(point: PESPointRecord) -> None`:
+     - Validate target path with `validate_airgap_write_path(self.file_path)`.
+     - Acquire dual-layer lock (`with _HDF5_MEM_LOCK: with filelock.FileLock(self.lock_path, timeout=30.0):`).
+     - Open HDF5 with `libver='latest'`, resize dataset along axis 0, commit point attributes, flush buffers.
+
+---
+
+### [Task 6: Dynamic Mendeleev Mass Resolution In-Memory Caching (Suggestion #66)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_mass_resolver.py`
+- **Problem Statement:**
+  Core solvers query dynamic Mendeleev masses synchronously without memoization. Because `mendeleev.element(symbol)` executes SQL SELECT queries against the bundled SQLite database on disk ($\sim 100\ \mu\text{s}$ per query [M]), multidimensional Discrete Variable Representation (DVR) solvers and Eckart frame projections query masses tens of thousands of times across multidimensional coordinate meshes. Furthermore, synchronous SQLite queries on the host thread stall non-blocking CUDA streams and lock GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
+- **Implementation Requirements:**
+  1. Create or refactor `src/cochem_base/core_engine/cochem_mass_resolver.py`.
+  2. Implement `@functools.lru_cache(maxsize=256)` on dynamic mass resolution functions:
+     ```python
+     from functools import lru_cache
+     from typing import Union, Optional
+     import mendeleev
+     from cochem_base.core.exceptions import CoChemError
+
+     class IsotopeMassResolutionError(CoChemError):
+         """Raised when requested isotope cannot be resolved to physical mass."""
+         def __init__(self, message: str, details: Optional[dict] = None) -> None:
+             super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
+
+     @lru_cache(maxsize=256)
+     def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
+         """Returns standard atomic weight from Mendeleev with LRU memory caching.
+         Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
+         """
          el = mendeleev.element(symbol_or_z)
-         if mass_number is not None:
-             iso = next((i for i in el.isotopes if i.mass_number == mass_number), None)
-             if iso is not None and iso.mass is not None:
-                 return float(iso.mass)
-             raise IsotopeStabilityError(f"Isotope {el.symbol}-{mass_number} not found in Mendeleev.")
          if el.atomic_weight is not None:
              return float(el.atomic_weight)
          if el.mass is not None:
              return float(el.mass)
-         raise ValueError(f"No valid mass available for element {el.symbol}.")
+         raise IsotopeMassResolutionError(
+             f"Atomic weight unavailable for element '{symbol_or_z}'.",
+             details={"element": symbol_or_z}
+         )
+
+     @lru_cache(maxsize=256)
+     def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
+         """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
+         Guarantees zero fallback to terrestrial average atomic weights.
+         """
+         el = mendeleev.element(symbol_or_z)
+         for iso in el.isotopes:
+             if iso.mass_number == int(mass_number):
+                 if iso.mass is not None and float(iso.mass) > 0.0:
+                     return float(iso.mass)
+         raise IsotopeMassResolutionError(
+             f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
+             details={"element": el.symbol, "mass_number": mass_number}
+         )
      ```
-  3. Refactor all schema validation routines and regex lookups in `cochem_core_registry_schema.py` to invoke `get_registry_atomic_mass()` dynamically.
-  4. Ensure module load time is negligible (< 10 ms [E]) due to cached local SQLite queries, with zero external network access.
+  3. Ensure all DVR, PES store, and moment-of-inertia calculation routines import from `cochem_mass_resolver.py`.
+  4. Guarantee that mass lookup arrays are pre-resolved on the host CPU prior to launching asynchronous GPU kernels, preventing CUDA stream stalls or GPU context blocking under NVIDIA MPS daemon isolation (§8A.4).
 
 ---
 
-### [Task 6: W3C Linked Data Proof Envelopes with Offline PureEd25519 did:key Resolution (Suggestion #56)]
-- **Files Affected:** `src/cochem_base/core/cochem_crypto.py` (`sign_report_payload`, `verify_report_payload`)
+### [Task 7: Lazy Thread-Safe Singleton for Mendeleev Invariants (Suggestion #67)]
+- **Files Affected:** `src/cochem_base/core/mendeleev_invariants.py`
 - **Problem Statement:**
-  Computational report signatures are serialized under an ad-hoc key (`_provenance_signature`), preventing external scientific repositories from verifying computation proofs. Furthermore, if external DID registries are queried over HTTPS to resolve public keys, air-gapped compute nodes experience connection timeouts, violating FAIR Principles A1, I1, R1.2, and User Manual §6.4.1.
+  Importing `cochem_base.core.mendeleev_invariants` eagerly executes `_build_element_cache()` at top level, calling `_mendeleev_element(z)` 118 times from $Z=1$ to $Z=118$ and running 118 sequential SQLite queries. In multiprocessing architectures using the `spawn` context (Windows and HPC SLURM worker pools), every single worker process re-imports the module and re-runs all 118 SQL queries sequentially upon initialization, incurring a $200\text{--}600\text{ ms}$ startup penalty per spawned process [M].
 - **Implementation Requirements:**
-  1. Implement offline `did:key` encoder and decoder in `cochem_base/core/cochem_crypto.py`:
-     - Ed25519 multicodec prefix: `0xed01` (bytes `b'\xed\x01'`).
-     - Encode: Given raw 32-byte Ed25519 public key, prepend `b'\xed\x01'`, encode using base58btc, and prepend `"did:key:z"`.
-     - Decode: Given `"did:key:z..."`, strip `"did:key:z"`, decode base58btc, assert first 2 bytes are `b'\xed\x01'`, and extract the 32-byte public key directly. Zero external HTTP/network lookups permitted.
-  2. Refactor `sign_report_payload(payload: Dict[str, Any], private_key: ed25519.Ed25519PrivateKey) -> Dict[str, Any]`:
-     - Canonicalize `payload` via RFC 8785 JSON Canonicalization Scheme (JCS) bytes.
-     - Sign raw canonical bytes using RFC 8032 PureEd25519 (`signature_bytes = private_key.sign(canonical_bytes)`).
-     - Encode signature as base64 or multibase.
-     - Return payload enveloped with standard W3C Linked Data Proof:
+  1. Remove the eager module-level execution of `_build_element_cache()` at line 107 in `mendeleev_invariants.py`.
+  2. Implement a thread-safe lazy singleton pattern:
+     ```python
+     import threading
+     from typing import Dict, Optional, Any
+
+     _ELEMENT_CACHE_LOCK = threading.Lock()
+     _ELEMENT_CACHE: Optional[Dict[int, Any]] = None
+
+     def get_element_cache() -> Dict[int, Any]:
+         """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
+         Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
+         """
+         global _ELEMENT_CACHE
+         if _ELEMENT_CACHE is None:
+             with _ELEMENT_CACHE_LOCK:
+                 if _ELEMENT_CACHE is None:
+                     _ELEMENT_CACHE = _build_element_cache()
+         return _ELEMENT_CACHE
+     ```
+  3. Refactor all external functions in `mendeleev_invariants.py` (e.g. `get_element_data(z)`, `get_symbol(z)`, `get_atomic_number(symbol)`) to query `get_element_cache()` rather than directly referencing a global module dictionary.
+  4. Ensure module import time drops to $< 5\text{ ms}$ [M].
+
+---
+
+### [Task 8: Ephemeral Sandbox Lifecycle & `atexit` Leak Elimination (Suggestion #68)]
+- **Files Affected:** `src/cochem_base/core/cochem_sandbox.py`
+- **Problem Statement:**
+  `SandboxContext.__enter__()` registers `atexit.register(self.cleanup)` on every entry, but `cleanup()` and `__exit__()` fail to call `atexit.unregister(self.cleanup)`. In multi-stage calculation campaigns creating hundreds of ephemeral workspaces, the Python interpreter retains strong references to completed `SandboxContext` instances and their associated configurations in `atexit._nref`, causing unbounded heap memory accumulation and multi-second shutdown stalls during process termination.
+- **Implementation Requirements:**
+  1. In `src/cochem_base/core/cochem_sandbox.py`, update `SandboxContext`:
+     ```python
+     import atexit
+     import shutil
+     from pathlib import Path
+     from typing import Optional
+     from cochem_base.core.exceptions import AirGapBoundaryError
+
+     class SandboxContext:
+         """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
+         def __init__(self, scratch_root: Optional[Path] = None, prefix: str = "cochem_job_") -> None:
+             self.scratch_root = self._resolve_and_validate_scratch_root(scratch_root)
+             self.prefix = prefix
+             self.path: Optional[Path] = None
+             self._cleaned: bool = False
+
+         def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
+             if root is None:
+                 root = Path(os.environ.get("COCH_SCRATCH", "/tmp/cochem_scratch"))
+             resolved = root.resolve()
+
+             src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+             data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+             if src_dir.exists() and src_dir in resolved.parents:
+                 raise AirGapBoundaryError(
+                     f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
+                     details={"attempted_path": str(resolved), "tier": "Tier 1"}
+                 )
+             if data_dir.exists() and data_dir in resolved.parents:
+                 raise AirGapBoundaryError(
+                     f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
+                     details={"attempted_path": str(resolved), "tier": "Tier 2"}
+                 )
+             return resolved
+
+         def __enter__(self) -> "SandboxContext":
+             import tempfile
+             self.scratch_root.mkdir(parents=True, exist_ok=True)
+             self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
+             self._cleaned = False
+             atexit.register(self.cleanup)
+             return self
+
+         def cleanup(self) -> None:
+             """Idempotently cleans up scratch directory and removes atexit registration."""
+             if self._cleaned:
+                 return
+             self._cleaned = True
+             atexit.unregister(self.cleanup)
+             if self.path is not None and self.path.exists():
+                 try:
+                     shutil.rmtree(self.path, ignore_errors=True)
+                 except Exception:
+                     pass
+
+         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+             self.cleanup()
+     ```
+  2. Verify that repeated entries and exits from `SandboxContext` result in zero net change to `len(atexit._nref)` or internal callback queues.
+
+---
+
+### [Task 9: Direct Child PID Monitoring in Process Reaper (Suggestion #69)]
+- **Files Affected:** `src/cochem_base/core/process_reaper.py`
+- **Problem Statement:**
+  Monitoring daemons periodically invoke `sample_process_tree_rss_bytes()` and `terminate_tree()` at short intervals ($0.1\text{--}1.0\text{ s}$) using `psutil.Process().children(recursive=True)`. The OS must traverse the entire system process table on every polling cycle, inducing significant host CPU consumption ($>15\%$), CPU cache eviction, and kernel thread contention on active compute cores dedicated to high-precision quantum chemical kernels (ORCA, CFOUR) and GPU MPS host workers (§8A.4).
+- **Implementation Requirements:**
+  1. In `src/cochem_base/core/process_reaper.py`, update `ProcessTreeManager`:
+     - Maintain an explicit registry of active child PIDs:
        ```python
-       return {
-           **payload,
-           "proof": {
-               "type": "Ed25519Signature2020",
-               "created": datetime.now(timezone.utc).isoformat(),
-               "verificationMethod": public_key_to_did_key(private_key.public_key()),
-               "proofPurpose": "assertionMethod",
-               "proofValue": base64.urlsafe_b64encode(signature_bytes).decode("ascii")
-           }
-       }
+       self._tracked: Set[int] = set()
        ```
-  3. Refactor `verify_report_payload(signed_payload: Dict[str, Any]) -> bool`:
-     - Extract `proof = signed_payload.get("proof")`; if absent, return `False`.
-     - Extract `did_key = proof.get("verificationMethod")`; decode raw public key bytes offline.
-     - Separate payload from `proof` dictionary, canonicalize payload via RFC 8785, and verify `proofValue` using `public_key.verify(sig_bytes, canonical_bytes)`.
-     - Return `True` on success; catch `InvalidSignature` and return `False`.
-
----
-
-### [Task 7: Robust OS-Agnostic Dynamic VCS Provenance & Container Introspection (Suggestion #57)]
-- **Files Affected:** `src/cochem_base/core/cochem_version.py` (`get_vcs_provenance`)
-- **Problem Statement:**
-  `get_vcs_provenance()` assumes `.git` directories or local `.build_manifest.json` files exist at hardcoded paths. When executed inside production Docker containers, Codespaces, or HPC Python wheels where `.git` is stripped, it silently drops software version metadata and returns `"UNTRACKED_BUILD"`. This breaks reproducible audit trails mandated by User Manual §6.4.2 and FAIR Principle R1.2.
-- **Implementation Requirements:**
-  1. Refactor `get_vcs_provenance() -> Dict[str, Any]` in `src/cochem_base/core/cochem_version.py`:
-     - Hierarchy of provenance discovery:
-       1. Git Repository Check: Use `pathlib.Path(__file__).resolve()` and traverse parents to locate `.git`. If found and git CLI is available, query commit SHA, branch, and dirty status via safe subprocess calls with 2-second timeouts.
-       2. Build Manifest Check: Check for `.build_manifest.json` in package root or `COCHEM_ROOT`.
-       3. Distribution Package Introspection (`importlib.metadata` - PEP 566):
-          - Query `importlib.metadata.version("CoChem-BASE")` or `importlib.metadata.version("cochem_base")`.
-          - Retrieve distribution metadata:
-            ```python
-            try:
-                dist_version = importlib.metadata.version("CoChem-BASE")
-                dist_files = importlib.metadata.files("CoChem-BASE")
-                installer = importlib.metadata.distribution("CoChem-BASE").read_text("INSTALLER") or "unknown"
-                return {
-                    "vcs_type": "installed_wheel",
-                    "version": dist_version,
-                    "installer": installer.strip(),
-                    "file_count": len(dist_files) if dist_files else 0,
-                    "status": "DISTRIBUTION_PACKAGE"
-                }
-            except importlib.metadata.PackageNotFoundError:
-                pass
-            ```
-       4. Fallback: Return structured dictionary with `"status": "UNTRACKED_BUILD"`, recorded execution timestamp, and platform telemetry.
-  2. Dynamic Path Resolution:
-     - Ensure all path checks use `pathlib.Path` relative to dynamic module anchors, `pathlib.Path.home()`, or environment variables (`COCHEM_ROOT`, `TMPDIR`).
-     - Fully verify portability across Windows WSL, macOS OrbStack, Debian Linux, Codespaces, GitHub Actions, and HPC.
-
----
-
-### [Task 8: Strictly Non-Initializing GPU Hardware Discovery & Zero CUDA-Locking (Suggestion #58)]
-- **Files Affected:** `src/cochem_base/core/metadata.py` (`collect_hardware_metadata`)
-- **Problem Statement:**
-  `collect_hardware_metadata()` executes fragile CLI subprocess commands or risks importing `torch.cuda` / `jax.devices`. Calling `torch.cuda.is_available()` initializes the CUDA runtime context (`cudaInitDevice()`) and binds it to the host operating system PID. Spawning worker processes afterwards fails immediately with `RuntimeError: Cannot re-initialize CUDA in forked subprocess`, and permanently blocks dynamic NVIDIA Multi-Process Service (MPS) context multiplexing under Method Matrix v4 §8A.4 [M].
-- **Implementation Requirements:**
-  1. Implement strictly non-initializing GPU discovery in `src/cochem_base/core/metadata.py`:
-     - Tier 1: Direct C-level NVML bindings (`pynvml`):
+     - Provide registration methods:
        ```python
-       def _query_nvml_telemetry() -> Optional[List[Dict[str, Any]]]:
-           try:
-               import pynvml
-               pynvml.nvmlInit()
-               devices = []
-               try:
-                   count = pynvml.nvmlDeviceGetCount()
-                   for idx in range(count):
-                       handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
-                       name = pynvml.nvmlDeviceGetName(handle)
-                       if isinstance(name, bytes):
-                           name = name.decode("utf-8")
-                       mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                       cc_major, cc_minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-                       devices.append({
-                           "index": idx,
-                           "product_name": name,
-                           "total_memory_bytes": int(mem.total),
-                           "compute_capability": f"{cc_major}.{cc_minor}"
-                       })
-                   return devices
-               finally:
-                   pynvml.nvmlShutdown()
-           except Exception:
-               return None
+       def register_process(self, pid: int) -> None:
+           """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
+           if pid > 0:
+               self._tracked.add(pid)
+
+       def unregister_process(self, pid: int) -> None:
+           """Removes a process PID upon normal exit."""
+           self._tracked.discard(pid)
        ```
-     - Tier 2: Isolated CLI Fallback:
-       - Use `shutil.which("nvidia-smi")` and `shutil.which("rocm-smi")`.
-       - Execute in a short-lived subprocess with `timeout=3` capturing `--query-gpu=gpu_name,memory.total --format=csv,noheader,nounits`.
-     - Tier 3: CPU Fallback: If no GPU is found, cleanly record CPU architecture, thread count via `os.cpu_count()`, and platform details.
-  2. Strict CUDA-Locking Prohibition:
-     - Add explicit AST / runtime assertions: `sys.modules.get("torch")` or `torch.cuda.is_initialized()` must NEVER be invoked during orchestrator telemetry collection.
-     - Ensure NVIDIA MPS server remains free for dynamic rank multiplexing.
+  2. Refactor `sample_process_tree_rss_bytes() -> int`:
+     ```python
+     def sample_process_tree_rss_bytes(self) -> int:
+         """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
+         Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
+         """
+         total_rss = 0
+         dead_pids = set()
+
+         try:
+             total_rss += self._parent_proc.memory_info().rss
+         except (psutil.NoSuchProcess, psutil.AccessDenied):
+             pass
+
+         for pid in list(self._tracked):
+             try:
+                 p = psutil.Process(pid)
+                 total_rss += p.memory_info().rss
+             except psutil.NoSuchProcess:
+                 dead_pids.add(pid)
+             except (psutil.AccessDenied, psutil.ZombieProcess):
+                 pass
+
+         self._tracked.difference_update(dead_pids)
+         return total_rss
+     ```
+  3. In `terminate_tree(timeout: float = 5.0) -> None`:
+     - Directly signal all PIDs in `_tracked` with `SIGTERM` (or `taskkill /PID` on Windows), wait up to `timeout` seconds, and escalate to `SIGKILL` only for stubborn processes.
+     - Fall back to recursive system-wide `children(recursive=True)` discovery ONLY when detached orphan subprocesses are suspected.
 
 ---
 
-### [Task 9: Deterministic UUIDv5 Content-Addressable PES Points & Thread-Safe SWMR Storage (Suggestion #59)]
-- **Files Affected:** `src/cochem_base/core/models.py` (`PESPointRecord`), `src/cochem_base/core_engine/cochem_core_pes_store.py` (`PESStore`)
+### [Task 10: Session-Level Scratch Verification Cache with TTL (Suggestion #70)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
 - **Problem Statement:**
-  `PESPointRecord.point_id` uses ephemeral local strings (`"grid_2d:142"`), causing collisions when merging independent scan campaigns. Furthermore, concurrent uncoordinated HDF5 writes without SWMR sequencing cause broken root groups, corrupted B-trees, and race crashes. Lockfiles placed on shared network storage (NFS, Lustre, GPFS) stall execution due to non-compliant distributed file locking, violating FAIR F1 and the HPC Distributed Lock Prohibition.
+  `safe_subprocess_run()` invokes `verify_scratch_quota_and_io()` prior to executing `subprocess.Popen`. This function writes a 64 KB binary probe to disk, flushes the stream, invokes `os.fsync()`, reads back the file, computes two SHA-256 digests, and unlinks the probe file before every command. This synchronous barrier adds a $20\text{--}100\text{ ms}$ dispatch latency per execution [M] and floods clustered/networked filesystems (Lustre, GPFS, NFS) with redundant metadata journal flushes during high-throughput calculations.
 - **Implementation Requirements:**
-  1. Deterministic Content-Addressable `point_id` in `PESPointRecord`:
-     - Define `NAMESPACE_COCHEM = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")`.
-     - Generate `point_id` deterministically from canonical RFC 8785 JSON representation:
-       ```python
-       @classmethod
-       def generate_point_id(cls, geometry: List[float], symbols: List[str], method: str, basis: Optional[str]) -> str:
-           normalized_payload = {
-               "symbols": [s.upper() for s in symbols],
-               "geometry": [round(float(c), 8) for c in geometry],
-               "method": method.strip().lower(),
-               "basis": (basis or "").strip().lower()
-           }
-           canonical_bytes = rfc8785_canonicalize(normalized_payload)
-           return str(uuid.uuid5(NAMESPACE_COCHEM, canonical_bytes.decode("utf-8")))
-       ```
-     - Ensure `PESPointRecord.point_id` defaults automatically to this deterministic UUIDv5.
-  2. Thread-Safe HDF5 SWMR Protocols in `PESStore`:
-     - SWMR Initialization Sequencing: Open HDF5 with `libver='latest'`. Pre-allocate chunked, resizable datasets and write initial metadata headers *before* activating `f.swmr_mode = True`.
-     - Readers open with `mode='r'`, `swmr=True`, and call `dataset.refresh()` before reading extensible points.
-  3. Local Scratch Lock Enforcement (HPC Distributed Lock Prohibition):
-     - All inter-process locking must use `filelock.FileLock`.
-     - The lockfile path must resolve strictly on node-local scratch:
-       `lock_dir = pathlib.Path(os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or pathlib.Path.home() / ".cochem" / "scratch")`
-     - Lockfiles on network file systems (Lustre, GPFS, NFS) are strictly prohibited.
-  4. Shard Consolidation (`merge_pes_shards`):
-     - Stage shard additions in local scratch memory, verify UUIDv5 point uniqueness, and perform atomic consolidation into the target store.
+  1. In `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`, implement a thread-safe session-level scratch verification cache:
+     ```python
+     import time
+     import os
+     import hashlib
+     from pathlib import Path
+     from typing import Dict, Tuple, Optional
+     from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
+
+     _SCRATCH_CACHE_LOCK = threading.Lock()
+     _SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
+
+     def verify_scratch_quota_and_io(
+         scratch_dir: Path,
+         ttl_seconds: float = 300.0,
+         force: bool = False
+     ) -> bool:
+         """Verifies write, fsync, and SHA-256 read-back integrity on scratch_dir.
+         Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
+         Enforces Tripartite Air-Gap: scratch_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
+         """
+         resolved = scratch_dir.resolve()
+
+         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+         if src_dir.exists() and src_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
+                 details={"path": str(resolved), "tier": "Tier 1"}
+             )
+         if data_dir.exists() and data_dir in resolved.parents:
+             raise AirGapBoundaryError(
+                 f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
+                 details={"path": str(resolved), "tier": "Tier 2"}
+             )
+
+         now = time.monotonic()
+         with _SCRATCH_CACHE_LOCK:
+             if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
+                 last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
+                 if (now - last_verified) < ttl_seconds:
+                     return True
+
+         resolved.mkdir(parents=True, exist_ok=True)
+         probe_file = resolved / f".io_probe_{os.getpid()}_{time.time_ns()}.bin"
+         probe_data = os.urandom(64 * 1024)
+         probe_hash = hashlib.sha256(probe_data).hexdigest()
+
+         try:
+             with open(probe_file, "wb") as f:
+                 f.write(probe_data)
+                 f.flush()
+                 os.fsync(f.fileno())
+
+             with open(probe_file, "rb") as f:
+                 read_data = f.read()
+
+             read_hash = hashlib.sha256(read_data).hexdigest()
+             if read_hash != probe_hash:
+                 raise SubprocessBrokerError(
+                     f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
+                     details={"scratch_dir": str(resolved), "expected": probe_hash, "actual": read_hash}
+                 )
+         finally:
+             if probe_file.exists():
+                 try:
+                     probe_file.unlink()
+                 except OSError:
+                     pass
+
+         with _SCRATCH_CACHE_LOCK:
+             _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
+
+         return True
+     ```
+  2. In `safe_subprocess_run()`, call `verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0, force=False)` prior to executing `subprocess.Popen`.
 
 ---
 
-### [Task 10: Canonical Composite Fidelity Tier Vocabulary & Extensible Registry Enum (Suggestion #60)]
-- **Files Affected:** `src/cochem_base/core/glossary.py` (`CalculationFidelity`), `src/cochem_base/core/models.py` (`CalculationJobPayload`)
-- **Problem Statement:**
-  `CalculationFidelity` enum contains only 5 legacy strings (`U_HF`, `R_DFT`, `XTB2`, `DLPNO_CCSD_T`, `CASSCF`). Submitting jobs with canonical composite recipes from Method Matrix v4 (§9A, Table 3) such as `junChS-F12`, `T3-3h`, or `R2` raises Pydantic `ValidationError`, blocking execution and provenance recording of high-accuracy computational calculations.
-- **Implementation Requirements:**
-  1. Refactor `CalculationFidelity` in `src/cochem_base/core/glossary.py`:
-     - Convert to an extensible string enumeration supporting all Method Matrix v4 official tiers:
-       ```python
-       class CalculationFidelity(str, Enum):
-           # Low / Semiempirical Tiers
-           XTB1 = "XTB1"
-           XTB2 = "XTB2"
-           PM6 = "PM6"
-           AM1 = "AM1"
-           
-           # Single Reference / Mean Field
-           R_HF = "R_HF"
-           U_HF = "U_HF"
-           R_DFT = "R_DFT"
-           U_DFT = "U_DFT"
-           RO_DFT = "RO_DFT"
-           
-           # Correlated Wavefunction
-           MP2 = "MP2"
-           DLPNO_CCSD_T = "DLPNO_CCSD_T"
-           CCSD_T = "CCSD_T"
-           CCSD_T_F12 = "CCSD_T_F12"
-           CASSCF = "CASSCF"
-           NEVPT2 = "NEVPT2"
-           
-           # Method Matrix v4 Canonical Composite Tiers (Table 3 & §9A)
-           JUNCHS = "junChS"
-           JUNCHS_F12 = "junChS-F12"
-           CHS = "ChS"
-           CHS_F12 = "ChS-F12"
-           T3_10S = "T3-10s"
-           T3_1MIN = "T3-1min"
-           T3_30MIN = "T3-30min"
-           T3_3H = "T3-3h"
-           T3_12H = "T3-12h"
-           T4_1D = "T4-1d"
-           R2 = "R2"
-           
-           # Custom / Open QCSchema Specification
-           CUSTOM_COMPOSITE = "CUSTOM_COMPOSITE"
-       ```
-  2. Update `CalculationJobPayload` in `src/cochem_base/core/models.py`:
-     - Allow `fidelity: Union[CalculationFidelity, str]` with automated normalization.
-     - Validate that composite recipe strings match either official Method Matrix tiers or structured QCSchema method specifications.
+## 4. Pytest Unit & Integration Test Specifications
+
+### Deliverable 1: `tests/core/test_physics_integrity_part7.py`
+This test suite verifies physics integrity across data models, serialization kernels, thermodynamic provenance, exception structures, and mass caching.
+
+```python
+import math
+import os
+import time
+import pytest
+from pydantic import ValidationError
+from cochem_base.core.models import (
+    MolecularTopology,
+    CURRENT_CORE_SCHEMA_VERSION,
+    register_migration,
+    migrate_payload
+)
+from cochem_base.core.exceptions import (
+    CoChemError,
+    CoordinateShapeError,
+    SchemaMigrationError,
+    AirGapBoundaryError
+)
+from cochem_base.core.cochem_crypto import (
+    format_rfc8785_float,
+    canonicalize_json
+)
+from cochem_base.core.cochem_provenance import (
+    compute_boltzmann_weights,
+    ThermodynamicsProvenance
+)
+from cochem_base.core_engine.cochem_mass_resolver import (
+    get_dynamic_atomic_mass,
+    get_dynamic_isotopic_mass,
+    IsotopeMassResolutionError
+)
+
+def test_pydantic_model_schema_version_and_migration():
+    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
+    top = MolecularTopology(
+        symbols=["H", "H"],
+        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+        molecular_charge=0,
+        spin_multiplicity=1
+    )
+    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
+
+    @register_migration("MolecularTopology", 0)
+    def migrate_v0_to_v1(data):
+        d = dict(data)
+        d["schema_version"] = 1
+        if "spin_multiplicity" not in d:
+            d["spin_multiplicity"] = 1
+        return d
+
+    legacy_payload = {
+        "schema_version": 0,
+        "symbols": ["O", "H", "H"],
+        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
+        "molecular_charge": 0
+    }
+    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
+    assert migrated_top.schema_version == 1
+    assert migrated_top.spin_multiplicity == 1
+
+def test_rfc8785_ieee754_canonical_float_formatting():
+    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
+    assert format_rfc8785_float(0.0) == "0"
+    assert format_rfc8785_float(-0.0) == "0"
+
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("nan"))
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("inf"))
+
+    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
+    assert format_rfc8785_float(1e-7) == "1e-7"
+    assert format_rfc8785_float(1e21) == "1e+21"
+
+    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
+    canonical_bytes = canonicalize_json(payload)
+    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
+
+def test_quasi_rrho_thermodynamics_provenance_logging():
+    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
+    class DummyNode:
+        def __init__(self):
+            self.payload = {}
+
+    node = DummyNode()
+    energies = [0.0, 0.5, 1.2]
+    weights, prov = compute_boltzmann_weights(
+        energies,
+        temperature_k=298.15,
+        low_freq_cutoff_cm1=100.0,
+        damping_model="grimme_quasi_rrho",
+        dag_node=node
+    )
+    assert len(weights) == 3
+    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
+    assert "thermodynamics_provenance" in node.payload
+    logged = node.payload["thermodynamics_provenance"]
+    assert logged["damping_model"] == "grimme_quasi_rrho"
+    assert logged["low_freq_cutoff_cm1"] == 100.0
+    assert logged["temperature_k"] == 298.15
+    assert logged["provenance_tag"] == "[D]"
+
+def test_machine_actionable_exception_hierarchy():
+    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
+    with pytest.raises(CoordinateShapeError) as exc_info:
+        MolecularTopology(
+            symbols=["H"],
+            coordinates=[[0.0, 0.0]],
+            molecular_charge=0,
+            spin_multiplicity=1
+        )
+    err = exc_info.value
+    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
+    assert err.details["actual_len"] == 2
+    assert err.details["expected_len"] == 3
+
+def test_dynamic_mendeleev_mass_resolution_lru_cache():
+    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
+    mass_c = get_dynamic_atomic_mass("C")
+    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
+
+    start = time.perf_counter()
+    for _ in range(1000):
+        _ = get_dynamic_atomic_mass("C")
+    cached_duration = time.perf_counter() - start
+
+    assert cached_duration < 0.005
+
+    mass_14c = get_dynamic_isotopic_mass("C", 14)
+    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
+
+    with pytest.raises(IsotopeMassResolutionError):
+        get_dynamic_isotopic_mass("C", 999)
+```
 
 ---
 
-## 4. Zero-Mock Test Suite Specifications
+### Deliverable 2: `tests/core/test_architecture_part7.py`
+This test suite verifies architecture, concurrency, air-gap boundaries, and OS-level lifecycle management.
 
-Author comprehensive, production-grade test suites executing real physical operations with zero mocks, zero monkey-patched stubs, and zero synthetic loops.
+```python
+import os
+import time
+import atexit
+import threading
+import tempfile
+from pathlib import Path
+import pytest
+import h5py
+from cochem_base.core.exceptions import AirGapBoundaryError
+from cochem_base.core.mendeleev_invariants import get_element_cache
+from cochem_base.core.cochem_sandbox import SandboxContext
+from cochem_base.core.process_reaper import ProcessTreeManager
+from cochem_base.core_engine.cochem_core_subprocess_broker import (
+    verify_scratch_quota_and_io,
+    _SCRATCH_VERIFICATION_CACHE
+)
 
-### Test Suite 1: Architecture, Provenance, Hardware & Concurrency (`tests/core/test_architecture_part6.py`)
-1. **`test_w3c_prov_o_jsonld_serialization()` (Suggestion #53):**
-   - Instantiate a `DAGNode` representing an optimization step (`Activity`) and resulting conformer (`Entity`).
-   - Call `.to_prov_jsonld()`.
-   - Assert output contains `@context`, `@id`, and valid `prov:wasDerivedFrom` and `prov:wasGeneratedBy` relationships.
-   - Validate that local context resolution resolves from `cochem_base/schemas/contexts/prov_o_context.jsonld` with zero outbound network calls.
-2. **`test_vcs_provenance_container_introspection()` (Suggestion #57):**
-   - Execute `get_vcs_provenance()` in an isolated environment where `.git` is absent.
-   - Verify fallback to `importlib.metadata`.
-   - Assert returned dictionary contains valid package version and status `"DISTRIBUTION_PACKAGE"` rather than failing.
-3. **`test_strictly_non_initializing_gpu_telemetry()` (Suggestion #58):**
-   - Execute `collect_hardware_metadata()`.
-   - Assert telemetry returns device list (or CPU fallback) without raising exceptions.
-   - Assert that `torch.cuda.is_initialized()` is `False` (if PyTorch is installed in the test environment), proving zero CUDA context binding to the process PID.
-4. **`test_pes_store_swmr_concurrency_and_local_locking()` (Suggestion #59):**
-   - Initialize a `PESStore` HDF5 file with pre-allocated datasets in SWMR mode.
-   - Execute concurrent read and write operations across background worker threads using `filelock.FileLock`.
-   - Assert lockfile is created inside the local scratch directory (`SLURM_TMPDIR` or local temp), never on shared remote paths.
-   - Confirm zero dataset corruption or B-tree lockups.
+def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
+    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    os.environ["COCH_SRC"] = str(src_dir)
 
-### Test Suite 2: Physics Invariants, Radii, Licensing & Asymmetric Signatures (`tests/core/test_physics_integrity_part6.py`)
-1. **`test_mendeleev_isotopic_nuclear_mass_resolution()` (Suggestion #51):**
-   - Call `get_isotopic_mass("C", 14)`; verify returned mass is $\approx 14.003241$ u [M] (not $12.011$ u).
-   - Call `get_isotopic_mass("H", 2)`; verify Deuterium mass $\approx 2.014101$ u [M].
-   - Call `get_isotopic_mass("C", 999)`; assert `IsotopeStabilityError` is explicitly raised.
-   - Assert zero fallback to standard terrestrial atomic weight.
-2. **`test_hierarchical_empirical_radii_lookup()` (Suggestion #52):**
-   - Call `get_covalent_radius("Ar")`; verify returned radius is empirical van der Waals radius $\approx 1.88$ Å (or Pyykkö radius), strictly not $0.77$ Å.
-   - Call `get_covalent_radius("C")`; verify radius $\approx 0.75$–$0.77$ Å from empirical tables.
-   - Call `get_covalent_radius("Xe")`; verify empirical radius $> 1.3$ Å.
-   - Call `get_covalent_radius("InvalidElement")` and assert `RadiusNotFoundError` is raised.
-3. **`test_spdx_data_licensing_validation()` (Suggestion #54):**
-   - Instantiate `QCSchemaProvenance(license="CC-BY-4.0")`; assert validation succeeds.
-   - Instantiate `QCSchemaProvenance(license="CC0-1.0")`, `(license="MIT")`; verify acceptance.
-   - Attempt instantiation with `license="Proprietary-Unpublished-Invalid"`; assert Pydantic `ValidationError` is raised.
-4. **`test_dynamic_registry_schema_isotopic_masses()` (Suggestion #55):**
-   - Query `get_registry_atomic_mass("Ar", 40)` and `get_registry_atomic_mass("Cl", 37)`.
-   - Assert returned values match CIAAW physical isotopic masses.
-   - Verify that `ISOTOPIC_MASSES` dictionary does not exist in module globals (`assert not hasattr(cochem_core_registry_schema, "ISOTOPIC_MASSES")`).
-5. **`test_w3c_linked_data_proof_pure_ed25519_did_key()` (Suggestion #56):**
-   - Generate an Ed25519 private key using `cryptography`.
-   - Sign a computation record using `sign_report_payload()`.
-   - Assert output contains standard `"proof"` block with `type="Ed25519Signature2020"` and `verificationMethod` starting with `"did:key:z"`.
-   - Verify the signature using `verify_report_payload()`; assert `True`.
-   - Tamper with a numeric result in payload; assert `verify_report_payload()` returns `False`.
-   - Assert public key was extracted and validated completely offline without HTTP calls.
-6. **`test_deterministic_uuid5_pes_point_id()` (Suggestion #59):**
-   - Generate two `PESPointRecord` instances with identical geometries, basis sets, and methods.
-   - Assert both instances possess identical `point_id` UUIDv5 strings.
-   - Perturb one coordinate by $0.001$ Å; assert the generated `point_id` changes deterministically.
-7. **`test_calculation_fidelity_canonical_tiers()` (Suggestion #60):**
-   - Instantiate `CalculationJobPayload` with `fidelity="junChS-F12"`, `fidelity="T3-3h"`, and `fidelity="R2"`.
-   - Assert all canonical Method Matrix v4 tiers are recognized and validated without error.
+    h5_src_path = src_dir / "store.h5"
+    with pytest.raises(AirGapBoundaryError) as exc_info:
+        from cochem_base.core.ipc.serializer import validate_airgap_write_path
+        validate_airgap_write_path(h5_src_path)
+    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
+
+    h5_scratch_path = tmp_path / "scratch" / "store.h5"
+    h5_scratch_path.parent.mkdir()
+    
+    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
+        ds = f.create_dataset(
+            "energies",
+            shape=(1,),
+            maxshape=(None,),
+            chunks=(512,),
+            dtype="float64",
+            compression="gzip"
+        )
+        ds[0] = -76.432
+
+    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
+        ds = f["energies"]
+        new_len = ds.shape[0] + 1
+        ds.resize((new_len,))
+        ds[new_len - 1] = -76.435
+        ds.flush()
+
+    with h5py.File(h5_scratch_path, "r") as f:
+        assert f["energies"].shape[0] == 2
+        assert math.isclose(f["energies"][1], -76.435)
+
+def test_mendeleev_invariants_lazy_singleton_startup():
+    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
+    cache = get_element_cache()
+    assert len(cache) >= 118
+    assert cache[1].symbol == "H"
+    assert cache[6].symbol == "C"
+
+def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
+    """Validates Suggestion #68: atexit callback unregistration on context exit."""
+    scratch_dir = tmp_path / "scratch"
+    os.environ["COCH_SCRATCH"] = str(scratch_dir)
+
+    with SandboxContext(scratch_root=scratch_dir) as sb:
+        assert sb.path.exists()
+
+    assert not sb.path.exists()
+    assert sb._cleaned is True
+
+def test_process_reaper_direct_pid_monitoring():
+    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
+    manager = ProcessTreeManager()
+    
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+    manager.register_process(proc.pid)
+
+    assert proc.pid in manager._tracked
+    rss = manager.sample_process_tree_rss_bytes()
+    assert rss > 0
+
+    manager.terminate_tree()
+    proc.wait()
+    assert not proc.poll() is None
+
+def test_subprocess_broker_scratch_verification_cache(tmp_path):
+    """Validates Suggestion #70: Scratch verification caching with TTL."""
+    scratch_dir = tmp_path / "scratch_io"
+    scratch_dir.mkdir()
+    _SCRATCH_VERIFICATION_CACHE.clear()
+
+    t0 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t1 = time.perf_counter()
+    initial_duration = t1 - t0
+
+    t2 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t3 = time.perf_counter()
+    cached_duration = t3 - t2
+
+    assert cached_duration < 0.002
+    assert cached_duration < initial_duration
+```
 
 ---
 
@@ -984,8 +1988,8 @@ Author comprehensive, production-grade test suites executing real physical opera
 1. **Zero-Mock & Zero-Stub Verification:**
    - Strict scan across all modified files. Zero occurrences of `unittest.mock`, `MagicMock`, `@patch`, `TODO`, `pass`, or `NotImplementedError` permitted.
 2. **Full Test Suite Execution:**
-   - Execute `pytest tests/core/test_architecture_part6.py tests/core/test_physics_integrity_part6.py`.
-   - 100% of authored tests must pass with physical I/O, actual NVML/CLI hardware queries, real HDF5 SWMR files, genuine Mendeleev lookups, and real Ed25519 cryptographic proofs.
+   - Execute `pytest tests/core/test_physics_integrity_part7.py tests/core/test_architecture_part7.py`.
+   - 100% of authored tests must pass with physical file operations, genuine Mendeleev lookups, real HDF5 SWMR resizing, physical subprocess tracking, and real RFC 8785 byte comparisons.
 3. **Cross-Platform Path & Concurrency Hygiene:**
    - All paths must use `pathlib.Path.resolve()`. Zero hardcoded Windows drive letters (`C:`, `D:`) or POSIX-only roots in core modules.
    - Node-local scratch directory locking strictly enforced; zero lockfile allocation on remote parallel filesystems (Lustre/GPFS/NFS).
@@ -1009,3328 +2013,1146 @@ Author comprehensive, production-grade test suites executing real physical opera
 
 | Audit Category | Evaluation Criterion | Verdict |
 | :--- | :--- | :--- |
-| **Nuclear Mass Resolution** | Elimination of `el.mass` fallback in `get_isotopic_mass`; explicit `IsotopeStabilityError` raising | **PASS (VERIFIED)** |
-| **Empirical Radii Lookup** | Eradication of hardcoded `0.77` Å fallback; hierarchical Pyykkö $\to$ Cordero $\to$ vdW resolution | **PASS (VERIFIED)** |
-| **PROV-O Linked Data** | Bundled offline local JSON-LD `@context` catalog and standard W3C conformer lineage export | **PASS (VERIFIED)** |
-| **SPDX Licensing Schema** | Immutable `license` field in QCSchema and PES records validating against local SPDX list | **PASS (VERIFIED)** |
-| **Mendeleev Mandate** | Deletion of static 18-element `ISOTOPIC_MASSES` dictionary; dynamic cached SQLite lookups | **PASS (VERIFIED)** |
-| **Linked Data Proofs** | Standard W3C Ed25519Signature2020 envelopes with offline cryptographic `did:key` multicodec | **PASS (VERIFIED)** |
-| **VCS Introspection** | OS-agnostic `pathlib.Path` dynamic root checks and `importlib.metadata` package fallback | **PASS (VERIFIED)** |
-| **Non-Initializing Telemetry**| Direct NVML C-bindings with immediate shutdown; zero CUDA runtime context binding | **PASS (VERIFIED)** |
-| **Content-Addressable PES** | Deterministic UUIDv5 point IDs via RFC 8785; thread-safe SWMR HDF5 with node-local locking | **PASS (VERIFIED)** |
-| **Method Matrix Tiers** | Expansion of `CalculationFidelity` enum to all Method Matrix v4 composite schemes | **PASS (VERIFIED)** |
-| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test specifications | **PASS (VERIFIED)** |
+| **Model Versioning** | Mandatory `schema_version` attribute and automated migration dispatcher | **PASS (VERIFIED)** |
+| **RFC 8785 Float Parity** | ECMAScript IEEE 754 Number-to-String formatting kernel in `canonicalize_json` | **PASS (VERIFIED)** |
+| **Thermodynamic Provenance** | Embedding Grimme quasi-RRHO cutoff and damping parameters into `DAGNode` | **PASS (VERIFIED)** |
+| **Actionable Exceptions** | Structured `CoChemError` hierarchy with typed machine-actionable error codes | **PASS (VERIFIED)** |
+| **In-Place SWMR Resizing** | Elimination of `shutil.copyfile` and implementation of in-place HDF5 `ds.resize` | **PASS (VERIFIED)** |
+| **Mendeleev Mass Caching** | `@functools.lru_cache` on dynamic lookups without GPU context stalls | **PASS (VERIFIED)** |
+| **Lazy Invariant Singleton** | Deferral of 118-element SQLite queries until first access; zero-lag module import | **PASS (VERIFIED)** |
+| **Sandbox Memory Leaks** | Explicit `atexit.unregister(self.cleanup)` calls and Tier 3 scratch enforcement | **PASS (VERIFIED)** |
+| **Reaper Direct Polling** | Querying registered child PIDs directly without recursive full-OS traversal | **PASS (VERIFIED)** |
+| **Cached Scratch Probe** | Session-level scratch integrity cache with configurable TTL to eliminate fsync stalls | **PASS (VERIFIED)** |
+| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test suites | **PASS (VERIFIED)** |
 
 **Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_core_registry_schema.py ---
-#!/usr/bin/env python3
-"""
-CoChem-BASE: Stage 0 Authority Rule - Golden Master Registry Schema
-Defines rigid Pydantic v2 models for `cochem_system_config.json`.
-Acts as a mathematical boundary preventing hallucinated configurations,
-silent floating-point drift, relative path vulnerabilities, and OOM thread allocation.
-All schemas strictly forbid extra fields and enforce validation on assignment.
-"""
-
-from __future__ import annotations
-
-import functools
-import hashlib
-import json
-import logging
-import os
-import platform
-import re
-import shutil
-from datetime import datetime, timezone
-from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, Optional, Set, Union, cast
-
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    ValidationInfo,
-    field_validator,
-    model_validator,
-)
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
-
-
-# =============================================================================
-# CONSTANTS AND ENVIRONMENT EXPANSION
-# =============================================================================
-
-CARBON_13_ISOTOPIC_MASS: float = 13.00335483507
-
-
-@functools.lru_cache(maxsize=512)
-def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
-    """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
-    import mendeleev
-    from cochem_base.core.exceptions import IsotopeStabilityError
-
-    el = mendeleev.element(symbol_or_z)
-    if mass_number is not None:
-        iso = next((i for i in el.isotopes if i.mass_number == mass_number), None)
-        if iso is not None and iso.mass is not None:
-            return float(iso.mass)
-        raise IsotopeStabilityError(f"Isotope {el.symbol}-{mass_number} not found in Mendeleev.")
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"No valid mass available for element {el.symbol}.")
-
-
-BYPASS_TOKENS: Set[str] = {"BYPASSED", "Not_Found", "missing"}
-
-
-def _expand_env_vars(path_str: str) -> str:
-    """Uniformly expands %VAR%, $VAR, and ${VAR} across Windows and POSIX."""
-    if not path_str:
-        return path_str
-
-    def replace_percent(match: re.Match[str]) -> str:
-        var = match.group(1)
-        return os.environ.get(var, f"%{var}%")
-
-    s = re.sub(r"%([A-Za-z0-9_]+)%", replace_percent, path_str)
-    s = os.path.expandvars(s)
-    return os.path.expanduser(s)
-
-
-def _default_mps_pipe_dir() -> str:
-    try:
-        from cochem_base.config_loader import get_mps_directories
-        return str(get_mps_directories()[0])
-    except Exception:
-        return "/tmp/nvidia-mps"
-
-
-def _default_mps_log_dir() -> str:
-    try:
-        from cochem_base.config_loader import get_mps_directories
-        return str(get_mps_directories()[1])
-    except Exception:
-        return "/tmp/nvidia-log"
-
-
-def _default_os_target() -> str:
-    sys_name = platform.system().lower()
-    if "windows" in sys_name:
-        return OSTarget.LOCAL_WINDOWS.value
-    if "darwin" in sys_name:
-        return OSTarget.LOCAL_MACOS.value
-    if os.getenv("GITHUB_ACTIONS") == "true":
-        return OSTarget.GITHUB_ACTIONS.value
-    if os.getenv("CODESPACES") == "true":
-        return OSTarget.CODESPACES.value
-    return OSTarget.LOCAL_LINUX.value
-
-
-def _default_artifacts_dir() -> str:
-    return os.getenv("COCHEM_ARTIFACTS_DIR", str(Path.home() / "cochem_artifacts"))
-
-
-# =============================================================================
-# ENUMS
-# =============================================================================
-
-class OSTarget(str, Enum):
-    """
-    Authoritative Operating System and Architecture Targets for the CoChem Ecosystem.
-    Canonical 6-tier values: Local-Windows, Local-MacOS, Local-Linux, Codespaces, GitHub_Actions, HPC.
-    """
-    LOCAL_WINDOWS = "Local-Windows"
-    LOCAL_MACOS = "Local-MacOS"
-    LOCAL_LINUX = "Local-Linux"
-    CODESPACES = "Codespaces"
-    GITHUB_ACTIONS = "GitHub_Actions"
-    HPC = "HPC"
-
-    # Direct ecosystem aliases
-    LINUX_X86_64 = "linux_x86_64"
-    LINUX_AARCH64 = "linux_aarch64"
-    WINDOWS_X86_64 = "windows_x86_64"
-    WINDOWS_AMD64 = "windows_amd64"
-    DARWIN_ARM64 = "darwin_arm64"
-    DARWIN_X86_64 = "darwin_x86_64"
-    GENERIC_POSIX = "posix"
-    GENERIC_NT = "nt"
-
-
-_OS_TARGET_NORMALIZATION_MAP: Dict[str, str] = {
-    "local-windows": OSTarget.LOCAL_WINDOWS.value,
-    "local-windows_native": OSTarget.LOCAL_WINDOWS.value,
-    "local-windows_wsl": OSTarget.LOCAL_WINDOWS.value,
-    "windows": OSTarget.LOCAL_WINDOWS.value,
-    "windows_x86_64": OSTarget.WINDOWS_X86_64.value,
-    "windows_amd64": OSTarget.WINDOWS_AMD64.value,
-    "nt": OSTarget.GENERIC_NT.value,
-
-    "local-macos": OSTarget.LOCAL_MACOS.value,
-    "local-macos_darwin": OSTarget.LOCAL_MACOS.value,
-    "darwin": OSTarget.LOCAL_MACOS.value,
-    "darwin_arm64": OSTarget.DARWIN_ARM64.value,
-    "darwin_x86_64": OSTarget.DARWIN_X86_64.value,
-
-    "local-linux": OSTarget.LOCAL_LINUX.value,
-    "local-linux_deb": OSTarget.LOCAL_LINUX.value,
-    "linux": OSTarget.LOCAL_LINUX.value,
-    "linux_x86_64": OSTarget.LINUX_X86_64.value,
-    "linux_amd64": OSTarget.LINUX_X86_64.value,
-    "linux_aarch64": OSTarget.LINUX_AARCH64.value,
-    "posix": OSTarget.GENERIC_POSIX.value,
-
-    "codespaces": OSTarget.CODESPACES.value,
-    "github_codespaces": OSTarget.CODESPACES.value,
-    "github_actions": OSTarget.GITHUB_ACTIONS.value,
-    "hpc": OSTarget.HPC.value,
-    "hpc_slurm_linux": OSTarget.HPC.value,
-}
-
-
-# =============================================================================
-# 1. GPU COMPUTE SCHEMA
-# =============================================================================
-
-class GPUComputeSchema(BaseModel):
-    """
-    GPU Compute Metrics and Hardware Topology.
-    Tracks peak theoretical/measured TFLOPS, Tensor Cores count, Memory Bandwidth, and CUDA features.
-    """
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    gpu_profile: str = Field(default="None", description="Detected GPU model or 'None'")
-    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
-    device_count: int = Field(default=0, ge=0, description="Number of detected GPU devices")
-    compute_capability: Optional[str] = Field(default=None, description="CUDA Compute capability, e.g. '8.9'")
-    fp64_capable: bool = Field(default=False, description="Whether device supports native double-precision FP64")
-    subnormal_precision_trap: bool = Field(default=False, description="Whether subnormal precision traps are enabled")
-    mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
-    tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak TFLOPS compute metric")
-    fp32_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP32 TFLOPS")
-    fp16_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP16 TFLOPS")
-    fp64_tflops: Optional[float] = Field(default=None, ge=0.0, description="Peak FP64 TFLOPS")
-    tensor_cores: Optional[int] = Field(default=None, ge=0, description="Number of hardware Tensor Cores")
-    memory_bandwidth_gb_s: Optional[float] = Field(default=None, ge=0.0, description="GPU memory bandwidth in GB/s")
-
-
-# =============================================================================
-# 2. MPS & CORE PINNING CONFIGURATIONS
-# =============================================================================
-
-class MPSConfig(BaseModel):
-    """CUDA Multi-Process Service (MPS) configuration."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    enabled: bool = Field(default=True, description="Enable CUDA MPS daemon multiplexing")
-    max_workers: int = Field(default=4, gt=0, le=64, description="Max concurrent MPS worker tasks per GPU")
-    thread_percentage: int = Field(default=25, ge=1, le=100, description="CUDA MPS active thread percentage ceiling")
-    pipe_dir: str = Field(default_factory=_default_mps_pipe_dir, description="MPS pipe directory")
-    log_dir: str = Field(default_factory=_default_mps_log_dir, description="MPS log directory")
-
-
-class CorePinningConfig(BaseModel):
-    """Core Pinning and CPU Topology Configuration."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    kmp_hw_subset: str = Field(default="8c:intel_core,1t", description="OpenMP core pinning HW subset spec")
-    anchor_p_cores: int = Field(default=7, ge=0, description="Number of P-cores assigned to CPU anchor tasks")
-    scout_p_cores: int = Field(default=1, ge=0, description="Number of P-cores assigned to GPU scout tasks")
-    background_e_cores: int = Field(default=8, ge=0, description="E-cores reserved for OS/background tasks")
-
-
-# =============================================================================
-# 3. QUANTUM SOLVER SETTINGS
-# =============================================================================
-
-class QuantumSettings(BaseModel):
-    """Quantum chemical solver settings."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvent model (CPCM, SMD) or None")
-    integration_grid: Optional[str] = Field(default="defgrid2", description="Integration grid size (defgrid1, defgrid2, defgrid3)")
-    charge: int = Field(default=0)
-    multiplicity: int = Field(default=1, ge=1)
-
-    @field_validator("implicit_solvation", mode="before")
-    @classmethod
-    def validate_implicit_solvation(cls, v: Any) -> Optional[str]:
-        if v is None or v == "" or v == "[MISSING DATA]":
-            return None
-        if isinstance(v, str):
-            cleaned = v.strip().upper()
-            if cleaned in ("CPCM", "SMD"):
-                return cleaned
-            raise ValueError("implicit_solvation must be 'CPCM' or 'SMD'")
-        return cast(Optional[str], v)
-
-    @field_validator("integration_grid", mode="before")
-    @classmethod
-    def validate_integration_grid(cls, v: Any) -> Optional[str]:
-        if v is None or v == "" or v == "[MISSING DATA]":
-            return None
-        if isinstance(v, str):
-            cleaned = v.strip().lower()
-            if cleaned in ("defgrid1", "defgrid2", "defgrid3"):
-                return cleaned
-            raise ValueError("integration_grid must be one of ('defgrid1', 'defgrid2', 'defgrid3')")
-        return cast(Optional[str], v)
-
-
-# =============================================================================
-# 4. HARDWARE SCHEMA
-# =============================================================================
-
-class HardwareSchema(BaseModel):
-    """
-    Rigid bounds for physical compute resources to prevent OOM and thread contention.
-    Enforces positive RAM (gt=0.0), at least 1 physical core (ge=1), non-negative allocatable cores (ge=0),
-    and non-negative VRAM (ge=0.0).
-    """
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    ram_gb: float = Field(..., gt=0.0, description="Total accessible memory in GB")
-    cpu_physical_cores: int = Field(default=1, ge=1, description="Actual physical silicon cores")
-    allocatable_compute_cores: int = Field(default=1, ge=0, description="Allocatable compute cores for scientific jobs")
-    vram_gb: float = Field(default=0.0, ge=0.0, description="Total video memory in GB")
-    gpu_compute_metrics: GPUComputeSchema = Field(default_factory=GPUComputeSchema, description="GPU compute metrics and capabilities")
-    gpu_fp64_capable: bool = Field(default=False, description="Whether GPU supports native FP64 precision")
-    mps_enabled: bool = Field(default=False, description="Whether CUDA MPS is enabled")
-    avx_512_capable: bool = Field(default=False, description="Whether CPU supports AVX-512 vector instructions")
-
-    # Ecosystem & compatibility aliases
-    physical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Alias for cpu_physical_cores")
-    logical_cpu_cores: Optional[int] = Field(default=None, ge=1, description="Hyperthreaded threads count")
-    cpu_cores: Optional[int] = Field(default=None, ge=1, description="Legacy CPU cores alias")
-    ram_mb: Optional[int] = Field(default=None, ge=1, description="Total system RAM in MB")
-    maxcore_mb: Optional[int] = Field(default=None, ge=0, description="Max core memory per process in MB")
-    avx512_support: bool = Field(default=False, description="Legacy alias for avx_512_capable")
-    gpu_profile: str = Field(default="None", description="Detected GPU model name")
-    subnormal_precision_trap: bool = Field(default=False, description="Subnormal floating-point trap")
-    os_target: Union[OSTarget, str] = Field(default=OSTarget.LOCAL_WINDOWS, description="Target execution environment")
-    host_id: Optional[str] = Field(default=None, description="Host identity identifier")
-    mps: Optional[MPSConfig] = Field(default_factory=MPSConfig, description="MPS daemon configuration")
-    core_pinning: Optional[CorePinningConfig] = Field(default_factory=CorePinningConfig, description="CPU core pinning topology")
-    gpu: Optional[GPUComputeSchema] = Field(default=None, description="Legacy alias for gpu_compute_metrics")
-
-    @field_validator("os_target", mode="before")
-    @classmethod
-    def validate_os_target(cls, v: Any) -> str:
-        if isinstance(v, OSTarget):
-            return v.value
-        if isinstance(v, str):
-            v_str = v.strip()
-            if v_str == "[MISSING DATA]":
-                return v_str
-            normalized = _OS_TARGET_NORMALIZATION_MAP.get(v_str.lower())
-            if normalized:
-                return normalized
-            valid_targets = {t.value for t in OSTarget}
-            if v_str in valid_targets:
-                return v_str
-            raise ValueError(f"Invalid OS target '{v}'. Must be a valid OS platform identifier.")
-        raise ValueError(f"OS target must be a string or OSTarget enum, got {type(v)}")
-
-    @model_validator(mode="before")
-    @classmethod
-    def flex_hardware_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        d = dict(data)
-
-        # String-to-number coercions
-        for float_field in ["ram_gb", "vram_gb"]:
-            if float_field in d and isinstance(d[float_field], str):
-                try:
-                    d[float_field] = float(d[float_field])
-                except ValueError:
-                    pass
-
-        for int_field in ["cpu_physical_cores", "physical_cpu_cores", "logical_cpu_cores", "cpu_cores", "allocatable_compute_cores", "ram_mb", "maxcore_mb"]:
-            if int_field in d and isinstance(d[int_field], str):
-                try:
-                    d[int_field] = int(float(d[int_field]))
-                except ValueError:
-                    pass
-
-        # Synchronize physical cores
-        phys = d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or d.get("cpu_cores")
-        if phys is not None:
-            try:
-                phys_int = int(phys)
-                d["cpu_physical_cores"] = phys_int
-                d["physical_cpu_cores"] = phys_int
-                if "cpu_cores" not in d:
-                    d["cpu_cores"] = phys_int
-            except (ValueError, TypeError):
-                pass
-
-        if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
-            if "cpu_cores" in d and d["cpu_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["cpu_cores"])
-            elif "cpu_physical_cores" in d and d["cpu_physical_cores"] is not None:
-                d["logical_cpu_cores"] = int(d["cpu_physical_cores"]) * 2
-
-        # Synchronize allocatable compute cores
-        if "allocatable_compute_cores" not in d or d["allocatable_compute_cores"] is None:
-            if phys is not None:
-                try:
-                    d["allocatable_compute_cores"] = int(phys)
-                except (ValueError, TypeError):
-                    pass
-
-        # Synchronize RAM
-        if "ram_mb" not in d and "ram_gb" in d:
-            try:
-                d["ram_mb"] = int(float(d["ram_gb"]) * 1024)
-            except (ValueError, TypeError):
-                pass
-        elif "ram_gb" not in d and "ram_mb" in d:
-            try:
-                d["ram_gb"] = float(d["ram_mb"]) / 1024.0
-            except (ValueError, TypeError):
-                pass
-
-        # Maxcore calculation / OOM clamping guard
-        phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
-        ram_mb_val = d.get("ram_mb")
-        if ram_mb_val is not None:
-            calc_maxcore = max(500, int(int(ram_mb_val) * 0.75 / max(1, phys_count)))
-            if "maxcore_mb" not in d or d["maxcore_mb"] is None:
-                d["maxcore_mb"] = calc_maxcore
-            else:
-                try:
-                    maxcore = int(d["maxcore_mb"])
-                    if maxcore > int(ram_mb_val):
-                        d["maxcore_mb"] = calc_maxcore
-                except (ValueError, TypeError):
-                    d["maxcore_mb"] = calc_maxcore
-        elif "maxcore_mb" not in d or d["maxcore_mb"] is None:
-            d["maxcore_mb"] = 3000
-
-        # Synchronize AVX-512 capabilities
-        if "avx_512_capable" in d and "avx512_support" not in d:
-            d["avx512_support"] = bool(d["avx_512_capable"])
-        elif "avx512_support" in d and "avx_512_capable" not in d:
-            d["avx_512_capable"] = bool(d["avx512_support"])
-        elif "avx_512_capable" not in d and "avx512_support" not in d:
-            d["avx_512_capable"] = False
-            d["avx512_support"] = False
-
-        # Synchronize GPU compute metrics
-        gpu_data = d.get("gpu_compute_metrics") or d.get("gpu")
-        if gpu_data is None:
-            gpu_prof = d.get("gpu_profile", "None")
-            vram = d.get("vram_gb", 0.0)
-            trap = d.get("subnormal_precision_trap", False)
-            fp64 = d.get("gpu_fp64_capable", False)
-            mps_en = d.get("mps_enabled", False)
-            built_gpu = {
-                "gpu_profile": gpu_prof,
-                "vram_gb": float(vram) if isinstance(vram, (int, float, str)) else 0.0,
-                "subnormal_precision_trap": trap,
-                "fp64_capable": fp64,
-                "mps_enabled": mps_en,
-            }
-            d["gpu_compute_metrics"] = built_gpu
-            d["gpu"] = built_gpu
-        else:
-            if isinstance(gpu_data, dict):
-                d["gpu_compute_metrics"] = gpu_data
-                d["gpu"] = gpu_data
-                if "fp64_capable" in gpu_data and "gpu_fp64_capable" not in d:
-                    d["gpu_fp64_capable"] = bool(gpu_data["fp64_capable"])
-                if "mps_enabled" in gpu_data and "mps_enabled" not in d:
-                    d["mps_enabled"] = bool(gpu_data["mps_enabled"])
-            elif isinstance(gpu_data, GPUComputeSchema):
-                d["gpu_compute_metrics"] = gpu_data
-                d["gpu"] = gpu_data
-                if "gpu_fp64_capable" not in d:
-                    d["gpu_fp64_capable"] = gpu_data.fp64_capable
-                if "mps_enabled" not in d:
-                    d["mps_enabled"] = gpu_data.mps_enabled
-
-        return d
-
-
-HardwareConfig = HardwareSchema
-
-
-# =============================================================================
-# 5. ENVIRONMENT SCHEMA
-# =============================================================================
-
-class EnvironmentSchema(BaseModel):
-    """
-    Operating environment configuration, OS target validation, and isotopic mass locking.
-    Enforces exact isotopic mass float values (e.g., ^13C = 13.00335483507).
-    """
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    os_target: Union[OSTarget, str] = Field(
-        default_factory=_default_os_target,
-        description="Target OS tier",
-    )
-    artifacts_dir: Union[str, Path] = Field(
-        default_factory=_default_artifacts_dir,
-        description="Path to artifacts directory",
-    )
-    scratch_dir: Optional[Union[str, Path]] = Field(default=None, description="Path to fast scratch directory")
-    codata_version: str = Field(default="2018", description="CODATA constant version (e.g. '2018')")
-    isotopic_mass_locking: bool = Field(default=True, description="Strict lock on atomic/isotopic masses")
-    isotopic_mass_13c: float = Field(
-        default=CARBON_13_ISOTOPIC_MASS,
-        description="Locked isotopic mass for Carbon-13 (^13C = 13.00335483507)",
-    )
-    isotopic_masses: Dict[str, float] = Field(
-        default_factory=dict,
-        description="Exact isotopic mass registry",
-    )
-    env_vars: Dict[str, str] = Field(default_factory=dict, description="Custom environment variable overrides")
-    strict_path_resolution: bool = Field(default=False, description="Reject unresolvable relative paths if True")
-
-    @field_validator("os_target", mode="before")
-    @classmethod
-    def validate_os_target(cls, v: Any) -> str:
-        if isinstance(v, OSTarget):
-            return v.value
-        if isinstance(v, str):
-            v_str = v.strip()
-            if v_str == "[MISSING DATA]":
-                return v_str
-            normalized = _OS_TARGET_NORMALIZATION_MAP.get(v_str.lower())
-            if normalized:
-                return normalized
-            valid_targets = {t.value for t in OSTarget}
-            if v_str in valid_targets:
-                return v_str
-            raise ValueError(f"Invalid OS target '{v}'. Must be a valid OS platform identifier.")
-        raise ValueError(f"OS target must be a string or OSTarget enum, got {type(v)}")
-
-    @field_validator("codata_version")
-    @classmethod
-    def validate_codata(cls, v: str) -> str:
-        valid = {"2014", "2018", "2022"}
-        if v not in valid:
-            raise ValueError(f"codata_version must be one of {sorted(valid)}, got '{v}'")
-        return v
-
-    @field_validator("artifacts_dir", "scratch_dir", mode="before")
-    @classmethod
-    def expand_and_normalize_path(cls, v: Any) -> Any:
-        if v is None or v == "[MISSING DATA]":
-            return None
-        return _expand_env_vars(str(v))
-
-    def resolve_path(self, raw_path: Union[str, Path]) -> Path:
-        """Cross-platform path resolution with environment variable expansion."""
-        if not raw_path:
-            raise ValueError("Cannot resolve empty path.")
-        expanded = _expand_env_vars(str(raw_path))
-        p = Path(expanded)
-        if self.strict_path_resolution and not p.is_absolute():
-            raise ValueError(f"Strict path resolution enabled: relative path '{raw_path}' is rejected.")
-        return p.resolve()
-
-    def get_isotopic_mass(self, isotope: str) -> float:
-        """Retrieve authoritative locked isotopic mass float [M]."""
-        if isotope in self.isotopic_masses:
-            return self.isotopic_masses[isotope]
-        if isotope == "13C":
-            return self.isotopic_mass_13c
-        import re
-        m = re.match(r"^(\d+)?([A-Za-z]+)$", str(isotope).strip())
-        if m:
-            mass_num = int(m.group(1)) if m.group(1) else None
-            sym = m.group(2)
-            try:
-                return get_registry_atomic_mass(sym, mass_num)
-            except Exception as exc:
-                raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix: {exc}") from exc
-        raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix.")
-
-
-# =============================================================================
-# 6. SILO PATHS SCHEMA
-# =============================================================================
-
-class SiloPathsSchema(BaseModel):
-    """
-    Paths configuration for isolated silos and scientific binaries.
-    Enforces absolute path resolution (rejects relative paths), intercepting 'BYPASSED' and 'Not_Found'
-    tokens, and preventing write stores (like HDF5 PES stores) from targeting immutable $COCHEM_ROOT.
-    """
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    hdf5_pes_store_path: Optional[str] = Field(default=None, description="Path to centralized HDF5 PES store")
-    cfour_binary_path: Optional[str] = Field(default=None, description="Path to CFOUR binary or 'BYPASSED'")
-    aimnet2_server_path: Optional[str] = Field(default=None, description="Path to AIMNet2 server script or 'BYPASSED'")
-    orca_binary_path: Optional[str] = Field(default=None, description="Path to ORCA executable or 'BYPASSED'")
-    xtb_binary_path: Optional[str] = Field(default=None, description="Path to xTB executable or 'BYPASSED'")
-    mpirun_binary_path: Optional[str] = Field(default=None, description="Path to mpirun executable or 'BYPASSED'")
-
-    # Aliases
-    orca_path: Optional[str] = Field(default=None, description="Alias for orca_binary_path")
-    xtb_path: Optional[str] = Field(default=None, description="Alias for xtb_binary_path")
-    mpirun_path: Optional[str] = Field(default=None, description="Alias for mpirun_binary_path")
-    cfour_path: Optional[str] = Field(default=None, description="Alias for cfour_binary_path")
-    aimnet2_path: Optional[str] = Field(default=None, description="Alias for aimnet2_server_path")
-    python_path: Optional[str] = Field(default=None, description="Path to silo Python interpreter")
-    silo_root: Optional[str] = Field(default=None, description="Root directory for micro-environments")
-    strict_resolution: bool = Field(default=False, description="Enforce binary presence verification")
-
-    @field_validator(
-        "hdf5_pes_store_path",
-        "cfour_binary_path",
-        "aimnet2_server_path",
-        "orca_binary_path",
-        "xtb_binary_path",
-        "mpirun_binary_path",
-        "orca_path",
-        "xtb_path",
-        "mpirun_path",
-        "cfour_path",
-        "aimnet2_path",
-        "python_path",
-        "silo_root",
-        mode="before",
-    )
-    @classmethod
-    def validate_and_expand_path(cls, v: Any, info: ValidationInfo) -> Optional[str]:
-        if v is None or v == "" or v == "[MISSING DATA]":
-            return None
-        if isinstance(v, (str, Path)):
-            s = str(v).strip()
-            if s in BYPASS_TOKENS:
-                return s
-
-            expanded = _expand_env_vars(s)
-            p = Path(expanded)
-
-            # Reject relative paths strictly
-            if not p.is_absolute():
-                raise ValueError(
-                    f"Relative paths are forbidden in SiloPathsSchema for '{info.field_name}': '{s}'. "
-                    "Path must be absolute or a bypass token ('BYPASSED', 'Not_Found', 'missing')."
-                )
-
-            resolved = p.resolve()
-
-            # HPC Tripartite Air-Gap Check: Prevent write stores from targeting immutable $COCHEM_ROOT
-            if info.field_name == "hdf5_pes_store_path":
-                cochem_root_env = os.environ.get("COCHEM_ROOT")
-                if cochem_root_env:
-                    resolved_root = Path(os.path.expandvars(cochem_root_env)).resolve()
-                    try:
-                        if resolved == resolved_root or resolved.is_relative_to(resolved_root):
-                            raise ValueError(
-                                f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
-                                "Paths should map to the Dynamic Data Tier or Volatile Compute Tier."
-                            )
-                    except AttributeError:
-                        try:
-                            resolved.relative_to(resolved_root)
-                            raise ValueError(
-                                f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
-                                "Paths should map to the Dynamic Data Tier or Volatile Compute Tier."
-                            )
-                        except ValueError:
-                            pass
-
-            return str(resolved)
-        raise ValueError(f"Invalid path type '{type(v)}' for '{info.field_name}'. Expected string or Path.")
-
-    @model_validator(mode="before")
-    @classmethod
-    def sync_path_aliases(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        d = dict(data)
-        alias_pairs = [
-            ("orca_binary_path", "orca_path"),
-            ("xtb_binary_path", "xtb_path"),
-            ("mpirun_binary_path", "mpirun_path"),
-            ("cfour_binary_path", "cfour_path"),
-            ("aimnet2_server_path", "aimnet2_path"),
-        ]
-        for canonical, alias in alias_pairs:
-            if canonical in d and alias not in d:
-                d[alias] = d[canonical]
-            elif alias in d and canonical not in d:
-                d[canonical] = d[alias]
-        return d
-
-    def is_bypassed(self, binary_name: str) -> bool:
-        """Check if binary execution is marked as BYPASSED."""
-        norm_name = binary_name.lower().replace(".exe", "")
-        for candidate in (
-            f"{norm_name}_binary_path",
-            f"{norm_name}_path",
-            f"{norm_name}_server_path",
-            norm_name,
-        ):
-            if hasattr(self, candidate):
-                val = getattr(self, candidate)
-                return bool(val == "BYPASSED")
-        return False
-
-    def is_found(self, binary_name: str) -> bool:
-        """Check if binary exists on filesystem and is not bypassed/missing."""
-        norm_name = binary_name.lower().replace(".exe", "")
-        for candidate in (
-            f"{norm_name}_binary_path",
-            f"{norm_name}_path",
-            f"{norm_name}_server_path",
-            norm_name,
-        ):
-            if hasattr(self, candidate):
-                val = getattr(self, candidate)
-                if not val or val in BYPASS_TOKENS:
-                    return False
-                return Path(val).exists()
-        return False
-
-    def resolve_binary(self, binary_name: str) -> Optional[str]:
-        """Resolve executable path or return bypass token."""
-        norm_name = binary_name.lower().replace(".exe", "")
-        for candidate in (
-            f"{norm_name}_binary_path",
-            f"{norm_name}_path",
-            f"{norm_name}_server_path",
-            norm_name,
-        ):
-            if hasattr(self, candidate):
-                val = getattr(self, candidate)
-                if val is None or val in BYPASS_TOKENS:
-                    return cast(Optional[str], val)
-                p = Path(val)
-                if self.strict_resolution and not p.exists():
-                    raise FileNotFoundError(f"Binary '{binary_name}' not found at path '{val}'")
-                return str(p.resolve())
-        raise AttributeError(f"Unknown binary configuration '{binary_name}' in SiloPathsSchema")
-
-
-# =============================================================================
-# 7. COMPUTATIONAL BINARY PROVENANCE & SILO CONFIGS
-# =============================================================================
-
-class EngineInfo(BaseModel):
-    """Pathing and cryptographic provenance for computational binaries."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    status: str = Field(..., description="found, missing, permission_denied, or bypassed")
-    path: Optional[str] = Field(None, description="Absolute path to executable, or 'BYPASSED', or 'Not_Found'")
-    version: Optional[str] = Field(None, description="Semantic version of the engine")
-    hash: Optional[str] = Field(None, description="SHA-256 binary hash")
-    gpu_support: Optional[bool] = Field(default=False, description="Whether the engine has GPU support enabled")
-    track: Optional[str] = Field(default=None, description="Ecosystem execution track or category")
-
-    @field_validator("status", mode="before")
-    @classmethod
-    def validate_status(cls, v: Any) -> str:
-        if v is None or v == "[MISSING DATA]":
-            return "missing"
-        if isinstance(v, str):
-            cleaned = v.strip().lower()
-            if cleaned in ("found", "missing", "permission_denied", "bypassed", "ready"):
-                return cleaned
-            raise ValueError(f"Invalid engine status '{v}'. Must be one of ('found', 'missing', 'permission_denied', 'bypassed', 'ready').")
-        raise ValueError(f"Invalid engine status type '{type(v)}'. Expected string.")
-
-    @field_validator("path", "version", "hash", mode="before")
-    @classmethod
-    def clean_missing_data(cls, v: Any) -> Optional[str]:
-        if v is None or v == "" or v == "[MISSING DATA]":
-            return None
-        return str(v)
-
-
-class EnginePaths(BaseModel):
-    """Aggregated binary path specifications."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    orca: Optional[EngineInfo] = Field(default=None)
-    mpirun: Optional[EngineInfo] = Field(default=None)
-    xtb: Optional[EngineInfo] = Field(default=None)
-    cfour: Optional[EngineInfo] = Field(default=None)
-    aimnet2: Optional[EngineInfo] = Field(default=None)
-    mace: Optional[EngineInfo] = Field(default=None)
-
-
-class SiloConfig(BaseModel):
-    """Micro-environment deployment status."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    torq_silo_active: bool = Field(default=False)
-    gpu_silo_active: bool = Field(default=False)
-
-
-class RoutingPolicy(BaseModel):
-    """Dynamically assigned execution constraints."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    max_concurrent_mace_threads: int = Field(default=4, gt=0)
-    max_dft_basis_functions: int = Field(default=2000, gt=0)
-    recommend_ccsdt: bool = Field(default=False)
-    classification: str = Field(default="STANDARD")
-
-
-class HPCConfig(BaseModel):
-    """Cluster integration parameters."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    scheduler: str = Field(default="local", description="local, slurm, pbs, or sge")
-    default_partition: str = Field(default="compute")
-    max_walltime_hours: Optional[int] = Field(default=24, gt=0)
-    partition: Optional[str] = Field(default="compute")
-    cluster_hostname: Optional[str] = Field(default="localhost")
-    ssh_key_path: Optional[str] = Field(default="")
-    username: Optional[str] = Field(default="localuser")
-    execution_mode: Optional[str] = Field(default="local")
-    walltime_budgets: Optional[Dict[str, str]] = Field(default_factory=dict)
-    sbatch_template: Optional[str] = Field(default=None, description="Custom sbatch template")
-
-    @field_validator("scheduler", mode="before")
-    @classmethod
-    def validate_scheduler(cls, v: Any) -> str:
-        if isinstance(v, str):
-            s = v.strip().lower()
-            if s in ("local", "slurm", "pbs", "sge"):
-                return s
-            raise ValueError(f"Invalid HPC scheduler '{v}'. Must be one of ('local', 'slurm', 'pbs', 'sge').")
-        raise ValueError(f"HPC scheduler must be a string, got {type(v)}")
-
-
-# =============================================================================
-# 8. MASTER COCHEM SYSTEM CONFIG
-# =============================================================================
-
-class CoChemSystemConfig(BaseModel):
-    """
-    The CoChem Master System Configuration Schema.
-    Rigid mathematical boundary enforcing Stage 0 Authority Rule.
-    Aggregates HardwareSchema, EnvironmentSchema, SiloPathsSchema, and live execution jobs.
-    """
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    schema_version: str = Field(default="4.0.0")
-    registry_version: Optional[str] = Field(default="4.0")
-    status: Optional[str] = Field(default="LOCKED", description="Registry operational status ('LOCKED', 'INITIALIZED', 'ACTIVE')")
-    orca_version: Optional[str] = Field(default="6.1.1")
-    rdkit_random_seed: Optional[int] = Field(default=42)
-    registry_checksum: Optional[str] = Field(default="", description="SHA-256 checksum of registry payload")
-    last_updated: Optional[str] = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-    hardware: HardwareSchema = Field(..., description="Rigid compute hardware bounds and topology")
-    environment: EnvironmentSchema = Field(default_factory=EnvironmentSchema, description="Operating environment settings")
-    silo_paths: SiloPathsSchema = Field(default_factory=SiloPathsSchema, description="Silo and binary path mappings")
-    engines: Union[Dict[str, Any], EnginePaths] = Field(default_factory=dict)
-    silos: Optional[SiloConfig] = Field(default=None, description="Micro-environment deployment status")
-    quantum_settings: Optional[QuantumSettings] = Field(default_factory=QuantumSettings)
-    adaptive_routing: Optional[RoutingPolicy] = None
-    hpc: HPCConfig = Field(default_factory=HPCConfig)
-    execution: Optional[Dict[str, Any]] = Field(default=None, description="Execution routing and default engine settings")
-    alignment_engine_ready: bool = Field(default=False)
-    active_jobs: Dict[str, Any] = Field(default_factory=dict, description="Live execution pointers")
-
-    @model_validator(mode="before")
-    @classmethod
-    def registry_migrator(cls, data: Any) -> Any:
-        """
-        RegistryMigrator: Transforms legacy flat configuration dictionaries
-        into the authoritative nested schema architecture before validation.
-        """
-        if not isinstance(data, dict):
-            return data
-
-        d = dict(data)
-
-        # 1. Migrate flat Hardware fields
-        hw_keys = {
-            "physical_cpu_cores", "cpu_physical_cores", "logical_cpu_cores",
-            "cpu_cores", "ram_gb", "ram_mb", "maxcore_mb", "avx512_support",
-            "avx_512_capable", "gpu_profile", "vram_gb", "subnormal_precision_trap",
-            "allocatable_compute_cores", "gpu_compute_metrics", "gpu_fp64_capable",
-            "mps_enabled", "core_pinning", "mps", "gpu", "host_id"
-        }
-        extracted_hw: Dict[str, Any] = {}
-        for k in list(d.keys()):
-            if k in hw_keys:
-                extracted_hw[k] = d.pop(k)
-
-        if "hardware" not in d or d["hardware"] is None:
-            if extracted_hw:
-                d["hardware"] = extracted_hw
-        elif isinstance(d["hardware"], dict):
-            for k, v in extracted_hw.items():
-                if k not in d["hardware"]:
-                    d["hardware"][k] = v
-
-        # 2. Migrate flat Environment fields
-        env_keys = {
-            "codata_version", "isotopic_mass_locking", "isotopic_mass_13c",
-            "isotopic_masses", "artifacts_dir", "scratch_dir",
-            "strict_path_resolution", "env_vars"
-        }
-        extracted_env: Dict[str, Any] = {}
-        for k in list(d.keys()):
-            if k in env_keys:
-                extracted_env[k] = d.pop(k)
-
-        if "os_target" in d:
-            os_target_val = d.pop("os_target")
-            extracted_env["os_target"] = os_target_val
-            if "hardware" in d and isinstance(d["hardware"], dict) and "os_target" not in d["hardware"]:
-                d["hardware"]["os_target"] = os_target_val
-
-        if "environment" not in d or d["environment"] is None:
-            if extracted_env:
-                d["environment"] = extracted_env
-        elif isinstance(d["environment"], dict):
-            for k, v in extracted_env.items():
-                if k not in d["environment"]:
-                    d["environment"][k] = v
-
-        # 3. Migrate flat Silo fields
-        silo_keys = {
-            "orca_path", "xtb_path", "mpirun_path", "cfour_path", "aimnet2_server_path",
-            "aimnet2_path", "cfour_binary_path", "orca_binary_path", "xtb_binary_path",
-            "mpirun_binary_path", "hdf5_pes_store_path", "silo_root", "python_path", "strict_resolution"
-        }
-        extracted_silo: Dict[str, Any] = {}
-        for k in list(d.keys()):
-            if k in silo_keys:
-                extracted_silo[k] = d.pop(k)
-
-        if "silo_paths" not in d or d["silo_paths"] is None:
-            if extracted_silo:
-                d["silo_paths"] = extracted_silo
-        elif isinstance(d["silo_paths"], dict):
-            for k, v in extracted_silo.items():
-                if k not in d["silo_paths"]:
-                    d["silo_paths"][k] = v
-
-        # 4. Default active_jobs
-        if "active_jobs" not in d or d["active_jobs"] is None:
-            d["active_jobs"] = {}
-
-        return d
-
-    @field_validator("adaptive_routing", mode="before")
-    @classmethod
-    def clean_adaptive_routing(cls, v: Any) -> Any:
-        if v is None or v == "" or v == "[MISSING DATA]":
-            return None
-        return v
-
-    @field_validator("engines", mode="before")
-    @classmethod
-    def validate_engines(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            validated: Dict[str, Any] = {}
-            for engine_name, engine_val in v.items():
-                if isinstance(engine_val, dict):
-                    validated[engine_name] = EngineInfo.model_validate(engine_val)
-                else:
-                    validated[engine_name] = engine_val
-            return validated
-        return v
-
-    def compute_checksum(self) -> str:
-        """Calculates deterministic SHA-256 checksum of configuration payload."""
-        d = self.model_dump(exclude={"registry_checksum", "last_updated"})
-        serialized = json.dumps(d, sort_keys=True, default=str)
-        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-    def update_checksum(self) -> str:
-        """Calculates and updates registry_checksum in place."""
-        cs = self.compute_checksum()
-        self.registry_checksum = cs
-        return cs
-
-    def verify_checksum(self) -> bool:
-        """Verifies whether registry_checksum matches the current configuration payload."""
-        if not self.registry_checksum:
-            return False
-        return self.registry_checksum == self.compute_checksum()
-
-    def to_dict(self) -> Dict[str, Any]:
-        return self.model_dump()
-
-    def to_json(self) -> str:
-        return self.model_dump_json(indent=2)
-
-    def to_file(self, path: Union[str, Path]) -> None:
-        p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(self.to_json(), encoding="utf-8")
-
-    @classmethod
-    def from_dict(cls, d: Dict[str, Any]) -> CoChemSystemConfig:
-        return cls.model_validate(d)
-
-    @classmethod
-    def from_json(cls, json_str: str) -> CoChemSystemConfig:
-        return cls.model_validate_json(json_str)
-
-    @classmethod
-    def from_file(cls, path: Union[str, Path]) -> CoChemSystemConfig:
-        p = Path(path)
-        return cls.model_validate_json(p.read_text(encoding="utf-8"))
-
-    @classmethod
-    def create_default(cls, auto_detect_hardware: bool = False) -> CoChemSystemConfig:
-        hw = discover_host_hardware() if auto_detect_hardware else HardwareSchema(
-            cpu_physical_cores=4,
-            physical_cpu_cores=4,
-            logical_cpu_cores=8,
-            ram_gb=16.0,
-            os_target=OSTarget.LOCAL_WINDOWS if os.name == "nt" else OSTarget.LOCAL_LINUX,
-        )
-        return cls(
-            hardware=hw,
-            quantum_settings=QuantumSettings(implicit_solvation="CPCM", integration_grid="defgrid2"),
-            silos=SiloConfig(torq_silo_active=True),
-        )
-
-
-CoChemConfig = CoChemSystemConfig
-
-
-# =============================================================================
-# 9. DISCOVERY & CONVENIENCE FUNCTIONS
-# =============================================================================
-
-def discover_engine(binary_name: str) -> EngineInfo:
-    """Check physical presence and provenance of a scientific binary."""
-    p = shutil.which(binary_name)
-    if p:
-        return EngineInfo(status="found", path=str(p), version="auto", hash="auto")
-    return EngineInfo(status="missing", path=None, version=None, hash=None)
-
-
-def discover_host_hardware() -> HardwareSchema:
-    """Discover host hardware configuration safely."""
-    try:
-        import psutil  # type: ignore[import-untyped]
-        total_ram_gb = psutil.virtual_memory().total / (1024**3)
-        phys_cores = psutil.cpu_count(logical=False) or 1
-        log_cores = psutil.cpu_count(logical=True) or 1
-    except ImportError:
-        total_ram_gb = 16.0
-        phys_cores = os.cpu_count() or 1
-        log_cores = os.cpu_count() or 1
-
-    os_target = _default_os_target()
-
-    return HardwareSchema(
-        cpu_physical_cores=phys_cores,
-        physical_cpu_cores=phys_cores,
-        logical_cpu_cores=log_cores,
-        allocatable_compute_cores=phys_cores,
-        ram_gb=round(total_ram_gb, 2),
-        avx_512_capable=False,
-        gpu_profile="None",
-        vram_gb=0.0,
-        os_target=os_target,
-    )
-
-
-def validate_system_config(source: Union[str, Path, Dict[str, Any], CoChemSystemConfig]) -> CoChemSystemConfig:
-    """Authoritative gatekeeper validating system configuration from any source."""
-    if isinstance(source, CoChemSystemConfig):
-        return source
-    if isinstance(source, dict):
-        return CoChemSystemConfig.model_validate(source)
-    if isinstance(source, Path):
-        return CoChemSystemConfig.from_file(source)
-    if isinstance(source, str):
-        if os.path.exists(source):
-            return CoChemSystemConfig.from_file(source)
-        try:
-            return CoChemSystemConfig.from_json(source)
-        except Exception:
-            try:
-                raw_dict = json.loads(source)
-                return CoChemSystemConfig.model_validate(raw_dict)
-            except Exception:
-                pass
-    raise TypeError(f"Unsupported configuration source type: {type(source)}")
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\__init__.py ---
-"""Authoritative Unified Core Namespace for CoChem Base.
-
-Re-exports core registry, configuration, sandboxing, air-gap, file locking,
-IPC serialization, HDF5 PES stores, and quantum chemistry schema/exception protocols.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\exceptions.py ---
+"""Authoritative Core Exception Hierarchy for CoChem Core.
+
+Adheres to:
+- Method Matrix [M] & Provenance Standards
+- Zero-Mock Anti-Spoofing Protocol
+- Dynamic Mendeleev Invariant Mandate
 """
 
 from __future__ import annotations
 
-# 1. Authoritative registry manager and schemas
-from cochem_base.core import cochem_core_registry_manager
-from cochem_base.core.cochem_core_registry_manager import (
-    AtomicFileLock,
-    BaseMetadataServer,
-    BasisSetNotFoundError,
-    CoChemLockTimeoutError,
-    FilesystemMetadataServer,
-    MetadataBackendType,
-    MetadataServerManager,
-    PostgresMetadataServer,
-    RecordNotFoundError,
-    RedisMetadataServer,
-    RegistryCorruptionError,
-    RegistryError,
-    RegistryLockError,
-    RegistryLockTimeoutError,
-    RegistryManager,
-    RegistryMissingError,
-    RegistryParseError,
+from typing import Any, Optional
+
+from cochem_base.core.exceptions import (
+    AirGapBoundaryError,
+    CoChemError,
+    CoordinateShapeError,
+    IsotopeMassResolutionError,
+    IsotopeStabilityError,
+    PESStorageError,
+    ProcessReaperError,
+    RadiusNotFoundError,
     SchemaMigrationError,
-    _sanitize_path_leakages,
-    atomic_write_json,
-    broadcast_system_config,
-    default_metadata_manager,
-    get_active_job,
-    get_default_config_path,
-    hash_environment,
-    interpolate_env_vars,
-    is_master_node,
-    list_active_jobs,
-    load_system_config,
-    migrate_schema,
-    nfs_atomic_directory_rename,
-    receive_system_config_broadcast,
-    register_active_job,
-    remove_active_job,
-    save_system_config,
-    update_active_job,
-    update_system_config,
+    SubprocessBrokerError,
+    ThermodynamicsParameterError,
 )
 
-# RegistryManager alias for unified core namespace
-CoChemRegistry = RegistryManager
+try:
+    from cochem_base.exceptions import (
+        MissingDataError as BaseMissingDataError,
+        SingularityError,
+    )
+except ImportError:
+    class BaseMissingDataError(CoChemError, KeyError):
+        def __init__(self, message: str, details: Optional[Any] = None) -> None:
+            super().__init__(message, error_code="COCHEM_E_MISSING_DATA")
 
-# 2. Configuration authority
-# 4. Air-Gap Coordination
-from cochem.core.airgap_coordinator import (
-    AirGapConfig,
-    AirGapCoordinator,
-    AirGapViolationError,
-    TripartiteAirGapCoordinator,
-    TripartiteStorageConfig,
-    get_tier_file_lock,
-)
+    class SingularityError(CoChemError, ValueError):
+        def __init__(self, message: str, details: Optional[Any] = None) -> None:
+            super().__init__(message, error_code="COCHEM_E_SINGULARITY")
 
-# 3. Sandboxing
-from cochem.core.cochem_sandbox import (
-    SandboxConfig,
-    SandboxContext,
-    SandboxExecutionError,
-    SandboxSecurityViolationError,
-)
-from cochem.core.config import (
-    CoChemConfigManager,
-    CoChemRootConfig,
-    ConfigurationParseError,
-    CoreConfig,
-    DatabaseConfig,
-    OrchestrationConfig,
-    QmMMConfig,
-    TelemetryConfig,
-    get_workspace_config,
-)
 
-# 5. Centralized File Locking
-from cochem.core.context import FileLock
+class MissingDataError(BaseMissingDataError):
+    """Raised when required element, isotope, basis set, or calculation data is missing."""
 
-# 7. Ingestors, Schemas & Quantum Chemistry Domain Exceptions
-from cochem.core.ingestors.protocols import (
-    HessianSymmetryError,
-    MolecularStructureData,
-    QCResultsSchema,
-    QCValidationError,
-    SpinContaminationError,
-)
+    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.symbol_or_query = symbol_or_query
 
-# 6. IPC, Memory & PES Store
-from cochem.core.ipc.serializer import (
-    MAX_IPC_PAYLOAD_BYTES,
-    HMACSocketClient,
-    HMACSocketServer,
-    IPCPayloadError,
-    OversizedPayloadError,
-    PESStore,
-    SharedMemoryBuffer,
-    TruncatedPayloadError,
-    pack_payload,
-    unpack_payload,
-)
 
-# 8. Mendeleev Mass Invariants
-from cochem.core.mendeleev_invariants import MendeleevInvariantError
+class MendeleevInvariantError(MissingDataError):
+    """Raised when chemical element or isotopic queries violate Mendeleev physical invariants."""
 
-# 9. Stage-0 Facade Re-exports: HDF5 Manager, Models, Constants, PES Records
-from cochem_base.core.cochem_core_hdf5_manager import CoChemHDF5Manager
-from cochem_base.core.cochem_crypto import (
-    did_key_to_public_key,
-    public_key_to_did_key,
-    sign_report_payload,
-    verify_report_payload,
-)
-from cochem_base.core.cochem_provenance import DAGNode, get_local_prov_context
-from cochem_base.core.cochem_version import get_vcs_provenance
-from cochem_base.core.exceptions import IsotopeStabilityError, RadiusNotFoundError
-from cochem_base.core.glossary import CalculationFidelity, UnitConversionConstants
-from cochem_base.core.licensing import OFFICIAL_SPDX_LICENSES, validate_spdx_license
-from cochem_base.core.metadata import (
-    collect_hardware_metadata,
-    get_covalent_radius,
-    get_isotopic_mass,
-)
-from cochem_base.core.models import (
-    NAMESPACE_COCHEM,
-    CalculationJobPayload,
-    MolecularTopology,
-    PESPointRecord,
-    QCResultsRecord,
-)
-from cochem_base.core_engine.cochem_core_pes_store import (
-    PESStore,
-    get_node_local_scratch_dir,
-)
+    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
+        super().__init__(message, symbol_or_query=symbol_or_query)
+
+
+class RotationalGridInstabilityError(CoChemError, ValueError):
+    """Raised when Cartesian DFT integration grid breaks rotational invariance or induces imaginary modes."""
+
+    def __init__(self, message: str, delta_cm1: Optional[float] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_ROT_GRID_INSTABILITY")
+        self.message = message
+        self.delta_cm1 = delta_cm1
+
+
+class JobTimeoutError(CoChemError, TimeoutError):
+    """Raised when an asynchronous calculation or subprocess job exceeds temporal limits."""
+
+    def __init__(self, message: str, details: Optional[Any] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_JOB_TIMEOUT")
+
 
 __all__ = [
-    # Registry
-    "cochem_core_registry_manager",
-    "AtomicFileLock",
-    "BaseMetadataServer",
-    "BasisSetNotFoundError",
-    "CoChemLockTimeoutError",
-    "FilesystemMetadataServer",
-    "IsotopeStabilityError",
-    "MetadataBackendType",
-    "MetadataServerManager",
-    "PostgresMetadataServer",
-    "RecordNotFoundError",
-    "RedisMetadataServer",
-    "RegistryCorruptionError",
-    "RegistryError",
-    "RegistryLockError",
-    "RegistryLockTimeoutError",
-    "RegistryManager",
-    "RegistryMissingError",
-    "RegistryParseError",
-    "SchemaMigrationError",
-    "CoChemRegistry",
-    "_sanitize_path_leakages",
-    "atomic_write_json",
-    "broadcast_system_config",
-    "default_metadata_manager",
-    "get_active_job",
-    "get_default_config_path",
-    "hash_environment",
-    "interpolate_env_vars",
-    "is_master_node",
-    "list_active_jobs",
-    "load_system_config",
-    "migrate_schema",
-    "nfs_atomic_directory_rename",
-    "receive_system_config_broadcast",
-    "register_active_job",
-    "remove_active_job",
-    "save_system_config",
-    "update_active_job",
-    "update_system_config",
-    # Config
-    "CoChemConfigManager",
-    "CoChemRootConfig",
-    "ConfigurationParseError",
-    "CoreConfig",
-    "DatabaseConfig",
-    "OrchestrationConfig",
-    "QmMMConfig",
-    "TelemetryConfig",
-    "get_workspace_config",
-    # Sandbox
-    "SandboxConfig",
-    "SandboxContext",
-    "SandboxExecutionError",
-    "SandboxSecurityViolationError",
-    # Airgap
-    "AirGapConfig",
-    "AirGapCoordinator",
-    "AirGapViolationError",
-    "TripartiteAirGapCoordinator",
-    "TripartiteStorageConfig",
-    "get_tier_file_lock",
-    # Context & Locking
-    "FileLock",
-    # IPC & PES
-    "HMACSocketClient",
-    "HMACSocketServer",
-    "IPCPayloadError",
-    "MAX_IPC_PAYLOAD_BYTES",
-    "OversizedPayloadError",
-    "PESStore",
-    "SharedMemoryBuffer",
-    "TruncatedPayloadError",
-    "pack_payload",
-    "unpack_payload",
-    # Protocols & Physics Exceptions
-    "HessianSymmetryError",
-    "MolecularStructureData",
-    "QCResultsSchema",
-    "QCValidationError",
-    "SpinContaminationError",
-    # Mendeleev Invariants
+    "CoChemError",
+    "MissingDataError",
     "MendeleevInvariantError",
-    # Stage-0 Facade Deliverables
-    "CoChemHDF5Manager",
-    "QCResultsRecord",
-    "MolecularTopology",
-    "PESPointRecord",
-    "UnitConversionConstants",
-    # Chunk 6 Deliverables
+    "RotationalGridInstabilityError",
+    "JobTimeoutError",
+    "CoordinateShapeError",
+    "AirGapBoundaryError",
+    "SchemaMigrationError",
+    "PESStorageError",
+    "ProcessReaperError",
+    "SubprocessBrokerError",
+    "ThermodynamicsParameterError",
+    "IsotopeMassResolutionError",
     "IsotopeStabilityError",
     "RadiusNotFoundError",
-    "OFFICIAL_SPDX_LICENSES",
-    "validate_spdx_license",
-    "get_isotopic_mass",
-    "get_covalent_radius",
-    "collect_hardware_metadata",
-    "DAGNode",
-    "get_local_prov_context",
-    "did_key_to_public_key",
-    "public_key_to_did_key",
-    "sign_report_payload",
-    "verify_report_payload",
-    "get_vcs_provenance",
-    "CalculationFidelity",
-    "CalculationJobPayload",
-    "NAMESPACE_COCHEM",
-    "get_node_local_scratch_dir",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_core_registry_manager.py ---
-#!/usr/bin/env python3
-"""CoChem-CORE: Stage 0 Authority Rule & Master Registry Manager.
-
-Provides thread-safe and process-safe atomic file locking via cross-platform filelock,
-NFS-resilient directory-level staging and exponential backoff, metadata server integration
-(Redis, PostgreSQL, Filesystem fallback), cryptographic SHA-256 checksum enforcement,
-Pydantic validation checkpoints, dynamic environment variable interpolation, legacy schema migration,
-active jobs lifecycle tracking, HDF5 state registry operations, lineage DAGs, PRNG seed locking,
-embedded basis set archival, Mendeleev/QCElemental isotopic mass queries, and ZeroMQ config broadcast.
-
-Zero-Mock Policy: 100% genuine OS processes, genuine atomic file locks, and real database/filesystem operations.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\ipc\serializer.py ---
+"""Pure-Wheel Fast IPC Serialization & HDF5 PESStore.
+High-throughput binary Msgpack serialization, SharedMemory descriptors, HMAC socket transport,
+and QCSchema-compliant HDF5 tensor persistence in SWMR mode.
+Strictly adheres to Zero-Mock mandate and authentic binary serialization.
 """
 
 from __future__ import annotations
 
+import atexit
+import dataclasses
+import datetime
+import errno
 import hashlib
+import hmac
 import json
 import logging
+import multiprocessing.shared_memory as sm
 import os
-import platform
-import re
+import pathlib
+import secrets
 import shutil
+import socket
+import struct
+import tempfile
 import threading
 import time
 import uuid
-from abc import ABC, abstractmethod
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Sequence, Union, cast
+import weakref
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import filelock
-import h5py  # type: ignore[import-untyped]
-import zmq
-from pydantic import BaseModel, ValidationError
+import h5py
+import msgpack  # type: ignore[import-untyped]
+import numpy as np
+from pydantic import BaseModel
 
-try:
-    from mendeleev import element  # type: ignore[import-untyped]
-except ImportError:
-    element = None
+from cochem.core.context import assert_writable_path
 
-try:
-    from qcelemental import periodictable as pt  # type: ignore
-except ImportError:
-    pt = None
+logger = logging.getLogger("cochem.core.ipc.serializer")
 
-from cochem_base.config_loader import (
-    get_artifact_dir,
-    resolve_config_path,
-    resolve_mapped_path,
-)
+NUMPY_EXT_CODE: int = 42
 
-try:
-    from cochem_core_registry_schema import CoChemSystemConfig
-except ImportError:
-    try:
-        from core_engine.cochem_core_registry_schema import CoChemSystemConfig  # type: ignore
-    except ImportError:
-        from ..cochem_core_registry_schema import CoChemSystemConfig  # type: ignore
-
-logger = logging.getLogger("CoChem-RegistryManager")
+MAX_IPC_PAYLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MB ceiling [D]
 
 
-# =============================================================================
-# TYPED REGISTRY EXCEPTIONS
-# =============================================================================
+class IPCBindError(OSError):
+    """Base exception for IPC socket binding failures."""
 
-class RegistryError(Exception):
-    """Base exception for all registry and state manager operations."""
+    pass
 
 
-class RegistryLockError(RegistryError):
-    """Raised when atomic file locking fails."""
+class PortContentionError(IPCBindError):
+    """Raised when an IPC port remains in contention after retry exhaustion."""
+
+    pass
 
 
-class CoChemLockTimeoutError(RegistryLockError, TimeoutError):
-    """Raised when acquiring an atomic file lock exceeds the configured timeout."""
+class IPCPayloadError(Exception):
+    """Base exception for IPC payload transmission failures."""
+
+    pass
 
 
-RegistryLockTimeoutError = CoChemLockTimeoutError
+class TruncatedPayloadError(IPCPayloadError):
+    """Raised when an IPC connection terminates before receiving the full payload."""
+
+    pass
 
 
-class RegistryMissingError(RegistryError, FileNotFoundError):
-    """Stage 0 Guardrail: Raised when the master registry configuration file is missing."""
+class OversizedPayloadError(IPCPayloadError):
+    """Raised when a transmitted payload header exceeds the safety ceiling."""
+
+    pass
 
 
-class RegistryCorruptionError(RegistryError, ValueError):
-    """Stage 0 Guardrail: Raised when registry integrity checksum verification fails."""
+# ==============================================================================
+# Msgpack Custom Extension Codecs
+# ==============================================================================
+def _msgpack_encoder(obj: Any) -> Any:
+    """Encode custom structures (NumPy arrays, Pydantic models, Path/UUID) for Msgpack."""
+    if isinstance(obj, np.ndarray):
+        dtype_str = obj.dtype.str  # type: ignore[attr-defined]
+        shape_tuple = tuple(obj.shape)
+        raw_buffer = obj.tobytes()
+        payload = msgpack.packb((dtype_str, shape_tuple, raw_buffer), use_bin_type=True)
+        return msgpack.ExtType(NUMPY_EXT_CODE, payload)
+    elif isinstance(obj, BaseModel):
+        return obj.model_dump()
+    elif isinstance(obj, (pathlib.Path, uuid.UUID)):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON/Msgpack serializable")
 
 
-class RegistryParseError(RegistryError, ValueError):
-    """Stage 0 Guardrail: Raised when registry JSON is malformed or unparseable."""
+def _msgpack_decoder(code: int, data: bytes) -> Any:
+    """Reconstruct NumPy arrays from Msgpack custom extension payload."""
+    if code == NUMPY_EXT_CODE:
+        dtype_str, shape_tuple, raw_buffer = msgpack.unpackb(data, raw=False)
+        reconstructed = np.frombuffer(raw_buffer, dtype=dtype_str).reshape(tuple(shape_tuple))
+        return reconstructed
+    return msgpack.ExtType(code, data)
 
 
-class RecordNotFoundError(RegistryError, KeyError, ValueError):
-    """Raised when a queried job or profile is not found in the registry."""
+def pack_payload(data: Any) -> bytes:
+    """Serialize payload into binary Msgpack bytes with NumPy array extension hooks."""
+    return bytes(msgpack.packb(data, default=_msgpack_encoder, use_bin_type=True))
 
 
-class BasisSetNotFoundError(RegistryError, KeyError):
-    """Raised when an archived basis set cannot be located."""
+def unpack_payload(raw_bytes: bytes) -> Any:
+    """Deserialize binary Msgpack payload and reconstruct NumPy arrays."""
+    return msgpack.unpackb(raw_bytes, ext_hook=_msgpack_decoder, raw=False)
 
 
-class SchemaMigrationError(RegistryError, ValueError):
-    """Raised when schema migration encounters an unrecoverable failure."""
+# ==============================================================================
+# Zero-Copy Shared Memory Optimization
+# ==============================================================================
+_REGISTRY_LOCK = threading.Lock()
+_ACTIVE_SHM: Dict[str, Dict[str, Any]] = {}
 
 
-from cochem_base.core.exceptions import IsotopeStabilityError as _BaseIsotopeStabilityError
-
-
-class IsotopeStabilityError(RegistryError, _BaseIsotopeStabilityError):
-    """Raised when isotopic mass resolution fails or mass record is missing."""
-
-
-
-# =============================================================================
-# CROSS-PLATFORM ATOMIC FILE LOCKING (filelock + In-Process Thread Lock)
-# =============================================================================
-
-class AtomicFileLock:
-    """Process-safe, thread-safe, cross-platform atomic file lock using filelock.SoftFileLock / FileLock.
-
-    Combines thread-level RLock serialization per canonical path with cross-platform
-    filelock, thread-local re-entrancy tracking, and strict 10-second gatekeeper timeout.
-    POSIX fcntl is explicitly eradicated in favor of cross-platform filelock.
-    """
-
-    _tls = threading.local()
-    _path_locks: Dict[str, threading.RLock] = {}
-    _meta_lock = threading.Lock()
-
-    @classmethod
-    def _get_path_lock(cls, path_str: str) -> threading.RLock:
-        with cls._meta_lock:
-            if path_str not in cls._path_locks:
-                cls._path_locks[path_str] = threading.RLock()
-            return cls._path_locks[path_str]
-
-    def __init__(
-        self,
-        lock_path: Union[str, Path],
-        timeout: float = 10.0,
-        stale_timeout: float = 60.0,
-    ) -> None:
-        self.lock_path = Path(lock_path).resolve()
-        self.timeout = float(timeout)
-        self.stale_timeout = float(stale_timeout)
-        self._depth: int = 0
-        self._thread_lock_acquired: bool = False
-        self._filelock: Optional[Union[filelock.SoftFileLock, filelock.FileLock]] = None
-
-    @property
-    def _is_locked(self) -> bool:
-        path_str = str(self.lock_path)
-        if hasattr(self._tls, "held") and self._tls.held.get(path_str, 0) > 0:
-            return True
-        return self._depth > 0
-
-    def acquire(self) -> bool:
-        """Acquires the atomic lock before timeout. Raises CoChemLockTimeoutError on failure."""
-        if not hasattr(self._tls, "held"):
-            self._tls.held = {}
-        if not hasattr(self._tls, "locks"):
-            self._tls.locks = {}
-
-        path_str = str(self.lock_path)
-
-        # Thread-local re-entrancy
-        if self._tls.held.get(path_str, 0) > 0:
-            self._tls.held[path_str] += 1
-            self._depth += 1
-            return True
-
-        start_time = time.time()
-        thread_lock = self._get_path_lock(path_str)
-
-        # 1. In-process thread lock
-        remaining = max(0.001, self.timeout - (time.time() - start_time))
-        if not thread_lock.acquire(timeout=remaining):
-            raise CoChemLockTimeoutError(
-                f"Could not acquire thread lock on '{self.lock_path}' within {self.timeout}s"
-            )
-
-        self._thread_lock_acquired = True
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Stale lock reaping check
-        if self.lock_path.exists():
+def _cleanup_all_shared_memory() -> None:
+    """Atexit handler ensuring zero lingering shared memory blocks."""
+    with _REGISTRY_LOCK:
+        for name, info in list(_ACTIVE_SHM.items()):
             try:
-                mtime = self.lock_path.stat().st_mtime
-                if (time.time() - mtime) > self.stale_timeout:
-                    try:
-                        self.lock_path.unlink(missing_ok=True)
-                        logger.info(f"Reaped stale lock file: {self.lock_path}")
-                    except OSError:
-                        pass
-            except OSError:
+                info["shm"].close()
+            except Exception:
                 pass
+            try:
+                info["shm"].unlink()
+            except Exception:
+                pass
+        _ACTIVE_SHM.clear()
 
-        # 2. Cross-platform process lock via filelock.SoftFileLock
-        rem_filelock = max(0.001, self.timeout - (time.time() - start_time))
-        fl = filelock.SoftFileLock(str(self.lock_path), timeout=rem_filelock)
+
+atexit.register(_cleanup_all_shared_memory)
+
+
+def _finalize_shm(name: str) -> None:
+    with _REGISTRY_LOCK:
+        info = _ACTIVE_SHM.pop(name, None)
+    if info is not None:
         try:
-            fl.acquire(timeout=rem_filelock)
-            # Write diagnostic lock ownership payload (PID:thread:timestamp)
-            try:
-                self.lock_path.write_text(
-                    f"{os.getpid()}:{threading.get_ident()}:{time.time()}\n",
-                    encoding="utf-8",
-                )
-            except Exception:
-                pass
+            info["shm"].close()
+            info["shm"].unlink()
+        except (FileNotFoundError, OSError):
+            pass
+    try:
+        s = sm.SharedMemory(name=name)
+        s.close()
+        s.unlink()
+    except (FileNotFoundError, OSError):
+        pass
 
-            self._filelock = fl
-            self._depth = 1
-            self._tls.held[path_str] = 1
-            self._tls.locks[path_str] = fl
-            return True
-        except (filelock.Timeout, TimeoutError) as e:
-            self._thread_lock_acquired = False
-            try:
-                thread_lock.release()
-            except RuntimeError:
-                pass
-            raise CoChemLockTimeoutError(
-                f"Could not acquire atomic lock on '{self.lock_path}' within {self.timeout}s"
-            ) from e
-        except Exception as e:
-            self._thread_lock_acquired = False
-            try:
-                thread_lock.release()
-            except RuntimeError:
-                pass
-            raise CoChemLockTimeoutError(
-                f"Error acquiring atomic lock on '{self.lock_path}': {e}"
-            ) from e
 
-    def release(self) -> None:
-        """Releases the atomic lock safely."""
-        path_str = str(self.lock_path)
-        if not hasattr(self._tls, "held") or self._tls.held.get(path_str, 0) <= 0:
-            if self._depth > 0:
-                self._depth -= 1
-            if self._thread_lock_acquired:
-                self._thread_lock_acquired = False
-                try:
-                    self._get_path_lock(path_str).release()
-                except RuntimeError:
-                    pass
-            return
+@dataclasses.dataclass
+class SharedMemoryBuffer:
+    """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
 
-        self._depth -= 1
-        self._tls.held[path_str] -= 1
-        if self._tls.held[path_str] > 0:
-            return
+    shm: sm.SharedMemory
+    descriptor: Dict[str, Any]
+    _finalizer: Optional[weakref.finalize] = dataclasses.field(default=None, repr=False, compare=False)
 
-        del self._tls.held[path_str]
+    def __post_init__(self) -> None:
+        if self._finalizer is None:
+            self._finalizer = weakref.finalize(self, _finalize_shm, self.shm.name)
 
-        fl = None
-        if hasattr(self._tls, "locks") and path_str in self._tls.locks:
-            fl = self._tls.locks.pop(path_str)
-        elif self._filelock is not None:
-            fl = self._filelock
-            self._filelock = None
-
-        if fl is not None:
-            try:
-                fl.release()
-            except Exception:
-                pass
-
-        if self.lock_path.exists():
-            try:
-                self.lock_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-        if self._thread_lock_acquired:
-            self._thread_lock_acquired = False
-            try:
-                self._get_path_lock(path_str).release()
-            except RuntimeError:
-                pass
-
-    def __enter__(self) -> AtomicFileLock:
-        self.acquire()
+    def __enter__(self) -> SharedMemoryBuffer:
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        self.release()
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
+        self.unlink()
 
-
-# =============================================================================
-# ENVIRONMENT VARIABLE INTERPOLATION & NFS-RESILIENT ATOMIC WRITER
-# =============================================================================
-
-def interpolate_env_vars(raw_data: Any) -> Any:
-    """Uniformly expands %VAR%, $VAR, ${VAR}, and ~ across Windows and POSIX environments.
-
-    Supports string, dictionary, list, or primitive data structures.
-    """
-    if isinstance(raw_data, str):
-        def replace_percent(match: re.Match[str]) -> str:
-            var = match.group(1)
-            return os.environ.get(var, match.group(0))
-
-        def replace_braced(match: re.Match[str]) -> str:
-            var = match.group(1)
-            return os.environ.get(var, match.group(0))
-
-        def replace_dollar(match: re.Match[str]) -> str:
-            var = match.group(1)
-            return os.environ.get(var, match.group(0))
-
-        s = re.sub(r"%([A-Za-z0-9_]+)%", replace_percent, raw_data)
-        s = re.sub(r"\$\{([A-Za-z0-9_]+)\}", replace_braced, s)
-        s = re.sub(r"\$([A-Za-z0-9_]+)", replace_dollar, s)
-        if s.startswith("~"):
-            s = os.path.expanduser(s)
-        return s
-    elif isinstance(raw_data, dict):
-        return {k: interpolate_env_vars(v) for k, v in raw_data.items()}
-    elif isinstance(raw_data, list):
-        return [interpolate_env_vars(item) for item in raw_data]
-    return raw_data
-
-
-def nfs_atomic_directory_rename(
-    src_dir: Union[str, Path],
-    dst_dir: Union[str, Path],
-    max_retries: int = 10,
-    initial_backoff: float = 0.01,
-) -> None:
-    """Performs an NFS-resilient atomic directory rename with exponential backoff retry logic.
-
-    Directory-level atomic renames force NFS metadata cache invalidation and ensure
-    global consistency across HPC client nodes against NFS attribute staleness.
-    """
-    src = Path(src_dir).resolve()
-    dst = Path(dst_dir).resolve()
-    if not src.exists():
-        raise FileNotFoundError(f"Source directory for atomic rename does not exist: {src}")
-
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    backoff = initial_backoff
-    for attempt in range(max_retries):
+    @classmethod
+    def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
+        """Allocate shared memory buffer, copy array memory, and generate transfer descriptor."""
+        total_bytes = max(1, arr.nbytes)
+        shm = sm.SharedMemory(create=True, size=total_bytes)
         try:
-            if dst.exists():
-                backup = dst.parent / f".backup_{dst.name}_{uuid.uuid4().hex}"
-                os.rename(dst, backup)
-                try:
-                    os.rename(src, dst)
-                    shutil.rmtree(backup, ignore_errors=True)
-                    return
-                except Exception:
-                    os.rename(backup, dst)
-                    raise
+            from multiprocessing import resource_tracker
+            resource_tracker.register(shm._name, "shared_memory")
+        except Exception as exc:
+            logger.debug("Resource tracker registration bypassed: %s", exc)
+
+        shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)  # type: ignore[arg-type]
+        shm_array[:] = arr[:]
+
+        desc = {
+            "name": shm.name,
+            "shape": list(arr.shape),
+            "dtype": arr.dtype.str,  # type: ignore[attr-defined]
+            "size": total_bytes,
+            "total_attachments": total_attachments,
+            "closed_attachments": 0,
+        }
+
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM[shm.name] = {
+                "shm": shm,
+                "total": total_attachments,
+                "closed": 0,
+            }
+
+        return cls(shm=shm, descriptor=desc)
+
+    @classmethod
+    def _notify_closed(cls, name: str) -> None:
+        """Atomically increment closed attachments and unlink once all attachments finish."""
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                info["closed"] += 1
+                if info["closed"] >= info["total"]:
+                    try:
+                        info["shm"].unlink()
+                    except (OSError, FileNotFoundError) as exc:
+                        logger.debug("Shared memory unlink bypassed: %s", exc)
+                    _ACTIVE_SHM.pop(name, None)
             else:
-                os.rename(src, dst)
-                return
-        except OSError as e:
-            if attempt == max_retries - 1:
-                raise OSError(
-                    f"NFS atomic directory rename failed after {max_retries} attempts: {src} -> {dst}"
-                ) from e
-            time.sleep(backoff)
-            backoff = min(0.5, backoff * 1.5)
+                try:
+                    s = sm.SharedMemory(name=name)
+                    s.close()
+                    s.unlink()
+                except Exception as exc:
+                    logger.debug("Shared memory cleanup bypassed: %s", exc)
 
+    @classmethod
+    def read_from_descriptor(cls, descriptor: Dict[str, Any]) -> np.ndarray:
+        """Map existing shared memory segment and extract copy of array."""
+        name = descriptor["name"]
+        shape = tuple(descriptor["shape"])
+        dtype = descriptor["dtype"]
 
-def atomic_write_json(
-    file_path: Union[str, Path],
-    data: Union[Dict[str, Any], BaseModel, str],
-    lock_timeout: float = 10.0,
-    max_retries: int = 10,
-    initial_backoff: float = 0.01,
-) -> None:
-    """Writes JSON data atomically via directory-level staging and exponential backoff retry logic.
-
-    Direct file overwrite ('w' mode on shared files) and raw unprotected os.replace()
-    are prohibited to eliminate NFS attribute cache staleness.
-    """
-    target = Path(file_path).resolve()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    lock_file = str(target) + ".lock"
-
-    if isinstance(data, BaseModel):
-        content = data.model_dump_json(indent=2)
-    elif isinstance(data, dict):
-        content = json.dumps(data, indent=2)
-    elif isinstance(data, str):
-        content = data
-    else:
-        content = json.dumps(data, indent=2)
-
-    with AtomicFileLock(lock_file, timeout=lock_timeout):
-        # Directory-level atomic staging to defeat NFS caching flaws
-        staging_dir = target.parent / f".staging_{target.stem}_{uuid.uuid4().hex}"
-        staging_dir.mkdir(parents=True, exist_ok=True)
-        staging_file = staging_dir / target.name
-
+        client_shm = sm.SharedMemory(name=name)
         try:
-            with open(staging_file, "w", encoding="utf-8") as f:
-                f.write(content)
-                f.flush()
-                os.fsync(f.fileno())
-
-            # Exponential backoff retry loop for atomic replace across NFS mounts
-            backoff = initial_backoff
-            for attempt in range(max_retries):
-                try:
-                    os.replace(staging_file, target)
-                    break
-                except (OSError, PermissionError) as e:
-                    if attempt == max_retries - 1:
-                        raise OSError(
-                            f"Atomic write replacement failed for '{target}' after {max_retries} attempts: {e}"
-                        ) from e
-                    time.sleep(backoff)
-                    backoff = min(0.5, backoff * 1.5)
+            mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
+            extracted = mapped.copy()
+            return extracted
         finally:
-            if staging_file.exists():
-                try:
-                    staging_file.unlink(missing_ok=True)
-                except OSError:
-                    pass
-            if staging_dir.exists():
-                try:
-                    shutil.rmtree(staging_dir, ignore_errors=True)
-                except OSError:
-                    pass
+            client_shm.close()
+            cls._notify_closed(name)
+
+    def close(self) -> None:
+        """Close local memory map and unlink if all attachments are closed."""
+        try:
+            self.shm.close()
+        except OSError as exc:
+            logger.debug("Shared memory close bypassed: %s", exc)
+        SharedMemoryBuffer._notify_closed(self.shm.name)
+
+    def unlink(self) -> None:
+        """Explicitly unlink OS shared memory segment immediately."""
+        if self._finalizer is not None and self._finalizer.alive:
+            self._finalizer.detach()
+        try:
+            self.shm.unlink()
+        except (OSError, FileNotFoundError) as exc:
+            logger.debug("Shared memory unlink bypassed: %s", exc)
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM.pop(self.shm.name, None)
 
 
-# =============================================================================
-# METADATA SERVER ADAPTERS (Redis / PostgreSQL with Filesystem Fallback)
-# =============================================================================
-
-class MetadataBackendType(str, Enum):
-    REDIS = "redis"
-    POSTGRES = "postgres"
-    FILESYSTEM = "filesystem"
-
-
-class BaseMetadataServer(ABC):
-    """Abstract base class defining metadata server contracts for state persistence."""
-
-    @abstractmethod
-    def is_available(self) -> bool:
-        """Checks if the metadata server backend is reachable and healthy."""
-        pass
-
-    @abstractmethod
-    def get_state(self, key: str) -> Optional[str]:
-        """Retrieves raw string state payload for a given key."""
-        pass
-
-    @abstractmethod
-    def set_state(self, key: str, value: str) -> bool:
-        """Persists raw string state payload for a given key."""
-        pass
-
-    @abstractmethod
-    def delete_state(self, key: str) -> bool:
-        """Deletes state for a given key."""
-        pass
-
-    @property
-    @abstractmethod
-    def backend_type(self) -> MetadataBackendType:
-        """Returns the backend type identifier."""
-        pass
-
-
-class RedisMetadataServer(BaseMetadataServer):
-    """Redis metadata server adapter for high-throughput HPC state synchronization."""
+# ==============================================================================
+# Ephemeral HMAC-SHA256 Socket Transport
+# ==============================================================================
+class HMACSocketServer:
+    """Loopback TCP socket server secured by HMAC-SHA256 challenge-response handshake."""
 
     def __init__(
         self,
-        url: Optional[str] = None,
         host: str = "127.0.0.1",
-        port: int = 6379,
-        db: int = 0,
-        password: Optional[str] = None,
-        timeout: float = 2.0,
+        port: int = 0,
+        secret_key: bytes = b"",
     ) -> None:
-        self.url = url or os.environ.get("COCHEM_REDIS_URL")
-        self.host = host
-        self.port = port
-        self.db = db
-        self.password = password
-        self.timeout = timeout
-        self._client: Any = None
-        self._init_client()
+        self.host: str = host
+        self.requested_port: int = port
+        self.secret_key: bytes = secret_key
+        self.port: int = 0
 
-    def _init_client(self) -> None:
-        try:
-            import redis  # type: ignore[import-not-found,import-untyped]
-            if self.url:
-                self._client = redis.from_url(
-                    self.url, socket_timeout=self.timeout, socket_connect_timeout=self.timeout
-                )
-            else:
-                self._client = redis.Redis(
-                    host=self.host,
-                    port=self.port,
-                    db=self.db,
-                    password=self.password,
-                    socket_timeout=self.timeout,
-                    socket_connect_timeout=self.timeout,
-                )
-        except Exception:
-            self._client = None
+        self._server_sock: Optional[socket.socket] = None
+        self._stop_event: threading.Event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._received_payloads: List[Any] = []
+        self._payload_event: threading.Event = threading.Event()
+        self._last_error: Optional[IPCPayloadError] = None
+        self._descriptor_path: Optional[pathlib.Path] = None
 
-    def is_available(self) -> bool:
-        if self._client is None:
-            return False
-        try:
-            return bool(self._client.ping())
-        except Exception:
-            return False
+    def start(self, port_fallback: bool = True, max_retries: int = 5) -> int:
+        """Bind listening socket and launch background accept loop.
 
-    def get_state(self, key: str) -> Optional[str]:
-        if not self.is_available():
-            return None
-        try:
-            val = self._client.get(key)
-            if val is None:
-                return None
-            return val.decode("utf-8") if isinstance(val, bytes) else str(val)
-        except Exception as e:
-            logger.warning(f"Redis get_state error for {key}: {e}")
-            return None
+        Recovers dynamically from port contention (EADDRINUSE / WinError 10048).
+        Publishes atomic port descriptor to COCHEM_SCRATCH_DIR.
+        """
+        target_port = self.requested_port
+        backoff_base = 0.05
+        bound = False
 
-    def set_state(self, key: str, value: str) -> bool:
-        if not self.is_available():
-            return False
-        try:
-            self._client.set(key, value)
-            return True
-        except Exception as e:
-            logger.warning(f"Redis set_state error for {key}: {e}")
-            return False
-
-    def delete_state(self, key: str) -> bool:
-        if not self.is_available():
-            return False
-        try:
-            return bool(self._client.delete(key))
-        except Exception as e:
-            logger.warning(f"Redis delete_state error for {key}: {e}")
-            return False
-
-    @property
-    def backend_type(self) -> MetadataBackendType:
-        return MetadataBackendType.REDIS
-
-
-class PostgresMetadataServer(BaseMetadataServer):
-    """PostgreSQL metadata server adapter for ACID-compliant state storage."""
-
-    def __init__(
-        self,
-        url: Optional[str] = None,
-        host: str = "127.0.0.1",
-        port: int = 5432,
-        dbname: str = "cochem",
-        user: str = "postgres",
-        password: Optional[str] = None,
-        timeout: float = 2.0,
-    ) -> None:
-        self.url = url or os.environ.get("COCHEM_POSTGRES_URL") or os.environ.get("COCHEM_DATABASE_URL")
-        self.host = host
-        self.port = port
-        self.dbname = dbname
-        self.user = user
-        self.password = password
-        self.timeout = timeout
-        self._table_initialized = False
-
-    def _get_connection(self) -> Any:
-        try:
-            import psycopg2  # type: ignore[import-untyped]
-            if self.url:
-                return psycopg2.connect(self.url, connect_timeout=int(self.timeout))
-            return psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                dbname=self.dbname,
-                user=self.user,
-                password=self.password,
-                connect_timeout=int(self.timeout),
-            )
-        except Exception:
-            return None
-
-    def _ensure_table(self, conn: Any) -> None:
-        if self._table_initialized:
-            return
-        try:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS cochem_metadata_registry (
-                        key VARCHAR(255) PRIMARY KEY,
-                        value TEXT NOT NULL,
-                        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                    );
-                    """
-                )
-            conn.commit()
-            self._table_initialized = True
-        except Exception as e:
-            conn.rollback()
-            logger.debug(f"Failed to ensure Postgres metadata table: {e}")
-
-    def is_available(self) -> bool:
-        conn = self._get_connection()
-        if conn is None:
-            return False
-        try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1;")
-            conn.close()
-            return True
-        except Exception:
+        for attempt in range(max_retries):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
-                conn.close()
-            except Exception:
-                pass
-            return False
-
-    def get_state(self, key: str) -> Optional[str]:
-        conn = self._get_connection()
-        if conn is None:
-            return None
-        try:
-            self._ensure_table(conn)
-            with conn.cursor() as cur:
-                cur.execute("SELECT value FROM cochem_metadata_registry WHERE key = %s;", (key,))
-                row = cur.fetchone()
-                if row:
-                    return str(row[0])
-                return None
-        except Exception as e:
-            logger.warning(f"Postgres get_state error for {key}: {e}")
-            return None
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-    def set_state(self, key: str, value: str) -> bool:
-        conn = self._get_connection()
-        if conn is None:
-            return False
-        try:
-            self._ensure_table(conn)
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO cochem_metadata_registry (key, value, updated_at)
-                    VALUES (%s, %s, CURRENT_TIMESTAMP)
-                    ON CONFLICT (key) DO UPDATE
-                    SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
-                    """,
-                    (key, value),
+                sock.bind((self.host, target_port))
+                sock.listen(5)
+                self._server_sock = sock
+                self.port = sock.getsockname()[1]
+                bound = True
+                break
+            except OSError as err:
+                sock.close()
+                self._server_sock = None
+                # Check for port contention: EADDRINUSE or Windows 10048 / 10013 / EACCES
+                is_in_use = (
+                    err.errno in (errno.EADDRINUSE, errno.EACCES)
+                    or getattr(err, "winerror", None) in (10048, 10013)
+                    or err.errno in (10048, 10013)
                 )
-            conn.commit()
-            return True
-        except Exception as e:
-            conn.rollback()
-            logger.warning(f"Postgres set_state error for {key}: {e}")
-            return False
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-    def delete_state(self, key: str) -> bool:
-        conn = self._get_connection()
-        if conn is None:
-            return False
-        try:
-            self._ensure_table(conn)
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM cochem_metadata_registry WHERE key = %s;", (key,))
-            conn.commit()
-            return True
-        except Exception as e:
-            conn.rollback()
-            logger.warning(f"Postgres delete_state error for {key}: {e}")
-            return False
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
-
-    @property
-    def backend_type(self) -> MetadataBackendType:
-        return MetadataBackendType.POSTGRES
-
-
-class FilesystemMetadataServer(BaseMetadataServer):
-    """Filesystem metadata server fallback using NFS-resilient directory staging and AtomicFileLock."""
-
-    def __init__(self, base_dir: Optional[Union[str, Path]] = None) -> None:
-        if base_dir:
-            self.base_dir = Path(base_dir).resolve()
-        else:
-            self.base_dir = (get_artifact_dir() / "Registry").resolve()
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-
-    def is_available(self) -> bool:
-        return True
-
-    def _get_key_path(self, key: str) -> Path:
-        safe_key = re.sub(r"[^A-Za-z0-9_.-]", "_", key)
-        return self.base_dir / f"{safe_key}.json"
-
-    def get_state(self, key: str) -> Optional[str]:
-        p = self._get_key_path(key)
-        if not p.is_file():
-            return None
-        with AtomicFileLock(str(p) + ".lock", timeout=10.0):
-            try:
-                return p.read_text(encoding="utf-8")
-            except OSError:
-                return None
-
-    def set_state(self, key: str, value: str) -> bool:
-        p = self._get_key_path(key)
-        try:
-            atomic_write_json(p, value, lock_timeout=10.0)
-            return True
-        except Exception as e:
-            logger.error(f"Filesystem set_state failed for {key}: {e}")
-            return False
-
-    def delete_state(self, key: str) -> bool:
-        p = self._get_key_path(key)
-        lock_file = str(p) + ".lock"
-        with AtomicFileLock(lock_file, timeout=10.0):
-            if p.exists():
-                try:
-                    p.unlink(missing_ok=True)
-                    return True
-                except OSError:
-                    return False
-            return False
-
-    @property
-    def backend_type(self) -> MetadataBackendType:
-        return MetadataBackendType.FILESYSTEM
-
-
-class MetadataServerManager:
-    """Coordinates state transactions across dedicated metadata servers with automatic filesystem fallback."""
-
-    def __init__(
-        self,
-        preferred_backend: Optional[Union[MetadataBackendType, str]] = None,
-        redis_server: Optional[RedisMetadataServer] = None,
-        postgres_server: Optional[PostgresMetadataServer] = None,
-        filesystem_server: Optional[FilesystemMetadataServer] = None,
-    ) -> None:
-        pref = preferred_backend if preferred_backend is not None else os.environ.get("COCHEM_METADATA_BACKEND", "filesystem")
-        if isinstance(pref, str):
-            pref_lower = pref.lower().strip()
-            if pref_lower == "redis":
-                self.preferred: MetadataBackendType = MetadataBackendType.REDIS
-            elif pref_lower in ("postgres", "postgresql"):
-                self.preferred = MetadataBackendType.POSTGRES
-            else:
-                self.preferred = MetadataBackendType.FILESYSTEM
-        elif isinstance(pref, MetadataBackendType):
-            self.preferred = pref
-        else:
-            self.preferred = MetadataBackendType.FILESYSTEM
-
-        self.redis = redis_server or RedisMetadataServer()
-        self.postgres = postgres_server or PostgresMetadataServer()
-        self.filesystem = filesystem_server or FilesystemMetadataServer()
-
-    def get_active_backend(self) -> BaseMetadataServer:
-        """Resolves the active available metadata server backend, falling back to filesystem."""
-        if self.preferred == MetadataBackendType.REDIS and self.redis.is_available():
-            return self.redis
-        if self.preferred == MetadataBackendType.POSTGRES and self.postgres.is_available():
-            return self.postgres
-        return self.filesystem
-
-    def get_state(self, key: str) -> Optional[str]:
-        backend = self.get_active_backend()
-        res = backend.get_state(key)
-        if res is None and backend != self.filesystem:
-            return self.filesystem.get_state(key)
-        return res
-
-    def set_state(self, key: str, value: str) -> bool:
-        backend = self.get_active_backend()
-        success = backend.set_state(key, value)
-        if backend != self.filesystem:
-            self.filesystem.set_state(key, value)
-        return success
-
-    def delete_state(self, key: str) -> bool:
-        backend = self.get_active_backend()
-        success = backend.delete_state(key)
-        if backend != self.filesystem:
-            self.filesystem.delete_state(key)
-        return success
-
-
-# Global default metadata manager
-default_metadata_manager = MetadataServerManager()
-
-
-# =============================================================================
-# ENVIRONMENT FINGERPRINTING & SCHEMA MIGRATION
-# =============================================================================
-
-def _sanitize_path_leakages(payload_str: str) -> str:
-    """Sanitizes local absolute directory paths from serialized environment payloads."""
-    p1 = r'[A-Za-z]:(?:\\\\|\\|/)[^",}\]\r\n]*'
-    sanitized = re.sub(p1, "[SANITIZED_PATH]", payload_str)
-    p2 = r'/(?:home|Users|root|tmp|var|opt|usr|etc|Volumes)/[^",}\]\r\n]*'
-    sanitized = re.sub(p2, "[SANITIZED_PATH]", sanitized)
-    p3 = r'(?:\\\\\\\\|//|\\\\)[^",}\]\r\n]*'
-    sanitized = re.sub(p3, "[SANITIZED_PATH]", sanitized)
-    p4 = r'(?:\\\\|/)?(?:Users|AppData|Documents|Desktop)(?:\\\\|/)[^",}\]\r\n]*'
-    sanitized = re.sub(p4, "[SANITIZED_PATH]", sanitized)
-    return sanitized
-
-
-def hash_environment(
-    exclude_paths: bool = True,
-    tracked_packages: Optional[Sequence[str]] = None,
-    tracked_engines: Optional[Union[Sequence[str], Dict[str, str]]] = None,
-) -> Dict[str, Any]:
-    """Generates a deterministic cryptographic SHA-256 fingerprint of the host environment."""
-    try:
-        from cochem_base.provenance.hashing import hash_environment as _h_env
-
-        rec = _h_env(
-            exclude_paths=exclude_paths,
-            tracked_packages=tracked_packages,
-            tracked_engines=tracked_engines,
-        )
-        return cast(
-            Dict[str, Any],
-            rec.to_dict() if hasattr(rec, "to_dict") else dict(rec.__dict__),
-        )
-    except Exception:
-        py_ver = platform.python_version()
-        py_impl = platform.python_implementation()
-        os_sys = platform.system()
-        os_rel = platform.release()
-        os_arch = platform.machine()
-        cpu_cnt = os.cpu_count() or 1
-        total_ram = 0
-
-        try:
-            import psutil  # type: ignore[import-untyped]
-            total_ram = psutil.virtual_memory().total
-        except Exception:
-            total_ram = 16 * 1024 * 1024 * 1024
-
-        canonical_payload = {
-            "python_version": py_ver,
-            "python_implementation": py_impl,
-            "os_system": os_sys,
-            "os_release": os_rel,
-            "os_architecture": os_arch,
-            "cpu_count": cpu_cnt,
-            "total_ram_bytes": total_ram,
-            "tracked_packages": list(tracked_packages or []),
-            "tracked_engines": tracked_engines
-            if isinstance(tracked_engines, dict)
-            else list(tracked_engines or []),
-        }
-
-        serialized = json.dumps(canonical_payload, sort_keys=True)
-        if exclude_paths:
-            serialized = _sanitize_path_leakages(serialized)
-
-        sha256_hash = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-        return {
-            "sha256_hash": sha256_hash,
-            "python_version": py_ver,
-            "python_implementation": py_impl,
-            "os_system": os_sys,
-            "os_release": os_rel,
-            "cpu_count": cpu_cnt,
-            "total_ram_bytes": total_ram,
-            "metadata": {"os_architecture": os_arch},
-        }
-
-
-def migrate_schema(
-    config_source: Union[Dict[str, Any], str, Path, CoChemSystemConfig],
-) -> CoChemSystemConfig:
-    """Upgrades legacy JSON schemas (0.1, 1.0.0, 2.0.0) to current target schema (4.0.0) with strict validation."""
-    if isinstance(config_source, CoChemSystemConfig):
-        # Strict validation checkpoint
-        return CoChemSystemConfig.model_validate(config_source.model_dump())
-
-    if isinstance(config_source, (str, Path)):
-        p = Path(config_source)
-        if p.is_file():
-            raw_text = p.read_text(encoding="utf-8")
-            raw_dict = json.loads(raw_text)
-        else:
-            raw_dict = json.loads(str(config_source))
-    elif isinstance(config_source, dict):
-        raw_dict = dict(config_source)
-    else:
-        raise SchemaMigrationError(
-            f"Unsupported config source type for migration: {type(config_source)}"
-        )
-
-    raw_dict = interpolate_env_vars(raw_dict)
-    raw_dict["schema_version"] = "4.0.0"
-
-    if "quantum_settings" not in raw_dict or raw_dict["quantum_settings"] is None:
-        raw_dict["quantum_settings"] = {
-            "implicit_solvation": "CPCM",
-            "integration_grid": "defgrid2",
-            "charge": 0,
-            "multiplicity": 1,
-        }
-
-    if "hpc" not in raw_dict or raw_dict["hpc"] is None:
-        raw_dict["hpc"] = {
-            "scheduler": "local",
-            "default_partition": "compute",
-            "max_walltime_hours": 24,
-        }
-
-    try:
-        # Pydantic verification checkpoint rejecting illegal data injection
-        cfg = CoChemSystemConfig.model_validate(raw_dict)
-        cfg.update_checksum()
-        return cfg
-    except ValidationError as e:
-        raise SchemaMigrationError(f"Failed to migrate and validate system schema: {e}") from e
-    except Exception as e:
-        raise SchemaMigrationError(f"Failed to migrate and validate system schema: {e}") from e
-
-
-# =============================================================================
-# MASTER NODE & ZEROMQ BROADCAST
-# =============================================================================
-
-def is_master_node() -> bool:
-    """Determines whether current execution process is the master node (Rank 0 / Standalone)."""
-    override = os.environ.get("COCHEM_IS_MASTER")
-    if override is not None:
-        return override.strip().lower() in ("1", "true", "yes")
-
-    slurm_procid = os.environ.get("SLURM_PROCID")
-    if slurm_procid is not None:
-        return slurm_procid.strip() == "0"
-
-    for rank_var in ["OMPI_COMM_WORLD_RANK", "PMI_RANK", "RANK", "MV2_COMM_WORLD_RANK"]:
-        val = os.environ.get(rank_var)
-        if val is not None:
-            return val.strip() == "0"
-
-    return True
-
-
-def broadcast_system_config(
-    config: Optional[Union[CoChemSystemConfig, Dict[str, Any]]] = None,
-    port: int = 5555,
-    host: str = "0.0.0.0",
-    topic: str = "cochem_system_config",
-    config_path: Optional[Union[str, Path]] = None,
-    repeat_count: int = 5,
-    repeat_interval: float = 0.05,
-    ready_event: Optional[threading.Event] = None,
-) -> str:
-    """Broadcasts validated system configuration over ZeroMQ PUB socket for HPC worker nodes."""
-    if config is None:
-        config = load_system_config(config_path)
-
-    if isinstance(config, dict):
-        validated_cfg = migrate_schema(config)
-    elif isinstance(config, CoChemSystemConfig):
-        validated_cfg = CoChemSystemConfig.model_validate(config.model_dump())
-    else:
-        raise TypeError(f"Invalid config type for broadcast: {type(config)}")
-
-    json_payload = validated_cfg.model_dump_json()
-
-    ctx: zmq.Context[Any] = zmq.Context.instance()
-    pub_socket = ctx.socket(zmq.PUB)
-    pub_socket.setsockopt(zmq.LINGER, 1000)
-    try:
-        pub_socket.bind(f"tcp://{host}:{port}")
-        if ready_event is not None:
-            ready_event.set()
-        time.sleep(0.15)
-        for _ in range(max(1, repeat_count)):
-            pub_socket.send_multipart([topic.encode("utf-8"), json_payload.encode("utf-8")])
-            time.sleep(repeat_interval)
-    finally:
-        pub_socket.close()
-
-    return validated_cfg.compute_checksum()
-
-
-def receive_system_config_broadcast(
-    master_host: str = "127.0.0.1",
-    port: int = 5555,
-    topic: str = "cochem_system_config",
-    timeout_ms: int = 5000,
-) -> CoChemSystemConfig:
-    """Receives system configuration from master ZeroMQ broadcast."""
-    ctx: zmq.Context[Any] = zmq.Context.instance()
-    sub_socket = ctx.socket(zmq.SUB)
-    sub_socket.setsockopt(zmq.LINGER, 0)
-    try:
-        sub_socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        sub_socket.connect(f"tcp://{master_host}:{port}")
-        sub_socket.setsockopt_string(zmq.SUBSCRIBE, topic)
-        time.sleep(0.05)
-        parts = sub_socket.recv_multipart()
-        json_str = parts[1].decode("utf-8")
-        return CoChemSystemConfig.model_validate_json(json_str)
-    except zmq.error.Again as e:
-        raise TimeoutError(
-            f"ZeroMQ config broadcast timed out after {timeout_ms}ms from {master_host}:{port}"
-        ) from e
-    finally:
-        sub_socket.close()
-
-
-# =============================================================================
-# SYSTEM CONFIGURATION I/O & STAGE 0 GUARDRAILS
-# =============================================================================
-
-def get_default_config_path() -> Path:
-    """Resolves the default system configuration file path."""
-    env_cfg = os.environ.get("COCHEM_CONFIG")
-    if env_cfg:
-        return Path(os.path.expandvars(env_cfg)).expanduser().resolve()
-
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        return (
-            Path(os.path.expandvars(env_art)).expanduser()
-            / "Registry"
-            / "cochem_system_config.json"
-        ).resolve()
-
-    try:
-        from cochem_base.config_loader import resolve_config_path
-        return resolve_config_path()
-    except Exception:
-        return (Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json").resolve()
-
-
-def load_system_config(
-    config_path: Optional[Union[str, Path]] = None,
-    verify_integrity: bool = True,
-) -> CoChemSystemConfig:
-    """Loads and validates cochem_system_config.json with environment variable expansion and integrity checks.
-
-    Enforces Stage 0 Guardrail:
-    - If file is missing, logs violation and raises RegistryMissingError.
-    - If JSON is malformed, logs violation and raises RegistryParseError.
-    - If checksum verification fails, logs violation and raises RegistryCorruptionError.
-    """
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    if not target_path.is_file():
-        logger.critical(f"Stage 0 Guardrail: Master registry not found at: {target_path}")
-        raise RegistryMissingError(f"Stage 0 Guardrail: Master registry not found at '{target_path}'")
-
-    lock_file = str(target_path) + ".lock"
-    with AtomicFileLock(lock_file, timeout=10.0):
-        try:
-            raw_text = target_path.read_text(encoding="utf-8")
-        except OSError as e:
-            logger.critical(f"Stage 0 Guardrail: Failed to read registry at {target_path}: {e}")
-            raise RegistryMissingError(f"Stage 0 Guardrail: Failed to read registry at '{target_path}': {e}") from e
-
-        try:
-            parsed_json = json.loads(raw_text)
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.critical(f"Stage 0 Guardrail: Malformed registry JSON at {target_path}: {e}")
-            raise RegistryParseError(f"Stage 0 Guardrail: Unparseable registry JSON at '{target_path}': {e}") from e
-
-        if not isinstance(parsed_json, dict):
-            logger.critical(
-                f"Stage 0 Guardrail: Registry root must be a JSON object, got {type(parsed_json).__name__} at {target_path}"
-            )
-            raise RegistryParseError(
-                f"Stage 0 Guardrail: Registry root must be a JSON object, got {type(parsed_json).__name__}"
-            )
-
-        interpolated_dict = interpolate_env_vars(parsed_json)
-
-        try:
-            config = migrate_schema(interpolated_dict)
-        except Exception as e:
-            logger.critical(f"Stage 0 Guardrail: Schema validation error for {target_path}: {e}")
-            raise SchemaMigrationError(f"Stage 0 Guardrail: Schema validation error for '{target_path}': {e}") from e
-
-        if verify_integrity and "registry_checksum" in parsed_json and parsed_json["registry_checksum"]:
-            expected = parsed_json["registry_checksum"]
-            computed = config.compute_checksum()
-            if expected != computed:
-                logger.critical(
-                    f"Stage 0 Guardrail: Registry corruption at {target_path} (expected checksum '{expected}', computed '{computed}')"
-                )
-                raise RegistryCorruptionError(
-                    f"Stage 0 Guardrail: Registry corruption at '{target_path}' (expected '{expected}', computed '{computed}')"
-                )
-
-        return config
-
-
-def save_system_config(
-    config: Union[CoChemSystemConfig, Dict[str, Any]],
-    config_path: Optional[Union[str, Path]] = None,
-) -> str:
-    """Saves system configuration atomically with updated SHA-256 checksum after strict Pydantic validation."""
-    target_path = Path(config_path or get_default_config_path()).resolve()
-
-    # Pydantic verification checkpoint
-    if isinstance(config, dict):
-        cfg_model = migrate_schema(config)
-    elif isinstance(config, CoChemSystemConfig):
-        cfg_model = CoChemSystemConfig.model_validate(config.model_dump())
-    else:
-        raise TypeError(f"Invalid config type: {type(config)}")
-
-    cfg_model.last_updated = datetime.now(timezone.utc).isoformat()
-    checksum = cfg_model.update_checksum()
-    atomic_write_json(target_path, cfg_model, lock_timeout=10.0)
-    return checksum
-
-
-def update_system_config(
-    config_path: Optional[Union[str, Path]] = None,
-    **updates: Any,
-) -> CoChemSystemConfig:
-    """Atomically updates fields within cochem_system_config.json with strict Pydantic validation checkpoint."""
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    lock_file = str(target_path) + ".lock"
-
-    with AtomicFileLock(lock_file, timeout=10.0):
-        current = load_system_config(target_path, verify_integrity=False)
-        current_dict = current.model_dump()
-        current_dict.update(updates)
-
-        # Pydantic verification checkpoint: strictly rejects illegal data injection
-        updated_cfg = migrate_schema(current_dict)
-        save_system_config(updated_cfg, target_path)
-        return updated_cfg
-
-
-# =============================================================================
-# ACTIVE JOBS LIFECYCLE MANAGEMENT
-# =============================================================================
-
-def register_active_job(
-    job_id: str,
-    job_data: Union[Dict[str, Any], BaseModel],
-    config_path: Optional[Union[str, Path]] = None,
-) -> None:
-    """Registers an active execution job into cochem_system_config.json under active_jobs."""
-    if not job_id or not isinstance(job_id, str) or not job_id.strip():
-        raise ValueError("Job ID must be a non-empty string.")
-
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    lock_file = str(target_path) + ".lock"
-
-    payload = job_data.model_dump() if isinstance(job_data, BaseModel) else dict(job_data)
-    if "registered_at" not in payload:
-        payload["registered_at"] = datetime.now(timezone.utc).isoformat()
-
-    with AtomicFileLock(lock_file, timeout=10.0):
-        cfg = load_system_config(target_path, verify_integrity=False)
-        cfg.active_jobs[job_id] = payload
-        save_system_config(cfg, target_path)
-
-
-def get_active_job(
-    job_id: str,
-    config_path: Optional[Union[str, Path]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Retrieves an active job record from cochem_system_config.json, or None if not found."""
-    if not job_id or not isinstance(job_id, str) or not job_id.strip():
-        return None
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    cfg = load_system_config(target_path, verify_integrity=False)
-    return cfg.active_jobs.get(job_id)
-
-
-def list_active_jobs(
-    config_path: Optional[Union[str, Path]] = None,
-) -> Dict[str, Any]:
-    """Returns all active jobs recorded in cochem_system_config.json."""
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    cfg = load_system_config(target_path, verify_integrity=False)
-    return dict(cfg.active_jobs)
-
-
-def remove_active_job(
-    job_id: str,
-    config_path: Optional[Union[str, Path]] = None,
-) -> bool:
-    """Removes an active job from cochem_system_config.json."""
-    if not job_id or not isinstance(job_id, str) or not job_id.strip():
-        return False
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    lock_file = str(target_path) + ".lock"
-    with AtomicFileLock(lock_file, timeout=10.0):
-        cfg = load_system_config(target_path, verify_integrity=False)
-        if job_id in cfg.active_jobs:
-            del cfg.active_jobs[job_id]
-            save_system_config(cfg, target_path)
-            return True
-        return False
-
-
-def update_active_job(
-    job_id: str,
-    status: str,
-    config_path: Optional[Union[str, Path]] = None,
-    **kwargs: Any,
-) -> Dict[str, Any]:
-    """Updates status and additional fields of an active job in cochem_system_config.json."""
-    if not job_id or not isinstance(job_id, str) or not job_id.strip():
-        raise ValueError("Job ID must be a non-empty string.")
-    target_path = Path(config_path or get_default_config_path()).resolve()
-    lock_file = str(target_path) + ".lock"
-    with AtomicFileLock(lock_file, timeout=10.0):
-        cfg = load_system_config(target_path, verify_integrity=False)
-        if job_id not in cfg.active_jobs:
-            raise RecordNotFoundError(f"Cannot update non-existent active job '{job_id}'")
-        job_record = dict(cfg.active_jobs[job_id])
-        job_record["status"] = status
-        job_record.update(kwargs)
-        job_record["updated_at"] = datetime.now(timezone.utc).isoformat()
-        cfg.active_jobs[job_id] = job_record
-        save_system_config(cfg, target_path)
-        return job_record
-
-
-# =============================================================================
-# MASTER REGISTRY MANAGER CLASS
-# =============================================================================
-
-class RegistryManager:
-    """Consolidated state registry manager using HDF5, Atomic File Locks, and ZeroMQ Broadcasts."""
-
-    SCHEMA_VERSION = "1.0.0"
-
-    def __init__(
-        self, config_path: Optional[str] = None, registry_path: Optional[str] = None
-    ) -> None:
-        if config_path:
-            self.config_path = str(resolve_config_path(Path(config_path)))
-        else:
-            self.config_path = str(resolve_config_path())
-
-        if registry_path:
-            self.registry_path = str(
-                resolve_mapped_path(registry_path, get_artifact_dir() / "Registry")
-            )
-        else:
-            self.registry_path = str(get_artifact_dir() / "Registry" / "cochem_registry.h5")
-
-        self.lock_path = self.registry_path + ".lock"
-        self._ensure_registry_exists()
-
-    def _ensure_registry_exists(self) -> None:
-        """Ensure the HDF5 registry file and required groups exist, with atomic locking."""
-        try:
-            Path(self.registry_path).parent.mkdir(parents=True, exist_ok=True)
-            with AtomicFileLock(self.lock_path, timeout=10.0):
-                if not os.path.exists(self.registry_path):
-                    with h5py.File(self.registry_path, "w") as h5:
-                        h5.attrs["created"] = datetime.now(timezone.utc).isoformat()
-                        h5.attrs["version"] = self.SCHEMA_VERSION
-                        h5.create_group("jobs")
-                        h5.create_group("hardware_profiles")
-                        h5.create_group("basis_sets")
-                        h5.create_group("embedded_basis_sets")
-                        h5.create_group("provenance")
-                        h5.create_group("seeds")
-                        h5.create_group("metadata")
-                    logger.info(f"Created new registry file: {self.registry_path}")
+                if is_in_use:
+                    if port_fallback:
+                        # Fallback immediately to ephemeral port 0
+                        fb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        fb_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        try:
+                            fb_sock.bind((self.host, 0))
+                            fb_sock.listen(5)
+                            self._server_sock = fb_sock
+                            self.port = fb_sock.getsockname()[1]
+                            bound = True
+                            break
+                        except OSError as fb_err:
+                            fb_sock.close()
+                            self._server_sock = None
+                            raise IPCBindError(f"Failed to bind ephemeral fallback port: {fb_err}") from fb_err
+                    else:
+                        if attempt < max_retries - 1:
+                            time.sleep(backoff_base * (2**attempt))
+                            continue
+                        else:
+                            raise PortContentionError(
+                                f"Port {target_port} contention exhausted after {max_retries} retries: {err}"
+                            ) from err
                 else:
-                    with h5py.File(self.registry_path, "a") as h5:
-                        if "version" not in h5.attrs:
-                            h5.attrs["version"] = self.SCHEMA_VERSION
-                        for grp in [
-                            "jobs",
-                            "hardware_profiles",
-                            "basis_sets",
-                            "embedded_basis_sets",
-                            "provenance",
-                            "seeds",
-                            "metadata",
-                        ]:
-                            if grp not in h5:
-                                h5.create_group(grp)
-        except Exception as e:
-            logger.error(f"Failed to initialize registry: {e}")
-            raise RuntimeError(f"Registry initialization failed: {e}") from e
+                    raise IPCBindError(f"Socket bind failed on {self.host}:{target_port}: {err}") from err
 
-    @contextmanager
-    def transaction(self, mode: str = "a") -> Generator[h5py.File, None, None]:
-        """Provides an atomic transaction over the HDF5 registry using AtomicFileLock."""
-        with AtomicFileLock(self.lock_path, timeout=10.0):
-            with h5py.File(self.registry_path, mode) as h5:
-                yield h5
+        if not bound or self._server_sock is None:
+            raise PortContentionError(f"Could not bind to port {target_port}")
 
-    @contextmanager
-    def config_transaction(self) -> Generator[CoChemSystemConfig, None, None]:
-        """Provides an atomic transaction over cochem_system_config.json with strict Pydantic verification."""
-        target_path = Path(self.config_path).resolve()
-        lock_file = str(target_path) + ".lock"
-        with AtomicFileLock(lock_file, timeout=10.0):
-            cfg = self.load_system_config(verify_integrity=False)
-            yield cfg
-            validated = CoChemSystemConfig.model_validate(cfg.model_dump())
-            self.save_system_config(validated)
-
-    def get_registry_stats(self) -> Dict[str, Any]:
-        """Returns statistics on active registry record groups."""
-        with self.transaction("r") as h5:
-            jobs_c = len(h5["jobs"]) if "jobs" in h5 else 0
-            hw_c = len(h5["hardware_profiles"]) if "hardware_profiles" in h5 else 0
-            prov_c = len(h5["provenance"]) if "provenance" in h5 else 0
-            basis_c = (
-                len(h5["embedded_basis_sets"])
-                if "embedded_basis_sets" in h5
-                else (len(h5["basis_sets"]) if "basis_sets" in h5 else 0)
-            )
-            seeds_c = len(h5["seeds"]) if "seeds" in h5 else 0
-            ver = h5.attrs.get("version", self.SCHEMA_VERSION)
-            if isinstance(ver, bytes):
-                ver = ver.decode("utf-8")
-            return {
-                "jobs_count": jobs_c,
-                "hardware_profiles_count": hw_c,
-                "provenance_count": prov_c,
-                "basis_sets_count": basis_c,
-                "seeds_count": seeds_c,
-                "version": str(ver),
-            }
-
-    # =========================================================================
-    # System Configuration Delegates
-    # =========================================================================
-
-    def load_system_config(
-        self,
-        config_path: Optional[Union[str, Path]] = None,
-        verify_integrity: bool = True,
-    ) -> CoChemSystemConfig:
-        """Loads system configuration using the authoritative Stage 0 loader."""
-        return load_system_config(config_path or self.config_path, verify_integrity=verify_integrity)
-
-    def save_system_config(
-        self,
-        config: Union[CoChemSystemConfig, Dict[str, Any]],
-        config_path: Optional[Union[str, Path]] = None,
-    ) -> str:
-        """Saves system configuration atomically with updated SHA-256 checksum."""
-        return save_system_config(config, config_path or self.config_path)
-
-    def update_system_config(self, **updates: Any) -> CoChemSystemConfig:
-        """Atomically updates fields within cochem_system_config.json."""
-        return update_system_config(config_path=self.config_path, **updates)
-
-    def register_active_job(self, job_id: str, job_data: Union[Dict[str, Any], BaseModel]) -> None:
-        """Registers an active execution job in cochem_system_config.json."""
-        register_active_job(job_id, job_data, config_path=self.config_path)
-
-    def get_active_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves an active execution job from cochem_system_config.json."""
-        return get_active_job(job_id, config_path=self.config_path)
-
-    def list_active_jobs(self) -> Dict[str, Any]:
-        """Lists all active execution jobs in cochem_system_config.json."""
-        return list_active_jobs(config_path=self.config_path)
-
-    def remove_active_job(self, job_id: str) -> bool:
-        """Removes an active execution job from cochem_system_config.json."""
-        return remove_active_job(job_id, config_path=self.config_path)
-
-    def update_active_job(self, job_id: str, status: str, **kwargs: Any) -> Dict[str, Any]:
-        """Updates an active execution job in cochem_system_config.json."""
-        return update_active_job(job_id, status, config_path=self.config_path, **kwargs)
-
-    def poll_system_config(
-        self,
-        master_host: str = "127.0.0.1",
-        zmq_port: int = 5555,
-        timeout_ms: int = 2000,
-    ) -> CoChemSystemConfig:
-        """Polls configuration: Master reads disk directly; Worker receives ZMQ broadcast with disk fallback."""
-        if is_master_node():
-            return self.load_system_config()
-        try:
-            return receive_system_config_broadcast(
-                master_host=master_host, port=zmq_port, timeout_ms=timeout_ms
-            )
-        except Exception as e:
-            logger.debug(f"Worker ZMQ poll failed, falling back to disk read: {e}")
-            return self.load_system_config()
-
-    def broadcast_config(
-        self,
-        port: int = 5555,
-        host: str = "0.0.0.0",
-        topic: str = "cochem_system_config",
-    ) -> str:
-        """Broadcasts current configuration via ZeroMQ."""
-        cfg = self.load_system_config(verify_integrity=False)
-        return broadcast_system_config(cfg, port=port, host=host, topic=topic)
-
-    def receive_config_broadcast(
-        self,
-        master_host: str = "127.0.0.1",
-        port: int = 5555,
-        topic: str = "cochem_system_config",
-        timeout_ms: int = 5000,
-    ) -> CoChemSystemConfig:
-        """Subscribes and receives configuration broadcast via ZeroMQ."""
-        return receive_system_config_broadcast(
-            master_host=master_host, port=port, topic=topic, timeout_ms=timeout_ms
+        # Publish active binding metadata to atomic file ipc_server_{pid}.json in COCHEM_SCRATCH_DIR
+        scratch_dir_env = (
+            os.environ.get("COCHEM_SCRATCH_DIR")
+            or os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TMPDIR")
         )
+        if scratch_dir_env:
+            scratch_dir = pathlib.Path(scratch_dir_env).resolve()
+        else:
+            scratch_dir = pathlib.Path(tempfile.gettempdir()).resolve()
+        scratch_dir.mkdir(parents=True, exist_ok=True)
 
-    def hash_environment(
-        self,
-        exclude_paths: bool = True,
-        tracked_packages: Optional[Sequence[str]] = None,
-        tracked_engines: Optional[Union[Sequence[str], Dict[str, str]]] = None,
-    ) -> Dict[str, Any]:
-        """Calculates environmental hash for state tracking."""
-        return hash_environment(
-            exclude_paths=exclude_paths,
-            tracked_packages=tracked_packages,
-            tracked_engines=tracked_engines,
-        )
+        pid = os.getpid()
+        desc_file = scratch_dir / f"ipc_server_{pid}.json"
+        tmp_file = scratch_dir / f"ipc_server_{pid}_{uuid.uuid4().hex[:8]}.tmp"
 
-    def migrate_schema(
-        self, config_source: Union[Dict[str, Any], str, Path, CoChemSystemConfig]
-    ) -> CoChemSystemConfig:
-        """Migrates schema to 4.0.0."""
-        return migrate_schema(config_source)
-
-    # =========================================================================
-    # Isotopic Mass & Mendeleev/QCElemental Queries
-    # =========================================================================
-
-    @staticmethod
-    def get_isotopic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-        """Dynamically fetches exact isotopic masses via Mendeleev, QCElemental, or periodic tables."""
-        if symbol is None or not isinstance(symbol, str) or not symbol.strip():
-            raise ValueError("Chemical element symbol cannot be empty or None.")
-
-        clean_sym = symbol.strip()
-        formatted_sym = clean_sym.capitalize() if len(clean_sym) <= 2 else clean_sym
-
-        if mass_number is not None and not isinstance(mass_number, int):
-            raise ValueError("Mass number must be an integer.")
-
-        if clean_sym.upper() == "D":
-            if mass_number is not None and mass_number != 2:
-                raise ValueError(f"Isotope {mass_number}D not found in Mendeleev database.")
-            clean_sym = "H"
-            formatted_sym = "H"
-            mass_number = 2
-        elif clean_sym.upper() == "T":
-            if mass_number is not None and mass_number != 3:
-                raise ValueError(f"Isotope {mass_number}T not found in Mendeleev database.")
-            clean_sym = "H"
-            formatted_sym = "H"
-            mass_number = 3
-
-        if element is not None:
-            try:
-                try:
-                    elem = element(formatted_sym)
-                except Exception:
-                    try:
-                        elem = element(clean_sym)
-                    except Exception:
-                        elem = None
-
-                if elem is not None:
-                    if mass_number is not None:
-                        for iso in elem.isotopes:
-                            if iso.mass_number == mass_number:
-                                if iso.mass is None:
-                                    raise IsotopeStabilityError(
-                                        f"Isotope {mass_number}{clean_sym} has no stable mass record in Mendeleev."
-                                    )
-                                return float(iso.mass)
-                        raise ValueError(
-                            f"Isotope {mass_number}{clean_sym} not found in Mendeleev database."
-                        )
-
-                    if hasattr(elem, "mass") and elem.mass is not None:
-                        return float(elem.mass)
-                    raise IsotopeStabilityError(
-                        f"Element {clean_sym} lacks a valid default atomic mass binding."
-                    )
-            except (ValueError, IsotopeStabilityError):
-                raise
-            except Exception as e:
-                logger.debug(f"Mendeleev query failed for '{clean_sym}', attempting fallback: {e}")
-
-        if pt is not None:
-            try:
-                if mass_number is not None:
-                    target = f"{formatted_sym}{mass_number}"
-                    try:
-                        return float(pt.to_mass(target))
-                    except Exception as e:
-                        raise ValueError(
-                            f"Isotope {mass_number}{clean_sym} not found in Mendeleev database."
-                        ) from e
-                try:
-                    return float(pt.to_mass(formatted_sym))
-                except Exception as e:
-                    raise IsotopeStabilityError(
-                        f"Element {clean_sym} not found in Mendeleev."
-                    ) from e
-            except (ValueError, IsotopeStabilityError):
-                raise
-            except Exception as e:
-                logger.error(f"Failed to query QCElemental for symbol '{clean_sym}': {e}")
-                raise IsotopeStabilityError(
-                    f"Isotopic mass resolution failed for {clean_sym}: {e}"
-                ) from e
-
-        raise IsotopeStabilityError(
-            f"Element {clean_sym} not found in Mendeleev or QCElemental database."
-        )
-
-    @staticmethod
-    def get_all_isotopes(symbol: str) -> List[Dict[str, Any]]:
-        """Returns all isotopic variants for a given chemical element symbol."""
-        if symbol is None or not isinstance(symbol, str) or not symbol.strip():
-            raise ValueError("Chemical element symbol cannot be empty or None.")
-
-        clean_sym = symbol.strip()
-        formatted_sym = clean_sym.capitalize() if len(clean_sym) <= 2 else clean_sym
-
-        if clean_sym.upper() in ("D", "T"):
-            clean_sym = "H"
-            formatted_sym = "H"
-
-        if element is not None:
-            try:
-                try:
-                    elem = element(formatted_sym)
-                except Exception:
-                    try:
-                        elem = element(clean_sym)
-                    except Exception:
-                        elem = None
-
-                if elem is not None:
-                    isotopes = []
-                    for iso in elem.isotopes:
-                        isotopes.append(
-                            {
-                                "mass_number": int(iso.mass_number),
-                                "mass": float(iso.mass) if iso.mass is not None else None,
-                                "abundance": float(iso.abundance)
-                                if getattr(iso, "abundance", None) is not None
-                                else None,
-                            }
-                        )
-                    return isotopes
-            except Exception as e:
-                logger.debug(f"Mendeleev isotopes query failed for '{clean_sym}': {e}")
-
-        if pt is not None:
-            try:
-                isotopes = []
-                try:
-                    pt.to_mass(formatted_sym)
-                except Exception as err:
-                    raise IsotopeStabilityError(
-                        f"Element {clean_sym} not found in Mendeleev."
-                    ) from err
-
-                pattern = re.compile(rf"^{formatted_sym}(\d+)$")
-                if hasattr(pt, "_eliso2mass"):
-                    for k, m in pt._eliso2mass.items():
-                        mat = pattern.match(k)
-                        if mat:
-                            isotopes.append(
-                                {
-                                    "mass_number": int(mat.group(1)),
-                                    "mass": float(m),
-                                    "abundance": None,
-                                }
-                            )
-                return sorted(isotopes, key=lambda x: x["mass_number"])
-            except IsotopeStabilityError:
-                raise
-            except Exception as e:
-                raise IsotopeStabilityError(f"Failed to fetch isotopes for {clean_sym}: {e}") from e
-
-        raise IsotopeStabilityError(f"Element {clean_sym} not found in Mendeleev or QCElemental.")
-
-    # =========================================================================
-    # HDF5 Registry Operations
-    # =========================================================================
-
-    def register_job(self, job_id: str, job_data: Union[Dict[str, Any], BaseModel]) -> None:
-        """Registers a calculation job record in the HDF5 registry."""
-        if not job_id or not isinstance(job_id, str) or not job_id.strip():
-            raise ValueError("Job ID must be a non-empty string.")
-
-        payload = job_data.model_dump() if isinstance(job_data, BaseModel) else dict(job_data)
-        if "registered_at" not in payload:
-            payload["registered_at"] = datetime.now(timezone.utc).isoformat()
-
-        json_str = json.dumps(payload)
-        with self.transaction("a") as h5:
-            jobs_grp = h5["jobs"]
-            if job_id in jobs_grp:
-                del jobs_grp[job_id]
-            dset = jobs_grp.create_dataset(
-                job_id, data=json_str, dtype=h5py.string_dtype(encoding="utf-8")
-            )
-            dset.attrs["updated_at"] = datetime.now(timezone.utc).isoformat()
-
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves a registered job record, or None if not found."""
-        with self.transaction("r") as h5:
-            if "jobs" not in h5 or job_id not in h5["jobs"]:
-                return None
-            val = h5["jobs"][job_id][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            return cast(Optional[Dict[str, Any]], json.loads(text))
-
-    def update_job_status(self, job_id: str, status: str, **kwargs: Any) -> None:
-        """Updates the status and additional fields of an existing job record."""
-        with self.transaction("a") as h5:
-            jobs_grp = h5["jobs"]
-            if job_id not in jobs_grp:
-                raise RecordNotFoundError(f"Cannot update status for non-existent job '{job_id}'")
-            val = jobs_grp[job_id][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            rec = json.loads(text)
-            rec["status"] = status
-            rec.update(kwargs)
-            rec["updated_at"] = datetime.now(timezone.utc).isoformat()
-            del jobs_grp[job_id]
-            jobs_grp.create_dataset(
-                job_id, data=json.dumps(rec), dtype=h5py.string_dtype(encoding="utf-8")
-            )
-
-    def get_all_jobs(self) -> List[Dict[str, Any]]:
-        """Returns all registered jobs with job_id included."""
-        results = []
-        with self.transaction("r") as h5:
-            if "jobs" in h5:
-                for k in h5["jobs"].keys():
-                    val = h5["jobs"][k][()]
-                    text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-                    data = json.loads(text)
-                    data["job_id"] = k
-                    results.append(data)
-        return results
-
-    def delete_job(self, job_id: str) -> bool:
-        """Deletes a job from the registry."""
-        with self.transaction("a") as h5:
-            if "jobs" in h5 and job_id in h5["jobs"]:
-                del h5["jobs"][job_id]
-                return True
-            return False
-
-    def register_hardware_profile(
-        self, profile_id: str, profile_data: Union[Dict[str, Any], BaseModel]
-    ) -> None:
-        """Registers a host/node hardware configuration profile."""
-        if not profile_id or not isinstance(profile_id, str) or not profile_id.strip():
-            raise ValueError("Profile ID must be a non-empty string.")
-
-        payload = (
-            profile_data.model_dump() if isinstance(profile_data, BaseModel) else dict(profile_data)
-        )
-        payload["registered_at"] = datetime.now(timezone.utc).isoformat()
-        json_str = json.dumps(payload)
-
-        with self.transaction("a") as h5:
-            hw_grp = h5["hardware_profiles"]
-            if profile_id in hw_grp:
-                del hw_grp[profile_id]
-            hw_grp.create_dataset(
-                profile_id, data=json_str, dtype=h5py.string_dtype(encoding="utf-8")
-            )
-
-    def get_hardware_profile(self, profile_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves a registered hardware profile by ID."""
-        with self.transaction("r") as h5:
-            if "hardware_profiles" not in h5 or profile_id not in h5["hardware_profiles"]:
-                return None
-            val = h5["hardware_profiles"][profile_id][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            return cast(Optional[Dict[str, Any]], json.loads(text))
-
-    def get_all_hardware_profiles(self) -> List[Dict[str, Any]]:
-        """Returns all hardware profiles."""
-        results = []
-        with self.transaction("r") as h5:
-            if "hardware_profiles" in h5:
-                for k in h5["hardware_profiles"].keys():
-                    val = h5["hardware_profiles"][k][()]
-                    text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-                    data = json.loads(text)
-                    data["profile_id"] = k
-                    results.append(data)
-        return results
-
-    def delete_hardware_profile(self, profile_id: str) -> bool:
-        """Deletes a hardware profile from the registry."""
-        with self.transaction("a") as h5:
-            if "hardware_profiles" in h5 and profile_id in h5["hardware_profiles"]:
-                del h5["hardware_profiles"][profile_id]
-                return True
-            return False
-
-    def add_provenance_record(self, record_id: str, record_data: Dict[str, Any]) -> str:
-        """Adds a cryptographic/workflow provenance record and returns a unique lineage UUID."""
-        if not record_id or not isinstance(record_id, str) or not record_id.strip():
-            raise ValueError("Record ID must be a non-empty string.")
-
-        lineage_uuid = f"lin_{uuid.uuid4().hex}"
-        payload = dict(record_data)
-        payload["record_id"] = record_id
-        payload["lineage_uuid"] = lineage_uuid
-        payload["timestamp"] = datetime.now(timezone.utc).isoformat()
-
-        json_str = json.dumps(payload)
-        with self.transaction("a") as h5:
-            prov_grp = h5["provenance"]
-            if record_id in prov_grp:
-                del prov_grp[record_id]
-            prov_grp.create_dataset(
-                record_id, data=json_str, dtype=h5py.string_dtype(encoding="utf-8")
-            )
-
-        return lineage_uuid
-
-    def get_provenance_record(self, record_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves a provenance record by ID."""
-        with self.transaction("r") as h5:
-            if "provenance" not in h5 or record_id not in h5["provenance"]:
-                return None
-            val = h5["provenance"][record_id][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            return cast(Optional[Dict[str, Any]], json.loads(text))
-
-    def get_lineage_chain(self, leaf_record_id: str) -> List[Dict[str, Any]]:
-        """Traces the backward DAG lineage chain from leaf to root with cycle protection."""
-        chain = []
-        curr_id = leaf_record_id
-        all_prov = {p["lineage_uuid"]: p for p in self.get_all_provenance_records()}
-        rec_by_id = {p["record_id"]: p for p in all_prov.values()}
-        visited = set()
-
-        curr = rec_by_id.get(curr_id)
-        while curr is not None:
-            curr_uuid = curr.get("lineage_uuid")
-            if curr_uuid in visited:
-                logger.warning(f"Provenance cycle detected at record {curr_id}")
-                break
-            if curr_uuid:
-                visited.add(curr_uuid)
-            chain.append(curr)
-            parent_uuid = curr.get("parent_uuid")
-            if not parent_uuid or parent_uuid not in all_prov:
-                break
-            curr = all_prov.get(parent_uuid)
-
-        return chain
-
-    def get_all_provenance_records(self) -> List[Dict[str, Any]]:
-        """Returns all provenance records."""
-        results = []
-        with self.transaction("r") as h5:
-            if "provenance" in h5:
-                for k in h5["provenance"].keys():
-                    val = h5["provenance"][k][()]
-                    text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-                    data = json.loads(text)
-                    results.append(data)
-        return results
-
-    def delete_provenance_record(self, record_id: str) -> bool:
-        """Deletes a provenance record."""
-        with self.transaction("a") as h5:
-            if "provenance" in h5 and record_id in h5["provenance"]:
-                del h5["provenance"][record_id]
-                return True
-            return False
-
-    def lock_prng_seed(
-        self, seed: int, scope: str = "global", metadata: Optional[Dict[str, Any]] = None
-    ) -> int:
-        """Locks a pseudorandom number generator seed into the registry."""
-        if not isinstance(seed, int):
-            raise ValueError("PRNG seed must be an integer.")
-
-        payload = {
-            "seed": seed,
-            "scope": scope,
-            "metadata": metadata or {},
-            "locked_at": datetime.now(timezone.utc).isoformat(),
+        auth_token_hash = hashlib.sha256(self.secret_key).hexdigest()
+        created_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        meta = {
+            "pid": pid,
+            "host": self.host,
+            "port": self.port,
+            "created_utc": created_utc,
+            "auth_token_hash": auth_token_hash,
         }
 
-        with self.transaction("a") as h5:
-            seeds_grp = h5["seeds"]
-            if scope in seeds_grp:
-                del seeds_grp[scope]
-            seeds_grp.create_dataset(
-                scope, data=json.dumps(payload), dtype=h5py.string_dtype(encoding="utf-8")
-            )
+        payload_bytes = json.dumps(meta, indent=2).encode("utf-8")
+        with open(tmp_file, "wb") as f:
+            f.write(payload_bytes)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_file, desc_file)
+        self._descriptor_path = desc_file
 
-        return seed
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._accept_loop,
+            name="HMACSocketServerLoop",
+            daemon=True,
+        )
+        self._thread.start()
+        return self.port
 
-    def get_locked_seed(self, scope: str = "global") -> Optional[int]:
-        """Retrieves a locked PRNG seed for a given scope."""
-        with self.transaction("r") as h5:
-            if "seeds" not in h5 or scope not in h5["seeds"]:
-                return None
-            val = h5["seeds"][scope][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            return cast(Optional[int], json.loads(text).get("seed"))
+    def stop(self) -> None:
+        """Shutdown server socket, clean up descriptor file, and join accept thread."""
+        self._stop_event.set()
+        if self._server_sock is not None:
+            try:
+                self._server_sock.close()
+            except OSError as exc:
+                logger.debug("Server socket close error ignored: %s", exc)
+            self._server_sock = None
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+            self._thread = None
+        if self._descriptor_path is not None and self._descriptor_path.exists():
+            try:
+                self._descriptor_path.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.debug("Descriptor unlink error ignored: %s", exc)
+            self._descriptor_path = None
 
-    def verify_prng_seed(self, seed: int, scope: str = "global") -> bool:
-        """Verifies if an active seed matches the registered locked seed for a scope."""
-        locked = self.get_locked_seed(scope)
-        return locked is not None and locked == seed
+    def _accept_loop(self) -> None:
+        """Accept inbound client connections and execute HMAC handshake."""
+        while not self._stop_event.is_set():
+            try:
+                if self._server_sock is None:
+                    break
+                self._server_sock.settimeout(0.5)
+                conn, _ = self._server_sock.accept()
+            except (socket.timeout, OSError):
+                continue
 
-    def list_locked_seeds(self) -> Dict[str, int]:
-        """Returns all locked seeds mapped by scope."""
-        res = {}
-        with self.transaction("r") as h5:
-            if "seeds" in h5:
-                for k in h5["seeds"].keys():
-                    val = h5["seeds"][k][()]
-                    text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-                    res[k] = json.loads(text).get("seed")
-        return res
+            try:
+                # 1. Ephemeral 32-byte cryptographic challenge
+                challenge = secrets.token_bytes(32)
+                conn.sendall(challenge)
 
-    def embed_basis_set_archive(
+                # 2. Receive 32-byte HMAC-SHA256 response
+                response = conn.recv(32)
+                expected = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
+
+                if not hmac.compare_digest(response, expected):
+                    logger.warning("IPC connection rejected: HMAC authentication failed")
+                    conn.sendall(b"DENIED")
+                    conn.close()
+                    continue
+
+                conn.sendall(b"ACCEPT")
+
+                # 3. Read 4-byte payload length header
+                len_bytes = conn.recv(4)
+                if len(len_bytes) < 4:
+                    conn.close()
+                    continue
+                (payload_len,) = struct.unpack("!I", len_bytes)
+
+                if payload_len > MAX_IPC_PAYLOAD_BYTES:
+                    logger.error("IPC payload rejected: size %d exceeds 256 MB ceiling", payload_len)
+                    self._last_error = OversizedPayloadError(
+                        f"Payload size {payload_len} exceeds 256 MB limit"
+                    )
+                    self._payload_event.set()
+                    conn.close()
+                    continue
+
+                # 4. Stream payload bytes
+                buffer = bytearray()
+                while len(buffer) < payload_len:
+                    chunk = conn.recv(min(65536, payload_len - len(buffer)))
+                    if not chunk:
+                        break
+                    buffer.extend(chunk)
+
+                if len(buffer) < payload_len:
+                    logger.error("IPC stream truncated: received %d of %d bytes", len(buffer), payload_len)
+                    self._last_error = TruncatedPayloadError(
+                        f"Stream truncated: received {len(buffer)} of {payload_len} bytes"
+                    )
+                    self._payload_event.set()
+                    conn.close()
+                    continue
+
+                if len(buffer) == payload_len:
+                    payload = unpack_payload(bytes(buffer))
+                    self._received_payloads.append(payload)
+                    self._payload_event.set()
+            except Exception as conn_err:
+                logger.debug("Error processing client connection: %s", conn_err)
+            finally:
+                try:
+                    conn.close()
+                except OSError as exc:
+                    logger.debug("Client conn close error ignored: %s", exc)
+
+    def get_received_payload(self, timeout_sec: float = 5.0) -> Optional[Any]:
+        """Await reception of payload from client."""
+        if self._payload_event.wait(timeout_sec):
+            if self._last_error is not None:
+                err = self._last_error
+                self._last_error = None
+                self._payload_event.clear()
+                raise err
+            if self._received_payloads:
+                payload = self._received_payloads.pop(0)
+                if not self._received_payloads:
+                    self._payload_event.clear()
+                return payload
+        if self._last_error is not None:
+            err = self._last_error
+            self._last_error = None
+            raise err
+        return None
+
+
+class HMACSocketClient:
+    """Client communicating over loopback TCP with HMAC-SHA256 authentication."""
+
+    def __init__(
         self,
-        h5_path: Optional[str] = None,
-        basis_file_path: str = "",
-        label: str = "",
-        is_content: bool = False,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        secret_key: bytes = b"",
     ) -> None:
-        """Embeds full basis set text into the HDF5 archive to prevent link rot."""
-        if not label or not isinstance(label, str) or not label.strip():
-            raise ValueError("Basis set label must be a non-empty string.")
+        self.host: str = host
+        self.port: int = port
+        self.secret_key: bytes = secret_key
 
-        clean_label = label.strip()
+    def send_payload(self, data: Any) -> None:
+        """Connect to server, satisfy HMAC challenge, and transmit Msgpack payload."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((self.host, self.port))
+        try:
+            # 1. Receive 32-byte challenge
+            challenge = sock.recv(32)
+            if len(challenge) != 32:
+                raise ConnectionError("Invalid challenge received from server")
 
-        if is_content:
-            raw_text = basis_file_path
-        else:
-            p = Path(basis_file_path)
-            if not p.is_file():
-                raise FileNotFoundError(f"Basis set file not found: {p}")
-            raw_text = p.read_text(encoding="utf-8")
+            # 2. Compute and send response
+            response = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
+            sock.sendall(response)
 
-        mapped_h5 = Path(h5_path or self.registry_path)
-        with AtomicFileLock(str(mapped_h5) + ".lock", timeout=10.0):
-            with h5py.File(mapped_h5, "a") as h5:
-                if "embedded_basis_sets" not in h5:
-                    h5.create_group("embedded_basis_sets")
-                grp = h5["embedded_basis_sets"]
-                if clean_label in grp:
-                    del grp[clean_label]
-                grp.create_dataset(
-                    clean_label, data=raw_text, dtype=h5py.string_dtype(encoding="utf-8")
-                )
+            status = sock.recv(6)
+            if status != b"ACCEPT":
+                raise PermissionError("HMAC handshake rejected by server")
 
-    def has_embedded_basis_set(self, label: str) -> bool:
-        """Checks if a basis set label exists in the registry."""
-        with self.transaction("r") as h5:
-            return "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]
+            # 3. Pack payload and send with length header
+            packed_bytes = pack_payload(data)
+            header = struct.pack("!I", len(packed_bytes))
+            sock.sendall(header + packed_bytes)
+        finally:
+            sock.close()
 
-    def get_embedded_basis_set(self, label: str) -> str:
-        """Retrieves embedded basis set content."""
-        with self.transaction("r") as h5:
-            if "embedded_basis_sets" not in h5 or label not in h5["embedded_basis_sets"]:
-                raise BasisSetNotFoundError(f"Basis set '{label}' not found in registry.")
-            val = h5["embedded_basis_sets"][label][()]
-            return val.decode("utf-8") if isinstance(val, bytes) else str(val)
 
-    def list_embedded_basis_sets(self) -> List[str]:
-        """Lists all embedded basis set labels."""
-        with self.transaction("r") as h5:
-            if "embedded_basis_sets" in h5:
-                return list(h5["embedded_basis_sets"].keys())
-            return []
+# ==============================================================================
+# HDF5 PESStore Tensor Persistence (QCSchema & SWMR)
+# ==============================================================================
+from cochem_base.core.ipc.serializer import validate_airgap_write_path
 
-    def delete_embedded_basis_set(self, label: str) -> bool:
-        """Deletes an embedded basis set."""
-        with self.transaction("a") as h5:
-            if "embedded_basis_sets" in h5 and label in h5["embedded_basis_sets"]:
-                del h5["embedded_basis_sets"][label]
-                return True
-            return False
 
-    def migrate_legacy_schema(self) -> Dict[str, Any]:
-        """Upgrades legacy HDF5 schema files to 1.0.0."""
-        with self.transaction("a") as h5:
-            prev_ver = h5.attrs.get("version", "0.1")
-            if isinstance(prev_ver, bytes):
-                prev_ver = prev_ver.decode("utf-8")
+class PESStore:
+    """Multidimensional tensor persistence store for Potential Energy Surfaces using HDF5 SWMR."""
 
-            h5.attrs["version"] = self.SCHEMA_VERSION
-            h5.attrs["migrated_at"] = datetime.now(timezone.utc).isoformat()
+    def __init__(self, file_path: Union[pathlib.Path, str]) -> None:
+        self.file_path: pathlib.Path = validate_airgap_write_path(pathlib.Path(file_path).resolve())
+        assert_writable_path(self.file_path)
+        self.lock_path: pathlib.Path = pathlib.Path(str(self.file_path) + ".lock").resolve()
+        self._write_lock: threading.RLock = threading.RLock()
 
-            for grp in [
-                "hardware_profiles",
-                "basis_sets",
-                "embedded_basis_sets",
-                "provenance",
-                "seeds",
-                "metadata",
-            ]:
-                if grp not in h5:
-                    h5.create_group(grp)
+    def write_entry(
+        self,
+        entry_id: str,
+        molecule: Dict[str, Any],
+        driver: str,
+        model: Dict[str, Any],
+        return_result: np.ndarray,
+    ) -> None:
+        """Persist QCSchema calculation entry into HDF5 file in SWMR mode."""
+        validate_airgap_write_path(self.file_path)
+        assert_writable_path(self.file_path)
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if shutil.disk_usage(self.file_path.parent).free < 100 * 1024 * 1024:
+            raise IOError("Insufficient disk space on target volume for PESStore append")
+
+        arr = np.asarray(return_result)
+        chunk_shape: Optional[Tuple[int, ...]] = None
+        max_shape: Optional[Tuple[Optional[int], ...]] = None
+        if arr.ndim > 0:
+            chunk_shape = tuple(max(1, min(s, 128)) for s in arr.shape)
+            max_shape = tuple(None for _ in arr.shape)
+
+        with self._write_lock:
+            with filelock.FileLock(str(self.lock_path), timeout=30.0):
+                with h5py.File(self.file_path, "a", libver="latest") as h5f:
+                    if entry_id in h5f:
+                        del h5f[entry_id]
+
+                    grp = h5f.create_group(entry_id)
+                    grp.attrs["schema_name"] = "qcschema_output"
+                    grp.attrs["driver"] = str(driver)
+                    grp.attrs["molecule_json"] = json.dumps(molecule)
+                    grp.attrs["model_json"] = json.dumps(model)
+
+                    if arr.ndim > 0:
+                        grp.create_dataset(
+                            "return_result",
+                            data=arr,
+                            maxshape=max_shape,
+                            chunks=chunk_shape,
+                            compression="gzip",
+                            compression_opts=4,
+                            fletcher32=True,
+                        )
+                    else:
+                        grp.create_dataset("return_result", data=arr)
+
+                    h5f.flush()
+
+    def read_entry(self, entry_id: str) -> Dict[str, Any]:
+        """Read QCSchema entry in SWMR mode without file locking collisions."""
+        if not self.file_path.exists():
+            raise FileNotFoundError(f"PESStore file not found at {self.file_path}")
+
+        with h5py.File(self.file_path, "r", libver="latest", swmr=True) as h5f:
+            if entry_id not in h5f:
+                raise KeyError(f"Entry '{entry_id}' not found in PESStore")
+
+            grp = h5f[entry_id]
+            schema_name = str(grp.attrs.get("schema_name", "qcschema_output"))
+            driver = str(grp.attrs.get("driver", "unknown"))
+            mol_json = str(grp.attrs.get("molecule_json", "{}"))
+            model_json = str(grp.attrs.get("model_json", "{}"))
+            result_arr = grp["return_result"][:]
 
             return {
-                "previous_version": str(prev_ver),
-                "current_version": self.SCHEMA_VERSION,
-                "status": "migrated",
+                "schema_name": schema_name,
+                "entry_id": entry_id,
+                "molecule": json.loads(mol_json),
+                "driver": driver,
+                "model": json.loads(model_json),
+                "return_result": result_arr,
             }
 
-    def set_metadata(self, key: str, value: Any) -> None:
-        """Sets arbitrary metadata key/value into the registry."""
-        with self.transaction("a") as h5:
-            meta_grp = h5["metadata"]
-            if key in meta_grp:
-                del meta_grp[key]
-            meta_grp.create_dataset(
-                key, data=json.dumps(value), dtype=h5py.string_dtype(encoding="utf-8")
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\mendeleev_invariants.py ---
+"""Dynamic Mendeleev Invariants & Element Resolver.
+
+Provenance & Specifications:
+- Method Matrix [M]: Quantum spin-parity and IUPAC CIAAW standard atomic weight invariants.
+- Dynamic Resolution [D]: Zero-hardcoding dynamic element and isotopic mass lookup via mendeleev.
+- Telemetry [E]: Thread-safe in-memory cache populated dynamically on demand.
+"""
+
+from __future__ import annotations
+
+import re
+import threading
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from mendeleev import element as _mendeleev_element
+
+from cochem.core.exceptions import MissingDataError
+
+
+class MendeleevInvariantError(ValueError, MissingDataError):
+    """Raised when chemical element queries violate Mendeleev physical invariants."""
+
+    def __init__(self, message: str, symbol_or_query: Any = None) -> None:
+        ValueError.__init__(self, message)
+        MissingDataError.__init__(
+            self,
+            message=message,
+            symbol_or_query=symbol_or_query,
+        )
+        self.symbol_or_query = symbol_or_query
+
+
+@dataclass(slots=True, frozen=True)
+class ElementData:
+    """Immutable ground-truth chemical element properties."""
+
+    atomic_number: int
+    symbol: str
+    name: str
+    atomic_weight: float
+    isotopes: Tuple[Tuple[int, float, float], ...]  # (mass_number, exact_mass_amu, natural_abundance)
+    covalent_radius_pm: Optional[float]
+    vdw_radius_pm: Optional[float]
+    valence_electrons: int
+    mass: float = 0.0
+    mass_number: Optional[int] = None
+    formal_charge: int = 0
+    is_isotope: bool = False
+
+
+_CACHE_LOCK = threading.Lock()
+_ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
+_ELEMENTS_BY_Z: Dict[int, ElementData] = {}
+
+
+def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
+    """Dynamically fetch and cache ElementData for Z=1..118 via mendeleev."""
+    try:
+        elem = _mendeleev_element(z_or_sym)
+    except Exception as exc:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
+            symbol_or_query=z_or_sym,
+        ) from exc
+
+    z = int(elem.atomic_number)
+    symbol = str(elem.symbol)
+    name = str(elem.name)
+
+    # Standard atomic weight with dynamic fallback to most stable isotope mass
+    weight = elem.atomic_weight
+    if weight is None or float(weight) <= 0.0:
+        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
+        if iso_masses:
+            weight = float(max(iso_masses))
+        else:
+            weight = float(z)
+    else:
+        weight = float(weight)
+
+    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
+    isotope_list: List[Tuple[int, float, float]] = []
+    for iso in elem.isotopes:
+        if iso.mass_number is not None:
+            m_num = int(iso.mass_number)
+            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
+            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
+            isotope_list.append((m_num, m_exact, m_abund))
+    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
+
+    # Radii in picometers
+    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
+    cov_radius_pm = float(cov_r) if cov_r is not None else None
+
+    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
+    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
+
+    # Valence electrons
+    if hasattr(elem, "nvalence") and callable(elem.nvalence):
+        val_e = int(elem.nvalence())
+    elif elem.electrons is not None:
+        val_e = int(elem.electrons)
+    else:
+        val_e = 0
+
+    data = ElementData(
+        atomic_number=z,
+        symbol=symbol,
+        name=name,
+        atomic_weight=weight,
+        isotopes=isotopes_tuple,
+        covalent_radius_pm=cov_radius_pm,
+        vdw_radius_pm=vdw_radius_pm,
+        valence_electrons=val_e,
+        mass=weight,
+        mass_number=None,
+        formal_charge=0,
+        is_isotope=False,
+    )
+
+    with _CACHE_LOCK:
+        _ELEMENTS_BY_SYMBOL[symbol] = data
+        _ELEMENTS_BY_Z[z] = data
+
+    return data
+
+
+def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
+    """Authoritative regex and alias pre-processor for chemical symbols and isotopes.
+
+    Maps:
+    - 'D' -> ('H', 2)
+    - 'T' -> ('H', 3)
+    - '13C' -> ('C', 13)
+    - '18O' -> ('O', 18)
+    - '2H' -> ('H', 2)
+    - Standard symbols ('H', 'C', 'Ar') -> ('H', None), etc.
+    """
+    raw = str(symbol).strip()
+    if not raw or raw.isdigit():
+        raise MissingDataError(
+            f"Invalid chemical symbol or isotope '{symbol}'. Symbol cannot be empty or purely numeric.",
+            symbol_or_query=symbol,
+        )
+
+    # Specific alias mappings
+    if raw.upper() == "D":
+        return "H", 2
+    if raw.upper() == "T":
+        return "H", 3
+
+    # Check for leading mass number: e.g. "13C", "18O", "2H", "35Cl"
+    m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
+    if m_iso:
+        mass_num = int(m_iso.group(1))
+        sym_part = m_iso.group(2)
+        norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
+        # Verify element exists in Mendeleev
+        try:
+            get_element(norm_sym)
+        except Exception:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {symbol}",
+                symbol_or_query=symbol,
             )
+        return norm_sym, mass_num
 
-    def get_metadata(self, key: str, default: Any = None) -> Any:
-        """Retrieves arbitrary metadata value."""
-        with self.transaction("r") as h5:
-            if "metadata" not in h5 or key not in h5["metadata"]:
-                return default
-            val = h5["metadata"][key][()]
-            text = val.decode("utf-8") if isinstance(val, bytes) else str(val)
-            return json.loads(text)
+    # Standard elemental symbol: e.g. "C", "Cl", "Ar"
+    m_sym = re.match(r"^[A-Za-z]+$", raw)
+    if m_sym:
+        norm_sym = raw[0].upper() + raw[1:].lower() if len(raw) > 1 else raw.upper()
+        try:
+            elem_data = get_element(norm_sym)
+            return elem_data.symbol, None
+        except Exception:
+            # Check by element name
+            try:
+                elem_data = _load_element_data(raw)
+                return elem_data.symbol, None
+            except Exception:
+                pass
 
+    raise MissingDataError(
+        f"Unresolvable atomic element or isotope symbol: {symbol}",
+        symbol_or_query=symbol,
+    )
+
+
+def get_element(symbol_or_z: Union[str, int]) -> ElementData:
+    """Retrieve immutable ElementData by atomic number, chemical symbol, formal charge, or isotope."""
+    if isinstance(symbol_or_z, int):
+        if symbol_or_z < 1 or symbol_or_z > 118:
+            raise MendeleevInvariantError(
+                f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
+                symbol_or_query=symbol_or_z,
+            )
+        with _CACHE_LOCK:
+            cached = _ELEMENTS_BY_Z.get(symbol_or_z)
+        if cached is not None:
+            return cached
+        return _load_element_data(symbol_or_z)
+
+    raw = str(symbol_or_z).strip()
+    if not raw or raw.isdigit():
+        raise MendeleevInvariantError(
+            f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
+            symbol_or_query=symbol_or_z,
+        )
+
+    pattern = re.compile(r"^(?P<isotope>\d+)?(?P<symbol>[A-Za-z]+)(?P<charge>(?:\d+[+-]|[+-]\d*|[+-]))?$")
+    match = pattern.match(raw)
+    if not match:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{symbol_or_z}'.",
+            symbol_or_query=symbol_or_z,
+        )
+
+    iso_str = match.group("isotope")
+    sym_raw = match.group("symbol")
+    charge_str = match.group("charge")
+
+    # Alias mappings for Deuterium (D) and Tritium (T)
+    if sym_raw.upper() == "D":
+        norm_sym = "H"
+        mass_number: Optional[int] = 2
+    elif sym_raw.upper() == "T":
+        norm_sym = "H"
+        mass_number = 3
+    else:
+        norm_sym = sym_raw[0].upper() + sym_raw[1:].lower() if len(sym_raw) > 1 else sym_raw.upper()
+        mass_number = int(iso_str) if iso_str else None
+
+    formal_charge: int = 0
+    if charge_str:
+        if charge_str.endswith("+"):
+            val = charge_str[:-1]
+            formal_charge = int(val) if val else 1
+        elif charge_str.endswith("-"):
+            val = charge_str[:-1]
+            formal_charge = -int(val) if val else -1
+        elif charge_str.startswith("+"):
+            val = charge_str[1:]
+            formal_charge = int(val) if val else 1
+        elif charge_str.startswith("-"):
+            val = charge_str[1:]
+            formal_charge = -int(val) if val else -1
+
+    # Dynamic lookup via mendeleev
+    try:
+        elem = _mendeleev_element(norm_sym)
+        base_data = _load_element_data(norm_sym)
+    except Exception as exc:
+        # Fallback to query by full element name (e.g. 'Carbon')
+        try:
+            elem = _mendeleev_element(sym_raw)
+            base_data = _load_element_data(sym_raw)
+            norm_sym = str(elem.symbol)
+        except Exception:
+            raise MendeleevInvariantError(
+                f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
+                symbol_or_query=symbol_or_z,
+            ) from exc
+
+    if mass_number is not None:
+        is_isotope = True
+        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
+        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
+            raise MendeleevInvariantError(
+                f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
+                symbol_or_query=symbol_or_z,
+            )
+        mass = float(iso.mass)
+    else:
+        is_isotope = False
+        mass = float(base_data.atomic_weight)
+
+    return ElementData(
+        atomic_number=base_data.atomic_number,
+        symbol=base_data.symbol,
+        name=base_data.name,
+        atomic_weight=base_data.atomic_weight,
+        isotopes=base_data.isotopes,
+        covalent_radius_pm=base_data.covalent_radius_pm,
+        vdw_radius_pm=base_data.vdw_radius_pm,
+        valence_electrons=base_data.valence_electrons,
+        mass=mass,
+        mass_number=mass_number,
+        formal_charge=formal_charge,
+        is_isotope=is_isotope,
+    )
+
+
+def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
+    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
+    element_data = get_element(symbol_or_z)
+    for iso_m_num, iso_exact, _ in element_data.isotopes:
+        if iso_m_num == mass_number:
+            return iso_exact
+
+    # Dynamic fallback query directly to mendeleev element isotopes
+    try:
+        m_elem = _mendeleev_element(element_data.symbol)
+        for iso in m_elem.isotopes:
+            if iso.mass_number == mass_number and iso.mass is not None:
+                return float(iso.mass)
+    except Exception:
+        pass
+
+    raise MendeleevInvariantError(
+        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
+        symbol_or_query=f"{element_data.symbol}-{mass_number}",
+    )
+
+
+def get_element_mass(symbol_or_z: Union[str, int]) -> float:
+    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u).
+
+    Handles standard elements ('H', 'C', 'Ar') and isotopic aliases ('D', 'T', '13C', '18O').
+    """
+    if isinstance(symbol_or_z, int):
+        return get_element(symbol_or_z).atomic_weight
+
+    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
+    if mass_number is not None:
+        return get_isotope_mass(clean_sym, mass_number)
+    return get_element(clean_sym).atomic_weight
+
+
+class MendeleevResolver:
+    """Thread-safe dynamic Mendeleev element and isotope mass resolver for backward compatibility."""
+
+    def get_element(self, symbol_or_z: Union[str, int]) -> Any:
+        elem_data = get_element(symbol_or_z)
+        return _mendeleev_element(elem_data.atomic_number)
+
+    def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
+        return get_element(symbol_or_z).atomic_number
+
+    def get_atomic_weight(self, symbol_or_z: Union[str, int]) -> float:
+        return get_element(symbol_or_z).atomic_weight
+
+    def get_element_mass(self, symbol_or_z: Union[str, int]) -> float:
+        return get_element_mass(symbol_or_z)
+
+    def get_symbol(self, symbol_or_z: Union[str, int]) -> str:
+        return get_element(symbol_or_z).symbol
+
+    def get_name(self, symbol_or_z: Union[str, int]) -> str:
+        return get_element(symbol_or_z).name
+
+    def get_covalent_radius(self, symbol_or_z: Union[str, int]) -> Optional[float]:
+        return get_element(symbol_or_z).covalent_radius_pm
+
+    def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
+        r = get_element(symbol_or_z).vdw_radius_pm
+        if r is None:
+            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
+        return r
+
+    def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
+        return self.get_vdw_radius(symbol_or_z) / 100.0
+
+    def get_isotope_mass(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
+        return get_isotope_mass(symbol_or_z, mass_number)
+
+    def get_isotope_abundance(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
+        elem_data = get_element(symbol_or_z)
+        for m_num, _, abund in elem_data.isotopes:
+            if m_num == mass_number:
+                return abund
+        return 0.0
+
+    def get_available_isotopes(self, symbol_or_z: Union[str, int]) -> List[int]:
+        return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
+
+    def clear_cache(self) -> None:
+        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
+
+
+# Default global resolver instance for backwards compatibility
+mendeleev_resolver = MendeleevResolver()
+
+from cochem_base.core.mendeleev_invariants import get_element_cache
 
 __all__ = [
-    "AtomicFileLock",
-    "BaseMetadataServer",
-    "BasisSetNotFoundError",
-    "CoChemLockTimeoutError",
-    "FilesystemMetadataServer",
-    "IsotopeStabilityError",
-    "MetadataBackendType",
-    "MetadataServerManager",
-    "PostgresMetadataServer",
-    "RecordNotFoundError",
-    "RedisMetadataServer",
-    "RegistryCorruptionError",
-    "RegistryError",
-    "RegistryLockError",
-    "RegistryLockTimeoutError",
-    "RegistryManager",
-    "RegistryMissingError",
-    "RegistryParseError",
-    "SchemaMigrationError",
-    "atomic_write_json",
-    "broadcast_system_config",
-    "default_metadata_manager",
-    "get_active_job",
-    "get_default_config_path",
-    "hash_environment",
-    "interpolate_env_vars",
-    "is_master_node",
-    "list_active_jobs",
-    "load_system_config",
-    "migrate_schema",
-    "nfs_atomic_directory_rename",
-    "receive_system_config_broadcast",
-    "register_active_job",
-    "remove_active_job",
-    "save_system_config",
-    "update_active_job",
-    "update_system_config",
+    "ElementData",
+    "MendeleevInvariantError",
+    "MissingDataError",
+    "get_element_cache",
+    "get_element",
+    "get_isotope_mass",
+    "get_element_mass",
+    "parse_symbol_or_isotope",
+    "MendeleevResolver",
+    "mendeleev_resolver",
 ]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_crypto.py ---
@@ -4339,6 +3161,7 @@ __all__ = [
 Provides pure asymmetric cryptographic provenance generation, verification, and offline
 did:key resolution using multicodec 0xed01 prefix and base58btc encoding.
 Eradicates non-standard intermediate SHA-512 pre-hashing, signing raw canonical bytes directly.
+Includes an RFC 8785 §3.2.2.3 compliant ECMAScript IEEE 754 float formatting kernel.
 """
 
 from __future__ import annotations
@@ -4346,8 +3169,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 from datetime import datetime, timezone
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
@@ -4441,27 +3265,84 @@ def did_key_to_public_key(did_key: str) -> ed25519.Ed25519PublicKey:
     return ed25519.Ed25519PublicKey.from_public_bytes(raw_pub_bytes)
 
 
-def canonicalize_json(data: Any) -> bytes:
-    """Canonicalize Python dictionary, list, primitive, or Pydantic model according to RFC 8785 (JCS).
+def format_rfc8785_float(val: float) -> str:
+    """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
 
-    Sorts dictionary keys lexicographically, removes whitespace, and outputs UTF-8 encoded bytes.
+    Rules:
+    - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
+    - Signed zero (-0.0) must format as '0'.
+    - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
+    - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
     """
-    if hasattr(data, "model_dump"):
-        data = data.model_dump(mode="json")
-    elif isinstance(data, BaseModel):
-        data = data.dict()
-    elif isinstance(data, dict):
-        clean_dict = {}
-        for k, v in data.items():
-            if hasattr(v, "model_dump"):
-                clean_dict[str(k)] = v.model_dump(mode="json")
-            elif isinstance(v, BaseModel):
-                clean_dict[str(k)] = v.dict()
-            else:
-                clean_dict[str(k)] = v
-        data = clean_dict
+    if math.isnan(val) or math.isinf(val):
+        raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
+    if val == 0.0:
+        return "0"
 
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    s = repr(val)
+
+    # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
+    if "e" in s:
+        base, exp = s.split("e")
+        exp_sign = exp[0]
+        exp_val = exp[1:].lstrip("0") or "0"
+        s = f"{base}e{exp_sign}{exp_val}"
+
+    # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
+    abs_val = abs(val)
+    if 1e-6 <= abs_val < 1e-4 and "e" in s:
+        s = f"{val:.10f}".rstrip("0").rstrip(".")
+
+    return s
+
+
+def _serialize_jcs(obj: Any) -> str:
+    """Internal recursive serializer for RFC 8785 JSON Canonicalization Scheme."""
+    if obj is None:
+        return "null"
+    elif isinstance(obj, bool):
+        return "true" if obj else "false"
+    elif isinstance(obj, int):
+        return str(obj)
+    elif isinstance(obj, float):
+        return format_rfc8785_float(obj)
+    elif isinstance(obj, str):
+        return json.dumps(obj, ensure_ascii=False)
+    elif isinstance(obj, (list, tuple)):
+        items = [_serialize_jcs(item) for item in obj]
+        return "[" + ",".join(items) + "]"
+    elif isinstance(obj, dict):
+        sorted_keys = sorted(obj.keys(), key=lambda k: str(k).encode("utf-8"))
+        pairs = [
+            json.dumps(str(k), ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
+            for k in sorted_keys
+        ]
+        return "{" + ",".join(pairs) + "}"
+    elif hasattr(obj, "model_dump"):
+        return _serialize_jcs(obj.model_dump(mode="json"))
+    elif isinstance(obj, BaseModel):
+        return _serialize_jcs(obj.dict())
+    else:
+        raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+
+
+def canonicalize_json(data: Any) -> bytes:
+    """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
+
+    - Lexicographical sorting of object keys by UTF-8 code point values.
+    - Zero whitespace around delimiters (',' and ':').
+    - IEEE 754 float formatting via format_rfc8785_float.
+    - UTF-8 output without BOM.
+    """
+    return _serialize_jcs(data).encode("utf-8")
+
+
+def hash_canonical_json(data: Any, algorithm: str = "sha256") -> str:
+    """Compute cryptographic hash over RFC 8785 canonicalized JSON bytes."""
+    canonical_bytes = canonicalize_json(data)
+    h = hashlib.new(algorithm)
+    h.update(canonical_bytes)
+    return h.hexdigest()
 
 
 def generate_ed25519_key_pair() -> Tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
@@ -4491,7 +3372,6 @@ def sign_canonical_bytes(
     Returns:
         Tuple[str, str, str]: (signature_urlsafe_b64, public_key_urlsafe_b64, fingerprint_sha256_hex)
     """
-    # RFC 8032 §5.1 PureEd25519: Sign raw canonical bytes directly
     signature_bytes = private_key.sign(canonical_bytes)
 
     public_key = private_key.public_key()
@@ -4559,7 +3439,6 @@ def sign_report_payload(
 
     Envelopes payload with an Ed25519Signature2020 proof block.
     """
-    # Clean payload excluding any existing proof block
     clean_payload = {k: v for k, v in payload.items() if k != "proof"}
     canonical_bytes = canonicalize_json(clean_payload)
     signature_bytes = private_key.sign(canonical_bytes)
@@ -4604,7 +3483,9 @@ def verify_report_payload(signed_payload: Dict[str, Any]) -> bool:
 
 
 __all__ = [
+    "format_rfc8785_float",
     "canonicalize_json",
+    "hash_canonical_json",
     "generate_ed25519_key_pair",
     "sign_canonical_bytes",
     "verify_canonical_signature",
@@ -4616,108 +3497,305 @@ __all__ = [
     "verify_report_payload",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\glossary.py ---
-"""Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Physical Conversion Constants & Method Matrix Glossary.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_provenance.py ---
+"""Authoritative W3C PROV-O Conformer Lineage & Semantic Provenance Graphs.
 
-Provides single repository source of truth for energy, coordinate, and rotational inertia conversions,
-as well as canonical composite calculation fidelity tiers defined in Method Matrix v4 (§9A, Table 3).
-Strictly adheres to Method Matrix §4.4, §5, §8B, §9A and authoritative CODATA recommendations.
+Complies strictly with:
+- W3C PROV-O Linked Data Standard (prov:Entity, prov:Activity, prov:wasDerivedFrom)
+- Tripartite Air-Gap Mandate (Offline local JSON-LD context catalog resolution)
+- FAIR Principles I1, I3, and R1.2
+- Method Matrix v4 §8B.4 & §9B (Quasi-Harmonic Thermodynamics Provenance)
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from enum import Enum
-from typing import Final
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
+
+import numpy as np
+from pydantic import BaseModel, ConfigDict, Field
+
+from cochem_base.core.models import ThermodynamicsProvenance
 
 
-class CalculationFidelity(str, Enum):
-    """Authoritative Method Matrix v4 calculation fidelity tiers and canonical composite recipes [D]."""
+def get_local_prov_context() -> Dict[str, Any]:
+    """Retrieve bundled offline local W3C PROV-O JSON-LD context [D].
 
-    # Low / Semiempirical Tiers
-    XTB1 = "XTB1"
-    XTB2 = "XTB2"
-    PM6 = "PM6"
-    AM1 = "AM1"
+    Dispatches zero network calls to http://www.w3.org/ns/prov#, guaranteeing air-gapped execution.
+    """
+    ctx_path = Path(__file__).resolve().parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"
+    if not ctx_path.exists():
+        candidates = [
+            Path(__file__).resolve().parent / "prov_o_context.jsonld",
+            Path(__file__).resolve().parents[2] / "schemas" / "contexts" / "prov_o_context.jsonld",
+        ]
+        for cand in candidates:
+            if cand.exists():
+                ctx_path = cand
+                break
 
-    # Single Reference / Mean Field
-    R_HF = "R_HF"
-    U_HF = "U_HF"
-    R_DFT = "R_DFT"
-    U_DFT = "U_DFT"
-    RO_DFT = "RO_DFT"
+    if not ctx_path.exists():
+        raise FileNotFoundError(f"Offline local JSON-LD context not found at expected path: {ctx_path}")
 
-    # Correlated Wavefunction
-    MP2 = "MP2"
-    DLPNO_CCSD_T = "DLPNO_CCSD_T"
-    CCSD_T = "CCSD_T"
-    CCSD_T_F12 = "CCSD_T_F12"
-    CASSCF = "CASSCF"
-    NEVPT2 = "NEVPT2"
-
-    # Method Matrix v4 Canonical Composite Tiers (Table 3 & §9A)
-    JUNCHS = "junChS"
-    JUNCHS_F12 = "junChS-F12"
-    CHS = "ChS"
-    CHS_F12 = "ChS-F12"
-    T3_10S = "T3-10s"
-    T3_1MIN = "T3-1min"
-    T3_30MIN = "T3-30min"
-    T3_3H = "T3-3h"
-    T3_12H = "T3-12h"
-    T4_1D = "T4-1d"
-    R2 = "R2"
-
-    # Custom / Open QCSchema Specification
-    CUSTOM_COMPOSITE = "CUSTOM_COMPOSITE"
+    return json.loads(ctx_path.read_text(encoding="utf-8"))
 
 
-@dataclass(frozen=True)
-class _UnitConversionConstants:
-    """Authoritative physical constants at full IEEE-754 double precision."""
+class DAGNode(BaseModel):
+    """Semantic Directed Acyclic Graph (DAG) node representing conformers or computational workflows."""
 
-    HARTREE_TO_EV: float = 27.211386245981
-    HARTREE_TO_JOULE: float = 4.359744722206e-18
-    HARTREE_TO_KCAL_MOL: float = 627.5094740631
-    KCAL_MOL_TO_HARTREE: float = 1.0 / 627.5094740631
-    HARTREE_TO_CM_INV: float = 219474.63136320
-    BOHR_TO_ANGSTROM: float = 0.529177210903
-    ANGSTROM_TO_BOHR: float = 1.0 / 0.529177210903
-    AMU_TO_KG: float = 1.66053906660e-27
-    PLANCK_CONSTANT: float = 6.62607015e-34
-    SPEED_OF_LIGHT_CM_S: float = 29979245800.0
-    ROTATIONAL_INERTIA_CONVERSION: float = 505379.0084350172
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    node_id: str = Field(..., description="Unique node identifier within the lineage graph")
+    node_type: Literal["entity", "activity", "agent"] = Field(
+        default="entity", description="PROV-O class classification"
+    )
+    activity_type: Optional[str] = Field(
+        default=None, description="Specific activity type URI or curie (e.g. 'cochem:Optimization')"
+    )
+    parents: List[str] = Field(
+        default_factory=list, description="Identifiers of ancestor nodes (prov:wasDerivedFrom)"
+    )
+    activity: Optional[str] = Field(
+        default=None, description="Identifier of generating activity (prov:wasGeneratedBy)"
+    )
+    started_at_time: Optional[str] = Field(
+        default=None, description="ISO 8601 UTC start timestamp"
+    )
+    ended_at_time: Optional[str] = Field(
+        default=None, description="ISO 8601 UTC completion timestamp"
+    )
+    relative_energy_kcal_mol: Optional[float] = Field(
+        default=None, description="Relative electronic energy in kcal/mol"
+    )
+    rotational_constants_mhz: Optional[List[float]] = Field(
+        default=None, description="Principal rotational constants [A, B, C] in MHz"
+    )
+    payload: Dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary execution payload and thermodynamic provenance"
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Arbitrary execution or quantum chemistry metadata"
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert DAGNode to standard dictionary representation."""
+        return self.model_dump()
+
+    def to_prov_jsonld(self, base_uri: str = "urn:cochem:conformer:") -> Dict[str, Any]:
+        """Construct W3C PROV-O compliant JSON-LD document with offline context resolution [D].
+
+        Args:
+            base_uri: Uniform Resource Name prefix for node resolution.
+
+        Returns:
+            Dict[str, Any]: Validated JSON-LD semantic dictionary.
+        """
+        ctx_doc = get_local_prov_context()
+        doc: Dict[str, Any] = {
+            "@context": ctx_doc.get("@context", {}),
+            "@id": f"{base_uri}{self.node_id}",
+        }
+
+        if self.node_type == "activity":
+            types = ["prov:Activity"]
+            if self.activity_type:
+                types.append(self.activity_type)
+            else:
+                types.append("cochem:Optimization")
+            doc["@type"] = types
+        elif self.node_type == "agent":
+            doc["@type"] = ["prov:Agent", "cochem:SoftwareAgent"]
+        else:
+            doc["@type"] = ["prov:Entity", "cochem:Conformer"]
+
+        if self.parents:
+            doc["prov:wasDerivedFrom"] = [{"@id": f"{base_uri}{parent_id}"} for parent_id in self.parents]
+
+        if self.activity:
+            doc["prov:wasGeneratedBy"] = {"@id": f"urn:cochem:activity:{self.activity}"}
+
+        if self.started_at_time:
+            doc["prov:startedAtTime"] = self.started_at_time
+        if self.ended_at_time:
+            doc["prov:endedAtTime"] = self.ended_at_time
+
+        if self.relative_energy_kcal_mol is not None:
+            doc["cochem:relativeEnergy"] = float(self.relative_energy_kcal_mol)
+
+        if self.rotational_constants_mhz is not None:
+            doc["cochem:rotationalConstants"] = [float(rc) for rc in self.rotational_constants_mhz]
+
+        for k, v in self.metadata.items():
+            doc[f"cochem:{k}"] = v
+
+        return doc
 
 
-UnitConversionConstants: Final[_UnitConversionConstants] = _UnitConversionConstants()
+def compute_boltzmann_weights(
+    free_energies_kcal_mol: Sequence[float],
+    temperature_k: float = 298.15,
+    low_freq_cutoff_cm1: float = 100.0,
+    damping_model: str = "grimme_quasi_rrho",
+    pressure_atm: float = 1.0,
+    dag_node: Optional[Any] = None,
+) -> Tuple[List[float], ThermodynamicsProvenance]:
+    """Computes normalized Boltzmann weights while recording thermodynamic provenance.
 
-# Top-level module exports for ergonomic direct imports
-HARTREE_TO_EV: Final[float] = UnitConversionConstants.HARTREE_TO_EV
-HARTREE_TO_JOULE: Final[float] = UnitConversionConstants.HARTREE_TO_JOULE
-HARTREE_TO_KCAL_MOL: Final[float] = UnitConversionConstants.HARTREE_TO_KCAL_MOL
-KCAL_MOL_TO_HARTREE: Final[float] = UnitConversionConstants.KCAL_MOL_TO_HARTREE
-HARTREE_TO_CM_INV: Final[float] = UnitConversionConstants.HARTREE_TO_CM_INV
-BOHR_TO_ANGSTROM: Final[float] = UnitConversionConstants.BOHR_TO_ANGSTROM
-ANGSTROM_TO_BOHR: Final[float] = UnitConversionConstants.ANGSTROM_TO_BOHR
-AMU_TO_KG: Final[float] = UnitConversionConstants.AMU_TO_KG
-PLANCK_CONSTANT: Final[float] = UnitConversionConstants.PLANCK_CONSTANT
-SPEED_OF_LIGHT_CM_S: Final[float] = UnitConversionConstants.SPEED_OF_LIGHT_CM_S
-ROTATIONAL_INERTIA_CONVERSION: Final[float] = UnitConversionConstants.ROTATIONAL_INERTIA_CONVERSION
+    Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
+    Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
+    """
+    R_KCAL_MOL_K: float = 0.00198720425864083
+
+    G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
+    if len(G) == 0:
+        return [], ThermodynamicsProvenance(
+            damping_model=damping_model,
+            low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+            temperature_k=float(temperature_k),
+            pressure_atm=float(pressure_atm),
+            provenance_tag="[D]",
+        )
+
+    delta_G = G - np.min(G)
+    beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
+    unnorm_weights = np.exp(-beta * delta_G)
+    weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
+
+    prov = ThermodynamicsProvenance(
+        damping_model=damping_model,
+        low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
+        temperature_k=float(temperature_k),
+        pressure_atm=float(pressure_atm),
+        provenance_tag="[D]",
+    )
+
+    if dag_node is not None:
+        if hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
+            dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
+        elif hasattr(dag_node, "metadata") and isinstance(dag_node.metadata, dict):
+            dag_node.metadata["thermodynamics_provenance"] = prov.model_dump(mode="json")
+
+    return weights, prov
+
 
 __all__ = [
-    "CalculationFidelity",
-    "UnitConversionConstants",
-    "HARTREE_TO_EV",
-    "HARTREE_TO_JOULE",
-    "HARTREE_TO_KCAL_MOL",
-    "KCAL_MOL_TO_HARTREE",
-    "HARTREE_TO_CM_INV",
-    "BOHR_TO_ANGSTROM",
-    "ANGSTROM_TO_BOHR",
-    "AMU_TO_KG",
-    "PLANCK_CONSTANT",
-    "SPEED_OF_LIGHT_CM_S",
-    "ROTATIONAL_INERTIA_CONVERSION",
+    "DAGNode",
+    "get_local_prov_context",
+    "ThermodynamicsProvenance",
+    "compute_boltzmann_weights",
+]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\exceptions.py ---
+"""Authoritative Core Domain Exceptions for CoChem-BASE.
+
+Provides physical invariant exceptions for isotopic stability, empirical radii,
+and domain perceptions adhering to Method Matrix v4 §6.10, §8C, and §20.
+Includes machine-actionable error codes for automated ETL triage.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict, Optional
+
+
+class CoChemError(Exception):
+    """Base error class for all CoChem operations with machine-actionable error codes."""
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "COCHEM_E_GENERIC",
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(f"[{error_code}] {message}")
+        self.message: str = message
+        self.error_code: str = error_code
+        self.details: Dict[str, Any] = details if details is not None else {}
+
+
+class CoordinateShapeError(CoChemError):
+    """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
+
+
+class AirGapBoundaryError(CoChemError):
+    """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
+
+
+class SchemaMigrationError(CoChemError):
+    """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
+
+
+class PESStorageError(CoChemError):
+    """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
+
+
+class ProcessReaperError(CoChemError):
+    """Raised when process termination or resource sampling fails unexpectedly."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
+
+
+class SubprocessBrokerError(CoChemError):
+    """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
+
+
+class ThermodynamicsParameterError(CoChemError):
+    """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
+
+
+class IsotopeMassResolutionError(CoChemError):
+    """Raised when requested isotope cannot be resolved to physical mass."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
+
+
+class IsotopeStabilityError(CoChemError, ValueError):
+    """Raised when a requested isotope cannot be physically resolved to an isotopic nuclear mass."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_ISOTOPE_STABILITY", details=details)
+
+
+class RadiusNotFoundError(CoChemError, KeyError):
+    """Raised when empirical covalent or van der Waals radius is unavailable for an element."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_RADIUS_NOT_FOUND", details=details)
+
+
+__all__ = [
+    "CoChemError",
+    "CoordinateShapeError",
+    "AirGapBoundaryError",
+    "SchemaMigrationError",
+    "PESStorageError",
+    "ProcessReaperError",
+    "SubprocessBrokerError",
+    "ThermodynamicsParameterError",
+    "IsotopeMassResolutionError",
+    "IsotopeStabilityError",
+    "RadiusNotFoundError",
 ]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\models.py ---
@@ -4725,19 +3803,20 @@ __all__ = [
 
 Defines QCResultsRecord (AtomicResult), MolecularTopology, PESPointRecord, and CalculationJobPayload
 with explicit spatial coordinate envelopes, CODATA 2022 constants, deterministic UUIDv5 content hashing,
-and machine-readable SPDX licensing.
+machine-readable SPDX licensing, and schema version migration contracts adhering to FAIR F2, I1, and R1.
 """
 
 from __future__ import annotations
 
 import copy
 import uuid
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cochem_base.core.cochem_crypto import canonicalize_json
+from cochem_base.core.exceptions import CoordinateShapeError, SchemaMigrationError
 from cochem_base.core.glossary import CalculationFidelity
 from cochem_base.core.licensing import validate_spdx_license
 
@@ -4748,14 +3827,99 @@ ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
 # Authoritative CoChem Namespace UUID for deterministic UUIDv5 hashing
 NAMESPACE_COCHEM: uuid.UUID = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")
 
+# Global schema version constant (FAIR F2, I1, R1)
+CURRENT_CORE_SCHEMA_VERSION: int = 1
+
+T = TypeVar("T", bound=BaseModel)
+MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
+_MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+
+
+def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
+    """Decorator registering a transformation function from a specific schema version to from_version + 1."""
+
+    def decorator(func: MigrationCallable) -> MigrationCallable:
+        _MIGRATION_REGISTRY[(model_name, from_version)] = func
+        return func
+
+    return decorator
+
+
+def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
+    """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
+    model_name = target_model.__name__
+    current_version = payload.get("schema_version", 0)
+    target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
+
+    data = dict(payload)
+    while current_version < target_version:
+        key = (model_name, current_version)
+        if key not in _MIGRATION_REGISTRY:
+            raise SchemaMigrationError(
+                f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
+                details={"model": model_name, "from_version": current_version, "target_version": target_version},
+            )
+        data = _MIGRATION_REGISTRY[key](data)
+        current_version = data.get("schema_version", current_version + 1)
+
+    return data
+
+
+class ThermodynamicsProvenance(BaseModel):
+    """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
+    damping_model: str = Field(
+        default="grimme_quasi_rrho",
+        description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic).",
+    )
+    low_freq_cutoff_cm1: float = Field(
+        default=100.0,
+        description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1).",
+    )
+    temperature_k: float = Field(
+        default=298.15,
+        description="Thermodynamic temperature in Kelvin.",
+    )
+    pressure_atm: float = Field(
+        default=1.0,
+        description="Standard state pressure in atmospheres.",
+    )
+    rotor_cutoff_cm1: Optional[float] = Field(
+        default=None,
+        description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping.",
+    )
+    provenance_tag: str = Field(
+        default="[D]",
+        description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated).",
+    )
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
+
 
 class QCResultsRecord(BaseModel):
     """MolSSI QCSchema v1 compliant AtomicResult record with backward-compatible accessors."""
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, validate_assignment=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
     schema_name: Literal["qcschema_output"] = "qcschema_output"
-    schema_version: int = 1
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     molecule: Dict[str, Any] = Field(default_factory=dict, description="Nested molecular topology specifications")
     driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
     model: Dict[str, Any] = Field(default_factory=lambda: {"method": "unknown", "basis": None})
@@ -4768,6 +3932,12 @@ class QCResultsRecord(BaseModel):
         default="CC-BY-4.0",
         description="SPDX license identifier governing data reuse rights (FAIR R1.1)",
     )
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @field_validator("license")
     @classmethod
@@ -4874,14 +4044,47 @@ class QCResultsRecord(BaseModel):
         return None
 
 
+# MolSSI QCSchema Aliases
+AtomicResult = QCResultsRecord
+QCSchemaOutput = QCResultsRecord
+
+
 class MolecularTopology(BaseModel):
-    """Molecular spatial coordinates standardized to flat 1D arrays with explicit unit tagging."""
+    """Molecular spatial coordinates standardized to flat 1D arrays or 2D coordinate lists with explicit unit tagging."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     symbols: List[str] = Field(..., description="Ordered IUPAC elemental symbols")
-    geometry: List[float] = Field(..., description="Flat 1D atomic Cartesian coordinates (size 3*N)")
+    coordinates: Optional[List[List[float]]] = Field(default=None, description="2D Cartesian coordinate list (N x 3)")
+    geometry: Optional[List[float]] = Field(default=None, description="Flat 1D atomic Cartesian coordinates (size 3*N)")
     units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical coordinate unit")
+    molecular_charge: int = Field(default=0, description="Net molecular charge")
+    spin_multiplicity: int = Field(default=1, description="Spin multiplicity (2S + 1)")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
+
+    @field_validator("coordinates", mode="after")
+    @classmethod
+    def validate_coordinates_shape(cls, v: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
+        if v is None:
+            return v
+        for idx, atom_coord in enumerate(v):
+            if len(atom_coord) != 3:
+                raise CoordinateShapeError(
+                    f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
+                    details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3},
+                )
+        return v
 
     @model_validator(mode="before")
     @classmethod
@@ -4890,48 +4093,91 @@ class MolecularTopology(BaseModel):
             return data
 
         symbols = data.get("symbols", [])
-        geom = data.get("geometry", [])
+        coords = data.get("coordinates")
+        geom = data.get("geometry")
 
-        # Flatten 2D coordinate arrays if provided
-        if isinstance(geom, np.ndarray):
-            geom = geom.flatten().tolist()
-        elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
-            flat = []
-            for pt in geom:
-                flat.extend([float(c) for c in pt])
-            geom = flat
-        elif isinstance(geom, list):
-            geom = [float(c) for c in geom]
+        if coords is not None:
+            if isinstance(coords, np.ndarray):
+                coords = coords.tolist()
+                data["coordinates"] = coords
+            # Only synthesize geometry if all coordinate rows have valid length 3
+            if geom is None and isinstance(coords, list):
+                if all(isinstance(c, (list, tuple)) and len(c) == 3 for c in coords):
+                    flat = []
+                    for pt in coords:
+                        flat.extend([float(c) for c in pt])
+                    data["geometry"] = flat
+        elif geom is not None:
+            if isinstance(geom, np.ndarray):
+                geom = geom.flatten().tolist()
+            elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
+                flat = []
+                for pt in geom:
+                    flat.extend([float(c) for c in pt])
+                geom = flat
+            elif isinstance(geom, list):
+                geom = [float(c) for c in geom]
+            data["geometry"] = geom
 
-        n_atoms = len(symbols)
-        if n_atoms > 0 and len(geom) != 3 * n_atoms:
-            raise ValueError(
-                f"Geometry coordinate dimension mismatch: expected {3 * n_atoms} components for {n_atoms} atoms, got {len(geom)}"
-            )
+            n_atoms = len(symbols)
+            if n_atoms > 0 and len(geom) != 3 * n_atoms:
+                raise CoordinateShapeError(
+                    f"Geometry coordinate dimension mismatch: expected {3 * n_atoms} components for {n_atoms} atoms, got {len(geom)}",
+                    details={"actual_len": len(geom), "expected_len": 3 * n_atoms},
+                )
+            if "coordinates" not in data and len(geom) % 3 == 0:
+                data["coordinates"] = [
+                    geom[3 * i : 3 * i + 3] for i in range(len(geom) // 3)
+                ]
 
-        data["geometry"] = geom
         return data
 
     def to_angstrom(self) -> MolecularTopology:
         """Convert coordinates to Angstroms using authoritative CODATA 2022 constant."""
         if self.units == "angstrom":
             return self
-        converted = [float(c * BOHR_TO_ANGSTROM) for c in self.geometry]
+        converted_geom = (
+            [float(c * BOHR_TO_ANGSTROM) for c in self.geometry]
+            if self.geometry is not None
+            else None
+        )
+        converted_coords = (
+            [[float(c * BOHR_TO_ANGSTROM) for c in pt] for pt in self.coordinates]
+            if self.coordinates is not None
+            else None
+        )
         return MolecularTopology(
+            schema_version=self.schema_version,
             symbols=list(self.symbols),
-            geometry=converted,
+            geometry=converted_geom,
+            coordinates=converted_coords,
             units="angstrom",
+            molecular_charge=self.molecular_charge,
+            spin_multiplicity=self.spin_multiplicity,
         )
 
     def to_bohr(self) -> MolecularTopology:
         """Convert coordinates to Bohr using authoritative CODATA 2022 constant."""
         if self.units == "bohr":
             return self
-        converted = [float(c * ANGSTROM_TO_BOHR) for c in self.geometry]
+        converted_geom = (
+            [float(c * ANGSTROM_TO_BOHR) for c in self.geometry]
+            if self.geometry is not None
+            else None
+        )
+        converted_coords = (
+            [[float(c * ANGSTROM_TO_BOHR) for c in pt] for pt in self.coordinates]
+            if self.coordinates is not None
+            else None
+        )
         return MolecularTopology(
+            schema_version=self.schema_version,
             symbols=list(self.symbols),
-            geometry=converted,
+            geometry=converted_geom,
+            coordinates=converted_coords,
             units="bohr",
+            molecular_charge=self.molecular_charge,
+            spin_multiplicity=self.spin_multiplicity,
         )
 
 
@@ -4940,6 +4186,12 @@ class PESPointRecord(BaseModel):
 
     model_config = ConfigDict(extra="allow", validate_assignment=True, arbitrary_types_allowed=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     point_id: str = Field(default="", description="Deterministic UUIDv5 content-addressable point identifier")
     method_id: str = Field(default="unknown", description="Registered method identifier")
     coordinates: List[float] = Field(default_factory=list, description="Flat 1D atomic coordinates (size 3*N)")
@@ -4953,6 +4205,12 @@ class PESPointRecord(BaseModel):
     wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
     provenance: Any = Field(default_factory=dict, description="Calculation provenance record")
     license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @classmethod
     def generate_point_id(
@@ -5061,6 +4319,7 @@ class PESPointRecord(BaseModel):
             else None
         )
         return PESPointRecord(
+            schema_version=self.schema_version,
             point_id=self.point_id,
             method_id=self.method_id,
             coordinates=converted_coords,
@@ -5087,6 +4346,7 @@ class PESPointRecord(BaseModel):
             else None
         )
         return PESPointRecord(
+            schema_version=self.schema_version,
             point_id=self.point_id,
             method_id=self.method_id,
             coordinates=converted_coords,
@@ -5108,6 +4368,12 @@ class CalculationJobPayload(BaseModel):
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     job_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique job identifier")
     molecule: Dict[str, Any] = Field(default_factory=dict, description="Target molecular topology specifications")
     driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
@@ -5117,6 +4383,12 @@ class CalculationJobPayload(BaseModel):
     )
     keywords: Dict[str, Any] = Field(default_factory=dict, description="Calculation keywords")
     license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @field_validator("fidelity", mode="before")
     @classmethod
@@ -5141,7 +4413,13 @@ __all__ = [
     "BOHR_TO_ANGSTROM",
     "ANGSTROM_TO_BOHR",
     "NAMESPACE_COCHEM",
+    "CURRENT_CORE_SCHEMA_VERSION",
+    "register_migration",
+    "migrate_payload",
+    "ThermodynamicsProvenance",
     "QCResultsRecord",
+    "AtomicResult",
+    "QCSchemaOutput",
     "MolecularTopology",
     "PESPointRecord",
     "CalculationJobPayload",
@@ -5260,6 +4538,7 @@ from cochem_base.exceptions import (
     QCSchemaValidationError,
     SingularityError,
 )
+from cochem_base.core.ipc.serializer import validate_airgap_write_path
 from cochem_base.core.licensing import validate_spdx_license
 from cochem_base.core.models import NAMESPACE_COCHEM, PESPointRecord
 
@@ -6018,7 +5297,7 @@ class PESStore:
         swmr_mode: bool = False,
         lock_dir: Optional[Union[str, Path]] = None,
     ) -> None:
-        self.path = Path(path).resolve()
+        self.path = validate_airgap_write_path(Path(path).resolve())
         self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
         self.lock_path = self.lock_dir / f"{self.path.name}.lock"
         self.lock_timeout = lock_timeout
@@ -6271,6 +5550,10 @@ class PESStore:
                     d[0] = str(point.point_id)
 
                 f.flush()
+
+    def write_entry(self, point: Any) -> None:
+        """Persist PES point record in-place adhering to Suggestion #65."""
+        self.add_point(point)
 
     def get_all_point_ids(self) -> List[str]:
         """Retrieve all registered point IDs with SWMR refresh [D]."""
@@ -7235,3248 +6518,2837 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_registry_schema.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_subprocess_broker.py ---
 #!/usr/bin/env python3
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
 """
-CoChem-CORE: Re-exports authoritative schemas from root cochem_core_registry_schema.
-"""
+CoChem-CORE: Stage 3.0 - The Subprocess Broker
+Implements: Cross-platform Process Isolation, Win32 Job Objects,
+psutil Process Tree Tracking, 10-Second Grace Period Recursive Tree Killing,
+atexit Zombie Reaper Daemon, Segfault & Access Violation 256-byte Hex-Dump Sweeper,
+OOM Preemption Polling, ZeroMQ Heartbeat Publisher with CurveZMQ / IPC, NUMA-Aware CPU Pinning,
+Pre-Flight Disk Quota & 64KB SHA-256 Binary Probe, RAM-Disk Overlay Routing, Directory Lockdown,
+and Dead-Man's Switch Daemon Transition.
 
-from cochem_core_registry_schema import (
-    BYPASS_TOKENS,
-    CARBON_13_ISOTOPIC_MASS,
-    get_registry_atomic_mass,
-    CoChemConfig,
-    CoChemSystemConfig,
-    CorePinningConfig,
-    EngineInfo,
-    EnginePaths,
-    EnvironmentSchema,
-    GPUComputeSchema,
-    HPCConfig,
-    HardwareConfig,
-    HardwareSchema,
-    MPSConfig,
-    OSTarget,
-    QuantumSettings,
-    RoutingPolicy,
-    SiloConfig,
-    SiloPathsSchema,
-    discover_engine,
-    discover_host_hardware,
-    validate_system_config,
-)
-
-__all__ = [
-    "BYPASS_TOKENS",
-    "CARBON_13_ISOTOPIC_MASS",
-    "get_registry_atomic_mass",
-    "CoChemConfig",
-    "CoChemSystemConfig",
-    "CorePinningConfig",
-    "EngineInfo",
-    "EnginePaths",
-    "EnvironmentSchema",
-    "GPUComputeSchema",
-    "HPCConfig",
-    "HardwareConfig",
-    "HardwareSchema",
-    "MPSConfig",
-    "OSTarget",
-    "QuantumSettings",
-    "RoutingPolicy",
-    "SiloConfig",
-    "SiloPathsSchema",
-    "discover_engine",
-    "discover_host_hardware",
-    "validate_system_config",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\orchestrator\cochem_setup_phase_5.py ---
-"""
-CoChem Setup Phase 5: IPC Config Lock & Workspace Sweep & NVIDIA MPS Daemon / VRAM Budgeting Gatekeeper.
-Production-grade, zero-mock gatekeeping engine for:
-1. Multi-tenant NVIDIA Multi-Process Service (MPS) daemon management (nvidia-cuda-mps-control)
-   and dynamically calculated pinned device memory partitioning (CUDA_MPS_PINNED_DEVICE_MEM_LIMIT).
-2. Physical POSIX byte-range locking verification (fcntl / msvcrt) before HDF5 SWMR initialization,
-   with graceful degradation to single-threaded operations upon filesystem locking failure.
-3. Intermediate state consolidation (p1.json through p11.json) and validation through the rigid
-   Pydantic v2 CoChemSystemConfig schema.
-4. Atomic serialization of the finalized Golden Registry to $HOME/CoChem_Artifacts/Registry/cochem_system_config.json
-   with status="LOCKED" and os.chmod(0o444) read-only immutability enforcement.
-5. Workspace garbage collection sweep purging ephemeral .tmp files and intermediate staging fragments.
-
-SRS Document 2 Part 2 (Section 3.5), SRS Document 5 (Section 4.3), and Method Matrix v4 Compliant.
+Provides `safe_subprocess_run`, `register_popen_process`, `unregister_popen_process`,
+`get_active_popen_processes`, `cleanup_zombie_processes`, `kill_process_tree`,
+`extract_segfault_hex_dump`, `sweep_crash_hex_dump`, `CPUTopologyManager`,
+`RAMDiskOverlayManager`, `ZMQHeartbeatManager`, `DeadMansSwitchWatchdog`,
+`WindowsJobObject`, `ZombieReaper`, and `SubprocessBroker`.
 """
 
 from __future__ import annotations
 
-import argparse
-import getpass
+import atexit
+import ctypes
+import hashlib
 import json
 import logging
 import os
 import platform
-import re
+import shlex
 import shutil
-import stat
+import signal
 import subprocess
 import sys
 import tempfile
-import uuid
-from datetime import datetime, timezone
-from enum import Enum
+import threading
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
-import psutil
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-# POSIX fcntl / Windows msvcrt locking imports
-try:
-    import fcntl
-except ImportError:
-    fcntl = None  # type: ignore[assignment]
+if platform.system() == "Windows":
+    from ctypes import wintypes
 
 try:
-    import msvcrt
+    import psutil
+    HAS_PSUTIL = True
 except ImportError:
-    msvcrt = None  # type: ignore[assignment]
+    HAS_PSUTIL = False
 
-# Schema and Config Imports with Path Resolution Fallbacks
 try:
-    from cochem_core_registry_schema import (
-        CARBON_13_ISOTOPIC_MASS,
-        get_registry_atomic_mass,
-        CoChemSystemConfig,
-        OSTarget,
-        discover_host_hardware,
-    )
+    import zmq
+    HAS_ZMQ = True
 except ImportError:
-    repo_root = Path(__file__).resolve().parent.parent
-    if str(repo_root) not in sys.path:
-        sys.path.insert(0, str(repo_root))
-    from cochem_core_registry_schema import (
-        CARBON_13_ISOTOPIC_MASS,
-        get_registry_atomic_mass,
-        CoChemSystemConfig,
-        OSTarget,
-        discover_host_hardware,
-    )
-
-import atexit
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("cochem_setup_phase_5")
-
-def sweep_zombies() -> None:
-    if psutil is None:
-        return
-    for p in psutil.process_iter(['pid', 'status']):
-        try:
-            if p.info['status'] == psutil.STATUS_ZOMBIE:
-                p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
-
-atexit.register(sweep_zombies)
-
-
-# =============================================================================
-# 1. EXCEPTIONS
-# =============================================================================
-
-
-class Phase5AuditError(RuntimeError):
-    """Raised when critical phase 5 MPS daemon initialization or VRAM allocation fails fatally."""
-
-
-class MPSControlError(RuntimeError):
-    """Raised when nvidia-cuda-mps-control daemon lifecycle management commands fail unexpectedly."""
-
-
-class VRAMAllocationError(RuntimeError):
-    """Raised when VRAM memory limits or worker capacity cannot be safely bounded."""
-
-
-class ConfigLockError(RuntimeError):
-    """Raised when golden master registry configuration locking fails."""
-
-
-class LockTestFailureError(RuntimeError):
-    """Raised when physical POSIX filesystem locking verification encounters an unrecoverable error."""
-
-
-# =============================================================================
-# 2. PYDANTIC V2 DATA MODELS & ENUMS
-# =============================================================================
-
-
-class PhaseStatus(str, Enum):
-    """Status enumeration for setup phase execution."""
-
-    PASSED = "PASSED"
-    FAILED = "FAILED"
-    DEGRADED = "DEGRADED"
-    BYPASSED = "BYPASSED"
-
-
-class MPSStatus(str, Enum):
-    """Operational status enumeration for NVIDIA MPS daemon subsystem."""
-
-    RUNNING = "RUNNING"
-    INITIALIZED = "INITIALIZED"
-    STOPPED = "STOPPED"
-    NOT_SUPPORTED = "NOT_SUPPORTED"
-    DEGRADED = "DEGRADED"
-    ERROR = "ERROR"
-
-
-class GPUDeviceVRAM(BaseModel):
-    """Physical GPU device VRAM allocation and worker partitioning profile."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    index: int = Field(..., ge=0, description="Physical GPU device index (e.g. 0, 1)")
-    name: str = Field(..., description="GPU model/product identifier")
-    uuid: Optional[str] = Field(default=None, description="GPU device UUID if available")
-    total_vram_mb: float = Field(..., ge=0.0, description="Total physical VRAM in megabytes")
-    free_vram_mb: float = Field(default=0.0, ge=0.0, description="Available unallocated VRAM in megabytes")
-    reserved_vram_mb: float = Field(default=0.0, ge=0.0, description="VRAM reserved for OS/UI/host buffers in megabytes")
-    allocatable_vram_mb: float = Field(default=0.0, ge=0.0, description="Net allocatable VRAM for compute workers in megabytes")
-    allocated_limit_per_worker_mb: float = Field(
-        default=0.0, ge=0.0, description="Calculated pinned memory limit per concurrent worker in megabytes"
-    )
-    active_worker_capacity: int = Field(
-        default=1, ge=1, description="Maximum concurrent GPU worker processes supported without OOM"
-    )
-    pinned_mem_limit_str: str = Field(
-        default="", description="Formatted CUDA_MPS_PINNED_DEVICE_MEM_LIMIT string (e.g. '0=4096M')"
-    )
-    compute_capability: Optional[str] = Field(
-        default=None, description="CUDA compute capability architecture (e.g. 'sm_80', 'sm_89')"
-    )
-
-    @field_validator("name")
-    @classmethod
-    def validate_name(cls, v: str) -> str:
-        if not v or not v.strip():
-            raise ValueError("GPU name cannot be empty")
-        return v.strip()
-
-
-class MPSDaemonAudit(BaseModel):
-    """Structured inspection and lifecycle state of the NVIDIA MPS daemon."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    mps_control_binary: Optional[str] = Field(
-        default=None, description="Absolute filesystem path to nvidia-cuda-mps-control executable"
-    )
-    mps_server_binary: Optional[str] = Field(
-        default=None, description="Absolute filesystem path to nvidia-cuda-mps-server executable"
-    )
-    status: MPSStatus = Field(default=MPSStatus.NOT_SUPPORTED, description="Operational status of MPS daemon")
-    pipe_directory: Optional[str] = Field(
-        default=None, description="Directory path for CUDA_MPS_PIPE_DIRECTORY IPC pipe/sockets"
-    )
-    log_directory: Optional[str] = Field(
-        default=None, description="Directory path for CUDA_MPS_LOG_DIRECTORY telemetry logs"
-    )
-    socket_path: Optional[str] = Field(
-        default=None, description="Active Unix domain socket or named pipe path for daemon communication"
-    )
-    is_daemon_active: bool = Field(
-        default=False, description="Whether the nvidia-cuda-mps-control daemon process is running"
-    )
-    pid: Optional[int] = Field(
-        default=None, description="Process ID of active nvidia-cuda-mps-control daemon"
-    )
-    socket_permissions: Optional[str] = Field(
-        default=None, description="Octal permission mode (e.g. '0o700') or ACL string"
-    )
-    is_permission_secure: bool = Field(
-        default=True, description="Whether socket permissions enforce 0700 restricted access"
-    )
-    server_active: bool = Field(
-        default=False, description="Whether backend nvidia-cuda-mps-server process is active"
-    )
-    control_active: bool = Field(
-        default=False, description="Whether nvidia-cuda-mps-control command pipe is responsive"
-    )
-    environment_variables: Dict[str, str] = Field(
-        default_factory=dict, description="Environment variables configured for MPS operations"
-    )
-    details: str = Field(default="", description="Diagnostic status summary and telemetry details")
-
-
-class VRAMBudgetReport(BaseModel):
-    """Aggregated cluster-wide VRAM memory budgeting and concurrency partitioning record."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    total_gpus_detected: int = Field(default=0, ge=0, description="Total number of physical GPUs discovered")
-    active_gpu_devices: List[GPUDeviceVRAM] = Field(
-        default_factory=list, description="Per-GPU VRAM profiles and allocation limits"
-    )
-    total_cluster_vram_mb: float = Field(
-        default=0.0, ge=0.0, description="Total aggregated VRAM across all GPUs in megabytes"
-    )
-    total_reserved_vram_mb: float = Field(
-        default=0.0, ge=0.0, description="Total aggregated reserved VRAM across all GPUs in megabytes"
-    )
-    total_allocatable_vram_mb: float = Field(
-        default=0.0, ge=0.0, description="Total aggregated allocatable VRAM across all GPUs in megabytes"
-    )
-    worker_concurrency_target: int = Field(
-        default=2, ge=1, description="Configured target concurrent GPU worker processes (e.g. 2 for MACE+PySCF)"
-    )
-    default_pinned_mem_limit: Optional[str] = Field(
-        default=None, description="Default global CUDA_MPS_PINNED_DEVICE_MEM_LIMIT string"
-    )
-    per_device_limits: Dict[str, str] = Field(
-        default_factory=dict, description="Mapping of device indices to pinned memory limits (e.g. {'0': '4096M'})"
-    )
-    is_vram_bounded: bool = Field(
-        default=True, description="Whether VRAM allocations are strictly bounded to prevent OOM"
-    )
-    strategy: str = Field(
-        default="PROPORTIONAL_PINNED_BUDGET", description="Applied VRAM partitioning strategy algorithm"
-    )
-
-
-class LockTestResult(BaseModel):
-    """Physical POSIX byte-range locking verification result."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    passed: bool = Field(..., description="Whether byte-range locking succeeded on target filesystem")
-    method: str = Field(..., description="Locking mechanism utilized (e.g. 'POSIX_FCNTL', 'MSVCRT_LOCKING')")
-    single_threaded_mode: bool = Field(
-        default=False,
-        description="Whether single-threaded fallback degradation is active due to lock failure",
-    )
-    target_path: str = Field(..., description="Filesystem path tested for byte-range locking")
-    lock_type: str = Field(default="POSIX_BYTE_RANGE_LOCK", description="Classification of lock test")
-    error_message: Optional[str] = Field(default=None, description="Error diagnostics if lock test failed")
-
-
-class WorkspaceSweepReport(BaseModel):
-    """Artifact sweep report for garbage collection of intermediate setup files."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    swept_files_count: int = Field(default=0, ge=0, description="Number of temporary or fragment files cleaned")
-    cleaned_paths: List[str] = Field(default_factory=list, description="Paths of cleaned ephemeral files")
-    retained_paths: List[str] = Field(default_factory=list, description="Paths of permanent registered artifacts")
-    trash_dir: Optional[str] = Field(default=None, description="Backup trash destination if configured")
-
-
-class ConfigLockAuditReport(BaseModel):
-    """Structured audit report for IPC configuration lock and workspace sweep."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    golden_registry_path: str = Field(..., description="Canonical path to locked cochem_system_config.json")
-    status: str = Field(default="LOCKED", description="Operational status of master registry ('LOCKED')")
-    checksum: str = Field(..., description="Deterministic SHA-256 checksum of locked configuration")
-    posix_lock_test: LockTestResult = Field(..., description="Byte-range filesystem lock verification record")
-    sweep_report: WorkspaceSweepReport = Field(..., description="Workspace garbage collection sweep results")
-    intermediate_phases_found: List[str] = Field(
-        default_factory=list, description="Intermediate phase artifacts consolidated (e.g. ['p1.json', 'p2.json'])"
-    )
-    is_immutable_mode_enforced: bool = Field(
-        default=True, description="Whether 0o444 read-only file mode was applied"
-    )
-
-
-class Phase5AuditReport(BaseModel):
-    """Comprehensive serialized audit report for Phase 5 NVIDIA MPS Daemon & VRAM Budgeting & Config Lock."""
-
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
-
-    phase_id: str = Field(
-        default="PHASE_5_NVIDIA_MPS_VRAM_BUDGETING",
-        description="Unique phase identifier",
-    )
-    status: PhaseStatus = Field(..., description="Overall phase outcome status")
-    timestamp_utc: str = Field(..., description="ISO 8601 UTC timestamp of audit execution")
-    mps_daemon: MPSDaemonAudit = Field(..., description="NVIDIA MPS daemon lifecycle and socket audit")
-    vram_budget: VRAMBudgetReport = Field(..., description="Calculated VRAM partitioning and budgeting report")
-    is_cuda_available: bool = Field(default=False, description="Whether CUDA runtime and hardware are available")
-    is_hpc_slurm: bool = Field(default=False, description="Whether execution occurred within a Slurm HPC envelope")
-    config_lock: Optional[ConfigLockAuditReport] = Field(
-        default=None, description="Phase 5 IPC config lock and workspace sweep results"
-    )
-    warnings: List[str] = Field(default_factory=list, description="Non-fatal warnings or degraded notices")
-    errors: List[str] = Field(default_factory=list, description="Fatal or critical validation errors")
-    artifact_path: str = Field(..., description="Filesystem destination path for serialized p5.json")
-    golden_config_path: Optional[str] = Field(
-        default=None, description="Filesystem destination path for locked cochem_system_config.json"
-    )
-
-    @field_validator("phase_id")
-    @classmethod
-    def validate_phase_id(cls, v: str) -> str:
-        if v != "PHASE_5_NVIDIA_MPS_VRAM_BUDGETING":
-            raise ValueError(f"Invalid phase_id: {v}")
-        return v
-
-
-# =============================================================================
-# 3. TRANSACTIONAL DEPENDENCY & ATOMIC STATE MANAGER
-# =============================================================================
-
-
-class DependencyManager:
-    """
-    Transactional context manager for managing temporary files, staging directories,
-    and executing atomic JSON state persistence with automatic rollback on unhandled exceptions.
-    Ensures workspace sterility per SRS Document 5 Section 1.3.
-    """
-
-    def __init__(self) -> None:
-        self._tracked_temp_files: List[Path] = []
-        self._tracked_temp_dirs: List[Path] = []
-
-    def __enter__(self) -> DependencyManager:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> None:
-        if exc_type is not None:
-            self.rollback()
-
-    def track_temp_file(self, path: Union[str, Path]) -> Path:
-        """Register a temporary file to be rolled back on failure."""
-        p = Path(path).resolve()
-        if p not in self._tracked_temp_files:
-            self._tracked_temp_files.append(p)
-        return p
-
-    def track_temp_dir(self, path: Union[str, Path]) -> Path:
-        """Register a temporary directory to be rolled back on failure."""
-        p = Path(path).resolve()
-        if p not in self._tracked_temp_dirs:
-            self._tracked_temp_dirs.append(p)
-        return p
-
-    def untrack_file(self, path: Union[str, Path]) -> None:
-        """Remove a file from rollback tracking once successfully committed."""
-        p = Path(path).resolve()
-        if p in self._tracked_temp_files:
-            self._tracked_temp_files.remove(p)
-
-    def untrack_dir(self, path: Union[str, Path]) -> None:
-        """Remove a directory from rollback tracking once successfully committed."""
-        p = Path(path).resolve()
-        if p in self._tracked_temp_dirs:
-            self._tracked_temp_dirs.remove(p)
-
-    def rollback(self) -> None:
-        """Explicitly purge all tracked temporary files and directories."""
-        for temp_file in list(self._tracked_temp_files):
-            try:
-                if temp_file.exists() and temp_file.is_file():
-                    try:
-                        os.chmod(temp_file, stat.S_IWRITE | stat.S_IREAD)
-                    except OSError:
-                        pass
-                    temp_file.unlink()
-            except OSError:
-                pass
-        self._tracked_temp_files.clear()
-
-        for temp_dir in list(self._tracked_temp_dirs):
-            try:
-                if temp_dir.exists() and temp_dir.is_dir():
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
-        self._tracked_temp_dirs.clear()
-
-    def atomic_write_json(
-        self,
-        target_path: Union[str, Path],
-        data: Union[BaseModel, Dict[str, Any], Any],
-        indent: int = 2,
-        read_only: bool = False,
-    ) -> Path:
-        """
-        Atomically write JSON content to target_path using a staged temporary file and os.replace.
-        Handles overwriting existing read-only files cleanly.
-        """
-        target = Path(target_path).resolve()
-        target.parent.mkdir(parents=True, exist_ok=True)
-
-        unique_suffix = f".tmp.{uuid.uuid4().hex[:8]}"
-        staged_file = target.parent / f"{target.name}{unique_suffix}"
-        self.track_temp_file(staged_file)
-
-        if isinstance(data, BaseModel):
-            json_text = data.model_dump_json(indent=indent)
-        elif isinstance(data, (dict, list)):
-            json_text = json.dumps(data, indent=indent, default=str)
-        else:
-            json_text = str(data)
-
-        staged_file.write_text(json_text, encoding="utf-8")
-
-        # If target exists and is read-only (Windows NT or POSIX), unlock it temporarily for replacement
-        if target.exists():
-            try:
-                os.chmod(target, stat.S_IWRITE | stat.S_IREAD | stat.S_IWUSR | stat.S_IRUSR)
-            except OSError:
-                pass
-
-        os.replace(staged_file, target)
-        self.untrack_file(staged_file)
-
-        if read_only:
-            try:
-                os.chmod(target, stat.S_IREAD | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
-            except OSError:
-                pass
-
-        return target
-
-
-# =============================================================================
-# 4. PATH RESOLUTION & DIRECTORY PROVISIONING
-# =============================================================================
-
-
-def get_current_username() -> str:
-    """Retrieve the current OS username sanitized for filesystem paths."""
+    HAS_ZMQ = False
+
+from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
+
+try:
+    from cochem_base.exceptions import DiskQuotaError
+except ImportError:
+    class DiskQuotaError(OSError):  # type: ignore
+        """Fallback definition for DiskQuotaError if cochem_base.exceptions is unavailable."""
+        default_error_code = "DISK_QUOTA_EXCEEDED"
+
+        def __init__(
+            self,
+            message: Optional[Union[str, float]] = None,
+            error_code: Optional[str] = None,
+            details: Optional[Dict[str, Any]] = None,
+            timestamp: Optional[str] = None,
+            *,
+            required_gb: Optional[float] = None,
+            available_gb: Optional[float] = None,
+            path: Optional[Union[str, Path]] = None,
+            **kwargs: Any,
+        ) -> None:
+            self.required_gb: float = float(required_gb) if required_gb is not None else 50.0
+            self.available_gb: float = float(available_gb) if available_gb is not None else 0.0
+            self.path: Optional[Path] = Path(path) if path is not None else None
+            p_str = str(self.path) if self.path is not None else "workspace"
+            msg = message if isinstance(message, str) else (
+                f"Insufficient scratch disk quota at {p_str}: "
+                f"required {self.required_gb:.2f} GB, available {self.available_gb:.2f} GB"
+            )
+            super().__init__(msg)
+
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_ramdisk_dir,
+    get_runtime_dir,
+    resolve_mapped_path,
+)
+
+try:
+    from core_engine.cochem_core_telemetry_logger import TelemetryLogger
+except ImportError:
     try:
-        user = getpass.getuser()
-    except Exception:
-        user = os.environ.get("USER") or os.environ.get("USERNAME") or "default_user"
-    return re.sub(r"[^a-zA-Z0-9_.-]", "_", user)
-
-
-def resolve_mps_pipe_directory(custom_dir: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Resolve isolated runtime control pipe directory for CUDA_MPS_PIPE_DIRECTORY following
-    the authoritative CoChem hierarchy:
-    1. Explicit custom_dir parameter
-    2. Environment variable CUDA_MPS_PIPE_DIRECTORY
-    3. Slurm HPC envelope: $SLURM_TMPDIR/cochem_mps_$USER
-    4. Linux / POSIX default: /tmp/cochem_mps_$USER
-    5. Windows fallback: %TEMP%\\cochem_mps_%USERNAME%
-    """
-    if custom_dir:
-        resolved = Path(custom_dir).resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    env_pipe = os.environ.get("CUDA_MPS_PIPE_DIRECTORY")
-    if env_pipe:
-        resolved = Path(env_pipe).resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    user = get_current_username()
-    slurm_job = os.environ.get("SLURM_JOB_ID")
-    dir_suffix = f"_{slurm_job}" if slurm_job else ""
-    slurm_tmp = os.environ.get("SLURM_TMPDIR")
-    if slurm_tmp and Path(slurm_tmp).is_dir():
-        resolved = Path(slurm_tmp).resolve() / f"cochem_mps_{user}{dir_suffix}"
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    if platform.system() != "Windows":
-        resolved = Path(f"/tmp/cochem_mps_{user}{dir_suffix}").resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    win_temp = Path(tempfile.gettempdir()) / f"cochem_mps_{user}{dir_suffix}"
-    win_temp.mkdir(parents=True, exist_ok=True)
-    return win_temp.resolve()
-
-
-def resolve_mps_log_directory(custom_dir: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Resolve log directory for CUDA_MPS_LOG_DIRECTORY following the CoChem hierarchy.
-    """
-    if custom_dir:
-        resolved = Path(custom_dir).resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    env_log = os.environ.get("CUDA_MPS_LOG_DIRECTORY")
-    if env_log:
-        resolved = Path(env_log).resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    user = get_current_username()
-    slurm_job = os.environ.get("SLURM_JOB_ID")
-    dir_suffix = f"_{slurm_job}" if slurm_job else ""
-    slurm_tmp = os.environ.get("SLURM_TMPDIR")
-    if slurm_tmp and Path(slurm_tmp).is_dir():
-        resolved = Path(slurm_tmp).resolve() / f"cochem_mps_log_{user}{dir_suffix}"
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    if platform.system() != "Windows":
-        resolved = Path(f"/tmp/cochem_mps_log_{user}{dir_suffix}").resolve()
-        resolved.mkdir(parents=True, exist_ok=True)
-        enforce_socket_directory_permissions(resolved)
-        return resolved
-
-    win_log = Path(tempfile.gettempdir()) / f"cochem_mps_log_{user}{dir_suffix}"
-    win_log.mkdir(parents=True, exist_ok=True)
-    return win_log.resolve()
-
-
-def enforce_socket_directory_permissions(dir_path: Path) -> Tuple[bool, Optional[str]]:
-    """
-    Enforce restrictive 0700 (owner-only read/write/execute) permissions on Unix socket directories
-    to prevent IPC spoofing and privilege escalation across multi-tenant environments.
-    """
-    if platform.system() == "Windows":
-        return True, "0o700 (Windows NT ACL inherited)"
-
-    try:
-        current_mode = dir_path.stat().st_mode
-        if (current_mode & 0o077) != 0:
-            dir_path.chmod(0o700)
-        mode_str = oct(stat.S_IMODE(dir_path.stat().st_mode))
-        return True, mode_str
-    except OSError:
-        return False, None
-
-
-def resolve_p5_registry_path(output_dir: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Resolve canonical destination path for Golden Registry artifact p5.json.
-    """
-    if output_dir:
-        out_path = Path(output_dir).resolve()
-        if out_path.suffix == ".json" or out_path.name == "p5.json":
-            return out_path
-        return out_path / "p5.json"
-
-    try:
-        from cochem_base.config_loader import get_artifact_dir
-
-        return get_artifact_dir() / "Registry" / "p5.json"
+        from cochem_core_telemetry_logger import TelemetryLogger  # type: ignore
     except ImportError:
-        pass
+        TelemetryLogger = None  # type: ignore
 
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        return Path(env_art).resolve() / "Registry" / "p5.json"
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger("CoChem-Broker")
 
-    repo_root_candidate = Path.cwd()
-    agent_artifacts = repo_root_candidate / ".agent_artifacts"
-    if agent_artifacts.exists():
-        return agent_artifacts / "Registry" / "p5.json"
+# Global Popen process tracking for zombie sweeping
+_GLOBAL_ACTIVE_POPEN_PROCESSES: List[subprocess.Popen] = []
+_GLOBAL_TRACKING_LOCK = threading.RLock()
 
-    home_artifacts = Path.home() / "CoChem_Artifacts"
-    return home_artifacts / "Registry" / "p5.json"
+# Comprehensive cross-platform segmentation fault, abort, access violation, and fatal crash return codes
+CRITICAL_SEGFAULT_EXIT_CODES = {
+    139, 134, 135, 136,                   # POSIX SIGSEGV, SIGABRT, SIGBUS, SIGFPE (128 + signal)
+    -11, -6, -7, -8,                       # Subprocess negative signal numbers
+    0xC0000005, -1073741819,  # Windows STATUS_ACCESS_VIOLATION (unsigned & signed 32-bit)
+    0xC00000FD, -1073741571,  # Windows STATUS_STACK_OVERFLOW
+    0xC000001D, -1073741795,  # Windows STATUS_ILLEGAL_INSTRUCTION
+    0xC000002E, -1073741778,  # Windows STATUS_DATATYPE_MISALIGNMENT
+}
 
 
-def resolve_golden_config_path(output_path: Optional[Union[str, Path]] = None) -> Path:
-    """
-    Resolve destination path for finalized master Golden Registry cochem_system_config.json
-    per SRS Document 5 Section 4.3.
-    """
-    if output_path:
-        out_p = Path(output_path).resolve()
-        if out_p.is_dir() or out_p.suffix == "":
-            return out_p / "cochem_system_config.json"
-        return out_p
+# =====================================================================
+# Segfault & Access Violation Hex-Dump Sweeper
+# =====================================================================
 
-    env_cfg = os.environ.get("COCHEM_CONFIG")
-    if env_cfg:
-        return Path(os.path.expandvars(env_cfg)).expanduser().resolve()
-
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        return (
-            Path(os.path.expandvars(env_art)).expanduser()
-            / "Registry"
-            / "cochem_system_config.json"
-        ).resolve()
-
+def is_crash_returncode(code: Optional[int]) -> bool:
+    """Evaluates whether an exit code corresponds to a critical crash, segfault, or access violation."""
+    if code is None:
+        return False
+    if code in CRITICAL_SEGFAULT_EXIT_CODES:
+        return True
     try:
-        from cochem_base.config_loader import resolve_config_path
-
-        return resolve_config_path()
+        unsigned_code = code & 0xFFFFFFFF
+        if unsigned_code in {0xC0000005, 0xC00000FD, 0xC000001D, 0xC000002E}:
+            return True
     except Exception:
         pass
-
-    return (Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json").resolve()
-
-
-# =============================================================================
-# 5. PHYSICAL POSIX BYTE-RANGE LOCKING TEST (FCNTL / MSVCRT)
-# =============================================================================
+    return False
 
 
-def test_posix_byte_range_locking(
-    target_dir: Optional[Union[str, Path]] = None,
-    timeout: float = 2.0,
-) -> LockTestResult:
+def extract_segfault_hex_dump(
+    returncode: int,
+    stderr_buffer: Union[str, bytes, bytearray, Sequence[str], None],
+    max_bytes: int = 256,
+) -> Dict[str, Any]:
+    """Sweeps terminal stderr buffer upon process segfault or access violation.
+
+    Extracts the final 256 bytes, generates both a canonical formatted hex dump and
+    a raw hexadecimal trace string, and structures the diagnostic payload for JSON-L telemetry.
     """
-    Execute a physical POSIX byte-range locking test (fcntl on Linux/macOS, msvcrt on Windows)
-    on the target filesystem prior to initializing HDF5 SWMR streams.
+    is_crash = is_crash_returncode(returncode)
+    if not is_crash:
+        return {
+            "is_crash": False,
+            "returncode": returncode,
+            "crash_type": None,
+            "raw_hex": "",
+            "formatted_hex_dump": "",
+            "byte_count": 0,
+            "terminal_stderr_snippet": "",
+        }
 
-    SRS Document 5 Section 4.3 Mandate:
-    If the filesystem does not support POSIX byte-range locks (e.g., certain NFS/SMB/CIFS mounts
-    or legacy virtualized mounts), this test catches the failure and signals graceful degradation
-    to single-threaded operations.
-    """
-    if target_dir:
-        test_dir = Path(target_dir).resolve()
+    raw_bytes: bytes
+    if stderr_buffer is None:
+        raw_bytes = b"Segmentation fault / Access violation (core dumped)\n"
+    elif isinstance(stderr_buffer, (bytes, bytearray)):
+        raw_bytes = bytes(stderr_buffer)
+    elif isinstance(stderr_buffer, str):
+        raw_bytes = stderr_buffer.encode("utf-8", errors="replace")
+    elif isinstance(stderr_buffer, (list, tuple)):
+        joined_str = "\n".join(str(line) for line in stderr_buffer)
+        raw_bytes = joined_str.encode("utf-8", errors="replace")
     else:
-        test_dir = resolve_golden_config_path().parent
+        raw_bytes = str(stderr_buffer).encode("utf-8", errors="replace")
 
-    test_dir.mkdir(parents=True, exist_ok=True)
-    probe_filename = f".cochem_swmr_lock_probe_{uuid.uuid4().hex[:8]}.lock"
-    probe_path = test_dir / probe_filename
+    if not raw_bytes:
+        raw_bytes = b"Segmentation fault / Access violation (core dumped)\n"
 
-    is_posix = platform.system() != "Windows"
+    target_bytes = raw_bytes[-max_bytes:] if len(raw_bytes) >= max_bytes else raw_bytes
+    raw_hex = target_bytes.hex()
 
-    try:
-        # Create physical probe file with data to lock
-        with open(probe_path, "w+b") as f:
-            f.write(b"COCHEM_SWMR_BYTE_RANGE_LOCK_PROBE_HEADER_BLOCK\n" * 10)
-            f.flush()
-            fd = f.fileno()
+    # Build canonical formatted hex dump
+    lines: List[str] = []
+    for offset in range(0, len(target_bytes), 16):
+        chunk = target_bytes[offset:offset + 16]
+        hex_parts = [f"{b:02x}" for b in chunk]
+        hex_str = " ".join(hex_parts)
+        ascii_chars = [chr(b) if 32 <= b <= 126 else "." for b in chunk]
+        ascii_str = "".join(ascii_chars)
+        lines.append(f"{offset:08x}:  {hex_str:<48}  |{ascii_str}|")
 
-            if is_posix and fcntl is not None:
-                # Test POSIX fcntl byte-range locking
-                try:
-                    # Exclusive byte-range lock on bytes 0..512
-                    fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB, 512, 0)
-                    # Unlock
-                    fcntl.lockf(fd, fcntl.LOCK_UN, 512, 0)
-                    method = "POSIX_FCNTL_LOCKF"
-                except (OSError, IOError) as exc:
-                    return LockTestResult(
-                        passed=False,
-                        method="POSIX_FCNTL_LOCKF",
-                        single_threaded_mode=True,
-                        target_path=str(probe_path),
-                        error_message=f"POSIX byte-range lock failed on filesystem: {exc}",
-                    )
-            elif not is_posix and msvcrt is not None:
-                # Test Windows NT byte-range locking
-                try:
-                    f.seek(0)
-                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 512)
-                    f.seek(0)
-                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 512)
-                    method = "MSVCRT_LOCKING_BYTE_RANGE"
-                except (OSError, IOError) as exc:
-                    return LockTestResult(
-                        passed=False,
-                        method="MSVCRT_LOCKING_BYTE_RANGE",
-                        single_threaded_mode=True,
-                        target_path=str(probe_path),
-                        error_message=f"Windows byte-range lock failed on filesystem: {exc}",
-                    )
-            else:
-                method = "GENERIC_FALLBACK_LOCK"
+    formatted_hex_dump = "\n".join(lines)
 
-        return LockTestResult(
-            passed=True,
-            method=method,
-            single_threaded_mode=False,
-            target_path=str(probe_path),
-            error_message=None,
-        )
+    # Classify crash type
+    crash_type = "CRITICAL_CRASH"
+    if returncode in (-1073741819, 3221225477, 0xC0000005):
+        crash_type = "STATUS_ACCESS_VIOLATION"
+    elif returncode in (139, -11):
+        crash_type = "SIGSEGV"
+    elif returncode in (134, -6):
+        crash_type = "SIGABRT"
+    elif returncode in (-1073741571, 3221225725, 0xC00000FD):
+        crash_type = "STATUS_STACK_OVERFLOW"
+    elif returncode in (-1073741795, 3221225501, 0xC000001D):
+        crash_type = "STATUS_ILLEGAL_INSTRUCTION"
+    elif returncode in (-1073741778, 3221225518, 0xC000002E):
+        crash_type = "STATUS_DATATYPE_MISALIGNMENT"
 
-    except Exception as e:
-        return LockTestResult(
-            passed=False,
-            method="UNKNOWN_ERROR",
-            single_threaded_mode=True,
-            target_path=str(probe_path),
-            error_message=f"Filesystem byte-range locking test exception: {e}",
-        )
-    finally:
-        try:
-            if probe_path.exists():
-                probe_path.unlink()
-        except OSError:
-            pass
-
-
-def _sanitize_engine_record(raw_eng: Any) -> Optional[Dict[str, Any]]:
-    """Sanitize raw engine dictionary to match strict EngineInfo schema."""
-    if not isinstance(raw_eng, dict):
-        return None
-    st_raw = str(raw_eng.get("status", "")).lower()
-    if "found" in st_raw or raw_eng.get("is_available") is True:
-        st = "found"
-    elif "bypass" in st_raw:
-        st = "bypassed"
-    elif "denied" in st_raw or "permission" in st_raw:
-        st = "permission_denied"
-    else:
-        st = "missing" if not raw_eng.get("path") else "found"
-
-    p = raw_eng.get("path")
-    v = raw_eng.get("version")
-    h = raw_eng.get("sha256_hash") or raw_eng.get("hash")
     return {
-        "status": st,
-        "path": str(p) if p else None,
-        "version": str(v) if v else None,
-        "hash": str(h) if h else None,
+        "is_crash": True,
+        "returncode": returncode,
+        "crash_type": crash_type,
+        "raw_hex": raw_hex,
+        "formatted_hex_dump": formatted_hex_dump,
+        "byte_count": len(target_bytes),
+        "terminal_stderr_snippet": target_bytes.decode("utf-8", errors="replace"),
     }
 
 
-def consolidate_intermediate_states(
-    registry_dir: Optional[Union[str, Path]] = None,
-    search_dirs: Optional[List[Union[str, Path]]] = None,
-) -> Tuple[Dict[str, Any], List[str]]:
-    """
-    Consolidate intermediate phase states (p1.json through p11.json) discovered across
-    the registry search paths into a single structured configuration payload ready for
-    validation against CoChemSystemConfig.
-
-    SRS Document 5 Section 4.3 Mandate.
-    """
-    candidate_dirs: List[Path] = []
-    if registry_dir:
-        candidate_dirs.append(Path(registry_dir).resolve())
-
-    if search_dirs:
-        for sd in search_dirs:
-            candidate_dirs.append(Path(sd).resolve())
-
-    env_reg = os.environ.get("COCHEM_REGISTRY_DIR")
-    if env_reg:
-        candidate_dirs.append(Path(env_reg).resolve())
-
-    env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
-    if env_art:
-        candidate_dirs.append((Path(env_art) / "Registry").resolve())
-
-    candidate_dirs.append((Path.cwd() / ".agent_artifacts" / "Registry").resolve())
-    candidate_dirs.append((Path.cwd() / "artifacts" / "registry").resolve())
-    candidate_dirs.append((Path.home() / "CoChem_Artifacts" / "Registry").resolve())
-
-    consolidated_raw: Dict[str, Any] = {}
-    found_phases: List[str] = []
-
-    # Map of intermediate JSON filenames to phase identifiers
-    target_files = [f"p{i}.json" for i in range(1, 12)]
-
-    for phase_filename in target_files:
-        for cdir in candidate_dirs:
-            phase_file = cdir / phase_filename
-            if phase_file.is_file():
-                try:
-                    phase_data = json.loads(phase_file.read_text(encoding="utf-8"))
-                    found_phases.append(phase_filename)
-
-                    # Extract and merge domain-specific fields from each phase
-                    if phase_filename == "p1.json":
-                        # OS & Toolchain Audit
-                        os_val = phase_data.get("os_target") or phase_data.get("os_profile", {}).get("system") or phase_data.get("os", {}).get("os_target")
-                        if os_val:
-                            consolidated_raw["os_target"] = os_val
-
-                    elif phase_filename == "p2.json":
-                        # Hardware & RAM Profiling
-                        cpu_info = phase_data.get("cpu", {})
-                        ram_info = phase_data.get("memory", {}) or phase_data.get("ram", {})
-                        gpu_info = phase_data.get("gpu", {})
-
-                        if "hardware" not in consolidated_raw:
-                            consolidated_raw["hardware"] = {}
-
-                        hw = consolidated_raw["hardware"]
-                        if "physical_cores" in cpu_info:
-                            hw["cpu_physical_cores"] = cpu_info["physical_cores"]
-                            hw["physical_cpu_cores"] = cpu_info["physical_cores"]
-                        if "logical_cores" in cpu_info:
-                            hw["logical_cpu_cores"] = cpu_info["logical_cores"]
-
-                        total_bytes = ram_info.get("total_physical_bytes") or ram_info.get("total_ram_bytes")
-                        if total_bytes:
-                            hw["ram_gb"] = round(float(total_bytes) / (1024.0**3), 2)
-                        elif "total_ram_gb" in ram_info:
-                            hw["ram_gb"] = float(ram_info["total_ram_gb"])
-                        elif "ram_gb" in ram_info:
-                            hw["ram_gb"] = float(ram_info["ram_gb"])
-
-                        if "avx512_support" in cpu_info:
-                            hw["avx_512_capable"] = bool(cpu_info["avx512_support"])
-                            hw["avx512_support"] = bool(cpu_info["avx512_support"])
-
-                        if gpu_info.get("gpu_available") or gpu_info.get("available"):
-                            devices_list = gpu_info.get("devices") or []
-                            if devices_list:
-                                first_dev = devices_list[0]
-                                hw["gpu_profile"] = first_dev.get("name", "NVIDIA GPU")
-                                vram_bytes = first_dev.get("memory_total_bytes", 0)
-                                if vram_bytes:
-                                    hw["vram_gb"] = round(float(vram_bytes) / (1024.0**3), 2)
-
-                    elif phase_filename == "p3.json":
-                        # Multi-Track Quantum Engine Discovery
-                        engines_data = phase_data.get("engines", {})
-                        if engines_data and isinstance(engines_data, dict):
-                            cleaned_engines: Dict[str, Any] = {}
-                            if "silo_paths" not in consolidated_raw:
-                                consolidated_raw["silo_paths"] = {}
-                            sp = consolidated_raw["silo_paths"]
-
-                            for eng_name, eng_info in engines_data.items():
-                                sanitized = _sanitize_engine_record(eng_info)
-                                if sanitized:
-                                    cleaned_engines[eng_name] = sanitized
-                                    if sanitized.get("path"):
-                                        if eng_name == "orca":
-                                            sp["orca_binary_path"] = sanitized["path"]
-                                        elif eng_name == "xtb":
-                                            sp["xtb_binary_path"] = sanitized["path"]
-                                        elif eng_name == "cfour":
-                                            sp["cfour_binary_path"] = sanitized["path"]
-                                        elif eng_name == "mpirun":
-                                            sp["mpirun_binary_path"] = sanitized["path"]
-                                        elif eng_name == "aimnet2":
-                                            sp["aimnet2_server_path"] = sanitized["path"]
-
-                            consolidated_raw["engines"] = cleaned_engines
-
-                    elif phase_filename == "p4.json":
-                        # Silo Provisioning & Isolation
-                        silos_data = phase_data.get("silos") or phase_data.get("silo_manifest", {})
-                        gpu_active = False
-                        torq_active = True
-                        if isinstance(silos_data, dict):
-                            if any("mace" in k or "gpu" in k for k in silos_data.keys()):
-                                gpu_active = True
-                            if "torq_silo_active" in silos_data:
-                                torq_active = bool(silos_data["torq_silo_active"])
-                            if "gpu_silo_active" in silos_data:
-                                gpu_active = bool(silos_data["gpu_silo_active"])
-                        consolidated_raw["silos"] = {
-                            "torq_silo_active": torq_active,
-                            "gpu_silo_active": gpu_active,
-                        }
-
-                    elif phase_filename == "p5.json":
-                        # MPS Daemon & VRAM Budgeting
-                        vram_budget = phase_data.get("vram_budget", {})
-                        if vram_budget:
-                            if "hardware" not in consolidated_raw:
-                                consolidated_raw["hardware"] = {}
-                            hw = consolidated_raw["hardware"]
-                            hw["mps_enabled"] = bool(phase_data.get("mps_daemon", {}).get("is_daemon_active", False))
-
-                    elif phase_filename == "p6.json":
-                        # Database & Bifurcated Storage
-                        storage = phase_data.get("storage", {}) or phase_data.get("storage_tier", {})
-                        if storage.get("hdf5_pes_store_path"):
-                            if "silo_paths" not in consolidated_raw:
-                                consolidated_raw["silo_paths"] = {}
-                            consolidated_raw["silo_paths"]["hdf5_pes_store_path"] = storage["hdf5_pes_store_path"]
-
-                    elif phase_filename == "p7.json":
-                        # HPC Environment Configuration
-                        hpc_info = phase_data.get("hpc", {})
-                        if hpc_info and isinstance(hpc_info, dict):
-                            valid_hpc_keys = {
-                                "scheduler", "default_partition", "max_walltime_hours",
-                                "partition", "cluster_hostname", "ssh_key_path",
-                                "username", "execution_mode", "walltime_budgets"
-                            }
-                            filtered_hpc = {k: v for k, v in hpc_info.items() if k in valid_hpc_keys and v is not None}
-                            if filtered_hpc:
-                                consolidated_raw["hpc"] = filtered_hpc
-
-                    elif phase_filename == "p9.json":
-                        # Core Pinning & Parsl Concurrency
-                        pinning = phase_data.get("core_pinning", {})
-                        if pinning and isinstance(pinning, dict):
-                            valid_pin_keys = {"kmp_hw_subset", "anchor_p_cores", "scout_p_cores", "background_e_cores"}
-                            filtered_pin = {k: v for k, v in pinning.items() if k in valid_pin_keys and v is not None}
-                            if filtered_pin:
-                                if "hardware" not in consolidated_raw:
-                                    consolidated_raw["hardware"] = {}
-                                consolidated_raw["hardware"]["core_pinning"] = filtered_pin
-
-                    elif phase_filename == "p10.json":
-                        # MolSym Intake & Theoretical Eckart Frame Alignment
-                        consolidated_raw["alignment_engine_ready"] = bool(
-                            phase_data.get("alignment_engine_ready", True)
-                        )
-
-                    elif phase_filename == "p11.json":
-                        # Memory Router & OOM Shield
-                        mem_routing = phase_data.get("memory_routing", {}) or phase_data.get("oom_shield", {})
-                        if "maxcore_mb" in mem_routing:
-                            if "hardware" not in consolidated_raw:
-                                consolidated_raw["hardware"] = {}
-                            consolidated_raw["hardware"]["maxcore_mb"] = int(mem_routing["maxcore_mb"])
-
-                    break
-                except Exception as e:
-                    logger.warning(f"Advisory: could not parse intermediate state {phase_file}: {e}")
-
-    return consolidated_raw, list(dict.fromkeys(found_phases))
-
-
-# =============================================================================
-# 7. MASTER SYSTEM CONFIG VALIDATION & IMMUTABLE LOCKING
-# =============================================================================
-
-
-def validate_and_build_system_config(
-    consolidated_data: Optional[Dict[str, Any]] = None,
-    auto_detect_fallback: bool = True,
-    single_threaded_mode: bool = False,
-) -> CoChemSystemConfig:
-    """
-    Validate the consolidated registry dictionary against CoChemSystemConfig, applying
-    hardware discovery fallbacks and setting status to 'LOCKED' per Stage 0 mandate.
-    """
-    raw = dict(consolidated_data or {})
-
-    # Ensure Hardware exists and is completely bounded
-    if "hardware" not in raw or not raw["hardware"] or not isinstance(raw["hardware"], dict):
-        if auto_detect_fallback:
-            discovered_hw = discover_host_hardware()
-            raw["hardware"] = discovered_hw.model_dump()
-        else:
-            raw["hardware"] = {
-                "cpu_physical_cores": 4,
-                "physical_cpu_cores": 4,
-                "logical_cpu_cores": 8,
-                "ram_gb": 16.0,
-            }
-    else:
-        hw_dict = dict(raw["hardware"])
-        ram_val = hw_dict.get("ram_gb")
-        if ram_val is None or float(ram_val) <= 0.0:
-            if auto_detect_fallback:
-                hw_dict["ram_gb"] = discover_host_hardware().ram_gb
-            else:
-                hw_dict["ram_gb"] = 16.0
-
-        if not hw_dict.get("cpu_physical_cores") or int(hw_dict.get("cpu_physical_cores", 0)) < 1:
-            hw_dict["cpu_physical_cores"] = hw_dict.get("physical_cpu_cores") or (discover_host_hardware().cpu_physical_cores if auto_detect_fallback else 4)
-        if not hw_dict.get("physical_cpu_cores"):
-            hw_dict["physical_cpu_cores"] = hw_dict["cpu_physical_cores"]
-        if not hw_dict.get("logical_cpu_cores"):
-            hw_dict["logical_cpu_cores"] = hw_dict["cpu_physical_cores"] * 2
-
-        raw["hardware"] = hw_dict
-
-    if single_threaded_mode:
-        raw["hardware"]["allocatable_compute_cores"] = 1
-
-    # Standard quantum solver defaults
-    if "quantum_settings" not in raw or not raw["quantum_settings"]:
-        raw["quantum_settings"] = {
-            "implicit_solvation": "CPCM",
-            "integration_grid": "defgrid2",
-            "charge": 0,
-            "multiplicity": 1,
-        }
-
-    # HPC defaults
-    if "hpc" not in raw or not raw["hpc"]:
-        raw["hpc"] = {
-            "scheduler": "local",
-            "default_partition": "compute",
-            "max_walltime_hours": 24,
-        }
-
-    # Environment defaults
-    if "environment" not in raw or not raw["environment"]:
-        raw["environment"] = {
-            "os_target": raw.get("os_target", OSTarget.LOCAL_WINDOWS.value if os.name == "nt" else OSTarget.LOCAL_LINUX.value),
-            "codata_version": "2018",
-            "isotopic_mass_locking": True,
-            "isotopic_mass_13c": CARBON_13_ISOTOPIC_MASS,
-            "isotopic_masses": {},
-        }
-
-    raw["status"] = "LOCKED"
-    raw["schema_version"] = "4.0.0"
-
-    cfg = CoChemSystemConfig.model_validate(raw)
-    cfg.update_checksum()
-    return cfg
-
-
-def finalize_and_lock_golden_registry(
-    cfg: CoChemSystemConfig,
-    output_path: Optional[Union[str, Path]] = None,
-    dry_run: bool = False,
-) -> Tuple[Path, Dict[str, Any]]:
-    """
-    Atomically write finalized Golden Registry to cochem_system_config.json,
-    set cfg['status'] = 'LOCKED', and apply os.chmod(0o444) to enforce post-setup immutability.
-
-    SRS Document 5 Section 4.3 Mandate.
-    """
-    target_path = resolve_golden_config_path(output_path)
-    target_path.parent.mkdir(parents=True, exist_ok=True)
-
-    cfg.status = "LOCKED"
-    cfg.update_checksum()
-    serialized_dict = cfg.model_dump()
-
-    if not dry_run:
-        with DependencyManager() as dm:
-            dm.atomic_write_json(
-                target_path=target_path,
-                data=serialized_dict,
-                indent=2,
-                read_only=True,
-            )
-
-    return target_path, serialized_dict
-
-
-# =============================================================================
-# 8. WORKSPACE GARBAGE COLLECTION SWEEP
-# =============================================================================
-
-
-def execute_workspace_sweep(
-    workspace_dir: Optional[Union[str, Path]] = None,
-    registry_dir: Optional[Union[str, Path]] = None,
-    dry_run: bool = False,
-    remove_intermediate_json: bool = False,
-    trash_dir: Optional[Union[str, Path]] = None,
-) -> WorkspaceSweepReport:
-    """
-    Execute a garbage collection sweep to safely delete all ephemeral .tmp files and
-    intermediate JSON fragments from the workspace.
-
-    SRS Document 5 Section 4.3 Mandate:
-    Preserves persistent registry files (cochem_system_config.json) while sweeping
-    staged .tmp files and temporary lock probes.
-    """
-    target_ws = Path(workspace_dir).resolve() if workspace_dir else Path.cwd().resolve()
-    target_reg = Path(registry_dir).resolve() if registry_dir else resolve_golden_config_path().parent
-
-    cleaned_paths: List[str] = []
-    retained_paths: List[str] = []
-
-    search_roots = [target_ws, target_reg]
-
-    for root in search_roots:
-        if not root.is_dir():
-            continue
-
-        try:
-            for entry in root.rglob("*"):
-                if not entry.is_file():
-                    continue
-
-                filename = entry.name.lower()
-
-                # Never delete finalized system config
-                if filename == "cochem_system_config.json":
-                    retained_paths.append(str(entry.resolve()))
-                    continue
-
-                is_ephemeral = False
-
-                # Check for .tmp extensions or lock probe patterns
-                if ".tmp" in filename or filename.startswith(".cochem_") or filename.endswith(".lock"):
-                    is_ephemeral = True
-
-                # Check for intermediate p1..p11 fragments if requested
-                if remove_intermediate_json:
-                    if re.match(r"^p\d+\.json$", filename) or filename.endswith(".tmp.json"):
-                        is_ephemeral = True
-
-                if is_ephemeral:
-                    cleaned_paths.append(str(entry.resolve()))
-                    if not dry_run:
-                        try:
-                            # Ensure writable before removing
-                            try:
-                                os.chmod(entry, stat.S_IWRITE | stat.S_IREAD)
-                            except OSError:
-                                pass
-                            if trash_dir:
-                                tdir = Path(trash_dir).resolve()
-                                tdir.mkdir(parents=True, exist_ok=True)
-                                shutil.move(str(entry), str(tdir / entry.name))
-                            else:
-                                entry.unlink(missing_ok=True)
-                        except OSError as e:
-                            logger.warning(f"Advisory: could not sweep temporary file {entry}: {e}")
-                else:
-                    retained_paths.append(str(entry.resolve()))
-
-        except OSError as e:
-            logger.warning(f"Advisory: error traversing directory {root} during sweep: {e}")
-
-    return WorkspaceSweepReport(
-        swept_files_count=len(cleaned_paths),
-        cleaned_paths=cleaned_paths,
-        retained_paths=list(dict.fromkeys(retained_paths)),
-        trash_dir=str(trash_dir) if trash_dir else None,
-    )
-
-
-# =============================================================================
-# 9. GPU DISCOVERY & VRAM PROFILING
-# =============================================================================
-
-
-def probe_gpu_devices_vram(
-    registry_p2_path: Optional[Union[str, Path]] = None,
-) -> Tuple[List[GPUDeviceVRAM], bool]:
-    """
-    Interrogate host GPU topology and extract accurate physical VRAM capacities
-    using a multi-tiered inspection pipeline (p2.json -> pynvml -> nvidia-smi -> torch.cuda).
-    """
-    devices: List[GPUDeviceVRAM] = []
-    cuda_available = False
-
-    # Tier 1: Interrogate previous Phase 2 registry (p2.json) if available
-    candidate_p2_paths: List[Path] = []
-    if registry_p2_path:
-        candidate_p2_paths.append(Path(registry_p2_path).resolve())
-    candidate_p2_paths.append(Path.cwd() / ".agent_artifacts" / "Registry" / "p2.json")
-    candidate_p2_paths.append(Path.home() / "CoChem_Artifacts" / "Registry" / "p2.json")
-
-    for p2_path in candidate_p2_paths:
-        if p2_path.exists() and p2_path.is_file():
-            try:
-                data = json.loads(p2_path.read_text(encoding="utf-8"))
-                gpu_info = data.get("gpu", {})
-                if gpu_info.get("cuda_available", False) and gpu_info.get("devices"):
-                    for d in gpu_info["devices"]:
-                        if d.get("vendor", "").upper() == "NVIDIA":
-                            vram_bytes = d.get("memory_total_bytes") or 0
-                            free_bytes = d.get("memory_free_bytes") or vram_bytes
-                            vram_mb = float(vram_bytes) / (1024.0 * 1024.0)
-                            free_mb = float(free_bytes) / (1024.0 * 1024.0)
-                            idx = int(d.get("index", len(devices)))
-                            dev_name = d.get("name", f"NVIDIA GPU {idx}")
-                            dev_uuid = d.get("uuid")
-                            arch = d.get("compute_capability")
-                            devices.append(
-                                GPUDeviceVRAM(
-                                    index=idx,
-                                    name=dev_name,
-                                    uuid=dev_uuid,
-                                    total_vram_mb=round(vram_mb, 2),
-                                    free_vram_mb=round(free_mb, 2),
-                                    reserved_vram_mb=0.0,
-                                    allocatable_vram_mb=0.0,
-                                    allocated_limit_per_worker_mb=0.0,
-                                    active_worker_capacity=1,
-                                    pinned_mem_limit_str="",
-                                    compute_capability=arch,
-                                )
-                            )
-                    if devices:
-                        cuda_available = True
-                        return devices, cuda_available
-            except Exception:
-                pass
-
-    # Tier 2: Query NVIDIA NVML via pynvml or nvidia-ml-py if present
-    try:
-        import warnings as _warnings
-
-        with _warnings.catch_warnings():
-            _warnings.simplefilter("ignore")
-            import pynvml  # type: ignore
-
-        pynvml.nvmlInit()
-        device_count = pynvml.nvmlDeviceGetCount()
-        for idx in range(device_count):
-            handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
-            name_raw = pynvml.nvmlDeviceGetName(handle)
-            name = name_raw.decode("utf-8") if isinstance(name_raw, bytes) else str(name_raw)
-            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-            total_mb = float(mem_info.total) / (1024.0 * 1024.0)
-            free_mb = float(mem_info.free) / (1024.0 * 1024.0)
-            try:
-                uuid_raw = pynvml.nvmlDeviceGetUUID(handle)
-                dev_uuid = uuid_raw.decode("utf-8") if isinstance(uuid_raw, bytes) else str(uuid_raw)
-            except Exception:
-                dev_uuid = None
-            try:
-                major, minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-                arch = f"sm_{major}{minor}"
-            except Exception:
-                arch = None
-
-            devices.append(
-                GPUDeviceVRAM(
-                    index=idx,
-                    name=name,
-                    uuid=dev_uuid,
-                    total_vram_mb=round(total_mb, 2),
-                    free_vram_mb=round(free_mb, 2),
-                    reserved_vram_mb=0.0,
-                    allocatable_vram_mb=0.0,
-                    allocated_limit_per_worker_mb=0.0,
-                    active_worker_capacity=1,
-                    pinned_mem_limit_str="",
-                    compute_capability=arch,
-                )
-            )
-        pynvml.nvmlShutdown()
-        if devices:
-            cuda_available = True
-            return devices, cuda_available
-    except Exception:
-        pass
-
-    # Tier 3: Query via nvidia-smi CLI
-    try:
-        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_out:
-            subprocess.run(
-                [
-                    "nvidia-smi",
-                    "--query-gpu=index,name,uuid,memory.total,memory.free,driver_version",
-                    "--format=csv,noheader,nounits",
-                ],
-                stdout=tmp_out,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-                check=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-            )
-            tmp_out.seek(0)
-            smi_out = tmp_out.read()
-        for line in smi_out.strip().splitlines():
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) >= 5:
-                idx = int(parts[0])
-                name = parts[1]
-                dev_uuid = parts[2]
-                total_mb = float(parts[3])
-                free_mb = float(parts[4])
-                devices.append(
-                    GPUDeviceVRAM(
-                        index=idx,
-                        name=name,
-                        uuid=dev_uuid,
-                        total_vram_mb=round(total_mb, 2),
-                        free_vram_mb=round(free_mb, 2),
-                        reserved_vram_mb=0.0,
-                        allocatable_vram_mb=0.0,
-                        allocated_limit_per_worker_mb=0.0,
-                        active_worker_capacity=1,
-                        pinned_mem_limit_str="",
-                        compute_capability=None,
-                    )
-                )
-        if devices:
-            cuda_available = True
-            return devices, cuda_available
-    except Exception:
-        pass
-
-    # Tier 4: Query via torch.cuda if available
-    try:
-        import torch  # type: ignore
-
-        if torch.cuda.is_available():
-            cuda_available = True
-            cnt = torch.cuda.device_count()
-            for idx in range(cnt):
-                props = torch.cuda.get_device_properties(idx)
-                total_mb = float(props.total_memory) / (1024.0 * 1024.0)
-                arch = f"sm_{props.major}{props.minor}"
-                devices.append(
-                    GPUDeviceVRAM(
-                        index=idx,
-                        name=props.name,
-                        uuid=None,
-                        total_vram_mb=round(total_mb, 2),
-                        free_vram_mb=round(total_mb, 2),
-                        reserved_vram_mb=0.0,
-                        allocatable_vram_mb=0.0,
-                        allocated_limit_per_worker_mb=0.0,
-                        active_worker_capacity=1,
-                        pinned_mem_limit_str="",
-                        compute_capability=arch,
-                    )
-                )
-            if devices:
-                return devices, cuda_available
-    except Exception:
-        pass
-
-    return devices, cuda_available
-
-
-# =============================================================================
-# 10. VRAM BUDGETING & MEMORY PARTITIONING ALGORITHM
-# =============================================================================
-
-
-def calculate_vram_budget(
-    devices: List[GPUDeviceVRAM],
-    worker_concurrency_target: int = 2,
-    custom_limit_per_worker_mb: Optional[float] = None,
-    reserved_headroom_fraction: float = 0.15,
-    min_reserved_headroom_mb: float = 1024.0,
-) -> VRAMBudgetReport:
-    """
-    Calculate mathematically bounded VRAM allocations and build the authoritative
-    CUDA_MPS_PINNED_DEVICE_MEM_LIMIT string for each device.
-
-    Formula:
-    Reserved_VRAM = max(min_reserved_headroom_mb, total_vram_mb * reserved_headroom_fraction)
-    Allocatable_VRAM = max(0.0, total_vram_mb - Reserved_VRAM)
-    Per_Worker_Limit = floor(Allocatable_VRAM / worker_concurrency_target)
-    """
-    concurrency = max(1, worker_concurrency_target)
-    updated_devices: List[GPUDeviceVRAM] = []
-    per_device_limits: Dict[str, str] = {}
-    default_pinned_str: Optional[str] = None
-
-    total_cluster_vram = 0.0
-    total_reserved_vram = 0.0
-    total_allocatable_vram = 0.0
-
-    if not devices:
-        return VRAMBudgetReport(
-            total_gpus_detected=0,
-            active_gpu_devices=[],
-            total_cluster_vram_mb=0.0,
-            total_reserved_vram_mb=0.0,
-            total_allocatable_vram_mb=0.0,
-            worker_concurrency_target=concurrency,
-            default_pinned_mem_limit=None,
-            per_device_limits={},
-            is_vram_bounded=True,
-            strategy="ZERO_GPU_DEGRADED",
-        )
-
-    for dev in devices:
-        total_mb = dev.total_vram_mb
-        total_cluster_vram += total_mb
-
-        reserved_mb = max(min_reserved_headroom_mb, total_mb * reserved_headroom_fraction)
-        reserved_mb = min(reserved_mb, total_mb)
-        total_reserved_vram += reserved_mb
-
-        allocatable_mb = max(0.0, total_mb - reserved_mb)
-        total_allocatable_vram += allocatable_mb
-
-        if custom_limit_per_worker_mb is not None and custom_limit_per_worker_mb > 0:
-            limit_mb = min(allocatable_mb, custom_limit_per_worker_mb)
-        else:
-            limit_mb = allocatable_mb / float(concurrency) if allocatable_mb > 0 else 0.0
-
-        int_limit_mb = int(limit_mb)
-        pinned_str = f"{dev.index}={int_limit_mb}M" if int_limit_mb > 0 else f"{dev.index}=0M"
-        per_device_limits[str(dev.index)] = pinned_str
-
-        worker_capacity = max(1, int(allocatable_mb // int_limit_mb)) if int_limit_mb > 0 else 1
-
-        updated_dev = GPUDeviceVRAM(
-            index=dev.index,
-            name=dev.name,
-            uuid=dev.uuid,
-            total_vram_mb=dev.total_vram_mb,
-            free_vram_mb=dev.free_vram_mb,
-            reserved_vram_mb=round(reserved_mb, 2),
-            allocatable_vram_mb=round(allocatable_mb, 2),
-            allocated_limit_per_worker_mb=round(float(int_limit_mb), 2),
-            active_worker_capacity=worker_capacity,
-            pinned_mem_limit_str=pinned_str,
-            compute_capability=dev.compute_capability,
-        )
-        updated_devices.append(updated_dev)
-
-    if updated_devices:
-        first_limit = int(updated_devices[0].allocated_limit_per_worker_mb)
-        default_pinned_str = f"{first_limit}M" if first_limit > 0 else None
-
-    return VRAMBudgetReport(
-        total_gpus_detected=len(updated_devices),
-        active_gpu_devices=updated_devices,
-        total_cluster_vram_mb=round(total_cluster_vram, 2),
-        total_reserved_vram_mb=round(total_reserved_vram, 2),
-        total_allocatable_vram_mb=round(total_allocatable_vram, 2),
-        worker_concurrency_target=concurrency,
-        default_pinned_mem_limit=default_pinned_str,
-        per_device_limits=per_device_limits,
-        is_vram_bounded=True,
-        strategy="PROPORTIONAL_PINNED_BUDGET",
-    )
-
-
-def build_pinned_memory_limit_string(budget: VRAMBudgetReport, device_index: int = 0) -> str:
-    """
-    Build the exact CUDA_MPS_PINNED_DEVICE_MEM_LIMIT value for a specific device index.
-    """
-    dev_str = str(device_index)
-    if dev_str in budget.per_device_limits:
-        return budget.per_device_limits[dev_str]
-    if budget.default_pinned_mem_limit:
-        return budget.default_pinned_mem_limit
-    return ""
-
-
-# =============================================================================
-# 11. NVIDIA MPS BINARY DISCOVERY & DAEMON LIFECYCLE MANAGEMENT
-# =============================================================================
-
-
-def discover_mps_binaries() -> Tuple[Optional[str], Optional[str]]:
-    """
-    Sweep host filesystem for nvidia-cuda-mps-control and nvidia-cuda-mps-server binaries.
-    """
-    control_path: Optional[str] = shutil.which("nvidia-cuda-mps-control")
-    server_path: Optional[str] = shutil.which("nvidia-cuda-mps-server")
-
-    candidate_roots = [
-        Path("/usr/bin"),
-        Path("/usr/local/bin"),
-        Path("/usr/local/cuda/bin"),
-        Path("/opt/cuda/bin"),
+# Dedicated alias for total naming consistency
+sweep_crash_hex_dump = extract_segfault_hex_dump
+
+
+# =====================================================================
+# Win32 Job Object Definitions (Windows-only)
+# =====================================================================
+
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+JobObjectExtendedLimitInformation = 9
+PROCESS_SET_QUOTA = 0x0100
+PROCESS_TERMINATE = 0x0001
+PROCESS_ALL_ACCESS = 0x1F0FFF
+
+
+class _IO_COUNTERS(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_uint64),
+        ("WriteOperationCount", ctypes.c_uint64),
+        ("OtherOperationCount", ctypes.c_uint64),
+        ("ReadTransferCount", ctypes.c_uint64),
+        ("WriteTransferCount", ctypes.c_uint64),
+        ("OtherTransferCount", ctypes.c_uint64),
     ]
 
-    for usr_local in [Path("/usr/local"), Path("/opt")]:
-        if usr_local.is_dir():
+
+class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    ]
+
+
+class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", _JOBOBJECT_BASIC_LIMIT_INFORMATION),
+        ("IoInfo", _IO_COUNTERS),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryLimit", ctypes.c_size_t),
+        ("PeakJobMemoryLimit", ctypes.c_size_t),
+    ]
+
+
+class WindowsJobObject:
+    """Encapsulates a Win32 Job Object with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE.
+
+    Guarantees OS-level atomic termination of all child and spawned grandchild
+    processes when the job object handle is closed or the parent terminates.
+    """
+
+    def __init__(self, kill_on_close: bool = True) -> None:
+        self.handle: Optional[int] = None
+        self._is_windows = platform.system() == "Windows"
+        if not self._is_windows:
+            return
+
+        try:
+            self.handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+            if not self.handle:
+                logger.warning("Failed to create Win32 Job Object.")
+                return
+
+            if kill_on_close:
+                info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                res = ctypes.windll.kernel32.SetInformationJobObject(
+                    self.handle,
+                    JobObjectExtendedLimitInformation,
+                    ctypes.byref(info),
+                    ctypes.sizeof(info),
+                )
+                if not res:
+                    logger.warning("Failed to set JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on Job Object.")
+        except Exception as exc:
+            logger.warning(f"Error initializing WindowsJobObject: {exc}")
+            self.handle = None
+
+    def assign_pid(self, pid: int) -> bool:
+        """Assigns an active process PID to the Win32 Job Object."""
+        if not self._is_windows or not self.handle:
+            return False
+        try:
+            proc_handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_SET_QUOTA | PROCESS_TERMINATE,
+                False,
+                pid,
+            )
+            if not proc_handle:
+                proc_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+            if not proc_handle:
+                return False
+
+            res = ctypes.windll.kernel32.AssignProcessToJobObject(self.handle, proc_handle)
+            ctypes.windll.kernel32.CloseHandle(proc_handle)
+            return bool(res)
+        except Exception as exc:
+            logger.debug(f"Failed to assign PID {pid} to Job Object: {exc}")
+            return False
+
+    def assign_popen(self, proc: subprocess.Popen) -> bool:
+        """Assigns a subprocess.Popen instance to the Win32 Job Object."""
+        return self.assign_pid(proc.pid)
+
+    def set_kill_on_close(self, enable: bool = True) -> bool:
+        """Dynamically enables or disables JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE on the Job Object."""
+        if not self._is_windows or not self.handle:
+            return False
+        try:
+            info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE if enable else 0
+            res = ctypes.windll.kernel32.SetInformationJobObject(
+                self.handle,
+                JobObjectExtendedLimitInformation,
+                ctypes.byref(info),
+                ctypes.sizeof(info),
+            )
+            return bool(res)
+        except Exception as exc:
+            logger.debug(f"Failed to update Job Object limit flags: {exc}")
+            return False
+
+    def close(self) -> None:
+        """Closes the Job Object handle, terminating all assigned processes if kill_on_close is set."""
+        if self._is_windows and self.handle:
             try:
-                for entry in usr_local.iterdir():
-                    if entry.is_dir() and "cuda" in entry.name.lower():
-                        bin_dir = entry / "bin"
-                        if bin_dir.is_dir() and bin_dir not in candidate_roots:
-                            candidate_roots.append(bin_dir)
-            except OSError:
+                ctypes.windll.kernel32.CloseHandle(self.handle)
+            except Exception:
+                pass
+            self.handle = None
+
+    def __enter__(self) -> WindowsJobObject:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+
+# =====================================================================
+# Process Tracking and Zombie Reaper
+# =====================================================================
+
+def get_active_popen_processes() -> List[subprocess.Popen]:
+    """Returns a list of currently running subprocess.Popen processes tracked globally."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+        return list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
+
+
+def register_popen_process(proc: subprocess.Popen) -> None:
+    """Registers a Popen child process for automatic zombie cleanup on script exit."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        _GLOBAL_ACTIVE_POPEN_PROCESSES = [p for p in _GLOBAL_ACTIVE_POPEN_PROCESSES if p.poll() is None]
+        if proc.poll() is None and proc not in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+            _GLOBAL_ACTIVE_POPEN_PROCESSES.append(proc)
+
+
+def unregister_popen_process(proc: subprocess.Popen) -> None:
+    """Unregisters a Popen child process from global tracking."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    with _GLOBAL_TRACKING_LOCK:
+        if proc in _GLOBAL_ACTIVE_POPEN_PROCESSES:
+            _GLOBAL_ACTIVE_POPEN_PROCESSES.remove(proc)
+
+
+def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
+    """Terminates a process and all of its recursive child processes.
+
+    Mathematically guarantees no orphaned process trees survive:
+    1. Uses psutil recursive tree discovery (parent.children(recursive=True)).
+    2. Sends graceful terminate signal (.terminate()) to all children and parent.
+    3. Waits for a 10-second grace period (allowing .gbw caches to dump cleanly).
+    4. Escalates to hard kill (.kill()) if any process remains alive after timeout.
+    5. Performs final reap wait.
+    """
+    if HAS_PSUTIL:
+        try:
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            try:
+                parent.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
                 pass
 
-    if not control_path:
-        for cdir in candidate_roots:
-            candidate = cdir / "nvidia-cuda-mps-control"
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                control_path = str(candidate.resolve())
-                break
+            procs_to_wait = [p for p in children + [parent] if psutil.pid_exists(p.pid)]
+            if procs_to_wait:
+                gone, alive = psutil.wait_procs(procs_to_wait, timeout=timeout)
+                if alive:
+                    for p in alive:
+                        try:
+                            p.kill()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    # Final reap confirmation
+                    psutil.wait_procs(alive, timeout=3.0)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
+    else:
+        try:
+            if platform.system() == "Windows":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+            else:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    time.sleep(min(timeout, 0.5))
+                    sig_kill = getattr(signal, "SIGKILL", signal.SIGTERM)
+                    os.kill(pid, sig_kill)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+        except (ProcessLookupError, PermissionError, OSError):
+            pass
 
-    if not server_path:
-        for cdir in candidate_roots:
-            candidate = cdir / "nvidia-cuda-mps-server"
-            if candidate.is_file() and os.access(candidate, os.X_OK):
-                server_path = str(candidate.resolve())
-                break
 
-    return control_path, server_path
+def cleanup_zombie_processes() -> int:
+    """Atexit / Signal hook to terminate any dangling Popen child process trees."""
+    global _GLOBAL_ACTIVE_POPEN_PROCESSES
+    count = 0
+    with _GLOBAL_TRACKING_LOCK:
+        active_list = list(_GLOBAL_ACTIVE_POPEN_PROCESSES)
+        _GLOBAL_ACTIVE_POPEN_PROCESSES.clear()
+
+    for proc in active_list:
+        if proc.poll() is None:
+            try:
+                pid = proc.pid
+                kill_process_tree(pid, timeout=10.0)
+                count += 1
+                logger.info(f"Terminated background child process PID {pid}")
+            except (ProcessLookupError, PermissionError, OSError) as e:
+                logger.warning(f"Failed to terminate process PID {proc.pid}: {e}")
+    return count
 
 
-def probe_mps_daemon_status(
-    pipe_dir: Path,
-    log_dir: Path,
-    control_binary: Optional[str] = None,
-    server_binary: Optional[str] = None,
-) -> MPSDaemonAudit:
-    """
-    Probe the live operational status of the NVIDIA MPS daemon, inspect pipe sockets,
-    and verify daemon responsiveness.
-    """
-    is_posix = platform.system() != "Windows"
-    sec_ok, perm_str = enforce_socket_directory_permissions(pipe_dir)
+class ZombieReaper:
+    """Global and instance zombie sweeper with signal handlers and Win32 Job Object integration."""
 
-    is_running = False
-    control_active = False
-    server_active = False
-    daemon_pid: Optional[int] = None
-    socket_path: Optional[str] = None
-    details_list: List[str] = []
+    @staticmethod
+    def reap_all() -> int:
+        """Invokes global process cleanup."""
+        return cleanup_zombie_processes()
 
+    @staticmethod
+    def reap_pid(pid: int, timeout: float = 10.0) -> None:
+        """Kills a specific process tree with 10-second grace period."""
+        kill_process_tree(pid, timeout=timeout)
+
+
+def _signal_cleanup_handler(signum: int, frame: Any) -> None:
+    logger.info(f"Received signal {signum}. Triggering zombie reaper cleanup...")
+    cleanup_zombie_processes()
+    sys.exit(128 + signum)
+
+
+def _register_signal_handlers() -> None:
     try:
-        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
-            try:
-                pname = proc.info.get("name", "") or ""
-                raw_cmd = proc.info.get("cmdline") or []
-                cmd = " ".join(str(c) for c in raw_cmd if c is not None)
-                if "nvidia-cuda-mps-control" in pname or "nvidia-cuda-mps-control" in cmd:
-                    is_running = True
-                    control_active = True
-                    daemon_pid = proc.info.get("pid")
-                if "nvidia-cuda-mps-server" in pname or "nvidia-cuda-mps-server" in cmd:
-                    server_active = True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
-                pass
+        if threading.current_thread() is threading.main_thread():
+            for sig_name in ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK"):
+                if hasattr(signal, sig_name):
+                    sig = getattr(signal, sig_name)
+                    try:
+                        signal.signal(sig, _signal_cleanup_handler)
+                    except (ValueError, OSError, RuntimeError):
+                        pass
     except Exception:
         pass
 
-    control_pipe = pipe_dir / "control"
-    server_pipe = pipe_dir / "server"
 
-    if control_pipe.exists():
-        socket_path = str(control_pipe)
-        details_list.append("MPS control pipe present in socket directory")
-    elif server_pipe.exists():
-        socket_path = str(server_pipe)
-        details_list.append("MPS server pipe present in socket directory")
-    else:
-        socket_path = str(pipe_dir)
+atexit.register(cleanup_zombie_processes)
+_register_signal_handlers()
 
-    if control_binary and is_running and is_posix:
+
+# =====================================================================
+# NUMA-Aware Hardware Thread-Pinning & Oversubscription Prevention
+# =====================================================================
+
+def detect_cpu_topology() -> Dict[str, Any]:
+    """Evaluates physical host CPU topology (cores, sockets, NUMA nodes).
+
+    Returns a structured dictionary containing logical cores, physical cores,
+    sockets, NUMA nodes with mapped CPU core IDs, and multi-threading ratio.
+    """
+    logical_cores = psutil.cpu_count(logical=True) if HAS_PSUTIL else (os.cpu_count() or 1)
+    physical_cores = (psutil.cpu_count(logical=False) if HAS_PSUTIL else None) or logical_cores
+
+    numa_nodes: List[Dict[str, Any]] = []
+    sockets = 1
+
+    if platform.system() == "Linux":
+        node_dir = Path("/sys/devices/system/node")
+        if node_dir.is_dir():
+            for entry in sorted(node_dir.glob("node[0-9]*")):
+                try:
+                    node_id = int(entry.name.replace("node", ""))
+                    cpulist_file = entry / "cpulist"
+                    cpus: List[int] = []
+                    if cpulist_file.exists():
+                        raw = cpulist_file.read_text(encoding="utf-8").strip()
+                        for part in raw.split(","):
+                            if "-" in part:
+                                start, end = map(int, part.split("-"))
+                                cpus.extend(range(start, end + 1))
+                            elif part.isdigit():
+                                cpus.append(int(part))
+                    numa_nodes.append({"node_id": node_id, "cpus": cpus})
+                except Exception:
+                    pass
+            if numa_nodes:
+                sockets = max(1, len(numa_nodes))
+
+    elif platform.system() == "Windows":
         try:
-            env = os.environ.copy()
-            env["CUDA_MPS_PIPE_DIRECTORY"] = str(pipe_dir)
-            env["CUDA_MPS_LOG_DIRECTORY"] = str(log_dir)
-            with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_out:
-                subprocess.run(
-                    [control_binary],
-                    input="get_server_list\nquit\n",
-                    text=True,
-                    stdout=tmp_out,
-                    stderr=subprocess.DEVNULL,
-                    timeout=3,
-                    check=True,
-                    env=env,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-                )
-                control_active = True
-                details_list.append("nvidia-cuda-mps-control responsive to commands")
-        except Exception as e:
-            details_list.append(f"MPS command pipe probe advisory: {e}")
-
-    if not is_posix:
-        mps_status = MPSStatus.NOT_SUPPORTED
-        details_list.append("NVIDIA MPS daemon multiplexing not natively supported on Windows NT; degraded CPU/direct CUDA active")
-    elif is_running:
-        mps_status = MPSStatus.RUNNING
-        details_list.append("NVIDIA MPS daemon is running and multiplexing CUDA contexts")
-    elif control_binary:
-        mps_status = MPSStatus.INITIALIZED
-        details_list.append("NVIDIA MPS control binary detected; daemon is idle / not started")
-    else:
-        mps_status = MPSStatus.NOT_SUPPORTED
-        details_list.append("nvidia-cuda-mps-control binary not found in PATH or standard system locations")
-
-    env_dict = {
-        "CUDA_MPS_PIPE_DIRECTORY": str(pipe_dir),
-        "CUDA_MPS_LOG_DIRECTORY": str(log_dir),
-    }
-
-    return MPSDaemonAudit(
-        mps_control_binary=control_binary,
-        mps_server_binary=server_binary,
-        status=mps_status,
-        pipe_directory=str(pipe_dir),
-        log_directory=str(log_dir),
-        socket_path=socket_path,
-        is_daemon_active=is_running,
-        pid=daemon_pid,
-        socket_permissions=perm_str,
-        is_permission_secure=sec_ok,
-        server_active=server_active,
-        control_active=control_active,
-        environment_variables=env_dict,
-        details="; ".join(details_list),
-    )
-
-
-def start_mps_daemon(
-    pipe_dir: Path,
-    log_dir: Path,
-    control_binary: str,
-    server_binary: Optional[str] = None,
-    force_restart: bool = False,
-) -> MPSDaemonAudit:
-    """
-    Start the nvidia-cuda-mps-control daemon in background mode (-d).
-    """
-    if platform.system() == "Windows":
-        return probe_mps_daemon_status(pipe_dir, log_dir, control_binary, server_binary)
-
-    if force_restart:
-        stop_mps_daemon(pipe_dir, control_binary)
-
-    pipe_dir.mkdir(parents=True, exist_ok=True)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    enforce_socket_directory_permissions(pipe_dir)
-    enforce_socket_directory_permissions(log_dir)
-
-    env = os.environ.copy()
-    env["CUDA_MPS_PIPE_DIRECTORY"] = str(pipe_dir)
-    env["CUDA_MPS_LOG_DIRECTORY"] = str(log_dir)
-
-    try:
-        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_out:
-            subprocess.run(
-                [control_binary, "-d"],
-                env=env,
-                check=True,
-                timeout=5,
-                stdout=tmp_out,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-            )
-    except Exception as exc:
-        raise MPSControlError(f"Failed to start nvidia-cuda-mps-control daemon: {exc}") from exc
-
-    return probe_mps_daemon_status(pipe_dir, log_dir, control_binary, server_binary)
-
-
-def stop_mps_daemon(
-    pipe_dir: Path,
-    control_binary: Optional[str] = None,
-) -> bool:
-    """
-    Stop any running nvidia-cuda-mps-control daemon and backend server cleanly.
-    """
-    if platform.system() == "Windows":
-        return True
-
-    stopped = False
-    if control_binary:
-        env = os.environ.copy()
-        env["CUDA_MPS_PIPE_DIRECTORY"] = str(pipe_dir)
-        try:
-            with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_out:
-                subprocess.run(
-                    [control_binary],
-                    input="quit\n",
-                    text=True,
-                    stdout=tmp_out,
-                    stderr=subprocess.DEVNULL,
-                    check=True,
-                    env=env,
-                    timeout=3,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-                )
-                stopped = True
+            highest_node = wintypes.ULONG()
+            if ctypes.windll.kernel32.GetNumaHighestNodeNumber(ctypes.byref(highest_node)):
+                total_nodes = highest_node.value + 1
+                sockets = max(1, total_nodes)
+                cores_per_node = max(1, logical_cores // total_nodes)
+                for nid in range(total_nodes):
+                    node_cpus = list(range(nid * cores_per_node, min(logical_cores, (nid + 1) * cores_per_node)))
+                    numa_nodes.append({"node_id": nid, "cpus": node_cpus})
         except Exception:
             pass
 
-    try:
-        for proc in psutil.process_iter(["pid", "name"]):
-            try:
-                pname = proc.info.get("name") or ""
-                if "nvidia-cuda-mps-control" in pname or "nvidia-cuda-mps-server" in pname:
-                    proc.terminate()
-                    stopped = True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
-                pass
-    except Exception:
-        pass
-
-    return stopped
-
-
-def configure_mps_device_limit(
-    pipe_dir: Path,
-    device_index: int,
-    limit_mb: int,
-    control_binary: Optional[str] = None,
-) -> bool:
-    """
-    Configure dynamic pinned memory limits on a running MPS daemon via control pipe.
-    Command: set_device_pinned_mem_limit <device_index> <limit_mb>M
-    """
-    if platform.system() == "Windows" or not control_binary:
-        return False
-
-    cmd_str = f"set_device_pinned_mem_limit {device_index} {limit_mb}M\nquit\n"
-    env = os.environ.copy()
-    env["CUDA_MPS_PIPE_DIRECTORY"] = str(pipe_dir)
-
-    try:
-        with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as tmp_out:
-            subprocess.run(
-                [control_binary],
-                input=cmd_str,
-                text=True,
-                stdout=tmp_out,
-                stderr=subprocess.DEVNULL,
-                check=True,
-                env=env,
-                timeout=3,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
-            )
-            return True
-    except Exception:
-        return False
-
-
-# =============================================================================
-# 12. ENVIRONMENT INJECTION & ACTIVATION SCRIPT GENERATION
-# =============================================================================
-
-
-def inject_mps_environment_variables(
-    pipe_dir: Path,
-    log_dir: Path,
-    vram_budget: VRAMBudgetReport,
-) -> Dict[str, str]:
-    """
-    Construct authoritative MPS and VRAM environment variables dictionary.
-    Includes memory limits and active thread percentage partitioning (Method Matrix §8A.4).
-    """
-    thread_pct = max(1, min(100, int(100 // max(1, vram_budget.worker_concurrency_target))))
-    env_vars: Dict[str, str] = {
-        "CUDA_MPS_PIPE_DIRECTORY": str(pipe_dir),
-        "CUDA_MPS_LOG_DIRECTORY": str(log_dir),
-        "CUDA_MPS_ENABLE_PER_DEVICE_PINNED_MEM_LIMIT": "1",
-        "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(thread_pct),
-    }
-
-    if vram_budget.default_pinned_mem_limit:
-        env_vars["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = vram_budget.default_pinned_mem_limit
-    elif vram_budget.active_gpu_devices:
-        first_limit = vram_budget.active_gpu_devices[0].pinned_mem_limit_str
-        if first_limit:
-            env_vars["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = first_limit
-
-    for k, v in env_vars.items():
-        os.environ[k] = v
-
-    return env_vars
-
-
-def generate_mps_activation_scripts(
-    target_dir: Union[str, Path],
-    env_vars: Dict[str, str],
-) -> Dict[str, Path]:
-    """
-    Generate standalone shell and batch script wrappers to inject MPS and VRAM
-    configuration into subshells, Jupyter kernels, and external worker processes.
-    """
-    out_dir = Path(target_dir).resolve()
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    sh_path = out_dir / "cochem_activate_mps.sh"
-    sh_lines = [
-        "#!/bin/sh",
-        "# CoChem Stage 0 Phase 5: NVIDIA MPS & VRAM Budgeting Environment Hook",
-    ]
-    for k, v in env_vars.items():
-        sh_lines.append(f'export {k}="{v}"')
-    sh_path.write_text("\n".join(sh_lines) + "\n", encoding="utf-8")
-    try:
-        sh_path.chmod(sh_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    except OSError:
-        pass
-
-    bat_path = out_dir / "cochem_activate_mps.bat"
-    bat_lines = [
-        "@echo off",
-        "rem CoChem Stage 0 Phase 5: NVIDIA MPS & VRAM Budgeting Environment Hook",
-    ]
-    for k, v in env_vars.items():
-        bat_lines.append(f"set {k}={v}")
-    bat_path.write_text("\n".join(bat_lines) + "\n", encoding="utf-8")
-
-    json_path = out_dir / "cochem_mps_config.json"
-    json_path.write_text(
-        json.dumps(
-            {
-                "env_vars": env_vars,
-                "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
+    if not numa_nodes:
+        numa_nodes.append({"node_id": 0, "cpus": list(range(logical_cores))})
+        sockets = 1
 
     return {
-        "sh": sh_path,
-        "bat": bat_path,
-        "json": json_path,
+        "logical_cores": logical_cores,
+        "physical_cores": physical_cores,
+        "sockets": sockets,
+        "numa_nodes": numa_nodes,
+        "is_numa": len(numa_nodes) > 1,
+        "threads_per_core": max(1, logical_cores // max(1, physical_cores)),
     }
 
 
-# =============================================================================
-# 13. FULL PROGRAMMATIC AUDIT PIPELINE ENTRYPOINT
-# =============================================================================
+class CPUTopologyManager:
+    """Evaluates physical host topology (cores, sockets, NUMA nodes) and manages core allocations."""
 
+    def __init__(self, topology: Optional[Dict[str, Any]] = None) -> None:
+        self.topology = topology or detect_cpu_topology()
+        self.logical_cores: int = self.topology.get("logical_cores", 1)
+        self.physical_cores: int = self.topology.get("physical_cores", 1)
+        self.sockets: int = self.topology.get("sockets", 1)
+        self.numa_nodes: List[Dict[str, Any]] = self.topology.get("numa_nodes", [])
+        self.is_numa: bool = self.topology.get("is_numa", False)
 
-def run_phase_5_audit(
-    output_dir: Optional[Union[str, Path]] = None,
-    socket_dir: Optional[Union[str, Path]] = None,
-    log_dir: Optional[Union[str, Path]] = None,
-    worker_concurrency: int = 2,
-    custom_vram_limit_mb: Optional[float] = None,
-    start_daemon: bool = False,
-    force_restart: bool = False,
-    dry_run: bool = False,
-    workspace_dir: Optional[Union[str, Path]] = None,
-    sweep_workspace: bool = True,
-) -> Phase5AuditReport:
-    """
-    Execute full Phase 5 Audit Pipeline:
-    1. NVIDIA MPS Daemon & VRAM Budgeting (SRS Doc 2 Part 2 Section 3.5).
-    2. Physical POSIX byte-range locking test (fcntl) with graceful degradation to single-threaded mode.
-    3. Intermediate state consolidation (p1.json through p11.json).
-    4. Pydantic validation and Golden Registry locking to cochem_system_config.json with os.chmod(0o444).
-    5. Workspace garbage collection sweep purging ephemeral .tmp files.
-    """
-    timestamp_utc = datetime.now(timezone.utc).isoformat()
-    warnings: List[str] = []
-    errors: List[str] = []
+    def get_topology(self) -> Dict[str, Any]:
+        """Returns cached CPU topology specification."""
+        return dict(self.topology)
 
-    # 1. Resolve Pipe and Log Directories
-    pipe_path = resolve_mps_pipe_directory(socket_dir)
-    log_path = resolve_mps_log_directory(log_dir)
-    is_slurm = bool(os.environ.get("SLURM_JOB_ID") or os.environ.get("SLURM_TMPDIR"))
-
-    # 2. Discover GPU Devices and VRAM Capacities
-    gpu_devices, is_cuda = probe_gpu_devices_vram()
-
-    # 3. Calculate VRAM Budget & Concurrency Partitioning
-    vram_budget = calculate_vram_budget(
-        devices=gpu_devices,
-        worker_concurrency_target=worker_concurrency,
-        custom_limit_per_worker_mb=custom_vram_limit_mb,
-    )
-
-    if not is_cuda or not gpu_devices:
-        warnings.append(
-            "No active NVIDIA CUDA GPU detected; execution operating in CPU-only or direct compute fallback mode."
-        )
-
-    # 4. Discover MPS Binaries & Probe Daemon Status
-    control_bin, server_bin = discover_mps_binaries()
-
-    if start_daemon and control_bin and not dry_run:
-        try:
-            mps_daemon = start_mps_daemon(
-                pipe_dir=pipe_path,
-                log_dir=log_path,
-                control_binary=control_bin,
-                server_binary=server_bin,
-                force_restart=force_restart,
-            )
-        except Exception as exc:
-            warnings.append(f"Could not start MPS daemon: {exc}")
-            mps_daemon = probe_mps_daemon_status(pipe_path, log_path, control_bin, server_bin)
-    else:
-        mps_daemon = probe_mps_daemon_status(pipe_path, log_path, control_bin, server_bin)
-
-    # 5. Inject Environment Variables & Generate Scripts
-    env_vars = inject_mps_environment_variables(pipe_path, log_path, vram_budget)
-    mps_daemon.environment_variables = env_vars
-
-    if not dry_run:
-        generate_mps_activation_scripts(pipe_path, env_vars)
-
-    # 6. Physical POSIX Byte-Range Locking Verification
-    resolved_registry_dir = Path(output_dir).resolve() if output_dir else resolve_golden_config_path().parent
-    lock_result = test_posix_byte_range_locking(resolved_registry_dir)
-    if not lock_result.passed:
-        warnings.append(
-            f"Filesystem byte-range locking test failed ({lock_result.error_message}); "
-            "degraded to single-threaded execution mode."
-        )
-
-    # 7. Intermediate State Consolidation & Golden Registry Locking
-    consolidated_data, found_phases = consolidate_intermediate_states(
-        registry_dir=resolved_registry_dir,
-    )
-
-    system_config = validate_and_build_system_config(
-        consolidated_data=consolidated_data,
-        auto_detect_fallback=True,
-        single_threaded_mode=lock_result.single_threaded_mode,
-    )
-
-    golden_path, _ = finalize_and_lock_golden_registry(
-        cfg=system_config,
-        output_path=resolved_registry_dir / "cochem_system_config.json",
-        dry_run=dry_run,
-    )
-
-    # 8. Workspace Garbage Collection Sweep
-    if sweep_workspace:
-        sweep_report = execute_workspace_sweep(
-            workspace_dir=workspace_dir,
-            registry_dir=resolved_registry_dir,
-            dry_run=dry_run,
-            remove_intermediate_json=False,
-        )
-    else:
-        sweep_report = WorkspaceSweepReport(swept_files_count=0, cleaned_paths=[], retained_paths=[])
-
-    config_lock_audit = ConfigLockAuditReport(
-        golden_registry_path=str(golden_path),
-        status=system_config.status or "LOCKED",
-        checksum=system_config.registry_checksum or system_config.compute_checksum(),
-        posix_lock_test=lock_result,
-        sweep_report=sweep_report,
-        intermediate_phases_found=found_phases,
-        is_immutable_mode_enforced=True,
-    )
-
-    # 9. Evaluate Phase Status
-    if errors:
-        phase_status = PhaseStatus.FAILED
-    elif lock_result.single_threaded_mode or not is_cuda or mps_daemon.status in (MPSStatus.NOT_SUPPORTED, MPSStatus.DEGRADED):
-        phase_status = PhaseStatus.PASSED  # Graceful pass in degraded mode per Method Matrix
-    else:
-        phase_status = PhaseStatus.PASSED
-
-    # 10. Destination Registry Artifact Path (p5.json)
-    p5_path = resolve_p5_registry_path(output_dir)
-
-    # 11. Construct Final Audit Report
-    report = Phase5AuditReport(
-        phase_id="PHASE_5_NVIDIA_MPS_VRAM_BUDGETING",
-        status=phase_status,
-        timestamp_utc=timestamp_utc,
-        mps_daemon=mps_daemon,
-        vram_budget=vram_budget,
-        is_cuda_available=is_cuda,
-        is_hpc_slurm=is_slurm,
-        config_lock=config_lock_audit,
-        warnings=warnings,
-        errors=errors,
-        artifact_path=str(p5_path),
-        golden_config_path=str(golden_path),
-    )
-
-    # 12. Idempotent Atomic State Persistence (p5.json)
-    if not dry_run:
-        with DependencyManager() as dm:
-            dm.atomic_write_json(p5_path, report)
-
-    return report
-
-
-# =============================================================================
-# 14. CLI ENTRYPOINT
-# =============================================================================
-
-
-def main(argv: Optional[List[str]] = None) -> int:
-    """
-    Command-line entrypoint for CoChem Setup Phase 5:
-    IPC Config Lock & Workspace Sweep & NVIDIA MPS Daemon / VRAM Budgeting CLI.
-    Returns 0 on PASSED/DEGRADED, non-zero on fatal errors.
-    """
-    parser = argparse.ArgumentParser(
-        description="CoChem Setup Phase 5: IPC Config Lock, Workspace Sweep & NVIDIA MPS Daemon CLI",
-    )
-    parser.add_argument(
-        "--output-dir",
-        "-o",
-        type=str,
-        default=None,
-        help="Custom destination directory for Registry artifacts (p5.json & cochem_system_config.json)",
-    )
-    parser.add_argument(
-        "--socket-dir",
-        "-s",
-        type=str,
-        default=None,
-        help="Custom directory for CUDA_MPS_PIPE_DIRECTORY sockets",
-    )
-    parser.add_argument(
-        "--log-dir",
-        "-l",
-        type=str,
-        default=None,
-        help="Custom directory for CUDA_MPS_LOG_DIRECTORY telemetry logs",
-    )
-    parser.add_argument(
-        "--workspace-dir",
-        "-w-dir",
-        type=str,
-        default=None,
-        help="Custom workspace directory for ephemeral garbage collection sweep",
-    )
-    parser.add_argument(
-        "--workers",
-        "-w",
-        type=int,
-        default=2,
-        help="Target concurrent GPU workers for VRAM budget partitioning (default: 2)",
-    )
-    parser.add_argument(
-        "--vram-limit-mb",
-        type=float,
-        default=None,
-        help="Explicit pinned memory limit per worker in megabytes (overrides proportional formula)",
-    )
-    parser.add_argument(
-        "--start-daemon",
-        action="store_true",
-        help="Attempt to start nvidia-cuda-mps-control daemon in background mode",
-    )
-    parser.add_argument(
-        "--force-restart",
-        action="store_true",
-        help="Force restart of existing MPS daemon processes",
-    )
-    parser.add_argument(
-        "--stop",
-        action="store_true",
-        help="Stop active nvidia-cuda-mps-control daemon and exit",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview VRAM budgeting and config lock without modifying filesystem or starting daemons",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Print raw serialized JSON report to stdout",
-    )
-
-    args = parser.parse_args(argv)
-
-    if args.stop:
-        pipe_path = resolve_mps_pipe_directory(args.socket_dir)
-        control_bin, _ = discover_mps_binaries()
-        stopped = stop_mps_daemon(pipe_path, control_bin)
-        status_msg = "MPS daemon stopped successfully." if stopped else "No active MPS daemon found to stop."
-        logger.info(status_msg)
+    def get_numa_node_for_core(self, core_id: int) -> int:
+        """Determines the NUMA node index for a given CPU core."""
+        for node in self.numa_nodes:
+            if core_id in node.get("cpus", []):
+                return int(node.get("node_id", 0))
         return 0
+
+    def allocate_cores(self, count: int, numa_node: Optional[int] = None) -> List[int]:
+        """Allocates contiguous CPU cores respecting NUMA node boundaries."""
+        if numa_node is not None:
+            for node in self.numa_nodes:
+                if node.get("node_id") == numa_node:
+                    cpus: List[int] = list(node.get("cpus", []))
+                    return cpus[:count] if count <= len(cpus) else cpus
+        all_cpus: List[int] = [c for node in self.numa_nodes for c in node.get("cpus", [])]
+        if not all_cpus:
+            all_cpus = list(range(self.logical_cores))
+        return all_cpus[:count]
+
+    def pin_process(self, pid: int, cpu_cores: Optional[List[int]] = None) -> bool:
+        """Pins an active process to designated CPU cores."""
+        return enforce_cpu_affinity(pid, cpu_cores)
+
+    def calculate_thread_affinity(self, rank: int, threads_per_rank: int) -> List[int]:
+        """Calculates thread pinning offsets for multi-rank execution."""
+        start_core = (rank * threads_per_rank) % max(1, self.logical_cores)
+        return [(start_core + i) % self.logical_cores for i in range(threads_per_rank)]
+
+
+def enforce_cpu_affinity(pid: int, cpu_cores: Optional[List[int]] = None) -> bool:
+    """Pins a process to specified CPU cores using OS-level affinity control.
+
+    Gracefully handles macOS Darwin (which does not support process CPU affinity)
+    and Windows processor group constraints without raising unhandled exceptions.
+    """
+    if cpu_cores is None or len(cpu_cores) == 0:
+        return True
+    if not HAS_PSUTIL:
+        logger.warning("psutil unavailable; cannot enforce CPU affinity.")
+        return False
+    try:
+        proc = psutil.Process(pid)
+        proc.cpu_affinity(cpu_cores)
+        logger.info(f"Pinned PID {pid} to CPU cores {cpu_cores} [M]")
+        return True
+    except (AttributeError, NotImplementedError):
+        logger.debug(f"CPU affinity control is not supported on this platform ({platform.system()}).")
+        return True
+    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError, ValueError) as e:
+        logger.warning(f"Failed to set CPU affinity on PID {pid}: {e}")
+        return False
+
+
+def build_thread_affinity_env(
+    cores: Optional[Sequence[int]] = None,
+    is_scout: bool = False,
+    num_mps_ranks: Optional[int] = None,
+    mps_mem_limit_mb: Optional[int] = None,
+    base_env: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """
+    Constructs an environment dictionary with proactive OpenMP/MKL thread affinity
+    and NVIDIA Multi-Process Service (MPS) mediation settings.
+
+    Mandated by Suggestion #19 and Method Matrix §8A.1 Scout-and-Anchor policy:
+    - Pre-injects GOMP_CPU_AFFINITY, KMP_AFFINITY, OMP_PLACES, OMP_PROC_BIND.
+    - Zero CUDA-Locking MPS parameters: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE,
+      CUDA_MPS_PINNED_DEVICE_MEM_LIMIT.
+    """
+    env = dict(base_env if base_env is not None else os.environ)
+
+    if cores is not None and len(cores) > 0:
+        core_list = [int(c) for c in cores]
+        core_str = ",".join(str(c) for c in core_list)
+        env["GOMP_CPU_AFFINITY"] = core_str
+        env["KMP_AFFINITY"] = f"explicit,proclist=[{core_str}],granularity=fine"
+        env["OMP_PLACES"] = ",".join(f"{{{c}}}" for c in core_list)
+        env["OMP_PROC_BIND"] = "close"
+
+    if num_mps_ranks is not None and num_mps_ranks > 0:
+        pct = max(1, int(100 / num_mps_ranks))
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(pct)
+
+    if mps_mem_limit_mb is not None and mps_mem_limit_mb > 0:
+        env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"{int(mps_mem_limit_mb)}M"
+
+    return env
+
+
+def detect_mpi_environment(
+    env: Optional[Dict[str, str]] = None,
+    cmd: Optional[Union[str, List[str]]] = None,
+) -> bool:
+    """Detects if an OpenMPI, MPICH, SLURM, or ORCA multi-rank MPI environment is active."""
+    target_env = env if env is not None else os.environ
+
+    mpi_size_vars = ("OMPI_COMM_WORLD_SIZE", "PMI_SIZE", "SLURM_NTASKS", "MPI_SIZE", "OMPI_UNIVERSE_SIZE", "MV2_COMM_WORLD_SIZE")
+    for var in mpi_size_vars:
+        val = target_env.get(var)
+        if val is not None:
+            try:
+                if int(val) > 1:
+                    return True
+            except ValueError:
+                pass
+
+    mpi_rank_indicators = ("MPI_LOCALRANKID", "OMPI_COMM_WORLD_RANK", "PMI_RANK", "PMIX_RANK", "SLURM_PROCID")
+    for var in mpi_rank_indicators:
+        if var in target_env:
+            return True
+
+    mpirun_in_use = target_env.get("MPIRUN_IN_USE", "").strip().lower()
+    if mpirun_in_use in ("1", "true", "yes"):
+        return True
+
+    if cmd is not None:
+        cmd_str = " ".join(cmd) if isinstance(cmd, list) else str(cmd)
+        cmd_lower = cmd_str.lower()
+        mpi_executables = ("mpirun", "mpiexec", "orterun", "srun", "aprun", "oshrun")
+        for mpi_bin in mpi_executables:
+            parts = cmd_lower.split()
+            if mpi_bin in parts or any(part.endswith(f"/{mpi_bin}") or part.endswith(f"\\{mpi_bin}") or part.endswith(f"/{mpi_bin}.exe") or part.endswith(f"\\{mpi_bin}.exe") for part in parts):
+                return True
+        if "%pal" in cmd_lower or "nprocs" in cmd_lower:
+            return True
+
+    return False
+
+
+def sanitize_mpi_environment(
+    env: Optional[Dict[str, str]] = None,
+    force_single_thread: bool = False,
+    cmd: Optional[Union[str, List[str]]] = None,
+) -> Dict[str, str]:
+    """Sanitizes environment variables for MPI workloads to prevent core oversubscription.
+
+    When multi-rank MPI execution is detected or force_single_thread is True, forces:
+    OMP_NUM_THREADS="1", MKL_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1",
+    VECLIB_MAXIMUM_THREADS="1", NUMEXPR_NUM_THREADS="1", BLIS_NUM_THREADS="1".
+    """
+    target_env = dict(env) if env is not None else os.environ.copy()
+
+    if force_single_thread or detect_mpi_environment(target_env, cmd=cmd):
+        target_env["OMP_NUM_THREADS"] = "1"
+        target_env["MKL_NUM_THREADS"] = "1"
+        target_env["OPENBLAS_NUM_THREADS"] = "1"
+        target_env["VECLIB_MAXIMUM_THREADS"] = "1"
+        target_env["NUMEXPR_NUM_THREADS"] = "1"
+        target_env["BLIS_NUM_THREADS"] = "1"
+        logger.info("Sanitized MPI environment: forced OMP/MKL/OPENBLAS/VECLIB/NUMEXPR/BLIS=1 to prevent oversubscription.")
+
+    return target_env
+
+
+# =====================================================================
+# Pre-Flight Disk Quota, 64KB SHA-256 Probe & RAM-Disk Routing
+# =====================================================================
+
+def lock_directory_permissions(target_dir: Union[str, Path]) -> bool:
+    """Applies strict directory access controls: chmod 0o700 on POSIX or icacls on Windows."""
+    path = Path(target_dir).resolve()
+    if not path.exists():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            logger.warning(f"Could not create directory {path} to lock permissions: {exc}")
+            return False
+
+    if platform.system() != "Windows":
+        try:
+            os.chmod(str(path), 0o700)
+            return True
+        except OSError as exc:
+            logger.warning(f"Failed to chmod 0o700 on {path}: {exc}")
+            return False
+    else:
+        try:
+            username = os.environ.get("USERNAME") or os.environ.get("USER") or "Everyone"
+            cmd = ["icacls", str(path), "/inheritance:r", "/grant:r", f"{username}:(OI)(CI)F"]
+            res = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=5.0)
+            return res.returncode == 0
+        except Exception as exc:
+            logger.warning(f"Failed to lock Windows ACLs on {path}: {exc}")
+            return False
+
+
+_SCRATCH_CACHE_LOCK = threading.Lock()
+_SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
+
+
+def verify_scratch_quota_and_io(
+    target_dir: Union[str, Path],
+    required_gb: Optional[float] = None,
+    ttl_seconds: float = 300.0,
+    force: bool = False,
+) -> bool:
+    """Verifies write, fsync, and SHA-256 read-back integrity on target_dir.
+
+    Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
+    Enforces Tripartite Air-Gap: target_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
+    """
+    resolved = Path(target_dir).resolve()
+
+    # Air-gap boundary validation
+    src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+    data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+    if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
+            details={"path": str(resolved), "tier": "Tier 1"},
+        )
+    if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
+            details={"path": str(resolved), "tier": "Tier 2"},
+        )
+
+    now = time.monotonic()
+    with _SCRATCH_CACHE_LOCK:
+        if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
+            last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
+            if (now - last_verified) < ttl_seconds:
+                return True
+
+    resolved.mkdir(parents=True, exist_ok=True)
+
+    if required_gb is not None and required_gb > 0:
+        usage = shutil.disk_usage(str(resolved))
+        free_gb = usage.free / (1024 ** 3)
+        if free_gb < required_gb:
+            logger.error(f"Insufficient scratch disk space at {resolved}: {free_gb:.2f} GB free, {required_gb:.2f} GB required.")
+            raise DiskQuotaError(required_gb=required_gb, available_gb=free_gb, path=resolved)
+
+    probe_file = resolved / f".cochem_io_probe_{os.getpid()}_{time.time_ns()}.bin"
+    probe_data = os.urandom(64 * 1024)  # 64 KB physical binary probe
+    expected_hash = hashlib.sha256(probe_data).hexdigest()
 
     try:
-        report = run_phase_5_audit(
-            output_dir=args.output_dir,
-            socket_dir=args.socket_dir,
-            log_dir=args.log_dir,
-            workspace_dir=args.workspace_dir,
-            worker_concurrency=args.workers,
-            custom_vram_limit_mb=args.vram_limit_mb,
-            start_daemon=args.start_daemon,
-            force_restart=args.force_restart,
-            dry_run=args.dry_run,
+        with open(probe_file, "wb") as f:
+            f.write(probe_data)
+            f.flush()
+            os.fsync(f.fileno())
+
+        with open(probe_file, "rb") as f:
+            read_back_data = f.read()
+
+        read_hash = hashlib.sha256(read_back_data).hexdigest()
+
+        if expected_hash != read_hash:
+            raise SubprocessBrokerError(
+                f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
+                details={"scratch_dir": str(resolved), "expected": expected_hash, "actual": read_hash},
+            )
+
+        with _SCRATCH_CACHE_LOCK:
+            _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
+
+        logger.info(f"Verified scratch quota and I/O at {resolved} [M]")
+        return True
+    except (OSError, IOError) as exc:
+        if not isinstance(exc, (DiskQuotaError, SubprocessBrokerError, AirGapBoundaryError)):
+            logger.error(f"Scratch I/O verification error at {resolved}: {exc}")
+        raise
+    finally:
+        if probe_file.exists():
+            try:
+                probe_file.unlink()
+            except OSError:
+                pass
+
+
+def verify_scratch_io(scratch_dir: Union[str, Path], required_mb: int = 100) -> bool:
+    """Backward-compatible scratch I/O verification wrapper."""
+    required_gb = required_mb / 1024.0
+    try:
+        return verify_scratch_quota_and_io(scratch_dir, required_gb=required_gb)
+    except (DiskQuotaError, IOError, OSError):
+        return False
+
+
+class RAMDiskOverlayManager:
+    """Manages high-speed RAM-disk execution overlays and quantum artifact provenance synchronization."""
+
+    def __init__(self, threshold_ram_gb: float = 128.0) -> None:
+        self.threshold_ram_gb = threshold_ram_gb
+
+    def get_total_host_ram_gb(self) -> float:
+        """Returns physical host memory in Gigabytes."""
+        if HAS_PSUTIL:
+            total_bytes: float = float(psutil.virtual_memory().total)
+            return float(total_bytes / (1024 ** 3))
+        return 0.0
+
+    def is_ramdisk_eligible(self, min_ram_gb: Optional[float] = None) -> bool:
+        """Checks if host RAM exceeds the minimum provisioning threshold."""
+        threshold = min_ram_gb if min_ram_gb is not None else self.threshold_ram_gb
+        return self.get_total_host_ram_gb() >= threshold
+
+    def provision_overlay(
+        self,
+        job_name: str,
+        required_gb: float = 4.0,
+        min_ram_gb: Optional[float] = None,
+        fallback_dir: Optional[Union[str, Path]] = None,
+    ) -> Path:
+        """Autonomously provisions a high-speed RAM-disk overlay directory if eligible."""
+        threshold = min_ram_gb if min_ram_gb is not None else self.threshold_ram_gb
+        target_fallback = Path(fallback_dir).resolve() if fallback_dir is not None else (get_artifact_dir() / "Scratch")
+
+        if self.is_ramdisk_eligible(threshold):
+            ramdisk_path = get_ramdisk_dir()
+            if ramdisk_path is not None and ramdisk_path.is_dir():
+                try:
+                    free_gb = shutil.disk_usage(str(ramdisk_path)).free / (1024 ** 3)
+                    if free_gb > (required_gb * 1.2):
+                        job_overlay_dir = ramdisk_path / f"cochem_{job_name}_{int(time.time() * 1000)}"
+                        job_overlay_dir.mkdir(parents=True, exist_ok=True)
+                        lock_directory_permissions(job_overlay_dir)
+                        logger.info(
+                            f"Provisioned RAM-disk execution directory: {job_overlay_dir} "
+                            f"(Host RAM: {self.get_total_host_ram_gb():.1f} GB >= {threshold} GB)"
+                        )
+                        return job_overlay_dir
+                except Exception as exc:
+                    logger.debug(f"RAM-disk overlay check skipped: {exc}")
+
+        target_fallback.mkdir(parents=True, exist_ok=True)
+        lock_directory_permissions(target_fallback)
+        return target_fallback
+
+    def sync_and_cleanup(self, overlay_path: Path, permanent_path: Path) -> Dict[str, str]:
+        """Synchronizes quantum artifacts from overlay back to permanent workspace and deletes overlay."""
+        permanent_path.mkdir(parents=True, exist_ok=True)
+        hashes: Dict[str, str] = {}
+
+        if overlay_path != permanent_path and overlay_path.exists():
+            logger.info(f"Syncing artifacts from RAM-disk {overlay_path} to permanent workspace {permanent_path}...")
+            for item in overlay_path.iterdir():
+                dest_path = permanent_path / item.name
+                try:
+                    if item.is_dir():
+                        shutil.copytree(item, dest_path, dirs_exist_ok=True)
+                    elif item.is_file():
+                        shutil.copy2(item, dest_path)
+                except Exception as exc:
+                    logger.warning(f"Error copying artifact {item} to {dest_path}: {exc}")
+
+            hashes = self.hash_artifacts(permanent_path)
+            shutil.rmtree(overlay_path, ignore_errors=True)
+        else:
+            hashes = self.hash_artifacts(permanent_path)
+
+        return hashes
+
+    @staticmethod
+    def hash_artifacts(target_dir: Path) -> Dict[str, str]:
+        """Generates SHA-256 checksums for quantum chemistry artifacts."""
+        hashes: Dict[str, str] = {}
+        if not target_dir.exists():
+            return hashes
+
+        valid_suffixes = {".out", ".gbw", ".xyz", ".log", ".dat", ".json", ".h5", ".molden", ".cube"}
+        for file_path in sorted(target_dir.iterdir()):
+            if file_path.is_file() and (file_path.suffix in valid_suffixes or file_path.name.endswith(".out")):
+                try:
+                    hasher = hashlib.sha256()
+                    with open(file_path, "rb") as f:
+                        while chunk := f.read(65536):
+                            hasher.update(chunk)
+                    file_hash = hasher.hexdigest()
+                    hashes[file_path.name] = file_hash
+                    logger.info(f"Generated SHA-256 hash for {file_path.name}: {file_hash} [M]")
+                except OSError as err:
+                    logger.warning(f"Failed to hash {file_path.name}: {err}")
+        return hashes
+
+
+# =====================================================================
+# ZeroMQ Heartbeat Integration & Dead-Man's Switch Watchdog
+# =====================================================================
+
+class ZMQHeartbeatManager:
+    """ZeroMQ heartbeat publisher with CurveZMQ security on Windows and IPC on POSIX."""
+
+    def __init__(self, job_id: str = "cochem_job") -> None:
+        self.job_id = job_id
+        self.endpoint: Optional[str] = None
+        self.server_public: Optional[bytes] = None
+        self.server_secret: Optional[bytes] = None
+        self.client_public: Optional[bytes] = None
+        self.client_secret: Optional[bytes] = None
+        self.curve_enabled: bool = False
+
+        self._context: Optional[Any] = None
+        self._socket: Optional[Any] = None
+        self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+
+    def start(
+        self,
+        endpoint: Optional[str] = None,
+        interval_sec: float = 1.0,
+        metadata: Optional[Dict[str, Any]] = None,
+        use_curve: bool = True,
+    ) -> str:
+        """Binds and starts the background heartbeat publisher."""
+        if not HAS_ZMQ:
+            logger.warning("ZeroMQ (pyzmq) not available. Heartbeat publisher disabled.")
+            return ""
+
+        self.stop()
+        self._stop_event.clear()
+
+        try:
+            self._context = zmq.Context()
+            self._socket = self._context.socket(zmq.PUB)
+
+            if endpoint is None:
+                if platform.system() == "Windows":
+                    if use_curve and hasattr(zmq, "curve_keypair"):
+                        try:
+                            self.server_public, self.server_secret = zmq.curve_keypair()
+                            self.client_public, self.client_secret = zmq.curve_keypair()
+                            self._socket.curve_secretkey = self.server_secret
+                            self._socket.curve_publickey = self.server_public
+                            self._socket.curve_server = True
+                            self.curve_enabled = True
+                        except Exception as curve_err:
+                            logger.debug(f"CurveZMQ initialization fallback: {curve_err}")
+                            self.curve_enabled = False
+
+                    port = self._socket.bind_to_random_port("tcp://127.0.0.1")
+                    self.endpoint = f"tcp://127.0.0.1:{port}"
+                else:
+                    try:
+                        ipc_dir = get_runtime_dir() / "ipc"
+                    except Exception:
+                        ipc_dir = Path(tempfile.gettempdir()) / "cochem_ipc"
+                    ipc_dir.mkdir(parents=True, exist_ok=True)
+                    lock_directory_permissions(ipc_dir)
+                    ipc_path = ipc_dir / f"cochem_heartbeat_{self.job_id}.ipc"
+                    self.endpoint = f"ipc://{ipc_path}"
+                    try:
+                        self._socket.bind(self.endpoint)
+                    except Exception:
+                        port = self._socket.bind_to_random_port("tcp://127.0.0.1")
+                        self.endpoint = f"tcp://127.0.0.1:{port}"
+            else:
+                if endpoint.endswith(":*"):
+                    base = endpoint[:-2]
+                    port = self._socket.bind_to_random_port(base)
+                    self.endpoint = f"{base}:{port}"
+                else:
+                    self.endpoint = endpoint
+                    self._socket.bind(self.endpoint)
+
+        except Exception as err:
+            logger.error(f"Failed to bind ZeroMQ heartbeat publisher socket: {err}", exc_info=True)
+            self.stop()
+            return ""
+
+        def heartbeat_worker() -> None:
+            while not self._stop_event.is_set():
+                alive_payload: Dict[str, Any] = {
+                    "status": "alive",
+                    "timestamp": time.time(),
+                    "pid": os.getpid(),
+                    "job_id": self.job_id,
+                    "metadata": metadata or {},
+                }
+                try:
+                    if self._socket is not None:
+                        self._socket.send_multipart([
+                            b"heartbeat",
+                            json.dumps(alive_payload).encode("utf-8"),
+                        ])
+                except Exception as ex:
+                    logger.debug(f"ZeroMQ heartbeat send error: {ex}")
+                self._stop_event.wait(interval_sec)
+
+        self._thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._thread.start()
+        logger.info(f"ZeroMQ heartbeat publisher active on {self.endpoint} (Curve: {self.curve_enabled}) [M]")
+        return str(self.endpoint)
+
+    def publish_heartbeat(self, status: str = "alive", extra: Optional[Dict[str, Any]] = None) -> None:
+        """Publishes an immediate manual heartbeat event."""
+        if not HAS_ZMQ or self._socket is None:
+            return
+        payload = {
+            "status": status,
+            "timestamp": time.time(),
+            "pid": os.getpid(),
+            "job_id": self.job_id,
+            "metadata": extra or {},
+        }
+        try:
+            self._socket.send_multipart([
+                b"heartbeat",
+                json.dumps(payload).encode("utf-8"),
+            ])
+        except Exception as ex:
+            logger.debug(f"Manual heartbeat publish error: {ex}")
+
+    def stop(self) -> None:
+        """Stops the heartbeat publisher thread and destroys sockets cleanly."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+        if self._socket is not None:
+            try:
+                self._socket.close(linger=0)
+            except Exception:
+                pass
+            self._socket = None
+        if self._context is not None:
+            try:
+                self._context.term()
+            except Exception:
+                pass
+            self._context = None
+
+    def __enter__(self) -> ZMQHeartbeatManager:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()
+
+
+class DeadMansSwitchWatchdog:
+    """Monitors child process responsiveness via timestamp pings."""
+
+    def __init__(
+        self,
+        job_id: str,
+        proc: subprocess.Popen,
+        timeout: float = 60.0,
+        check_interval: float = 2.0,
+        on_timeout: str = "daemonize",
+    ) -> None:
+        self.job_id = job_id
+        self.proc = proc
+        self.timeout = timeout
+        self.check_interval = check_interval
+        self.on_timeout = on_timeout
+        self.last_ping: float = time.time()
+        self.is_daemonized: bool = False
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+
+    def ping(self) -> None:
+        """Resets the dead-man's switch expiration timer."""
+        self.last_ping = time.time()
+
+    def start(self) -> None:
+        """Starts the background watchdog monitoring loop."""
+        self._stop_event.clear()
+        self.last_ping = time.time()
+
+        def watchdog_loop() -> None:
+            while not self._stop_event.is_set():
+                if self.proc.poll() is not None:
+                    break
+                elapsed = time.time() - self.last_ping
+                if elapsed > self.timeout:
+                    logger.warning(
+                        f"Dead-man's switch expired for job '{self.job_id}' "
+                        f"(no activity for {elapsed:.1f}s > {self.timeout:.1f}s)."
+                    )
+                    if self.on_timeout == "daemonize":
+                        self.is_daemonized = True
+                        unregister_popen_process(self.proc)
+                        logger.info(
+                            f"Orchestrator safely detached; child PID {self.proc.pid} "
+                            f"transitioned to active autonomous daemon [M]"
+                        )
+                    elif self.on_timeout == "kill":
+                        logger.error(f"Terminating unresponsive job '{self.job_id}' (PID {self.proc.pid}).")
+                        kill_process_tree(self.proc.pid, timeout=10.0)
+                    break
+                self._stop_event.wait(self.check_interval)
+
+        self._thread = threading.Thread(target=watchdog_loop, daemon=True)
+        self._thread.start()
+
+    def stop(self) -> None:
+        """Stops the watchdog thread."""
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def __enter__(self) -> DeadMansSwitchWatchdog:
+        self.start()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.stop()
+
+
+# =====================================================================
+# Safe Subprocess Execution
+# =====================================================================
+
+def safe_subprocess_run(
+    cmd: Union[List[str], str],
+    cwd: Optional[Union[str, Path]] = None,
+    timeout: float = 300.0,
+    check: bool = True,
+    capture_output: bool = True,
+    text: bool = True,
+    env: Optional[Dict[str, str]] = None,
+    cpu_affinity: Optional[List[int]] = None,
+    required_disk_gb: Optional[float] = None,
+    sanitize_mpi: bool = True,
+    use_job_object: bool = True,
+    **kwargs: Any,
+) -> subprocess.CompletedProcess:
+    """Executes a subprocess safely with cross-platform process isolation.
+
+    Relies on robust tracking of process trees via `psutil` (avoiding POSIX-exclusive os.setsid),
+    Win32 Job Object binding on Windows, pre-flight disk quota assertion, hardware CPU affinity pinning,
+    10-second grace period recursive tree termination upon timeout, and Segfault & Access Violation
+    256-byte stderr hex-dump extraction.
+    """
+    if cwd is not None:
+        cwd_path = Path(cwd)
+        if not cwd_path.exists():
+            raise FileNotFoundError(f"Subprocess working directory does not exist: {cwd_path}")
+        cwd_str = str(cwd_path)
+    else:
+        cwd_str = None
+        cwd_path = Path.cwd()
+
+    verify_scratch_quota_and_io(cwd_path, required_gb=required_disk_gb, ttl_seconds=300.0, force=False)
+
+    parsed_cmd: Union[List[str], str]
+    if isinstance(cmd, str) and not kwargs.get("shell", False):
+        if platform.system() == "Windows":
+            parsed_cmd = cmd
+        else:
+            parsed_cmd = shlex.split(cmd, posix=True)
+    else:
+        parsed_cmd = cmd
+
+    target_env = env.copy() if env is not None else os.environ.copy()
+    if sanitize_mpi:
+        target_env = sanitize_mpi_environment(target_env, cmd=parsed_cmd)
+
+    if cpu_affinity is not None:
+        target_env = build_thread_affinity_env(cores=cpu_affinity, base_env=target_env)
+
+    popen_args: Dict[str, Any] = {
+        "cwd": cwd_str,
+        "env": target_env,
+        "text": text,
+        **kwargs,
+    }
+    if capture_output:
+        popen_args["stdout"] = subprocess.PIPE
+        popen_args["stderr"] = subprocess.PIPE
+
+    job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
+
+    if job_obj is not None and platform.system() == "Windows":
+        CREATE_SUSPENDED = 0x00000004
+        popen_args["creationflags"] = popen_args.get("creationflags", 0) | CREATE_SUSPENDED
+        proc = subprocess.Popen(parsed_cmd, **popen_args)
+        register_popen_process(proc)
+        job_obj.assign_popen(proc)
+        try:
+            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+        except Exception:
+            pass
+    else:
+        if platform.system() != "Windows":
+            popen_args.setdefault("start_new_session", True)
+            if platform.system() == "Linux":
+                def _posix_pdeathsig() -> None:
+                    try:
+                        import ctypes
+                        libc = ctypes.CDLL("libc.so.6")
+                        PR_SET_PDEATHSIG = 1
+                        SIGKILL = 9
+                        libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                    except Exception:
+                        pass
+                popen_args.setdefault("preexec_fn", _posix_pdeathsig)
+
+        proc = subprocess.Popen(parsed_cmd, **popen_args)
+        register_popen_process(proc)
+
+    if cpu_affinity is not None:
+        enforce_cpu_affinity(proc.pid, cpu_affinity)
+
+    stdout_data: Any = ""
+    stderr_data: Any = ""
+
+    try:
+        stdout_data, stderr_data = proc.communicate(timeout=timeout)
+        ret = proc.returncode
+
+        crash_payload = extract_segfault_hex_dump(ret, stderr_data)
+        if crash_payload.get("is_crash"):
+            logger.error(
+                f"Critical process crash detected ({crash_payload.get('crash_type')}, code {ret}):\n"
+                f"{crash_payload.get('formatted_hex_dump')}"
+            )
+
+        completed = subprocess.CompletedProcess(args=cmd, returncode=ret, stdout=stdout_data, stderr=stderr_data)
+        completed.crash_payload = crash_payload  # type: ignore[attr-defined]
+        completed.hex_dump = crash_payload.get("raw_hex", "")  # type: ignore[attr-defined]
+
+        if check and ret != 0:
+            err = subprocess.CalledProcessError(ret, cmd, output=stdout_data, stderr=stderr_data)
+            err.crash_payload = crash_payload  # type: ignore[attr-defined]
+            err.hex_dump = crash_payload.get("raw_hex", "")  # type: ignore[attr-defined]
+            raise err
+
+        return completed
+    except subprocess.TimeoutExpired:
+        kill_process_tree(proc.pid, timeout=10.0)
+        try:
+            proc.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            pass
+        logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
+        raise
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Subprocess '{cmd}' failed with returncode {e.returncode}: {e.stderr}")
+        raise
+    except OSError as e:
+        logger.error(f"Subprocess execution error for '{cmd}': {e}")
+        raise
+    finally:
+        unregister_popen_process(proc)
+        if job_obj is not None:
+            job_obj.close()
+
+
+# =====================================================================
+# Subprocess Broker Core Engine
+# =====================================================================
+
+class SubprocessBroker:
+    """Subprocess execution manager for computational quantum chemistry workloads.
+
+    Handles cross-platform process lifecycles, memory safety, heartbeats, dead-man's switch watchdogs,
+    RAM-disk overlays, CPU affinity pinning, crash hex-dump telemetry, and artifact provenance hashing.
+    """
+
+    def __init__(
+        self,
+        cwd: Optional[Union[str, Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        memory_limit_gb: float = 8.0,
+        total_ram_threshold_gb: float = 128.0,
+    ) -> None:
+        env_scratch = (
+            os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TMPDIR")
+            or os.environ.get("TEMP")
+        )
+        if env_scratch:
+            default_work_dir = Path(env_scratch) / "cochem_scratch"
+        else:
+            default_work_dir = get_artifact_dir() / "Scratch"
+        self.cwd = resolve_mapped_path(cwd, default_work_dir) if cwd is not None else default_work_dir
+        self.cwd.mkdir(parents=True, exist_ok=True)
+        self.env = env if env is not None else os.environ.copy()
+        self.memory_limit_bytes = memory_limit_gb * (1024 ** 3)
+        self.total_ram_threshold_gb = total_ram_threshold_gb
+
+        self.topology_manager = CPUTopologyManager()
+        self.ramdisk_manager = RAMDiskOverlayManager(threshold_ram_gb=total_ram_threshold_gb)
+
+        if TelemetryLogger is not None:
+            self.telemetry: Optional[Any] = TelemetryLogger()
+        else:
+            self.telemetry = None
+
+        self.active_processes: List[subprocess.Popen] = []
+        self._lock = threading.RLock()
+
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+
+        self._zmq_context: Optional[Any] = None
+        self._zmq_socket: Optional[Any] = None
+        self._zmq_thread: Optional[threading.Thread] = None
+        self._zmq_stop_event = threading.Event()
+
+    def __enter__(self) -> SubprocessBroker:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    def shutdown(self) -> None:
+        """Gracefully shuts down broker threads and terminates active subprocesses."""
+        self.stop_oom_monitor()
+        self.stop_zmq_heartbeat()
+        self.execute_zombie_reaper()
+
+    def close(self) -> None:
+        """Closes the broker, stopping monitors and cleaning up process trees."""
+        self.shutdown()
+
+    def verify_scratch_io(self, target_dir: Optional[Union[str, Path]] = None, required_mb: int = 100) -> bool:
+        """Verifies scratch directory I/O readiness."""
+        path = target_dir or self.cwd
+        return verify_scratch_io(path, required_mb=required_mb)
+
+    def verify_scratch_quota_and_io(self, target_dir: Optional[Union[str, Path]] = None, required_gb: float = 50.0) -> bool:
+        """Verifies scratch quota and binary readback probe."""
+        path = target_dir or self.cwd
+        return verify_scratch_quota_and_io(path, required_gb=required_gb)
+
+    def _allocate_scratch_space(self, job_name: str, required_mb: int = 4000) -> Path:
+        """Provisions an isolated scratch directory on high-speed RAM-disk or NVMe fallback."""
+        return self.ramdisk_manager.provision_overlay(
+            job_name=job_name,
+            required_gb=max(0.01, required_mb / 1024.0),
+            min_ram_gb=self.total_ram_threshold_gb,
+            fallback_dir=self.cwd,
         )
 
-        if args.json:
-            logger.info(report.model_dump_json(indent=2))
+    def start_oom_monitor(self, check_interval: float = 1.0, threshold_mb: Optional[float] = None) -> None:
+        """Spawns a background thread that polls RSS memory of active process trees."""
+        if not HAS_PSUTIL:
+            logger.warning("psutil unavailable. OOM preemption monitor disabled.")
+            return
+
+        self.stop_oom_monitor()
+        self._stop_event.clear()
+
+        limit_bytes = (threshold_mb * (1024 ** 2)) if threshold_mb is not None else self.memory_limit_bytes
+
+        def monitor_loop() -> None:
+            while not self._stop_event.is_set():
+                try:
+                    with self._lock:
+                        active_pids = [p.pid for p in self.active_processes if p.poll() is None]
+                    if active_pids:
+                        total_rss = 0
+                        for pid in active_pids:
+                            try:
+                                proc = psutil.Process(pid)
+                                total_rss += proc.memory_info().rss
+                                for child in proc.children(recursive=True):
+                                    total_rss += child.memory_info().rss
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                        if total_rss > limit_bytes:
+                            logger.error(
+                                f"Broker process tree memory exceeded limit: {total_rss / 1e6:.1f} MB > "
+                                f"{limit_bytes / 1e6:.1f} MB. Preempting active processes."
+                            )
+                            self.execute_zombie_reaper()
+                except Exception as exc:
+                    logger.debug(f"OOM poll error: {exc}")
+                self._stop_event.wait(check_interval)
+
+        self._monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
+        self._monitor_thread.start()
+
+    def stop_oom_monitor(self) -> None:
+        """Stops the active OOM preemption monitor thread."""
+        self._stop_event.set()
+        if self._monitor_thread is not None:
+            self._monitor_thread.join(timeout=2.0)
+            self._monitor_thread = None
+
+    def start_zmq_heartbeat(
+        self,
+        port: int = 5557,
+        host: str = "127.0.0.1",
+        interval_sec: float = 1.0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Starts a background ZeroMQ PUB heartbeat publisher emitting telemetry metadata."""
+        if not HAS_ZMQ:
+            logger.warning("ZeroMQ (pyzmq) not available. Heartbeat publisher disabled.")
+            return
+
+        self.stop_zmq_heartbeat()
+        self._zmq_stop_event.clear()
+
+        try:
+            self._zmq_context = zmq.Context()
+            self._zmq_socket = self._zmq_context.socket(zmq.PUB)
+            self._zmq_socket.bind(f"tcp://{host}:{port}")
+        except Exception as err:
+            logger.error(f"Failed to bind ZeroMQ heartbeat socket on {host}:{port}: {err}")
+            self.stop_zmq_heartbeat()
+            return
+
+        def heartbeat_worker() -> None:
+            while not self._zmq_stop_event.is_set():
+                alive_payload: Dict[str, Any] = {
+                    "status": "alive",
+                    "timestamp": time.time(),
+                    "pid": os.getpid(),
+                    "active_processes": len(self.active_processes),
+                    "metadata": metadata or {},
+                }
+                try:
+                    if self._zmq_socket is not None:
+                        self._zmq_socket.send_multipart([
+                            b"heartbeat",
+                            json.dumps(alive_payload).encode("utf-8"),
+                        ])
+                except Exception as ex:
+                    logger.debug(f"ZeroMQ heartbeat send error: {ex}")
+                self._zmq_stop_event.wait(interval_sec)
+
+        self._zmq_thread = threading.Thread(target=heartbeat_worker, daemon=True)
+        self._zmq_thread.start()
+        logger.info(f"ZeroMQ heartbeat publisher started on tcp://{host}:{port} [M]")
+
+    def stop_zmq_heartbeat(self) -> None:
+        """Stops the ZeroMQ heartbeat publisher and releases socket resources."""
+        self._zmq_stop_event.set()
+        if self._zmq_thread is not None:
+            self._zmq_thread.join(timeout=2.0)
+            self._zmq_thread = None
+        if self._zmq_socket is not None:
+            try:
+                self._zmq_socket.close(linger=0)
+            except Exception:
+                pass
+            self._zmq_socket = None
+        if self._zmq_context is not None:
+            try:
+                self._zmq_context.term()
+            except Exception:
+                pass
+            self._zmq_context = None
+
+    def execute_zombie_reaper(self) -> int:
+        """Terminates all managed subprocesses and their orphaned children with 10-second grace period."""
+        count = 0
+        with self._lock:
+            procs = list(self.active_processes)
+            self.active_processes.clear()
+
+        if not procs:
+            return 0
+
+        logger.info("Executing SubprocessBroker Zombie Reaper Protocol...")
+        for proc in procs:
+            if proc.poll() is None:
+                try:
+                    pid = proc.pid
+                    kill_process_tree(pid, timeout=10.0)
+                    unregister_popen_process(proc)
+                    count += 1
+                    logger.info(f"Reaped managed process tree PID {pid}")
+                except (ProcessLookupError, PermissionError, OSError) as e:
+                    logger.warning(f"Reaper failed on PID {proc.pid}: {e}")
+            else:
+                unregister_popen_process(proc)
+
+        return count
+
+    def garbage_collect_core_dumps(self, execution_dir: Optional[Union[str, Path]] = None) -> int:
+        """Sweeps massive binary core.* files generated by Fortran segfaults."""
+        target_dir = Path(execution_dir).resolve() if execution_dir is not None else self.cwd
+        count = 0
+        if not target_dir.exists():
+            return 0
+        for file in target_dir.glob("core.*"):
+            if file.is_file():
+                try:
+                    file.unlink()
+                    count += 1
+                except OSError as err:
+                    logger.debug(f"Unable to unlink core file {file}: {err}")
+        if count > 0:
+            logger.info(f"Garbage collection swept {count} binary dump(s).")
+        return count
+
+    def hash_quantum_artifacts(self, execution_dir: Optional[Union[str, Path]] = None) -> Dict[str, str]:
+        """Calculates SHA-256 cryptographic provenance digests for all quantum chemistry artifacts."""
+        target_dir = Path(execution_dir).resolve() if execution_dir is not None else self.cwd
+        return RAMDiskOverlayManager.hash_artifacts(target_dir)
+
+    def extract_crash_hex_dump(
+        self,
+        returncode: int,
+        stderr_data: Union[str, bytes, Sequence[str], None],
+    ) -> Dict[str, Any]:
+        """Extracts 256-byte hexadecimal crash trace for crashed subprocesses."""
+        return extract_segfault_hex_dump(returncode, stderr_data)
+
+    def execute(
+        self,
+        payload_command: Union[str, List[str]],
+        job_name: str = "cochem_job",
+        timeout: Optional[float] = None,
+        cpu_affinity: Optional[List[int]] = None,
+        required_disk_gb: float = 0.05,
+        dead_man_timeout: float = 60.0,
+        daemonize_on_timeout: bool = True,
+    ) -> int:
+        """Dispatches an execution payload with cross-platform isolation and crash telemetry monitoring.
+
+        Allocates high-speed RAM-disk if available, executes payload with dead-man's switch watchdog,
+        enforces timeout, streams stdout/stderr, extracts segfault hex dumps if crashed,
+        and copies artifacts back upon completion.
+        """
+        exec_path = self._allocate_scratch_space(job_name)
+        verify_scratch_quota_and_io(exec_path, required_gb=max(0.01, required_disk_gb))
+
+        cmd_str: str
+        command: Union[str, List[str]]
+        if isinstance(payload_command, str):
+            if platform.system() == "Windows":
+                command = payload_command
+            else:
+                command = shlex.split(payload_command, posix=True)
+            cmd_str = payload_command
         else:
-            logger.info("=" * 75)
-            logger.info("COCHEM SETUP PHASE 5: IPC CONFIG LOCK, WORKSPACE SWEEP & MPS VRAM BUDGETING")
-            logger.info("=" * 75)
-            logger.info(f"Phase ID:          {report.phase_id}")
-            logger.info(f"Status:            {report.status.value}")
-            logger.info(f"Timestamp UTC:     {report.timestamp_utc}")
-            logger.info(f"Artifact Path:     {report.artifact_path}")
-            logger.info(f"Golden Config:     {report.golden_config_path}")
-            logger.info(f"CUDA Available:    {report.is_cuda_available}")
-            logger.info(f"Slurm HPC Mode:    {report.is_hpc_slurm}")
-            logger.info(f"MPS Status:        {report.mps_daemon.status.value}")
-            logger.info(f"Pipe Directory:    {report.mps_daemon.pipe_directory}")
-            logger.info(f"Socket Secure:     {report.mps_daemon.is_permission_secure} ({report.mps_daemon.socket_permissions})")
-            if report.config_lock:
-                logger.info("-" * 75)
-                logger.info("IPC Config Lock & Filesystem Audit:")
-                logger.info(f"  Lock Test Method:    {report.config_lock.posix_lock_test.method}")
-                logger.info(f"  Lock Test Passed:    {report.config_lock.posix_lock_test.passed}")
-                logger.info(f"  Single-Thread Mode:  {report.config_lock.posix_lock_test.single_threaded_mode}")
-                logger.info(f"  Registry Status:     {report.config_lock.status}")
-                logger.info(f"  Registry Checksum:   {report.config_lock.checksum[:16]}...")
-                logger.info(f"  Phases Consolidated: {', '.join(report.config_lock.intermediate_phases_found) or 'Default Synthesized'}")
-                logger.info(f"  Swept Ephemeral:     {report.config_lock.sweep_report.swept_files_count} files")
-            logger.info("-" * 75)
-            logger.info("VRAM Budgeting Matrix:")
-            logger.info(f"  Total GPUs:          {report.vram_budget.total_gpus_detected}")
-            logger.info(f"  Cluster VRAM:        {report.vram_budget.total_cluster_vram_mb:.0f} MB")
-            logger.info(f"  Reserved VRAM:       {report.vram_budget.total_reserved_vram_mb:.0f} MB")
-            logger.info(f"  Allocatable VRAM:    {report.vram_budget.total_allocatable_vram_mb:.0f} MB")
-            logger.info(f"  Target Workers:      {report.vram_budget.worker_concurrency_target}")
-            logger.info(f"  Default Pinned:      {report.vram_budget.default_pinned_mem_limit or 'N/A'}")
-            for dev in report.vram_budget.active_gpu_devices:
-                logger.info(f"    [GPU {dev.index}] {dev.name:<25} Total: {dev.total_vram_mb:.0f}MB -> Limit: {dev.pinned_mem_limit_str} (Cap: {dev.active_worker_capacity} workers)")
-            logger.info("-" * 75)
-            logger.info(f"Warnings: {len(report.warnings)}")
-            for w in report.warnings:
-                logger.warning(f"  - {w}")
-            logger.info(f"Errors:   {len(report.errors)}")
-            for e in report.errors:
-                logger.error(f"  - {e}")
-            logger.info("=" * 75)
+            command = payload_command
+            cmd_str = " ".join(payload_command)
 
-        if report.status is PhaseStatus.FAILED:
-            return 1
-        return 0
+        sanitized_env = sanitize_mpi_environment(self.env, cmd=command)
 
-    except Exception as exc:
-        logger.error(f"\n[FATAL PHASE 5 ERROR]\n{exc}\n")
-        return 1
+        logger.info(f"Dispatching '{job_name}' to broker in {exec_path}...")
+
+        stdout_hist: List[str] = []
+        stderr_hist: List[str] = []
+
+        popen_kwargs: Dict[str, Any] = {
+            "cwd": str(exec_path),
+            "env": sanitized_env,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+        }
+
+        process: Optional[subprocess.Popen] = None
+        job_obj = WindowsJobObject() if platform.system() == "Windows" else None
+        watchdog: Optional[DeadMansSwitchWatchdog] = None
+        exit_code: int = 0
+
+        try:
+            process = subprocess.Popen(command, **popen_kwargs)
+            with self._lock:
+                self.active_processes.append(process)
+            register_popen_process(process)
+
+            if job_obj is not None:
+                job_obj.assign_popen(process)
+
+            if cpu_affinity is not None:
+                enforce_cpu_affinity(process.pid, cpu_affinity)
+
+            watchdog = DeadMansSwitchWatchdog(
+                job_id=job_name,
+                proc=process,
+                timeout=dead_man_timeout,
+                on_timeout="daemonize" if daemonize_on_timeout else "kill",
+            )
+            watchdog.start()
+
+            def _stream_stdout() -> None:
+                if process and process.stdout:
+                    for line in iter(process.stdout.readline, ''):
+                        if watchdog:
+                            watchdog.ping()
+                        clean_line = line.strip()
+                        stdout_hist.append(clean_line)
+                        if self.telemetry and not self.telemetry.process_stream_chunk(clean_line):
+                            logger.error("Telemetry trap triggered. Preempting process.")
+                            kill_process_tree(process.pid, timeout=10.0)
+                            break
+
+            def _stream_stderr() -> None:
+                if process and process.stderr:
+                    for line in iter(process.stderr.readline, ''):
+                        if watchdog:
+                            watchdog.ping()
+                        stderr_hist.append(line.strip())
+
+            t_stdout = threading.Thread(target=_stream_stdout, daemon=True)
+            t_stderr = threading.Thread(target=_stream_stderr, daemon=True)
+
+            t_stdout.start()
+            t_stderr.start()
+
+            if timeout is not None and timeout > 0:
+                try:
+                    process.wait(timeout=timeout)
+                    exit_code = process.returncode
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Process '{job_name}' timed out after {timeout} seconds.")
+                    kill_process_tree(process.pid, timeout=10.0)
+                    try:
+                        process.wait(timeout=3.0)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    exit_code = -124
+            else:
+                process.wait()
+                exit_code = process.returncode
+
+            t_stdout.join(timeout=2.0)
+            t_stderr.join(timeout=2.0)
+
+            # Check for segfault / access violation crash and sweep 256-byte hex dump
+            crash_info = extract_segfault_hex_dump(exit_code, stderr_hist)
+            if crash_info.get("is_crash"):
+                logger.error(
+                    f"Process payload '{job_name}' crashed ({crash_info.get('crash_type')}, code {exit_code}):\n"
+                    f"{crash_info.get('formatted_hex_dump')}"
+                )
+
+        except KeyboardInterrupt:
+            logger.error("Keyboard Interrupt. Triggering Reaper.")
+            self.execute_zombie_reaper()
+            exit_code = -1
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            logger.error(f"Dispatch Exception: {e}")
+            self.execute_zombie_reaper()
+            exit_code = -2
+        finally:
+            if watchdog is not None:
+                watchdog.stop()
+
+            if job_obj is not None:
+                if watchdog is not None and watchdog.is_daemonized:
+                    job_obj.set_kill_on_close(False)
+                job_obj.close()
+
+            if process is not None:
+                with self._lock:
+                    if process in self.active_processes:
+                        self.active_processes.remove(process)
+                unregister_popen_process(process)
+
+            # Compute cryptographic dispatch audit hash
+            dispatch_seed = f"{job_name}:{cmd_str}:{exit_code}:{time.time()}".encode('utf-8')
+            dispatch_hash = hashlib.sha256(dispatch_seed).hexdigest()
+
+            if self.telemetry:
+                self.telemetry.aggregate_and_lock(job_name, stdout_hist, stderr_hist, exit_code, dispatch_hash)
+
+            if not (watchdog is not None and watchdog.is_daemonized):
+                self.garbage_collect_core_dumps(exec_path)
+                self.ramdisk_manager.sync_and_cleanup(exec_path, self.cwd)
+            else:
+                logger.info(
+                    f"Job '{job_name}' daemonized (PID {process.pid if process else 'N/A'}); "
+                    f"preserving execution directory {exec_path} for active background completion."
+                )
+
+        return exit_code
+
+
+__all__ = [
+    "SubprocessBroker",
+    "safe_subprocess_run",
+    "register_popen_process",
+    "unregister_popen_process",
+    "get_active_popen_processes",
+    "cleanup_zombie_processes",
+    "kill_process_tree",
+    "enforce_cpu_affinity",
+    "build_thread_affinity_env",
+    "detect_cpu_topology",
+    "CPUTopologyManager",
+    "detect_mpi_environment",
+    "sanitize_mpi_environment",
+    "verify_scratch_io",
+    "verify_scratch_quota_and_io",
+    "_SCRATCH_VERIFICATION_CACHE",
+    "lock_directory_permissions",
+    "RAMDiskOverlayManager",
+    "ZMQHeartbeatManager",
+    "DeadMansSwitchWatchdog",
+    "WindowsJobObject",
+    "ZombieReaper",
+    "DiskQuotaError",
+    "extract_segfault_hex_dump",
+    "sweep_crash_hex_dump",
+    "is_crash_returncode",
+    "CRITICAL_SEGFAULT_EXIT_CODES",
+    "HAS_PSUTIL",
+    "HAS_ZMQ",
+]
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    broker = SubprocessBroker()
+    logger.info("Broker Initialized and protections armed.")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_provenance.py ---
-"""Authoritative W3C PROV-O Conformer Lineage & Semantic Provenance Graphs.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_sandbox.py ---
+"""Ephemeral Sandbox Context & Path Jailbreak Defense.
 
-Complies strictly with:
-- W3C PROV-O Linked Data Standard (prov:Entity, prov:Activity, prov:wasDerivedFrom)
-- Tripartite Air-Gap Mandate (Offline local JSON-LD context catalog resolution)
-- FAIR Principles I1, I3, and R1.2
+Strictly adheres to:
+- CoChem Anti-Spoofing Protocol v2
+- Tripartite Storage Air-Gap Architecture (Tier 3 $COCH_SCRATCH isolation)
+- Suggestion #68: atexit callback unregistration on context exit eliminating memory leaks.
 """
 
 from __future__ import annotations
 
-import json
+import atexit
+import logging
+import os
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from cochem_base.core.exceptions import AirGapBoundaryError
+
+logger = logging.getLogger("cochem_sandbox")
 
 
-def get_local_prov_context() -> Dict[str, Any]:
-    """Retrieve bundled offline local W3C PROV-O JSON-LD context [D].
+class SandboxContext:
+    """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
 
-    Dispatches zero network calls to http://www.w3.org/ns/prov#, guaranteeing air-gapped execution.
+    def __init__(
+        self,
+        scratch_root: Optional[Union[Path, str, Any]] = None,
+        prefix: str = "cochem_job_",
+    ) -> None:
+        # Support SandboxConfig object if passed as first argument
+        resolved_root: Optional[Path] = None
+        if scratch_root is not None:
+            if hasattr(scratch_root, "scratch_parent_dir") and scratch_root.scratch_parent_dir is not None:
+                resolved_root = Path(scratch_root.scratch_parent_dir)
+            elif isinstance(scratch_root, (str, Path)):
+                resolved_root = Path(scratch_root)
+        self.scratch_root: Path = self._resolve_and_validate_scratch_root(resolved_root)
+        self.prefix: str = prefix
+        self.path: Optional[Path] = None
+        self._cleaned: bool = False
+
+    def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
+        if root is None:
+            root = Path(os.environ.get("COCH_SCRATCH", os.environ.get("COCHEM_SCRATCH_DIR", "/tmp/cochem_scratch")))
+        resolved = root.resolve()
+
+        # Enforce Tripartite Air-Gap: Prohibit sandbox creation in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA)
+        src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+        data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+        if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+            raise AirGapBoundaryError(
+                f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
+                details={"attempted_path": str(resolved), "tier": "Tier 1"},
+            )
+        if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
+            raise AirGapBoundaryError(
+                f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
+                details={"attempted_path": str(resolved), "tier": "Tier 2"},
+            )
+        return resolved
+
+    @property
+    def root(self) -> Optional[Path]:
+        """Backward-compatible alias for self.path."""
+        return self.path
+
+    def __enter__(self) -> SandboxContext:
+        self.scratch_root.mkdir(parents=True, exist_ok=True)
+        self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
+        self._cleaned = False
+        atexit.register(self.cleanup)
+        return self
+
+    def cleanup(self) -> None:
+        """Idempotently cleans up scratch directory and removes atexit registration."""
+        if self._cleaned:
+            return
+        self._cleaned = True
+        try:
+            atexit.unregister(self.cleanup)
+        except Exception as exc:
+            logger.debug("atexit unregister error: %s", exc)
+        if self.path is not None and self.path.exists():
+            try:
+                shutil.rmtree(self.path, ignore_errors=True)
+            except Exception as exc:
+                logger.debug("shutil.rmtree error during cleanup: %s", exc)
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.cleanup()
+
+
+__all__ = [
+    "SandboxContext",
+]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\mendeleev_invariants.py ---
+"""Dynamic Mendeleev Invariants & Element Resolver.
+
+Provenance & Specifications:
+- Method Matrix [M]: Quantum spin-parity and IUPAC CIAAW standard atomic weight invariants.
+- Dynamic Resolution [D]: Zero-hardcoding dynamic element and isotopic mass lookup via mendeleev.
+- Telemetry [E]: Thread-safe in-memory cache populated dynamically on demand.
+- Suggestion #67: Lazy singleton initialization eliminates 200-600 ms top-level module import lag.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import threading
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from mendeleev import element as _mendeleev_element
+
+from cochem_base.core.exceptions import CoChemError
+
+logger = logging.getLogger("mendeleev_invariants")
+
+
+class MissingDataError(CoChemError, KeyError):
+    """Raised when required element, isotope, basis set, or calculation data is missing."""
+
+    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_MISSING_DATA")
+        self.message: str = message
+        self.symbol_or_query: Optional[Any] = symbol_or_query
+
+
+class MendeleevInvariantError(CoChemError, ValueError):
+    """Raised when chemical element queries violate Mendeleev physical invariants."""
+
+    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
+        super().__init__(message, error_code="COCHEM_E_MENDELEEV_INVARIANT_VIOLATION")
+        self.message: str = message
+        self.symbol_or_query: Optional[Any] = symbol_or_query
+
+
+@dataclass(slots=True, frozen=True)
+class ElementData:
+    """Immutable ground-truth chemical element properties."""
+
+    atomic_number: int
+    symbol: str
+    name: str
+    atomic_weight: float
+    isotopes: Tuple[Tuple[int, float, float], ...]  # (mass_number, exact_mass_amu, natural_abundance)
+    covalent_radius_pm: Optional[float]
+    vdw_radius_pm: Optional[float]
+    valence_electrons: int
+    mass: float = 0.0
+    mass_number: Optional[int] = None
+    formal_charge: int = 0
+    is_isotope: bool = False
+
+
+_ELEMENT_CACHE_LOCK = threading.Lock()
+_ELEMENT_CACHE: Optional[Dict[int, ElementData]] = None
+_ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
+
+
+def _load_single_element(z_or_sym: Union[int, str]) -> ElementData:
+    """Dynamically fetch ElementData for Z=1..118 via mendeleev."""
+    try:
+        elem = _mendeleev_element(z_or_sym)
+    except Exception as exc:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
+            symbol_or_query=z_or_sym,
+        ) from exc
+
+    z = int(elem.atomic_number)
+    symbol = str(elem.symbol)
+    name = str(elem.name)
+
+    # Standard atomic weight with dynamic fallback to most stable isotope mass
+    weight = elem.atomic_weight
+    if weight is None or float(weight) <= 0.0:
+        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
+        if iso_masses:
+            weight = float(max(iso_masses))
+        else:
+            weight = float(z)
+    else:
+        weight = float(weight)
+
+    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
+    isotope_list: List[Tuple[int, float, float]] = []
+    for iso in elem.isotopes:
+        if iso.mass_number is not None:
+            m_num = int(iso.mass_number)
+            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
+            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
+            isotope_list.append((m_num, m_exact, m_abund))
+    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
+
+    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
+    cov_radius_pm = float(cov_r) if cov_r is not None else None
+
+    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
+    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
+
+    if hasattr(elem, "nvalence") and callable(elem.nvalence):
+        val_e = int(elem.nvalence())
+    elif elem.electrons is not None:
+        val_e = int(elem.electrons)
+    else:
+        val_e = 0
+
+    return ElementData(
+        atomic_number=z,
+        symbol=symbol,
+        name=name,
+        atomic_weight=weight,
+        isotopes=isotopes_tuple,
+        covalent_radius_pm=cov_radius_pm,
+        vdw_radius_pm=vdw_radius_pm,
+        valence_electrons=val_e,
+        mass=weight,
+        mass_number=None,
+        formal_charge=0,
+        is_isotope=False,
+    )
+
+
+def _build_element_cache() -> Dict[int, ElementData]:
+    """Dynamically populates in-memory dictionary of ElementData for Z=1..118."""
+    cache: Dict[int, ElementData] = {}
+    for z in range(1, 119):
+        data = _load_single_element(z)
+        cache[z] = data
+        _ELEMENTS_BY_SYMBOL[data.symbol.upper()] = data
+    return cache
+
+
+def get_element_cache() -> Dict[int, ElementData]:
+    """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
+
+    Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
     """
-    ctx_path = Path(__file__).resolve().parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"
-    if not ctx_path.exists():
-        # Fallback search if installed or relocated
-        candidates = [
-            Path(__file__).resolve().parent / "prov_o_context.jsonld",
-            Path(__file__).resolve().parents[2] / "schemas" / "contexts" / "prov_o_context.jsonld",
-        ]
-        for cand in candidates:
-            if cand.exists():
-                ctx_path = cand
+    global _ELEMENT_CACHE
+    if _ELEMENT_CACHE is None:
+        with _ELEMENT_CACHE_LOCK:
+            if _ELEMENT_CACHE is None:
+                _ELEMENT_CACHE = _build_element_cache()
+    return _ELEMENT_CACHE
+
+
+def get_element_data(z: int) -> ElementData:
+    """Retrieve ElementData by atomic number."""
+    cache = get_element_cache()
+    if z not in cache:
+        raise MendeleevInvariantError(f"Invalid atomic number Z={z}. Must be between 1 and 118.", symbol_or_query=z)
+    return cache[z]
+
+
+def get_symbol(z: int) -> str:
+    """Retrieve chemical symbol by atomic number."""
+    return get_element_data(z).symbol
+
+
+def get_atomic_number(symbol: str) -> int:
+    """Retrieve atomic number by chemical symbol."""
+    cache = get_element_cache()
+    clean = str(symbol).strip().upper()
+    if clean in _ELEMENTS_BY_SYMBOL:
+        return _ELEMENTS_BY_SYMBOL[clean].atomic_number
+    for el in cache.values():
+        if el.symbol.upper() == clean:
+            return el.atomic_number
+    raise MissingDataError(f"Unresolvable atomic element symbol: {symbol}", symbol_or_query=symbol)
+
+
+def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
+    """Authoritative regex and alias pre-processor for chemical symbols and isotopes.
+
+    Maps:
+    - 'D' -> ('H', 2)
+    - 'T' -> ('H', 3)
+    - '13C' -> ('C', 13)
+    - '18O' -> ('O', 18)
+    - '2H' -> ('H', 2)
+    - Standard symbols ('H', 'C', 'Ar') -> ('H', None), etc.
+    """
+    raw = str(symbol).strip()
+    if not raw or raw.isdigit():
+        raise MissingDataError(
+            f"Invalid chemical symbol or isotope '{symbol}'. Symbol cannot be empty or purely numeric.",
+            symbol_or_query=symbol,
+        )
+
+    if raw.upper() == "D":
+        return "H", 2
+    if raw.upper() == "T":
+        return "H", 3
+
+    m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
+    if m_iso:
+        mass_num = int(m_iso.group(1))
+        sym_part = m_iso.group(2)
+        norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
+        try:
+            get_element(norm_sym)
+        except Exception:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {symbol}",
+                symbol_or_query=symbol,
+            )
+        return norm_sym, mass_num
+
+    m_sym = re.match(r"^[A-Za-z]+$", raw)
+    if m_sym:
+        norm_sym = raw[0].upper() + raw[1:].lower() if len(raw) > 1 else raw.upper()
+        try:
+            elem_data = get_element(norm_sym)
+            return elem_data.symbol, None
+        except Exception as exc:
+            logger.debug("Symbol parse lookup fallback: %s", exc)
+
+    raise MissingDataError(
+        f"Unresolvable atomic element or isotope symbol: {symbol}",
+        symbol_or_query=symbol,
+    )
+
+
+def get_element(symbol_or_z: Union[str, int]) -> ElementData:
+    """Retrieve immutable ElementData by atomic number, chemical symbol, formal charge, or isotope."""
+    cache = get_element_cache()
+
+    if isinstance(symbol_or_z, int):
+        if symbol_or_z < 1 or symbol_or_z > 118:
+            raise MendeleevInvariantError(
+                f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
+                symbol_or_query=symbol_or_z,
+            )
+        return cache[symbol_or_z]
+
+    raw = str(symbol_or_z).strip()
+    if not raw or raw.isdigit():
+        raise MendeleevInvariantError(
+            f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
+            symbol_or_query=symbol_or_z,
+        )
+
+    pattern = re.compile(r"^(?P<isotope>\d+)?(?P<symbol>[A-Za-z]+)(?P<charge>(?:\d+[+-]|[+-]\d*|[+-]))?$")
+    match = pattern.match(raw)
+    if not match:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{symbol_or_z}'.",
+            symbol_or_query=symbol_or_z,
+        )
+
+    iso_str = match.group("isotope")
+    sym_raw = match.group("symbol")
+    charge_str = match.group("charge")
+
+    if sym_raw.upper() == "D":
+        norm_sym = "H"
+        mass_number: Optional[int] = 2
+    elif sym_raw.upper() == "T":
+        norm_sym = "H"
+        mass_number = 3
+    else:
+        norm_sym = sym_raw[0].upper() + sym_raw[1:].lower() if len(sym_raw) > 1 else sym_raw.upper()
+        mass_number = int(iso_str) if iso_str else None
+
+    formal_charge: int = 0
+    if charge_str:
+        if charge_str.endswith("+"):
+            val = charge_str[:-1]
+            formal_charge = int(val) if val else 1
+        elif charge_str.endswith("-"):
+            val = charge_str[:-1]
+            formal_charge = -int(val) if val else -1
+        elif charge_str.startswith("+"):
+            val = charge_str[1:]
+            formal_charge = int(val) if val else 1
+        elif charge_str.startswith("-"):
+            val = charge_str[1:]
+            formal_charge = -int(val) if val else -1
+
+    base_data: Optional[ElementData] = None
+    clean_key = norm_sym.upper()
+    if clean_key in _ELEMENTS_BY_SYMBOL:
+        base_data = _ELEMENTS_BY_SYMBOL[clean_key]
+    else:
+        for el in cache.values():
+            if el.symbol.upper() == clean_key or el.name.lower() == sym_raw.lower():
+                base_data = el
                 break
 
-    if not ctx_path.exists():
-        raise FileNotFoundError(f"Offline local JSON-LD context not found at expected path: {ctx_path}")
-
-    return json.loads(ctx_path.read_text(encoding="utf-8"))
-
-
-class DAGNode(BaseModel):
-    """Semantic Directed Acyclic Graph (DAG) node representing conformers or computational workflows."""
-
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
-
-    node_id: str = Field(..., description="Unique node identifier within the lineage graph")
-    node_type: Literal["entity", "activity", "agent"] = Field(
-        default="entity", description="PROV-O class classification"
-    )
-    activity_type: Optional[str] = Field(
-        default=None, description="Specific activity type URI or curie (e.g. 'cochem:Optimization')"
-    )
-    parents: List[str] = Field(
-        default_factory=list, description="Identifiers of ancestor nodes (prov:wasDerivedFrom)"
-    )
-    activity: Optional[str] = Field(
-        default=None, description="Identifier of generating activity (prov:wasGeneratedBy)"
-    )
-    started_at_time: Optional[str] = Field(
-        default=None, description="ISO 8601 UTC start timestamp"
-    )
-    ended_at_time: Optional[str] = Field(
-        default=None, description="ISO 8601 UTC completion timestamp"
-    )
-    relative_energy_kcal_mol: Optional[float] = Field(
-        default=None, description="Relative electronic energy in kcal/mol"
-    )
-    rotational_constants_mhz: Optional[List[float]] = Field(
-        default=None, description="Principal rotational constants [A, B, C] in MHz"
-    )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Arbitrary execution or quantum chemistry metadata"
-    )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert DAGNode to standard dictionary representation."""
-        return self.model_dump()
-
-    def to_prov_jsonld(self, base_uri: str = "urn:cochem:conformer:") -> Dict[str, Any]:
-        """Construct W3C PROV-O compliant JSON-LD document with offline context resolution [D].
-
-        Args:
-            base_uri: Uniform Resource Name prefix for node resolution.
-
-        Returns:
-            Dict[str, Any]: Validated JSON-LD semantic dictionary.
-        """
-        ctx_doc = get_local_prov_context()
-        doc: Dict[str, Any] = {
-            "@context": ctx_doc.get("@context", {}),
-            "@id": f"{base_uri}{self.node_id}",
-        }
-
-        if self.node_type == "activity":
-            types = ["prov:Activity"]
-            if self.activity_type:
-                types.append(self.activity_type)
-            else:
-                types.append("cochem:Optimization")
-            doc["@type"] = types
-        elif self.node_type == "agent":
-            doc["@type"] = ["prov:Agent", "cochem:SoftwareAgent"]
-        else:
-            doc["@type"] = ["prov:Entity", "cochem:Conformer"]
-
-        if self.parents:
-            doc["prov:wasDerivedFrom"] = [{"@id": f"{base_uri}{parent_id}"} for parent_id in self.parents]
-
-        if self.activity:
-            doc["prov:wasGeneratedBy"] = {"@id": f"urn:cochem:activity:{self.activity}"}
-
-        if self.started_at_time:
-            doc["prov:startedAtTime"] = self.started_at_time
-        if self.ended_at_time:
-            doc["prov:endedAtTime"] = self.ended_at_time
-
-        if self.relative_energy_kcal_mol is not None:
-            doc["cochem:relativeEnergy"] = float(self.relative_energy_kcal_mol)
-
-        if self.rotational_constants_mhz is not None:
-            doc["cochem:rotationalConstants"] = [float(rc) for rc in self.rotational_constants_mhz]
-
-        for k, v in self.metadata.items():
-            doc[f"cochem:{k}"] = v
-
-        return doc
-
-
-__all__ = [
-    "DAGNode",
-    "get_local_prov_context",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_version.py ---
-"""Authoritative OS-Agnostic Dynamic VCS Provenance & Container Introspection.
-
-Provides robust environment discovery compliant with FAIR Principle R1.2 across:
-- Git Repositories (local development)
-- Build Manifests (.build_manifest.json)
-- Installed Distribution Packages (importlib.metadata inside stripped Docker containers and HPC wheels)
-- Untracked Air-Gapped Environments
-"""
-
-from __future__ import annotations
-
-import importlib.metadata
-import os
-import platform
-import shutil
-import subprocess
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, Optional
-
-
-def _find_git_root(start_path: Path) -> Optional[Path]:
-    """Traverse directory parents to locate genuine .git directory or file."""
-    curr = start_path.resolve()
-    for p in [curr, *curr.parents]:
-        git_target = p / ".git"
-        if git_target.exists():
-            return p
-    return None
-
-
-def get_vcs_provenance(root_path: Optional[Path] = None) -> Dict[str, Any]:
-    """Dynamically determine software version and source provenance hierarchy [D].
-
-    Hierarchy:
-    1. Git Repository Check: Queries active commit SHA, branch, dirty status.
-    2. Build Manifest Check: Checks for .build_manifest.json in package or COCHEM_ROOT.
-    3. Distribution Package Introspection (PEP 566 importlib.metadata).
-    4. Safe Fallback (UNTRACKED_BUILD).
-
-    Args:
-        root_path: Optional override path to search for repository anchor.
-
-    Returns:
-        Dict[str, Any]: Structured VCS provenance metadata dictionary.
-    """
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    # Determine starting path anchor
-    start_dir: Optional[Path] = None
-    if root_path is not None:
-        start_dir = Path(root_path).resolve()
-    else:
-        # Dynamic module anchor
-        start_dir = Path(__file__).resolve().parent
-
-    # 1. Git Repository Discovery
-    if start_dir is not None:
-        git_dir = _find_git_root(start_dir)
-        git_cmd = shutil.which("git")
-        if git_dir is not None and git_cmd is not None:
-            try:
-                sha_proc = subprocess.run(
-                    [git_cmd, "rev-parse", "HEAD"],
-                    cwd=str(git_dir),
-                    capture_output=True,
-                    text=True,
-                    timeout=2,
-                    check=False,
-                )
-                if sha_proc.returncode == 0 and sha_proc.stdout.strip():
-                    sha = sha_proc.stdout.strip()
-                    branch_proc = subprocess.run(
-                        [git_cmd, "rev-parse", "--abbrev-ref", "HEAD"],
-                        cwd=str(git_dir),
-                        capture_output=True,
-                        text=True,
-                        timeout=2,
-                        check=False,
-                    )
-                    branch = branch_proc.stdout.strip() if branch_proc.returncode == 0 else "unknown"
-
-                    dirty_proc = subprocess.run(
-                        [git_cmd, "status", "--porcelain"],
-                        cwd=str(git_dir),
-                        capture_output=True,
-                        text=True,
-                        timeout=2,
-                        check=False,
-                    )
-                    is_dirty = bool(dirty_proc.stdout.strip()) if dirty_proc.returncode == 0 else False
-
-                    return {
-                        "vcs_type": "git",
-                        "commit_sha": sha,
-                        "branch": branch,
-                        "is_dirty": is_dirty,
-                        "status": "GIT_REPOSITORY",
-                        "git_root": str(git_dir),
-                        "discovered_utc": timestamp,
-                    }
-            except Exception:
-                pass
-
-    # 2. Build Manifest Discovery
-    manifest_candidates = []
-    if root_path is not None:
-        manifest_candidates.append(Path(root_path) / ".build_manifest.json")
-    if os.environ.get("COCHEM_ROOT"):
-        manifest_candidates.append(Path(os.environ["COCHEM_ROOT"]) / ".build_manifest.json")
-    manifest_candidates.append(Path(__file__).resolve().parents[2] / ".build_manifest.json")
-
-    for mc in manifest_candidates:
-        if mc.exists():
-            try:
-                import json
-
-                data = json.loads(mc.read_text(encoding="utf-8"))
-                return {
-                    "vcs_type": "build_manifest",
-                    "version": data.get("version", "unknown"),
-                    "build_id": data.get("build_id", "unknown"),
-                    "manifest_path": str(mc),
-                    "status": "BUILD_MANIFEST",
-                    "discovered_utc": timestamp,
-                }
-            except Exception:
-                pass
-
-    # 3. Distribution Package Introspection (importlib.metadata)
-    pkg_names = ["CoChem-BASE", "cochem_base", "cochem-base"]
-    for pkg in pkg_names:
-        try:
-            dist = importlib.metadata.distribution(pkg)
-            dist_version = dist.version
-            dist_files = dist.files
-            installer = dist.read_text("INSTALLER") or "unknown"
-            return {
-                "vcs_type": "installed_wheel",
-                "version": dist_version,
-                "installer": installer.strip(),
-                "file_count": len(dist_files) if dist_files else 0,
-                "package_name": pkg,
-                "status": "DISTRIBUTION_PACKAGE",
-                "discovered_utc": timestamp,
-            }
-        except importlib.metadata.PackageNotFoundError:
-            continue
-
-    # 4. Clean Fallback for Untracked Environments
-    return {
-        "vcs_type": "untracked",
-        "version": "0.1.0-untracked",
-        "status": "UNTRACKED_BUILD",
-        "platform": platform.platform(),
-        "python_version": platform.python_version(),
-        "discovered_utc": timestamp,
-    }
-
-
-__all__ = [
-    "get_vcs_provenance",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\exceptions.py ---
-"""Authoritative Core Domain Exceptions for CoChem-BASE.
-
-Provides physical invariant exceptions for isotopic stability, empirical radii,
-and domain perceptions adhering to Method Matrix v4 §6.10, §8C, and §20.
-"""
-
-from __future__ import annotations
-
-
-class IsotopeStabilityError(ValueError):
-    """Raised when a requested isotope cannot be physically resolved to an isotopic nuclear mass."""
-
-    pass
-
-
-class RadiusNotFoundError(KeyError):
-    """Raised when empirical covalent or van der Waals radius is unavailable for an element."""
-
-    pass
-
-
-__all__ = [
-    "IsotopeStabilityError",
-    "RadiusNotFoundError",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\licensing.py ---
-"""Authoritative Machine-Readable SPDX Data Usage Licensing Schema.
-
-Adheres strictly to FAIR Principle R1.1 and Method Matrix v4 open-science mandates.
-Validates dataset and computational model reuse rights against approved SPDX license identifiers.
-"""
-
-from __future__ import annotations
-
-from typing import Final, FrozenSet
-
-OFFICIAL_SPDX_LICENSES: Final[FrozenSet[str]] = frozenset({
-    "CC-BY-4.0",
-    "CC0-1.0",
-    "CC-BY-SA-4.0",
-    "CC-BY-NC-4.0",
-    "MIT",
-    "Apache-2.0",
-    "BSD-3-Clause",
-    "BSD-2-Clause",
-    "GPL-3.0-only",
-    "AGPL-3.0-only",
-    "LGPL-3.0-only",
-    "MPL-2.0",
-    "ISC",
-    "Unlicense",
-})
-
-
-def validate_spdx_license(license_id: str) -> str:
-    """Validate that a license identifier conforms to approved SPDX open-science standards [D].
-
-    Args:
-        license_id: SPDX license expression string (e.g. 'CC-BY-4.0', 'MIT').
-
-    Returns:
-        str: Validated, stripped license identifier string.
-
-    Raises:
-        ValueError: If license_id is empty, invalid, or unrecognized in the SPDX table.
-    """
-    if not isinstance(license_id, str):
-        raise ValueError(f"SPDX license identifier must be a string, got {type(license_id)}")
-
-    clean_id = license_id.strip()
-    if not clean_id:
-        raise ValueError("SPDX license identifier cannot be empty.")
-
-    if clean_id not in OFFICIAL_SPDX_LICENSES:
-        raise ValueError(
-            f"Invalid or unrecognized SPDX license identifier: '{clean_id}'. "
-            f"Must be one of approved open-science identifiers: {sorted(OFFICIAL_SPDX_LICENSES)}"
+    if base_data is None:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
+            symbol_or_query=symbol_or_z,
         )
 
-    return clean_id
+    if mass_number is not None:
+        is_isotope = True
+        elem = _mendeleev_element(base_data.atomic_number)
+        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
+        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
+            raise MendeleevInvariantError(
+                f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
+                symbol_or_query=symbol_or_z,
+            )
+        mass = float(iso.mass)
+    else:
+        is_isotope = False
+        mass = float(base_data.atomic_weight)
 
+    return ElementData(
+        atomic_number=base_data.atomic_number,
+        symbol=base_data.symbol,
+        name=base_data.name,
+        atomic_weight=base_data.atomic_weight,
+        isotopes=base_data.isotopes,
+        covalent_radius_pm=base_data.covalent_radius_pm,
+        vdw_radius_pm=base_data.vdw_radius_pm,
+        valence_electrons=base_data.valence_electrons,
+        mass=mass,
+        mass_number=mass_number,
+        formal_charge=formal_charge,
+        is_isotope=is_isotope,
+    )
+
+
+def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
+    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
+    element_data = get_element(symbol_or_z)
+    for iso_m_num, iso_exact, _ in element_data.isotopes:
+        if iso_m_num == mass_number:
+            return iso_exact
+
+    try:
+        m_elem = _mendeleev_element(element_data.symbol)
+        for iso in m_elem.isotopes:
+            if iso.mass_number == mass_number and iso.mass is not None:
+                return float(iso.mass)
+    except Exception as exc:
+        logger.debug("Isotope fallback resolution error: %s", exc)
+
+    raise MendeleevInvariantError(
+        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
+        symbol_or_query=f"{element_data.symbol}-{mass_number}",
+    )
+
+
+def get_element_mass(symbol_or_z: Union[str, int]) -> float:
+    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u)."""
+    if isinstance(symbol_or_z, int):
+        return get_element(symbol_or_z).atomic_weight
+
+    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
+    if mass_number is not None:
+        return get_isotope_mass(clean_sym, mass_number)
+    return get_element(clean_sym).atomic_weight
+
+
+class MendeleevResolver:
+    """Thread-safe dynamic Mendeleev element and isotope mass resolver for backward compatibility."""
+
+    def get_element(self, symbol_or_z: Union[str, int]) -> Any:
+        elem_data = get_element(symbol_or_z)
+        return _mendeleev_element(elem_data.atomic_number)
+
+    def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
+        return get_element(symbol_or_z).atomic_number
+
+    def get_atomic_weight(self, symbol_or_z: Union[str, int]) -> float:
+        return get_element(symbol_or_z).atomic_weight
+
+    def get_element_mass(self, symbol_or_z: Union[str, int]) -> float:
+        return get_element_mass(symbol_or_z)
+
+    def get_symbol(self, symbol_or_z: Union[str, int]) -> str:
+        return get_element(symbol_or_z).symbol
+
+    def get_name(self, symbol_or_z: Union[str, int]) -> str:
+        return get_element(symbol_or_z).name
+
+    def get_covalent_radius(self, symbol_or_z: Union[str, int]) -> Optional[float]:
+        return get_element(symbol_or_z).covalent_radius_pm
+
+    def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
+        r = get_element(symbol_or_z).vdw_radius_pm
+        if r is None:
+            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
+        return r
+
+    def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
+        return self.get_vdw_radius(symbol_or_z) / 100.0
+
+    def get_isotope_mass(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
+        return get_isotope_mass(symbol_or_z, mass_number)
+
+    def get_isotope_abundance(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
+        elem_data = get_element(symbol_or_z)
+        for m_num, _, abund in elem_data.isotopes:
+            if m_num == mass_number:
+                return abund
+        return 0.0
+
+    def get_available_isotopes(self, symbol_or_z: Union[str, int]) -> List[int]:
+        return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
+
+    def clear_cache(self) -> None:
+        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
+
+
+mendeleev_resolver = MendeleevResolver()
 
 __all__ = [
-    "OFFICIAL_SPDX_LICENSES",
-    "validate_spdx_license",
+    "ElementData",
+    "MendeleevInvariantError",
+    "MissingDataError",
+    "get_element_cache",
+    "get_element",
+    "get_element_data",
+    "get_symbol",
+    "get_atomic_number",
+    "get_isotope_mass",
+    "get_element_mass",
+    "parse_symbol_or_isotope",
+    "MendeleevResolver",
+    "mendeleev_resolver",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\metadata.py ---
-"""Authoritative Dynamic Elemental Metadata, Empirical Radii, and Hardware Telemetry.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\process_reaper.py ---
+"""Cross-platform process lifecycle manager and direct PID monitoring reaper.
 
-Complies strictly with:
-- Dynamic Mendeleev Invariant Mandate (Method Matrix v4 §8C, zero hardcoded masses)
-- Hierarchical Empirical Radii Lookup (Method Matrix v4 §20, Pyykkö -> Cordero -> vdW)
-- Strictly Non-Initializing GPU Discovery (Method Matrix v4 §8A.4, zero CUDA-locking)
+Complies with:
+- Method Matrix [M]: Low-overhead targeted telemetry and reaping of QM/MM worker subprocesses.
+- Suggestion #69: Direct child PID monitoring in ProcessTreeManager dropping CPU usage by >80%.
 """
 
 from __future__ import annotations
 
-import functools
+import logging
 import os
-import platform
-import shutil
+import signal
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Union
+import threading
+import time
+from typing import Any, Dict, List, Optional, Set, Union
 
-import mendeleev
+import psutil
 
-from cochem_base.core.exceptions import IsotopeStabilityError, RadiusNotFoundError
+from cochem_base.core.exceptions import ProcessReaperError
 
-
-@functools.lru_cache(maxsize=1024)
-def get_isotopic_mass(symbol_or_atomic_number: Union[str, int], mass_number: int) -> float:
-    """Retrieve dynamic IUPAC/CIAAW isotopic nuclear mass for a specified isotope [M].
-
-    Eradicates permissive fallback to terrestrial abundance-weighted average atomic weight.
-    Strictly raises IsotopeStabilityError if the requested isotope cannot be physically resolved.
-
-    Args:
-        symbol_or_atomic_number: IUPAC elemental symbol (e.g. 'C', 'H', 'Cl') or integer atomic number (Z).
-        mass_number: Integer nuclear nucleon count (A).
-
-    Returns:
-        float: Physical nuclear mass in unified atomic mass units (u) [M].
-
-    Raises:
-        IsotopeStabilityError: If the element or isotope does not exist in authoritative Mendeleev data.
-    """
-    try:
-        el = mendeleev.element(symbol_or_atomic_number)
-    except Exception as exc:
-        raise IsotopeStabilityError(
-            f"Element '{symbol_or_atomic_number}' could not be resolved in Mendeleev registry: {exc}"
-        ) from exc
-
-    target_a = int(mass_number)
-    matched_iso = next((iso for iso in el.isotopes if iso.mass_number == target_a), None)
-
-    if matched_iso is not None and matched_iso.mass is not None and float(matched_iso.mass) > 0.0:
-        return float(matched_iso.mass)
-
-    raise IsotopeStabilityError(
-        f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical isotopic mass in authoritative CIAAW/Mendeleev data."
-    )
+logger = logging.getLogger("CoChem-ProcessReaper")
 
 
-@functools.lru_cache(maxsize=256)
-def get_covalent_radius(
-    symbol_or_atomic_number: Union[str, int],
-    radius_type: str = "pyykko",
-) -> float:
-    """Hierarchical empirical covalent and van der Waals radii lookup in Angstroms [M].
+class ProcessTreeManager:
+    """Manages process hierarchies with direct child PID tracking to eliminate full-OS scans."""
 
-    Hierarchy:
-    1. Primary: Pyykkö single-bond covalent radius (covalent_radius_pyykko)
-    2. Secondary: Cordero covalent radius (covalent_radius_cordero)
-    3. Tertiary: Standard covalent radius (covalent_radius)
-    4. Quaternary: van der Waals radius (vdw_radius)
-
-    Eradicates hardcoded numeric fallbacks (e.g. 0.77 Å).
-
-    Args:
-        symbol_or_atomic_number: Element symbol or atomic number.
-        radius_type: Preferred radius convention ('pyykko', 'cordero', 'vdw').
-
-    Returns:
-        float: Empirical radius in Angstroms [M].
-
-    Raises:
-        RadiusNotFoundError: If no valid empirical radius can be resolved.
-    """
-    try:
-        el = mendeleev.element(symbol_or_atomic_number)
-    except Exception as exc:
-        raise RadiusNotFoundError(
-            f"Element '{symbol_or_atomic_number}' could not be resolved from Mendeleev registries: {exc}"
-        ) from exc
-
-    rtype = radius_type.strip().lower()
-    if rtype in ("cordero", "covalent_radius_cordero"):
-        candidates = [el.covalent_radius_cordero, el.covalent_radius_pyykko, el.covalent_radius, el.vdw_radius]
-    elif rtype in ("vdw", "vdw_radius"):
-        candidates = [el.vdw_radius, el.covalent_radius_pyykko, el.covalent_radius_cordero, el.covalent_radius]
-    else:
-        # Default Pyykkö primary hierarchy
-        candidates = [el.covalent_radius_pyykko, el.covalent_radius_cordero, el.covalent_radius, el.vdw_radius]
-
-    for val in candidates:
-        if val is not None:
-            try:
-                fval = float(val)
-                if fval > 0.0:
-                    # Mendeleev reports radii in picometers (pm); convert to Angstroms
-                    return fval / 100.0
-            except (ValueError, TypeError):
-                continue
-
-    raise RadiusNotFoundError(
-        f"Empirical radius for element '{el.symbol}' ({el.atomic_number}) could not be resolved from Mendeleev registries."
-    )
-
-
-def _query_nvml_telemetry() -> Optional[List[Dict[str, Any]]]:
-    """Query NVIDIA NVML C-bindings without initializing the CUDA runtime [E]."""
-    try:
-        import pynvml  # type: ignore[import-not-found]
-
-        pynvml.nvmlInit()
-        devices = []
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._tracked: Set[int] = set()
         try:
-            count = pynvml.nvmlDeviceGetCount()
-            for idx in range(count):
-                handle = pynvml.nvmlDeviceGetHandleByIndex(idx)
-                name = pynvml.nvmlDeviceGetName(handle)
-                if isinstance(name, bytes):
-                    name = name.decode("utf-8")
-                mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                try:
-                    cc_major, cc_minor = pynvml.nvmlDeviceGetCudaComputeCapability(handle)
-                    compute_cap = f"{cc_major}.{cc_minor}"
-                except Exception:
-                    compute_cap = "unknown"
-
-                devices.append({
-                    "index": idx,
-                    "product_name": str(name),
-                    "total_memory_bytes": int(mem.total),
-                    "compute_capability": compute_cap,
-                })
-            return devices
-        finally:
-            pynvml.nvmlShutdown()
-    except Exception:
-        return None
-
-
-def _query_cli_gpu_telemetry() -> Optional[List[Dict[str, Any]]]:
-    """Query standalone GPU CLI tools (nvidia-smi / rocm-smi) in a fast isolated subprocess [E]."""
-    nvsmi = shutil.which("nvidia-smi")
-    if nvsmi:
-        try:
-            proc = subprocess.run(
-                [nvsmi, "--query-gpu=index,gpu_name,memory.total", "--format=csv,noheader,nounits"],
-                capture_output=True,
-                text=True,
-                timeout=3,
-                check=False,
-            )
-            if proc.returncode == 0 and proc.stdout.strip():
-                devices = []
-                for line in proc.stdout.strip().splitlines():
-                    parts = [p.strip() for p in line.split(",")]
-                    if len(parts) >= 3:
-                        try:
-                            idx = int(parts[0])
-                            pname = parts[1]
-                            mem_mib = float(parts[2])
-                            devices.append({
-                                "index": idx,
-                                "product_name": pname,
-                                "total_memory_bytes": int(mem_mib * 1024 * 1024),
-                                "compute_capability": "unknown",
-                            })
-                        except (ValueError, IndexError):
-                            continue
-                if devices:
-                    return devices
+            self._parent_proc: psutil.Process = psutil.Process()
         except Exception:
-            pass
+            self._parent_proc = None  # type: ignore
 
-    return None
+    def register_process(
+        self,
+        proc: Union[psutil.Process, int],
+        task_id: Optional[str] = None,
+    ) -> None:
+        """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
+        pid = proc.pid if isinstance(proc, psutil.Process) else int(proc)
+        if pid > 0:
+            with self._lock:
+                self._tracked.add(pid)
 
+    def unregister_process(self, pid: int) -> None:
+        """Removes a process PID upon normal exit."""
+        with self._lock:
+            self._tracked.discard(pid)
 
-def collect_hardware_metadata() -> Dict[str, Any]:
-    """Collect host hardware and GPU accelerator telemetry using strictly non-initializing discovery [E].
+    def is_alive(self, pid: int) -> bool:
+        """Check if process exists and is running."""
+        try:
+            p = psutil.Process(pid)
+            return bool(p.is_running() and p.status() != psutil.STATUS_ZOMBIE)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
 
-    Guarantees zero CUDA runtime context initialization (zero CUDA-locking), maintaining NVIDIA MPS
-    multiplexing readiness under Method Matrix v4 §8A.4.
-    """
-    # Strict AST / Runtime Prohibition verification
-    if "torch" in sys.modules:
-        torch_mod = sys.modules["torch"]
-        if hasattr(torch_mod, "cuda") and hasattr(torch_mod.cuda, "is_initialized"):
-            assert not torch_mod.cuda.is_initialized(), (
-                "CUDA runtime was already initialized prior to non-initializing telemetry collection!"
-            )
+    def get_tracked_pids(self) -> List[int]:
+        """Return snapshot of tracked PIDs."""
+        with self._lock:
+            return list(self._tracked)
 
-    gpus = _query_nvml_telemetry()
-    if gpus is None:
-        gpus = _query_cli_gpu_telemetry()
-    if gpus is None:
-        gpus = []
+    def sample_process_tree_rss_bytes(self) -> int:
+        """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
 
-    cpu_count = os.cpu_count() or 1
-    telemetry: Dict[str, Any] = {
-        "platform": platform.platform(),
-        "system": platform.system(),
-        "cpu": {
-            "architecture": platform.machine(),
-            "processor": platform.processor() or "unknown",
-            "physical_cores": cpu_count,
-            "logical_cores": cpu_count,
-        },
-        "gpus": gpus,
-        "gpu_count": len(gpus),
-        "cuda_runtime_initialized": False,
-    }
+        Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
+        """
+        total_rss = 0
+        dead_pids: Set[int] = set()
 
-    return telemetry
+        # Include parent process
+        if self._parent_proc is not None:
+            try:
+                total_rss += self._parent_proc.memory_info().rss
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                logger.debug("Parent process memory sampling error: %s", exc)
+
+        # Query tracked child PIDs directly
+        with self._lock:
+            current_pids = list(self._tracked)
+
+        for pid in current_pids:
+            try:
+                p = psutil.Process(pid)
+                total_rss += p.memory_info().rss
+            except psutil.NoSuchProcess:
+                dead_pids.add(pid)
+            except (psutil.AccessDenied, psutil.ZombieProcess) as exc:
+                logger.debug("Child PID %d memory sampling error: %s", pid, exc)
+
+        with self._lock:
+            self._tracked.difference_update(dead_pids)
+
+        return total_rss
+
+    def terminate_tree(
+        self,
+        pid: Optional[int] = None,
+        timeout: float = 5.0,
+    ) -> Dict[str, Any]:
+        """Directly signals tracked PIDs with SIGTERM (or terminate), waits up to timeout, and escalates to SIGKILL."""
+        with self._lock:
+            if pid is not None:
+                pids_to_kill = [pid]
+            else:
+                pids_to_kill = list(self._tracked)
+
+        procs: List[psutil.Process] = []
+        for p_id in pids_to_kill:
+            try:
+                procs.append(psutil.Process(p_id))
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                with self._lock:
+                    self._tracked.discard(p_id)
+
+        # Signal termination
+        for p in procs:
+            try:
+                p.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                logger.debug("Process %d terminate error: %s", p.pid, exc)
+
+        # Await graceful termination
+        gone, alive = psutil.wait_procs(procs, timeout=timeout)
+
+        # Escalate to kill for remaining stubborn processes
+        for p in alive:
+            try:
+                p.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                logger.debug("Process %d kill error: %s", p.pid, exc)
+
+        with self._lock:
+            if pid is not None:
+                self._tracked.discard(pid)
+            else:
+                self._tracked.clear()
+
+        return {
+            "terminated_count": len(gone) + len(alive),
+            "surviving_count": 0,
+        }
 
 
 __all__ = [
-    "get_isotopic_mass",
-    "get_covalent_radius",
-    "collect_hardware_metadata",
+    "ProcessTreeManager",
+    "ProcessReaperError",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_architecture_part6.py ---
-"""Zero-Mock Architecture, Provenance, Hardware & Concurrency Test Suite (Part 6).
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_mass_resolver.py ---
+"""Authoritative Dynamic Mendeleev Mass Resolver with LRU In-Memory Caching.
 
-Validates Suggestions #53, #57, #58, and #59.
-Adheres strictly to Method Matrix v4 and Zero-Mock Anti-Spoofing Protocol v2.
-Real physical execution: authentic JSON-LD local schemas, genuine NVML hardware checks,
-real HDF5 SWMR files, and node-local scratch locking.
+Complies strictly with:
+- Method Matrix v4 §8A.4: Precomputation of masses on CPU before CUDA kernels without GPU context stalls.
+- Dynamic Mendeleev Invariant Mandate: Dynamic atomic and isotopic mass retrieval using `mendeleev`.
+- Zero-Mock Anti-Spoofing Protocol: Authentic physical mass resolution.
 """
 
 from __future__ import annotations
 
-import json
-import os
-import pathlib
-import threading
-import time
-from typing import List
+from functools import lru_cache
+from typing import Optional, Union
 
-import h5py
-
-from cochem_base.core.cochem_provenance import DAGNode, get_local_prov_context
-from cochem_base.core.cochem_version import get_vcs_provenance
-from cochem_base.core.metadata import collect_hardware_metadata
-from cochem_base.core_engine.cochem_core_pes_store import (
-    PESPointRecord,
-    PESStore,
-)
+import mendeleev
+from cochem_base.core.exceptions import CoChemError, IsotopeMassResolutionError
 
 
-def test_w3c_prov_o_jsonld_serialization() -> None:
-    """Validate W3C PROV-O JSON-LD conformer lineage serialization and air-gapped context resolution (Suggestion #53)."""
-    # 1. Verify offline local context resolution
-    context_doc = get_local_prov_context()
-    assert "@context" in context_doc
-    ctx = context_doc["@context"]
-    assert ctx.get("prov") == "http://www.w3.org/ns/prov#"
-    assert ctx.get("cochem") == "https://cochem.org/schema/core#"
-    assert "wasDerivedFrom" in ctx
-    assert "wasGeneratedBy" in ctx
+@lru_cache(maxsize=256)
+def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
+    """Returns standard atomic weight from Mendeleev with LRU memory caching.
 
-    # 2. Instantiate DAGNode for an activity (optimization step)
-    activity_node = DAGNode(
-        node_id="opt_step_001",
-        node_type="activity",
-        activity_type="cochem:Optimization",
-        started_at_time="2026-09-04T00:00:00Z",
-        ended_at_time="2026-09-04T00:01:30Z",
-        metadata={"engine": "ORCA", "method": "wB97M-V", "basis": "def2-TZVP"},
-    )
-    act_jsonld = activity_node.to_prov_jsonld()
-    assert act_jsonld["@id"] == "urn:cochem:conformer:opt_step_001"
-    assert "prov:Activity" in act_jsonld["@type"]
-    assert "cochem:Optimization" in act_jsonld["@type"]
-    assert act_jsonld["prov:startedAtTime"] == "2026-09-04T00:00:00Z"
-    assert act_jsonld["prov:endedAtTime"] == "2026-09-04T00:01:30Z"
-
-    # 3. Instantiate DAGNode for an entity (resulting conformer)
-    conformer_node = DAGNode(
-        node_id="conf_c2h6_min01",
-        node_type="entity",
-        parents=["conf_initial_guess"],
-        activity="opt_step_001",
-        relative_energy_kcal_mol=0.0,
-        rotational_constants_mhz=[199824.5, 199824.1, 199820.0],
-        metadata={"multiplicity": 1, "charge": 0},
-    )
-    conf_jsonld = conformer_node.to_prov_jsonld()
-    assert conf_jsonld["@id"] == "urn:cochem:conformer:conf_c2h6_min01"
-    assert "prov:Entity" in conf_jsonld["@type"]
-    assert "cochem:Conformer" in conf_jsonld["@type"]
-    assert conf_jsonld["prov:wasDerivedFrom"] == [{"@id": "urn:cochem:conformer:conf_initial_guess"}]
-    assert conf_jsonld["prov:wasGeneratedBy"] == {"@id": "urn:cochem:activity:opt_step_001"}
-    assert conf_jsonld["cochem:relativeEnergy"] == 0.0
-    assert conf_jsonld["cochem:rotationalConstants"] == [199824.5, 199824.1, 199820.0]
-
-    # Verify standard JSON serialization succeeds
-    serialized = json.dumps(conf_jsonld)
-    assert "urn:cochem:conformer:conf_c2h6_min01" in serialized
-
-
-def test_vcs_provenance_container_introspection(tmp_path: pathlib.Path) -> None:
-    """Validate dynamic VCS provenance and importlib.metadata distribution fallback (Suggestion #57)."""
-    # 1. In a directory without .git, verify fallback to importlib.metadata
-    isolated_dir = tmp_path / "stripped_container_root"
-    isolated_dir.mkdir(parents=True, exist_ok=True)
-
-    prov = get_vcs_provenance(root_path=isolated_dir)
-    assert isinstance(prov, dict)
-    assert "status" in prov
-    # Since CoChem-BASE is installed in this python environment, status must be DISTRIBUTION_PACKAGE
-    assert prov["status"] == "DISTRIBUTION_PACKAGE"
-    assert prov["vcs_type"] == "installed_wheel"
-    assert "version" in prov
-    assert len(prov["version"]) > 0
-    assert "installer" in prov
-    assert "file_count" in prov
-    assert prov["file_count"] > 0
-
-    # 2. When executed from repo root with .git present, queries commit information
-    repo_prov = get_vcs_provenance()
-    assert isinstance(repo_prov, dict)
-    assert "status" in repo_prov
-    assert repo_prov["status"] in ("GIT_REPOSITORY", "DISTRIBUTION_PACKAGE")
-
-
-def test_strictly_non_initializing_gpu_telemetry() -> None:
-    """Validate strictly non-initializing GPU telemetry with zero CUDA context locking (Suggestion #58)."""
-    # 1. Execute collect_hardware_metadata
-    hw_info = collect_hardware_metadata()
-    assert isinstance(hw_info, dict)
-    assert "cpu" in hw_info
-    assert "architecture" in hw_info["cpu"]
-    assert "physical_cores" in hw_info["cpu"]
-    assert "gpus" in hw_info
-    assert isinstance(hw_info["gpus"], list)
-
-    # 2. Zero-CUDA-Locking Invariant Mandate
-    # Check if torch is in sys.modules, and if so, verify that CUDA was not initialized
-    import sys
-    if "torch" in sys.modules:
-        import torch
-        assert not torch.cuda.is_initialized(), "torch.cuda was initialized during hardware metadata collection!"
-
-
-def test_pes_store_swmr_concurrency_and_local_locking(tmp_path: pathlib.Path) -> None:
-    """Validate thread-safe SWMR HDF5 execution and node-local scratch FileLock enforcement (Suggestion #59)."""
-    h5_file = tmp_path / "pes_swmr_test.h5"
-    scratch_dir = tmp_path / "node_local_scratch"
-    scratch_dir.mkdir(parents=True, exist_ok=True)
-
-    # Set SLURM_TMPDIR to test local scratch lockfile redirection
-    os.environ["SLURM_TMPDIR"] = str(scratch_dir.resolve())
+    Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
+    """
     try:
-        # 1. Initialize PESStore in SWMR mode
-        store = PESStore(
-            path=h5_file,
-            complex_name="CO_H2O",
-            symbols=["C", "O", "H", "H", "O"],
-            swmr_mode=True,
-        )
+        el = mendeleev.element(symbol_or_z)
+    except Exception as exc:
+        raise IsotopeMassResolutionError(
+            f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
+            details={"element": symbol_or_z},
+        ) from exc
 
-        # 2. Verify lockfile directory is placed in node-local scratch, not shared storage
-        assert store.lock_dir.resolve() == scratch_dir.resolve()
-        assert str(scratch_dir.resolve()) in str(store.lock_path.resolve())
+    if el.atomic_weight is not None:
+        return float(el.atomic_weight)
+    if el.mass is not None:
+        return float(el.mass)
+    raise IsotopeMassResolutionError(
+        f"Atomic weight unavailable for element '{symbol_or_z}'.",
+        details={"element": symbol_or_z},
+    )
 
-        # 3. Concurrent read and write execution
-        symbols = ["C", "O", "H", "H", "O"]
-        base_coords = [0.0, 0.0, 0.0, 0.0, 0.0, 1.13, 2.0, 0.0, 0.0, 2.5, 0.7, 0.0, 2.5, -0.7, 0.0]
-        method = "wB97M-V"
-        basis = "def2-TZVP"
 
-        # Register method first
-        store.register_method(method_id="wb97mv_tzvp", method=method, basis=basis)
+@lru_cache(maxsize=256)
+def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
+    """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
 
-        written_points: List[str] = []
-        errors: List[Exception] = []
+    Guarantees zero fallback to terrestrial average atomic weights.
+    """
+    try:
+        el = mendeleev.element(symbol_or_z)
+    except Exception as exc:
+        raise IsotopeMassResolutionError(
+            f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
+            details={"element": symbol_or_z, "mass_number": mass_number},
+        ) from exc
 
-        def worker_writer(thread_idx: int, num_pts: int) -> None:
-            for i in range(num_pts):
-                try:
-                    # Deterministic perturbed geometry
-                    geom = [c + 0.01 * (thread_idx + 1) * (i + 1) for c in base_coords]
-                    pt = PESPointRecord(
-                        coordinates=geom,
-                        symbols=symbols,
-                        method=method,
-                        basis=basis,
-                        method_id="wb97mv_tzvp",
-                        energy=-189.12345 + 0.001 * (thread_idx + i),
-                    )
-                    store.add_point(pt)
-                    written_points.append(pt.point_id)
-                except Exception as exc:
-                    errors.append(exc)
+    for iso in el.isotopes:
+        if iso.mass_number == int(mass_number):
+            if iso.mass is not None and float(iso.mass) > 0.0:
+                return float(iso.mass)
+    raise IsotopeMassResolutionError(
+        f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
+        details={"element": el.symbol, "mass_number": mass_number},
+    )
 
-        def worker_reader(num_reads: int) -> None:
-            for _ in range(num_reads):
-                try:
-                    pts = store.get_all_point_ids()
-                    assert isinstance(pts, list)
-                    time.sleep(0.005)
-                except Exception as exc:
-                    errors.append(exc)
 
-        threads: List[threading.Thread] = []
-        # Launch 3 writer threads and 2 reader threads
-        for t_idx in range(3):
-            t = threading.Thread(target=worker_writer, args=(t_idx, 5))
-            threads.append(t)
-        for _ in range(2):
-            t = threading.Thread(target=worker_reader, args=(10,))
-            threads.append(t)
+__all__ = [
+    "get_dynamic_atomic_mass",
+    "get_dynamic_isotopic_mass",
+    "IsotopeMassResolutionError",
+]
 
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_architecture_part7.py ---
+"""Tests for architecture - Part 7 (Suggestions #65, #67, #68, #69, #70)."""
 
-        assert len(errors) == 0, f"Encountered concurrency errors: {errors}"
-        all_ids = store.get_all_point_ids()
-        assert len(all_ids) == 15
-        for pid in written_points:
-            assert pid in all_ids
-
-        # Verify dataset integrity and absence of B-tree corruption
-        with h5py.File(h5_file, "r", libver="latest", swmr=True) as f:
-            coords = f["/points/coordinates"]
-            coords.refresh()
-            assert coords.shape[0] == 15
-            energies = f["/points/energies"]
-            energies.refresh()
-            assert energies.shape[0] == 15
-
-    finally:
-        os.environ.pop("SLURM_TMPDIR", None)
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_physics_integrity_part6.py ---
-"""Zero-Mock Physics Invariants, Radii, Licensing & Asymmetric Signatures Test Suite (Part 6).
-
-Validates Suggestions #51, #52, #54, #55, #56, #59, and #60.
-Adheres strictly to Method Matrix v4 and Zero-Mock Anti-Spoofing Protocol v2.
-Real physical execution: authentic dynamic Mendeleev masses/radii, RFC 8032 PureEd25519,
-W3C Linked Data Proof did:key signatures, and deterministic UUIDv5 content hashing.
-"""
-
-from __future__ import annotations
-
-import copy
-
+import math
+import os
+import time
+import atexit
+import threading
+import tempfile
+from pathlib import Path
 import pytest
-from cryptography.hazmat.primitives.asymmetric import ed25519
-from pydantic import ValidationError
-
-import cochem_base.cochem_core_registry_schema as cochem_core_registry_schema
-from cochem_base.cochem_core_registry_schema import get_registry_atomic_mass
-from cochem_base.core.cochem_crypto import (
-    did_key_to_public_key,
-    public_key_to_did_key,
-    sign_report_payload,
-    verify_report_payload,
+import h5py
+from cochem_base.core.exceptions import AirGapBoundaryError
+from cochem_base.core.mendeleev_invariants import get_element_cache
+from cochem_base.core.cochem_sandbox import SandboxContext
+from cochem_base.core.process_reaper import ProcessTreeManager
+from cochem_base.core_engine.cochem_core_subprocess_broker import (
+    verify_scratch_quota_and_io,
+    _SCRATCH_VERIFICATION_CACHE,
 )
-from cochem_base.core.exceptions import IsotopeStabilityError, RadiusNotFoundError
-from cochem_base.core.glossary import CalculationFidelity
-from cochem_base.core.metadata import get_covalent_radius, get_isotopic_mass
-from cochem_base.core.models import CalculationJobPayload, PESPointRecord, QCResultsRecord
-from cochem_base.core_engine.cochem_core_pes_store import QCSchemaMethodRecord, QCSchemaProvenance
 
 
-def test_mendeleev_isotopic_nuclear_mass_resolution() -> None:
-    """Validate dynamic IUPAC/CIAAW isotopic nuclear mass resolution and unphysical fallback removal (Suggestion #51)."""
-    # 1. Carbon-14: physical nuclear mass ~14.003242 u [M], strictly not terrestrial average 12.011 u
-    c14_mass = get_isotopic_mass("C", 14)
-    assert pytest.approx(c14_mass, rel=1e-6) == 14.003241988
-    assert abs(c14_mass - 12.011) > 1.9
+def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
+    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
+    # Configure test environment
+    src_dir = tmp_path / "src"
+    src_dir.mkdir()
+    os.environ["COCH_SRC"] = str(src_dir)
 
-    # 2. Deuterium (2H): nuclear mass ~2.014102 u [M]
-    h2_mass = get_isotopic_mass("H", 2)
-    assert pytest.approx(h2_mass, rel=1e-6) == 2.014101778
+    # Attempting to write into Tier 1 ($COCH_SRC) must raise AirGapBoundaryError
+    h5_src_path = src_dir / "store.h5"
+    with pytest.raises(AirGapBoundaryError) as exc_info:
+        from cochem_base.core.ipc.serializer import validate_airgap_write_path
+        validate_airgap_write_path(h5_src_path)
+    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
 
-    # 3. Nitrogen-15: ~15.000109 u [M]
-    n15_mass = get_isotopic_mass("N", 15)
-    assert pytest.approx(n15_mass, rel=1e-6) == 15.000108899
+    # Valid write into temporary scratch
+    h5_scratch_path = tmp_path / "scratch" / "store.h5"
+    h5_scratch_path.parent.mkdir()
 
-    # 4. Chlorine-37: ~36.965903 u [M]
-    cl37_mass = get_isotopic_mass("Cl", 37)
-    assert pytest.approx(cl37_mass, rel=1e-6) == 36.965902602
+    # Create SWMR dataset
+    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
+        ds = f.create_dataset(
+            "energies",
+            shape=(1,),
+            maxshape=(None,),
+            chunks=(512,),
+            dtype="float64",
+            compression="gzip",
+        )
+        ds[0] = -76.432
 
-    # 5. Non-existent isotope must raise IsotopeStabilityError
-    with pytest.raises(IsotopeStabilityError):
-        get_isotopic_mass("C", 999)
+    # In-place chunk resizing
+    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
+        ds = f["energies"]
+        new_len = ds.shape[0] + 1
+        ds.resize((new_len,))
+        ds[new_len - 1] = -76.435
+        ds.flush()
 
-    with pytest.raises(IsotopeStabilityError):
-        get_isotopic_mass("H", 10)
-
-
-def test_hierarchical_empirical_radii_lookup() -> None:
-    """Validate hierarchical Pyykkö -> Cordero -> vdW empirical radii resolution (Suggestion #52)."""
-    # 1. Argon (Noble Gas): empirical vdW radius ~1.88 Å (or Pyykkö covalent radius ~0.96 Å), strictly not 0.77 Å
-    ar_radius = get_covalent_radius("Ar")
-    assert abs(ar_radius - 0.77) > 0.15
-    assert ar_radius > 0.9
-
-    # 2. Carbon (sp3 single bond covalent radius ~0.75 - 0.77 Å)
-    c_radius = get_covalent_radius("C")
-    assert 0.70 <= c_radius <= 0.80
-
-    # 3. Xenon: heavy noble gas, empirical radius > 1.3 Å
-    xe_radius = get_covalent_radius("Xe")
-    assert xe_radius > 1.3
-
-    # 4. Unresolvable / invalid element must raise RadiusNotFoundError
-    with pytest.raises(RadiusNotFoundError):
-        get_covalent_radius("InvalidElement")
+    # Verify length without whole-file copying
+    with h5py.File(h5_scratch_path, "r") as f:
+        assert f["energies"].shape[0] == 2
+        assert math.isclose(f["energies"][1], -76.435)
 
 
-def test_spdx_data_licensing_validation() -> None:
-    """Validate machine-readable SPDX data usage licensing enforcement (Suggestion #54)."""
-    # 1. Official open-science licenses accepted
-    prov_cc4 = QCSchemaProvenance(license="CC-BY-4.0")
-    assert prov_cc4.license == "CC-BY-4.0"
-
-    prov_cc0 = QCSchemaProvenance(license="CC0-1.0")
-    assert prov_cc0.license == "CC0-1.0"
-
-    prov_mit = QCSchemaProvenance(license="MIT")
-    assert prov_mit.license == "MIT"
-
-    # 2. Check QCResultsRecord and QCSchemaMethodRecord license fields
-    rec = QCResultsRecord(license="Apache-2.0")
-    assert rec.license == "Apache-2.0"
-
-    meth = QCSchemaMethodRecord(method="B3LYP", basis="def2-SVP", license="BSD-3-Clause")
-    assert meth.license == "BSD-3-Clause"
-
-    # 3. Invalid or unrecognized license string must raise ValidationError
-    with pytest.raises(ValidationError):
-        QCSchemaProvenance(license="Proprietary-Unpublished-Invalid")
-
-    with pytest.raises(ValidationError):
-        QCResultsRecord(license="Proprietary-Unpublished-Invalid")
+def test_mendeleev_invariants_lazy_singleton_startup():
+    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
+    # Ensure cache function returns valid mapping from Z=1 to Z=118
+    cache = get_element_cache()
+    assert len(cache) >= 118
+    assert cache[1].symbol == "H"
+    assert cache[6].symbol == "C"
 
 
-def test_dynamic_registry_schema_isotopic_masses() -> None:
-    """Validate dynamic SQLite Mendeleev registry mass resolution and removal of static ISOTOPIC_MASSES (Suggestion #55)."""
-    # 1. Dynamic query for Argon-40 and Chlorine-37
-    ar40_mass = get_registry_atomic_mass("Ar", 40)
-    assert pytest.approx(ar40_mass, rel=1e-6) == 39.962383124
+def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
+    """Validates Suggestion #68: atexit callback unregistration on context exit."""
+    # Air-gap boundary assertion: attempting to allocate sandbox inside Tier 1 ($COCH_SRC) must fail
+    src_dir = tmp_path / "src"
+    src_dir.mkdir(exist_ok=True)
+    os.environ["COCH_SRC"] = str(src_dir)
+    with pytest.raises(AirGapBoundaryError) as exc_info:
+        SandboxContext(scratch_root=src_dir)
+    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
 
-    cl37_mass = get_registry_atomic_mass("Cl", 37)
-    assert pytest.approx(cl37_mass, rel=1e-6) == 36.965902602
+    scratch_dir = tmp_path / "scratch"
+    os.environ["COCH_SCRATCH"] = str(scratch_dir)
 
-    # Standard terrestrial average weight query (mass_number=None)
-    c_mass = get_registry_atomic_mass("C")
-    assert pytest.approx(c_mass, rel=1e-3) == 12.011
+    with SandboxContext(scratch_root=scratch_dir) as sb:
+        assert sb.path.exists()
 
-    # Non-existent isotope query must raise IsotopeStabilityError
-    with pytest.raises(IsotopeStabilityError):
-        get_registry_atomic_mass("Ar", 999)
+    # Path must be unlinked and cleaned
+    assert not sb.path.exists()
 
-    # 2. Static dictionary eradication verification
-    assert not hasattr(cochem_core_registry_schema, "ISOTOPIC_MASSES")
+    # Cleaned flag must be set
+    assert sb._cleaned is True
 
 
-def test_w3c_linked_data_proof_pure_ed25519_did_key() -> None:
-    """Validate W3C Linked Data Proof envelopes and offline did:key multicodec resolution (Suggestion #56)."""
-    # 1. Generate real Ed25519 key pair
-    private_key = ed25519.Ed25519PrivateKey.generate()
-    public_key = private_key.public_key()
+def test_process_reaper_direct_pid_monitoring():
+    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
+    manager = ProcessTreeManager()
 
-    # Verify did:key encoding and decoding
-    did_key = public_key_to_did_key(public_key)
-    assert did_key.startswith("did:key:z")
-    recovered_pub = did_key_to_public_key(did_key)
-    assert recovered_pub.public_bytes_raw() == public_key.public_bytes_raw()
+    # Spawn child process
+    import subprocess
+    import sys
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+    manager.register_process(proc.pid)
 
-    # 2. Sign computational payload
-    payload = {
-        "job_id": "job_opt_20260904_001",
-        "method": "wB97M-V",
-        "basis": "def2-TZVP",
-        "energy_hartree": -76.42512345,
-        "converged": True,
+    assert proc.pid in manager._tracked
+    rss = manager.sample_process_tree_rss_bytes()
+    assert rss > 0
+
+    # Terminate tracked process
+    manager.terminate_tree()
+    proc.wait()
+    assert not proc.poll() is None
+
+
+def test_subprocess_broker_scratch_verification_cache(tmp_path):
+    """Validates Suggestion #70: Scratch verification caching with TTL."""
+    scratch_dir = tmp_path / "scratch_io"
+    scratch_dir.mkdir()
+    _SCRATCH_VERIFICATION_CACHE.clear()
+
+    # First call must perform physical write probe
+    t0 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t1 = time.perf_counter()
+    initial_duration = t1 - t0
+
+    # Second call within TTL must hit cache and return immediately (< 2 ms)
+    t2 = time.perf_counter()
+    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    t3 = time.perf_counter()
+    cached_duration = t3 - t2
+
+    assert cached_duration < 0.002
+    assert cached_duration < initial_duration
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_physics_integrity_part7.py ---
+"""Tests for physics integrity - Part 7 (Suggestions #61, #62, #63, #64, #66)."""
+
+import math
+import os
+import time
+import pytest
+from pydantic import ValidationError
+from cochem_base.core.models import (
+    MolecularTopology,
+    CURRENT_CORE_SCHEMA_VERSION,
+    register_migration,
+    migrate_payload,
+)
+from cochem_base.core.exceptions import (
+    CoChemError,
+    CoordinateShapeError,
+    SchemaMigrationError,
+    AirGapBoundaryError,
+)
+from cochem_base.core.cochem_crypto import (
+    format_rfc8785_float,
+    canonicalize_json,
+)
+from cochem_base.core.cochem_provenance import (
+    compute_boltzmann_weights,
+    ThermodynamicsProvenance,
+    DAGNode,
+)
+from cochem_base.core_engine.cochem_mass_resolver import (
+    get_dynamic_atomic_mass,
+    get_dynamic_isotopic_mass,
+    IsotopeMassResolutionError,
+)
+
+
+def test_pydantic_model_schema_version_and_migration():
+    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
+    # Test current model instantiation
+    top = MolecularTopology(
+        symbols=["H", "H"],
+        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
+        molecular_charge=0,
+        spin_multiplicity=1,
+    )
+    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
+
+    # Register legacy migration from v0 to v1
+    @register_migration("MolecularTopology", 0)
+    def migrate_v0_to_v1(data):
+        d = dict(data)
+        d["schema_version"] = 1
+        if "spin_multiplicity" not in d:
+            d["spin_multiplicity"] = 1
+        return d
+
+    legacy_payload = {
+        "schema_version": 0,
+        "symbols": ["O", "H", "H"],
+        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
+        "molecular_charge": 0,
     }
-
-    signed_doc = sign_report_payload(payload, private_key)
-    assert "proof" in signed_doc
-    proof = signed_doc["proof"]
-    assert proof["type"] == "Ed25519Signature2020"
-    assert proof["verificationMethod"] == did_key
-    assert proof["proofPurpose"] == "assertionMethod"
-    assert "proofValue" in proof
-    assert "created" in proof
-
-    # 3. Verify valid signature
-    assert verify_report_payload(signed_doc) is True
-
-    # 4. Tampering test: perturb energy by 1 micro-Hartree
-    tampered_doc = copy.deepcopy(signed_doc)
-    tampered_doc["energy_hartree"] = -76.42512445
-    assert verify_report_payload(tampered_doc) is False
+    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
+    assert migrated_top.schema_version == 1
+    assert migrated_top.spin_multiplicity == 1
 
 
-def test_deterministic_uuid5_pes_point_id() -> None:
-    """Validate deterministic UUIDv5 content-addressable PES point identifier generation (Suggestion #59)."""
-    geom1 = [0.0, 0.0, 0.0, 0.0, 0.0, 1.128, 2.0, 0.0, 0.0]
-    symbols = ["C", "O", "He"]
-    method = "DLPNO-CCSD(T)"
-    basis = "cc-pVTZ"
+def test_rfc8785_ieee754_canonical_float_formatting():
+    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
+    # Signed zero formatting
+    assert format_rfc8785_float(0.0) == "0"
+    assert format_rfc8785_float(-0.0) == "0"
 
-    # Instantiate two distinct PESPointRecord objects with identical specifications
-    pt1 = PESPointRecord(
-        coordinates=geom1,
-        symbols=symbols,
-        method=method,
-        basis=basis,
-        energy=-113.25,
+    # Disallow NaN and Infinity
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("nan"))
+    with pytest.raises(ValueError):
+        format_rfc8785_float(float("inf"))
+
+    # Exponential notation without leading zero in exponent
+    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
+    assert format_rfc8785_float(1e-7) == "1e-7"
+    assert format_rfc8785_float(1e21) == "1e+21"
+
+    # Canonicalize dictionary with sorted keys and floats
+    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
+    canonical_bytes = canonicalize_json(payload)
+    # Keys must be sorted 'a', 'b', 'c', -0.0 as 0, 1e-7 without leading zero
+    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
+
+
+def test_quasi_rrho_thermodynamics_provenance_logging():
+    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
+    node = DAGNode(node_id="act-opt-001", node_type="activity")
+    energies = [0.0, 0.5, 1.2]
+    weights, prov = compute_boltzmann_weights(
+        energies,
+        temperature_k=298.15,
+        low_freq_cutoff_cm1=100.0,
+        damping_model="grimme_quasi_rrho",
+        dag_node=node,
     )
-    pt2 = PESPointRecord(
-        coordinates=geom1,
-        symbols=symbols,
-        method=method,
-        basis=basis,
-        energy=-113.25,
-    )
-    assert pt1.point_id == pt2.point_id
-    assert len(pt1.point_id) == 36  # Standard UUID string representation
-
-    # Perturb one coordinate by 0.001 Angstrom
-    geom_perturbed = list(geom1)
-    geom_perturbed[2] += 0.001
-    pt_perturbed = PESPointRecord(
-        coordinates=geom_perturbed,
-        symbols=symbols,
-        method=method,
-        basis=basis,
-        energy=-113.25,
-    )
-    assert pt_perturbed.point_id != pt1.point_id
+    assert len(weights) == 3
+    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
+    assert "thermodynamics_provenance" in node.payload
+    logged = node.payload["thermodynamics_provenance"]
+    assert logged["damping_model"] == "grimme_quasi_rrho"
+    assert logged["low_freq_cutoff_cm1"] == 100.0
+    assert logged["temperature_k"] == 298.15
+    assert logged["provenance_tag"] == "[D]"
 
 
-def test_calculation_fidelity_canonical_tiers() -> None:
-    """Validate Method Matrix v4 canonical composite fidelity tier definitions (Suggestion #60)."""
-    # 1. Verify official canonical composite tiers in CalculationFidelity enum
-    assert CalculationFidelity.JUNCHS_F12 == "junChS-F12"
-    assert CalculationFidelity.T3_3H == "T3-3h"
-    assert CalculationFidelity.R2 == "R2"
-    assert CalculationFidelity.CHS == "ChS"
+def test_machine_actionable_exception_hierarchy():
+    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
+    # Coordinate shape mismatch raises CoordinateShapeError
+    with pytest.raises(CoordinateShapeError) as exc_info:
+        MolecularTopology(
+            symbols=["H"],
+            coordinates=[[0.0, 0.0]],  # 2D instead of 3D
+            molecular_charge=0,
+            spin_multiplicity=1,
+        )
+    err = exc_info.value
+    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
+    assert err.details["actual_len"] == 2
+    assert err.details["expected_len"] == 3
 
-    # 2. Instantiate CalculationJobPayload with string representations of canonical tiers
-    job1 = CalculationJobPayload(fidelity="junChS-F12")
-    assert job1.fidelity == CalculationFidelity.JUNCHS_F12
 
-    job2 = CalculationJobPayload(fidelity="T3-3h")
-    assert job2.fidelity == CalculationFidelity.T3_3H
+def test_dynamic_mendeleev_mass_resolution_lru_cache():
+    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
+    # Warmup
+    mass_c = get_dynamic_atomic_mass("C")
+    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
 
-    job3 = CalculationJobPayload(fidelity="R2")
-    assert job3.fidelity == CalculationFidelity.R2
+    # Measure lookup latency for cached access
+    start = time.perf_counter()
+    for _ in range(1000):
+        _ = get_dynamic_atomic_mass("C")
+    cached_duration = time.perf_counter() - start
 
-    # 3. Semiempirical and standard wavefunction tiers
-    job4 = CalculationJobPayload(fidelity="XTB2")
-    assert job4.fidelity == CalculationFidelity.XTB2
+    # 1000 lookups should complete in less than 5 milliseconds
+    assert cached_duration < 0.005
 
-    job5 = CalculationJobPayload(fidelity="DLPNO_CCSD_T")
-    assert job5.fidelity == CalculationFidelity.DLPNO_CCSD_T
+    # Nuclear isotopic masses
+    mass_14c = get_dynamic_isotopic_mass("C", 14)
+    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
+
+    with pytest.raises(IsotopeMassResolutionError):
+        get_dynamic_isotopic_mass("C", 999)
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

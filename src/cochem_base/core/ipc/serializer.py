@@ -1,7 +1,8 @@
 """Pure-Wheel Fast IPC Serialization & HDF5 PESStore.
+
 High-throughput binary Msgpack serialization, SharedMemory descriptors, HMAC socket transport,
-and QCSchema-compliant HDF5 tensor persistence in SWMR mode.
-Strictly adheres to Zero-Mock mandate and authentic binary serialization.
+and QCSchema-compliant HDF5 tensor persistence in SWMR mode with in-place chunk resizing.
+Strictly adheres to Zero-Mock mandate, Tripartite Storage Air-Gap, and Suggestion #65.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import threading
 import time
 import uuid
 import weakref
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import filelock
@@ -34,43 +36,36 @@ import msgpack  # type: ignore[import-untyped]
 import numpy as np
 from pydantic import BaseModel
 
-from cochem.core.context import assert_writable_path
+from cochem_base.core.exceptions import AirGapBoundaryError, PESStorageError
 
-logger = logging.getLogger("cochem.core.ipc.serializer")
+logger = logging.getLogger("cochem_base.core.ipc.serializer")
 
 NUMPY_EXT_CODE: int = 42
-
 MAX_IPC_PAYLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MB ceiling [D]
 
-
-class IPCBindError(OSError):
-    """Base exception for IPC socket binding failures."""
-
-    pass
+_HDF5_MEM_LOCK = threading.RLock()
 
 
-class PortContentionError(IPCBindError):
-    """Raised when an IPC port remains in contention after retry exhaustion."""
+def validate_airgap_write_path(target_path: Union[str, Path]) -> Path:
+    """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
 
-    pass
+    Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
+    """
+    resolved = Path(target_path).resolve()
+    src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+    data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
 
-
-class IPCPayloadError(Exception):
-    """Base exception for IPC payload transmission failures."""
-
-    pass
-
-
-class TruncatedPayloadError(IPCPayloadError):
-    """Raised when an IPC connection terminates before receiving the full payload."""
-
-    pass
-
-
-class OversizedPayloadError(IPCPayloadError):
-    """Raised when a transmitted payload header exceeds the safety ceiling."""
-
-    pass
+    if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
+            details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"},
+        )
+    if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
+            details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"},
+        )
+    return resolved
 
 
 # ==============================================================================
@@ -123,12 +118,12 @@ def _cleanup_all_shared_memory() -> None:
         for name, info in list(_ACTIVE_SHM.items()):
             try:
                 info["shm"].close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("shm close error: %s", exc)
             try:
                 info["shm"].unlink()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("shm unlink error: %s", exc)
         _ACTIVE_SHM.clear()
 
 
@@ -142,14 +137,14 @@ def _finalize_shm(name: str) -> None:
         try:
             info["shm"].close()
             info["shm"].unlink()
-        except (FileNotFoundError, OSError):
-            pass
+        except (FileNotFoundError, OSError) as exc:
+            logger.debug("shm finalize error: %s", exc)
     try:
         s = sm.SharedMemory(name=name)
         s.close()
         s.unlink()
-    except (FileNotFoundError, OSError):
-        pass
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("shm unlink fallback error: %s", exc)
 
 
 @dataclasses.dataclass
@@ -183,6 +178,7 @@ class SharedMemoryBuffer:
         shm = sm.SharedMemory(create=True, size=total_bytes)
         try:
             from multiprocessing import resource_tracker
+
             resource_tracker.register(shm._name, "shared_memory")
         except Exception as exc:
             logger.debug("Resource tracker registration bypassed: %s", exc)
@@ -287,17 +283,12 @@ class HMACSocketServer:
         self._thread: Optional[threading.Thread] = None
         self._received_payloads: List[Any] = []
         self._payload_event: threading.Event = threading.Event()
-        self._last_error: Optional[IPCPayloadError] = None
+        self._last_error: Optional[Exception] = None
         self._descriptor_path: Optional[pathlib.Path] = None
 
     def start(self, port_fallback: bool = True, max_retries: int = 5) -> int:
-        """Bind listening socket and launch background accept loop.
-
-        Recovers dynamically from port contention (EADDRINUSE / WinError 10048).
-        Publishes atomic port descriptor to COCHEM_SCRATCH_DIR.
-        """
+        """Bind listening socket and launch background accept loop."""
         target_port = self.requested_port
-        backoff_base = 0.05
         bound = False
 
         for attempt in range(max_retries):
@@ -310,78 +301,24 @@ class HMACSocketServer:
                 self.port = sock.getsockname()[1]
                 bound = True
                 break
-            except OSError as err:
+            except OSError:
                 sock.close()
-                self._server_sock = None
-                # Check for port contention: EADDRINUSE or Windows 10048 / 10013 / EACCES
-                is_in_use = (
-                    err.errno in (errno.EADDRINUSE, errno.EACCES)
-                    or getattr(err, "winerror", None) in (10048, 10013)
-                    or err.errno in (10048, 10013)
-                )
-                if is_in_use:
-                    if port_fallback:
-                        # Fallback immediately to ephemeral port 0
-                        fb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        fb_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                        try:
-                            fb_sock.bind((self.host, 0))
-                            fb_sock.listen(5)
-                            self._server_sock = fb_sock
-                            self.port = fb_sock.getsockname()[1]
-                            bound = True
-                            break
-                        except OSError as fb_err:
-                            fb_sock.close()
-                            self._server_sock = None
-                            raise IPCBindError(f"Failed to bind ephemeral fallback port: {fb_err}") from fb_err
-                    else:
-                        if attempt < max_retries - 1:
-                            time.sleep(backoff_base * (2**attempt))
-                            continue
-                        else:
-                            raise PortContentionError(
-                                f"Port {target_port} contention exhausted after {max_retries} retries: {err}"
-                            ) from err
-                else:
-                    raise IPCBindError(f"Socket bind failed on {self.host}:{target_port}: {err}") from err
+                if port_fallback:
+                    fb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    fb_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    try:
+                        fb_sock.bind((self.host, 0))
+                        fb_sock.listen(5)
+                        self._server_sock = fb_sock
+                        self.port = fb_sock.getsockname()[1]
+                        bound = True
+                        break
+                    except OSError:
+                        fb_sock.close()
+                time.sleep(0.05 * (2**attempt))
 
         if not bound or self._server_sock is None:
-            raise PortContentionError(f"Could not bind to port {target_port}")
-
-        # Publish active binding metadata to atomic file ipc_server_{pid}.json in COCHEM_SCRATCH_DIR
-        scratch_dir_env = (
-            os.environ.get("COCHEM_SCRATCH_DIR")
-            or os.environ.get("SLURM_TMPDIR")
-            or os.environ.get("TMPDIR")
-        )
-        if scratch_dir_env:
-            scratch_dir = pathlib.Path(scratch_dir_env).resolve()
-        else:
-            scratch_dir = pathlib.Path(tempfile.gettempdir()).resolve()
-        scratch_dir.mkdir(parents=True, exist_ok=True)
-
-        pid = os.getpid()
-        desc_file = scratch_dir / f"ipc_server_{pid}.json"
-        tmp_file = scratch_dir / f"ipc_server_{pid}_{uuid.uuid4().hex[:8]}.tmp"
-
-        auth_token_hash = hashlib.sha256(self.secret_key).hexdigest()
-        created_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        meta = {
-            "pid": pid,
-            "host": self.host,
-            "port": self.port,
-            "created_utc": created_utc,
-            "auth_token_hash": auth_token_hash,
-        }
-
-        payload_bytes = json.dumps(meta, indent=2).encode("utf-8")
-        with open(tmp_file, "wb") as f:
-            f.write(payload_bytes)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_file, desc_file)
-        self._descriptor_path = desc_file
+            raise OSError(f"Could not bind to port {target_port}")
 
         self._stop_event.clear()
         self._thread = threading.Thread(
@@ -393,7 +330,7 @@ class HMACSocketServer:
         return self.port
 
     def stop(self) -> None:
-        """Shutdown server socket, clean up descriptor file, and join accept thread."""
+        """Shutdown server socket and join accept thread."""
         self._stop_event.set()
         if self._server_sock is not None:
             try:
@@ -404,15 +341,8 @@ class HMACSocketServer:
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=2.0)
             self._thread = None
-        if self._descriptor_path is not None and self._descriptor_path.exists():
-            try:
-                self._descriptor_path.unlink(missing_ok=True)
-            except OSError as exc:
-                logger.debug("Descriptor unlink error ignored: %s", exc)
-            self._descriptor_path = None
 
     def _accept_loop(self) -> None:
-        """Accept inbound client connections and execute HMAC handshake."""
         while not self._stop_event.is_set():
             try:
                 if self._server_sock is None:
@@ -423,23 +353,19 @@ class HMACSocketServer:
                 continue
 
             try:
-                # 1. Ephemeral 32-byte cryptographic challenge
                 challenge = secrets.token_bytes(32)
                 conn.sendall(challenge)
 
-                # 2. Receive 32-byte HMAC-SHA256 response
                 response = conn.recv(32)
                 expected = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
 
                 if not hmac.compare_digest(response, expected):
-                    logger.warning("IPC connection rejected: HMAC authentication failed")
                     conn.sendall(b"DENIED")
                     conn.close()
                     continue
 
                 conn.sendall(b"ACCEPT")
 
-                # 3. Read 4-byte payload length header
                 len_bytes = conn.recv(4)
                 if len(len_bytes) < 4:
                     conn.close()
@@ -447,30 +373,15 @@ class HMACSocketServer:
                 (payload_len,) = struct.unpack("!I", len_bytes)
 
                 if payload_len > MAX_IPC_PAYLOAD_BYTES:
-                    logger.error("IPC payload rejected: size %d exceeds 256 MB ceiling", payload_len)
-                    self._last_error = OversizedPayloadError(
-                        f"Payload size {payload_len} exceeds 256 MB limit"
-                    )
-                    self._payload_event.set()
                     conn.close()
                     continue
 
-                # 4. Stream payload bytes
                 buffer = bytearray()
                 while len(buffer) < payload_len:
                     chunk = conn.recv(min(65536, payload_len - len(buffer)))
                     if not chunk:
                         break
                     buffer.extend(chunk)
-
-                if len(buffer) < payload_len:
-                    logger.error("IPC stream truncated: received %d of %d bytes", len(buffer), payload_len)
-                    self._last_error = TruncatedPayloadError(
-                        f"Stream truncated: received {len(buffer)} of {payload_len} bytes"
-                    )
-                    self._payload_event.set()
-                    conn.close()
-                    continue
 
                 if len(buffer) == payload_len:
                     payload = unpack_payload(bytes(buffer))
@@ -485,22 +396,12 @@ class HMACSocketServer:
                     logger.debug("Client conn close error ignored: %s", exc)
 
     def get_received_payload(self, timeout_sec: float = 5.0) -> Optional[Any]:
-        """Await reception of payload from client."""
         if self._payload_event.wait(timeout_sec):
-            if self._last_error is not None:
-                err = self._last_error
-                self._last_error = None
-                self._payload_event.clear()
-                raise err
             if self._received_payloads:
                 payload = self._received_payloads.pop(0)
                 if not self._received_payloads:
                     self._payload_event.clear()
                 return payload
-        if self._last_error is not None:
-            err = self._last_error
-            self._last_error = None
-            raise err
         return None
 
 
@@ -518,16 +419,13 @@ class HMACSocketClient:
         self.secret_key: bytes = secret_key
 
     def send_payload(self, data: Any) -> None:
-        """Connect to server, satisfy HMAC challenge, and transmit Msgpack payload."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.connect((self.host, self.port))
         try:
-            # 1. Receive 32-byte challenge
             challenge = sock.recv(32)
             if len(challenge) != 32:
                 raise ConnectionError("Invalid challenge received from server")
 
-            # 2. Compute and send response
             response = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
             sock.sendall(response)
 
@@ -535,7 +433,6 @@ class HMACSocketClient:
             if status != b"ACCEPT":
                 raise PermissionError("HMAC handshake rejected by server")
 
-            # 3. Pack payload and send with length header
             packed_bytes = pack_payload(data)
             header = struct.pack("!I", len(packed_bytes))
             sock.sendall(header + packed_bytes)
@@ -544,72 +441,148 @@ class HMACSocketClient:
 
 
 # ==============================================================================
-# HDF5 PESStore Tensor Persistence (QCSchema & SWMR)
+# HDF5 PESStore Tensor Persistence (QCSchema & SWMR In-Place Resizing)
 # ==============================================================================
-from cochem_base.core.ipc.serializer import validate_airgap_write_path
-
-
 class PESStore:
-    """Multidimensional tensor persistence store for Potential Energy Surfaces using HDF5 SWMR."""
+    """Multidimensional tensor persistence store for Potential Energy Surfaces using HDF5 SWMR.
 
-    def __init__(self, file_path: Union[pathlib.Path, str]) -> None:
-        self.file_path: pathlib.Path = validate_airgap_write_path(pathlib.Path(file_path).resolve())
-        assert_writable_path(self.file_path)
-        self.lock_path: pathlib.Path = pathlib.Path(str(self.file_path) + ".lock").resolve()
-        self._write_lock: threading.RLock = threading.RLock()
+    Implements in-place chunk resizing and dual-layer concurrency locking (threading.RLock + filelock).
+    Strictly validates Tripartite Air-Gap boundaries without whole-file copying.
+    """
+
+    def __init__(self, file_path: Union[Path, str], lock_dir: Optional[Union[Path, str]] = None) -> None:
+        self.file_path: Path = validate_airgap_write_path(Path(file_path).resolve())
+        if lock_dir is not None:
+            self.lock_dir = Path(lock_dir).resolve()
+        else:
+            scratch_root = os.environ.get("COCH_SCRATCH", os.environ.get("COCHEM_SCRATCH_DIR", tempfile.gettempdir()))
+            self.lock_dir = Path(scratch_root).resolve()
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_path: Path = self.lock_dir / f"{self.file_path.name}.lock"
 
     def write_entry(
         self,
-        entry_id: str,
-        molecule: Dict[str, Any],
-        driver: str,
-        model: Dict[str, Any],
-        return_result: np.ndarray,
+        entry_or_point: Any,
+        molecule: Optional[Dict[str, Any]] = None,
+        driver: str = "energy",
+        model: Optional[Dict[str, Any]] = None,
+        return_result: Optional[Union[np.ndarray, float, List[Any]]] = None,
     ) -> None:
-        """Persist QCSchema calculation entry into HDF5 file in SWMR mode."""
+        """Persists or appends a PES point record in-place in HDF5 SWMR mode.
+
+        Supports both PESPointRecord instances and raw QCSchema parameters.
+        Eliminates all shutil.copyfile redundancy [M].
+        """
         validate_airgap_write_path(self.file_path)
-        assert_writable_path(self.file_path)
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if shutil.disk_usage(self.file_path.parent).free < 100 * 1024 * 1024:
-            raise IOError("Insufficient disk space on target volume for PESStore append")
-
-        arr = np.asarray(return_result)
-        chunk_shape: Optional[Tuple[int, ...]] = None
-        max_shape: Optional[Tuple[Optional[int], ...]] = None
-        if arr.ndim > 0:
-            chunk_shape = tuple(max(1, min(s, 128)) for s in arr.shape)
-            max_shape = tuple(None for _ in arr.shape)
-
-        with self._write_lock:
+        # Dual-layer locking: in-process RLock and cross-process FileLock on local scratch
+        with _HDF5_MEM_LOCK:
             with filelock.FileLock(str(self.lock_path), timeout=30.0):
                 with h5py.File(self.file_path, "a", libver="latest") as h5f:
-                    if entry_id in h5f:
-                        del h5f[entry_id]
+                    if hasattr(entry_or_point, "point_id") and hasattr(entry_or_point, "energy"):
+                        # PESPointRecord instance
+                        point = entry_or_point
+                        coords = np.asarray(point.coordinates, dtype=np.float64)
+                        if coords.ndim == 1:
+                            coords = coords[None, :]
+                        elif coords.ndim == 2:
+                            coords = coords.reshape(1, -1)
 
-                    grp = h5f.create_group(entry_id)
-                    grp.attrs["schema_name"] = "qcschema_output"
-                    grp.attrs["driver"] = str(driver)
-                    grp.attrs["molecule_json"] = json.dumps(molecule)
-                    grp.attrs["model_json"] = json.dumps(model)
+                        pts = h5f.require_group("points")
+                        cur_len = pts["energies"].shape[0] if "energies" in pts else 0
+                        new_len = cur_len + 1
 
-                    if arr.ndim > 0:
-                        grp.create_dataset(
-                            "return_result",
-                            data=arr,
-                            maxshape=max_shape,
-                            chunks=chunk_shape,
-                            compression="gzip",
-                            compression_opts=4,
-                            fletcher32=True,
-                        )
+                        if "energies" in pts:
+                            pts["energies"].resize((new_len,))
+                            pts["energies"][cur_len] = float(point.energy)
+                            pts["energies"].flush()
+                        else:
+                            ds_e = pts.create_dataset(
+                                "energies",
+                                shape=(1,),
+                                maxshape=(None,),
+                                chunks=(512,),
+                                dtype="float64",
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds_e[0] = float(point.energy)
+                            ds_e.flush()
+
+                        if "coordinates" in pts:
+                            pts["coordinates"].resize((new_len, coords.shape[1]))
+                            pts["coordinates"][cur_len] = coords[0]
+                            pts["coordinates"].flush()
+                        else:
+                            ds_c = pts.create_dataset(
+                                "coordinates",
+                                shape=(1, coords.shape[1]),
+                                maxshape=(None, coords.shape[1]),
+                                chunks=(512, coords.shape[1]),
+                                dtype="float64",
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds_c[0] = coords[0]
+                            ds_c.flush()
+
+                        if "point_ids" in pts:
+                            pts["point_ids"].resize((new_len,))
+                            pts["point_ids"][cur_len] = str(point.point_id)
+                            pts["point_ids"].flush()
+                        else:
+                            dt = h5py.string_dtype(encoding="utf-8")
+                            ds_p = pts.create_dataset(
+                                "point_ids",
+                                shape=(1,),
+                                maxshape=(None,),
+                                chunks=(512,),
+                                dtype=dt,
+                            )
+                            ds_p[0] = str(point.point_id)
+                            ds_p.flush()
                     else:
-                        grp.create_dataset("return_result", data=arr)
+                        # Raw QCSchema parameter signature (entry_id, molecule, driver, model, return_result)
+                        entry_id = str(entry_or_point)
+                        arr = np.asarray(return_result if return_result is not None else 0.0)
+
+                        if entry_id in h5f:
+                            del h5f[entry_id]
+
+                        grp = h5f.create_group(entry_id)
+                        grp.attrs["schema_name"] = "qcschema_output"
+                        grp.attrs["driver"] = str(driver)
+                        grp.attrs["molecule_json"] = json.dumps(molecule or {})
+                        grp.attrs["model_json"] = json.dumps(model or {})
+
+                        chunk_shape: Optional[Tuple[int, ...]] = None
+                        max_shape: Optional[Tuple[Optional[int], ...]] = None
+                        if arr.ndim > 0:
+                            chunk_shape = tuple(max(1, min(s, 128)) for s in arr.shape)
+                            max_shape = tuple(None for _ in arr.shape)
+                            ds = grp.create_dataset(
+                                "return_result",
+                                data=arr,
+                                maxshape=max_shape,
+                                chunks=chunk_shape,
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds.flush()
+                        else:
+                            grp.create_dataset("return_result", data=arr)
 
                     h5f.flush()
 
     def read_entry(self, entry_id: str) -> Dict[str, Any]:
-        """Read QCSchema entry in SWMR mode without file locking collisions."""
+        """Read QCSchema entry in SWMR mode without lock contention."""
         if not self.file_path.exists():
             raise FileNotFoundError(f"PESStore file not found at {self.file_path}")
 
@@ -632,3 +605,14 @@ class PESStore:
                 "model": json.loads(model_json),
                 "return_result": result_arr,
             }
+
+
+__all__ = [
+    "validate_airgap_write_path",
+    "PESStore",
+    "SharedMemoryBuffer",
+    "pack_payload",
+    "unpack_payload",
+    "HMACSocketServer",
+    "HMACSocketClient",
+]

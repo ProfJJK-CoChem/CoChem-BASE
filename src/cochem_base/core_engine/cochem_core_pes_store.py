@@ -110,6 +110,7 @@ from cochem_base.exceptions import (
     QCSchemaValidationError,
     SingularityError,
 )
+from cochem_base.core.ipc.serializer import validate_airgap_write_path
 from cochem_base.core.licensing import validate_spdx_license
 from cochem_base.core.models import NAMESPACE_COCHEM, PESPointRecord
 
@@ -868,7 +869,7 @@ class PESStore:
         swmr_mode: bool = False,
         lock_dir: Optional[Union[str, Path]] = None,
     ) -> None:
-        self.path = Path(path).resolve()
+        self.path = validate_airgap_write_path(Path(path).resolve())
         self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
         self.lock_path = self.lock_dir / f"{self.path.name}.lock"
         self.lock_timeout = lock_timeout
@@ -1121,6 +1122,10 @@ class PESStore:
                     d[0] = str(point.point_id)
 
                 f.flush()
+
+    def write_entry(self, point: Any) -> None:
+        """Persist PES point record in-place adhering to Suggestion #65."""
+        self.add_point(point)
 
     def get_all_point_ids(self) -> List[str]:
         """Retrieve all registered point IDs with SWMR refresh [D]."""

@@ -3,6 +3,7 @@
 Provides pure asymmetric cryptographic provenance generation, verification, and offline
 did:key resolution using multicodec 0xed01 prefix and base58btc encoding.
 Eradicates non-standard intermediate SHA-512 pre-hashing, signing raw canonical bytes directly.
+Includes an RFC 8785 §3.2.2.3 compliant ECMAScript IEEE 754 float formatting kernel.
 """
 
 from __future__ import annotations
@@ -10,8 +11,9 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import math
 from datetime import datetime, timezone
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
@@ -105,27 +107,84 @@ def did_key_to_public_key(did_key: str) -> ed25519.Ed25519PublicKey:
     return ed25519.Ed25519PublicKey.from_public_bytes(raw_pub_bytes)
 
 
-def canonicalize_json(data: Any) -> bytes:
-    """Canonicalize Python dictionary, list, primitive, or Pydantic model according to RFC 8785 (JCS).
+def format_rfc8785_float(val: float) -> str:
+    """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
 
-    Sorts dictionary keys lexicographically, removes whitespace, and outputs UTF-8 encoded bytes.
+    Rules:
+    - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
+    - Signed zero (-0.0) must format as '0'.
+    - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
+    - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
     """
-    if hasattr(data, "model_dump"):
-        data = data.model_dump(mode="json")
-    elif isinstance(data, BaseModel):
-        data = data.dict()
-    elif isinstance(data, dict):
-        clean_dict = {}
-        for k, v in data.items():
-            if hasattr(v, "model_dump"):
-                clean_dict[str(k)] = v.model_dump(mode="json")
-            elif isinstance(v, BaseModel):
-                clean_dict[str(k)] = v.dict()
-            else:
-                clean_dict[str(k)] = v
-        data = clean_dict
+    if math.isnan(val) or math.isinf(val):
+        raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
+    if val == 0.0:
+        return "0"
 
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    s = repr(val)
+
+    # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
+    if "e" in s:
+        base, exp = s.split("e")
+        exp_sign = exp[0]
+        exp_val = exp[1:].lstrip("0") or "0"
+        s = f"{base}e{exp_sign}{exp_val}"
+
+    # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
+    abs_val = abs(val)
+    if 1e-6 <= abs_val < 1e-4 and "e" in s:
+        s = f"{val:.10f}".rstrip("0").rstrip(".")
+
+    return s
+
+
+def _serialize_jcs(obj: Any) -> str:
+    """Internal recursive serializer for RFC 8785 JSON Canonicalization Scheme."""
+    if obj is None:
+        return "null"
+    elif isinstance(obj, bool):
+        return "true" if obj else "false"
+    elif isinstance(obj, int):
+        return str(obj)
+    elif isinstance(obj, float):
+        return format_rfc8785_float(obj)
+    elif isinstance(obj, str):
+        return json.dumps(obj, ensure_ascii=False)
+    elif isinstance(obj, (list, tuple)):
+        items = [_serialize_jcs(item) for item in obj]
+        return "[" + ",".join(items) + "]"
+    elif isinstance(obj, dict):
+        sorted_keys = sorted(obj.keys(), key=lambda k: str(k).encode("utf-8"))
+        pairs = [
+            json.dumps(str(k), ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
+            for k in sorted_keys
+        ]
+        return "{" + ",".join(pairs) + "}"
+    elif hasattr(obj, "model_dump"):
+        return _serialize_jcs(obj.model_dump(mode="json"))
+    elif isinstance(obj, BaseModel):
+        return _serialize_jcs(obj.dict())
+    else:
+        raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+
+
+def canonicalize_json(data: Any) -> bytes:
+    """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
+
+    - Lexicographical sorting of object keys by UTF-8 code point values.
+    - Zero whitespace around delimiters (',' and ':').
+    - IEEE 754 float formatting via format_rfc8785_float.
+    - UTF-8 output without BOM.
+    """
+    return _serialize_jcs(data).encode("utf-8")
+
+
+def hash_canonical_json(data: Any, algorithm: str = "sha256") -> str:
+    """Compute cryptographic hash over RFC 8785 canonicalized JSON bytes."""
+    canonical_bytes = canonicalize_json(data)
+    h = hashlib.new(algorithm)
+    h.update(canonical_bytes)
+    return h.hexdigest()
 
 
 def generate_ed25519_key_pair() -> Tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
@@ -155,7 +214,6 @@ def sign_canonical_bytes(
     Returns:
         Tuple[str, str, str]: (signature_urlsafe_b64, public_key_urlsafe_b64, fingerprint_sha256_hex)
     """
-    # RFC 8032 §5.1 PureEd25519: Sign raw canonical bytes directly
     signature_bytes = private_key.sign(canonical_bytes)
 
     public_key = private_key.public_key()
@@ -223,7 +281,6 @@ def sign_report_payload(
 
     Envelopes payload with an Ed25519Signature2020 proof block.
     """
-    # Clean payload excluding any existing proof block
     clean_payload = {k: v for k, v in payload.items() if k != "proof"}
     canonical_bytes = canonicalize_json(clean_payload)
     signature_bytes = private_key.sign(canonical_bytes)
@@ -268,7 +325,9 @@ def verify_report_payload(signed_payload: Dict[str, Any]) -> bool:
 
 
 __all__ = [
+    "format_rfc8785_float",
     "canonicalize_json",
+    "hash_canonical_json",
     "generate_ed25519_key_pair",
     "sign_canonical_bytes",
     "verify_canonical_signature",

@@ -2,19 +2,20 @@
 
 Defines QCResultsRecord (AtomicResult), MolecularTopology, PESPointRecord, and CalculationJobPayload
 with explicit spatial coordinate envelopes, CODATA 2022 constants, deterministic UUIDv5 content hashing,
-and machine-readable SPDX licensing.
+machine-readable SPDX licensing, and schema version migration contracts adhering to FAIR F2, I1, and R1.
 """
 
 from __future__ import annotations
 
 import copy
 import uuid
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from cochem_base.core.cochem_crypto import canonicalize_json
+from cochem_base.core.exceptions import CoordinateShapeError, SchemaMigrationError
 from cochem_base.core.glossary import CalculationFidelity
 from cochem_base.core.licensing import validate_spdx_license
 
@@ -25,14 +26,99 @@ ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
 # Authoritative CoChem Namespace UUID for deterministic UUIDv5 hashing
 NAMESPACE_COCHEM: uuid.UUID = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")
 
+# Global schema version constant (FAIR F2, I1, R1)
+CURRENT_CORE_SCHEMA_VERSION: int = 1
+
+T = TypeVar("T", bound=BaseModel)
+MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
+_MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+
+
+def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
+    """Decorator registering a transformation function from a specific schema version to from_version + 1."""
+
+    def decorator(func: MigrationCallable) -> MigrationCallable:
+        _MIGRATION_REGISTRY[(model_name, from_version)] = func
+        return func
+
+    return decorator
+
+
+def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
+    """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
+    model_name = target_model.__name__
+    current_version = payload.get("schema_version", 0)
+    target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
+
+    data = dict(payload)
+    while current_version < target_version:
+        key = (model_name, current_version)
+        if key not in _MIGRATION_REGISTRY:
+            raise SchemaMigrationError(
+                f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
+                details={"model": model_name, "from_version": current_version, "target_version": target_version},
+            )
+        data = _MIGRATION_REGISTRY[key](data)
+        current_version = data.get("schema_version", current_version + 1)
+
+    return data
+
+
+class ThermodynamicsProvenance(BaseModel):
+    """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
+    damping_model: str = Field(
+        default="grimme_quasi_rrho",
+        description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic).",
+    )
+    low_freq_cutoff_cm1: float = Field(
+        default=100.0,
+        description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1).",
+    )
+    temperature_k: float = Field(
+        default=298.15,
+        description="Thermodynamic temperature in Kelvin.",
+    )
+    pressure_atm: float = Field(
+        default=1.0,
+        description="Standard state pressure in atmospheres.",
+    )
+    rotor_cutoff_cm1: Optional[float] = Field(
+        default=None,
+        description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping.",
+    )
+    provenance_tag: str = Field(
+        default="[D]",
+        description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated).",
+    )
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
+
 
 class QCResultsRecord(BaseModel):
     """MolSSI QCSchema v1 compliant AtomicResult record with backward-compatible accessors."""
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, validate_assignment=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
     schema_name: Literal["qcschema_output"] = "qcschema_output"
-    schema_version: int = 1
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     molecule: Dict[str, Any] = Field(default_factory=dict, description="Nested molecular topology specifications")
     driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
     model: Dict[str, Any] = Field(default_factory=lambda: {"method": "unknown", "basis": None})
@@ -45,6 +131,12 @@ class QCResultsRecord(BaseModel):
         default="CC-BY-4.0",
         description="SPDX license identifier governing data reuse rights (FAIR R1.1)",
     )
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @field_validator("license")
     @classmethod
@@ -151,14 +243,47 @@ class QCResultsRecord(BaseModel):
         return None
 
 
+# MolSSI QCSchema Aliases
+AtomicResult = QCResultsRecord
+QCSchemaOutput = QCResultsRecord
+
+
 class MolecularTopology(BaseModel):
-    """Molecular spatial coordinates standardized to flat 1D arrays with explicit unit tagging."""
+    """Molecular spatial coordinates standardized to flat 1D arrays or 2D coordinate lists with explicit unit tagging."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     symbols: List[str] = Field(..., description="Ordered IUPAC elemental symbols")
-    geometry: List[float] = Field(..., description="Flat 1D atomic Cartesian coordinates (size 3*N)")
+    coordinates: Optional[List[List[float]]] = Field(default=None, description="2D Cartesian coordinate list (N x 3)")
+    geometry: Optional[List[float]] = Field(default=None, description="Flat 1D atomic Cartesian coordinates (size 3*N)")
     units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical coordinate unit")
+    molecular_charge: int = Field(default=0, description="Net molecular charge")
+    spin_multiplicity: int = Field(default=1, description="Spin multiplicity (2S + 1)")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
+
+    @field_validator("coordinates", mode="after")
+    @classmethod
+    def validate_coordinates_shape(cls, v: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
+        if v is None:
+            return v
+        for idx, atom_coord in enumerate(v):
+            if len(atom_coord) != 3:
+                raise CoordinateShapeError(
+                    f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
+                    details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3},
+                )
+        return v
 
     @model_validator(mode="before")
     @classmethod
@@ -167,48 +292,91 @@ class MolecularTopology(BaseModel):
             return data
 
         symbols = data.get("symbols", [])
-        geom = data.get("geometry", [])
+        coords = data.get("coordinates")
+        geom = data.get("geometry")
 
-        # Flatten 2D coordinate arrays if provided
-        if isinstance(geom, np.ndarray):
-            geom = geom.flatten().tolist()
-        elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
-            flat = []
-            for pt in geom:
-                flat.extend([float(c) for c in pt])
-            geom = flat
-        elif isinstance(geom, list):
-            geom = [float(c) for c in geom]
+        if coords is not None:
+            if isinstance(coords, np.ndarray):
+                coords = coords.tolist()
+                data["coordinates"] = coords
+            # Only synthesize geometry if all coordinate rows have valid length 3
+            if geom is None and isinstance(coords, list):
+                if all(isinstance(c, (list, tuple)) and len(c) == 3 for c in coords):
+                    flat = []
+                    for pt in coords:
+                        flat.extend([float(c) for c in pt])
+                    data["geometry"] = flat
+        elif geom is not None:
+            if isinstance(geom, np.ndarray):
+                geom = geom.flatten().tolist()
+            elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
+                flat = []
+                for pt in geom:
+                    flat.extend([float(c) for c in pt])
+                geom = flat
+            elif isinstance(geom, list):
+                geom = [float(c) for c in geom]
+            data["geometry"] = geom
 
-        n_atoms = len(symbols)
-        if n_atoms > 0 and len(geom) != 3 * n_atoms:
-            raise ValueError(
-                f"Geometry coordinate dimension mismatch: expected {3 * n_atoms} components for {n_atoms} atoms, got {len(geom)}"
-            )
+            n_atoms = len(symbols)
+            if n_atoms > 0 and len(geom) != 3 * n_atoms:
+                raise CoordinateShapeError(
+                    f"Geometry coordinate dimension mismatch: expected {3 * n_atoms} components for {n_atoms} atoms, got {len(geom)}",
+                    details={"actual_len": len(geom), "expected_len": 3 * n_atoms},
+                )
+            if "coordinates" not in data and len(geom) % 3 == 0:
+                data["coordinates"] = [
+                    geom[3 * i : 3 * i + 3] for i in range(len(geom) // 3)
+                ]
 
-        data["geometry"] = geom
         return data
 
     def to_angstrom(self) -> MolecularTopology:
         """Convert coordinates to Angstroms using authoritative CODATA 2022 constant."""
         if self.units == "angstrom":
             return self
-        converted = [float(c * BOHR_TO_ANGSTROM) for c in self.geometry]
+        converted_geom = (
+            [float(c * BOHR_TO_ANGSTROM) for c in self.geometry]
+            if self.geometry is not None
+            else None
+        )
+        converted_coords = (
+            [[float(c * BOHR_TO_ANGSTROM) for c in pt] for pt in self.coordinates]
+            if self.coordinates is not None
+            else None
+        )
         return MolecularTopology(
+            schema_version=self.schema_version,
             symbols=list(self.symbols),
-            geometry=converted,
+            geometry=converted_geom,
+            coordinates=converted_coords,
             units="angstrom",
+            molecular_charge=self.molecular_charge,
+            spin_multiplicity=self.spin_multiplicity,
         )
 
     def to_bohr(self) -> MolecularTopology:
         """Convert coordinates to Bohr using authoritative CODATA 2022 constant."""
         if self.units == "bohr":
             return self
-        converted = [float(c * ANGSTROM_TO_BOHR) for c in self.geometry]
+        converted_geom = (
+            [float(c * ANGSTROM_TO_BOHR) for c in self.geometry]
+            if self.geometry is not None
+            else None
+        )
+        converted_coords = (
+            [[float(c * ANGSTROM_TO_BOHR) for c in pt] for pt in self.coordinates]
+            if self.coordinates is not None
+            else None
+        )
         return MolecularTopology(
+            schema_version=self.schema_version,
             symbols=list(self.symbols),
-            geometry=converted,
+            geometry=converted_geom,
+            coordinates=converted_coords,
             units="bohr",
+            molecular_charge=self.molecular_charge,
+            spin_multiplicity=self.spin_multiplicity,
         )
 
 
@@ -217,6 +385,12 @@ class PESPointRecord(BaseModel):
 
     model_config = ConfigDict(extra="allow", validate_assignment=True, arbitrary_types_allowed=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     point_id: str = Field(default="", description="Deterministic UUIDv5 content-addressable point identifier")
     method_id: str = Field(default="unknown", description="Registered method identifier")
     coordinates: List[float] = Field(default_factory=list, description="Flat 1D atomic coordinates (size 3*N)")
@@ -230,6 +404,12 @@ class PESPointRecord(BaseModel):
     wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
     provenance: Any = Field(default_factory=dict, description="Calculation provenance record")
     license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @classmethod
     def generate_point_id(
@@ -338,6 +518,7 @@ class PESPointRecord(BaseModel):
             else None
         )
         return PESPointRecord(
+            schema_version=self.schema_version,
             point_id=self.point_id,
             method_id=self.method_id,
             coordinates=converted_coords,
@@ -364,6 +545,7 @@ class PESPointRecord(BaseModel):
             else None
         )
         return PESPointRecord(
+            schema_version=self.schema_version,
             point_id=self.point_id,
             method_id=self.method_id,
             coordinates=converted_coords,
@@ -385,6 +567,12 @@ class CalculationJobPayload(BaseModel):
 
     model_config = ConfigDict(extra="allow", validate_assignment=True)
 
+    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+
+    schema_version: int = Field(
+        default=CURRENT_CORE_SCHEMA_VERSION,
+        description="Semantic schema version for archival data deserialization and migration contracts.",
+    )
     job_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique job identifier")
     molecule: Dict[str, Any] = Field(default_factory=dict, description="Target molecular topology specifications")
     driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
@@ -394,6 +582,12 @@ class CalculationJobPayload(BaseModel):
     )
     keywords: Dict[str, Any] = Field(default_factory=dict, description="Calculation keywords")
     license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @classmethod
+    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
+        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
+        migrated = migrate_payload(data, cls)
+        return cls.model_validate(migrated)
 
     @field_validator("fidelity", mode="before")
     @classmethod
@@ -418,7 +612,13 @@ __all__ = [
     "BOHR_TO_ANGSTROM",
     "ANGSTROM_TO_BOHR",
     "NAMESPACE_COCHEM",
+    "CURRENT_CORE_SCHEMA_VERSION",
+    "register_migration",
+    "migrate_payload",
+    "ThermodynamicsProvenance",
     "QCResultsRecord",
+    "AtomicResult",
+    "QCSchemaOutput",
     "MolecularTopology",
     "PESPointRecord",
     "CalculationJobPayload",

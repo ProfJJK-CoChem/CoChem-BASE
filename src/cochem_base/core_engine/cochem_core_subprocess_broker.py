@@ -52,6 +52,8 @@ try:
 except ImportError:
     HAS_ZMQ = False
 
+from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
+
 try:
     from cochem_base.exceptions import DiskQuotaError
 except ImportError:
@@ -765,23 +767,54 @@ def lock_directory_permissions(target_dir: Union[str, Path]) -> bool:
             return False
 
 
-def verify_scratch_quota_and_io(target_dir: Union[str, Path], required_gb: float = 50.0) -> bool:
-    """Executes pre-flight storage quota assertion and 64KB unbuffered SHA-256 binary probe.
+_SCRATCH_CACHE_LOCK = threading.Lock()
+_SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
 
-    Raises DiskQuotaError if available storage is less than required_gb.
-    Raises IOError if binary readback SHA-256 checksum fails.
+
+def verify_scratch_quota_and_io(
+    target_dir: Union[str, Path],
+    required_gb: Optional[float] = None,
+    ttl_seconds: float = 300.0,
+    force: bool = False,
+) -> bool:
+    """Verifies write, fsync, and SHA-256 read-back integrity on target_dir.
+
+    Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
+    Enforces Tripartite Air-Gap: target_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
     """
-    target_path = Path(target_dir).resolve()
-    target_path.mkdir(parents=True, exist_ok=True)
+    resolved = Path(target_dir).resolve()
 
-    usage = shutil.disk_usage(str(target_path))
-    free_gb = usage.free / (1024 ** 3)
+    # Air-gap boundary validation
+    src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+    data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+    if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
+            details={"path": str(resolved), "tier": "Tier 1"},
+        )
+    if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
+            details={"path": str(resolved), "tier": "Tier 2"},
+        )
 
-    if free_gb < required_gb:
-        logger.error(f"Insufficient scratch disk space at {target_path}: {free_gb:.2f} GB free, {required_gb:.2f} GB required.")
-        raise DiskQuotaError(required_gb=required_gb, available_gb=free_gb, path=target_path)
+    now = time.monotonic()
+    with _SCRATCH_CACHE_LOCK:
+        if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
+            last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
+            if (now - last_verified) < ttl_seconds:
+                return True
 
-    probe_file = target_path / f".cochem_io_probe_{os.getpid()}_{int(time.time() * 1000)}.tmp"
+    resolved.mkdir(parents=True, exist_ok=True)
+
+    if required_gb is not None and required_gb > 0:
+        usage = shutil.disk_usage(str(resolved))
+        free_gb = usage.free / (1024 ** 3)
+        if free_gb < required_gb:
+            logger.error(f"Insufficient scratch disk space at {resolved}: {free_gb:.2f} GB free, {required_gb:.2f} GB required.")
+            raise DiskQuotaError(required_gb=required_gb, available_gb=free_gb, path=resolved)
+
+    probe_file = resolved / f".cochem_io_probe_{os.getpid()}_{time.time_ns()}.bin"
     probe_data = os.urandom(64 * 1024)  # 64 KB physical binary probe
     expected_hash = hashlib.sha256(probe_data).hexdigest()
 
@@ -797,15 +830,26 @@ def verify_scratch_quota_and_io(target_dir: Union[str, Path], required_gb: float
         read_hash = hashlib.sha256(read_back_data).hexdigest()
 
         if expected_hash != read_hash:
-            raise IOError(f"Scratch I/O integrity probe failed: SHA-256 mismatch at {target_path}")
+            raise SubprocessBrokerError(
+                f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
+                details={"scratch_dir": str(resolved), "expected": expected_hash, "actual": read_hash},
+            )
 
-        logger.info(f"Verified scratch quota and I/O at {target_path} ({free_gb:.2f} GB free, {required_gb:.2f} GB required) [M]")
+        with _SCRATCH_CACHE_LOCK:
+            _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
+
+        logger.info(f"Verified scratch quota and I/O at {resolved} [M]")
         return True
     except (OSError, IOError) as exc:
-        logger.error(f"Scratch I/O verification error at {target_path}: {exc}")
+        if not isinstance(exc, (DiskQuotaError, SubprocessBrokerError, AirGapBoundaryError)):
+            logger.error(f"Scratch I/O verification error at {resolved}: {exc}")
         raise
     finally:
-        probe_file.unlink(missing_ok=True)
+        if probe_file.exists():
+            try:
+                probe_file.unlink()
+            except OSError:
+                pass
 
 
 def verify_scratch_io(scratch_dir: Union[str, Path], required_mb: int = 100) -> bool:
@@ -1172,8 +1216,7 @@ def safe_subprocess_run(
         cwd_str = None
         cwd_path = Path.cwd()
 
-    if required_disk_gb is not None and required_disk_gb > 0:
-        verify_scratch_quota_and_io(cwd_path, required_gb=required_disk_gb)
+    verify_scratch_quota_and_io(cwd_path, required_gb=required_disk_gb, ttl_seconds=300.0, force=False)
 
     parsed_cmd: Union[List[str], str]
     if isinstance(cmd, str) and not kwargs.get("shell", False):
@@ -1715,6 +1758,7 @@ __all__ = [
     "sanitize_mpi_environment",
     "verify_scratch_io",
     "verify_scratch_quota_and_io",
+    "_SCRATCH_VERIFICATION_CACHE",
     "lock_directory_permissions",
     "RAMDiskOverlayManager",
     "ZMQHeartbeatManager",

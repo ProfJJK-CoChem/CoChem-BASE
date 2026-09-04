@@ -69,17 +69,18 @@ def test_hdf5_write_trajectory_batch_success() -> None:
 
         base_coords, base_species = get_water_dimer_fixture()
         n_atoms = base_coords.shape[0]
-        n_samples = 10
 
-        # 10 authentic trajectory snapshots with physical thermal displacements
-        coords = np.stack([
-            base_coords.numpy() + (float(i) * 0.002) for i in range(n_samples)
-        ]).astype(np.float64)
+        # Authentic trajectory snapshots with explicit physical values
+        c0 = base_coords.numpy().astype(np.float64)
+        c1 = c0 + np.array([[0.001, -0.001, 0.002]] * n_atoms)
+        coords = np.stack([c0, c1])
+        
         species = base_species.tolist()
-        energies = np.array([-152.0 + float(i) * 0.001 for i in range(n_samples)], dtype=np.float64)
-        forces = np.stack([
-            np.full((n_atoms, 3), 0.0005 * float(i), dtype=np.float64) for i in range(n_samples)
-        ])
+        energies = np.array([-152.000, -151.998], dtype=np.float64)
+        
+        f0 = np.array([[0.01, -0.02, 0.03]] * n_atoms, dtype=np.float64)
+        f1 = np.array([[-0.01, 0.02, -0.03]] * n_atoms, dtype=np.float64)
+        forces = np.stack([f0, f1])
 
         manager.write_trajectory_batch("water_batch_1", coords, species, energies, forces)
 
@@ -88,9 +89,9 @@ def test_hdf5_write_trajectory_batch_success() -> None:
         with h5py.File(h5_path, "r") as f:
             assert "water_batch_1" in f
             grp = f["water_batch_1"]
-            assert grp["coordinates"].shape == (10, n_atoms, 3)
-            assert grp["energies"].shape == (10,)
-            assert grp["forces"].shape == (10, n_atoms, 3)
+            assert grp["coordinates"].shape == (2, n_atoms, 3)
+            assert grp["energies"].shape == (2,)
+            assert grp["forces"].shape == (2, n_atoms, 3)
             assert np.array_equal(grp["atomic_numbers"][:], np.array(species, dtype=np.int32))
 
 

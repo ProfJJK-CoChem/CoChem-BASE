@@ -130,3 +130,120 @@ class AirGapViolationError(TorqInferenceError):
             component="airgap_sandbox",
             **kwargs,
         )
+
+
+class HardwareDispatchError(TorqInferenceError):
+    """Raised if hardware accelerator encounters unrecoverable runtime states without a valid fallback. [M]"""
+
+    def __init__(
+        self, message: str, diagnostics: Optional[Dict[str, Any]] = None
+    ) -> None:
+        super().__init__(
+            message,
+            error_code="TORQ_HW_DISPATCH_FAIL",
+            component="hardware_dispatcher",
+            diagnostics=diagnostics,
+        )
+
+
+class AirGapIntegrityError(TorqInferenceError):
+    """Raised if network sockets are opened during inference or if Ring 2 data SHA-256 hashes mismatch. [M]"""
+
+    def __init__(
+        self, message: str, diagnostics: Optional[Dict[str, Any]] = None
+    ) -> None:
+        super().__init__(
+            message,
+            error_code="TORQ_AIRGAP_INTEGRITY_FAIL",
+            component="airgap_enforcer",
+            diagnostics=diagnostics,
+        )
+
+
+class ClashDetectedError(TorqInferenceError):
+    """Raised during L-BFGS line-search if any interatomic distance drops below 0.7 Angstroms. [E]"""
+
+    def __init__(
+        self,
+        message: str,
+        min_distance: float,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        diags = dict(diagnostics or {})
+        diags["min_distance_angstrom"] = float(min_distance)
+        super().__init__(
+            message,
+            error_code="TORQ_GEOM_CLASH_DETECTED",
+            component="lbfgs_optimizer",
+            diagnostics=diags,
+        )
+
+
+class ConvergenceError(TorqInferenceError):
+    """Raised if geometry optimization fails to reach Method Matrix force thresholds within maximum iterations. [M]"""
+
+    def __init__(
+        self,
+        message: str,
+        iterations: int,
+        final_force: float,
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        diags = dict(diagnostics or {})
+        diags["iterations"] = int(iterations)
+        diags["final_max_force"] = float(final_force)
+        super().__init__(
+            message,
+            error_code="TORQ_LBFGS_NON_CONVERGENCE",
+            component="lbfgs_optimizer",
+            diagnostics=diags,
+        )
+
+
+class CalibrationSizeError(TorqInferenceError):
+    """Raised in strict initialization mode if conformal calibration dataset size n < ceil((1 - alpha) / alpha). [M]"""
+
+    def __init__(self, message: str, n_samples: int, n_required: int) -> None:
+        super().__init__(
+            message,
+            error_code="TORQ_CONFORMAL_INSUFFICIENT_CALIBRATION",
+            component="conformal_predictor",
+            diagnostics={"n_samples": int(n_samples), "n_required": int(n_required)},
+        )
+
+
+class BaselineExecutionError(TorqInferenceError):
+    """Raised when Delta-ML baseline calculation fails or returns non-physical values. [M]"""
+
+    def __init__(
+        self,
+        message: str,
+        method: str = "GFN2-xTB",
+        diagnostics: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        diags = dict(diagnostics or {})
+        diags["baseline_method"] = method
+        super().__init__(
+            message,
+            error_code="TORQ_DELTA_BASELINE_FAIL",
+            component="delta_ml_engine",
+            diagnostics=diags,
+        )
+
+
+class DispersionParameterError(TorqInferenceError):
+    """Raised when dispersion damping parameters or C6/C8 tables fail SHA-256 verification. [M]"""
+
+    def __init__(
+        self, message: str, expected_sha: str, calculated_sha: str
+    ) -> None:
+        super().__init__(
+            message,
+            error_code="TORQ_DISPERSION_PARAM_CORRUPT",
+            component="dispersion_layer",
+            diagnostics={
+                "expected_sha256": expected_sha,
+                "calculated_sha256": calculated_sha,
+            },
+        )
+

@@ -7,7 +7,8 @@ Strict Zero-Mock Mandate v3: Strongly typed, validated configurations.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, NamedTuple, Optional, Union
+import torch
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -189,3 +190,258 @@ class PBCRadialGraphConfig(BaseModel):
         default=True,
         description="Compute analytical unit cell virial stress tensor [D]",
     )
+
+
+class HPORunConfig(BaseModel):
+    """Configuration contract for automated hyperparameter optimization. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    study_name: str = Field(
+        ..., description="Unique identifier for the HPO study [M]"
+    )
+    n_trials: int = Field(
+        default=100, ge=1, description="Total optimization trials [E]"
+    )
+    pruner: Literal["ASHA", "MedianPruner", "Hyperband"] = Field(
+        default="ASHA", description="Pruning strategy [E]"
+    )
+    grace_period: int = Field(
+        default=10, ge=1, description="Epochs before pruning evaluation [E]"
+    )
+    storage_uri: str = Field(
+        ..., description="Storage backend URI (sqlite:///... or h5py) [M]"
+    )
+    w_energy: float = Field(
+        default=1.0, ge=0.0, description="Potential energy loss weight [E]"
+    )
+    w_force: float = Field(
+        default=10.0, ge=0.0, description="Atomic force loss weight [E]"
+    )
+    lr_min: float = Field(
+        default=1e-5, gt=0.0, description="Lower bound for learning rate [E]"
+    )
+    lr_max: float = Field(
+        default=1e-2, gt=0.0, description="Upper bound for learning rate [E]"
+    )
+    cutoff_min: float = Field(
+        default=4.0, ge=1.0, description="Minimum cutoff radius in Angstroms [E]"
+    )
+    cutoff_max: float = Field(
+        default=6.5, ge=1.0, description="Maximum cutoff radius in Angstroms [E]"
+    )
+    rbf_options: List[int] = Field(
+        default=[16, 32, 64], description="Candidate RBF basis counts [E]"
+    )
+    depth_options: List[int] = Field(
+        default=[3, 4, 5, 6], description="Candidate interaction depths [E]"
+    )
+    embedding_dim_options: List[int] = Field(
+        default=[64, 128, 256],
+        description="Candidate feature embedding dimensions [E]",
+    )
+
+    @model_validator(mode="after")
+    def validate_bounds(self) -> "HPORunConfig":
+        """Verify learning rate and cutoff interval boundaries. [D]"""
+        if self.lr_min >= self.lr_max:
+            raise ValueError("lr_min must be strictly less than lr_max")
+        if self.cutoff_min >= self.cutoff_max:
+            raise ValueError("cutoff_min must be strictly less than cutoff_max")
+        return self
+
+
+class DeltaMLConfig(BaseModel):
+    """Configuration contract for Delta-Learning architecture. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    baseline_method: Literal["GFN2-xTB", "PM6", "LennardJones", "EMT"] = Field(
+        default="GFN2-xTB", description="Baseline physical engine [M]"
+    )
+    qm_target_method: str = Field(
+        default="wB97M-V/def2-TZVP",
+        description="High-level QM target benchmark [M]",
+    )
+    energy_unit: Literal["eV", "Hartree", "kcal/mol"] = Field(
+        default="eV", description="Internal standard energy unit [D]"
+    )
+    length_unit: Literal["Angstrom", "Bohr"] = Field(
+        default="Angstrom", description="Internal standard length unit [D]"
+    )
+
+
+class ConformalPredictorConfig(BaseModel):
+    """Configuration contract for inductive conformal prediction uncertainty. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    alpha: float = Field(
+        default=0.05,
+        gt=0.0,
+        lt=1.0,
+        description="Target miscoverage significance level [D]",
+    )
+    regularization_energy: float = Field(
+        default=1e-6,
+        gt=0.0,
+        description="Numerical regularizer epsilon_E in eV [E]",
+    )
+    regularization_force: float = Field(
+        default=1e-6,
+        gt=0.0,
+        description="Numerical regularizer epsilon_F in eV/Angstrom [E]",
+    )
+    strict_calibration_size: bool = Field(
+        default=True,
+        description=(
+            "Raise CalibrationSizeError if calibration sample size is"
+            " insufficient [M]"
+        ),
+    )
+    apply_bonferroni: bool = Field(
+        default=False,
+        description=(
+            "Apply Bonferroni correction for simultaneous joint 3N force bounds"
+            " [D]"
+        ),
+    )
+
+
+class LBFGSOptimizerConfig(BaseModel):
+    """Configuration contract for L-BFGS geometry optimizer with Eckart projection. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_iterations: int = Field(
+        default=500, ge=1, description="Maximum optimization iterations [M]"
+    )
+    history_size: int = Field(
+        default=10, ge=1, description="Two-loop recursion memory depth [D]"
+    )
+    dtype: Literal["float64"] = Field(
+        default="float64",
+        description="Mandatory precision for geometry optimization [M]",
+    )
+    tol_max_g: float = Field(
+        default=0.00051422,
+        gt=0.0,
+        description="Max force convergence threshold in eV/Angstrom [M]",
+    )
+    tol_rms_g: float = Field(
+        default=0.00034453,
+        gt=0.0,
+        description="RMS force convergence threshold in eV/Angstrom [M]",
+    )
+    tol_max_d: float = Field(
+        default=5.29177e-5,
+        gt=0.0,
+        description="Max displacement threshold in Angstroms [M]",
+    )
+    tol_rms_d: float = Field(
+        default=3.54549e-5,
+        gt=0.0,
+        description="RMS displacement threshold in Angstroms [M]",
+    )
+    tol_energy: float = Field(
+        default=2.72114e-5,
+        gt=0.0,
+        description="Energy change convergence threshold in eV [M]",
+    )
+    max_step: float = Field(
+        default=0.1,
+        gt=0.0,
+        description="Maximum Cartesian step displacement in Angstroms [E]",
+    )
+    clash_distance: float = Field(
+        default=0.7,
+        gt=0.0,
+        description="Clash distance abort threshold in Angstroms [E]",
+    )
+    c1: float = Field(
+        default=1e-4,
+        gt=0.0,
+        lt=0.5,
+        description="Strong Wolfe Armijo sufficient decrease parameter [D]",
+    )
+    c2: float = Field(
+        default=0.9,
+        gt=0.0,
+        lt=1.0,
+        description="Strong Wolfe curvature condition parameter [D]",
+    )
+
+
+class DispersionD3Config(BaseModel):
+    """Configuration contract for Grimme D3 empirical dispersion layer. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    functional: str = Field(
+        default="wB97M-V", description="Underlying DFT functional [M]"
+    )
+    damping: Literal["BJ", "zero"] = Field(
+        default="BJ", description="Dispersion damping variant [D]"
+    )
+    s6: float = Field(default=1.0, ge=0.0, description="Dipole scale factor [E]")
+    s8: float = Field(
+        default=1.0, ge=0.0, description="Quadrupole scale factor [E]"
+    )
+    a1: float = Field(
+        default=0.5, ge=0.0, description="Becke-Johnson damping parameter a1 [E]"
+    )
+    a2: float = Field(
+        default=3.0, ge=0.0, description="Becke-Johnson damping parameter a2 [E]"
+    )
+    c9_cutoff: float = Field(
+        default=16.0,
+        gt=0.0,
+        description="Three-body dispersion cutoff in Angstroms [E]",
+    )
+    pair_cutoff: float = Field(
+        default=25.0,
+        gt=0.0,
+        description="Pairwise dispersion cutoff in Angstroms [E]",
+    )
+    data_manifest_sha256: str = Field(
+        default="7dc504e705bf220fc0a014f21f18e02ad205cb68e714ca3aaec2c8b48fc7e327",
+        description="SHA-256 checksum of Ring 2 dispersion table [M]",
+    )
+
+
+
+class NeighborListResult(NamedTuple):
+    """Container for spatial neighbor list search results. [M]"""
+
+    edge_index: torch.Tensor  # Shape: [2, num_edges], dtype: torch.int64
+    edge_vector: torch.Tensor  # Shape: [num_edges, 3], dtype matches coordinates (float32/float64)
+    edge_distance: torch.Tensor  # Shape: [num_edges], dtype matches coordinates (float32/float64)
+
+
+class ConformalInterval(NamedTuple):
+    """Container for rigorous conformal uncertainty intervals. [D]"""
+
+    energy_lower: float  # Unit: eV
+    energy_upper: float  # Unit: eV
+    force_lower: torch.Tensor  # Shape: [N, 3], Unit: eV/Angstrom
+    force_upper: torch.Tensor  # Shape: [N, 3], Unit: eV/Angstrom
+    confidence_level: float  # 1 - alpha, e.g., 0.95
+
+
+class LBFGSOptimizationState(BaseModel):
+    """Telemetry and state snapshot of L-BFGS geometry optimization. [M]"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    converged: bool
+    iterations: int
+    final_energy: float  # Unit: eV
+    max_force: float  # Unit: eV/Angstrom
+    rms_force: float  # Unit: eV/Angstrom
+    max_displacement: Optional[float] = None  # Unit: Angstrom
+    rms_displacement: Optional[float] = None  # Unit: Angstrom
+    energy_change: Optional[float] = None  # Unit: eV
+    final_coordinates: Optional[torch.Tensor] = (
+        None  # Shape: [N, 3], Unit: Angstrom
+    )
+

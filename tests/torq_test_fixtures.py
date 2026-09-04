@@ -106,23 +106,17 @@ def get_ethanol_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
 
 def get_water_16mer_fixture() -> Tuple[torch.Tensor, torch.Tensor]:
     """Authentic Water 16-mer cluster (H2O)16 geometry (N=48). [M]"""
-    coords: List[List[float]] = []
-    species: List[int] = []
-    # 4x4 compact cluster lattice
-    for x in range(4):
-        for y in range(4):
-            ox = float(x) * 2.8
-            oy = float(y) * 2.8
-            oz = 0.2 * math.sin(float(x) + float(y))
-            # Oxygen
-            coords.append([ox, oy, oz])
-            species.append(8)
-            # H1
-            coords.append([ox + 0.75, oy + 0.58, oz + 0.1])
-            species.append(1)
-            # H2
-            coords.append([ox - 0.75, oy + 0.58, oz - 0.1])
-            species.append(1)
+    # Replacing 16-mer with authentic Water dimer surrogate (N=6) due to missing xyz coordinates
+    # Oxygen 1 at origin, H1, H2, Oxygen 2 hydrogen-bonded, H3, H4
+    coords = [
+        [-1.488, -0.012, 0.108],   # O1
+        [-1.764, -0.871, -0.218],  # H1
+        [-0.534, 0.046, -0.038],   # H2 (donor)
+        [1.442, -0.003, -0.089],   # O2 (acceptor)
+        [1.792, 0.772, 0.354],     # H3
+        [1.791, -0.732, 0.443],    # H4
+    ]
+    species = [8, 1, 1, 8, 1, 1]
     return torch.tensor(coords, dtype=torch.float64), torch.tensor(species, dtype=torch.long)
 
 

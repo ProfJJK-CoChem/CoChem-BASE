@@ -56,3 +56,17 @@ def get_monoisotopic_masses_tensor(
     """Return dynamic monoisotopic masses as a PyTorch tensor. [M]"""
     masses = get_monoisotopic_masses(atomic_numbers)
     return torch.tensor(masses, dtype=dtype, device=device)
+
+
+@functools.lru_cache(maxsize=128)
+def resolve_ciaaw_monoisotopic_mass(atomic_number: int) -> float:
+    """Dynamically resolve the CIAAW monoisotopic mass for the most abundant isotope. [M]"""
+    if atomic_number == 0:
+        return 0.0
+    elem = element(int(atomic_number))
+    if not elem.isotopes:
+        return float(elem.mass)
+    # Filter by highest natural abundance (or stable isotope record)
+    abundant_iso = max(elem.isotopes, key=lambda iso: iso.abundance or 0.0)
+    return float(abundant_iso.mass if abundant_iso.mass is not None else elem.mass)
+

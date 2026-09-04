@@ -42,6 +42,7 @@ from Libraries.cochem_torq_masses import (
     get_monoisotopic_mass,
     get_monoisotopic_masses,
     get_monoisotopic_masses_tensor,
+    resolve_ciaaw_monoisotopic_mass,
 )
 
 # GNN Warm Restart Scheduler
@@ -144,26 +145,41 @@ from Libraries.cochem_torq_training_persistence import (
     worker_init_fn,
 )
 
-# Inference Errors (Chunk 18)
+# Inference Errors (Chunks 18 & 19)
 from Libraries.cochem_torq_inference_errors import (
     ActiveLearningSelectionError,
+    AirGapIntegrityError,
     AirGapViolationError,
+    BaselineExecutionError,
+    CalibrationSizeError,
+    ClashDetectedError,
+    ConvergenceError,
     CutoffContinuityError,
+    DispersionParameterError,
     EnsembleConsensusError,
     GradientExplosionError,
     HDF5DataModuleLockError,
+    HardwareDispatchError,
     PBCGraphError,
     TorqInferenceError,
     VanishingGradientWarning,
 )
 
-# Inference Schemas (Chunk 18)
+# Inference Schemas (Chunks 18 & 19)
 from Libraries.cochem_torq_inference_schemas import (
     ActiveLearningOrchestratorConfig,
     C2SmoothCutoffConfig,
     ChunkedHDF5DataModuleConfig,
     CommitteeEnsembleConfig,
+    ConformalInterval,
+    ConformalPredictorConfig,
+    DeltaMLConfig,
+    DispersionD3Config,
     GNNGradientDebuggerConfig,
+    HPORunConfig,
+    LBFGSOptimizationState,
+    LBFGSOptimizerConfig,
+    NeighborListResult,
     PBCRadialGraphConfig,
 )
 
@@ -225,6 +241,55 @@ from Libraries.cochem_torq_pbc_graph import (
     fractional_to_cartesian,
 )
 
+# Hyperparameter Optimization Suite (Chunk 19)
+from Libraries.cochem_torq_hpo import (
+    ASHAPruner,
+    BasePruner,
+    HPOStudy,
+    HPOTrial,
+    MedianPruner,
+    TrialPruned,
+    compute_hpo_loss,
+    create_hpo_study,
+)
+
+# Delta-Learning Architecture (Chunk 19)
+from Libraries.cochem_torq_delta_ml import (
+    BaselinePhysicsEngine,
+    DeltaMLEngine,
+    EMTBaselineEngine,
+    GFN2xTBEngine,
+    LennardJonesBaselineEngine,
+    PM6Engine,
+    UnitHarmonizer,
+)
+
+# Conformal Prediction Uncertainty (Chunk 19)
+from Libraries.cochem_torq_conformal import (
+    CalibrationSample,
+    ConformalPredictor,
+)
+
+# L-BFGS Geometry Optimizer (Chunk 19)
+from Libraries.cochem_torq_lbfgs_optimizer import (
+    LBFGSOptimizer,
+    check_clash,
+    project_forces_eckart,
+)
+
+# Grimme D3 Empirical Dispersion (Chunk 19)
+from Libraries.cochem_torq_dispersion_d3 import (
+    CANONICAL_DISPERSION_SHA256,
+    DispersionD3Layer,
+    compute_coordination_numbers,
+)
+
+# Spatial Neighbor List Generator (Chunk 19)
+from Libraries.cochem_torq_neighbor_list import (
+    TRITON_AVAILABLE,
+    build_neighbor_list,
+)
+
 __all__ = [
     # Errors
     "CoChemError",
@@ -241,7 +306,7 @@ __all__ = [
     "OOMRecoveryError",
     "EquivarianceBreakError",
     "SchedulerDivergenceError",
-    # Inference Errors (Chunk 18)
+    # Inference Errors (Chunks 18 & 19)
     "TorqInferenceError",
     "ActiveLearningSelectionError",
     "HDF5DataModuleLockError",
@@ -251,6 +316,13 @@ __all__ = [
     "VanishingGradientWarning",
     "PBCGraphError",
     "AirGapViolationError",
+    "HardwareDispatchError",
+    "AirGapIntegrityError",
+    "ClashDetectedError",
+    "ConvergenceError",
+    "CalibrationSizeError",
+    "BaselineExecutionError",
+    "DispersionParameterError",
     # Schemas
     "TrainingDynamicsConfig",
     "TransferLearningConfig",
@@ -261,17 +333,26 @@ __all__ = [
     "ForceMatchingLossConfig",
     "DynamicBatchScalerConfig",
     "C2GraphPrunerConfig",
-    # Inference Schemas (Chunk 18)
+    # Inference Schemas (Chunks 18 & 19)
     "ActiveLearningOrchestratorConfig",
     "ChunkedHDF5DataModuleConfig",
     "CommitteeEnsembleConfig",
     "C2SmoothCutoffConfig",
     "GNNGradientDebuggerConfig",
     "PBCRadialGraphConfig",
+    "HPORunConfig",
+    "DeltaMLConfig",
+    "ConformalPredictorConfig",
+    "LBFGSOptimizerConfig",
+    "DispersionD3Config",
+    "NeighborListResult",
+    "ConformalInterval",
+    "LBFGSOptimizationState",
     # Masses
     "get_monoisotopic_mass",
     "get_monoisotopic_masses",
     "get_monoisotopic_masses_tensor",
+    "resolve_ciaaw_monoisotopic_mass",
     # GNN Scheduler
     "GNNWarmRestartScheduler",
     "compute_lr_at_step",
@@ -379,5 +460,36 @@ __all__ = [
     "compute_interplanar_spacings",
     "compute_virial_stress_tensor",
     "compute_hydrostatic_pressure",
+    # Hyperparameter Optimization (Chunk 19)
+    "ASHAPruner",
+    "BasePruner",
+    "HPOStudy",
+    "HPOTrial",
+    "MedianPruner",
+    "TrialPruned",
+    "compute_hpo_loss",
+    "create_hpo_study",
+    # Delta-Learning (Chunk 19)
+    "BaselinePhysicsEngine",
+    "DeltaMLEngine",
+    "EMTBaselineEngine",
+    "GFN2xTBEngine",
+    "LennardJonesBaselineEngine",
+    "PM6Engine",
+    "UnitHarmonizer",
+    # Conformal Prediction (Chunk 19)
+    "CalibrationSample",
+    "ConformalPredictor",
+    # L-BFGS Optimizer (Chunk 19)
+    "LBFGSOptimizer",
+    "check_clash",
+    "project_forces_eckart",
+    # Grimme D3 Dispersion (Chunk 19)
+    "CANONICAL_DISPERSION_SHA256",
+    "DispersionD3Layer",
+    "compute_coordination_numbers",
+    # Spatial Neighbor List (Chunk 19)
+    "TRITON_AVAILABLE",
+    "build_neighbor_list",
 ]
 

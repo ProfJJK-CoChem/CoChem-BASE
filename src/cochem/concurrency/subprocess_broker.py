@@ -269,7 +269,7 @@ class SubprocessBroker:
                 env = dict(self.topology_engine.get_worker_env())
                 # Scrub inherited CUDA_VISIBLE_DEVICES unless GPU assignment is explicitly designated
                 if "CUDA_VISIBLE_DEVICES" in env and "CUDA_VISIBLE_DEVICES" not in self.current_params:
-                    pass
+                    env.pop("CUDA_VISIBLE_DEVICES", None)
                 # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
                 mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
                 env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
@@ -360,6 +360,14 @@ class SubprocessBroker:
                         self.current_params,
                     )
 
+                    # Tripartite Air-Gap scratch remediation (§8B) [M]
+                    preserve_gbw = bool(
+                        self.current_params.get("moread", False)
+                        or "gbw" in str(self.current_params).lower()
+                        or any(job_scratch.glob("*.gbw"))
+                    )
+                    self._sanitize_remediation_scratch(job_scratch, preserve_gbw=preserve_gbw)
+
                     # Apply dynamic remediation callback if provided
                     if remediate_callback is not None:
                         new_cmd = remediate_callback(cat, self.current_params, job_scratch)
@@ -387,6 +395,48 @@ class SubprocessBroker:
             # Lifecycle hygiene: sweep and delete ephemeral sandbox
             shutil.rmtree(str(job_scratch), ignore_errors=True)
 
+
+    @staticmethod
+    def _sanitize_remediation_scratch(scratch_dir: Union[str, pathlib.Path], preserve_gbw: bool = False) -> None:
+        """Sanitizes ephemeral remediation scratch directory to prevent engine startup crashes (§8B) [M].
+
+        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess).
+        When preserve_gbw=True (MOREAD reuse / grid escalation), stages valid .gbw checkpoints
+        into a staging buffer and restores them after purging transients.
+        """
+        s_path = pathlib.Path(scratch_dir).resolve()
+        if not s_path.exists() or not s_path.is_dir():
+            return
+
+        staged_gbws: List[Tuple[pathlib.Path, pathlib.Path]] = []
+
+        if preserve_gbw:
+            for gbw_file in s_path.glob("*.gbw"):
+                staged = s_path / f".staged_{gbw_file.name}"
+                try:
+                    shutil.copy2(str(gbw_file), str(staged))
+                    staged_gbws.append((staged, gbw_file))
+                except Exception as _e:
+                    logger.debug("Failed staging gbw checkpoint %s: %s", gbw_file, _e)
+
+        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess"]
+        for pattern in transient_patterns:
+            for transient_file in s_path.glob(pattern):
+                try:
+                    if transient_file.is_file():
+                        transient_file.unlink(missing_ok=True)
+                    elif transient_file.is_dir():
+                        shutil.rmtree(str(transient_file), ignore_errors=True)
+                except Exception as _e:
+                    logger.debug("Failed removing transient file %s: %s", transient_file, _e)
+
+        if preserve_gbw and staged_gbws:
+            for staged, orig in staged_gbws:
+                try:
+                    if staged.exists():
+                        shutil.move(str(staged), str(orig))
+                except Exception as _e:
+                    logger.debug("Failed restoring staged checkpoint %s: %s", staged, _e)
 
     def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
         """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""

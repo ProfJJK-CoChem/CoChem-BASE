@@ -304,24 +304,24 @@ def scan_for_local_wheel_fallback(
     search_dirs: Optional[List[Union[str, Path]]] = None,
     target_python: Optional[str] = None,
 ) -> Optional[Path]:
+    """Scan configured directories for local pre-compiled wheels (.whl) or archives (.tar.gz, .zip).
+
+    Validates candidate wheels against host platform tags using packaging.tags.sys_tags(),
+    preventing platform-mismatched wheel selection in shared repository mounts (§17) [M].
     """
-    Scan configured directories for local pre-compiled wheels (.whl) or archives (.tar.gz, .zip).
-    Strictly adheres to PEP 427 and PEP 440 package boundary naming to avoid substring prefix collisions.
-    """
+    import packaging.tags
+    from packaging.utils import InvalidWheelFilename, parse_wheel_filename
+
     clean_name = re.sub(r"[-_.]+", "_", package_name).lower()
     hyphen_name = re.sub(r"[-_.]+", "-", package_name).lower()
 
-    # In PEP 427 wheels, the distribution name is terminated by '-' before the version string.
     wheel_pattern = rf"^(?:{re.escape(clean_name)}|{re.escape(hyphen_name)})-(?=[0-9])"
-    # In source distributions (.tar.gz/.zip), distribution name is terminated by '-' or '_' before version.
     archive_pattern = rf"^(?:{re.escape(clean_name)}|{re.escape(hyphen_name)})[-_](?=[0-9])"
 
-    # Build list of directories to probe
     probe_dirs: List[Path] = []
     if search_dirs:
         probe_dirs.extend([Path(d).resolve() for d in search_dirs if Path(d).exists()])
 
-    # Add default CoChem artifact search paths
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
     if env_art:
         wheel_dir = Path(env_art).resolve() / "wheels"
@@ -336,35 +336,45 @@ def scan_for_local_wheel_fallback(
     if cwd_dist.exists() and cwd_dist not in probe_dirs:
         probe_dirs.append(cwd_dist)
 
-    # Search for matching wheel / archive packages
+    supported_tags = set(packaging.tags.sys_tags())
     py_tag = f"cp{target_python.replace('.', '')}" if target_python else None
 
-    # First pass: look for exact matching wheel with python tag (e.g. cp311)
-    if py_tag:
-        for d in probe_dirs:
-            for item in d.glob("*.whl"):
-                stem_lower = item.name.lower()
-                if re.search(wheel_pattern, stem_lower) and py_tag in stem_lower:
-                    return item.resolve()
-
-    # Second pass: universal wheels (py3-none-any / py2.py3-none-any)
+    candidate_wheels: List[Tuple[Path, bool, bool]] = []
     for d in probe_dirs:
         for item in d.glob("*.whl"):
             stem_lower = item.name.lower()
-            if re.search(wheel_pattern, stem_lower) and (
-                "py3-none-any" in stem_lower or "py2.py3-none-any" in stem_lower
-            ):
-                return item.resolve()
+            if not re.search(wheel_pattern, stem_lower):
+                continue
 
-    # Third pass: if no target_python was specified, any matching wheel
-    if not target_python:
-        for d in probe_dirs:
-            for item in d.glob("*.whl"):
-                stem_lower = item.name.lower()
-                if re.search(wheel_pattern, stem_lower):
-                    return item.resolve()
+            try:
+                _, _, _, wheel_tags = parse_wheel_filename(item.name)
+            except InvalidWheelFilename:
+                continue
 
-    # Fourth pass: source archives (.tar.gz, .zip)
+            # Validate that candidate wheel is compatible with host OS/platform tags [M]
+            if not wheel_tags.intersection(supported_tags):
+                continue
+
+            has_py_tag = bool(py_tag and py_tag in stem_lower)
+            is_universal = bool("py3-none-any" in stem_lower or "py2.py3-none-any" in stem_lower)
+            candidate_wheels.append((item.resolve(), has_py_tag, is_universal))
+
+    # 1. Exact matching Python tag
+    if py_tag:
+        for p, has_py, _ in candidate_wheels:
+            if has_py:
+                return p
+
+    # 2. Universal wheel
+    for p, _, is_univ in candidate_wheels:
+        if is_univ:
+            return p
+
+    # 3. Any compatible platform wheel
+    if candidate_wheels:
+        return candidate_wheels[0][0]
+
+    # 4. Source distribution archives (.tar.gz, .zip)
     for d in probe_dirs:
         for ext in ("*.tar.gz", "*.zip"):
             for item in d.glob(ext):

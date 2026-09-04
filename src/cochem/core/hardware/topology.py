@@ -10,6 +10,7 @@ import dataclasses
 import logging
 import os
 import pathlib
+import subprocess
 import sys
 from typing import Dict, List, Optional, Tuple
 
@@ -121,6 +122,30 @@ class TopologyDiscoveryEngine:
                     return max(1, p_count), e_count
             except Exception as linux_err:
                 logger.debug("Linux cpufreq query bypassed: %s", linux_err)
+
+        # 3. Darwin (Apple Silicon): Query sysctl for perflevel0 (P-cores) and perflevel1 (E-cores)
+        if sys.platform == "darwin":
+            try:
+                res0 = subprocess.run(
+                    ["sysctl", "-n", "hw.perflevel0.physicalcpu"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2.0,
+                    check=False,
+                )
+                res1 = subprocess.run(
+                    ["sysctl", "-n", "hw.perflevel1.physicalcpu"],
+                    capture_output=True,
+                    text=True,
+                    timeout=2.0,
+                    check=False,
+                )
+                p_val = int(res0.stdout.strip()) if res0.returncode == 0 and res0.stdout.strip().isdigit() else 0
+                e_val = int(res1.stdout.strip()) if res1.returncode == 0 and res1.stdout.strip().isdigit() else 0
+                if p_val > 0 or e_val > 0:
+                    return max(1, p_val), e_val
+            except Exception as darwin_err:
+                logger.debug("Darwin sysctl query bypassed: %s", darwin_err)
 
         # Uniform fallback
         return physical_total, 0
@@ -254,15 +279,8 @@ class TopologyDiscoveryEngine:
         # Zero-CUDA-Locking Directive: Non-locking MPS GPU apportionment
         base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
 
-        # Multi-GPU physical device indexing fallback
-        available_gpus = 0
-        try:
-            import torch
-            if torch.cuda.is_available():
-                available_gpus = torch.cuda.device_count()
-        except Exception as _e:
-            logger.debug(f"Ignored exception: {_e}")
-
+        # Zero-CUDA-Locking Directive (§8A, §19): Non-initializing GPU discovery [M]
+        available_gpus = self._discover_gpu_count()
         if available_gpus > 0:
             assigned_gpu = worker_index % available_gpus
             base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
@@ -271,19 +289,91 @@ class TopologyDiscoveryEngine:
             base_env.update(extra_env)
         return base_env
 
+    @staticmethod
+    def _discover_gpu_count() -> int:
+        """Non-initializing GPU count query guaranteeing zero CUDA runtime lock in parent (§8A, §19) [M]."""
+        # Tier 1: NVML query
+        try:
+            import pynvml
+            pynvml.nvmlInit()
+            count = pynvml.nvmlDeviceGetCount()
+            pynvml.nvmlShutdown()
+            return int(count)
+        except Exception as exc:
+            logger.debug(f"NVML GPU query unavailable: {exc}")
+
+        # Tier 2: nvidia-smi CLI subprocess query
+        try:
+            res = subprocess.run(
+                ["nvidia-smi", "--query-gpu=count", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                timeout=2.0,
+                check=False,
+            )
+            if res.returncode == 0 and res.stdout.strip():
+                lines = [l.strip() for l in res.stdout.strip().splitlines() if l.strip()]
+                if lines and lines[0].isdigit():
+                    return int(lines[0])
+        except Exception as exc:
+            logger.debug(f"nvidia-smi GPU query unavailable: {exc}")
+
+        return 0
 
     def pin_scout_affinity(self, core_index: int = 0) -> bool:
-        """Bind host orchestration process to specific core index to avoid thread migration."""
+        """Bind host orchestration process to specific core index to avoid thread migration.
+
+        Supports Windows multi-group affinity for >64 logical cores via SetThreadGroupAffinity (§19) [M].
+        """
         try:
             if hasattr(os, "sched_setaffinity"):
                 os.sched_setaffinity(0, {core_index})
                 return True
             elif sys.platform == "win32":
-                mask = 1 << max(0, int(core_index))
-                handle = ctypes.windll.kernel32.GetCurrentProcess()
-                res = ctypes.windll.kernel32.SetProcessAffinityMask(handle, ctypes.c_size_t(mask))
-                return bool(res != 0)
+                total_cpus = os.cpu_count() or 1
+                k32 = ctypes.windll.kernel32
+                k32.GetCurrentProcess.restype = ctypes.c_void_p
+                k32.GetCurrentThread.restype = ctypes.c_void_p
+                k32.SetProcessAffinityMask.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+                k32.SetProcessAffinityMask.restype = ctypes.c_int
+
+                if core_index >= 64 or total_cpus > 64:
+                    class GROUP_AFFINITY(ctypes.Structure):
+                        _fields_ = [
+                            ("Mask", ctypes.c_size_t),
+                            ("Group", ctypes.c_ushort),
+                            ("Reserved", ctypes.c_ushort * 3),
+                        ]
+
+                    group = int(core_index) // 64
+                    core_in_group = int(core_index) % 64
+                    mask = 1 << core_in_group
+
+                    ga = GROUP_AFFINITY()
+                    ga.Group = group
+                    ga.Mask = mask
+                    prev_ga = GROUP_AFFINITY()
+
+                    k32.SetThreadGroupAffinity.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+                    k32.SetThreadGroupAffinity.restype = ctypes.c_int
+                    thread_handle = k32.GetCurrentThread()
+                    res = k32.SetThreadGroupAffinity(
+                        thread_handle,
+                        ctypes.byref(ga),
+                        ctypes.byref(prev_ga),
+                    )
+                    return bool(res != 0)
+                else:
+                    mask = 1 << max(0, int(core_index))
+                    handle = k32.GetCurrentProcess()
+                    res = k32.SetProcessAffinityMask(handle, ctypes.c_size_t(mask))
+                    return bool(res != 0)
         except Exception as pin_err:
             logger.debug("Affinity pinning error on core %d: %s", core_index, pin_err)
             return False
         return False
+
+
+# Architectural alias
+HardwareTopologyEngine = TopologyDiscoveryEngine
+

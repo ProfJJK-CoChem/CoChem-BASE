@@ -243,29 +243,12 @@ class DynamicBondDictionary:
                                 stacklevel=2,
                             )
 
-        shortest_paths = dict(nx.all_pairs_shortest_path_length(graph))
-        for i_idx in range(num_atoms):
-            for j_idx in range(i_idx + 1, num_atoms):
-                path_len = shortest_paths.get(i_idx, {}).get(j_idx, 999)
-                if path_len >= 3:
-                    d_ij = float(np.linalg.norm(coords[i_idx] - coords[j_idx]))
-                    vdw_sum = self._get_vdw_radius(atoms[i_idx]) + self._get_vdw_radius(atoms[j_idx])
-                    threshold = 0.65 * vdw_sum
-                    if d_ij < threshold:
-                        clash_z = abs(d_ij - threshold) / 0.10
-                        if clash_z > max_z:
-                            max_z = clash_z
-                        violations.append(
-                            GeometricViolation(
-                                violation_type="steric_clash",
-                                atom_indices=[i_idx, j_idx],
-                                measured_value=d_ij,
-                                reference_value=threshold,
-                                z_score=clash_z,
-                            )
-                        )
+        steric_clashes = self.validate_steric_contacts(atoms, coords, graph=graph)
+        for clash in steric_clashes:
+            if clash.z_score > max_z:
+                max_z = clash.z_score
+            violations.append(clash)
 
-        steric_clashes = [v for v in violations if v.violation_type == "steric_clash"]
         is_plausible = (max_z < 5.0) and (len(steric_clashes) == 0)
 
         if max_z >= 5.0 and raise_on_error:
@@ -278,3 +261,68 @@ class DynamicBondDictionary:
             max_z_score=max_z,
             violations=violations,
         )
+
+    @staticmethod
+    def _is_polar_hydrogen(idx: int, atoms: List[str], graph: nx.Graph) -> bool:
+        """Determines if atom is a hydrogen covalently bonded to an electronegative donor (O, N, F)."""
+        if atoms[idx] != "H":
+            return False
+        if idx in graph:
+            for nbr in graph.neighbors(idx):
+                if atoms[nbr] in {"O", "N", "F"}:
+                    return True
+        return False
+
+    @staticmethod
+    def _is_electronegative_acceptor(idx: int, atoms: List[str]) -> bool:
+        """Determines if atom is an electronegative hydrogen bond acceptor (O, N, F, Cl, Br, S)."""
+        return atoms[idx] in {"O", "N", "F", "Cl", "Br", "S"}
+
+    def validate_steric_contacts(
+        self,
+        atoms: list[str],
+        coordinates: list[list[float]] | np.ndarray,
+        bonds: Optional[list[tuple[int, int, float]]] = None,
+        graph: Optional[nx.Graph] = None,
+    ) -> list[GeometricViolation]:
+        """Validates non-bonded pairs against dynamic vdW steric thresholds with polar HB exemptions [M]."""
+        num_atoms = len(atoms)
+        coords = np.array(coordinates, dtype=float)
+
+        if graph is None:
+            graph = nx.Graph()
+            for idx in range(num_atoms):
+                graph.add_node(idx, symbol=atoms[idx])
+            if bonds:
+                for u_idx, v_idx, b_order in bonds:
+                    graph.add_edge(u_idx, v_idx, bond_order=float(b_order))
+
+        shortest_paths = dict(nx.all_pairs_shortest_path_length(graph))
+        violations: list[GeometricViolation] = []
+
+        for i_idx in range(num_atoms):
+            for j_idx in range(i_idx + 1, num_atoms):
+                path_len = shortest_paths.get(i_idx, {}).get(j_idx, 999)
+                if path_len >= 3:
+                    d_ij = float(np.linalg.norm(coords[i_idx] - coords[j_idx]))
+                    vdw_sum = self._get_vdw_radius(atoms[i_idx]) + self._get_vdw_radius(atoms[j_idx])
+
+                    # Inspect polar hydrogen bond / halogen bond donor-acceptor exemption [M]
+                    is_hb_contact = (
+                        (self._is_polar_hydrogen(i_idx, atoms, graph) and self._is_electronegative_acceptor(j_idx, atoms))
+                        or (self._is_polar_hydrogen(j_idx, atoms, graph) and self._is_electronegative_acceptor(i_idx, atoms))
+                    )
+                    threshold = (0.50 * vdw_sum) if is_hb_contact else (0.65 * vdw_sum)
+
+                    if d_ij < threshold:
+                        clash_z = abs(d_ij - threshold) / 0.10
+                        violations.append(
+                            GeometricViolation(
+                                violation_type="steric_clash",
+                                atom_indices=[i_idx, j_idx],
+                                measured_value=d_ij,
+                                reference_value=threshold,
+                                z_score=clash_z,
+                            )
+                        )
+        return violations

@@ -514,25 +514,41 @@ def interrogate_binary_version(
     engine_name: str,
     timeout_seconds: float = 3.0,
 ) -> Tuple[Optional[str], Optional[str]]:
+    """Executes binary with sandboxed flags to safely interrogate its version.
+
+    Engine-specific interrogation strategies:
+    - ORCA: Non-destructive bare execution (timeout=10, check=False) capturing stdout+stderr banner.
+    - xTB / CREST: --version flag with check=False.
+    - CFOUR: -v flag or banner inspection with check=False.
+    - Apptainer / Singularity: --version flag.
+    Resolves executables dynamically via pathlib.Path and shutil.which.
     """
-    Executes binary with sandboxed flags to safely interrogate its version.
-    Guards against process hangs using timeout=3.0s and stdin=DEVNULL.
-    Returns (version_string, error_detail).
-    """
-    p = Path(binary_path).resolve()
+    p = Path(binary_path)
+    if not p.is_file():
+        resolved = shutil.which(str(binary_path))
+        if resolved:
+            p = Path(resolved).resolve()
+        else:
+            p = p.resolve()
+    else:
+        p = p.resolve()
+
     if not p.exists():
         return None, f"Binary not found: {p}"
 
     cmd = [str(p)]
     raw = engine_name.lower()
+    timeout = timeout_seconds
 
-    if raw in ("orca", "orca_2mkl", "orca_vpt2_prep"):
-        cmd.append("--version")
+    if "orca" in raw:
+        # Non-destructive ORCA interrogation: bare execution without --version, capturing banner
+        cmd = [str(p)]
+        timeout = max(timeout_seconds, 10.0)
     elif raw in ("mpirun", "mpiexec"):
         cmd.append("--version")
     elif raw in ("xtb", "crest"):
         cmd.append("--version")
-    elif raw in ("xcfour", "c4init", "c4cleanup"):
+    elif raw in ("xcfour", "c4init", "c4cleanup") or "cfour" in raw:
         cmd.append("-v")
     elif raw in ("apptainer", "singularity"):
         cmd.append("--version")
@@ -543,15 +559,16 @@ def interrogate_binary_version(
         res = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
-            timeout=timeout_seconds,
-            check=True,
+            timeout=timeout,
+            check=False,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
         )
-        # Decode and take only first 1024 chars to avoid huge buffers
-        combined_output = res.stdout.decode(errors="ignore")[:1024].strip()
-        
+        stdout_str = res.stdout.decode(errors="ignore") if res.stdout else ""
+        stderr_str = res.stderr.decode(errors="ignore") if res.stderr else ""
+        combined_output = (stdout_str + "\n" + stderr_str)[:4096].strip()
+
         version = extract_semantic_version(combined_output, engine_name)
         if version:
             return version, None
@@ -561,7 +578,7 @@ def interrogate_binary_version(
         return "Unknown Version (No Output)", None
 
     except subprocess.TimeoutExpired:
-        return None, f"Execution timed out after {timeout_seconds}s"
+        return None, f"Execution timed out after {timeout}s"
     except PermissionError:
         return None, "Permission denied executing binary"
     except Exception as exc:

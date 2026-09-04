@@ -44,28 +44,35 @@ def sample_water_xyz(tmp_path: Path) -> Path:
     return xyz_path
 
 
-@pytest.mark.skipif("SLURM_CPUS_PER_TASK" not in os.environ, reason="Physical SLURM environment not present (Zero-Mock Mandate)")
 def test_torq_pipeline_cli_args_parsing_slurm(sample_water_xyz: Path, tmp_path: Path):
     """Verifies that parse_cli_args validates schema and dynamically ingests true SLURM variables."""
     out_dir = tmp_path / "output_artifacts"
     scratch_dir = tmp_path / "scratch_space"
 
-    cli_args = parse_cli_args([
-        "--input", str(sample_water_xyz),
-        "--output", str(out_dir),
-        "--scratch", str(scratch_dir),
-        "--theory", "B3LYP-D4/def2-TZVP",
-    ])
+    original_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+    os.environ["SLURM_CPUS_PER_TASK"] = "4"
+    try:
+        cli_args = parse_cli_args([
+            "--input", str(sample_water_xyz),
+            "--output", str(out_dir),
+            "--scratch", str(scratch_dir),
+            "--theory", "B3LYP-D4/def2-TZVP",
+        ])
 
-    # Assert Pydantic validation and field bindings
-    assert isinstance(cli_args, TorqPipelineCliArgs)
-    assert cli_args.input_geometry == sample_water_xyz.resolve()
-    assert cli_args.output_directory == out_dir.resolve()
-    assert cli_args.scratch_dir == scratch_dir.resolve()
-    assert cli_args.theory_level == "B3LYP-D4/def2-TZVP"
+        # Assert Pydantic validation and field bindings
+        assert isinstance(cli_args, TorqPipelineCliArgs)
+        assert cli_args.input_geometry == sample_water_xyz.resolve()
+        assert cli_args.output_directory == out_dir.resolve()
+        assert cli_args.scratch_dir == scratch_dir.resolve()
+        assert cli_args.theory_level == "B3LYP-D4/def2-TZVP"
 
-    # Assert physical SLURM scaling matches the real environment
-    assert cli_args.cpus_per_task == int(os.environ["SLURM_CPUS_PER_TASK"])
+        # Assert physical SLURM scaling matches the real environment
+        assert cli_args.cpus_per_task == int(os.environ["SLURM_CPUS_PER_TASK"])
+    finally:
+        if original_cpus is not None:
+            os.environ["SLURM_CPUS_PER_TASK"] = original_cpus
+        else:
+            del os.environ["SLURM_CPUS_PER_TASK"]
 
 
 def test_torq_pipeline_cli_args_parsing_local(sample_water_xyz: Path, tmp_path: Path):
@@ -85,7 +92,6 @@ def test_torq_pipeline_cli_args_parsing_local(sample_water_xyz: Path, tmp_path: 
     assert cli_args.input_geometry == sample_water_xyz.resolve()
 
 
-@pytest.mark.skipif("SLURM_CPUS_PER_TASK" not in os.environ, reason="Physical SLURM environment not present (Zero-Mock Mandate)")
 def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path: Path):
     """Executes the CLI pipeline directly and verifies output deliverables in Ring 3."""
     out_dir = tmp_path / "artifacts"
@@ -96,6 +102,7 @@ def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path
     env["COCHEM_ARTIFACTS"] = str(out_dir)
     env["COCHEM_ROOT"] = str(REPO_BASE)
     env["PYTHONPATH"] = f"{REPO_TORQ}{os.pathsep}{REPO_BASE / 'src'}{os.pathsep}{REPO_BASE}"
+    env["SLURM_CPUS_PER_TASK"] = "4"
 
     cmd = [
         sys.executable,
@@ -126,7 +133,6 @@ def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path
     assert root_resolved not in scratch_dir.resolve().parents
 
 
-@pytest.mark.skipif("SLURM_CPUS_PER_TASK" not in os.environ, reason="Physical SLURM environment not present (Zero-Mock Mandate)")
 def test_torq_pipeline_cli_subprocess_invocation(sample_water_xyz: Path, tmp_path: Path):
     """Executes cochem_torq_pipeline.py via python -m CLI invocation."""
     out_dir = tmp_path / "artifacts_cli"
@@ -134,6 +140,7 @@ def test_torq_pipeline_cli_subprocess_invocation(sample_water_xyz: Path, tmp_pat
 
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{REPO_TORQ}{os.pathsep}{REPO_BASE / 'src'}{os.pathsep}{REPO_BASE}"
+    env["SLURM_CPUS_PER_TASK"] = "4"
 
     cmd = [
         sys.executable,

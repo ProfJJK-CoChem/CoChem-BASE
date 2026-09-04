@@ -20,23 +20,41 @@ from Libraries.cochem_torq_inference_schemas import ConformalPredictorConfig
 
 def _build_calibrated_conformal_predictor() -> ConformalPredictor:
     """Instantiate authentic conformal predictor calibrated on physical samples."""
+    from ase import Atoms
+    from ase.calculators.emt import EMT
+
     cfg = ConformalPredictorConfig(alpha=0.10)
     predictor = ConformalPredictor(config=cfg)
 
-    # 25 authentic physical calibration samples
     samples = []
+    
+    atoms = Atoms("OH2", positions=[
+        [0.0, 0.0, 0.0],
+        [0.0, 0.75, 0.5],
+        [0.0, -0.75, 0.5],
+    ])
+    atoms.calc = EMT()
 
-    for i in range(25):
-        f_true = torch.tensor([[0.01, 0.02, -0.01], [-0.01, 0.01, 0.0], [0.0, -0.03, 0.01]], dtype=torch.float64)
-        f_pred = f_true + 0.005 * (i % 3 - 1)
-        f_sig = torch.full((3, 3), 0.01, dtype=torch.float64)
+    for _ in range(25):
+        # Slightly perturb for physical variation
+        atoms.positions += np.random.normal(0, 0.02, size=atoms.positions.shape)
+        e_true = atoms.get_potential_energy()
+        f_true = atoms.get_forces()
+        
+        # Simulate a prediction error explicitly based on physical displacement
+        pred_atoms = atoms.copy()
+        pred_atoms.positions += np.random.normal(0, 0.01, size=atoms.positions.shape)
+        pred_atoms.calc = EMT()
+        e_pred = pred_atoms.get_potential_energy()
+        f_pred = pred_atoms.get_forces()
+
         sample = CalibrationSample(
-            energy_true=-76.4 - i * 0.001,
-            energy_pred=-76.4 - i * 0.001 + 0.002,
+            energy_true=e_true,
+            energy_pred=e_pred,
             energy_sigma=0.01,
-            forces_true=f_true,
-            forces_pred=f_pred,
-            forces_sigma=f_sig,
+            forces_true=torch.tensor(f_true, dtype=torch.float64),
+            forces_pred=torch.tensor(f_pred, dtype=torch.float64),
+            forces_sigma=torch.full((3, 3), 0.01, dtype=torch.float64),
         )
         samples.append(sample)
 

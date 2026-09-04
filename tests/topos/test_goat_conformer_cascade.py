@@ -18,14 +18,8 @@ from cochem_base.topology.cochem_topos_crusher import (
 
 def _build_methyl_radical() -> Atoms:
     """Construct authentic physical methyl radical (CH3.) doublet (2S+1=2, uhf=1)."""
-    r_ch = 1.08
-    coords = [
-        [0.0, 0.0, 0.0],
-        [r_ch, 0.0, 0.0],
-        [-r_ch * 0.5, r_ch * np.sqrt(3) / 2.0, 0.0],
-        [-r_ch * 0.5, -r_ch * np.sqrt(3) / 2.0, 0.0],
-    ]
-    atoms = Atoms("CH3", positions=coords)
+    from ase.build import molecule
+    atoms = molecule("CH3")
     atoms.info["charge"] = 0
     atoms.info["uhf"] = 1
     atoms.info["multiplicity"] = 2
@@ -34,14 +28,8 @@ def _build_methyl_radical() -> Atoms:
 
 def _build_water_molecule() -> Atoms:
     """Construct authentic physical neutral closed-shell water molecule (H2O)."""
-    r_oh = 0.9578
-    half_angle = np.radians(104.48 / 2.0)
-    coords = [
-        [0.0, 0.0, 0.0],
-        [0.0, r_oh * np.sin(half_angle), r_oh * np.cos(half_angle)],
-        [0.0, -r_oh * np.sin(half_angle), r_oh * np.cos(half_angle)],
-    ]
-    atoms = Atoms("OH2", positions=coords)
+    from ase.build import molecule
+    atoms = molecule("H2O")
     atoms.info["charge"] = 0
     atoms.info["uhf"] = 0
     atoms.info["multiplicity"] = 1

@@ -1,21 +1,29 @@
 import numpy as np
-import torch
 import math
+from ase import Atoms
+from ase.calculators.emt import EMT
+from ase.optimize import BFGS
+from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+from ase.md.verlet import VelocityVerlet
+from ase.vibrations import Vibrations
+from ase import units
 import os
 
+data_dir = "D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data"
+os.makedirs(data_dir, exist_ok=True)
+
 # 1. H2CO equilibrium
-h2co_eq = np.array([
-    [0.0000, 0.0000, -0.5312],   # C
-    [0.0000, 0.0000,  0.6788],   # O
-    [0.0000, 0.9382, -1.1078],   # H1
-    [0.0000, -0.9382, -1.1078],  # H2
-])
-with open("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/h2co_eq.xyz", "w") as f:
-    f.write("4\nFormaldehyde equilibrium\n")
-    f.write(f"C {h2co_eq[0,0]:.4f} {h2co_eq[0,1]:.4f} {h2co_eq[0,2]:.4f}\n")
-    f.write(f"O {h2co_eq[1,0]:.4f} {h2co_eq[1,1]:.4f} {h2co_eq[1,2]:.4f}\n")
-    f.write(f"H {h2co_eq[2,0]:.4f} {h2co_eq[2,1]:.4f} {h2co_eq[2,2]:.4f}\n")
-    f.write(f"H {h2co_eq[3,0]:.4f} {h2co_eq[3,1]:.4f} {h2co_eq[3,2]:.4f}\n")
+# Formaldehyde (H2CO): C=O and two C-H bonds
+h2co = Atoms('CH2O', positions=[[0,0,0],[0,1.2,0],[0.9,-0.5,0],[-0.9,-0.5,0]])
+h2co.calc = EMT()
+opt = BFGS(h2co)
+opt.run(fmax=0.01)
+h2co_eq = h2co.positions.copy()
+
+with open(f"{data_dir}/h2co_eq.xyz", "w") as f:
+    f.write("4\nFormaldehyde equilibrium (EMT)\n")
+    for i, sym in enumerate(["C", "O", "H", "H"]):
+        f.write(f"{sym} {h2co_eq[i,0]:.4f} {h2co_eq[i,1]:.4f} {h2co_eq[i,2]:.4f}\n")
 
 # 2. H2CO trajectory (frames 1-11)
 positions = []
@@ -23,32 +31,39 @@ velocities = []
 forces = []
 energies = []
 uncertainties = []
-atomic_numbers = [6, 8, 1, 1]
+
+# Thermalize
+MaxwellBoltzmannDistribution(h2co, temperature_K=300)
+dyn = VelocityVerlet(h2co, 1.0 * units.fs)
 
 for frame_idx in range(1, 11):
-    wiggle = 0.005 * math.sin(frame_idx * 0.5)
-    pos = h2co_eq.copy()
-    pos[0, 2] += wiggle
-    vel = np.full((4, 3), 0.001 * frame_idx, dtype=np.float64)
-    frc = np.full((4, 3), 0.002, dtype=np.float64)
-    energy = -114.520 + 0.0005 * frame_idx
+    dyn.run(10)
+    pos = h2co.get_positions()
+    vel = h2co.get_velocities()
+    frc = h2co.get_forces()
+    energy = h2co.get_potential_energy() * 0.036749322 # eV to Hartree
     uncertainty = 0.25 + 0.02 * (frame_idx % 5)
+    
     positions.append(pos)
     velocities.append(vel)
     forces.append(frc)
     energies.append(energy)
     uncertainties.append(uncertainty)
 
-# Frame 11 (OOD)
-h2co_stretched = h2co_eq.copy()
-h2co_stretched[1, 2] = 2.1188 # C-O distance = 2.6500 A
-positions.append(h2co_stretched)
-velocities.append(np.zeros((4, 3), dtype=np.float64))
-forces.append(np.full((4, 3), 0.25, dtype=np.float64))
-energies.append(-114.210)
+# Frame 11 (OOD - stretched C-O bond)
+h2co_stretched = h2co.copy()
+pos = h2co_stretched.get_positions()
+pos[1, 1] += 1.5 # Stretch O atom away
+h2co_stretched.set_positions(pos)
+h2co_stretched.calc = EMT()
+
+positions.append(h2co_stretched.get_positions())
+velocities.append(np.zeros((4, 3)))
+forces.append(h2co_stretched.get_forces())
+energies.append(h2co_stretched.get_potential_energy() * 0.036749322)
 uncertainties.append(1.875)
 
-np.savez("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/h2co_trajectory.npz", 
+np.savez(f"{data_dir}/h2co_trajectory.npz", 
          positions=np.array(positions),
          velocities=np.array(velocities),
          forces=np.array(forces),
@@ -63,24 +78,22 @@ cal_forces_true = []
 cal_forces_pred = []
 cal_forces_sigma = []
 
+dyn = VelocityVerlet(h2co, 1.0 * units.fs)
 for step in range(12):
-    forces_t = np.array([
-        [0.01 * (step % 3), -0.02 * (step % 2), 0.005],
-        [-0.01 * (step % 3), 0.02 * (step % 2), -0.005],
-        [0.002, 0.001, -0.002],
-        [-0.002, -0.001, 0.002],
-    ], dtype=np.float64)
-    forces_p = forces_t + 0.003 * (0.5 - (step % 4) * 0.25)
-    forces_s = np.full((4, 3), 0.015, dtype=np.float64)
+    dyn.run(5)
+    f_t = h2co.get_forces()
+    f_p = f_t + np.random.normal(0, 0.05, f_t.shape)
+    f_s = np.full((4, 3), 0.015, dtype=np.float64)
+    e_t = h2co.get_potential_energy() * 0.036749322
     
-    cal_energy_true.append(-114.500 + 0.001 * step)
-    cal_energy_pred.append(-114.500 + 0.0012 * step)
+    cal_energy_true.append(e_t)
+    cal_energy_pred.append(e_t + np.random.normal(0, 0.01))
     cal_energy_sigma.append(0.002)
-    cal_forces_true.append(forces_t)
-    cal_forces_pred.append(forces_p)
-    cal_forces_sigma.append(forces_s)
+    cal_forces_true.append(f_t)
+    cal_forces_pred.append(f_p)
+    cal_forces_sigma.append(f_s)
 
-np.savez("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/h2co_cal_data.npz",
+np.savez(f"{data_dir}/h2co_cal_data.npz",
          energy_true=np.array(cal_energy_true),
          energy_pred=np.array(cal_energy_pred),
          energy_sigma=np.array(cal_energy_sigma),
@@ -89,40 +102,33 @@ np.savez("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/h2co_cal_data.npz",
          forces_sigma=np.array(cal_forces_sigma))
 
 # 3. Water Dimer
-WATER_DIMER_XYZ = (
-    "O -1.47400000  0.00000000  0.06300000\n"
-    "H -1.82100000  0.77200000 -0.40400000\n"
-    "H -0.52800000  0.00000000 -0.12600000\n"
-    "O  1.42800000  0.00000000 -0.06300000\n"
-    "H  1.78200000  0.77200000  0.40400000\n"
-    "H  1.78200000 -0.77200000  0.40400000\n"
-)
-with open("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/water_dimer.xyz", "w") as f:
-    f.write(WATER_DIMER_XYZ)
+dimer = Atoms('H2OH2O', positions=[
+    [-1.47, 0, 0.06], [-1.82, 0.77, -0.40], [-0.53, 0, -0.13],
+    [1.43, 0, -0.06], [1.78, 0.77, 0.40], [1.78, -0.77, 0.40]
+])
+dimer.calc = EMT()
+opt = BFGS(dimer)
+opt.run(fmax=0.01)
+with open(f"{data_dir}/water_dimer.xyz", "w") as f:
+    f.write("6\nWater Dimer\n")
+    for sym, pos in zip(dimer.symbols, dimer.positions):
+        f.write(f"{sym} {pos[0]:.4f} {pos[1]:.4f} {pos[2]:.4f}\n")
 
 # 4. Water equilibrium and hessian
-water_eq = np.array([
-    [0.0000, 0.0000, 0.1173],
-    [0.0000, 0.7572, -0.4692],
-    [0.0000, -0.7572, -0.4692],
-])
-with open("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/water_eq.xyz", "w") as f:
-    f.write("3\nWater equilibrium\n")
-    f.write(f"O {water_eq[0,0]:.4f} {water_eq[0,1]:.4f} {water_eq[0,2]:.4f}\n")
-    f.write(f"H {water_eq[1,0]:.4f} {water_eq[1,1]:.4f} {water_eq[1,2]:.4f}\n")
-    f.write(f"H {water_eq[2,0]:.4f} {water_eq[2,1]:.4f} {water_eq[2,2]:.4f}\n")
+water = Atoms('H2O', positions=[[0,0,0],[0.76,0.59,0],[-0.76,0.59,0]])
+water.calc = EMT()
+opt = BFGS(water)
+opt.run(fmax=0.001)
 
-k_stretch = 0.580   # ~8.4 N/cm in Hartree/Bohr^2
-k_bend = 0.075      # ~1.1 N/cm in Hartree/Bohr^2
-hess = [
-    [0.02, 0.00, 0.00, -0.01, 0.00, 0.00, -0.01, 0.00, 0.00],
-    [0.00, k_stretch, 0.00, 0.00, -0.5*k_stretch, 0.00, 0.00, -0.5*k_stretch, 0.00],
-    [0.00, 0.00, k_bend, 0.00, 0.00, -0.5*k_bend, 0.00, 0.00, -0.5*k_bend],
-    [-0.01, 0.00, 0.00, 0.01, 0.00, 0.00, 0.00, 0.00, 0.00],
-    [0.00, -0.5*k_stretch, 0.00, 0.00, 0.5*k_stretch, 0.00, 0.00, 0.00, 0.00],
-    [0.00, 0.00, -0.5*k_bend, 0.00, 0.00, 0.5*k_bend, 0.00, 0.00, 0.00],
-    [-0.01, 0.00, 0.00, 0.00, 0.00, 0.00, 0.01, 0.00, 0.00],
-    [0.00, -0.5*k_stretch, 0.00, 0.00, 0.00, 0.00, 0.00, 0.5*k_stretch, 0.00],
-    [0.00, 0.00, -0.5*k_bend, 0.00, 0.00, 0.00, 0.00, 0.00, 0.5*k_bend],
-]
-np.save("D:/__CoChem/GitHub-Repo/CoChem-BASE/tests/data/water_hessian.npy", np.array(hess, dtype=np.float64))
+with open(f"{data_dir}/water_eq.xyz", "w") as f:
+    f.write("3\nWater equilibrium (EMT)\n")
+    for sym, pos in zip(water.symbols, water.positions):
+        f.write(f"{sym} {pos[0]:.4f} {pos[1]:.4f} {pos[2]:.4f}\n")
+
+vib = Vibrations(water, name=f"{data_dir}/vib")
+vib.run()
+hess = vib.get_vibrations().get_hessian_2d()
+np.save(f"{data_dir}/water_hessian.npy", hess)
+vib.clean()
+
+print("Generated physical files!")

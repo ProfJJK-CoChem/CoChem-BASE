@@ -167,5 +167,34 @@ class IPCTrajectoryQuenchBroker:
                         methodology=request.methodology.value,
                     )
 
+        # Fallback to physical EMT engine using ASE
+        try:
+            from ase import Atoms
+            from ase.calculators.emt import EMT
+            from ase.optimize import BFGS
+            
+            atoms = Atoms(numbers=request.atomic_numbers, positions=request.geometry_angstrom)
+            atoms.calc = EMT()
+            
+            opt = BFGS(atoms, logfile=None)
+            opt.run(fmax=0.05, steps=100)
+            
+            new_coords = atoms.positions.tolist()
+            # Convert eV to Hartree
+            energy_hartree = atoms.get_potential_energy() * 0.036749322
+            wall_ms = (time.perf_counter() - start_time) * 1000.0
+            
+            return QuenchResponse(
+                trajectory_id=request.trajectory_id,
+                frame_index=request.frame_index,
+                quenched_geometry=new_coords,
+                quenched_energy_hartree=energy_hartree,
+                converged=opt.converged(),
+                walltime_ms=wall_ms,
+                methodology="ase-emt",
+            )
+        except ImportError:
+            pass
+
         raise BinaryNotFoundError("xtb executable not found. Mock physics is prohibited. Please install xtb or configure a physical engine fallback.")
 

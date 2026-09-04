@@ -80,6 +80,8 @@ from typing import (
 import numpy as np
 import scipy.linalg
 import scipy.spatial.distance
+import filelock
+import h5py
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -1575,19 +1577,51 @@ class AutoPESOrchestrator:
         held_out_geoms: np.ndarray,
         held_out_low_energies: np.ndarray,
         held_out_high_energies: np.ndarray,
+        dense_dft_geoms: Optional[np.ndarray] = None,
+        dense_dft_energies: Optional[np.ndarray] = None,
     ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
-        """
-        Fits a DeltaPESModel on explicitly provided training and held-out data arrays.
+        """Fits a DeltaPESModel on training, held-out, and optional dense baseline DFT data.
+
+        Follows Method Matrix §13.2 / QS-3:
+        1. Base estimator low_krr is fitted on full dense low-level DFT sampling dataset (N ~ 2,000 points).
+        2. High-level active-learning residual deltas: Delta E_k = E_k^high - low_krr.predict(X_k^high).
+        3. delta_krr is fitted strictly on these sparse active-learning residuals.
         """
         train_geoms = np.asarray(train_geoms, dtype=np.float64)
-        train_delta = np.asarray(train_high_energies, dtype=np.float64) - np.asarray(train_low_energies, dtype=np.float64)
-
         held_out_geoms = np.asarray(held_out_geoms, dtype=np.float64)
-        held_out_delta = np.asarray(held_out_high_energies, dtype=np.float64) - np.asarray(held_out_low_energies, dtype=np.float64)
 
+        # 1. Fit baseline low_krr on the complete dense low-level DFT dataset
+        if dense_dft_geoms is not None and dense_dft_energies is not None:
+            dense_dft_geoms = np.asarray(dense_dft_geoms, dtype=np.float64)
+            dense_dft_energies = np.asarray(dense_dft_energies, dtype=np.float64)
+            dense_feats = self.featurizer.compute_morse_features(dense_dft_geoms)
+            n_base_total = int(dense_dft_geoms.shape[0])
+            low_train_feats = dense_feats
+            low_train_y = dense_dft_energies
+        else:
+            all_geoms = np.concatenate([train_geoms, held_out_geoms], axis=0)
+            all_low = np.concatenate([train_low_energies, held_out_low_energies], axis=0)
+            low_train_feats = self.featurizer.compute_morse_features(all_geoms)
+            low_train_y = all_low
+            n_base_total = int(all_geoms.shape[0])
+
+        low_krr = ExactKernelRidgeEstimator(
+            kernel_type=self.fit_config.kernel,
+            alpha=self.fit_config.regularization_alpha,
+            gamma=self.fit_config.gamma,
+        )
+        low_krr.fit(low_train_feats, low_train_y)
+
+        # 2. Extract sparse high-level residuals relative to dense baseline: Delta E = E^high - V_low(R)
         train_feats = self.featurizer.compute_morse_features(train_geoms)
+        train_v_low_pred = low_krr.predict(train_feats)
+        train_delta = np.asarray(train_high_energies, dtype=np.float64) - train_v_low_pred
 
-        # 1. Fit Delta KRR Estimator
+        held_out_feats = self.featurizer.compute_morse_features(held_out_geoms)
+        held_out_v_low_pred = low_krr.predict(held_out_feats)
+        held_out_delta = np.asarray(held_out_high_energies, dtype=np.float64) - held_out_v_low_pred
+
+        # 3. Fit delta_krr strictly on sparse active-learning residuals
         delta_krr = ExactKernelRidgeEstimator(
             kernel_type=self.fit_config.kernel,
             alpha=self.fit_config.regularization_alpha,
@@ -1595,13 +1629,6 @@ class AutoPESOrchestrator:
             poly_degree=self.fit_config.poly_degree,
         )
         delta_krr.fit(train_feats, train_delta)
-
-        # 2. Fit low-level baseline estimator for standalone full potential evaluation
-        low_krr = ExactKernelRidgeEstimator(
-            kernel_type=self.fit_config.kernel,
-            alpha=self.fit_config.regularization_alpha,
-        )
-        low_krr.fit(train_feats, train_low_energies)
 
         model = DeltaPESModel(
             featurizer=self.featurizer,
@@ -1611,7 +1638,7 @@ class AutoPESOrchestrator:
             high_method=self.high_method,
         )
 
-        # 3. Validate on held-out grid (Method Matrix QS-3 Step 5)
+        # 4. Validate on held-out grid (Method Matrix QS-3 Step 5)
         metrics = PESValidator.evaluate_model(
             model=model,
             train_geoms=train_geoms,
@@ -1625,7 +1652,7 @@ class AutoPESOrchestrator:
         fit_summary = DeltaSurfaceFitResult(
             low_method=self.low_method,
             high_method=self.high_method,
-            n_base_dft_points=int(train_geoms.shape[0] + held_out_geoms.shape[0]),
+            n_base_dft_points=n_base_total,
             n_delta_points=int(train_geoms.shape[0]),
             n_held_out_points=int(held_out_geoms.shape[0]),
             metrics=metrics,
@@ -1640,10 +1667,57 @@ class AutoPESOrchestrator:
         pes_store: Any,
         held_out_ratio: float = 0.20,
     ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
+        """Extracts aligned Delta pairs directly from PESStore or HDF5 store under dual-locking,
+
+        fits the Delta-learning surface with dense DFT anchoring, and validates in cm^-1.
         """
-        Extracts aligned Delta pairs directly from PESStore via delta_pairs(), splits held-out set,
-        fits the Delta-learning surface, and validates in spectroscopic cm^-1 units.
-        """
+        # Check if pes_store is a path to an HDF5 datastore file
+        if isinstance(pes_store, (str, Path)):
+            store_path = Path(pes_store).resolve()
+            h5_lock = filelock.FileLock(store_path.with_suffix(".h5.lock"), timeout=60.0)
+            with h5_lock:
+                with h5py.File(store_path, "r", swmr=True) as h5f:
+                    if "dense_dft/coordinates" in h5f:
+                        dense_geoms = np.asarray(h5f["dense_dft/coordinates"][:], dtype=np.float64)
+                        dense_energies = np.asarray(h5f["dense_dft/energy"][:], dtype=np.float64)
+                    elif "dense_dft/features" in h5f:
+                        dense_geoms = None
+                        dense_energies = np.asarray(h5f["dense_dft/energies"][:], dtype=np.float64)
+                    else:
+                        raise KeyError("Missing dense_dft dataset in HDF5 store.")
+
+                    if "sparse_ccsd/coordinates" in h5f:
+                        high_geoms = np.asarray(h5f["sparse_ccsd/coordinates"][:], dtype=np.float64)
+                        high_energies = np.asarray(h5f["sparse_ccsd/energy"][:], dtype=np.float64)
+                        high_low_energies = (
+                            np.asarray(h5f["sparse_ccsd/low_energy"][:], dtype=np.float64)
+                            if "sparse_ccsd/low_energy" in h5f
+                            else high_energies.copy()
+                        )
+                    else:
+                        raise KeyError("Missing sparse_ccsd dataset in HDF5 store.")
+
+            n_pairs = len(high_geoms)
+            rng = np.random.RandomState(self.al_config.random_seed)
+            shuffled = np.arange(n_pairs)
+            rng.shuffle(shuffled)
+
+            n_held = max(5, int(held_out_ratio * n_pairs))
+            held_idx = shuffled[:n_held]
+            train_idx = shuffled[n_held:]
+
+            return self.fit_delta_surface_from_data(
+                train_geoms=high_geoms[train_idx],
+                train_low_energies=high_low_energies[train_idx],
+                train_high_energies=high_energies[train_idx],
+                held_out_geoms=high_geoms[held_idx],
+                held_out_low_energies=high_low_energies[held_idx],
+                held_out_high_energies=high_energies[held_idx],
+                dense_dft_geoms=dense_geoms,
+                dense_dft_energies=dense_energies,
+            )
+
+        # Standard PESStore instance branch
         keys, X_high, dE = pes_store.delta_pairs(self.low_method, self.high_method)
         n_pairs = len(keys)
 
@@ -1654,9 +1728,13 @@ class AutoPESOrchestrator:
                 error_code=ProvenanceErrorCode.MISSING_DATA,
             )
 
-        # Get low-level energies for the aligned points
+        # Retrieve dense DFT dataset for baseline low_krr
+        dense_geoms = None
+        dense_energies = None
         if hasattr(pes_store, "dataset_full"):
             low_data = pes_store.dataset_full(self.low_method, converged_only=True)
+            dense_geoms = low_data["coordinates"]
+            dense_energies = low_data["energy"]
             low_id_map = {
                 (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
                 for idx, s in enumerate(low_data["point_id"])
@@ -1664,13 +1742,15 @@ class AutoPESOrchestrator:
         else:
             low_data = pes_store.dataset(self.low_method, converged_only=True)
             if isinstance(low_data, dict):
+                dense_geoms = low_data["coordinates"]
+                dense_energies = low_data["energy"]
                 low_id_map = {
                     (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
                     for idx, s in enumerate(low_data["point_id"])
                 }
             else:
-                _, energies = low_data
-                low_id_map = {k: energies[i] for i, k in enumerate(keys)}
+                dense_geoms, dense_energies = low_data
+                low_id_map = {k: dense_energies[i] for i, k in enumerate(keys)}
 
         e_low = np.array([low_id_map[k] for k in keys], dtype=np.float64)
         e_high = e_low + dE
@@ -1691,6 +1771,8 @@ class AutoPESOrchestrator:
             held_out_geoms=X_high[held_idx],
             held_out_low_energies=e_low[held_idx],
             held_out_high_energies=e_high[held_idx],
+            dense_dft_geoms=dense_geoms,
+            dense_dft_energies=dense_energies,
         )
 
 

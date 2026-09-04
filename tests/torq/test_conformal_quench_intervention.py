@@ -151,17 +151,11 @@ def test_conformal_trajectory_quench_intervention():
         from cochem_torq.quench_broker import BinaryNotFoundError
 
         # Execute quench
-        try:
-            response = broker.dispatch_quench(request)
-            assert isinstance(response, QuenchResponse)
-            assert response.trajectory_id == "traj_h2co_sim_001"
-            assert response.frame_index == 11
-            assert response.converged is True
-            assert len(response.quenched_geometry) == 4
-        except BinaryNotFoundError:
-            if shutil.which("xtb") is None:
-                pytest.skip("xtb executable not found, skipping physical relaxation verification.")
-            else:
-                raise
+        response = broker.dispatch_quench(request)
+        assert isinstance(response, QuenchResponse)
+        assert response.trajectory_id == "traj_h2co_sim_001"
+        assert response.frame_index == 11
+        assert response.converged is True
+        assert len(response.quenched_geometry) == 4
 
         assert manifest_file.exists()

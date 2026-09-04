@@ -14,10 +14,12 @@ import enum
 import logging
 import os
 import pathlib
+import shlex
 import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
@@ -124,6 +126,9 @@ class SubprocessBroker:
 
     def __init__(
         self,
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_seconds: float = 3600.0,
         context_or_engine: Union[Any, str] = "cochem_worker",
         initial_params: Optional[Dict[str, Any]] = None,
         scratch_dir: Optional[Union[pathlib.Path, str]] = None,
@@ -131,12 +136,21 @@ class SubprocessBroker:
         max_retries: int = 3,
         **kwargs: Any,
     ) -> None:
+        # If first positional argument was passed as context_or_engine, disambiguate:
+        if cwd is not None and not isinstance(cwd, pathlib.Path) and not os.path.exists(str(cwd)) and "/" not in str(cwd) and "\\" not in str(cwd):
+            context_or_engine = cwd
+            cwd = None
+
         if isinstance(context_or_engine, str):
             self.engine_name: str = context_or_engine
         else:
             self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
             if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
                 scratch_dir = context_or_engine.scratch_dir
+
+        self.cwd: pathlib.Path = pathlib.Path(cwd).resolve() if cwd else pathlib.Path.cwd()
+        self.env: Optional[Dict[str, str]] = env.copy() if env is not None else None
+        self.timeout_seconds: float = float(timeout_seconds)
 
         self.current_params: Dict[str, Any] = dict(initial_params or {})
         self.max_retries: int = max(1, int(max_retries))
@@ -236,22 +250,34 @@ class SubprocessBroker:
 
     def execute(
         self,
-        command: List[str],
-        timeout_sec: float = 60.0,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
         remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
     ) -> SubprocessExecutionResult:
         """Executes command under deterministic fault ladder with process containment."""
         return self.execute_with_remediation(
             command=command,
+            cwd=cwd,
+            env=env,
             timeout_sec=timeout_sec,
+            timeout_seconds=timeout_seconds,
             remediate_callback=remediate_callback,
+            **kwargs,
         )
 
     def execute_with_remediation(
         self,
-        command: List[str],
-        timeout_sec: float = 60.0,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
         remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
     ) -> SubprocessExecutionResult:
         """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
         retries = 0
@@ -264,27 +290,51 @@ class SubprocessBroker:
         job_scratch = self.base_scratch_dir / f"cochem_exec_{job_id}"
         job_scratch.mkdir(parents=True, exist_ok=True)
 
-        current_cmd = list(command)
+        if isinstance(command, str):
+            cmd_list = shlex.split(command, posix=(sys.platform != "win32"))
+        else:
+            cmd_list = [str(c) for c in command]
 
+        current_cmd = list(cmd_list)
+        if sys.platform == "win32" and current_cmd and shutil.which(current_cmd[0]) is None:
+            if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
+                current_cmd = ["cmd.exe", "/c"] + current_cmd
+
+        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else self.cwd
+        effective_cwd.mkdir(parents=True, exist_ok=True)
+        assert_writable_path(effective_cwd)
+
+        effective_timeout = (
+            timeout_sec
+            if timeout_sec is not None
+            else (timeout_seconds if timeout_seconds is not None else getattr(self, "timeout_seconds", 3600.0))
+        )
+
+        proc: Optional[subprocess.Popen[Any]] = None
         try:
             while retries < self.max_retries:
-                env = dict(self.topology_engine.get_worker_env())
+                worker_env = dict(self.topology_engine.get_worker_env())
                 # GPU allocation guard: CPU-only environments must explicitly have empty string
                 available_gpus = self.topology_engine.get_available_gpus()
                 num_gpus = len(available_gpus)
                 if num_gpus > 0:
                     assigned = self.current_params.get("assigned_gpu", available_gpus[0])
-                    env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+                    worker_env["CUDA_VISIBLE_DEVICES"] = str(assigned)
                 else:
-                    env["CUDA_VISIBLE_DEVICES"] = ""
+                    worker_env["CUDA_VISIBLE_DEVICES"] = ""
+
+                if hasattr(self, "env") and self.env:
+                    worker_env.update(self.env)
+                if env:
+                    worker_env.update(env)
 
                 # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
                 mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
-                env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+                worker_env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
 
-                kwargs: Dict[str, Any] = {
-                    "cwd": str(job_scratch),
-                    "env": env,
+                proc_kwargs: Dict[str, Any] = {
+                    "cwd": str(effective_cwd),
+                    "env": worker_env,
                     "stdout": subprocess.PIPE,
                     "stderr": subprocess.PIPE,
                     "text": True,
@@ -292,9 +342,9 @@ class SubprocessBroker:
 
                 if sys.platform == "win32":
                     CREATE_SUSPENDED = 0x00000004
-                    kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                    proc_kwargs["creationflags"] = proc_kwargs.get("creationflags", 0) | CREATE_SUSPENDED
                 else:
-                    kwargs["start_new_session"] = True
+                    proc_kwargs["start_new_session"] = True
                     if sys.platform.startswith("linux"):
                         def _posix_pdeathsig() -> None:
                             try:
@@ -305,10 +355,10 @@ class SubprocessBroker:
                                 libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
                             except Exception as _e:
                                 logger.debug(f"Ignored exception: {_e}")
-                        kwargs["preexec_fn"] = _posix_pdeathsig
+                        proc_kwargs["preexec_fn"] = _posix_pdeathsig
 
                 try:
-                    proc = subprocess.Popen(current_cmd, **kwargs)
+                    proc = subprocess.Popen(current_cmd, **proc_kwargs)
                     self.assign_to_job(proc)
                     if sys.platform == "win32":
                         try:
@@ -317,12 +367,22 @@ class SubprocessBroker:
                             logger.debug(f"Ignored exception: {_e}")
 
                     try:
-                        out, err = proc.communicate(timeout=timeout_sec)
+                        out, err = proc.communicate(timeout=effective_timeout)
                         code = proc.returncode
                     except subprocess.TimeoutExpired:
                         self.terminate_process_tree(proc)
-                        out, err = "", "Subprocess execution timed out"
-                        code = -1
+                        last_stdout = ""
+                        last_stderr = f"Subprocess execution timed out after {effective_timeout}s"
+                        last_code = -124
+                        return SubprocessExecutionResult(
+                            success=False,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=last_code,
+                            retries_attempted=retries + 1,
+                            final_params=self.current_params,
+                        )
+
 
                     # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
                     stdout_buf: deque[str] = deque(maxlen=10485760)

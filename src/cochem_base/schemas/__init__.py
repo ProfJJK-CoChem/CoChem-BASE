@@ -255,6 +255,127 @@ class DeltaMLDispersionConfig(BaseModel):
     s8_scale: float = Field(default=0.0, ge=0.0)
 
 
+# =====================================================================
+# Chunk 7 Ecosystem Schemas (Suggestions #61-#70)
+# =====================================================================
+
+import datetime
+from pathlib import Path
+
+
+class CommitteeEnsembleConfig(BaseModel):
+    """Configuration for vectorized active learning committee ensemble inference. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    vectorized: bool = True
+    vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
+    concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
+    max_batch_size: int = Field(default=128, ge=1)
+
+
+class OETFallbackAlertManifest(BaseModel):
+    """Provenance audit manifest emitted when OET socket disconnect triggers physical fallback. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    calculation_base: str
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+    trigger_event: str
+    fallback_calculator: str
+    provenance_tag: str = "[E]"
+    host_telemetry: Dict[str, Any]
+    scratch_alert_file: str
+    staged_artifact_file: str
+
+
+class HDF5PersistenceConfig(BaseModel):
+    """Configuration for two-tier thread-safe and process-safe HDF5 persistence store. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    lock_timeout_seconds: float = Field(default=60.0, ge=1.0)
+    retry_backoff_base_seconds: float = Field(default=0.05, ge=0.001)
+    compression_filter: str = "gzip"
+    compression_level: int = Field(default=4, ge=1, le=9)
+    enable_fletcher32: bool = True
+    enable_shuffle: bool = True
+
+
+class GpuScoutExecutorConfig(BaseModel):
+    """Configuration for OS-aware heterogeneous GPU scout concurrency across the 6-Tier Matrix. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    platform_os: Literal["windows", "darwin", "linux"]
+    enable_mps: bool
+    mps_pipe_dir: str
+    max_concurrent_gpu_tasks: int = Field(default=1, ge=1)
+    min_vram_headroom_mb: float = Field(default=1536.0, ge=512.0)
+
+
+class JobRouteConfig(BaseModel):
+    """Routing specification mapping jobs to heterogeneous Parsl executors. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    job_type: Literal["heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"]
+    assigned_executor: Literal["cochem_anchor_cpu", "cochem_scout_gpu", "local_fallback"]
+    cpu_core_pinning: Optional[List[int]] = None
+    scratch_dir: str
+    timeout_seconds: float = Field(default=3600.0, ge=10.0)
+
+
+class ExecutionRouteResult(BaseModel):
+    """Execution result returned by Parsl execution broker routing. [M]"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+    task_id: Optional[str] = None
+    job_id: Optional[str] = None
+    status: str
+    assigned_executor: Optional[str] = None
+    executor_used: Optional[str] = None
+    scratch_dir: Union[str, Path]
+    returncode: int = 0
+    future: Optional[Any] = None
+    output: Optional[Any] = None
+    telemetry: Optional[Dict[str, Any]] = None
+
+    @property
+    def effective_task_id(self) -> str:
+        return self.task_id or self.job_id or ""
+
+    @property
+    def effective_executor(self) -> str:
+        return self.assigned_executor or self.executor_used or ""
+
+
+
+class MultiSeedGoatConfig(BaseModel):
+    """Configuration for asynchronous multi-seed GOAT conformational exploration via Parsl queues. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    seed_structures: List[str] = Field(min_length=1)
+    max_concurrent_seeds: int = Field(default=4, ge=1)
+    rmsd_threshold_angstrom: float = Field(default=0.15, gt=0.0)
+    energy_window_kcal_mol: float = Field(default=6.0, gt=0.0)
+
+
+class TorqPipelineCliArgs(BaseModel):
+    """Validated CLI argument model for high-performance SLURM batch pipeline entrypoints. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    input_geometry: Path
+    output_directory: Path
+    theory_level: str = "B3LYP-D4/def2-TZVP"
+    cpus_per_task: int = Field(default=1, ge=1)
+    memory_mb: int = Field(default=4096, ge=1024)
+    scratch_dir: Path
+
+
 __all__ = [
     "GradientPayload",
     "QuantumJobSpec",
@@ -269,4 +390,12 @@ __all__ = [
     "PipSymmetryConfig",
     "KrrRegularizationConfig",
     "DeltaMLDispersionConfig",
+    "CommitteeEnsembleConfig",
+    "OETFallbackAlertManifest",
+    "HDF5PersistenceConfig",
+    "GpuScoutExecutorConfig",
+    "JobRouteConfig",
+    "ExecutionRouteResult",
+    "MultiSeedGoatConfig",
+    "TorqPipelineCliArgs",
 ]

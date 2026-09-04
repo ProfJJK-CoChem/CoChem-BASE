@@ -62,6 +62,7 @@ import sys
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -70,6 +71,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -86,6 +88,7 @@ from pydantic import (
     Field,
 )
 
+from cochem_base.schemas import GpuScoutExecutorConfig
 from cochem_base.config_loader import (
     get_artifact_dir,
     get_mps_directories,
@@ -577,6 +580,119 @@ def calculate_contention_budget(
     )
 
 
+def detect_gpu_scout_config(
+    scratch_dir: Optional[Union[str, Path]] = None,
+    min_vram_headroom_mb: float = 1536.0,
+) -> GpuScoutExecutorConfig:
+    """Detect OS and hardware configuration across the 6-Tier Environment Matrix.
+
+    Suggestion #65:
+    - Tier 1/2 (Windows/macOS): disable MPS, serialize tasks (max_concurrent=1)
+    - Tier 3/6 (Linux/HPC): enable MPS with scratch pipes
+    """
+    sys_plat = sys.platform
+    if sys_plat.startswith("win"):
+        platform_os = "windows"
+    elif sys_plat == "darwin":
+        platform_os = "darwin"
+    else:
+        platform_os = "linux"
+
+    target_scratch = Path(scratch_dir or os.environ.get("COCHEM_SCRATCH", tempfile.gettempdir())).resolve()
+    mps_pipe = str((target_scratch / "nvidia_mps").resolve())
+
+    if platform_os in ("windows", "darwin"):
+        return GpuScoutExecutorConfig(
+            platform_os=platform_os,
+            enable_mps=False,
+            mps_pipe_dir=mps_pipe,
+            max_concurrent_gpu_tasks=1,
+            min_vram_headroom_mb=min_vram_headroom_mb,
+        )
+    else:
+        has_gpu = False
+        try:
+            import torch
+            has_gpu = torch.cuda.is_available()
+        except Exception:
+            pass
+        return GpuScoutExecutorConfig(
+            platform_os="linux",
+            enable_mps=has_gpu,
+            mps_pipe_dir=mps_pipe,
+            max_concurrent_gpu_tasks=3 if has_gpu else 1,
+            min_vram_headroom_mb=min_vram_headroom_mb,
+        )
+
+
+class GpuScoutDispatcher:
+    """Thread-safe and process-safe GPU scout dispatch controller with VRAM headroom guard.
+
+    Mandated by Method Matrix v4 §8A.2, §8A.4.
+    Suggestion #65:
+    - Tier 1/2 (Windows/macOS): Serializes GPU kernels via threading.Semaphore(1).
+    - Tier 3/6 (Linux): Permits parallel execution under MPS.
+    - Dynamic VRAM check: holds tasks if free VRAM < min_vram_headroom_mb.
+    """
+
+    _instance: Optional["GpuScoutDispatcher"] = None
+    _lock = threading.Lock()
+
+    def __init__(self, config: Optional[GpuScoutExecutorConfig] = None):
+        self.config = config or detect_gpu_scout_config()
+        self.semaphore = threading.Semaphore(self.config.max_concurrent_gpu_tasks)
+        self.active_count = 0
+        self._count_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls, config: Optional[GpuScoutExecutorConfig] = None) -> "GpuScoutDispatcher":
+        with cls._lock:
+            if cls._instance is None or (config is not None and config != cls._instance.config):
+                cls._instance = cls(config)
+            return cls._instance
+
+    def check_vram_headroom(self) -> Tuple[bool, float]:
+        """Queries torch.cuda.mem_get_info() if CUDA is available."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                free_b, total_b = torch.cuda.mem_get_info()
+                free_mb = free_b / (1024 * 1024)
+                return (free_mb >= self.config.min_vram_headroom_mb, free_mb)
+        except Exception:
+            pass
+        return (True, 99999.0)
+
+    @contextmanager
+    def dispatch_scout(self, poll_interval: float = 0.05, max_wait: float = 30.0):
+        acquired = self.semaphore.acquire(timeout=max_wait)
+        if not acquired:
+            raise TimeoutError(f"Timeout waiting for GPU scout concurrency slot after {max_wait}s")
+
+        try:
+            t0 = time.time()
+            while True:
+                has_vram, free_mb = self.check_vram_headroom()
+                if has_vram:
+                    break
+                if time.time() - t0 >= max_wait:
+                    raise RuntimeError(
+                        f"Dynamic VRAM safeguard: {free_mb:.1f} MB free < "
+                        f"{self.config.min_vram_headroom_mb:.1f} MB required"
+                    )
+                time.sleep(poll_interval)
+
+            with self._count_lock:
+                self.active_count += 1
+            try:
+                yield
+            finally:
+                with self._count_lock:
+                    self.active_count -= 1
+        finally:
+            self.semaphore.release()
+
+
 # =============================================================================
 # Worker Init Scripts & Parsl Configuration Assembly
 # =============================================================================
@@ -586,14 +702,37 @@ def build_worker_init_scripts(
     mps_thread_pct: int = DEFAULT_MPS_THREAD_PERCENTAGE,
     mps_pinned_mem: str = DEFAULT_MPS_PINNED_MEM_LIMIT_STR,
     gpu_device_id: int = 0,
+    enable_mps: Optional[bool] = None,
 ) -> Tuple[str, str, str]:
     """
-    Generate authoritative bash worker initialization scripts for CPU, GPU, and Orchestrator.
-    Compliant with Method Matrix §8A.6 lines 1373–1388.
+    Generate authoritative worker initialization scripts for CPU, GPU, and Orchestrator.
+    Compliant with Method Matrix §8A.6 lines 1373–1388 and Suggestion #65.
 
     Returns:
         Tuple of (cpu_init_script, gpu_init_script, orchestrator_init_script).
     """
+    if enable_mps is None:
+        enable_mps = sys.platform not in ("win32", "darwin") and platform.system().lower() not in ("windows", "darwin")
+
+    if not enable_mps:
+        cpu_init_script = (
+            "export OMP_NUM_THREADS=1; "
+            "export KMP_HW_SUBSET=8c:intel_core,1t"
+        ) if sys.platform != "win32" else "set OMP_NUM_THREADS=1"
+
+        gpu_init_script = (
+            f"export CUDA_VISIBLE_DEVICES={gpu_device_id}"
+            if sys.platform != "win32"
+            else f"set CUDA_VISIBLE_DEVICES={gpu_device_id}"
+        )
+
+        orchestrator_init_script = (
+            "export OMP_NUM_THREADS=1"
+            if sys.platform != "win32"
+            else "set OMP_NUM_THREADS=1"
+        )
+        return cpu_init_script, gpu_init_script, orchestrator_init_script
+
     if mps_pipe_dir is None or mps_log_dir is None:
         pipe, log = get_mps_directories()
         mps_pipe_dir = pipe if mps_pipe_dir is None else mps_pipe_dir
@@ -616,6 +755,7 @@ def build_worker_init_scripts(
     orchestrator_init_script = "export OMP_NUM_THREADS=1"
 
     return cpu_init_script, gpu_init_script, orchestrator_init_script
+
 
 
 def build_heterogeneous_profile(

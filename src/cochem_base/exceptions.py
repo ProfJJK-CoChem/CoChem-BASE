@@ -1197,6 +1197,34 @@ def cochem_error_handler(
     return decorator
 
 
+# =====================================================================
+# Chunk 7 Ecosystem Exceptions (Suggestions #61-#70)
+# =====================================================================
+
+class ElectronicStructureEngineError(CoChemError):
+    """Base exception for quantum engine failures."""
+
+    default_code = ProvenanceErrorCode.CONVERGENCE_FAILURE
+
+
+class ConvergenceFailureError(ElectronicStructureEngineError):
+    """Raised when SCF or Geometry Optimization fails to converge."""
+
+    default_code = ProvenanceErrorCode.CONVERGENCE_FAILURE
+
+
+class MissingBinaryError(ElectronicStructureEngineError):
+    """Raised when a required quantum chemistry binary is absent."""
+
+    default_code = ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+
+
+class OETDaemonConnectionError(CoChemError):
+    """Raised when communication with persistent OET server daemon fails."""
+
+    default_code = ProvenanceErrorCode.TELEMETRY_FAILURE
+
+
 __all__ = [
     # Registries
     "_EXCEPTION_REGISTRY",
@@ -1254,6 +1282,10 @@ __all__ = [
     "SymmetryInvarianceError",
     "NumericalConditioningError",
     "DispersionIntegrationError",
+    "ElectronicStructureEngineError",
+    "ConvergenceFailureError",
+    "MissingBinaryError",
+    "OETDaemonConnectionError",
     # Warnings
     "CoChemWarning",
     "KraitchmanZPVEWarning",

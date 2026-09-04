@@ -42,18 +42,20 @@ if sys.platform == "win32":
     _LOCKFILE_FAIL_IMMEDIATELY = 0x00000001
     _LOCKFILE_EXCLUSIVE_LOCK = 0x00000002
 
-    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float) -> bool:
-        """Acquire OS-level lock on Windows using LockFileEx."""
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on Windows using LockFileEx with exponential backoff."""
         handle = msvcrt.get_osfhandle(fd)
         flags = _LOCKFILE_FAIL_IMMEDIATELY | (_LOCKFILE_EXCLUSIVE_LOCK if exclusive else 0)
         ov = _OVERLAPPED()
         t0 = time.time()
+        backoff = max(0.001, backoff_base)
         while True:
             if _kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(ov)):
                 return True
             if time.time() - t0 >= timeout:
                 return False
-            time.sleep(0.002)
+            time.sleep(backoff)
+            backoff = min(0.05, backoff * 1.5)
 
     def _os_lock_release(fd: int) -> None:
         """Release OS-level lock on Windows using UnlockFileEx."""
@@ -64,10 +66,11 @@ if sys.platform == "win32":
 else:
     import fcntl
 
-    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float) -> bool:
-        """Acquire OS-level lock on POSIX using fcntl.flock."""
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on POSIX using fcntl.flock with exponential backoff."""
         flags = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
         t0 = time.time()
+        backoff = max(0.001, backoff_base)
         while True:
             try:
                 fcntl.flock(fd, flags)
@@ -75,7 +78,8 @@ else:
             except (BlockingIOError, OSError):
                 if time.time() - t0 >= timeout:
                     return False
-                time.sleep(0.002)
+                time.sleep(backoff)
+                backoff = min(0.05, backoff * 1.5)
 
     def _os_lock_release(fd: int) -> None:
         """Release OS-level lock on POSIX using fcntl.flock."""

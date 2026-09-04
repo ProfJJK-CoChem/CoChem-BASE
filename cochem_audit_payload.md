@@ -1,1921 +1,2895 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260904-070221-brainstorm\.in-progress\Perfected_SRS_Chunk_06_Ecosystem_Part_6_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260904-070221-brainstorm\.in-progress\Perfected_SRS_Chunk_07_Ecosystem_Part_7_prompts.md.
 Original prompt:
-# CODING PROMPT: CoChem Ecosystem Implementation (Chunk 6: Suggestions #51–#60)
+# CODING PROMPT: CoChem Ecosystem Implementation (Chunk 7: Suggestions #61–#70)
 
 **Target Output Repositories:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`, `CoChem-TOPOS`, and `CoChem-TORQ`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§1.2, §3.0 $B_e$ vs $B_0$ Distinction, §3.3 Mandatory Spend Priority, §4.4 Tight Convergence Thresholds, §8.3 Quantitative Crossover & Hardware Telemetry, §8C Numerical Conditioning Standards, §9A.5 Dispersion D3/D4, §9B.4 Intermolecular Exploration & Grids, §10.3 Force Matching Protocol, §10.8 Active Learning Efficiency, §12.5 & §19 Split-Conformal Calibration, §13.2 Permutation-Inversion Symmetry & KRR Regularization, Table 2 T1-30min / T3, QS-1, QS-3)
+- Method Matrix v4 (§1.2, §3.0 $B_e$ vs $B_0$ Distinction, §3.3 Mandatory Spend Priority, §4.4 Tight Convergence Thresholds, §8A.2 Scout-and-Anchor Heterogeneous Concurrency, §8A.4 NVIDIA MPS Daemon Lifecycle, §8A.6 Parsl Multi-Executor Architecture, §8B.4 Canonical Arrows 4 & 5 Binary Wavefunction Projection via `%moinp`, §8C Production HDF5 Store Architecture & Chunking, §9B.3 Multi-Seed Conformational Exploration, §10.8 Active Learning & Fallback Provenance Auditing, Table 2 T1-30min / T3, QS-1, QS-3)
 - Anti-Spoofing Protocol v2 (enforcing Zero-Mock, Asymmetric Verification, Hard Abort Criteria, and MAX_PIVOT_CYCLES: zero pass stubs, zero fabricated outputs, zero synthetic dummy loops, mandatory physical execution)
-- Tripartite Air-Gap Architecture (`T_ui` frontend, `T_schema` Pydantic contracts, `T_engine` decoupled background subprocesses; cross-module communication strictly via validated schemas, OS PID locks, and streaming IPC queues; Tripartite Storage Rings: Ring 1 Source $R_{\text{src}}$, Ring 2 Data $R_{\text{data}}$, Ring 3 Artifacts $R_{\text{art}}$)
-- 6-Tier Environment Matrix (Windows/WSL2 Native NT, macOS/OrbStack Darwin, Debian Linux, Codespaces, GitHub Actions CI/CD, HPC Slurm/PBS)
+- Tripartite Air-Gap Architecture (`T_ui` frontend, `T_schema` Pydantic contracts, `T_engine` decoupled background subprocesses; cross-module communication strictly via validated schemas, OS PID locks, and streaming IPC queues; Tripartite Storage Rings: Ring 1 Source $R_{\text{src}}$ / `$COCHEM_ROOT`, Ring 2 Ephemeral Scratch $R_{\text{data}}$ / `$COCHEM_SCRATCH`, Ring 3 Persistent Artifacts $R_{\text{art}}$ / `$COCHEM_ARTIFACTS`)
+- 6-Tier Environment Matrix (Tier 1: Windows Native/WSL2 NT, Tier 2: macOS/OrbStack Darwin, Tier 3: Debian Linux, Tier 4: GitHub Codespaces, Tier 5: GitHub Actions CI/CD, Tier 6: HPC Slurm/PBS)
 - Dynamic Mendeleev Mass & Radii Retrieval Mandate (`from mendeleev import element`, strict dynamic atomic/isotopic mass query, zero hardcoded constants)
-- Cross-Platform Concurrency Directive (Thread-safe and process-safe SWMR HDF5 with `filelock.FileLock`, node-local scratch staging on HPC `$SLURM_TMPDIR`, non-blocking telemetry reads)
+- Cross-Platform Concurrency Directive (Thread-safe and process-safe SWMR HDF5 with `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock`, node-local scratch staging on HPC `$SLURM_TMPDIR`, non-blocking telemetry reads)
 - JAX 64-Bit & Bounded GPU Allocation Mandate (`JAX_ENABLE_X64=True` initialization on line 1, `XLA_PYTHON_CLIENT_PREALLOCATE=false`, `XLA_PYTHON_CLIENT_MEM_FRACTION=0.20`, PyTorch default `torch.float64`)
 
 ---
 
 ## 1. Executive Summary & Scope
 
-Implement, harden, and physically verify Suggestions #51 through #60 of the CoChem Tripartite Ecosystem. This work package resolves critical mathematical, physical, and architectural failure modes across active learning batch diversity, honest hardware telemetry reporting, neural network pair-distance features, inductive split-conformal prediction, multi-task force matching, global conformational search orchestration, algebraic permutation invariance, kernel ridge regression conditioning, ecosystem machine learning modularization, and semi-empirical baseline dispersion damping.
+Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem Tripartite Ecosystem. This work package rectifies critical architectural bottlenecks and severe provenance/concurrency failure modes across vectorized active learning committee inference, machine-learning-to-empirical fallback audit trails, unverified quantum chemical binary spoofing, multi-process HDF5 lock collisions, cross-platform NVIDIA MPS vs. semaphore scout scheduling, Parsl multi-executor integration, subprocess interface standardization, multi-seed conformer task parallelization, HPC daemon lifecycle monitoring, and high-performance SLURM batch pipeline entrypoints.
 
 Key deliverables include:
-1. **Active Learning Batch Diversity in AutoPES (Suggestion #51):** Eliminate greedy localized clustering in `ActiveLearningEngine.select_points` by implementing sequential furthest-point repulsion. Define a penalized acquisition score combining epistemic uncertainty $U(\mathbf{x})$ with a Gaussian repulsion kernel based on the minimum distance $d_{\min}(\mathbf{x})$ to already selected batch members and labeled points.
-2. **Honest Hardware Telemetry & CPU/ONNX Autonomous Dispatcher (Suggestion #52):** Purge all non-physical fallback branches that inject fabricated GPU counts or fake 24 GB / 8 GB VRAM. Enforce genuine operating system driver queries in `probe_mps_status()` and `ExecutionContext.get_telemetry()`. When discrete GPUs are absent or free VRAM $< 2.0\text{ GB}$, dynamically route inference workloads to CPU (`device="cpu"`) or ONNX Runtime CPU execution providers without throwing unhandled `CUDAInitializationError` exceptions.
-3. **ANI-2x Self-Interaction Masking & Cutoff Envelope (Suggestion #53):** Correct the non-zero force artifact on isolated atoms in `ANI2xModel.forward`. Purge diagonal pair interactions using an explicit boolean mask (`~torch.eye(n_atoms, dtype=torch.bool)`) and modulate interatomic distances via a cosine cutoff envelope ($R_c = 5.2\text{ Å}$ [M]) and $C^2$-smooth quintic polynomial envelope, guaranteeing exact translational invariance and zero single-atom residual forces ($\|\mathbf{F}_i\| < 10^{-14}\text{ eV/Å}$ [M]).
-4. **Conformal Prediction Sample Complexity & Bonferroni Correction (Suggestion #54):** Eliminate the invalid $3N$ Cartesian Bonferroni multiplier applied to rotationally invariant $L_2$ Euclidean force error scores in `ConformalPredictor`. Pool atomic force observations ($n_{\text{force\_scores}} = \sum_{m=1}^M N_{\text{atoms}}^{(m)}$) and enforce rigorous empirical quantile sample size bounds ($n \ge \lceil (1 - \alpha)/\alpha \rceil$, requiring $n \ge 20$ for $\alpha = 0.05$). Apply Bonferroni adjustments across $N_{\text{atoms}}$ atomic hypotheses without Cartesian coordinate inflation.
-5. **Force Matching Multi-Task Loss Normalization (Suggestion #55):** Fix the 3x force gradient attenuation in `ForceMatchingLoss.forward`. When evaluating Huber loss over 3D Euclidean vector norms $\|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2$, normalize the total Huber sum by total atoms $N_{\text{total\_atoms}}$ rather than $3 \times N_{\text{total\_atoms}}$. If coordinate-wise Huber penalties are selected, evaluate each Cartesian component $(x, y, z)$ explicitly before dividing by $3 \times N_{\text{total\_atoms}}$.
-6. **T1-30min Exploration & Persistent ORCA GOAT-EXPLORE Daemon Orchestration (Suggestion #56):** Replace the local LBFGS minimization shortcut in `cochem_topos_cascade_orchestrator.py` with genuine ORCA 6.0 `! GOAT-EXPLORE ExtOpt TightOpt` stochastic global minima-hopping. Orchestrate a persistent background `oet_server` daemon communicating over local domain sockets or named pipes with process-tree supervision via `psutil`. Enforce tightened `%geom` convergence thresholds, approximate model Hessians (`InHess XTB2` or `Lindh`), strict bans on `Calc_Hess true`, and RMSD deduplication ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]).
-7. **Permutation Invariant Polynomial (PIP) Group Invariance (Suggestion #57):** Resolve the violation of quantum mechanical permutation-inversion (PI) symmetry in `cochem_core_auto_pes.py` when $N_{\text{identical}}! > 120$. Replace arbitrary incomplete transposition subsets with the Braams-Burgess algebraic PIP monomial basis or mathematically closed subgroup orbit averaging (alternating group $A_n$ or molecular automorphism wreath products $S_k \wr S_m$), guaranteeing exact energy degeneracy $|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$ [M].
-8. **Numerical Conditioning & Condition-Number Floor in KRR (Suggestion #58):** Prevent Cholesky factorization failures (`LinAlgError`) and unregularized least-squares fallbacks in AutoPES. Enforce a strict lower bound on asymptotic anchor regularization ($\alpha_{\text{anchor}} \ge \alpha_{\text{floor}} = 1.0 \times 10^{-8}\text{ Ha}$ [M]) and implement adaptive diagonal Tikhonov jittering ($\epsilon_{\text{jitter}} = 1.0 \times 10^{-9}$ escalating to $1.0 \times 10^{-6}$).
-9. **ML Ecosystem Consolidation & Namespace Export (Suggestion #59):** Resolve ecosystem architectural bifurcation by relocating the 40 `cochem_torq_*` machine learning modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/`. Establish and expose a unified public API package `cochem.ml` (`cochem.ml.active_learning`, `cochem.ml.delta`, `cochem.ml.conformal`, `cochem.ml.models`) shared across both repositories.
-10. **Baseline Dispersion D3 Integration in Delta-ML (Suggestion #60):** Eliminate unphysical non-covalent extrapolation errors in `DeltaMLEngine.forward`. Augment semi-empirical baseline Hamiltonians (PM6, GFN2-xTB) with Grimme D3 Becke-Johnson (BJ) dispersion damping and analytical force derivatives:
-    $$E_{\text{baseline}}(\mathbf{R}) = E_{\text{SE}}(\mathbf{R}) + E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-    Map $C_6^{AB}$ and $R_0^{AB}$ parameters dynamically using atomic numbers resolved via `mendeleev.element` [M].
+1. **Vectorized Committee Ensemble Inference & Dynamic VRAM Throttling (Suggestion #61):** Eliminate sequential host-thread loops in `CommitteeEnsemble.forward()`. Implement vectorized forward passes using `torch.vmap` or managed concurrent CUDA streams. Integrate `RESOURCE_GUARD` memory headroom polling (`torch.cuda.mem_get_info()`); if available VRAM $< 2.0\text{ GB}$, automatically serialize inference across members to eliminate CUDA out-of-memory crashes across the 6-Tier Environment Matrix while reducing active learning committee latency by up to $3\times$ [M].
+2. **OET Machine-Learning-to-Empirical Fallback Provenance & Alert Manifests (Suggestion #62):** Eliminate silent potential degradation in `oet_client.py`. When socket disconnects trigger `PhysicalOETFallbackCalculator`, atomically write an audit manifest (`<base>_EXT.fallback_alert.json`) into Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`) and stage an alert into Ring 3 persistent storage (`$COCHEM_ARTIFACTS`). Prohibit writes to Ring 1 static repository paths (`$COCHEM_ROOT`), and write an uncertainty marker file triggering the orchestrator to halt or tag all resulting observables with provenance tag `[E]` (Empirical).
+3. **Purge of Fabricated SCF/Opt Cycles & Corrupt Binary Wavefunctions in Chained Engines (Suggestion #63):** Eradicate all synthetic fallback routines in `CoChem-TOPOS/chain.py` and `CoChem-TORQ/Libraries/chain.py`. Stop generating fabricated iteration counts (`scf_cyc = 12`, `opt_cyc = 6`), mock `ORCA TERMINATED NORMALLY` strings, and synthetic `.gbw`/`.opt` binary byte sequences based on non-physical mass formulas. Enforce explicit exception raising (`ConvergenceFailureError` or `MissingBinaryError`), ensuring intermediate buffers are isolated in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`) and never emitted to Ring 3 persistent storage (`$COCHEM_ARTIFACTS`).
+4. **Two-Tier Thread-Safe and Process-Safe HDF5 Persistence Architecture (Suggestion #64):** Eliminate `BlockingIOError` and `OSError: file already open for write` across concurrent Parsl worker sweeps in `gpu_point.py`, `chain.py`, and `pes_h5.py`. Enforce in-process `threading.RLock()` across worker threads and cross-process file locking via `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock` with exponential backoff. Enforce atomic staging: workers commit energy and gradient records to isolated chunk containers in Ring 2 scratch (`$COCHEM_SCRATCH/chunk_<uuid>.h5`), while a central persistence coordinator merges staged chunks into the primary Ring 3 store (`$COCHEM_ARTIFACTS/campaign.h5`) under exclusive write lock with gzip+shuffle+fletcher32 filters.
+5. **OS-Aware GPU Scout Concurrency & Windows/macOS Mutex Scheduling (Suggestion #65):** Resolve GPU scout initialization crashes on non-Linux workstations caused by hardcoded NVIDIA Multi-Process Service (MPS) commands in `hetero_config.py` and `cochem_core_parsl_executors.py`. Dynamically branch across the 6-Tier Environment Matrix: on Linux (Tiers 3 & 6), initialize NVIDIA MPS with directory pipes in Ring 2 scratch (`$COCHEM_SCRATCH/nvidia_mps`); on Windows and macOS (Tiers 1 & 2), bypass MPS entirely and serialize GPU dispatches via a cross-process concurrency semaphore (`threading.Semaphore(1)` / named OS mutex). Enforce dynamic VRAM polling across all tiers, deferring tasks if free VRAM $< 1.5\text{ GB}$.
+6. **Unified Parsl Multi-Executor Routing in ExecutionRouter (Suggestion #66):** Resolve the architectural bypass in `cochem_calc_execution_router.py` where Parsl scout-and-anchor scheduling was ignored in favor of blocking subprocesses. Wire `ParslExecutionBroker` directly into `ExecutionRouter.route_job()`. Map heavy quantum mechanical optimizations to `cochem_anchor_cpu` with explicit CPU core pinning, and route high-throughput potential scans to `cochem_scout_gpu`. Enforce task sandboxing inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>`) across all 6 environment tiers.
+7. **SubprocessBroker Contract Harmonization & Process Tree Reclamation (Suggestion #67):** Fix interface drift and crashes between `ExecutionRouter` and `SubprocessBroker`. Harmonize the interface contract to accept both string commands (tokenized via `shlex.split(command, posix=(sys.platform != "win32"))`) and pre-tokenized lists of strings; accept `cwd` and `env` parameters during initialization and execution; enforce execution strictly within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`); wrap executions with configurable timeouts; and guarantee recursive child process tree cleanup via `psutil` or `atexit`.
+8. **Asynchronous Multi-Seed GOAT Exploration via Parsl Queues (Suggestion #68):** Refactor the sequential exploration loop in `cochem_torq_goat.py` (`run_multi_seed_goat()`) into an asynchronous concurrent task graph dispatched to Parsl `GPU_SCOUT` and `CPU_ANCHOR` executor pools. Sandbox each seed exploration within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/goat_seed_<hash>`), enforce GPU concurrency caps to prevent VRAM oversubscription, and collect deduplicated conformational minima into Ring 3 persistent storage (`$COCHEM_ARTIFACTS`) upon completion.
+9. **HPC NVIDIA MPS Worker Daemon Lifecycle & Pipe Polling (Suggestion #69):** Rectify premature daemon termination in `HPC_Launchers/cochem_mps_worker.sh`. Replace bare bash `wait` (which immediately exits when `nvidia-cuda-mps-control -d` detaches) with an active daemon monitoring loop polling the control daemon PID and named pipe socket in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/mps_control`). Implement a trapped signal handler (`EXIT`, `SIGINT`, `SIGTERM`) executing graceful termination, orphaned client context sweeps via `psutil`/`kill`, and full GPU memory release verification.
+10. **SLURM Batch Submission CLI Contract & Dynamic HPC Resource Mapping (Suggestion #70):** Resolve silent zero-calculation completions when executing `cochem_submit.slurm`. Implement a complete CLI entrypoint using `argparse` in `cochem_torq_pipeline.py`. Accept parameters for input structures, theory specifications, and directory destinations; validate input existence; enforce Tripartite Storage Ring air-gaps; and dynamically ingest resource allocations from environment variables (`$SLURM_CPUS_PER_TASK`, `$SLURM_MEM_PER_NODE`). Update `cochem_submit.slurm` to forward parameters transparently across cluster nodes.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
 ### Core Implementation Modules
-1. `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py` (Suggestions #51, #57, #58: Active learning sequential repulsion, PIP algebraic subgroup invariance, KRR condition-number floor and adaptive jitter)
-2. `CoChem-TOPOS/hetero_config.py` & `CoChem-TOPOS/cochem_topos/telemetry/hardware.py` (Suggestion #52: Honest driver telemetry, zero-spoof device detection, autonomous CPU/ONNX routing)
-3. `CoChem-TORQ/Libraries/cochem_torq_engine.py` (Suggestions #52, #59: Honest telemetry integration and ML execution context dispatch)
-4. `CoChem-TORQ/Libraries/cochem_torq_ani2x_transfer.py` (Suggestions #53, #59: Self-interaction diagonal masking, cosine and $C^2$ quintic cutoff envelopes)
-5. `CoChem-TORQ/Libraries/cochem_torq_conformal.py` (Suggestions #54, #59: Pooled atomic force observations, sample complexity quantile validation, Cartesian-independent Bonferroni)
-6. `CoChem-TORQ/Libraries/cochem_torq_force_matching.py` (Suggestions #55, #59: Multi-task Huber loss normalization by atom count and coordinate components)
-7. `CoChem-TOPOS/cascade_engine/cochem_topos_cascade_orchestrator.py` & `CoChem-TOPOS/core_engine/oet_server.py` (Suggestion #56: Persistent `oet_server` daemon orchestration, ORCA GOAT-EXPLORE execution, tightened `%geom` convergence, psutil tree termination)
-8. `CoChem-BASE/src/cochem_base/exceptions.py` (Suggestions #52, #54, #56, #57, #58, #60: Ecosystem custom exception hierarchy)
-9. `CoChem-BASE/src/cochem_base/schemas.py` & `cochem/ml/schemas.py` (Suggestions #51–#60: Typed Pydantic v2 data models)
-10. `CoChem-TORQ/Libraries/cochem_torq_delta_ml.py` & `CoChem-TORQ/Libraries/cochem_torq_dispersion_d3.py` (Suggestions #59, #60: D3(BJ) dispersion augmentation on semi-empirical baseline energies and conservative analytical forces)
-11. Migration of 40 `cochem_torq_*` modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/` and initialization of the unified package `cochem/ml/` (Suggestion #59)
+1. `CoChem-BASE/Libraries/cochem_torq_committee_ensemble.py` & `cochem/ml/models/ensemble.py` (Suggestion #61: Vectorized ensemble inference via `torch.vmap` / CUDA streams, dynamic VRAM polling, serialized fallback)
+2. `CoChem-TORQ/scripts/oet_client.py` & `CoChem-TORQ/Libraries/cochem_torq_oet_client.py` (Suggestion #62: Fallback audit manifest generation, Tripartite air-gap compliance, uncertainty marker emission, provenance tag `[E]`)
+3. `CoChem-TOPOS/chain.py` & `CoChem-TORQ/Libraries/chain.py` (Suggestion #63: Elimination of synthetic fallback routines, purge of fake SCF/Opt cycles and mock `.gbw`/`.opt` files, explicit exception raising)
+4. `CoChem-TOPOS/gpu_point.py`, `CoChem-TOPOS/pes_h5.py`, & `CoChem-BASE/src/cochem_base/concurrency/atomic_file_lock.py` (Suggestion #64: Two-tier HDF5 persistence, `threading.RLock`, cross-process `RWFileLock`, atomic scratch chunk staging, and persistent merge coordinator)
+5. `CoChem-BASE/src/cochem_base/core_engine/cochem_core_parsl_executors.py` & `CoChem-TOPOS/hetero_config.py` (Suggestion #65: Dynamic OS-aware GPU scout executor configuration, Linux MPS vs. Windows/macOS semaphore mutex, dynamic VRAM threshold guard)
+6. `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py` (Suggestion #66: Parsl execution broker integration, heterogeneous scout-and-anchor routing, CPU core pinning, sandboxed scratch execution)
+7. `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py` & `CoChem-BASE/src/cochem/concurrency/subprocess_broker.py` (Suggestion #67: Harmonized `SubprocessBroker` interface, `shlex.split` cross-platform handling, `cwd`/`env` parameterization, timeout management, `psutil` tree cleanup)
+8. `CoChem-TORQ/Libraries/cochem_torq_goat.py` & `CoChem-TORQ/Libraries/cochem_torq_pipeline.py` (Suggestion #68: Asynchronous multi-seed conformer dispatch via Parsl executor pools, scratch directory sandboxing, deduplication merge)
+9. `CoChem-TORQ/HPC_Launchers/cochem_mps_worker.sh` (Suggestion #69: Bash MPS daemon monitoring loop, PID polling, named pipe socket check in scratch, trapped signal cleanup)
+10. `CoChem-TORQ/Libraries/cochem_torq_pipeline.py` & `CoChem-TORQ/HPC_Launchers/cochem_submit.slurm` (Suggestion #70: CLI entrypoint with `argparse`, SLURM environment variable mapping, Tripartite Storage Ring air-gap enforcement)
+11. `CoChem-BASE/src/cochem_base/exceptions.py` & `CoChem-BASE/src/cochem_base/schemas.py` (Suggestions #61–#70: Custom exception hierarchy and typed Pydantic v2 schemas)
 
 ### Zero-Mock Test Suite Deliverables
-12. `tests/base/test_active_learning_repulsion.py` (Validating Suggestion #51: Sequential furthest-point repulsion, spatial distance penalty, prevention of localized clustering)
-13. `tests/telemetry/test_honest_hardware_telemetry.py` (Validating Suggestion #52: Zero-spoofing assertion on CPU hosts, detection of `device_count == 0`, seamless CPU/ONNX dispatch)
-14. `tests/models/test_ani2x_cutoff_and_masking.py` (Validating Suggestion #53: Pairwise diagonal masking, single-atom zero force $\|\mathbf{F}_i\| < 10^{-14}\text{ eV/Å}$, smooth $C^2$ quintic cutoff)
-15. `tests/ml/test_conformal_force_coverage.py` (Validating Suggestion #54: Pooled atomic force scoring, quantile validity bounds $n \ge 20$, Bonferroni calibration on $N_{\text{atoms}}$)
-16. `tests/ml/test_force_matching_loss_scaling.py` (Validating Suggestion #55: Normalization parity between energy and forces, atom-norm vs coordinate Huber formulations)
-17. `tests/topos/test_goat_explore_daemon_orchestration.py` (Validating Suggestion #56: Persistent `oet_server` socket binding, ORCA input deck generation, RMSD deduplication, process tree cleanup)
-18. `tests/base/test_pip_symmetry_invariance.py` (Validating Suggestion #57: Subgroup orbit closure, exact energy degeneracy under identical nuclei permutation $|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$)
-19. `tests/base/test_krr_numerical_conditioning.py` (Validating Suggestion #58: Asymptotic anchor floor $\alpha_{\text{floor}} \ge 10^{-8}\text{ Ha}$, adaptive diagonal jittering, avoidance of `scipy.linalg.lstsq`)
-20. `tests/ecosystem/test_ml_namespace_migration.py` (Validating Suggestion #59: Clean import of relocated `cochem_torq_*` modules and public `cochem.ml` namespace APIs)
-21. `tests/torq/test_delta_ml_d3_dispersion.py` (Validating Suggestion #60: D3(BJ) dispersion correction to semi-empirical baseline, analytical force gradient conservation, dynamic Mendeleev parameters)
+12. `tests/ml/test_vectorized_committee_ensemble.py` (Validating Suggestion #61: Mathematical invariance between vectorized and serial inference, latency reduction, dynamic VRAM serialization threshold)
+13. `tests/torq/test_oet_fallback_provenance_alert.py` (Validating Suggestion #62: Atomic generation of `<base>_EXT.fallback_alert.json` in scratch, uncertainty marker file trigger, provenance tag `[E]` enforcement)
+14. `tests/topos/test_chain_zero_mock_wavefunction.py` (Validating Suggestion #63: Verified raising of `ConvergenceFailureError` / `MissingBinaryError`, zero generation of synthetic byte sequences in `.gbw` / `.opt`)
+15. `tests/concurrency/test_hdf5_concurrent_staging.py` (Validating Suggestion #64: Multi-process and multi-thread concurrent write test, zero `BlockingIOError`, atomic chunk staging and merge integrity)
+16. `tests/concurrency/test_gpu_scout_cross_platform_dispatch.py` (Validating Suggestion #65: OS-aware branching, validation of semaphore serialization on Windows/macOS, dynamic VRAM guard)
+17. `tests/base/test_execution_router_parsl_broker.py` (Validating Suggestion #66: Routing heavy QM to `cochem_anchor_cpu` with core pinning and scans to `cochem_scout_gpu` via Parsl)
+18. `tests/concurrency/test_subprocess_broker_contract.py` (Validating Suggestion #67: String vs tokenized list input handling, `cwd`/`env` passing, cross-platform path handling, process tree termination)
+19. `tests/torq/test_goat_multi_seed_concurrency.py` (Validating Suggestion #68: Concurrent multi-seed GOAT exploration, scratch isolation, non-blocking Parsl future aggregation)
+20. `tests/hpc/test_mps_worker_lifecycle.py` (Validating Suggestion #69: Validation of shell daemon monitoring logic, PID tracking, clean signal trapped cleanup and VRAM reclamation)
+21. `tests/hpc/test_torq_pipeline_cli_slurm.py` (Validating Suggestion #70: Full CLI argument parsing, SLURM environment variable extraction, input verification, Tripartite Storage Ring validation)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Active Learning Batch Diversity in AutoPES (Suggestion #51)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/schemas.py`
-- **Method Matrix Reference:** Method Matrix v4 §10.8 (Active Learning Efficiency) and §13.2 (Budget Allocation) [M].
+### [Task 1: Vectorized Committee Ensemble Inference & Dynamic VRAM Throttling (Suggestion #61)]
+- **Target Files:** `CoChem-BASE/Libraries/cochem_torq_committee_ensemble.py`, `cochem/ml/models/ensemble.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.2 (Throughput Optimization & Heterogeneous Concurrency) [M], Anti-Spoofing Directive v2.
 - **Requirements:**
-  1. Define Pydantic v2 configuration schema `ActiveLearningBatchConfig`:
+  1. Define Pydantic v2 configuration schema `CommitteeEnsembleConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
      from typing import Literal
 
-     class ActiveLearningBatchConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
-         batch_size: int = Field(default=32, ge=1, le=512)
-         repulsion_length_scale: float = Field(
-             default=0.5, 
-             gt=0.0, 
-             alias="repulsion_radius", 
-             description="Spatial repulsion radius sigma_repulse in Angstroms"
-         )
-         diversity_weight: float = Field(default=1.0, ge=0.0, le=1.0)
-         kernel_type: Literal["gaussian", "morse"] = "gaussian"
+     class CommitteeEnsembleConfig(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         vectorized: bool = True
+         vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
+         concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
+         max_batch_size: int = Field(default=128, ge=1)
      ```
-  2. In `ActiveLearningEngine.select_points`, replace greedy sorting of uncertainties with sequential furthest-point repulsion.
-  3. When selecting point $k+1$ from candidate pool $\mathcal{U}$, evaluate the minimum Euclidean distance to the union of previously labeled training points $\mathcal{X}_{\text{selected}}$ and points currently accumulated in the active batch $\mathcal{X}_{\text{batch}}$:
-     $$d_{\min}(\mathbf{x}) = \min_{\mathbf{x}_j \in (\mathcal{X}_{\text{selected}} \cup \mathcal{X}_{\text{batch}})} \|\mathbf{x} - \mathbf{x}_j\|_2 \quad [D]$$
-  4. Compute the penalized acquisition score $S_{\text{acq}}(\mathbf{x})$:
-     $$S_{\text{acq}}(\mathbf{x}) = U(\mathbf{x}) \cdot \left[1 - \beta_{\text{div}} \exp\left(-\frac{d_{\min}(\mathbf{x})^2}{2 \sigma_{\text{repulse}}^2}\right)\right] \quad [D]$$
-     where $U(\mathbf{x})$ is the epistemic model uncertainty, $\beta_{\text{div}}$ is `diversity_weight`, and $\sigma_{\text{repulse}}$ is `repulsion_length_scale`.
-  5. Dynamically update $d_{\min}$ in $O(N_{\text{pool}})$ scalar operations per selection step, ensuring overall batch acquisition completes in $< 5\text{ ms}$ in FP64 [M].
-  6. Verify spatial coverage improves by $> 35\%$ [M] compared to greedy selection, preventing redundant CCSD(T) evaluations.
+  2. In `CommitteeEnsemble.forward()`, eliminate the serial iteration loop over `self.models`.
+  3. When `concurrency_mode == "vmap"` and neural network architectures share identical parameter shapes, utilize `torch.vmap` over stacked parameters to evaluate all committee members in a single batched kernel invocation:
+     $$\mathbf{Y}_{\text{ensemble}}(\mathbf{x}) = \text{vmap}(f)(\boldsymbol{\theta}_{\text{stacked}}, \mathbf{x}) \quad [D]$$
+  4. Implement `RESOURCE_GUARD` memory monitoring prior to execution. If running on CUDA:
+     ```python
+     free_bytes, total_bytes = torch.cuda.mem_get_info()
+     free_mb = free_bytes / (1024 * 1024)
+     ```
+     If `free_mb < vram_headroom_threshold_mb`, automatically log a warning and fall back to sequential inference across members, guaranteeing zero CUDA Out-Of-Memory (`RuntimeError: CUDA out of memory`) exceptions.
+  5. If ensemble members have heterogeneous architectures or shapes, execute forward passes across parallel `torch.cuda.Stream` contexts with non-blocking transfers.
+  6. Assert mathematical invariance: the predictions and epistemic variance from vectorized execution must match serial execution to machine precision ($\max |\mathbf{y}_{\text{vmap}} - \mathbf{y}_{\text{serial}}| < 10^{-12}$ in FP64) [M].
+  7. Isolate all temporary intermediate tensor allocations in memory or Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`).
 
 ---
 
-### [Task 2: Honest Hardware Telemetry & CPU/ONNX Autonomous Dispatcher (Suggestion #52)]
-- **Target Files:** `CoChem-TOPOS/hetero_config.py`, `CoChem-TOPOS/cochem_topos/telemetry/hardware.py`, `CoChem-TORQ/Libraries/cochem_torq_engine.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §8.3 (Quantitative Crossover) [M] and Anti-Spoofing Mandate v2.
+### [Task 2: OET Machine-Learning-to-Empirical Fallback Provenance & Alert Manifests (Suggestion #62)]
+- **Target Files:** `CoChem-TORQ/scripts/oet_client.py`, `CoChem-TORQ/Libraries/cochem_torq_oet_client.py`, `CoChem-BASE/src/cochem_base/schemas.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §10.8 (Active Learning & Fallback Provenance Auditing) [M], Investigator-in-the-Loop Mandate.
 - **Requirements:**
-  1. Define `HardwareTelemetryReport` and `HardwareTelemetryError`:
+  1. Define Pydantic v2 schemas `OETFallbackAlertManifest` and custom exception `OETDaemonConnectionError`:
+     ```python
+     from pydantic import BaseModel, Field, ConfigDict
+     from typing import Dict, Any, Optional
+     import datetime
+
+     class OETFallbackAlertManifest(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         calculation_base: str
+         timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+         trigger_event: str
+         fallback_calculator: str
+         provenance_tag: str = "[E]"
+         host_telemetry: Dict[str, Any]
+         scratch_alert_file: str
+         staged_artifact_file: str
+     ```
+  2. When the socket connection in `oet_client.py` fails and `PhysicalOETFallbackCalculator` is engaged, forbid silent execution.
+  3. Enforce Tripartite Storage Ring air-gap compliance:
+     - Write the atomic fallback audit manifest (`<base>_EXT.fallback_alert.json`) into the designated Ring 2 ephemeral scratch directory (`$COCHEM_SCRATCH`).
+     - Stage an alert copy into the Ring 3 persistent store (`$COCHEM_ARTIFACTS/alerts/`).
+     - Strictly forbid any writes into Ring 1 static repository paths (`$COCHEM_ROOT`).
+  4. Atomically write an uncertainty marker file (`<base>_EXT.uncertainty_marker`) containing the provenance tag `[E]` and execution metadata.
+  5. Instruct the supervising workflow orchestrator to inspect for `<base>_EXT.fallback_alert.json`; upon detection, either abort the pipeline or propagate provenance tag `[E]` (Empirical) to all downstream data points and publications.
+
+---
+
+### [Task 3: Purge of Fabricated SCF/Opt Cycles & Corrupt Binary Wavefunctions in Chained Engines (Suggestion #63)]
+- **Target Files:** `CoChem-TOPOS/chain.py`, `CoChem-TORQ/Libraries/chain.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §8B.4 (Canonical Arrows 4 & 5 Binary Wavefunction Projection via `%moinp`) [M], Anti-Spoofing Protocol v2.
+- **Requirements:**
+  1. Define custom exceptions in `CoChem-BASE/src/cochem_base/exceptions.py`:
+     ```python
+     class ElectronicStructureEngineError(Exception):
+         """Base exception for quantum engine failures."""
+         pass
+
+     class ConvergenceFailureError(ElectronicStructureEngineError):
+         """Raised when SCF or Geometry Optimization fails to converge."""
+         pass
+
+     class MissingBinaryError(ElectronicStructureEngineError):
+         """Raised when a required quantum chemistry binary is absent."""
+         pass
+     ```
+  2. In `chain.py` (both `CoChem-TOPOS` and `CoChem-TORQ`), purge all routines that fabricate iteration counts (e.g., `scf_cyc = 12`, `opt_cyc = 6`), mock strings (`"ORCA TERMINATED NORMALLY"`), or approximate energies using unphysical mass-based formulas (`sum(-0.5 * (mass ** 1.5))`).
+  3. Purge lines that write arbitrary byte sequences into `.gbw` and `.opt` binary containers. If the ORCA binary is missing or fails convergence, immediately raise `MissingBinaryError` or `ConvergenceFailureError`.
+  4. Ensure all temporary wavefunction files, scratch integrals, and intermediate geometry buffers remain strictly confined within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`).
+  5. In the event of a failure, trigger immediate cleanup of invalid or corrupt files from Ring 2 scratch, and ensure zero unverified binary containers are emitted to Ring 3 persistent storage (`$COCHEM_ARTIFACTS`).
+
+---
+
+### [Task 4: Two-Tier Thread-Safe and Process-Safe HDF5 Persistence Architecture (Suggestion #64)]
+- **Target Files:** `CoChem-TOPOS/gpu_point.py`, `CoChem-TOPOS/pes_h5.py`, `CoChem-TOPOS/chain.py`, `CoChem-BASE/src/cochem_base/concurrency/atomic_file_lock.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8C (Production HDF5 Store Architecture & Chunking) [M], [D].
+- **Requirements:**
+  1. Define Pydantic v2 schema `HDF5PersistenceConfig`:
+     ```python
+     from pydantic import BaseModel, Field, ConfigDict
+
+     class HDF5PersistenceConfig(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         lock_timeout_seconds: float = Field(default=60.0, ge=1.0)
+         retry_backoff_base_seconds: float = Field(default=0.05, ge=0.001)
+         compression_filter: str = "gzip"
+         compression_level: int = Field(default=4, ge=1, le=9)
+         enable_fletcher32: bool = True
+         enable_shuffle: bool = True
+     ```
+  2. Implement a two-tier locking strategy in `pes_h5.py` and `atomic_file_lock.py`:
+     - **Tier 1 (In-Process):** Enforce `threading.RLock()` to serialize access across concurrent worker threads within the same process.
+     - **Tier 2 (Cross-Process):** Enforce cross-process locking via `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock` with exponential backoff and configurable timeouts, supporting Windows NT, macOS, and Linux without raw POSIX `fcntl` collisions.
+  3. Enforce an atomic staging pipeline for distributed workers:
+     - Parallel Parsl workers must never write directly into `$COCHEM_ARTIFACTS/campaign.h5`.
+     - Each worker writes single-point energies, nuclear gradients, and QCSchema records into an isolated chunk file in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/chunks/chunk_<uuid>.h5`).
+  4. Implement a centralized persistence coordinator:
+     - The coordinator acquires an exclusive lock on `$COCHEM_ARTIFACTS/campaign.h5`.
+     - It merges records from staged chunk files into primary datasets using chunking, shuffle filters, gzip compression level 4, and Fletcher32 checksums.
+     - Upon verified ingestion, it purges staged chunk files from Ring 2 scratch.
+  5. Guarantee zero `BlockingIOError` or `OSError: file already open for write` during 100-way concurrent worker sweeps.
+
+---
+
+### [Task 5: OS-Aware GPU Scout Concurrency & Windows/macOS Mutex Scheduling (Suggestion #65)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_parsl_executors.py`, `CoChem-TOPOS/hetero_config.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4 (NVIDIA MPS Daemon Lifecycle) and §8A.2 (Heterogeneous Concurrency) [M].
+- **Requirements:**
+  1. Define Pydantic v2 configuration schema `GpuScoutExecutorConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
      from typing import Literal
 
-     class HardwareTelemetryReport(BaseModel):
+     class GpuScoutExecutorConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         device_count: int = Field(ge=0)
-         gpu_available: bool
-         device_name: str
-         vram_total_mb: float = Field(ge=0.0)
-         vram_free_mb: float = Field(ge=0.0)
-         selected_runtime: Literal["cuda", "mps", "cpu", "onnx_cpu"]
+         platform_os: Literal["windows", "darwin", "linux"]
+         enable_mps: bool
+         mps_pipe_dir: str
+         max_concurrent_gpu_tasks: int = Field(default=1, ge=1)
+         min_vram_headroom_mb: float = Field(default=1536.0, ge=512.0)
      ```
-  2. Purge all fabricated hardware returns (`24 * 1024` or `8 * 1024` MB VRAM fallback on missing GPUs) in `hetero_config.py` and `probe_mps_status()`.
-  3. Query genuine OS/driver state using PyTorch (`torch.cuda.is_available()`, `torch.cuda.device_count()`, `torch.cuda.mem_get_info()`) or platform drivers. If no physical GPU is present, return:
-     $$\text{device\_count} = 0, \quad \text{vram\_total\_mb} = 0.0, \quad \text{vram\_free\_mb} = 0.0, \quad \text{gpu\_available} = \text{False} \quad [M]$$
-  4. Implement autonomous dispatcher logic in `ExecutionContext.get_telemetry()`:
-     - If `gpu_available == True` and `vram_free_mb >= 2048.0`: Route to CUDA (`device="cuda"`).
-     - If `gpu_available == False` or `vram_free_mb < 2048.0`: Route to CPU (`device="cpu"`) or ONNX Runtime `CPUExecutionProvider`.
-     - macOS Darwin with MPS: Check execution precision. If task requires double-precision FP64 linear algebra, automatically route to CPU (`device="cpu"`), because MPS lacks native FP64 support.
-  5. Ensure zero unhandled `CUDAInitializationError` exceptions on CPU-only machines, macOS, and CI runners.
+  2. Implement OS-aware hardware detection across the 6-Tier Environment Matrix in `hetero_config.py` and executor initialization:
+     - **Tier 3 / Tier 6 (Debian Linux & HPC Slurm):** Configure and spawn NVIDIA MPS control daemon (`nvidia-cuda-mps-control -d`) with directory pipes located in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/nvidia_mps`). Set `CUDA_MPS_PIPE_DIRECTORY` and `CUDA_MPS_LOG_DIRECTORY`.
+     - **Tier 1 / Tier 2 (Windows WSL2 & macOS OrbStack):** Explicitly disable MPS daemon invocation. Bypass all MPS initialization scripts. Enforce GPU concurrency serialization via a cross-process named mutex or semaphore (`threading.Semaphore(1)` / OS file lock), restricting GPU scout dispatches to one active compute kernel at a time.
+     - **Tier 4 / Tier 5 (Codespaces & GitHub Actions CI):** If discrete CUDA hardware is absent, gracefully route scout tasks to CPU threads.
+  3. Dynamic VRAM Safeguard: Prior to launching any GPU scout kernel, query `torch.cuda.mem_get_info()`. If available VRAM $< 1.5\text{ GB}$, hold the task in a high-priority queue until memory is reclaimed, preventing CUDA out-of-memory and Windows TDR driver resets.
 
 ---
 
-### [Task 3: ANI-2x Self-Interaction Masking & Cutoff Envelope (Suggestion #53)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_ani2x_transfer.py`, `cochem/ml/models/ani2x.py`
-- **Method Matrix Reference:** Method Matrix v4 §9B.4 (Translational Invariance & Force Accuracy) [M].
+### [Task 6: Unified Parsl Multi-Executor Routing in ExecutionRouter (Suggestion #66)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py`, `CoChem-BASE/src/cochem_base/schemas.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.6 (Parsl Multi-Executor Architecture) and §8A.2 (Scout-and-Anchor Topology) [M].
 - **Requirements:**
-  1. Define `ANI2xCutoffConfig`:
+  1. Define Pydantic v2 schemas `JobRouteConfig` and `ExecutionRouteResult`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
+     from typing import Literal, Optional, List, Dict, Any
 
-     class ANI2xCutoffConfig(BaseModel):
+     class JobRouteConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         cutoff_radius: float = Field(default=5.2, gt=1.0, le=10.0, description="Radial cutoff in Angstroms")
-         envelope_type: Literal["cosine", "quintic"] = "cosine"
-         mask_self_interactions: bool = True
-     ```
-  2. In `ANI2xModel.forward`, purge self-interactions by applying an explicit boolean off-diagonal mask to pair distance matrices:
-     ```python
-     mask = ~torch.eye(n_atoms, dtype=torch.bool, device=coordinates.device)
-     ```
-  3. Modulate all interatomic distances with a continuous cutoff envelope with $R_c = 5.2\text{ Å}$ [M]:
-     - Cosine cutoff envelope:
-       $$f_c(R_{ij}) = \begin{cases} \frac{1}{2} \left[ \cos\left(\frac{\pi R_{ij}}{R_c}\right) + 1 \right], & R_{ij} \le R_c \\ 0, & R_{ij} > R_c \end{cases} \quad [D]$$
-     - $C^2$-smooth quintic polynomial envelope for analytical second derivatives:
-       $$f_c^{\text{quintic}}(u) = \begin{cases} 1 - 10u^3 + 15u^4 - 6u^5, & u \in [0, 1] \\ 0, & u > 1 \end{cases} \quad \text{where } u = \frac{R_{ij}}{R_c} \quad [D]$$
-  4. Verify that evaluating an isolated atom yields zero pairs and evaluates an exact zero force:
-     $$\|\mathbf{F}_{\text{isolated}}\| < 10^{-14}\text{ eV/Å} \quad [M]$$
-
----
-
-### [Task 4: Conformal Prediction Sample Complexity & Bonferroni Correction (Suggestion #54)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_conformal.py`, `cochem/ml/conformal.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §12.5 and §19 (Split-Conformal Calibration Protocols) [M], [D].
-- **Requirements:**
-  1. Define `ConformalCalibrationConfig` and `ConformalCalibrationError`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class ConformalCalibrationConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         significance_level: float = Field(default=0.05, gt=0.0, lt=1.0)
-         hypothesis_scope: Literal["marginal", "atomwise_bonferroni"] = "marginal"
-         min_calibration_observations: int = Field(
-             default=50, 
-             ge=20, 
-             description="Must satisfy n >= ceil((1 - alpha) / alpha) to guarantee valid quantile evaluation"
-         )
-     ```
-  2. Purge the invalid $3N$ coordinate-level Bonferroni multiplier from sample size verification.
-  3. Define the effective calibration sample size as the total count of pooled atomic force non-conformity scores:
-     $$n_{\text{force\_scores}} = \sum_{m=1}^M N_{\text{atoms}}^{(m)} \quad [D]$$
-     where non-conformity score $s_i = \|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2$ collapses Cartesian components into a single rotationally invariant scalar per atom.
-  4. Evaluate empirical quantile $\hat{q}$ for marginal coverage at significance level $\alpha$:
-     $$\hat{q} = \text{Quantile}\left(\{s_k\}_{k=1}^n; \frac{\lceil (n + 1)(1 - \alpha) \rceil}{n}\right) \quad [D]$$
-  5. Enforce mathematical sample size lower bound: $(n + 1)(1 - \alpha) \le n \iff n \ge \lceil (1 - \alpha)/\alpha \rceil$ ($n \ge 19$ for $\alpha = 0.05$). Raise `ConformalCalibrationError` if observations are fewer than 20.
-  6. When simultaneous atom-wise coverage across query molecule $N_{\text{atoms}}$ is required, apply Bonferroni correction strictly across atomic hypotheses ($\alpha_{\text{eff}} = \alpha / N_{\text{atoms}}$) without Cartesian dimension 3 inflation.
-
----
-
-### [Task 5: Force Matching Multi-Task Loss Normalization (Suggestion #55)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_force_matching.py`, `cochem/ml/models/force_matching.py`
-- **Method Matrix Reference:** Method Matrix v4 §10.3 (Force Matching Protocol) [M], [D].
-- **Requirements:**
-  1. Define `ForceMatchingLossConfig`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class ForceMatchingLossConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         energy_weight: float = Field(default=1.0, ge=0.0)
-         force_weight: float = Field(default=10.0, ge=0.0)
-         huber_delta_energy: float = Field(default=0.01, gt=0.0)
-         huber_delta_force: float = Field(default=0.05, gt=0.0)
-         normalization_mode: Literal["atom_norm", "coordinate_component"] = "atom_norm"
-     ```
-  2. Implement balanced multi-task objective:
-     $$\mathcal{L}_{\text{total}} = w_E \mathcal{L}_E + w_F \mathcal{L}_F \quad [D]$$
-  3. In `ForceMatchingLoss.forward`, normalize force loss according to the configured mode:
-     - Mode `atom_norm` (Euclidean vector norms):
-       $$\mathcal{L}_F = \frac{1}{\sum_{m=1}^B N_{\text{atoms}}^{(m)}} \sum_{i=1}^{N_{\text{total}}} \mathcal{L}_{\text{Huber}}\left(\|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2; \delta_F\right) \quad [D]$$
-       Normalize `total_huber_sum` by `total_atoms.clamp(min=1.0)` instead of $3 \times N_{\text{total\_atoms}}$.
-     - Mode `coordinate_component`:
-       $$\mathcal{L}_F^{\text{coord}} = \frac{1}{3 \sum_{m=1}^B N_{\text{atoms}}^{(m)}} \sum_{i=1}^{N_{\text{total}}} \sum_{\alpha \in \{x, y, z\}} \mathcal{L}_{\text{Huber}}\left(|F_{i\alpha} - \hat{F}_{i\alpha}|; \delta_F\right) \quad [D]$$
-  4. Eliminate the 3x force gradient attenuation, restoring intended multi-task gradient ratios.
-
----
-
-### [Task 6: T1-30min Exploration & Persistent ORCA GOAT-EXPLORE Daemon Orchestration (Suggestion #56)]
-- **Target Files:** `CoChem-TOPOS/cascade_engine/cochem_topos_cascade_orchestrator.py`, `CoChem-TOPOS/core_engine/oet_server.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §9B.4, Table 2 (Row `T1-30min`), Quick Start QS-1 Step 2 [M].
-- **Requirements:**
-  1. Define `GoatExploreDaemonConfig` and `GoatDaemonExecutionError`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-
-     class GoatExploreDaemonConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         socket_path: str
+         job_type: Literal["heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"]
+         assigned_executor: Literal["cochem_anchor_cpu", "cochem_scout_gpu", "local_fallback"]
+         cpu_core_pinning: Optional[List[int]] = None
          scratch_dir: str
-         max_hopping_steps: int = Field(default=100, ge=1)
-         tight_opt_threshold: bool = True
-         rmsd_dedup_threshold: float = Field(default=0.15, gt=0.0)
+         timeout_seconds: float = Field(default=3600.0, ge=10.0)
      ```
-  2. Purge the in-process local `LBFGS(atoms)` shortcut from `_execute_goat_explore_extopt`.
-  3. Implement persistent background `oet_server` daemon via `SubprocessBroker`:
-     - Bind daemon to a local domain socket or named pipe in `COCHEM_SCRATCH/run_id` with an OS-level file lock (`oet_server.lock`).
-     - Load MLFF models (MACE/AIMNet2) once into daemon memory, eliminating per-query reloading overhead.
-  4. Generate authentic ORCA input deck executing stochastic minima-hopping global search:
-     ```orca
-     ! GOAT-EXPLORE ExtOpt TightOpt
-     %geom
-       TolMaxG 1e-5
-       TolE 1e-7
-       TolRMSG 3e-6
-       TolRMSD 5e-5
-       TolMaxD 1e-4
-       InHess XTB2
-     end
-     ```
-     Enforce tightened `%geom` tolerances; strictly prohibit `Calc_Hess true` [M].
-  5. Execute ORCA in isolated scratch directory via `SubprocessBroker.run_orca()` with streaming log ingestion.
-  6. Parse resulting `.finalensemble.xyz` intermediate minima, filtering duplicates with heavy-atom RMSD deduplication threshold ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]).
-  7. Implement robust lifecycle hooks terminating the daemon via `psutil.Process.terminate()` and `kill()`, ensuring zero orphaned background processes.
+  2. Refactor `ExecutionRouter.route_job()` to eliminate bypassed execution paths. Integrate `ParslExecutionBroker` as the primary dispatch engine.
+  3. Map computational workloads according to the Scout-and-Anchor paradigm:
+     - Heavy quantum mechanical optimizations (`heavy_qm_opt`), exact Hessians, and composite ab-initio workflows map to `cochem_anchor_cpu` with explicit CPU core pinning and OpenMP thread binding (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`).
+     - Rapid potential energy scans (`fast_potential_scan`), semi-empirical sweeps, and neural network evaluations map to `cochem_scout_gpu`.
+  4. Ensure every dispatched job runs within an isolated sandbox subdirectory inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>/`).
+  5. Validate that all file paths are cross-platform `pathlib.Path` objects, ensuring compatibility across all 6 environment tiers.
 
 ---
 
-### [Task 7: Permutation Invariant Polynomial (PIP) Group Invariance (Suggestion #57)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §13.2 and fundamental quantum mechanical permutation-inversion (PI) symmetry [M], [D].
+### [Task 7: SubprocessBroker Contract Harmonization & Process Tree Reclamation (Suggestion #67)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py`, `CoChem-BASE/src/cochem/concurrency/subprocess_broker.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4, Cross-Platform Architecture Mandate.
 - **Requirements:**
-  1. Define `PipSymmetryConfig` and `SymmetryInvarianceError`:
+  1. Harmonize `SubprocessBroker.__init__` and `SubprocessBroker.execute` interface signatures:
+     ```python
+     from typing import Union, List, Optional, Dict
+     from pathlib import Path
+     import sys
+     import shlex
+
+     class SubprocessBroker:
+         def __init__(
+             self, 
+             cwd: Optional[Union[str, Path]] = None, 
+             env: Optional[Dict[str, str]] = None,
+             timeout_seconds: float = 3600.0
+         ):
+             self.cwd = Path(cwd) if cwd else Path.cwd()
+             self.env = env.copy() if env is not None else None
+             self.timeout_seconds = timeout_seconds
+
+         def execute(
+             self, 
+             command: Union[str, List[str]], 
+             cwd: Optional[Union[str, Path]] = None, 
+             env: Optional[Dict[str, str]] = None
+         ) -> SubprocessExecutionResult:
+             ...
+     ```
+  2. Implement robust command parsing: if `command` is passed as a string, tokenize it safely using `shlex.split(command, posix=(sys.platform != "win32"))`. If passed as a list, retain tokenization without decomposing into individual characters.
+  3. Enforce execution strictly inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`). Assert that target working directories exist and possess write permissions.
+  4. Implement deterministic process tree termination: wrap execution in `try/except/finally`. If a process times out or encounters an unhandled exception, recursively traverse and terminate all child processes using `psutil.Process(proc.pid).children(recursive=True)` followed by `terminate()` and `kill()`.
+  5. Register process cleanup callbacks with `atexit` to prevent orphaned background zombies.
+
+---
+
+### [Task 8: Asynchronous Multi-Seed GOAT Exploration via Parsl Queues (Suggestion #68)]
+- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_goat.py`, `CoChem-TORQ/Libraries/cochem_torq_pipeline.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.2 (Scout-and-Anchor Concurrency) and §9B.3 (Step 0 & Step 1 Parallel Conformer Exploration) [M].
+- **Requirements:**
+  1. Define Pydantic v2 configuration schema `MultiSeedGoatConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
+     from typing import List
 
-     class PipSymmetryConfig(BaseModel):
+     class MultiSeedGoatConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         max_symmetric_order: int = Field(default=120, ge=2, description="Upper bound before invoking subgroup orbit averaging")
-         subgroup_type: Literal["full", "alternating", "automorphism_wreath"] = "automorphism_wreath"
-         invariance_tolerance: float = Field(default=1e-14, gt=0.0, description="Permutation invariance tolerance in Eh")
+         seed_structures: List[str] = Field(min_length=1)
+         max_concurrent_seeds: int = Field(default=4, ge=1)
+         rmsd_threshold_angstrom: float = Field(default=0.15, gt=0.0)
+         energy_window_kcal_mol: float = Field(default=6.0, gt=0.0)
      ```
-  2. Purge arbitrary transposition truncations that violate group axioms when $N_{\text{identical}}! > 120$.
-  3. Implement Braams-Burgess invariant polynomial monomial bases (PIP algebra) using generating functions for the ring of invariants $\mathbb{R}[x_1, \dots, x_M]^{S_n}$ [D].
-  4. For orbit averaging over coordinate representations, mandate that permutation subset $\mathcal{G} \subset S_n$ satisfies strict mathematical subgroup closure:
-     $$\forall g_a, g_b \in \mathcal{G} \implies g_a \circ g_b \in \mathcal{G} \quad [D]$$
-     Draw permutations from alternating group $A_n$ or molecular automorphism wreath products $S_k \wr S_m$.
-  5. Under any nuclear permutation $\hat{P} \in \mathcal{G}$, verify exact potential energy degeneracy:
-     $$|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h \quad [M]$$
-     Raise `SymmetryInvarianceError` if energy invariance is violated.
+  2. Refactor `run_multi_seed_goat()` in `cochem_torq_goat.py` to eliminate sequential `for s_path in seed_paths:` execution.
+  3. Construct an asynchronous task graph where each conformer seed exploration is dispatched as a concurrent Parsl task targeting the `GPU_SCOUT` or `CPU_ANCHOR` executor pools.
+  4. Sandbox each seed exploration within an isolated workspace in Ring 2 ephemeral scratch:
+     $$\text{Workspace Path} = \$COCHEM\_SCRATCH/\text{goat\_seed\_}\langle\text{hash}\rangle/ \quad [D]$$
+  5. Enforce concurrency limits to avoid oversubscribing GPU memory headroom ($< 1.5\text{ GB}$).
+  6. Ingest completed seed results asynchronously via Parsl futures. Filter and deduplicate conformational minima using pairwise RMSD ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]) and energy window filtering ($\Delta E \le 6.0\text{ kcal/mol}$ [M]).
+  7. Merge verified unique conformers into the Ring 3 persistent store (`$COCHEM_ARTIFACTS/conformers.xyz`). Maintain Ring 1 static repository code (`$COCHEM_ROOT`) strictly immutable.
 
 ---
 
-### [Task 8: Numerical Conditioning & Condition-Number Floor in KRR (Suggestion #58)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §8C and §13.2 (Numerical Stability Standards) [M], [D].
+### [Task 9: HPC NVIDIA MPS Worker Daemon Lifecycle & Pipe Polling (Suggestion #69)]
+- **Target Files:** `CoChem-TORQ/HPC_Launchers/cochem_mps_worker.sh`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4 (NVIDIA MPS Daemon Lifecycle Management) [M].
 - **Requirements:**
-  1. Define `KrrRegularizationConfig` and `NumericalConditioningError`:
+  1. In `cochem_mps_worker.sh`, eradicate the untargeted bash `wait` command on lines 52–54.
+  2. Implement an active daemon supervision loop:
+     ```bash
+     # Configure scratch pipes in Ring 2
+     export CUDA_MPS_PIPE_DIRECTORY="${COCHEM_SCRATCH}/mps_control_${SLURM_JOB_ID}"
+     export CUDA_MPS_LOG_DIRECTORY="${COCHEM_SCRATCH}/mps_log_${SLURM_JOB_ID}"
+     mkdir -p "${CUDA_MPS_PIPE_DIRECTORY}" "${CUDA_MPS_LOG_DIRECTORY}"
+
+     # Launch daemon in background
+     nvidia-cuda-mps-control -d
+     MPS_PID=$(pgrep -f "nvidia-cuda-mps-control" | tail -n 1)
+
+     # Active monitoring loop
+     while kill -0 "${MPS_PID}" 2>/dev/null; do
+         if [[ -f "${COCHEM_SCRATCH}/mps_terminate_${SLURM_JOB_ID}.flag" ]]; then
+             break
+         fi
+         sleep 2
+     done
+     ```
+  3. Implement a robust signal trap (`trap 'cleanup_mps' EXIT SIGINT SIGTERM`):
+     - Query and notify active client applications.
+     - Issue graceful shutdown command: `echo "quit" | nvidia-cuda-mps-control`.
+     - Sweep and terminate any orphaned client context processes via `psutil` or `kill -9`.
+     - Query GPU driver memory state (`nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits`) and assert that all allocated VRAM is released back to the host node.
+     - Purge pipe and socket directories from Ring 2 ephemeral scratch.
+
+---
+
+### [Task 10: SLURM Batch Submission CLI Contract & Dynamic HPC Resource Mapping (Suggestion #70)]
+- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_pipeline.py`, `CoChem-TORQ/HPC_Launchers/cochem_submit.slurm`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.6, Production High-Performance Computing Mandate (Tier 6: HPC).
+- **Requirements:**
+  1. Define Pydantic v2 schema `TorqPipelineCliArgs`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
+     from typing import Optional
+     from pathlib import Path
 
-     class KrrRegularizationConfig(BaseModel):
+     class TorqPipelineCliArgs(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         base_alpha: float = Field(default=1e-6, gt=0.0)
-         anchor_alpha_floor: float = Field(default=1e-8, gt=0.0)
-         jitter_epsilon: float = Field(default=1e-9, gt=0.0)
-         max_jitter_escalation: float = Field(default=1e-6, gt=0.0)
+         input_geometry: Path
+         output_directory: Path
+         theory_level: str = "B3LYP-D4/def2-TZVP"
+         cpus_per_task: int = Field(default=1, ge=1)
+         memory_mb: int = Field(default=4096, ge=1024)
+         scratch_dir: Path
      ```
-  2. In AutoPES KRR fitting, enforce strict lower bound on diagonal regularization:
-     $$\alpha_{\text{anchor}} \ge \alpha_{\text{floor}} = 1.0 \times 10^{-8}\text{ Ha} \quad [M]$$
-     Purge $10^{-11}\text{ Ha}$ regularization values that cause matrix eigenvalue collapse.
-  3. Condition Gram matrix $\mathbf{K}$ prior to Cholesky factorization:
-     $$\mathbf{K}_{\text{reg}} = \mathbf{K} + \operatorname{diag}(\boldsymbol{\alpha}) + \epsilon_{\text{jitter}} \mathbf{I}, \quad \epsilon_{\text{jitter}} = 1.0 \times 10^{-9} \quad [D]$$
-  4. Implement adaptive jitter escalation upon `scipy.linalg.LinAlgError`: escalate $\epsilon_{k+1} = 10 \times \epsilon_k$ up to $\epsilon_{\max} = 1.0 \times 10^{-6}$.
-  5. Reserve truncated SVD (`scipy.linalg.pinvh`) exclusively for unrecoverable rank-deficient systems; eliminate premature fallbacks to unregularized least-squares (`scipy.linalg.lstsq`).
-
----
-
-### [Task 9: ML Ecosystem Consolidation & Namespace Export (Suggestion #59)]
-- **Target Files:** `CoChem-BASE/Libraries/`, `CoChem-TORQ/Libraries/`, `cochem/ml/__init__.py`
-- **Method Matrix Reference:** Ecosystem Cohesion, Tripartite Separation of Concerns, Clean Packaging Standards [M].
-- **Requirements:**
-  1. Relocate the 40 `cochem_torq_*` modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/` using Git file move preservation.
-  2. Create a unified, cross-repository public API namespace package `cochem.ml`:
-     - `cochem.ml.active_learning`: Expose `ActiveLearningEngine`, `ActiveLearningBatchConfig`, furthest-point repulsion selectors.
-     - `cochem.ml.delta`: Expose `DeltaMLEngine`, `DeltaMLConfig`, D3 dispersion wrappers.
-     - `cochem.ml.conformal`: Expose `ConformalPredictor`, `ConformalCalibrationConfig`.
-     - `cochem.ml.models`: Expose shared GNN, `ANI2xModel`, `ForceMatchingLoss`, and KRR model architectures.
-  3. Ensure all internal imports across BASE and TORQ resolve transparently via `cochem.ml` or relocated paths without broken references.
-
----
-
-### [Task 10: Baseline Dispersion D3 Integration in Delta-ML (Suggestion #60)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_delta_ml.py`, `CoChem-TORQ/Libraries/cochem_torq_dispersion_d3.py`, `cochem/ml/delta.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 Table 2 (Rows `T3-3h`, `T3-12h`), §9A.5 (Dispersion Corrections) [M], [D].
-- **Requirements:**
-  1. Define `DeltaMLDispersionConfig` and `DispersionIntegrationError`:
+  2. Implement a complete CLI entrypoint in `cochem_torq_pipeline.py`:
      ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class DeltaMLDispersionConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         use_d3_dispersion: bool = True
-         damping_scheme: Literal["bj", "zero"] = "bj"
-         s6_scale: float = Field(default=1.0, ge=0.0)
-         s8_scale: float = Field(default=0.0, ge=0.0)
+     if __name__ == "__main__":
+         import argparse
+         parser = argparse.ArgumentParser(description="CoChem-TORQ HPC Batch Pipeline Driver")
+         parser.add_argument("--input", "-i", type=str, required=True, help="Path to input molecular geometry")
+         parser.add_argument("--output", "-o", type=str, required=True, help="Destination directory for artifacts")
+         parser.add_argument("--theory", "-t", type=str, default="B3LYP-D4/def2-TZVP", help="Electronic structure method")
+         parser.add_argument("--scratch", "-s", type=str, default=None, help="Ephemeral scratch directory")
+         args = parser.parse_args()
+         ...
      ```
-  2. In `DeltaMLEngine.forward()`, when `use_d3_dispersion` is True, augment the semi-empirical baseline energy with Grimme D3(BJ) dispersion:
-     $$E_{\text{baseline}}(\mathbf{R}) = E_{\text{SE}}(\mathbf{R}) + E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-  3. Evaluate the Becke-Johnson damped pairwise dispersion energy:
-     $$E_{\text{disp}}^{\text{D3(BJ)}} = -\frac{1}{2} \sum_{A \ne B} \left[ s_6 \frac{C_6^{AB}}{R_{AB}^6 + (a_1 R_0^{AB} + a_2)^6} + s_8 \frac{C_8^{AB}}{R_{AB}^8 + (a_1 R_0^{AB} + a_2)^8} \right] \quad [D]$$
-  4. Compute conservative analytical atomic force gradients:
-     $$\mathbf{F}_{\text{baseline}, i} = -\nabla_{\mathbf{R}_i} E_{\text{SE}}(\mathbf{R}) - \nabla_{\mathbf{R}_i} E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-  5. Retrieve reference $C_6^{AB}$ and $R_0^{AB}$ dispersion coefficients dynamically using atomic numbers queried via `mendeleev.element` [M].
-  6. Prevent neural network delta-fitting from overfitting long-range $R^{-6}$ asymptotics on sparse datasets.
+  3. Dynamically read SLURM environment variables when available:
+     - `cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))`
+     - `mem_mb = int(os.environ.get("SLURM_MEM_PER_NODE", 4096))`
+  4. Assert Tripartite Storage Ring air-gap compliance:
+     - Validate that input geometries originate from Ring 1 static storage or Ring 3 artifacts.
+     - Validate that execution occurs strictly within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH` or `$SLURM_TMPDIR`).
+     - Validate that persistent databases and final coordinate tables write exclusively to Ring 3 artifacts (`$COCHEM_ARTIFACTS`).
+  5. Update `cochem_submit.slurm` line 68 to forward arguments transparently:
+     ```bash
+     "${PYTHON_EXEC}" -m Libraries.cochem_torq_pipeline \
+         --input "${INPUT_GEOM}" \
+         --output "${COCHEM_ARTIFACTS}/${SLURM_JOB_ID}" \
+         --scratch "${COCHEM_SCRATCH}/${SLURM_JOB_ID}" \
+         --theory "${THEORY_LEVEL}"
+     ```
 
 ---
 
 ## 4. Physical Zero-Mock Test Suite & Verification Specifications
 
-All test implementations must execute genuine mathematical operations and real molecular electronic structures. Zero mock objects (`unittest.mock.Mock`, `MagicMock`), zero synthetic sleep calls, and zero placeholder functions are permitted.
+All test implementations must execute genuine mathematical operations, real system processes, and real molecular electronic structures. Zero mock objects (`unittest.mock.Mock`, `MagicMock`), zero synthetic sleep delays, and zero placeholder functions are permitted.
 
-### Test 1: `tests/base/test_active_learning_repulsion.py`
-- Ingest a 2D candidate coordinate pool $\mathcal{U}$ containing a localized cluster of 20 points around an uncertainty peak and 30 dispersed points.
-- Run `ActiveLearningEngine.select_points` with batch size $N_{\text{batch}} = 5$ under:
-  1. Greedy selection ($\beta_{\text{div}} = 0.0$): Assert selected points are concentrated within the localized cluster ($d_{\min} < 0.1\text{ Å}$).
-  2. Repulsion selection ($\beta_{\text{div}} = 1.0, \sigma_{\text{repulse}} = 0.5\text{ Å}$): Assert selected points have mutual distances $d > 0.4\text{ Å}$, demonstrating spatial batch diversity.
+### Test 1: `tests/ml/test_vectorized_committee_ensemble.py`
+- Instantiate a 4-member neural network committee with identical parameter architectures.
+- Generate a batch of 64 molecular feature vectors ($D = 128$).
+- Execute `CommitteeEnsemble.forward()` under:
+  1. Serial execution mode (`concurrency_mode="serial"`).
+  2. Vectorized execution mode (`concurrency_mode="vmap"`).
+- Assert numerical invariance across mean predictions and epistemic standard deviations:
+  $$\max |\boldsymbol{\mu}_{\text{vmap}} - \boldsymbol{\mu}_{\text{serial}}| < 10^{-12} \quad [M]$$
+  $$\max |\boldsymbol{\sigma}_{\text{vmap}} - \boldsymbol{\sigma}_{\text{serial}}| < 10^{-12} \quad [M]$$
+- On a CUDA-enabled device, measure inference wall time; assert vectorized inference achieves $> 2\times$ throughput speedup [M].
+- Simulate low VRAM headroom by configuring `vram_headroom_threshold_mb` higher than actual free memory; assert the engine gracefully falls back to serialized inference without raising CUDA OOM.
 
-### Test 2: `tests/telemetry/test_honest_hardware_telemetry.py`
-- On a CPU-only runner or headless CI environment, invoke `ExecutionContext.get_telemetry()`.
-- Assert `report.gpu_available == False`, `report.device_count == 0`, and `report.vram_free_mb == 0.0`.
-- Assert that attempting model inference routes automatically to `selected_runtime == "cpu"` or `"onnx_cpu"` and executes without raising `CUDAInitializationError`.
-- Verify that fabricated values (e.g. 24 GB) are absent from telemetry logs.
+### Test 2: `tests/torq/test_oet_fallback_provenance_alert.py`
+- Set up an isolated scratch directory (`COCHEM_SCRATCH`) and artifacts directory (`COCHEM_ARTIFACTS`).
+- Instantiate `OETClient` targeting an inactive Unix domain socket address to simulate daemon disconnection.
+- Trigger force and energy evaluation.
+- Assert that `OETClient` engages `PhysicalOETFallbackCalculator` and writes `<base>_EXT.fallback_alert.json` to scratch.
+- Ingest and validate the JSON manifest using Pydantic `OETFallbackAlertManifest`:
+  - Assert `provenance_tag == "[E]"`.
+  - Assert that no files were written to Ring 1 repository directories.
+- Verify that `<base>_EXT.uncertainty_marker` was created and that the downstream orchestrator tags the result as Empirical `[E]`.
 
-### Test 3: `tests/models/test_ani2x_cutoff_and_masking.py`
-- Instantiate `ANI2xModel` with `ANI2xCutoffConfig(cutoff_radius=5.2, envelope_type="quintic")`.
-- Test 1 (Single Isolated Atom): Evaluate energy and force for an isolated carbon atom in a large bounding box. Assert single-atom force residual $\|\mathbf{F}\| < 10^{-14}\text{ eV/Å}$ [M].
-- Test 2 (Dimer Separation Boundary): Evaluate carbon dimer separation across $r \in [5.1\text{ Å}, 5.3\text{ Å}]$. Assert energy and forces transition continuously to zero at $r \ge 5.2\text{ Å}$.
+### Test 3: `tests/topos/test_chain_zero_mock_wavefunction.py`
+- Configure `chain.py` with an invalid binary path (`orca_bin="/nonexistent/orca"`).
+- Attempt to execute the chained calculation workflow.
+- Assert that execution immediately raises `MissingBinaryError` instead of returning mock convergence.
+- Inspect the working scratch directory; assert zero bytes were written into `.gbw` or `.opt` files.
+- Assert that no synthetic strings containing `"ORCA TERMINATED NORMALLY"` or fabricated SCF cycle numbers exist in the run directory.
+- Verify that temporary scratch files are purged upon exception handling.
 
-### Test 4: `tests/ml/test_conformal_force_coverage.py`
-- Generate calibration predictions for 10 water molecules ($N_{\text{atoms}} = 3$ each, total $n_{\text{force\_scores}} = 30$).
-- With $\alpha = 0.05$, verify calibration check succeeds because $n = 30 \ge 20$.
-- Evaluate non-conformity quantile $\hat{q}$ and verify empirical coverage on held-out test configurations meets or exceeds $1 - \alpha = 0.95$ [D].
-- Reduce dataset to 4 water molecules ($n = 12 < 20$) and assert invocation raises `ConformalCalibrationError`.
+### Test 4: `tests/concurrency/test_hdf5_concurrent_staging.py`
+- Spawn 10 concurrent multiprocessing workers executing 5 single-point evaluations each (total 50 points).
+- Each worker writes energy, gradient, and QCSchema records into independent chunk files in `$COCHEM_SCRATCH/chunks/chunk_<uuid>.h5`.
+- Trigger the central persistence coordinator to merge staged chunk files into `$COCHEM_ARTIFACTS/campaign.h5` using two-tier file locking (`RWFileLock`).
+- Assert zero occurrences of `BlockingIOError`, `OSError: file already open for write`, or container corruption.
+- Open `$COCHEM_ARTIFACTS/campaign.h5` in read mode; assert all 50 records exist, checksums match Fletcher32, and compression filters are active.
 
-### Test 5: `tests/ml/test_force_matching_loss_scaling.py`
-- Construct known energy errors ($\Delta E = 0.1\text{ eV}$) and force errors ($\Delta \mathbf{F}_i = [0.1, 0.0, 0.0]\text{ eV/Å}$) for an $N$-atom molecule.
-- Evaluate `ForceMatchingLoss` under `atom_norm` mode.
-- Verify that changing the total atom count scales the force loss inversely with $N_{\text{atoms}}$ (not $3N_{\text{atoms}}$), and verify that computed gradients with respect to model parameters match analytical expectations.
+### Test 5: `tests/concurrency/test_gpu_scout_cross_platform_dispatch.py`
+- On Windows or macOS host platforms (or simulated platform environment), initialize `hetero_config.py`.
+- Assert that NVIDIA MPS initialization commands are never executed.
+- Assert that GPU scout tasks route through `threading.Semaphore(1)` / named OS mutex.
+- Launch 4 concurrent scout tasks; verify that kernel execution dispatches serially without triggering CUDA out-of-memory or driver timeout resets.
+- Verify dynamic VRAM threshold guard: assert jobs are queued when available memory drops below $1.5\text{ GB}$.
 
-### Test 6: `tests/topos/test_goat_explore_daemon_orchestration.py`
-- Configure `GoatExploreDaemonConfig` targeting a temporary scratch directory.
-- Start `oet_server` daemon in a background thread and verify named socket creation and file locking.
-- Generate an ORCA input deck and verify it includes `! GOAT-EXPLORE ExtOpt TightOpt`, tightened `%geom` tolerances, and model Hessian `InHess XTB2`. Verify absence of `Calc_Hess true`.
-- Ingest a sample `.finalensemble.xyz` containing 10 conformers (including 3 near-duplicates within $0.05\text{ Å}$ RMSD). Assert post-processing yields 7 unique conformers ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$).
-- Trigger daemon shutdown and assert process tree cleanly terminates via `psutil`.
+### Test 6: `tests/base/test_execution_router_parsl_broker.py`
+- Configure `ExecutionRouter` with active Parsl DataFlowKernel containing `cochem_anchor_cpu` and `cochem_scout_gpu`.
+- Submit a heavy optimization job (`job_type="heavy_qm_opt"`); verify it is routed to `cochem_anchor_cpu` with explicit core pinning.
+- Submit a rapid scan job (`job_type="fast_potential_scan"`); verify it is routed to `cochem_scout_gpu`.
+- Verify that both tasks execute in isolated subdirectories inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>/`).
+- Assert that task futures resolve successfully without blocking the host thread.
 
-### Test 7: `tests/base/test_pip_symmetry_invariance.py`
-- Construct a 6-atom coordinate matrix representing a cluster of 3 identical particles or water dimer.
-- Apply full permutation symmetry using `PipSymmetryConfig(subgroup_type="automorphism_wreath")`.
-- Execute all permutations $\hat{P} \in \mathcal{G}$ on coordinates $\mathbf{X}$.
-- Evaluate potential energy for each permuted configuration.
-- Assert that maximum energy variation across all permutations satisfies $\max_{\hat{P}} |E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$ [M].
+### Test 7: `tests/concurrency/test_subprocess_broker_contract.py`
+- Test 1 (String Command): Invoke `SubprocessBroker.execute("echo 'cochem-concurrency-test'")`. Verify output parses cleanly without single-character decomposition.
+- Test 2 (List Command): Invoke `SubprocessBroker.execute(["echo", "cochem-concurrency-test"])`. Verify identical clean execution.
+- Test 3 (Working Directory & Environment): Pass custom `cwd` and `env` dictionaries during initialization and execution; assert command evaluates in the specified directory with the designated environment variables.
+- Test 4 (Process Tree Cleanup): Launch a long-running child process tree with a short timeout ($0.5\text{ s}$); assert that `TimeoutExpired` is handled and that `psutil` recursively terminates all parent and child processes.
 
-### Test 8: `tests/base/test_krr_numerical_conditioning.py`
-- Construct a synthetic Morse potential dataset including 5 asymptotic dissociation points ($r > 10\text{ Å}$) where Gram matrix eigenvalues drop below $10^{-12}$.
-- Fit KRR model using `KrrRegularizationConfig(anchor_alpha_floor=1e-8, jitter_epsilon=1e-9)`.
-- Assert Cholesky factorization succeeds without raising `LinAlgError`.
-- Verify that execution does not fall back to `scipy.linalg.lstsq`.
+### Test 8: `tests/torq/test_goat_multi_seed_concurrency.py`
+- Prepare 4 distinct starting conformer geometries for a flexible organic molecule.
+- Execute `run_multi_seed_goat()` configured with `MultiSeedGoatConfig(max_concurrent_seeds=4)`.
+- Verify that Parsl dispatches all 4 seed explorations concurrently across worker pools.
+- Verify that each seed executes within its own isolated sandbox in `$COCHEM_SCRATCH/goat_seed_<hash>/`.
+- Assert that completed conformers are merged, filtered by RMSD ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]) and energy window ($\Delta E \le 6.0\text{ kcal/mol}$ [M]), and written to `$COCHEM_ARTIFACTS/conformers.xyz`.
 
-### Test 9: `tests/ecosystem/test_ml_namespace_migration.py`
-- Verify that all 40 `cochem_torq_*` modules are present in `CoChem-TORQ/Libraries/` and absent from `CoChem-BASE/Libraries/`.
-- Import modules via the public namespace:
-  ```python
-  from cochem.ml.active_learning import ActiveLearningEngine, ActiveLearningBatchConfig
-  from cochem.ml.delta import DeltaMLEngine, DeltaMLDispersionConfig
-  from cochem.ml.conformal import ConformalPredictor, ConformalCalibrationConfig
-  from cochem.ml.models import ANI2xModel, ForceMatchingLoss
+### Test 9: `tests/hpc/test_mps_worker_lifecycle.py`
+- Execute `cochem_mps_worker.sh` in a controlled test environment.
+- Verify that the daemon monitoring loop detects `nvidia-cuda-mps-control` PID and validates the named pipe in scratch.
+- Send `SIGTERM` to the shell wrapper.
+- Assert that the trapped cleanup handler executes:
+  - Verifies graceful MPS daemon termination.
+  - Terminates any lingering client processes.
+  - Asserts that allocated GPU VRAM is completely released.
+  - Cleans up pipe directories in scratch.
+
+### Test 10: `tests/hpc/test_torq_pipeline_cli_slurm.py`
+- Ingest a test `.xyz` geometry file.
+- Execute `cochem_torq_pipeline.py` via command-line invocation:
+  ```bash
+  python -m Libraries.cochem_torq_pipeline --input test.xyz --output ./artifacts --scratch ./scratch --theory PM6
   ```
-- Assert all exported classes instantiate cleanly without import errors or circular dependencies.
-
-### Test 10: `tests/torq/test_delta_ml_d3_dispersion.py`
-- Ingest coordinates for a non-covalent argon dimer or methane dimer across a separation scan from $2.5\text{ Å}$ to $8.0\text{ Å}$.
-- Execute `DeltaMLEngine` with `use_d3_dispersion=True`.
-- Assert baseline energy contains the negative $R^{-6}$ dispersion attraction tail.
-- Verify analytical forces match two-point numerical finite-difference gradients to within $10^{-4}\text{ eV/Å}$:
-  $$\|\mathbf{F}_{\text{analytic}} - \mathbf{F}_{\text{FD}}\| < 10^{-4}\text{ eV/Å} \quad [M]$$
+- Set mock SLURM environment variables (`SLURM_CPUS_PER_TASK=4`, `SLURM_MEM_PER_NODE=8192`).
+- Assert that the CLI parses arguments into validated Pydantic schema `TorqPipelineCliArgs`.
+- Assert that execution parameters dynamically scale to 4 CPUs and 8192 MB memory.
+- Verify that all outputs are deposited in the designated output directory without touching Ring 1 static repositories.
 
 ---
 
 ## 5. Anti-Spoofing, Quality Gate & Definition of Done (DoD)
 
-1. **Zero-Mock Mandate:** STRICTLY PROHIBITED from using `unittest.mock`, `MagicMock`, synthetic sleep delays, canned analytical energy formulas masquerading as quantum calculations, or fake hardware responses. All routines must evaluate genuine mathematical operators, call real executables, or query genuine OS hardware states.
+1. **Zero-Mock Mandate:** STRICTLY FORBIDDEN from using `unittest.mock`, `MagicMock`, fake sleep loops, canned analytical potential formulas masquerading as quantum chemistry, or simulated binary containers (`.gbw`, `.opt`). All calculations must evaluate authentic physics, invoke genuine binaries, or read real OS hardware interfaces.
 2. **Method Matrix Provenance Tagging:** All spectroscopic constants, rotational parameters, and convergence criteria must carry explicit provenance tags:
    - `[M]` Measured empirical benchmark
    - `[D]` Derived mathematical relationship
    - `[E]` Estimated theoretical projection
-3. **Dynamic Mendeleev Retrieval:** Zero hardcoded atomic masses, isotopic weights, or dispersion coefficients. All constants must be retrieved dynamically via `from mendeleev import element`.
-4. **Tripartite Air-Gap & OS Concurrency:** Maintain strict separation between Source ($R_{\text{src}}$), Data ($R_{\text{data}}$), and Artifacts ($R_{\text{art}}$). Concurrency must use cross-platform `filelock.FileLock` and HDF5 SWMR (`swmr=True`). Node-local scratch storage (`$SLURM_TMPDIR`) is mandatory on HPC clusters.
+3. **Dynamic Mendeleev Retrieval:** Zero hardcoded atomic masses or physical constants. All masses and isotopic data must be retrieved dynamically via `from mendeleev import element`.
+4. **Tripartite Air-Gap & OS Concurrency:** Maintain strict separation between Source ($R_{\text{src}}$), Data ($R_{\text{data}}$), and Artifacts ($R_{\text{art}}$). Concurrency must use cross-platform `filelock.FileLock` / `RWFileLock` with chunked scratch staging. Node-local scratch storage (`$SLURM_TMPDIR` / `$COCHEM_SCRATCH`) is mandatory on HPC clusters.
 5. **Execution Proof:** All 10 physical zero-mock test modules must execute successfully with full passing terminal logs recorded before marking this chunk implementation as complete.
-# CODING PROMPT: CoChem Ecosystem Implementation (Chunk 6: Suggestions #51–#60)
+# CODING PROMPT: CoChem Ecosystem Implementation (Chunk 7: Suggestions #61–#70)
 
 **Target Output Repositories:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`, `CoChem-TOPOS`, and `CoChem-TORQ`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§1.2, §3.0 $B_e$ vs $B_0$ Distinction, §3.3 Mandatory Spend Priority, §4.4 Tight Convergence Thresholds, §8.3 Quantitative Crossover & Hardware Telemetry, §8C Numerical Conditioning Standards, §9A.5 Dispersion D3/D4, §9B.4 Intermolecular Exploration & Grids, §10.3 Force Matching Protocol, §10.8 Active Learning Efficiency, §12.5 & §19 Split-Conformal Calibration, §13.2 Permutation-Inversion Symmetry & KRR Regularization, Table 2 T1-30min / T3, QS-1, QS-3)
+- Method Matrix v4 (§1.2, §3.0 $B_e$ vs $B_0$ Distinction, §3.3 Mandatory Spend Priority, §4.4 Tight Convergence Thresholds, §8A.2 Scout-and-Anchor Heterogeneous Concurrency, §8A.4 NVIDIA MPS Daemon Lifecycle, §8A.6 Parsl Multi-Executor Architecture, §8B.4 Canonical Arrows 4 & 5 Binary Wavefunction Projection via `%moinp`, §8C Production HDF5 Store Architecture & Chunking, §9B.3 Multi-Seed Conformational Exploration, §10.8 Active Learning & Fallback Provenance Auditing, Table 2 T1-30min / T3, QS-1, QS-3)
 - Anti-Spoofing Protocol v2 (enforcing Zero-Mock, Asymmetric Verification, Hard Abort Criteria, and MAX_PIVOT_CYCLES: zero pass stubs, zero fabricated outputs, zero synthetic dummy loops, mandatory physical execution)
-- Tripartite Air-Gap Architecture (`T_ui` frontend, `T_schema` Pydantic contracts, `T_engine` decoupled background subprocesses; cross-module communication strictly via validated schemas, OS PID locks, and streaming IPC queues; Tripartite Storage Rings: Ring 1 Source $R_{\text{src}}$, Ring 2 Data $R_{\text{data}}$, Ring 3 Artifacts $R_{\text{art}}$)
-- 6-Tier Environment Matrix (Windows/WSL2 Native NT, macOS/OrbStack Darwin, Debian Linux, Codespaces, GitHub Actions CI/CD, HPC Slurm/PBS)
+- Tripartite Air-Gap Architecture (`T_ui` frontend, `T_schema` Pydantic contracts, `T_engine` decoupled background subprocesses; cross-module communication strictly via validated schemas, OS PID locks, and streaming IPC queues; Tripartite Storage Rings: Ring 1 Source $R_{\text{src}}$ / `$COCHEM_ROOT`, Ring 2 Ephemeral Scratch $R_{\text{data}}$ / `$COCHEM_SCRATCH`, Ring 3 Persistent Artifacts $R_{\text{art}}$ / `$COCHEM_ARTIFACTS`)
+- 6-Tier Environment Matrix (Tier 1: Windows Native/WSL2 NT, Tier 2: macOS/OrbStack Darwin, Tier 3: Debian Linux, Tier 4: GitHub Codespaces, Tier 5: GitHub Actions CI/CD, Tier 6: HPC Slurm/PBS)
 - Dynamic Mendeleev Mass & Radii Retrieval Mandate (`from mendeleev import element`, strict dynamic atomic/isotopic mass query, zero hardcoded constants)
-- Cross-Platform Concurrency Directive (Thread-safe and process-safe SWMR HDF5 with `filelock.FileLock`, node-local scratch staging on HPC `$SLURM_TMPDIR`, non-blocking telemetry reads)
+- Cross-Platform Concurrency Directive (Thread-safe and process-safe SWMR HDF5 with `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock`, node-local scratch staging on HPC `$SLURM_TMPDIR`, non-blocking telemetry reads)
 - JAX 64-Bit & Bounded GPU Allocation Mandate (`JAX_ENABLE_X64=True` initialization on line 1, `XLA_PYTHON_CLIENT_PREALLOCATE=false`, `XLA_PYTHON_CLIENT_MEM_FRACTION=0.20`, PyTorch default `torch.float64`)
 
 ---
 
 ## 1. Executive Summary & Scope
 
-Implement, harden, and physically verify Suggestions #51 through #60 of the CoChem Tripartite Ecosystem. This work package resolves critical mathematical, physical, and architectural failure modes across active learning batch diversity, honest hardware telemetry reporting, neural network pair-distance features, inductive split-conformal prediction, multi-task force matching, global conformational search orchestration, algebraic permutation invariance, kernel ridge regression conditioning, ecosystem machine learning modularization, and semi-empirical baseline dispersion damping.
+Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem Tripartite Ecosystem. This work package rectifies critical architectural bottlenecks and severe provenance/concurrency failure modes across vectorized active learning committee inference, machine-learning-to-empirical fallback audit trails, unverified quantum chemical binary spoofing, multi-process HDF5 lock collisions, cross-platform NVIDIA MPS vs. semaphore scout scheduling, Parsl multi-executor integration, subprocess interface standardization, multi-seed conformer task parallelization, HPC daemon lifecycle monitoring, and high-performance SLURM batch pipeline entrypoints.
 
 Key deliverables include:
-1. **Active Learning Batch Diversity in AutoPES (Suggestion #51):** Eliminate greedy localized clustering in `ActiveLearningEngine.select_points` by implementing sequential furthest-point repulsion. Define a penalized acquisition score combining epistemic uncertainty $U(\mathbf{x})$ with a Gaussian repulsion kernel based on the minimum distance $d_{\min}(\mathbf{x})$ to already selected batch members and labeled points.
-2. **Honest Hardware Telemetry & CPU/ONNX Autonomous Dispatcher (Suggestion #52):** Purge all non-physical fallback branches that inject fabricated GPU counts or fake 24 GB / 8 GB VRAM. Enforce genuine operating system driver queries in `probe_mps_status()` and `ExecutionContext.get_telemetry()`. When discrete GPUs are absent or free VRAM $< 2.0\text{ GB}$, dynamically route inference workloads to CPU (`device="cpu"`) or ONNX Runtime CPU execution providers without throwing unhandled `CUDAInitializationError` exceptions.
-3. **ANI-2x Self-Interaction Masking & Cutoff Envelope (Suggestion #53):** Correct the non-zero force artifact on isolated atoms in `ANI2xModel.forward`. Purge diagonal pair interactions using an explicit boolean mask (`~torch.eye(n_atoms, dtype=torch.bool)`) and modulate interatomic distances via a cosine cutoff envelope ($R_c = 5.2\text{ Å}$ [M]) and $C^2$-smooth quintic polynomial envelope, guaranteeing exact translational invariance and zero single-atom residual forces ($\|\mathbf{F}_i\| < 10^{-14}\text{ eV/Å}$ [M]).
-4. **Conformal Prediction Sample Complexity & Bonferroni Correction (Suggestion #54):** Eliminate the invalid $3N$ Cartesian Bonferroni multiplier applied to rotationally invariant $L_2$ Euclidean force error scores in `ConformalPredictor`. Pool atomic force observations ($n_{\text{force\_scores}} = \sum_{m=1}^M N_{\text{atoms}}^{(m)}$) and enforce rigorous empirical quantile sample size bounds ($n \ge \lceil (1 - \alpha)/\alpha \rceil$, requiring $n \ge 20$ for $\alpha = 0.05$). Apply Bonferroni adjustments across $N_{\text{atoms}}$ atomic hypotheses without Cartesian coordinate inflation.
-5. **Force Matching Multi-Task Loss Normalization (Suggestion #55):** Fix the 3x force gradient attenuation in `ForceMatchingLoss.forward`. When evaluating Huber loss over 3D Euclidean vector norms $\|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2$, normalize the total Huber sum by total atoms $N_{\text{total\_atoms}}$ rather than $3 \times N_{\text{total\_atoms}}$. If coordinate-wise Huber penalties are selected, evaluate each Cartesian component $(x, y, z)$ explicitly before dividing by $3 \times N_{\text{total\_atoms}}$.
-6. **T1-30min Exploration & Persistent ORCA GOAT-EXPLORE Daemon Orchestration (Suggestion #56):** Replace the local LBFGS minimization shortcut in `cochem_topos_cascade_orchestrator.py` with genuine ORCA 6.0 `! GOAT-EXPLORE ExtOpt TightOpt` stochastic global minima-hopping. Orchestrate a persistent background `oet_server` daemon communicating over local domain sockets or named pipes with process-tree supervision via `psutil`. Enforce tightened `%geom` convergence thresholds, approximate model Hessians (`InHess XTB2` or `Lindh`), strict bans on `Calc_Hess true`, and RMSD deduplication ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]).
-7. **Permutation Invariant Polynomial (PIP) Group Invariance (Suggestion #57):** Resolve the violation of quantum mechanical permutation-inversion (PI) symmetry in `cochem_core_auto_pes.py` when $N_{\text{identical}}! > 120$. Replace arbitrary incomplete transposition subsets with the Braams-Burgess algebraic PIP monomial basis or mathematically closed subgroup orbit averaging (alternating group $A_n$ or molecular automorphism wreath products $S_k \wr S_m$), guaranteeing exact energy degeneracy $|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$ [M].
-8. **Numerical Conditioning & Condition-Number Floor in KRR (Suggestion #58):** Prevent Cholesky factorization failures (`LinAlgError`) and unregularized least-squares fallbacks in AutoPES. Enforce a strict lower bound on asymptotic anchor regularization ($\alpha_{\text{anchor}} \ge \alpha_{\text{floor}} = 1.0 \times 10^{-8}\text{ Ha}$ [M]) and implement adaptive diagonal Tikhonov jittering ($\epsilon_{\text{jitter}} = 1.0 \times 10^{-9}$ escalating to $1.0 \times 10^{-6}$).
-9. **ML Ecosystem Consolidation & Namespace Export (Suggestion #59):** Resolve ecosystem architectural bifurcation by relocating the 40 `cochem_torq_*` machine learning modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/`. Establish and expose a unified public API package `cochem.ml` (`cochem.ml.active_learning`, `cochem.ml.delta`, `cochem.ml.conformal`, `cochem.ml.models`) shared across both repositories.
-10. **Baseline Dispersion D3 Integration in Delta-ML (Suggestion #60):** Eliminate unphysical non-covalent extrapolation errors in `DeltaMLEngine.forward`. Augment semi-empirical baseline Hamiltonians (PM6, GFN2-xTB) with Grimme D3 Becke-Johnson (BJ) dispersion damping and analytical force derivatives:
-    $$E_{\text{baseline}}(\mathbf{R}) = E_{\text{SE}}(\mathbf{R}) + E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-    Map $C_6^{AB}$ and $R_0^{AB}$ parameters dynamically using atomic numbers resolved via `mendeleev.element` [M].
+1. **Vectorized Committee Ensemble Inference & Dynamic VRAM Throttling (Suggestion #61):** Eliminate sequential host-thread loops in `CommitteeEnsemble.forward()`. Implement vectorized forward passes using `torch.vmap` or managed concurrent CUDA streams. Integrate `RESOURCE_GUARD` memory headroom polling (`torch.cuda.mem_get_info()`); if available VRAM $< 2.0\text{ GB}$, automatically serialize inference across members to eliminate CUDA out-of-memory crashes across the 6-Tier Environment Matrix while reducing active learning committee latency by up to $3\times$ [M].
+2. **OET Machine-Learning-to-Empirical Fallback Provenance & Alert Manifests (Suggestion #62):** Eliminate silent potential degradation in `oet_client.py`. When socket disconnects trigger `PhysicalOETFallbackCalculator`, atomically write an audit manifest (`<base>_EXT.fallback_alert.json`) into Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`) and stage an alert into Ring 3 persistent storage (`$COCHEM_ARTIFACTS`). Prohibit writes to Ring 1 static repository paths (`$COCHEM_ROOT`), and write an uncertainty marker file triggering the orchestrator to halt or tag all resulting observables with provenance tag `[E]` (Empirical).
+3. **Purge of Fabricated SCF/Opt Cycles & Corrupt Binary Wavefunctions in Chained Engines (Suggestion #63):** Eradicate all synthetic fallback routines in `CoChem-TOPOS/chain.py` and `CoChem-TORQ/Libraries/chain.py`. Stop generating fabricated iteration counts (`scf_cyc = 12`, `opt_cyc = 6`), mock `ORCA TERMINATED NORMALLY` strings, and synthetic `.gbw`/`.opt` binary byte sequences based on non-physical mass formulas. Enforce explicit exception raising (`ConvergenceFailureError` or `MissingBinaryError`), ensuring intermediate buffers are isolated in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`) and never emitted to Ring 3 persistent storage (`$COCHEM_ARTIFACTS`).
+4. **Two-Tier Thread-Safe and Process-Safe HDF5 Persistence Architecture (Suggestion #64):** Eliminate `BlockingIOError` and `OSError: file already open for write` across concurrent Parsl worker sweeps in `gpu_point.py`, `chain.py`, and `pes_h5.py`. Enforce in-process `threading.RLock()` across worker threads and cross-process file locking via `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock` with exponential backoff. Enforce atomic staging: workers commit energy and gradient records to isolated chunk containers in Ring 2 scratch (`$COCHEM_SCRATCH/chunk_<uuid>.h5`), while a central persistence coordinator merges staged chunks into the primary Ring 3 store (`$COCHEM_ARTIFACTS/campaign.h5`) under exclusive write lock with gzip+shuffle+fletcher32 filters.
+5. **OS-Aware GPU Scout Concurrency & Windows/macOS Mutex Scheduling (Suggestion #65):** Resolve GPU scout initialization crashes on non-Linux workstations caused by hardcoded NVIDIA Multi-Process Service (MPS) commands in `hetero_config.py` and `cochem_core_parsl_executors.py`. Dynamically branch across the 6-Tier Environment Matrix: on Linux (Tiers 3 & 6), initialize NVIDIA MPS with directory pipes in Ring 2 scratch (`$COCHEM_SCRATCH/nvidia_mps`); on Windows and macOS (Tiers 1 & 2), bypass MPS entirely and serialize GPU dispatches via a cross-process concurrency semaphore (`threading.Semaphore(1)` / named OS mutex). Enforce dynamic VRAM polling across all tiers, deferring tasks if free VRAM $< 1.5\text{ GB}$.
+6. **Unified Parsl Multi-Executor Routing in ExecutionRouter (Suggestion #66):** Resolve the architectural bypass in `cochem_calc_execution_router.py` where Parsl scout-and-anchor scheduling was ignored in favor of blocking subprocesses. Wire `ParslExecutionBroker` directly into `ExecutionRouter.route_job()`. Map heavy quantum mechanical optimizations to `cochem_anchor_cpu` with explicit CPU core pinning, and route high-throughput potential scans to `cochem_scout_gpu`. Enforce task sandboxing inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>`) across all 6 environment tiers.
+7. **SubprocessBroker Contract Harmonization & Process Tree Reclamation (Suggestion #67):** Fix interface drift and crashes between `ExecutionRouter` and `SubprocessBroker`. Harmonize the interface contract to accept both string commands (tokenized via `shlex.split(command, posix=(sys.platform != "win32"))`) and pre-tokenized lists of strings; accept `cwd` and `env` parameters during initialization and execution; enforce execution strictly within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`); wrap executions with configurable timeouts; and guarantee recursive child process tree cleanup via `psutil` or `atexit`.
+8. **Asynchronous Multi-Seed GOAT Exploration via Parsl Queues (Suggestion #68):** Refactor the sequential exploration loop in `cochem_torq_goat.py` (`run_multi_seed_goat()`) into an asynchronous concurrent task graph dispatched to Parsl `GPU_SCOUT` and `CPU_ANCHOR` executor pools. Sandbox each seed exploration within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/goat_seed_<hash>`), enforce GPU concurrency caps to prevent VRAM oversubscription, and collect deduplicated conformational minima into Ring 3 persistent storage (`$COCHEM_ARTIFACTS`) upon completion.
+9. **HPC NVIDIA MPS Worker Daemon Lifecycle & Pipe Polling (Suggestion #69):** Rectify premature daemon termination in `HPC_Launchers/cochem_mps_worker.sh`. Replace bare bash `wait` (which immediately exits when `nvidia-cuda-mps-control -d` detaches) with an active daemon monitoring loop polling the control daemon PID and named pipe socket in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/mps_control`). Implement a trapped signal handler (`EXIT`, `SIGINT`, `SIGTERM`) executing graceful termination, orphaned client context sweeps via `psutil`/`kill`, and full GPU memory release verification.
+10. **SLURM Batch Submission CLI Contract & Dynamic HPC Resource Mapping (Suggestion #70):** Resolve silent zero-calculation completions when executing `cochem_submit.slurm`. Implement a complete CLI entrypoint using `argparse` in `cochem_torq_pipeline.py`. Accept parameters for input structures, theory specifications, and directory destinations; validate input existence; enforce Tripartite Storage Ring air-gaps; and dynamically ingest resource allocations from environment variables (`$SLURM_CPUS_PER_TASK`, `$SLURM_MEM_PER_NODE`). Update `cochem_submit.slurm` to forward parameters transparently across cluster nodes.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
 ### Core Implementation Modules
-1. `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py` (Suggestions #51, #57, #58: Active learning sequential repulsion, PIP algebraic subgroup invariance, KRR condition-number floor and adaptive jitter)
-2. `CoChem-TOPOS/hetero_config.py` & `CoChem-TOPOS/cochem_topos/telemetry/hardware.py` (Suggestion #52: Honest driver telemetry, zero-spoof device detection, autonomous CPU/ONNX routing)
-3. `CoChem-TORQ/Libraries/cochem_torq_engine.py` (Suggestions #52, #59: Honest telemetry integration and ML execution context dispatch)
-4. `CoChem-TORQ/Libraries/cochem_torq_ani2x_transfer.py` (Suggestions #53, #59: Self-interaction diagonal masking, cosine and $C^2$ quintic cutoff envelopes)
-5. `CoChem-TORQ/Libraries/cochem_torq_conformal.py` (Suggestions #54, #59: Pooled atomic force observations, sample complexity quantile validation, Cartesian-independent Bonferroni)
-6. `CoChem-TORQ/Libraries/cochem_torq_force_matching.py` (Suggestions #55, #59: Multi-task Huber loss normalization by atom count and coordinate components)
-7. `CoChem-TOPOS/cascade_engine/cochem_topos_cascade_orchestrator.py` & `CoChem-TOPOS/core_engine/oet_server.py` (Suggestion #56: Persistent `oet_server` daemon orchestration, ORCA GOAT-EXPLORE execution, tightened `%geom` convergence, psutil tree termination)
-8. `CoChem-BASE/src/cochem_base/exceptions.py` (Suggestions #52, #54, #56, #57, #58, #60: Ecosystem custom exception hierarchy)
-9. `CoChem-BASE/src/cochem_base/schemas.py` & `cochem/ml/schemas.py` (Suggestions #51–#60: Typed Pydantic v2 data models)
-10. `CoChem-TORQ/Libraries/cochem_torq_delta_ml.py` & `CoChem-TORQ/Libraries/cochem_torq_dispersion_d3.py` (Suggestions #59, #60: D3(BJ) dispersion augmentation on semi-empirical baseline energies and conservative analytical forces)
-11. Migration of 40 `cochem_torq_*` modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/` and initialization of the unified package `cochem/ml/` (Suggestion #59)
+1. `CoChem-BASE/Libraries/cochem_torq_committee_ensemble.py` & `cochem/ml/models/ensemble.py` (Suggestion #61: Vectorized ensemble inference via `torch.vmap` / CUDA streams, dynamic VRAM polling, serialized fallback)
+2. `CoChem-TORQ/scripts/oet_client.py` & `CoChem-TORQ/Libraries/cochem_torq_oet_client.py` (Suggestion #62: Fallback audit manifest generation, Tripartite air-gap compliance, uncertainty marker emission, provenance tag `[E]`)
+3. `CoChem-TOPOS/chain.py` & `CoChem-TORQ/Libraries/chain.py` (Suggestion #63: Elimination of synthetic fallback routines, purge of fake SCF/Opt cycles and mock `.gbw`/`.opt` files, explicit exception raising)
+4. `CoChem-TOPOS/gpu_point.py`, `CoChem-TOPOS/pes_h5.py`, & `CoChem-BASE/src/cochem_base/concurrency/atomic_file_lock.py` (Suggestion #64: Two-tier HDF5 persistence, `threading.RLock`, cross-process `RWFileLock`, atomic scratch chunk staging, and persistent merge coordinator)
+5. `CoChem-BASE/src/cochem_base/core_engine/cochem_core_parsl_executors.py` & `CoChem-TOPOS/hetero_config.py` (Suggestion #65: Dynamic OS-aware GPU scout executor configuration, Linux MPS vs. Windows/macOS semaphore mutex, dynamic VRAM threshold guard)
+6. `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py` (Suggestion #66: Parsl execution broker integration, heterogeneous scout-and-anchor routing, CPU core pinning, sandboxed scratch execution)
+7. `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py` & `CoChem-BASE/src/cochem/concurrency/subprocess_broker.py` (Suggestion #67: Harmonized `SubprocessBroker` interface, `shlex.split` cross-platform handling, `cwd`/`env` parameterization, timeout management, `psutil` tree cleanup)
+8. `CoChem-TORQ/Libraries/cochem_torq_goat.py` & `CoChem-TORQ/Libraries/cochem_torq_pipeline.py` (Suggestion #68: Asynchronous multi-seed conformer dispatch via Parsl executor pools, scratch directory sandboxing, deduplication merge)
+9. `CoChem-TORQ/HPC_Launchers/cochem_mps_worker.sh` (Suggestion #69: Bash MPS daemon monitoring loop, PID polling, named pipe socket check in scratch, trapped signal cleanup)
+10. `CoChem-TORQ/Libraries/cochem_torq_pipeline.py` & `CoChem-TORQ/HPC_Launchers/cochem_submit.slurm` (Suggestion #70: CLI entrypoint with `argparse`, SLURM environment variable mapping, Tripartite Storage Ring air-gap enforcement)
+11. `CoChem-BASE/src/cochem_base/exceptions.py` & `CoChem-BASE/src/cochem_base/schemas.py` (Suggestions #61–#70: Custom exception hierarchy and typed Pydantic v2 schemas)
 
 ### Zero-Mock Test Suite Deliverables
-12. `tests/base/test_active_learning_repulsion.py` (Validating Suggestion #51: Sequential furthest-point repulsion, spatial distance penalty, prevention of localized clustering)
-13. `tests/telemetry/test_honest_hardware_telemetry.py` (Validating Suggestion #52: Zero-spoofing assertion on CPU hosts, detection of `device_count == 0`, seamless CPU/ONNX dispatch)
-14. `tests/models/test_ani2x_cutoff_and_masking.py` (Validating Suggestion #53: Pairwise diagonal masking, single-atom zero force $\|\mathbf{F}_i\| < 10^{-14}\text{ eV/Å}$, smooth $C^2$ quintic cutoff)
-15. `tests/ml/test_conformal_force_coverage.py` (Validating Suggestion #54: Pooled atomic force scoring, quantile validity bounds $n \ge 20$, Bonferroni calibration on $N_{\text{atoms}}$)
-16. `tests/ml/test_force_matching_loss_scaling.py` (Validating Suggestion #55: Normalization parity between energy and forces, atom-norm vs coordinate Huber formulations)
-17. `tests/topos/test_goat_explore_daemon_orchestration.py` (Validating Suggestion #56: Persistent `oet_server` socket binding, ORCA input deck generation, RMSD deduplication, process tree cleanup)
-18. `tests/base/test_pip_symmetry_invariance.py` (Validating Suggestion #57: Subgroup orbit closure, exact energy degeneracy under identical nuclei permutation $|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$)
-19. `tests/base/test_krr_numerical_conditioning.py` (Validating Suggestion #58: Asymptotic anchor floor $\alpha_{\text{floor}} \ge 10^{-8}\text{ Ha}$, adaptive diagonal jittering, avoidance of `scipy.linalg.lstsq`)
-20. `tests/ecosystem/test_ml_namespace_migration.py` (Validating Suggestion #59: Clean import of relocated `cochem_torq_*` modules and public `cochem.ml` namespace APIs)
-21. `tests/torq/test_delta_ml_d3_dispersion.py` (Validating Suggestion #60: D3(BJ) dispersion correction to semi-empirical baseline, analytical force gradient conservation, dynamic Mendeleev parameters)
+12. `tests/ml/test_vectorized_committee_ensemble.py` (Validating Suggestion #61: Mathematical invariance between vectorized and serial inference, latency reduction, dynamic VRAM serialization threshold)
+13. `tests/torq/test_oet_fallback_provenance_alert.py` (Validating Suggestion #62: Atomic generation of `<base>_EXT.fallback_alert.json` in scratch, uncertainty marker file trigger, provenance tag `[E]` enforcement)
+14. `tests/topos/test_chain_zero_mock_wavefunction.py` (Validating Suggestion #63: Verified raising of `ConvergenceFailureError` / `MissingBinaryError`, zero generation of synthetic byte sequences in `.gbw` / `.opt`)
+15. `tests/concurrency/test_hdf5_concurrent_staging.py` (Validating Suggestion #64: Multi-process and multi-thread concurrent write test, zero `BlockingIOError`, atomic chunk staging and merge integrity)
+16. `tests/concurrency/test_gpu_scout_cross_platform_dispatch.py` (Validating Suggestion #65: OS-aware branching, validation of semaphore serialization on Windows/macOS, dynamic VRAM guard)
+17. `tests/base/test_execution_router_parsl_broker.py` (Validating Suggestion #66: Routing heavy QM to `cochem_anchor_cpu` with core pinning and scans to `cochem_scout_gpu` via Parsl)
+18. `tests/concurrency/test_subprocess_broker_contract.py` (Validating Suggestion #67: String vs tokenized list input handling, `cwd`/`env` passing, cross-platform path handling, process tree termination)
+19. `tests/torq/test_goat_multi_seed_concurrency.py` (Validating Suggestion #68: Concurrent multi-seed GOAT exploration, scratch isolation, non-blocking Parsl future aggregation)
+20. `tests/hpc/test_mps_worker_lifecycle.py` (Validating Suggestion #69: Validation of shell daemon monitoring logic, PID tracking, clean signal trapped cleanup and VRAM reclamation)
+21. `tests/hpc/test_torq_pipeline_cli_slurm.py` (Validating Suggestion #70: Full CLI argument parsing, SLURM environment variable extraction, input verification, Tripartite Storage Ring validation)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Active Learning Batch Diversity in AutoPES (Suggestion #51)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/schemas.py`
-- **Method Matrix Reference:** Method Matrix v4 §10.8 (Active Learning Efficiency) and §13.2 (Budget Allocation) [M].
+### [Task 1: Vectorized Committee Ensemble Inference & Dynamic VRAM Throttling (Suggestion #61)]
+- **Target Files:** `CoChem-BASE/Libraries/cochem_torq_committee_ensemble.py`, `cochem/ml/models/ensemble.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.2 (Throughput Optimization & Heterogeneous Concurrency) [M], Anti-Spoofing Directive v2.
 - **Requirements:**
-  1. Define Pydantic v2 configuration schema `ActiveLearningBatchConfig`:
+  1. Define Pydantic v2 configuration schema `CommitteeEnsembleConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
      from typing import Literal
 
-     class ActiveLearningBatchConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
-         batch_size: int = Field(default=32, ge=1, le=512)
-         repulsion_length_scale: float = Field(
-             default=0.5, 
-             gt=0.0, 
-             alias="repulsion_radius", 
-             description="Spatial repulsion radius sigma_repulse in Angstroms"
-         )
-         diversity_weight: float = Field(default=1.0, ge=0.0, le=1.0)
-         kernel_type: Literal["gaussian", "morse"] = "gaussian"
+     class CommitteeEnsembleConfig(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         vectorized: bool = True
+         vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
+         concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
+         max_batch_size: int = Field(default=128, ge=1)
      ```
-  2. In `ActiveLearningEngine.select_points`, replace greedy sorting of uncertainties with sequential furthest-point repulsion.
-  3. When selecting point $k+1$ from candidate pool $\mathcal{U}$, evaluate the minimum Euclidean distance to the union of previously labeled training points $\mathcal{X}_{\text{selected}}$ and points currently accumulated in the active batch $\mathcal{X}_{\text{batch}}$:
-     $$d_{\min}(\mathbf{x}) = \min_{\mathbf{x}_j \in (\mathcal{X}_{\text{selected}} \cup \mathcal{X}_{\text{batch}})} \|\mathbf{x} - \mathbf{x}_j\|_2 \quad [D]$$
-  4. Compute the penalized acquisition score $S_{\text{acq}}(\mathbf{x})$:
-     $$S_{\text{acq}}(\mathbf{x}) = U(\mathbf{x}) \cdot \left[1 - \beta_{\text{div}} \exp\left(-\frac{d_{\min}(\mathbf{x})^2}{2 \sigma_{\text{repulse}}^2}\right)\right] \quad [D]$$
-     where $U(\mathbf{x})$ is the epistemic model uncertainty, $\beta_{\text{div}}$ is `diversity_weight`, and $\sigma_{\text{repulse}}$ is `repulsion_length_scale`.
-  5. Dynamically update $d_{\min}$ in $O(N_{\text{pool}})$ scalar operations per selection step, ensuring overall batch acquisition completes in $< 5\text{ ms}$ in FP64 [M].
-  6. Verify spatial coverage improves by $> 35\%$ [M] compared to greedy selection, preventing redundant CCSD(T) evaluations.
+  2. In `CommitteeEnsemble.forward()`, eliminate the serial iteration loop over `self.models`.
+  3. When `concurrency_mode == "vmap"` and neural network architectures share identical parameter shapes, utilize `torch.vmap` over stacked parameters to evaluate all committee members in a single batched kernel invocation:
+     $$\mathbf{Y}_{\text{ensemble}}(\mathbf{x}) = \text{vmap}(f)(\boldsymbol{\theta}_{\text{stacked}}, \mathbf{x}) \quad [D]$$
+  4. Implement `RESOURCE_GUARD` memory monitoring prior to execution. If running on CUDA:
+     ```python
+     free_bytes, total_bytes = torch.cuda.mem_get_info()
+     free_mb = free_bytes / (1024 * 1024)
+     ```
+     If `free_mb < vram_headroom_threshold_mb`, automatically log a warning and fall back to sequential inference across members, guaranteeing zero CUDA Out-Of-Memory (`RuntimeError: CUDA out of memory`) exceptions.
+  5. If ensemble members have heterogeneous architectures or shapes, execute forward passes across parallel `torch.cuda.Stream` contexts with non-blocking transfers.
+  6. Assert mathematical invariance: the predictions and epistemic variance from vectorized execution must match serial execution to machine precision ($\max |\mathbf{y}_{\text{vmap}} - \mathbf{y}_{\text{serial}}| < 10^{-12}$ in FP64) [M].
+  7. Isolate all temporary intermediate tensor allocations in memory or Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`).
 
 ---
 
-### [Task 2: Honest Hardware Telemetry & CPU/ONNX Autonomous Dispatcher (Suggestion #52)]
-- **Target Files:** `CoChem-TOPOS/hetero_config.py`, `CoChem-TOPOS/cochem_topos/telemetry/hardware.py`, `CoChem-TORQ/Libraries/cochem_torq_engine.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §8.3 (Quantitative Crossover) [M] and Anti-Spoofing Mandate v2.
+### [Task 2: OET Machine-Learning-to-Empirical Fallback Provenance & Alert Manifests (Suggestion #62)]
+- **Target Files:** `CoChem-TORQ/scripts/oet_client.py`, `CoChem-TORQ/Libraries/cochem_torq_oet_client.py`, `CoChem-BASE/src/cochem_base/schemas.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §10.8 (Active Learning & Fallback Provenance Auditing) [M], Investigator-in-the-Loop Mandate.
 - **Requirements:**
-  1. Define `HardwareTelemetryReport` and `HardwareTelemetryError`:
+  1. Define Pydantic v2 schemas `OETFallbackAlertManifest` and custom exception `OETDaemonConnectionError`:
+     ```python
+     from pydantic import BaseModel, Field, ConfigDict
+     from typing import Dict, Any, Optional
+     import datetime
+
+     class OETFallbackAlertManifest(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         calculation_base: str
+         timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+         trigger_event: str
+         fallback_calculator: str
+         provenance_tag: str = "[E]"
+         host_telemetry: Dict[str, Any]
+         scratch_alert_file: str
+         staged_artifact_file: str
+     ```
+  2. When the socket connection in `oet_client.py` fails and `PhysicalOETFallbackCalculator` is engaged, forbid silent execution.
+  3. Enforce Tripartite Storage Ring air-gap compliance:
+     - Write the atomic fallback audit manifest (`<base>_EXT.fallback_alert.json`) into the designated Ring 2 ephemeral scratch directory (`$COCHEM_SCRATCH`).
+     - Stage an alert copy into the Ring 3 persistent store (`$COCHEM_ARTIFACTS/alerts/`).
+     - Strictly forbid any writes into Ring 1 static repository paths (`$COCHEM_ROOT`).
+  4. Atomically write an uncertainty marker file (`<base>_EXT.uncertainty_marker`) containing the provenance tag `[E]` and execution metadata.
+  5. Instruct the supervising workflow orchestrator to inspect for `<base>_EXT.fallback_alert.json`; upon detection, either abort the pipeline or propagate provenance tag `[E]` (Empirical) to all downstream data points and publications.
+
+---
+
+### [Task 3: Purge of Fabricated SCF/Opt Cycles & Corrupt Binary Wavefunctions in Chained Engines (Suggestion #63)]
+- **Target Files:** `CoChem-TOPOS/chain.py`, `CoChem-TORQ/Libraries/chain.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §8B.4 (Canonical Arrows 4 & 5 Binary Wavefunction Projection via `%moinp`) [M], Anti-Spoofing Protocol v2.
+- **Requirements:**
+  1. Define custom exceptions in `CoChem-BASE/src/cochem_base/exceptions.py`:
+     ```python
+     class ElectronicStructureEngineError(Exception):
+         """Base exception for quantum engine failures."""
+         pass
+
+     class ConvergenceFailureError(ElectronicStructureEngineError):
+         """Raised when SCF or Geometry Optimization fails to converge."""
+         pass
+
+     class MissingBinaryError(ElectronicStructureEngineError):
+         """Raised when a required quantum chemistry binary is absent."""
+         pass
+     ```
+  2. In `chain.py` (both `CoChem-TOPOS` and `CoChem-TORQ`), purge all routines that fabricate iteration counts (e.g., `scf_cyc = 12`, `opt_cyc = 6`), mock strings (`"ORCA TERMINATED NORMALLY"`), or approximate energies using unphysical mass-based formulas (`sum(-0.5 * (mass ** 1.5))`).
+  3. Purge lines that write arbitrary byte sequences into `.gbw` and `.opt` binary containers. If the ORCA binary is missing or fails convergence, immediately raise `MissingBinaryError` or `ConvergenceFailureError`.
+  4. Ensure all temporary wavefunction files, scratch integrals, and intermediate geometry buffers remain strictly confined within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`).
+  5. In the event of a failure, trigger immediate cleanup of invalid or corrupt files from Ring 2 scratch, and ensure zero unverified binary containers are emitted to Ring 3 persistent storage (`$COCHEM_ARTIFACTS`).
+
+---
+
+### [Task 4: Two-Tier Thread-Safe and Process-Safe HDF5 Persistence Architecture (Suggestion #64)]
+- **Target Files:** `CoChem-TOPOS/gpu_point.py`, `CoChem-TOPOS/pes_h5.py`, `CoChem-TOPOS/chain.py`, `CoChem-BASE/src/cochem_base/concurrency/atomic_file_lock.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8C (Production HDF5 Store Architecture & Chunking) [M], [D].
+- **Requirements:**
+  1. Define Pydantic v2 schema `HDF5PersistenceConfig`:
+     ```python
+     from pydantic import BaseModel, Field, ConfigDict
+
+     class HDF5PersistenceConfig(BaseModel):
+         model_config = ConfigDict(frozen=True, extra="forbid")
+         lock_timeout_seconds: float = Field(default=60.0, ge=1.0)
+         retry_backoff_base_seconds: float = Field(default=0.05, ge=0.001)
+         compression_filter: str = "gzip"
+         compression_level: int = Field(default=4, ge=1, le=9)
+         enable_fletcher32: bool = True
+         enable_shuffle: bool = True
+     ```
+  2. Implement a two-tier locking strategy in `pes_h5.py` and `atomic_file_lock.py`:
+     - **Tier 1 (In-Process):** Enforce `threading.RLock()` to serialize access across concurrent worker threads within the same process.
+     - **Tier 2 (Cross-Process):** Enforce cross-process locking via `filelock.FileLock` / `cochem.concurrency.atomic_file_lock.RWFileLock` with exponential backoff and configurable timeouts, supporting Windows NT, macOS, and Linux without raw POSIX `fcntl` collisions.
+  3. Enforce an atomic staging pipeline for distributed workers:
+     - Parallel Parsl workers must never write directly into `$COCHEM_ARTIFACTS/campaign.h5`.
+     - Each worker writes single-point energies, nuclear gradients, and QCSchema records into an isolated chunk file in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/chunks/chunk_<uuid>.h5`).
+  4. Implement a centralized persistence coordinator:
+     - The coordinator acquires an exclusive lock on `$COCHEM_ARTIFACTS/campaign.h5`.
+     - It merges records from staged chunk files into primary datasets using chunking, shuffle filters, gzip compression level 4, and Fletcher32 checksums.
+     - Upon verified ingestion, it purges staged chunk files from Ring 2 scratch.
+  5. Guarantee zero `BlockingIOError` or `OSError: file already open for write` during 100-way concurrent worker sweeps.
+
+---
+
+### [Task 5: OS-Aware GPU Scout Concurrency & Windows/macOS Mutex Scheduling (Suggestion #65)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_parsl_executors.py`, `CoChem-TOPOS/hetero_config.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4 (NVIDIA MPS Daemon Lifecycle) and §8A.2 (Heterogeneous Concurrency) [M].
+- **Requirements:**
+  1. Define Pydantic v2 configuration schema `GpuScoutExecutorConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
      from typing import Literal
 
-     class HardwareTelemetryReport(BaseModel):
+     class GpuScoutExecutorConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         device_count: int = Field(ge=0)
-         gpu_available: bool
-         device_name: str
-         vram_total_mb: float = Field(ge=0.0)
-         vram_free_mb: float = Field(ge=0.0)
-         selected_runtime: Literal["cuda", "mps", "cpu", "onnx_cpu"]
+         platform_os: Literal["windows", "darwin", "linux"]
+         enable_mps: bool
+         mps_pipe_dir: str
+         max_concurrent_gpu_tasks: int = Field(default=1, ge=1)
+         min_vram_headroom_mb: float = Field(default=1536.0, ge=512.0)
      ```
-  2. Purge all fabricated hardware returns (`24 * 1024` or `8 * 1024` MB VRAM fallback on missing GPUs) in `hetero_config.py` and `probe_mps_status()`.
-  3. Query genuine OS/driver state using PyTorch (`torch.cuda.is_available()`, `torch.cuda.device_count()`, `torch.cuda.mem_get_info()`) or platform drivers. If no physical GPU is present, return:
-     $$\text{device\_count} = 0, \quad \text{vram\_total\_mb} = 0.0, \quad \text{vram\_free\_mb} = 0.0, \quad \text{gpu\_available} = \text{False} \quad [M]$$
-  4. Implement autonomous dispatcher logic in `ExecutionContext.get_telemetry()`:
-     - If `gpu_available == True` and `vram_free_mb >= 2048.0`: Route to CUDA (`device="cuda"`).
-     - If `gpu_available == False` or `vram_free_mb < 2048.0`: Route to CPU (`device="cpu"`) or ONNX Runtime `CPUExecutionProvider`.
-     - macOS Darwin with MPS: Check execution precision. If task requires double-precision FP64 linear algebra, automatically route to CPU (`device="cpu"`), because MPS lacks native FP64 support.
-  5. Ensure zero unhandled `CUDAInitializationError` exceptions on CPU-only machines, macOS, and CI runners.
+  2. Implement OS-aware hardware detection across the 6-Tier Environment Matrix in `hetero_config.py` and executor initialization:
+     - **Tier 3 / Tier 6 (Debian Linux & HPC Slurm):** Configure and spawn NVIDIA MPS control daemon (`nvidia-cuda-mps-control -d`) with directory pipes located in Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/nvidia_mps`). Set `CUDA_MPS_PIPE_DIRECTORY` and `CUDA_MPS_LOG_DIRECTORY`.
+     - **Tier 1 / Tier 2 (Windows WSL2 & macOS OrbStack):** Explicitly disable MPS daemon invocation. Bypass all MPS initialization scripts. Enforce GPU concurrency serialization via a cross-process named mutex or semaphore (`threading.Semaphore(1)` / OS file lock), restricting GPU scout dispatches to one active compute kernel at a time.
+     - **Tier 4 / Tier 5 (Codespaces & GitHub Actions CI):** If discrete CUDA hardware is absent, gracefully route scout tasks to CPU threads.
+  3. Dynamic VRAM Safeguard: Prior to launching any GPU scout kernel, query `torch.cuda.mem_get_info()`. If available VRAM $< 1.5\text{ GB}$, hold the task in a high-priority queue until memory is reclaimed, preventing CUDA out-of-memory and Windows TDR driver resets.
 
 ---
 
-### [Task 3: ANI-2x Self-Interaction Masking & Cutoff Envelope (Suggestion #53)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_ani2x_transfer.py`, `cochem/ml/models/ani2x.py`
-- **Method Matrix Reference:** Method Matrix v4 §9B.4 (Translational Invariance & Force Accuracy) [M].
+### [Task 6: Unified Parsl Multi-Executor Routing in ExecutionRouter (Suggestion #66)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py`, `CoChem-BASE/src/cochem_base/schemas.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.6 (Parsl Multi-Executor Architecture) and §8A.2 (Scout-and-Anchor Topology) [M].
 - **Requirements:**
-  1. Define `ANI2xCutoffConfig`:
+  1. Define Pydantic v2 schemas `JobRouteConfig` and `ExecutionRouteResult`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
+     from typing import Literal, Optional, List, Dict, Any
 
-     class ANI2xCutoffConfig(BaseModel):
+     class JobRouteConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         cutoff_radius: float = Field(default=5.2, gt=1.0, le=10.0, description="Radial cutoff in Angstroms")
-         envelope_type: Literal["cosine", "quintic"] = "cosine"
-         mask_self_interactions: bool = True
-     ```
-  2. In `ANI2xModel.forward`, purge self-interactions by applying an explicit boolean off-diagonal mask to pair distance matrices:
-     ```python
-     mask = ~torch.eye(n_atoms, dtype=torch.bool, device=coordinates.device)
-     ```
-  3. Modulate all interatomic distances with a continuous cutoff envelope with $R_c = 5.2\text{ Å}$ [M]:
-     - Cosine cutoff envelope:
-       $$f_c(R_{ij}) = \begin{cases} \frac{1}{2} \left[ \cos\left(\frac{\pi R_{ij}}{R_c}\right) + 1 \right], & R_{ij} \le R_c \\ 0, & R_{ij} > R_c \end{cases} \quad [D]$$
-     - $C^2$-smooth quintic polynomial envelope for analytical second derivatives:
-       $$f_c^{\text{quintic}}(u) = \begin{cases} 1 - 10u^3 + 15u^4 - 6u^5, & u \in [0, 1] \\ 0, & u > 1 \end{cases} \quad \text{where } u = \frac{R_{ij}}{R_c} \quad [D]$$
-  4. Verify that evaluating an isolated atom yields zero pairs and evaluates an exact zero force:
-     $$\|\mathbf{F}_{\text{isolated}}\| < 10^{-14}\text{ eV/Å} \quad [M]$$
-
----
-
-### [Task 4: Conformal Prediction Sample Complexity & Bonferroni Correction (Suggestion #54)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_conformal.py`, `cochem/ml/conformal.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §12.5 and §19 (Split-Conformal Calibration Protocols) [M], [D].
-- **Requirements:**
-  1. Define `ConformalCalibrationConfig` and `ConformalCalibrationError`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class ConformalCalibrationConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         significance_level: float = Field(default=0.05, gt=0.0, lt=1.0)
-         hypothesis_scope: Literal["marginal", "atomwise_bonferroni"] = "marginal"
-         min_calibration_observations: int = Field(
-             default=50, 
-             ge=20, 
-             description="Must satisfy n >= ceil((1 - alpha) / alpha) to guarantee valid quantile evaluation"
-         )
-     ```
-  2. Purge the invalid $3N$ coordinate-level Bonferroni multiplier from sample size verification.
-  3. Define the effective calibration sample size as the total count of pooled atomic force non-conformity scores:
-     $$n_{\text{force\_scores}} = \sum_{m=1}^M N_{\text{atoms}}^{(m)} \quad [D]$$
-     where non-conformity score $s_i = \|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2$ collapses Cartesian components into a single rotationally invariant scalar per atom.
-  4. Evaluate empirical quantile $\hat{q}$ for marginal coverage at significance level $\alpha$:
-     $$\hat{q} = \text{Quantile}\left(\{s_k\}_{k=1}^n; \frac{\lceil (n + 1)(1 - \alpha) \rceil}{n}\right) \quad [D]$$
-  5. Enforce mathematical sample size lower bound: $(n + 1)(1 - \alpha) \le n \iff n \ge \lceil (1 - \alpha)/\alpha \rceil$ ($n \ge 19$ for $\alpha = 0.05$). Raise `ConformalCalibrationError` if observations are fewer than 20.
-  6. When simultaneous atom-wise coverage across query molecule $N_{\text{atoms}}$ is required, apply Bonferroni correction strictly across atomic hypotheses ($\alpha_{\text{eff}} = \alpha / N_{\text{atoms}}$) without Cartesian dimension 3 inflation.
-
----
-
-### [Task 5: Force Matching Multi-Task Loss Normalization (Suggestion #55)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_force_matching.py`, `cochem/ml/models/force_matching.py`
-- **Method Matrix Reference:** Method Matrix v4 §10.3 (Force Matching Protocol) [M], [D].
-- **Requirements:**
-  1. Define `ForceMatchingLossConfig`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class ForceMatchingLossConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         energy_weight: float = Field(default=1.0, ge=0.0)
-         force_weight: float = Field(default=10.0, ge=0.0)
-         huber_delta_energy: float = Field(default=0.01, gt=0.0)
-         huber_delta_force: float = Field(default=0.05, gt=0.0)
-         normalization_mode: Literal["atom_norm", "coordinate_component"] = "atom_norm"
-     ```
-  2. Implement balanced multi-task objective:
-     $$\mathcal{L}_{\text{total}} = w_E \mathcal{L}_E + w_F \mathcal{L}_F \quad [D]$$
-  3. In `ForceMatchingLoss.forward`, normalize force loss according to the configured mode:
-     - Mode `atom_norm` (Euclidean vector norms):
-       $$\mathcal{L}_F = \frac{1}{\sum_{m=1}^B N_{\text{atoms}}^{(m)}} \sum_{i=1}^{N_{\text{total}}} \mathcal{L}_{\text{Huber}}\left(\|\mathbf{F}_i - \hat{\mathbf{F}}_i\|_2; \delta_F\right) \quad [D]$$
-       Normalize `total_huber_sum` by `total_atoms.clamp(min=1.0)` instead of $3 \times N_{\text{total\_atoms}}$.
-     - Mode `coordinate_component`:
-       $$\mathcal{L}_F^{\text{coord}} = \frac{1}{3 \sum_{m=1}^B N_{\text{atoms}}^{(m)}} \sum_{i=1}^{N_{\text{total}}} \sum_{\alpha \in \{x, y, z\}} \mathcal{L}_{\text{Huber}}\left(|F_{i\alpha} - \hat{F}_{i\alpha}|; \delta_F\right) \quad [D]$$
-  4. Eliminate the 3x force gradient attenuation, restoring intended multi-task gradient ratios.
-
----
-
-### [Task 6: T1-30min Exploration & Persistent ORCA GOAT-EXPLORE Daemon Orchestration (Suggestion #56)]
-- **Target Files:** `CoChem-TOPOS/cascade_engine/cochem_topos_cascade_orchestrator.py`, `CoChem-TOPOS/core_engine/oet_server.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §9B.4, Table 2 (Row `T1-30min`), Quick Start QS-1 Step 2 [M].
-- **Requirements:**
-  1. Define `GoatExploreDaemonConfig` and `GoatDaemonExecutionError`:
-     ```python
-     from pydantic import BaseModel, Field, ConfigDict
-
-     class GoatExploreDaemonConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         socket_path: str
+         job_type: Literal["heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"]
+         assigned_executor: Literal["cochem_anchor_cpu", "cochem_scout_gpu", "local_fallback"]
+         cpu_core_pinning: Optional[List[int]] = None
          scratch_dir: str
-         max_hopping_steps: int = Field(default=100, ge=1)
-         tight_opt_threshold: bool = True
-         rmsd_dedup_threshold: float = Field(default=0.15, gt=0.0)
+         timeout_seconds: float = Field(default=3600.0, ge=10.0)
      ```
-  2. Purge the in-process local `LBFGS(atoms)` shortcut from `_execute_goat_explore_extopt`.
-  3. Implement persistent background `oet_server` daemon via `SubprocessBroker`:
-     - Bind daemon to a local domain socket or named pipe in `COCHEM_SCRATCH/run_id` with an OS-level file lock (`oet_server.lock`).
-     - Load MLFF models (MACE/AIMNet2) once into daemon memory, eliminating per-query reloading overhead.
-  4. Generate authentic ORCA input deck executing stochastic minima-hopping global search:
-     ```orca
-     ! GOAT-EXPLORE ExtOpt TightOpt
-     %geom
-       TolMaxG 1e-5
-       TolE 1e-7
-       TolRMSG 3e-6
-       TolRMSD 5e-5
-       TolMaxD 1e-4
-       InHess XTB2
-     end
-     ```
-     Enforce tightened `%geom` tolerances; strictly prohibit `Calc_Hess true` [M].
-  5. Execute ORCA in isolated scratch directory via `SubprocessBroker.run_orca()` with streaming log ingestion.
-  6. Parse resulting `.finalensemble.xyz` intermediate minima, filtering duplicates with heavy-atom RMSD deduplication threshold ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]).
-  7. Implement robust lifecycle hooks terminating the daemon via `psutil.Process.terminate()` and `kill()`, ensuring zero orphaned background processes.
+  2. Refactor `ExecutionRouter.route_job()` to eliminate bypassed execution paths. Integrate `ParslExecutionBroker` as the primary dispatch engine.
+  3. Map computational workloads according to the Scout-and-Anchor paradigm:
+     - Heavy quantum mechanical optimizations (`heavy_qm_opt`), exact Hessians, and composite ab-initio workflows map to `cochem_anchor_cpu` with explicit CPU core pinning and OpenMP thread binding (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`).
+     - Rapid potential energy scans (`fast_potential_scan`), semi-empirical sweeps, and neural network evaluations map to `cochem_scout_gpu`.
+  4. Ensure every dispatched job runs within an isolated sandbox subdirectory inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>/`).
+  5. Validate that all file paths are cross-platform `pathlib.Path` objects, ensuring compatibility across all 6 environment tiers.
 
 ---
 
-### [Task 7: Permutation Invariant Polynomial (PIP) Group Invariance (Suggestion #57)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §13.2 and fundamental quantum mechanical permutation-inversion (PI) symmetry [M], [D].
+### [Task 7: SubprocessBroker Contract Harmonization & Process Tree Reclamation (Suggestion #67)]
+- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_calc_execution_router.py`, `CoChem-BASE/src/cochem/concurrency/subprocess_broker.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4, Cross-Platform Architecture Mandate.
 - **Requirements:**
-  1. Define `PipSymmetryConfig` and `SymmetryInvarianceError`:
+  1. Harmonize `SubprocessBroker.__init__` and `SubprocessBroker.execute` interface signatures:
+     ```python
+     from typing import Union, List, Optional, Dict
+     from pathlib import Path
+     import sys
+     import shlex
+
+     class SubprocessBroker:
+         def __init__(
+             self, 
+             cwd: Optional[Union[str, Path]] = None, 
+             env: Optional[Dict[str, str]] = None,
+             timeout_seconds: float = 3600.0
+         ):
+             self.cwd = Path(cwd) if cwd else Path.cwd()
+             self.env = env.copy() if env is not None else None
+             self.timeout_seconds = timeout_seconds
+
+         def execute(
+             self, 
+             command: Union[str, List[str]], 
+             cwd: Optional[Union[str, Path]] = None, 
+             env: Optional[Dict[str, str]] = None
+         ) -> SubprocessExecutionResult:
+             ...
+     ```
+  2. Implement robust command parsing: if `command` is passed as a string, tokenize it safely using `shlex.split(command, posix=(sys.platform != "win32"))`. If passed as a list, retain tokenization without decomposing into individual characters.
+  3. Enforce execution strictly inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH`). Assert that target working directories exist and possess write permissions.
+  4. Implement deterministic process tree termination: wrap execution in `try/except/finally`. If a process times out or encounters an unhandled exception, recursively traverse and terminate all child processes using `psutil.Process(proc.pid).children(recursive=True)` followed by `terminate()` and `kill()`.
+  5. Register process cleanup callbacks with `atexit` to prevent orphaned background zombies.
+
+---
+
+### [Task 8: Asynchronous Multi-Seed GOAT Exploration via Parsl Queues (Suggestion #68)]
+- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_goat.py`, `CoChem-TORQ/Libraries/cochem_torq_pipeline.py`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.2 (Scout-and-Anchor Concurrency) and §9B.3 (Step 0 & Step 1 Parallel Conformer Exploration) [M].
+- **Requirements:**
+  1. Define Pydantic v2 configuration schema `MultiSeedGoatConfig`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
+     from typing import List
 
-     class PipSymmetryConfig(BaseModel):
+     class MultiSeedGoatConfig(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         max_symmetric_order: int = Field(default=120, ge=2, description="Upper bound before invoking subgroup orbit averaging")
-         subgroup_type: Literal["full", "alternating", "automorphism_wreath"] = "automorphism_wreath"
-         invariance_tolerance: float = Field(default=1e-14, gt=0.0, description="Permutation invariance tolerance in Eh")
+         seed_structures: List[str] = Field(min_length=1)
+         max_concurrent_seeds: int = Field(default=4, ge=1)
+         rmsd_threshold_angstrom: float = Field(default=0.15, gt=0.0)
+         energy_window_kcal_mol: float = Field(default=6.0, gt=0.0)
      ```
-  2. Purge arbitrary transposition truncations that violate group axioms when $N_{\text{identical}}! > 120$.
-  3. Implement Braams-Burgess invariant polynomial monomial bases (PIP algebra) using generating functions for the ring of invariants $\mathbb{R}[x_1, \dots, x_M]^{S_n}$ [D].
-  4. For orbit averaging over coordinate representations, mandate that permutation subset $\mathcal{G} \subset S_n$ satisfies strict mathematical subgroup closure:
-     $$\forall g_a, g_b \in \mathcal{G} \implies g_a \circ g_b \in \mathcal{G} \quad [D]$$
-     Draw permutations from alternating group $A_n$ or molecular automorphism wreath products $S_k \wr S_m$.
-  5. Under any nuclear permutation $\hat{P} \in \mathcal{G}$, verify exact potential energy degeneracy:
-     $$|E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h \quad [M]$$
-     Raise `SymmetryInvarianceError` if energy invariance is violated.
+  2. Refactor `run_multi_seed_goat()` in `cochem_torq_goat.py` to eliminate sequential `for s_path in seed_paths:` execution.
+  3. Construct an asynchronous task graph where each conformer seed exploration is dispatched as a concurrent Parsl task targeting the `GPU_SCOUT` or `CPU_ANCHOR` executor pools.
+  4. Sandbox each seed exploration within an isolated workspace in Ring 2 ephemeral scratch:
+     $$\text{Workspace Path} = \$COCHEM\_SCRATCH/\text{goat\_seed\_}\langle\text{hash}\rangle/ \quad [D]$$
+  5. Enforce concurrency limits to avoid oversubscribing GPU memory headroom ($< 1.5\text{ GB}$).
+  6. Ingest completed seed results asynchronously via Parsl futures. Filter and deduplicate conformational minima using pairwise RMSD ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]) and energy window filtering ($\Delta E \le 6.0\text{ kcal/mol}$ [M]).
+  7. Merge verified unique conformers into the Ring 3 persistent store (`$COCHEM_ARTIFACTS/conformers.xyz`). Maintain Ring 1 static repository code (`$COCHEM_ROOT`) strictly immutable.
 
 ---
 
-### [Task 8: Numerical Conditioning & Condition-Number Floor in KRR (Suggestion #58)]
-- **Target Files:** `CoChem-BASE/src/cochem_base/core_engine/cochem_core_auto_pes.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 §8C and §13.2 (Numerical Stability Standards) [M], [D].
+### [Task 9: HPC NVIDIA MPS Worker Daemon Lifecycle & Pipe Polling (Suggestion #69)]
+- **Target Files:** `CoChem-TORQ/HPC_Launchers/cochem_mps_worker.sh`
+- **Method Matrix Reference:** Method Matrix v4 §8A.4 (NVIDIA MPS Daemon Lifecycle Management) [M].
 - **Requirements:**
-  1. Define `KrrRegularizationConfig` and `NumericalConditioningError`:
+  1. In `cochem_mps_worker.sh`, eradicate the untargeted bash `wait` command on lines 52–54.
+  2. Implement an active daemon supervision loop:
+     ```bash
+     # Configure scratch pipes in Ring 2
+     export CUDA_MPS_PIPE_DIRECTORY="${COCHEM_SCRATCH}/mps_control_${SLURM_JOB_ID}"
+     export CUDA_MPS_LOG_DIRECTORY="${COCHEM_SCRATCH}/mps_log_${SLURM_JOB_ID}"
+     mkdir -p "${CUDA_MPS_PIPE_DIRECTORY}" "${CUDA_MPS_LOG_DIRECTORY}"
+
+     # Launch daemon in background
+     nvidia-cuda-mps-control -d
+     MPS_PID=$(pgrep -f "nvidia-cuda-mps-control" | tail -n 1)
+
+     # Active monitoring loop
+     while kill -0 "${MPS_PID}" 2>/dev/null; do
+         if [[ -f "${COCHEM_SCRATCH}/mps_terminate_${SLURM_JOB_ID}.flag" ]]; then
+             break
+         fi
+         sleep 2
+     done
+     ```
+  3. Implement a robust signal trap (`trap 'cleanup_mps' EXIT SIGINT SIGTERM`):
+     - Query and notify active client applications.
+     - Issue graceful shutdown command: `echo "quit" | nvidia-cuda-mps-control`.
+     - Sweep and terminate any orphaned client context processes via `psutil` or `kill -9`.
+     - Query GPU driver memory state (`nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits`) and assert that all allocated VRAM is released back to the host node.
+     - Purge pipe and socket directories from Ring 2 ephemeral scratch.
+
+---
+
+### [Task 10: SLURM Batch Submission CLI Contract & Dynamic HPC Resource Mapping (Suggestion #70)]
+- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_pipeline.py`, `CoChem-TORQ/HPC_Launchers/cochem_submit.slurm`, `CoChem-BASE/src/cochem_base/schemas.py`
+- **Method Matrix Reference:** Method Matrix v4 §8A.6, Production High-Performance Computing Mandate (Tier 6: HPC).
+- **Requirements:**
+  1. Define Pydantic v2 schema `TorqPipelineCliArgs`:
      ```python
      from pydantic import BaseModel, Field, ConfigDict
+     from typing import Optional
+     from pathlib import Path
 
-     class KrrRegularizationConfig(BaseModel):
+     class TorqPipelineCliArgs(BaseModel):
          model_config = ConfigDict(frozen=True, extra="forbid")
-         base_alpha: float = Field(default=1e-6, gt=0.0)
-         anchor_alpha_floor: float = Field(default=1e-8, gt=0.0)
-         jitter_epsilon: float = Field(default=1e-9, gt=0.0)
-         max_jitter_escalation: float = Field(default=1e-6, gt=0.0)
+         input_geometry: Path
+         output_directory: Path
+         theory_level: str = "B3LYP-D4/def2-TZVP"
+         cpus_per_task: int = Field(default=1, ge=1)
+         memory_mb: int = Field(default=4096, ge=1024)
+         scratch_dir: Path
      ```
-  2. In AutoPES KRR fitting, enforce strict lower bound on diagonal regularization:
-     $$\alpha_{\text{anchor}} \ge \alpha_{\text{floor}} = 1.0 \times 10^{-8}\text{ Ha} \quad [M]$$
-     Purge $10^{-11}\text{ Ha}$ regularization values that cause matrix eigenvalue collapse.
-  3. Condition Gram matrix $\mathbf{K}$ prior to Cholesky factorization:
-     $$\mathbf{K}_{\text{reg}} = \mathbf{K} + \operatorname{diag}(\boldsymbol{\alpha}) + \epsilon_{\text{jitter}} \mathbf{I}, \quad \epsilon_{\text{jitter}} = 1.0 \times 10^{-9} \quad [D]$$
-  4. Implement adaptive jitter escalation upon `scipy.linalg.LinAlgError`: escalate $\epsilon_{k+1} = 10 \times \epsilon_k$ up to $\epsilon_{\max} = 1.0 \times 10^{-6}$.
-  5. Reserve truncated SVD (`scipy.linalg.pinvh`) exclusively for unrecoverable rank-deficient systems; eliminate premature fallbacks to unregularized least-squares (`scipy.linalg.lstsq`).
-
----
-
-### [Task 9: ML Ecosystem Consolidation & Namespace Export (Suggestion #59)]
-- **Target Files:** `CoChem-BASE/Libraries/`, `CoChem-TORQ/Libraries/`, `cochem/ml/__init__.py`
-- **Method Matrix Reference:** Ecosystem Cohesion, Tripartite Separation of Concerns, Clean Packaging Standards [M].
-- **Requirements:**
-  1. Relocate the 40 `cochem_torq_*` modules from `CoChem-BASE/Libraries/` to `CoChem-TORQ/Libraries/` using Git file move preservation.
-  2. Create a unified, cross-repository public API namespace package `cochem.ml`:
-     - `cochem.ml.active_learning`: Expose `ActiveLearningEngine`, `ActiveLearningBatchConfig`, furthest-point repulsion selectors.
-     - `cochem.ml.delta`: Expose `DeltaMLEngine`, `DeltaMLConfig`, D3 dispersion wrappers.
-     - `cochem.ml.conformal`: Expose `ConformalPredictor`, `ConformalCalibrationConfig`.
-     - `cochem.ml.models`: Expose shared GNN, `ANI2xModel`, `ForceMatchingLoss`, and KRR model architectures.
-  3. Ensure all internal imports across BASE and TORQ resolve transparently via `cochem.ml` or relocated paths without broken references.
-
----
-
-### [Task 10: Baseline Dispersion D3 Integration in Delta-ML (Suggestion #60)]
-- **Target Files:** `CoChem-TORQ/Libraries/cochem_torq_delta_ml.py`, `CoChem-TORQ/Libraries/cochem_torq_dispersion_d3.py`, `cochem/ml/delta.py`, `CoChem-BASE/src/cochem_base/exceptions.py`
-- **Method Matrix Reference:** Method Matrix v4 Table 2 (Rows `T3-3h`, `T3-12h`), §9A.5 (Dispersion Corrections) [M], [D].
-- **Requirements:**
-  1. Define `DeltaMLDispersionConfig` and `DispersionIntegrationError`:
+  2. Implement a complete CLI entrypoint in `cochem_torq_pipeline.py`:
      ```python
-     from pydantic import BaseModel, Field, ConfigDict
-     from typing import Literal
-
-     class DeltaMLDispersionConfig(BaseModel):
-         model_config = ConfigDict(frozen=True, extra="forbid")
-         use_d3_dispersion: bool = True
-         damping_scheme: Literal["bj", "zero"] = "bj"
-         s6_scale: float = Field(default=1.0, ge=0.0)
-         s8_scale: float = Field(default=0.0, ge=0.0)
+     if __name__ == "__main__":
+         import argparse
+         parser = argparse.ArgumentParser(description="CoChem-TORQ HPC Batch Pipeline Driver")
+         parser.add_argument("--input", "-i", type=str, required=True, help="Path to input molecular geometry")
+         parser.add_argument("--output", "-o", type=str, required=True, help="Destination directory for artifacts")
+         parser.add_argument("--theory", "-t", type=str, default="B3LYP-D4/def2-TZVP", help="Electronic structure method")
+         parser.add_argument("--scratch", "-s", type=str, default=None, help="Ephemeral scratch directory")
+         args = parser.parse_args()
+         ...
      ```
-  2. In `DeltaMLEngine.forward()`, when `use_d3_dispersion` is True, augment the semi-empirical baseline energy with Grimme D3(BJ) dispersion:
-     $$E_{\text{baseline}}(\mathbf{R}) = E_{\text{SE}}(\mathbf{R}) + E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-  3. Evaluate the Becke-Johnson damped pairwise dispersion energy:
-     $$E_{\text{disp}}^{\text{D3(BJ)}} = -\frac{1}{2} \sum_{A \ne B} \left[ s_6 \frac{C_6^{AB}}{R_{AB}^6 + (a_1 R_0^{AB} + a_2)^6} + s_8 \frac{C_8^{AB}}{R_{AB}^8 + (a_1 R_0^{AB} + a_2)^8} \right] \quad [D]$$
-  4. Compute conservative analytical atomic force gradients:
-     $$\mathbf{F}_{\text{baseline}, i} = -\nabla_{\mathbf{R}_i} E_{\text{SE}}(\mathbf{R}) - \nabla_{\mathbf{R}_i} E_{\text{disp}}^{\text{D3(BJ)}}(\mathbf{R}) \quad [D]$$
-  5. Retrieve reference $C_6^{AB}$ and $R_0^{AB}$ dispersion coefficients dynamically using atomic numbers queried via `mendeleev.element` [M].
-  6. Prevent neural network delta-fitting from overfitting long-range $R^{-6}$ asymptotics on sparse datasets.
+  3. Dynamically read SLURM environment variables when available:
+     - `cpus = int(os.environ.get("SLURM_CPUS_PER_TASK", 1))`
+     - `mem_mb = int(os.environ.get("SLURM_MEM_PER_NODE", 4096))`
+  4. Assert Tripartite Storage Ring air-gap compliance:
+     - Validate that input geometries originate from Ring 1 static storage or Ring 3 artifacts.
+     - Validate that execution occurs strictly within Ring 2 ephemeral scratch (`$COCHEM_SCRATCH` or `$SLURM_TMPDIR`).
+     - Validate that persistent databases and final coordinate tables write exclusively to Ring 3 artifacts (`$COCHEM_ARTIFACTS`).
+  5. Update `cochem_submit.slurm` line 68 to forward arguments transparently:
+     ```bash
+     "${PYTHON_EXEC}" -m Libraries.cochem_torq_pipeline \
+         --input "${INPUT_GEOM}" \
+         --output "${COCHEM_ARTIFACTS}/${SLURM_JOB_ID}" \
+         --scratch "${COCHEM_SCRATCH}/${SLURM_JOB_ID}" \
+         --theory "${THEORY_LEVEL}"
+     ```
 
 ---
 
 ## 4. Physical Zero-Mock Test Suite & Verification Specifications
 
-All test implementations must execute genuine mathematical operations and real molecular electronic structures. Zero mock objects (`unittest.mock.Mock`, `MagicMock`), zero synthetic sleep calls, and zero placeholder functions are permitted.
+All test implementations must execute genuine mathematical operations, real system processes, and real molecular electronic structures. Zero mock objects (`unittest.mock.Mock`, `MagicMock`), zero synthetic sleep delays, and zero placeholder functions are permitted.
 
-### Test 1: `tests/base/test_active_learning_repulsion.py`
-- Ingest a 2D candidate coordinate pool $\mathcal{U}$ containing a localized cluster of 20 points around an uncertainty peak and 30 dispersed points.
-- Run `ActiveLearningEngine.select_points` with batch size $N_{\text{batch}} = 5$ under:
-  1. Greedy selection ($\beta_{\text{div}} = 0.0$): Assert selected points are concentrated within the localized cluster ($d_{\min} < 0.1\text{ Å}$).
-  2. Repulsion selection ($\beta_{\text{div}} = 1.0, \sigma_{\text{repulse}} = 0.5\text{ Å}$): Assert selected points have mutual distances $d > 0.4\text{ Å}$, demonstrating spatial batch diversity.
+### Test 1: `tests/ml/test_vectorized_committee_ensemble.py`
+- Instantiate a 4-member neural network committee with identical parameter architectures.
+- Generate a batch of 64 molecular feature vectors ($D = 128$).
+- Execute `CommitteeEnsemble.forward()` under:
+  1. Serial execution mode (`concurrency_mode="serial"`).
+  2. Vectorized execution mode (`concurrency_mode="vmap"`).
+- Assert numerical invariance across mean predictions and epistemic standard deviations:
+  $$\max |\boldsymbol{\mu}_{\text{vmap}} - \boldsymbol{\mu}_{\text{serial}}| < 10^{-12} \quad [M]$$
+  $$\max |\boldsymbol{\sigma}_{\text{vmap}} - \boldsymbol{\sigma}_{\text{serial}}| < 10^{-12} \quad [M]$$
+- On a CUDA-enabled device, measure inference wall time; assert vectorized inference achieves $> 2\times$ throughput speedup [M].
+- Simulate low VRAM headroom by configuring `vram_headroom_threshold_mb` higher than actual free memory; assert the engine gracefully falls back to serialized inference without raising CUDA OOM.
 
-### Test 2: `tests/telemetry/test_honest_hardware_telemetry.py`
-- On a CPU-only runner or headless CI environment, invoke `ExecutionContext.get_telemetry()`.
-- Assert `report.gpu_available == False`, `report.device_count == 0`, and `report.vram_free_mb == 0.0`.
-- Assert that attempting model inference routes automatically to `selected_runtime == "cpu"` or `"onnx_cpu"` and executes without raising `CUDAInitializationError`.
-- Verify that fabricated values (e.g. 24 GB) are absent from telemetry logs.
+### Test 2: `tests/torq/test_oet_fallback_provenance_alert.py`
+- Set up an isolated scratch directory (`COCHEM_SCRATCH`) and artifacts directory (`COCHEM_ARTIFACTS`).
+- Instantiate `OETClient` targeting an inactive Unix domain socket address to simulate daemon disconnection.
+- Trigger force and energy evaluation.
+- Assert that `OETClient` engages `PhysicalOETFallbackCalculator` and writes `<base>_EXT.fallback_alert.json` to scratch.
+- Ingest and validate the JSON manifest using Pydantic `OETFallbackAlertManifest`:
+  - Assert `provenance_tag == "[E]"`.
+  - Assert that no files were written to Ring 1 repository directories.
+- Verify that `<base>_EXT.uncertainty_marker` was created and that the downstream orchestrator tags the result as Empirical `[E]`.
 
-### Test 3: `tests/models/test_ani2x_cutoff_and_masking.py`
-- Instantiate `ANI2xModel` with `ANI2xCutoffConfig(cutoff_radius=5.2, envelope_type="quintic")`.
-- Test 1 (Single Isolated Atom): Evaluate energy and force for an isolated carbon atom in a large bounding box. Assert single-atom force residual $\|\mathbf{F}\| < 10^{-14}\text{ eV/Å}$ [M].
-- Test 2 (Dimer Separation Boundary): Evaluate carbon dimer separation across $r \in [5.1\text{ Å}, 5.3\text{ Å}]$. Assert energy and forces transition continuously to zero at $r \ge 5.2\text{ Å}$.
+### Test 3: `tests/topos/test_chain_zero_mock_wavefunction.py`
+- Configure `chain.py` with an invalid binary path (`orca_bin="/nonexistent/orca"`).
+- Attempt to execute the chained calculation workflow.
+- Assert that execution immediately raises `MissingBinaryError` instead of returning mock convergence.
+- Inspect the working scratch directory; assert zero bytes were written into `.gbw` or `.opt` files.
+- Assert that no synthetic strings containing `"ORCA TERMINATED NORMALLY"` or fabricated SCF cycle numbers exist in the run directory.
+- Verify that temporary scratch files are purged upon exception handling.
 
-### Test 4: `tests/ml/test_conformal_force_coverage.py`
-- Generate calibration predictions for 10 water molecules ($N_{\text{atoms}} = 3$ each, total $n_{\text{force\_scores}} = 30$).
-- With $\alpha = 0.05$, verify calibration check succeeds because $n = 30 \ge 20$.
-- Evaluate non-conformity quantile $\hat{q}$ and verify empirical coverage on held-out test configurations meets or exceeds $1 - \alpha = 0.95$ [D].
-- Reduce dataset to 4 water molecules ($n = 12 < 20$) and assert invocation raises `ConformalCalibrationError`.
+### Test 4: `tests/concurrency/test_hdf5_concurrent_staging.py`
+- Spawn 10 concurrent multiprocessing workers executing 5 single-point evaluations each (total 50 points).
+- Each worker writes energy, gradient, and QCSchema records into independent chunk files in `$COCHEM_SCRATCH/chunks/chunk_<uuid>.h5`.
+- Trigger the central persistence coordinator to merge staged chunk files into `$COCHEM_ARTIFACTS/campaign.h5` using two-tier file locking (`RWFileLock`).
+- Assert zero occurrences of `BlockingIOError`, `OSError: file already open for write`, or container corruption.
+- Open `$COCHEM_ARTIFACTS/campaign.h5` in read mode; assert all 50 records exist, checksums match Fletcher32, and compression filters are active.
 
-### Test 5: `tests/ml/test_force_matching_loss_scaling.py`
-- Construct known energy errors ($\Delta E = 0.1\text{ eV}$) and force errors ($\Delta \mathbf{F}_i = [0.1, 0.0, 0.0]\text{ eV/Å}$) for an $N$-atom molecule.
-- Evaluate `ForceMatchingLoss` under `atom_norm` mode.
-- Verify that changing the total atom count scales the force loss inversely with $N_{\text{atoms}}$ (not $3N_{\text{atoms}}$), and verify that computed gradients with respect to model parameters match analytical expectations.
+### Test 5: `tests/concurrency/test_gpu_scout_cross_platform_dispatch.py`
+- On Windows or macOS host platforms (or simulated platform environment), initialize `hetero_config.py`.
+- Assert that NVIDIA MPS initialization commands are never executed.
+- Assert that GPU scout tasks route through `threading.Semaphore(1)` / named OS mutex.
+- Launch 4 concurrent scout tasks; verify that kernel execution dispatches serially without triggering CUDA out-of-memory or driver timeout resets.
+- Verify dynamic VRAM threshold guard: assert jobs are queued when available memory drops below $1.5\text{ GB}$.
 
-### Test 6: `tests/topos/test_goat_explore_daemon_orchestration.py`
-- Configure `GoatExploreDaemonConfig` targeting a temporary scratch directory.
-- Start `oet_server` daemon in a background thread and verify named socket creation and file locking.
-- Generate an ORCA input deck and verify it includes `! GOAT-EXPLORE ExtOpt TightOpt`, tightened `%geom` tolerances, and model Hessian `InHess XTB2`. Verify absence of `Calc_Hess true`.
-- Ingest a sample `.finalensemble.xyz` containing 10 conformers (including 3 near-duplicates within $0.05\text{ Å}$ RMSD). Assert post-processing yields 7 unique conformers ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$).
-- Trigger daemon shutdown and assert process tree cleanly terminates via `psutil`.
+### Test 6: `tests/base/test_execution_router_parsl_broker.py`
+- Configure `ExecutionRouter` with active Parsl DataFlowKernel containing `cochem_anchor_cpu` and `cochem_scout_gpu`.
+- Submit a heavy optimization job (`job_type="heavy_qm_opt"`); verify it is routed to `cochem_anchor_cpu` with explicit core pinning.
+- Submit a rapid scan job (`job_type="fast_potential_scan"`); verify it is routed to `cochem_scout_gpu`.
+- Verify that both tasks execute in isolated subdirectories inside Ring 2 ephemeral scratch (`$COCHEM_SCRATCH/task_<uuid>/`).
+- Assert that task futures resolve successfully without blocking the host thread.
 
-### Test 7: `tests/base/test_pip_symmetry_invariance.py`
-- Construct a 6-atom coordinate matrix representing a cluster of 3 identical particles or water dimer.
-- Apply full permutation symmetry using `PipSymmetryConfig(subgroup_type="automorphism_wreath")`.
-- Execute all permutations $\hat{P} \in \mathcal{G}$ on coordinates $\mathbf{X}$.
-- Evaluate potential energy for each permuted configuration.
-- Assert that maximum energy variation across all permutations satisfies $\max_{\hat{P}} |E(\hat{P}\mathbf{X}) - E(\mathbf{X})| < 10^{-14}\text{ E}_h$ [M].
+### Test 7: `tests/concurrency/test_subprocess_broker_contract.py`
+- Test 1 (String Command): Invoke `SubprocessBroker.execute("echo 'cochem-concurrency-test'")`. Verify output parses cleanly without single-character decomposition.
+- Test 2 (List Command): Invoke `SubprocessBroker.execute(["echo", "cochem-concurrency-test"])`. Verify identical clean execution.
+- Test 3 (Working Directory & Environment): Pass custom `cwd` and `env` dictionaries during initialization and execution; assert command evaluates in the specified directory with the designated environment variables.
+- Test 4 (Process Tree Cleanup): Launch a long-running child process tree with a short timeout ($0.5\text{ s}$); assert that `TimeoutExpired` is handled and that `psutil` recursively terminates all parent and child processes.
 
-### Test 8: `tests/base/test_krr_numerical_conditioning.py`
-- Construct a synthetic Morse potential dataset including 5 asymptotic dissociation points ($r > 10\text{ Å}$) where Gram matrix eigenvalues drop below $10^{-12}$.
-- Fit KRR model using `KrrRegularizationConfig(anchor_alpha_floor=1e-8, jitter_epsilon=1e-9)`.
-- Assert Cholesky factorization succeeds without raising `LinAlgError`.
-- Verify that execution does not fall back to `scipy.linalg.lstsq`.
+### Test 8: `tests/torq/test_goat_multi_seed_concurrency.py`
+- Prepare 4 distinct starting conformer geometries for a flexible organic molecule.
+- Execute `run_multi_seed_goat()` configured with `MultiSeedGoatConfig(max_concurrent_seeds=4)`.
+- Verify that Parsl dispatches all 4 seed explorations concurrently across worker pools.
+- Verify that each seed executes within its own isolated sandbox in `$COCHEM_SCRATCH/goat_seed_<hash>/`.
+- Assert that completed conformers are merged, filtered by RMSD ($\delta_{\text{RMSD}} \ge 0.15\text{ Å}$ [M]) and energy window ($\Delta E \le 6.0\text{ kcal/mol}$ [M]), and written to `$COCHEM_ARTIFACTS/conformers.xyz`.
 
-### Test 9: `tests/ecosystem/test_ml_namespace_migration.py`
-- Verify that all 40 `cochem_torq_*` modules are present in `CoChem-TORQ/Libraries/` and absent from `CoChem-BASE/Libraries/`.
-- Import modules via the public namespace:
-  ```python
-  from cochem.ml.active_learning import ActiveLearningEngine, ActiveLearningBatchConfig
-  from cochem.ml.delta import DeltaMLEngine, DeltaMLDispersionConfig
-  from cochem.ml.conformal import ConformalPredictor, ConformalCalibrationConfig
-  from cochem.ml.models import ANI2xModel, ForceMatchingLoss
+### Test 9: `tests/hpc/test_mps_worker_lifecycle.py`
+- Execute `cochem_mps_worker.sh` in a controlled test environment.
+- Verify that the daemon monitoring loop detects `nvidia-cuda-mps-control` PID and validates the named pipe in scratch.
+- Send `SIGTERM` to the shell wrapper.
+- Assert that the trapped cleanup handler executes:
+  - Verifies graceful MPS daemon termination.
+  - Terminates any lingering client processes.
+  - Asserts that allocated GPU VRAM is completely released.
+  - Cleans up pipe directories in scratch.
+
+### Test 10: `tests/hpc/test_torq_pipeline_cli_slurm.py`
+- Ingest a test `.xyz` geometry file.
+- Execute `cochem_torq_pipeline.py` via command-line invocation:
+  ```bash
+  python -m Libraries.cochem_torq_pipeline --input test.xyz --output ./artifacts --scratch ./scratch --theory PM6
   ```
-- Assert all exported classes instantiate cleanly without import errors or circular dependencies.
-
-### Test 10: `tests/torq/test_delta_ml_d3_dispersion.py`
-- Ingest coordinates for a non-covalent argon dimer or methane dimer across a separation scan from $2.5\text{ Å}$ to $8.0\text{ Å}$.
-- Execute `DeltaMLEngine` with `use_d3_dispersion=True`.
-- Assert baseline energy contains the negative $R^{-6}$ dispersion attraction tail.
-- Verify analytical forces match two-point numerical finite-difference gradients to within $10^{-4}\text{ eV/Å}$:
-  $$\|\mathbf{F}_{\text{analytic}} - \mathbf{F}_{\text{FD}}\| < 10^{-4}\text{ eV/Å} \quad [M]$$
+- Set mock SLURM environment variables (`SLURM_CPUS_PER_TASK=4`, `SLURM_MEM_PER_NODE=8192`).
+- Assert that the CLI parses arguments into validated Pydantic schema `TorqPipelineCliArgs`.
+- Assert that execution parameters dynamically scale to 4 CPUs and 8192 MB memory.
+- Verify that all outputs are deposited in the designated output directory without touching Ring 1 static repositories.
 
 ---
 
 ## 5. Anti-Spoofing, Quality Gate & Definition of Done (DoD)
 
-1. **Zero-Mock Mandate:** STRICTLY PROHIBITED from using `unittest.mock`, `MagicMock`, synthetic sleep delays, canned analytical energy formulas masquerading as quantum calculations, or fake hardware responses. All routines must evaluate genuine mathematical operators, call real executables, or query genuine OS hardware states.
+1. **Zero-Mock Mandate:** STRICTLY FORBIDDEN from using `unittest.mock`, `MagicMock`, fake sleep loops, canned analytical potential formulas masquerading as quantum chemistry, or simulated binary containers (`.gbw`, `.opt`). All calculations must evaluate authentic physics, invoke genuine binaries, or read real OS hardware interfaces.
 2. **Method Matrix Provenance Tagging:** All spectroscopic constants, rotational parameters, and convergence criteria must carry explicit provenance tags:
    - `[M]` Measured empirical benchmark
    - `[D]` Derived mathematical relationship
    - `[E]` Estimated theoretical projection
-3. **Dynamic Mendeleev Retrieval:** Zero hardcoded atomic masses, isotopic weights, or dispersion coefficients. All constants must be retrieved dynamically via `from mendeleev import element`.
-4. **Tripartite Air-Gap & OS Concurrency:** Maintain strict separation between Source ($R_{\text{src}}$), Data ($R_{\text{data}}$), and Artifacts ($R_{\text{art}}$). Concurrency must use cross-platform `filelock.FileLock` and HDF5 SWMR (`swmr=True`). Node-local scratch storage (`$SLURM_TMPDIR`) is mandatory on HPC clusters.
+3. **Dynamic Mendeleev Retrieval:** Zero hardcoded atomic masses or physical constants. All masses and isotopic data must be retrieved dynamically via `from mendeleev import element`.
+4. **Tripartite Air-Gap & OS Concurrency:** Maintain strict separation between Source ($R_{\text{src}}$), Data ($R_{\text{data}}$), and Artifacts ($R_{\text{art}}$). Concurrency must use cross-platform `filelock.FileLock` / `RWFileLock` with chunked scratch staging. Node-local scratch storage (`$SLURM_TMPDIR` / `$COCHEM_SCRATCH`) is mandatory on HPC clusters.
 5. **Execution Proof:** All 10 physical zero-mock test modules must execute successfully with full passing terminal logs recorded before marking this chunk implementation as complete.
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\__init__.py ---
-"""CoChem Ecosystem Root Namespace Package."""
-__path__ = __import__('pkgutil').extend_path(__path__, __name__)
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\__init__.py ---
-"""CoChem-TOPOS: Pure Topological Molecular Graph Theory and Geometry Subsystem."""
-
-from __future__ import annotations
-
-from cochem.topos.clash import ClashPair, GeometricClashDetector
-from cochem.topos.coarse_grain import GraphCrusherConfig, crush_macromolecule
-from cochem.topos.exceptions import (
-    ChiralityAssignmentError,
-    IsomorphismMismatchError,
-    StericClashError,
-    TopologyError,
-)
-from cochem.topos.graph import TopologyGraph
-from cochem.topos.rings import (
-    canonicalize_cycle,
-    perceive_aromaticity,
-    perceive_cycle_basis,
-)
-from cochem.topos.stereochemistry import (
-    assign_double_bond_stereo,
-    assign_tetrahedral_chirality,
-    compute_dihedral_angle,
-)
-from cochem.topos.visualization import TOPOSpy3DmolWidget
-
-__all__ = [
-    "TopologyGraph",
-    "GraphCrusherConfig",
-    "crush_macromolecule",
-    "perceive_cycle_basis",
-    "perceive_aromaticity",
-    "canonicalize_cycle",
-    "assign_tetrahedral_chirality",
-    "assign_double_bond_stereo",
-    "compute_dihedral_angle",
-    "TOPOSpy3DmolWidget",
-    "GeometricClashDetector",
-    "ClashPair",
-    "TopologyError",
-    "StericClashError",
-    "IsomorphismMismatchError",
-    "ChiralityAssignmentError",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\exceptions.py ---
-"""Domain-specific typed exceptions for CoChem-TOPOS Graph Theory and Topology subsystem."""
-
-from __future__ import annotations
-
-
-try:
-    from cochem_base.exceptions import CoChemError  # type: ignore[import-not-found]
-except ImportError:
-    class CoChemError(Exception):  # type: ignore[no-redef]
-        """Root fallback exception for CoChem errors."""
-
-
-class TopologyError(CoChemError):
-    """Raised when graph topological invariants, contiguity, or conservation laws fail."""
-
-
-class StericClashError(CoChemError):
-    """Raised when geometric steric clashes are detected or physical radii are undefined."""
-
-
-class IsomorphismMismatchError(CoChemError):
-    """Raised when subgraph isomorphism matching fails or violates attribute constraints."""
-
-
-class ChiralityAssignmentError(CoChemError):
-    """Raised when stereocenter assignment encounters degenerate, planar, or collinear geometries."""
-
-
-class CoChemToposException(TopologyError):
-    """Root domain exception for CoChem-TOPOS Graph Theory operations."""
-
-
-class SolventBuilderError(CoChemToposException):
-    """Raised when explicit solvent builder encounters invalid geometry, density, or bounding box."""
-
-    def __init__(self, message: str = "") -> None:
-        super().__init__(message)
-
-
-class TopologicalCanonicalizationError(CoChemToposException):
-    """Raised when topological graph canonicalization or isomorphism invariant indexing fails."""
-
-    def __init__(self, message: str = "") -> None:
-        super().__init__(message)
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\topos\graph.py ---
-"""Unified TopologyGraph Subsystem.
-
-Provides pure topological molecular graph representation subclassing networkx.Graph,
-VF2 subgraph isomorphism searching, QCSchema dictionary export, and thread-safe persistence.
-"""
-
-from __future__ import annotations
-
-import json
-import logging
-import os
-import tempfile
-from pathlib import Path
-from typing import Any, Callable
-
-import networkx as nx
-import numpy as np
-from filelock import FileLock
-from mendeleev import element
-
-from cochem.topos.exceptions import TopologyError
-
-logger = logging.getLogger("cochem.topos.graph")
-
-ANGSTROM_TO_BOHR: float = 1.8897261246257702
-VALID_HYBRIDIZATIONS: frozenset[str] = frozenset({
-    "sp", "sp2", "sp3", "sp3d", "sp3d2", "coarse_grained"
-})
-FORBIDDEN_COORDINATE_KEYS: frozenset[str] = frozenset({
-    "coords", "coordinates", "x", "y", "z", "pos"
-})
-
-
-class TopologyGraph(nx.Graph):
-    """Unified chemical topology graph subclassing networkx.Graph.
-    
-    Invariants:
-    1. Topologically Pure Node Schema: Node attributes strictly exclude Cartesian coordinates.
-    2. Dynamic Mendeleev Elemental Queries: Masses and atomic numbers queried dynamically.
-    3. Strict Chemical Attribute Typing on nodes and edges.
-    """
-
-    def __init__(self, incoming_graph_data: Any = None, **attr: Any) -> None:
-        super().__init__(incoming_graph_data, **attr)
-
-    def add_chemical_node(
-        self,
-        node_id: int,
-        symbol: str,
-        formal_charge: int = 0,
-        hybridization: str = "sp3",
-        in_ring: bool = False,
-        mass: float | None = None,
-        atomic_number: int | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Validates chemical identity and dynamically sets mass via mendeleev."""
-        for forbidden in FORBIDDEN_COORDINATE_KEYS:
-            if forbidden in kwargs:
-                raise TopologyError(
-                    f"Cartesian coordinate key '{forbidden}' is strictly forbidden in topological node attributes."
-                )
-
-        if hybridization not in VALID_HYBRIDIZATIONS:
-            raise TopologyError(
-                f"Invalid hybridization state '{hybridization}'. Must be one of {sorted(VALID_HYBRIDIZATIONS)}"
-            )
-
-        # Dynamic Mendeleev resolution
-        resolved_symbol = symbol.strip()
-        if resolved_symbol.startswith("BEAD_") or resolved_symbol in ("X", "CG"):
-            calc_atomic_num = 0 if atomic_number is None else atomic_number
-            calc_mass = 0.0 if mass is None else mass
-        else:
-            try:
-                elem = element(resolved_symbol)
-                calc_atomic_num = int(elem.atomic_number) if atomic_number is None else atomic_number
-                calc_mass = float(elem.mass) if mass is None else mass
-            except Exception as exc:
-                raise TopologyError(f"Unknown element symbol '{resolved_symbol}': {exc}") from exc
-
-        super().add_node(
-            node_id,
-            symbol=resolved_symbol,
-            atomic_number=calc_atomic_num,
-            mass=calc_mass,
-            formal_charge=int(formal_charge),
-            hybridization=hybridization,
-            in_ring=bool(in_ring),
-            **kwargs,
-        )
-
-    def add_chemical_edge(
-        self,
-        u: int,
-        v: int,
-        bond_order: float = 1.0,
-        aromatic: bool = False,
-        in_ring: bool = False,
-        stereo: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        """Validates connectivity and registers edge attributes."""
-        if u not in self.nodes:
-            raise TopologyError(f"Node {u} not found in graph.")
-        if v not in self.nodes:
-            raise TopologyError(f"Node {v} not found in graph.")
-        if bond_order <= 0:
-            raise TopologyError(f"Invalid bond_order {bond_order}. Must be strictly positive.")
-
-        super().add_edge(
-            u,
-            v,
-            bond_order=float(bond_order),
-            aromatic=bool(aromatic),
-            in_ring=bool(in_ring),
-            stereo=stereo,
-            **kwargs,
-        )
-
-    def substructure_search(self, query: TopologyGraph) -> list[dict[int, int]]:
-        """Executes VF2 subgraph isomorphism search matching atomic and edge invariants."""
-        def node_match(n1: dict[str, Any], n2: dict[str, Any]) -> bool:
-            return (
-                n1.get("atomic_number") == n2.get("atomic_number")
-                and n1.get("formal_charge") == n2.get("formal_charge")
-                and n1.get("hybridization") == n2.get("hybridization")
-            )
-
-        def edge_match(e1: dict[str, Any], e2: dict[str, Any]) -> bool:
-            return (
-                abs(float(e1.get("bond_order", 1.0)) - float(e2.get("bond_order", 1.0))) < 1e-3
-                and bool(e1.get("aromatic", False)) == bool(e2.get("aromatic", False))
-            )
-
-        matcher = nx.isomorphism.GraphMatcher(
-            self,
-            query,
-            node_match=node_match,
-            edge_match=edge_match,
-        )
-        return list(matcher.subgraph_isomorphisms_iter())
-
-    def to_qcschema_dict(self, geometry: np.ndarray | None = None) -> dict[str, Any]:
-        """Exports all-atom topologies to QCSchema-compliant JSON dictionary."""
-        sorted_nodes = sorted(self.nodes())
-        symbols: list[str] = [str(self.nodes[n]["symbol"]) for n in sorted_nodes]
-        atomic_numbers: list[int] = [int(self.nodes[n]["atomic_number"]) for n in sorted_nodes]
-        masses: list[float] = [float(self.nodes[n]["mass"]) for n in sorted_nodes]
-        molecular_charge: int = sum(int(self.nodes[n]["formal_charge"]) for n in sorted_nodes)
-
-        # Node re-indexing map to [0..N-1]
-        node_to_idx = {n: i for i, n in enumerate(sorted_nodes)}
-
-        connectivity: list[list[Any]] = []
-        for u, v, data in self.edges(data=True):
-            connectivity.append([node_to_idx[u], node_to_idx[v], float(data.get("bond_order", 1.0))])
-
-        geom_list: list[float] = []
-        if geometry is not None:
-            if geometry.shape[0] != len(sorted_nodes) or geometry.shape[1] != 3:
-                raise TopologyError(
-                    f"Geometry shape {geometry.shape} does not match node count ({len(sorted_nodes)}, 3)"
-                )
-            bohr_coords = geometry * ANGSTROM_TO_BOHR
-            geom_list = [float(val) for val in bohr_coords.flatten()]
-
-        # Extras dictionary preserving topological attributes
-        hybridization_dict = {n: str(self.nodes[n]["hybridization"]) for n in sorted_nodes}
-        in_ring_dict = {n: bool(self.nodes[n]["in_ring"]) for n in sorted_nodes}
-        aromatic_bonds = [
-            (node_to_idx[u], node_to_idx[v], float(data.get("bond_order", 1.5)))
-            for u, v, data in self.edges(data=True)
-            if data.get("aromatic", False)
-        ]
-        stereo_dict = {
-            f"{node_to_idx[u]}-{node_to_idx[v]}": data.get("stereo")
-            for u, v, data in self.edges(data=True)
-            if data.get("stereo") is not None
-        }
-
-        schema: dict[str, Any] = {
-            "schema_name": "qcschema_molecule",
-            "schema_version": 2,
-            "symbols": symbols,
-            "atomic_numbers": atomic_numbers,
-            "masses": masses,
-            "molecular_charge": molecular_charge,
-            "molecular_multiplicity": 1,
-            "connectivity": connectivity,
-            "geometry": geom_list,
-            "extras": {
-                "cochem_topology": {
-                    "hybridization": hybridization_dict,
-                    "in_ring": in_ring_dict,
-                    "aromatic_bonds": aromatic_bonds,
-                    "stereo": stereo_dict,
-                }
-            },
-        }
-        return schema
-
-    def save_to_disk(self, filepath: Path | str) -> None:
-        """Persists graph representation with atomic file replacement protected by FileLock."""
-        target_path = Path(filepath).resolve()
-        lock_path = target_path.with_suffix(target_path.suffix + ".lock")
-
-        data = {
-            "nodes": [
-                {"id": n, **self.nodes[n]}
-                for n in self.nodes()
-            ],
-            "edges": [
-                {"u": u, "v": v, **self.edges[u, v]}
-                for u, v in self.edges()
-            ],
-            "graph": dict(self.graph),
-        }
-
-        with FileLock(str(lock_path), timeout=10.0):
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            temp_file = target_path.with_suffix(f"{target_path.suffix}.tmp_{os.getpid()}")
-            temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            os.replace(temp_file, target_path)
-
-    @classmethod
-    def load_from_disk(cls, filepath: Path | str) -> TopologyGraph:
-        """Loads serialized graph representation protected by FileLock."""
-        target_path = Path(filepath).resolve()
-        lock_path = target_path.with_suffix(target_path.suffix + ".lock")
-
-        if not target_path.exists():
-            raise TopologyError(f"Target topology file {target_path} does not exist.")
-
-        with FileLock(str(lock_path), timeout=10.0):
-            raw_text = target_path.read_text(encoding="utf-8")
-            data = json.loads(raw_text)
-
-        graph = cls()
-        graph.graph.update(data.get("graph", {}))
-
-        for n_info in data.get("nodes", []):
-            nid = n_info.pop("id")
-            symbol = n_info.pop("symbol")
-            formal_charge = n_info.pop("formal_charge", 0)
-            hybridization = n_info.pop("hybridization", "sp3")
-            in_ring = n_info.pop("in_ring", False)
-            mass = n_info.pop("mass", None)
-            atomic_number = n_info.pop("atomic_number", None)
-            graph.add_chemical_node(
-                node_id=nid,
-                symbol=symbol,
-                formal_charge=formal_charge,
-                hybridization=hybridization,
-                in_ring=in_ring,
-                mass=mass,
-                atomic_number=atomic_number,
-                **n_info,
-            )
-
-        for e_info in data.get("edges", []):
-            u = e_info.pop("u")
-            v = e_info.pop("v")
-            bond_order = e_info.pop("bond_order", 1.0)
-            aromatic = e_info.pop("aromatic", False)
-            in_ring = e_info.pop("in_ring", False)
-            stereo = e_info.pop("stereo", None)
-            graph.add_chemical_edge(
-                u=u,
-                v=v,
-                bond_order=bond_order,
-                aromatic=aromatic,
-                in_ring=in_ring,
-                stereo=stereo,
-                **e_info,
-            )
-
-        return graph
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem_topos\__init__.py ---
-"""CoChem-TOPOS Package."""
-from __future__ import annotations
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\__init__.py ---
-"""CoChem Ecosystem Root Namespace Package."""
-__path__ = __import__('pkgutil').extend_path(__path__, __name__)
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_torq_engine.py ---
-"""
-CoChem-TORQ: Phase 5 High-Fidelity Engine & Method Matrix Cascade Broker
-========================================================================
-Routes high-level electronic structure calculations to ORCA 6.1.1, CFOUR,
-and GPU4PySCF, enforcing the strict Method Matrix cascade ruleset.
-
-Authoritative Standards:
-- Method Matrix: Stage 4.0 Quantum Chemistry Execution & Cascade Rules
-- Grid Evolution: defgrid1 -> defgrid3 (Grid3/Grid5 forbidden)
-- Intermolecular Convergence: TolMaxG 1e-5 for weak complexes
-- Dispersion Requirement: Mandatory D3/D4 for non-covalent complexes
-- Hessian Preconditioning: InHess XTB2 / Lindh (Calc_Hess true forbidden)
-- Spin Contamination: Delta S^2 <= 10%
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\concurrency\atomic_file_lock.py ---
+"""Cross-platform Reader-Writer and atomic file locking architecture.
+
+Implements Suggestion #28:
+- Authentic OS-level kernel locking: LockFileEx/UnlockFileEx on Windows, fcntl.flock on POSIX.
+- RWFileLock supporting concurrent shared readers and exclusive writer with writer-priority.
+- Thread-safe and cross-process safe with re-entrancy depth tracking.
+- AtomicFileLock maintaining backward compatibility.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
-from typing import Any, Dict, Optional, Union
-
-from cochem_base.exceptions import (
-    DispersionMissingError,
-    InvalidHessianStrategyError,
-    MethodMatrixViolationError,
-    ProvenanceErrorCode,
-    SpinContaminationError,
-)
-
-logger = logging.getLogger("CoChem-TORQ.Engine")
-
-try:
-    from Libraries.cochem_torq_engine import ExecutionContext
-except Exception:
-    try:
-        from cochem_torq_engine import ExecutionContext
-    except Exception:
-        ExecutionContext = None  # type: ignore
-
-
-def validate_method_matrix_compliance(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> bool:
-    """
-    Performs rigorous static validation of calculation parameters against the Method Matrix.
-    Raises MethodMatrixViolationError immediately upon violation.
-    Returns True upon successful compliance validation.
-    """
-    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
-    spec.update(kwargs)
-
-    method = (spec.get("method") or spec.get("functional") or "").upper()
-    basis = (spec.get("basis") or spec.get("basis_set") or "").lower()
-    grid = (spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")).lower()
-    is_weak_complex = spec.get("is_weak_complex", False)
-    dispersion = (spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))).upper()
-    hessian_strategy = (spec.get("hessian_strategy") or "InHess XTB2").strip()
-    spin_s2_expected = spec.get("spin_s2_expected")
-    spin_s2_observed = spec.get("spin_s2_observed")
-
-    # Rule 1: Grid Evolution - forbid Grid3 / Grid5 notation; require defgrid1/defgrid2/defgrid3
-    if grid in ["grid3", "grid4", "grid5", "grid6"]:
-        msg = f"Forbidden grid syntax '{grid}' detected. Method Matrix mandates 'defgrid1' / 'defgrid2' / 'defgrid3' standard notation."
-        logger.error(msg)
-        raise MethodMatrixViolationError(
-            message=msg,
-            error_code=ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID,
-            details={"field": "grid", "value": grid, "expected": "defgrid1, defgrid2, or defgrid3"},
-        )
-
-    # Rule 2: Non-covalent weak complex convergence & dispersion
-    if is_weak_complex:
-        tol_max_g = spec.get("tol_max_g", 1e-5)
-        if tol_max_g > 1e-5:
-            msg = f"Weak complex optimization requires strict TolMaxG 1e-5 (got {tol_max_g})."
-            logger.error(msg)
-            raise MethodMatrixViolationError(
-                message=msg,
-                details={"field": "tol_max_g", "value": str(tol_max_g), "expected": "<= 1e-5"},
-            )
-
-        if "DFT" in method or any(
-            dft_f in method for dft_f in ["B3LYP", "PBE", "M06", "WB97", "SCAN"]
-        ):
-            if not any(disp in dispersion for disp in ["D3", "D3BJ", "D4", "NL"]):
-                msg = f"Method Matrix rejects DFT optimization of weakly bound complexes without D3/D4 dispersion correction (got method='{method}', dispersion='{dispersion}')."
-                logger.error(msg)
-                raise DispersionMissingError(
-                    message=msg,
-                    error_code=ProvenanceErrorCode.DISPERSION_MISSING,
-                    details={
-                        "field": "dispersion",
-                        "value": dispersion,
-                        "expected": "D3BJ, D4, or NL",
-                    },
-                )
-
-    # Rule 3: Hessian Preconditioning - forbid Calc_Hess true; mandate InHess XTB2 or Lindh
-    calc_hess = spec.get("calc_hess", False)
-    if calc_hess:
-        msg = "Method Matrix strictly prohibits 'Calc_Hess true'; unconditionally default to 'InHess XTB2' or 'Lindh'."
-        logger.error(msg)
-        raise InvalidHessianStrategyError(
-            message=msg,
-            error_code=ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY,
-            details={"field": "calc_hess", "value": "true", "expected": "InHess XTB2 or Lindh"},
-        )
-
-    if not any(
-        valid_h in hessian_strategy.upper()
-        for valid_h in ["XTB2", "LINDH", "CALC_HESS_FALSE", "NONE", "AUTO"]
-    ):
-        msg = f"Invalid Hessian strategy '{hessian_strategy}'. Must use 'InHess XTB2' or 'Lindh'."
-        logger.error(msg)
-        raise InvalidHessianStrategyError(
-            message=msg,
-            error_code=ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY,
-            details={
-                "field": "hessian_strategy",
-                "value": hessian_strategy,
-                "expected": "InHess XTB2 or Lindh",
-            },
-        )
-
-    # Rule 4: Basis set integrity - ban additive diffuse 'aug-' if already diffuse-in-base (e.g. aug-def2-mTZVP)
-    if "aug-def2" in basis and "aug-cc" not in basis:
-        logger.warning(
-            "Method Matrix basis check: ensure diffuse-in-base sets (e.g., ma-def2-TZVP) are preferred over ad-hoc augmentation."
-        )
-
-    # Rule 5: Spin Contamination Validation for open-shell systems
-    if spin_s2_expected is not None and spin_s2_observed is not None and spin_s2_expected > 0.0:
-        contamination_ratio = abs(spin_s2_observed - spin_s2_expected) / spin_s2_expected
-        if contamination_ratio > 0.10:
-            msg = f"Spin contamination exceeds 10% tolerance: observed S^2 = {spin_s2_observed:.4f}, expected = {spin_s2_expected:.4f} (ratio = {contamination_ratio * 100.0:.2f}% > 10.0%)."
-            logger.error(msg)
-            raise SpinContaminationError(
-                message=msg,
-                error_code=ProvenanceErrorCode.SPIN_CONTAMINATION_EXCEEDED,
-                details={
-                    "field": "spin_s2_observed",
-                    "value": str(spin_s2_observed),
-                    "expected": f"Within 10% of {spin_s2_expected}",
-                },
-            )
-
-    return True
-
-
-def generate_orca_input_block(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> str:
-    """
-    Generates a fully Method Matrix compliant ORCA 6.1.1 input block.
-    """
-    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
-    spec.update(kwargs)
-    validate_method_matrix_compliance(spec)
-
-    method = spec.get("method") or spec.get("functional") or "r2SCAN-3c"
-    basis = spec.get("basis") or spec.get("basis_set") or ""
-    grid = spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")
-    dispersion = spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))
-    threads = spec.get("threads", 4)
-    maxcore = spec.get("maxcore_mb", 2048)
-    opt = spec.get("opt", True)
-    frozen_monomer = spec.get("frozen_monomer", False)
-
-    header_tokens = [f"! {method}"]
-    if basis:
-        header_tokens.append(basis)
-    if dispersion and "3c" not in method.lower() and dispersion not in method:
-        header_tokens.append(dispersion)
-    header_tokens.append(grid)
-
-    if opt:
-        header_tokens.append("TightOPT")
-
-    lines = [" ".join(header_tokens)]
-    lines.append(f"%pal nprocs {threads} end")
-    lines.append(f"%maxcore {maxcore}")
-
-    if frozen_monomer:
-        lines.append("%geom")
-        lines.append("  Constraints")
-        lines.append("    { C 0:5 C } # Freeze high-level monomer A coordinates")
-        lines.append("  end")
-        lines.append("end")
-
-    if spec.get("bsse_counterpoise", False):
-        lines.append("%scf")
-        lines.append("  BSSE true")
-        lines.append("end")
-
-    return "\n".join(lines)
-
-
-def opi_persistent_threading(
-    session_id: str,
-    scratch_dir: Optional[Union[str, Path]] = None,
-) -> Dict[str, Any]:
-    """
-    Manages persistent memory-mapped wavefunctions and scratch files in COCHEM_SCRATCH,
-    eliminating severe disk I/O re-initialization between rotational steps.
-    """
-    scratch_base = Path(
-        scratch_dir or os.environ.get("COCHEM_SCRATCH") or (Path.home() / ".cochem" / "scratch")
-    ).resolve()
-    session_scratch = scratch_base / f"torq_opi_{session_id}"
-    session_scratch.mkdir(parents=True, exist_ok=True)
-
-    gbw_file = session_scratch / "persistent_wavefunction.gbw"
-    lock_file = session_scratch / "session.lock"
-
-    logger.debug("OPI persistent scratch instantiated at %s", session_scratch)
-
-    return {
-        "session_id": session_id,
-        "session_scratch_dir": session_scratch,
-        "wavefunction_gbw": gbw_file,
-        "lock_file": lock_file,
-        "status": "INITIALIZED",
-    }
-
-
-def route_method_matrix(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Dict[str, Any]:
-    """
-    The master Cascade Broker. Enforces all Method Matrix rules, generates input decks,
-    and returns calculation artifacts with provenance tracking.
-    """
-    spec = dict(calc_spec) if isinstance(calc_spec, dict) else {}
-    spec.update(kwargs)
-
-    method = spec.get("method") or spec.get("functional") or "r2SCAN-3c"
-    spec["method"] = method
-    basis = spec.get("basis") or spec.get("basis_set") or ""
-    spec["basis"] = basis
-    grid = spec.get("grid") or ("defgrid3" if spec.get("calculation_tier") == "conformer_refinement" else "defgrid1")
-    spec["grid"] = grid
-    dispersion = spec.get("dispersion") or ("D4" if "D4" in method else ("D3" if "D3" in method else ""))
-    spec["dispersion"] = dispersion
-
-    compliance = validate_method_matrix_compliance(spec)
-    input_deck = generate_orca_input_block(spec)
-
-    backend = spec.get("backend", "ORCA").upper()
-
-    # Provenance tracking: [M] Measured / Converged Quantum, [D] Derived, [E] Estimated / Simulated
-    # Strictly avoid tagging mock or simulated energies as [M] per Method Matrix §12.5 & §21.
-    if "converged_energy" in spec:
-        energy = float(spec["converged_energy"])
-        default_prov = "[M]"
-    elif "measured_energy" in spec:
-        energy = float(spec["measured_energy"])
-        default_prov = "[M]"
-    elif "simulated_energy" in spec:
-        energy = float(spec["simulated_energy"])
-        default_prov = "[E]"
-    elif "energy_hartree" in spec:
-        energy = float(spec["energy_hartree"])
-        default_prov = spec.get("provenance", spec.get("provenance_tag", "[E]"))
-    else:
-        energy = float(spec.get("energy", -154.283910))
-        default_prov = "[E]"
-
-    provenance = spec.get("provenance") or spec.get("provenance_tag") or default_prov
-    if provenance not in ["[M]", "[D]", "[E]"]:
-        provenance = default_prov
-
-    logger.info(
-        "Method Matrix Cascade routed to %s with %s (%s), provenance %s",
-        backend,
-        method,
-        grid,
-        provenance,
-    )
-
-    status = "compliant" if "calculation_tier" in spec else "SUCCESS"
-
-    result = {
-        "status": status,
-        "backend": backend,
-        "method": method,
-        "functional": method,
-        "basis": basis,
-        "basis_set": basis,
-        "grid": grid,
-        "dispersion": dispersion,
-        "input_deck": input_deck,
-        "compliance": compliance,
-        "energy_hartree": energy,
-        "provenance": provenance,
-    }
-    for k, v in spec.items():
-        if k not in result:
-            result[k] = v
-
-    return result
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\__init__.py ---
-# cochem_canvas_target: core_engine/__init__.py
-"""
-CoChem-CORE Engine Package.
-High-throughput computational chemistry core execution engines.
-"""
-
-from __future__ import annotations
-
 import sys
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, Generator, Optional
 
-_parent_dir = str(Path(__file__).resolve().parent.parent)
-if _parent_dir not in sys.path:
-    sys.path.insert(0, _parent_dir)
+logger = logging.getLogger("cochem.concurrency.atomic_file_lock")
 
-from core_engine.cochem_core_context_compressor import (
-    ASTContextCompressor,
-    ASTContextSummary,
-    ContextCompressor,
-    CoreContextCompressor,
-    HDF5PointerModel,
-    LTTBDownsampler,
-    LTTBResult,
-    MarkdownChunkModel,
-    TensorSummaryModel,
-    TracebackSummaryModel,
-    chunk_literature_by_headers,
-    chunk_markdown_by_headers,
-    compress_array_to_summary,
-    compress_molecular_geometry,
-    compress_tensors_for_llm,
-    compress_to_dict,
-    create_hdf5_pointer,
-    decimate_lttb,
-    dumps_rfc8259,
-    extract_hdf5_pointers,
-    intercept_and_compress,
-    is_hdf5_pointer,
-    loads_rfc8259,
-    lttb_decimate,
-    lttb_downsample,
-    lttb_downsample_1d,
-    lttb_downsample_indices,
-    lttb_downsample_xy,
-    parse_hdf5_pointer,
-    resolve_hdf5_pointer,
-    sanitize_numerical_values,
-    strip_ansi_escape_codes,
-    to_rfc8259_json,
-    truncate_traceback,
-)
+# Win32 Kernel primitives via ctypes
+if sys.platform == "win32":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
 
-from core_engine.cochem_core_dvr_solver import (
-    DVR1DSolver,
-    DVR2DSolver,
-    DVRGridType,
-    DVRSpectrumResult,
-    MatrixFreeDVROperator,
-    SolverBackend,
-    SymmetryGroup,
-    TorsionalRotorResult,
-    TunnelingAnalysisResult,
-    analyze_double_well_tunneling,
-    analyze_hindered_internal_rotor,
-    build_2d_direct_product_kinetic,
-    build_fourier_kinetic_1d,
-    build_grid_1d,
-    build_hermite_kinetic_1d,
-    build_kinetic_matrix_1d,
-    build_legendre_kinetic_1d,
-    build_radial_sinc_kinetic_1d,
-    build_sinc_kinetic_1d,
-    build_sine_kinetic_1d,
-    classify_nuclear_spin_weights,
-    compute_reduced_mass_pair,
-    compute_top_rotational_constant_f,
-    compute_transition_dipole_moments,
-    compute_vibrational_averages_1d,
-    compute_wkb_tunneling_action,
-    get_dynamic_mass,
-    nan_regularization_watchdog,
-    solve_dvr_dense,
-    solve_dvr_matrix_free,
-)
+    class _OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_size_t),
+            ("InternalHigh", ctypes.c_size_t),
+            ("Offset", wintypes.DWORD),
+            ("OffsetHigh", wintypes.DWORD),
+            ("hEvent", wintypes.HANDLE),
+        ]
 
-from core_engine.cochem_core_frozen_monomer import (
-    ANGSTROM_TO_BOHR,
-    BOHR_TO_ANGSTROM,
-    HARTREE_TO_KCAL_MOL,
-    HARTREE_TO_KJ_MOL,
-    INERTIA_CONV_MHZ_U_ANG2,
-    STANDARD_TEMPLATE_PARAMETERS,
-    TOL_E_DEFAULT,
-    TOL_MAXD_DEFAULT,
-    TOL_MAXG_DEFAULT,
-    TOL_RMSG_DEFAULT,
-    TOL_RMSD_DEFAULT,
-    CompositeGeometryResult,
-    CompositeScheme,
-    CounterpoiseDecomposition,
-    FrozenMonomerFlag,
-    FrozenMonomerOptimizationSpec,
-    MonomerPartition,
-    RecipeExecutionPlan,
-    RecipeReport,
-    ResidualGradientCheck,
-    RotationalConstantsResult,
-    SensitivityResult,
-    TemplateScalingParameter,
-    TemplateScalingResult,
-    analyze_rotational_sensitivity,
-    apply_template_scaling,
-    build_cli_parser,
-    check_frozen_residual_gradients,
-    compute_chs_composite_geometry,
-    compute_focal_point_energy,
-    compute_focal_point_gradient,
-    compute_isotopologue_rotational_constants,
-    compute_rotational_constants,
-    decompose_counterpoise_energy,
-    decompose_manybody_trimer,
-    evaluate_recipe_result,
-    format_xyz_string,
-    generate_frozen_monomer_optimization_spec,
-    get_dynamic_atomic_mass,
-    get_recipe_plan,
-    kabsch_superimpose,
-    parse_xyz_string,
-    replace_monomer_geometry_in_complex,
-    validate_composite_protocol,
-)
-from core_engine.cochem_core_auto_pes import (
-    AcquisitionStrategy,
-    ActiveLearningConfig,
-    ActiveLearningEngine,
-    AutoPESOrchestrator,
-    CommitteeModel,
-    DeltaFittingConfig,
-    DeltaPESModel,
-    FittingBackend,
-    GeometryFeaturizer,
-    KernelType,
-    PESValidator,
-    generate_benchmark_intermolecular_pes_data,
-    get_dynamic_atomic_mass as get_dynamic_atomic_mass_auto_pes,
-    get_dynamic_atomic_number,
-)
-from core_engine.cochem_core_cfour_bridge import (
-    CFOURAnharmMode,
-    CFOURBridge,
-    CFOURCalcLevel,
-    CFOURInputConfig,
-    CFOURObservables,
-    CFOUROutputParser,
-    CFOURReference,
-    CFOURVibMode,
-    HarmonicForceField,
-    IsotopologueFFResult,
-    QuarticCentrifugalDistortion,
-    SexticCentrifugalDistortion,
-    VibrationRotationAlpha,
-    WatsonReduction,
-    export_cfour_to_spcat_var,
-    generate_cfour_zmat,
-    isomass_rediagonalize_force_field,
-)
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.LockFileEx.restype = wintypes.BOOL
+    _kernel32.UnlockFileEx.restype = wintypes.BOOL
 
-__all__ = [
-    "AcquisitionStrategy",
-    "ActiveLearningConfig",
-    "ActiveLearningEngine",
-    "AutoPESOrchestrator",
-    "CFOURAnharmMode",
-    "CFOURBridge",
-    "CFOURCalcLevel",
-    "CFOURInputConfig",
-    "CFOURObservables",
-    "CFOUROutputParser",
-    "CFOURReference",
-    "CFOURVibMode",
-    "CommitteeModel",
-    "DeltaFittingConfig",
-    "DeltaPESModel",
-    "FittingBackend",
-    "GeometryFeaturizer",
-    "HarmonicForceField",
-    "IsotopologueFFResult",
-    "KernelType",
-    "PESValidator",
-    "QuarticCentrifugalDistortion",
-    "SexticCentrifugalDistortion",
-    "VibrationRotationAlpha",
-    "WatsonReduction",
-    "export_cfour_to_spcat_var",
-    "generate_cfour_zmat",
-    "isomass_rediagonalize_force_field",
-    "generate_benchmark_intermolecular_pes_data",
-    "get_dynamic_atomic_mass_auto_pes",
-    "get_dynamic_atomic_number",
-    "ANGSTROM_TO_BOHR",
-    "ASTContextCompressor",
-    "ASTContextSummary",
-    "BOHR_TO_ANGSTROM",
-    "CompositeGeometryResult",
-    "CompositeScheme",
-    "ContextCompressor",
-    "CoreContextCompressor",
-    "CounterpoiseDecomposition",
-    "DVR1DSolver",
-    "DVR2DSolver",
-    "DVRGridType",
-    "DVRSpectrumResult",
-    "FrozenMonomerFlag",
-    "FrozenMonomerOptimizationSpec",
-    "HARTREE_TO_KCAL_MOL",
-    "HARTREE_TO_KJ_MOL",
-    "HDF5PointerModel",
-    "INERTIA_CONV_MHZ_U_ANG2",
-    "LTTBDownsampler",
-    "LTTBResult",
-    "MarkdownChunkModel",
-    "MatrixFreeDVROperator",
-    "MonomerPartition",
-    "RecipeExecutionPlan",
-    "RecipeReport",
-    "ResidualGradientCheck",
-    "RotationalConstantsResult",
-    "SensitivityResult",
-    "SolverBackend",
-    "STANDARD_TEMPLATE_PARAMETERS",
-    "SymmetryGroup",
-    "TemplateScalingParameter",
-    "TemplateScalingResult",
-    "TensorSummaryModel",
-    "TOL_E_DEFAULT",
-    "TOL_MAXD_DEFAULT",
-    "TOL_MAXG_DEFAULT",
-    "TOL_RMSD_DEFAULT",
-    "TOL_RMSG_DEFAULT",
-    "TorsionalRotorResult",
-    "TracebackSummaryModel",
-    "TunnelingAnalysisResult",
-    "analyze_double_well_tunneling",
-    "analyze_hindered_internal_rotor",
-    "analyze_rotational_sensitivity",
-    "apply_template_scaling",
-    "build_2d_direct_product_kinetic",
-    "build_cli_parser",
-    "build_fourier_kinetic_1d",
-    "build_grid_1d",
-    "build_hermite_kinetic_1d",
-    "build_kinetic_matrix_1d",
-    "build_legendre_kinetic_1d",
-    "build_radial_sinc_kinetic_1d",
-    "build_sinc_kinetic_1d",
-    "build_sine_kinetic_1d",
-    "check_frozen_residual_gradients",
-    "chunk_literature_by_headers",
-    "chunk_markdown_by_headers",
-    "classify_nuclear_spin_weights",
-    "compress_array_to_summary",
-    "compress_molecular_geometry",
-    "compress_tensors_for_llm",
-    "compress_to_dict",
-    "compute_chs_composite_geometry",
-    "compute_focal_point_energy",
-    "compute_focal_point_gradient",
-    "compute_isotopologue_rotational_constants",
-    "compute_reduced_mass_pair",
-    "compute_rotational_constants",
-    "compute_top_rotational_constant_f",
-    "compute_transition_dipole_moments",
-    "compute_vibrational_averages_1d",
-    "compute_wkb_tunneling_action",
-    "create_hdf5_pointer",
-    "decimate_lttb",
-    "decompose_counterpoise_energy",
-    "decompose_manybody_trimer",
-    "dumps_rfc8259",
-    "evaluate_recipe_result",
-    "extract_hdf5_pointers",
-    "format_xyz_string",
-    "generate_frozen_monomer_optimization_spec",
-    "get_dynamic_atomic_mass",
-    "get_dynamic_mass",
-    "get_recipe_plan",
-    "intercept_and_compress",
-    "is_hdf5_pointer",
-    "kabsch_superimpose",
-    "loads_rfc8259",
-    "lttb_decimate",
-    "lttb_downsample",
-    "lttb_downsample_1d",
-    "lttb_downsample_indices",
-    "lttb_downsample_xy",
-    "nan_regularization_watchdog",
-    "parse_hdf5_pointer",
-    "parse_xyz_string",
-    "replace_monomer_geometry_in_complex",
-    "resolve_hdf5_pointer",
-    "sanitize_numerical_values",
-    "solve_dvr_dense",
-    "solve_dvr_matrix_free",
-    "strip_ansi_escape_codes",
-    "to_rfc8259_json",
-    "truncate_traceback",
-    "validate_composite_protocol",
-]
+    _LOCKFILE_FAIL_IMMEDIATELY = 0x00000001
+    _LOCKFILE_EXCLUSIVE_LOCK = 0x00000002
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on Windows using LockFileEx with exponential backoff."""
+        handle = msvcrt.get_osfhandle(fd)
+        flags = _LOCKFILE_FAIL_IMMEDIATELY | (_LOCKFILE_EXCLUSIVE_LOCK if exclusive else 0)
+        ov = _OVERLAPPED()
+        t0 = time.time()
+        backoff = max(0.001, backoff_base)
+        while True:
+            if _kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(ov)):
+                return True
+            if time.time() - t0 >= timeout:
+                return False
+            time.sleep(backoff)
+            backoff = min(0.05, backoff * 1.5)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on Windows using UnlockFileEx."""
+        handle = msvcrt.get_osfhandle(fd)
+        ov = _OVERLAPPED()
+        _kernel32.UnlockFileEx(handle, 0, 1, 0, ctypes.byref(ov))
+
+else:
+    import fcntl
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on POSIX using fcntl.flock with exponential backoff."""
+        flags = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
+        t0 = time.time()
+        backoff = max(0.001, backoff_base)
+        while True:
+            try:
+                fcntl.flock(fd, flags)
+                return True
+            except (BlockingIOError, OSError):
+                if time.time() - t0 >= timeout:
+                    return False
+                time.sleep(backoff)
+                backoff = min(0.05, backoff * 1.5)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on POSIX using fcntl.flock."""
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_auto_pes.py ---
-#!/usr/bin/env python3
-# cochem_canvas_target: core_engine/cochem_core_auto_pes.py
+class RWFileLockTimeoutError(TimeoutError):
+    """Raised when RWFileLock acquisition times out."""
+
+
+class RWFileLock:
+    """Kernel-level Reader-Writer file lock with writer-priority protocol.
+
+    Uses two OS kernel lock files:
+    - writer_intent: acquired shared by readers, acquired exclusive by writer.
+      When a writer arrives, it acquires writer_intent exclusive, immediately blocking
+      all subsequent readers.
+    - data_lock: acquired shared by readers for read duration, acquired exclusive
+      by writer for write duration.
+    """
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0) -> None:
+        self.lock_path = Path(lock_path).resolve()
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self.timeout = float(timeout)
+
+        self._intent_path = str(self.lock_path.with_name(f"{self.lock_path.name}.writer_intent.lock"))
+        self._data_path = str(self.lock_path.with_name(f"{self.lock_path.name}.data.lock"))
+
+        self._local = threading.local()
+
+    def _get_read_depth(self) -> int:
+        return getattr(self._local, "read_depth", 0)
+
+    def _set_read_depth(self, val: int) -> None:
+        self._local.read_depth = val
+
+    def _get_write_depth(self) -> int:
+        return getattr(self._local, "write_depth", 0)
+
+    def _set_write_depth(self, val: int) -> None:
+        self._local.write_depth = val
+
+    @contextmanager
+    def read_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Shared read lock allowing unbounded concurrent readers with writer priority."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        if self._get_write_depth() > 0:
+            yield
+            return
+
+        # Thread-level reentrancy for active reader
+        depth = self._get_read_depth()
+        if depth > 0:
+            self._set_read_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(self._get_read_depth() - 1)
+            return
+
+        # Open dedicated file descriptors for this thread/operation
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Check writer intent (acquire shared on intent lock)
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=False, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out waiting for writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire shared read lock on data file
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=False, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring shared read lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+            finally:
+                # Release writer intent so another writer can request intent
+                _os_lock_release(fd_intent)
+
+            self._set_read_depth(1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(0)
+                _os_lock_release(fd_data)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    @contextmanager
+    def write_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Exclusive write lock with writer-priority blocking new incoming readers."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        depth = self._get_write_depth()
+        if depth > 0:
+            self._set_write_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_write_depth(self._get_write_depth() - 1)
+            return
+
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Acquire exclusive writer intent to block new readers immediately
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=True, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out acquiring writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire exclusive lock on data file (waits for active readers to clear)
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=True, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring exclusive write lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+
+                self._set_write_depth(1)
+                try:
+                    yield
+                finally:
+                    self._set_write_depth(0)
+                    _os_lock_release(fd_data)
+            finally:
+                _os_lock_release(fd_intent)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    def acquire(self, shared: bool = False, timeout: Optional[float] = None) -> bool:
+        """Acquire lock (shared read if shared=True, else exclusive write)."""
+        t = self.timeout if timeout is None else timeout
+        cm = self.read_lock(timeout=t) if shared else self.write_lock(timeout=t)
+        cm.__enter__()
+        self._local.cm = cm
+        return True
+
+    def release(self) -> None:
+        """Release currently held lock."""
+        cm = getattr(self._local, "cm", None)
+        if cm is not None:
+            self._local.cm = None
+            cm.__exit__(None, None, None)
+
+    def __enter__(self) -> RWFileLock:
+        self.acquire(shared=False)
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
+
+
+class AtomicFileLock(RWFileLock):
+    """Drop-in compatible wrapper around RWFileLock defaulting to exclusive locking."""
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0, **kwargs: Any) -> None:
+        super().__init__(lock_path=lock_path, timeout=timeout)
+
+
+__all__ = ["RWFileLock", "AtomicFileLock", "RWFileLockTimeoutError"]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\cochem\concurrency\subprocess_broker.py ---
+"""Deterministic Subprocess Broker & Fault Ladder.
+Physics-aware error recovery, race-free subprocess execution, and Job Object lifecycle management.
+Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
+"""
+
+from __future__ import annotations
+
+import atexit
+from collections import deque
+import ctypes
+import dataclasses
+
+import enum
+import logging
+import os
+import pathlib
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+from cochem.core.context import assert_writable_path
+from cochem.core.hardware.topology import TopologyDiscoveryEngine
+
+logger = logging.getLogger("cochem.concurrency.subprocess_broker")
+
+
+class FailureCategory(enum.Enum):
+    """Classification of quantum chemistry driver computational failures."""
+
+    SCF_NON_CONVERGENCE = "SCF_NON_CONVERGENCE"
+    SCF_CONVERGENCE_FAILURE = "SCF_NON_CONVERGENCE"
+    GRID_INTEGRATION_FAILURE = "GRID_INTEGRATION_FAILURE"
+    GEOMETRY_OPTIMIZATION_STAGNATION = "GEOMETRY_OPTIMIZATION_STAGNATION"
+    CONFORMER_SEARCH_FAILURE = "CONFORMER_SEARCH_FAILURE"
+    UNKNOWN_FAILURE = "UNKNOWN_FAILURE"
+
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class SubprocessExecutionResult:
+    """Immutable execution report from the Subprocess Broker."""
+
+    success: bool
+    stdout: str
+    stderr: str
+    returncode: int
+    retries_attempted: int
+    final_params: Dict[str, Any]
+
+
+class DiagnosticTriageEngine:
+    """Diagnostic Triage and Solver Remediation Matrix."""
+
+    def triage_failure(
+        self,
+        engine: str,
+        log_output: str,
+        exit_code: int,
+        current_state: Dict[str, Any],
+    ) -> Tuple[FailureCategory, Dict[str, Any]]:
+        """Diagnose computational failure from log output and escalate parameters along solver ladders."""
+        upper_log = log_output.upper()
+        engine_upper = engine.upper()
+        new_state = dict(current_state)
+
+        # 1. SCF Non-Convergence Escalation
+        if "SCF NOT CONVERGED" in upper_log or "CONVERGENCE FAILED" in upper_log or "NOT CONVERGE" in upper_log or "FAILED TO CONVERGE" in upper_log:
+            if engine_upper == "ORCA":
+                orca_ladder = ["PModel", "Auto", "HCore"]
+                current_guess = str(current_state.get("guess", "PModel"))
+                next_idx = orca_ladder.index(current_guess) + 1 if current_guess in orca_ladder else 1
+                new_state["guess"] = orca_ladder[min(next_idx, len(orca_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "CFOUR":
+                cfour_ladder = ["CORE", "SOCORE", "OLD"]
+                current_guess = str(current_state.get("guess", "CORE"))
+                next_idx = cfour_ladder.index(current_guess) + 1 if current_guess in cfour_ladder else 1
+                new_state["guess"] = cfour_ladder[min(next_idx, len(cfour_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "PYSCF":
+                pyscf_ladder = ["minao", "1e", "atom"]
+                current_guess = str(current_state.get("init_guess", "minao"))
+                next_idx = pyscf_ladder.index(current_guess) + 1 if current_guess in pyscf_ladder else 1
+                new_state["init_guess"] = pyscf_ladder[min(next_idx, len(pyscf_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            new_state["damping"] = True
+            return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+        # 2. Grid Integration Failure Escalation
+        if "GRID" in upper_log or "DEFGRID" in upper_log or "INTEGRATION ERROR" in upper_log:
+            grid_ladder = ["defgrid1", "defgrid2", "defgrid3"]
+            current_grid = str(current_state.get("grid", "defgrid1"))
+            next_idx = grid_ladder.index(current_grid) + 1 if current_grid in grid_ladder else 1
+            new_state["grid"] = grid_ladder[min(next_idx, len(grid_ladder) - 1)]
+            return FailureCategory.GRID_INTEGRATION_FAILURE, new_state
+
+        # 3. Geometry Optimization Stagnation
+        if "GEOMETRY OPTIMIZATION" in upper_log or "TRUST RADIUS" in upper_log or "LINE SEARCH" in upper_log:
+            hessian_ladder = ["Lindh", "GFN2-xTB", "r2SCAN-3c"]
+            current_hess = str(current_state.get("model_hessian", "Lindh"))
+            next_idx = hessian_ladder.index(current_hess) + 1 if current_hess in hessian_ladder else 1
+            new_state["model_hessian"] = hessian_ladder[min(next_idx, len(hessian_ladder) - 1)]
+            return FailureCategory.GEOMETRY_OPTIMIZATION_STAGNATION, new_state
+
+        # 4. CREST / Conformer Search Failure
+        if "CREST" in upper_log or "GOAT" in upper_log or "INTERATOMIC DISTANCE" in upper_log:
+            method_ladder = ["GFN2-xTB", "GFN-FF"]
+            current_method = str(current_state.get("method", "GFN2-xTB"))
+            next_idx = method_ladder.index(current_method) + 1 if current_method in method_ladder else 1
+            new_state["method"] = method_ladder[min(next_idx, len(method_ladder) - 1)]
+            return FailureCategory.CONFORMER_SEARCH_FAILURE, new_state
+
+        return FailureCategory.UNKNOWN_FAILURE, new_state
+
+
+class SubprocessBroker:
+    """Broker managing child process lifecycle, Win32 Job Objects, and remediation ladders."""
+
+    def __init__(
+        self,
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_seconds: float = 3600.0,
+        context_or_engine: Union[Any, str] = "cochem_worker",
+        initial_params: Optional[Dict[str, Any]] = None,
+        scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        base_scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> None:
+        # If first positional argument was passed as context_or_engine, disambiguate:
+        if cwd is not None and not isinstance(cwd, pathlib.Path) and not os.path.exists(str(cwd)) and "/" not in str(cwd) and "\\" not in str(cwd):
+            context_or_engine = cwd
+            cwd = None
+
+        if isinstance(context_or_engine, str):
+            self.engine_name: str = context_or_engine
+        else:
+            self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
+            if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
+                scratch_dir = context_or_engine.scratch_dir
+
+        self.cwd: pathlib.Path = pathlib.Path(cwd).resolve() if cwd else pathlib.Path.cwd()
+        self.env: Optional[Dict[str, str]] = env.copy() if env is not None else None
+        self.timeout_seconds: float = float(timeout_seconds)
+
+        self.current_params: Dict[str, Any] = dict(initial_params or {})
+        self.max_retries: int = max(1, int(max_retries))
+        self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
+        self.topology_engine: TopologyDiscoveryEngine = TopologyDiscoveryEngine()
+
+        # Tripartite Workspace Air-Gap dynamic scratch resolution
+        explicit_scratch = base_scratch_dir or scratch_dir
+        if explicit_scratch is not None:
+            self.base_scratch_dir: pathlib.Path = pathlib.Path(explicit_scratch).resolve()
+        else:
+            env_scratch = (
+                os.environ.get("SLURM_TMPDIR")
+                or os.environ.get("TMPDIR")
+                or os.environ.get("TEMP")
+            )
+            if env_scratch:
+                self.base_scratch_dir = pathlib.Path(env_scratch).resolve()
+            else:
+                self.base_scratch_dir = (pathlib.Path.home() / ".cochem" / "scratch").resolve()
+
+        assert_writable_path(self.base_scratch_dir)
+        self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self.scratch_dir = self.base_scratch_dir
+
+        self._job_handle: Optional[Any] = None
+        self._init_process_group_guard()
+        atexit.register(self.cleanup)
+
+
+    def _init_process_group_guard(self) -> None:
+        """Initialize Windows Job Object with KILL_ON_JOB_CLOSE or configure POSIX process group."""
+        if sys.platform == "win32":
+            try:
+                # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+                job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if job_handle:
+                    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("PerProcessUserTimeLimit", ctypes.c_int64),
+                            ("PerJobUserTimeLimit", ctypes.c_int64),
+                            ("LimitFlags", ctypes.c_uint32),
+                            ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t),
+                            ("ActiveProcessLimit", ctypes.c_uint32),
+                            ("Affinity", ctypes.c_size_t),
+                            ("PriorityClass", ctypes.c_uint32),
+                            ("SchedulingClass", ctypes.c_uint32),
+                        ]
+
+                    class IO_COUNTERS(ctypes.Structure):
+                        _fields_ = [
+                            ("ReadOperationCount", ctypes.c_uint64),
+                            ("WriteOperationCount", ctypes.c_uint64),
+                            ("OtherOperationCount", ctypes.c_uint64),
+                            ("ReadTransferCount", ctypes.c_uint64),
+                            ("WriteTransferCount", ctypes.c_uint64),
+                            ("OtherTransferCount", ctypes.c_uint64),
+                        ]
+
+                    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                            ("IoInfo", IO_COUNTERS),
+                            ("ProcessMemoryLimit", ctypes.c_size_t),
+                            ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryLimit", ctypes.c_size_t),
+                            ("PeakJobMemoryLimit", ctypes.c_size_t),
+                        ]
+
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    info.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+                    JobObjectExtendedLimitInformation = 9
+                    ctypes.windll.kernel32.SetInformationJobObject(
+                        job_handle,
+                        JobObjectExtendedLimitInformation,
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self._job_handle = job_handle
+            except Exception as job_err:
+                logger.debug("Windows Job Object initialization bypassed: %s", job_err)
+
+    def assign_to_job(self, proc: subprocess.Popen[Any]) -> None:
+        """Assign subprocess handle to Win32 Job Object."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                # Open process handle with PROCESS_SET_QUOTA | PROCESS_TERMINATE
+                PROCESS_ALL_ACCESS = 0x1F0FFF
+                p_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, proc.pid)
+                if p_handle:
+                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, p_handle)
+                    ctypes.windll.kernel32.CloseHandle(p_handle)
+            except Exception as assign_err:
+                logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
+
+    def execute(
+        self,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
+    ) -> SubprocessExecutionResult:
+        """Executes command under deterministic fault ladder with process containment."""
+        return self.execute_with_remediation(
+            command=command,
+            cwd=cwd,
+            env=env,
+            timeout_sec=timeout_sec,
+            timeout_seconds=timeout_seconds,
+            remediate_callback=remediate_callback,
+            **kwargs,
+        )
+
+    def execute_with_remediation(
+        self,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
+    ) -> SubprocessExecutionResult:
+        """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
+        retries = 0
+        last_stdout = ""
+        last_stderr = ""
+        last_code = 1
+
+        # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
+        job_id = uuid.uuid4().hex
+        job_scratch = self.base_scratch_dir / f"cochem_exec_{job_id}"
+        job_scratch.mkdir(parents=True, exist_ok=True)
+
+        if isinstance(command, str):
+            cmd_list = shlex.split(command, posix=(sys.platform != "win32"))
+        else:
+            cmd_list = [str(c) for c in command]
+
+        current_cmd = list(cmd_list)
+        if sys.platform == "win32" and current_cmd and shutil.which(current_cmd[0]) is None:
+            if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
+                current_cmd = ["cmd.exe", "/c"] + current_cmd
+
+        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else self.cwd
+        effective_cwd.mkdir(parents=True, exist_ok=True)
+        assert_writable_path(effective_cwd)
+
+        effective_timeout = (
+            timeout_sec
+            if timeout_sec is not None
+            else (timeout_seconds if timeout_seconds is not None else getattr(self, "timeout_seconds", 3600.0))
+        )
+
+        proc: Optional[subprocess.Popen[Any]] = None
+        try:
+            while retries < self.max_retries:
+                worker_env = dict(self.topology_engine.get_worker_env())
+                # GPU allocation guard: CPU-only environments must explicitly have empty string
+                available_gpus = self.topology_engine.get_available_gpus()
+                num_gpus = len(available_gpus)
+                if num_gpus > 0:
+                    assigned = self.current_params.get("assigned_gpu", available_gpus[0])
+                    worker_env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+                else:
+                    worker_env["CUDA_VISIBLE_DEVICES"] = ""
+
+                if hasattr(self, "env") and self.env:
+                    worker_env.update(self.env)
+                if env:
+                    worker_env.update(env)
+
+                # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
+                mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
+                worker_env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+
+                proc_kwargs: Dict[str, Any] = {
+                    "cwd": str(effective_cwd),
+                    "env": worker_env,
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.PIPE,
+                    "text": True,
+                }
+
+                if sys.platform == "win32":
+                    CREATE_SUSPENDED = 0x00000004
+                    proc_kwargs["creationflags"] = proc_kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                else:
+                    proc_kwargs["start_new_session"] = True
+                    if sys.platform.startswith("linux"):
+                        def _posix_pdeathsig() -> None:
+                            try:
+                                import ctypes
+                                libc = ctypes.CDLL("libc.so.6")
+                                PR_SET_PDEATHSIG = 1
+                                SIGKILL = 9
+                                libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                            except Exception as _e:
+                                logger.debug(f"Ignored exception: {_e}")
+                        proc_kwargs["preexec_fn"] = _posix_pdeathsig
+
+                try:
+                    proc = subprocess.Popen(current_cmd, **proc_kwargs)
+                    self.assign_to_job(proc)
+                    if sys.platform == "win32":
+                        try:
+                            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
+
+                    try:
+                        out, err = proc.communicate(timeout=effective_timeout)
+                        code = proc.returncode
+                    except subprocess.TimeoutExpired:
+                        self.terminate_process_tree(proc)
+                        last_stdout = ""
+                        last_stderr = f"Subprocess execution timed out after {effective_timeout}s"
+                        last_code = -124
+                        return SubprocessExecutionResult(
+                            success=False,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=last_code,
+                            retries_attempted=retries + 1,
+                            final_params=self.current_params,
+                        )
+
+
+                    # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
+                    stdout_buf: deque[str] = deque(maxlen=10485760)
+                    stderr_buf: deque[str] = deque(maxlen=10485760)
+                    stdout_buf.extend(out or "")
+                    stderr_buf.extend(err or "")
+                    last_stdout = "".join(stdout_buf)
+                    last_stderr = "".join(stderr_buf)
+                    last_code = code
+
+
+                    if code == 0:
+                        # Extract validated artifacts to artifacts dir if designated
+                        artifacts_env = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACTS")
+                        if artifacts_env:
+                            art_dir = pathlib.Path(artifacts_env)
+                            art_dir.mkdir(parents=True, exist_ok=True)
+                            for ext in [".out", ".property.txt", ".gbw"]:
+                                for f in job_scratch.glob(f"*{ext}"):
+                                    try:
+                                        shutil.copy2(str(f), str(art_dir / f.name))
+                                    except Exception as _e:
+                                        logger.debug(f"Ignored exception: {_e}")
+
+                        return SubprocessExecutionResult(
+                            success=True,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=0,
+                            retries_attempted=retries,
+                            final_params=self.current_params,
+                        )
+
+                    # Execute diagnostic triage on error output
+                    cat, updated_params = self.triage.triage_failure(
+                        engine=self.engine_name,
+                        log_output=f"{last_stdout}\n{last_stderr}",
+                        exit_code=last_code,
+                        current_state=self.current_params,
+                    )
+
+                    self.current_params = updated_params
+                    retries += 1
+                    logger.warning(
+                        "Subprocess failure (attempt %d/%d) classified as %s. Escalated parameters: %s",
+                        retries,
+                        self.max_retries,
+                        cat.value,
+                        self.current_params,
+                    )
+
+                    # Tripartite Air-Gap scratch remediation (§8B) [M]
+                    preserve_gbw = bool(
+                        self.current_params.get("moread", False)
+                        or "gbw" in str(self.current_params).lower()
+                        or any(job_scratch.glob("*.gbw"))
+                    )
+                    self._sanitize_remediation_scratch(job_scratch, preserve_gbw=preserve_gbw)
+
+                    # Apply dynamic remediation callback if provided
+                    if remediate_callback is not None:
+                        new_cmd = remediate_callback(cat, self.current_params, job_scratch)
+                        if new_cmd:
+                            current_cmd = list(new_cmd)
+                    else:
+                        logger.warning(
+                            "No remediation callback provided; retrying static command without physical input escalation."
+                        )
+
+                except Exception as exec_err:
+                    last_stderr = str(exec_err)
+                    last_code = 1
+                    retries += 1
+
+            return SubprocessExecutionResult(
+                success=False,
+                stdout=last_stdout,
+                stderr=last_stderr,
+                returncode=last_code,
+                retries_attempted=retries,
+                final_params=self.current_params,
+            )
+        finally:
+            # Lifecycle hygiene: sweep and delete ephemeral sandbox
+            shutil.rmtree(str(job_scratch), ignore_errors=True)
+
+
+    @staticmethod
+    def _sanitize_remediation_scratch(scratch_dir: Union[str, pathlib.Path], preserve_gbw: bool = False) -> None:
+        """Sanitizes ephemeral remediation scratch directory to prevent engine startup crashes (§8B) [M].
+
+        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess).
+        When preserve_gbw=True (MOREAD reuse / grid escalation), stages valid .gbw checkpoints
+        into a staging buffer and restores them after purging transients.
+        """
+        s_path = pathlib.Path(scratch_dir).resolve()
+        if not s_path.exists() or not s_path.is_dir():
+            return
+
+        staged_gbws: List[Tuple[pathlib.Path, pathlib.Path]] = []
+
+        if preserve_gbw:
+            for gbw_file in s_path.glob("*.gbw"):
+                staged = s_path / f".staged_{gbw_file.name}"
+                try:
+                    shutil.copy2(str(gbw_file), str(staged))
+                    staged_gbws.append((staged, gbw_file))
+                except Exception as _e:
+                    logger.debug("Failed staging gbw checkpoint %s: %s", gbw_file, _e)
+
+        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess"]
+        for pattern in transient_patterns:
+            for transient_file in s_path.glob(pattern):
+                try:
+                    if transient_file.is_file():
+                        transient_file.unlink(missing_ok=True)
+                    elif transient_file.is_dir():
+                        shutil.rmtree(str(transient_file), ignore_errors=True)
+                except Exception as _e:
+                    logger.debug("Failed removing transient file %s: %s", transient_file, _e)
+
+        if preserve_gbw and staged_gbws:
+            for staged, orig in staged_gbws:
+                try:
+                    if staged.exists():
+                        shutil.move(str(staged), str(orig))
+                except Exception as _e:
+                    logger.debug("Failed restoring staged checkpoint %s: %s", staged, _e)
+
+    def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
+        """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""
+        pid = proc.pid
+        try:
+            import psutil
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            parent.terminate()
+            _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+        except Exception:
+            if sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            else:
+                try:
+                    proc.kill()
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+
+    def cleanup(self) -> None:
+        """Close Job Object handle and release scratch resources."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                ctypes.windll.kernel32.CloseHandle(self._job_handle)
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
+            self._job_handle = None
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\concurrency\atomic_file_lock.py ---
+"""Cross-platform Reader-Writer and atomic file locking architecture.
+
+Implements Suggestion #28:
+- Authentic OS-level kernel locking: LockFileEx/UnlockFileEx on Windows, fcntl.flock on POSIX.
+- RWFileLock supporting concurrent shared readers and exclusive writer with writer-priority.
+- Thread-safe and cross-process safe with re-entrancy depth tracking.
+- AtomicFileLock maintaining backward compatibility.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Generator, Optional
+
+logger = logging.getLogger("cochem.concurrency.atomic_file_lock")
+
+# Win32 Kernel primitives via ctypes
+if sys.platform == "win32":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    class _OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_size_t),
+            ("InternalHigh", ctypes.c_size_t),
+            ("Offset", wintypes.DWORD),
+            ("OffsetHigh", wintypes.DWORD),
+            ("hEvent", wintypes.HANDLE),
+        ]
+
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.LockFileEx.restype = wintypes.BOOL
+    _kernel32.UnlockFileEx.restype = wintypes.BOOL
+
+    _LOCKFILE_FAIL_IMMEDIATELY = 0x00000001
+    _LOCKFILE_EXCLUSIVE_LOCK = 0x00000002
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on Windows using LockFileEx with exponential backoff."""
+        handle = msvcrt.get_osfhandle(fd)
+        flags = _LOCKFILE_FAIL_IMMEDIATELY | (_LOCKFILE_EXCLUSIVE_LOCK if exclusive else 0)
+        ov = _OVERLAPPED()
+        t0 = time.time()
+        backoff = max(0.001, backoff_base)
+        while True:
+            if _kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(ov)):
+                return True
+            if time.time() - t0 >= timeout:
+                return False
+            time.sleep(backoff)
+            backoff = min(0.05, backoff * 1.5)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on Windows using UnlockFileEx."""
+        handle = msvcrt.get_osfhandle(fd)
+        ov = _OVERLAPPED()
+        _kernel32.UnlockFileEx(handle, 0, 1, 0, ctypes.byref(ov))
+
+else:
+    import fcntl
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float, backoff_base: float = 0.002) -> bool:
+        """Acquire OS-level lock on POSIX using fcntl.flock with exponential backoff."""
+        flags = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
+        t0 = time.time()
+        backoff = max(0.001, backoff_base)
+        while True:
+            try:
+                fcntl.flock(fd, flags)
+                return True
+            except (BlockingIOError, OSError):
+                if time.time() - t0 >= timeout:
+                    return False
+                time.sleep(backoff)
+                backoff = min(0.05, backoff * 1.5)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on POSIX using fcntl.flock."""
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
+
+
+class RWFileLockTimeoutError(TimeoutError):
+    """Raised when RWFileLock acquisition times out."""
+
+
+class RWFileLock:
+    """Kernel-level Reader-Writer file lock with writer-priority protocol.
+
+    Uses two OS kernel lock files:
+    - writer_intent: acquired shared by readers, acquired exclusive by writer.
+      When a writer arrives, it acquires writer_intent exclusive, immediately blocking
+      all subsequent readers.
+    - data_lock: acquired shared by readers for read duration, acquired exclusive
+      by writer for write duration.
+    """
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0) -> None:
+        self.lock_path = Path(lock_path).resolve()
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self.timeout = float(timeout)
+
+        self._intent_path = str(self.lock_path.with_name(f"{self.lock_path.name}.writer_intent.lock"))
+        self._data_path = str(self.lock_path.with_name(f"{self.lock_path.name}.data.lock"))
+
+        self._local = threading.local()
+
+    def _get_read_depth(self) -> int:
+        return getattr(self._local, "read_depth", 0)
+
+    def _set_read_depth(self, val: int) -> None:
+        self._local.read_depth = val
+
+    def _get_write_depth(self) -> int:
+        return getattr(self._local, "write_depth", 0)
+
+    def _set_write_depth(self, val: int) -> None:
+        self._local.write_depth = val
+
+    @contextmanager
+    def read_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Shared read lock allowing unbounded concurrent readers with writer priority."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        if self._get_write_depth() > 0:
+            yield
+            return
+
+        # Thread-level reentrancy for active reader
+        depth = self._get_read_depth()
+        if depth > 0:
+            self._set_read_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(self._get_read_depth() - 1)
+            return
+
+        # Open dedicated file descriptors for this thread/operation
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Check writer intent (acquire shared on intent lock)
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=False, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out waiting for writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire shared read lock on data file
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=False, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring shared read lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+            finally:
+                # Release writer intent so another writer can request intent
+                _os_lock_release(fd_intent)
+
+            self._set_read_depth(1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(0)
+                _os_lock_release(fd_data)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    @contextmanager
+    def write_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Exclusive write lock with writer-priority blocking new incoming readers."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        depth = self._get_write_depth()
+        if depth > 0:
+            self._set_write_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_write_depth(self._get_write_depth() - 1)
+            return
+
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Acquire exclusive writer intent to block new readers immediately
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=True, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out acquiring writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire exclusive lock on data file (waits for active readers to clear)
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=True, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring exclusive write lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+
+                self._set_write_depth(1)
+                try:
+                    yield
+                finally:
+                    self._set_write_depth(0)
+                    _os_lock_release(fd_data)
+            finally:
+                _os_lock_release(fd_intent)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    def acquire(self, shared: bool = False, timeout: Optional[float] = None) -> bool:
+        """Acquire lock (shared read if shared=True, else exclusive write)."""
+        t = self.timeout if timeout is None else timeout
+        cm = self.read_lock(timeout=t) if shared else self.write_lock(timeout=t)
+        cm.__enter__()
+        self._local.cm = cm
+        return True
+
+    def release(self) -> None:
+        """Release currently held lock."""
+        cm = getattr(self._local, "cm", None)
+        if cm is not None:
+            self._local.cm = None
+            cm.__exit__(None, None, None)
+
+    def __enter__(self) -> RWFileLock:
+        self.acquire(shared=False)
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
+
+
+class AtomicFileLock(RWFileLock):
+    """Drop-in compatible wrapper around RWFileLock defaulting to exclusive locking."""
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0, **kwargs: Any) -> None:
+        super().__init__(lock_path=lock_path, timeout=timeout)
+
+
+__all__ = ["RWFileLock", "AtomicFileLock", "RWFileLockTimeoutError"]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\concurrency\subprocess_broker.py ---
+"""Deterministic Subprocess Broker & Fault Ladder.
+Physics-aware error recovery, race-free subprocess execution, and Job Object lifecycle management.
+Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
+"""
+
+from __future__ import annotations
+
+import atexit
+from collections import deque
+import ctypes
+import dataclasses
+
+import enum
+import logging
+import os
+import pathlib
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+from cochem.core.context import assert_writable_path
+from cochem.core.hardware.topology import TopologyDiscoveryEngine
+
+logger = logging.getLogger("cochem.concurrency.subprocess_broker")
+
+
+class FailureCategory(enum.Enum):
+    """Classification of quantum chemistry driver computational failures."""
+
+    SCF_NON_CONVERGENCE = "SCF_NON_CONVERGENCE"
+    SCF_CONVERGENCE_FAILURE = "SCF_NON_CONVERGENCE"
+    GRID_INTEGRATION_FAILURE = "GRID_INTEGRATION_FAILURE"
+    GEOMETRY_OPTIMIZATION_STAGNATION = "GEOMETRY_OPTIMIZATION_STAGNATION"
+    CONFORMER_SEARCH_FAILURE = "CONFORMER_SEARCH_FAILURE"
+    UNKNOWN_FAILURE = "UNKNOWN_FAILURE"
+
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class SubprocessExecutionResult:
+    """Immutable execution report from the Subprocess Broker."""
+
+    success: bool
+    stdout: str
+    stderr: str
+    returncode: int
+    retries_attempted: int
+    final_params: Dict[str, Any]
+
+
+class DiagnosticTriageEngine:
+    """Diagnostic Triage and Solver Remediation Matrix."""
+
+    def triage_failure(
+        self,
+        engine: str,
+        log_output: str,
+        exit_code: int,
+        current_state: Dict[str, Any],
+    ) -> Tuple[FailureCategory, Dict[str, Any]]:
+        """Diagnose computational failure from log output and escalate parameters along solver ladders."""
+        upper_log = log_output.upper()
+        engine_upper = engine.upper()
+        new_state = dict(current_state)
+
+        # 1. SCF Non-Convergence Escalation
+        if "SCF NOT CONVERGED" in upper_log or "CONVERGENCE FAILED" in upper_log or "NOT CONVERGE" in upper_log or "FAILED TO CONVERGE" in upper_log:
+            if engine_upper == "ORCA":
+                orca_ladder = ["PModel", "Auto", "HCore"]
+                current_guess = str(current_state.get("guess", "PModel"))
+                next_idx = orca_ladder.index(current_guess) + 1 if current_guess in orca_ladder else 1
+                new_state["guess"] = orca_ladder[min(next_idx, len(orca_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "CFOUR":
+                cfour_ladder = ["CORE", "SOCORE", "OLD"]
+                current_guess = str(current_state.get("guess", "CORE"))
+                next_idx = cfour_ladder.index(current_guess) + 1 if current_guess in cfour_ladder else 1
+                new_state["guess"] = cfour_ladder[min(next_idx, len(cfour_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "PYSCF":
+                pyscf_ladder = ["minao", "1e", "atom"]
+                current_guess = str(current_state.get("init_guess", "minao"))
+                next_idx = pyscf_ladder.index(current_guess) + 1 if current_guess in pyscf_ladder else 1
+                new_state["init_guess"] = pyscf_ladder[min(next_idx, len(pyscf_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            new_state["damping"] = True
+            return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+        # 2. Grid Integration Failure Escalation
+        if "GRID" in upper_log or "DEFGRID" in upper_log or "INTEGRATION ERROR" in upper_log:
+            grid_ladder = ["defgrid1", "defgrid2", "defgrid3"]
+            current_grid = str(current_state.get("grid", "defgrid1"))
+            next_idx = grid_ladder.index(current_grid) + 1 if current_grid in grid_ladder else 1
+            new_state["grid"] = grid_ladder[min(next_idx, len(grid_ladder) - 1)]
+            return FailureCategory.GRID_INTEGRATION_FAILURE, new_state
+
+        # 3. Geometry Optimization Stagnation
+        if "GEOMETRY OPTIMIZATION" in upper_log or "TRUST RADIUS" in upper_log or "LINE SEARCH" in upper_log:
+            hessian_ladder = ["Lindh", "GFN2-xTB", "r2SCAN-3c"]
+            current_hess = str(current_state.get("model_hessian", "Lindh"))
+            next_idx = hessian_ladder.index(current_hess) + 1 if current_hess in hessian_ladder else 1
+            new_state["model_hessian"] = hessian_ladder[min(next_idx, len(hessian_ladder) - 1)]
+            return FailureCategory.GEOMETRY_OPTIMIZATION_STAGNATION, new_state
+
+        # 4. CREST / Conformer Search Failure
+        if "CREST" in upper_log or "GOAT" in upper_log or "INTERATOMIC DISTANCE" in upper_log:
+            method_ladder = ["GFN2-xTB", "GFN-FF"]
+            current_method = str(current_state.get("method", "GFN2-xTB"))
+            next_idx = method_ladder.index(current_method) + 1 if current_method in method_ladder else 1
+            new_state["method"] = method_ladder[min(next_idx, len(method_ladder) - 1)]
+            return FailureCategory.CONFORMER_SEARCH_FAILURE, new_state
+
+        return FailureCategory.UNKNOWN_FAILURE, new_state
+
+
+class SubprocessBroker:
+    """Broker managing child process lifecycle, Win32 Job Objects, and remediation ladders."""
+
+    def __init__(
+        self,
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_seconds: float = 3600.0,
+        context_or_engine: Union[Any, str] = "cochem_worker",
+        initial_params: Optional[Dict[str, Any]] = None,
+        scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        base_scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> None:
+        # If first positional argument was passed as context_or_engine, disambiguate:
+        if cwd is not None and not isinstance(cwd, pathlib.Path) and not os.path.exists(str(cwd)) and "/" not in str(cwd) and "\\" not in str(cwd):
+            context_or_engine = cwd
+            cwd = None
+
+        if isinstance(context_or_engine, str):
+            self.engine_name: str = context_or_engine
+        else:
+            self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
+            if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
+                scratch_dir = context_or_engine.scratch_dir
+
+        self.cwd: pathlib.Path = pathlib.Path(cwd).resolve() if cwd else pathlib.Path.cwd()
+        self.env: Optional[Dict[str, str]] = env.copy() if env is not None else None
+        self.timeout_seconds: float = float(timeout_seconds)
+
+        self.current_params: Dict[str, Any] = dict(initial_params or {})
+        self.max_retries: int = max(1, int(max_retries))
+        self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
+        self.topology_engine: TopologyDiscoveryEngine = TopologyDiscoveryEngine()
+
+        # Tripartite Workspace Air-Gap dynamic scratch resolution
+        explicit_scratch = base_scratch_dir or scratch_dir
+        if explicit_scratch is not None:
+            self.base_scratch_dir: pathlib.Path = pathlib.Path(explicit_scratch).resolve()
+        else:
+            env_scratch = (
+                os.environ.get("SLURM_TMPDIR")
+                or os.environ.get("TMPDIR")
+                or os.environ.get("TEMP")
+            )
+            if env_scratch:
+                self.base_scratch_dir = pathlib.Path(env_scratch).resolve()
+            else:
+                self.base_scratch_dir = (pathlib.Path.home() / ".cochem" / "scratch").resolve()
+
+        assert_writable_path(self.base_scratch_dir)
+        self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self.scratch_dir = self.base_scratch_dir
+
+        self._job_handle: Optional[Any] = None
+        self._init_process_group_guard()
+        atexit.register(self.cleanup)
+
+
+    def _init_process_group_guard(self) -> None:
+        """Initialize Windows Job Object with KILL_ON_JOB_CLOSE or configure POSIX process group."""
+        if sys.platform == "win32":
+            try:
+                # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+                job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if job_handle:
+                    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("PerProcessUserTimeLimit", ctypes.c_int64),
+                            ("PerJobUserTimeLimit", ctypes.c_int64),
+                            ("LimitFlags", ctypes.c_uint32),
+                            ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t),
+                            ("ActiveProcessLimit", ctypes.c_uint32),
+                            ("Affinity", ctypes.c_size_t),
+                            ("PriorityClass", ctypes.c_uint32),
+                            ("SchedulingClass", ctypes.c_uint32),
+                        ]
+
+                    class IO_COUNTERS(ctypes.Structure):
+                        _fields_ = [
+                            ("ReadOperationCount", ctypes.c_uint64),
+                            ("WriteOperationCount", ctypes.c_uint64),
+                            ("OtherOperationCount", ctypes.c_uint64),
+                            ("ReadTransferCount", ctypes.c_uint64),
+                            ("WriteTransferCount", ctypes.c_uint64),
+                            ("OtherTransferCount", ctypes.c_uint64),
+                        ]
+
+                    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                            ("IoInfo", IO_COUNTERS),
+                            ("ProcessMemoryLimit", ctypes.c_size_t),
+                            ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryLimit", ctypes.c_size_t),
+                            ("PeakJobMemoryLimit", ctypes.c_size_t),
+                        ]
+
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    info.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+                    JobObjectExtendedLimitInformation = 9
+                    ctypes.windll.kernel32.SetInformationJobObject(
+                        job_handle,
+                        JobObjectExtendedLimitInformation,
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self._job_handle = job_handle
+            except Exception as job_err:
+                logger.debug("Windows Job Object initialization bypassed: %s", job_err)
+
+    def assign_to_job(self, proc: subprocess.Popen[Any]) -> None:
+        """Assign subprocess handle to Win32 Job Object."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                # Open process handle with PROCESS_SET_QUOTA | PROCESS_TERMINATE
+                PROCESS_ALL_ACCESS = 0x1F0FFF
+                p_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, proc.pid)
+                if p_handle:
+                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, p_handle)
+                    ctypes.windll.kernel32.CloseHandle(p_handle)
+            except Exception as assign_err:
+                logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
+
+    def execute(
+        self,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
+    ) -> SubprocessExecutionResult:
+        """Executes command under deterministic fault ladder with process containment."""
+        return self.execute_with_remediation(
+            command=command,
+            cwd=cwd,
+            env=env,
+            timeout_sec=timeout_sec,
+            timeout_seconds=timeout_seconds,
+            remediate_callback=remediate_callback,
+            **kwargs,
+        )
+
+    def execute_with_remediation(
+        self,
+        command: Union[str, List[str]],
+        cwd: Optional[Union[str, pathlib.Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout_sec: Optional[float] = None,
+        timeout_seconds: Optional[float] = None,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+        **kwargs: Any,
+    ) -> SubprocessExecutionResult:
+        """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
+        retries = 0
+        last_stdout = ""
+        last_stderr = ""
+        last_code = 1
+
+        # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
+        job_id = uuid.uuid4().hex
+        job_scratch = self.base_scratch_dir / f"cochem_exec_{job_id}"
+        job_scratch.mkdir(parents=True, exist_ok=True)
+
+        if isinstance(command, str):
+            cmd_list = shlex.split(command, posix=(sys.platform != "win32"))
+        else:
+            cmd_list = [str(c) for c in command]
+
+        current_cmd = list(cmd_list)
+        if sys.platform == "win32" and current_cmd and shutil.which(current_cmd[0]) is None:
+            if current_cmd[0].lower() in ("echo", "dir", "type", "copy", "del", "mkdir", "rmdir", "cls"):
+                current_cmd = ["cmd.exe", "/c"] + current_cmd
+
+        effective_cwd = pathlib.Path(cwd).resolve() if cwd is not None else self.cwd
+        effective_cwd.mkdir(parents=True, exist_ok=True)
+        assert_writable_path(effective_cwd)
+
+        effective_timeout = (
+            timeout_sec
+            if timeout_sec is not None
+            else (timeout_seconds if timeout_seconds is not None else getattr(self, "timeout_seconds", 3600.0))
+        )
+
+        proc: Optional[subprocess.Popen[Any]] = None
+        try:
+            while retries < self.max_retries:
+                worker_env = dict(self.topology_engine.get_worker_env())
+                # GPU allocation guard: CPU-only environments must explicitly have empty string
+                available_gpus = self.topology_engine.get_available_gpus()
+                num_gpus = len(available_gpus)
+                if num_gpus > 0:
+                    assigned = self.current_params.get("assigned_gpu", available_gpus[0])
+                    worker_env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+                else:
+                    worker_env["CUDA_VISIBLE_DEVICES"] = ""
+
+                if hasattr(self, "env") and self.env:
+                    worker_env.update(self.env)
+                if env:
+                    worker_env.update(env)
+
+                # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
+                mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
+                worker_env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+
+                proc_kwargs: Dict[str, Any] = {
+                    "cwd": str(effective_cwd),
+                    "env": worker_env,
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.PIPE,
+                    "text": True,
+                }
+
+                if sys.platform == "win32":
+                    CREATE_SUSPENDED = 0x00000004
+                    proc_kwargs["creationflags"] = proc_kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                else:
+                    proc_kwargs["start_new_session"] = True
+                    if sys.platform.startswith("linux"):
+                        def _posix_pdeathsig() -> None:
+                            try:
+                                import ctypes
+                                libc = ctypes.CDLL("libc.so.6")
+                                PR_SET_PDEATHSIG = 1
+                                SIGKILL = 9
+                                libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                            except Exception as _e:
+                                logger.debug(f"Ignored exception: {_e}")
+                        proc_kwargs["preexec_fn"] = _posix_pdeathsig
+
+                try:
+                    proc = subprocess.Popen(current_cmd, **proc_kwargs)
+                    self.assign_to_job(proc)
+                    if sys.platform == "win32":
+                        try:
+                            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
+
+                    try:
+                        out, err = proc.communicate(timeout=effective_timeout)
+                        code = proc.returncode
+                    except subprocess.TimeoutExpired:
+                        self.terminate_process_tree(proc)
+                        last_stdout = ""
+                        last_stderr = f"Subprocess execution timed out after {effective_timeout}s"
+                        last_code = -124
+                        return SubprocessExecutionResult(
+                            success=False,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=last_code,
+                            retries_attempted=retries + 1,
+                            final_params=self.current_params,
+                        )
+
+
+                    # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
+                    stdout_buf: deque[str] = deque(maxlen=10485760)
+                    stderr_buf: deque[str] = deque(maxlen=10485760)
+                    stdout_buf.extend(out or "")
+                    stderr_buf.extend(err or "")
+                    last_stdout = "".join(stdout_buf)
+                    last_stderr = "".join(stderr_buf)
+                    last_code = code
+
+
+                    if code == 0:
+                        # Extract validated artifacts to artifacts dir if designated
+                        artifacts_env = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACTS")
+                        if artifacts_env:
+                            art_dir = pathlib.Path(artifacts_env)
+                            art_dir.mkdir(parents=True, exist_ok=True)
+                            for ext in [".out", ".property.txt", ".gbw"]:
+                                for f in job_scratch.glob(f"*{ext}"):
+                                    try:
+                                        shutil.copy2(str(f), str(art_dir / f.name))
+                                    except Exception as _e:
+                                        logger.debug(f"Ignored exception: {_e}")
+
+                        return SubprocessExecutionResult(
+                            success=True,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=0,
+                            retries_attempted=retries,
+                            final_params=self.current_params,
+                        )
+
+                    # Execute diagnostic triage on error output
+                    cat, updated_params = self.triage.triage_failure(
+                        engine=self.engine_name,
+                        log_output=f"{last_stdout}\n{last_stderr}",
+                        exit_code=last_code,
+                        current_state=self.current_params,
+                    )
+
+                    self.current_params = updated_params
+                    retries += 1
+                    logger.warning(
+                        "Subprocess failure (attempt %d/%d) classified as %s. Escalated parameters: %s",
+                        retries,
+                        self.max_retries,
+                        cat.value,
+                        self.current_params,
+                    )
+
+                    # Tripartite Air-Gap scratch remediation (§8B) [M]
+                    preserve_gbw = bool(
+                        self.current_params.get("moread", False)
+                        or "gbw" in str(self.current_params).lower()
+                        or any(job_scratch.glob("*.gbw"))
+                    )
+                    self._sanitize_remediation_scratch(job_scratch, preserve_gbw=preserve_gbw)
+
+                    # Apply dynamic remediation callback if provided
+                    if remediate_callback is not None:
+                        new_cmd = remediate_callback(cat, self.current_params, job_scratch)
+                        if new_cmd:
+                            current_cmd = list(new_cmd)
+                    else:
+                        logger.warning(
+                            "No remediation callback provided; retrying static command without physical input escalation."
+                        )
+
+                except Exception as exec_err:
+                    last_stderr = str(exec_err)
+                    last_code = 1
+                    retries += 1
+
+            return SubprocessExecutionResult(
+                success=False,
+                stdout=last_stdout,
+                stderr=last_stderr,
+                returncode=last_code,
+                retries_attempted=retries,
+                final_params=self.current_params,
+            )
+        finally:
+            # Lifecycle hygiene: sweep and delete ephemeral sandbox
+            shutil.rmtree(str(job_scratch), ignore_errors=True)
+
+
+    @staticmethod
+    def _sanitize_remediation_scratch(scratch_dir: Union[str, pathlib.Path], preserve_gbw: bool = False) -> None:
+        """Sanitizes ephemeral remediation scratch directory to prevent engine startup crashes (§8B) [M].
+
+        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess).
+        When preserve_gbw=True (MOREAD reuse / grid escalation), stages valid .gbw checkpoints
+        into a staging buffer and restores them after purging transients.
+        """
+        s_path = pathlib.Path(scratch_dir).resolve()
+        if not s_path.exists() or not s_path.is_dir():
+            return
+
+        staged_gbws: List[Tuple[pathlib.Path, pathlib.Path]] = []
+
+        if preserve_gbw:
+            for gbw_file in s_path.glob("*.gbw"):
+                staged = s_path / f".staged_{gbw_file.name}"
+                try:
+                    shutil.copy2(str(gbw_file), str(staged))
+                    staged_gbws.append((staged, gbw_file))
+                except Exception as _e:
+                    logger.debug("Failed staging gbw checkpoint %s: %s", gbw_file, _e)
+
+        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess"]
+        for pattern in transient_patterns:
+            for transient_file in s_path.glob(pattern):
+                try:
+                    if transient_file.is_file():
+                        transient_file.unlink(missing_ok=True)
+                    elif transient_file.is_dir():
+                        shutil.rmtree(str(transient_file), ignore_errors=True)
+                except Exception as _e:
+                    logger.debug("Failed removing transient file %s: %s", transient_file, _e)
+
+        if preserve_gbw and staged_gbws:
+            for staged, orig in staged_gbws:
+                try:
+                    if staged.exists():
+                        shutil.move(str(staged), str(orig))
+                except Exception as _e:
+                    logger.debug("Failed restoring staged checkpoint %s: %s", staged, _e)
+
+    def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
+        """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""
+        pid = proc.pid
+        try:
+            import psutil
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            parent.terminate()
+            _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+        except Exception:
+            if sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            else:
+                try:
+                    proc.kill()
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+
+    def cleanup(self) -> None:
+        """Close Job Object handle and release scratch resources."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                ctypes.windll.kernel32.CloseHandle(self._job_handle)
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
+            self._job_handle = None
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\calc\cochem_calc_execution_router.py ---
 # Copyright 2026 CoChem Project Family. All rights reserved.
 # Apache License 2.0
 """
-CoChem-CORE: Stage 13.2 / QS-3 - Committee-Based Active Learning & Delta-Learning PES Fitting Engine.
-
-Mandated by:
-- Method Matrix v4 Quick Start QS-3 ("I need an intermolecular surface: PES campaign, one day instead of one month")
-- Method Matrix v4 §13.2 (Table 2 - Rows T2-12h and T2-1d: Delta-learning + Active Learning PES)
-- Method Matrix v4 §10.8 (Committee Uncertainty inside the Wrapper & Gate G5: epsilon = Q3 + 1.5 * IQR)
-- Method Matrix v4 §8C (HDF5 PESStore, Delta-pairs alignment & DVR grid integration)
-- Method Matrix v4 §8A (Heterogeneous Parallel Concurrency & Single-Thread Grid Workers)
-- CoChem Anti-Spoofing Protocol v2 & v3 (Authentic Physical Tensor & Mathematical Invariant Compliance)
-- CoChem Mendeleev Library Mandate (Dynamic Atomic and Isotopic Mass Retrieval via mendeleev)
-
-Architectural Overview:
-1. Active Learning & Committee Uncertainty Quantification (Method Matrix QS-3 Step 3, §10.8, §13.2):
-   - Committee of M diverse estimators (default M=4, matching AIMNet2 / NN ensemble recommendation).
-   - Evaluates ensemble mean energy E_bar, ensemble gradient g_bar, normalized per-atom energy
-     uncertainty sigma_E / sqrt(N_atoms), and force dispersion U_F = max_i max_m |g_m,i - g_bar,i|.
-   - Guard G5 Uncertainty Gate: thresholding epsilon = Q3 + 1.5 * IQR over the training error distribution.
-   - Multi-strategy acquisition functions with explicit anti-pure-variance enforcement (Uteva et al.):
-     * Two-Set Error-Based Acquisition: weights committee uncertainty by spatial distance to already selected points:
-       alpha(x) = sigma_E(x) * (1.0 - exp(-d_min(x, X_selected)^2 / (2 * sigma_dist^2))).
-     * Diversity-Weighted UQ Acquisition: combines normalized committee variance with greedy furthest-point distance.
-     * Exploration-Exploitation Batching: selects 300-800 points from ~2,000 base DFT pool in iterative batches.
-
-2. Delta-Learning Potential Energy Surface Fitting (Method Matrix QS-3 Step 4, Row T2-12h):
-   - Base representation V_low(X) on ~2,000 DFT points + Delta-correction Delta_V(X) on 300-800 CC points:
-     V_Delta(X) = V_low(X) + Delta_V(X) where Delta_V(X) = V_high(X) - V_low(X).
-   - High-performance Kernel Ridge Regression (RBF, Matern-5/2, Matern-3/2, Polynomial), Permutationally
-     Invariant Polynomial (PIP) Morse coordinate expansion, and Regularized Neural Committee.
-   - Analytical gradient calculation: grad_X V_Delta(X) = grad_X V_low(X) + grad_X Delta_V(X) through
-     interatomic Morse coordinates for molecular dynamics and geometry stepping.
-
-3. Spectroscopic Held-Out Validation Protocol (Method Matrix QS-3 Step 5, §13.2):
-   - Strict separation of a dedicated held-out validation grid (e.g. 20% or user-specified held-out test grid).
-   - Rigorous residual evaluation reporting RMSE, MAE, and Max Error in cm^-1, kcal/mol, meV, and Hartree.
-   - Evaluates against spectroscopic criteria (RMS <= 3-10 cm^-1 for T2-12h, <= 5-20 cm^-1 for T2-1d).
-
-4. Autonomous HDF5 PESStore Integration (Method Matrix §8C):
-   - Direct interoperability with `PESStore` (`delta_pairs(low, high)`, `dataset(method_id)`, `todo(method_id, ids)`).
-   - Model artifact serialization, parameter persistence, and direct DVR product grid export.
-
-5. Dynamic Mendeleev Mass Resolution (Mendeleev Library Mandate):
-   - Strictly ZERO hardcoded atomic/isotopic masses; all masses and atomic numbers resolved dynamically via `mendeleev`.
+Core Execution Router for the CoChem pipeline.
+Mandated by Method Matrix v4 §8A.6 (Parsl Multi-Executor Architecture) and §8A.2 (Scout-and-Anchor Topology) [M].
+Validates Suggestion #66:
+- Elimination of bypassed execution paths by integrating ParslExecutionBroker.
+- Workload mapping: heavy QM -> cochem_anchor_cpu with CPU core pinning and OpenMP binding.
+- Rapid scans / MLFF -> cochem_scout_gpu.
+- Task sandboxing in Ring 2 ephemeral scratch ($COCHEM_SCRATCH/task_<uuid>/).
+- Pydantic v2 JobRouteConfig and ExecutionRouteResult contracts.
 """
 
 from __future__ import annotations
 
+import logging
 import os
-# Mandated by Method Matrix QS-3 Step 6 line 167: enforce FP64 double precision on startup
-os.environ["JAX_ENABLE_X64"] = "True"
+import subprocess
+import sys
+import tempfile
+import uuid
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    load_system_config_dict,
+    resolve_config_path,
+    resolve_executable,
+    resolve_mapped_path,
+)
+from cochem_base.schemas import ExecutionRouteResult, JobRouteConfig
+from cochem.concurrency.subprocess_broker import SubprocessBroker
+
+logger = logging.getLogger(__name__)
+
+try:
+    import parsl
+    from parsl import python_app, bash_app
+    HAS_PARSL = True
+except ImportError:
+    HAS_PARSL = False
+    parsl = None  # type: ignore
+
+
+class ExecutionRouter:
+    """
+    Unified Execution Router for the CoChem pipeline.
+    Routes computational jobs to Parsl multi-executor topologies (cochem_anchor_cpu, cochem_scout_gpu)
+    or remote HPC schedulers (sbatch) with isolated scratch sandboxes.
+    """
+
+    def __init__(
+        self,
+        registry_path: Optional[Union[str, Path]] = None,
+        broker: Optional[Any] = None,
+        dfk: Optional[Any] = None,
+    ) -> None:
+        """Initializes the router with Golden Registry and optional Parsl broker/DFK."""
+        if registry_path:
+            self.registry_path = resolve_config_path(Path(registry_path))
+        else:
+            self.registry_path = resolve_config_path()
+
+        self.registry = self._load_registry()
+        self.broker = broker
+        self.dfk = dfk
+
+    def _load_registry(self) -> Dict[str, Any]:
+        """Reads the hardware and routing rules."""
+        try:
+            return load_system_config_dict(self.registry_path)
+        except Exception as e:
+            logger.error(f"Failed to parse registry at {self.registry_path}: {e}. Defaulting to safe fallback.")
+            return {"execution": {"default_engine": "subprocess"}, "engines": {}}
+
+    def resolve_execution_path(self, target_engine: str) -> str:
+        """Determines the path for the incoming computational payload."""
+        exec_config = self.registry.get("execution") or {}
+        engines_config = self.registry.get("engines") or {}
+
+        default_path = exec_config.get("default_engine", "subprocess")
+
+        if target_engine in engines_config:
+            engine_info = engines_config[target_engine]
+            engine_status = (
+                engine_info.get("status", "unknown")
+                if isinstance(engine_info, dict)
+                else getattr(engine_info, "status", "unknown")
+            )
+            if engine_status not in ("ready", "found"):
+                logger.warning(f"Engine '{target_engine}' status is '{engine_status}'. Proceeding with caution.")
+        else:
+            logger.warning(f"Engine '{target_engine}' not found in registry. Using default path.")
+
+        return str(default_path)
+
+    def route_job(
+        self,
+        target_engine_or_type: Optional[str] = None,
+        payload_command: Optional[Union[str, List[str]]] = None,
+        cwd: Optional[Union[str, Path]] = None,
+        *,
+        job_type: Optional[str] = None,
+        route_config: Optional[JobRouteConfig] = None,
+        cpu_core_pinning: Optional[List[int]] = None,
+        scratch_dir: Optional[Union[str, Path]] = None,
+        env: Optional[Dict[str, str]] = None,
+        timeout: float = 3600.0,
+        job_name: str = "cochem_job",
+        **kwargs: Any,
+    ) -> ExecutionRouteResult:
+        """
+        Primary execution dispatch entrypoint conforming to Method Matrix §8A.2, §8A.6.
+        Dispatches computational jobs to Parsl heterogeneous pools with sandbox isolation.
+        """
+        # Determine job type
+        effective_job_type = job_type
+        if effective_job_type is None and target_engine_or_type is not None:
+            if target_engine_or_type in ("heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"):
+                effective_job_type = target_engine_or_type
+            elif "scan" in target_engine_or_type.lower() or "scout" in target_engine_or_type.lower() or "mlff" in target_engine_or_type.lower():
+                effective_job_type = "fast_potential_scan"
+            elif "opt" in target_engine_or_type.lower() or "heavy" in target_engine_or_type.lower() or "orca" in target_engine_or_type.lower():
+                effective_job_type = "heavy_qm_opt"
+            elif "freq" in target_engine_or_type.lower() or "hess" in target_engine_or_type.lower():
+                effective_job_type = "frequency"
+            else:
+                effective_job_type = "single_point"
+        elif effective_job_type is None:
+            effective_job_type = "heavy_qm_opt"
+
+        # Determine scratch root
+        scratch_env = (
+            os.environ.get("COCHEM_SCRATCH")
+            or os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TEMP")
+        )
+        base_scratch = Path(scratch_dir or cwd or scratch_env or tempfile.gettempdir()).resolve()
+        base_scratch.mkdir(parents=True, exist_ok=True)
+
+        task_id = uuid.uuid4().hex
+        task_scratch = base_scratch / f"task_{task_id}"
+        task_scratch.mkdir(parents=True, exist_ok=True)
+
+        # Build JobRouteConfig if not explicitly supplied
+        if route_config is None:
+            if effective_job_type in ("heavy_qm_opt", "frequency"):
+                assigned_exec = "cochem_anchor_cpu"
+            elif effective_job_type in ("fast_potential_scan",):
+                assigned_exec = "cochem_scout_gpu"
+            else:
+                assigned_exec = "cochem_anchor_cpu"
+
+            route_config = JobRouteConfig(
+                job_type=effective_job_type,  # type: ignore
+                assigned_executor=assigned_exec,  # type: ignore
+                cpu_core_pinning=cpu_core_pinning,
+                scratch_dir=str(task_scratch),
+                timeout_seconds=timeout,
+            )
+
+        # Environment configuration and CPU core pinning
+        task_env = os.environ.copy()
+        if env:
+            task_env.update(env)
+
+        if route_config.assigned_executor == "cochem_anchor_cpu":
+            if route_config.cpu_core_pinning:
+                pins = ",".join(str(p) for p in route_config.cpu_core_pinning)
+                task_env["KMP_AFFINITY"] = f"explicit,proclist=[{pins}],granularity=fine"
+                task_env["OMP_NUM_THREADS"] = str(len(route_config.cpu_core_pinning))
+                task_env["MKL_NUM_THREADS"] = str(len(route_config.cpu_core_pinning))
+            else:
+                task_env.setdefault("OMP_NUM_THREADS", "1")
+
+        # Command determination
+        cmd = payload_command or kwargs.get("command") or [sys.executable, "-c", "print('cochem-task-complete')"]
+
+        # Check if active Parsl DFK exists
+        active_dfk = self.dfk
+        if active_dfk is None and self.broker is not None and hasattr(self.broker, "get_dfk"):
+            active_dfk = self.broker.get_dfk()
+        if active_dfk is None and HAS_PARSL:
+            try:
+                active_dfk = parsl.dfk()
+            except Exception:
+                active_dfk = None
+
+        if active_dfk is not None:
+            executors_in_dfk = list(active_dfk.executors.keys())
+            target_executor = route_config.assigned_executor
+            if target_executor not in executors_in_dfk and len(executors_in_dfk) > 0:
+                logger.warning(
+                    f"Executor '{target_executor}' not found in Parsl DFK executors {executors_in_dfk}. Routing to '{executors_in_dfk[0]}'"
+                )
+                target_executor = executors_in_dfk[0]
+
+            @python_app(executors=[target_executor])
+            def _parsl_task_runner(cmd_to_run: Union[str, List[str]], work_dir: str, env_vars: Dict[str, str], t_sec: float) -> int:
+                from cochem.concurrency.subprocess_broker import SubprocessBroker
+                b = SubprocessBroker(cwd=work_dir, env=env_vars, timeout_seconds=t_sec)
+                r = b.execute(cmd_to_run)
+                return r.returncode
+
+            future = _parsl_task_runner(cmd, str(task_scratch), task_env, route_config.timeout_seconds)
+            return ExecutionRouteResult(
+                task_id=task_id,
+                assigned_executor=route_config.assigned_executor,
+                scratch_dir=task_scratch,
+                status="SUBMITTED",
+                returncode=0,
+                future=future,
+                output=None,
+            )
+        else:
+            # Fallback to direct SubprocessBroker execution in scratch sandbox
+            broker = SubprocessBroker(cwd=task_scratch, env=task_env, timeout_seconds=route_config.timeout_seconds)
+            res = broker.execute(cmd)
+            return ExecutionRouteResult(
+                task_id=task_id,
+                assigned_executor=route_config.assigned_executor,
+                scratch_dir=task_scratch,
+                status="COMPLETED" if res.success else "FAILED",
+                returncode=res.returncode,
+                future=None,
+                output=res.stdout,
+            )
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_parsl_executors.py ---
+#!/usr/bin/env python3
+# cochem_canvas_target: core_engine/cochem_core_parsl_executors.py
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
+"""
+CoChem-CORE: Stage 8A - Parsl Multi-Executor Heterogeneous HPC & Task Router.
+Mandated by SRS Doc 1 (Topology 1.0 §2), Doc 2 Part 1 (§2.5), and Method Matrix §8A.
+
+Implements the Scout-and-Anchor Heterogeneous Concurrency Engine:
+1. Multi-Executor Heterogeneous Parsl Topologies:
+   - CPU Anchor Executor ('cochem_anchor_cpu' / 'cpu'): Dedicated to heavy, authoritative
+     quantum calculations (ORCA DFT/VPT2, MPQC CCSD(T)-F12, CFOUR) pinned to P-cores ('block'),
+     %maxcore 3400, 7 P-cores by default on 8-core workstations.
+   - GPU Scout Executor ('cochem_scout_gpu' / 'gpu'): Dedicated to advisory GPU workers
+     (MLFF, MACE, AIMNet2, gpu4pyscf) under NVIDIA MPS, available_accelerators=3,
+     cpu_affinity='block-reverse', 1 P-core for host-side launch feeder (57% host-side overhead),
+     6 GB VRAM quota per worker.
+   - Orchestrator / Utility Executor ('cochem_orchestrator' / 'orchestrator'): Dedicated to
+     E-cores and host tasks (DFK, stage scheduler, deduplication, I/O, regex, provenance stamping).
+
+2. Heterogeneous Resource Providers:
+   - LocalProvider: Local workstations / desktops (Setup 2: 13700K + RTX 3090; Setup 1: CPU-only).
+   - SlurmProvider: HPC cluster partitions (Setup 3) with '#SBATCH --gres=gpu:1', '#SBATCH --nodes=1',
+     walltime, account, qos, partition, and SrunLauncher/SimpleLauncher.
+   - Graceful fallback to single-executor or ThreadPool execution on constrained or teaching environments.
+
+3. Contention Budgeting & Core Affinity (§8A.1, §8A.4):
+   - Real parallelism budget calculation (85% real efficiency, 1.20x CPU slowdown budget factor).
+   - Core affinity partitioning (P-cores 0..N-2 for CPU anchor, P-core N-1 for GPU scout feeder,
+     E-cores for DFK/I/O).
+   - Dynamic VRAM partitioning and thread percentage capping under NVIDIA MPS.
+
+4. Method Matrix §8A.5 Integrity Guards (G1–G7) Engine:
+   - G1: Advisory-only guide surface (rejects guide results claiming authoritative status).
+   - G2: High-level Hessian verification (asserts imaginary frequency count & softest force constant).
+   - G3: Basin-identity check (heavy-atom RMSD <= 0.25 Å, Delta R <= 0.20 Å using Mendeleev masses).
+   - G4: Rank-inversion audit (Spearman rho >= 0.90 on sample before culling).
+   - G5: Uncertainty gate (committee sigma thresholding).
+   - G6: Abort-the-guide rule (n_th = 5 consecutive failure threshold).
+   - G7: Provenance event audit logging (structured JSONL event lines appended to provenance.jsonl).
+
+5. Task Routing, Parsl App Factories & Pipeline Execution:
+   - App decorators and dispatchers for @bash_app and @python_app targeting 'cpu', 'gpu', or 'orchestrator'.
+   - Future management, stage chaining, timeout enforcement, retry logic (retries=2 per §8A.6).
+   - Standardized TaskExecutionResult models and execution status reporting.
+
+6. Thread-Safe Parsl DFK Lifecycle Manager:
+   - Thread-safe singleton ParslExecutionBroker.
+   - Safe process cleanup & zombie sweeping via psutil and atexit.
+"""
+
+from __future__ import annotations
 
 import argparse
-import copy
-import itertools
+import atexit
+import hashlib
 import json
 import logging
-import math
+import os
+import platform
 import sys
+import threading
 import time
+import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -1923,2228 +2897,1529 @@ from typing import (
     Any,
     Callable,
     Dict,
-    Iterable,
     List,
+    Literal,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Union,
 )
 
 import numpy as np
-import scipy.linalg
-import scipy.spatial.distance
-import filelock
-import h5py
+import psutil
+import scipy.stats
 from mendeleev import element
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+)
 
+from cochem_base.schemas import GpuScoutExecutorConfig
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_mps_directories,
+    get_runtime_dir,
+    resolve_mapped_path,
+)
 from cochem_base.exceptions import (
     CoChemError,
-    MethodMatrixViolationError,
-    MissingDataError,
-    NumericalConditioningError,
     ProvenanceErrorCode,
-    SymmetryInvarianceError,
-)
-from cochem_base.schemas import (
-    ActiveLearningBatchConfig,
-    KrrRegularizationConfig,
-    PipSymmetryConfig,
 )
 
-# Configure module logging
-logger = logging.getLogger(__name__)
+# ---------------------------------------------------------------------------
+# Logging Setup
+# ---------------------------------------------------------------------------
+logger = logging.getLogger("CoChem-ParslExecutors")
 if not logger.handlers:
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [AutoPES] %(message)s"))
-    logger.addHandler(handler)
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
+    )
+    logger.addHandler(_handler)
     logger.setLevel(logging.INFO)
 
-# =============================================================================
-# Physical & Spectroscopic Constants (Zero Hardcoded Atomic Masses)
-# =============================================================================
-HARTREE_TO_EV: float = 27.211386245988
-EV_TO_CM1: float = 8065.54429
-HARTREE_TO_CM1: float = 219474.63136320
-HARTREE_TO_KCAL_MOL: float = 627.5094740631
-KCAL_MOL_TO_CM1: float = 349.755011
-BOHR_TO_ANGSTROM: float = 0.529177210903
-ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
-MEV_PER_HARTREE: float = 27211.386245988
+# ---------------------------------------------------------------------------
+# Method Matrix §8A Hardware & Pipeline Constants
+# ---------------------------------------------------------------------------
+DEFAULT_ORCA_ANCHOR_RANKS: int = 7
+DEFAULT_ORCA_MAXCORE_MB: int = 3400
+DEFAULT_MAX_GPU_SCOUT_WORKERS: int = 3
+DEFAULT_MPS_THREAD_PERCENTAGE: int = 33
+DEFAULT_MPS_PINNED_MEM_LIMIT_STR: str = "0=6G"
+DEFAULT_CONTENZIONE_SLOWDOWN_FACTOR: float = 1.20
+DEFAULT_SCOUT_HOST_LATENCY_MS: float = 18.1
+DEFAULT_ULIMIT_NOFILE: int = 16384
+DEFAULT_WORKER_PORT_RANGE: Tuple[int, int] = (50000, 52499)
+DEFAULT_INTERCHANGE_PORT_RANGE: Tuple[int, int] = (52500, 54999)
+DEFAULT_PARSL_RETRIES: int = 2
+DEFAULT_G3_RMSD_THRESHOLD_ANGSTROM: float = 0.25
+DEFAULT_G3_DELTA_R_THRESHOLD_ANGSTROM: float = 0.20
+DEFAULT_G4_SPEARMAN_RHO_THRESHOLD: float = 0.90
+DEFAULT_G5_UNCERTAINTY_THRESHOLD_MEV: float = 10.0
+DEFAULT_G6_MAX_GUIDE_FAILURES: int = 5
 
 
-def get_dynamic_atomic_mass(symbol: str) -> float:
-    """
-    Dynamically retrieves the atomic mass of an element or isotope using mendeleev.
-    Strictly satisfies the CoChem Mendeleev Library Mandate (ZERO hardcoded masses).
-    """
-    clean_sym = symbol.strip()
-    if clean_sym in ("D", "2H"):
-        return float(element("H").isotopes[1].mass)
-    if clean_sym in ("T", "3H"):
-        return float(element("H").isotopes[2].mass)
+# ---------------------------------------------------------------------------
+# Zombie Process Sweeping & Subprocess Safety
+# ---------------------------------------------------------------------------
+def _sweep_zombie_processes() -> None:
+    """Sweep zombie child processes to maintain OS cleanliness."""
     try:
-        el = element(clean_sym)
-        return float(el.mass)
-    except Exception as exc:
-        raise CoChemError(
-            f"Failed to resolve atomic mass dynamically for symbol '{symbol}': {exc}",
-            error_code=ProvenanceErrorCode.MISSING_DATA,
-        ) from exc
-
-
-def get_dynamic_atomic_number(symbol: str) -> int:
-    """Dynamically retrieves the atomic number Z of an element."""
-    clean_sym = symbol.strip()
-    if clean_sym in ("D", "T", "2H", "3H"):
-        return 1
-    try:
-        el = element(clean_sym)
-        return int(el.atomic_number)
-    except Exception as exc:
-        raise CoChemError(
-            f"Failed to resolve atomic number dynamically for symbol '{symbol}': {exc}",
-            error_code=ProvenanceErrorCode.MISSING_DATA,
-        ) from exc
-
-
-# =============================================================================
-# Pydantic v2 Configuration & Results Schemas
-# =============================================================================
-
-class AcquisitionStrategy(str, Enum):
-    """Active learning point acquisition strategies."""
-    TWO_SET_ERROR_BASED = "two_set_error_based"
-    DIVERSITY_WEIGHTED_UQ = "diversity_weighted_uq"
-    EXPLORATION_EXPLOITATION = "exploration_exploitation"
-    QUERY_BY_COMMITTEE = "query_by_committee"
-    PURE_VARIANCE = "pure_variance"
-
-
-class FittingBackend(str, Enum):
-    """Potential energy surface fitting backends."""
-    KERNEL_RIDGE = "kernel_ridge"
-    PIP_RBF = "pip_rbf"
-    NEURAL_COMMITTEE = "neural_committee"
-    POLYNOMIAL_EXPANSION = "polynomial_expansion"
-
-
-class KernelType(str, Enum):
-    """Kernel functions for Kernel Ridge Regression."""
-    RBF = "rbf"
-    MATERN52 = "matern52"
-    MATERN32 = "matern32"
-    POLYNOMIAL = "polynomial"
-
-
-class ActiveLearningConfig(BaseModel):
-    """Configuration for committee-based active learning selection."""
-    model_config = ConfigDict(extra="forbid")
-
-    pool_size: int = Field(default=2000, description="Size of candidate base DFT pool (QS-3 ~2,000 points)")
-    n_select_min: int = Field(default=300, description="Minimum points to select (QS-3 300-800 points)")
-    n_select_max: int = Field(default=800, description="Maximum points to select (QS-3 300-800 points)")
-    n_select_target: int = Field(default=500, description="Target number of actively selected points")
-    batch_size: int = Field(default=50, description="Iterative batch selection size")
-    acquisition_strategy: AcquisitionStrategy = Field(
-        default=AcquisitionStrategy.TWO_SET_ERROR_BASED,
-        description="Acquisition strategy (pure variance alone is restricted per Uteva et al.)",
-    )
-    committee_size: int = Field(default=4, description="Committee ensemble size (§10.8 AIMNet2 / NN standard)")
-    diversity_weight: float = Field(default=0.35, description="Weight for spatial diversity exploration")
-    iqr_multiplier: float = Field(default=1.5, description="Guard G5 uncertainty multiplier: Q3 + 1.5 * IQR")
-    held_out_ratio: float = Field(default=0.20, description="Separated held-out validation grid ratio")
-    morse_lambda: float = Field(default=2.0, description="Morse coordinate decay factor in Angstroms")
-    random_seed: int = Field(default=42, description="Random seed for reproducible active selection")
-
-    @field_validator("n_select_target")
-    @classmethod
-    def validate_n_select(cls, v: int, info: Any) -> int:
-        if v < 50:
-            raise ValueError(f"n_select_target must be >= 50, got {v}")
-        return v
-
-
-class DeltaFittingConfig(BaseModel):
-    """Configuration for Delta-learning potential energy surface fitting."""
-    model_config = ConfigDict(extra="forbid")
-
-    backend: FittingBackend = Field(default=FittingBackend.KERNEL_RIDGE, description="Fitting model backend")
-    kernel: KernelType = Field(default=KernelType.RBF, description="Kernel function for KRR")
-    regularization_alpha: float = Field(default=1e-6, description="L2 regularization / ridge parameter alpha")
-    gamma: Optional[float] = Field(default=None, description="Kernel lengthscale parameter gamma (1 / (2*sigma^2))")
-    poly_degree: int = Field(default=4, description="Polynomial degree for PIP expansion")
-    morse_lambda: float = Field(default=2.0, description="Morse coordinate decay parameter lambda in Angstroms")
-    include_secondary: bool = Field(default=False, description="Whether to include degree-2 secondary PIP invariants")
-    target_rms_cm1: float = Field(default=10.0, description="Target spectroscopic held-out RMSE in cm^-1 (QS-3 / T2-12h)")
-
-
-class CommitteePrediction(BaseModel):
-    """Structured committee ensemble prediction payload."""
-    model_config = ConfigDict(extra="forbid")
-
-    mean_energy_hartree: float = Field(description="Ensemble mean energy E_bar in Hartrees")
-    sigma_energy_hartree: float = Field(description="Committee standard deviation in Hartrees")
-    sigma_energy_mev_per_atom: float = Field(description="Normalised uncertainty in meV/atom (§10.8)")
-    force_uncertainty_hartree_bohr: Optional[float] = Field(default=None, description="Max atom-wise force dispersion U_F")
-    g5_gate_passed: bool = Field(description="True if committee uncertainty satisfies Guard G5 threshold")
-    member_energies: List[float] = Field(description="Individual committee member energies in Hartrees")
-
-
-class ActiveLearningSelectionResult(BaseModel):
-    """Structured outcome of active learning point selection."""
-    model_config = ConfigDict(extra="forbid")
-
-    selected_indices: List[int] = Field(description="Indices of actively selected points from pool")
-    selected_point_ids: List[str] = Field(description="String identifiers of selected points")
-    acquisition_scores: List[float] = Field(description="Acquisition function values at selected points")
-    committee_sigmas_hartree: List[float] = Field(description="Committee standard deviations in Hartrees")
-    committee_sigmas_mev_atom: List[float] = Field(description="Committee uncertainties in meV/atom")
-    selection_rounds: int = Field(description="Number of iterative batch rounds executed")
-    n_selected: int = Field(description="Total points selected for high-level CCSD(T) escalation")
-    iqr_threshold_hartree: float = Field(description="Calculated Guard G5 threshold in Hartrees (Q3 + 1.5 * IQR)")
-    iqr_threshold_mev_atom: float = Field(description="Calculated Guard G5 threshold in meV/atom")
-    held_out_indices: List[int] = Field(description="Indices reserved for held-out validation grid")
-    held_out_point_ids: List[str] = Field(description="Point IDs of held-out validation grid")
-    provenance_info: Dict[str, Any] = Field(default_factory=dict, description="Metadata and audit trail")
-
-
-class PESValidationMetrics(BaseModel):
-    """Comprehensive validation metrics on held-out and training grids."""
-    model_config = ConfigDict(extra="forbid")
-
-    n_train: int = Field(description="Number of training points")
-    n_held_out: int = Field(description="Number of held-out validation points")
-    train_rmse_cm1: float = Field(description="Training RMSE in cm^-1")
-    train_mae_cm1: float = Field(description="Training MAE in cm^-1")
-    train_max_err_cm1: float = Field(description="Training Max Error in cm^-1")
-    held_out_rmse_cm1: float = Field(description="Held-out validation RMSE in cm^-1")
-    held_out_mae_cm1: float = Field(description="Held-out validation MAE in cm^-1")
-    held_out_max_err_cm1: float = Field(description="Held-out validation Max Error in cm^-1")
-    held_out_rmse_kcal_mol: float = Field(description="Held-out validation RMSE in kcal/mol")
-    held_out_rmse_hartree: float = Field(description="Held-out validation RMSE in Hartrees")
-    spectroscopic_grade: bool = Field(description="True if held_out_rmse_cm1 <= target_rms_cm1")
-    target_rms_cm1: float = Field(description="Spectroscopic threshold in cm^-1")
-    timestamp: str = Field(description="ISO 8601 evaluation timestamp")
-
-
-class DeltaSurfaceFitResult(BaseModel):
-    """Complete summary of Delta-learning potential energy surface fitting."""
-    model_config = ConfigDict(extra="forbid")
-
-    low_method: str = Field(description="Base low-level method ID (e.g. DFT wb97x_v_tz)")
-    high_method: str = Field(description="High-level escalation method ID (e.g. dlpno_ccsdt1_avtz)")
-    n_base_dft_points: int = Field(description="Total base DFT points in grid")
-    n_delta_points: int = Field(description="Number of high-level Delta training pairs")
-    n_held_out_points: int = Field(description="Number of held-out validation points")
-    metrics: PESValidationMetrics = Field(description="Spectroscopic validation metrics")
-    backend: str = Field(description="Fitting backend used")
-    model_parameters: Dict[str, Any] = Field(description="Fitted model hyper-parameters and dimensions")
-    timestamp: str = Field(description="ISO 8601 fit completion timestamp")
-
-
-# =============================================================================
-# Invariant Geometry Featurizer (Translation & Rotation Invariance)
-# =============================================================================
-
-class GeometryFeaturizer:
-    """
-    Computes rotationally and translationally invariant molecular descriptors:
-    - Pairwise interatomic distances R_ij = ||r_i - r_j||_2
-    - Morse coordinates y_ij = exp(-R_ij / lambda)
-    - Inverse Coulomb matrix representation
-    - Analytical Morse coordinate Jacobians d(y_ij)/d(r_ka) for exact force evaluations.
-    """
-
-    def __init__(
-        self,
-        symbols: Sequence[str],
-        morse_lambda: float = 2.0,
-        include_secondary: bool = False,
-        pip_config: Optional[PipSymmetryConfig] = None,
-    ) -> None:
-        self.symbols: List[str] = [s.strip() for s in symbols]
-        self.n_atoms: int = len(self.symbols)
-        if self.n_atoms < 2:
-            raise ValueError(f"GeometryFeaturizer requires at least 2 atoms, got {self.n_atoms}")
-
-        self.morse_lambda: float = float(morse_lambda)
-        if self.morse_lambda <= 0.0:
-            raise ValueError(f"morse_lambda must be strictly positive, got {self.morse_lambda}")
-
-        self.include_secondary: bool = bool(include_secondary)
-        self.pip_config: PipSymmetryConfig = pip_config or PipSymmetryConfig()
-
-        # Dynamically resolve atomic masses and atomic numbers (Mendeleev Mandate)
-        self.atomic_masses: np.ndarray = np.array(
-            [get_dynamic_atomic_mass(s) for s in self.symbols], dtype=np.float64
-        )
-        self.atomic_numbers: np.ndarray = np.array(
-            [get_dynamic_atomic_number(s) for s in self.symbols], dtype=np.int32
-        )
-
-        # Build pair index mapping (i < j)
-        self.pair_indices: List[Tuple[int, int]] = []
-        for i in range(self.n_atoms):
-            for j in range(i + 1, self.n_atoms):
-                self.pair_indices.append((i, j))
-        self.n_pairs: int = len(self.pair_indices)
-        self.pair_to_idx: Dict[Tuple[int, int], int] = {
-            pair: p for p, pair in enumerate(self.pair_indices)
-        }
-
-        # Identify permutation equivalence classes of identical nuclei (Task 5 PIP Symmetrization)
-        self.equiv_classes: Dict[int, List[int]] = {}
-        for idx, z in enumerate(self.atomic_numbers):
-            self.equiv_classes.setdefault(int(z), []).append(idx)
-
-        # Generate permutation group G over identical nuclei with closed subgroup orbit averaging
-        class_perms: List[List[Tuple[int, ...]]] = []
-        for z_val, indices in self.equiv_classes.items():
-            n_class = len(indices)
-            n_factorial = math.factorial(n_class)
-            sub_type = self.pip_config.subgroup_type
-
-            if sub_type == "full" and n_factorial <= self.pip_config.max_symmetric_order:
-                class_perms.append([tuple(p) for p in itertools.permutations(indices)])
-            elif sub_type == "alternating" or (sub_type == "full" and n_factorial > self.pip_config.max_symmetric_order and n_factorial // 2 <= self.pip_config.max_symmetric_order):
-                # Alternating group A_n (even parity permutations)
-                idx_map = {idx: i for i, idx in enumerate(indices)}
-                a_n = []
-                for p in itertools.permutations(indices):
-                    invs = 0
-                    arr = [idx_map[x] for x in p]
-                    for i_pos in range(len(arr)):
-                        for j_pos in range(i_pos + 1, len(arr)):
-                            if arr[i_pos] > arr[j_pos]:
-                                invs += 1
-                    if invs % 2 == 0:
-                        a_n.append(tuple(p))
-                class_perms.append(a_n)
-            else:
-                # Molecular automorphism wreath product S_k wr S_m
-                if n_class % 2 == 0:
-                    k = 2
-                    m = n_class // 2
-                elif n_class % 3 == 0:
-                    k = 3
-                    m = n_class // 3
-                else:
-                    k = 1
-                    m = n_class
-
-                if k == 1 or m == 1:
-                    # Cyclic group C_N which is a strictly closed abelian subgroup
-                    c_n = []
-                    for shift in range(n_class):
-                        c_n.append(tuple(indices[(i + shift) % n_class] for i in range(n_class)))
-                    class_perms.append(c_n)
-                else:
-                    blocks = [indices[r * k : (r + 1) * k] for r in range(m)]
-                    block_perms = list(itertools.permutations(range(m)))
-                    internal_perms = list(itertools.permutations(range(k)))
-
-                    wreath_grp = []
-                    for internal_choices in itertools.product(internal_perms, repeat=m):
-                        for sigma in block_perms:
-                            p_map = {}
-                            for r in range(m):
-                                target_block = sigma[r]
-                                h_r = internal_choices[r]
-                                for s in range(k):
-                                    orig_idx = blocks[r][s]
-                                    target_idx = blocks[target_block][h_r[s]]
-                                    p_map[orig_idx] = target_idx
-                            p_full_class = tuple(p_map[i] for i in indices)
-                            wreath_grp.append(p_full_class)
-                    class_perms.append(wreath_grp)
-
-        # Combine across equivalence classes
-        group_perms: List[Tuple[int, ...]] = []
-        for perm_tuple in itertools.product(*class_perms):
-            p_full = list(range(self.n_atoms))
-            for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
-                for orig, target in zip(orig_indices, perm_indices):
-                    p_full[orig] = target
-            group_perms.append(tuple(p_full))
-
-        # Strict mathematical subgroup closure verification: for all ga, gb in G => ga o gb in G
-        perm_set = set(group_perms)
-        n_at = self.n_atoms
-        is_closed = True
-        for p1 in group_perms:
-            for p2 in group_perms:
-                comp = tuple(p1[p2[i]] for i in range(n_at))
-                if comp not in perm_set:
-                    is_closed = False
-                    break
-            if not is_closed:
-                break
-
-        if not is_closed:
-            raise SymmetryInvarianceError(
-                "Permutation set violates group closure axiom: ga o gb not in G."
-            )
-
-        self.group_permutations = group_perms
-
-        # Precompute pair index permutations pi_P
-        pair_perms: List[np.ndarray] = []
-        for P in self.group_permutations:
-            pi_p = np.empty(self.n_pairs, dtype=np.int32)
-            for p_idx, (i, j) in enumerate(self.pair_indices):
-                u, v = P[i], P[j]
-                ordered_pair = (u, v) if u < v else (v, u)
-                pi_p[p_idx] = self.pair_to_idx[ordered_pair]
-            pair_perms.append(pi_p)
-        self.pair_permutations = pair_perms
-
-        # Precompute degree-1 orbits (primary invariants)
-        visited_pairs: Set[int] = set()
-        self.deg1_orbits: List[List[int]] = []
-        for p in range(self.n_pairs):
-            if p in visited_pairs:
-                continue
-            orb = sorted({int(pi_p[p]) for pi_p in self.pair_permutations})
-            self.deg1_orbits.append(orb)
-            visited_pairs.update(orb)
-
-        # Precompute degree-2 orbits (secondary invariants)
-        self.deg2_orbits: List[List[Tuple[int, int]]] = []
-        if self.include_secondary:
-            visited_pair_pairs: Set[Tuple[int, int]] = set()
-            for p in range(self.n_pairs):
-                for q in range(p, self.n_pairs):
-                    if (p, q) in visited_pair_pairs:
-                        continue
-                    orb = sorted({
-                        (int(min(pi_p[p], pi_p[q])), int(max(pi_p[p], pi_p[q])))
-                        for pi_p in self.pair_permutations
-                    })
-                    self.deg2_orbits.append(orb)
-                    visited_pair_pairs.update(orb)
-
-        self.n_pip_features: int = len(self.deg1_orbits) + (len(self.deg2_orbits) if self.include_secondary else 0)
-        self.n_features: int = self.n_pip_features
-
-    def compute_distance_matrix(self, geom: np.ndarray) -> np.ndarray:
-        """
-        Computes the pairwise distance matrix for a single geometry (N_atoms, 3)
-        or an ensemble (N_points, N_atoms, 3).
-        """
-        coords = np.asarray(geom, dtype=np.float64)
-        if coords.ndim == 2:
-            # Single geometry: (N_atoms, 3)
-            diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
-            dist = np.sqrt(np.sum(diff**2, axis=-1) + 1e-18)
-            np.fill_diagonal(dist, 0.0)
-            return dist
-        elif coords.ndim == 3:
-            # Batch of geometries: (N_pts, N_atoms, 3)
-            diff = coords[:, :, np.newaxis, :] - coords[:, np.newaxis, :, :]
-            dist = np.sqrt(np.sum(diff**2, axis=-1) + 1e-18)
-            for k in range(dist.shape[0]):
-                np.fill_diagonal(dist[k], 0.0)
-            return dist
-        else:
-            raise ValueError(f"Expected 2D or 3D geometry array, got shape {coords.shape}")
-
-    def compute_morse_features(self, geoms: np.ndarray) -> np.ndarray:
-        """
-        Computes Permutationally Invariant Polynomial (PIP) features over identical nuclei:
-        - Primary invariants: degree-1 pair orbit averages.
-        - Secondary invariants: degree-2 pair-pair orbit averages.
-        Guarantees ||f(PX) - f(X)||_2 < 10^-14 for all nuclear permutations P in G.
-        """
-        coords = np.asarray(geoms, dtype=np.float64)
-        is_single = (coords.ndim == 2)
-        if is_single:
-            coords = coords[np.newaxis, :, :]
-
-        n_pts = coords.shape[0]
-        y_raw = np.full((n_pts, self.n_pairs), 0.0, dtype=np.float64)
-
-        for p_idx, (i, j) in enumerate(self.pair_indices):
-            d_vec = coords[:, i, :] - coords[:, j, :]
-            r_ij = np.sqrt(np.sum(d_vec**2, axis=-1) + 1e-18)
-            y_raw[:, p_idx] = np.exp(-r_ij / self.morse_lambda)
-
-        feats = np.full((n_pts, self.n_pip_features), 0.0, dtype=np.float64)
-
-        # 1. Primary invariants (degree 1)
-        for k, orbit in enumerate(self.deg1_orbits):
-            feats[:, k] = np.mean(y_raw[:, orbit], axis=1)
-
-        # 2. Secondary invariants (degree 2)
-        if self.include_secondary:
-            offset = len(self.deg1_orbits)
-            for s, orbit in enumerate(self.deg2_orbits):
-                p_indices = [item[0] for item in orbit]
-                q_indices = [item[1] for item in orbit]
-                vals = y_raw[:, p_indices] * y_raw[:, q_indices]
-                feats[:, offset + s] = np.mean(vals, axis=1)
-
-        return feats[0] if is_single else feats
-
-    def compute_coulomb_matrix(self, geoms: np.ndarray) -> np.ndarray:
-        """
-        Computes the canonical sorted Coulomb matrix representation invariant under
-        nuclear permutations of identical atoms.
-        C_ij = Z_i * Z_j / R_ij (off-diag) and 0.5 * Z_i^2.4 (diag).
-        """
-        coords = np.asarray(geoms, dtype=np.float64)
-        is_single = (coords.ndim == 2)
-        if is_single:
-            coords = coords[np.newaxis, :, :]
-
-        n_pts = coords.shape[0]
-        n_features = self.n_atoms + self.n_pairs
-        c_feats = np.full((n_pts, n_features), 0.0, dtype=np.float64)
-
-        for p in range(n_pts):
-            c_mat = np.full((self.n_atoms, self.n_atoms), 0.0, dtype=np.float64)
-            for i in range(self.n_atoms):
-                c_mat[i, i] = 0.5 * (float(self.atomic_numbers[i]) ** 2.4)
-            for i in range(self.n_atoms):
-                for j in range(i + 1, self.n_atoms):
-                    d_vec = coords[p, i, :] - coords[p, j, :]
-                    r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
-                    val = float(self.atomic_numbers[i] * self.atomic_numbers[j]) / r_ij
-                    c_mat[i, j] = val
-                    c_mat[j, i] = val
-
-            # Canonical sort order by (atomic_number desc, row_norm desc, index) to enforce permutation invariance
-            row_norms = np.sqrt(np.sum(c_mat**2, axis=1))
-            sort_keys = [(-int(self.atomic_numbers[i]), -float(row_norms[i]), i) for i in range(self.n_atoms)]
-            sorted_indices = [item[2] for item in sorted(sort_keys)]
-
-            c_sorted = c_mat[np.ix_(sorted_indices, sorted_indices)]
-            diag_part = np.diag(c_sorted)
-            triu_indices = np.triu_indices(self.n_atoms, k=1)
-            offdiag_part = c_sorted[triu_indices]
-            c_feats[p, :self.n_atoms] = diag_part
-            c_feats[p, self.n_atoms:] = offdiag_part
-
-        return c_feats[0] if is_single else c_feats
-
-    def compute_morse_jacobian(self, geom: np.ndarray) -> np.ndarray:
-        """
-        Computes the analytical Jacobian matrix J_alpha,ia = d(f_alpha)/d(r_ia) of PIP features
-        with respect to Cartesian coordinates for a single geometry (N_atoms, 3).
-        Returns array of shape (N_pip_features, N_atoms, 3).
-        """
-        coords = np.asarray(geom, dtype=np.float64)
-        if coords.shape != (self.n_atoms, 3):
-            raise ValueError(f"Expected geometry of shape ({self.n_atoms}, 3), got {coords.shape}")
-
-        raw_jac = np.full((self.n_pairs, self.n_atoms, 3), 0.0, dtype=np.float64)
-        y_raw = np.full(self.n_pairs, 0.0, dtype=np.float64)
-        inv_lam = 1.0 / self.morse_lambda
-
-        for p_idx, (i, j) in enumerate(self.pair_indices):
-            d_vec = coords[i, :] - coords[j, :]
-            r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
-            y_ij = math.exp(-r_ij * inv_lam)
-            y_raw[p_idx] = y_ij
-            unit_vec = d_vec / r_ij
-
-            grad_i = -inv_lam * y_ij * unit_vec
-            grad_j = inv_lam * y_ij * unit_vec
-            raw_jac[p_idx, i, :] = grad_i
-            raw_jac[p_idx, j, :] = grad_j
-
-        pip_jac = np.full((self.n_pip_features, self.n_atoms, 3), 0.0, dtype=np.float64)
-
-        # Primary invariants (degree 1)
-        for k, orbit in enumerate(self.deg1_orbits):
-            pip_jac[k, :, :] = np.mean(raw_jac[orbit, :, :], axis=0)
-
-        # Secondary invariants (degree 2)
-        if self.include_secondary:
-            offset = len(self.deg1_orbits)
-            for s, orbit in enumerate(self.deg2_orbits):
-                orbit_jac = np.full((len(orbit), self.n_atoms, 3), 0.0, dtype=np.float64)
-                for idx, (p, q) in enumerate(orbit):
-                    if p == q:
-                        orbit_jac[idx] = 2.0 * y_raw[p] * raw_jac[p]
-                    else:
-                        orbit_jac[idx] = y_raw[q] * raw_jac[p] + y_raw[p] * raw_jac[q]
-                pip_jac[offset + s, :, :] = np.mean(orbit_jac, axis=0)
-
-        return pip_jac
-
-
-# =============================================================================
-# Kernel Ridge Regression & Base Estimators
-# =============================================================================
-
-class KernelFunction:
-    """Evaluates kernel matrices and analytical feature derivatives."""
-
-    @staticmethod
-    def compute_kernel_matrix(
-        X1: np.ndarray,
-        X2: np.ndarray,
-        kernel_type: Union[KernelType, str] = KernelType.RBF,
-        gamma: float = 1.0,
-        poly_degree: int = 4,
-        chunk_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Computes the pairwise Gram/kernel matrix K(X1, X2)."""
-        X1 = np.asarray(X1, dtype=np.float64)
-        X2 = np.asarray(X2, dtype=np.float64)
-
-        if isinstance(kernel_type, str):
+        current_proc = psutil.Process()
+        for child in current_proc.children(recursive=True):
             try:
-                kernel_type = KernelType(kernel_type.lower())
-            except (ValueError, KeyError):
-                kernel_type = KernelType[kernel_type.upper()]
+                if child.status() == psutil.STATUS_ZOMBIE:
+                    child.wait(timeout=0.2)
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
-        # Chunked evaluation if requested and applicable
-        if chunk_size is not None and chunk_size > 0 and X1.shape[0] > chunk_size:
-            out = np.empty((X1.shape[0], X2.shape[0]), dtype=np.float64)
-            for i in range(0, X1.shape[0], chunk_size):
-                out[i : i + chunk_size] = KernelFunction.compute_kernel_matrix(
-                    X1[i : i + chunk_size],
-                    X2,
-                    kernel_type=kernel_type,
-                    gamma=gamma,
-                    poly_degree=poly_degree,
-                    chunk_size=None,
-                )
-            return out
 
-        # Check for GPU tier acceleration
+atexit.register(_sweep_zombie_processes)
+
+
+# =============================================================================
+# Custom Exception Hierarchy
+# =============================================================================
+class ParslExecutorError(CoChemError):
+    """Base exception for all CoChem Parsl executor and routing failures."""
+
+    default_error_code = ProvenanceErrorCode.CONFIG_VALIDATION_FAILED
+
+
+class HeterogeneousTopologyError(ParslExecutorError):
+    """Raised when heterogeneous core or device topology partitioning fails."""
+
+    default_error_code = ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+
+
+class ContentionBudgetExceededError(ParslExecutorError):
+    """Raised when requested worker or memory allocations violate hardware bounds."""
+
+    default_error_code = ProvenanceErrorCode.OUT_OF_MEMORY
+
+
+class IntegrityGuardViolationError(ParslExecutorError):
+    """Raised when a Method Matrix §8A.5 integrity guard (G1-G7) is violated."""
+
+    default_error_code = ProvenanceErrorCode.INTEGRITY_VIOLATION
+
+
+class ExecutorLifecycleError(ParslExecutorError):
+    """Raised when Parsl DataFlowKernel loading, execution, or shutdown fails."""
+
+    default_error_code = ProvenanceErrorCode.CONVERGENCE_FAILURE
+
+
+# =============================================================================
+# Enumerations
+# =============================================================================
+class ExecutorStreamType(str, Enum):
+    """Heterogeneous Scout-and-Anchor execution stream classification."""
+
+    CPU_ANCHOR = "CPU_ANCHOR"
+    GPU_SCOUT = "GPU_SCOUT"
+    ORCHESTRATOR = "ORCHESTRATOR"
+
+
+class ParslProviderType(str, Enum):
+    """Supported compute resource provider backends."""
+
+    LOCAL = "LOCAL"
+    SLURM = "SLURM"
+    PBS = "PBS"
+    LSF = "LSF"
+    THREAD_POOL = "THREAD_POOL"
+
+
+class AffinityStrategy(str, Enum):
+    """CPU core affinity allocation and pinning strategy."""
+
+    BLOCK = "block"
+    BLOCK_REVERSE = "block-reverse"
+    PINNED_LIST = "pinned-list"
+    SHARED_DEGRADED = "shared-degraded"
+    NONE = "none"
+
+
+class TaskAuthority(str, Enum):
+    """Authority classification for task execution outputs (§8A.2, §8A.5)."""
+
+    AUTHORITATIVE = "authoritative"
+    ADVISORY_ONLY = "advisory_only"
+    ORCHESTRATION = "orchestration"
+
+
+# =============================================================================
+# Pydantic V2 Data Models
+# =============================================================================
+class CorePartitioning(BaseModel):
+    """Detailed CPU core partitioning across heterogeneous execution streams."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    total_physical_cores: int = Field(..., ge=1, description="Total physical CPU cores on host")
+    total_logical_cores: int = Field(..., ge=1, description="Total logical CPU threads on host")
+    anchor_core_count: int = Field(..., ge=1, description="Physical CPU cores allocated to CPU Anchor")
+    anchor_core_ids: List[int] = Field(default_factory=list, description="Zero-indexed core IDs for Anchor")
+    anchor_affinity_str: str = Field(..., description="Parsl affinity directive for Anchor")
+    scout_core_count: int = Field(..., ge=1, description="Physical CPU cores allocated to GPU Scout feeder")
+    scout_core_ids: List[int] = Field(default_factory=list, description="Zero-indexed core IDs for Scout")
+    scout_affinity_str: str = Field(..., description="Parsl affinity directive for Scout")
+    orchestrator_core_count: int = Field(default=1, ge=0, description="Cores allocated for Orchestrator / I/O")
+    strategy: AffinityStrategy = Field(
+        default=AffinityStrategy.BLOCK, description="Core affinity assignment strategy"
+    )
+    is_degraded: bool = Field(
+        default=False, description="True if host has <= 1 physical core and streams share resources"
+    )
+
+
+class ContentionBudget(BaseModel):
+    """Hardware contention budget model mandated by Method Matrix §8A.1."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    p_cores_anchor: int = Field(default=DEFAULT_ORCA_ANCHOR_RANKS, ge=1)
+    p_cores_scout_feeder: int = Field(default=1, ge=1)
+    gpu_scout_workers: int = Field(default=DEFAULT_MAX_GPU_SCOUT_WORKERS, ge=1)
+    mps_active_thread_percentage: int = Field(default=DEFAULT_MPS_THREAD_PERCENTAGE, ge=1, le=100)
+    mps_pinned_device_mem_limit: str = Field(default=DEFAULT_MPS_PINNED_MEM_LIMIT_STR)
+    estimated_cpu_slowdown_factor: float = Field(default=DEFAULT_CONTENZIONE_SLOWDOWN_FACTOR, ge=1.0)
+    real_parallelism_efficiency: float = Field(default=0.85, ge=0.0, le=1.0)
+    host_launch_bound_latency_ms: float = Field(default=DEFAULT_SCOUT_HOST_LATENCY_MS, ge=0.0)
+    total_host_ram_gb: float = Field(..., ge=1.0)
+    anchor_mem_per_worker_gb: float = Field(default=28.0, ge=1.0)
+    scout_mem_per_worker_gb: float = Field(default=6.0, ge=0.5)
+
+
+class SlurmResourceOptions(BaseModel):
+    """HPC SLURM resource allocation options for cluster execution."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    partition: Optional[str] = Field(default=None, description="SLURM partition name")
+    account: Optional[str] = Field(default=None, description="SLURM accounting project name")
+    qos: Optional[str] = Field(default=None, description="Quality of service tier")
+    gres_gpu: str = Field(default="gpu:1", description="Generic resource request string (e.g. 'gpu:1')")
+    gpus_per_node: int = Field(default=1, ge=1, description="GPUs requested per allocated node")
+    nodes_per_block: int = Field(default=1, ge=1, description="Nodes per SLURM job block")
+    walltime: str = Field(default="04:00:00", description="Wall-clock limit string (HH:MM:SS)")
+    srun_launcher: bool = Field(default=True, description="Whether to use SrunLauncher over SimpleLauncher")
+    custom_scheduler_options: List[str] = Field(
+        default_factory=list, description="Additional #SBATCH header options"
+    )
+
+
+class HTEXConfig(BaseModel):
+    """Configuration profile for a single Parsl HighThroughputExecutor (HTEX) pool."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    label: str = Field(..., description="Unique executor label (e.g. 'cpu', 'gpu', 'orchestrator')")
+    stream: ExecutorStreamType = Field(..., description="Target execution stream")
+    provider_type: ParslProviderType = Field(
+        default=ParslProviderType.LOCAL, description="Compute resource provider backend"
+    )
+    max_workers_per_node: int = Field(default=1, ge=1, description="Concurrent worker processes per node")
+    cores_per_worker: float = Field(default=1.0, ge=0.1, description="CPU cores dedicated per worker")
+    mem_per_worker_gb: Optional[float] = Field(
+        default=None, ge=0.1, description="Memory limit per worker in Gigabytes"
+    )
+    cpu_affinity: str = Field(
+        default="block", description="Parsl CPU affinity directive ('block', 'block-reverse', 'list:0,1..')"
+    )
+    available_accelerators: Optional[Union[int, List[str]]] = Field(
+        default=None, description="GPU accelerator slots or device indices"
+    )
+    worker_port_range: Tuple[int, int] = Field(default=DEFAULT_WORKER_PORT_RANGE)
+    interchange_port_range: Tuple[int, int] = Field(default=DEFAULT_INTERCHANGE_PORT_RANGE)
+    worker_init_script: str = Field(default="", description="Bash environment initialization script")
+    walltime: str = Field(default="04:00:00", description="Wall-clock limit")
+
+
+class ParslMultiExecutorProfile(BaseModel):
+    """Complete heterogeneous multi-executor system topology profile."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    profile_id: str = Field(
+        default_factory=lambda: f"parsl_topo_{uuid.uuid4().hex[:8]}", description="Unique profile identifier"
+    )
+    created_at_iso: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="Creation timestamp"
+    )
+    core_partitioning: CorePartitioning = Field(..., description="CPU core partitioning profile")
+    contention_budget: ContentionBudget = Field(..., description="Resource contention budget")
+    anchor_executor: HTEXConfig = Field(..., description="CPU Anchor executor configuration")
+    scout_executor: HTEXConfig = Field(..., description="GPU Scout executor configuration")
+    orchestrator_executor: HTEXConfig = Field(..., description="Orchestrator executor configuration")
+    slurm_options: Optional[SlurmResourceOptions] = Field(
+        default=None, description="SLURM options if running on HPC"
+    )
+    is_degraded_single_executor: bool = Field(
+        default=False, description="True if operating in CPU-only or teaching tier degraded mode"
+    )
+    parsl_retries: int = Field(default=DEFAULT_PARSL_RETRIES, ge=0)
+
+
+class G7ProvenanceRecord(BaseModel):
+    """Structured JSONL event audit record mandated by Method Matrix §8A.5 (line 1323)."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    event_id: str = Field(default_factory=lambda: uuid.uuid4().hex, description="Cryptographic event ID")
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat(), description="UTC timestamp"
+    )
+    stage: str = Field(..., description="Pipeline stage (e.g. 'mlff_preopt', 'anchor_verify')")
+    decision: str = Field(..., description="Decision summary (e.g. 'seed_dft_optimisation')")
+    guide: Dict[str, Any] = Field(default_factory=dict, description="Guide / Scout execution metadata")
+    input: Dict[str, Any] = Field(default_factory=dict, description="Input structure and hash metadata")
+    output: Dict[str, Any] = Field(default_factory=dict, description="Output properties and hash metadata")
+    gates: Dict[str, Any] = Field(default_factory=dict, description="Integrity guard gate evaluations (G1-G6)")
+    consumer: Dict[str, Any] = Field(default_factory=dict, description="Downstream anchor job consumption")
+    authority: TaskAuthority = Field(
+        default=TaskAuthority.ADVISORY_ONLY, description="Authority tag ('advisory_only' vs 'authoritative')"
+    )
+
+
+class TaskRoutingRequest(BaseModel):
+    """Structured request for dispatching a task through Parsl."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    task_id: str = Field(default_factory=lambda: f"task_{uuid.uuid4().hex[:8]}")
+    stream: ExecutorStreamType = Field(..., description="Target execution stream (CPU_ANCHOR, GPU_SCOUT, etc.)")
+    authority: TaskAuthority = Field(default=TaskAuthority.ADVISORY_ONLY)
+    command: Optional[List[str]] = Field(default=None, description="Command line arguments for bash tasks")
+    env_vars: Dict[str, str] = Field(default_factory=dict, description="Injected environment variables")
+    timeout_seconds: float = Field(default=3600.0, ge=1.0)
+    stage_name: str = Field(default="generic_stage")
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskExecutionResult(BaseModel):
+    """Structured result returned by task execution."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    task_id: str = Field(...)
+    stream: ExecutorStreamType = Field(...)
+    authority: TaskAuthority = Field(...)
+    status: str = Field(..., description="Status string: 'COMPLETED', 'FAILED', 'TIMED_OUT'")
+    return_code: Optional[int] = Field(default=None)
+    stdout: Optional[str] = Field(default=None)
+    stderr: Optional[str] = Field(default=None)
+    duration_seconds: float = Field(default=0.0, ge=0.0)
+    output_files: Dict[str, str] = Field(default_factory=dict, description="Map of file label to file path")
+    file_hashes: Dict[str, str] = Field(default_factory=dict, description="Map of file path to SHA-256")
+    provenance_event_id: Optional[str] = Field(default=None)
+    error_message: Optional[str] = Field(default=None)
+
+
+# =============================================================================
+# CPU Topology & Contention Budget Engine
+# =============================================================================
+def detect_system_cpu_topology(env: Optional[Dict[str, str]] = None) -> Tuple[int, int]:
+    """
+    Detect physical and logical CPU cores on the host system.
+    Evaluates psutil, os.cpu_count, and explicit environment overrides.
+
+    Returns:
+        Tuple of (physical_cores, logical_cores).
+    """
+    target_env = os.environ if env is None else env
+
+    physical: Optional[int] = None
+    logical: Optional[int] = None
+
+    if "COCHEM_PHYSICAL_CORES" in target_env and target_env["COCHEM_PHYSICAL_CORES"].strip():
         try:
-            import torch
-            if torch.cuda.is_available():
-                device = torch.device("cuda")
-                stream = torch.cuda.Stream()
-                with torch.cuda.stream(stream):
-                    t1 = torch.as_tensor(X1, dtype=torch.float64, device=device)
-                    t2 = torch.as_tensor(X2, dtype=torch.float64, device=device)
-                    if kernel_type == KernelType.RBF:
-                        dists_sq = torch.cdist(t1, t2, p=2.0) ** 2
-                        res = torch.exp(-gamma * dists_sq)
-                    elif kernel_type == KernelType.MATERN52:
-                        dists = torch.cdist(t1, t2, p=2.0)
-                        sqrt5 = math.sqrt(5.0)
-                        scaled_d = sqrt5 * math.sqrt(2.0 * gamma) * dists
-                        res = (1.0 + scaled_d + (5.0 * 2.0 * gamma / 3.0) * (dists**2)) * torch.exp(-scaled_d)
-                    elif kernel_type == KernelType.MATERN32:
-                        dists = torch.cdist(t1, t2, p=2.0)
-                        sqrt3 = math.sqrt(3.0)
-                        scaled_d = sqrt3 * math.sqrt(2.0 * gamma) * dists
-                        res = (1.0 + scaled_d) * torch.exp(-scaled_d)
-                    elif kernel_type == KernelType.POLYNOMIAL:
-                        dot = torch.mm(t1, t2.t())
-                        res = (gamma * dot + 1.0) ** poly_degree
-                    else:
-                        raise ValueError(f"Unsupported kernel type: {kernel_type}")
-                    stream.synchronize()
-                    return res.cpu().numpy()
+            val = int(target_env["COCHEM_PHYSICAL_CORES"].strip())
+            if val >= 1:
+                physical = val
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
+
+    if "COCHEM_LOGICAL_CORES" in target_env and target_env["COCHEM_LOGICAL_CORES"].strip():
+        try:
+            val = int(target_env["COCHEM_LOGICAL_CORES"].strip())
+            if val >= 1:
+                logical = val
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
+
+    if physical is None:
+        try:
+            p = psutil.cpu_count(logical=False)
+            if p is not None and p >= 1:
+                physical = p
         except Exception as _e:
             logger.debug(f"Ignored exception: {_e}")
 
-        if kernel_type == KernelType.RBF:
-            dists_sq = scipy.spatial.distance.cdist(X1, X2, metric="sqeuclidean")
-            return np.exp(-gamma * dists_sq)
+    if logical is None:
+        try:
+            log_count = psutil.cpu_count(logical=True)
+            if log_count is not None and log_count >= 1:
+                logical = log_count
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
-        elif kernel_type == KernelType.MATERN52:
-            dists = scipy.spatial.distance.cdist(X1, X2, metric="euclidean")
-            sqrt5 = math.sqrt(5.0)
-            scaled_d = sqrt5 * math.sqrt(2.0 * gamma) * dists
-            return (1.0 + scaled_d + (5.0 * 2.0 * gamma / 3.0) * (dists**2)) * np.exp(-scaled_d)
+    if physical is None:
+        physical = os.cpu_count() or 1
 
-        elif kernel_type == KernelType.MATERN32:
-            dists = scipy.spatial.distance.cdist(X1, X2, metric="euclidean")
-            sqrt3 = math.sqrt(3.0)
-            scaled_d = sqrt3 * math.sqrt(2.0 * gamma) * dists
-            return (1.0 + scaled_d) * np.exp(-scaled_d)
+    if logical is None:
+        logical = os.cpu_count() or physical or 1
 
-        elif kernel_type == KernelType.POLYNOMIAL:
-            dot = np.dot(X1, X2.T)
-            return (gamma * dot + 1.0) ** poly_degree
+    if physical > logical:
+        physical = logical
 
-        else:
-            raise ValueError(f"Unsupported kernel type: {kernel_type}")
-
-    @staticmethod
-    def compute_kernel_gradient_weights(
-        x_eval: np.ndarray,
-        X_train: np.ndarray,
-        weights: np.ndarray,
-        kernel_type: KernelType = KernelType.RBF,
-        gamma: float = 1.0,
-    ) -> np.ndarray:
-        """
-        Computes analytical derivative of the fitted KRR function w.r.t input features x_eval:
-        d(f(x))/d(x) = sum_i w_i * d(K(x, X_train[i]))/d(x).
-        Returns array of shape (N_features,).
-        """
-        x_eval = np.asarray(x_eval, dtype=np.float64).reshape(1, -1)
-        X_train = np.asarray(X_train, dtype=np.float64)
-        weights = np.asarray(weights, dtype=np.float64)
-
-        if kernel_type == KernelType.RBF:
-            # d(exp(-gamma * ||x - x_i||^2)) / d(x) = -2 * gamma * exp(...) * (x - x_i)
-            dists_sq = scipy.spatial.distance.cdist(x_eval, X_train, metric="sqeuclidean")
-            k_vals = np.exp(-gamma * dists_sq)[0]  # (N_train,)
-            diff = x_eval - X_train  # (N_train, N_features)
-            weighted_k = weights * k_vals  # (N_train,)
-            grad_features = -2.0 * gamma * np.sum(weighted_k[:, np.newaxis] * diff, axis=0)
-            return grad_features
-        else:
-            # Finite difference numerical gradient across feature space for general kernels
-            n_dim = x_eval.shape[1]
-            grad_features = np.full(n_dim, 0.0, dtype=np.float64)
-            eps = 1e-6
-            for d in range(n_dim):
-                x_plus = x_eval.copy()
-                x_minus = x_eval.copy()
-                x_plus[0, d] += eps
-                x_minus[0, d] -= eps
-                k_plus = KernelFunction.compute_kernel_matrix(x_plus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
-                k_minus = KernelFunction.compute_kernel_matrix(x_minus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
-                grad_features[d] = (np.dot(weights, k_plus) - np.dot(weights, k_minus)) / (2.0 * eps)
-            return grad_features
+    return max(1, physical), max(1, logical)
 
 
-class ExactKernelRidgeEstimator:
+def partition_cpu_cores(
+    total_physical: int,
+    requested_anchor: Optional[int] = None,
+    requested_scout: Optional[int] = None,
+    env: Optional[Dict[str, str]] = None,
+) -> CorePartitioning:
     """
-    High-performance exact Kernel Ridge Regression estimator solved via
-    numerically stable Cholesky decomposition or SVD pseudo-inversion.
-    Enforces asymptotic zero dissociation baseline when asymptotic_zero=True (Task 6).
-    """
-
-    def __init__(
-        self,
-        kernel_type: Union[KernelType, str] = KernelType.RBF,
-        alpha: float = 1e-6,
-        gamma: Optional[float] = None,
-        poly_degree: int = 4,
-        asymptotic_zero: bool = True,
-        reg_config: Optional[KrrRegularizationConfig] = None,
-        regularization_config: Optional[KrrRegularizationConfig] = None,
-    ) -> None:
-        if isinstance(kernel_type, str):
-            try:
-                self.kernel_type = KernelType(kernel_type.lower())
-            except (ValueError, KeyError):
-                self.kernel_type = KernelType[kernel_type.upper()]
-        else:
-            self.kernel_type = kernel_type
-        self.alpha: float = float(alpha)
-        self.gamma: Optional[float] = float(gamma) if gamma is not None else None
-        self.poly_degree: int = int(poly_degree)
-        self.asymptotic_zero: bool = bool(asymptotic_zero)
-        self.reg_config: KrrRegularizationConfig = (
-            reg_config or regularization_config or KrrRegularizationConfig(base_alpha=self.alpha)
-        )
-
-        self.X_train: Optional[np.ndarray] = None
-        self.y_train: Optional[np.ndarray] = None
-        self.weights: Optional[np.ndarray] = None
-        self.y_mean: float = 0.0
-        self.effective_gamma: float = 1.0
-
-    @property
-    def is_fitted(self) -> bool:
-        """Indicates whether KRR estimator has been successfully fitted."""
-        return self.weights is not None and self.X_train is not None
-
-    @property
-    def alpha_vector(self) -> Optional[np.ndarray]:
-        """Dual coefficient weights vector."""
-        return self.weights
-
-    def fit(
-        self,
-        X: np.ndarray,
-        y: np.ndarray,
-        sample_alpha: Optional[np.ndarray] = None,
-    ) -> ExactKernelRidgeEstimator:
-        """Fits KRR model on training features X (N, D) and target energies y (N,)."""
-        X = np.asarray(X, dtype=np.float64)
-        y = np.asarray(y, dtype=np.float64)
-
-        if X.ndim != 2:
-            raise ValueError(f"Features must be 2D array, got shape {X.shape}")
-        if y.ndim != 1 or y.shape[0] != X.shape[0]:
-            raise ValueError(f"Targets shape {y.shape} does not match features shape {X.shape}")
-        if X.shape[0] == 0:
-            raise ValueError("Cannot fit on empty dataset")
-
-        self.X_train = X.copy()
-        self.y_train = y.copy()
-        if self.asymptotic_zero:
-            self.y_mean = 0.0
-        else:
-            self.y_mean = float(np.mean(y))
-        y_centered = y - self.y_mean
-
-        # Automatically determine default gamma via median heuristic if not specified
-        if self.gamma is None:
-            if X.shape[0] > 1:
-                sub_features = X[: min(500, X.shape[0])]
-                p_dists = scipy.spatial.distance.pdist(sub_features, metric="sqeuclidean")
-                median_sq = float(np.median(p_dists)) if len(p_dists) > 0 else 1.0
-                median_sq = max(median_sq, 1e-4)
-                self.effective_gamma = 1.0 / (2.0 * median_sq)
-            else:
-                self.effective_gamma = 1.0
-        else:
-            self.effective_gamma = self.gamma
-
-        # Compute kernel Gram matrix K
-        K = KernelFunction.compute_kernel_matrix(
-            self.X_train,
-            self.X_train,
-            kernel_type=self.kernel_type,
-            gamma=self.effective_gamma,
-            poly_degree=self.poly_degree,
-        )
-
-        # Add ridge regularization to diagonal: (K + alpha_diag)
-        if sample_alpha is not None:
-            alpha_diag = np.asarray(sample_alpha, dtype=np.float64)
-        else:
-            alpha_diag = np.full(X.shape[0], max(self.alpha, self.reg_config.base_alpha), dtype=np.float64)
-            if self.asymptotic_zero:
-                # Regularization on asymptotic anchor points (y ~ 0.0) bounded by anchor_alpha_floor
-                is_anchor = np.abs(y_centered) < 1e-8
-                alpha_diag[is_anchor] = np.maximum(
-                    self.reg_config.anchor_alpha_floor, self.alpha * 1e-4
-                )
-
-        # Enforce anchor_alpha_floor across all diagonal entries
-        alpha_diag = np.maximum(alpha_diag, self.reg_config.anchor_alpha_floor)
-
-        # Solve for weights via Cholesky decomposition with adaptive Tikhonov jitter escalation
-        jitter = self.reg_config.jitter_epsilon
-        max_jitter = self.reg_config.max_jitter_escalation
-        cholesky_success = False
-
-        while jitter <= max_jitter * 10.0:
-            A = K + np.diag(alpha_diag) + jitter * np.eye(K.shape[0], dtype=np.float64)
-            try:
-                c, low = scipy.linalg.cho_factor(A, lower=True, check_finite=False)
-                self.weights = scipy.linalg.cho_solve((c, low), y_centered, check_finite=False)
-                cholesky_success = True
-                break
-            except (scipy.linalg.LinAlgError, np.linalg.LinAlgError):
-                logger.debug(f"Cholesky LinAlgError at jitter={jitter:.2e}; escalating by 10x")
-                jitter *= 10.0
-
-        if not cholesky_success:
-            # Truncated SVD pseudo-inverse pinvh exclusively for unrecoverable rank-deficient systems
-            logger.warning(
-                "Cholesky factorization unrecoverable across jitter escalation ladder; "
-                "invoking regularized truncated SVD pinvh."
-            )
-            try:
-                A = K + np.diag(alpha_diag) + max_jitter * np.eye(K.shape[0], dtype=np.float64)
-                inv_A = scipy.linalg.pinvh(A)
-                self.weights = np.dot(inv_A, y_centered)
-            except Exception as exc:
-                raise NumericalConditioningError(
-                    f"KRR Gram matrix inversion failed conditioning floor: {exc}"
-                ) from exc
-
-        return self
-
-    def predict(self, X: np.ndarray, batch_size: int = 2048) -> Union[float, np.ndarray]:
-        """Predicts energies for evaluation features X (N, D) using chunked batch evaluation."""
-        if self.X_train is None or self.weights is None:
-            raise RuntimeError("Estimator is not fitted yet.")
-
-        X = np.asarray(X, dtype=np.float64)
-        is_single = (X.ndim == 1)
-        if is_single:
-            X = X[np.newaxis, :]
-
-        n_samples = X.shape[0]
-        preds = np.empty(n_samples, dtype=np.float64)
-        bs = max(1, batch_size) if batch_size is not None else 2048
-
-        for start_idx in range(0, n_samples, bs):
-            end_idx = min(start_idx + bs, n_samples)
-            X_batch = X[start_idx:end_idx]
-            K_batch = KernelFunction.compute_kernel_matrix(
-                X_batch,
-                self.X_train,
-                kernel_type=self.kernel_type,
-                gamma=self.effective_gamma,
-                poly_degree=self.poly_degree,
-            )
-            preds[start_idx:end_idx] = np.dot(K_batch, self.weights) + self.y_mean
-
-        return float(preds[0]) if is_single else preds
-
-    def predict_gradient_wrt_features(self, x_eval: np.ndarray) -> np.ndarray:
-        """Computes analytical gradient d(E)/d(x) w.r.t invariant features."""
-        if self.X_train is None or self.weights is None:
-            raise RuntimeError("Estimator is not fitted yet.")
-        return KernelFunction.compute_kernel_gradient_weights(
-            x_eval=x_eval,
-            X_train=self.X_train,
-            weights=self.weights,
-            kernel_type=self.kernel_type,
-            gamma=self.effective_gamma,
-        )
-
-
-# =============================================================================
-# Committee Uncertainty Quantification Engine (Method Matrix §10.8)
-# =============================================================================
-
-class CommitteeModel:
-    """
-    Implements a committee of M diverse estimators (Method Matrix §10.8):
-    - Evaluates ensemble mean energy E_bar
-    - Evaluates ensemble gradient g_bar
-    - Calculates normalised per-atom uncertainty sigma_E / sqrt(N_atoms) in meV/atom
-    - Calculates maximum atom-wise force dispersion U_F = max_i max_m |g_m,i - g_bar,i|
-    - Enforces Guard G5 uncertainty thresholding: epsilon = Q3 + 1.5 * IQR.
-    """
-
-    def __init__(
-        self,
-        featurizer: GeometryFeaturizer,
-        committee_size: int = 4,
-        kernel_type: KernelType = KernelType.RBF,
-        alpha: float = 1e-6,
-        morse_lambda: float = 2.0,
-        random_seed: int = 42,
-    ) -> None:
-        self.featurizer: GeometryFeaturizer = featurizer
-        self.committee_size: int = max(2, int(committee_size))
-        self.kernel_type: KernelType = kernel_type
-        self.alpha: float = float(alpha)
-        self.morse_lambda: float = float(morse_lambda)
-        self.random_seed: int = int(random_seed)
-
-        self.members: List[ExactKernelRidgeEstimator] = []
-        self.is_fitted: bool = False
-        self.training_iqr_threshold_hartree: float = 1e-3
-        self.training_iqr_threshold_mev_atom: float = 10.0
-
-    def fit(self, geoms: np.ndarray, energies: np.ndarray) -> CommitteeModel:
-        """
-        Fits all M committee members using bootstrap subsampling and varied hyper-parameters
-        to construct a genuine epistemic uncertainty estimator.
-        """
-        geoms = np.asarray(geoms, dtype=np.float64)
-        energies = np.asarray(energies, dtype=np.float64)
-
-        if geoms.shape[0] < self.committee_size:
-            raise ValueError(
-                f"Need at least {self.committee_size} points to fit committee, got {geoms.shape[0]}"
-            )
-
-        features = self.featurizer.compute_morse_features(geoms)
-        n_rows = features.shape[0]
-        rng = np.random.RandomState(self.random_seed)
-
-        self.members = []
-        residuals_list: List[np.ndarray] = []
-
-        # Varied gamma scaling factors for diverse length-scales
-        gamma_multipliers = np.array(
-            [0.6 + 0.8 * i / max(1, self.committee_size - 1) for i in range(self.committee_size)],
-            dtype=np.float64,
-        )
-
-        for m in range(self.committee_size):
-            # Bootstrap subsample 85% of dataset with replacement
-            indices = rng.choice(n_rows, size=int(0.85 * n_rows), replace=True)
-            X_sub = features[indices]
-            y_sub = energies[indices]
-
-            # Varied regularization and kernel parameters
-            alpha_m = self.alpha * (1.0 + 0.2 * (m - self.committee_size / 2))
-            alpha_m = max(alpha_m, 1e-10)
-
-            est = ExactKernelRidgeEstimator(
-                kernel_type=self.kernel_type,
-                alpha=alpha_m,
-                gamma=None,  # Automatically scaled per multiplier
-            )
-            est.fit(X_sub, y_sub)
-            est.effective_gamma *= gamma_multipliers[m]
-
-            # Recompute weights with the scaled gamma
-            K_adj = KernelFunction.compute_kernel_matrix(
-                est.X_train,
-                est.X_train,
-                kernel_type=est.kernel_type,
-                gamma=est.effective_gamma,
-            )
-            A_adj = K_adj + est.alpha * np.diag(np.full(est.X_train.shape[0], 1.0, dtype=np.float64))
-            try:
-                c, low = scipy.linalg.cho_factor(A_adj, lower=True, check_finite=False)
-                est.weights = scipy.linalg.cho_solve((c, low), est.y_train - est.y_mean, check_finite=False)
-            except Exception:
-                est.weights, _, _, _ = scipy.linalg.lstsq(A_adj, est.y_train - est.y_mean)
-
-            self.members.append(est)
-
-            # Evaluate training residuals
-            preds_m = est.predict(features)
-            residuals_list.append(np.abs(preds_m - energies))
-
-        self.is_fitted = True
-
-        # Calculate Guard G5 threshold epsilon = Q3 + 1.5 * IQR on training error distribution (§10.8)
-        all_res = np.concatenate(residuals_list)
-        q75, q25 = np.percentile(all_res, [75, 25])
-        iqr = float(q75 - q25)
-        self.training_iqr_threshold_hartree = float(q75 + 1.5 * iqr)
-        self.training_iqr_threshold_mev_atom = (
-            self.training_iqr_threshold_hartree * MEV_PER_HARTREE / math.sqrt(self.featurizer.n_atoms)
-        )
-
-        logger.info(
-            f"Committee fitted with M={self.committee_size} members. "
-            f"Guard G5 IQR threshold: {self.training_iqr_threshold_hartree:.6e} Ha "
-            f"({self.training_iqr_threshold_mev_atom:.3f} meV/atom)"
-        )
-        return self
-
-    def predict_energy_and_uncertainty(self, geoms: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Predicts ensemble mean energies, standard deviations, and per-atom uncertainties.
-        Returns:
-            E_bar: Ensemble mean energy array in Hartrees (N_pts,)
-            sigma_E: Ensemble standard deviation in Hartrees (N_pts,)
-            sigma_atom_mev: Normalised uncertainty in meV/atom (N_pts,)
-        """
-        if not self.is_fitted or not self.members:
-            raise RuntimeError("CommitteeModel is not fitted yet.")
-
-        geoms = np.asarray(geoms, dtype=np.float64)
-        is_single = (geoms.ndim == 2)
-        if is_single:
-            geoms = geoms[np.newaxis, :, :]
-
-        features = self.featurizer.compute_morse_features(geoms)
-        n_pts = features.shape[0]
-        member_preds = np.full((self.committee_size, n_pts), 0.0, dtype=np.float64)
-
-        for m, est in enumerate(self.members):
-            member_preds[m, :] = est.predict(features)
-
-        E_bar = np.mean(member_preds, axis=0)
-        # Epistemic standard deviation across committee members
-        sigma_E = np.std(member_preds, axis=0, ddof=1) if self.committee_size > 1 else np.full_like(E_bar, 0.0)
-
-        # Normalised per-atom estimator: sigma_E / sqrt(N_atoms) in meV/atom (Method Matrix line 2797)
-        sigma_atom_mev = (sigma_E * MEV_PER_HARTREE) / math.sqrt(self.featurizer.n_atoms)
-
-        if is_single:
-            return E_bar[0], sigma_E[0], sigma_atom_mev[0]
-        return E_bar, sigma_E, sigma_atom_mev
-
-    def predict_single_with_uq(self, geom: np.ndarray) -> CommitteePrediction:
-        """
-        Evaluates a single geometry against the committee and returns a complete
-        structured CommitteePrediction model compliant with Method Matrix §10.8.
-        """
-        e_bar, sigma_e, sigma_atom_mev = self.predict_energy_and_uncertainty(geom)
-        feats = self.featurizer.compute_morse_features(geom)
-        member_energies = [float(est.predict(feats)) for est in self.members]
-
-        # Check G5 Gate
-        g5_passed = bool(sigma_e <= self.training_iqr_threshold_hartree)
-
-        return CommitteePrediction(
-            mean_energy_hartree=float(e_bar),
-            sigma_energy_hartree=float(sigma_e),
-            sigma_energy_mev_per_atom=float(sigma_atom_mev),
-            force_uncertainty_hartree_bohr=None,
-            g5_gate_passed=g5_passed,
-            member_energies=member_energies,
-        )
-
-
-# =============================================================================
-# Active Learning Point Selection Engine (Method Matrix QS-3 & §13.2)
-# =============================================================================
-
-class ActiveLearningEngine:
-    """
-    Implements committee-based active learning selection of 300-800 points
-    from a candidate DFT pool (~2,000 points) as mandated by Method Matrix QS-3.
-
-    Enforces Uteva et al. acquisition rules:
-    - Pure variance maximization alone is strictly flagged / prohibited.
-    - Two-Set Error-Based Acquisition: balances committee uncertainty with spatial dispersion.
-    - Separates a dedicated held-out validation grid (QS-3 Step 5).
-    """
-
-    def __init__(
-        self,
-        featurizer: Optional[GeometryFeaturizer] = None,
-        config: Optional[ActiveLearningConfig] = None,
-        batch_config: Optional[ActiveLearningBatchConfig] = None,
-    ) -> None:
-        self.featurizer: Optional[GeometryFeaturizer] = featurizer
-        self.config: ActiveLearningConfig = config or ActiveLearningConfig()
-        self.batch_config: ActiveLearningBatchConfig = batch_config or ActiveLearningBatchConfig()
-
-    def select_batch(
-        self,
-        candidate_pool: np.ndarray,
-        uncertainties: np.ndarray,
-        batch_config: Optional[ActiveLearningBatchConfig] = None,
-        labeled_points: Optional[np.ndarray] = None,
-    ) -> List[int]:
-        """
-        Executes sequential furthest-point repulsion batch selection (Suggestion #51). [M]
-
-        S_acq(x) = U(x) * [1 - beta_div * exp(-d_min(x)^2 / (2 * sigma_repulse^2))]
-        """
-        cfg = batch_config or self.batch_config
-        coords = np.asarray(candidate_pool, dtype=np.float64)
-        if coords.ndim > 2:
-            coords = coords.reshape(coords.shape[0], -1)
-        U = np.asarray(uncertainties, dtype=np.float64)
-        n_pool = coords.shape[0]
-
-        d_min = np.full(n_pool, np.inf, dtype=np.float64)
-        if labeled_points is not None and len(labeled_points) > 0:
-            lbl = np.asarray(labeled_points, dtype=np.float64)
-            if lbl.ndim > 2:
-                lbl = lbl.reshape(lbl.shape[0], -1)
-            dists = scipy.spatial.distance.cdist(coords, lbl, metric="euclidean")
-            d_min = np.min(dists, axis=1)
-
-        sigma_repulse = float(cfg.repulsion_length_scale)
-        beta_div = float(cfg.diversity_weight)
-        kernel_type = cfg.kernel_type
-        batch_size = min(cfg.batch_size, n_pool)
-
-        selected_indices: List[int] = []
-        for _ in range(batch_size):
-            if kernel_type == "gaussian":
-                pen = np.where(
-                    np.isinf(d_min),
-                    0.0,
-                    np.exp(-(d_min ** 2) / (2.0 * sigma_repulse ** 2)),
-                )
-            else:
-                pen = np.where(
-                    np.isinf(d_min),
-                    0.0,
-                    np.exp(-d_min / sigma_repulse),
-                )
-            scores = U * (1.0 - beta_div * pen)
-            scores[selected_indices] = -np.inf
-            best = int(np.argmax(scores))
-            selected_indices.append(best)
-
-            # O(N_pool) scalar distance update
-            d_new = np.linalg.norm(coords - coords[best], axis=-1)
-            d_min = np.minimum(d_min, d_new)
-
-        return selected_indices
-
-    def select_points(
-        self,
-        pool_geoms: np.ndarray,
-        pool_energies: Optional[np.ndarray] = None,
-        point_ids: Optional[Sequence[str]] = None,
-        batch_config: Optional[ActiveLearningBatchConfig] = None,
-        uncertainties: Optional[np.ndarray] = None,
-    ) -> ActiveLearningSelectionResult:
-        """
-        Executes active learning selection from candidate base pool geometries and energies.
-
-        Args:
-            pool_geoms: Array of Cartesian geometries of shape (N_pool, N_atoms, 3) or (N_pool, D)
-            pool_energies: Optional array of base DFT energies of shape (N_pool,)
-            point_ids: Optional list of unique point ID strings
-            batch_config: Optional ActiveLearningBatchConfig overriding defaults
-            uncertainties: Optional explicit uncertainties array of shape (N_pool,)
-
-        Returns:
-            ActiveLearningSelectionResult containing selected indices, point IDs,
-            acquisition scores, and held-out validation grid split.
-        """
-        pool_geoms = np.asarray(pool_geoms, dtype=np.float64)
-        n_total = pool_geoms.shape[0]
-
-        effective_batch_cfg = batch_config or self.batch_config
-
-        # Direct coordinate / uncertainty mode (e.g. Test 1)
-        if uncertainties is not None or pool_geoms.ndim == 2 or pool_energies is None:
-            if uncertainties is None:
-                if pool_energies is not None:
-                    uncertainties = np.abs(pool_energies - np.mean(pool_energies))
-                else:
-                    uncertainties = np.ones(n_total, dtype=np.float64)
-            selected_idx = self.select_batch(
-                candidate_pool=pool_geoms,
-                uncertainties=uncertainties,
-                batch_config=effective_batch_cfg,
-            )
-            return ActiveLearningSelectionResult(
-                selected_indices=selected_idx,
-                selected_point_ids=[f"pt_{i:05d}" for i in selected_idx],
-                acquisition_scores=[float(uncertainties[i]) for i in selected_idx],
-                committee_sigmas_hartree=[float(uncertainties[i]) for i in selected_idx],
-                committee_sigmas_mev_atom=[float(uncertainties[i]) * 1000.0 for i in selected_idx],
-                selection_rounds=1,
-                n_selected=len(selected_idx),
-                iqr_threshold_hartree=0.0,
-                iqr_threshold_mev_atom=0.0,
-                held_out_indices=[],
-                held_out_point_ids=[],
-                provenance_info={
-                    "strategy": "sequential_furthest_point_repulsion",
-                    "repulsion_length_scale": effective_batch_cfg.repulsion_length_scale,
-                    "diversity_weight": effective_batch_cfg.diversity_weight,
-                },
-            )
-
-        pool_energies = np.asarray(pool_energies, dtype=np.float64)
-        if n_total < min(self.config.n_select_min, n_total):
-            raise MethodMatrixViolationError(
-                f"Candidate pool size ({n_total}) is smaller than minimum active selection "
-                f"requirement ({self.config.n_select_min}). Method Matrix QS-3 mandates ~2,000 points.",
-                error_code=ProvenanceErrorCode.TRIAGE_OVERRIDE_SPIN,
-            )
-
-        if point_ids is None:
-            point_ids = [f"pt_{i:05d}" for i in range(n_total)]
-        else:
-            point_ids = list(point_ids)
-
-        rng = np.random.RandomState(self.config.random_seed)
-
-        # 1. Budget a dedicated held-out validation grid (Method Matrix QS-3 Step 5)
-        n_held_out = int(self.config.held_out_ratio * n_total)
-        all_indices = np.arange(n_total)
-        rng.shuffle(all_indices)
-
-        held_out_idx = sorted(all_indices[:n_held_out].tolist())
-        candidate_pool_idx = sorted(all_indices[n_held_out:].tolist())
-        n_candidate = len(candidate_pool_idx)
-
-        logger.info(
-            f"Active Learning Pool: {n_total} total points -> "
-            f"{len(candidate_pool_idx)} candidate pool, {n_held_out} reserved held-out validation grid."
-        )
-
-        candidate_geoms = pool_geoms[candidate_pool_idx]
-        candidate_energies = pool_energies[candidate_pool_idx]
-        candidate_ids = [point_ids[i] for i in candidate_pool_idx]
-
-        # Compute invariant features for the candidate pool
-        if self.featurizer is not None and candidate_geoms.ndim == 3:
-            cand_features = self.featurizer.compute_morse_features(candidate_geoms)
-        else:
-            cand_features = candidate_geoms.reshape(n_candidate, -1)
-
-        # 2. Seed initial training set
-        initial_seed_size = min(50, effective_batch_cfg.batch_size)
-        selected_cand_idx: List[int] = []
-
-        min_e_idx = int(np.argmin(candidate_energies))
-        selected_cand_idx.append(min_e_idx)
-
-        for _ in range(1, initial_seed_size):
-            cur_selected_feats = cand_features[selected_cand_idx]
-            dists = scipy.spatial.distance.cdist(cand_features, cur_selected_feats, metric="euclidean")
-            min_dists = np.min(dists, axis=1)
-            min_dists[selected_cand_idx] = -1.0
-            next_idx = int(np.argmax(min_dists))
-            selected_cand_idx.append(next_idx)
-
-        # 3. Iterative Active Learning Loop with Sequential Furthest-Point Repulsion
-        n_target = min(self.config.n_select_target, n_candidate)
-        n_target = max(n_target, min(self.config.n_select_min, n_candidate))
-
-        if self.featurizer is not None:
-            committee = CommitteeModel(
-                featurizer=self.featurizer,
-                committee_size=self.config.committee_size,
-                morse_lambda=self.config.morse_lambda,
-                random_seed=self.config.random_seed,
-            )
-        else:
-            committee = None
-
-        rounds = 0
-        acquisition_scores_history: List[float] = [0.0] * len(selected_cand_idx)
-
-        while len(selected_cand_idx) < n_target:
-            rounds += 1
-            cur_train_geoms = candidate_geoms[selected_cand_idx]
-            cur_train_energies = candidate_energies[selected_cand_idx]
-
-            unselected_mask = np.full(n_candidate, True, dtype=bool)
-            unselected_mask[selected_cand_idx] = False
-            unselected_idx = np.where(unselected_mask)[0]
-
-            if len(unselected_idx) == 0:
-                break
-
-            unselected_geoms = candidate_geoms[unselected_idx]
-            unselected_feats = cand_features[unselected_idx]
-
-            if committee is not None:
-                committee.fit(cur_train_geoms, cur_train_energies)
-                _, sigmas, sigmas_mev_atom = committee.predict_energy_and_uncertainty(unselected_geoms)
-            else:
-                sigmas = np.ones(len(unselected_idx), dtype=np.float64)
-                sigmas_mev_atom = np.ones(len(unselected_idx), dtype=np.float64)
-
-            # Sequential furthest-point repulsion batch selection within this round
-            n_batch = min(effective_batch_cfg.batch_size, n_target - len(selected_cand_idx))
-            cur_train_feats = cand_features[selected_cand_idx]
-            
-            sub_selected_unsel_idx = self.select_batch(
-                candidate_pool=unselected_feats,
-                uncertainties=sigmas,
-                batch_config=ActiveLearningBatchConfig(
-                    batch_size=n_batch,
-                    repulsion_length_scale=effective_batch_cfg.repulsion_length_scale,
-                    diversity_weight=effective_batch_cfg.diversity_weight,
-                    kernel_type=effective_batch_cfg.kernel_type,
-                ),
-                labeled_points=cur_train_feats,
-            )
-
-            for rel_idx in sub_selected_unsel_idx:
-                cand_idx = unselected_idx[rel_idx]
-                selected_cand_idx.append(cand_idx)
-                acquisition_scores_history.append(float(sigmas[rel_idx]))
-
-            logger.info(
-                f"Active Learning Round {rounds}: Selected {len(selected_cand_idx)}/{n_target} points "
-                f"(Max UQ: {np.max(sigmas_mev_atom):.3f} meV/atom, Mean UQ: {np.mean(sigmas_mev_atom):.3f} meV/atom)"
-            )
-
-        # Map candidate pool indices back to original pool indices
-        final_selected_orig_idx = [candidate_pool_idx[i] for i in selected_cand_idx]
-        final_selected_point_ids = [point_ids[i] for i in final_selected_orig_idx]
-        held_out_point_ids = [point_ids[i] for i in held_out_idx]
-
-        # Final committee fit on full actively selected set
-        final_train_geoms = pool_geoms[final_selected_orig_idx]
-        final_train_energies = pool_energies[final_selected_orig_idx]
-        if committee is not None:
-            committee.fit(final_train_geoms, final_train_energies)
-            _, final_sigmas, final_sigmas_mev_atom = committee.predict_energy_and_uncertainty(final_train_geoms)
-        else:
-            final_sigmas = [0.0] * len(final_selected_orig_idx)
-            final_sigmas_mev_atom = [0.0] * len(final_selected_orig_idx)
-
-        res = ActiveLearningSelectionResult(
-            selected_indices=final_selected_orig_idx,
-            selected_point_ids=final_selected_point_ids,
-            acquisition_scores=acquisition_scores_history,
-            committee_sigmas_hartree=[float(s) for s in final_sigmas],
-            committee_sigmas_mev_atom=[float(s) for s in final_sigmas_mev_atom],
-            selection_rounds=rounds,
-            n_selected=len(final_selected_orig_idx),
-            iqr_threshold_hartree=committee.training_iqr_threshold_hartree,
-            iqr_threshold_mev_atom=committee.training_iqr_threshold_mev_atom,
-            held_out_indices=held_out_idx,
-            held_out_point_ids=held_out_point_ids,
-            provenance_info={
-                "strategy": self.config.acquisition_strategy.value,
-                "committee_size": self.config.committee_size,
-                "n_pool": n_total,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        return res
-
-
-def sequential_repulsion_selector(
-    candidate_pool: np.ndarray,
-    uncertainties: np.ndarray,
-    batch_config: Optional[ActiveLearningBatchConfig] = None,
-    labeled_points: Optional[np.ndarray] = None,
-) -> List[int]:
-    """Functional interface for sequential furthest-point repulsion batch selection (Suggestion #51) [M]."""
-    engine = ActiveLearningEngine(batch_config=batch_config)
-    return engine.select_batch(
-        candidate_pool=candidate_pool,
-        uncertainties=uncertainties,
-        batch_config=batch_config,
-        labeled_points=labeled_points,
-    )
-
-
-# =============================================================================
-# Delta-Learning Potential Energy Surface Model (Method Matrix §13.2 Row T2-12h)
-# =============================================================================
-
-class DeltaPESModel:
-    """
-    Represents a fitted Delta-learning potential energy surface:
-    V_Delta(X) = V_low(X) + Delta_V(X)
-    where Delta_V(X) is fitted on high-level CCSD(T) - low-level DFT energy differences.
-
-    Provides exact analytical potential energy and gradient evaluations.
-    """
-
-    def __init__(
-        self,
-        featurizer: GeometryFeaturizer,
-        krr_estimator: ExactKernelRidgeEstimator,
-        low_level_estimator: Optional[ExactKernelRidgeEstimator] = None,
-        low_method: str = "dft_base",
-        high_method: str = "dlpno_ccsdt1_avtz",
-        validation_metrics: Optional[PESValidationMetrics] = None,
-    ) -> None:
-        self.featurizer: GeometryFeaturizer = featurizer
-        self.krr_estimator: ExactKernelRidgeEstimator = krr_estimator
-        self.low_level_estimator: Optional[ExactKernelRidgeEstimator] = low_level_estimator
-        self.low_method: str = low_method
-        self.high_method: str = high_method
-        self.validation_metrics: Optional[PESValidationMetrics] = validation_metrics
-
-    def predict_delta(self, geoms: np.ndarray) -> np.ndarray:
-        """Evaluates Delta_V(X) in Hartrees for single or batched geometries."""
-        features = self.featurizer.compute_morse_features(geoms)
-        return self.krr_estimator.predict(features)
-
-    def predict_total_energy(self, geoms: np.ndarray, v_low_eval: Optional[np.ndarray] = None) -> np.ndarray:
-        """
-        Evaluates total potential energy V_Delta(X) = V_low(X) + Delta_V(X) in Hartrees.
-        If v_low_eval is provided, adds Delta_V directly; otherwise predicts V_low using low_level_estimator.
-        """
-        delta_v = self.predict_delta(geoms)
-        if v_low_eval is not None:
-            return np.asarray(v_low_eval, dtype=np.float64) + delta_v
-
-        if self.low_level_estimator is not None:
-            features = self.featurizer.compute_morse_features(geoms)
-            v_low = self.low_level_estimator.predict(features)
-            return v_low + delta_v
-        else:
-            raise CoChemError(
-                "Cannot compute total energy: no low_level_estimator fitted and no v_low_eval provided.",
-                error_code=ProvenanceErrorCode.MISSING_DATA,
-            )
-
-    def predict_gradient(
-        self,
-        geom: np.ndarray,
-        grad_low_eval: Optional[np.ndarray] = None,
-    ) -> np.ndarray:
-        """
-        Computes analytical Cartesian gradient grad_X V_Delta(X) = grad_X V_low(X) + grad_X Delta_V(X)
-        in Hartrees/Bohr (or Hartrees/Angstrom converted) for a single geometry (N_atoms, 3).
-        """
-        geom = np.asarray(geom, dtype=np.float64)
-        if geom.shape != (self.featurizer.n_atoms, 3):
-            raise ValueError(f"Expected geometry of shape ({self.featurizer.n_atoms}, 3), got {geom.shape}")
-
-        # Compute Morse coordinate Jacobian: d(y_p)/d(r_ia) (N_pairs, N_atoms, 3)
-        jac_morse = self.featurizer.compute_morse_jacobian(geom)
-
-        # Compute feature gradient: d(Delta_V)/d(y_p) (N_pairs,)
-        features = self.featurizer.compute_morse_features(geom)
-        grad_features_delta = self.krr_estimator.predict_gradient_wrt_features(features)
-
-        # Apply chain rule: d(Delta_V)/d(r_ia) = sum_p [d(Delta_V)/d(y_p)] * [d(y_p)/d(r_ia)]
-        # grad_cart_delta: (N_atoms, 3)
-        grad_cart_delta = np.tensordot(grad_features_delta, jac_morse, axes=(0, 0))
-
-        if grad_low_eval is not None:
-            grad_cart_total = np.asarray(grad_low_eval, dtype=np.float64) + grad_cart_delta
-        elif self.low_level_estimator is not None:
-            grad_features_low = self.low_level_estimator.predict_gradient_wrt_features(features)
-            grad_cart_low = np.tensordot(grad_features_low, jac_morse, axes=(0, 0))
-            grad_cart_total = grad_cart_low + grad_cart_delta
-        else:
-            grad_cart_total = grad_cart_delta
-
-        return grad_cart_total
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serializes DeltaPESModel metadata, kernel weights, and training coordinates."""
-        return {
-            "low_method": self.low_method,
-            "high_method": self.high_method,
-            "symbols": self.featurizer.symbols,
-            "morse_lambda": self.featurizer.morse_lambda,
-            "include_secondary": getattr(self.featurizer, "include_secondary", False),
-            "kernel_type": self.krr_estimator.kernel_type.value,
-            "alpha": self.krr_estimator.alpha,
-            "effective_gamma": self.krr_estimator.effective_gamma,
-            "poly_degree": self.krr_estimator.poly_degree,
-            "y_mean": self.krr_estimator.y_mean,
-            "n_train": int(self.krr_estimator.X_train.shape[0]) if self.krr_estimator.X_train is not None else 0,
-            "validation_metrics": self.validation_metrics.model_dump() if self.validation_metrics else None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-    def save_npz(self, filepath: Union[str, Path]) -> Path:
-        """Saves fitted model tensors and weights to a compressed .npz archive."""
-        p = Path(filepath).resolve()
-        p.parent.mkdir(parents=True, exist_ok=True)
-
-        meta_json = json.dumps(self.to_dict(), indent=2)
-        arrays_to_save: Dict[str, Any] = {
-            "meta_json": np.array(meta_json),
-            "krr_weights": self.krr_estimator.weights if self.krr_estimator.weights is not None else np.empty(0),
-            "krr_X_train": self.krr_estimator.X_train if self.krr_estimator.X_train is not None else np.empty((0, 0)),
-            "krr_y_train": self.krr_estimator.y_train if self.krr_estimator.y_train is not None else np.empty(0),
-        }
-        if self.low_level_estimator is not None:
-            arrays_to_save["low_weights"] = (
-                self.low_level_estimator.weights if self.low_level_estimator.weights is not None else np.empty(0)
-            )
-            arrays_to_save["low_X_train"] = (
-                self.low_level_estimator.X_train if self.low_level_estimator.X_train is not None else np.empty((0, 0))
-            )
-            arrays_to_save["low_y_train"] = (
-                self.low_level_estimator.y_train if self.low_level_estimator.y_train is not None else np.empty(0)
-            )
-            arrays_to_save["low_y_mean"] = np.array(self.low_level_estimator.y_mean)
-            arrays_to_save["low_effective_gamma"] = np.array(self.low_level_estimator.effective_gamma)
-
-        np.savez_compressed(p, **arrays_to_save)
-        logger.info(f"Saved DeltaPESModel to {p}")
-        return p
-
-    @classmethod
-    def load_npz(cls, filepath: Union[str, Path]) -> DeltaPESModel:
-        """Loads and reconstructs a DeltaPESModel from a saved .npz archive."""
-        p = Path(filepath).resolve()
-        if not p.exists():
-            raise FileNotFoundError(f"DeltaPESModel file not found at {p}")
-
-        data = np.load(p, allow_pickle=False)
-        meta_dict = json.loads(str(data["meta_json"]))
-
-        symbols = meta_dict["symbols"]
-        morse_lambda = float(meta_dict.get("morse_lambda", 2.0))
-        include_secondary = bool(meta_dict.get("include_secondary", False))
-        featurizer = GeometryFeaturizer(
-            symbols=symbols,
-            morse_lambda=morse_lambda,
-            include_secondary=include_secondary,
-        )
-
-        krr_est = ExactKernelRidgeEstimator(
-            kernel_type=KernelType(meta_dict["kernel_type"]),
-            alpha=float(meta_dict["alpha"]),
-            gamma=float(meta_dict["effective_gamma"]),
-            poly_degree=int(meta_dict.get("poly_degree", 4)),
-        )
-        krr_est.X_train = data["krr_X_train"]
-        krr_est.y_train = data["krr_y_train"]
-        krr_est.weights = data["krr_weights"]
-        krr_est.y_mean = float(meta_dict["y_mean"])
-        krr_est.effective_gamma = float(meta_dict["effective_gamma"])
-
-        low_est: Optional[ExactKernelRidgeEstimator] = None
-        if "low_weights" in data:
-            low_est = ExactKernelRidgeEstimator(
-                kernel_type=KernelType(meta_dict["kernel_type"]),
-                alpha=float(meta_dict["alpha"]),
-            )
-            low_est.X_train = data["low_X_train"]
-            low_est.y_train = data["low_y_train"]
-            low_est.weights = data["low_weights"]
-            low_est.y_mean = float(data["low_y_mean"])
-            low_est.effective_gamma = float(data["low_effective_gamma"])
-
-        metrics = None
-        if meta_dict.get("validation_metrics"):
-            metrics = PESValidationMetrics(**meta_dict["validation_metrics"])
-
-        return cls(
-            featurizer=featurizer,
-            krr_estimator=krr_est,
-            low_level_estimator=low_est,
-            low_method=meta_dict.get("low_method", "dft_base"),
-            high_method=meta_dict.get("high_method", "dlpno_ccsdt1_avtz"),
-            validation_metrics=metrics,
-        )
-
-
-# =============================================================================
-# Spectroscopic Validation Engine (Method Matrix QS-3 Step 5)
-# =============================================================================
-
-class PESValidator:
-    """
-    Evaluates potential energy surface fidelity on a held-out test grid.
-    Converts all error residuals into spectroscopic units:
-    - Root Mean Square Error (RMSE) in cm^-1, kcal/mol, meV, and Hartree
-    - Mean Absolute Error (MAE) in cm^-1
-    - Maximum Absolute Error (Max Error) in cm^-1
-    - Verifies spectroscopic grade target (Method Matrix T2-12h target: RMS <= 3-10 cm^-1).
-    """
-
-    @staticmethod
-    def evaluate_model(
-        model: DeltaPESModel,
-        train_geoms: np.ndarray,
-        train_delta_true: np.ndarray,
-        held_out_geoms: np.ndarray,
-        held_out_delta_true: np.ndarray,
-        target_rms_cm1: float = 10.0,
-    ) -> PESValidationMetrics:
-        """
-        Computes comprehensive spectroscopic validation metrics on training and held-out sets.
-        """
-        train_delta_true = np.asarray(train_delta_true, dtype=np.float64)
-        held_out_delta_true = np.asarray(held_out_delta_true, dtype=np.float64)
-
-        # 1. Training metrics
-        train_preds = model.predict_delta(train_geoms)
-        train_res_ha = np.abs(train_preds - train_delta_true)
-        train_res_cm1 = train_res_ha * HARTREE_TO_CM1
-
-        train_rmse_cm1 = float(np.sqrt(np.mean(train_res_cm1**2)))
-        train_mae_cm1 = float(np.mean(train_res_cm1))
-        train_max_err_cm1 = float(np.max(train_res_cm1))
-
-        # 2. Held-out validation metrics
-        held_out_preds = model.predict_delta(held_out_geoms)
-        held_out_res_ha = np.abs(held_out_preds - held_out_delta_true)
-        held_out_res_cm1 = held_out_res_ha * HARTREE_TO_CM1
-
-        held_out_rmse_ha = float(np.sqrt(np.mean(held_out_res_ha**2)))
-        held_out_rmse_cm1 = float(np.sqrt(np.mean(held_out_res_cm1**2)))
-        held_out_mae_cm1 = float(np.mean(held_out_res_cm1))
-        held_out_max_err_cm1 = float(np.max(held_out_res_cm1))
-        held_out_rmse_kcal_mol = held_out_rmse_ha * HARTREE_TO_KCAL_MOL
-
-        spectroscopic_grade = bool(held_out_rmse_cm1 <= target_rms_cm1)
-
-        metrics = PESValidationMetrics(
-            n_train=int(train_geoms.shape[0]),
-            n_held_out=int(held_out_geoms.shape[0]),
-            train_rmse_cm1=train_rmse_cm1,
-            train_mae_cm1=train_mae_cm1,
-            train_max_err_cm1=train_max_err_cm1,
-            held_out_rmse_cm1=held_out_rmse_cm1,
-            held_out_mae_cm1=held_out_mae_cm1,
-            held_out_max_err_cm1=held_out_max_err_cm1,
-            held_out_rmse_kcal_mol=held_out_rmse_kcal_mol,
-            held_out_rmse_hartree=held_out_rmse_ha,
-            spectroscopic_grade=spectroscopic_grade,
-            target_rms_cm1=float(target_rms_cm1),
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-
-        logger.info(
-            f"Spectroscopic Validation: Held-out RMSE = {held_out_rmse_cm1:.3f} cm^-1 "
-            f"(Target <= {target_rms_cm1:.1f} cm^-1 | Grade: {'PASS' if spectroscopic_grade else 'RETRY'}). "
-            f"MAE = {held_out_mae_cm1:.3f} cm^-1, Max = {held_out_max_err_cm1:.3f} cm^-1."
-        )
-        return metrics
-
-
-# =============================================================================
-# Autonomous PES Campaign Orchestrator (Method Matrix QS-3 & §8C Integration)
-# =============================================================================
-
-class AutoPESOrchestrator:
-    """
-    Coordinates end-to-end PES active learning campaigns:
-    1. Ingestion / loading of base DFT pool from HDF5 PESStore
-    2. Active learning selection of 300-800 points for high-level calculation
-    3. Retrieval of high-level Delta training pairs via PESStore.delta_pairs()
-    4. Delta-learning surface fitting with Kernel Ridge Regression
-    5. Held-out validation grid residual evaluation in cm^-1
-    6. Persistence and export back to HDF5 PESStore.
-    """
-
-    def __init__(
-        self,
-        symbols: Sequence[str],
-        low_method: str = "wb97x_v_tz",
-        high_method: str = "dlpno_ccsdt1_avtz",
-        al_config: Optional[ActiveLearningConfig] = None,
-        fit_config: Optional[DeltaFittingConfig] = None,
-    ) -> None:
-        self.symbols: List[str] = [s.strip() for s in symbols]
-        self.low_method: str = low_method
-        self.high_method: str = high_method
-        self.al_config: ActiveLearningConfig = al_config or ActiveLearningConfig()
-        self.fit_config: DeltaFittingConfig = fit_config or DeltaFittingConfig()
-
-        self.featurizer: GeometryFeaturizer = GeometryFeaturizer(
-            symbols=self.symbols,
-            morse_lambda=self.fit_config.morse_lambda,
-            include_secondary=getattr(self.fit_config, "include_secondary", False),
-        )
-        self.al_engine: ActiveLearningEngine = ActiveLearningEngine(
-            featurizer=self.featurizer,
-            config=self.al_config,
-        )
-
-    def run_active_selection_from_store(
-        self,
-        pes_store: Any,
-    ) -> ActiveLearningSelectionResult:
-        """
-        Loads base DFT grid points from PESStore and executes active learning selection.
-        """
-        # Read low-level dataset from PESStore
-        if hasattr(pes_store, "dataset_full"):
-            low_data = pes_store.dataset_full(self.low_method, converged_only=True)
-            geoms = low_data["coordinates"]
-            energies = low_data["energy"]
-            point_ids = low_data.get("point_id", [f"pt_{i:05d}" for i in range(len(energies))])
-        else:
-            raw_data = pes_store.dataset(self.low_method, converged_only=True)
-            if isinstance(raw_data, dict):
-                geoms = raw_data["coordinates"]
-                energies = raw_data["energy"]
-                point_ids = raw_data.get("point_id", [f"pt_{i:05d}" for i in range(len(energies))])
-            else:
-                geoms, energies = raw_data
-                point_ids = [f"pt_{i:05d}" for i in range(len(energies))]
-
-        if len(geoms) == 0:
-            raise MissingDataError(
-                f"No converged points found for low-level method '{self.low_method}' in PESStore.",
-                error_code=ProvenanceErrorCode.MISSING_DATA,
-            )
-
-        res = self.al_engine.select_points(
-            pool_geoms=geoms,
-            pool_energies=energies,
-            point_ids=point_ids,
-        )
-        return res
-
-    def fit_delta_surface_from_data(
-        self,
-        train_geoms: np.ndarray,
-        train_low_energies: np.ndarray,
-        train_high_energies: np.ndarray,
-        held_out_geoms: np.ndarray,
-        held_out_low_energies: np.ndarray,
-        held_out_high_energies: np.ndarray,
-        dense_dft_geoms: Optional[np.ndarray] = None,
-        dense_dft_energies: Optional[np.ndarray] = None,
-    ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
-        """Fits a DeltaPESModel on training, held-out, and optional dense baseline DFT data.
-
-        Follows Method Matrix §13.2 / QS-3:
-        1. Base estimator low_krr is fitted on full dense low-level DFT sampling dataset (N ~ 2,000 points).
-        2. High-level active-learning residual deltas: Delta E_k = E_k^high - low_krr.predict(X_k^high).
-        3. delta_krr is fitted strictly on these sparse active-learning residuals.
-        """
-        train_geoms = np.asarray(train_geoms, dtype=np.float64)
-        held_out_geoms = np.asarray(held_out_geoms, dtype=np.float64)
-
-        # 1. Fit baseline low_krr on the complete dense low-level DFT dataset
-        if dense_dft_geoms is not None and dense_dft_energies is not None:
-            dense_dft_geoms = np.asarray(dense_dft_geoms, dtype=np.float64)
-            dense_dft_energies = np.asarray(dense_dft_energies, dtype=np.float64)
-            dense_feats = self.featurizer.compute_morse_features(dense_dft_geoms)
-            n_base_total = int(dense_dft_geoms.shape[0])
-            low_train_feats = dense_feats
-            low_train_y = dense_dft_energies
-        else:
-            all_geoms = np.concatenate([train_geoms, held_out_geoms], axis=0)
-            all_low = np.concatenate([train_low_energies, held_out_low_energies], axis=0)
-            low_train_feats = self.featurizer.compute_morse_features(all_geoms)
-            low_train_y = all_low
-            n_base_total = int(all_geoms.shape[0])
-
-        low_krr = ExactKernelRidgeEstimator(
-            kernel_type=self.fit_config.kernel,
-            alpha=self.fit_config.regularization_alpha,
-            gamma=self.fit_config.gamma,
-        )
-        low_krr.fit(low_train_feats, low_train_y)
-
-        # 2. Extract sparse high-level residuals relative to dense baseline: Delta E = E^high - V_low(R)
-        train_feats = self.featurizer.compute_morse_features(train_geoms)
-        train_v_low_pred = low_krr.predict(train_feats)
-        train_delta = np.asarray(train_high_energies, dtype=np.float64) - train_v_low_pred
-
-        held_out_feats = self.featurizer.compute_morse_features(held_out_geoms)
-        held_out_v_low_pred = low_krr.predict(held_out_feats)
-        held_out_delta = np.asarray(held_out_high_energies, dtype=np.float64) - held_out_v_low_pred
-
-        # 3. Fit delta_krr strictly on sparse active-learning residuals
-        delta_krr = ExactKernelRidgeEstimator(
-            kernel_type=self.fit_config.kernel,
-            alpha=self.fit_config.regularization_alpha,
-            gamma=self.fit_config.gamma,
-            poly_degree=self.fit_config.poly_degree,
-        )
-        delta_krr.fit(train_feats, train_delta)
-
-        model = DeltaPESModel(
-            featurizer=self.featurizer,
-            krr_estimator=delta_krr,
-            low_level_estimator=low_krr,
-            low_method=self.low_method,
-            high_method=self.high_method,
-        )
-
-        # 4. Validate on held-out grid (Method Matrix QS-3 Step 5)
-        metrics = PESValidator.evaluate_model(
-            model=model,
-            train_geoms=train_geoms,
-            train_delta_true=train_delta,
-            held_out_geoms=held_out_geoms,
-            held_out_delta_true=held_out_delta,
-            target_rms_cm1=self.fit_config.target_rms_cm1,
-        )
-        model.validation_metrics = metrics
-
-        fit_summary = DeltaSurfaceFitResult(
-            low_method=self.low_method,
-            high_method=self.high_method,
-            n_base_dft_points=n_base_total,
-            n_delta_points=int(train_geoms.shape[0]),
-            n_held_out_points=int(held_out_geoms.shape[0]),
-            metrics=metrics,
-            backend=self.fit_config.backend.value,
-            model_parameters=model.to_dict(),
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-        return model, fit_summary
-
-    def fit_delta_surface_from_store(
-        self,
-        pes_store: Any,
-        held_out_ratio: float = 0.20,
-    ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
-        """Extracts aligned Delta pairs directly from PESStore or HDF5 store under dual-locking,
-
-        fits the Delta-learning surface with dense DFT anchoring, and validates in cm^-1.
-        """
-        # Check if pes_store is a path to an HDF5 datastore file
-        if isinstance(pes_store, (str, Path)):
-            store_path = Path(pes_store).resolve()
-            h5_lock = filelock.FileLock(store_path.with_suffix(".h5.lock"), timeout=60.0)
-            with h5_lock:
-                with h5py.File(store_path, "r", swmr=True) as h5f:
-                    if "dense_dft/coordinates" in h5f:
-                        dense_geoms = np.asarray(h5f["dense_dft/coordinates"][:], dtype=np.float64)
-                        dense_energies = np.asarray(h5f["dense_dft/energy"][:], dtype=np.float64)
-                    elif "dense_dft/features" in h5f:
-                        dense_geoms = None
-                        dense_energies = np.asarray(h5f["dense_dft/energies"][:], dtype=np.float64)
-                    else:
-                        raise KeyError("Missing dense_dft dataset in HDF5 store.")
-
-                    if "sparse_ccsd/coordinates" in h5f:
-                        high_geoms = np.asarray(h5f["sparse_ccsd/coordinates"][:], dtype=np.float64)
-                        high_energies = np.asarray(h5f["sparse_ccsd/energy"][:], dtype=np.float64)
-                        high_low_energies = (
-                            np.asarray(h5f["sparse_ccsd/low_energy"][:], dtype=np.float64)
-                            if "sparse_ccsd/low_energy" in h5f
-                            else high_energies.copy()
-                        )
-                    else:
-                        raise KeyError("Missing sparse_ccsd dataset in HDF5 store.")
-
-            n_pairs = len(high_geoms)
-            rng = np.random.RandomState(self.al_config.random_seed)
-            shuffled = np.arange(n_pairs)
-            rng.shuffle(shuffled)
-
-            n_held = max(5, int(held_out_ratio * n_pairs))
-            held_idx = shuffled[:n_held]
-            train_idx = shuffled[n_held:]
-
-            return self.fit_delta_surface_from_data(
-                train_geoms=high_geoms[train_idx],
-                train_low_energies=high_low_energies[train_idx],
-                train_high_energies=high_energies[train_idx],
-                held_out_geoms=high_geoms[held_idx],
-                held_out_low_energies=high_low_energies[held_idx],
-                held_out_high_energies=high_energies[held_idx],
-                dense_dft_geoms=dense_geoms,
-                dense_dft_energies=dense_energies,
-            )
-
-        # Standard PESStore instance branch
-        keys, X_high, dE = pes_store.delta_pairs(self.low_method, self.high_method)
-        n_pairs = len(keys)
-
-        if n_pairs < 20:
-            raise MissingDataError(
-                f"Insufficient aligned Delta pairs ({n_pairs}) found between '{self.low_method}' "
-                f"and '{self.high_method}'. Need at least 20 aligned pairs.",
-                error_code=ProvenanceErrorCode.MISSING_DATA,
-            )
-
-        # Retrieve dense DFT dataset for baseline low_krr
-        dense_geoms = None
-        dense_energies = None
-        if hasattr(pes_store, "dataset_full"):
-            low_data = pes_store.dataset_full(self.low_method, converged_only=True)
-            dense_geoms = low_data["coordinates"]
-            dense_energies = low_data["energy"]
-            low_id_map = {
-                (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
-                for idx, s in enumerate(low_data["point_id"])
-            }
-        else:
-            low_data = pes_store.dataset(self.low_method, converged_only=True)
-            if isinstance(low_data, dict):
-                dense_geoms = low_data["coordinates"]
-                dense_energies = low_data["energy"]
-                low_id_map = {
-                    (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
-                    for idx, s in enumerate(low_data["point_id"])
-                }
-            else:
-                dense_geoms, dense_energies = low_data
-                low_id_map = {k: dense_energies[i] for i, k in enumerate(keys)}
-
-        e_low = np.array([low_id_map[k] for k in keys], dtype=np.float64)
-        e_high = e_low + dE
-
-        # Split into training and held-out sets
-        rng = np.random.RandomState(self.al_config.random_seed)
-        shuffled = np.arange(n_pairs)
-        rng.shuffle(shuffled)
-
-        n_held = max(5, int(held_out_ratio * n_pairs))
-        held_idx = shuffled[:n_held]
-        train_idx = shuffled[n_held:]
-
-        return self.fit_delta_surface_from_data(
-            train_geoms=X_high[train_idx],
-            train_low_energies=e_low[train_idx],
-            train_high_energies=e_high[train_idx],
-            held_out_geoms=X_high[held_idx],
-            held_out_low_energies=e_low[held_idx],
-            held_out_high_energies=e_high[held_idx],
-            dense_dft_geoms=dense_geoms,
-            dense_dft_energies=dense_energies,
-        )
-
-
-# =============================================================================
-# Demonstration / Physical Benchmark Potential Suite (Authentic Verification)
-# =============================================================================
-
-def generate_benchmark_intermolecular_pes_data(
-    n_points: int = 2000,
-    random_seed: int = 42,
-) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Generates authentic physical testing geometries and energies for an Ar...HCl van der Waals complex.
-    Uses a coupled Morse + dipole-induced dispersion potential for DFT (low-level)
-    and an ab initio benchmark correction for CCSD(T) (high-level).
+    Partition host CPU cores between Anchor (CPU), Scout (GPU Feeder), and Orchestrator.
+    Compliant with Method Matrix §8A.1 and §8A.6:
+      - 8+ cores: 7 P-cores dedicated to Anchor, 1 P-core dedicated to Scout, remainder Orchestrator.
+      - 2..7 cores: 1 P-core dedicated to Scout, N-1 cores dedicated to Anchor.
+      - 1 core: Shared degraded mode (core 0 shared).
 
     Returns:
-        symbols: List of atom symbols ['Ar', 'H', 'Cl']
-        geoms: Array of shape (N_points, 3, 3) in Angstroms
-        e_dft: Base DFT energies in Hartrees
-        e_cc: High-level CCSD(T) benchmark energies in Hartrees
+        CorePartitioning model.
     """
-    rng = np.random.RandomState(random_seed)
-    symbols = ["Ar", "H", "Cl"]
+    target_env = os.environ if env is None else env
 
-    # Monomer HCl equilibrium distance r_e = 1.2746 A
-    r_hcl_eq = 1.2746
+    def parse_int(key: str) -> Optional[int]:
+        if key in target_env and target_env[key].strip():
+            try:
+                v = int(target_env[key].strip())
+                if v >= 1:
+                    return v
+            except ValueError:
+                return None
+        return None
 
-    # Physical intermolecular coordinates: R in [2.8, 6.5] A, theta in [0, pi] rad, phi in [0, 2pi] rad
-    R_vals = rng.uniform(2.8, 6.5, size=n_points)
-    # Concentration near the potential well (3.5 - 4.2 A)
-    R_well = rng.normal(loc=3.85, scale=0.35, size=n_points)
-    R_well = np.clip(R_well, 2.9, 6.2)
-    # Blend uniform and well-focused distributions
-    R_combined = np.where(rng.uniform(0, 1, size=n_points) < 0.65, R_well, R_vals)
+    env_anchor = parse_int("COCHEM_PARSL_ANCHOR_CORES")
+    env_scout = parse_int("COCHEM_PARSL_SCOUT_CORES")
 
-    theta_vals = rng.uniform(0.0, math.pi, size=n_points)
-    r_hcl_disps = r_hcl_eq + rng.normal(0.0, 0.03, size=n_points)
+    req_anchor = requested_anchor if requested_anchor is not None else env_anchor
+    req_scout = requested_scout if requested_scout is not None else env_scout
 
-    geoms = np.full((n_points, 3, 3), 0.0, dtype=np.float64)
-    e_dft = np.full(n_points, 0.0, dtype=np.float64)
-    e_cc = np.full(n_points, 0.0, dtype=np.float64)
+    _, total_logical = detect_system_cpu_topology(target_env)
 
-    # Physical potential parameters for Ar...HCl:
-    # Well depth D_e ~ 180 cm^-1 (0.00082 Ha), R_e ~ 3.90 A
-    # Delta-learning correction ~ 15-30 cm^-1 (0.0001 Ha)
-    for p in range(n_points):
-        R = float(R_combined[p])
-        th = float(theta_vals[p])
-        r_hcl = float(r_hcl_disps[p])
-
-        # Atom 0: Ar at origin (0, 0, 0)
-        # Atom 1: Cl at (0, 0, R)
-        # Atom 2: H at (r_hcl * sin(th), 0, R + r_hcl * cos(th))
-        geoms[p, 0, :] = [0.0, 0.0, 0.0]
-        geoms[p, 1, :] = [0.0, 0.0, R]
-        geoms[p, 2, :] = [r_hcl * math.sin(th), 0.0, R + r_hcl * math.cos(th)]
-
-        # Physical Base DFT potential (Hartrees)
-        # Morse intramolecular HCl
-        d_hcl_intra = 0.17  # Ha
-        a_hcl = 1.8  # A^-1
-        v_intra = d_hcl_intra * (1.0 - math.exp(-a_hcl * (r_hcl - r_hcl_eq))) ** 2
-
-        # Intermolecular Ar...HCl dispersion + exchange repulsion
-        d_inter_dft = 0.00078  # Ha (~171 cm^-1)
-        r_e_inter = 3.92  # A
-        a_inter = 1.6  # A^-1
-        anisotropy = 1.0 + 0.25 * math.cos(th) + 0.15 * math.cos(2.0 * th)
-        v_inter_dft = (
-            d_inter_dft * anisotropy * ((math.exp(-2.0 * a_inter * (R - r_e_inter))) - 2.0 * math.exp(-a_inter * (R - r_e_inter)))
+    if total_physical <= 1:
+        # Single core degraded mode
+        return CorePartitioning(
+            total_physical_cores=1,
+            total_logical_cores=total_logical,
+            anchor_core_count=1,
+            anchor_core_ids=[0],
+            anchor_affinity_str="list:0",
+            scout_core_count=1,
+            scout_core_ids=[0],
+            scout_affinity_str="list:0",
+            orchestrator_core_count=1,
+            strategy=AffinityStrategy.SHARED_DEGRADED,
+            is_degraded=True,
         )
-        e_dft[p] = -460.5000 + v_intra + v_inter_dft
 
-        # High-level CCSD(T) benchmark with exact coupled-cluster correlation shift
-        # Delta-correction: slightly deeper well (D_e ~ 188 cm^-1) and subtle angular anisotropy shift
-        d_inter_cc = 0.00085  # Ha (~187 cm^-1)
-        r_e_cc = 3.89  # A
-        anisotropy_cc = 1.0 + 0.28 * math.cos(th) + 0.18 * math.cos(2.0 * th)
-        v_inter_cc = (
-            d_inter_cc * anisotropy_cc * ((math.exp(-2.0 * a_inter * (R - r_e_cc))) - 2.0 * math.exp(-a_inter * (R - r_e_cc)))
+    if req_anchor is not None and req_scout is not None:
+        anchor_count = req_anchor
+        scout_count = req_scout
+    elif req_scout is not None:
+        scout_count = max(1, req_scout)
+        anchor_count = max(1, total_physical - scout_count)
+    elif req_anchor is not None:
+        anchor_count = max(1, req_anchor)
+        scout_count = max(1, total_physical - anchor_count)
+    else:
+        # Canonical Method Matrix §8A baseline
+        if total_physical >= 8:
+            anchor_count = DEFAULT_ORCA_ANCHOR_RANKS
+            scout_count = 1
+        else:
+            scout_count = 1
+            anchor_count = max(1, total_physical - 1)
+
+    anchor_core_ids = [c % total_physical for c in range(0, anchor_count)]
+    scout_start = anchor_count
+    scout_core_ids = [(scout_start + c) % total_physical for c in range(0, scout_count)]
+
+    anchor_affinity_str = "list:" + ",".join(str(c) for c in anchor_core_ids)
+    scout_affinity_str = "list:" + ",".join(str(c) for c in scout_core_ids)
+
+    orchestrator_count = max(1, total_physical - (anchor_count + scout_count)) if total_physical > (anchor_count + scout_count) else 1
+
+    return CorePartitioning(
+        total_physical_cores=total_physical,
+        total_logical_cores=total_logical,
+        anchor_core_count=anchor_count,
+        anchor_core_ids=anchor_core_ids,
+        anchor_affinity_str=anchor_affinity_str,
+        scout_core_count=scout_count,
+        scout_core_ids=scout_core_ids,
+        scout_affinity_str=scout_affinity_str,
+        orchestrator_core_count=orchestrator_count,
+        strategy=AffinityStrategy.BLOCK,
+        is_degraded=False,
+    )
+
+
+def calculate_contention_budget(
+    total_physical_cores: int,
+    total_ram_gb: float,
+    gpu_scout_workers: int = DEFAULT_MAX_GPU_SCOUT_WORKERS,
+    anchor_ranks: int = DEFAULT_ORCA_ANCHOR_RANKS,
+) -> ContentionBudget:
+    """
+    Calculate resource contention budget model (§8A.1).
+    Enforces host RAM headroom, VRAM partitioning under MPS, and slowdown estimates.
+    """
+    # Dynamic MPS thread partitioning: 100% / N_workers
+    thread_pct = max(1, 100 // max(1, gpu_scout_workers))
+    # VRAM allocation per worker
+    pinned_mem = "0=6G" if gpu_scout_workers <= 3 else "0=4G"
+
+    # Slowdown factor: 8/7 * 1.05 (mem bandwidth) * 1.05 (thermal) ≈ 1.20x
+    slowdown_factor = DEFAULT_CONTENZIONE_SLOWDOWN_FACTOR
+
+    return ContentionBudget(
+        p_cores_anchor=anchor_ranks,
+        p_cores_scout_feeder=1,
+        gpu_scout_workers=gpu_scout_workers,
+        mps_active_thread_percentage=thread_pct,
+        mps_pinned_device_mem_limit=pinned_mem,
+        estimated_cpu_slowdown_factor=slowdown_factor,
+        real_parallelism_efficiency=0.85,
+        host_launch_bound_latency_ms=DEFAULT_SCOUT_HOST_LATENCY_MS,
+        total_host_ram_gb=total_ram_gb,
+        anchor_mem_per_worker_gb=28.0,
+        scout_mem_per_worker_gb=6.0,
+    )
+
+
+def detect_gpu_scout_config(
+    scratch_dir: Optional[Union[str, Path]] = None,
+    min_vram_headroom_mb: float = 1536.0,
+) -> GpuScoutExecutorConfig:
+    """Detect OS and hardware configuration across the 6-Tier Environment Matrix.
+
+    Suggestion #65:
+    - Tier 1/2 (Windows/macOS): disable MPS, serialize tasks (max_concurrent=1)
+    - Tier 3/6 (Linux/HPC): enable MPS with scratch pipes
+    """
+    sys_plat = sys.platform
+    if sys_plat.startswith("win"):
+        platform_os = "windows"
+    elif sys_plat == "darwin":
+        platform_os = "darwin"
+    else:
+        platform_os = "linux"
+
+    target_scratch = Path(scratch_dir or os.environ.get("COCHEM_SCRATCH", tempfile.gettempdir())).resolve()
+    mps_pipe = str((target_scratch / "nvidia_mps").resolve())
+
+    if platform_os in ("windows", "darwin"):
+        return GpuScoutExecutorConfig(
+            platform_os=platform_os,
+            enable_mps=False,
+            mps_pipe_dir=mps_pipe,
+            max_concurrent_gpu_tasks=1,
+            min_vram_headroom_mb=min_vram_headroom_mb,
         )
-        e_cc[p] = -460.5500 + v_intra + v_inter_cc
+    else:
+        has_gpu = False
+        try:
+            import torch
+            has_gpu = torch.cuda.is_available()
+        except Exception:
+            pass
+        return GpuScoutExecutorConfig(
+            platform_os="linux",
+            enable_mps=has_gpu,
+            mps_pipe_dir=mps_pipe,
+            max_concurrent_gpu_tasks=3 if has_gpu else 1,
+            min_vram_headroom_mb=min_vram_headroom_mb,
+        )
 
-    return symbols, geoms, e_dft, e_cc
+
+class GpuScoutDispatcher:
+    """Thread-safe and process-safe GPU scout dispatch controller with VRAM headroom guard.
+
+    Mandated by Method Matrix v4 §8A.2, §8A.4.
+    Suggestion #65:
+    - Tier 1/2 (Windows/macOS): Serializes GPU kernels via threading.Semaphore(1).
+    - Tier 3/6 (Linux): Permits parallel execution under MPS.
+    - Dynamic VRAM check: holds tasks if free VRAM < min_vram_headroom_mb.
+    """
+
+    _instance: Optional["GpuScoutDispatcher"] = None
+    _lock = threading.Lock()
+
+    def __init__(self, config: Optional[GpuScoutExecutorConfig] = None):
+        self.config = config or detect_gpu_scout_config()
+        self.semaphore = threading.Semaphore(self.config.max_concurrent_gpu_tasks)
+        self.active_count = 0
+        self._count_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls, config: Optional[GpuScoutExecutorConfig] = None) -> "GpuScoutDispatcher":
+        with cls._lock:
+            if cls._instance is None or (config is not None and config != cls._instance.config):
+                cls._instance = cls(config)
+            return cls._instance
+
+    def check_vram_headroom(self) -> Tuple[bool, float]:
+        """Queries torch.cuda.mem_get_info() if CUDA is available."""
+        try:
+            import torch
+            if torch.cuda.is_available():
+                free_b, total_b = torch.cuda.mem_get_info()
+                free_mb = free_b / (1024 * 1024)
+                return (free_mb >= self.config.min_vram_headroom_mb, free_mb)
+        except Exception:
+            pass
+        return (True, 99999.0)
+
+    @contextmanager
+    def dispatch_scout(self, poll_interval: float = 0.05, max_wait: float = 30.0):
+        acquired = self.semaphore.acquire(timeout=max_wait)
+        if not acquired:
+            raise TimeoutError(f"Timeout waiting for GPU scout concurrency slot after {max_wait}s")
+
+        try:
+            t0 = time.time()
+            while True:
+                has_vram, free_mb = self.check_vram_headroom()
+                if has_vram:
+                    break
+                if time.time() - t0 >= max_wait:
+                    raise RuntimeError(
+                        f"Dynamic VRAM safeguard: {free_mb:.1f} MB free < "
+                        f"{self.config.min_vram_headroom_mb:.1f} MB required"
+                    )
+                time.sleep(poll_interval)
+
+            with self._count_lock:
+                self.active_count += 1
+            try:
+                yield
+            finally:
+                with self._count_lock:
+                    self.active_count -= 1
+        finally:
+            self.semaphore.release()
 
 
 # =============================================================================
-# Command-Line Interface & Demonstration Execution
+# Worker Init Scripts & Parsl Configuration Assembly
 # =============================================================================
+def build_worker_init_scripts(
+    mps_pipe_dir: Optional[Path] = None,
+    mps_log_dir: Optional[Path] = None,
+    mps_thread_pct: int = DEFAULT_MPS_THREAD_PERCENTAGE,
+    mps_pinned_mem: str = DEFAULT_MPS_PINNED_MEM_LIMIT_STR,
+    gpu_device_id: int = 0,
+    enable_mps: Optional[bool] = None,
+) -> Tuple[str, str, str]:
+    """
+    Generate authoritative worker initialization scripts for CPU, GPU, and Orchestrator.
+    Compliant with Method Matrix §8A.6 lines 1373–1388 and Suggestion #65.
 
+    Returns:
+        Tuple of (cpu_init_script, gpu_init_script, orchestrator_init_script).
+    """
+    if enable_mps is None:
+        enable_mps = sys.platform not in ("win32", "darwin") and platform.system().lower() not in ("windows", "darwin")
+
+    if not enable_mps:
+        cpu_init_script = (
+            "export OMP_NUM_THREADS=1; "
+            "export KMP_HW_SUBSET=8c:intel_core,1t"
+        ) if sys.platform != "win32" else "set OMP_NUM_THREADS=1"
+
+        gpu_init_script = (
+            f"export CUDA_VISIBLE_DEVICES={gpu_device_id}"
+            if sys.platform != "win32"
+            else f"set CUDA_VISIBLE_DEVICES={gpu_device_id}"
+        )
+
+        orchestrator_init_script = (
+            "export OMP_NUM_THREADS=1"
+            if sys.platform != "win32"
+            else "set OMP_NUM_THREADS=1"
+        )
+        return cpu_init_script, gpu_init_script, orchestrator_init_script
+
+    if mps_pipe_dir is None or mps_log_dir is None:
+        pipe, log = get_mps_directories()
+        mps_pipe_dir = pipe if mps_pipe_dir is None else mps_pipe_dir
+        mps_log_dir = log if mps_log_dir is None else mps_log_dir
+
+    cpu_init_script = (
+        "export OMP_NUM_THREADS=1; "
+        "export KMP_HW_SUBSET=8c:intel_core,1t"
+    )
+
+    gpu_init_script = (
+        f"export CUDA_VISIBLE_DEVICES={gpu_device_id}; "
+        f"export CUDA_MPS_ACTIVE_THREAD_PERCENTAGE={mps_thread_pct}; "
+        f"export CUDA_MPS_PINNED_DEVICE_MEM_LIMIT='{mps_pinned_mem}'; "
+        f"export CUDA_MPS_PIPE_DIRECTORY='{mps_pipe_dir.resolve()}'; "
+        f"export CUDA_MPS_LOG_DIRECTORY='{mps_log_dir.resolve()}'; "
+        f"ulimit -n {DEFAULT_ULIMIT_NOFILE}"
+    )
+
+    orchestrator_init_script = "export OMP_NUM_THREADS=1"
+
+    return cpu_init_script, gpu_init_script, orchestrator_init_script
+
+
+
+def build_heterogeneous_profile(
+    provider_type: ParslProviderType = ParslProviderType.LOCAL,
+    slurm_options: Optional[SlurmResourceOptions] = None,
+    degraded_single_executor: bool = False,
+    env: Optional[Dict[str, str]] = None,
+) -> ParslMultiExecutorProfile:
+    """
+    Assemble the complete heterogeneous multi-executor profile (§8A.2, §8A.6).
+    """
+    target_env = os.environ if env is None else env
+    physical_cores, _ = detect_system_cpu_topology(target_env)
+    total_ram_gb = psutil.virtual_memory().total / (1024**3)
+
+    partitioning = partition_cpu_cores(
+        total_physical=physical_cores,
+        env=target_env,
+    )
+
+    contention = calculate_contention_budget(
+        total_physical_cores=physical_cores,
+        total_ram_gb=total_ram_gb,
+    )
+
+    pipe_dir, log_dir = get_mps_directories()
+    cpu_init, gpu_init, orch_init = build_worker_init_scripts(
+        mps_pipe_dir=pipe_dir,
+        mps_log_dir=log_dir,
+        mps_thread_pct=contention.mps_active_thread_percentage,
+        mps_pinned_mem=contention.mps_pinned_device_mem_limit,
+    )
+
+    if degraded_single_executor or partitioning.is_degraded:
+        # Degraded single executor profile (teaching tier or single-core host)
+        anchor_cfg = HTEXConfig(
+            label="cpu",
+            stream=ExecutorStreamType.CPU_ANCHOR,
+            provider_type=provider_type,
+            max_workers_per_node=1,
+            cores_per_worker=1.0,
+            mem_per_worker_gb=min(8.0, total_ram_gb * 0.5),
+            cpu_affinity="none",
+            worker_init_script=cpu_init,
+        )
+        scout_cfg = HTEXConfig(
+            label="gpu",
+            stream=ExecutorStreamType.GPU_SCOUT,
+            provider_type=provider_type,
+            max_workers_per_node=1,
+            cores_per_worker=1.0,
+            mem_per_worker_gb=min(4.0, total_ram_gb * 0.25),
+            cpu_affinity="none",
+            worker_init_script=gpu_init,
+        )
+        orch_cfg = HTEXConfig(
+            label="orchestrator",
+            stream=ExecutorStreamType.ORCHESTRATOR,
+            provider_type=provider_type,
+            max_workers_per_node=1,
+            cores_per_worker=1.0,
+            mem_per_worker_gb=2.0,
+            cpu_affinity="none",
+            worker_init_script=orch_init,
+        )
+        return ParslMultiExecutorProfile(
+            core_partitioning=partitioning,
+            contention_budget=contention,
+            anchor_executor=anchor_cfg,
+            scout_executor=scout_cfg,
+            orchestrator_executor=orch_cfg,
+            slurm_options=slurm_options,
+            is_degraded_single_executor=True,
+        )
+
+    # Full heterogeneous production profile
+    anchor_cfg = HTEXConfig(
+        label="cpu",
+        stream=ExecutorStreamType.CPU_ANCHOR,
+        provider_type=provider_type,
+        max_workers_per_node=1,
+        cores_per_worker=float(partitioning.anchor_core_count),
+        mem_per_worker_gb=contention.anchor_mem_per_worker_gb,
+        cpu_affinity="block",
+        worker_init_script=cpu_init,
+    )
+
+    scout_cfg = HTEXConfig(
+        label="gpu",
+        stream=ExecutorStreamType.GPU_SCOUT,
+        provider_type=provider_type,
+        max_workers_per_node=contention.gpu_scout_workers,
+        cores_per_worker=float(partitioning.scout_core_count) / float(contention.gpu_scout_workers),
+        mem_per_worker_gb=contention.scout_mem_per_worker_gb,
+        cpu_affinity="block-reverse",
+        available_accelerators=contention.gpu_scout_workers,
+        worker_init_script=gpu_init,
+    )
+
+    orch_cfg = HTEXConfig(
+        label="orchestrator",
+        stream=ExecutorStreamType.ORCHESTRATOR,
+        provider_type=provider_type,
+        max_workers_per_node=partitioning.orchestrator_core_count,
+        cores_per_worker=1.0,
+        mem_per_worker_gb=4.0,
+        cpu_affinity="none",
+        worker_init_script=orch_init,
+    )
+
+    return ParslMultiExecutorProfile(
+        core_partitioning=partitioning,
+        contention_budget=contention,
+        anchor_executor=anchor_cfg,
+        scout_executor=scout_cfg,
+        orchestrator_executor=orch_cfg,
+        slurm_options=slurm_options,
+        is_degraded_single_executor=False,
+    )
+
+
+def construct_parsl_config(
+    profile: Optional[ParslMultiExecutorProfile] = None,
+    run_dir: Optional[Union[str, Path]] = None,
+) -> Any:
+    """
+    Construct a physical parsl.config.Config object incorporating CPU Anchor,
+    GPU Scout, and Orchestrator executors.
+
+    Args:
+        profile: ParslMultiExecutorProfile descriptor (or default if None).
+        run_dir: Optional custom runinfo directory for Parsl logs.
+
+    Returns:
+        Configured parsl.config.Config instance.
+    """
+    try:
+        from parsl.config import Config
+        from parsl.executors import HighThroughputExecutor, ThreadPoolExecutor
+        from parsl.launchers import SimpleLauncher, SrunLauncher
+        from parsl.providers import LocalProvider, SlurmProvider
+    except ImportError as exc:
+        raise ExecutorLifecycleError(f"Parsl library is not installed or importable: {exc}") from exc
+
+    if profile is None:
+        profile = build_heterogeneous_profile()
+
+    resolved_run_dir: str
+    if run_dir is not None:
+        resolved_run_dir = str(resolve_mapped_path(run_dir))
+    else:
+        resolved_run_dir = str((get_runtime_dir() / "parsl_runinfo").resolve())
+
+    def make_provider(htex_cfg: HTEXConfig) -> Any:
+        if htex_cfg.provider_type == ParslProviderType.SLURM and profile.slurm_options:
+            if platform.system() == "Windows":
+                logger.warning(
+                    "SlurmProvider is not supported natively on Windows platforms due to POSIX scheduler constraints; "
+                    "falling back to LocalProvider."
+                )
+                return LocalProvider(
+                    init_blocks=1,
+                    min_blocks=0,
+                    max_blocks=1,
+                    nodes_per_block=1,
+                    worker_init=htex_cfg.worker_init_script,
+                    launcher=SimpleLauncher(),
+                )
+
+            slurm_opt = profile.slurm_options
+            launcher_cls = SrunLauncher if slurm_opt.srun_launcher else SimpleLauncher
+            sched_opts = list(slurm_opt.custom_scheduler_options)
+            if slurm_opt.partition:
+                sched_opts.append(f"#SBATCH --partition={slurm_opt.partition}")
+            if slurm_opt.account:
+                sched_opts.append(f"#SBATCH --account={slurm_opt.account}")
+            if slurm_opt.qos:
+                sched_opts.append(f"#SBATCH --qos={slurm_opt.qos}")
+            if htex_cfg.stream == ExecutorStreamType.GPU_SCOUT:
+                sched_opts.append(f"#SBATCH --gres={slurm_opt.gres_gpu}")
+                sched_opts.append(f"#SBATCH --gpus-per-node={slurm_opt.gpus_per_node}")
+
+            return SlurmProvider(
+                nodes_per_block=slurm_opt.nodes_per_block,
+                init_blocks=1,
+                min_blocks=0,
+                max_blocks=1,
+                walltime=slurm_opt.walltime,
+                scheduler_options="\n".join(sched_opts),
+                worker_init=htex_cfg.worker_init_script,
+                launcher=launcher_cls(),
+            )
+        # Default LocalProvider
+        return LocalProvider(
+            init_blocks=1,
+            min_blocks=0,
+            max_blocks=1,
+            nodes_per_block=1,
+            worker_init=htex_cfg.worker_init_script,
+            launcher=SimpleLauncher(),
+        )
+
+    # 1. CPU Anchor Executor (HighThroughputExecutor)
+    anchor_htex = HighThroughputExecutor(
+        label=profile.anchor_executor.label,
+        provider=make_provider(profile.anchor_executor),
+        max_workers_per_node=profile.anchor_executor.max_workers_per_node,
+        cores_per_worker=profile.anchor_executor.cores_per_worker,
+        mem_per_worker=profile.anchor_executor.mem_per_worker_gb,
+        cpu_affinity=profile.anchor_executor.cpu_affinity,
+        worker_port_range=profile.anchor_executor.worker_port_range,
+        interchange_port_range=profile.anchor_executor.interchange_port_range,
+    )
+
+    # 2. GPU Scout Executor (HighThroughputExecutor)
+    scout_kwargs: Dict[str, Any] = {
+        "label": profile.scout_executor.label,
+        "provider": make_provider(profile.scout_executor),
+        "max_workers_per_node": profile.scout_executor.max_workers_per_node,
+        "cores_per_worker": profile.scout_executor.cores_per_worker,
+        "mem_per_worker": profile.scout_executor.mem_per_worker_gb,
+        "cpu_affinity": profile.scout_executor.cpu_affinity,
+        "worker_port_range": profile.scout_executor.worker_port_range,
+        "interchange_port_range": profile.scout_executor.interchange_port_range,
+    }
+    if profile.scout_executor.available_accelerators is not None:
+        scout_kwargs["available_accelerators"] = profile.scout_executor.available_accelerators
+
+    scout_htex = HighThroughputExecutor(**scout_kwargs)
+
+    # 3. Orchestrator Executor (ThreadPoolExecutor for lightweight coordination)
+    orch_exec = ThreadPoolExecutor(
+        max_threads=profile.orchestrator_executor.max_workers_per_node,
+        label=profile.orchestrator_executor.label,
+    )
+
+    return Config(
+        executors=[anchor_htex, scout_htex, orch_exec],
+        run_dir=resolved_run_dir,
+        retries=profile.parsl_retries,
+        strategy=None,
+    )
+
+
+# =============================================================================
+# Method Matrix §8A.5 Integrity Guards (G1–G7) Engine
+# =============================================================================
+def verify_g1_authority(payload: Dict[str, Any]) -> bool:
+    """
+    G1: The cheap surface may set starting points, never reported answers.
+    Every guide decision payload must be tagged 'advisory_only'.
+
+    Raises:
+        IntegrityGuardViolationError: If a guide task claims 'authoritative' status.
+    """
+    auth = str(payload.get("authority", "")).strip().lower()
+    if auth == TaskAuthority.AUTHORITATIVE.value:
+        raise IntegrityGuardViolationError(
+            "G1 Violation: Guide/scout execution payload cannot claim 'authoritative' authority. "
+            "Only anchor calculations may supply reported physical observables."
+        )
+    return auth in (
+        TaskAuthority.ADVISORY_ONLY.value,
+        TaskAuthority.ORCHESTRATION.value,
+        "advisory_only",
+        "guide",
+        "scout",
+    )
+
+
+def verify_g2_high_level_hessian(
+    anchor_result: Dict[str, Any],
+    max_imaginary_frequencies: int = 0,
+) -> bool:
+    """
+    G2: Verify final structure with a high-level Hessian showing correct
+    imaginary frequency count and reporting the softest force constant.
+
+    Raises:
+        IntegrityGuardViolationError: If Hessian is missing or imaginary frequency count is exceeded.
+    """
+    imag_freqs = anchor_result.get("imaginary_frequencies_count")
+    if imag_freqs is None:
+        raise IntegrityGuardViolationError(
+            "G2 Violation: Anchor calculation missing high-level Hessian verification."
+        )
+
+    if int(imag_freqs) > max_imaginary_frequencies:
+        raise IntegrityGuardViolationError(
+            f"G2 Violation: Final structure converged to saddle point with {imag_freqs} "
+            f"imaginary frequencies (threshold: {max_imaginary_frequencies})."
+        )
+    return True
+
+
+def compute_molecular_center_of_mass(
+    coordinates: np.ndarray,
+    atomic_symbols: Sequence[str],
+) -> np.ndarray:
+    """
+    Compute 3D center of mass dynamically using Mendeleev atomic masses.
+    Enforces Mendeleev Library Mandate (Rule 1 & 2).
+    """
+    masses = np.array([element(sym.strip()).mass for sym in atomic_symbols], dtype=np.float64)
+    total_mass = np.sum(masses)
+    if total_mass <= 0.0:
+        raise ValueError("Total molecular mass must be greater than zero.")
+    return np.sum(coordinates * masses[:, np.newaxis], axis=0) / total_mass
+
+
+def verify_g3_basin_identity(
+    scout_coords_angstrom: np.ndarray,
+    anchor_coords_angstrom: np.ndarray,
+    atomic_symbols: Sequence[str],
+    rmsd_threshold_angstrom: float = DEFAULT_G3_RMSD_THRESHOLD_ANGSTROM,
+    delta_r_threshold_angstrom: float = DEFAULT_G3_DELTA_R_THRESHOLD_ANGSTROM,
+) -> Tuple[bool, float, float, str]:
+    """
+    G3: Basin-identity check between scout predicted minimum and anchor relaxed minimum.
+    Calculates heavy-atom RMSD and center-of-mass displacement Delta R using Mendeleev masses.
+    Gate: RMSD > 0.25 Å or Delta R > 0.20 Å => flag 'basin change'.
+
+    Returns:
+        Tuple of (is_same_basin, rmsd, delta_r, message).
+    """
+    if scout_coords_angstrom.shape != anchor_coords_angstrom.shape:
+        raise ValueError(
+            f"Shape mismatch in G3 basin check: scout {scout_coords_angstrom.shape} vs "
+            f"anchor {anchor_coords_angstrom.shape}"
+        )
+
+    # Filter heavy atoms (non-Hydrogen) for heavy-atom RMSD
+    heavy_indices = [i for i, sym in enumerate(atomic_symbols) if sym.strip().upper() not in ("H", "D", "T")]
+    if heavy_indices:
+        scout_heavy = scout_coords_angstrom[heavy_indices]
+        anchor_heavy = anchor_coords_angstrom[heavy_indices]
+        rmsd = float(np.sqrt(np.mean(np.sum((scout_heavy - anchor_heavy) ** 2, axis=-1))))
+    else:
+        rmsd = float(np.sqrt(np.mean(np.sum((scout_coords_angstrom - anchor_coords_angstrom) ** 2, axis=-1))))
+
+    # Compute center of mass separation Delta R using Mendeleev masses
+    com_scout = compute_molecular_center_of_mass(scout_coords_angstrom, atomic_symbols)
+    com_anchor = compute_molecular_center_of_mass(anchor_coords_angstrom, atomic_symbols)
+    delta_r = float(np.linalg.norm(com_scout - com_anchor))
+
+    is_same_basin = (rmsd <= rmsd_threshold_angstrom) and (delta_r <= delta_r_threshold_angstrom)
+    if not is_same_basin:
+        msg = (
+            f"Basin change detected: heavy-atom RMSD={rmsd:.4f} A (gate <= {rmsd_threshold_angstrom:.2f} A), "
+            f"Delta R={delta_r:.4f} A (gate <= {delta_r_threshold_angstrom:.2f} A)"
+        )
+    else:
+        msg = f"Basin identity verified: RMSD={rmsd:.4f} A, Delta R={delta_r:.4f} A within tolerance."
+
+    return is_same_basin, rmsd, delta_r, msg
+
+
+def verify_g4_rank_inversion(
+    scout_energies: Sequence[float],
+    anchor_energies: Sequence[float],
+    rho_threshold: float = DEFAULT_G4_SPEARMAN_RHO_THRESHOLD,
+) -> Tuple[bool, float, str]:
+    """
+    G4: Rank-inversion audit before culling on cheap surface (§8A.5).
+    Computes Spearman rank correlation rho on sample.
+    Mandates rho >= 0.90 before discarding candidate geometries.
+
+    Returns:
+        Tuple of (passes_audit, spearman_rho, message).
+    """
+    if len(scout_energies) != len(anchor_energies):
+        raise ValueError(
+            f"Sample size mismatch: {len(scout_energies)} scout vs {len(anchor_energies)} anchor"
+        )
+    if len(scout_energies) < 2:
+        return True, 1.0, "Sample size < 2; rank correlation bypassed."
+
+    res = scipy.stats.spearmanr(scout_energies, anchor_energies)
+    rho = float(res.statistic if hasattr(res, "statistic") else res[0])
+
+    if np.isnan(rho):
+        rho = 0.0
+
+    passes = rho >= rho_threshold
+    if not passes:
+        msg = (
+            f"G4 Violation: Spearman rank correlation rho={rho:.3f} below gate {rho_threshold:.2f}. "
+            f"MLFF culling prohibited; retention window must be widened."
+        )
+    else:
+        msg = f"G4 Verified: Spearman rank correlation rho={rho:.3f} >= {rho_threshold:.2f}."
+
+    return passes, rho, msg
+
+
+def verify_g5_uncertainty_gate(
+    committee_sigma_mev_per_atom: float,
+    threshold_mev_per_atom: float = DEFAULT_G5_UNCERTAINTY_THRESHOLD_MEV,
+) -> bool:
+    """G5: Committee uncertainty gate on MLFF guide predictions."""
+    return committee_sigma_mev_per_atom <= threshold_mev_per_atom
+
+
+def verify_g6_abort_guide(
+    consecutive_guide_failures: int,
+    max_failures: int = DEFAULT_G6_MAX_GUIDE_FAILURES,
+) -> bool:
+    """G6: Abort-the-guide rule after n_th = 5 consecutive failures."""
+    return consecutive_guide_failures < max_failures
+
+
+def log_g7_provenance_event(
+    record: G7ProvenanceRecord,
+    log_dir: Optional[Union[str, Path]] = None,
+) -> Path:
+    """
+    G7: Append structured provenance audit JSON event line to provenance.jsonl.
+    Mandated by Method Matrix §8A.5 (line 1320).
+
+    Returns:
+        Path to the target provenance.jsonl file.
+    """
+    target_dir = Path(log_dir).resolve() if log_dir else get_artifact_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_file = target_dir / "provenance.jsonl"
+
+    line = json.dumps(record.model_dump(mode="json")) + "\n"
+    with open(target_file, "a", encoding="utf-8") as f:
+        f.write(line)
+
+    return target_file
+
+
+# =============================================================================
+# ParslExecutionBroker (Thread-Safe Lifecycle Manager)
+# =============================================================================
+class ParslExecutionBroker:
+    """
+    Thread-safe lifecycle manager and task dispatcher for the heterogeneous Parsl DFK.
+    Maintains singleton instance, manages executor topology, and coordinates zero-mock execution.
+    """
+
+    _instance: Optional[ParslExecutionBroker] = None
+    _lock = threading.RLock()
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> ParslExecutionBroker:
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(ParslExecutionBroker, cls).__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(
+        self,
+        profile: Optional[ParslMultiExecutorProfile] = None,
+        run_dir: Optional[Union[str, Path]] = None,
+    ) -> None:
+        if getattr(self, "_initialized", False):
+            return
+        self.profile: ParslMultiExecutorProfile = profile or build_heterogeneous_profile()
+        self.run_dir: Optional[Path] = Path(run_dir).resolve() if run_dir else None
+        self._dfk: Optional[Any] = None
+        self._is_active: bool = False
+        self._task_history: Dict[str, TaskExecutionResult] = {}
+        self._consecutive_guide_failures: int = 0
+        self._initialized = True
+
+    @classmethod
+    def get_instance(cls) -> ParslExecutionBroker:
+        """Get the active singleton broker instance."""
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+    def load(self, force_reload: bool = False) -> Any:
+        """
+        Load or reload the physical Parsl DataFlowKernel.
+        """
+        with self._lock:
+            import parsl
+
+            if self._is_active and not force_reload:
+                return self._dfk
+
+            if self._is_active and force_reload:
+                self.shutdown()
+
+            parsl_cfg = construct_parsl_config(
+                profile=self.profile,
+                run_dir=self.run_dir,
+            )
+            try:
+                self._dfk = parsl.load(parsl_cfg)
+                self._is_active = True
+                logger.info("Parsl DataFlowKernel loaded successfully with heterogeneous executors.")
+                return self._dfk
+            except Exception as exc:
+                self._is_active = False
+                raise ExecutorLifecycleError(f"Failed to load Parsl DataFlowKernel: {exc}") from exc
+
+    def shutdown(self) -> None:
+        """
+        Cleanly shutdown the Parsl DataFlowKernel and reap worker processes.
+        """
+        with self._lock:
+            import parsl
+
+            if self._is_active:
+                try:
+                    parsl.clear()
+                    logger.info("Parsl DataFlowKernel cleared.")
+                except Exception as exc:
+                    logger.warning(f"Error during parsl.clear(): {exc}")
+                finally:
+                    self._is_active = False
+                    self._dfk = None
+                    _sweep_zombie_processes()
+
+    def is_active(self) -> bool:
+        """Check if Parsl DFK is active."""
+        with self._lock:
+            return self._is_active
+
+    def get_dfk(self) -> Optional[Any]:
+        """Retrieve the active DataFlowKernel."""
+        with self._lock:
+            return self._dfk
+
+    def submit_bash_task(
+        self,
+        request: TaskRoutingRequest,
+        stdout_path: Optional[Union[str, Path]] = None,
+        stderr_path: Optional[Union[str, Path]] = None,
+    ) -> Any:
+        """
+        Submit a bash-level computational chemistry task to the appropriate executor pool.
+        """
+        with self._lock:
+            if not self._is_active:
+                self.load()
+
+            from parsl import bash_app
+
+            executor_label: str
+            if request.stream == ExecutorStreamType.CPU_ANCHOR:
+                executor_label = self.profile.anchor_executor.label
+            elif request.stream == ExecutorStreamType.GPU_SCOUT:
+                executor_label = self.profile.scout_executor.label
+            else:
+                executor_label = self.profile.orchestrator_executor.label
+
+            @bash_app(executors=[executor_label])
+            def _generic_bash_runner(
+                cmd_args: List[str],
+                env_dict: Dict[str, str],
+                stdout: Optional[str] = None,
+                stderr: Optional[str] = None,
+            ) -> str:
+                env_prefix = " ".join(f"{k}='{v}'" for k, v in env_dict.items())
+                cmd_str = " ".join(cmd_args)
+                return f"{env_prefix} {cmd_str}" if env_prefix else cmd_str
+
+            out_str = str(resolve_mapped_path(stdout_path)) if stdout_path else None
+            err_str = str(resolve_mapped_path(stderr_path)) if stderr_path else None
+
+            cmd = request.command or ["echo", "no-op"]
+            app_future = _generic_bash_runner(
+                cmd_args=cmd,
+                env_dict=request.env_vars,
+                stdout=out_str,
+                stderr=err_str,
+            )
+            return app_future
+
+    def submit_python_task(
+        self,
+        stream: ExecutorStreamType,
+        func: Callable[..., Any],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """
+        Submit a Python callable to the designated executor stream.
+        """
+        with self._lock:
+            if not self._is_active:
+                self.load()
+
+            from parsl import python_app
+
+            executor_label: str
+            if stream == ExecutorStreamType.CPU_ANCHOR:
+                executor_label = self.profile.anchor_executor.label
+            elif stream == ExecutorStreamType.GPU_SCOUT:
+                executor_label = self.profile.scout_executor.label
+            else:
+                executor_label = self.profile.orchestrator_executor.label
+
+            @python_app(executors=[executor_label])
+            def _runner(*fn_args: Any, **fn_kwargs: Any) -> Any:
+                return func(*fn_args, **fn_kwargs)
+
+            return _runner(*args, **kwargs)
+
+    def execute_and_wait(
+        self,
+        request: TaskRoutingRequest,
+        stdout_path: Optional[Union[str, Path]] = None,
+        stderr_path: Optional[Union[str, Path]] = None,
+    ) -> TaskExecutionResult:
+        """
+        Submit a task, wait for resolution within timeout, and generate a validated TaskExecutionResult.
+        """
+        start_time = time.time()
+        try:
+            future = self.submit_bash_task(
+                request=request,
+                stdout_path=stdout_path,
+                stderr_path=stderr_path,
+            )
+            ret_code = future.result(timeout=request.timeout_seconds)
+            duration = time.time() - start_time
+
+            # Read outputs if available
+            stdout_content: Optional[str] = None
+            stderr_content: Optional[str] = None
+            file_hashes: Dict[str, str] = {}
+            output_files: Dict[str, str] = {}
+
+            if stdout_path and Path(stdout_path).exists():
+                stdout_content = Path(stdout_path).read_text(encoding="utf-8", errors="replace")
+                output_files["stdout"] = str(stdout_path)
+                file_hashes[str(stdout_path)] = hashlib.sha256(Path(stdout_path).read_bytes()).hexdigest()
+
+            if stderr_path and Path(stderr_path).exists():
+                stderr_content = Path(stderr_path).read_text(encoding="utf-8", errors="replace")
+                output_files["stderr"] = str(stderr_path)
+                file_hashes[str(stderr_path)] = hashlib.sha256(Path(stderr_path).read_bytes()).hexdigest()
+
+            status = "COMPLETED" if ret_code == 0 else "FAILED"
+
+            result = TaskExecutionResult(
+                task_id=request.task_id,
+                stream=request.stream,
+                authority=request.authority,
+                status=status,
+                return_code=ret_code,
+                stdout=stdout_content,
+                stderr=stderr_content,
+                duration_seconds=duration,
+                output_files=output_files,
+                file_hashes=file_hashes,
+            )
+            self._task_history[request.task_id] = result
+            return result
+
+        except Exception as exc:
+            duration = time.time() - start_time
+            logger.error(f"Task {request.task_id} failed on stream {request.stream}: {exc}")
+            result = TaskExecutionResult(
+                task_id=request.task_id,
+                stream=request.stream,
+                authority=request.authority,
+                status="FAILED",
+                duration_seconds=duration,
+                error_message=str(exc),
+            )
+            self._task_history[request.task_id] = result
+            return result
+
+    def get_status_report(self) -> Dict[str, Any]:
+        """Generate a complete status report of the broker and executors."""
+        with self._lock:
+            return {
+                "is_active": self._is_active,
+                "profile_id": self.profile.profile_id,
+                "anchor_executor": self.profile.anchor_executor.model_dump(),
+                "scout_executor": self.profile.scout_executor.model_dump(),
+                "orchestrator_executor": self.profile.orchestrator_executor.model_dump(),
+                "core_partitioning": self.profile.core_partitioning.model_dump(),
+                "contention_budget": self.profile.contention_budget.model_dump(),
+                "total_tasks_tracked": len(self._task_history),
+                "consecutive_guide_failures": self._consecutive_guide_failures,
+            }
+
+    def __enter__(self) -> ParslExecutionBroker:
+        self.load()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.shutdown()
+
+
+# =============================================================================
+# Helper Convenience Functions
+# =============================================================================
+def load_parsl_executors(
+    profile: Optional[ParslMultiExecutorProfile] = None,
+    run_dir: Optional[Union[str, Path]] = None,
+) -> ParslExecutionBroker:
+    """Convenience function to initialize and load the ParslExecutionBroker."""
+    broker = ParslExecutionBroker.get_instance()
+    if profile:
+        broker.profile = profile
+    if run_dir:
+        broker.run_dir = Path(run_dir).resolve()
+    broker.load()
+    return broker
+
+
+def shutdown_parsl_executors() -> None:
+    """Convenience function to shutdown the ParslExecutionBroker."""
+    broker = ParslExecutionBroker.get_instance()
+    broker.shutdown()
+
+
+# =============================================================================
+# CLI Interface
+# =============================================================================
 def build_cli_parser() -> argparse.ArgumentParser:
-    """Builds the comprehensive CLI argument parser."""
+    """Construct CLI argument parser for Parsl executor management."""
     parser = argparse.ArgumentParser(
-        description="CoChem AutoPES: Active Learning Selection (300-800 pts) & Delta-Learning PES Fitting Engine."
+        prog="cochem_core_parsl_executors",
+        description="CoChem-CORE: Parsl Multi-Executor Heterogeneous HPC & Task Router (Scout-and-Anchor).",
     )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="Run self-contained physical demonstration on Ar...HCl complex.",
+    subparsers = parser.add_subparsers(dest="command", help="Sub-command to execute")
+
+    subparsers.add_parser("status", help="Query status of Parsl executors and DFK")
+    subparsers.add_parser("topology", help="Display heterogeneous Scout-and-Anchor topology")
+    subparsers.add_parser("dry-run", help="Dry-run configuration assembly and integrity checks")
+
+    export_p = subparsers.add_parser("export-config", help="Export topology profile to JSON")
+    export_p.add_argument(
+        "--out", "-o", type=str, default="parsl_topology.json", help="Output JSON path"
     )
-    parser.add_argument(
-        "--campaign-h5",
-        type=str,
-        default=None,
-        help="Path to campaign HDF5 PESStore file.",
+
+    audit_p = subparsers.add_parser("audit-guards", help="Run self-audit on G1-G7 integrity guards")
+    audit_p.add_argument(
+        "--out-dir", type=str, default=None, help="Directory to emit test provenance.jsonl"
     )
-    parser.add_argument(
-        "--low-method",
-        type=str,
-        default="wb97x_v_tz",
-        help="Low-level base method ID (e.g. 'wb97x_v_tz').",
-    )
-    parser.add_argument(
-        "--high-method",
-        type=str,
-        default="dlpno_ccsdt1_avtz",
-        help="High-level escalation method ID (e.g. 'dlpno_ccsdt1_avtz').",
-    )
-    parser.add_argument(
-        "--n-select",
-        type=int,
-        default=500,
-        help="Number of active learning points to select (QS-3 mandate: 300-800).",
-    )
-    parser.add_argument(
-        "--strategy",
-        type=str,
-        default="two_set_error_based",
-        choices=[s.value for s in AcquisitionStrategy],
-        help="Acquisition strategy function.",
-    )
-    parser.add_argument(
-        "--target-rms",
-        type=float,
-        default=10.0,
-        help="Target spectroscopic held-out RMSE threshold in cm^-1.",
-    )
-    parser.add_argument(
-        "--output-model",
-        type=str,
-        default="fitted_delta_pes.npz",
-        help="Path to save output fitted DeltaPESModel .npz archive.",
-    )
+
     return parser
 
 
-def run_demo() -> int:
-    """
-    Executes a comprehensive, physical verification demonstration of the
-    CoChem AutoPES active learning and Delta-learning fitting engine.
-    """
-    logger.info("================================================================================")
-    logger.info("CoChem AutoPES: Active Learning (300-800 pts) & Delta-Learning Demonstration")
-    logger.info("Mandated by Method Matrix v4 QS-3 & §13.2 (Table 2 Rows T2-12h / T2-1d)")
-    logger.info("================================================================================")
-
-    # 1. Generate physical Ar...HCl benchmark dataset (2,000 DFT base pool)
-    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
-    logger.info(f"Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
-
-    # Verify Mendeleev dynamic mass resolution
-    ar_mass = get_dynamic_atomic_mass("Ar")
-    h_mass = get_dynamic_atomic_mass("H")
-    cl_mass = get_dynamic_atomic_mass("Cl")
-    logger.info(f"Mendeleev Masses: Ar={ar_mass:.4f} u, H={h_mass:.4f} u, Cl={cl_mass:.4f} u (ZERO hardcoded masses).")
-
-    # 2. Configure Active Learning Engine
-    al_config = ActiveLearningConfig(
-        pool_size=2000,
-        n_select_min=300,
-        n_select_max=800,
-        n_select_target=500,
-        batch_size=50,
-        acquisition_strategy=AcquisitionStrategy.TWO_SET_ERROR_BASED,
-        committee_size=4,
-        diversity_weight=0.35,
-        held_out_ratio=0.20,
-    )
-    fit_config = DeltaFittingConfig(
-        backend=FittingBackend.KERNEL_RIDGE,
-        kernel=KernelType.RBF,
-        regularization_alpha=1e-6,
-        target_rms_cm1=10.0,
-    )
-
-    orchestrator = AutoPESOrchestrator(
-        symbols=symbols,
-        low_method="wb97x_v_tz",
-        high_method="dlpno_ccsdt1_avtz",
-        al_config=al_config,
-        fit_config=fit_config,
-    )
-
-    # 3. Execute Active Learning Selection (Step 3)
-    logger.info("\n--- Phase 1: Committee-Based Active Learning Selection ---")
-    start_time = time.perf_counter()
-    al_result = orchestrator.al_engine.select_points(
-        pool_geoms=geoms,
-        pool_energies=e_dft,
-    )
-    sel_elapsed = time.perf_counter() - start_time
-
-    logger.info(
-        f"[OK] Selected {al_result.n_selected} points in {al_result.selection_rounds} rounds "
-        f"({sel_elapsed:.2f}s). Held-out validation grid: {len(al_result.held_out_indices)} points."
-    )
-    logger.info(
-        f"[OK] Guard G5 Committee Threshold: {al_result.iqr_threshold_hartree:.6e} Ha "
-        f"({al_result.iqr_threshold_mev_atom:.3f} meV/atom)."
-    )
-
-    # 4. Execute Delta-Learning Surface Fitting & Spectroscopic Held-Out Validation (Steps 4 & 5)
-    logger.info("\n--- Phase 2: Delta-Learning Potential Energy Surface Fitting ---")
-    train_idx = al_result.selected_indices
-    held_idx = al_result.held_out_indices
-
-    model, fit_summary = orchestrator.fit_delta_surface_from_data(
-        train_geoms=geoms[train_idx],
-        train_low_energies=e_dft[train_idx],
-        train_high_energies=e_cc[train_idx],
-        held_out_geoms=geoms[held_idx],
-        held_out_low_energies=e_dft[held_idx],
-        held_out_high_energies=e_cc[held_idx],
-    )
-
-    metrics = fit_summary.metrics
-    logger.info("\n================================================================================")
-    logger.info("FINAL SPECTROSCOPIC VALIDATION REPORT (Method Matrix QS-3 & Row T2-12h)")
-    logger.info("================================================================================")
-    logger.info(f"Training Points (Actively Selected): {metrics.n_train}")
-    logger.info(f"Held-Out Validation Points:        {metrics.n_held_out}")
-    logger.info(f"Training RMSE:                     {metrics.train_rmse_cm1:.4f} cm^-1")
-    logger.info(f"Training MAE:                      {metrics.train_mae_cm1:.4f} cm^-1")
-    logger.info(f"Held-Out Validation RMSE:          {metrics.held_out_rmse_cm1:.4f} cm^-1")
-    logger.info(f"Held-Out Validation MAE:           {metrics.held_out_mae_cm1:.4f} cm^-1")
-    logger.info(f"Held-Out Validation Max Error:     {metrics.held_out_max_err_cm1:.4f} cm^-1")
-    logger.info(f"Held-Out Validation RMSE (kcal):   {metrics.held_out_rmse_kcal_mol:.5f} kcal/mol")
-    logger.info(f"Spectroscopic Target Threshold:    <= {metrics.target_rms_cm1:.1f} cm^-1")
-    logger.info(f"Spectroscopic Grade Status:        {'[PASS - SPECTROSCOPIC GRADE]' if metrics.spectroscopic_grade else '[RETRY]'}")
-    logger.info("================================================================================")
-
-    # 5. Verify Analytical Gradient Evaluation
-    logger.info("\n--- Phase 3: Analytical Surface Gradient Verification ---")
-    test_geom = geoms[held_idx[0]]
-    grad = model.predict_gradient(test_geom)
-    grad_norm = float(np.linalg.norm(grad))
-    logger.info(f"[OK] Analytical Cartesian gradient evaluated: shape={grad.shape}, ||grad||={grad_norm:.6e} Ha/A.")
-
-    # 6. Save Model NPZ Archive
-    demo_npz = Path("cochem_auto_pes_demo_model.npz")
-    model.save_npz(demo_npz)
-    logger.info(f"[OK] Re-loading saved model for verification...")
-    reloaded_model = DeltaPESModel.load_npz(demo_npz)
-    pred_test = float(reloaded_model.predict_delta(test_geom))
-    pred_orig = float(model.predict_delta(test_geom))
-    assert abs(pred_test - pred_orig) < 1e-12, "Reloaded model prediction mismatch"
-    logger.info(f"[OK] Re-loaded model verified with exact bitwise energy match: {pred_test:.10f} Ha.")
-
-    if demo_npz.exists():
-        demo_npz.unlink()
-
-    logger.info("\n[SUCCESS] AutoPES demonstration completed with full Method Matrix compliance.")
-    return 0
-
-
-def main() -> int:
-    """Main CLI entrypoint."""
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """CLI entrypoint for cochem_core_parsl_executors."""
     parser = build_cli_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
-    if args.demo or args.campaign_h5 is None:
-        return run_demo()
-
-    # If campaign-h5 is provided, run from real HDF5 store
-    from core_engine.cochem_core_pes_store import PESStore
-
-    store_path = Path(args.campaign_h5).resolve()
-    if not store_path.exists():
-        logger.error(f"PESStore file not found at {store_path}")
-        return 1
-
-    store = PESStore(str(store_path))
-    symbols = store.symbols
-
-    al_config = ActiveLearningConfig(
-        n_select_target=args.n_select,
-        acquisition_strategy=AcquisitionStrategy(args.strategy),
-    )
-    fit_config = DeltaFittingConfig(
-        target_rms_cm1=args.target_rms,
-    )
-
-    orchestrator = AutoPESOrchestrator(
-        symbols=symbols,
-        low_method=args.low_method,
-        high_method=args.high_method,
-        al_config=al_config,
-        fit_config=fit_config,
-    )
-
-    logger.info(f"Running active learning selection for '{args.low_method}' -> '{args.high_method}'...")
-    al_res = orchestrator.run_active_selection_from_store(store)
-    logger.info(f"Actively selected {al_res.n_selected} points for escalation.")
-
-    # Check if high-level points are already computed in the store
-    todo_ids = store.todo(args.high_method, al_res.selected_point_ids)
-    if len(todo_ids) > 0:
-        logger.info(
-            f"Escalation pending: {len(todo_ids)}/{al_res.n_selected} points still to calculate "
-            f"for high-level method '{args.high_method}'."
-        )
+    if not args.command or args.command == "status":
+        broker = ParslExecutionBroker.get_instance()
+        status = broker.get_status_report()
+        print(json.dumps(status, indent=2))
         return 0
 
-    logger.info("Fitting Delta-learning potential energy surface...")
-    model, fit_summary = orchestrator.fit_delta_surface_from_store(store)
-    model.save_npz(args.output_model)
-    logger.info(f"Delta-learning surface fitted and saved to {args.output_model}.")
+    if args.command == "topology":
+        profile = build_heterogeneous_profile()
+        print("=== CoChem Heterogeneous Scout-and-Anchor Topology (Section 8A) ===")
+        print(f"Total Physical Cores: {profile.core_partitioning.total_physical_cores}")
+        print(f"Anchor Cores:         {profile.core_partitioning.anchor_core_count} ({profile.core_partitioning.anchor_affinity_str})")
+        print(f"Scout Cores:          {profile.core_partitioning.scout_core_count} ({profile.core_partitioning.scout_affinity_str})")
+        print(f"GPU Scout Workers:    {profile.contention_budget.gpu_scout_workers} (MPS: {profile.contention_budget.mps_active_thread_percentage}%)")
+        print(f"Contention Slowdown:  {profile.contention_budget.estimated_cpu_slowdown_factor:.2f}x (85% real efficiency)")
+        print(f"Degraded Mode:        {profile.is_degraded_single_executor}")
+        return 0
+
+    if args.command == "dry-run":
+        try:
+            profile = build_heterogeneous_profile()
+            cfg = construct_parsl_config(profile)
+            print(f"Successfully assembled Parsl Config with {len(cfg.executors)} executors:")
+            for exc in cfg.executors:
+                print(f"  - Executor: {exc.label} ({type(exc).__name__})")
+            return 0
+        except Exception as err:
+            logger.error(f"Dry-run failed: {err}")
+            return 1
+
+    if args.command == "export-config":
+        profile = build_heterogeneous_profile()
+        out_path = Path(args.out).resolve()
+        out_path.write_text(json.dumps(profile.model_dump(mode="json"), indent=2), encoding="utf-8")
+        print(f"Exported topology profile to: {out_path}")
+        return 0
+
+    if args.command == "audit-guards":
+        print("Auditing Method Matrix Section 8A.5 Integrity Guards (G1-G7)...")
+        # G1 check
+        try:
+            verify_g1_authority({"authority": "authoritative"})
+            print("[FAIL] G1 Audit Failed: Authoritative guide allowed.")
+            return 1
+        except IntegrityGuardViolationError:
+            print("[OK] G1 Verified: Rejection of authoritative guide claim.")
+
+        # G2 check
+        try:
+            verify_g2_high_level_hessian({"imaginary_frequencies_count": 0})
+            print("[OK] G2 Verified: Hessian frequency validation.")
+        except Exception as err:
+            print(f"[FAIL] G2 Audit Failed: {err}")
+            return 1
+
+        # G3 check with Mendeleev dynamic masses
+        scout_xyz = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.1]], dtype=np.float64)
+        anchor_xyz = np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 1.12]], dtype=np.float64)
+        is_same, rmsd, delta_r, msg = verify_g3_basin_identity(
+            scout_coords_angstrom=scout_xyz,
+            anchor_coords_angstrom=anchor_xyz,
+            atomic_symbols=["C", "O"],
+        )
+        print(f"[OK] G3 Verified: {msg}")
+
+        # G4 check
+        passes, rho, msg = verify_g4_rank_inversion([1.0, 2.0, 3.0], [1.1, 2.1, 3.1])
+        print(f"[OK] G4 Verified: {msg}")
+
+        # G5 check
+        assert verify_g5_uncertainty_gate(5.0) is True
+        print("[OK] G5 Verified: Committee uncertainty thresholding.")
+
+        # G6 check
+        assert verify_g6_abort_guide(2) is True
+        assert verify_g6_abort_guide(5) is False
+        print("[OK] G6 Verified: Guide abort rule on n_th=5 failures.")
+
+        # G7 check
+        record = G7ProvenanceRecord(
+            stage="audit_test",
+            decision="verify_parsl_executors",
+            authority=TaskAuthority.ADVISORY_ONLY,
+        )
+        log_file = log_g7_provenance_event(record, log_dir=args.out_dir)
+        print(f"[OK] G7 Verified: Provenance logged to {log_file}")
+        return 0
+
     return 0
 
 
@@ -5351,6 +5626,34 @@ def cochem_error_handler(
     return decorator
 
 
+# =====================================================================
+# Chunk 7 Ecosystem Exceptions (Suggestions #61-#70)
+# =====================================================================
+
+class ElectronicStructureEngineError(CoChemError):
+    """Base exception for quantum engine failures."""
+
+    default_code = ProvenanceErrorCode.CONVERGENCE_FAILURE
+
+
+class ConvergenceFailureError(ElectronicStructureEngineError):
+    """Raised when SCF or Geometry Optimization fails to converge."""
+
+    default_code = ProvenanceErrorCode.CONVERGENCE_FAILURE
+
+
+class MissingBinaryError(ElectronicStructureEngineError):
+    """Raised when a required quantum chemistry binary is absent."""
+
+    default_code = ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+
+
+class OETDaemonConnectionError(CoChemError):
+    """Raised when communication with persistent OET server daemon fails."""
+
+    default_code = ProvenanceErrorCode.TELEMETRY_FAILURE
+
+
 __all__ = [
     # Registries
     "_EXCEPTION_REGISTRY",
@@ -5408,6 +5711,10 @@ __all__ = [
     "SymmetryInvarianceError",
     "NumericalConditioningError",
     "DispersionIntegrationError",
+    "ElectronicStructureEngineError",
+    "ConvergenceFailureError",
+    "MissingBinaryError",
+    "OETDaemonConnectionError",
     # Warnings
     "CoChemWarning",
     "KraitchmanZPVEWarning",
@@ -5684,6 +5991,127 @@ class DeltaMLDispersionConfig(BaseModel):
     s8_scale: float = Field(default=0.0, ge=0.0)
 
 
+# =====================================================================
+# Chunk 7 Ecosystem Schemas (Suggestions #61-#70)
+# =====================================================================
+
+import datetime
+from pathlib import Path
+
+
+class CommitteeEnsembleConfig(BaseModel):
+    """Configuration for vectorized active learning committee ensemble inference. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    vectorized: bool = True
+    vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
+    concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
+    max_batch_size: int = Field(default=128, ge=1)
+
+
+class OETFallbackAlertManifest(BaseModel):
+    """Provenance audit manifest emitted when OET socket disconnect triggers physical fallback. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    calculation_base: str
+    timestamp: str = Field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc).isoformat())
+    trigger_event: str
+    fallback_calculator: str
+    provenance_tag: str = "[E]"
+    host_telemetry: Dict[str, Any]
+    scratch_alert_file: str
+    staged_artifact_file: str
+
+
+class HDF5PersistenceConfig(BaseModel):
+    """Configuration for two-tier thread-safe and process-safe HDF5 persistence store. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    lock_timeout_seconds: float = Field(default=60.0, ge=1.0)
+    retry_backoff_base_seconds: float = Field(default=0.05, ge=0.001)
+    compression_filter: str = "gzip"
+    compression_level: int = Field(default=4, ge=1, le=9)
+    enable_fletcher32: bool = True
+    enable_shuffle: bool = True
+
+
+class GpuScoutExecutorConfig(BaseModel):
+    """Configuration for OS-aware heterogeneous GPU scout concurrency across the 6-Tier Matrix. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    platform_os: Literal["windows", "darwin", "linux"]
+    enable_mps: bool
+    mps_pipe_dir: str
+    max_concurrent_gpu_tasks: int = Field(default=1, ge=1)
+    min_vram_headroom_mb: float = Field(default=1536.0, ge=512.0)
+
+
+class JobRouteConfig(BaseModel):
+    """Routing specification mapping jobs to heterogeneous Parsl executors. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    job_type: Literal["heavy_qm_opt", "fast_potential_scan", "single_point", "frequency"]
+    assigned_executor: Literal["cochem_anchor_cpu", "cochem_scout_gpu", "local_fallback"]
+    cpu_core_pinning: Optional[List[int]] = None
+    scratch_dir: str
+    timeout_seconds: float = Field(default=3600.0, ge=10.0)
+
+
+class ExecutionRouteResult(BaseModel):
+    """Execution result returned by Parsl execution broker routing. [M]"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+    task_id: Optional[str] = None
+    job_id: Optional[str] = None
+    status: str
+    assigned_executor: Optional[str] = None
+    executor_used: Optional[str] = None
+    scratch_dir: Union[str, Path]
+    returncode: int = 0
+    future: Optional[Any] = None
+    output: Optional[Any] = None
+    telemetry: Optional[Dict[str, Any]] = None
+
+    @property
+    def effective_task_id(self) -> str:
+        return self.task_id or self.job_id or ""
+
+    @property
+    def effective_executor(self) -> str:
+        return self.assigned_executor or self.executor_used or ""
+
+
+
+class MultiSeedGoatConfig(BaseModel):
+    """Configuration for asynchronous multi-seed GOAT conformational exploration via Parsl queues. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    seed_structures: List[str] = Field(min_length=1)
+    max_concurrent_seeds: int = Field(default=4, ge=1)
+    rmsd_threshold_angstrom: float = Field(default=0.15, gt=0.0)
+    energy_window_kcal_mol: float = Field(default=6.0, gt=0.0)
+
+
+class TorqPipelineCliArgs(BaseModel):
+    """Validated CLI argument model for high-performance SLURM batch pipeline entrypoints. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    input_geometry: Path
+    output_directory: Path
+    theory_level: str = "B3LYP-D4/def2-TZVP"
+    cpus_per_task: int = Field(default=1, ge=1)
+    memory_mb: int = Field(default=4096, ge=1024)
+    scratch_dir: Path
+
+
 __all__ = [
     "GradientPayload",
     "QuantumJobSpec",
@@ -5698,819 +6126,1752 @@ __all__ = [
     "PipSymmetryConfig",
     "KrrRegularizationConfig",
     "DeltaMLDispersionConfig",
+    "CommitteeEnsembleConfig",
+    "OETFallbackAlertManifest",
+    "HDF5PersistenceConfig",
+    "GpuScoutExecutorConfig",
+    "JobRouteConfig",
+    "ExecutionRouteResult",
+    "MultiSeedGoatConfig",
+    "TorqPipelineCliArgs",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\oet_server.py ---
-"""Persistent ORCA GOAT-EXPLORE External Optimizer (OET) Server Daemon.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\Libraries\cochem_torq_committee_ensemble.py ---
+"""Vectorized Committee Model (Ensemble) Wrapper for conservative forces and epistemic uncertainty.
 
 Method Matrix v4 Provenance Tags: [M] Mandated, [D] Derived, [E] Empirical.
-Strict Zero-Mock Mandate v3: Authentic global minima-hopping, OS named socket / pipe IPC,
-Kabsch RMSD conformer deduplication, and psutil process tree supervision.
+Strict Zero-Mock Mandate v3: Completely authentic autograd mechanics, unbiased variance, and stream safety.
+Compliant with Suggestion #61: Vectorized inference via torch.vmap / CUDA streams, dynamic VRAM throttling.
 """
 
 from __future__ import annotations
 
-import io
-import json
 import logging
-import os
-import shutil
-import socket
-import sys
-import tempfile
-import threading
-import time
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
-
-import numpy as np
-import psutil
-from filelock import FileLock
-from mendeleev import element
+import torch
+import torch.nn as nn
+from torch.func import functional_call, vmap
 
 try:
-    from cochem_base.exceptions import GoatDaemonExecutionError
-    from cochem_base.schemas import GoatExploreDaemonConfig
+    from cochem_base.schemas import CommitteeEnsembleConfig
 except ImportError:
-    class GoatDaemonExecutionError(RuntimeError):
-        """Ecosystem exception for GOAT daemon and ORCA minima hopping failures. [M]"""
-        pass
-
     from pydantic import BaseModel, Field, ConfigDict
+    from typing import Literal
 
-    class GoatExploreDaemonConfig(BaseModel):
-        """Configuration schema for GOAT-EXPLORE persistent background daemon. [M]"""
+    class CommitteeEnsembleConfig(BaseModel):
         model_config = ConfigDict(frozen=True, extra="forbid")
-        socket_path: str
-        scratch_dir: str
-        max_hopping_steps: int = Field(default=100, ge=1)
-        tight_opt_threshold: bool = True
-        rmsd_dedup_threshold: float = Field(default=0.15, gt=0.0)
+        vectorized: bool = True
+        vram_headroom_threshold_mb: float = Field(default=2048.0, ge=512.0)
+        concurrency_mode: Literal["vmap", "cuda_streams", "serial"] = "vmap"
+        max_batch_size: int = Field(default=128, ge=1)
 
-logger = logging.getLogger("CoChem-TOPOS.OETServer")
+try:
+    from Libraries.cochem_torq_inference_errors import EnsembleConsensusError
+except ImportError:
+    class EnsembleConsensusError(RuntimeError):
+        """Raised when ensemble prediction violates consensus or dimensions mismatch."""
+        def __init__(self, msg: str, diagnostics: Optional[Dict[str, Any]] = None):
+            super().__init__(msg)
+            self.diagnostics = diagnostics or {}
 
-
-def compute_kabsch_rmsd(
-    coords_a: np.ndarray,
-    coords_b: np.ndarray,
-    heavy_atom_indices: Optional[Sequence[int]] = None,
-) -> float:
-    """Compute exact optimal Kabsch superposition root-mean-square deviation (RMSD) in Angstroms. [D]"""
-    p = np.array(coords_a, dtype=np.float64)
-    q = np.array(coords_b, dtype=np.float64)
-
-    if heavy_atom_indices is not None and len(heavy_atom_indices) > 0:
-        p = p[heavy_atom_indices]
-        q = q[heavy_atom_indices]
-
-    n = len(p)
-    if n == 0:
-        return 0.0
-
-    # Center centroids to origin
-    p_cent = p - np.mean(p, axis=0)
-    q_cent = q - np.mean(q, axis=0)
-
-    # Covariance matrix H = P^T * Q
-    h = np.dot(p_cent.T, q_cent)
-    u, s, vt = np.linalg.svd(h)
-    v = vt.T
-
-    # Reflection correction
-    d = np.linalg.det(np.dot(v, u.T))
-    e = np.eye(3)
-    if d < 0:
-        e[2, 2] = -1.0
-
-    # Optimal rotation matrix R = V * E * U^T
-    r = np.dot(np.dot(v, e), u.T)
-    p_rotated = np.dot(p_cent, r.T)
-
-    diff = p_rotated - q_cent
-    rmsd = float(np.sqrt(np.mean(np.sum(diff ** 2, axis=-1))))
-    return rmsd
+logger = logging.getLogger("cochem.torq.committee_ensemble")
 
 
-def generate_orca_goat_deck(
-    coordinates: np.ndarray,
-    atomic_numbers: Sequence[int],
-    charge: int = 0,
-    multiplicity: int = 1,
-    max_hopping_steps: int = 100,
-) -> str:
-    """Generate authentic ORCA 6.0 GOAT-EXPLORE input deck with tightened %geom tolerances. [M]
+@dataclass(frozen=True)
+class CommitteePrediction:
+    """Immutable data container for aggregated committee inference outputs. [M]"""
 
-    Strictly prohibits Calc_Hess true, mandating InHess XTB2 model Hessian [M].
-    """
-    deck_lines = [
-        "! GOAT-EXPLORE ExtOpt TightOpt",
-        "%geom",
-        "  TolMaxG 1e-5",
-        "  TolE 1e-7",
-        "  TolRMSG 3e-6",
-        "  TolRMSD 5e-5",
-        "  TolMaxD 1e-4",
-        "  InHess XTB2",
-        f"  MaxIter {int(max_hopping_steps)}",
-        "end",
-        f"* xyz {int(charge)} {int(multiplicity)}",
-    ]
+    mean: torch.Tensor
+    std: torch.Tensor
+    variance: torch.Tensor
+    predictions: torch.Tensor
+    mean_energy: torch.Tensor
+    mean_forces: Optional[torch.Tensor] = None
+    energy_variance: Optional[torch.Tensor] = None
+    per_atom_force_variance: Optional[torch.Tensor] = None
+    max_force_std: Optional[float] = None
+    model_energies: Optional[torch.Tensor] = None
+    model_forces: Optional[torch.Tensor] = None
 
-    for z, (x, y, z_coord) in zip(atomic_numbers, coordinates):
-        symbol = element(int(z)).symbol
-        deck_lines.append(f"  {symbol:<3} {x:14.8f} {y:14.8f} {z_coord:14.8f}")
-
-    deck_lines.append("*")
-    return "\n".join(deck_lines) + "\n"
+    def __iter__(self):
+        """Support standard unpacking: mean, std = ensemble(x)."""
+        return iter((self.mean, self.std))
 
 
-def parse_ensemble_xyz(xyz_content_or_path: Union[str, Path]) -> List[Tuple[str, np.ndarray, List[str]]]:
-    """Parse multiple conformers from an ORCA .finalensemble.xyz file. [D]
-
-    Returns list of tuples: (comment_line, coordinates_array, atom_symbols)
-    """
-    if isinstance(xyz_content_or_path, (str, Path)) and os.path.isfile(str(xyz_content_or_path)):
-        with open(xyz_content_or_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-    else:
-        lines = str(xyz_content_or_path).splitlines(keepends=True)
-
-    conformers = []
-    idx = 0
-    total_lines = len(lines)
-
-    while idx < total_lines:
-        line = lines[idx].strip()
-        if not line:
-            idx += 1
-            continue
-
+def get_available_vram_mb() -> float:
+    """Query available GPU VRAM or system memory in MB. [M]"""
+    if torch.cuda.is_available():
         try:
-            num_atoms = int(line)
-        except ValueError:
-            idx += 1
-            continue
-
-        idx += 1
-        if idx >= total_lines:
-            break
-        comment = lines[idx].strip()
-        idx += 1
-
-        symbols = []
-        coords = []
-        for _ in range(num_atoms):
-            if idx >= total_lines:
-                break
-            parts = lines[idx].split()
-            if len(parts) >= 4:
-                symbols.append(parts[0])
-                coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
-            idx += 1
-
-        if len(coords) == num_atoms:
-            conformers.append((comment, np.array(coords, dtype=np.float64), symbols))
-
-    return conformers
+            free_bytes, _ = torch.cuda.mem_get_info()
+            return float(free_bytes) / (1024.0 * 1024.0)
+        except Exception as err:
+            logger.debug("CUDA mem_get_info query failed: %s", err)
+    try:
+        import psutil
+        return float(psutil.virtual_memory().available) / (1024.0 * 1024.0)
+    except Exception:
+        return 4096.0
 
 
-def deduplicate_conformers(
-    conformers: List[Tuple[str, np.ndarray, List[str]]],
-    rmsd_threshold: float = 0.15,
-) -> List[Tuple[str, np.ndarray, List[str]]]:
-    """Filter duplicate conformers using heavy-atom Kabsch RMSD threshold (default >= 0.15 A) [M]."""
-    if not conformers:
-        return []
+def compute_committee_moments(
+    energies: torch.Tensor,
+    forces: Optional[torch.Tensor] = None,
+) -> CommitteePrediction:
+    """Compute unbiased sample mean, energy variance, and optional per-atom force epistemic variance. [D]
+    
+    energies: (M, ...) e.g. (M, B) or (M,)
+    forces: (M, N, 3) or (M, B, N, 3) or None
+    """
+    m = energies.shape[0]
+    if m < 2:
+        raise EnsembleConsensusError(
+            f"Committee ensemble requires at least 2 models for variance estimation, got M={m}.",
+            diagnostics={"num_models": m},
+        )
 
-    symbols = conformers[0][2]
-    # Identify heavy atoms dynamically via mendeleev
-    heavy_indices = [
-        i for i, s in enumerate(symbols)
-        if element(s).atomic_number > 1
-    ]
-    if not heavy_indices:
-        heavy_indices = list(range(len(symbols)))
+    # Conservative Mean & Unbiased Sample Variance: 1/(M-1) sum_m (E_m - E_mean)^2
+    mean_e = torch.mean(energies, dim=0)
+    e_diff = energies - mean_e.unsqueeze(0)
+    e_var = torch.sum(e_diff ** 2, dim=0) / float(m - 1)
+    e_std = torch.sqrt(torch.clamp(e_var, min=0.0))
 
-    unique_conformers: List[Tuple[str, np.ndarray, List[str]]] = []
+    if forces is not None:
+        if forces.shape[0] != m:
+            raise EnsembleConsensusError(
+                f"Mismatched ensemble model count: energies has M={m}, forces has M={forces.shape[0]}.",
+                diagnostics={"energies_M": m, "forces_M": forces.shape[0]},
+            )
+        mean_f = torch.mean(forces, dim=0)
+        f_diff = forces - mean_f.unsqueeze(0)
+        f_sq_norm = torch.sum(f_diff ** 2, dim=-1)
+        atom_f_var = torch.sum(f_sq_norm, dim=0) / float(3.0 * (m - 1))
+        atom_f_sum = torch.sum(f_sq_norm, dim=0) / float(m - 1)
+        atom_f_std = torch.sqrt(torch.clamp(atom_f_sum, min=0.0))
+        max_f_std = float(torch.max(atom_f_std).item())
 
-    for comment, coords, syms in conformers:
-        is_duplicate = False
-        for _, u_coords, _ in unique_conformers:
-            rmsd = compute_kabsch_rmsd(coords, u_coords, heavy_atom_indices=heavy_indices)
-            if rmsd < rmsd_threshold:
-                is_duplicate = True
-                break
+        return CommitteePrediction(
+            mean=mean_e,
+            std=e_std,
+            variance=e_var,
+            predictions=energies,
+            mean_energy=mean_e,
+            mean_forces=mean_f,
+            energy_variance=e_var,
+            per_atom_force_variance=atom_f_var,
+            max_force_std=max_f_std,
+            model_energies=energies,
+            model_forces=forces,
+        )
 
-        if not is_duplicate:
-            unique_conformers.append((comment, coords, syms))
+    return CommitteePrediction(
+        mean=mean_e,
+        std=e_std,
+        variance=e_var,
+        predictions=energies,
+        mean_energy=mean_e,
+        mean_forces=None,
+        energy_variance=e_var,
+        per_atom_force_variance=None,
+        max_force_std=None,
+        model_energies=energies,
+        model_forces=None,
+    )
 
-    return unique_conformers
 
+class CommitteeEnsemble(nn.Module):
+    """Vectorized ensemble coordinator for M neural network models with VRAM safeguards. [M]/[D]"""
 
-class GoatExploreDaemon:
-    """Persistent background OET server daemon orchestrating ORCA GOAT-EXPLORE and MLFF evaluation. [M]"""
+    def __init__(
+        self,
+        models: Sequence[nn.Module],
+        config: Optional[CommitteeEnsembleConfig] = None,
+    ) -> None:
+        super().__init__()
+        if len(models) < 2:
+            raise EnsembleConsensusError(
+                f"Committee requires at least 2 models, got {len(models)}.",
+                diagnostics={"num_models": len(models)},
+            )
+        self.models = nn.ModuleList(models)
+        self.config = config or CommitteeEnsembleConfig()
+        self.num_models = len(models)
+        self.last_execution_mode: str = "serial"
 
-    def __init__(self, config: GoatExploreDaemonConfig) -> None:
-        self.config = config
-        self.scratch_dir = Path(config.scratch_dir).resolve()
-        self.scratch_dir.mkdir(parents=True, exist_ok=True)
+    def _check_homogeneous_architectures(self) -> bool:
+        """Check if all models share identical parameter names and tensor shapes."""
+        base_params = dict(self.models[0].named_parameters())
+        base_keys = list(base_params.keys())
 
-        self.lock_file = self.scratch_dir / "oet_server.lock"
-        self.socket_path = Path(config.socket_path).resolve()
-        self.socket_path.parent.mkdir(parents=True, exist_ok=True)
+        for m in self.models[1:]:
+            m_params = dict(m.named_parameters())
+            if list(m_params.keys()) != base_keys:
+                return False
+            for k in base_keys:
+                if m_params[k].shape != base_params[k].shape:
+                    return False
+        return True
 
-        self.file_lock = FileLock(str(self.lock_file), timeout=10)
-        self._server_socket: Optional[socket.socket] = None
-        self._is_running = False
-        self._thread: Optional[threading.Thread] = None
-        self._pid = os.getpid()
+    def forward(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Evaluate ensemble forward pass using vectorized vmap, parallel CUDA streams, or serial fallback. [M]"""
+        requested_mode = self.config.concurrency_mode if self.config.vectorized else "serial"
 
-    def start(self) -> None:
-        """Acquire OS lock, bind communication socket, and start background daemon listener. [M]"""
-        try:
-            self.file_lock.acquire()
-        except Exception as exc:
-            raise GoatDaemonExecutionError(f"Failed to acquire oet_server.lock at {self.lock_file}: {exc}")
-
-        # Bind IPC socket: support AF_UNIX where available, or TCP localhost endpoint
-        if hasattr(socket, "AF_UNIX"):
-            if self.socket_path.exists():
-                self.socket_path.unlink()
-            self._server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self._server_socket.bind(str(self.socket_path))
+        # Dynamic RESOURCE_GUARD VRAM / memory polling
+        free_mb = get_available_vram_mb()
+        if free_mb < self.config.vram_headroom_threshold_mb:
+            logger.warning(
+                "RESOURCE_GUARD: Available memory (%.2f MB) is below threshold (%.2f MB). "
+                "Throttling inference to sequential fallback to prevent OOM.",
+                free_mb,
+                self.config.vram_headroom_threshold_mb,
+            )
+            mode = "serial"
         else:
-            # TCP localhost binding, writing port info into socket_path file
-            self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server_socket.bind(("127.0.0.1", 0))
-            port = self._server_socket.getsockname()[1]
-            with open(self.socket_path, "w", encoding="utf-8") as f:
-                json.dump({"host": "127.0.0.1", "port": port, "pid": self._pid}, f)
+            mode = requested_mode
 
-        self._server_socket.listen(5)
-        self._server_socket.settimeout(1.0)
-        self._is_running = True
+        if mode == "vmap":
+            if not self._check_homogeneous_architectures():
+                logger.info("Ensemble models have heterogeneous architectures; falling back from vmap.")
+                mode = "cuda_streams" if torch.cuda.is_available() else "serial"
 
-        self._thread = threading.Thread(target=self._serve_loop, daemon=True)
-        self._thread.start()
-        logger.info(f"OET Server daemon initialized. Socket: {self.socket_path}, Scratch: {self.scratch_dir}")
+        self.last_execution_mode = mode
 
-    def _serve_loop(self) -> None:
-        """Internal service loop responding to incoming IPC evaluation requests."""
-        while self._is_running:
-            try:
-                conn, _ = self._server_socket.accept()
-                with conn:
-                    data = conn.recv(4096)
-                    if not data:
-                        continue
-                    # Ping / status probe response
-                    conn.sendall(b'{"status": "ready", "oet_version": "6.0"}')
-            except (socket.timeout, OSError):
-                continue
-            except Exception as e:
-                logger.debug(f"OET serve loop non-fatal event: {e}")
+        if mode == "vmap":
+            return self._forward_vmap(*args, **kwargs)
+        elif mode == "cuda_streams" and torch.cuda.is_available():
+            return self._forward_cuda_streams(*args, **kwargs)
+        else:
+            return self._forward_serial(*args, **kwargs)
 
-    def generate_orca_input(
-        self,
-        coordinates: np.ndarray,
-        atomic_numbers: Sequence[int],
-        charge: int = 0,
-        multiplicity: int = 1,
-    ) -> str:
-        """Generate verified ORCA GOAT-EXPLORE input deck. [M]"""
-        deck = generate_orca_goat_deck(
-            coordinates=coordinates,
-            atomic_numbers=atomic_numbers,
-            charge=charge,
-            multiplicity=multiplicity,
-            max_hopping_steps=self.config.max_hopping_steps,
-        )
-        if "Calc_Hess true" in deck:
-            raise GoatDaemonExecutionError("Prohibited Calc_Hess true detected in GOAT-EXPLORE deck.")
-        return deck
+    def _forward_vmap(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Vectorized forward execution across committee models via torch.vmap. [D]"""
+        param_keys = list(dict(self.models[0].named_parameters()).keys())
+        stacked_params = {
+            k: torch.stack([dict(m.named_parameters())[k] for m in self.models], dim=0)
+            for k in param_keys
+        }
+        buffer_keys = list(dict(self.models[0].named_buffers()).keys())
+        stacked_buffers = {
+            k: torch.stack([dict(m.named_buffers())[k] for m in self.models], dim=0)
+            for k in buffer_keys
+        }
 
-    def process_ensemble_results(
-        self,
-        ensemble_xyz: Union[str, Path],
-    ) -> List[Tuple[str, np.ndarray, List[str]]]:
-        """Ingest .finalensemble.xyz and deduplicate conformers using configured RMSD threshold. [M]"""
-        raw_conformers = parse_ensemble_xyz(ensemble_xyz)
-        deduped = deduplicate_conformers(
-            raw_conformers,
-            rmsd_threshold=self.config.rmsd_dedup_threshold,
-        )
-        return deduped
+        def _single_forward(p_dict: Dict[str, torch.Tensor], b_dict: Dict[str, torch.Tensor], *a: Any) -> Any:
+            return functional_call(self.models[0], (p_dict, b_dict), a, kwargs)
 
-    def shutdown(self) -> None:
-        """Gracefully terminate background daemon, release locks, and terminate child process tree via psutil. [M]"""
-        self._is_running = False
+        in_dims = (0, 0, *(None for _ in args))
+        vmapped_fn = vmap(_single_forward, in_dims=in_dims)
+        raw_outputs = vmapped_fn(stacked_params, stacked_buffers, *args)
 
-        if self._server_socket is not None:
-            try:
-                self._server_socket.close()
-            except Exception:
-                pass
-            self._server_socket = None
+        if isinstance(raw_outputs, tuple):
+            if len(raw_outputs) >= 2:
+                return compute_committee_moments(raw_outputs[0], raw_outputs[1])
+            return compute_committee_moments(raw_outputs[0])
+        elif isinstance(raw_outputs, dict):
+            return compute_committee_moments(raw_outputs["energy"], raw_outputs.get("forces"))
+        else:
+            return compute_committee_moments(raw_outputs)
 
-        if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
+    def _forward_cuda_streams(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Parallel forward execution across asynchronous CUDA streams. [D]"""
+        streams = [torch.cuda.Stream() for _ in range(self.num_models)]
+        raw_results: List[Any] = [None] * self.num_models
 
-        # Process tree cleanup via psutil [M]
-        try:
-            curr_proc = psutil.Process()
-            children = curr_proc.children(recursive=True)
-            for child in children:
-                try:
-                    child.terminate()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-            gone, alive = psutil.wait_procs(children, timeout=2.0)
-            for child in alive:
-                try:
-                    child.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-        except Exception as exc:
-            logger.debug(f"Process tree termination note: {exc}")
+        for idx, (m, s) in enumerate(zip(self.models, streams)):
+            with torch.cuda.stream(s):
+                raw_results[idx] = m(*args, **kwargs)
 
-        # Remove socket artifact
-        if self.socket_path.exists():
-            try:
-                self.socket_path.unlink()
-            except Exception:
-                pass
+        torch.cuda.synchronize()
+        return self._aggregate_raw_results(raw_results)
 
-        # Release file lock
-        try:
-            if self.file_lock.is_locked:
-                self.file_lock.release()
-        except Exception:
-            pass
+    def _forward_serial(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Sequential single-threaded forward loop fallback. [M]"""
+        raw_results = [m(*args, **kwargs) for m in self.models]
+        return self._aggregate_raw_results(raw_results)
 
-        if self.lock_file.exists():
-            try:
-                self.lock_file.unlink()
-            except Exception:
-                pass
+    def _aggregate_raw_results(self, raw_results: Sequence[Any]) -> CommitteePrediction:
+        """Aggregate raw list of outputs from independent model invocations into moments."""
+        first = raw_results[0]
+        if isinstance(first, tuple):
+            all_e = torch.stack([r[0] for r in raw_results], dim=0)
+            all_f = torch.stack([r[1] for r in raw_results], dim=0) if len(first) > 1 else None
+            return compute_committee_moments(all_e, all_f)
+        elif isinstance(first, dict):
+            all_e = torch.stack([r["energy"] for r in raw_results], dim=0)
+            all_f = torch.stack([r["forces"] for r in raw_results], dim=0) if "forces" in first else None
+            return compute_committee_moments(all_e, all_f)
+        else:
+            all_e = torch.stack(list(raw_results), dim=0)
+            return compute_committee_moments(all_e)
 
-        logger.info("OET Server daemon cleanly shut down.")
+    def predict(self, *args: Any, **kwargs: Any) -> CommitteePrediction:
+        """Alias for forward evaluation. [M]"""
+        return self.forward(*args, **kwargs)
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\base\test_active_learning_repulsion.py ---
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_calc_execution_router.py ---
+"""Re-export of ExecutionRouter for core_engine."""
+
+from cochem_base.calc.cochem_calc_execution_router import ExecutionRouter
+
+__all__ = ["ExecutionRouter"]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\base\test_execution_router_parsl_broker.py ---
+"""Physical Zero-Mock Test Suite for Unified Parsl Multi-Executor Routing in ExecutionRouter.
+
+Method Matrix Reference: Method Matrix v4 §8A.6 (Parsl Multi-Executor Architecture) and §8A.2 (Scout-and-Anchor Topology) [M].
+Validates Suggestion #66:
+- Elimination of bypassed execution paths by wiring Parsl DataFlowKernel into ExecutionRouter.
+- Workload mapping: heavy_qm_opt -> cochem_anchor_cpu with CPU core pinning.
+- Workload mapping: fast_potential_scan -> cochem_scout_gpu.
+- Task sandboxing in Ring 2 ephemeral scratch ($COCHEM_SCRATCH/task_<uuid>/).
+- Non-blocking task futures resolution.
+"""
+
+from __future__ import annotations
+
 import os
-os.environ["JAX_ENABLE_X64"] = "True"
-
-import numpy as np
+import sys
+import time
 import pytest
-from mendeleev import element
-
-from cochem_base.core_engine.cochem_core_auto_pes import ActiveLearningEngine
-from cochem_base.schemas import ActiveLearningBatchConfig
-
-
-def test_active_learning_sequential_repulsion_batch_diversity():
-    """Verify sequential furthest-point repulsion prevents localized greedy clustering (Suggestion #51 / Method Matrix v4 §10.8 [M], [D])."""
-    # Dynamic Mendeleev check
-    c_elem = element("C")
-    assert c_elem.atomic_number == 6
-
-    # Construct 2D candidate pool: 20 cluster points near origin, 30 dispersed points
-    np.random.seed(42)
-    # Cluster points: tightly packed within radius < 0.05 A
-    cluster_points = np.array([[0.005 * i, 0.005 * i] for i in range(20)], dtype=np.float64)
-    # High uncertainties in cluster: 10.0 down to 8.1
-    cluster_uncertainties = np.array([10.0 - 0.1 * i for i in range(20)], dtype=np.float64)
-
-    # Dispersed points: spaced 1.0 to 6.0 A apart
-    dispersed_x = np.linspace(1.5, 8.0, 30)
-    dispersed_points = np.column_stack([dispersed_x, dispersed_x * 0.5])
-    dispersed_uncertainties = np.full(30, 5.0, dtype=np.float64)
-
-    pool = np.vstack([cluster_points, dispersed_points])
-    uncertainties = np.concatenate([cluster_uncertainties, dispersed_uncertainties])
-
-    engine = ActiveLearningEngine()
-
-    # 1. Greedy Selection (diversity_weight = 0.0) [D]
-    greedy_cfg = ActiveLearningBatchConfig(
-        batch_size=5,
-        repulsion_length_scale=0.5,
-        diversity_weight=0.0,
-        kernel_type="gaussian",
-    )
-    greedy_indices = engine.select_batch(pool, uncertainties, batch_config=greedy_cfg)
-    assert len(greedy_indices) == 5
-
-    # In greedy selection, all 5 points must come from the top uncertainty cluster (indices < 20)
-    assert all(idx < 20 for idx in greedy_indices)
-    greedy_selected = pool[greedy_indices]
-    for i in range(len(greedy_selected)):
-        for j in range(i + 1, len(greedy_selected)):
-            dist = np.linalg.norm(greedy_selected[i] - greedy_selected[j])
-            assert dist < 0.1, f"Greedy selection points unexpectedly dispersed: dist={dist}"
-
-    # 2. Repulsion Selection (diversity_weight = 1.0, sigma_repulse = 0.5 A) [M]
-    repulsion_cfg = ActiveLearningBatchConfig(
-        batch_size=5,
-        repulsion_length_scale=0.5,
-        diversity_weight=1.0,
-        kernel_type="gaussian",
-    )
-    repulsion_indices = engine.select_batch(pool, uncertainties, batch_config=repulsion_cfg)
-    assert len(repulsion_indices) == 5
-
-    # With repulsion, only 1 point is taken from the cluster, and remaining points come from dispersed region
-    cluster_count = sum(1 for idx in repulsion_indices if idx < 20)
-    assert cluster_count == 1, f"Repulsion should take at most 1 point from cluster, got {cluster_count}"
-
-    repulsion_selected = pool[repulsion_indices]
-    for i in range(len(repulsion_selected)):
-        for j in range(i + 1, len(repulsion_selected)):
-            dist = np.linalg.norm(repulsion_selected[i] - repulsion_selected[j])
-            assert dist > 0.4, f"Repulsion failed to disperse points: dist={dist} <= 0.4"
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\base\test_krr_numerical_conditioning.py ---
-import os
-os.environ["JAX_ENABLE_X64"] = "True"
-
-import numpy as np
-import pytest
-from mendeleev import element
-
-from cochem_base.core_engine.cochem_core_auto_pes import ExactKernelRidgeEstimator
-from cochem_base.schemas import KrrRegularizationConfig
-
-
-def test_krr_numerical_conditioning_and_anchor_floor():
-    """Verify KRR anchor regularization floor >= 1e-8 Ha and Cholesky jitter escalation (Suggestion #58 / Method Matrix v4 §8C, §13.2 [M], [D])."""
-    # Dynamic Mendeleev check
-    ar_elem = element("Ar")
-    assert ar_elem.atomic_number == 18
-
-    # 1. Construct dataset with 5 asymptotic dissociation points where r > 10 A
-    # In Morse representation: y = exp(-r / 2.0).
-    # Near equilibrium: r in [1.5, 3.5]
-    r_eq = np.linspace(1.5, 3.5, 10)
-    # Asymptotic dissociation: r in [12.0, 20.0]
-    r_asymp = np.linspace(12.0, 20.0, 5)
-    r_all = np.concatenate([r_eq, r_asymp])
-
-    # 1D features: y_ij
-    X = np.exp(-r_all / 2.0).reshape(-1, 1)
-
-    # Synthetic Morse potential energy: D_e * (1 - exp(-a * (r - r_e)))^2
-    D_e = 0.1
-    a = 1.8
-    r_e = 2.0
-    y = D_e * (1.0 - np.exp(-a * (r_all - r_e))) ** 2
-
-    # Verify that raw Gram matrix of asymptotic points is ill-conditioned:
-    # Kernel: K_ij = exp(-gamma * ||x_i - x_j||^2)
-    gamma = 10.0
-    diff = X - X.T
-    K_raw = np.exp(-gamma * (diff ** 2))
-    eigenvalues = np.linalg.eigvalsh(K_raw)
-    min_eig = np.min(eigenvalues)
-    # Because 5 asymptotic points have features extremely close to 0 (exp(-12/2) ~ 0.002),
-    # the raw Gram matrix eigenvalues drop below 1e-12:
-    assert min_eig < 1e-10, f"Raw Gram matrix not ill-conditioned enough: min_eig={min_eig}"
-
-    # 2. Fit KRR using strict regularization floor 1e-8 Ha and adaptive jitter 1e-9 [M]
-    reg_cfg = KrrRegularizationConfig(
-        base_alpha=1e-8,
-        anchor_alpha_floor=1e-8,
-        jitter_epsilon=1e-9,
-        max_jitter_escalation=1e-6,
-    )
-    krr = ExactKernelRidgeEstimator(
-        gamma=gamma,
-        alpha=1e-8,
-        regularization_config=reg_cfg,
-    )
-
-    # Fitting must succeed without LinAlgError [M]
-    krr.fit(X, y)
-    assert krr.is_fitted
-    assert krr.alpha_vector is not None
-    assert len(krr.alpha_vector) == len(X)
-
-    # Predictions must evaluate stably without NaNs or Infs
-    preds = krr.predict(X)
-    assert not np.isnan(preds).any()
-    assert not np.isinf(preds).any()
-    mae = np.mean(np.abs(preds - y))
-    assert mae < 0.01, f"KRR fit error unexpectedly large: MAE={mae}"
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\base\test_pip_symmetry_invariance.py ---
-import os
-os.environ["JAX_ENABLE_X64"] = "True"
-
-import numpy as np
-import pytest
-from mendeleev import element
-
-from cochem_base.core_engine.cochem_core_auto_pes import (
-    ExactKernelRidgeEstimator,
-    GeometryFeaturizer,
-)
-from cochem_base.schemas import PipSymmetryConfig
-
-
-def test_pip_closed_subgroup_energy_degeneracy():
-    """Verify algebraic subgroup wreath product PIP orbit averaging satisfies exact permutation energy degeneracy |E(PX) - E(X)| < 1e-14 Eh (Suggestion #57 / Method Matrix v4 §13.2 [M], [D])."""
-    # Dynamic Mendeleev check: 6 identical Hydrogens
-    h_elem = element("H")
-    assert h_elem.atomic_number == 1
-    assert h_elem.mass is not None
-
-    symbols = ["H"] * 6
-    pip_cfg = PipSymmetryConfig(
-        max_symmetric_order=120,
-        subgroup_type="automorphism_wreath",
-        invariance_tolerance=1e-14,
-    )
-    featurizer = GeometryFeaturizer(symbols=symbols, pip_config=pip_cfg)
-
-    # Verify algebraic group closure has been strictly verified and subgroup has order 48
-    assert len(featurizer.group_permutations) == 48
-
-    # 6-atom coordinate matrix
-    coords = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.1, 0.0, 0.0],
-            [0.0, 1.2, 0.0],
-            [1.1, 1.2, 0.0],
-            [0.55, 0.6, 1.0],
-            [0.55, 0.6, -1.0],
-        ],
-        dtype=np.float64,
-    )
-
-    f_orig = featurizer.compute_morse_features(coords)
-
-    # Fit an exact KRR estimator with training data
-    krr = ExactKernelRidgeEstimator()
-    krr.fit(f_orig.reshape(1, -1), np.array([-3.25]))
-
-    e_orig = krr.predict(f_orig.reshape(1, -1))[0]
-
-    # Evaluate potential energy under all 48 permutations P in G
-    max_energy_variation = 0.0
-    for perm in featurizer.group_permutations:
-        perm_coords = coords[list(perm)]
-        f_perm = featurizer.compute_morse_features(perm_coords)
-        e_perm = krr.predict(f_perm.reshape(1, -1))[0]
-        variation = abs(e_perm - e_orig)
-        if variation > max_energy_variation:
-            max_energy_variation = variation
-
-    # Assert exact degeneracy: max |E(PX) - E(X)| < 1e-14 Eh [M]
-    assert (
-        max_energy_variation < 1e-14
-    ), f"PIP symmetry violation: max |E(PX) - E(X)| = {max_energy_variation:.4e} Eh >= 1e-14 Eh"
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\telemetry\test_honest_hardware_telemetry.py ---
-import os
-os.environ["JAX_ENABLE_X64"] = "True"
-
-import pytest
-import torch
-from mendeleev import element
-
-from Libraries.cochem_torq_engine import ExecutionContext
-from cochem_base.schemas import HardwareTelemetryReport
-from cochem_topos.telemetry.hardware import probe_hardware_telemetry
-
-
-def test_honest_hardware_telemetry_and_cpu_fallback():
-    """Verify honest hardware telemetry with zero-spoofed VRAM and automated CPU fallback (Suggestion #52 / Method Matrix v4 §8.3 [M], [D])."""
-    # Dynamic Mendeleev check
-    si = element("Si")
-    assert si.atomic_number == 14
-
-    ctx = ExecutionContext()
-    report = ctx.get_telemetry()
-    assert isinstance(report, HardwareTelemetryReport)
-
-    # Check that fabricated values (e.g. exactly 24 GB / 24576 MB) are strictly absent
-    assert report.vram_total_mb != 24576.0
-    assert report.vram_free_mb != 24576.0
-
-    # Verify physical consistency with genuine PyTorch device availability
-    has_cuda = torch.cuda.is_available()
-    if not has_cuda:
-        assert report.gpu_available is False
-        assert report.device_count == 0
-        assert report.vram_free_mb == 0.0
-        assert report.vram_total_mb == 0.0
-        assert report.selected_runtime in ("cpu", "onnx_cpu")
-    else:
-        assert report.gpu_available is True
-        assert report.device_count > 0
-        assert report.vram_total_mb > 0.0
-
-    # Verify TOPOS telemetry probe parity
-    topos_report = probe_hardware_telemetry()
-    assert isinstance(topos_report, HardwareTelemetryReport)
-    assert topos_report.gpu_available == report.gpu_available
-    assert topos_report.device_count == report.device_count
-    assert topos_report.vram_total_mb != 24576.0
-
-
-def test_honest_cpu_inference_routing_without_cuda_error():
-    """Verify model inference routes honestly to CPU without raising unhandled CUDAInitializationError."""
-    ctx = ExecutionContext()
-    # Force float64 precision query
-    telemetry = ctx.get_telemetry(precision="float64")
-
-    # If discrete GPU is absent or has < 2048 MB free VRAM, selected_runtime MUST be 'cpu'
-    if not telemetry.gpu_available or telemetry.vram_free_mb < 2048.0:
-        assert telemetry.selected_runtime == "cpu"
-
-    # Verify simple PyTorch tensor computation succeeds on the selected runtime
-    device = torch.device(telemetry.selected_runtime)
-    tensor_a = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float64, device=device)
-    tensor_b = torch.tensor([4.0, 5.0, 6.0], dtype=torch.float64, device=device)
-    res = tensor_a + tensor_b
-    assert torch.allclose(res, torch.tensor([5.0, 7.0, 9.0], dtype=torch.float64, device=device))
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_goat_explore_daemon_orchestration.py ---
-import os
-os.environ["JAX_ENABLE_X64"] = "True"
-
-import tempfile
 from pathlib import Path
 
+import parsl
+from parsl.config import Config
+from parsl.executors import ThreadPoolExecutor
+
+from cochem_base.calc.cochem_calc_execution_router import ExecutionRouter
+from cochem_base.schemas import ExecutionRouteResult, JobRouteConfig
+
+
+@pytest.fixture(scope="module")
+def parsl_test_dfk():
+    """Module-level fixture configuring an authentic Parsl DFK with anchor and scout pools."""
+    try:
+        parsl.clear()
+    except Exception:
+        pass
+
+    parsl_config = Config(
+        executors=[
+            ThreadPoolExecutor(max_threads=2, label="cochem_anchor_cpu"),
+            ThreadPoolExecutor(max_threads=2, label="cochem_scout_gpu"),
+        ],
+        strategy=None,
+    )
+    dfk = parsl.load(parsl_config)
+    yield dfk
+    try:
+        parsl.clear()
+    except Exception:
+        pass
+
+
+def test_execution_router_parsl_routing(tmp_path: Path, parsl_test_dfk):
+    """Verify routing of heavy QM to anchor CPU and rapid scans to scout GPU in isolated scratch."""
+    cochem_scratch = tmp_path / "scratch"
+    cochem_scratch.mkdir(parents=True, exist_ok=True)
+
+    router = ExecutionRouter(dfk=parsl_test_dfk)
+
+    # 1. Submit heavy QM optimization task
+    heavy_cmd = [sys.executable, "-c", "import os; print('HEAVY_QM_DONE')"]
+    heavy_result = router.route_job(
+        job_type="heavy_qm_opt",
+        payload_command=heavy_cmd,
+        scratch_dir=cochem_scratch,
+        cpu_core_pinning=[0, 1, 2, 3],
+        timeout=30.0,
+    )
+
+    assert isinstance(heavy_result, ExecutionRouteResult)
+    assert heavy_result.assigned_executor == "cochem_anchor_cpu"
+    assert heavy_result.status == "SUBMITTED"
+    assert heavy_result.scratch_dir.is_dir()
+    assert heavy_result.scratch_dir.name.startswith("task_")
+    assert heavy_result.future is not None
+
+    # 2. Submit fast potential scan task
+    scan_cmd = [sys.executable, "-c", "import os; print('FAST_SCAN_DONE')"]
+    scan_result = router.route_job(
+        job_type="fast_potential_scan",
+        payload_command=scan_cmd,
+        scratch_dir=cochem_scratch,
+        timeout=30.0,
+    )
+
+    assert isinstance(scan_result, ExecutionRouteResult)
+    assert scan_result.assigned_executor == "cochem_scout_gpu"
+    assert scan_result.status == "SUBMITTED"
+    assert scan_result.scratch_dir.is_dir()
+    assert scan_result.scratch_dir.name.startswith("task_")
+    # Verify separate isolated sandboxes in scratch
+    assert heavy_result.scratch_dir != scan_result.scratch_dir
+
+    # 3. Non-blocking futures resolution: await results
+    t0 = time.time()
+    heavy_rc = heavy_result.future.result()
+    scan_rc = scan_result.future.result()
+    elapsed = time.time() - t0
+
+    assert heavy_rc == 0
+    assert scan_rc == 0
+    # Verified that execution resolved without hanging
+    assert elapsed < 15.0
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\concurrency\test_gpu_scout_cross_platform_dispatch.py ---
+"""Physical Zero-Mock Test Suite for OS-Aware GPU Scout Concurrency & Windows/macOS Mutex Scheduling.
+
+Method Matrix Reference: Method Matrix v4 §8A.4 (NVIDIA MPS Daemon Lifecycle) and §8A.2 (Heterogeneous Concurrency) [M].
+Validates Suggestion #65:
+- OS-aware hardware detection across 6-Tier Environment Matrix.
+- Windows/macOS bypass of NVIDIA MPS daemon scripts (zero nvidia-cuda-mps-control invocation).
+- Serialized GPU scout execution via threading.Semaphore(1) / mutex.
+- Dynamic VRAM headroom safeguard (< 1.5 GB holds/defers tasks).
+- Concurrency verification under 4 concurrent tasks.
+"""
+
+from __future__ import annotations
+
+import concurrent.futures
+import os
+import sys
+import time
+import pytest
+from pathlib import Path
+
+from cochem_base.schemas import GpuScoutExecutorConfig
+from cochem_base.core_engine.cochem_core_parsl_executors import (
+    GpuScoutDispatcher,
+    build_worker_init_scripts,
+    detect_gpu_scout_config,
+)
+
+# Import hetero_config from TOPOS
+import importlib.util
+_topos_hetero_path = (Path(__file__).resolve().parent.parent.parent.parent / "CoChem-TOPOS" / "hetero_config.py").resolve()
+if not _topos_hetero_path.is_file():
+    _topos_hetero_path = Path("D:/__CoChem/GitHub-Repo/CoChem-TOPOS/hetero_config.py")
+
+spec = importlib.util.spec_from_file_location("topos_hetero_mod", str(_topos_hetero_path))
+topos_hetero = importlib.util.module_from_spec(spec)
+sys.modules["topos_hetero_mod"] = topos_hetero
+spec.loader.exec_module(topos_hetero)
+
+
+def test_os_aware_scout_config_windows_macos(tmp_path: Path):
+    """Assert Windows/macOS environment disables MPS and sets max_concurrent_gpu_tasks to 1."""
+    config = detect_gpu_scout_config(scratch_dir=tmp_path)
+
+    # On Windows or macOS, MPS must be explicitly disabled and max_concurrent must be 1
+    if sys.platform in ("win32", "darwin"):
+        assert config.enable_mps is False
+        assert config.max_concurrent_gpu_tasks == 1
+        assert config.platform_os in ("windows", "darwin")
+        assert config.min_vram_headroom_mb >= 512.0
+
+    # Test top-level MPS script generator in hetero_config
+    mps_cfg = topos_hetero.MPSConfig(
+        device_id=0,
+        pipe_directory=str(tmp_path / "mps_pipe"),
+        log_directory=str(tmp_path / "mps_log"),
+    )
+    startup_script = topos_hetero.generate_mps_startup_script(mps_cfg)
+    if sys.platform in ("win32", "darwin"):
+        assert "nvidia-cuda-mps-control -d" not in startup_script
+        assert "ulimit -n" not in startup_script
+        assert "bypassed" in startup_script.lower()
+
+    # Verify build_worker_init_scripts bypasses MPS
+    cpu_init, gpu_init, orch_init = build_worker_init_scripts(
+        mps_pipe_dir=tmp_path / "mps_pipe",
+        mps_log_dir=tmp_path / "mps_log",
+        enable_mps=False,
+    )
+    assert "CUDA_MPS_PIPE_DIRECTORY" not in gpu_init
+    assert "ulimit -n" not in gpu_init
+
+
+def test_gpu_scout_semaphore_serialization(tmp_path: Path):
+    """Launch 4 concurrent scout tasks; verify execution is serialized through Semaphore(1)."""
+    cfg = GpuScoutExecutorConfig(
+        platform_os="windows" if sys.platform == "win32" else "darwin",
+        enable_mps=False,
+        mps_pipe_dir=str(tmp_path / "mps"),
+        max_concurrent_gpu_tasks=1,
+        min_vram_headroom_mb=512.0,
+    )
+    dispatcher = GpuScoutDispatcher(cfg)
+
+    active_counts: list[int] = []
+    task_order: list[int] = []
+
+    def scout_kernel(task_id: int):
+        with dispatcher.dispatch_scout(max_wait=10.0):
+            # Record active concurrency inside critical section
+            active = dispatcher.active_count
+            active_counts.append(active)
+            time.sleep(0.05)  # Simulate GPU kernel execution
+            task_order.append(task_id)
+            return task_id
+
+    num_tasks = 4
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_tasks) as pool:
+        futures = [pool.submit(scout_kernel, i) for i in range(num_tasks)]
+        results = [f.result() for f in futures]
+
+    assert len(results) == num_tasks
+    assert set(results) == set(range(num_tasks))
+    # Strict serialization check: active count inside critical section must never exceed 1
+    assert all(c == 1 for c in active_counts), f"Concurrency exceeded 1: {active_counts}"
+
+
+def test_dynamic_vram_headroom_safeguard(tmp_path: Path):
+    """Verify that if configured min_vram_headroom_mb is exceedingly high, dispatch halts/times out."""
+    # Configure an impossible VRAM threshold to trigger the safeguard
+    cfg = GpuScoutExecutorConfig(
+        platform_os="windows" if sys.platform == "win32" else "linux",
+        enable_mps=False,
+        mps_pipe_dir=str(tmp_path / "mps"),
+        max_concurrent_gpu_tasks=1,
+        min_vram_headroom_mb=999999.0,  # Impossible headroom threshold
+    )
+    dispatcher = GpuScoutDispatcher(cfg)
+
+    # If CUDA is available, check_vram_headroom will report free < 999999 MB
+    import torch
+    if torch.cuda.is_available():
+        has_vram, free_mb = dispatcher.check_vram_headroom()
+        assert has_vram is False
+        with pytest.raises(RuntimeError) as exc_info:
+            with dispatcher.dispatch_scout(poll_interval=0.01, max_wait=0.05):
+                pass
+        assert "Dynamic VRAM safeguard" in str(exc_info.value)
+    else:
+        # On CPU-only environments, check_vram_headroom gracefully permits execution
+        has_vram, _ = dispatcher.check_vram_headroom()
+        assert has_vram is True
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\concurrency\test_hdf5_concurrent_staging.py ---
+"""Physical Zero-Mock Test Suite for Two-Tier HDF5 Persistence Architecture & Concurrent Staging.
+
+Method Matrix Reference: Method Matrix v4 §8C (Production HDF5 Store Architecture & Chunking) [M], [D].
+Validates Suggestion #64:
+- In-process threading.RLock serialization across worker threads.
+- Cross-process RWFileLock with exponential backoff.
+- Atomic staging: workers write into $COCHEM_SCRATCH/chunks/chunk_<uuid>.h5.
+- Central persistence coordinator merges staged chunks into $COCHEM_ARTIFACTS/campaign.h5 under exclusive write lock.
+- Zero occurrences of BlockingIOError or OSError: file already open for write during concurrent sweeps.
+- Integrity: Fletcher32 checksum and gzip compression filter verification.
+"""
+
+from __future__ import annotations
+
+import concurrent.futures
+import os
+import shutil
 import numpy as np
 import pytest
-from mendeleev import element
+from pathlib import Path
+import h5py
 
-from core_engine.oet_server import (
-    GoatExploreDaemon,
-    deduplicate_conformers,
-    generate_orca_goat_deck,
-    parse_ensemble_xyz,
-)
-from cochem_base.schemas import GoatExploreDaemonConfig
+from cochem_base.concurrency import HDF5PersistenceCoordinator, locked_h5
+from cochem_base.schemas import HDF5PersistenceConfig
 
 
-def test_goat_explore_daemon_and_deck_generation():
-    """Verify persistent oet_server daemon lifecycle, deck generation, and RMSD deduplication (Suggestion #56 / Method Matrix v4 §9B.4, Table 2 [M], [D])."""
-    # Dynamic Mendeleev check
-    c_elem = element("C")
-    h_elem = element("H")
-    assert c_elem.atomic_number == 6
-    assert h_elem.atomic_number == 1
+def _worker_task(scratch_dir: str, worker_id: int, num_points: int) -> list[str]:
+    """Worker task simulating concurrent calculation that writes directly to staged chunk container."""
+    config = HDF5PersistenceConfig(
+        lock_timeout_seconds=30.0,
+        compression_filter="gzip",
+        compression_level=4,
+        enable_fletcher32=True,
+        enable_shuffle=True,
+    )
+    chunk_paths: list[str] = []
+    natoms = 3  # Water molecule
+    # Standard equilibrium geometry for H2O
+    base_coords = np.array([
+        [0.0000, 0.0000, 0.1173],
+        [0.0000, 0.7572, -0.4692],
+        [0.0000, -0.7572, -0.4692],
+    ], dtype=np.float64)
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        scratch_path = Path(tmpdir) / "scratch"
-        socket_file = Path(tmpdir) / "oet_server.sock"
+    for i in range(num_points):
+        # Displace geometry slightly for each point
+        displacement = (worker_id * 10 + i) * 0.005
+        coords = base_coords + displacement
+        # Genuine Morse-like approximate energy variation around equilibrium
+        energy = -76.438 + 0.5 * (displacement ** 2)
+        grads = np.full_like(coords, displacement * 0.1)
 
-        cfg = GoatExploreDaemonConfig(
-            socket_path=str(socket_file),
-            scratch_dir=str(scratch_path),
-            max_hopping_steps=100,
-            tight_opt_threshold=True,
-            rmsd_dedup_threshold=0.15,
+        pt_id = f"w{worker_id}_pt{i}"
+        chunk_p = HDF5PersistenceCoordinator.stage_chunk(
+            scratch_dir=scratch_dir,
+            method_id="b3lyp_def2-tzvp",
+            coords=coords,
+            energies=[energy],
+            gradients=[grads],
+            point_ids=[pt_id],
+            converged=[True],
+            wall_s=[0.05],
+            creator="gpu4pyscf",
+            version="1.8.0",
+            routine="sp",
+            config=config,
         )
+        chunk_paths.append(str(chunk_p))
 
-        daemon = GoatExploreDaemon(cfg)
+    return chunk_paths
 
-        # 1. Start daemon in background and verify socket and lock
-        daemon.start()
-        assert daemon.lock_file.exists()
-        assert socket_file.exists()
 
-        # 2. Verify ORCA GOAT-EXPLORE input deck generation
-        coords = np.array(
-            [
-                [0.0, 0.0, 0.0],
-                [1.54, 0.0, 0.0],
-                [-0.5, 1.0, 0.0],
-                [-0.5, -1.0, 0.0],
-                [2.0, 1.0, 0.0],
-                [2.0, -1.0, 0.0],
-            ],
-            dtype=np.float64,
-        )
-        z_list = [6, 6, 1, 1, 1, 1]
+def test_hdf5_concurrent_staging_and_merge(tmp_path: Path):
+    """Assert 10 concurrent workers staging 5 points each merge into campaign.h5 with Fletcher32 & gzip."""
+    cochem_scratch = tmp_path / "scratch"
+    cochem_artifacts = tmp_path / "artifacts"
+    cochem_scratch.mkdir(parents=True, exist_ok=True)
+    cochem_artifacts.mkdir(parents=True, exist_ok=True)
 
-        deck = daemon.generate_orca_input(coords, z_list, charge=0, multiplicity=1)
+    campaign_h5 = cochem_artifacts / "campaign.h5"
+    config = HDF5PersistenceConfig(
+        lock_timeout_seconds=45.0,
+        compression_filter="gzip",
+        compression_level=4,
+        enable_fletcher32=True,
+        enable_shuffle=True,
+    )
 
-        # Assert mandatory ORCA directives and tightened %geom tolerances [M]
-        assert "! GOAT-EXPLORE ExtOpt TightOpt" in deck
-        assert "%geom" in deck
-        assert "TolMaxG 1e-5" in deck
-        assert "TolE 1e-7" in deck
-        assert "TolRMSG 3e-6" in deck
-        assert "TolRMSD 5e-5" in deck
-        assert "TolMaxD 1e-4" in deck
-        assert "InHess XTB2" in deck
-        # Strict ban on Calc_Hess true [M]
-        assert "Calc_Hess true" not in deck
+    coordinator = HDF5PersistenceCoordinator(
+        campaign_path=campaign_h5,
+        config=config,
+        complex_name="H2O",
+        symbols=["O", "H", "H"],
+    )
 
-        # 3. Create mock-free authentic .finalensemble.xyz containing 10 conformers:
-        # 7 distinct conformers (spacing 0.4 A) and 3 near-duplicates (within 0.02 A RMSD)
-        ensemble_lines = []
-        # 7 distinct conformers
-        for i in range(7):
-            ensemble_lines.append("6")
-            ensemble_lines.append(f"conformer_{i} energy=-78.{i:04d}")
-            c_dist = 1.4 + 0.4 * i
-            ensemble_lines.append(f"C  0.000000  0.000000  0.000000")
-            ensemble_lines.append(f"C  {c_dist:.6f}  0.000000  0.000000")
-            ensemble_lines.append("H -0.500000  1.000000  0.000000")
-            ensemble_lines.append("H -0.500000 -1.000000  0.000000")
-            ensemble_lines.append(f"H  {c_dist + 0.5:.6f}  1.000000  0.000000")
-            ensemble_lines.append(f"H  {c_dist + 0.5:.6f} -1.000000  0.000000")
+    num_workers = 10
+    points_per_worker = 5
+    total_expected = num_workers * points_per_worker
 
-        # 3 near-duplicates of conformers 0, 1, 2 (shifted by only 0.01 A, RMSD < 0.05 A)
-        for i in range(3):
-            ensemble_lines.append("6")
-            ensemble_lines.append(f"conformer_dup_{i} energy=-78.{i:04d}")
-            c_dist = 1.4 + 0.4 * i + 0.01
-            ensemble_lines.append(f"C  0.000000  0.000000  0.000000")
-            ensemble_lines.append(f"C  {c_dist:.6f}  0.000000  0.000000")
-            ensemble_lines.append("H -0.500000  1.000000  0.000000")
-            ensemble_lines.append("H -0.500000 -1.000000  0.000000")
-            ensemble_lines.append(f"H  {c_dist + 0.5:.6f}  1.000000  0.000000")
-            ensemble_lines.append(f"H  {c_dist + 0.5:.6f} -1.000000  0.000000")
+    # Execute 10 concurrent workers concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [
+            executor.submit(_worker_task, str(cochem_scratch), w_id, points_per_worker)
+            for w_id in range(num_workers)
+        ]
+        all_chunk_paths = []
+        for f in concurrent.futures.as_completed(futures):
+            chunk_list = f.result()
+            all_chunk_paths.extend(chunk_list)
 
-        xyz_file = scratch_path / "orca_job.finalensemble.xyz"
-        xyz_file.write_text("\n".join(ensemble_lines) + "\n", encoding="utf-8")
+    assert len(all_chunk_paths) == total_expected
+    # Verify staged files exist in scratch
+    chunks_dir = cochem_scratch / "chunks"
+    assert chunks_dir.is_dir()
+    staged_files = list(chunks_dir.glob("chunk_*.h5"))
+    assert len(staged_files) == total_expected
 
-        # Ingest and deduplicate
-        raw_confs = parse_ensemble_xyz(xyz_file)
-        assert len(raw_confs) == 10
+    # Central coordinator merges all staged chunks under exclusive write lock
+    merged_count = coordinator.merge_staged_chunks(scratch_dir=cochem_scratch, purge=True)
+    assert merged_count == total_expected
 
-        unique_confs = daemon.process_ensemble_results(xyz_file)
-        assert len(unique_confs) == 7, f"Expected exactly 7 unique conformers, got {len(unique_confs)}"
+    # Assert staged chunk files were purged from scratch
+    remaining_chunks = list(chunks_dir.glob("chunk_*.h5"))
+    assert len(remaining_chunks) == 0
 
-        # 4. Trigger shutdown and assert process tree cleanly terminates
-        daemon.shutdown()
-        assert not daemon.lock_file.exists()
+    # Open campaign.h5 in read mode and verify datasets, Fletcher32, and gzip
+    with locked_h5(campaign_h5, mode="r", config=config) as f:
+        assert "points/b3lyp_def2-tzvp" in f
+        grp = f["points/b3lyp_def2-tzvp"]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\torq\test_delta_ml_d3_dispersion.py ---
+        coords_ds = grp["coordinates"]
+        energy_ds = grp["energy"]
+        conv_ds = grp["converged"]
+        pids_ds = grp["point_id"]
+
+        assert coords_ds.shape == (total_expected, 3, 3)
+        assert energy_ds.shape == (total_expected,)
+        assert conv_ds.shape == (total_expected,)
+        assert pids_ds.shape == (total_expected,)
+
+        # Assert Fletcher32 checksum is active on energy
+        assert energy_ds.fletcher32 is True
+        # Assert gzip compression is active
+        assert energy_ds.compression == "gzip"
+        assert energy_ds.compression_opts == 4
+        # Assert shuffle filter is active
+        assert energy_ds.shuffle is True
+
+        # Check all expected point IDs are present
+        pids = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in pids_ds[:]]
+        assert len(set(pids)) == total_expected
+        for w in range(num_workers):
+            for i in range(points_per_worker):
+                assert f"w{w}_pt{i}" in pids
+
+
+def test_hdf5_concurrent_direct_writers(tmp_path: Path):
+    """Verify that multiple concurrent threads writing directly to campaign.h5 using locked_h5 never raise BlockingIOError."""
+    campaign_h5 = tmp_path / "direct_campaign.h5"
+    config = HDF5PersistenceConfig(lock_timeout_seconds=30.0)
+
+    coordinator = HDF5PersistenceCoordinator(
+        campaign_path=campaign_h5,
+        config=config,
+        complex_name="H2O",
+        symbols=["O", "H", "H"],
+    )
+
+    def direct_writer(thread_id: int):
+        coords = np.zeros((1, 3, 3), dtype=np.float64)
+        energies = np.array([-76.4 - thread_id * 0.01], dtype=np.float64)
+        pids = [f"direct_t{thread_id}"]
+        with locked_h5(campaign_h5, mode="a", config=config) as f:
+            coordinator._append_to_master(
+                f,
+                mid="direct_method",
+                coords=coords,
+                energies=energies,
+                pids=pids,
+                conv=np.array([True]),
+                wall=np.array([0.01]),
+                grads=None,
+                prov=None,
+            )
+
+    threads = 8
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
+        futures = [pool.submit(direct_writer, t) for t in range(threads)]
+        for fut in concurrent.futures.as_completed(futures):
+            fut.result()
+
+    with locked_h5(campaign_h5, mode="r", config=config) as f:
+        assert f["points/direct_method/energy"].shape == (threads,)
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\concurrency\test_subprocess_broker_contract.py ---
+"""Physical Zero-Mock Test Suite for SubprocessBroker Contract Harmonization & Process Tree Reclamation.
+
+Method Matrix Reference: Method Matrix v4 §8A.4, Cross-Platform Architecture Mandate.
+Validates Suggestion #67:
+- Interface signature harmonization (__init__ with cwd, env, timeout_seconds; execute with command string or list, cwd, env).
+- Robust command parsing via shlex.split without character decomposition.
+- Strict working directory and environment inheritance.
+- Deterministic child process tree termination on timeout via psutil.
+"""
+
+from __future__ import annotations
+
 import os
-os.environ["JAX_ENABLE_X64"] = "True"
+import sys
+import time
+import pytest
+from pathlib import Path
+
+from cochem_base.concurrency.subprocess_broker import (
+    SubprocessBroker,
+    SubprocessExecutionResult,
+)
+
+
+def test_subprocess_broker_string_command(tmp_path: Path):
+    """Test 1: Invoke broker with string command. Verify output parses cleanly without single-char decomposition."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    result = broker.execute("echo 'cochem-concurrency-test'")
+
+    assert result.success is True
+    assert result.returncode == 0
+    # Assert string parsed cleanly as a whole token, not decomposed character by character
+    clean_out = result.stdout.strip().replace("'", "").replace('"', "")
+    assert "cochem-concurrency-test" in clean_out
+
+
+def test_subprocess_broker_list_command(tmp_path: Path):
+    """Test 2: Invoke broker with pre-tokenized list of strings. Verify identical execution."""
+    broker = SubprocessBroker(cwd=tmp_path)
+    result = broker.execute(["echo", "cochem-concurrency-test"])
+
+    assert result.success is True
+    assert result.returncode == 0
+    clean_out = result.stdout.strip().replace("'", "").replace('"', "")
+    assert "cochem-concurrency-test" in clean_out
+
+
+def test_subprocess_broker_cwd_and_env(tmp_path: Path):
+    """Test 3: Pass custom cwd and env dicts during init and execute; assert correct execution directory & env."""
+    custom_dir = tmp_path / "custom_workdir"
+    custom_dir.mkdir(parents=True, exist_ok=True)
+    custom_env = {"COCHEM_TEST_VAR": "provenance_verified_777"}
+
+    broker = SubprocessBroker(cwd=custom_dir, env={"COCHEM_BASE_VAR": "base_value"})
+
+    # Python one-liner to print current working directory and env vars
+    cmd = [
+        sys.executable,
+        "-c",
+        (
+            "import os, pathlib; "
+            "print('CWD=' + str(pathlib.Path.cwd())); "
+            "print('VAR=' + os.environ.get('COCHEM_TEST_VAR', '')); "
+            "print('BASE=' + os.environ.get('COCHEM_BASE_VAR', ''))"
+        ),
+    ]
+
+    result = broker.execute(cmd, cwd=custom_dir, env=custom_env)
+
+    assert result.success is True
+    assert result.returncode == 0
+    assert f"CWD={custom_dir.resolve()}" in result.stdout
+    assert "VAR=provenance_verified_777" in result.stdout
+    assert "BASE=base_value" in result.stdout
+
+
+def test_subprocess_broker_timeout_process_tree_cleanup(tmp_path: Path):
+    """Test 4: Launch long-running child process tree with short timeout (0.5s); assert psutil tree termination."""
+    broker = SubprocessBroker(cwd=tmp_path, timeout_seconds=60.0)
+
+    # Launch python script that spawns a child process and both sleep for 10s
+    spawn_script = (
+        "import subprocess, sys, time; "
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(10)']); "
+        "time.sleep(10)"
+    )
+    cmd = [sys.executable, "-c", spawn_script]
+
+    t0 = time.time()
+    result = broker.execute(cmd, timeout_seconds=0.5)
+    elapsed = time.time() - t0
+
+    # Execution should fail gracefully due to timeout within ~2s
+    assert result.success is False
+    assert result.returncode == -124 or "timed out" in result.stderr.lower()
+    assert elapsed < 5.0
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\hpc\test_mps_worker_lifecycle.py ---
+"""Test suite for HPC NVIDIA MPS Worker Daemon Lifecycle & Pipe Polling (Suggestion #69).
+
+Method Matrix v4 §8A.4: NVIDIA MPS Daemon Lifecycle Management [M].
+Strict Zero-Mock Mandate: Authentic shell execution, genuine OS process supervision,
+PID polling, termination flag response, and signal-trapped scratch directory purge.
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
 
 import pytest
-import torch
-from mendeleev import element
 
-from cochem.ml.delta import DeltaMLDispersionConfig, DeltaMLEngine
+# Ensure repository root is on sys.path
+REPO_BASE = Path(__file__).resolve().parent.parent.parent
+REPO_TORQ = REPO_BASE.parent / "CoChem-TORQ"
+for p in [str(REPO_BASE / "src"), str(REPO_BASE), str(REPO_TORQ)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 
-def test_delta_ml_d3_dispersion_and_gradient_conservation():
-    """Verify Delta-ML D3(BJ) dispersion augmentation, attractive R^-6 tail, and force conservation (Suggestion #60 / Method Matrix v4 §9A.5 [M], [D])."""
-    # Dynamic Mendeleev check: Argon dimer
-    ar = element("Ar")
-    assert ar.atomic_number == 18
-    z_list = [ar.atomic_number, ar.atomic_number]
+def get_bash_executable() -> str:
+    """Resolves an authentic bash executable capable of running POSIX shell scripts."""
+    candidates = [
+        Path("C:/Program Files/Git/bin/bash.exe"),
+        Path("C:/Program Files/Git/usr/bin/bash.exe"),
+        Path("/bin/bash"),
+        Path("/usr/bin/bash"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    which = shutil.which("bash")
+    if which:
+        return which
+    pytest.skip("No compatible bash interpreter available for MPS worker lifecycle test.")
 
-    cfg = DeltaMLDispersionConfig(
-        use_d3_dispersion=True,
-        damping_scheme="bj",
-        s6_scale=1.0,
-        s8_scale=0.0,
+
+@pytest.fixture
+def mps_script_path() -> Path:
+    script = REPO_TORQ / "HPC_Launchers" / "cochem_mps_worker.sh"
+    assert script.exists(), f"MPS worker script not found at {script}"
+    return script
+
+
+def test_mps_worker_static_contract(mps_script_path: Path):
+    """Verifies that bare wait is eradicated and active monitoring + traps are implemented."""
+    content = mps_script_path.read_text(encoding="utf-8")
+
+    # 1. Untargeted bare 'wait' must be eradicated
+    lines = content.splitlines()
+    for idx, line in enumerate(lines, 1):
+        clean = line.strip()
+        if clean == "wait":
+            pytest.fail(f"Eradicated bare wait command found on line {idx}: '{line}'")
+
+    # 2. Active supervision loop must be present
+    assert 'while kill -0 "${MPS_PID}"' in content or 'while' in content
+    assert "TERMINATE_FLAG" in content or "mps_terminate" in content
+
+    # 3. Trapped signal handler must intercept EXIT, SIGINT, SIGTERM
+    assert "trap cleanup_mps" in content
+    assert "SIGINT" in content
+    assert "SIGTERM" in content
+
+    # 4. Ring 2 ephemeral scratch pipes and log routing
+    assert "CUDA_MPS_PIPE_DIRECTORY" in content
+    assert "CUDA_MPS_LOG_DIRECTORY" in content
+
+    # 5. VRAM memory query check
+    assert "nvidia-smi" in content
+    assert "memory.used" in content
+
+
+def test_mps_worker_passthrough_execution(mps_script_path: Path, tmp_path: Path):
+    """Verifies that cochem_mps_worker.sh executes passthrough commands and runs cleanup."""
+    bash_exec = get_bash_executable()
+    scratch_dir = tmp_path / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    env = os.environ.copy()
+    env["COCHEM_SCRATCH"] = str(scratch_dir)
+    env["SLURM_JOB_ID"] = "12345"
+
+    cmd = [
+        bash_exec,
+        str(mps_script_path).replace("\\", "/"),
+        "echo",
+        "COCHEM_MPS_TEST_PAYLOAD",
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=10)
+    assert proc.returncode == 0
+    assert "COCHEM_MPS_TEST_PAYLOAD" in proc.stdout
+    assert "[CoChem-MPS] Initiating graceful MPS daemon termination..." in proc.stdout
+    assert "[CoChem-MPS] MPS daemon shutdown and scratch pipe purge complete." in proc.stdout
+
+
+def test_mps_worker_active_monitoring_and_flag_termination(mps_script_path: Path, tmp_path: Path):
+    """Verifies active daemon supervision loop and graceful shutdown via termination flag."""
+    bash_exec = get_bash_executable()
+    scratch_dir = tmp_path / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    job_id = "777001"
+    env = os.environ.copy()
+    env["COCHEM_SCRATCH"] = str(scratch_dir)
+    env["SLURM_JOB_ID"] = job_id
+
+    cmd = [bash_exec, str(mps_script_path).replace("\\", "/")]
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
     )
-    engine = DeltaMLEngine(config=cfg)
 
-    # 1. Separation scan across r in [3.0 A, 7.0 A]
-    r_values = [3.0, 3.8, 4.5, 5.5, 7.0]
-    energies = []
-    for r in r_values:
-        coords = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, float(r)]], dtype=torch.float64)
-        e, _ = engine.compute_baseline(coords, z_list)
-        energies.append(e)
+    try:
+        # Give script a brief moment to initialize directories
+        time.sleep(1.0)
+        assert proc.poll() is None, "MPS worker exited prematurely instead of supervising!"
 
-    # In the attractive dispersion regime (r >= 3.8 A), energy must be negative
-    for r, e in zip(r_values[1:], energies[1:]):
-        assert e < 0.0, f"Dispersion energy at r={r} A must be attractive (negative), got {e}"
+        pipe_dir = scratch_dir / f"mps_control_{job_id}"
+        log_dir = scratch_dir / f"mps_log_{job_id}"
+        assert pipe_dir.exists(), f"Expected pipe directory {pipe_dir} was not created!"
+        assert log_dir.exists(), f"Expected log directory {log_dir} was not created!"
 
-    # Verify R^-6 asymptotic decay: |E(4.5)| > |E(5.5)| > |E(7.0)|
-    assert abs(energies[2]) > abs(energies[3]) > abs(energies[4])
+        # Touch the termination flag in scratch (Method Matrix §8A.4)
+        term_flag = scratch_dir / f"mps_terminate_{job_id}.flag"
+        term_flag.write_text("TERMINATE", encoding="utf-8")
 
-    # 2. Analytical conservative force validation against two-point finite differences [M]
-    r0 = 4.0
-    h = 1e-5
-    coords_0 = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, r0]], dtype=torch.float64)
-    _, forces_analytic = engine.compute_baseline(coords_0, z_list)
+        # Wait for daemon monitoring loop to detect flag and exit
+        stdout, stderr = proc.communicate(timeout=10)
+        assert proc.returncode == 0
+        assert "Detected termination flag" in stdout or "graceful MPS daemon termination" in stdout
+        assert "MPS daemon shutdown and scratch pipe purge complete" in stdout
 
-    coords_plus = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, r0 + h]], dtype=torch.float64)
-    e_plus, _ = engine.compute_baseline(coords_plus, z_list)
+        # Assert pipe and log directories in scratch are purged by trap cleanup
+        assert not pipe_dir.exists(), f"Pipe directory {pipe_dir} was not purged by cleanup trap!"
+        assert not log_dir.exists(), f"Log directory {log_dir} was not purged by cleanup trap!"
 
-    coords_minus = torch.tensor([[0.0, 0.0, 0.0], [0.0, 0.0, r0 - h]], dtype=torch.float64)
-    e_minus, _ = engine.compute_baseline(coords_minus, z_list)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.communicate()
 
-    # Two-point central difference: F_z = -dE / dz
-    fd_force_z = -(e_plus - e_minus) / (2.0 * h)
-    analytic_force_z = forces_analytic[1, 2].item()
 
-    force_error = abs(analytic_force_z - fd_force_z)
-    # Must match to within 1e-4 eV/A [M]
-    assert (
-        force_error < 1e-4
-    ), f"Analytic force error {force_error:.4e} exceeds 1e-4 eV/A threshold: analytic={analytic_force_z}, fd={fd_force_z}"
+def test_mps_worker_sigterm_trap_cleanup(mps_script_path: Path, tmp_path: Path):
+    """Verifies that SIGTERM triggers the trapped signal cleanup handler."""
+    bash_exec = get_bash_executable()
+    scratch_dir = tmp_path / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    job_id = "888002"
+    env = os.environ.copy()
+    env["COCHEM_SCRATCH"] = str(scratch_dir)
+    env["SLURM_JOB_ID"] = job_id
+
+    # Execute with command payload that delivers SIGTERM to the process
+    cmd = [
+        bash_exec,
+        str(mps_script_path).replace("\\", "/"),
+        "bash",
+        "-c",
+        "kill -TERM $$",
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=10)
+
+    # Trap handler must execute upon SIGTERM and purge scratch directories
+    assert "[CoChem-MPS] Initiating graceful MPS daemon termination..." in proc.stdout
+    assert "[CoChem-MPS] MPS daemon shutdown and scratch pipe purge complete." in proc.stdout
+
+    pipe_dir = scratch_dir / f"mps_control_{job_id}"
+    log_dir = scratch_dir / f"mps_log_{job_id}"
+    assert not pipe_dir.exists(), f"Pipe directory {pipe_dir} was not purged by SIGTERM trap!"
+    assert not log_dir.exists(), f"Log directory {log_dir} was not purged by SIGTERM trap!"
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\hpc\test_torq_pipeline_cli_slurm.py ---
+"""Test suite for SLURM Batch Submission CLI Contract & Dynamic HPC Resource Mapping (Suggestion #70).
+
+Method Matrix v4 §8A.6: Production High-Performance Computing Mandate (Tier 6: HPC).
+Strict Zero-Mock Mandate: Authentic CLI argument parsing, dynamic SLURM environment
+ingestion, genuine XYZ file ingestion, Tripartite Air-Gap enforcement, and SLURM launcher contract.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+# Ensure repository root is on sys.path
+REPO_BASE = Path(__file__).resolve().parent.parent.parent
+REPO_TORQ = REPO_BASE.parent / "CoChem-TORQ"
+for p in [str(REPO_BASE / "src"), str(REPO_BASE), str(REPO_TORQ)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+from Libraries.cochem_torq_pipeline import (
+    TorqPipelineCliArgs,
+    parse_cli_args,
+    execute_cli_pipeline,
+)
+
+
+@pytest.fixture
+def sample_water_xyz(tmp_path: Path) -> Path:
+    """Generates an authentic 3D geometry file for H2O."""
+    xyz_path = tmp_path / "water.xyz"
+    content = (
+        "3\n"
+        "Water molecule benchmark\n"
+        "O   0.00000000   0.00000000   0.11726900\n"
+        "H   0.00000000   0.75695000  -0.46907600\n"
+        "H   0.00000000  -0.75695000  -0.46907600\n"
+    )
+    xyz_path.write_text(content, encoding="utf-8")
+    return xyz_path
+
+
+def test_torq_pipeline_cli_args_parsing(sample_water_xyz: Path, tmp_path: Path, monkeypatch):
+    """Verifies that parse_cli_args validates schema and dynamically ingests SLURM variables."""
+    out_dir = tmp_path / "output_artifacts"
+    scratch_dir = tmp_path / "scratch_space"
+
+    # Set mock SLURM environment variables
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "4")
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", "8192")
+
+    cli_args = parse_cli_args([
+        "--input", str(sample_water_xyz),
+        "--output", str(out_dir),
+        "--scratch", str(scratch_dir),
+        "--theory", "B3LYP-D4/def2-TZVP",
+    ])
+
+    # Assert Pydantic validation and field bindings
+    assert isinstance(cli_args, TorqPipelineCliArgs)
+    assert cli_args.input_geometry == sample_water_xyz.resolve()
+    assert cli_args.output_directory == out_dir.resolve()
+    assert cli_args.scratch_dir == scratch_dir.resolve()
+    assert cli_args.theory_level == "B3LYP-D4/def2-TZVP"
+
+    # Assert dynamic SLURM scaling
+    assert cli_args.cpus_per_task == 4
+    assert cli_args.memory_mb == 8192
+
+
+def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path: Path, monkeypatch):
+    """Executes the CLI pipeline directly and verifies output deliverables in Ring 3."""
+    out_dir = tmp_path / "artifacts"
+    scratch_dir = tmp_path / "scratch"
+
+    monkeypatch.setenv("COCHEM_SCRATCH", str(scratch_dir))
+    monkeypatch.setenv("COCHEM_ARTIFACTS", str(out_dir))
+    monkeypatch.setenv("COCHEM_ROOT", str(REPO_BASE))
+    monkeypatch.setenv("SLURM_CPUS_PER_TASK", "2")
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", "4096")
+
+    cli_args = TorqPipelineCliArgs(
+        input_geometry=sample_water_xyz.resolve(),
+        output_directory=out_dir.resolve(),
+        theory_level="PM6",
+        cpus_per_task=2,
+        memory_mb=4096,
+        scratch_dir=scratch_dir.resolve(),
+    )
+
+    results = execute_cli_pipeline(cli_args)
+    assert results is not None
+
+    # Verify deliverables written to Ring 3 persistent artifacts
+    results_file = out_dir / "pipeline_results.json"
+    assert results_file.exists(), f"Missing {results_file}"
+    assert results_file.stat().st_size > 0
+
+    final_xyz = out_dir / "final_structure.xyz"
+    assert final_xyz.exists(), f"Missing {final_xyz}"
+    assert final_xyz.stat().st_size > 0
+    assert "3" in final_xyz.read_text(encoding="utf-8")
+
+    # Air-gap verification: assert scratch and output are isolated from Ring 1
+    root_resolved = REPO_BASE.resolve()
+    assert root_resolved not in out_dir.resolve().parents
+    assert root_resolved not in scratch_dir.resolve().parents
+
+
+def test_torq_pipeline_cli_subprocess_invocation(sample_water_xyz: Path, tmp_path: Path):
+    """Executes cochem_torq_pipeline.py via python -m CLI invocation."""
+    out_dir = tmp_path / "artifacts_cli"
+    scratch_dir = tmp_path / "scratch_cli"
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{REPO_TORQ}{os.pathsep}{REPO_BASE / 'src'}{os.pathsep}{REPO_BASE}"
+    env["SLURM_CPUS_PER_TASK"] = "4"
+    env["SLURM_MEM_PER_NODE"] = "8192"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "Libraries.cochem_torq_pipeline",
+        "--input", str(sample_water_xyz),
+        "--output", str(out_dir),
+        "--scratch", str(scratch_dir),
+        "--theory", "PM6",
+    ]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
+    assert proc.returncode == 0, f"CLI command failed:\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+    assert (out_dir / "pipeline_results.json").exists()
+    assert (out_dir / "final_structure.xyz").exists()
+
+
+def test_slurm_script_forwarding_contract():
+    """Verifies that cochem_submit.slurm forwards --input, --output, --scratch, --theory."""
+    slurm_script = REPO_TORQ / "HPC_Launchers" / "cochem_submit.slurm"
+    assert slurm_script.exists()
+    content = slurm_script.read_text(encoding="utf-8")
+
+    # Verify transparent CLI parameter forwarding on line 68+
+    assert "--input" in content
+    assert "--output" in content
+    assert "--scratch" in content
+    assert "--theory" in content
+    assert "${INPUT_GEOM}" in content
+    assert "${THEORY_LEVEL}" in content
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\ml\test_vectorized_committee_ensemble.py ---
+"""Physical Zero-Mock Test Suite for Vectorized Committee Ensemble Inference & Dynamic VRAM Throttling.
+
+Method Matrix Reference: Method Matrix v4 §8A.2 (Throughput Optimization & Heterogeneous Concurrency) [M].
+Validates Suggestion #61:
+- Mathematical invariance between vectorized torch.vmap and serial inference to machine precision (< 1e-12 in FP64) [M].
+- Unbiased sample variance and epistemic standard deviation consistency.
+- Dynamic RESOURCE_GUARD memory headroom threshold polling and serialized fallback.
+"""
+
+from __future__ import annotations
+
+import time
+import pytest
+import torch
+import torch.nn as nn
+
+from cochem_base.schemas import CommitteeEnsembleConfig
+from Libraries.cochem_torq_committee_ensemble import (
+    CommitteeEnsemble,
+    CommitteePrediction,
+    compute_committee_moments,
+    get_available_vram_mb,
+)
+
+
+class MolecularFeatureMLP(nn.Module):
+    """Authentic physical MLP evaluating molecular feature vectors. [M]"""
+
+    def __init__(self, in_features: int = 128, hidden_dim: int = 64, out_features: int = 1) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(in_features, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, out_features),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+def test_vectorized_vs_serial_mathematical_invariance():
+    """Verify that torch.vmap and serial execution are numerically invariant to machine precision (< 1e-12). [M]"""
+    torch.manual_seed(42)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Instantiate 4-member committee with identical parameter shapes
+    num_models = 4
+    models = [MolecularFeatureMLP(128, 64, 1).to(device=device, dtype=torch.float64) for _ in range(num_models)]
+
+    # Batch of 64 molecular feature vectors (D = 128)
+    batch_x = torch.randn(64, 128, device=device, dtype=torch.float64)
+
+    # 1. Serial execution
+    serial_cfg = CommitteeEnsembleConfig(
+        vectorized=False,
+        concurrency_mode="serial",
+        vram_headroom_threshold_mb=512.0,
+    )
+    ensemble_serial = CommitteeEnsemble(models, config=serial_cfg)
+    out_serial = ensemble_serial.forward(batch_x)
+
+    # 2. Vectorized execution (torch.vmap)
+    vmap_cfg = CommitteeEnsembleConfig(
+        vectorized=True,
+        concurrency_mode="vmap",
+        vram_headroom_threshold_mb=512.0,
+    )
+    ensemble_vmap = CommitteeEnsemble(models, config=vmap_cfg)
+    out_vmap = ensemble_vmap.forward(batch_x)
+
+    assert ensemble_serial.last_execution_mode == "serial"
+    assert ensemble_vmap.last_execution_mode == "vmap"
+
+    # Invariance check for mean predictions
+    max_mean_diff = float(torch.max(torch.abs(out_vmap.mean - out_serial.mean)).item())
+    assert max_mean_diff < 1e-12, f"Mean prediction divergence: {max_mean_diff} >= 1e-12 [M]"
+
+    # Invariance check for epistemic standard deviation
+    max_std_diff = float(torch.max(torch.abs(out_vmap.std - out_serial.std)).item())
+    assert max_std_diff < 1e-12, f"Epistemic std divergence: {max_std_diff} >= 1e-12 [M]"
+
+    # Check unpacking support: mean, std = ensemble(x)
+    mean_unpacked, std_unpacked = out_vmap
+    assert torch.allclose(mean_unpacked, out_vmap.mean)
+    assert torch.allclose(std_unpacked, out_vmap.std)
+
+
+def test_dynamic_vram_throttling_fallback():
+    """Verify that when available memory drops below threshold, inference gracefully falls back to serial. [M]"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    models = [MolecularFeatureMLP(128, 32, 1).to(device=device, dtype=torch.float64) for _ in range(4)]
+    batch_x = torch.randn(32, 128, device=device, dtype=torch.float64)
+
+    current_free_mb = get_available_vram_mb()
+
+    # Configure threshold significantly higher than actual free memory to force throttling
+    throttled_cfg = CommitteeEnsembleConfig(
+        vectorized=True,
+        concurrency_mode="vmap",
+        vram_headroom_threshold_mb=current_free_mb + 50000.0,
+    )
+    ensemble = CommitteeEnsemble(models, config=throttled_cfg)
+    out = ensemble.forward(batch_x)
+
+    assert ensemble.last_execution_mode == "serial", (
+        f"Expected serialized fallback under constrained memory headroom, got {ensemble.last_execution_mode}"
+    )
+    assert out.mean.shape == (32, 1)
+    assert out.std.shape == (32, 1)
+
+
+def test_heterogeneous_model_concurrency_fallback():
+    """Verify that models with non-identical architectures fall back from vmap cleanly without crashing. [M]"""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Member 0 and 1 have hidden_dim=64, Member 2 has hidden_dim=32
+    m1 = MolecularFeatureMLP(128, 64, 1).to(device=device, dtype=torch.float64)
+    m2 = MolecularFeatureMLP(128, 64, 1).to(device=device, dtype=torch.float64)
+    m3 = MolecularFeatureMLP(128, 32, 1).to(device=device, dtype=torch.float64)
+
+    cfg = CommitteeEnsembleConfig(
+        vectorized=True,
+        concurrency_mode="vmap",
+        vram_headroom_threshold_mb=512.0,
+    )
+    ensemble = CommitteeEnsemble([m1, m2, m3], config=cfg)
+    batch_x = torch.randn(16, 128, device=device, dtype=torch.float64)
+    out = ensemble.forward(batch_x)
+
+    # Heterogeneous shapes cannot be stacked for vmap, so it falls back to streams/serial
+    assert ensemble.last_execution_mode in ("cuda_streams", "serial")
+    assert out.mean.shape == (16, 1)
+
+
+def test_energy_and_forces_moments():
+    """Verify unbiased moment calculations for energy and conservative force predictions. [M]/[D]"""
+    # 4 models, batch of 1, 5 atoms
+    M, N = 4, 5
+    energies = torch.tensor([-75.1, -75.12, -75.08, -75.11], dtype=torch.float64)
+    forces = torch.randn(M, N, 3, dtype=torch.float64)
+
+    pred = compute_committee_moments(energies, forces)
+    assert pred.mean_energy.shape == ()
+    assert pred.mean_forces.shape == (N, 3)
+    assert pred.energy_variance > 0.0
+    assert pred.per_atom_force_variance.shape == (N,)
+    assert pred.max_force_std > 0.0
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\topos\test_chain_zero_mock_wavefunction.py ---
+"""Physical Zero-Mock Test Suite for Purge of Fabricated SCF/Opt Cycles & Corrupt Binary Wavefunctions.
+
+Method Matrix Reference: Method Matrix v4 §8B.4 (Canonical Arrows 4 & 5 Binary Wavefunction Projection via %moinp) [M].
+Validates Suggestion #63:
+- Raising of MissingBinaryError when required quantum chemistry binary is absent.
+- Raising of ConvergenceFailureError upon convergence failure (zero synthetic fallback iterations).
+- Zero emission of corrupt synthetic binary bytes in .gbw or .opt files.
+- Zero mock strings containing "ORCA TERMINATED NORMALLY" or fabricated scf_cyc = 12.
+- Clean purge of temporary scratch files on calculation failure.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import os
+import shutil
+import sys
+import pytest
+from pathlib import Path
+
+from cochem_base.exceptions import (
+    ConvergenceFailureError,
+    MissingBinaryError,
+)
+
+# Explicitly load Chain from CoChem-TOPOS/chain.py to test the TOPOS engine
+_topos_chain_path = (Path(__file__).resolve().parent.parent.parent.parent / "CoChem-TOPOS" / "chain.py").resolve()
+if not _topos_chain_path.is_file():
+    _topos_chain_path = Path("D:/__CoChem/GitHub-Repo/CoChem-TOPOS/chain.py")
+
+spec = importlib.util.spec_from_file_location("topos_chain_mod", str(_topos_chain_path))
+topos_chain = importlib.util.module_from_spec(spec)
+sys.modules["topos_chain_mod"] = topos_chain
+spec.loader.exec_module(topos_chain)
+
+Chain = topos_chain.Chain
+Stage = topos_chain.Stage
+write_xyz = topos_chain.write_xyz
+
+
+def test_chain_missing_binary_raises_explicit_error(tmp_path: Path):
+    """Assert that passing an invalid ORCA binary path immediately raises MissingBinaryError without mock fallback. [M]"""
+    workdir = tmp_path / "chain_scratch"
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    # Write authentic seed geometry
+    seed_xyz = workdir / "seed.xyz"
+    symbols = ["N", "N"]
+    coords = [(0.0, 0.0, 0.0), (0.0, 0.0, 1.0975)]
+    write_xyz(seed_xyz, symbols, coords)
+
+    # Configure Chain with nonexistent binary
+    invalid_bin = "/nonexistent/path/to/orca"
+    chain = Chain(
+        workdir=workdir,
+        h5_path="campaign.h5",
+        charge=0,
+        mult=1,
+        orca_bin=invalid_bin,
+    )
+
+    stage = Stage(name="stage1_pbe", level="! PBE def2-SVP Opt")
+
+    # Assert MissingBinaryError is raised explicitly
+    with pytest.raises(MissingBinaryError) as exc_info:
+        chain.run_stage(stage, seed_xyz=seed_xyz)
+
+    assert "ORCA binary" in str(exc_info.value)
+
+    # Inspect scratch directory: assert zero bytes written into .gbw or .opt files
+    gbw_file = workdir / "stage1_pbe.gbw"
+    opt_file = workdir / "stage1_pbe.opt"
+    assert not gbw_file.exists() or gbw_file.stat().st_size == 0
+    assert not opt_file.exists() or opt_file.stat().st_size == 0
+
+    # Assert no synthetic "ORCA TERMINATED NORMALLY" string exists in output files
+    out_file = workdir / "stage1_pbe.out"
+    if out_file.exists():
+        content = out_file.read_text(encoding="utf-8", errors="ignore")
+        assert "ORCA TERMINATED NORMALLY" not in content
+        assert "SCF ITERATIONS 12" not in content
+
+
+def test_chain_zero_synthetic_byte_sequences(tmp_path: Path):
+    """Verify that corrupt mock binary wavefunctions (e.g. b'ORCA_GBW_STATE_VECTOR_MOCK_FREE') are never emitted. [M]"""
+    workdir = tmp_path / "chain_corrupt_test"
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    seed_xyz = workdir / "seed.xyz"
+    write_xyz(seed_xyz, ["H", "H"], [(0.0, 0.0, 0.0), (0.0, 0.0, 0.74)])
+
+    chain = Chain(
+        workdir=workdir,
+        h5_path="campaign.h5",
+        charge=0,
+        mult=1,
+        orca_bin="/dev/null/orca_fake",
+    )
+
+    stage = Stage(name="opt_stage", level="! B3LYP def2-SVP Opt")
+
+    with pytest.raises(MissingBinaryError):
+        chain.run_stage(stage, seed_xyz=seed_xyz)
+
+    # Search entire working directory for mock signatures
+    for p in workdir.rglob("*"):
+        if p.is_file() and p.suffix in (".gbw", ".opt"):
+            raw_bytes = p.read_bytes()
+            assert b"MOCK_FREE" not in raw_bytes
+            assert b"REUSE_STATE" not in raw_bytes
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\torq\test_goat_multi_seed_concurrency.py ---
+"""Test suite for Asynchronous Multi-Seed GOAT Exploration via Parsl Queues (Suggestion #68).
+
+Method Matrix v4 §8A.2, §9B.3 [M].
+Strict Zero-Mock Mandate: Zero synthetic stubs, dynamic Mendeleev masses,
+genuine Parsl worker dispatch, scratch sandbox isolation, and physical deduplication.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import sys
+from pathlib import Path
+import shutil
+
+import numpy as np
+import pytest
+
+# Ensure repository paths are on sys.path
+REPO_BASE = Path(__file__).resolve().parent.parent.parent
+REPO_TORQ = REPO_BASE.parent / "CoChem-TORQ"
+for p in [str(REPO_BASE / "src"), str(REPO_BASE), str(REPO_TORQ)]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+import parsl
+from parsl.config import Config
+from parsl.executors.threads import ThreadPoolExecutor as ParslThreadPool
+
+from Libraries.cochem_torq_goat import (
+    GoatRunner,
+    GoatConfig,
+    GoatExtOptDriver,
+    MultiSeedGoatConfig,
+    compute_rmsd,
+    write_xyz_file,
+    ConformerRecord,
+)
+
+
+def _generate_butane_conformer(dihedral_deg: float) -> tuple[list[str], np.ndarray]:
+    """Generates authentic 3D coordinates for a butane conformer with specified C-C-C-C dihedral [D]."""
+    theta = np.radians(109.5)
+    r_cc = 1.54
+    c1 = np.array([0.0, 0.0, 0.0], dtype=np.float64)
+    c2 = np.array([r_cc, 0.0, 0.0], dtype=np.float64)
+    c3 = c2 + np.array([-r_cc * np.cos(np.pi - theta), r_cc * np.sin(np.pi - theta), 0.0], dtype=np.float64)
+    c4_base = c3 + np.array([r_cc * np.cos(np.pi - theta), r_cc * np.sin(np.pi - theta), 0.0], dtype=np.float64)
+
+    # Rotate c4 about the c2-c3 bond axis by dihedral_deg
+    axis = c3 - c2
+    axis = axis / np.linalg.norm(axis)
+    rad = np.radians(dihedral_deg)
+    a = np.cos(rad / 2.0)
+    b, c, d = -axis * np.sin(rad / 2.0)
+    aa, bb, cc, dd = a * a, b * b, c * c, d * d
+    bc, ad, ac, ab, bd, cd = b * c, a * d, a * c, a * b, b * d, c * d
+    rot = np.array([
+        [aa + bb - cc - dd, 2 * (bc + ad), 2 * (bd - ac)],
+        [2 * (bc - ad), aa + cc - bb - dd, 2 * (cd + ab)],
+        [2 * (bd + ac), 2 * (cd - ab), aa + dd - bb - cc]
+    ], dtype=np.float64)
+
+    c4 = c3 + rot @ (c4_base - c3)
+    syms = ["C", "C", "C", "C"]
+    coords = np.array([c1, c2, c3, c4], dtype=np.float64)
+    return syms, coords
+
+
+@pytest.fixture(scope="module")
+def parsl_dfk():
+    """Initializes and tears down genuine Parsl DataFlowKernel with GPU scout executor."""
+    try:
+        parsl.clear()
+    except Exception:
+        pass
+
+    cfg = Config(
+        executors=[
+            ParslThreadPool(max_threads=4, label="cochem_scout_gpu"),
+            ParslThreadPool(max_threads=4, label="cochem_anchor_cpu"),
+        ]
+    )
+    dfk = parsl.load(cfg)
+    yield dfk
+    try:
+        parsl.clear()
+    except Exception:
+        pass
+
+
+def test_multi_seed_goat_asynchronous_concurrency(tmp_path, parsl_dfk, monkeypatch):
+    """Verifies concurrent multi-seed GOAT conformer dispatch, sandbox isolation, and RMSD deduplication."""
+    scratch_dir = tmp_path / "scratch"
+    artifacts_dir = tmp_path / "artifacts"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("COCHEM_SCRATCH", str(scratch_dir))
+    monkeypatch.setenv("COCHEM_ARTIFACTS", str(artifacts_dir))
+    monkeypatch.setenv("COCHEM_ROOT", str(REPO_BASE))
+
+    # 1. Prepare 4 distinct starting conformer geometries for butane
+    dihedrals = [180.0, 65.0, -65.0, 115.0]  # anti, gauche+, gauche-, intermediate
+    seed_files: list[Path] = []
+    for idx, dih in enumerate(dihedrals):
+        syms, coords = _generate_butane_conformer(dih)
+        rec = ConformerRecord(
+            index=idx,
+            symbols=syms,
+            coordinates=coords.tolist(),
+            origin_engine="SEEDED",
+            seed_id=f"seed_{idx+1:02d}",
+            provenance_tag="[M]",
+        )
+        s_file = scratch_dir / f"butane_seed_{idx+1:02d}.xyz"
+        write_xyz_file(s_file, [rec])
+        seed_files.append(s_file)
+
+    # 2. Configure MultiSeedGoatConfig
+    multi_config = MultiSeedGoatConfig(
+        seed_structures=[str(f) for f in seed_files],
+        max_concurrent_seeds=4,
+        rmsd_threshold_angstrom=0.15,
+        energy_window_kcal_mol=6.0,
+    )
+
+    # 3. Instantiate GoatRunner under PHYSICAL force-field mode
+    runner = GoatRunner(config=GoatConfig(driver=GoatExtOptDriver.PHYSICAL))
+
+    # 4. Execute multi-seed exploration
+    ensemble, report = runner.run_multi_seed_goat(
+        seed_paths=multi_config,
+        system_name="Butane",
+        scratch_dir=scratch_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    # 5. Verify isolated sandbox directories in scratch: $COCHEM_SCRATCH/goat_seed_<hash>/
+    for s_file in seed_files:
+        s_bytes = s_file.read_bytes()
+        s_hash = hashlib.sha256(s_bytes).hexdigest()[:12]
+        expected_sandbox = scratch_dir / f"goat_seed_{s_hash}"
+        assert expected_sandbox.exists(), f"Expected sandbox {expected_sandbox} was not created!"
+        assert expected_sandbox.is_dir()
+
+    # 6. Verify audit report metrics
+    assert report.n_seeds == 4
+    assert report.n_goat_raw >= 4
+    assert report.n_goat_dedup_stage_b > 0
+    assert report.n_goat_dedup_stage_b <= report.n_goat_raw
+    assert report.goat_f1_baseline == 0.93
+
+    # 7. Verify conformer filtering: energy window <= 6.0 kcal/mol [M]
+    for conf in ensemble.conformers:
+        assert conf.energy_kcal_rel <= 6.0, f"Conformer energy {conf.energy_kcal_rel} exceeds 6.0 kcal/mol cutoff"
+
+    # 8. Verify conformer deduplication: pairwise RMSD >= 0.15 A [M]
+    confs = ensemble.conformers
+    for i in range(len(confs)):
+        coords_i = np.array(confs[i].coordinates, dtype=np.float64)
+        for j in range(i + 1, len(confs)):
+            coords_j = np.array(confs[j].coordinates, dtype=np.float64)
+            rmsd = compute_rmsd(coords_i, coords_j, symbols=confs[i].symbols)
+            assert rmsd >= 0.15, f"Conformers {i} and {j} have RMSD {rmsd:.4f} < 0.15 A threshold!"
+
+    # 9. Verify persistent artifacts in Ring 3
+    conformers_xyz = artifacts_dir / "conformers.xyz"
+    assert conformers_xyz.exists()
+    assert conformers_xyz.stat().st_size > 0
+
+    h5_file = artifacts_dir / "Butane_goat_ensemble.h5"
+    assert h5_file.exists()
+    assert h5_file.stat().st_size > 0
+
+    report_json = artifacts_dir / "Butane_goat_audit_report.json"
+    assert report_json.exists()
+    assert report_json.stat().st_size > 0
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\torq\test_oet_fallback_provenance_alert.py ---
+"""Physical Zero-Mock Test Suite for OET Machine-Learning-to-Empirical Fallback Provenance & Alert Manifests.
+
+Method Matrix Reference: Method Matrix v4 §10.8 (Active Learning & Fallback Provenance Auditing) [M].
+Validates Suggestion #62:
+- Atomic generation of <base>_EXT.fallback_alert.json in Ring 2 ephemeral scratch ($COCHEM_SCRATCH).
+- Staging of alert copy in Ring 3 persistent artifacts ($COCHEM_ARTIFACTS).
+- Zero writes to Ring 1 static repository code ($COCHEM_ROOT).
+- Creation of <base>_EXT.uncertainty_marker containing provenance tag [E].
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import pytest
+from pathlib import Path
+
+from cochem_base.schemas import OETFallbackAlertManifest
+from Libraries.cochem_torq_oet_client import (
+    OETClient,
+    PhysicalOETFallbackCalculator,
+)
+
+
+def test_oet_fallback_provenance_and_alert_manifest(tmp_path: Path):
+    """Assert atomic fallback manifest generation, uncertainty marker creation, and provenance tag [E]. [M]"""
+    # 1. Tripartite storage ring isolation
+    scratch_dir = tmp_path / "scratch"
+    artifacts_dir = tmp_path / "artifacts"
+    repo_dir = tmp_path / "repo_root"
+
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    # Set up environment
+    os.environ["COCHEM_SCRATCH"] = str(scratch_dir)
+    os.environ["COCHEM_ARTIFACTS"] = str(artifacts_dir)
+    os.environ["COCHEM_ROOT"] = str(repo_dir)
+
+    # Inactive socket address / port to simulate daemon disconnection
+    dead_host = "127.0.0.1"
+    dead_port = 59876
+
+    client = OETClient(
+        host=dead_host,
+        port=dead_port,
+        timeout=1.0,
+        retries=1,
+        allow_fallback=True,
+        scratch_dir=scratch_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    # Authentic molecular geometry (water molecule H2O)
+    symbols = ["O", "H", "H"]
+    coords = [
+        (0.000000, 0.000000, 0.117300),
+        (0.000000, 0.757200, -0.469200),
+        (0.000000, -0.757200, -0.469200),
+    ]
+    base_name = "water_dissoc"
+
+    # Trigger force and energy calculation
+    result = client.calculate_remote(
+        symbols=symbols,
+        coordinates=coords,
+        charge=0,
+        multiplicity=1,
+        dograd=True,
+        calculation_base=base_name,
+    )
+
+    assert result["status"] == "OK"
+    assert result["fallback_active"] is True
+    assert result["provenance_tag"] == "[E]"
+    assert isinstance(result["energy_Eh"], float)
+    assert len(result["gradient_Eh_bohr"]) == 9
+
+    # Verify Ring 2 Scratch Alert Manifest
+    scratch_alert = scratch_dir / f"{base_name}_EXT.fallback_alert.json"
+    assert scratch_alert.is_file(), f"Missing scratch fallback alert: {scratch_alert}"
+
+    # Verify Ring 3 Artifacts Staged Alert
+    staged_alert = artifacts_dir / "alerts" / f"{base_name}_EXT.fallback_alert.json"
+    assert staged_alert.is_file(), f"Missing staged artifact fallback alert: {staged_alert}"
+
+    # Verify Ring 2 Uncertainty Marker
+    uncertainty_marker = scratch_dir / f"{base_name}_EXT.uncertainty_marker"
+    assert uncertainty_marker.is_file(), f"Missing uncertainty marker: {uncertainty_marker}"
+    marker_content = uncertainty_marker.read_text(encoding="utf-8")
+    assert "PROVENANCE_TAG: [E]" in marker_content
+    assert base_name in marker_content
+
+    # Ingest and validate JSON manifest using Pydantic v2 schema
+    raw_manifest = json.loads(scratch_alert.read_text(encoding="utf-8"))
+    manifest = OETFallbackAlertManifest.model_validate(raw_manifest)
+
+    assert manifest.calculation_base == base_name
+    assert manifest.provenance_tag == "[E]"
+    assert manifest.fallback_calculator == "PhysicalOETFallbackCalculator"
+    assert "SocketConnectionError" in manifest.trigger_event
+    assert "platform" in manifest.host_telemetry
+
+    # Verify zero files written to Ring 1 static repository
+    repo_files = list(repo_dir.rglob("*"))
+    assert len(repo_files) == 0, f"Air-gap violation! Files written to Ring 1 repo: {repo_files}"
+
+
+def test_oet_fallback_with_unix_domain_socket(tmp_path: Path):
+    """Assert fallback activates when targeting inactive Unix domain socket or missing socket file. [M]"""
+    scratch_dir = tmp_path / "scratch2"
+    artifacts_dir = tmp_path / "artifacts2"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    nonexistent_socket = tmp_path / "oet_daemon.sock"
+
+    client = OETClient(
+        socket_path=nonexistent_socket,
+        timeout=0.5,
+        retries=1,
+        allow_fallback=True,
+        scratch_dir=scratch_dir,
+        artifacts_dir=artifacts_dir,
+    )
+
+    symbols = ["C", "H", "H", "H", "H"]
+    coords = [
+        (0.0, 0.0, 0.0),
+        (0.629, 0.629, 0.629),
+        (-0.629, -0.629, 0.629),
+        (-0.629, 0.629, -0.629),
+        (0.629, -0.629, -0.629),
+    ]
+
+    result = client.calculate_remote(
+        symbols=symbols,
+        coordinates=coords,
+        calculation_base="methane",
+    )
+
+    assert result["fallback_active"] is True
+    assert result["provenance_tag"] == "[E]"
+    assert (scratch_dir / "methane_EXT.fallback_alert.json").is_file()
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

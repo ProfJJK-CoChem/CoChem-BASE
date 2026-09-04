@@ -57,6 +57,8 @@ class ProvenanceErrorCode(str, Enum):
     PATH_TRAVERSAL_DETECTED = "PATH_TRAVERSAL_DETECTED"
     TELEMETRY_FAILURE = "TELEMETRY_FAILURE"
     DISK_QUOTA_EXCEEDED = "DISK_QUOTA_EXCEEDED"
+    ERR_TOOL_UNAVAILABLE = "ERR_TOOL_UNAVAILABLE"
+    ERR_SPIN_CONTAMINATION = "ERR_SPIN_CONTAMINATION"
 
     # Engine & Math
     CONVERGENCE_FAILURE = "CONVERGENCE_FAILURE"
@@ -1233,6 +1235,22 @@ class OETDaemonConnectionError(CoChemError):
     default_code = ProvenanceErrorCode.TELEMETRY_FAILURE
 
 
+class ToolUnavailableError(CoChemError):
+    """Raised when a required external computational binary or library (e.g. CFOUR or GENBAS) is missing."""
+
+    default_code = ProvenanceErrorCode.ERR_TOOL_UNAVAILABLE
+
+
+class MissingTelemetryError(CoChemError):
+    """Raised when required computational telemetry (such as <S^2>) is missing from calculation output."""
+
+    default_code = ProvenanceErrorCode.MISSING_DATA
+
+
+_EXCEPTION_REGISTRY["ToolUnavailableError"] = ToolUnavailableError
+_EXCEPTION_REGISTRY["MissingTelemetryError"] = MissingTelemetryError
+
+
 __all__ = [
     # Registries
     "_EXCEPTION_REGISTRY",
@@ -1295,6 +1313,8 @@ __all__ = [
     "ConvergenceFailureError",
     "MissingBinaryError",
     "OETDaemonConnectionError",
+    "ToolUnavailableError",
+    "MissingTelemetryError",
     # Warnings
     "CoChemWarning",
     "KraitchmanZPVEWarning",

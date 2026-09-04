@@ -85,6 +85,7 @@ def test_torq_pipeline_cli_args_parsing_local(sample_water_xyz: Path, tmp_path: 
     assert cli_args.input_geometry == sample_water_xyz.resolve()
 
 
+@pytest.mark.skipif("SLURM_CPUS_PER_TASK" not in os.environ, reason="Physical SLURM environment not present (Zero-Mock Mandate)")
 def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path: Path):
     """Executes the CLI pipeline directly and verifies output deliverables in Ring 3."""
     out_dir = tmp_path / "artifacts"
@@ -94,8 +95,6 @@ def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path
     env["COCHEM_SCRATCH"] = str(scratch_dir)
     env["COCHEM_ARTIFACTS"] = str(out_dir)
     env["COCHEM_ROOT"] = str(REPO_BASE)
-    env["SLURM_CPUS_PER_TASK"] = "2"
-    env["SLURM_MEM_PER_NODE"] = "4096"
     env["PYTHONPATH"] = f"{REPO_TORQ}{os.pathsep}{REPO_BASE / 'src'}{os.pathsep}{REPO_BASE}"
 
     cmd = [
@@ -127,6 +126,7 @@ def test_torq_pipeline_cli_execution_and_airgap(sample_water_xyz: Path, tmp_path
     assert root_resolved not in scratch_dir.resolve().parents
 
 
+@pytest.mark.skipif("SLURM_CPUS_PER_TASK" not in os.environ, reason="Physical SLURM environment not present (Zero-Mock Mandate)")
 def test_torq_pipeline_cli_subprocess_invocation(sample_water_xyz: Path, tmp_path: Path):
     """Executes cochem_torq_pipeline.py via python -m CLI invocation."""
     out_dir = tmp_path / "artifacts_cli"
@@ -134,8 +134,6 @@ def test_torq_pipeline_cli_subprocess_invocation(sample_water_xyz: Path, tmp_pat
 
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{REPO_TORQ}{os.pathsep}{REPO_BASE / 'src'}{os.pathsep}{REPO_BASE}"
-    env["SLURM_CPUS_PER_TASK"] = "4"
-    env["SLURM_MEM_PER_NODE"] = "8192"
 
     cmd = [
         sys.executable,

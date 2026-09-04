@@ -22,21 +22,19 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from cochem.concurrency.subprocess_broker import SubprocessBroker
 from cochem_base.config_loader import (
-    get_artifact_dir,
     load_system_config_dict,
     resolve_config_path,
     resolve_executable,
-    resolve_mapped_path,
 )
 from cochem_base.schemas import ExecutionRouteResult, JobRouteConfig
-from cochem.concurrency.subprocess_broker import SubprocessBroker
 
 logger = logging.getLogger(__name__)
 
 try:
     import parsl
-    from parsl import python_app, bash_app
+    from parsl import python_app
     HAS_PARSL = True
 except ImportError:
     HAS_PARSL = False
@@ -348,4 +346,48 @@ class ExecutionRouter:
         except Exception as e:
             logger.error(f"SLURM submission failed: {e}")
             return "SUBMISSION_FAILED"
+
+    def evaluate_counterpoise_interaction(
+        self,
+        e_ab: float,
+        e_a_ghost: float,
+        e_b_ghost: float,
+    ) -> float:
+        """
+        Evaluates decoupled Boys-Bernardi interaction energy via compute_counterpoise_interaction_energy:
+            E_int^CP = E_AB^{AB} - E_A^{AB} - E_B^{AB}
+        """
+        return compute_counterpoise_interaction_energy(e_ab, e_a_ghost, e_b_ghost)
+
+
+def compute_counterpoise_interaction_energy(
+    e_ab: float,
+    e_a_ghost: float,
+    e_b_ghost: float,
+) -> float:
+    """
+    Computes decoupled Boys-Bernardi counterpoise-corrected interaction energy
+    under Method Matrix v4 §9A.1-9A.2 (Suggestion #81):
+        E_int^CP = E_AB^{AB} - E_A^{AB} - E_B^{AB}
+    where E_AB^{AB} is complex energy, E_A^{AB} is monomer A with ghost B,
+    and E_B^{AB} is monomer B with ghost A.
+    """
+    return float(e_ab - e_a_ghost - e_b_ghost)
+
+
+def validate_counterpoise_request(
+    is_opt: bool,
+    has_frozen_constraints: bool,
+    is_complex: bool = True,
+) -> None:
+    """
+    Validates counterpoise optimization constraints under Method Matrix v4 §9A.1-9A.2.
+    Unconstrained counterpoise PES optimization on weakly bound complexes is strictly
+    prohibited to prevent unphysical dissociation caused by gradient noise and flat PES drift.
+    """
+    if is_complex and is_opt and not has_frozen_constraints:
+        raise ValueError(
+            "[ERR_METHOD_MATRIX] Unconstrained counterpoise geometry optimization is strictly prohibited. "
+            "Enforce Frozen-Monomer Protocol (Recipe R2) with Cartesian locking on Monomer A."
+        )
 

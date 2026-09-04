@@ -1,1002 +1,1050 @@
 {
-    "0rchestrator": {
-        "artifacts": [
-            "Libraries/cochem_torq_conformal.py",
-            "src/cochem_torq/quench_broker.py",
-            "cli.py",
-            "ui/voila_layout/cochem_gui.py",
-            "ui/voila_layout/scribe_gui_dashboard.py",
-            "ui/voila_layout/cochem_gui_serializer.py",
-            "src/cochem_base/spectroscopy/isotopologue.py",
-            "src/cochem_base/geometry/fragment_partitioner.py",
-            "src/cochem/hpc/slurm_controller.py",
-            "src/cochem_base/theory_matrix.py",
-            "src/cochem_base/spectroscopy/parser.py",
-            "tests/torq/test_conformal_quench_intervention.py",
-            "tests/ui/test_cli_run_and_gui_parity.py",
-            "tests/ui/test_gui_spectroscopy_inspector.py",
-            "tests/ui/test_scribe_dashboard_reconstruction.py",
-            "tests/serialization/test_cfour_serializer_alignment.py",
-            "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
-            "tests/geometry/test_fragment_partitioner_constraints.py",
-            "pytest.ini"
-        ],
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "cycle": "3/20",
-        "error_codes": [],
-        "metrics": {
-            "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
-            "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
-            "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
-            "pytest_tests_failed": 0,
-            "pytest_tests_passed": 29,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT"
-        },
-        "prompt_index": 3,
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
-        "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
-        "status": "SUCCESS",
-        "timestamp": "2026-09-04T19:08:28.167932+00:00"
+  "0rchestrator": {
+    "artifacts": [
+      "Libraries/cochem_torq_conformal.py",
+      "src/cochem_torq/quench_broker.py",
+      "cli.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/scribe_gui_dashboard.py",
+      "ui/voila_layout/cochem_gui_serializer.py",
+      "src/cochem_base/spectroscopy/isotopologue.py",
+      "src/cochem_base/geometry/fragment_partitioner.py",
+      "src/cochem/hpc/slurm_controller.py",
+      "src/cochem_base/theory_matrix.py",
+      "src/cochem_base/spectroscopy/parser.py",
+      "tests/torq/test_conformal_quench_intervention.py",
+      "tests/ui/test_cli_run_and_gui_parity.py",
+      "tests/ui/test_gui_spectroscopy_inspector.py",
+      "tests/ui/test_scribe_dashboard_reconstruction.py",
+      "tests/serialization/test_cfour_serializer_alignment.py",
+      "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
+      "tests/geometry/test_fragment_partitioner_constraints.py",
+      "pytest.ini"
+    ],
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "cycle": "3/20",
+    "error_codes": [],
+    "metrics": {
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
+      "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
+      "pytest_tests_failed": 0,
+      "pytest_tests_passed": 29,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT"
     },
-    "cochem-coder": {
-        "artifacts": [
-            "Libraries/cochem_torq_conformal.py",
-            "src/cochem_torq/quench_broker.py",
-            "cli.py",
-            "ui/voila_layout/cochem_gui.py",
-            "ui/voila_layout/scribe_gui_dashboard.py",
-            "ui/voila_layout/cochem_gui_serializer.py",
-            "src/cochem_base/spectroscopy/isotopologue.py",
-            "src/cochem_base/geometry/fragment_partitioner.py",
-            "src/cochem/hpc/slurm_controller.py",
-            "src/cochem_base/theory_matrix.py",
-            "src/cochem_base/spectroscopy/parser.py",
-            "tests/torq/test_conformal_quench_intervention.py",
-            "tests/ui/test_cli_run_and_gui_parity.py",
-            "tests/ui/test_gui_spectroscopy_inspector.py",
-            "tests/ui/test_scribe_dashboard_reconstruction.py",
-            "tests/serialization/test_cfour_serializer_alignment.py",
-            "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
-            "tests/geometry/test_fragment_partitioner_constraints.py",
-            "pytest.ini"
-        ],
-        "conversation_id": "c51d1a76-b647-4db1-808d-ce2ff2e8ed94",
-        "cycle": "3/20",
-        "error_codes": [],
-        "metrics": {
-            "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
-            "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
-            "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
-            "pytest_tests_failed": 0,
-            "pytest_tests_passed": 29,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT"
-        },
-        "prompt_index": 3,
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
-        "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
-        "status": "SUCCESS",
-        "timestamp": "2026-09-04T19:08:28.167932+00:00"
+    "prompt_index": 3,
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
+    "status": "SUCCESS",
+    "timestamp": "2026-09-04T19:08:28.167932+00:00"
+  },
+  "cochem-coder": {
+    "artifacts": [
+      "Libraries/cochem_torq_conformal.py",
+      "src/cochem_torq/quench_broker.py",
+      "cli.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/scribe_gui_dashboard.py",
+      "ui/voila_layout/cochem_gui_serializer.py",
+      "src/cochem_base/spectroscopy/isotopologue.py",
+      "src/cochem_base/geometry/fragment_partitioner.py",
+      "src/cochem/hpc/slurm_controller.py",
+      "src/cochem_base/theory_matrix.py",
+      "src/cochem_base/spectroscopy/parser.py",
+      "tests/torq/test_conformal_quench_intervention.py",
+      "tests/ui/test_cli_run_and_gui_parity.py",
+      "tests/ui/test_gui_spectroscopy_inspector.py",
+      "tests/ui/test_scribe_dashboard_reconstruction.py",
+      "tests/serialization/test_cfour_serializer_alignment.py",
+      "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
+      "tests/geometry/test_fragment_partitioner_constraints.py",
+      "pytest.ini"
+    ],
+    "conversation_id": "c51d1a76-b647-4db1-808d-ce2ff2e8ed94",
+    "cycle": "3/20",
+    "error_codes": [],
+    "metrics": {
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
+      "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
+      "pytest_tests_failed": 0,
+      "pytest_tests_passed": 29,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT"
     },
-    "cochem-audit": {
-        "artifacts": [
-            "Libraries/cochem_torq_conformal.py",
-            "src/cochem_torq/quench_broker.py",
-            "cli.py",
-            "ui/voila_layout/cochem_gui.py",
-            "ui/voila_layout/scribe_gui_dashboard.py",
-            "ui/voila_layout/cochem_gui_serializer.py",
-            "src/cochem_base/spectroscopy/isotopologue.py",
-            "src/cochem_base/geometry/fragment_partitioner.py",
-            "src/cochem/hpc/slurm_controller.py",
-            "src/cochem_base/theory_matrix.py",
-            "src/cochem_base/spectroscopy/parser.py",
-            "tests/torq/test_conformal_quench_intervention.py",
-            "tests/ui/test_cli_run_and_gui_parity.py",
-            "tests/ui/test_gui_spectroscopy_inspector.py",
-            "tests/ui/test_scribe_dashboard_reconstruction.py",
-            "tests/serialization/test_cfour_serializer_alignment.py",
-            "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
-            "tests/geometry/test_fragment_partitioner_constraints.py",
-            "pytest.ini"
-        ],
-        "audit_verdict": "RATIFIED: PASS (100% COMPLIANT)",
-        "conversation_id": "c50d257c-a92e-467e-b49e-d7ef722b80d4",
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "cycle": "3/20",
-        "error_codes": [],
-        "metrics": {
-            "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
-            "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
-            "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
-            "pytest_tests_failed": 0,
-            "pytest_tests_passed": 29,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT"
-        },
-        "prompt_index": 3,
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
-        "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
-        "status": "SUCCESS",
-        "timestamp": "2026-09-04T19:08:28.167932+00:00",
-        "validation_phase": "ADVERSARIAL_AUDIT_CHUNK_04_CYCLE_3_PASSED"
+    "prompt_index": 3,
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
+    "status": "SUCCESS",
+    "timestamp": "2026-09-04T19:08:28.167932+00:00"
+  },
+  "cochem-audit": {
+    "artifacts": [
+      "Libraries/cochem_torq_conformal.py",
+      "src/cochem_torq/quench_broker.py",
+      "cli.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/scribe_gui_dashboard.py",
+      "ui/voila_layout/cochem_gui_serializer.py",
+      "src/cochem_base/spectroscopy/isotopologue.py",
+      "src/cochem_base/geometry/fragment_partitioner.py",
+      "src/cochem/hpc/slurm_controller.py",
+      "src/cochem_base/theory_matrix.py",
+      "src/cochem_base/spectroscopy/parser.py",
+      "tests/torq/test_conformal_quench_intervention.py",
+      "tests/ui/test_cli_run_and_gui_parity.py",
+      "tests/ui/test_gui_spectroscopy_inspector.py",
+      "tests/ui/test_scribe_dashboard_reconstruction.py",
+      "tests/serialization/test_cfour_serializer_alignment.py",
+      "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
+      "tests/geometry/test_fragment_partitioner_constraints.py",
+      "pytest.ini"
+    ],
+    "audit_verdict": "RATIFIED: PASS (100% COMPLIANT)",
+    "conversation_id": "c50d257c-a92e-467e-b49e-d7ef722b80d4",
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "cycle": "3/20",
+    "error_codes": [],
+    "metrics": {
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
+      "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
+      "pytest_tests_failed": 0,
+      "pytest_tests_passed": 29,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT"
     },
-    "adversary": {
-        "artifacts": [
-            "Libraries/cochem_torq_conformal.py",
-            "src/cochem_torq/quench_broker.py",
-            "cli.py",
-            "ui/voila_layout/cochem_gui.py",
-            "ui/voila_layout/scribe_gui_dashboard.py",
-            "ui/voila_layout/cochem_gui_serializer.py",
-            "src/cochem_base/spectroscopy/isotopologue.py",
-            "src/cochem_base/geometry/fragment_partitioner.py",
-            "src/cochem/hpc/slurm_controller.py",
-            "src/cochem_base/theory_matrix.py",
-            "src/cochem_base/spectroscopy/parser.py",
-            "tests/torq/test_conformal_quench_intervention.py",
-            "tests/ui/test_cli_run_and_gui_parity.py",
-            "tests/ui/test_gui_spectroscopy_inspector.py",
-            "tests/ui/test_scribe_dashboard_reconstruction.py",
-            "tests/serialization/test_cfour_serializer_alignment.py",
-            "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
-            "tests/geometry/test_fragment_partitioner_constraints.py",
-            "pytest.ini"
-        ],
-        "audit_verdict": "PASS - ZERO MOCKS / ZERO FAKES CERTIFIED",
-        "conversation_id": "356512ea-2d5a-4b9c-a008-5655f4e9c207",
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "cycle": "3/20",
-        "error_codes": [],
-        "metrics": {
-            "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
-            "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
-            "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
-            "pytest_tests_failed": 0,
-            "pytest_tests_passed": 29,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT"
-        },
-        "prompt_index": 3,
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
-        "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
-        "status": "SUCCESS",
-        "timestamp": "2026-09-04T19:08:28.167932+00:00",
-        "validation_phase": "ADVERSARIAL_MOCK_HUNT_CHUNK_04_PASSED"
+    "prompt_index": 3,
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
+    "status": "SUCCESS",
+    "timestamp": "2026-09-04T19:08:28.167932+00:00",
+    "validation_phase": "ADVERSARIAL_AUDIT_CHUNK_04_CYCLE_3_PASSED"
+  },
+  "adversary": {
+    "artifacts": [
+      "Libraries/cochem_torq_conformal.py",
+      "src/cochem_torq/quench_broker.py",
+      "cli.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/scribe_gui_dashboard.py",
+      "ui/voila_layout/cochem_gui_serializer.py",
+      "src/cochem_base/spectroscopy/isotopologue.py",
+      "src/cochem_base/geometry/fragment_partitioner.py",
+      "src/cochem/hpc/slurm_controller.py",
+      "src/cochem_base/theory_matrix.py",
+      "src/cochem_base/spectroscopy/parser.py",
+      "tests/torq/test_conformal_quench_intervention.py",
+      "tests/ui/test_cli_run_and_gui_parity.py",
+      "tests/ui/test_gui_spectroscopy_inspector.py",
+      "tests/ui/test_scribe_dashboard_reconstruction.py",
+      "tests/serialization/test_cfour_serializer_alignment.py",
+      "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
+      "tests/geometry/test_fragment_partitioner_constraints.py",
+      "pytest.ini"
+    ],
+    "audit_verdict": "PASS - ZERO MOCKS / ZERO FAKES CERTIFIED",
+    "conversation_id": "356512ea-2d5a-4b9c-a008-5655f4e9c207",
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "cycle": "3/20",
+    "error_codes": [],
+    "metrics": {
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
+      "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
+      "pytest_tests_failed": 0,
+      "pytest_tests_passed": 29,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT"
     },
-    "cochem-scribe": {
-        "artifacts": [
-            "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.docs\\improvements\\Start_Here_Markdown_Draft.md"
-        ],
-        "error_codes": [],
-        "status": "SUCCESS",
-        "timestamp": "2026-08-30T19:36:49-05:00"
+    "prompt_index": 3,
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
+    "status": "SUCCESS",
+    "timestamp": "2026-09-04T19:08:28.167932+00:00",
+    "validation_phase": "ADVERSARIAL_MOCK_HUNT_CHUNK_04_PASSED"
+  },
+  "cochem-scribe": {
+    "artifacts": [
+      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.docs\\improvements\\Start_Here_Markdown_Draft.md"
+    ],
+    "error_codes": [],
+    "status": "SUCCESS",
+    "timestamp": "2026-08-30T19:36:49-05:00"
+  },
+  "cochem-sdp-manager": {
+    "artifacts": [
+      "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.docs\\improvements\\GUI_Architecture_Charter.md"
+    ],
+    "error_codes": [],
+    "status": "SUCCESS",
+    "timestamp": "2026-08-30T19:28:47-05:00"
+  },
+  "draco_ui_state": {
+    "actor": "cochem-coder",
+    "current_state": "LEDGER_COMMITTED",
+    "journal_id": 3,
+    "metadata": {
+      "chunk": 10,
+      "description": "Chunk 10 Ledger Committed",
+      "tests_passed": 31
     },
-    "cochem-sdp-manager": {
-        "artifacts": [
-            "D:\\__CoChem\\GitHub-Repo\\CoChem-BASE\\.docs\\improvements\\GUI_Architecture_Charter.md"
-        ],
-        "error_codes": [],
-        "status": "SUCCESS",
-        "timestamp": "2026-08-30T19:28:47-05:00"
+    "previous_state": "OPTIMIZATION_CONVERGED",
+    "timestamp": "2026-09-01T12:30:09.872187+00:00"
+  },
+  "test_9": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_9.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_9.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "draco_ui_state": {
-        "actor": "cochem-coder",
-        "current_state": "LEDGER_COMMITTED",
-        "journal_id": 3,
-        "metadata": {
-            "chunk": 10,
-            "description": "Chunk 10 Ledger Committed",
-            "tests_passed": 31
-        },
-        "previous_state": "OPTIMIZATION_CONVERGED",
-        "timestamp": "2026-09-01T12:30:09.872187+00:00"
+    "error_message": null,
+    "timestamp": 1788498508.4340007
+  },
+  "test_0": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_0.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_0.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_9": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_9.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_9.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4340007
+    "error_message": null,
+    "timestamp": 1788498508.415935
+  },
+  "test_3": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_3.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_3.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_0": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_0.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_0.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.415935
+    "error_message": null,
+    "timestamp": 1788498508.4249473
+  },
+  "test_14": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_14.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_14.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_3": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_3.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_3.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4249473
+    "error_message": null,
+    "timestamp": 1788498508.4340007
+  },
+  "test_6": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_6.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_6.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_14": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_14.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_14.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4340007
+    "error_message": null,
+    "timestamp": 1788498508.4154153
+  },
+  "test_16": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_16.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_16.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_6": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_6.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_6.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4154153
+    "error_message": null,
+    "timestamp": 1788498508.475261
+  },
+  "test_13": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_13.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_13.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_16": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_16.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_16.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.475261
+    "error_message": null,
+    "timestamp": 1788498508.4360878
+  },
+  "test_21": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_21.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_21.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_13": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_13.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_13.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4360878
+    "error_message": null,
+    "timestamp": 1788498508.5664785
+  },
+  "test_19": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_19.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_19.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_21": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_21.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_21.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.5664785
+    "error_message": null,
+    "timestamp": 1788498508.5252786
+  },
+  "test_20": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_20.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_20.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_19": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_19.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_19.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.5252786
+    "error_message": null,
+    "timestamp": 1788498508.5325675
+  },
+  "test_24": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_24.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_24.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_20": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_20.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_20.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.5325675
+    "error_message": null,
+    "timestamp": 1788498508.6155171
+  },
+  "test_22": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_22.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_22.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_24": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_24.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_24.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.6155171
+    "error_message": null,
+    "timestamp": 1788498508.5747414
+  },
+  "test_4": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_4.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_4.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_22": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_22.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_22.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.5747414
+    "error_message": null,
+    "timestamp": 1788498508.4308717
+  },
+  "test_27": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_27.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_27.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_4": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_4.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_4.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4308717
+    "error_message": null,
+    "timestamp": 1788498508.665124
+  },
+  "test_10": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_10.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_10.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_27": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_27.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_27.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.665124
+    "error_message": null,
+    "timestamp": 1788498508.4249473
+  },
+  "test_12": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_12.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_12.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_10": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_10.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_10.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4249473
+    "error_message": null,
+    "timestamp": 1788498508.4334838
+  },
+  "test_30": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_30.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_30.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_12": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_12.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_12.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4334838
+    "error_message": null,
+    "timestamp": 1788498508.7142353
+  },
+  "test_28": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_28.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_28.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_30": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_30.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_30.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.7142353
+    "error_message": null,
+    "timestamp": 1788498508.6731293
+  },
+  "test_32": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_32.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_32.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_28": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_28.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_28.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.6731293
+    "error_message": null,
+    "timestamp": 1788498508.7332711
+  },
+  "test_33": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_33.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_33.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_32": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_32.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_32.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.7332711
+    "error_message": null,
+    "timestamp": 1788498508.764522
+  },
+  "test_34": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_34.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_34.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_33": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_33.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_33.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.764522
+    "error_message": null,
+    "timestamp": 1788498508.772503
+  },
+  "test_17": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_17.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_17.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_34": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_34.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_34.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.772503
+    "error_message": null,
+    "timestamp": 1788498508.4783063
+  },
+  "test_11": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_11.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_11.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_17": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_17.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_17.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4783063
+    "error_message": null,
+    "timestamp": 1788498508.436604
+  },
+  "test_36": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_36.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_36.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_11": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_11.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_11.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.436604
+    "error_message": null,
+    "timestamp": 1788498508.813119
+  },
+  "test_18": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_18.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_18.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_36": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_36.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_36.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.813119
+    "error_message": null,
+    "timestamp": 1788498508.516998
+  },
+  "test_38": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_38.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_38.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_18": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_18.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_18.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.516998
+    "error_message": null,
+    "timestamp": 1788498508.8295395
+  },
+  "test_23": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_23.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_23.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_38": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_38.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_38.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.8295395
+    "error_message": null,
+    "timestamp": 1788498508.584943
+  },
+  "test_40": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_40.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_40.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_23": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_23.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_23.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.584943
+    "error_message": null,
+    "timestamp": 1788498508.8624938
+  },
+  "test_5": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_5.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_5.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_40": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_40.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_40.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.8624938
+    "error_message": null,
+    "timestamp": 1788498508.4190922
+  },
+  "test_7": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_7.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_7.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_5": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_5.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_5.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4190922
+    "error_message": null,
+    "timestamp": 1788498508.4260182
+  },
+  "test_39": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_39.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_39.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_7": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_7.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_7.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4260182
+    "error_message": null,
+    "timestamp": 1788498508.8384993
+  },
+  "test_44": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_44.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_44.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_39": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_39.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_39.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.8384993
+    "error_message": null,
+    "timestamp": 1788498508.915062
+  },
+  "test_25": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_25.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_25.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_44": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_44.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_44.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.915062
+    "error_message": null,
+    "timestamp": 1788498508.6231601
+  },
+  "test_2": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_2.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_2.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_25": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_25.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_25.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.6231601
+    "error_message": null,
+    "timestamp": 1788498508.4313889
+  },
+  "test_48": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_48.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_48.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_2": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_2.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_2.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4313889
+    "error_message": null,
+    "timestamp": 1788498508.9632337
+  },
+  "test_49": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_49.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_49.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_48": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_48.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_48.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.9632337
+    "error_message": null,
+    "timestamp": 1788498508.975215
+  },
+  "test_35": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_35.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_35.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_49": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_49.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_49.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.975215
+    "error_message": null,
+    "timestamp": 1788498508.782349
+  },
+  "test_41": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_41.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_41.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_35": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_35.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_35.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.782349
+    "error_message": null,
+    "timestamp": 1788498508.8700795
+  },
+  "test_29": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_29.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_29.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_41": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_41.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_41.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.8700795
+    "error_message": null,
+    "timestamp": 1788498508.6808136
+  },
+  "test_45": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_45.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_45.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_29": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_29.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_29.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.6808136
+    "error_message": null,
+    "timestamp": 1788498508.9218583
+  },
+  "test_26": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_26.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_26.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_45": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_45.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_45.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.9218583
+    "error_message": null,
+    "timestamp": 1788498508.6308475
+  },
+  "test_37": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_37.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_37.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_26": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_26.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_26.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.6308475
+    "error_message": null,
+    "timestamp": 1788498508.820779
+  },
+  "test_47": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_47.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_47.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_37": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_37.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_37.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.820779
+    "error_message": null,
+    "timestamp": 1788498508.9388077
+  },
+  "test_8": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_8.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_8.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_47": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_47.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_47.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.9388077
+    "error_message": null,
+    "timestamp": 1788498508.421299
+  },
+  "test_43": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_43.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_43.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_8": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_8.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_8.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.421299
+    "error_message": null,
+    "timestamp": 1788498508.8874192
+  },
+  "test_31": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_31.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_31.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_43": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_43.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_43.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.8874192
+    "error_message": null,
+    "timestamp": 1788498508.725578
+  },
+  "test_15": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_15.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_15.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_31": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_31.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_31.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.725578
+    "error_message": null,
+    "timestamp": 1788498508.4376464
+  },
+  "test_42": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_42.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_42.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_15": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_15.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_15.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.4376464
+    "error_message": null,
+    "timestamp": 1788498508.87684
+  },
+  "test_46": {
+    "agent": "cochem-core-scheduler",
+    "status": "SUCCESS",
+    "artifacts": [
+      "C:\\Users\\ansac\\cochem_artifacts\\test_46.out"
+    ],
+    "hashes": {
+      "C:\\Users\\ansac\\cochem_artifacts\\test_46.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
-    "test_42": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_42.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_42.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.87684
+    "error_message": null,
+    "timestamp": 1788498508.929611
+  },
+  "chunk_03_core_part_3": {
+    "agent": "0rchestrator",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_03_Core_Part_3_prompts.md",
+    "prompt_title": "Chunk 03 Core Part 3 Implementation (Suggestions #21-#30)",
+    "artifacts": [
+      "src/cochem/core/process_reaper.py",
+      "src/cochem_base/core_engine/cochem_core_scheduler.py",
+      "src/cochem/core/hardware/topology.py",
+      "src/cochem/concurrency/atomic_file_lock.py",
+      "src/cochem/concurrency/network_lock.py",
+      "src/cochem_base/core_engine/cochem_core_pes_store.py",
+      "src/cochem/concurrency/subprocess_broker.py",
+      "src/cochem_base/core_engine/cochem_core_subprocess_broker.py",
+      "src/cochem_base/cochem_spycfit_ml_storage.py",
+      "tests/concurrency/test_concurrency_chunk3.py",
+      "tests/core/test_filesystem_remediation_chunk3.py",
+      "pytest.ini"
+    ],
+    "council_verdict": "RATIFIED_POST_REMEDIATION",
+    "adversarial_counter_audit": "PASSED_AFTER_REMEDIATION",
+    "metrics": {
+      "pytest_tests_passed": 10,
+      "pytest_tests_failed": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT",
+      "kernel_locking": "VERIFIED_LOCKFILEEX_FCNTL",
+      "win32_handle_delta": 0,
+      "unshielded_concurrency": "VERIFIED_0_VIOLATIONS",
+      "scheduler_throughput_tasks_per_sec": 114.4
     },
-    "test_46": {
-        "agent": "cochem-core-scheduler",
-        "status": "SUCCESS",
-        "artifacts": [
-            "C:\\Users\\ansac\\cochem_artifacts\\test_46.out"
-        ],
-        "hashes": {
-            "C:\\Users\\ansac\\cochem_artifacts\\test_46.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        },
-        "error_message": null,
-        "timestamp": 1788498508.929611
+    "timestamp": 1788498670.3959162
+  },
+  "chunk_04_core_part_4": {
+    "agent": "0rchestrator",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Core_Part_4_prompts.md",
+    "prompt_title": "Chunk 04 Core Part 4 Implementation (Suggestions #31-#40)",
+    "artifacts": [
+      "src/cochem/core/config.py",
+      "src/cochem/core/cochem_sandbox.py",
+      "src/cochem/core/airgap_coordinator.py",
+      "src/cochem/core/ipc/serializer.py",
+      "src/cochem/core/context.py",
+      "src/cochem/core/mendeleev_invariants.py",
+      "src/cochem/core/ingestors/protocols.py",
+      "src/cochem/runners/cuda_budget.py",
+      "src/cochem/runners/async_process_runner.py",
+      "src/cochem_base/core/__init__.py",
+      "src/cochem_base/core/cochem_core_registry_manager.py",
+      "tests/core/test_architecture_part4.py",
+      "tests/core/test_physics_integrity_part4.py",
+      "pytest.ini"
+    ],
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "adversarial_counter_audit": "PASSED_VERIFIED",
+    "metrics": {
+      "pytest_tests_passed": 10,
+      "pytest_tests_failed": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT",
+      "mendeleev_dynamic_masses": "VERIFIED_STRICT_POSITIVE_MASS_INVARIANT",
+      "ipc_256mb_ceiling": "VERIFIED_ENFORCED",
+      "swmr_hdf5_pes_store": "VERIFIED_CONCURRENT_MULTI_THREADED_APPENDS",
+      "filelock_cross_platform": "VERIFIED_MUTUAL_EXCLUSION_ZERO_FD_LEAK",
+      "sandbox_scf_diagnostics_preservation": "VERIFIED_PRIMARY_EXCEPTION_UNMASKED"
     },
-    "chunk_03_core_part_3": {
-        "agent": "0rchestrator",
-        "status": "SUCCESS",
-        "prompt_schedule": "Perfected_SRS_Chunk_03_Core_Part_3_prompts.md",
-        "prompt_title": "Chunk 03 Core Part 3 Implementation (Suggestions #21-#30)",
-        "artifacts": [
-            "src/cochem/core/process_reaper.py",
-            "src/cochem_base/core_engine/cochem_core_scheduler.py",
-            "src/cochem/core/hardware/topology.py",
-            "src/cochem/concurrency/atomic_file_lock.py",
-            "src/cochem/concurrency/network_lock.py",
-            "src/cochem_base/core_engine/cochem_core_pes_store.py",
-            "src/cochem/concurrency/subprocess_broker.py",
-            "src/cochem_base/core_engine/cochem_core_subprocess_broker.py",
-            "src/cochem_base/cochem_spycfit_ml_storage.py",
-            "tests/concurrency/test_concurrency_chunk3.py",
-            "tests/core/test_filesystem_remediation_chunk3.py",
-            "pytest.ini"
-        ],
-        "council_verdict": "RATIFIED_POST_REMEDIATION",
-        "adversarial_counter_audit": "PASSED_AFTER_REMEDIATION",
-        "metrics": {
-            "pytest_tests_passed": 10,
-            "pytest_tests_failed": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT",
-            "kernel_locking": "VERIFIED_LOCKFILEEX_FCNTL",
-            "win32_handle_delta": 0,
-            "unshielded_concurrency": "VERIFIED_0_VIOLATIONS",
-            "scheduler_throughput_tasks_per_sec": 114.4
-        },
-        "timestamp": 1788498670.3959162
+    "timestamp": 1788500125.1322272
+  },
+  "chunk_06_core_part_6": {
+    "agent": "0rchestrator",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_06_Core_Part_6_prompts.md",
+    "prompt_title": "Chunk 06 Core Part 6 Implementation (Suggestions #51-#60)",
+    "artifacts": [
+      "pytest.ini",
+      "src/cochem_base/core/exceptions.py",
+      "src/cochem_base/core/licensing.py",
+      "src/cochem_base/core/metadata.py",
+      "src/cochem_base/schemas/contexts/prov_o_context.jsonld",
+      "src/cochem_base/core/cochem_provenance.py",
+      "src/cochem_base/core/cochem_crypto.py",
+      "src/cochem_base/core/cochem_version.py",
+      "src/cochem_base/cochem_core_registry_schema.py",
+      "src/cochem_base/core/glossary.py",
+      "src/cochem_base/core/models.py",
+      "src/cochem_base/core_engine/cochem_core_pes_store.py",
+      "src/cochem_base/core/cochem_core_registry_manager.py",
+      "src/cochem_base/core/__init__.py",
+      "tests/core/test_architecture_part6.py",
+      "tests/core/test_physics_integrity_part6.py"
+    ],
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "adversarial_counter_audit": "PASSED_VERIFIED",
+    "metrics": {
+      "pytest_tests_passed": 11,
+      "pytest_tests_failed": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT",
+      "dynamic_mendeleev_masses": "VERIFIED_DYNAMIC_CIAAW_AND_ISOTOPIC_MASSES",
+      "hierarchical_radii_lookup": "VERIFIED_PYYKKO_CORDERO_VDW_HIERARCHY",
+      "prov_o_linked_data": "VERIFIED_OFFLINE_W3C_PROV_O_JSON_LD",
+      "spdx_licensing": "VERIFIED_FAIR_R1_1_IMMUTABLE_SPDX",
+      "pure_ed25519_did_key": "VERIFIED_OFFLINE_MULTICODEC_0XED01_JCS_RFC8785",
+      "vcs_container_introspection": "VERIFIED_IMPORTLIB_METADATA_FALLBACK",
+      "non_initializing_gpu_telemetry": "VERIFIED_NVML_ZERO_CUDA_CONTEXT_LOCK",
+      "deterministic_uuid5_pes_store": "VERIFIED_CONTENT_ADDRESSABLE_SWMR_HDF5",
+      "method_matrix_canonical_tiers": "VERIFIED_CALCULATION_FIDELITY_ENUM"
     },
-    "chunk_04_core_part_4": {
-        "agent": "0rchestrator",
-        "status": "SUCCESS",
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Core_Part_4_prompts.md",
-        "prompt_title": "Chunk 04 Core Part 4 Implementation (Suggestions #31-#40)",
-        "artifacts": [
-            "src/cochem/core/config.py",
-            "src/cochem/core/cochem_sandbox.py",
-            "src/cochem/core/airgap_coordinator.py",
-            "src/cochem/core/ipc/serializer.py",
-            "src/cochem/core/context.py",
-            "src/cochem/core/mendeleev_invariants.py",
-            "src/cochem/core/ingestors/protocols.py",
-            "src/cochem/runners/cuda_budget.py",
-            "src/cochem/runners/async_process_runner.py",
-            "src/cochem_base/core/__init__.py",
-            "src/cochem_base/core/cochem_core_registry_manager.py",
-            "tests/core/test_architecture_part4.py",
-            "tests/core/test_physics_integrity_part4.py",
-            "pytest.ini"
-        ],
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "adversarial_counter_audit": "PASSED_VERIFIED",
-        "metrics": {
-            "pytest_tests_passed": 10,
-            "pytest_tests_failed": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT",
-            "mendeleev_dynamic_masses": "VERIFIED_STRICT_POSITIVE_MASS_INVARIANT",
-            "ipc_256mb_ceiling": "VERIFIED_ENFORCED",
-            "swmr_hdf5_pes_store": "VERIFIED_CONCURRENT_MULTI_THREADED_APPENDS",
-            "filelock_cross_platform": "VERIFIED_MUTUAL_EXCLUSION_ZERO_FD_LEAK",
-            "sandbox_scf_diagnostics_preservation": "VERIFIED_PRIMARY_EXCEPTION_UNMASKED"
-        },
-        "timestamp": 1788500125.1322272
+    "timestamp": 1788523680.0
+  },
+  "chunk_07_core_part_7": {
+    "agent": "cochem-coder",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_07_Core_Part_7_prompts.md",
+    "prompt_title": "Chunk 07 Core Part 7 Implementation (Suggestions #61-#70)",
+    "artifacts": [
+      "pytest.ini",
+      "src/cochem_base/core/models.py",
+      "src/cochem_base/core/cochem_crypto.py",
+      "src/cochem_base/core/cochem_provenance.py",
+      "src/cochem_base/core/exceptions.py",
+      "src/cochem/core/exceptions.py",
+      "src/cochem_base/core/ipc/serializer.py",
+      "src/cochem/core/ipc/serializer.py",
+      "src/cochem_base/core_engine/cochem_core_pes_store.py",
+      "src/cochem_base/core_engine/cochem_mass_resolver.py",
+      "src/cochem_base/core/mendeleev_invariants.py",
+      "src/cochem/core/mendeleev_invariants.py",
+      "src/cochem_base/core/cochem_sandbox.py",
+      "src/cochem_base/core/process_reaper.py",
+      "src/cochem_base/core_engine/cochem_core_subprocess_broker.py",
+      "tests/core/test_physics_integrity_part7.py",
+      "tests/core/test_architecture_part7.py"
+    ],
+    "cycle": "1/20",
+    "council_verdict": "RATIFIED_POST_REMEDIATION",
+    "adversarial_counter_audit": "PASSED_AFTER_REMEDIATION",
+    "error_codes": [],
+    "metrics": {
+      "pytest_tests_passed": 10,
+      "pytest_tests_failed": 0,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "schema_migration": "VERIFIED_V1_MIGRATION_PIPELINE",
+      "rfc8785_canonical_floats": "VERIFIED_SHORTEST_IEEE754_ECMASCRIPT_PARITY",
+      "grimme_quasi_rrho_provenance": "VERIFIED_W3C_PROV_O_LOGGING",
+      "machine_actionable_errors": "VERIFIED_ERROR_CODE_HIERARCHY",
+      "hdf5_swmr_inplace_resizing": "VERIFIED_DUAL_LAYER_LOCKING_NO_CORRUPTION",
+      "dynamic_mendeleev_lru_cache": "VERIFIED_LRU_CACHED_MASS_RESOLUTION",
+      "mendeleev_invariants_lazy_singleton": "VERIFIED_DEFERRED_STARTUP",
+      "sandbox_atexit_unregister": "VERIFIED_AIRGAP_CHECK_AND_UNREGISTER",
+      "process_reaper_pid_monitoring": "VERIFIED_DIRECT_PID_REAPER_ESCALATION",
+      "scratch_quota_verification_cache": "VERIFIED_TTL_CACHED_AIRGAP_VERIFICATION"
     },
-    "chunk_06_core_part_6": {
-        "agent": "0rchestrator",
-        "status": "SUCCESS",
-        "prompt_schedule": "Perfected_SRS_Chunk_06_Core_Part_6_prompts.md",
-        "prompt_title": "Chunk 06 Core Part 6 Implementation (Suggestions #51-#60)",
-        "artifacts": [
-            "pytest.ini",
-            "src/cochem_base/core/exceptions.py",
-            "src/cochem_base/core/licensing.py",
-            "src/cochem_base/core/metadata.py",
-            "src/cochem_base/schemas/contexts/prov_o_context.jsonld",
-            "src/cochem_base/core/cochem_provenance.py",
-            "src/cochem_base/core/cochem_crypto.py",
-            "src/cochem_base/core/cochem_version.py",
-            "src/cochem_base/cochem_core_registry_schema.py",
-            "src/cochem_base/core/glossary.py",
-            "src/cochem_base/core/models.py",
-            "src/cochem_base/core_engine/cochem_core_pes_store.py",
-            "src/cochem_base/core/cochem_core_registry_manager.py",
-            "src/cochem_base/core/__init__.py",
-            "tests/core/test_architecture_part6.py",
-            "tests/core/test_physics_integrity_part6.py"
-        ],
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "adversarial_counter_audit": "PASSED_VERIFIED",
-        "metrics": {
-            "pytest_tests_passed": 11,
-            "pytest_tests_failed": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT",
-            "dynamic_mendeleev_masses": "VERIFIED_DYNAMIC_CIAAW_AND_ISOTOPIC_MASSES",
-            "hierarchical_radii_lookup": "VERIFIED_PYYKKO_CORDERO_VDW_HIERARCHY",
-            "prov_o_linked_data": "VERIFIED_OFFLINE_W3C_PROV_O_JSON_LD",
-            "spdx_licensing": "VERIFIED_FAIR_R1_1_IMMUTABLE_SPDX",
-            "pure_ed25519_did_key": "VERIFIED_OFFLINE_MULTICODEC_0XED01_JCS_RFC8785",
-            "vcs_container_introspection": "VERIFIED_IMPORTLIB_METADATA_FALLBACK",
-            "non_initializing_gpu_telemetry": "VERIFIED_NVML_ZERO_CUDA_CONTEXT_LOCK",
-            "deterministic_uuid5_pes_store": "VERIFIED_CONTENT_ADDRESSABLE_SWMR_HDF5",
-            "method_matrix_canonical_tiers": "VERIFIED_CALCULATION_FIDELITY_ENUM"
-        },
-        "timestamp": 1788523680.0
+    "timestamp": "2026-09-04T03:15:00-05:00"
+  },
+  "chunk_04_ecosystem_part_4": {
+    "agent": "0rchestrator",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
+    "artifacts": [
+      "Libraries/cochem_torq_conformal.py",
+      "src/cochem_torq/quench_broker.py",
+      "cli.py",
+      "ui/voila_layout/cochem_gui.py",
+      "ui/voila_layout/scribe_gui_dashboard.py",
+      "ui/voila_layout/cochem_gui_serializer.py",
+      "src/cochem_base/spectroscopy/isotopologue.py",
+      "src/cochem_base/geometry/fragment_partitioner.py",
+      "src/cochem/hpc/slurm_controller.py",
+      "src/cochem_base/theory_matrix.py",
+      "src/cochem_base/spectroscopy/parser.py",
+      "tests/torq/test_conformal_quench_intervention.py",
+      "tests/ui/test_cli_run_and_gui_parity.py",
+      "tests/ui/test_gui_spectroscopy_inspector.py",
+      "tests/ui/test_scribe_dashboard_reconstruction.py",
+      "tests/serialization/test_cfour_serializer_alignment.py",
+      "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
+      "tests/geometry/test_fragment_partitioner_constraints.py",
+      "pytest.ini"
+    ],
+    "cycle": "3/20",
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "adversarial_counter_audit": "PASSED_UNCONDITIONAL",
+    "error_codes": [],
+    "metrics": {
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
+      "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
+      "pytest_tests_failed": 0,
+      "pytest_tests_passed": 29,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT"
     },
-    "chunk_07_core_part_7": {
-        "agent": "cochem-coder",
-        "status": "SUCCESS",
-        "prompt_schedule": "Perfected_SRS_Chunk_07_Core_Part_7_prompts.md",
-        "prompt_title": "Chunk 07 Core Part 7 Implementation (Suggestions #61-#70)",
-        "artifacts": [
-            "pytest.ini",
-            "src/cochem_base/core/models.py",
-            "src/cochem_base/core/cochem_crypto.py",
-            "src/cochem_base/core/cochem_provenance.py",
-            "src/cochem_base/core/exceptions.py",
-            "src/cochem/core/exceptions.py",
-            "src/cochem_base/core/ipc/serializer.py",
-            "src/cochem/core/ipc/serializer.py",
-            "src/cochem_base/core_engine/cochem_core_pes_store.py",
-            "src/cochem_base/core_engine/cochem_mass_resolver.py",
-            "src/cochem_base/core/mendeleev_invariants.py",
-            "src/cochem/core/mendeleev_invariants.py",
-            "src/cochem_base/core/cochem_sandbox.py",
-            "src/cochem_base/core/process_reaper.py",
-            "src/cochem_base/core_engine/cochem_core_subprocess_broker.py",
-            "tests/core/test_physics_integrity_part7.py",
-            "tests/core/test_architecture_part7.py"
-        ],
-        "cycle": "1/20",
-        "council_verdict": "RATIFIED_POST_REMEDIATION",
-        "adversarial_counter_audit": "PASSED_AFTER_REMEDIATION",
-        "error_codes": [],
-        "metrics": {
-            "pytest_tests_passed": 10,
-            "pytest_tests_failed": 0,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "schema_migration": "VERIFIED_V1_MIGRATION_PIPELINE",
-            "rfc8785_canonical_floats": "VERIFIED_SHORTEST_IEEE754_ECMASCRIPT_PARITY",
-            "grimme_quasi_rrho_provenance": "VERIFIED_W3C_PROV_O_LOGGING",
-            "machine_actionable_errors": "VERIFIED_ERROR_CODE_HIERARCHY",
-            "hdf5_swmr_inplace_resizing": "VERIFIED_DUAL_LAYER_LOCKING_NO_CORRUPTION",
-            "dynamic_mendeleev_lru_cache": "VERIFIED_LRU_CACHED_MASS_RESOLUTION",
-            "mendeleev_invariants_lazy_singleton": "VERIFIED_DEFERRED_STARTUP",
-            "sandbox_atexit_unregister": "VERIFIED_AIRGAP_CHECK_AND_UNREGISTER",
-            "process_reaper_pid_monitoring": "VERIFIED_DIRECT_PID_REAPER_ESCALATION",
-            "scratch_quota_verification_cache": "VERIFIED_TTL_CACHED_AIRGAP_VERIFICATION"
-        },
-        "timestamp": "2026-09-04T03:15:00-05:00"
+    "timestamp": "2026-09-04T19:08:28.167932+00:00"
+  },
+  "chunk_09_ecosystem_part_9": {
+    "agent": "cochem-coder",
+    "status": "SUCCESS",
+    "prompt_schedule": "Perfected_SRS_Chunk_09_Ecosystem_Part_9_prompts.md",
+    "prompt_title": "Ecosystem Architectural & Physical Integrity (Chunk 09, Suggestions #81-#90)",
+    "artifacts": [
+      "src/cochem_base/exceptions.py",
+      "src/cochem_base/chemistry/cochem_chemistry_topology.py",
+      "src/cochem_base/data/cochem_base_pes_store.py",
+      "src/cochem_base/calc/cochem_calc_execution_router.py",
+      "cascade_engine/cochem_cascade_hdf5.py",
+      "cascade_engine/cochem_topos_cascade_orchestrator.py",
+      "Libraries/cochem_catalog_compiler.py",
+      "Libraries/cochem_torq_constraints.py",
+      "Libraries/cochem_torq_engine.py",
+      "Libraries/cochem_torq_cfour_bridge.py",
+      "Libraries/cochem_torq_crest.py",
+      "Libraries/cochem_torq_pipeline.py",
+      "tests/chunk09/test_counterpoise_frozen_monomer.py",
+      "tests/chunk09/test_frozen_monomer_cartesian_constraints.py",
+      "tests/chunk09/test_energy_unit_normalization_swmr.py",
+      "tests/chunk09/test_two_stage_grid_scheduling.py",
+      "tests/chunk09/test_screening_hessian_deferral.py",
+      "tests/chunk09/test_catalog_compiler_calc_hess_rejection.py",
+      "tests/chunk09/test_spin_contamination_abort.py",
+      "tests/chunk09/test_cfour_dual_engine_routing.py",
+      "tests/chunk09/test_goat_crest_union_pipeline.py",
+      "tests/chunk09/test_mendeleev_covalent_partitioning.py"
+    ],
+    "cycle": "1/20",
+    "council_verdict": "RATIFIED_UNANIMOUS",
+    "adversarial_counter_audit": "PASSED_UNCONDITIONAL",
+    "error_codes": [],
+    "metrics": {
+      "pytest_tests_passed": 23,
+      "pytest_tests_failed": 0,
+      "pytest_tests_skipped": 0,
+      "zero_mock_compliance": "VERIFIED_100_PERCENT",
+      "ast_mock_count": 0,
+      "ast_notimplemented_count": 0,
+      "ast_pass_count": 0,
+      "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
+      "mendeleev_invariants": "VERIFIED_DYNAMIC_PYYKKO_COVALENT_RADII",
+      "scipy_physical_constants": "VERIFIED_DYNAMIC_HARTREE_EV_NORMALIZATION",
+      "method_matrix_compliance": "VERIFIED_RECIPE_R2_FROZEN_MONOMER_TWO_STAGE_GRID_CFOUR_INTEGRATION"
     },
-    "chunk_04_ecosystem_part_4": {
-        "agent": "0rchestrator",
-        "status": "SUCCESS",
-        "prompt_schedule": "Perfected_SRS_Chunk_04_Ecosystem_Part_4_prompts.md",
-        "prompt_title": "Ecosystem Architectural & Physical Integrity Refactor (Part 4) (Suggestions #31-#40)",
-        "artifacts": [
-            "Libraries/cochem_torq_conformal.py",
-            "src/cochem_torq/quench_broker.py",
-            "cli.py",
-            "ui/voila_layout/cochem_gui.py",
-            "ui/voila_layout/scribe_gui_dashboard.py",
-            "ui/voila_layout/cochem_gui_serializer.py",
-            "src/cochem_base/spectroscopy/isotopologue.py",
-            "src/cochem_base/geometry/fragment_partitioner.py",
-            "src/cochem/hpc/slurm_controller.py",
-            "src/cochem_base/theory_matrix.py",
-            "src/cochem_base/spectroscopy/parser.py",
-            "tests/torq/test_conformal_quench_intervention.py",
-            "tests/ui/test_cli_run_and_gui_parity.py",
-            "tests/ui/test_gui_spectroscopy_inspector.py",
-            "tests/ui/test_scribe_dashboard_reconstruction.py",
-            "tests/serialization/test_cfour_serializer_alignment.py",
-            "tests/spectroscopy/test_mendeleev_isotopologue_engine.py",
-            "tests/geometry/test_fragment_partitioner_constraints.py",
-            "pytest.ini"
-        ],
-        "cycle": "3/20",
-        "council_verdict": "RATIFIED_UNANIMOUS",
-        "adversarial_counter_audit": "PASSED_UNCONDITIONAL",
-        "error_codes": [],
-        "metrics": {
-            "anti_spoof_linter": "PASSED_STRICT_ZERO_VIOLATIONS",
-            "ast_mock_count": 0,
-            "ast_notimplemented_count": 0,
-            "ast_pass_count": 0,
-            "ast_zero_mock_compliance": "VERIFIED_ZERO_MOCKS_ZERO_STUBS_ZERO_PASS",
-            "mendeleev_invariants": "VERIFIED_DYNAMIC_MASSES",
-            "method_matrix_compliance": "VERIFIED_STAGE_3_0_STAGE_0_0_STAGE_4_4_STAGE_8A_STAGE_9A_COMPLIANT",
-            "pytest_tests_failed": 0,
-            "pytest_tests_passed": 29,
-            "pytest_tests_skipped": 0,
-            "zero_mock_compliance": "VERIFIED_100_PERCENT"
-        },
-        "timestamp": "2026-09-04T19:08:28.167932+00:00"
-    }
+    "timestamp": "2026-09-04T22:03:48.771751+00:00"
+  }
 }

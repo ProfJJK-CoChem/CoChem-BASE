@@ -90,6 +90,10 @@ class QuenchResponse(BaseModel):
     provenance_tag: str = "[M]"
 
 
+class BinaryNotFoundError(RuntimeError):
+    """Exception raised when a required physical simulation binary is missing."""
+    pass
+
 class IPCTrajectoryQuenchBroker:
     """Decoupled IPC Broker dispatching trajectory quenches to isolated workers. [M]"""
 
@@ -163,48 +167,5 @@ class IPCTrajectoryQuenchBroker:
                         methodology=request.methodology.value,
                     )
 
-        # Authentic physical gradient relaxation fallback
-        N = len(request.atomic_numbers)
-        relaxed_coords = coords.copy()
-        current_energy = 0.0
-        for _ in range(50):
-            grad = np.zeros_like(relaxed_coords)
-            current_energy = 0.0
-            for i in range(N):
-                for j in range(i + 1, N):
-                    rij = relaxed_coords[j] - relaxed_coords[i]
-                    d = float(np.linalg.norm(rij))
-                    if d < 1e-6:
-                        continue
-                    z_i, z_j = request.atomic_numbers[i], request.atomic_numbers[j]
-                    if (z_i == 6 and z_j == 8) or (z_i == 8 and z_j == 6):
-                        r0 = 1.210
-                        k = 12.0
-                    elif (z_i == 6 and z_j == 1) or (z_i == 1 and z_j == 6):
-                        r0 = 1.090
-                        k = 8.0
-                    elif (z_i == 8 and z_j == 1) or (z_i == 1 and z_j == 8):
-                        r0 = 0.960
-                        k = 10.0
-                    else:
-                        r0 = 1.450
-                        k = 4.0
-                    current_energy += 0.5 * k * ((d - r0) ** 2)
-                    force_mag = -k * (d - r0) * (rij / d)
-                    grad[i] += force_mag
-                    grad[j] -= force_mag
-            if float(np.max(np.abs(grad))) < 1e-4:
-                break
-            relaxed_coords -= 0.01 * grad
+        raise BinaryNotFoundError("xtb executable not found. Mock physics is prohibited. Please install xtb or configure a physical engine fallback.")
 
-        wall_ms = (time.perf_counter() - start_time) * 1000.0
-        calc_energy = float(-114.500 - (0.001 * current_energy))
-        return QuenchResponse(
-            trajectory_id=request.trajectory_id,
-            frame_index=request.frame_index,
-            quenched_geometry=relaxed_coords.tolist(),
-            quenched_energy_hartree=calc_energy,
-            converged=True,
-            walltime_ms=wall_ms,
-            methodology=request.methodology.value,
-        )

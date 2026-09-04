@@ -545,6 +545,30 @@ class BSSECorrectionError(MethodMatrixViolationError):
     )
 
 
+class IntermolecularTopologyError(CoChemError, ValueError):
+    """Raised when intermolecular complex geometries violate physical topology bounds (e.g. core clashes or dissociation)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.PATHOLOGY_CLASH
+    )
+
+
+class PreflightValidationError(CoChemError, ValueError):
+    """Raised when client-side preflight validation fails (e.g. steric clashes, spin parity, missing dispersion)."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONFIG_VALIDATION_FAILED
+    )
+
+
+class QuantumEngineCrashError(CoChemError, RuntimeError):
+    """Raised when an underlying quantum chemistry calculation engine crashes or exits abnormally."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
 # =====================================================================
 # Ecosystem Dependency & Physics Integrity Exceptions
 # =====================================================================
@@ -1144,6 +1168,9 @@ __all__ = [
     "UnsupportedMethodError",
     "TriagePathologyError",
     "BSSECorrectionError",
+    "IntermolecularTopologyError",
+    "PreflightValidationError",
+    "QuantumEngineCrashError",
     # Ecosystem Dependency & Physics Integrity Exceptions
     "EcosystemDependencyError",
     "BinaryNotFoundError",

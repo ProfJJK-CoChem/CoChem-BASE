@@ -51,24 +51,17 @@ def test_conformal_trajectory_quench_intervention():
     # Physical calibration samples (Formaldehyde equilibrium vs small perturbations)
     # H2CO atomic numbers: C (6), O (8), H (1), H (1)
     atomic_numbers = [6, 8, 1, 1]
+    data_dir = Path(__file__).parent.parent / "data"
+    cal_data_np = np.load(data_dir / "h2co_cal_data.npz")
     cal_data: List[CalibrationSample] = []
     for step in range(12):
-        forces_t = torch.tensor([
-            [0.01 * (step % 3), -0.02 * (step % 2), 0.005],
-            [-0.01 * (step % 3), 0.02 * (step % 2), -0.005],
-            [0.002, 0.001, -0.002],
-            [-0.002, -0.001, 0.002],
-        ], dtype=torch.float64)
-        forces_p = forces_t + 0.003 * (0.5 - (step % 4) * 0.25)
-        forces_s = torch.full((4, 3), 0.015, dtype=torch.float64)
-
         sample = CalibrationSample(
-            energy_true=-114.500 + 0.001 * step,
-            energy_pred=-114.500 + 0.0012 * step,
-            energy_sigma=0.002,
-            forces_true=forces_t,
-            forces_pred=forces_p,
-            forces_sigma=forces_s,
+            energy_true=float(cal_data_np["energy_true"][step]),
+            energy_pred=float(cal_data_np["energy_pred"][step]),
+            energy_sigma=float(cal_data_np["energy_sigma"][step]),
+            forces_true=torch.from_numpy(cal_data_np["forces_true"][step]),
+            forces_pred=torch.from_numpy(cal_data_np["forces_pred"][step]),
+            forces_sigma=torch.from_numpy(cal_data_np["forces_sigma"][step]),
         )
         cal_data.append(sample)
 
@@ -81,30 +74,18 @@ def test_conformal_trajectory_quench_intervention():
     assert handler.current_threshold == 0.90
 
     # 2. Stream physical trajectory frames of Formaldehyde
-    # Equilibrium coordinates (Angstroms)
-    h2co_eq = torch.tensor([
-        [0.0000, 0.0000, -0.5312],   # C
-        [0.0000, 0.0000,  0.6788],   # O (r_CO = 1.2100 A)
-        [0.0000, 0.9382, -1.1078],   # H1
-        [0.0000, -0.9382, -1.1078],  # H2
-    ], dtype=torch.float64)
-
+    traj_data = np.load(data_dir / "h2co_trajectory.npz")
+    
     # Inject 10 normal in-distribution frames (small thermal oscillations)
     for frame_idx in range(1, 11):
-        wiggle = 0.005 * math.sin(frame_idx * 0.5)
-        pos = h2co_eq.clone()
-        pos[0, 2] += wiggle
-        vel = torch.full((4, 3), 0.001 * frame_idx, dtype=torch.float64)
-        forces = torch.full((4, 3), 0.002, dtype=torch.float64)
-        uncertainty = 0.25 + 0.02 * (frame_idx % 5) # well below 0.90
-
+        idx = frame_idx - 1 # 0-indexed in arrays
         frame = MolecularFrame(
             step=frame_idx,
-            positions=pos,
-            velocities=vel,
-            forces=forces,
-            energy=-114.520 + 0.0005 * frame_idx,
-            uncertainty_score=uncertainty,
+            positions=torch.from_numpy(traj_data["positions"][idx]),
+            velocities=torch.from_numpy(traj_data["velocities"][idx]),
+            forces=torch.from_numpy(traj_data["forces"][idx]),
+            energy=float(traj_data["energies"][idx]),
+            uncertainty_score=float(traj_data["uncertainties"][idx]),
             atomic_numbers=atomic_numbers,
         )
         safe = handler.evaluate_and_intervene(frame)
@@ -116,17 +97,14 @@ def test_conformal_trajectory_quench_intervention():
     assert last_valid_frame.step == 10
 
     # 3. Inject out-of-distribution geometry at frame 11 (C=O stretched to 2.65 A)
-    h2co_stretched = h2co_eq.clone()
-    h2co_stretched[1, 2] = 2.1188 # C-O distance = 2.1188 - (-0.5312) = 2.6500 A
-    ood_score = 1.875 # Significant breach > 0.90
-
+    ood_idx = 10
     ood_frame = MolecularFrame(
         step=11,
-        positions=h2co_stretched,
-        velocities=torch.zeros((4, 3), dtype=torch.float64),
-        forces=torch.full((4, 3), 0.25, dtype=torch.float64),
-        energy=-114.210,
-        uncertainty_score=ood_score,
+        positions=torch.from_numpy(traj_data["positions"][ood_idx]),
+        velocities=torch.from_numpy(traj_data["velocities"][ood_idx]),
+        forces=torch.from_numpy(traj_data["forces"][ood_idx]),
+        energy=float(traj_data["energies"][ood_idx]),
+        uncertainty_score=float(traj_data["uncertainties"][ood_idx]),
         atomic_numbers=atomic_numbers,
     )
 
@@ -169,11 +147,21 @@ def test_conformal_trajectory_quench_intervention():
         assert qc_schema["model"]["method"] == "gfn2-xtb"
         assert len(qc_schema["molecule"]["geometry"]) == 12 # 4 atoms * 3 coords in Bohr
 
+        import shutil
+        from cochem_torq.quench_broker import BinaryNotFoundError
+
         # Execute quench
-        response = broker.dispatch_quench(request)
-        assert isinstance(response, QuenchResponse)
-        assert response.trajectory_id == "traj_h2co_sim_001"
-        assert response.frame_index == 11
-        assert response.converged is True
-        assert len(response.quenched_geometry) == 4
+        try:
+            response = broker.dispatch_quench(request)
+            assert isinstance(response, QuenchResponse)
+            assert response.trajectory_id == "traj_h2co_sim_001"
+            assert response.frame_index == 11
+            assert response.converged is True
+            assert len(response.quenched_geometry) == 4
+        except BinaryNotFoundError:
+            if shutil.which("xtb") is None:
+                pytest.skip("xtb executable not found, skipping physical relaxation verification.")
+            else:
+                raise
+
         assert manifest_file.exists()

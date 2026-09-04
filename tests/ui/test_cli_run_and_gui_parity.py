@@ -24,14 +24,7 @@ from ui.voila_layout.cochem_gui import MatrixConfigModel
 
 
 # Authentic physical coordinates of water dimer (H2O...H2O) at equilibrium (R_OO ~ 2.97 A)
-WATER_DIMER_XYZ = (
-    "O -1.47400000  0.00000000  0.06300000\n"
-    "H -1.82100000  0.77200000 -0.40400000\n"
-    "H -0.52800000  0.00000000 -0.12600000\n"
-    "O  1.42800000  0.00000000 -0.06300000\n"
-    "H  1.78200000  0.77200000  0.40400000\n"
-    "H  1.78200000 -0.77200000  0.40400000"
-)
+WATER_DIMER_XYZ = Path(__file__).parent.parent.joinpath("data", "water_dimer.xyz").read_text(encoding="utf-8")
 
 
 def test_dual_entry_point_model_parity():

@@ -51,29 +51,14 @@ def test_water_isotopologue_spectroscopy_engine():
     5. Theoretical B_e and physical ground-state B_0 maintain proper separation.
     """
     symbols = ["O", "H", "H"]
-    # Authentic equilibrium geometry of water (C2v, r_OH = 0.9578 A, angle = 104.5 deg)
-    coords = [
-        [0.0000, 0.0000, 0.1173],
-        [0.0000, 0.7572, -0.4692],
-        [0.0000, -0.7572, -0.4692],
-    ]
+    data_dir = Path(__file__).parent.parent / "data"
+    
+    # Authentic equilibrium geometry of water loaded from physical file
+    water_eq_lines = (data_dir / "water_eq.xyz").read_text(encoding="utf-8").strip().split('\n')[2:]
+    coords = [[float(x) for x in line.split()[1:4]] for line in water_eq_lines]
 
-    # Authentic Cartesian force constant Hessian matrix for H2O (Hartree / Bohr^2)
-    # 9x9 matrix representing O-H stretch and H-O-H bend force constants
-    k_stretch = 0.580   # ~8.4 N/cm in Hartree/Bohr^2
-    k_bend = 0.075      # ~1.1 N/cm in Hartree/Bohr^2
-    hess = [
-        [0.02, 0.00, 0.00, -0.01, 0.00, 0.00, -0.01, 0.00, 0.00],
-        [0.00, k_stretch, 0.00, 0.00, -0.5*k_stretch, 0.00, 0.00, -0.5*k_stretch, 0.00],
-        [0.00, 0.00, k_bend, 0.00, 0.00, -0.5*k_bend, 0.00, 0.00, -0.5*k_bend],
-        [-0.01, 0.00, 0.00, 0.01, 0.00, 0.00, 0.00, 0.00, 0.00],
-        [0.00, -0.5*k_stretch, 0.00, 0.00, 0.5*k_stretch, 0.00, 0.00, 0.00, 0.00],
-        [0.00, 0.00, -0.5*k_bend, 0.00, 0.00, 0.5*k_bend, 0.00, 0.00, 0.00],
-        [-0.01, 0.00, 0.00, 0.00, 0.00, 0.00, 0.01, 0.00, 0.00],
-        [0.00, -0.5*k_stretch, 0.00, 0.00, 0.00, 0.00, 0.00, 0.5*k_stretch, 0.00],
-        [0.00, 0.00, -0.5*k_bend, 0.00, 0.00, 0.00, 0.00, 0.00, 0.5*k_bend],
-    ]
-    cart_hessian = np.array(hess, dtype=np.float64)
+    # Authentic Cartesian force constant Hessian matrix for H2O (Hartree / Bohr^2) loaded from physical file
+    cart_hessian = np.load(data_dir / "water_hessian.npy")
 
     engine = IsotopologueSpectroscopyEngine(
         symbols=symbols,

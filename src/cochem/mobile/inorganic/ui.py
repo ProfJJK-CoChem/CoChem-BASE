@@ -469,8 +469,8 @@ class InorganicBuilderWidget(anywidget.AnyWidget):
         """Ensure thread pool shutdown on cleanup."""
         try:
             self._assembly_engine.shutdown(wait=False)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 class InorganicBuilderScreen:

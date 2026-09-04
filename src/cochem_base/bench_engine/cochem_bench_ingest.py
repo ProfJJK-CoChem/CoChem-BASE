@@ -152,8 +152,8 @@ class BenchHardwareSchema(BaseModel):
                 phys_int = int(phys)
                 d["cpu_physical_cores"] = phys_int
                 d["physical_cpu_cores"] = phys_int
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize RAM
         ram = d.get("ram_gb") or d.get("available_ram_gb")
@@ -162,8 +162,8 @@ class BenchHardwareSchema(BaseModel):
                 ram_flt = float(ram)
                 d["ram_gb"] = ram_flt
                 d["available_ram_gb"] = ram_flt
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize AVX-512
         if "avx_512_capable" in d and "avx512_support" not in d:

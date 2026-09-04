@@ -7,6 +7,8 @@ Complies strictly with:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import functools
 import os
@@ -177,8 +179,8 @@ def _query_cli_gpu_telemetry() -> Optional[List[Dict[str, Any]]]:
                             continue
                 if devices:
                     return devices
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return None
 

@@ -53,8 +53,8 @@ def sweep_zombies() -> None:
             try:
                 if p.info['status'] == psutil.STATUS_ZOMBIE:
                     p.wait(timeout=1)
-            except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
     except Exception as e:
         logger.error(f"Zombie sweep failed: {e}")
 
@@ -250,16 +250,16 @@ class DependencyManager:
             try:
                 if temp_file.exists() and temp_file.is_file():
                     temp_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_files.clear()
 
         for temp_dir in self._tracked_temp_dirs:
             try:
                 if temp_dir.exists() and temp_dir.is_dir():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_dirs.clear()
 
     def atomic_write_json(
@@ -307,8 +307,8 @@ def is_wsl_environment() -> bool:
             content = proc_ver.read_text(encoding="utf-8", errors="ignore").lower()
             if "microsoft" in content or "wsl" in content:
                 return True
-    except OSError:
-        pass
+    except OSError as _e:
+        logger.debug(f"Ignored exception: {_e}")
     release_str = platform.release().lower()
     if "microsoft" in release_str or "wsl" in release_str:
         return True
@@ -489,8 +489,8 @@ def audit_kernel_limits(os_profile: OSProfile) -> KernelLimitsAudit:
             vm_max_map_count = int(val_str)
             if vm_max_map_count < 262144:
                 recommended_flags.append("sysctl -w vm.max_map_count=262144")
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     try:
         import resource  # Available on POSIX
@@ -608,8 +608,8 @@ def resolve_p1_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
     try:
         from cochem_base.config_loader import get_artifact_dir
         return get_artifact_dir() / "Registry" / "p1.json"
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
     if env_art:

@@ -47,8 +47,8 @@ class _DynamicHeavyIsotopesMap(Mapping):
                 for iso in getattr(el, "isotopes", []):
                     if iso.mass_number == mass_num and iso.mass is not None:
                         return float(iso.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Fallback values if mendeleev is unavailable
         fallbacks = {

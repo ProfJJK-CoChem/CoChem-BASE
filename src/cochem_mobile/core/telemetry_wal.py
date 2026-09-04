@@ -6,6 +6,8 @@ cryptographic SHA-256 state hashing, and crash recovery replay.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import hashlib
 import json
@@ -278,9 +280,9 @@ class SWMRHDF5Writer:
                 if self.enable_swmr and not self._h5_file.swmr_mode:
                     try:
                         self._h5_file.swmr_mode = True
-                    except (RuntimeError, OSError, ValueError):
+                    except (RuntimeError, OSError, ValueError) as _e:
                         # SWMR activation may fail on unsupported filesystems/drivers
-                        pass
+                        logger.debug(f"Ignored exception: {_e}")
             return self._h5_file
 
     def close(self) -> None:
@@ -290,9 +292,9 @@ class SWMRHDF5Writer:
                 try:
                     self._h5_file.flush()
                     self._h5_file.close()
-                except (RuntimeError, OSError, ValueError):
+                except (RuntimeError, OSError, ValueError) as _e:
                     # Handle already closed or torn file descriptors
-                    pass
+                    logger.debug(f"Ignored exception: {_e}")
                 finally:
                     self._h5_file = None
 

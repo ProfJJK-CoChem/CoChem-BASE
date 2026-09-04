@@ -289,15 +289,15 @@ class ProcessTreeManager:
                 try:
                     pgid = os.getpgid(pid)
                     os.killpg(pgid, signal.SIGKILL)
-                except (OSError, ProcessLookupError):
-                    pass
+                except (OSError, ProcessLookupError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             # Evict MPS context if present
             if "CUDA_MPS_PIPE_DIRECTORY" in os.environ:
                 try:
                     subprocess.run(["nvidia-smi", "--gpu-reset"], capture_output=True, timeout=2.0)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             # Final check with 2.0s timeout
             _, still_alive = psutil.wait_procs(alive, timeout=2.0)

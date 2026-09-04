@@ -31,8 +31,8 @@ def _sweep_quarantine() -> None:
             if p.exists():
                 shutil.rmtree(p, ignore_errors=True)
             _QUARANTINED_PATHS.remove(p)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 def _global_sandbox_atexit_cleanup() -> None:
@@ -40,8 +40,8 @@ def _global_sandbox_atexit_cleanup() -> None:
     for sb in list(_ACTIVE_SANDBOXES):
         try:
             sb.cleanup()
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 atexit.register(_sweep_quarantine)
@@ -211,7 +211,7 @@ class SandboxContext:
                     sys.exit(128 + signum)
 
                 signal.signal(sig, _signal_handler)
-        except (ValueError, AttributeError):
-            pass
+        except (ValueError, AttributeError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         self._trap_registered = True

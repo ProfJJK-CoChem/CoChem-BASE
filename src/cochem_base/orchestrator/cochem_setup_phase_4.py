@@ -57,8 +57,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 
@@ -363,16 +363,16 @@ class DependencyManager:
             try:
                 if temp_file.exists() and temp_file.is_file():
                     temp_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_files.clear()
 
         for temp_dir in list(self._tracked_temp_dirs):
             try:
                 if temp_dir.exists() and temp_dir.is_dir():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_dirs.clear()
 
     def atomic_write_json(
@@ -426,8 +426,8 @@ def resolve_silo_base_directory(custom_dir: Optional[Union[str, Path]] = None) -
         base = get_artifact_dir() / "Silos"
         base.mkdir(parents=True, exist_ok=True)
         return base
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     env_silo = os.environ.get("COCHEM_SILO_DIR")
     if env_silo:
@@ -468,8 +468,8 @@ def resolve_p4_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
         from cochem_base.config_loader import get_artifact_dir
 
         return get_artifact_dir() / "Registry" / "p4.json"
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Standard fallback paths
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
@@ -513,8 +513,8 @@ def load_deployment_manifest(
                 data = json.loads(candidate.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
                     return data, str(candidate)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return {}, None
 
@@ -665,8 +665,8 @@ def inject_silo_stack_and_env_flags(
         sh_hook.write_text("\n".join(sh_lines) + "\n", encoding="utf-8")
         try:
             sh_hook.chmod(sh_hook.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return True
 
@@ -726,8 +726,8 @@ def scan_local_fallback_binaries(
                                 if entry.resolve() not in discovered:
                                     discovered.append(entry.resolve())
                                 break
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return discovered
 
@@ -1058,8 +1058,8 @@ def interrogate_silo_python_version(silo_path: Union[str, Path]) -> Optional[str
                     parts = line_str.split("=", 1)
                     if len(parts) == 2 and parts[1].strip():
                         return parts[1].strip()
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     exe = get_silo_executable_path(silo)
     if exe.exists():
@@ -1081,8 +1081,8 @@ def interrogate_silo_python_version(silo_path: Union[str, Path]) -> Optional[str
                 output = tmp_out.read(1024).strip()
                 if output:
                     return output
-            except (OSError, subprocess.SubprocessError):
-                pass
+            except (OSError, subprocess.SubprocessError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return None
 
@@ -1116,8 +1116,8 @@ def verify_silo_packages(silo_path: Union[str, Path], packages: List[str]) -> Li
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
             )
             verified.append(pkg)
-        except (OSError, subprocess.SubprocessError):
-            pass
+        except (OSError, subprocess.SubprocessError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return verified
 

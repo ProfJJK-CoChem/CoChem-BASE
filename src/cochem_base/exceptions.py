@@ -432,6 +432,34 @@ class BSSECorrectionError(MethodMatrixViolationError):
 
 
 # =====================================================================
+# Ecosystem Dependency & Physics Integrity Exceptions
+# =====================================================================
+
+class EcosystemDependencyError(CoChemError, RuntimeError):
+    """Raised when an ecosystem dependency, executable, or required external package is missing."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.MISSING_DATA
+    )
+
+
+class BinaryNotFoundError(EcosystemDependencyError):
+    """Raised when an external executable cannot be located in the environment path."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.MISSING_DATA
+    )
+
+
+class PhysicsIntegrityError(CoChemError, RuntimeError):
+    """Raised when a calculation violates physical integrity, method matrix, or conservation laws."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+# =====================================================================
 # Infrastructure & Storage Exceptions
 # =====================================================================
 
@@ -1001,6 +1029,10 @@ __all__ = [
     "UnsupportedMethodError",
     "TriagePathologyError",
     "BSSECorrectionError",
+    # Ecosystem Dependency & Physics Integrity Exceptions
+    "EcosystemDependencyError",
+    "BinaryNotFoundError",
+    "PhysicsIntegrityError",
     # Infrastructure & Storage Exceptions
     "HDF5LockTimeoutError",
     "RegistryLockError",

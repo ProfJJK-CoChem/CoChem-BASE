@@ -295,8 +295,8 @@ class SubprocessBroker:
                                 PR_SET_PDEATHSIG = 1
                                 SIGKILL = 9
                                 libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                         kwargs["preexec_fn"] = _posix_pdeathsig
 
                 try:
@@ -305,8 +305,8 @@ class SubprocessBroker:
                     if sys.platform == "win32":
                         try:
                             ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-                        except Exception:
-                            pass
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
                     try:
                         out, err = proc.communicate(timeout=timeout_sec)
@@ -330,8 +330,8 @@ class SubprocessBroker:
                                 for f in job_scratch.glob(f"*{ext}"):
                                     try:
                                         shutil.copy2(str(f), str(art_dir / f.name))
-                                    except Exception:
-                                        pass
+                                    except Exception as _e:
+                                        logger.debug(f"Ignored exception: {_e}")
 
                         return SubprocessExecutionResult(
                             success=True,
@@ -398,33 +398,33 @@ class SubprocessBroker:
             for child in children:
                 try:
                     child.terminate()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             parent.terminate()
             _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
             for p in alive:
                 try:
                     p.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         except Exception:
             if sys.platform != "win32":
                 try:
                     pgid = os.getpgid(pid)
                     os.killpg(pgid, signal.SIGKILL)
-                except (OSError, ProcessLookupError):
-                    pass
+                except (OSError, ProcessLookupError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             else:
                 try:
                     proc.kill()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
     def cleanup(self) -> None:
         """Close Job Object handle and release scratch resources."""
         if sys.platform == "win32" and self._job_handle is not None:
             try:
                 ctypes.windll.kernel32.CloseHandle(self._job_handle)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._job_handle = None

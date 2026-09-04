@@ -66,10 +66,10 @@ def _reap_zombies() -> None:
                 else:
                     child.terminate()
                     child.wait(timeout=1)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-    except Exception:
-        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(_reap_zombies)
 
@@ -177,8 +177,8 @@ class HardwareProfileSpec(BaseModel):
                     cpuinfo_text = f.read().lower()
                     has_avx2 = "avx2" in cpuinfo_text
                     has_avx512 = "avx512f" in cpuinfo_text or "avx512" in cpuinfo_text
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         else:
             # On Windows/macOS check environment override or fallback heuristic
             if os.environ.get("COCHEM_FORCE_AVX512", "").strip().lower() in {"1", "true", "yes"}:
@@ -203,8 +203,8 @@ class HardwareProfileSpec(BaseModel):
                     if details:
                         gpu_vram_gb = float(details[0].get("memory_total_mb", 0)) / 1024.0
                     gpu_device_ids = list(range(gpu_count))
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if gpu_count == 0 and os.environ.get("CUDA_VISIBLE_DEVICES"):
             dev_str = os.environ.get("CUDA_VISIBLE_DEVICES", "").strip()
@@ -543,8 +543,8 @@ class MicroSiloVerifier:
                 v_match = re.search(r"(\d+\.\d+(?:\.\d+)?)", out)
                 if v_match:
                     detected_version = v_match.group(1)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             if detected_version and version.parse(detected_version) < version.parse(min_version):
                 return BinaryVerificationResult(

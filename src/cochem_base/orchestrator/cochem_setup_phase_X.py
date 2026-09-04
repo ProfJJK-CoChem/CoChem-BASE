@@ -554,8 +554,8 @@ def interrogate_host_os() -> OSProfile:
                 proc_ver = Path("/proc/version").read_text(encoding="utf-8", errors="ignore").lower()
                 if "microsoft" in proc_ver or "wsl" in proc_ver:
                     is_wsl = True
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
     if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
         is_wsl = True
 
@@ -604,8 +604,8 @@ def audit_wsl_mount_traps(target_path: Union[str, Path]) -> Tuple[bool, str]:
                                 "wave-function segmentation faults during high-performance quantum chemistry calculations. "
                                 "Remediation: Migrate workspace to native Linux ext4 filesystem (e.g. /home/<user>/... or /tmp/...)."
                             )
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return True, (
             f"WARNING WSL2 9P TRAP: Path '{path_str}' appears to reside on a Windows host mount (/mnt/...). "
             "Native Linux ext4 storage is strongly recommended."
@@ -630,8 +630,8 @@ def resolve_silo_base_directory(custom_dir: Optional[Union[str, Path]] = None) -
         base = get_artifact_dir() / "Silos"
         base.mkdir(parents=True, exist_ok=True)
         return base
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     env_silo = os.environ.get("COCHEM_SILO_DIR")
     if env_silo:
@@ -677,8 +677,8 @@ def resolve_pX_registry_path(
         from cochem_base.config_loader import get_artifact_dir
 
         return get_artifact_dir() / "Registry" / artifact_name
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Standard fallback paths
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
@@ -1034,8 +1034,8 @@ def provision_micro_silo(
                 )
                 if probe.returncode == 0:
                     verified_packages.append(pkg_clean)
-            except (subprocess.SubprocessError, OSError):
-                pass
+            except (subprocess.SubprocessError, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     dur = time.perf_counter() - t0
     is_avail = (silo_status in (SiloStatus.EXISTS_VALID, SiloStatus.PROVISIONED)) or (dry_run and config.is_requested)
@@ -1279,8 +1279,8 @@ class BaseSetupPhase(abc.ABC):
             import psutil
 
             ram_mb = float(psutil.virtual_memory().total) / (1024.0 * 1024.0)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         return PhaseTelemetry(
             host_os=platform.system(),

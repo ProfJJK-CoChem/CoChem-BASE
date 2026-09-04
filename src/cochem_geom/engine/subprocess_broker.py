@@ -206,8 +206,8 @@ def sweep_child_processes(
             if proc.is_running():
                 proc.terminate()
                 terminated_count += 1
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # 2. Wait for graceful termination
     gone, alive = psutil.wait_procs(targets, timeout=timeout)
@@ -217,8 +217,8 @@ def sweep_child_processes(
         try:
             if proc.is_running():
                 proc.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # 4. Final confirmation sweep
     if alive:
@@ -340,22 +340,22 @@ class SubprocessBroker:
                 # Send CTRL_BREAK_EVENT if created with CREATE_NEW_PROCESS_GROUP
                 proc.send_signal(signal.CTRL_BREAK_EVENT)
                 proc.wait(timeout=timeout)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
             try:
                 proc.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         else:
             try:
                 os.killpg(os.getpgid(pid), signal.SIGTERM)
                 proc.wait(timeout=timeout)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
             try:
                 os.killpg(os.getpgid(pid), signal.SIGKILL)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     def run(
         self,
@@ -484,8 +484,8 @@ class SubprocessBroker:
                     out, err = proc.communicate(timeout=1.0)
                     raw_stdout = out or ""
                     raw_stderr = err or ""
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 returncode = proc.returncode if proc.returncode is not None else -9
 
         except FileNotFoundError as exc:

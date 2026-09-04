@@ -411,8 +411,8 @@ def secure_mps_directories(
             if resolved_pipe.parent.exists() and resolved_pipe.parent != Path("/tmp") and resolved_pipe.parent != Path("/var/tmp"):
                 try:
                     os.chmod(resolved_pipe.parent, 0o700)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         except OSError as exc:
             raise MPSSocketSecurityError(
                 f"Failed to enforce 0o700 permissions on MPS directories: {exc}"
@@ -712,8 +712,8 @@ class CoreMPSOrchestrator:
                     cmdline = proc.info.get("cmdline") or []
                     if "nvidia-cuda-mps-control" in name or any("nvidia-cuda-mps-control" in arg for arg in cmdline):
                         return cast(int, proc.info["pid"])
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         except Exception as exc:
             logger.debug(f"Error scanning for MPS daemon PID: {exc}")
 
@@ -866,16 +866,16 @@ class CoreMPSOrchestrator:
                     for child in proc.children(recursive=True):
                         try:
                             child.terminate()
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
                     proc.terminate()
                     _, alive = psutil.wait_procs([proc], timeout=timeout)
                     if alive:
                         for p in alive:
                             try:
                                 p.kill()
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
+                            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                     stopped = True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     stopped = True
@@ -967,8 +967,8 @@ class CoreMPSOrchestrator:
         try:
             if self.is_daemon_running():
                 self.stop_daemon(timeout_sec=2.0)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 # ---------------------------------------------------------------------------

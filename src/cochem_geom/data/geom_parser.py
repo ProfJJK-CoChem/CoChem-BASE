@@ -1123,8 +1123,8 @@ def parse_geom_raw_molecule(
         try:
             first_coords = _extract_coords_from_raw_conformer(first_conf)
             fallback_n_atoms = first_coords.shape[0]
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     symbols, atomic_numbers, formal_charges, n_atoms = _resolve_topology_from_smiles_or_data(
         smiles, raw_data, fallback_n_atoms=fallback_n_atoms
@@ -1379,8 +1379,8 @@ def parse_qm_log_text(
                 if len(parts) >= 2:
                     try:
                         freqs_list.append(float(parts[-1]))
-                    except ValueError:
-                        pass
+                    except ValueError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
     elif detected_prog == "Gaussian":
         # 1. Total Energy (Hartree)
@@ -1435,8 +1435,8 @@ def parse_qm_log_text(
             for tok in block.split():
                 try:
                     freqs_list.append(float(tok))
-                except ValueError:
-                    pass
+                except ValueError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
     # Assemble positions array
     positions_arr = np.array(positions_list, dtype=np.float32) if positions_list else np.empty((0, 3), dtype=np.float32)

@@ -47,8 +47,8 @@ def sweep_zombie_processes() -> None:
         for child in children:
             if child.status() == psutil.STATUS_ZOMBIE:
                 child.wait(timeout=1)
-    except psutil.NoSuchProcess:
-        pass
+    except psutil.NoSuchProcess as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombie_processes)
 
@@ -121,13 +121,13 @@ def persist_swarm_state_atomic(
                         if tmp_file.exists():
                             try:
                                 tmp_file.unlink(missing_ok=True)
-                            except OSError:
-                                pass
+                            except OSError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                         if sidecar_tmp.exists():
                             try:
                                 sidecar_tmp.unlink(missing_ok=True)
-                            except OSError:
-                                pass
+                            except OSError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                 else:
                     tmp_file = state_file.with_name(f"{state_file.name}.tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}")
                     try:
@@ -151,8 +151,8 @@ def persist_swarm_state_atomic(
                         if tmp_file.exists():
                             try:
                                 tmp_file.unlink(missing_ok=True)
-                            except OSError:
-                                pass
+                            except OSError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                 return
         except (filelock.Timeout, PermissionError, OSError) as exc:
             if attempt == max_retries - 1:

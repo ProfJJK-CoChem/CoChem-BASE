@@ -26,6 +26,8 @@ Authoritative Standards:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import datetime
 import math
@@ -535,14 +537,14 @@ class EphemeralScratchPurge:
                 try:
                     p.unlink()
                     purged_files.append(p.name)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         if remove_dir:
             try:
                 shutil.rmtree(str(scratch_path), ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         return {
             "status": "purged",

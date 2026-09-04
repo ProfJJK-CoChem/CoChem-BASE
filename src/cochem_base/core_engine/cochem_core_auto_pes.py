@@ -615,8 +615,8 @@ class KernelFunction:
                         raise ValueError(f"Unsupported kernel type: {kernel_type}")
                     stream.synchronize()
                     return res.cpu().numpy()
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         if kernel_type == KernelType.RBF:
             dists_sq = scipy.spatial.distance.cdist(X1, X2, metric="sqeuclidean")

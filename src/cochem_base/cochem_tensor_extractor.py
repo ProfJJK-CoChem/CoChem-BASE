@@ -85,8 +85,8 @@ class _DynamicMendeleevMassMap(Mapping):
                     for iso in getattr(_mendeleev_element("H"), "isotopes", []):
                         if iso.mass_number == 2:
                             return float(iso.mass)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return 2.01410177812
 
         if sym.upper() in {"T", "3H"}:
@@ -95,8 +95,8 @@ class _DynamicMendeleevMassMap(Mapping):
                     for iso in getattr(_mendeleev_element("H"), "isotopes", []):
                         if iso.mass_number == 3:
                             return float(iso.mass)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return 3.01604928132
 
         # Specific isotope notation like "13C", "35Cl", "14N", "16O"
@@ -113,8 +113,8 @@ class _DynamicMendeleevMassMap(Mapping):
                             return float(iso.mass)
                     if el.mass is not None:
                         return float(el.mass)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         cleaned = "".join([c for c in sym if c.isalpha()]).capitalize()
         if cleaned:
@@ -133,8 +133,8 @@ class _DynamicMendeleevMassMap(Mapping):
                             return abundances[0][1]
                     if el.mass is not None:
                         return float(el.mass)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         raise KeyError(key)
 
@@ -188,8 +188,8 @@ def resolve_atomic_mass(symbol_or_mass: Union[str, float, int]) -> float:
         if cleaned:
             try:
                 return float(CIAAW_ISOTOPIC_MASSES[cleaned])
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
     # Default fallback to carbon-12 mass if unknown
     logger.warning("Unrecognized atomic symbol '%s'; defaulting to 12.0 amu.", sym)
     return 12.0

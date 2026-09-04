@@ -42,8 +42,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 
@@ -687,8 +687,8 @@ def parse_cgroup_memory_limit(cgroup_root: Optional[Path] = None) -> Optional[in
                     limit = int(content)
                     if limit < CGROUP_V1_UNLIMITED_THRESHOLD:
                         return limit
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # 2. Cgroups v1: memory.limit_in_bytes
     v1_candidates = [
@@ -703,8 +703,8 @@ def parse_cgroup_memory_limit(cgroup_root: Optional[Path] = None) -> Optional[in
                     limit = int(content)
                     if limit < CGROUP_V1_UNLIMITED_THRESHOLD:
                         return limit
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return None
 
@@ -842,8 +842,8 @@ def resolve_hpc_scratch_directory(
         if probe_file.exists():
             try:
                 probe_file.unlink()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     free_gb = 0.0
     try:
@@ -1011,8 +1011,8 @@ class DependencyManager:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return
 
         try:
@@ -1020,15 +1020,15 @@ class DependencyManager:
                 if self.target_path.exists():
                     try:
                         self.target_path.unlink()
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 self.temp_path.rename(self.target_path)
         except Exception:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             raise
 
 

@@ -123,15 +123,15 @@ def resolve_telemetry_log_dir(custom_path: Optional[Union[str, Path]] = None) ->
         p = (get_scratch_dir() / "CoChem_Artifacts" / "Logs").resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     try:
         p = (get_artifact_dir() / "Logs").resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     fallback = (Path.home() / "CoChem_Artifacts" / "Logs").resolve()
     fallback.mkdir(parents=True, exist_ok=True)
@@ -204,8 +204,8 @@ def capture_crash_telemetry_metrics() -> Dict[str, Any]:
         finally:
             try:
                 pynvml.nvmlShutdown()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
     except Exception as nvml_err:
         metrics["nvidia_gpu_count"] = 0
         metrics["gpus"] = []
@@ -430,8 +430,8 @@ class RotatingJsonlSink:
                     current_size = self.file_path.stat().st_size
                     if current_size + encoded_bytes_len >= self.max_bytes:
                         self.rotate()
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             self._fp.write(encoded)
             self._fp.flush()
@@ -451,13 +451,13 @@ class RotatingJsonlSink:
                     try:
                         os.chmod(str(dfn), 0o666)
                         dfn.unlink()
-                    except OSError:
-                        pass
+                    except OSError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 try:
                     os.chmod(str(sfn), 0o666)
                     sfn.rename(dfn)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         dfn1 = self.file_path.parent / f"{self.file_path.name}.1"
         if self.file_path.exists():
@@ -465,13 +465,13 @@ class RotatingJsonlSink:
                 try:
                     os.chmod(str(dfn1), 0o666)
                     dfn1.unlink()
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             try:
                 os.chmod(str(self.file_path), 0o666)
                 self.file_path.rename(dfn1)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         self._fp = open(self.file_path, "a", encoding="utf-8")
 
@@ -604,20 +604,20 @@ class TelemetryIPCStreamer:
             if self._zmq_socket is not None:
                 try:
                     self._zmq_socket.close(linger=0)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._zmq_socket = None
             if self._zmq_context is not None:
                 try:
                     self._zmq_context.term()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._zmq_context = None
             if self._socket_server is not None:
                 try:
                     self._socket_server.close()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._socket_server = None
 
 
@@ -720,20 +720,20 @@ class TelemetryIPCListener:
             if self._zmq_socket is not None:
                 try:
                     self._zmq_socket.close(linger=0)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._zmq_socket = None
             if self._zmq_context is not None:
                 try:
                     self._zmq_context.term()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._zmq_context = None
             if self._socket is not None:
                 try:
                     self._socket.close()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._socket = None
 
 
@@ -1137,8 +1137,8 @@ class TelemetryLogger:
                                     "timestamp": datetime.now(timezone.utc).isoformat(),
                                 }, sign=True)
                             return False
-                except ValueError:
-                    pass
+                except ValueError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             return True
 
@@ -1174,8 +1174,8 @@ class TelemetryLogger:
         if log_path.exists():
             try:
                 os.chmod(str(log_path), stat.S_IWRITE | stat.S_IREAD)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"--- CoChem-CORE Telemetry Trace for {job_name} ---\n")
@@ -1248,8 +1248,8 @@ class TelemetryLogger:
                 self.rotating_handler.close()
                 if self.rotating_handler in logger.handlers:
                     logger.removeHandler(self.rotating_handler)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self.rotating_handler = None
         self.stop_ipc_stream()
 

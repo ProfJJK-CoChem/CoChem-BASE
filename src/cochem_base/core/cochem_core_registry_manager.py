@@ -192,10 +192,10 @@ class AtomicFileLock:
                     try:
                         self.lock_path.unlink(missing_ok=True)
                         logger.info(f"Reaped stale lock file: {self.lock_path}")
-                    except OSError:
-                        pass
-            except OSError:
-                pass
+                    except OSError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 2. Cross-platform process lock via filelock.SoftFileLock
         rem_filelock = max(0.001, self.timeout - (time.time() - start_time))
@@ -208,8 +208,8 @@ class AtomicFileLock:
                     f"{os.getpid()}:{threading.get_ident()}:{time.time()}\n",
                     encoding="utf-8",
                 )
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             self._filelock = fl
             self._depth = 1
@@ -220,8 +220,8 @@ class AtomicFileLock:
             self._thread_lock_acquired = False
             try:
                 thread_lock.release()
-            except RuntimeError:
-                pass
+            except RuntimeError as _e:
+                logger.debug(f"Ignored exception: {_e}")
             raise CoChemLockTimeoutError(
                 f"Could not acquire atomic lock on '{self.lock_path}' within {self.timeout}s"
             ) from e
@@ -229,8 +229,8 @@ class AtomicFileLock:
             self._thread_lock_acquired = False
             try:
                 thread_lock.release()
-            except RuntimeError:
-                pass
+            except RuntimeError as _e:
+                logger.debug(f"Ignored exception: {_e}")
             raise CoChemLockTimeoutError(
                 f"Error acquiring atomic lock on '{self.lock_path}': {e}"
             ) from e
@@ -245,8 +245,8 @@ class AtomicFileLock:
                 self._thread_lock_acquired = False
                 try:
                     self._get_path_lock(path_str).release()
-                except RuntimeError:
-                    pass
+                except RuntimeError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return
 
         self._depth -= 1
@@ -266,21 +266,21 @@ class AtomicFileLock:
         if fl is not None:
             try:
                 fl.release()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if self.lock_path.exists():
             try:
                 self.lock_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if self._thread_lock_acquired:
             self._thread_lock_acquired = False
             try:
                 self._get_path_lock(path_str).release()
-            except RuntimeError:
-                pass
+            except RuntimeError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     def __enter__(self) -> AtomicFileLock:
         self.acquire()
@@ -421,13 +421,13 @@ def atomic_write_json(
             if staging_file.exists():
                 try:
                     staging_file.unlink(missing_ok=True)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             if staging_dir.exists():
                 try:
                     shutil.rmtree(staging_dir, ignore_errors=True)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
 
 # =============================================================================
@@ -624,8 +624,8 @@ class PostgresMetadataServer(BaseMetadataServer):
         except Exception:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             return False
 
     def get_state(self, key: str) -> Optional[str]:
@@ -646,8 +646,8 @@ class PostgresMetadataServer(BaseMetadataServer):
         finally:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     def set_state(self, key: str, value: str) -> bool:
         conn = self._get_connection()
@@ -674,8 +674,8 @@ class PostgresMetadataServer(BaseMetadataServer):
         finally:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     def delete_state(self, key: str) -> bool:
         conn = self._get_connection()
@@ -694,8 +694,8 @@ class PostgresMetadataServer(BaseMetadataServer):
         finally:
             try:
                 conn.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     @property
     def backend_type(self) -> MetadataBackendType:

@@ -58,7 +58,17 @@ def test_pes_store_normalized_provenance_and_swmr(tmp_path):
 
     n_points = 5000
     natoms = 3
-    coords = np.zeros((n_points, natoms, 3), dtype=np.float64)
+    
+    xyz_path = Path(__file__).parent.parent / "data" / "water.xyz"
+    parsed_coords = []
+    with open(xyz_path, "r") as f:
+        for line in f.readlines()[2:]:
+            parts = line.split()
+            if len(parts) == 4:
+                parsed_coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+    
+    base_coords = np.array(parsed_coords, dtype=np.float64)
+    coords = np.tile(base_coords, (n_points, 1, 1))
     energies = np.linspace(-76.0, -75.0, n_points, dtype=np.float64)
     prov_dict = {
         "method": "CCSD(T)-F12",
@@ -118,24 +128,12 @@ def test_cfour_streaming_parser_parity_and_low_memory():
     """Validates Suggestion #75: Streaming CFOUR parser matches legacy parser
     without splitting entire file into memory.
     """
-    synthetic_log_lines = [
-        " ----------------------------------------------------------------",
-        "                        C F O U R",
-        " ----------------------------------------------------------------",
-        " E(SCF)=           -76.026783918234",
-        " E(CORR)(MP2) =     -0.281923489123",
-        " E(CCSD) =          -76.331289412390",
-        " E(CCSD(T)) =       -76.342198421039",
-        " Rotational constants (in MHz):",
-        "      A =     825421.382    B =     435129.182    C =     287192.481",
-        " Rotational constants (in cm-1):",
-        "      A =         27.533    B =         14.514    C =          9.580",
-        " Dipole moment (Debye):",
-        "      x =         0.0000    y =         0.0000    z =         1.8542    tot =     1.8542",
-        " The final electronic energy is   -76.342198421039 a.u.",
-    ]
+    log_path = Path(__file__).parent.parent / "data" / "cfour.log"
+    with open(log_path, "r") as f:
+        real_lines = f.read().splitlines()
+    
     # Pad with 50,000 comment lines to simulate massive VPT2 output
-    full_log = "\n".join(synthetic_log_lines[:4] + [" # Iteration trace padding line"] * 50000 + synthetic_log_lines[4:])
+    full_log = "\n".join(real_lines[:4] + [" # Iteration trace padding line"] * 50000 + real_lines[4:])
 
     # Test parsing from string iterator
     obs_stream = CFOUROutputParser.parse_cfour_stdout(iter(full_log.splitlines()))

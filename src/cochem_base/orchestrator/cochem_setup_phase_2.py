@@ -56,8 +56,8 @@ def sweep_zombies() -> None:
             try:
                 if p.info['status'] == psutil.STATUS_ZOMBIE:
                     p.wait(timeout=1)
-            except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
     except Exception as e:
         logger.error(f"Zombie sweep failed: {e}")
 
@@ -306,16 +306,16 @@ class DependencyManager:
             try:
                 if temp_file.exists() and temp_file.is_file():
                     temp_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_files.clear()
 
         for temp_dir in self._tracked_temp_dirs:
             try:
                 if temp_dir.exists() and temp_dir.is_dir():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_dirs.clear()
 
     def atomic_write_json(
@@ -471,8 +471,8 @@ def parse_cgroup_cpu_quota(
                     if quota_us > 0 and period_us > 0:
                         effective_cpus = round(quota_us / period_us, 4)
                         return quota_us, effective_cpus
-        except (ValueError, OSError, IndexError):
-            pass
+        except (ValueError, OSError, IndexError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
         return None, None
 
     # 2. Try Cgroups v1: cpu.cfs_quota_us and cpu.cfs_period_us
@@ -496,8 +496,8 @@ def parse_cgroup_cpu_quota(
                 if quota_us > 0 and period_us > 0:
                     effective_cpus = round(quota_us / period_us, 4)
                     return quota_us, effective_cpus
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return None, None
 
@@ -522,8 +522,8 @@ def get_absolute_physical_ram() -> int:
                 page_size = sysconf("SC_PAGE_SIZE")
                 if pages > 0 and page_size > 0:
                     return int(pages * page_size)
-        except (ValueError, OSError, AttributeError):
-            pass
+        except (ValueError, OSError, AttributeError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     vmem = psutil.virtual_memory()
     return int(vmem.total)
@@ -673,8 +673,8 @@ def probe_nvidia_gpus() -> List[GPUDevice]:
                         )
                     except (ValueError, IndexError):
                         continue
-    except (subprocess.SubprocessError, OSError, ValueError, IndexError, UnicodeDecodeError):
-        pass
+    except (subprocess.SubprocessError, OSError, ValueError, IndexError, UnicodeDecodeError) as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return devices
 
@@ -726,10 +726,10 @@ def probe_amd_gpus() -> List[GPUDevice]:
                                 uuid=None,
                             )
                         )
-            except (json.JSONDecodeError, ValueError):
-                pass
-    except (subprocess.SubprocessError, OSError, ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError):
-        pass
+            except (json.JSONDecodeError, ValueError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except (subprocess.SubprocessError, OSError, ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError) as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return devices
 
@@ -774,10 +774,10 @@ def probe_intel_gpus() -> List[GPUDevice]:
                             uuid=None,
                         )
                     )
-            except (json.JSONDecodeError, ValueError):
-                pass
-    except (subprocess.SubprocessError, OSError, ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError):
-        pass
+            except (json.JSONDecodeError, ValueError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except (subprocess.SubprocessError, OSError, ValueError, IndexError, json.JSONDecodeError, UnicodeDecodeError) as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return devices
 

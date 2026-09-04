@@ -6,6 +6,13 @@ Strict Zero-Mock Mandate v3: Completely authentic physics and mathematical rigor
 
 from __future__ import annotations
 
+from pathlib import Path
+
+# Extend package search path to include sibling CoChem-TORQ/Libraries
+_torq_lib = (Path(__file__).resolve().parent.parent.parent / "CoChem-TORQ" / "Libraries").resolve()
+if _torq_lib.is_dir() and str(_torq_lib) not in __path__:
+    __path__.append(str(_torq_lib))
+
 # Domain Errors
 from Libraries.cochem_torq_training_errors import (
     CheckpointCorruptionError,

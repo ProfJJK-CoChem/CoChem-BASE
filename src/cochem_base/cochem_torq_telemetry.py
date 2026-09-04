@@ -12,6 +12,8 @@ Authoritative Standards:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import collections
 import json
@@ -63,8 +65,8 @@ def _resolve_webhook_url(
                     url = cfg.get("telemetry", {}).get("webhook_url") or cfg.get("webhook_url")
                     if url and isinstance(url, str) and url.strip() and url != "[MISSING DATA]" and url != "None":
                         return url.strip()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return None
 

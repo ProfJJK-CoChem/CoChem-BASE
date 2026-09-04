@@ -249,8 +249,8 @@ def _detect_avx512(
                         avx512_found = True
                         details["flags"].append(str(ext))
                         details["detection_method"] = "numpy_simd"
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # Check Linux /proc/cpuinfo if on Linux
     if platform.system() == "Linux":
@@ -267,8 +267,8 @@ def _detect_avx512(
                             details["flags"] = sorted(set(details["flags"] + avx512_flags))
                             details["detection_method"] = "/proc/cpuinfo"
                         break
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # Check Windows processor features or config file
     if not avx512_found:
@@ -283,8 +283,8 @@ def _detect_avx512(
                     avx512_found = True
                     details["detection_method"] = "cochem_system_config"
                     details["flags"].append("AVX512_CONFIGURED")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return avx512_found, details
 
@@ -334,8 +334,8 @@ def _detect_blas_lapack() -> Dict[str, Any]:
                 importlib.metadata.version(candidate)
                 blas_info["blas_detected"] = True
                 blas_info["blas_libraries"].append(candidate)
-            except importlib.metadata.PackageNotFoundError:
-                pass
+            except importlib.metadata.PackageNotFoundError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return blas_info
 
@@ -364,8 +364,8 @@ def get_hardware_microarchitecture_flags(
             if log:
                 log_cores = log
             total_ram_gb = round(psutil.virtual_memory().total / (1024**3), 2)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     avx512_support, avx512_details = _detect_avx512(config_path=config_path)
     blas_info = _detect_blas_lapack()

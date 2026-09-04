@@ -1064,8 +1064,8 @@ class CFOUROutputParser:
                 if m_rot and float(m_rot.group(1)) != 0.0:
                     try:
                         Ae_MHz, Be_MHz, Ce_MHz = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
-                    except ValueError:
-                        pass
+                    except ValueError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 else:
                     next_l = stream.peek()
                     if next_l:
@@ -1074,8 +1074,8 @@ class CFOUROutputParser:
                             next(stream)
                             try:
                                 Ae_MHz, Be_MHz, Ce_MHz = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
-                            except ValueError:
-                                pass
+                            except ValueError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
 
             if "Rotational constants (in cm-1)" in line or "ROTATIONAL CONSTANTS (CM-1)" in line:
                 after_colon = line.split(":")[-1].strip()
@@ -1083,8 +1083,8 @@ class CFOUROutputParser:
                 if m_rot and float(m_rot.group(1)) != 0.0:
                     try:
                         Ae_cm, Be_cm, Ce_cm = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
-                    except ValueError:
-                        pass
+                    except ValueError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 else:
                     next_l = stream.peek()
                     if next_l:
@@ -1093,8 +1093,8 @@ class CFOUROutputParser:
                             next(stream)
                             try:
                                 Ae_cm, Be_cm, Ce_cm = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
-                            except ValueError:
-                                pass
+                            except ValueError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
 
             # 3. Parse Dipole (Single-line and Multiline)
             if "Dipole moment (Debye)" in line or "DIPOLE MOMENT" in line:
@@ -1120,8 +1120,8 @@ class CFOUROutputParser:
                         dipole_b = float(m_dip.group(2))
                         dipole_c = float(m_dip.group(3))
                         dipole_tot = float(m_dip.group(4))
-                    except (ValueError, IndexError):
-                        pass
+                    except (ValueError, IndexError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
             # 4. Parse Harmonic Frequencies
             if "Harmonic vibrational frequencies" in line or "HARMONIC VIBRATIONAL FREQUENCIES (CM-1)" in line:
@@ -1157,8 +1157,8 @@ class CFOUROutputParser:
                             if freq_val is not None:
                                 freqs.append(freq_val)
                                 symmetries.append(sym_val)
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
             # 5. Parse Vibration-Rotation Alpha Constants
             if "Vibration-rotation interaction constants" in line or "ALPHA CONSTANTS" in line:
@@ -1198,8 +1198,8 @@ class CFOUROutputParser:
                                 alpha_C_cm_inv=(a_C * 1e6) / c_cm_s,
                             )
                             alphas.append(alpha_rec)
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
             # 6. Parse Quartic & Sextic Distortions
             # Watson A Quartic
@@ -1339,8 +1339,8 @@ class CFOUROutputParser:
                                     chi_cc_kHz=chi_cc,
                                 )
                             )
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
             # 8. Nuclear Spin-Rotation Interaction Constants
             if "SPIN-ROTATION" in line.upper() or "SPIN ROTATION" in line.upper():
@@ -1379,8 +1379,8 @@ class CFOUROutputParser:
                                     C_iso_kHz=c_iso,
                                 )
                             )
-                        except (ValueError, IndexError):
-                            pass
+                        except (ValueError, IndexError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
             # 9. DBOC
             if "DBOC" in line or "Diagonal Born-Oppenheimer Correction" in line:
@@ -1389,8 +1389,8 @@ class CFOUROutputParser:
                     try:
                         dboc_hartree = float(parts[0])
                         dboc_cm = dboc_hartree * CONSTANTS.HARTREE_TO_CM_INV
-                    except ValueError:
-                        pass
+                    except ValueError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
         if explicit_final_energy is not None:
             final_energy = explicit_final_energy

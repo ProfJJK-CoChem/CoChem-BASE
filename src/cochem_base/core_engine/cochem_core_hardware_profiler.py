@@ -31,8 +31,8 @@ def _sweep_zombies() -> None:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 try:
                     p.wait(timeout=1)
-                except psutil.TimeoutExpired:
-                    pass
+                except psutil.TimeoutExpired as _e:
+                    logger.debug(f"Ignored exception: {_e}")
     except Exception as e:
         logger.error(f"Zombie sweeping failed: {e}")
 

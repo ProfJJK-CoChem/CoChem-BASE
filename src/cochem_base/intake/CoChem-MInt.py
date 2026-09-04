@@ -22,6 +22,8 @@ Directives & Mandates:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import concurrent.futures
 import hashlib
@@ -418,8 +420,8 @@ def scan_batch_directory(
                     seen_hashes.add(payload.sha256_hash)
                     payloads.append(payload)
                     sha256_registry.append(payload.sha256_hash)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return BatchIngestionSummary(
         input_directory=str(path),

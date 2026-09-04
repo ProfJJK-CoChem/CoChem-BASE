@@ -1858,13 +1858,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
     if sys.stderr and hasattr(sys.stderr, "reconfigure"):
         try:
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     parser = build_cli_parser()
     args = parser.parse_args(argv)

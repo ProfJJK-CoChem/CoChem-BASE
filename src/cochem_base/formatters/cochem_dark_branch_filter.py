@@ -417,18 +417,18 @@ def parse_pickett_quantum_numbers(qn_str: str) -> Tuple[int, int, int]:
     if len(tokens) >= 3:
         try:
             return (int(tokens[0]), int(tokens[1]), int(tokens[2]))
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
     elif len(tokens) == 2:
         try:
             return (int(tokens[0]), int(tokens[1]), 0)
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
     elif len(tokens) == 1:
         try:
             return (int(tokens[0]), 0, 0)
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     raw = qn_str
     if len(raw) >= 6:
@@ -437,8 +437,8 @@ def parse_pickett_quantum_numbers(qn_str: str) -> Tuple[int, int, int]:
             ka_val = int(raw[2:4].strip())
             kc_val = int(raw[4:6].strip())
             return (j_val, ka_val, kc_val)
-        except (ValueError, IndexError):
-            pass
+        except (ValueError, IndexError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     nums = [int(n) for n in re.findall(r"-?\d+", qn_str)]
     if len(nums) >= 3:
@@ -1035,8 +1035,8 @@ class DarkBranchFilter:
                     qn_lower=qn_l,
                     temperature_k=self.config.rotational_temperature_k,
                 )
-            except (ValueError, IndexError):
-                pass
+            except (ValueError, IndexError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 2. Token-based fallback with smart negative number split
         # Replace glued negative signs e.g. "0.0010-15.0000" -> "0.0010 -15.0000"
@@ -1071,8 +1071,8 @@ class DarkBranchFilter:
                     qn_lower=qn_l,
                     temperature_k=self.config.rotational_temperature_k,
                 )
-            except (ValueError, IndexError):
-                pass
+            except (ValueError, IndexError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         return None
 

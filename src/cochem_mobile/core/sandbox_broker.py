@@ -6,6 +6,8 @@ pipes, and psutil-based process tree cleanup.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import hashlib
 import os
@@ -130,11 +132,11 @@ class SandboxBroker:
             for child in children:
                 try:
                     child.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             parent.kill()
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     def execute(
         self,
@@ -173,9 +175,9 @@ class SandboxBroker:
                 for line in iter(pipe.readline, ""):
                     dest_list.append(line)
                 pipe.close()
-            except (OSError, ValueError):
+            except (OSError, ValueError) as _e:
                 # Normal pipe closure on stream termination
-                pass
+                logger.debug(f"Ignored exception: {_e}")
 
         t_out = threading.Thread(target=stream_reader, args=(proc.stdout, stdout_chunks))
         t_err = threading.Thread(target=stream_reader, args=(proc.stderr, stderr_chunks))
@@ -202,8 +204,8 @@ class SandboxBroker:
                 for ch in p.children(recursive=True):
                     try:
                         mem += ch.memory_info().rss
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 if mem > peak_memory_bytes:
                     peak_memory_bytes = mem
 
@@ -213,8 +215,8 @@ class SandboxBroker:
                     self._kill_process_tree(proc.pid)
                     stderr_chunks.append(f"\n[QUARANTINE ERROR] Exceeded memory limit of {cfg.max_memory_mb} MB")
                     break
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             time.sleep(0.05)
 

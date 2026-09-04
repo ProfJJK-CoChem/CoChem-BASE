@@ -76,8 +76,8 @@ def discover_accelerator() -> Dict[str, Any]:
                 "count": 1,
                 "supports_fp64": False,
             }
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     try:
         import jax
@@ -90,8 +90,8 @@ def discover_accelerator() -> Dict[str, Any]:
                 "count": len(devices),
                 "supports_fp64": True,
             }
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return info
 
@@ -167,8 +167,8 @@ class MemoryGuardDaemon:
 
                 info = pynvml.nvmlDeviceGetMemoryInfo(self._nvml_handle)
                 return int(info.used)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         try:
             import torch
 
@@ -176,8 +176,8 @@ class MemoryGuardDaemon:
                 return int(torch.cuda.memory_allocated())
             if hasattr(torch, "mps") and hasattr(torch.mps, "current_allocated_memory"):
                 return int(torch.mps.current_allocated_memory())
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
         return 0
 
     def sample_process_tree_rss_bytes(self) -> int:

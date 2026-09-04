@@ -6,6 +6,8 @@ GitHub Actions, and HPC clusters.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import os
 import re
@@ -86,8 +88,8 @@ class HostToContainerMountResolver:
                     text = proc_ver.read_text(encoding="utf-8").lower()
                     if "microsoft" in text or "wsl" in text:
                         return EnvironmentType.WSL
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
             return EnvironmentType.LINUX_DEBIAN
 
     def register_jail_root(self, root_path: Union[str, Path]) -> Path:

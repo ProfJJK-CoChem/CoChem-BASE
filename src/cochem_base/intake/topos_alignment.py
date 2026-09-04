@@ -136,8 +136,8 @@ def get_physical_mass(symbol: str) -> float:
                 elem = mendeleev.element(match.group(1))
                 if elem is not None and elem.mass is not None:
                     return float(elem.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     raise ValueError(f"[INVALID DATA] Unrecognized chemical element symbol: '{symbol}'.")
 

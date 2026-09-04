@@ -61,8 +61,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 
@@ -602,8 +602,8 @@ class _DynamicMendeleevMassMap(Mapping):
                     for iso in getattr(mendeleev.element("H"), "isotopes", []):
                         if iso.mass_number == 2:
                             return float(iso.mass)
-                except (AttributeError, KeyError, ValueError, TypeError):
-                    pass
+                except (AttributeError, KeyError, ValueError, TypeError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return 2.01410177812
 
         if clean.upper() in {"T", "3H"}:
@@ -612,8 +612,8 @@ class _DynamicMendeleevMassMap(Mapping):
                     for iso in getattr(mendeleev.element("H"), "isotopes", []):
                         if iso.mass_number == 3:
                             return float(iso.mass)
-                except (AttributeError, KeyError, ValueError, TypeError):
-                    pass
+                except (AttributeError, KeyError, ValueError, TypeError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return 3.01604928132
 
         import re
@@ -625,8 +625,8 @@ class _DynamicMendeleevMassMap(Mapping):
                 elem = mendeleev.element(sym_head)
                 if elem is not None and elem.mass is not None:
                     return float(elem.mass)
-            except (AttributeError, KeyError, ValueError, TypeError):
-                pass
+            except (AttributeError, KeyError, ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         raise KeyError(key)
 
@@ -714,8 +714,8 @@ def get_physical_mass(symbol: str) -> float:
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
                     if iso.mass_number == 2:
                         return float(iso.mass)
-            except (AttributeError, KeyError, ValueError, TypeError):
-                pass
+            except (AttributeError, KeyError, ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return 2.01410177812
 
     if clean.upper() in {"T", "3H"}:
@@ -724,8 +724,8 @@ def get_physical_mass(symbol: str) -> float:
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
                     if iso.mass_number == 3:
                         return float(iso.mass)
-            except (AttributeError, KeyError, ValueError, TypeError):
-                pass
+            except (AttributeError, KeyError, ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return 3.01604928132
 
     # Check isotope or numbered notation (e.g. C12, Cl35, O_16, H-2, C:1)
@@ -738,8 +738,8 @@ def get_physical_mass(symbol: str) -> float:
             elem = mendeleev.element(sym_head)
             if elem is not None and elem.mass is not None:
                 return float(elem.mass)
-        except (AttributeError, KeyError, ValueError, TypeError):
-            pass
+        except (AttributeError, KeyError, ValueError, TypeError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if clean.upper() in _STANDARD_ATOMIC_WEIGHTS:
         return float(_STANDARD_ATOMIC_WEIGHTS[clean.upper()])
@@ -1368,8 +1368,8 @@ def scaffold_ephemeral_sandbox(
         if sentinel_path.exists():
             try:
                 sentinel_path.unlink()
-            except (OSError, PermissionError, FileNotFoundError):
-                pass
+            except (OSError, PermissionError, FileNotFoundError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         raise EphemeralSandboxError(
             f"Ephemeral sandbox isolation verification failed at {sandbox_dir}: {exc}"
         ) from exc
@@ -1400,8 +1400,8 @@ def cleanup_ephemeral_sandbox(sandbox_path: Union[str, Path]) -> bool:
         try:
             os.chmod(path, stat.S_IWRITE)
             func(path)
-        except (OSError, PermissionError, FileNotFoundError):
-            pass
+        except (OSError, PermissionError, FileNotFoundError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     try:
         shutil.rmtree(target, onerror=_remove_readonly)
@@ -1413,17 +1413,17 @@ def cleanup_ephemeral_sandbox(sandbox_path: Union[str, Path]) -> bool:
                     try:
                         os.chmod(item, stat.S_IWRITE)
                         item.unlink()
-                    except (OSError, PermissionError, FileNotFoundError):
-                        pass
+                    except (OSError, PermissionError, FileNotFoundError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
             for item in sorted(target.glob("**/*"), reverse=True):
                 if item.is_dir():
                     try:
                         item.rmdir()
-                    except (OSError, PermissionError, FileNotFoundError):
-                        pass
+                    except (OSError, PermissionError, FileNotFoundError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
             target.rmdir()
-        except (OSError, PermissionError, FileNotFoundError):
-            pass
+        except (OSError, PermissionError, FileNotFoundError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
         return not target.exists()
 
 
@@ -1521,8 +1521,8 @@ def run_unbuffered_iops_benchmark(
         if test_filepath.exists():
             try:
                 test_filepath.unlink()
-            except (OSError, PermissionError, FileNotFoundError):
-                pass
+            except (OSError, PermissionError, FileNotFoundError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     size_mb = actual_file_size / (1024.0 * 1024.0)
     write_mb_s = size_mb / write_duration
@@ -1741,8 +1741,8 @@ def validate_pyscf_chk_checkpoint(file_path: Union[str, Path]) -> CheckpointVali
                     if "e_tot" in scf_grp:
                         try:
                             metadata["e_tot"] = float(scf_grp["e_tot"][()])
-                        except (KeyError, ValueError, TypeError, AttributeError, OSError):
-                            pass
+                        except (KeyError, ValueError, TypeError, AttributeError, OSError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
         except Exception as exc:
             status = CheckpointStatus.CORRUPT
             is_resumable = False
@@ -1842,8 +1842,8 @@ def validate_checkpoint_file(file_path: Union[str, Path]) -> CheckpointValidatio
                     magic = f.read(8)
                 if magic == b"\x89HDF\r\n\x1a\n":
                     return validate_pyscf_chk_checkpoint(p)
-            except (OSError, PermissionError, FileNotFoundError):
-                pass
+            except (OSError, PermissionError, FileNotFoundError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         return CheckpointValidationItem(
             file_path=str(p),
@@ -2011,8 +2011,8 @@ def audit_state_chain_recovery(
                             "sandbox_path": str(item.resolve()),
                             "valid_checkpoints": [c.model_dump() for c in chk_report.resumable_checkpoints if c.is_resumable],
                         })
-        except (OSError, PermissionError, FileNotFoundError):
-            pass
+        except (OSError, PermissionError, FileNotFoundError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return StateChainRecoveryProfile(
         registry_directory=str(active_reg_dir),
@@ -2098,8 +2098,8 @@ class DependencyManager:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except (OSError, PermissionError, FileNotFoundError):
-                    pass
+                except (OSError, PermissionError, FileNotFoundError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return
 
         try:
@@ -2109,8 +2109,8 @@ class DependencyManager:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except (OSError, PermissionError, FileNotFoundError):
-                    pass
+                except (OSError, PermissionError, FileNotFoundError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             raise
 
 

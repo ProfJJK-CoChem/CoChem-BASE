@@ -8,6 +8,8 @@ Invariants:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import base64
 import ipaddress
@@ -127,8 +129,8 @@ def check_airgap_compliance(endpoint_url: str) -> None:
                 ip = ipaddress.ip_address(hostname)
                 if ip.is_private or ip.is_loopback:
                     is_local = True
-            except ValueError:
-                pass
+            except ValueError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if not is_local:
             raise AirGapPushBlockedError(

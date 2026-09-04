@@ -658,22 +658,22 @@ def parse_orca_energy(path: Union[str, Path]) -> Optional[float]:
             try:
                 final_e = float(parts[-1])
                 return final_e
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         elif "FINAL ENERGY" in ln:
             parts = ln.split()
             try:
                 final_e = float(parts[-1])
                 return final_e
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         elif "Total Energy       :" in ln:
             parts = ln.split()
             try:
                 final_e = float(parts[3])
                 return final_e
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     return final_e
 
@@ -725,8 +725,8 @@ def parse_xtb_output(path: Union[str, Path]) -> Dict[str, Any]:
                     try:
                         final_e = float(parts[k + 1])
                         break
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
     return {
         "normal_termination": normal_term,

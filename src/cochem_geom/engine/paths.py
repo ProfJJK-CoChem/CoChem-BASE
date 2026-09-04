@@ -388,8 +388,8 @@ def apply_strict_permissions(
             try:
                 import getpass
                 username = getpass.getuser()
-            except (RuntimeError, ValueError, TypeError, KeyError, AttributeError, OSError):
-                pass
+            except (RuntimeError, ValueError, TypeError, KeyError, AttributeError, OSError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if username:
             try:

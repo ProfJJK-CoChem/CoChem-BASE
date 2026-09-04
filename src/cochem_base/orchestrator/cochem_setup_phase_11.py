@@ -43,8 +43,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 

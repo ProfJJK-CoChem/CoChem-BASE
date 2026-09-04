@@ -144,8 +144,8 @@ def verify_airgap(
                 "expected": f"Path outside of {resolved_artifact}",
             },
         )
-    except ValueError:
-        pass
+    except ValueError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     _logger.info("Airgap verified: exec=%s <-> artifact=%s", resolved_exec, resolved_artifact)
     return True

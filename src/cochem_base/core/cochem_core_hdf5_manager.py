@@ -402,8 +402,8 @@ class SQLiteWALQueue:
         if hasattr(self._local, "conn") and self._local.conn is not None:
             try:
                 self._local.conn.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._local.conn = None
 
 
@@ -509,8 +509,8 @@ class ZMQRealTimeStreamer:
             if self._socket is not None:
                 try:
                     self._socket.close(linger=1000)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 self._socket = None
 
 

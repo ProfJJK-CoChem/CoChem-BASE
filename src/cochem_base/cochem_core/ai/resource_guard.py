@@ -186,8 +186,8 @@ def is_container_environment() -> bool:
         try:
             if Path(indicator).exists():
                 return True
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # 2. Check environment variables
     env_vars = ("CONTAINER", "DOCKER_CONTAINER", "KUBERNETES_SERVICE_HOST", "CODESPACES", "GITHUB_ACTIONS")
@@ -204,8 +204,8 @@ def is_container_environment() -> bool:
                 content = p.read_text(encoding="utf-8", errors="ignore").lower()
                 if any(token in content for token in ("docker", "containerd", "kubepods", "lxc", "pod")):
                     return True
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return False
 
@@ -336,8 +336,8 @@ def probe_nvidia_vram() -> Tuple[float, float, int, List[Dict[str, Any]]]:
                         proc_name = "unknown"
                         try:
                             proc_name = psutil.Process(cp.pid).name()
-                        except Exception:
-                            pass
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
                         processes.append({
                             "device_index": i,
                             "pid": cp.pid,
@@ -346,8 +346,8 @@ def probe_nvidia_vram() -> Tuple[float, float, int, List[Dict[str, Any]]]:
                             "process_name": proc_name,
                             "type": "compute",
                         })
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
                 # Query active graphics processes
                 try:
@@ -356,8 +356,8 @@ def probe_nvidia_vram() -> Tuple[float, float, int, List[Dict[str, Any]]]:
                         proc_name = "unknown"
                         try:
                             proc_name = psutil.Process(gp.pid).name()
-                        except Exception:
-                            pass
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
                         processes.append({
                             "device_index": i,
                             "pid": gp.pid,
@@ -366,8 +366,8 @@ def probe_nvidia_vram() -> Tuple[float, float, int, List[Dict[str, Any]]]:
                             "process_name": proc_name,
                             "type": "graphics",
                         })
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             total_vram_gb = round(total_bytes / (1024 ** 3), 3)
             available_vram_gb = round(free_bytes / (1024 ** 3), 3)
@@ -375,8 +375,8 @@ def probe_nvidia_vram() -> Tuple[float, float, int, List[Dict[str, Any]]]:
         finally:
             try:
                 pynvml.nvmlShutdown()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
     except Exception as e:
         logger.debug(f"NVIDIA NVML polling unavailable or failed: {e}")
         return 0.0, 0.0, 0, []
@@ -447,8 +447,8 @@ def detect_active_calculations(
                             if stem in cmdline_str and any(flag in cmdline_str for flag in (".inp", ".py", "run_", "calc")):
                                 active_reasons.append(f"Active Python calculation engine invocation matching '{stem}' (PID: {proc.info.get('pid')})")
                                 break
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         except Exception as e:
             logger.debug(f"Process table iteration encountered non-fatal error: {e}")
 

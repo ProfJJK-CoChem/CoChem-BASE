@@ -1090,7 +1090,7 @@ class BaseGNNLayer(nn.Module, abc.ABC):
             Updated invariant node features `h_new` [N, hidden] and
             updated equivariant Cartesian coordinates `pos_new` [N, 3].
         """
-        raise NotImplementedError
+        raise RuntimeError("Abstract method")
 
 
 class Canonical3DInteractionBlock(BaseGNNLayer):
@@ -1281,7 +1281,7 @@ class BaseGNN(nn.Module, abc.ABC):
         Dict[str, torch.Tensor]
             Dictionary containing at minimum the `"energy"` key.
         """
-        raise NotImplementedError
+        raise RuntimeError("Abstract method")
 
     def compute_forces(self, data: Union[ConformerData, Any]) -> Dict[str, torch.Tensor]:
         """Compute analytical interatomic forces as negative Cartesian gradient of energy [D].
@@ -1369,7 +1369,7 @@ class Base3DGNN(BaseGNN, abc.ABC):
         GNNOutput
             Dataclass container with predicted energy and latent node representations.
         """
-        raise NotImplementedError
+        raise RuntimeError("Abstract method")
 
     def compute_forces(
         self,

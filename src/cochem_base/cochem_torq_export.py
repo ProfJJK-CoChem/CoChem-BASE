@@ -12,6 +12,8 @@ Authoritative Standards:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import gc
 import hashlib
@@ -443,8 +445,8 @@ def bundle_spycfit_payload(
     try:
         import zstandard as zstd
         has_zstd = True
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     use_zstd = (archive_format in ("auto", "tar.zst", "zst")) and has_zstd
 
@@ -514,8 +516,8 @@ def bundle_spycfit_payload(
     try:
         import jax
         jax.clear_caches()
-    except (ImportError, AttributeError):
-        pass
+    except (ImportError, AttributeError) as _e:
+        logger.debug(f"Ignored exception: {_e}")
     gc.collect()
 
     return str(archive_file)

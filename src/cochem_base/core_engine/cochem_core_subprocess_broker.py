@@ -130,8 +130,8 @@ def is_crash_returncode(code: Optional[int]) -> bool:
         unsigned_code = code & 0xFFFFFFFF
         if unsigned_code in {0xC0000005, 0xC00000FD, 0xC000001D, 0xC000002E}:
             return True
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
     return False
 
 
@@ -348,8 +348,8 @@ class WindowsJobObject:
         if self._is_windows and self.handle:
             try:
                 ctypes.windll.kernel32.CloseHandle(self.handle)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self.handle = None
 
     def __enter__(self) -> WindowsJobObject:
@@ -405,12 +405,12 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
             for child in children:
                 try:
                     child.terminate()
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             try:
                 parent.terminate()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             procs_to_wait = [p for p in children + [parent] if psutil.pid_exists(p.pid)]
             if procs_to_wait:
@@ -419,14 +419,14 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
                     for p in alive:
                         try:
                             p.kill()
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
                     # Final reap confirmation
                     psutil.wait_procs(alive, timeout=3.0)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+            logger.debug(f"Ignored exception: {_e}")
+        except (ProcessLookupError, PermissionError, OSError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
     else:
         try:
             if platform.system() == "Windows":
@@ -437,10 +437,10 @@ def kill_process_tree(pid: int, timeout: float = 10.0) -> None:
                     time.sleep(min(timeout, 0.5))
                     sig_kill = getattr(signal, "SIGKILL", signal.SIGTERM)
                     os.kill(pid, sig_kill)
-                except (ProcessLookupError, PermissionError, OSError):
-                    pass
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
+                except (ProcessLookupError, PermissionError, OSError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+        except (ProcessLookupError, PermissionError, OSError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 def cleanup_zombie_processes() -> int:
@@ -491,10 +491,10 @@ def _register_signal_handlers() -> None:
                     sig = getattr(signal, sig_name)
                     try:
                         signal.signal(sig, _signal_cleanup_handler)
-                    except (ValueError, OSError, RuntimeError):
-                        pass
-    except Exception:
-        pass
+                    except (ValueError, OSError, RuntimeError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 
 atexit.register(cleanup_zombie_processes)
@@ -534,8 +534,8 @@ def detect_cpu_topology() -> Dict[str, Any]:
                             elif part.isdigit():
                                 cpus.append(int(part))
                     numa_nodes.append({"node_id": node_id, "cpus": cpus})
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             if numa_nodes:
                 sockets = max(1, len(numa_nodes))
 
@@ -549,8 +549,8 @@ def detect_cpu_topology() -> Dict[str, Any]:
                 for nid in range(total_nodes):
                     node_cpus = list(range(nid * cores_per_node, min(logical_cores, (nid + 1) * cores_per_node)))
                     numa_nodes.append({"node_id": nid, "cpus": node_cpus})
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if not numa_nodes:
         numa_nodes.append({"node_id": 0, "cpus": list(range(logical_cores))})
@@ -626,7 +626,7 @@ def enforce_cpu_affinity(pid: int, cpu_cores: Optional[List[int]] = None) -> boo
         proc.cpu_affinity(cpu_cores)
         logger.info(f"Pinned PID {pid} to CPU cores {cpu_cores} [M]")
         return True
-    except (AttributeError, NotImplementedError):
+    except AttributeError:
         logger.debug(f"CPU affinity control is not supported on this platform ({platform.system()}).")
         return True
     except (psutil.NoSuchProcess, psutil.AccessDenied, OSError, ValueError) as e:
@@ -684,8 +684,8 @@ def detect_mpi_environment(
             try:
                 if int(val) > 1:
                     return True
-            except ValueError:
-                pass
+            except ValueError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     mpi_rank_indicators = ("MPI_LOCALRANKID", "OMPI_COMM_WORLD_RANK", "PMI_RANK", "PMIX_RANK", "SLURM_PROCID")
     for var in mpi_rank_indicators:
@@ -848,8 +848,8 @@ def verify_scratch_quota_and_io(
         if probe_file.exists():
             try:
                 probe_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
 
 def verify_scratch_io(scratch_dir: Union[str, Path], required_mb: int = 100) -> bool:
@@ -1094,14 +1094,14 @@ class ZMQHeartbeatManager:
         if self._socket is not None:
             try:
                 self._socket.close(linger=0)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._socket = None
         if self._context is not None:
             try:
                 self._context.term()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._context = None
 
     def __enter__(self) -> ZMQHeartbeatManager:
@@ -1259,8 +1259,8 @@ def safe_subprocess_run(
         job_obj.assign_popen(proc)
         try:
             ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
     else:
         if platform.system() != "Windows":
             popen_args.setdefault("start_new_session", True)
@@ -1272,8 +1272,8 @@ def safe_subprocess_run(
                         PR_SET_PDEATHSIG = 1
                         SIGKILL = 9
                         libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 popen_args.setdefault("preexec_fn", _posix_pdeathsig)
 
         proc = subprocess.Popen(parsed_cmd, **popen_args)
@@ -1317,8 +1317,8 @@ def safe_subprocess_run(
                 finally:
                     try:
                         pipe.close()
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
             t_stdout = threading.Thread(
                 target=_stream_reader,
@@ -1369,8 +1369,8 @@ def safe_subprocess_run(
         kill_process_tree(proc.pid, timeout=10.0)
         try:
             proc.wait(timeout=3.0)
-        except subprocess.TimeoutExpired:
-            pass
+        except subprocess.TimeoutExpired as _e:
+            logger.debug(f"Ignored exception: {_e}")
         logger.error(f"Subprocess '{cmd}' timed out after {timeout} seconds.")
         raise
     except subprocess.CalledProcessError as e:
@@ -1496,8 +1496,8 @@ class SubprocessBroker:
                                 total_rss += proc.memory_info().rss
                                 for child in proc.children(recursive=True):
                                     total_rss += child.memory_info().rss
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                pass
+                            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                         if total_rss > limit_bytes:
                             logger.error(
                                 f"Broker process tree memory exceeded limit: {total_rss / 1e6:.1f} MB > "
@@ -1574,14 +1574,14 @@ class SubprocessBroker:
         if self._zmq_socket is not None:
             try:
                 self._zmq_socket.close(linger=0)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._zmq_socket = None
         if self._zmq_context is not None:
             try:
                 self._zmq_context.term()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._zmq_context = None
 
     def execute_zombie_reaper(self) -> int:
@@ -1745,8 +1745,8 @@ class SubprocessBroker:
                     kill_process_tree(process.pid, timeout=10.0)
                     try:
                         process.wait(timeout=3.0)
-                    except subprocess.TimeoutExpired:
-                        pass
+                    except subprocess.TimeoutExpired as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                     exit_code = -124
             else:
                 process.wait()

@@ -7,6 +7,8 @@ Provenance & Specifications:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import re
 import threading
@@ -178,8 +180,8 @@ def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
             try:
                 elem_data = _load_element_data(raw)
                 return elem_data.symbol, None
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     raise MissingDataError(
         f"Unresolvable atomic element or isotope symbol: {symbol}",
@@ -304,8 +306,8 @@ def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
         for iso in m_elem.isotopes:
             if iso.mass_number == mass_number and iso.mass is not None:
                 return float(iso.mass)
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     raise MendeleevInvariantError(
         f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",

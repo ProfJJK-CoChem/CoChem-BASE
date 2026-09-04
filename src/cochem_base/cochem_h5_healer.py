@@ -123,9 +123,9 @@ def detect_zombie_pids(h5_path: Union[str, Path]) -> List[int]:
                         zombie_pids.append(lock_pid)
                 except psutil.NoSuchProcess:
                     zombie_pids.append(lock_pid)
-                except psutil.AccessDenied:
+                except psutil.AccessDenied as _e:
                     # Process is running and owned by another user/system; not a dead process
-                    pass
+                    logger.debug(f"Ignored exception: {_e}")
     except (json.JSONDecodeError, OSError) as err:
         logger.warning(
             "Corrupt or unreadable lock file %s: %s; treating as orphan lock", lock_file, err
@@ -184,8 +184,8 @@ def force_release_swmr(
                 data = json.load(fp)
             if data.get("pid") == os.getpid():
                 should_release = True
-        except (json.JSONDecodeError, OSError, KeyError):
-            pass
+        except (json.JSONDecodeError, OSError, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     reaped_pids: List[int] = []
     released = False

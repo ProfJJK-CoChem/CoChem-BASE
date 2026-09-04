@@ -41,8 +41,8 @@ def extract_error_atom_indices(mol: Chem.Mol | None, exception: Exception) -> li
                 idx = int(val)
                 if idx not in indices:
                     indices.append(idx)
-            except ValueError:
-                pass
+            except ValueError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # 3. Direct exception method inspection if available
     for attr in ("getAtomIdx", "GetAtomIdx"):

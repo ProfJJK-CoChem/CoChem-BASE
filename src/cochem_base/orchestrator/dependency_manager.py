@@ -205,8 +205,8 @@ def safe_remove_file(path: Union[str, Path], retries: int = 3, delay: float = 0.
             if target.is_file() or target.is_symlink():
                 try:
                     target.chmod(stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 target.unlink()
                 return True
         except (PermissionError, OSError) as exc:
@@ -626,8 +626,8 @@ class DependencyManager:
             if target.exists():
                 try:
                     target.chmod(stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             os.replace(staged_file, target)
             self.untrack_file(staged_file)

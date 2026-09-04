@@ -8,6 +8,8 @@ Provides robust environment discovery compliant with FAIR Principle R1.2 across:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import importlib.metadata
 import os
@@ -99,8 +101,8 @@ def get_vcs_provenance(root_path: Optional[Path] = None) -> Dict[str, Any]:
                         "git_root": str(git_dir),
                         "discovered_utc": timestamp,
                     }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # 2. Build Manifest Discovery
     manifest_candidates = []
@@ -124,8 +126,8 @@ def get_vcs_provenance(root_path: Optional[Path] = None) -> Dict[str, Any]:
                     "status": "BUILD_MANIFEST",
                     "discovered_utc": timestamp,
                 }
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # 3. Distribution Package Introspection (importlib.metadata)
     pkg_names = ["CoChem-BASE", "cochem_base", "cochem-base"]

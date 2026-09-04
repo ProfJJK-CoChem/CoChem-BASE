@@ -134,8 +134,8 @@ class TopologyDiscoveryEngine:
                 val = int(slurm_cpus)
                 if val >= 1:
                     return val
-            except ValueError:
-                pass
+            except ValueError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 2. Linux Cgroups v2: /sys/fs/cgroup/cpu.max (quota period)
         cgroup_v2 = pathlib.Path("/sys/fs/cgroup/cpu.max")
@@ -149,8 +149,8 @@ class TopologyDiscoveryEngine:
                         cores = int(quota / period)
                         if cores >= 1:
                             return cores
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 3. Linux Cgroups v1: cpu.cfs_quota_us / cpu.cfs_period_us
         cgroup_v1_quota = pathlib.Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
@@ -163,8 +163,8 @@ class TopologyDiscoveryEngine:
                     cores = int(quota_val / period_val)
                     if cores >= 1:
                         return cores
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 4. POSIX process affinity
         if hasattr(os, "sched_getaffinity"):
@@ -172,8 +172,8 @@ class TopologyDiscoveryEngine:
                 affinity_cores = len(os.sched_getaffinity(0))
                 if affinity_cores >= 1:
                     return affinity_cores
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # 5. Physical cores fallback
         physical = psutil.cpu_count(logical=False) or os.cpu_count() or 1
@@ -260,8 +260,8 @@ class TopologyDiscoveryEngine:
             import torch
             if torch.cuda.is_available():
                 available_gpus = torch.cuda.device_count()
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         if available_gpus > 0:
             assigned_gpu = worker_index % available_gpus

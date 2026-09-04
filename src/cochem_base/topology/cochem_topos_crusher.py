@@ -408,8 +408,8 @@ class MemmapIsomerBuffer:
         self._mmap[index, :, :] = c
         try:
             self._mmap.flush()
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     def read_candidate(self, index: int) -> np.ndarray:
         """Read Cartesian coordinates for candidate at index as an independent contiguous RAM array."""
@@ -436,15 +436,15 @@ class MemmapIsomerBuffer:
         if getattr(self, "_mmap", None) is not None:
             try:
                 self._mmap.flush()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             try:
                 if hasattr(self._mmap, "_mmap") and self._mmap._mmap is not None:
                     self._mmap._mmap.close()
                 elif hasattr(self._mmap, "base") and hasattr(self._mmap.base, "_mmap") and self._mmap.base._mmap is not None:
                     self._mmap.base._mmap.close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self._mmap = None
 
     def __enter__(self) -> "MemmapIsomerBuffer":
@@ -461,8 +461,8 @@ class MemmapIsomerBuffer:
         if getattr(self, "_mmap", None) is not None:
             try:
                 self._mmap.flush()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         hasher = hashlib.sha256()
         if not self.filepath.exists():
             return ""

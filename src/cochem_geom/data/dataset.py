@@ -211,7 +211,7 @@ class BaseTransform(abc.ABC):
     @abc.abstractmethod
     def __call__(self, data: MolecularData) -> MolecularData:
         """Apply transformation immutably, returning a new MolecularData instance."""
-        raise NotImplementedError
+        raise RuntimeError("Abstract method")
 
 
 class CenterOfMassTransform(BaseTransform):

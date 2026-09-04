@@ -138,15 +138,15 @@ class AtomicWrite:
                 if self.tmp_path.exists():
                     try:
                         self.tmp_path.unlink()
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        logger.debug("Ignored OSError during cleanup: %s", e)
                 raise replace_err
         else:
             if self.tmp_path.exists():
                 try:
                     self.tmp_path.unlink()
-                except OSError:
-                    pass
+                except OSError as e:
+                    logger.debug("Ignored OSError during cleanup: %s", e)
 
 
 class FileLock:
@@ -197,10 +197,10 @@ class FileLock:
                     logger.warning("Detected stale lock file (>300s) at %s; clearing.", self._target_file)
                     try:
                         self._target_file.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-            except OSError:
-                pass
+                    except OSError as e:
+                        logger.debug("Ignored OSError during lock cleanup: %s", e)
+            except OSError as e:
+                logger.debug("Ignored OSError during lock cleanup: %s", e)
 
         start_time = time.perf_counter()
         current_delay = initial_delay_sec
@@ -222,8 +222,8 @@ class FileLock:
                 if fd is not None:
                     try:
                         os.close(fd)
-                    except OSError:
-                        pass
+                    except OSError as e:
+                        logger.debug("Ignored OSError closing fd: %s", e)
                     fd = None
 
                 elapsed = time.perf_counter() - start_time
@@ -251,8 +251,8 @@ class FileLock:
             finally:
                 try:
                     os.close(fd)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("Ignored Exception closing fd: %s", e)
 
     def __enter__(self) -> FileLock:
         if not self.acquire():

@@ -41,8 +41,8 @@ def restore_file_permissions(
                 try:
                     if item.is_file():
                         os.chmod(item, stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
 
 def test_document_manager_initialization(tmp_path: pathlib.Path) -> None:

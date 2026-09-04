@@ -186,8 +186,8 @@ class CoChemPathManager:
             if create:
                 resolved.mkdir(parents=True, exist_ok=True)
             return resolved
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         # Tier 6: Path.home() / .cochem / scratch fallback
         resolved = (Path.home() / ".cochem" / "scratch").resolve()
@@ -246,8 +246,8 @@ class CoChemPathManager:
             if create:
                 resolved.mkdir(parents=True, exist_ok=True)
             return resolved
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         try:
             repo_root = get_repo_root().resolve()
@@ -255,8 +255,8 @@ class CoChemPathManager:
             if create:
                 resolved.mkdir(parents=True, exist_ok=True)
             return resolved
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         resolved = (Path.home() / ".cochem" / "deliverables").resolve()
         if create:
@@ -424,15 +424,15 @@ def buffer_lock_sync(
         fd = file_obj_or_path.fileno()
         try:
             os.fsync(fd)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
         if hasattr(file_obj_or_path, "name") and isinstance(file_obj_or_path.name, (str, Path)):
             path_to_check = Path(file_obj_or_path.name).resolve()
     elif isinstance(file_obj_or_path, int):
         try:
             os.fsync(file_obj_or_path)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
     else:
         path_to_check = Path(file_obj_or_path).resolve()
         if path_to_check.exists():
@@ -441,8 +441,8 @@ def buffer_lock_sync(
                 with open(path_to_check, "r+b") as probe_fd:
                     probe_fd.flush()
                     os.fsync(probe_fd.fileno())
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     if path_to_check is not None:
         if not path_to_check.exists():
@@ -589,8 +589,8 @@ def isolated_workspace_generator(
     if sys.platform != "win32":
         try:
             os.chmod(str(workspace_dir), 0o700)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     try:
         yield workspace_dir
@@ -769,8 +769,8 @@ def parse_spcat_cat_line(
                 "temperature_k": float(temperature_k),
                 "provenance_hash": str(provenance_hash),
             }
-        except (ValueError, IndexError):
-            pass  # Fallback to token-based parser
+        except (ValueError, IndexError) as _e:
+            logger.debug(f"Ignored exception: {_e}")  # Fallback to token-based parser
 
     # Token-based fallback parser
     tokens = raw.split()
@@ -969,14 +969,14 @@ def pyarrow_chunked_serializer(
         if writer is not None:
             try:
                 writer.close()  # type: ignore[no-untyped-call]
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             writer = None
         if temp_staging_path.exists():
             try:
                 temp_staging_path.unlink()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         raise
     finally:
         if writer is not None:
@@ -1136,6 +1136,14 @@ def parallel_temperature_compiler(
     return results
 
 
+def validate_catalog_grid(grid: str, phase: str = "PHASE_FINALOPT") -> bool:
+    """Validates integration grid per execution phase according to Method Matrix v4 §4.4.
+    Permits defgrid1 during PHASE_PREOPT; strictly enforces defgrid3 for PHASE_FINALOPT and PHASE_NUMFREQ.
+    """
+    from cochem_base.config import GridPolicy
+    return GridPolicy.validate_grid(phase, grid)
+
+
 # =============================================================================
 # 12. AASTeX 6.3.1 + siunitx LaTeX Methods Block Generator
 # =============================================================================
@@ -1217,12 +1225,13 @@ def generate_methods_latex(
                 details={"theory_level": theory_level},
             )
 
-        # Check DEFGRID standard
-        if "DEFGRID1" in defgrid or "SG-1" in defgrid:
+        # Check DEFGRID standard per execution phase
+        phase = str(metadata.get("phase", "PHASE_FINALOPT")).strip().upper()
+        if not validate_catalog_grid(defgrid, phase=phase):
             raise MethodMatrixViolationError(
-                f"Method Matrix v4 Violation: Grid {defgrid!r} fails minimum integration threshold (DEFGRID2/DEFGRID3 required).",
+                f"Method Matrix v4 Violation: Grid {defgrid!r} fails minimum integration threshold for {phase} (DEFGRID2/DEFGRID3 required, defgrid1 permitted only in PHASE_PREOPT).",
                 error_code=ProvenanceErrorCode.METHOD_MATRIX_VIOLATION_DEFGRID,
-                details={"defgrid": defgrid},
+                details={"defgrid": defgrid, "phase": phase},
             )
 
     # Format rotational constants with flexible key access
@@ -1232,8 +1241,8 @@ def generate_methods_latex(
             if k_clean in (key_char, f"{key_char}_MHZ", f"{key_char}0", f"{key_char}_0", f"{key_char}_E"):
                 try:
                     return float(v)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         return 0.0
 
     a_mhz = _find_rot_val("A")
@@ -1247,8 +1256,8 @@ def generate_methods_latex(
             if k_clean in (f"mu_{comp}", f"mu{comp}", f"dipole_{comp}", comp):
                 try:
                     return float(v)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         return 0.0
 
     mu_a = _find_dipole_val("a")
@@ -1295,8 +1304,8 @@ def generate_methods_latex(
                     if k_clean == a.lower().replace("_", ""):
                         try:
                             return float(v)
-                        except (ValueError, TypeError):
-                            pass
+                        except (ValueError, TypeError) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
             return 0.0
 
         dj = _find_cent_val("DJ", "D_J")

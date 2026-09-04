@@ -48,8 +48,8 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set,
 if platform.system() == "Windows":
     try:
         import ctypes.wintypes
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 import h5py
 import numpy as np
@@ -598,8 +598,8 @@ def format_slurm_time(tier_or_seconds: Union[TemporalTier, str, int, float]) -> 
         try:
             tier_enum = TemporalTier(tier_or_seconds)
             return TIER_REGISTRY[tier_enum].slurm_time
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     seconds = int(tier_or_seconds) if isinstance(tier_or_seconds, (int, float)) else 3600
     if seconds < 0:
@@ -625,8 +625,8 @@ def get_asyncio_timeout(tier_or_seconds: Union[TemporalTier, str, int, float]) -
         try:
             tier_enum = TemporalTier(tier_or_seconds)
             return float(TIER_REGISTRY[tier_enum].walltime_seconds)
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
     return float(tier_or_seconds)
 
 
@@ -1916,10 +1916,10 @@ class ThermalGuardDaemon:
                     try:
                         p.suspend()
                         self.suspended_pids.add(p.pid)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     def _resume_process_tree(self) -> None:
         """Recursively resumes all suspended processes."""
@@ -1927,8 +1927,8 @@ class ThermalGuardDaemon:
             try:
                 proc = psutil.Process(pid)
                 proc.resume()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self.suspended_pids.clear()
 
     async def start(self) -> None:
@@ -1945,8 +1945,8 @@ class ThermalGuardDaemon:
             self._task.cancel()
             try:
                 await self._task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._resume_process_tree()
 
     async def _monitor_loop(self) -> None:

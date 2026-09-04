@@ -94,14 +94,14 @@ class JobManager:
             for child in children:
                 try:
                     child.kill()
-                except psutil.NoSuchProcess:
-                    pass
+                except psutil.NoSuchProcess as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             try:
                 parent.kill()
-            except psutil.NoSuchProcess:
-                pass
-        except psutil.NoSuchProcess:
-            pass
+            except psutil.NoSuchProcess as _e:
+                logger.debug(f"Ignored exception: {_e}")
+        except psutil.NoSuchProcess as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     async def submit_job(self, job_config_input: Union[Dict[str, Any], JobConfig]) -> str:
         """Submit a new job to the system with temporal tier assignment."""

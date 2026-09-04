@@ -9,6 +9,8 @@ Invariants:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import os
 import threading
@@ -116,8 +118,8 @@ class FileLockLogger:
                     if line_str:
                         rec = TelemetryRecord.model_validate_json(line_str)
                         return int(rec.seq) + 1
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         return self._seq
 

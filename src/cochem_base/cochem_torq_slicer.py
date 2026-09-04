@@ -89,8 +89,8 @@ def fit_continuous_splines(
                 # Check uniqueness (within 1e-3 rad)
                 if not any(abs(root - cr) < 1e-3 for cr in critical_rads):
                     critical_rads.append(float(root))
-            except (ValueError, RuntimeError):
-                pass
+            except (ValueError, RuntimeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     critical_rads.sort()
     stationary_points: List[Dict[str, Any]] = []

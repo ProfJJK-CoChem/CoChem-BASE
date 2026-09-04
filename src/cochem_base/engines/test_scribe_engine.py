@@ -12,6 +12,8 @@ get_engine() hardware factory router across the 6-Tier Environment Matrix.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import abc
 import ast
@@ -122,8 +124,8 @@ class MockFreeLoopbackHandler(http.server.BaseHTTPRequestHandler):
         if content_length > 0:
             try:
                 self.rfile.read(content_length)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         MockFreeLoopbackHandler.request_counter += 1
         if (

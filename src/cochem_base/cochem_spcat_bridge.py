@@ -811,8 +811,8 @@ def fortran_overflow_guard(
                             "limit": float(max_limit),
                         },
                     )
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
             return val
         elif isinstance(val, (int, float)):
             fval = float(val)
@@ -1178,8 +1178,8 @@ def validate_airgap_boundary(target_path: Union[str, Path]) -> Path:
                     "repo_root": str(repo_root),
                 },
             )
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return resolved
 
@@ -1517,8 +1517,8 @@ class TorqSpcatBridge:
             try:
                 sym_res = apply_symmetry_divisors(coords, symbols)
                 return sym_res.sigma
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return 1
 
     def parse_mpqc_observables(self) -> None:

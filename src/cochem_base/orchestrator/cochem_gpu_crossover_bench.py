@@ -667,8 +667,8 @@ def calculate_basis_function_count(
         atom_str = "; ".join(f"{s} 0.0 0.0 {i * 1.5:.4f}" for i, s in enumerate(symbols))
         mol = gto.M(atom=atom_str, basis=basis_name, cart=cart, verbose=0)
         return int(mol.nao)
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # 2. Analytical standard contraction tables
     b_norm = basis_name.strip().lower()
@@ -735,8 +735,8 @@ def interrogate_hardware() -> HardwareTelemetry:
                 props = torch.cuda.get_device_properties(0)
                 gpu_vram_gb = round(props.total_memory / (1024 ** 3), 2)
                 gpu_cc = f"{props.major}.{props.minor}"
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # Check MPS daemon socket
     mps_pipe_dir = os.environ.get("CUDA_MPS_PIPE_DIRECTORY", "/tmp/nvidia-mps")
@@ -878,8 +878,8 @@ def run_gpu4pyscf_point(
     try:
         mem_info = cupy.cuda.Device(0).mem_info
         vram_mb = round((mem_info[1] - mem_info[0]) / (1024 ** 2), 2)
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return SingleRunResult(
         system_id=system.system_id,

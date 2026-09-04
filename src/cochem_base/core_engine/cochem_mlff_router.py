@@ -573,8 +573,8 @@ def resolve_golden_registry_path(
         candidate_scratches.append(Path(os.path.expandvars(env_scratch)).expanduser())
     try:
         candidate_scratches.append(get_scratch_dir())
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     for s_dir in candidate_scratches:
         candidates = [
@@ -603,16 +603,16 @@ def resolve_golden_registry_path(
         for cand in candidates:
             if cand.exists():
                 return cand.resolve()
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Tier 5: Standard config loader resolution
     try:
         resolved = resolve_config_path()
         if resolved.exists():
             return resolved
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return None
 

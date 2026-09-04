@@ -325,15 +325,15 @@ class HardwareSchema(BaseModel):
             if float_field in d and isinstance(d[float_field], str):
                 try:
                     d[float_field] = float(d[float_field])
-                except ValueError:
-                    pass
+                except ValueError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         for int_field in ["cpu_physical_cores", "physical_cpu_cores", "logical_cpu_cores", "cpu_cores", "allocatable_compute_cores", "ram_mb", "maxcore_mb"]:
             if int_field in d and isinstance(d[int_field], str):
                 try:
                     d[int_field] = int(float(d[int_field]))
-                except ValueError:
-                    pass
+                except ValueError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize physical cores
         phys = d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or d.get("cpu_cores")
@@ -344,8 +344,8 @@ class HardwareSchema(BaseModel):
                 d["physical_cpu_cores"] = phys_int
                 if "cpu_cores" not in d:
                     d["cpu_cores"] = phys_int
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         if "logical_cpu_cores" not in d or d["logical_cpu_cores"] is None:
             if "cpu_cores" in d and d["cpu_cores"] is not None:
@@ -358,20 +358,20 @@ class HardwareSchema(BaseModel):
             if phys is not None:
                 try:
                     d["allocatable_compute_cores"] = int(phys)
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize RAM
         if "ram_mb" not in d and "ram_gb" in d:
             try:
                 d["ram_mb"] = int(float(d["ram_gb"]) * 1024)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         elif "ram_gb" not in d and "ram_mb" in d:
             try:
                 d["ram_gb"] = float(d["ram_mb"]) / 1024.0
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Maxcore calculation / OOM clamping guard
         phys_count = int(d.get("cpu_physical_cores") or d.get("physical_cpu_cores") or 1)
@@ -616,8 +616,8 @@ class SiloPathsSchema(BaseModel):
                                 f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
                                 "Paths should map to the Dynamic Data Tier or Volatile Compute Tier."
                             )
-                        except ValueError:
-                            pass
+                        except ValueError as _e:
+                            logger.debug(f"Ignored exception: {_e}")
 
             return str(resolved)
         raise ValueError(f"Invalid path type '{type(v)}' for '{info.field_name}'. Expected string or Path.")
@@ -1034,6 +1034,6 @@ def validate_system_config(source: Union[str, Path, Dict[str, Any], CoChemSystem
             try:
                 raw_dict = json.loads(source)
                 return CoChemSystemConfig.model_validate(raw_dict)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
     raise TypeError(f"Unsupported configuration source type: {type(source)}")

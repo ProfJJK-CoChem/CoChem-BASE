@@ -80,8 +80,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 
@@ -388,19 +388,19 @@ class DependencyManager:
                 if temp_file.exists() and temp_file.is_file():
                     try:
                         os.chmod(temp_file, stat.S_IWRITE | stat.S_IREAD)
-                    except OSError:
-                        pass
+                    except OSError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                     temp_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_files.clear()
 
         for temp_dir in list(self._tracked_temp_dirs):
             try:
                 if temp_dir.exists() and temp_dir.is_dir():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_dirs.clear()
 
     def atomic_write_json(
@@ -434,8 +434,8 @@ class DependencyManager:
         if target.exists():
             try:
                 os.chmod(target, stat.S_IWRITE | stat.S_IREAD | stat.S_IWUSR | stat.S_IRUSR)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         os.replace(staged_file, target)
         self.untrack_file(staged_file)
@@ -443,8 +443,8 @@ class DependencyManager:
         if read_only:
             try:
                 os.chmod(target, stat.S_IREAD | stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         return target
 
@@ -577,8 +577,8 @@ def resolve_p5_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
         from cochem_base.config_loader import get_artifact_dir
 
         return get_artifact_dir() / "Registry" / "p5.json"
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")
     if env_art:
@@ -620,8 +620,8 @@ def resolve_golden_config_path(output_path: Optional[Union[str, Path]] = None) -
         from cochem_base.config_loader import resolve_config_path
 
         return resolve_config_path()
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return (Path.home() / "CoChem_Artifacts" / "Registry" / "cochem_system_config.json").resolve()
 
@@ -717,8 +717,8 @@ def test_posix_byte_range_locking(
         try:
             if probe_path.exists():
                 probe_path.unlink()
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 def _sanitize_engine_record(raw_eng: Any) -> Optional[Dict[str, Any]]:
@@ -1117,8 +1117,8 @@ def execute_workspace_sweep(
                             # Ensure writable before removing
                             try:
                                 os.chmod(entry, stat.S_IWRITE | stat.S_IREAD)
-                            except OSError:
-                                pass
+                            except OSError as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                             if trash_dir:
                                 tdir = Path(trash_dir).resolve()
                                 tdir.mkdir(parents=True, exist_ok=True)
@@ -1197,8 +1197,8 @@ def probe_gpu_devices_vram(
                     if devices:
                         cuda_available = True
                         return devices, cuda_available
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     # Tier 2: Query NVIDIA NVML via pynvml or nvidia-ml-py if present
     try:
@@ -1247,8 +1247,8 @@ def probe_gpu_devices_vram(
         if devices:
             cuda_available = True
             return devices, cuda_available
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Tier 3: Query via nvidia-smi CLI
     try:
@@ -1293,8 +1293,8 @@ def probe_gpu_devices_vram(
         if devices:
             cuda_available = True
             return devices, cuda_available
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Tier 4: Query via torch.cuda if available
     try:
@@ -1324,8 +1324,8 @@ def probe_gpu_devices_vram(
                 )
             if devices:
                 return devices, cuda_available
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return devices, cuda_available
 
@@ -1468,8 +1468,8 @@ def discover_mps_binaries() -> Tuple[Optional[str], Optional[str]]:
                         bin_dir = entry / "bin"
                         if bin_dir.is_dir() and bin_dir not in candidate_roots:
                             candidate_roots.append(bin_dir)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
     if not control_path:
         for cdir in candidate_roots:
@@ -1520,10 +1520,10 @@ def probe_mps_daemon_status(
                     daemon_pid = proc.info.get("pid")
                 if "nvidia-cuda-mps-server" in pname or "nvidia-cuda-mps-server" in cmd:
                     server_active = True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
-                pass
-    except Exception:
-        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     control_pipe = pipe_dir / "control"
     server_pipe = pipe_dir / "server"
@@ -1665,8 +1665,8 @@ def stop_mps_daemon(
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
                 )
                 stopped = True
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     try:
         for proc in psutil.process_iter(["pid", "name"]):
@@ -1675,10 +1675,10 @@ def stop_mps_daemon(
                 if "nvidia-cuda-mps-control" in pname or "nvidia-cuda-mps-server" in pname:
                     proc.terminate()
                     stopped = True
-            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception):
-                pass
-    except Exception:
-        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, Exception) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     return stopped
 
@@ -1774,8 +1774,8 @@ def generate_mps_activation_scripts(
     sh_path.write_text("\n".join(sh_lines) + "\n", encoding="utf-8")
     try:
         sh_path.chmod(sh_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-    except OSError:
-        pass
+    except OSError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     bat_path = out_dir / "cochem_activate_mps.bat"
     bat_lines = [

@@ -43,8 +43,8 @@ def sweep_zombies() -> None:
         try:
             if p.info['status'] == psutil.STATUS_ZOMBIE:
                 p.wait(timeout=1)
-        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError):
-            pass
+        except (psutil.NoSuchProcess, psutil.TimeoutExpired, psutil.AccessDenied, KeyError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_zombies)
 
@@ -184,8 +184,8 @@ def probe_port_availability(
         with socket.socket(family, sock_type) as probe_sock:
             try:
                 probe_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            except (OSError, socket.error):
-                pass
+            except (OSError, socket.error) as _e:
+                logger.debug(f"Ignored exception: {_e}")
             probe_sock.settimeout(timeout)
             probe_sock.bind((host, port))
             return True
@@ -490,8 +490,8 @@ class DependencyManager:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             return
 
         try:
@@ -501,8 +501,8 @@ class DependencyManager:
             if self.temp_path.exists():
                 try:
                     self.temp_path.unlink()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             raise
 
 

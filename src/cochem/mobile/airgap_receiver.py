@@ -347,8 +347,8 @@ def main() -> None:
 
     try:
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt as _e:
+        logger.debug(f"Ignored exception: {_e}")
     finally:
         server.server_close()
 

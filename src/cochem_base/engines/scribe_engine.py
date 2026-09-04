@@ -116,8 +116,8 @@ def estimate_token_count(text: str) -> int:
     if _TIKTOKEN_ENCODER is not None:
         try:
             return len(_TIKTOKEN_ENCODER.encode(text))
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
     words = len(text.split())
     chars = len(text)
     return max(1, max(words, chars // 4))
@@ -633,8 +633,8 @@ class LocalLlamaEngine(ScribeLLMEngine):
         if hasattr(self, "model") and self.model is not None:
             try:
                 del self.model
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             self.model = None
         gc.collect()
 

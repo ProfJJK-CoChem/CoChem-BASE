@@ -168,8 +168,8 @@ class DynamicMendeleevMassMap(Mapping):
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
                     if iso.mass_number == 2:
                         return float(iso.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             return 2.01410177812
 
         if clean.upper() in {"T", "3H"}:
@@ -177,8 +177,8 @@ class DynamicMendeleevMassMap(Mapping):
                 for iso in getattr(mendeleev.element("H"), "isotopes", []):
                     if iso.mass_number == 3:
                         return float(iso.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             return 3.01604928132
 
         # Parse element symbol with optional isotope / label (e.g., C13, 13C, Cl-35, O_16, C:1)
@@ -196,22 +196,22 @@ class DynamicMendeleevMassMap(Mapping):
                         for iso in getattr(elem_obj, "isotopes", []):
                             if iso.mass_number == iso_num:
                                 return float(iso.mass)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
             try:
                 elem = mendeleev.element(sym_head)
                 if elem is not None and elem.mass is not None:
                     return float(elem.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         else:
             try:
                 elem = mendeleev.element(clean.capitalize())
                 if elem is not None and elem.mass is not None:
                     return float(elem.mass)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         raise KeyError(f"Chemical element '{key}' could not be resolved in Mendeleev library.")
 

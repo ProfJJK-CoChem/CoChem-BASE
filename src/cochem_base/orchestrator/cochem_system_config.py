@@ -368,8 +368,8 @@ def audit_wsl_mount_traps(target_path: Union[str, Path]) -> Tuple[bool, str]:
                                 "wave-function segmentation faults during high-performance quantum chemistry calculations. "
                                 "Remediation: Migrate workspace to native Linux ext4 filesystem (e.g. /home/<user>/... or /tmp/...)."
                             )
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return True, (
             f"WARNING WSL2 9P TRAP: Path '{path_str}' appears to reside on a Windows host mount (/mnt/...). "
             "Native Linux ext4 storage is strongly recommended."
@@ -612,8 +612,8 @@ class HardwareProfile(BaseModel):
             if int_field in d and isinstance(d[int_field], str):
                 try:
                     d[int_field] = int(float(d[int_field]))
-                except ValueError:
-                    pass
+                except ValueError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
         # Synchronize physical cores
         phys = d.get("physical_cpu_cores") or d.get("cpu_physical_cores") or d.get("cpu_cores")
@@ -624,8 +624,8 @@ class HardwareProfile(BaseModel):
                 d["cpu_physical_cores"] = phys_int
                 if "cpu_cores" not in d:
                     d["cpu_cores"] = phys_int
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         else:
             d["physical_cpu_cores"] = 1
             d["cpu_physical_cores"] = 1
@@ -646,13 +646,13 @@ class HardwareProfile(BaseModel):
         if "ram_mb" not in d and "ram_gb" in d:
             try:
                 d["ram_mb"] = int(float(d["ram_gb"]) * 1024)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         elif "ram_gb" not in d and "ram_mb" in d:
             try:
                 d["ram_gb"] = float(d["ram_mb"]) / 1024.0
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Maxcore calculation / OOM clamping guard
         phys_count = int(d.get("physical_cpu_cores", 1))
@@ -1003,8 +1003,8 @@ class StorageTopology(BaseModel):
                             f"Write store path '{resolved}' targets immutable codebase $COCHEM_ROOT ('{resolved_root}'). "
                             "Write stores must target Dynamic Data Tier or Volatile Compute Tier."
                         )
-                    except ValueError:
-                        pass
+                    except ValueError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
         return str(resolved)
 
@@ -1452,8 +1452,8 @@ class CoChemSystemConfig(BaseModel):
             if staged_file.exists():
                 try:
                     staged_file.unlink()
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> CoChemSystemConfig:
@@ -1504,8 +1504,8 @@ def discover_host_os() -> OSProfile:
                 proc_ver = Path("/proc/version").read_text(encoding="utf-8", errors="ignore").lower()
                 if "microsoft" in proc_ver or "wsl" in proc_ver:
                     is_wsl = True
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
     if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
         is_wsl = True
 
@@ -1552,8 +1552,8 @@ def discover_host_hardware() -> HardwareProfile:
             cpuinfo = Path("/proc/cpuinfo").read_text(encoding="utf-8", errors="ignore").lower()
             if "avx512" in cpuinfo:
                 avx512 = True
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # 4. IEEE-754 subnormal floating point precision verification
     trap_detected = verify_ieee754_subnormal_precision()
@@ -1653,15 +1653,15 @@ def discover_engines() -> QuantumEngineRegistry:
             sha256 = None
             try:
                 sha256 = hashlib.sha256(p.read_bytes()).hexdigest()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             ver_str = None
             try:
                 proc = subprocess.run([str(p), "--version"], capture_output=True, text=True, timeout=3.0)
                 ver_str = proc.stdout.strip() or proc.stderr.strip()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
             engines[name] = EngineInfo(
                 status=EngineStatus.FOUND.value,

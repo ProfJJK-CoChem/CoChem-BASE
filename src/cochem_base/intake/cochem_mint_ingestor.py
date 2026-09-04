@@ -74,8 +74,8 @@ def print_status(msg: str, status: str = "info") -> None:
     color = colors.get(status, "black")
     try:
         display(widgets.HTML(f"<span style='color:{color}; font-weight:bold;'>[{status.upper()}]</span> {msg}"))
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 
 def sanitize_project_name(name: str) -> str:
@@ -186,8 +186,8 @@ def generate_3d_geometry(
     if optimize_mmff:
         try:
             AllChem.MMFFOptimizeMolecule(mol)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     out_p = Path(output_path) if output_path is not None else Path(f"{sanitize_project_name(smiles_or_name)}.xyz")
     out_p.parent.mkdir(parents=True, exist_ok=True)

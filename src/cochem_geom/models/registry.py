@@ -151,8 +151,8 @@ class ModelRegistry(metaclass=_ModelRegistryMeta):
                 if "config" in params and len(params) <= 2:
                     try:
                         return model_cls(config=kwargs)
-                    except (TypeError, ValueError):
-                        pass
+                    except (TypeError, ValueError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
                     try:
                         from cochem_geom.models.base_gnn import GNNModelConfig

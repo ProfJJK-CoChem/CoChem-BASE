@@ -68,14 +68,14 @@ def _cleanup_zombie_subprocesses() -> None:
                 for child in p_obj.children(recursive=True):
                     try:
                         child.terminate()
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
-                        pass
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 p_obj.terminate()
             except (psutil.NoSuchProcess, psutil.AccessDenied, ProcessLookupError):
                 try:
                     proc.kill()
-                except (ProcessLookupError, OSError):
-                    pass
+                except (ProcessLookupError, OSError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
 
 atexit.register(_cleanup_zombie_subprocesses)
@@ -866,8 +866,8 @@ def run_crest_secondary_search(
                 for child in p_obj.children(recursive=True):
                     try:
                         child.kill()
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                 p_obj.kill()
             except Exception:
                 proc.kill()

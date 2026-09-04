@@ -260,8 +260,8 @@ def get_atomic_mass(symbol: str) -> float:
             for iso in getattr(h_el, "isotopes", []):
                 if iso.mass_number == 2:
                     return float(iso.mass)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
         return 2.0141017778
 
     if sym.upper() in {"T", "3H"}:
@@ -274,8 +274,8 @@ def get_atomic_mass(symbol: str) -> float:
             for iso in getattr(h_el, "isotopes", []):
                 if iso.mass_number == 3:
                     return float(iso.mass)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
         return 3.0160492813
 
     # Normalize chemical symbol (e.g., "cl" -> "Cl", "FE" -> "Fe")
@@ -283,8 +283,8 @@ def get_atomic_mass(symbol: str) -> float:
     if mendeleev_element is not None:
         try:
             return float(mendeleev_element(norm_sym).mass)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
     try:
         from mendeleev import element
         return float(element(norm_sym).mass)

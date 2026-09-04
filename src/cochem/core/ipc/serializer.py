@@ -123,12 +123,12 @@ def _cleanup_all_shared_memory() -> None:
         for name, info in list(_ACTIVE_SHM.items()):
             try:
                 info["shm"].close()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
             try:
                 info["shm"].unlink()
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         _ACTIVE_SHM.clear()
 
 
@@ -142,14 +142,14 @@ def _finalize_shm(name: str) -> None:
         try:
             info["shm"].close()
             info["shm"].unlink()
-        except (FileNotFoundError, OSError):
-            pass
+        except (FileNotFoundError, OSError) as _e:
+            logger.debug(f"Ignored exception: {_e}")
     try:
         s = sm.SharedMemory(name=name)
         s.close()
         s.unlink()
-    except (FileNotFoundError, OSError):
-        pass
+    except (FileNotFoundError, OSError) as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 
 class SharedMemoryView:

@@ -1439,8 +1439,8 @@ def compress_tensors_for_llm(
                         "Mean": stats["Mean"],
                         "Variance": stats["Variance"],
                     }
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return [
             compress_tensors_for_llm(elem, threshold=threshold, return_models=return_models)
             for elem in payload
@@ -1500,8 +1500,8 @@ def intercept_and_compress(payload: Any, threshold: int = DEFAULT_ARRAY_THRESHOL
                     stats = _compute_tensor_stats(arr)
                     model = TensorSummaryModel(**stats)
                     return model.to_telemetry_dict()
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return payload
 
     return payload

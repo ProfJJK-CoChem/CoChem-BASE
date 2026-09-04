@@ -47,6 +47,8 @@ def _load_mint_module() -> Any:
     """Dynamically loads CoChem-MInt module across multiple candidate paths."""
     base_dir = Path(__file__).resolve().parent.parent
     candidate_paths = [
+        base_dir / "src" / "cochem_base" / "intake" / "CoChem-MInt.py",
+        base_dir / "src" / "cochem_base" / "intake" / "cochem_mint_ingestor.py",
         base_dir / "intake" / "CoChem-MInt.py",
         base_dir / "intake" / "cochem_mint_ingestor.py",
         base_dir / "intake" / "cochem_mint.py",
@@ -262,7 +264,7 @@ def _invoke_ingest_file(file_path: Path) -> Any:
             elif hasattr(engine, "parse_xyz") and file_path.suffix.lower() == ".xyz":
                 return engine.parse_xyz(file_path)
 
-    raise NotImplementedError("No compatible ingestion entrypoint discovered in CoChem-MInt.")
+    raise RuntimeError("No compatible ingestion entrypoint discovered in CoChem-MInt.")
 
 
 def _invoke_batch_scan(target_dir: Path, max_workers: int = 4) -> Any:
@@ -283,7 +285,7 @@ def _invoke_batch_scan(target_dir: Path, max_workers: int = 4) -> Any:
             elif hasattr(engine, "process_batch"):
                 return engine.process_batch(target_dir)
 
-    raise NotImplementedError("No compatible batch scan entrypoint discovered in CoChem-MInt.")
+    raise RuntimeError("No compatible batch scan entrypoint discovered in CoChem-MInt.")
 
 
 def _invoke_resolve_scratch(custom_path: Optional[Union[str, Path]] = None) -> Path:
@@ -737,4 +739,4 @@ def test_benzene_planar_geometry_ingestion(tmp_path: Path) -> None:
 
     # Planarity check: z coordinates all zero
     z_coords = coords[:, 2]
-    np.testing.assert_allclose(z_coords, np.zeros(12), atol=1e-5)
+    np.testing.assert_allclose(z_coords, [0.0] * 12, atol=1e-5)

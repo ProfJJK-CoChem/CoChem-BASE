@@ -848,8 +848,8 @@ class MarkdownBuilder:
                 try:
                     if isinstance(val, list | dict):
                         return pd.DataFrame(val)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
         return None
 
     def build_user_guide(

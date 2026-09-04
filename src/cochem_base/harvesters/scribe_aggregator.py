@@ -325,8 +325,8 @@ class DataAggregator:
             if file_obj is not None:
                 try:
                     file_obj.close()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
     def harvest_conformers(self, top_n: int = 10) -> List[Dict[str, Any]]:
         """Extracts top N lowest-energy conformers, stripping full 3D Cartesian coordinates.
@@ -657,8 +657,8 @@ class DataAggregator:
                                 parsed = json.loads(raw_attr)
                                 if isinstance(parsed, list):
                                     vpt2_freqs = [float(x) for x in parsed]
-                            except Exception:
-                                pass
+                            except Exception as _e:
+                                logger.debug(f"Ignored exception: {_e}")
                         break
 
                 return {

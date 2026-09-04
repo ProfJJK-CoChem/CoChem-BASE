@@ -195,8 +195,8 @@ def dynamic_memory_backoff(
                 try:
                     child.terminate()
                     reaped_children += 1
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             parent.terminate()
             reaped = True
             logger.info(

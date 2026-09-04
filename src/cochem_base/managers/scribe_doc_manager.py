@@ -48,8 +48,8 @@ def _sweep_zombies() -> None:
                 "xelatex.exe",
             ):
                 p.terminate()
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 atexit.register(_sweep_zombies)

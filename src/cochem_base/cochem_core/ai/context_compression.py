@@ -22,6 +22,8 @@ Core Capabilities:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import json
 import math
@@ -321,8 +323,8 @@ def compress_tensors_for_llm(
         try:
             arr = payload.detach().cpu().numpy()
             return compress_tensors_for_llm(arr, threshold=threshold, return_models=return_models)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     # 3. Handle HDF5 Dataset if passed directly
     if isinstance(payload, h5py.Dataset):
@@ -356,8 +358,8 @@ def compress_tensors_for_llm(
                 if arr.size >= threshold:
                     stats = _compute_tensor_stats(arr)
                     return TensorSummaryModel(**stats) if return_models else stats
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return [
             compress_tensors_for_llm(elem, threshold=threshold, return_models=return_models)
             for elem in payload
@@ -615,8 +617,8 @@ def create_hdf5_pointer(
                             inferred_metadata[attr_key] = attr_val.item()
                         else:
                             inferred_metadata[attr_key] = attr_val
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return HDF5PointerModel(
         file=resolved_file,
@@ -718,8 +720,8 @@ def extract_hdf5_pointers(payload: Any) -> List[HDF5PointerModel]:
                 try:
                     found_pointers.append(parse_hdf5_pointer(obj))
                     return
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
             for v in obj.values():
                 _traverse(v)
             return

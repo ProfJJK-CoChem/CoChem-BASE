@@ -111,8 +111,8 @@ def get_covalent_radius(symbol: str) -> float:
             return float(elem.covalent_radius_pyykko) / 100.0
         if elem is not None and elem.covalent_radius is not None:
             return float(elem.covalent_radius) / 100.0
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
     return COVALENT_RADII_FALLBACK.get(sym, 1.20)
 
 
@@ -127,8 +127,8 @@ def get_vdw_radius(symbol: str) -> float:
             return float(elem.vdw_radius_alvarez) / 100.0
         if elem is not None and elem.vdw_radius is not None:
             return float(elem.vdw_radius) / 100.0
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
     return VDW_RADII_FALLBACK.get(sym, 1.70)
 
 
@@ -141,8 +141,8 @@ def get_atomic_mass(symbol: str) -> float:
         elem = mendeleev.element(sym)
         if elem is not None and elem.mass is not None:
             return float(elem.mass)
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
     return 1.008 if sym == "H" else 12.011
 
 

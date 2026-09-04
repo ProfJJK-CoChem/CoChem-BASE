@@ -50,8 +50,8 @@ def sweep_subprocesses() -> None:
         try:
             if p.poll() is None:
                 p.kill()
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 atexit.register(sweep_subprocesses)
 
@@ -225,16 +225,16 @@ class DependencyManager:
             try:
                 if temp_file.exists() and temp_file.is_file():
                     temp_file.unlink()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_files.clear()
 
         for temp_dir in self._tracked_temp_dirs:
             try:
                 if temp_dir.exists() and temp_dir.is_dir():
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
         self._tracked_temp_dirs.clear()
 
     def atomic_write_json(
@@ -734,8 +734,8 @@ def audit_container_sifs(
                         status=EngineStatus.FOUND_VALID if not hash_err else EngineStatus.ERROR,
                     )
                     discovered_sifs.append(item)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     return ContainerAudit(
         runtime_name=runtime_name,
@@ -837,8 +837,8 @@ def resolve_p3_registry_path(output_dir: Optional[Union[str, Path]] = None) -> P
         from cochem_base.config_loader import get_artifact_dir
 
         return get_artifact_dir() / "Registry" / "p3.json"
-    except ImportError:
-        pass
+    except ImportError as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
     # Standard fallback paths
     env_art = os.environ.get("COCHEM_ARTIFACT_DIR")

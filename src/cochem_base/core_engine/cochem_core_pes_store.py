@@ -963,8 +963,8 @@ class PESStore:
                 if self.swmr_mode:
                     try:
                         f.swmr_mode = True
-                    except (AttributeError, RuntimeError):
-                        pass
+                    except (AttributeError, RuntimeError) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
@@ -1155,8 +1155,8 @@ class PESStore:
                     if self.swmr_mode:
                         try:
                             dset.refresh()
-                        except Exception:
-                            pass
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
                     raw = dset[:]
                     return [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw]
                 return []
@@ -1632,8 +1632,8 @@ class PESStore:
                 if ds_name in p and hasattr(p[ds_name], "refresh"):
                     try:
                         p[ds_name].refresh()
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.debug(f"Ignored exception: {_e}")
             ids = [(s.decode("utf-8") if isinstance(s, bytes) else str(s)) for s in p["point_id"][:]]
             conv = p["converged"][:]
             energies = p["energy"][:]

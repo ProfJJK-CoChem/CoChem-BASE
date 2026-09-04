@@ -141,10 +141,10 @@ def _sweep_zombie_processes() -> None:
             try:
                 if child.status() == psutil.STATUS_ZOMBIE:
                     child.wait(timeout=0.2)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired):
-                pass
-    except Exception:
-        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.TimeoutExpired) as _e:
+                logger.debug(f"Ignored exception: {_e}")
+    except Exception as _e:
+        logger.debug(f"Ignored exception: {_e}")
 
 
 atexit.register(_sweep_zombie_processes)
@@ -411,32 +411,32 @@ def detect_system_cpu_topology(env: Optional[Dict[str, str]] = None) -> Tuple[in
             val = int(target_env["COCHEM_PHYSICAL_CORES"].strip())
             if val >= 1:
                 physical = val
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if "COCHEM_LOGICAL_CORES" in target_env and target_env["COCHEM_LOGICAL_CORES"].strip():
         try:
             val = int(target_env["COCHEM_LOGICAL_CORES"].strip())
             if val >= 1:
                 logical = val
-        except ValueError:
-            pass
+        except ValueError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if physical is None:
         try:
             p = psutil.cpu_count(logical=False)
             if p is not None and p >= 1:
                 physical = p
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if logical is None:
         try:
             log_count = psutil.cpu_count(logical=True)
             if log_count is not None and log_count >= 1:
                 logical = log_count
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
     if physical is None:
         physical = os.cpu_count() or 1

@@ -6,6 +6,8 @@ Integrates real physical atomic masses via mendeleev.
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import json
 import shutil
@@ -269,9 +271,9 @@ class MobileCloudEngine:
             if job_sandbox_dir.exists():
                 try:
                     shutil.rmtree(job_sandbox_dir)
-                except (OSError, FileNotFoundError):
+                except (OSError, FileNotFoundError) as _e:
                     # Handle OS-level file release latency without broad exception swallowing
-                    pass
+                    logger.debug(f"Ignored exception: {_e}")
 
     def recover(self) -> int:
         """Replay WAL logs into SWMR HDF5 to recover state after crash."""

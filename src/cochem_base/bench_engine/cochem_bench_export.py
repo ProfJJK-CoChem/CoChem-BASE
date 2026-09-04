@@ -26,6 +26,8 @@ Authoritative Standards:
 """
 
 from __future__ import annotations
+import logging
+logger = logging.getLogger(__name__)
 
 import datetime
 import hashlib
@@ -492,8 +494,8 @@ class ProvenanceStamper:
                 )
                 if proc.returncode == 0 and proc.stdout.strip():
                     return proc.stdout.strip()
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         try:
             head_path = Path(repo_dir).resolve()
@@ -508,8 +510,8 @@ class ProvenanceStamper:
                     else:
                         return ref
                 head_path = head_path.parent
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         return "UNKNOWN_GIT_COMMIT"
 
@@ -543,8 +545,8 @@ class ProvenanceStamper:
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
         return {}
 
     def stamp_provenance(
@@ -646,8 +648,8 @@ class PublicationArchiver:
         if read_only:
             try:
                 os.chmod(target_zip, 0o444)
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         return target_zip
 

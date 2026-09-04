@@ -598,8 +598,8 @@ class ToposScratchPurgeEngine:
 
         try:
             file_size = file_path.stat().st_size
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         # Check age filter if configured
         if self.config.max_file_age_seconds is not None:
@@ -614,8 +614,8 @@ class ToposScratchPurgeEngine:
                         reason=f"File age ({age:.1f}s) is less than max_file_age_seconds threshold",
                         extension=ext,
                     )
-            except OSError:
-                pass
+            except OSError as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Check whitelisting
         if self.is_whitelisted(file_path):
@@ -651,8 +651,8 @@ class ToposScratchPurgeEngine:
                 try:
                     try:
                         os.chmod(file_path, stat.S_IWRITE | stat.S_IREAD)
-                    except OSError:
-                        pass
+                    except OSError as _e:
+                        logger.debug(f"Ignored exception: {_e}")
                     shutil.move(str(file_path), str(q_dest))
                     result.total_files_quarantined += 1
                     result.reclaimed_bytes += file_size
@@ -689,8 +689,8 @@ class ToposScratchPurgeEngine:
             try:
                 try:
                     os.chmod(file_path, stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
 
                 file_path.unlink()
                 result.total_files_deleted += 1
@@ -898,8 +898,8 @@ class ToposProcessReaper:
                     if "*" in p_lower and (fnmatch.fnmatch(exe_arg, p_lower) or fnmatch.fnmatch(script_arg, p_lower)):
                         return True, f"Matched pattern target '{pat}' in cmdline: {cmdline[:2]}"
 
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False, "Process unavailable"
@@ -939,10 +939,10 @@ class ToposProcessReaper:
             if hasattr(os, "getpgid"):
                 try:
                     pgid = os.getpgid(pid)
-                except OSError:
-                    pass
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         try:
             children = proc.children(recursive=True)
@@ -955,8 +955,8 @@ class ToposProcessReaper:
         for p in all_procs:
             try:
                 p.terminate()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                logger.debug(f"Ignored exception: {_e}")
 
         # Wait for graceful exit
         _gone, alive = psutil.wait_procs(all_procs, timeout=self.config.sigterm_timeout_seconds)
@@ -976,14 +976,14 @@ class ToposProcessReaper:
                     except Exception:
                         try:
                             p.kill()
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                        except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                            logger.debug(f"Ignored exception: {_e}")
             else:
                 for p in alive:
                     try:
                         p.kill()
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                        logger.debug(f"Ignored exception: {_e}")
 
             _gone2, alive2 = psutil.wait_procs(alive, timeout=self.config.sigkill_timeout_seconds)
             status = "killed_forcefully" if not alive2 else "failed"
@@ -1149,8 +1149,8 @@ class ToposHDF5LockSweeper:
                 h5_p = self.translator.normalize_path(data["h5_file"])
                 if h5_p.exists():
                     return h5_p
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
         return None
 
@@ -1222,8 +1222,8 @@ class ToposHDF5LockSweeper:
             try:
                 try:
                     os.chmod(lock_file, stat.S_IWRITE | stat.S_IREAD)
-                except OSError:
-                    pass
+                except OSError as _e:
+                    logger.debug(f"Ignored exception: {_e}")
                 lock_file.unlink()
                 status = "stale_lock_purged" if is_zombie_or_dead else "lock_released"
                 reason = f"Lock released (PID={holder_pid}, stale={is_zombie_or_dead})"

@@ -81,8 +81,8 @@ else:
         """Release OS-level lock on POSIX using fcntl.flock."""
         try:
             fcntl.flock(fd, fcntl.LOCK_UN)
-        except OSError:
-            pass
+        except OSError as _e:
+            logger.debug(f"Ignored exception: {_e}")
 
 
 class RWFileLockTimeoutError(TimeoutError):

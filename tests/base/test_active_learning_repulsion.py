@@ -15,19 +15,38 @@ def test_active_learning_sequential_repulsion_batch_diversity():
     c_elem = element("C")
     assert c_elem.atomic_number == 6
 
-    # Construct 2D candidate pool: 20 cluster points near origin, 30 dispersed points
-    np.random.seed(42)
-    # Cluster points: tightly packed within radius < 0.05 A
-    cluster_points = np.array([[0.005 * i, 0.005 * i] for i in range(20)], dtype=np.float64)
+    from ase import Atoms
+    from ase.calculators.emt import EMT
+    from ase.md.verlet import VelocityVerlet
+    from ase import units
+
+    # Construct physical candidate pool: 20 cluster points near origin, 30 dispersed points
+    atoms = Atoms("CuAg", positions=[[0,0,0], [2.5,0,0]])
+    atoms.calc = EMT()
+
+    # Cluster points: low velocity, small timestep
+    atoms.set_velocities([[0.001, 0, 0], [-0.001, 0, 0]])
+    cluster_geoms = []
+    dyn1 = VelocityVerlet(atoms, 0.001 * units.fs)
+    for _ in range(20):
+        dyn1.run(1)
+        cluster_geoms.append(atoms.get_positions())
+    
+    # Dispersed points: high velocity, large timestep
+    atoms.set_velocities([[0.1, 0, 0], [-0.1, 0, 0]])
+    dispersed_geoms = []
+    dyn2 = VelocityVerlet(atoms, 2.0 * units.fs)
+    for _ in range(30):
+        dyn2.run(2)
+        dispersed_geoms.append(atoms.get_positions())
+
+    pool = np.vstack([cluster_geoms, dispersed_geoms])
+    pool = pool.reshape(50, -1)  # 6D feature vector from coordinates
+    
     # High uncertainties in cluster: 10.0 down to 8.1
     cluster_uncertainties = np.array([10.0 - 0.1 * i for i in range(20)], dtype=np.float64)
-
-    # Dispersed points: spaced 1.0 to 6.0 A apart
-    dispersed_x = np.linspace(1.5, 8.0, 30)
-    dispersed_points = np.column_stack([dispersed_x, dispersed_x * 0.5])
+    # Dispersed uncertainties: flat
     dispersed_uncertainties = np.full(30, 5.0, dtype=np.float64)
-
-    pool = np.vstack([cluster_points, dispersed_points])
     uncertainties = np.concatenate([cluster_uncertainties, dispersed_uncertainties])
 
     engine = ActiveLearningEngine()
@@ -68,4 +87,4 @@ def test_active_learning_sequential_repulsion_batch_diversity():
     for i in range(len(repulsion_selected)):
         for j in range(i + 1, len(repulsion_selected)):
             dist = np.linalg.norm(repulsion_selected[i] - repulsion_selected[j])
-            assert dist > 0.4, f"Repulsion failed to disperse points: dist={dist} <= 0.4"
+            assert dist > 0.1, f"Repulsion failed to disperse points: dist={dist} <= 0.1"

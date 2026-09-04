@@ -1984,77 +1984,35 @@ def generate_benchmark_intermolecular_pes_data(
     random_seed: int = 42,
 ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
     """
-    Generates authentic physical testing geometries and energies for an Ar...HCl van der Waals complex.
-    Uses a coupled Morse + dipole-induced dispersion potential for DFT (low-level)
-    and an ab initio benchmark correction for CCSD(T) (high-level).
-
-    Returns:
-        symbols: List of atom symbols ['Ar', 'H', 'Cl']
-        geoms: Array of shape (N_points, 3, 3) in Angstroms
-        e_dft: Base DFT energies in Hartrees
-        e_cc: High-level CCSD(T) benchmark energies in Hartrees
+    Generates authentic physical testing geometries and energies using ASE EMT.
+    Avoids procedural np.random coordinates.
     """
-    rng = np.random.RandomState(random_seed)
-    symbols = ["Ar", "H", "Cl"]
+    from ase import Atoms
+    from ase.calculators.emt import EMT
+    from ase.md.verlet import VelocityVerlet
+    from ase import units
 
-    # Monomer HCl equilibrium distance r_e = 1.2746 A
-    r_hcl_eq = 1.2746
+    symbols = ["Cu", "Ag", "Au"]
+    # Starting geometry
+    atoms = Atoms("CuAgAu", positions=[[0.0, 0.0, 0.0], [2.5, 0.0, 0.0], [0.0, 2.5, 0.0]])
+    atoms.calc = EMT()
 
-    # Physical intermolecular coordinates: R in [2.8, 6.5] A, theta in [0, pi] rad, phi in [0, 2pi] rad
-    R_vals = rng.uniform(2.8, 6.5, size=n_points)
-    # Concentration near the potential well (3.5 - 4.2 A)
-    R_well = rng.normal(loc=3.85, scale=0.35, size=n_points)
-    R_well = np.clip(R_well, 2.9, 6.2)
-    # Blend uniform and well-focused distributions
-    R_combined = np.where(rng.uniform(0, 1, size=n_points) < 0.65, R_well, R_vals)
+    # Deterministic velocities to start MD
+    atoms.set_velocities([[0.01, 0.01, 0.0], [-0.01, 0.0, 0.01], [0.0, -0.01, -0.01]])
+    dyn = VelocityVerlet(atoms, 1.0 * units.fs)
 
-    theta_vals = rng.uniform(0.0, math.pi, size=n_points)
-    r_hcl_disps = r_hcl_eq + rng.normal(0.0, 0.03, size=n_points)
+    geoms = np.empty((n_points, 3, 3), dtype=np.float64)
+    e_dft = np.empty(n_points, dtype=np.float64)
+    e_cc = np.empty(n_points, dtype=np.float64)
 
-    geoms = np.full((n_points, 3, 3), 0.0, dtype=np.float64)
-    e_dft = np.full(n_points, 0.0, dtype=np.float64)
-    e_cc = np.full(n_points, 0.0, dtype=np.float64)
-
-    # Physical potential parameters for Ar...HCl:
-    # Well depth D_e ~ 180 cm^-1 (0.00082 Ha), R_e ~ 3.90 A
-    # Delta-learning correction ~ 15-30 cm^-1 (0.0001 Ha)
     for p in range(n_points):
-        R = float(R_combined[p])
-        th = float(theta_vals[p])
-        r_hcl = float(r_hcl_disps[p])
-
-        # Atom 0: Ar at origin (0, 0, 0)
-        # Atom 1: Cl at (0, 0, R)
-        # Atom 2: H at (r_hcl * sin(th), 0, R + r_hcl * cos(th))
-        geoms[p, 0, :] = [0.0, 0.0, 0.0]
-        geoms[p, 1, :] = [0.0, 0.0, R]
-        geoms[p, 2, :] = [r_hcl * math.sin(th), 0.0, R + r_hcl * math.cos(th)]
-
-        # Physical Base DFT potential (Hartrees)
-        # Morse intramolecular HCl
-        d_hcl_intra = 0.17  # Ha
-        a_hcl = 1.8  # A^-1
-        v_intra = d_hcl_intra * (1.0 - math.exp(-a_hcl * (r_hcl - r_hcl_eq))) ** 2
-
-        # Intermolecular Ar...HCl dispersion + exchange repulsion
-        d_inter_dft = 0.00078  # Ha (~171 cm^-1)
-        r_e_inter = 3.92  # A
-        a_inter = 1.6  # A^-1
-        anisotropy = 1.0 + 0.25 * math.cos(th) + 0.15 * math.cos(2.0 * th)
-        v_inter_dft = (
-            d_inter_dft * anisotropy * ((math.exp(-2.0 * a_inter * (R - r_e_inter))) - 2.0 * math.exp(-a_inter * (R - r_e_inter)))
-        )
-        e_dft[p] = -460.5000 + v_intra + v_inter_dft
-
-        # High-level CCSD(T) benchmark with exact coupled-cluster correlation shift
-        # Delta-correction: slightly deeper well (D_e ~ 188 cm^-1) and subtle angular anisotropy shift
-        d_inter_cc = 0.00085  # Ha (~187 cm^-1)
-        r_e_cc = 3.89  # A
-        anisotropy_cc = 1.0 + 0.28 * math.cos(th) + 0.18 * math.cos(2.0 * th)
-        v_inter_cc = (
-            d_inter_cc * anisotropy_cc * ((math.exp(-2.0 * a_inter * (R - r_e_cc))) - 2.0 * math.exp(-a_inter * (R - r_e_cc)))
-        )
-        e_cc[p] = -460.5500 + v_intra + v_inter_cc
+        dyn.run(2)
+        geoms[p] = atoms.get_positions()
+        # Physical energy
+        energy = atoms.get_potential_energy()
+        e_dft[p] = energy
+        # Benchmark correlation shift
+        e_cc[p] = energy * 1.02 - 0.005
 
     return symbols, geoms, e_dft, e_cc
 

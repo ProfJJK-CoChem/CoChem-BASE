@@ -30,18 +30,15 @@ def test_pip_closed_subgroup_energy_degeneracy():
     # Verify algebraic group closure has been strictly verified and subgroup has order 48
     assert len(featurizer.group_permutations) == 48
 
-    # 6-atom coordinate matrix
-    coords = np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.1, 0.0, 0.0],
-            [0.0, 1.2, 0.0],
-            [1.1, 1.2, 0.0],
-            [0.55, 0.6, 1.0],
-            [0.55, 0.6, -1.0],
-        ],
-        dtype=np.float64,
-    )
+    # Load real 6-atom coordinate matrix from fixture (water dimer)
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+    xyz_path = os.path.join(data_dir, "water_dimer.xyz")
+    with open(xyz_path, 'r') as f:
+        lines = f.readlines()
+    coords = np.array([
+        [float(x) for x in line.split()[1:4]]
+        for line in lines[2:8]
+    ], dtype=np.float64)
 
     f_orig = featurizer.compute_morse_features(coords)
 

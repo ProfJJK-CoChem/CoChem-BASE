@@ -15,22 +15,45 @@ def test_krr_numerical_conditioning_and_anchor_floor():
     ar_elem = element("Ar")
     assert ar_elem.atomic_number == 18
 
+    from ase import Atoms
+    from ase.calculators.emt import EMT
+    from ase.md.verlet import VelocityVerlet
+    from ase import units
+
     # 1. Construct dataset with 5 asymptotic dissociation points where r > 10 A
-    # In Morse representation: y = exp(-r / 2.0).
-    # Near equilibrium: r in [1.5, 3.5]
-    r_eq = np.linspace(1.5, 3.5, 10)
-    # Asymptotic dissociation: r in [12.0, 20.0]
-    r_asymp = np.linspace(12.0, 20.0, 5)
-    r_all = np.concatenate([r_eq, r_asymp])
+    # Physical states using ASE EMT
+    atoms = Atoms("CuAg", positions=[[0,0,0], [2.5,0,0]])
+    atoms.calc = EMT()
 
+    # Near equilibrium: 10 points
+    atoms.set_velocities([[0.01, 0, 0], [-0.01, 0, 0]])
+    dyn1 = VelocityVerlet(atoms, 1.0 * units.fs)
+    r_eq_geoms = []
+    y_eq = []
+    for _ in range(10):
+        dyn1.run(5)
+        r_eq_geoms.append(atoms.get_positions())
+        y_eq.append(atoms.get_potential_energy())
+
+    # Asymptotic dissociation: 5 points where r > 12 A
+    atoms.set_positions([[0,0,0], [12.0, 0, 0]])
+    atoms.set_velocities([[0.01, 0, 0], [0.01, 0, 0]])
+    dyn2 = VelocityVerlet(atoms, 1.0 * units.fs)
+    r_asymp_geoms = []
+    y_asymp = []
+    for _ in range(5):
+        dyn2.run(5)
+        r_asymp_geoms.append(atoms.get_positions())
+        y_asymp.append(atoms.get_potential_energy())
+
+    X_geoms = np.vstack([r_eq_geoms, r_asymp_geoms])
+    dists = np.linalg.norm(X_geoms[:, 0, :] - X_geoms[:, 1, :], axis=1)
     # 1D features: y_ij
-    X = np.exp(-r_all / 2.0).reshape(-1, 1)
+    X = np.exp(-dists / 2.0).reshape(-1, 1)
 
-    # Synthetic Morse potential energy: D_e * (1 - exp(-a * (r - r_e)))^2
-    D_e = 0.1
-    a = 1.8
-    r_e = 2.0
-    y = D_e * (1.0 - np.exp(-a * (r_all - r_e))) ** 2
+    y_raw = np.concatenate([y_eq, y_asymp])
+    # Target y: shift so asymptotic energy is ~ 0 for anchor floor testing
+    y = y_raw - np.mean(y_asymp)
 
     # Verify that raw Gram matrix of asymptotic points is ill-conditioned:
     # Kernel: K_ij = exp(-gamma * ||x_i - x_j||^2)

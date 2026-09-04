@@ -1198,6 +1198,11 @@ def safe_subprocess_run(
     required_disk_gb: Optional[float] = None,
     sanitize_mpi: bool = True,
     use_job_object: bool = True,
+    stream_to_disk: bool = False,
+    on_stdout_line: Optional[Callable[[str], None]] = None,
+    on_stderr_line: Optional[Callable[[str], None]] = None,
+    tail_buffer_lines: int = 500,
+    load_full_stdout: bool = False,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """Executes a subprocess safely with cross-platform process isolation.
@@ -1281,8 +1286,66 @@ def safe_subprocess_run(
     stderr_data: Any = ""
 
     try:
-        stdout_data, stderr_data = proc.communicate(timeout=timeout)
-        ret = proc.returncode
+        if stream_to_disk and capture_output:
+            from collections import deque
+
+            stdout_log_path = Path(cwd_path) / "process_stdout.log"
+            stderr_log_path = Path(cwd_path) / "process_stderr.log"
+
+            stdout_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+            stderr_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+
+            def _stream_reader(
+                pipe: Any,
+                log_path: Path,
+                tail_buf: deque[str],
+                on_line_cb: Optional[Callable[[str], None]],
+            ) -> None:
+                try:
+                    with open(log_path, "w", encoding="utf-8") as f:
+                        for line in iter(pipe.readline, ""):
+                            f.write(line)
+                            f.flush()
+                            tail_buf.append(line)
+                            if on_line_cb is not None:
+                                try:
+                                    on_line_cb(line)
+                                except Exception as exc:
+                                    logger.warning("Error in stream line callback: %s", exc)
+                except Exception as exc:
+                    logger.warning("Error in stream reader thread: %s", exc)
+                finally:
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
+
+            t_stdout = threading.Thread(
+                target=_stream_reader,
+                args=(proc.stdout, stdout_log_path, stdout_tail, on_stdout_line),
+                daemon=True,
+            )
+            t_stderr = threading.Thread(
+                target=_stream_reader,
+                args=(proc.stderr, stderr_log_path, stderr_tail, on_stderr_line),
+                daemon=True,
+            )
+            t_stdout.start()
+            t_stderr.start()
+
+            ret = proc.wait(timeout=timeout)
+            t_stdout.join(timeout=5.0)
+            t_stderr.join(timeout=5.0)
+
+            if load_full_stdout:
+                stdout_data = stdout_log_path.read_text(encoding="utf-8")
+            else:
+                stdout_data = "".join(stdout_tail)
+
+            stderr_data = "".join(stderr_tail)
+        else:
+            stdout_data, stderr_data = proc.communicate(timeout=timeout)
+            ret = proc.returncode
 
         crash_payload = extract_segfault_hex_dump(ret, stderr_data)
         if crash_payload.get("is_crash"):

@@ -110,9 +110,15 @@ from cochem_base.exceptions import (
     QCSchemaValidationError,
     SingularityError,
 )
-from cochem_base.core.ipc.serializer import validate_airgap_write_path
-from cochem_base.core.licensing import validate_spdx_license
-from cochem_base.core.models import NAMESPACE_COCHEM, PESPointRecord
+
+def validate_airgap_write_path(target_path: Union[str, Path]) -> Path:
+    """Lazily import validate_airgap_write_path to break circular import cycle."""
+    from cochem_base.core.ipc.serializer import validate_airgap_write_path as _v
+    return _v(target_path)
+
+def validate_spdx_license(license_str: str) -> str:
+    from cochem_base.core.licensing import validate_spdx_license as _v
+    return _v(license_str)
 
 
 def get_node_local_scratch_dir() -> Path:
@@ -246,6 +252,15 @@ class QCSchemaProvenance(BaseModel):
         self.public_key = pub
         self.fingerprint = fp
         return sig
+
+    def compute_signature(self, private_key: Any = None) -> Optional[str]:
+        """Compute cryptographic signature or SHA-256 integrity fingerprint over canonical bytes."""
+        if private_key is not None:
+            return self.sign(private_key)
+        import hashlib
+        c_bytes = self.canonical_bytes()
+        self.fingerprint = hashlib.sha256(c_bytes).hexdigest()
+        return self.fingerprint
 
     def verify(self) -> bool:
         """Verify PureEd25519 digital signature against embedded public key."""
@@ -868,7 +883,9 @@ class PESStore:
         lock_timeout: float = DEFAULT_LOCK_TIMEOUT_S,
         swmr_mode: bool = False,
         lock_dir: Optional[Union[str, Path]] = None,
+        compress: bool = True,
     ) -> None:
+        self.compress: bool = compress
         self.path = validate_airgap_write_path(Path(path).resolve())
         self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
         self.lock_path = self.lock_dir / f"{self.path.name}.lock"
@@ -1054,10 +1071,12 @@ class PESStore:
             "dtype": dtype,
             "chunks": (CHUNK_POINTS,) + shape_tail,
         }
-        if dtype != VLEN_STR:
+        if dtype != VLEN_STR and self.compress:
             kw.update(compression="gzip", compression_opts=4, shuffle=True)
             if checksum:
                 kw["fletcher32"] = True
+        elif checksum and dtype != VLEN_STR:
+            kw["fletcher32"] = True
         return grp.create_dataset(name, **kw)
 
     @staticmethod
@@ -1068,7 +1087,7 @@ class PESStore:
         ds[idx:] = block
         return idx
 
-    def add_point(self, point: PESPointRecord) -> None:
+    def add_point(self, point: Any) -> None:
         """Append a single PESPointRecord into the HDF5 store in a thread-safe SWMR-compliant manner [D]."""
         with self._file_lock():
             with h5py.File(self.path, "a", libver="latest") as f:
@@ -1148,9 +1167,11 @@ class PESStore:
     def add_points(
         self,
         method_id: str,
-        coords: Union[Sequence[Any], np.ndarray],
-        energies: Union[Sequence[float], np.ndarray, float],
+        coords: Optional[Union[Sequence[Any], np.ndarray]] = None,
+        energies: Optional[Union[Sequence[float], np.ndarray, float]] = None,
         *,
+        coordinates: Optional[Union[Sequence[Any], np.ndarray]] = None,
+        provenance: Optional[Union[Dict[str, Any], str]] = None,
         point_ids: Optional[Sequence[str]] = None,
         gradients: Optional[Union[Sequence[Any], np.ndarray]] = None,
         converged: Optional[Union[Sequence[bool], np.ndarray, bool]] = None,
@@ -1160,12 +1181,14 @@ class PESStore:
         routine: str = "sp",
     ) -> int:
         """
-        Adds computed PES points with full QCSchema provenance, chunking, and checksums.
+        Adds computed PES points with normalized provenance index, chunking, and checksums.
 
         Args:
             method_id: Registered method identifier
             coords: Cartesian coordinates array (Npts, Natoms, 3) or (Natoms, 3) for a single point
             energies: Electronic energies array (Npts,) or float for single point
+            coordinates: Optional alias for coords
+            provenance: Optional provenance dict or JSON string
             point_ids: Optional list of unique point IDs
             gradients: Optional gradients array (Npts, Natoms, 3) in Hartree/Bohr
             converged: Convergence flags (Npts,) or bool
@@ -1177,11 +1200,17 @@ class PESStore:
         Returns:
             Starting index i0 where points were inserted.
         """
-        coords_arr = np.asarray(coords, dtype=np.float64)
+        target_coords = coordinates if coordinates is not None else coords
+        if target_coords is None:
+            raise ValueError("Must provide coords or coordinates.")
+
+        coords_arr = np.asarray(target_coords, dtype=np.float64)
         if coords_arr.ndim == 2:
             coords_arr = coords_arr[None]
         npts, natm = coords_arr.shape[0], coords_arr.shape[1]
 
+        if energies is None:
+            raise ValueError("Must provide energies.")
         energies_arr = np.asarray(energies, dtype=np.float64)
         if energies_arr.ndim == 0:
             energies_arr = energies_arr[None]
@@ -1189,22 +1218,69 @@ class PESStore:
         if len(energies_arr) != npts:
             raise ValueError(f"Number of energies ({len(energies_arr)}) does not match number of points ({npts}).")
 
-        # Construct signed provenance record
-        prov_obj = QCSchemaProvenance(
-            creator=creator,
-            version=version,
-            routine=routine,
-            host=socket.gethostname(),
-            platform=platform.platform(),
-            utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        )
-        prov_obj.compute_signature()
-        prov_json = prov_obj.model_dump_json()
+        # Construct signed provenance record or serialize input provenance
+        if provenance is not None:
+            if isinstance(provenance, dict):
+                prov_json = json.dumps(provenance, sort_keys=True)
+            elif isinstance(provenance, str):
+                prov_json = provenance
+            else:
+                prov_json = str(provenance)
+        else:
+            prov_obj = QCSchemaProvenance(
+                creator=creator,
+                version=version,
+                routine=routine,
+                host=socket.gethostname(),
+                platform=platform.platform(),
+                utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+            prov_obj.compute_signature()
+            prov_json = prov_obj.model_dump_json()
 
         with self._file_lock():
             with h5py.File(self.path, "a") as f:
                 # Ensure method group exists
-                f.require_group(f"methods/{method_id}")
+                method_grp = f.require_group(f"methods/{method_id}")
+
+                # Create or retrieve provenance_index dataset
+                if "provenance_index" not in method_grp:
+                    dt_vlen = h5py.string_dtype(encoding="utf-8")
+                    try:
+                        prov_index_ds = method_grp.create_dataset(
+                            "provenance_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=dt_vlen,
+                            chunks=(64,),
+                            fletcher32=True,
+                        )
+                    except Exception:
+                        prov_index_ds = method_grp.create_dataset(
+                            "provenance_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=dt_vlen,
+                            chunks=(64,),
+                        )
+                else:
+                    prov_index_ds = method_grp["provenance_index"]
+
+                # Look up prov_json in provenance_index; append if new, obtain prov_id: np.uint32
+                prov_id = None
+                prov_list = [
+                    item.decode("utf-8") if isinstance(item, bytes) else str(item)
+                    for item in prov_index_ds[:]
+                ]
+                for idx, item_str in enumerate(prov_list):
+                    if item_str == prov_json:
+                        prov_id = np.uint32(idx)
+                        break
+
+                if prov_id is None:
+                    prov_id = np.uint32(len(prov_list))
+                    prov_index_ds.resize((int(prov_id + 1),))
+                    prov_index_ds[int(prov_id)] = prov_json
 
                 i0 = self._append(self._ds(f, method_id, "coordinates", (natm, 3), np.float64), coords_arr)
                 self._append(self._ds(f, method_id, "energy", (), np.float64, checksum=True), energies_arr)
@@ -1221,8 +1297,9 @@ class PESStore:
                     wall_block = np.full(npts, float(wall_s), dtype=np.float64)
                 self._append(self._ds(f, method_id, "wall_s", (), np.float64), wall_block)
 
-                # Provenance
-                self._append(self._ds(f, method_id, "provenance", (), VLEN_STR), np.array([prov_json] * npts, dtype=object))
+                # Write normalized provenance_id block
+                prov_id_block = np.full(npts, prov_id, dtype=np.uint32)
+                self._append(self._ds(f, method_id, "provenance_id", (), np.uint32, checksum=True), prov_id_block)
 
                 # Point IDs
                 p_ids = list(point_ids) if point_ids is not None else [f"{method_id}:{i0 + k}" for k in range(npts)]
@@ -1247,6 +1324,31 @@ class PESStore:
                 f.flush()
 
         return i0
+
+    def get_point_provenance(self, method_id: str, point_index: int) -> Dict[str, Any]:
+        """
+        Retrieves the provenance dictionary for a specific point by reading its provenance_id
+        and resolving it via the method's provenance_index, with fallback to legacy provenance dataset.
+        """
+        with self._file_lock():
+            with h5py.File(self.path, "r") as f:
+                pts_grp = f.get(f"points/{method_id}")
+                if pts_grp is not None and "provenance_id" in pts_grp:
+                    prov_id = int(pts_grp["provenance_id"][point_index])
+                    method_grp = f.get(f"methods/{method_id}")
+                    if method_grp is not None and "provenance_index" in method_grp:
+                        raw_prov = method_grp["provenance_index"][prov_id]
+                        if isinstance(raw_prov, bytes):
+                            raw_prov = raw_prov.decode("utf-8")
+                        return json.loads(raw_prov) if isinstance(raw_prov, str) else dict(raw_prov)
+
+                if pts_grp is not None and "provenance" in pts_grp:
+                    raw_prov = pts_grp["provenance"][point_index]
+                    if isinstance(raw_prov, bytes):
+                        raw_prov = raw_prov.decode("utf-8")
+                    return json.loads(raw_prov) if isinstance(raw_prov, str) else dict(raw_prov)
+
+                raise KeyError(f"No provenance found for method '{method_id}' at index {point_index}")
 
     def get_points(self, method_id: str, converged_only: bool = False) -> List[Dict[str, Any]]:
         """Convenience query returning list of point dicts for a method."""
@@ -2087,5 +2189,13 @@ def main() -> None:
             print(f"  [{k}] A={v.A_MHz:.3f} MHz, B={v.B_MHz:.3f} MHz, C={v.C_MHz:.3f} MHz | Lowest Mode: {v.lowest_harmonic_mode_cm_inv:.2f} cm^-1")
 
 
+def __getattr__(name: str) -> Any:
+    if name == "PESPointRecord":
+        from cochem_base.core.models import PESPointRecord
+        return PESPointRecord
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 if __name__ == "__main__":
     main()
+

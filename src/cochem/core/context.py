@@ -10,6 +10,8 @@ import dataclasses
 import logging
 import os
 import pathlib
+import platform
+import random
 import sys
 import time
 import uuid
@@ -148,7 +150,11 @@ class AtomicWrite:
 
 
 class FileLock:
-    """Cross-process file locking for Local/Cloud tiers (Tier 1-4) with strict HPC tier prohibition."""
+    """Cross-process and cross-thread file locking for Local/Cloud tiers (Tier 1-4) with strict HPC tier prohibition.
+
+    Features adaptive exponential backoff with random jitter, stale lock resolution (>300s),
+    and cross-platform low-latency primitives.
+    """
 
     def __init__(
         self,
@@ -156,7 +162,7 @@ class FileLock:
         timeout_sec: float = 10.0,
     ) -> None:
         self.lock_path: pathlib.Path = pathlib.Path(lock_path).resolve()
-        self.timeout_sec: float = max(0.1, float(timeout_sec))
+        self.timeout_sec: float = max(0.001, float(timeout_sec))
 
         # Verify against HPC distributed filesystem lock prohibition
         active_ctx = _CURRENT_CONTEXT.get()
@@ -169,30 +175,88 @@ class FileLock:
                 )
 
         target_file = str(self.lock_path) if str(self.lock_path).endswith(".lock") else f"{self.lock_path}.lock"
-        self._internal_lock = filelock.FileLock(target_file, timeout=self.timeout_sec)
+        self._target_file: pathlib.Path = pathlib.Path(target_file).resolve()
+        self._fd: Optional[int] = None
 
-    def acquire(self) -> bool:
-        """Acquire physical cross-process file lock within timeout window."""
+    def acquire(
+        self,
+        initial_delay_sec: float = 0.001,
+        max_delay_sec: float = 0.025,
+        backoff_factor: float = 1.5,
+        jitter: bool = True,
+    ) -> bool:
+        """Acquire physical file lock using adaptive exponential backoff with jitter."""
         assert_writable_path(self.lock_path)
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self._target_file.parent.mkdir(parents=True, exist_ok=True)
 
-        try:
-            self._internal_lock.acquire(timeout=self.timeout_sec)
-            return True
-        except filelock.Timeout as lock_err:
-            raise TimeoutError(
-                f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}"
-            ) from lock_err
+        # Stale lock resolution: if older than 300s, clear lock file
+        if self._target_file.exists():
+            try:
+                mtime = self._target_file.stat().st_mtime
+                if time.time() - mtime > 300.0:
+                    logger.warning("Detected stale lock file (>300s) at %s; clearing.", self._target_file)
+                    try:
+                        self._target_file.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+
+        start_time = time.perf_counter()
+        current_delay = initial_delay_sec
+
+        while True:
+            fd = None
+            try:
+                fd = os.open(self._target_file, os.O_CREAT | os.O_RDWR)
+                if platform.system() == "Windows":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                self._fd = fd
+                return True
+            except (OSError, PermissionError):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    fd = None
+
+                elapsed = time.perf_counter() - start_time
+                if elapsed >= self.timeout_sec:
+                    return False
+
+                sleep_time = random.uniform(current_delay * 0.5, current_delay * 1.5) if jitter else current_delay
+                time.sleep(sleep_time)
+                current_delay = min(current_delay * backoff_factor, max_delay_sec)
 
     def release(self) -> None:
-        """Release lock handle."""
-        try:
-            self._internal_lock.release()
-        except Exception:
-            pass
+        """Release physical lock and close file descriptor."""
+        if self._fd is not None:
+            fd = self._fd
+            self._fd = None
+            try:
+                if platform.system() == "Windows":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            except Exception as exc:
+                logger.debug("Lock release exception bypassed: %s", exc)
+            finally:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
 
     def __enter__(self) -> FileLock:
-        self.acquire()
+        if not self.acquire():
+            raise TimeoutError(f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}")
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

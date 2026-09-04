@@ -477,6 +477,30 @@ class CFOURObservables(BaseModel):
     dboc_correction_hartree: Optional[float] = Field(default=None, description="DBOC in Hartree.")
     dboc_correction_cm_inv: Optional[float] = Field(default=None, description="DBOC in cm^-1.")
 
+    @property
+    def final_energy(self) -> float:
+        return self.final_energy_hartree
+
+    @property
+    def scf_energy(self) -> Optional[float]:
+        return self.scf_energy_hartree
+
+    @property
+    def mp2_energy(self) -> Optional[float]:
+        return self.mp2_energy_hartree
+
+    @property
+    def ccsd_energy(self) -> Optional[float]:
+        return self.ccsd_energy_hartree
+
+    @property
+    def ccsd_t_energy(self) -> Optional[float]:
+        return self.ccsd_t_energy_hartree
+
+    @property
+    def dipole_tot(self) -> float:
+        return self.dipole_total_debye
+
 
 class IsotopologueFFResult(BaseModel):
     """Telemetry and spectroscopic constants resulting from ISOMASS force field re-diagonalization."""
@@ -905,7 +929,7 @@ class CFOUROutputParser:
     """Robust parser for CFOUR standard output logs and auxiliary text archives."""
 
     PAT_SCF_ENERGY = re.compile(r"(?:E\(SCF\)|SCF ENERGY|Total SCF energy|SCF energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
-    PAT_MP2_ENERGY = re.compile(r"(?:E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
     PAT_CCSD_ENERGY = re.compile(r"(?:E\(CCSD\)|CCSD ENERGY|Total CCSD energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
     PAT_CCSD_T_ENERGY = re.compile(r"(?:E\(CCSD\(T\)\)|CCSD\(T\) ENERGY|Total CCSD\(T\) energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
 
@@ -923,30 +947,74 @@ class CFOUROutputParser:
         re.IGNORECASE,
     )
 
+    PAT_FINAL_ENERGY = re.compile(
+        r"(?:The\s+final\s+electronic\s+energy\s+is|FINAL\s+ELECTRONIC\s+ENERGY\s+IS|FINAL\s+ENERGY)\s*[:=]?\s*([+-]?\d+\.\d+)",
+        re.IGNORECASE,
+    )
+
     @classmethod
     def parse_cfour_stdout(
         cls,
-        stdout_text: str,
+        stdout_source: Union[str, Iterable[str], TextIO, None] = None,
         symbols_fallback: Optional[Sequence[str]] = None,
         coordinates_fallback: Optional[np.ndarray] = None,
+        stdout_text: Optional[str] = None,
     ) -> CFOURObservables:
-        """Parse complete spectroscopic observables from a CFOUR execution stdout.
+        """Parse complete spectroscopic observables from a CFOUR execution stdout stream or text.
 
         Args:
-            stdout_text: Full standard output log text.
+            stdout_source: Stream, line iterator, file object, or full text.
             symbols_fallback: Optional atom symbols if not found in log.
             coordinates_fallback: Optional Cartesian coordinates array.
+            stdout_text: Backward-compatible keyword argument for raw string.
 
         Returns:
             CFOURObservables instance with extracted parameters.
         """
-        lines = stdout_text.splitlines()
+        source = stdout_source if stdout_source is not None else stdout_text
+        if source is None:
+            raise ValueError("Must provide stdout_source or stdout_text.")
+
+        if isinstance(source, str):
+            line_iter = iter(source.splitlines())
+        elif hasattr(source, "readline"):
+            line_iter = (line.rstrip("\r\n") for line in source)
+        else:
+            line_iter = (line.rstrip("\r\n") if isinstance(line, str) else str(line) for line in source)
+
+        class _StreamWrapper:
+            def __init__(self, it: Any) -> None:
+                self._it = it
+                self._peek: Optional[str] = None
+                self._has_peek: bool = False
+
+            def __iter__(self) -> _StreamWrapper:
+                return self
+
+            def __next__(self) -> str:
+                if self._has_peek:
+                    val = self._peek
+                    self._has_peek = False
+                    self._peek = None
+                    return val  # type: ignore[return-value]
+                return next(self._it)
+
+            def peek(self) -> Optional[str]:
+                if not self._has_peek:
+                    try:
+                        self._peek = next(self._it)
+                        self._has_peek = True
+                    except StopIteration:
+                        return None
+                return self._peek
+
+        stream = _StreamWrapper(line_iter)
 
         scf_energy: Optional[float] = None
         mp2_energy: Optional[float] = None
         ccsd_energy: Optional[float] = None
         ccsd_t_energy: Optional[float] = None
-        final_energy: Optional[float] = None
+        explicit_final_energy: Optional[float] = None
 
         Ae_MHz, Be_MHz, Ce_MHz = 0.0, 0.0, 0.0
         Ae_cm, Be_cm, Ce_cm = 0.0, 0.0, 0.0
@@ -967,16 +1035,13 @@ class CFOUROutputParser:
 
         parsed_symbols: List[str] = list(symbols_fallback or [])
 
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-
+        for line in stream:
             # 1. Parse Energies
             if "SCF energy" in line or "E(SCF)" in line or "Total SCF energy" in line:
                 m = cls.PAT_SCF_ENERGY.search(line)
                 if m:
                     scf_energy = float(m.group(1))
-            if "MP2 energy" in line or "E(MP2)" in line:
+            if "MP2 energy" in line or "E(MP2)" in line or "E(CORR)(MP2)" in line:
                 m = cls.PAT_MP2_ENERGY.search(line)
                 if m:
                     mp2_energy = float(m.group(1))
@@ -988,47 +1053,95 @@ class CFOUROutputParser:
                 m = cls.PAT_CCSD_T_ENERGY.search(line)
                 if m:
                     ccsd_t_energy = float(m.group(1))
+            m_fin = cls.PAT_FINAL_ENERGY.search(line)
+            if m_fin:
+                explicit_final_energy = float(m_fin.group(1))
 
-            # 2. Parse Rotational Constants
+            # 2. Parse Rotational Constants (Single-line and Multiline)
             if "Rotational constants (in MHz)" in line or "ROTATIONAL CONSTANTS (MHZ)" in line:
-                parts = line.split(":")[-1].split()
-                if len(parts) >= 3:
+                after_colon = line.split(":")[-1].strip()
+                m_rot = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", after_colon)
+                if m_rot and float(m_rot.group(1)) != 0.0:
                     try:
-                        Ae_MHz, Be_MHz, Ce_MHz = float(parts[0]), float(parts[1]), float(parts[2])
+                        Ae_MHz, Be_MHz, Ce_MHz = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
                     except ValueError:
                         pass
-            if "Rotational constants (in cm-1)" in line or "ROTATIONAL CONSTANTS (CM-1)" in line:
-                parts = line.split(":")[-1].split()
-                if len(parts) >= 3:
-                    try:
-                        Ae_cm, Be_cm, Ce_cm = float(parts[0]), float(parts[1]), float(parts[2])
-                    except ValueError:
-                        pass
+                else:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_rot2 = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", next_l)
+                        if m_rot2:
+                            next(stream)
+                            try:
+                                Ae_MHz, Be_MHz, Ce_MHz = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
+                            except ValueError:
+                                pass
 
-            # 3. Parse Dipole
+            if "Rotational constants (in cm-1)" in line or "ROTATIONAL CONSTANTS (CM-1)" in line:
+                after_colon = line.split(":")[-1].strip()
+                m_rot = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", after_colon)
+                if m_rot and float(m_rot.group(1)) != 0.0:
+                    try:
+                        Ae_cm, Be_cm, Ce_cm = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
+                    except ValueError:
+                        pass
+                else:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_rot2 = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", next_l)
+                        if m_rot2:
+                            next(stream)
+                            try:
+                                Ae_cm, Be_cm, Ce_cm = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
+                            except ValueError:
+                                pass
+
+            # 3. Parse Dipole (Single-line and Multiline)
             if "Dipole moment (Debye)" in line or "DIPOLE MOMENT" in line:
-                m = cls.PAT_DIPOLE.search(line)
-                if m:
-                    dipole_a = float(m.group(1))
-                    dipole_b = float(m.group(2))
-                    dipole_c = float(m.group(3))
-                    dipole_tot = float(m.group(4))
+                m_dip = re.search(
+                    r"(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:tot(?:al)?\s*=\s*)?([+-]?\d+\.\d+)",
+                    line.split(":")[-1],
+                    re.IGNORECASE,
+                )
+                if not m_dip or len(line.split(":")[-1].strip()) < 5:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_dip2 = re.search(
+                            r"[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+(?:tot(?:al)?\s*=\s*)?([+-]?\d+\.\d+)",
+                            next_l,
+                            re.IGNORECASE,
+                        )
+                        if m_dip2:
+                            next(stream)
+                            m_dip = m_dip2
+                if m_dip:
+                    try:
+                        dipole_a = float(m_dip.group(1))
+                        dipole_b = float(m_dip.group(2))
+                        dipole_c = float(m_dip.group(3))
+                        dipole_tot = float(m_dip.group(4))
+                    except (ValueError, IndexError):
+                        pass
 
             # 4. Parse Harmonic Frequencies
             if "Harmonic vibrational frequencies" in line or "HARMONIC VIBRATIONAL FREQUENCIES (CM-1)" in line:
-                j = i + 1
-                while j < len(lines):
-                    fline = lines[j].strip()
-                    j += 1
-                    if not fline:
+                while True:
+                    fline = stream.peek()
+                    if fline is None:
+                        break
+                    fline_strip = fline.strip()
+                    if not fline_strip:
                         if freqs:
                             break
+                        next(stream)
                         continue
-                    if any(term in fline for term in ["Vibration-rotation", "ALPHA CONSTANTS", "Total", "Zero-point", "---", "==="]):
+                    if any(term in fline_strip for term in ["Vibration-rotation", "ALPHA CONSTANTS", "Total", "Zero-point", "---", "==="]):
                         if freqs:
                             break
+                        next(stream)
                         continue
-                    parts = fline.split()
+                    next(stream)
+                    parts = fline_strip.split()
                     if len(parts) >= 2 and parts[0].isdigit():
                         try:
                             if parts[1].replace('.', '', 1).replace('-', '', 1).isdigit():
@@ -1049,19 +1162,23 @@ class CFOUROutputParser:
 
             # 5. Parse Vibration-Rotation Alpha Constants
             if "Vibration-rotation interaction constants" in line or "ALPHA CONSTANTS" in line:
-                j = i + 1
-                while j < len(lines):
-                    aline = lines[j].strip()
-                    j += 1
-                    if not aline:
+                while True:
+                    aline = stream.peek()
+                    if aline is None:
+                        break
+                    aline_strip = aline.strip()
+                    if not aline_strip:
                         if alphas:
                             break
+                        next(stream)
                         continue
-                    if any(term in aline for term in ["Watson", "reduction", "ELECTRIC FIELD", "---", "==="]):
+                    if any(term in aline_strip for term in ["Watson", "reduction", "ELECTRIC FIELD", "---", "==="]):
                         if alphas:
                             break
+                        next(stream)
                         continue
-                    parts = aline.split()
+                    next(stream)
+                    parts = aline_strip.split()
                     if len(parts) >= 4 and parts[0].isdigit():
                         try:
                             m_idx = int(parts[0])
@@ -1167,19 +1284,23 @@ class CFOUROutputParser:
 
             # 7. Parse Quadrupole Coupling & EFGs
             if "ELECTRIC FIELD GRADIENT" in line or "Nuclear Quadrupole Coupling" in line:
-                j = i + 1
-                while j < len(lines):
-                    qline = lines[j].strip()
-                    j += 1
-                    if not qline:
+                while True:
+                    qline = stream.peek()
+                    if qline is None:
+                        break
+                    qline_strip = qline.strip()
+                    if not qline_strip:
                         if quadrupoles:
                             break
+                        next(stream)
                         continue
-                    if any(term in qline for term in ["Diagonal", "DBOC", "---", "==="]):
+                    if any(term in qline_strip for term in ["Diagonal", "DBOC", "---", "==="]):
                         if quadrupoles:
                             break
+                        next(stream)
                         continue
-                    parts = qline.split()
+                    next(stream)
+                    parts = qline_strip.split()
                     if len(parts) >= 5 and parts[0].isdigit():
                         try:
                             at_idx = int(parts[0])
@@ -1223,19 +1344,23 @@ class CFOUROutputParser:
 
             # 8. Nuclear Spin-Rotation Interaction Constants
             if "SPIN-ROTATION" in line.upper() or "SPIN ROTATION" in line.upper():
-                j = i + 1
-                while j < len(lines):
-                    sline = lines[j].strip()
-                    j += 1
-                    if not sline:
+                while True:
+                    sline = stream.peek()
+                    if sline is None:
+                        break
+                    sline_strip = sline.strip()
+                    if not sline_strip:
                         if spin_rots:
                             break
+                        next(stream)
                         continue
-                    if any(term in sline for term in ["DBOC", "Diagonal", "---", "==="]):
+                    if any(term in sline_strip for term in ["DBOC", "Diagonal", "---", "==="]):
                         if spin_rots:
                             break
+                        next(stream)
                         continue
-                    parts = sline.split()
+                    next(stream)
+                    parts = sline_strip.split()
                     if len(parts) >= 5 and parts[0].isdigit():
                         try:
                             at_idx = int(parts[0])
@@ -1267,9 +1392,9 @@ class CFOUROutputParser:
                     except ValueError:
                         pass
 
-            i += 1
-
-        if ccsd_t_energy is not None:
+        if explicit_final_energy is not None:
+            final_energy = explicit_final_energy
+        elif ccsd_t_energy is not None:
             final_energy = ccsd_t_energy
         elif ccsd_energy is not None:
             final_energy = ccsd_energy

@@ -557,13 +557,66 @@ class KernelFunction:
     def compute_kernel_matrix(
         X1: np.ndarray,
         X2: np.ndarray,
-        kernel_type: KernelType = KernelType.RBF,
+        kernel_type: Union[KernelType, str] = KernelType.RBF,
         gamma: float = 1.0,
         poly_degree: int = 4,
+        chunk_size: Optional[int] = None,
     ) -> np.ndarray:
         """Computes the pairwise Gram/kernel matrix K(X1, X2)."""
         X1 = np.asarray(X1, dtype=np.float64)
         X2 = np.asarray(X2, dtype=np.float64)
+
+        if isinstance(kernel_type, str):
+            try:
+                kernel_type = KernelType(kernel_type.lower())
+            except (ValueError, KeyError):
+                kernel_type = KernelType[kernel_type.upper()]
+
+        # Chunked evaluation if requested and applicable
+        if chunk_size is not None and chunk_size > 0 and X1.shape[0] > chunk_size:
+            out = np.empty((X1.shape[0], X2.shape[0]), dtype=np.float64)
+            for i in range(0, X1.shape[0], chunk_size):
+                out[i : i + chunk_size] = KernelFunction.compute_kernel_matrix(
+                    X1[i : i + chunk_size],
+                    X2,
+                    kernel_type=kernel_type,
+                    gamma=gamma,
+                    poly_degree=poly_degree,
+                    chunk_size=None,
+                )
+            return out
+
+        # Check for GPU tier acceleration
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device = torch.device("cuda")
+                stream = torch.cuda.Stream()
+                with torch.cuda.stream(stream):
+                    t1 = torch.as_tensor(X1, dtype=torch.float64, device=device)
+                    t2 = torch.as_tensor(X2, dtype=torch.float64, device=device)
+                    if kernel_type == KernelType.RBF:
+                        dists_sq = torch.cdist(t1, t2, p=2.0) ** 2
+                        res = torch.exp(-gamma * dists_sq)
+                    elif kernel_type == KernelType.MATERN52:
+                        dists = torch.cdist(t1, t2, p=2.0)
+                        sqrt5 = math.sqrt(5.0)
+                        scaled_d = sqrt5 * math.sqrt(2.0 * gamma) * dists
+                        res = (1.0 + scaled_d + (5.0 * 2.0 * gamma / 3.0) * (dists**2)) * torch.exp(-scaled_d)
+                    elif kernel_type == KernelType.MATERN32:
+                        dists = torch.cdist(t1, t2, p=2.0)
+                        sqrt3 = math.sqrt(3.0)
+                        scaled_d = sqrt3 * math.sqrt(2.0 * gamma) * dists
+                        res = (1.0 + scaled_d) * torch.exp(-scaled_d)
+                    elif kernel_type == KernelType.POLYNOMIAL:
+                        dot = torch.mm(t1, t2.t())
+                        res = (gamma * dot + 1.0) ** poly_degree
+                    else:
+                        raise ValueError(f"Unsupported kernel type: {kernel_type}")
+                    stream.synchronize()
+                    return res.cpu().numpy()
+        except Exception:
+            pass
 
         if kernel_type == KernelType.RBF:
             dists_sq = scipy.spatial.distance.cdist(X1, X2, metric="sqeuclidean")
@@ -638,13 +691,19 @@ class ExactKernelRidgeEstimator:
 
     def __init__(
         self,
-        kernel_type: KernelType = KernelType.RBF,
+        kernel_type: Union[KernelType, str] = KernelType.RBF,
         alpha: float = 1e-6,
         gamma: Optional[float] = None,
         poly_degree: int = 4,
         asymptotic_zero: bool = True,
     ) -> None:
-        self.kernel_type: KernelType = kernel_type
+        if isinstance(kernel_type, str):
+            try:
+                self.kernel_type = KernelType(kernel_type.lower())
+            except (ValueError, KeyError):
+                self.kernel_type = KernelType[kernel_type.upper()]
+        else:
+            self.kernel_type = kernel_type
         self.alpha: float = float(alpha)
         self.gamma: Optional[float] = float(gamma) if gamma is not None else None
         self.poly_degree: int = int(poly_degree)
@@ -725,8 +784,8 @@ class ExactKernelRidgeEstimator:
 
         return self
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predicts energies for evaluation features X (N, D)."""
+    def predict(self, X: np.ndarray, batch_size: int = 2048) -> Union[float, np.ndarray]:
+        """Predicts energies for evaluation features X (N, D) using chunked batch evaluation."""
         if self.X_train is None or self.weights is None:
             raise RuntimeError("Estimator is not fitted yet.")
 
@@ -735,15 +794,23 @@ class ExactKernelRidgeEstimator:
         if is_single:
             X = X[np.newaxis, :]
 
-        K_eval = KernelFunction.compute_kernel_matrix(
-            X,
-            self.X_train,
-            kernel_type=self.kernel_type,
-            gamma=self.effective_gamma,
-            poly_degree=self.poly_degree,
-        )
-        preds = np.dot(K_eval, self.weights) + self.y_mean
-        return preds[0] if is_single else preds
+        n_samples = X.shape[0]
+        preds = np.empty(n_samples, dtype=np.float64)
+        bs = max(1, batch_size) if batch_size is not None else 2048
+
+        for start_idx in range(0, n_samples, bs):
+            end_idx = min(start_idx + bs, n_samples)
+            X_batch = X[start_idx:end_idx]
+            K_batch = KernelFunction.compute_kernel_matrix(
+                X_batch,
+                self.X_train,
+                kernel_type=self.kernel_type,
+                gamma=self.effective_gamma,
+                poly_degree=self.poly_degree,
+            )
+            preds[start_idx:end_idx] = np.dot(K_batch, self.weights) + self.y_mean
+
+        return float(preds[0]) if is_single else preds
 
     def predict_gradient_wrt_features(self, x_eval: np.ndarray) -> np.ndarray:
         """Computes analytical gradient d(E)/d(x) w.r.t invariant features."""

@@ -147,6 +147,65 @@ def _finalize_shm(name: str) -> None:
         logger.debug("shm unlink fallback error: %s", exc)
 
 
+class SharedMemoryView:
+    """Context manager wrapping sm.SharedMemory and a non-copied np.ndarray view.
+
+    Raises RuntimeError if accessed when closed.
+    """
+
+    def __init__(
+        self,
+        shm: sm.SharedMemory,
+        arr: np.ndarray,
+        owner_name: Optional[str] = None,
+        is_recycled: bool = False,
+    ) -> None:
+        self._shm: Optional[sm.SharedMemory] = shm
+        self._arr: Optional[np.ndarray] = arr
+        self._is_closed: bool = False
+        self._is_recycled: bool = is_recycled
+        self._owner_name: Optional[str] = owner_name or (shm.name if shm else None)
+
+    @property
+    def array(self) -> np.ndarray:
+        if self._is_closed or self._arr is None:
+            raise RuntimeError("Cannot access array view on a closed SharedMemoryView")
+        return self._arr
+
+    def close(self) -> None:
+        if not self._is_closed:
+            self._is_closed = True
+            self._arr = None
+            if self._shm is not None:
+                if not self._is_recycled:
+                    try:
+                        self._shm.close()
+                    except OSError as exc:
+                        logger.debug("Shared memory view close bypassed: %s", exc)
+                if self._owner_name:
+                    SharedMemoryBuffer._notify_closed(self._owner_name)
+                self._shm = None
+
+    def unlink(self) -> None:
+        if self._shm is not None and not self._is_recycled:
+            try:
+                self._shm.unlink()
+            except (OSError, FileNotFoundError) as exc:
+                logger.debug("Shared memory view unlink bypassed: %s", exc)
+        self.close()
+
+    def __enter__(self) -> np.ndarray:
+        return self.array
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
+
+
 @dataclasses.dataclass
 class SharedMemoryBuffer:
     """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
@@ -154,6 +213,7 @@ class SharedMemoryBuffer:
     shm: sm.SharedMemory
     descriptor: Dict[str, Any]
     _finalizer: Optional[weakref.finalize] = dataclasses.field(default=None, repr=False, compare=False)
+    _array: Optional[np.ndarray] = dataclasses.field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self._finalizer is None:
@@ -170,6 +230,11 @@ class SharedMemoryBuffer:
     ) -> None:
         self.close()
         self.unlink()
+
+    @classmethod
+    def create(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
+        """Alias for from_array."""
+        return cls.from_array(arr, total_attachments=total_attachments)
 
     @classmethod
     def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
@@ -202,7 +267,20 @@ class SharedMemoryBuffer:
                 "closed": 0,
             }
 
-        return cls(shm=shm, descriptor=desc)
+        return cls(shm=shm, descriptor=desc, _array=shm_array)
+
+    def to_descriptor(self) -> Dict[str, Any]:
+        """Return the transfer descriptor mapping this shared memory segment."""
+        return dict(self.descriptor)
+
+    @property
+    def array(self) -> np.ndarray:
+        """Return direct numpy ndarray view over the shared memory segment."""
+        if self._array is None:
+            shape = tuple(self.descriptor["shape"])
+            dtype = self.descriptor["dtype"]
+            self._array = np.ndarray(shape, dtype=dtype, buffer=self.shm.buf)
+        return self._array
 
     @classmethod
     def _notify_closed(cls, name: str) -> None:
@@ -226,20 +304,37 @@ class SharedMemoryBuffer:
                     logger.debug("Shared memory cleanup bypassed: %s", exc)
 
     @classmethod
-    def read_from_descriptor(cls, descriptor: Dict[str, Any]) -> np.ndarray:
-        """Map existing shared memory segment and extract copy of array."""
+    def read_from_descriptor(
+        cls,
+        descriptor: Dict[str, Any],
+        zero_copy: bool = True,
+    ) -> Union[np.ndarray, SharedMemoryView]:
+        """Map existing shared memory segment and extract copy of array or zero-copy SharedMemoryView."""
         name = descriptor["name"]
         shape = tuple(descriptor["shape"])
         dtype = descriptor["dtype"]
 
-        client_shm = sm.SharedMemory(name=name)
-        try:
-            mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
-            extracted = mapped.copy()
-            return extracted
-        finally:
-            client_shm.close()
-            cls._notify_closed(name)
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                client_shm = info["shm"]
+                is_recycled = True
+            else:
+                client_shm = sm.SharedMemory(name=name)
+                is_recycled = False
+
+        mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
+
+        if zero_copy:
+            return SharedMemoryView(shm=client_shm, arr=mapped, owner_name=name, is_recycled=is_recycled)
+        else:
+            try:
+                extracted = mapped.copy()
+                return extracted
+            finally:
+                if not is_recycled:
+                    client_shm.close()
+                cls._notify_closed(name)
 
     def close(self) -> None:
         """Close local memory map and unlink if all attachments are closed."""
@@ -611,6 +706,7 @@ __all__ = [
     "validate_airgap_write_path",
     "PESStore",
     "SharedMemoryBuffer",
+    "SharedMemoryView",
     "pack_payload",
     "unpack_payload",
     "HMACSocketServer",

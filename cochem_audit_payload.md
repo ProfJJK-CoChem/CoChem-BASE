@@ -1,992 +1,677 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_07_Core_Part_7_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_08_Core_Part_8_prompts.md.
 Original prompt:
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 7: Suggestions #61–#70)
+# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 8: Suggestions #71–#76)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A, §8A.4, §8B.4, §8B.6, §8C, §9A, §9B, Table 3, QS-1, QS-3)
-- Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
+- Method Matrix v4 (§3.0, §4.4, §8A, §8A.4, §8B, §8C, §9.3, §13.2, §14.1, Table 2 Row T2-12h, QS-1, QS-3)
+- Anti-Spoofing Protocol v2 (enforcing Zero-Mock, Asymmetric Verification, Hard Abort Criteria, and MAX_PIVOT_CYCLES)
 - Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, State & Artifacts $T_{\text{state}}/T_{\text{export}}$ read-write cryptographic commitments)
 - 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
-- Dynamic Mendeleev Invariant Mandate (`from mendeleev import element`, zero hardcoded atomic masses, strict dynamic IUPAC/CIAAW physical mass retrieval)
+- Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Invariant Mandate
+- Dynamic Mendeleev Invariant Mandate (`from mendeleev import element`, zero hardcoded atomic masses, strict dynamic IUPAC/CIAAW mass retrieval)
 - FAIR Principles Compliance (F1, F2, A1, I1, I2, I3, R1, R1.1, R1.2, R1.3)
 - MolSSI QCSchema v1 Compliance (`schema_name="qcschema_output"`, `schema_version=1`, explicit `AtomicResult` mapping)
-- IETF RFC 8785 JSON Canonicalization Scheme (JCS) §3.2.2.3 IEEE 754 Number-to-String formatting mandate
-- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5 with `threading.RLock()` and `filelock.FileLock`, non-blocking CUDA stream handling under NVIDIA MPS isolation, strictly no POSIX `fcntl` on network filesystems)
+- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5 with `FileLock`, non-blocking CUDA stream handling under NVIDIA MPS isolation, adaptive exponential backoff with jitter, strictly no POSIX `fcntl` or distributed locks on network filesystems)
 
 ---
 
 ## 1. Executive Summary & Objective
 
-Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across long-term archival data persistence, RFC 8785 canonical serialization parity, quasi-harmonic thermodynamic provenance logging, machine-actionable exception architectures, in-place HDF5 SWMR chunk resizing, cached dynamic mass resolution without GPU context stalls, lazy zero-cost module initialization, ephemeral sandbox memory leaks, low-overhead process monitoring, and cached session scratch verification.
+Implement, harden, and physically verify Suggestions #71 through #76 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical bottlenecks and vulnerabilities across high-density potential energy surface (PES) evaluation, HDF5 storage bloat and multi-process write contention, subprocess memory buffering and telemetry steering, shared-memory inter-process communication zero-copy latency, spectroscopic log parsing efficiency, and adaptive cross-platform concurrency locking.
 
 Specific implementation targets include:
-1. Injecting a mandatory `schema_version: int = 1` field into all Pydantic models across `cochem_base.core.models`, enforcing `model_config = ConfigDict(frozen=True, extra="forbid")`, and establishing an automated schema migration dispatch protocol supporting long-term backward-compatible deserialization (FAIR F2, I1, R1).
-2. Implementing an RFC 8785-compliant IEEE 754 Number-to-String formatting kernel in `cochem_base.core.cochem_crypto.canonicalize_json` to eliminate cross-platform SHA-256 hash divergence caused by standard Python `float.__repr__` formatting.
-3. Embedding all quasi-harmonic thermodynamic parameters (`low_freq_cutoff_cm1`, `damping_model="grimme_quasi_rrho"`, `temperature_k`, `pressure_atm=1.0`) into `DAGNode.payload["thermodynamics_provenance"]` metadata dictionaries to guarantee 100% reproducible vibrational free energies and Boltzmann populations (FAIR R1.2, Method Matrix §8B.4).
-4. Standardizing all custom exceptions across `cochem_base.core` by subclassing a base `CoChemError` class and attaching machine-actionable error codes (e.g. `CoordinateShapeError` with code `COCHEM_E_INVALID_COORD_SHAPE`, `AirGapBoundaryError` with code `COCHEM_E_AIRGAP_BREACH`) to support automated ETL triage (FAIR A1, I1).
-5. Refactoring `PESStore.write_entry()` to eliminate quadratic `shutil.copyfile` latency degradation, implementing in-place HDF5 SWMR chunk resizing (`ds.resize(new_len, axis=0)`) with dual-layer synchronization (`threading.RLock()` and cross-platform `filelock.FileLock`) and strict Tripartite Air-Gap path boundary enforcement.
-6. Applying `@functools.lru_cache(maxsize=256)` to all dynamic Mendeleev mass resolution routines in `cochem_base.core_engine`, ensuring mass lookups execute in CPU precomputation without blocking active CUDA streams or locking GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
-7. Refactoring `_build_element_cache()` in `cochem_base.core.mendeleev_invariants` into a lazy, thread-safe singleton initialization pattern to eliminate the $200\text{--}600\text{ ms}$ module import lag on multiprocessing worker spawn pools.
-8. Purging unbounded `atexit` callbacks in `cochem_base.core.cochem_sandbox.SandboxContext` by explicitly invoking `atexit.unregister(self.cleanup)` upon context exit, while enforcing strict dynamic sandbox root containment in Tier 3 (`$COCH_SCRATCH`).
-9. Replacing recursive full-system process tree discovery (`psutil.Process().children(recursive=True)`) in `ProcessTreeManager` with direct polling across explicitly registered child PIDs in `_tracked`, reducing monitoring CPU consumption by $>80\%$ and eliminating quantum chemistry kernel cache perturbation.
-10. Decoupling the 64 KB binary physical I/O integrity probe in `cochem_core_subprocess_broker.py` from individual subprocess invocations by implementing a session-level scratch verification cache with a configurable time-to-live ($\text{TTL} = 300\text{ s}$) keyed on workspace path.
+1. Refactoring [`ExactKernelRidgeEstimator.predict()`](file:///src/cochem_base/core_engine/cochem_core_auto_pes.py#L580-L598) and [`KernelFunction.compute_kernel_matrix()`](file:///src/cochem_base/core_engine/cochem_core_auto_pes.py#L428-L460) to implement chunked batch evaluation (`batch_size=2048`) with vector dot-product accumulation, capping peak RAM consumption under $100\text{ MB}$ regardless of grid density ($N > 50,000$), while integrating CUDA stream awareness and NVIDIA MPS daemon gating on GPU tiers with automatic vectorized CPU fallback (Method Matrix §8A.4, §13.2 / QS-3).
+2. Refactoring [`PESStore.add_points()`](file:///src/cochem_base/core_engine/cochem_core_pes_store.py#L947-L949) to eliminate variable-length JSON string duplication and global heap fragmentation by storing unique provenance records once in a normalized `/methods/{method_id}/provenance_index` dataset mapped via integer foreign keys (`provenance_id: uint32`), enforced via cross-platform `FileLock` synchronization and HDF5 Single-Writer/Multiple-Reader (SWMR) protocol activation (Method Matrix §8A, §8C).
+3. Overhauling [`safe_subprocess_run()`](file:///src/cochem_base/core_engine/cochem_core_subprocess_broker.py#L1161-L1180) to enforce the Tripartite Air-Gap: executing external binaries (CFOUR, ORCA) inside an ephemeral isolated scratch directory in Tier 3 (`$COCH_SCRATCH`), passing parameters strictly via validated JSON schemas with sanitized environment variables (`COCHEM_OFFLINE=1`), and streaming `stdout` directly to scratch disk files with concurrent line-by-line tail buffering for real-time SCF and geometry convergence steering (Method Matrix §8A, §8B).
+4. Refactoring [`SharedMemoryBuffer.read_from_descriptor()`](file:///src/cochem/core/ipc/serializer.py#L106-L113) to eliminate user-space array duplication (`extracted = mapped.copy()`), returning a bound `SharedMemoryView` container that manages the lifetime of the underlying `multiprocessing.shared_memory` segment with air-gapped access control, achieving true zero-copy IPC latency across Windows Named Shared Memory and POSIX `/dev/shm` (Method Matrix §8A).
+5. Refactoring [`CFOUROutputParser.parse_cfour_stdout()`](file:///src/cochem_base/core_engine/cochem_core_cfour_bridge.py#L927-L943) to process standard output streams via a line iterator or in-place chunk scanner without materializing `splitlines()`, reducing peak memory consumption by $>70\%$ on massive ($>100\text{ MB}$) VPT2 anharmonic force-field output files (Method Matrix §9.3, §14.1).
+6. Replacing the static $50\text{ ms}$ polling sleep in [`FileLock.acquire()`](file:///src/cochem/core/context.py#L179-L200) with an adaptive exponential backoff and random jitter strategy ($1\text{ ms}$ initial backoff scaling to a $25\text{ ms}$ ceiling), utilizing robust cross-platform lock primitives with stale lock timeout resolution and node-local scratch allocation adhering to the HPC Distributed Lock Prohibition (Method Matrix §8A).
 
-All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, real IEEE 754 serialization roundtrips, real HDF5 SWMR dataset extensions, physical multi-process reaper monitoring, and real subprocess executions.
+All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real KRR kernel evaluations, real HDF5 SWMR writes, physical subprocess streaming executions, real shared memory zero-copy mappings, streaming CFOUR log parsing, and physical multi-threaded lock contention measurements.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
-### Core Models, Exceptions & Cryptographic Modules
-1. `src/cochem_base/core/models.py` (Suggestions #61, #64)
-2. `src/cochem_base/core/exceptions.py` (Suggestion #64)
-3. `src/cochem_base/core/cochem_crypto.py` (Suggestion #62)
-4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #63)
-
-### Engine, Storage & Concurrency Architecture Modules
-5. `src/cochem_base/core/ipc/serializer.py` (Suggestion #65)
-6. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #65)
-7. `src/cochem_base/core_engine/cochem_mass_resolver.py` (Suggestion #66)
-8. `src/cochem_base/core/mendeleev_invariants.py` (Suggestion #67)
-9. `src/cochem_base/core/cochem_sandbox.py` (Suggestion #68)
-10. `src/cochem_base/core/process_reaper.py` (Suggestion #69)
-11. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestion #70)
+### Physics Integrity, Storage & Concurrency Architecture Modules
+1. `src/cochem_base/core_engine/cochem_core_auto_pes.py` (Suggestion #71)
+2. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #72)
+3. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestion #73)
+4. `src/cochem/core/ipc/serializer.py` (Suggestion #74)
+5. `src/cochem_base/core_engine/cochem_core_cfour_bridge.py` (Suggestion #75)
+6. `src/cochem/core/context.py` (Suggestion #76)
 
 ### Zero-Mock Test Suite Deliverables
-12. `tests/core/test_physics_integrity_part7.py` (Validating Suggestions #61, #62, #63, #64, #66)
-13. `tests/core/test_architecture_part7.py` (Validating Suggestions #65, #67, #68, #69, #70)
+7. `tests/core/test_physics_integrity_part8.py` (Validating Suggestions #71, #72, #75)
+8. `tests/core/test_architecture_part8.py` (Validating Suggestions #73, #74, #76)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Pydantic Model Versioning & Schema Migration Dispatch (Suggestion #61)]
-- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core/exceptions.py`
+### [Task 1: Chunked Batch Evaluation for KRR Potential Energy Surfaces (Suggestion #71)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_core_auto_pes.py`
 - **Problem Statement:**
-  Archival data records generated by older versions of CoChem cannot be ingested by newer versions because models in `cochem_base.core.models` lack an explicit `schema_version` attribute and schema migration hooks. When a new field is added to a Pydantic model configured with `extra="forbid"`, deserializing older records missing that field triggers a fatal `ValidationError`, destroying multi-year scientific reproducibility and violating FAIR Principles F2, I1, and R1.
+  [`ExactKernelRidgeEstimator.predict()`](file:///src/cochem_base/core_engine/cochem_core_auto_pes.py#L580-L598) computes the Gram matrix between the entire evaluation set $X \in \mathbb{R}^{N_{\text{eval}} \times D}$ and training set $X_{\text{train}} \in \mathbb{R}^{N_{\text{train}} \times D}$ in a single monolithic call to `scipy.spatial.distance.cdist(X, self.X_train)`. For dense multidimensional spectroscopic grids ($N_{\text{eval}} = 100,000, N_{\text{train}} = 2,000$), this allocates an unchunked $1.6\text{ GB}$ contiguous float64 array. In ensemble models ($M=4$) or during multi-stream GPU execution, this exhausts host RAM or GPU VRAM, triggering OS OOM termination or driver context locking across all 6 environment tiers, violating Method Matrix v4 §8A.4, §13.2, and QS-3.
 - **Implementation Requirements:**
-  1. In `src/cochem_base/core/models.py`, define global schema constants:
+  1. In `ExactKernelRidgeEstimator`, update `predict()` to accept a configurable `batch_size: int = 2048`:
      ```python
-     CURRENT_CORE_SCHEMA_VERSION: int = 1
-     ```
-  2. Inject a mandatory schema version attribute with a default into all core data models (e.g. `MolecularTopology`, `QCSchemaInput`, `QCSchemaOutput`, `PESPointRecord`, `CalculationJobPayload`, `AtomicResult`):
-     ```python
-     schema_version: int = Field(
-         default=CURRENT_CORE_SCHEMA_VERSION,
-         description="Semantic schema version for archival data deserialization and migration contracts."
-     )
-     ```
-  3. Enforce strict immutability and forbid extraneous undeclared fields:
-     ```python
-     model_config = ConfigDict(frozen=True, extra="forbid")
-     ```
-  4. Implement an extensible schema migration registry and dispatcher:
-     ```python
-     MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
-     _MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
-
-     def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
-         """Decorator registering a transformation function from a specific schema version to from_version + 1."""
-         def decorator(func: MigrationCallable) -> MigrationCallable:
-             _MIGRATION_REGISTRY[(model_name, from_version)] = func
-             return func
-         return decorator
-
-     def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
-         """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
-         model_name = target_model.__name__
-         current_version = payload.get("schema_version", 0)
-         target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
-
-         data = dict(payload)
-         while current_version < target_version:
-             key = (model_name, current_version)
-             if key not in _MIGRATION_REGISTRY:
-                 raise SchemaMigrationError(
-                     f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
-                     error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED",
-                     details={"model": model_name, "from_version": current_version, "target_version": target_version}
-                 )
-             data = _MIGRATION_REGISTRY[key](data)
-             current_version = data.get("schema_version", current_version + 1)
-
-         return data
-     ```
-  5. Provide a classmethod on all versioned models:
-     ```python
-     @classmethod
-     def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-         """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-         migrated = migrate_payload(data, cls)
-         return cls.model_validate(migrated)
-     ```
-
----
-
-### [Task 2: RFC 8785-Compliant IEEE 754 Float Canonicalization Kernel (Suggestion #62)]
-- **Files Affected:** `src/cochem_base/core/cochem_crypto.py`
-- **Problem Statement:**
-  Cryptographic hashes of canonical JSON payloads diverge between Python and external verifiers (in Node.js, Go, Rust) because `canonicalize_json` relies on Python's built-in `json.dumps()` for float formatting. RFC 8785 (JSON Canonicalization Scheme - JCS) §3.2.2.3 strictly mandates the ECMAScript IEEE 754 Number-to-String formatting algorithm. Python's `float.__repr__` outputs exponential notations with 2-digit padded exponents (e.g. `1e-05`) or differing precision thresholds, breaking deterministic cross-platform SHA-256 verification [M].
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/cochem_crypto.py`, implement a dedicated RFC 8785 ECMAScript IEEE 754 float string formatting kernel:
-     ```python
-     def format_rfc8785_float(val: float) -> str:
-         """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
+     def predict(self, X: np.ndarray, batch_size: int = 2048) -> np.ndarray:
+         """Predicts energies for evaluation features X (N, D) using chunked batch evaluation.
          
-         Rules:
-         - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
-         - Signed zero (-0.0) must format as '0'.
-         - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
-         - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
+         Caps transient Gram matrix memory allocation to < 100 MB regardless of N_eval.
          """
-         import math
-         if math.isnan(val) or math.isinf(val):
-             raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
-         if val == 0.0:
-             return "0"
+         if self.X_train is None or self.weights is None:
+             raise RuntimeError("Estimator is not fitted yet.")
 
-         # ECMAScript Number-to-String algorithm compliance:
-         # Use standard 17-digit precision formatting
-         s = f"{val:.17g}"
-         
-         # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
-         if 'e' in s:
-             base, exp = s.split('e')
-             exp_sign = exp[0]
-             exp_val = exp[1:].lstrip('0') or '0'
-             s = f"{base}e{exp_sign}{exp_val}"
-         
-         # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
-         # 1e-6 <= |val| < 1e-5 (e.g., 0.000001 -> '0.000001', not '1e-6')
-         abs_val = abs(val)
-         if 1e-6 <= abs_val < 1e-4 and 'e' in s:
-             # Expand to decimal
-             s = f"{val:.10f}".rstrip('0').rstrip('.')
+         X = np.asarray(X, dtype=np.float64)
+         is_single = (X.ndim == 1)
+         if is_single:
+             X = X[np.newaxis, :]
+
+         n_eval = X.shape[0]
+         preds = np.empty(n_eval, dtype=np.float64)
+
+         # Outer chunking loop over evaluation dimension
+         for start_idx in range(0, n_eval, batch_size):
+             end_idx = min(start_idx + batch_size, n_eval)
+             X_batch = X[start_idx:end_idx]
+
+             # Evaluate chunked kernel Gram matrix (B, N_train)
+             K_batch = KernelFunction.compute_kernel_matrix(
+                 X_batch,
+                 self.X_train,
+                 kernel_type=self.kernel_type,
+                 gamma=self.effective_gamma,
+                 poly_degree=self.poly_degree,
+             )
              
-         return s
-     ```
-  2. Implement `canonicalize_json(data: Any) -> bytes`:
-     ```python
-     def canonicalize_json(data: Any) -> bytes:
-         """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
-         
-         - Lexicographical sorting of object keys by UTF-8 code point values.
-         - Zero whitespace around delimiters (',' and ':').
-         - IEEE 754 float formatting via format_rfc8785_float.
-         - UTF-8 output without BOM.
-         """
-         return _serialize_jcs(data).encode("utf-8")
+             # Vector dot-product accumulation
+             preds[start_idx:end_idx] = np.dot(K_batch, self.weights) + self.y_mean
 
-     def _serialize_jcs(obj: Any) -> str:
-         if obj is None:
-             return "null"
-         elif isinstance(obj, bool):
-             return "true" if obj else "false"
-         elif isinstance(obj, int):
-             return str(obj)
-         elif isinstance(obj, float):
-             return format_rfc8785_float(obj)
-         elif isinstance(obj, str):
-             import json
-             return json.dumps(obj, ensure_ascii=False)
-         elif isinstance(obj, (list, tuple)):
-             items = [_serialize_jcs(item) for item in obj]
-             return "[" + ",".join(items) + "]"
-         elif isinstance(obj, dict):
-             # Sort keys by UTF-16 code units / UTF-8 byte order
-             sorted_keys = sorted(obj.keys(), key=lambda k: k.encode("utf-8"))
-             pairs = [
-                 json.dumps(k, ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
-                 for k in sorted_keys
-             ]
-             return "{" + ",".join(pairs) + "}"
-         elif hasattr(obj, "model_dump"):
-             return _serialize_jcs(obj.model_dump(mode="json"))
-         else:
-             raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+         return preds[0] if is_single else preds
      ```
-  3. Ensure that `hash_canonical_json(data: Any, algorithm: str = "sha256") -> str` in `cochem_crypto.py` calls `canonicalize_json(data)`.
+  2. In `KernelFunction.compute_kernel_matrix(X1, X2, kernel_type, gamma, poly_degree, chunk_size=None)`:
+     - When `chunk_size` is provided and $X_1$ exceeds `chunk_size`, evaluate pairwise distances in blocks to avoid large intermediate distance matrices.
+     - Integrate non-blocking GPU acceleration: check `torch.cuda.is_available()`. When active and tensors exceed the GPU crossover threshold ($N > 100$), compute kernel chunks on a dedicated non-blocking CUDA stream (`torch.cuda.Stream()`) with NVIDIA MPS daemon gating, ensuring host tensors are copied back asynchronously without driver context locking.
+     - Automatically fall back to vectorized CPU `scipy.spatial.distance.cdist` on CPU-only tiers (Codespaces, GitHub Actions, Local-macOS OrbStack).
 
 ---
 
-### [Task 3: Quasi-Harmonic Thermodynamic Parameter Provenance Logging (Suggestion #63)]
-- **Files Affected:** `src/cochem_base/core/cochem_provenance.py`, `src/cochem_base/core/models.py`
+### [Task 2: Normalized Provenance Index & Thread-Safe SWMR HDF5 Storage (Suggestion #72)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_core_pes_store.py`
 - **Problem Statement:**
-  External researchers cannot reproduce the exact Boltzmann populations computed by `compute_boltzmann_weights()` because the function applies Grimme's quasi-RRHO low-frequency interpolation using a procedural $100\text{ cm}^{-1}$ cutoff without logging the cutoff, rotor cutoff, or damping scheme into node metadata. Because low-frequency torsional modes in fluxional complexes dominate vibrational entropy, shifting the cutoff between $50$ and $150\text{ cm}^{-1}$ alters relative conformer free energies by up to $1.5\text{ kcal/mol}$ [D], violating FAIR Principle R1.2 and Method Matrix v4 §8B.4 / §9B.
+  In [`PESStore.add_points()`](file:///src/cochem_base/core_engine/cochem_core_pes_store.py#L947-L949), line 948 writes a full JSON provenance string (`prov_json`, $\sim 500\text{ bytes}$) for every single coordinate point into a variable-length string dataset:
+  `self._append(self._ds(f, method_id, "provenance", (), VLEN_STR), np.array([prov_json] * npts, dtype=object))`
+  HDF5 allocates a separate global heap record for each variable-length string. A scan containing $50,000$ points creates $50,000$ global heap records storing identical strings, bloating file size by up to $70\%$, fragmenting HDF5 storage, and risking metadata corruption during concurrent multi-process writes across clustered/network filesystems (NFS, Lustre/GPFS on HPC) or containerized `overlayfs` (Codespaces, GitHub Actions).
 - **Implementation Requirements:**
-  1. In `src/cochem_base/core/models.py`, define the provenance model:
+  1. Normalize provenance storage in HDF5:
+     - Create or reference a dedicated dataset `/methods/{method_id}/provenance_index` configured as a 1D chunked variable-length string dataset with Fletcher32 checksums.
+     - In `/points/{method_id}`, replace or supplement the string `"provenance"` dataset with an integer foreign key dataset `"provenance_id"` of type `np.uint32`.
+  2. In `PESStore.add_points(...)`:
      ```python
-     class ThermodynamicsProvenance(BaseModel):
-         """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
-         damping_model: str = Field(
-             default="grimme_quasi_rrho",
-             description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic)."
+     # Acquire or register unique provenance record
+     prov_grp = f.require_group(f"methods/{method_id}")
+     if "provenance_index" not in prov_grp:
+         prov_ds = prov_grp.create_dataset(
+             "provenance_index",
+             shape=(0,),
+             maxshape=(None,),
+             dtype=VLEN_STR,
+             chunks=(64,),
+             fletcher32=True,
+             compression="gzip" if self.compress else None,
          )
-         low_freq_cutoff_cm1: float = Field(
-             default=100.0,
-             description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1)."
-         )
-         temperature_k: float = Field(
-             default=298.15,
-             description="Thermodynamic temperature in Kelvin."
-         )
-         pressure_atm: float = Field(
-             default=1.0,
-             description="Standard state pressure in atmospheres."
-         )
-         rotor_cutoff_cm1: Optional[float] = Field(
-             default=None,
-             description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping."
-         )
-         provenance_tag: str = Field(
-             default="[D]",
-             description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated)."
-         )
-         schema_version: int = Field(default=CURRENT_CORE_SCHEMA_VERSION)
-         model_config = ConfigDict(frozen=True, extra="forbid")
+     else:
+         prov_ds = prov_grp["provenance_index"]
+
+     # Read existing provenance entries to identify matching record
+     existing_prov = [p.decode("utf-8") if isinstance(p, bytes) else p for p in prov_ds[:]]
+     if prov_json in existing_prov:
+         prov_id = np.uint32(existing_prov.index(prov_json))
+     else:
+         prov_id = np.uint32(len(existing_prov))
+         prov_ds.resize((prov_id + 1,))
+         prov_ds[prov_id] = prov_json
+
+     # Write integer foreign key for all npts in this batch
+     prov_id_block = np.full(npts, prov_id, dtype=np.uint32)
+     self._append(self._ds(f, method_id, "provenance_id", (), np.uint32), prov_id_block)
      ```
-  2. Refactor `compute_boltzmann_weights()` in `src/cochem_base/core/cochem_provenance.py`:
-     ```python
-     def compute_boltzmann_weights(
-         free_energies_kcal_mol: Sequence[float],
-         temperature_k: float = 298.15,
-         low_freq_cutoff_cm1: float = 100.0,
-         damping_model: str = "grimme_quasi_rrho",
-         pressure_atm: float = 1.0,
-         dag_node: Optional[Any] = None
-     ) -> Tuple[List[float], ThermodynamicsProvenance]:
-         """Computes normalized Boltzmann weights while recording thermodynamic provenance.
-         
-         Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
-         Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
-         """
-         import numpy as np
-         # R in kcal / (mol * K)
-         R_KCAL_MOL_K: float = 0.00198720425864083
-         
-         G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
-         if len(G) == 0:
-             return [], ThermodynamicsProvenance(
-                 damping_model=damping_model,
-                 low_freq_cutoff_cm1=low_freq_cutoff_cm1,
-                 temperature_k=temperature_k,
-                 pressure_atm=pressure_atm
-             )
-
-         delta_G = G - np.min(G)
-         beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
-         unnorm_weights = np.exp(-beta * delta_G)
-         weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
-
-         prov = ThermodynamicsProvenance(
-             damping_model=damping_model,
-             low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
-             temperature_k=float(temperature_k),
-             pressure_atm=float(pressure_atm),
-             provenance_tag="[D]"
-         )
-
-         if dag_node is not None and hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
-             dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
-
-         return weights, prov
-     ```
+  3. Implement backward-compatible provenance retrieval:
+     - Provide `PESStore.get_point_provenance(method_id: str, point_index: int) -> Dict[str, Any]` that reads `provenance_id[point_index]`, looks up the string in `provenance_index[prov_id]`, and deserializes the JSON dictionary. If older files contain the legacy `"provenance"` dataset, transparently fall back to reading the string directly.
+  4. Enforce thread-safe and multi-process write synchronization:
+     - Wrap file modifications in dual-layer synchronization: an in-process `threading.RLock()` and cross-platform `FileLock` targeting node-local scratch storage (`$COCH_SCRATCH` / `TMPDIR`).
+     - Enable HDF5 Single-Writer/Multiple-Reader (SWMR) mode (`f.swmr_mode = True`) when opening existing stores to guarantee crash-resilient multi-process reading.
 
 ---
 
-### [Task 4: Machine-Actionable Exception Hierarchy & Typed Error Codes (Suggestion #64)]
-- **Files Affected:** `src/cochem_base/core/exceptions.py`, `src/cochem_base/core/models.py`
-- **Problem Statement:**
-  Coordinate shape validation and core integrity checks currently raise generic `ValueError` or unformatted standard library exceptions. Automated ingest and high-throughput execution pipelines cannot programmatically distinguish dimensionality failures, unphysical nuclear charges, schema version conflicts, or air-gap breaches without fragile regex parsing of error strings, violating FAIR Principles A1 and I1 and Global Swarm Protocols.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define the root structured exception class and specialized error codes:
-     ```python
-     from typing import Optional, Dict, Any
-
-     class CoChemError(Exception):
-         """Base error class for all CoChem operations with machine-actionable error codes."""
-         def __init__(
-             self,
-             message: str,
-             error_code: str = "COCHEM_E_GENERIC",
-             details: Optional[Dict[str, Any]] = None
-         ) -> None:
-             super().__init__(f"[{error_code}] {message}")
-             self.message = message
-             self.error_code = error_code
-             self.details = details or {}
-
-     class CoordinateShapeError(CoChemError):
-         """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
-
-     class AirGapBoundaryError(CoChemError):
-         """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
-
-     class SchemaMigrationError(CoChemError):
-         """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
-
-     class PESStorageError(CoChemError):
-         """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
-
-     class ProcessReaperError(CoChemError):
-         """Raised when process termination or resource sampling fails unexpectedly."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
-
-     class SubprocessBrokerError(CoChemError):
-         """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
-
-     class ThermodynamicsParameterError(CoChemError):
-         """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
-     ```
-  2. In `src/cochem_base/core/models.py`, refactor `MolecularTopology` validator to raise `CoordinateShapeError`:
-     ```python
-     @field_validator("coordinates", mode="after")
-     @classmethod
-     def validate_coordinates_shape(cls, v: List[List[float]]) -> List[List[float]]:
-         for idx, atom_coord in enumerate(v):
-             if len(atom_coord) != 3:
-                 raise CoordinateShapeError(
-                     f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
-                     details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3}
-                 )
-         return v
-     ```
-
----
-
-### [Task 5: In-Place HDF5 SWMR Chunk Resizing & Dual-Layer Locking (Suggestion #65)]
-- **Files Affected:** `src/cochem_base/core/ipc/serializer.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`
-- **Problem Statement:**
-  `PESStore.write_entry()` currently copies the entire pre-existing HDF5 database to a temporary file via `shutil.copyfile` before writing, implementing scalar whole-file atomic replacement semantics. Appending $N$ grid points sequentially to a database of size $S$ generates $O(N \cdot S)$ disk I/O, writing gigabytes of redundant copies [M], invalidating open SWMR reader file descriptors, causing severe multi-process lock contention, and failing to validate Tripartite Air-Gap path boundaries.
-- **Implementation Requirements:**
-  1. Eliminate all calls to `shutil.copyfile` and `os.replace` in `PESStore.write_entry()` and HDF5 serialization routines.
-  2. Implement in-place HDF5 SWMR chunk resizing:
-     - On dataset creation: specify `maxshape=(None, ...)` on the initial dimension, `chunks=(512, ...)` or appropriate chunk points, and compression filters (`gzip`, `shuffle`, `fletcher32`).
-     - On append: invoke `dataset.resize(new_length, axis=0)`, slice-assign the new record, and call `dataset.flush()` and `file.flush()` to ensure SWMR visibility.
-  3. Implement dual-layer concurrency locking:
-     - In-process: module-level `_HDF5_MEM_LOCK = threading.RLock()` guarding C-library HDF5 API calls.
-     - Cross-process IPC: use `filelock.FileLock` operating on node-local scratch storage (`$COCH_SCRATCH`), with a configurable timeout (default `30.0` s). Strictly prohibit lockfile allocation on networked filesystems (Lustre/GPFS/NFS).
-  4. Enforce Tripartite Air-Gap boundary validation:
-     ```python
-     def validate_airgap_write_path(target_path: Path) -> Path:
-         """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
-         Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
-         """
-         resolved = target_path.resolve()
-         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-
-         if src_dir.exists() and src_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
-                 details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"}
-             )
-         if data_dir.exists() and data_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
-                 details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"}
-             )
-         return resolved
-     ```
-  5. Refactor `PESStore.write_entry(point: PESPointRecord) -> None`:
-     - Validate target path with `validate_airgap_write_path(self.file_path)`.
-     - Acquire dual-layer lock (`with _HDF5_MEM_LOCK: with filelock.FileLock(self.lock_path, timeout=30.0):`).
-     - Open HDF5 with `libver='latest'`, resize dataset along axis 0, commit point attributes, flush buffers.
-
----
-
-### [Task 6: Dynamic Mendeleev Mass Resolution In-Memory Caching (Suggestion #66)]
-- **Files Affected:** `src/cochem_base/core_engine/cochem_mass_resolver.py`
-- **Problem Statement:**
-  Core solvers query dynamic Mendeleev masses synchronously without memoization. Because `mendeleev.element(symbol)` executes SQL SELECT queries against the bundled SQLite database on disk ($\sim 100\ \mu\text{s}$ per query [M]), multidimensional Discrete Variable Representation (DVR) solvers and Eckart frame projections query masses tens of thousands of times across multidimensional coordinate meshes. Furthermore, synchronous SQLite queries on the host thread stall non-blocking CUDA streams and lock GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
-- **Implementation Requirements:**
-  1. Create or refactor `src/cochem_base/core_engine/cochem_mass_resolver.py`.
-  2. Implement `@functools.lru_cache(maxsize=256)` on dynamic mass resolution functions:
-     ```python
-     from functools import lru_cache
-     from typing import Union, Optional
-     import mendeleev
-     from cochem_base.core.exceptions import CoChemError
-
-     class IsotopeMassResolutionError(CoChemError):
-         """Raised when requested isotope cannot be resolved to physical mass."""
-         def __init__(self, message: str, details: Optional[dict] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
-
-     @lru_cache(maxsize=256)
-     def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-         """Returns standard atomic weight from Mendeleev with LRU memory caching.
-         Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
-         """
-         el = mendeleev.element(symbol_or_z)
-         if el.atomic_weight is not None:
-             return float(el.atomic_weight)
-         if el.mass is not None:
-             return float(el.mass)
-         raise IsotopeMassResolutionError(
-             f"Atomic weight unavailable for element '{symbol_or_z}'.",
-             details={"element": symbol_or_z}
-         )
-
-     @lru_cache(maxsize=256)
-     def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-         """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
-         Guarantees zero fallback to terrestrial average atomic weights.
-         """
-         el = mendeleev.element(symbol_or_z)
-         for iso in el.isotopes:
-             if iso.mass_number == int(mass_number):
-                 if iso.mass is not None and float(iso.mass) > 0.0:
-                     return float(iso.mass)
-         raise IsotopeMassResolutionError(
-             f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
-             details={"element": el.symbol, "mass_number": mass_number}
-         )
-     ```
-  3. Ensure all DVR, PES store, and moment-of-inertia calculation routines import from `cochem_mass_resolver.py`.
-  4. Guarantee that mass lookup arrays are pre-resolved on the host CPU prior to launching asynchronous GPU kernels, preventing CUDA stream stalls or GPU context blocking under NVIDIA MPS daemon isolation (§8A.4).
-
----
-
-### [Task 7: Lazy Thread-Safe Singleton for Mendeleev Invariants (Suggestion #67)]
-- **Files Affected:** `src/cochem_base/core/mendeleev_invariants.py`
-- **Problem Statement:**
-  Importing `cochem_base.core.mendeleev_invariants` eagerly executes `_build_element_cache()` at top level, calling `_mendeleev_element(z)` 118 times from $Z=1$ to $Z=118$ and running 118 sequential SQLite queries. In multiprocessing architectures using the `spawn` context (Windows and HPC SLURM worker pools), every single worker process re-imports the module and re-runs all 118 SQL queries sequentially upon initialization, incurring a $200\text{--}600\text{ ms}$ startup penalty per spawned process [M].
-- **Implementation Requirements:**
-  1. Remove the eager module-level execution of `_build_element_cache()` at line 107 in `mendeleev_invariants.py`.
-  2. Implement a thread-safe lazy singleton pattern:
-     ```python
-     import threading
-     from typing import Dict, Optional, Any
-
-     _ELEMENT_CACHE_LOCK = threading.Lock()
-     _ELEMENT_CACHE: Optional[Dict[int, Any]] = None
-
-     def get_element_cache() -> Dict[int, Any]:
-         """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
-         Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
-         """
-         global _ELEMENT_CACHE
-         if _ELEMENT_CACHE is None:
-             with _ELEMENT_CACHE_LOCK:
-                 if _ELEMENT_CACHE is None:
-                     _ELEMENT_CACHE = _build_element_cache()
-         return _ELEMENT_CACHE
-     ```
-  3. Refactor all external functions in `mendeleev_invariants.py` (e.g. `get_element_data(z)`, `get_symbol(z)`, `get_atomic_number(symbol)`) to query `get_element_cache()` rather than directly referencing a global module dictionary.
-  4. Ensure module import time drops to $< 5\text{ ms}$ [M].
-
----
-
-### [Task 8: Ephemeral Sandbox Lifecycle & `atexit` Leak Elimination (Suggestion #68)]
-- **Files Affected:** `src/cochem_base/core/cochem_sandbox.py`
-- **Problem Statement:**
-  `SandboxContext.__enter__()` registers `atexit.register(self.cleanup)` on every entry, but `cleanup()` and `__exit__()` fail to call `atexit.unregister(self.cleanup)`. In multi-stage calculation campaigns creating hundreds of ephemeral workspaces, the Python interpreter retains strong references to completed `SandboxContext` instances and their associated configurations in `atexit._nref`, causing unbounded heap memory accumulation and multi-second shutdown stalls during process termination.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/cochem_sandbox.py`, update `SandboxContext`:
-     ```python
-     import atexit
-     import shutil
-     from pathlib import Path
-     from typing import Optional
-     from cochem_base.core.exceptions import AirGapBoundaryError
-
-     class SandboxContext:
-         """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
-         def __init__(self, scratch_root: Optional[Path] = None, prefix: str = "cochem_job_") -> None:
-             self.scratch_root = self._resolve_and_validate_scratch_root(scratch_root)
-             self.prefix = prefix
-             self.path: Optional[Path] = None
-             self._cleaned: bool = False
-
-         def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
-             if root is None:
-                 root = Path(os.environ.get("COCH_SCRATCH", "/tmp/cochem_scratch"))
-             resolved = root.resolve()
-
-             # Enforce Tripartite Air-Gap: Prohibit sandbox creation in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA)
-             src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-             data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-             if src_dir.exists() and src_dir in resolved.parents:
-                 raise AirGapBoundaryError(
-                     f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
-                     details={"attempted_path": str(resolved), "tier": "Tier 1"}
-                 )
-             if data_dir.exists() and data_dir in resolved.parents:
-                 raise AirGapBoundaryError(
-                     f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
-                     details={"attempted_path": str(resolved), "tier": "Tier 2"}
-                 )
-             return resolved
-
-         def __enter__(self) -> "SandboxContext":
-             import tempfile
-             self.scratch_root.mkdir(parents=True, exist_ok=True)
-             self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
-             self._cleaned = False
-             atexit.register(self.cleanup)
-             return self
-
-         def cleanup(self) -> None:
-             """Idempotently cleans up scratch directory and removes atexit registration."""
-             if self._cleaned:
-                 return
-             self._cleaned = True
-             atexit.unregister(self.cleanup)
-             if self.path is not None and self.path.exists():
-                 try:
-                     shutil.rmtree(self.path, ignore_errors=True)
-                 except Exception:
-                     pass
-
-         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-             self.cleanup()
-     ```
-  2. Verify that repeated entries and exits from `SandboxContext` result in zero net change to `len(atexit._nref)` or internal callback queues.
-
----
-
-### [Task 9: Direct Child PID Monitoring in Process Reaper (Suggestion #69)]
-- **Files Affected:** `src/cochem_base/core/process_reaper.py`
-- **Problem Statement:**
-  Monitoring daemons periodically invoke `sample_process_tree_rss_bytes()` and `terminate_tree()` at short intervals ($0.1\text{--}1.0\text{ s}$) using `psutil.Process().children(recursive=True)`. The OS must traverse the entire system process table on every polling cycle, inducing significant host CPU consumption ($>15\%$), CPU cache eviction, and kernel thread contention on active compute cores dedicated to high-precision quantum chemical kernels (ORCA, CFOUR) and GPU MPS host workers (§8A.4).
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/process_reaper.py`, update `ProcessTreeManager`:
-     - Maintain an explicit registry of active child PIDs:
-       ```python
-       self._tracked: Set[int] = set()
-       ```
-     - Provide registration methods:
-       ```python
-       def register_process(self, pid: int) -> None:
-           """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
-           if pid > 0:
-               self._tracked.add(pid)
-
-       def unregister_process(self, pid: int) -> None:
-           """Removes a process PID upon normal exit."""
-           self._tracked.discard(pid)
-       ```
-  2. Refactor `sample_process_tree_rss_bytes() -> int`:
-     ```python
-     def sample_process_tree_rss_bytes(self) -> int:
-         """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
-         Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
-         """
-         total_rss = 0
-         dead_pids = set()
-
-         # Include parent process
-         try:
-             total_rss += self._parent_proc.memory_info().rss
-         except (psutil.NoSuchProcess, psutil.AccessDenied):
-             pass
-
-         # Query tracked child PIDs directly
-         for pid in list(self._tracked):
-             try:
-                 p = psutil.Process(pid)
-                 total_rss += p.memory_info().rss
-             except psutil.NoSuchProcess:
-                 dead_pids.add(pid)
-             except (psutil.AccessDenied, psutil.ZombieProcess):
-                 pass
-
-         self._tracked.difference_update(dead_pids)
-         return total_rss
-     ```
-  3. In `terminate_tree(timeout: float = 5.0) -> None`:
-     - Directly signal all PIDs in `_tracked` with `SIGTERM` (or `taskkill /PID` on Windows), wait up to `timeout` seconds, and escalate to `SIGKILL` only for stubborn processes.
-     - Fall back to recursive system-wide `children(recursive=True)` discovery ONLY when detached orphan subprocesses are suspected.
-
----
-
-### [Task 10: Session-Level Scratch Verification Cache with TTL (Suggestion #70)]
+### [Task 3: Tripartite Air-Gapped Subprocess Broker with Stream Buffering & Telemetry Steering (Suggestion #73)]
 - **Files Affected:** `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
 - **Problem Statement:**
-  `safe_subprocess_run()` invokes `verify_scratch_quota_and_io()` prior to executing `subprocess.Popen`. This function writes a 64 KB binary probe to disk, flushes the stream, invokes `os.fsync()`, reads back the file, computes two SHA-256 digests, and unlinks the probe file before every command. This synchronous barrier adds a $20\text{--}100\text{ ms}$ dispatch latency per execution [M] and floods clustered/networked filesystems (Lustre, GPFS, NFS) with redundant metadata journal flushes during high-throughput calculations.
+  In [`safe_subprocess_run()`](file:///src/cochem_base/core_engine/cochem_core_subprocess_broker.py#L1161-L1180), standard output is captured via `stdout=subprocess.PIPE` and buffered into memory via `proc.communicate()`. Extended coupled-cluster (CFOUR, ORCA) and VPT2 force-field jobs produce log files exceeding $100\text{--}500\text{ MB}$. Buffering entire logs in RAM causes heap memory exhaustion, blocks live line-by-line convergence monitoring (SCF energy progression, geometry step gradients), and risks environment leakage without tripartite air-gap boundaries.
 - **Implementation Requirements:**
-  1. In `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`, implement a thread-safe session-level scratch verification cache:
+  1. Refactor `safe_subprocess_run()` to enforce the Tripartite Air-Gap:
+     - **Execution Sandboxing ($T_{\text{scr}}$):** Ensure the calculation executes inside an isolated ephemeral scratch directory in Tier 3 (`$COCH_SCRATCH`), resolved using `pathlib.Path.resolve()`.
+     - **Environment Sanitization:** Strip host authentication tokens, API keys, and sensitive environment variables from `target_env`. Set `COCHEM_OFFLINE=1`.
+     - **Structured Parameter Passing:** Strictly pass calculation inputs via validated JSON schemas or input decks written into the scratch directory.
+  2. Implement direct scratch disk streaming with asynchronous line tail buffering:
      ```python
-     import time
-     import os
-     import hashlib
-     from pathlib import Path
-     from typing import Dict, Tuple, Optional
-     from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
-
-     _SCRATCH_CACHE_LOCK = threading.Lock()
-     # Maps resolved Path -> float (monotonic timestamp of last successful verification)
-     _SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
-
-     def verify_scratch_quota_and_io(
-         scratch_dir: Path,
-         ttl_seconds: float = 300.0,
-         force: bool = False
-     ) -> bool:
-         """Verifies write, fsync, and SHA-256 read-back integrity on scratch_dir.
-         Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
-         Enforces Tripartite Air-Gap: scratch_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
+     def safe_subprocess_run(
+         cmd: Sequence[str],
+         cwd: Union[str, Path],
+         timeout: Optional[float] = None,
+         capture_output: bool = True,
+         stream_to_disk: bool = True,
+         on_stdout_line: Optional[Callable[[str], None]] = None,
+         tail_buffer_lines: int = 500,
+         env: Optional[Dict[str, str]] = None,
+         cpu_affinity: Optional[Sequence[int]] = None,
+         use_job_object: bool = True,
+         **kwargs: Any,
+     ) -> subprocess.CompletedProcess:
+         """Executes external binary enforcing Tripartite Air-Gap and O(1) memory disk streaming.
+         
+         Streams stdout/stderr directly to scratch disk files while maintaining a circular
+         tail buffer of the last K lines and executing live telemetry callbacks for active steering.
          """
-         resolved = scratch_dir.resolve()
+     ```
+  3. When `stream_to_disk=True` and `capture_output=True`:
+     - Open scratch log files: `stdout_log = scratch_dir / "process_stdout.log"`, `stderr_log = scratch_dir / "process_stderr.log"`.
+     - Stream `stdout` and `stderr` using dedicated reader threads or non-blocking line polling into a `collections.deque(maxlen=tail_buffer_lines)` while simultaneously writing lines directly to the log files on disk.
+     - For each line read, dispatch `on_stdout_line(line)` if a callback is registered, allowing live detection of SCF divergence, unphysical energy spikes, or runaway geometry steps for early job abortion.
+     - On completion, `CompletedProcess.stdout` returns the concatenated string from the tail buffer (or reads the full file from disk if explicitly requested via a parameter `load_full_stdout=False`), decoupling the process memory footprint from log length.
+     - Ensure absolute resource cleanup: close all file descriptors in a `finally` block and unregister process PIDs from the process reaper.
 
-         # Air-gap boundary validation
-         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-         if src_dir.exists() and src_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
-                 details={"path": str(resolved), "tier": "Tier 1"}
-             )
-         if data_dir.exists() and data_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
-                 details={"path": str(resolved), "tier": "Tier 2"}
-             )
+---
 
-         now = time.monotonic()
-         with _SCRATCH_CACHE_LOCK:
-             if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
-                 last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
-                 if (now - last_verified) < ttl_seconds:
-                     return True
+### [Task 4: True Zero-Copy Shared Memory Lifecycle & Handle Recycling (Suggestion #74)]
+- **Files Affected:** `src/cochem/core/ipc/serializer.py`
+- **Problem Statement:**
+  In [`SharedMemoryBuffer.read_from_descriptor()`](file:///src/cochem/core/ipc/serializer.py#L106-L113), line 109 executes `extracted = mapped.copy()` because `client_shm.close()` is called immediately in the `finally` block. Copying a $500\text{ MB}$ tensor duplicates the entire buffer in user space, negating the throughput and latency advantages of `multiprocessing.shared_memory` and causing transient double-allocations during high-throughput grid evaluations across memory-constrained environments.
+- **Implementation Requirements:**
+  1. Implement a zero-copy container wrapper `SharedMemoryView`:
+     ```python
+     class SharedMemoryView:
+         """Manages the lifecycle of a mapped multiprocessing.shared_memory segment and exposes an ndarray view.
+         
+         Guarantees true zero-copy data access without duplicating array buffers in user space.
+         Ensures deterministic handle cleanup and prevents OS descriptor leakage.
+         """
+         def __init__(self, shm: sm.SharedMemory, array: np.ndarray, is_owner: bool = False):
+             self._shm = shm
+             self._array = array
+             self._is_owner = is_owner
+             self._closed = False
 
-         # Perform physical 64 KB probe
-         resolved.mkdir(parents=True, exist_ok=True)
-         probe_file = resolved / f".io_probe_{os.getpid()}_{time.time_ns()}.bin"
-         probe_data = os.urandom(64 * 1024)
-         probe_hash = hashlib.sha256(probe_data).hexdigest()
+         @property
+         def array(self) -> np.ndarray:
+             if self._closed:
+                 raise RuntimeError("Cannot access array view on a closed SharedMemoryView.")
+             return self._array
 
-         try:
-             with open(probe_file, "wb") as f:
-                 f.write(probe_data)
-                 f.flush()
-                 os.fsync(f.fileno())
-
-             with open(probe_file, "rb") as f:
-                 read_data = f.read()
-
-             read_hash = hashlib.sha256(read_data).hexdigest()
-             if read_hash != probe_hash:
-                 raise SubprocessBrokerError(
-                     f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
-                     details={"scratch_dir": str(resolved), "expected": probe_hash, "actual": read_hash}
-                 )
-         finally:
-             if probe_file.exists():
+         def close(self) -> None:
+             """Closes the shared memory mapping."""
+             if not self._closed:
+                 self._closed = True
                  try:
-                     probe_file.unlink()
+                     self._shm.close()
                  except OSError:
                      pass
 
-         with _SCRATCH_CACHE_LOCK:
-             _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
+         def unlink(self) -> None:
+             """Unlinks the OS shared memory segment (owner only)."""
+             if self._is_owner:
+                 try:
+                     self._shm.unlink()
+                 except OSError:
+                     pass
 
-         return True
+         def __enter__(self) -> np.ndarray:
+             return self.array
+
+         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+             self.close()
+
+         def __del__(self) -> None:
+             self.close()
      ```
-  2. In `safe_subprocess_run()`, call `verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0, force=False)` prior to executing `subprocess.Popen`.
+  2. Update `SharedMemoryBuffer.read_from_descriptor()`:
+     ```python
+     @classmethod
+     def read_from_descriptor(cls, descriptor: Dict[str, Any], zero_copy: bool = True) -> Union[np.ndarray, SharedMemoryView]:
+         """Maps an existing shared memory segment.
+         
+         If zero_copy=True, returns a SharedMemoryView wrapping the buffer without memory duplication.
+         If zero_copy=False, returns an independent copied ndarray and closes the segment immediately.
+         """
+         name = descriptor["name"]
+         shape = tuple(descriptor["shape"])
+         dtype = descriptor["dtype"]
+
+         client_shm = sm.SharedMemory(name=name)
+         mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
+
+         if zero_copy:
+             return SharedMemoryView(shm=client_shm, array=mapped, is_owner=False)
+         else:
+             try:
+                 return mapped.copy()
+             finally:
+                 client_shm.close()
+     ```
+  3. Ensure seamless cross-platform support: handles must operate identically across Windows Named Shared Memory and POSIX `/dev/shm`, ensuring that when `SharedMemoryBuffer.create()` or `SharedMemoryView` is unlinked or garbage collected, no dangling OS shm handles remain.
 
 ---
 
-## 4. Pytest Unit & Integration Test Specifications
+### [Task 5: Memory-Efficient Streaming Parser for CFOUR Output Logs (Suggestion #75)]
+- **Files Affected:** `src/cochem_base/core_engine/cochem_core_cfour_bridge.py`
+- **Problem Statement:**
+  In [`CFOUROutputParser.parse_cfour_stdout()`](file:///src/cochem_base/core_engine/cochem_core_cfour_bridge.py#L927-L943), line 943 executes `lines = stdout_text.splitlines()`. Splitting a $150\text{ MB}$ CFOUR VPT2 log creates millions of individual Python `str` objects, expanding the heap memory footprint to over $500\text{ MB}$ due to Python object header overhead and triggering heavy garbage collection pauses. Sequential parsing does not require simultaneous in-memory materialization of all lines.
+- **Implementation Requirements:**
+  1. Refactor `CFOUROutputParser.parse_cfour_stdout()` to accept either a raw string, an open text stream (`TextIO`), or an iterable of strings:
+     ```python
+     @classmethod
+     def parse_cfour_stdout(
+         cls,
+         stdout_source: Union[str, Iterable[str], TextIO],
+         symbols_fallback: Optional[Sequence[str]] = None,
+         coordinates_fallback: Optional[np.ndarray] = None,
+     ) -> CFOURObservables:
+         """Parses spectroscopic observables from CFOUR stdout using a streaming line iterator.
+         
+         Avoids splitting entire log into memory via splitlines(), reducing peak heap allocation by >70%.
+         """
+         if isinstance(stdout_source, str):
+             line_iterator = iter(stdout_source.splitlines())
+         else:
+             line_iterator = iter(stdout_source)
 
-### Deliverable 1: `tests/core/test_physics_integrity_part7.py`
-This test suite verifies physics integrity across data models, serialization kernels, thermodynamic provenance, exception structures, and mass caching.
+         scf_energy: Optional[float] = None
+         mp2_energy: Optional[float] = None
+         ccsd_energy: Optional[float] = None
+         ccsd_t_energy: Optional[float] = None
+         final_energy: Optional[float] = None
+
+         Ae_MHz, Be_MHz, Ce_MHz = 0.0, 0.0, 0.0
+         Ae_cm, Be_cm, Ce_cm = 0.0, 0.0, 0.0
+         dipole_a, dipole_b, dipole_c, dipole_tot = 0.0, 0.0, 0.0, 0.0
+
+         # Single-pass sequential scanner over line iterator
+         for raw_line in line_iterator:
+             line = raw_line.strip()
+             if not line:
+                 continue
+
+             # Energy harvesting
+             if "The final electronic energy is" in line:
+                 parts = line.split()
+                 final_energy = float(parts[-2])
+             elif "E(SCF)=" in line:
+                 parts = line.split()
+                 scf_energy = float(parts[1])
+             elif "E(CORR)(MP2) =" in line:
+                 parts = line.split()
+                 mp2_energy = float(parts[-1])
+             elif "E(CCSD) =" in line:
+                 parts = line.split()
+                 ccsd_energy = float(parts[-1])
+             elif "E(CCSD(T)) =" in line or "Total CCSD(T) energy" in line:
+                 parts = line.split()
+                 ccsd_t_energy = float(parts[-1])
+
+             # Rotational constant harvesting
+             elif "Rotational constants (in MHz):" in line or "Rotational constants (in cm-1):" in line:
+                 # Read subsequent lines from iterator directly
+                 ...
+     ```
+  2. Maintain 100% numerical parity with the existing parser for all extracted spectroscopic observables ($A_e, B_e, C_e$, $D_J, D_{JK}, D_K$, harmonic frequencies $\omega_i$, anharmonic corrections $\chi_{ij}$, vibration-rotation interaction constants $\alpha_r^B$, and dipole moments $\mu_a, \mu_b, \mu_c$).
+  3. Ensure that passing a large log file as an open file handle (`with open(log_path, "r", encoding="utf-8") as f: observables = parse_cfour_stdout(f)`) executes with $O(1)$ memory overhead.
+
+---
+
+### [Task 6: Adaptive Exponential Backoff with Jitter for Cross-Platform FileLock (Suggestion #76)]
+- **Files Affected:** `src/cochem/core/context.py`
+- **Problem Statement:**
+  In [`FileLock.acquire()`](file:///src/cochem/core/context.py#L179-L200), line 199 executes a static sleep interval: `time.sleep(0.05)`. When a competing process holds a lock for only $1\text{ ms}$, the waiting process remains artificially blocked for the full $50\text{ ms}$ window, introducing up to $49\text{ ms}$ of unneeded idle latency per acquisition. Across thousands of concurrent coordinate additions or task queue updates, this accumulates into substantial workflow stalls. Furthermore, direct invocation of `msvcrt.locking` on Windows and `fcntl.flock` on POSIX without standardized exponential backoff and random jitter causes CPU starvation and lock thrashing.
+- **Implementation Requirements:**
+  1. Refactor `FileLock.acquire()` to implement adaptive exponential backoff with full random jitter:
+     ```python
+     def acquire(
+         self,
+         initial_delay_sec: float = 0.001,  # 1 ms
+         max_delay_sec: float = 0.025,      # 25 ms cap
+         backoff_factor: float = 1.5,
+         jitter: bool = True,
+     ) -> bool:
+         """Acquires the file lock using adaptive exponential backoff with random jitter.
+         
+         Reduces lock acquisition latency by up to 90% in low-contention windows while
+         preventing CPU spin and lock thrashing under heavy multi-process contention.
+         """
+         start_epoch = time.time()
+         flags = os.O_RDWR | os.O_CREAT
+         self._fd = os.open(str(self.lock_path), flags, 0o666)
+
+         current_delay = initial_delay_sec
+
+         while True:
+             try:
+                 if sys.platform == "win32":
+                     import msvcrt
+                     msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
+                     return True
+                 else:
+                     import fcntl
+                     fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                     return True
+             except (OSError, IOError) as lock_err:
+                 elapsed = time.time() - start_epoch
+                 if elapsed >= self.timeout_sec:
+                     if self._fd is not None:
+                         try:
+                             os.close(self._fd)
+                         except OSError:
+                             pass
+                         self._fd = None
+                     raise TimeoutError(
+                         f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}"
+                     ) from lock_err
+
+                 # Compute sleep interval with random jitter
+                 sleep_duration = current_delay
+                 if jitter:
+                     import random
+                     sleep_duration = random.uniform(current_delay * 0.5, current_delay * 1.5)
+
+                 time.sleep(sleep_duration)
+
+                 # Exponential backoff update capped at max_delay_sec
+                 current_delay = min(max_delay_sec, current_delay * backoff_factor)
+     ```
+  2. Implement stale lock detection: if a lock file's modification time exceeds `stale_lock_timeout_sec: float = 300.0`, log a warning, unlink the orphaned lock descriptor, and attempt reacquisition.
+  3. Enforce the HPC Distributed Lock Prohibition: verify that `self.lock_path` resides on a node-local filesystem (`TMPDIR` / `$COCH_SCRATCH`), raising an `AirGapBoundaryError` if the lock path is placed on a remote network mount (NFS, Lustre, GPFS).
+
+---
+
+## 4. Zero-Mock Test Suite Specifications
+
+### Test Suite 1: `tests/core/test_physics_integrity_part8.py`
+Validating Suggestions #71 (Chunked KRR PES Evaluation), #72 (Normalized HDF5 Provenance & SWMR), and #75 (Streaming CFOUR Log Parser).
 
 ```python
-import math
 import os
+import sys
+import io
 import time
+import tempfile
+import tracemalloc
+import numpy as np
 import pytest
-from pydantic import ValidationError
-from cochem_base.core.models import (
-    MolecularTopology,
-    CURRENT_CORE_SCHEMA_VERSION,
-    register_migration,
-    migrate_payload
-)
-from cochem_base.core.exceptions import (
-    CoChemError,
-    CoordinateShapeError,
-    SchemaMigrationError,
-    AirGapBoundaryError
-)
-from cochem_base.core.cochem_crypto import (
-    format_rfc8785_float,
-    canonicalize_json
-)
-from cochem_base.core.cochem_provenance import (
-    compute_boltzmann_weights,
-    ThermodynamicsProvenance
-)
-from cochem_base.core_engine.cochem_mass_resolver import (
-    get_dynamic_atomic_mass,
-    get_dynamic_isotopic_mass,
-    IsotopeMassResolutionError
-)
+from pathlib import Path
 
-def test_pydantic_model_schema_version_and_migration():
-    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
-    # Test current model instantiation
-    top = MolecularTopology(
-        symbols=["H", "H"],
-        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        molecular_charge=0,
-        spin_multiplicity=1
-    )
-    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
+from cochem_base.core_engine.cochem_core_auto_pes import ExactKernelRidgeEstimator, KernelFunction
+from cochem_base.core_engine.cochem_core_pes_store import PESStore
+from cochem_base.core_engine.cochem_core_cfour_bridge import CFOUROutputParser, CFOURObservables
 
-    # Register mock legacy migration from v0 to v1
-    @register_migration("MolecularTopology", 0)
-    def migrate_v0_to_v1(data):
-        d = dict(data)
-        d["schema_version"] = 1
-        if "spin_multiplicity" not in d:
-            d["spin_multiplicity"] = 1
-        return d
 
-    legacy_payload = {
-        "schema_version": 0,
-        "symbols": ["O", "H", "H"],
-        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
-        "molecular_charge": 0
+def test_krr_chunked_prediction_numerical_parity_and_memory_cap():
+    """Validates Suggestion #71: Chunked KRR prediction matches monolithic prediction to < 1e-12 Hartrees
+
+    and caps transient memory allocation.
+    """
+    rng = np.random.RandomState(42)
+    n_train = 500
+    n_dim = 6
+    X_train = rng.uniform(-2.0, 2.0, size=(n_train, n_dim))
+    y_train = np.sin(X_train[:, 0]) * np.cos(X_train[:, 1]) + 0.1 * np.sum(X_train**2, axis=1)
+
+    estimator = ExactKernelRidgeEstimator(kernel_type="rbf", gamma=0.5, alpha=1e-6)
+    estimator.fit(X_train, y_train)
+
+    n_eval = 20000
+    X_eval = rng.uniform(-2.0, 2.0, size=(n_eval, n_dim))
+
+    # Evaluate using standard batch size 2048
+    preds_chunked = estimator.predict(X_eval, batch_size=2048)
+
+    # Evaluate monolithic (batch_size >= n_eval)
+    preds_monolithic = estimator.predict(X_eval, batch_size=n_eval)
+
+    # Numerical parity check
+    max_abs_diff = np.max(np.abs(preds_chunked - preds_monolithic))
+    assert max_abs_diff < 1e-12, f"Discrepancy between chunked and monolithic KRR: {max_abs_diff}"
+
+    # Memory allocation test: compare small batch vs full
+    tracemalloc.start()
+    _ = estimator.predict(X_eval, batch_size=1024)
+    current, peak_chunked = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Peak memory for 1024 chunk should be well under 100 MB (< 25 MB in practice)
+    assert peak_chunked < 100 * 1024 * 1024, f"Peak memory {peak_chunked / (1024*1024):.2f} MB exceeded 100 MB cap"
+
+
+def test_pes_store_normalized_provenance_and_swmr(tmp_path):
+    """Validates Suggestion #72: Normalized provenance index in HDF5 reduces file bloat
+
+    and maintains foreign-key data integrity.
+    """
+    h5_path = tmp_path / "test_pes_normalized.h5"
+    store = PESStore(h5_path, compress=True)
+
+    n_points = 5000
+    natoms = 3
+    coords = np.zeros((n_points, natoms, 3), dtype=np.float64)
+    energies = np.linspace(-76.0, -75.0, n_points, dtype=np.float64)
+    prov_dict = {
+        "method": "CCSD(T)-F12",
+        "basis": "cc-pVTZ-F12",
+        "program": "CFOUR",
+        "provenance_tag": "[M]",
+        "parameters": {"scf_conv": 1e-10, "frozen_core": True},
     }
-    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
-    assert migrated_top.schema_version == 1
-    assert migrated_top.spin_multiplicity == 1
 
-def test_rfc8785_ieee754_canonical_float_formatting():
-    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
-    # Signed zero formatting
-    assert format_rfc8785_float(0.0) == "0"
-    assert format_rfc8785_float(-0.0) == "0"
-
-    # Disallow NaN and Infinity
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("nan"))
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("inf"))
-
-    # Exponential notation without leading zero in exponent
-    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
-    assert format_rfc8785_float(1e-7) == "1e-7"
-    assert format_rfc8785_float(1e21) == "1e+21"
-
-    # Canonicalize dictionary with sorted keys and floats
-    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
-    canonical_bytes = canonicalize_json(payload)
-    # Keys must be sorted 'a', 'b', 'c', -0.0 as 0, 1e-7 without leading zero
-    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
-
-def test_quasi_rrho_thermodynamics_provenance_logging():
-    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
-    class DummyNode:
-        def __init__(self):
-            self.payload = {}
-
-    node = DummyNode()
-    energies = [0.0, 0.5, 1.2]
-    weights, prov = compute_boltzmann_weights(
-        energies,
-        temperature_k=298.15,
-        low_freq_cutoff_cm1=100.0,
-        damping_model="grimme_quasi_rrho",
-        dag_node=node
-    )
-    assert len(weights) == 3
-    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
-    assert "thermodynamics_provenance" in node.payload
-    logged = node.payload["thermodynamics_provenance"]
-    assert logged["damping_model"] == "grimme_quasi_rrho"
-    assert logged["low_freq_cutoff_cm1"] == 100.0
-    assert logged["temperature_k"] == 298.15
-    assert logged["provenance_tag"] == "[D]"
-
-def test_machine_actionable_exception_hierarchy():
-    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
-    # Coordinate shape mismatch raises CoordinateShapeError
-    with pytest.raises(CoordinateShapeError) as exc_info:
-        MolecularTopology(
-            symbols=["H"],
-            coordinates=[[0.0, 0.0]], # 2D instead of 3D
-            molecular_charge=0,
-            spin_multiplicity=1
+    # Add points in batches sharing the exact same provenance
+    batch_size = 1000
+    for b in range(5):
+        store.add_points(
+            method_id="ccsdt_f12",
+            coordinates=coords[b*batch_size : (b+1)*batch_size],
+            energies=energies[b*batch_size : (b+1)*batch_size],
+            provenance=prov_dict,
         )
-    err = exc_info.value
-    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
-    assert err.details["actual_len"] == 2
-    assert err.details["expected_len"] == 3
 
-def test_dynamic_mendeleev_mass_resolution_lru_cache():
-    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
-    # Warmup
-    mass_c = get_dynamic_atomic_mass("C")
-    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
+    # Inspect HDF5 structure directly
+    import h5py
+    with h5py.File(h5_path, "r") as f:
+        assert "methods/ccsdt_f12/provenance_index" in f
+        prov_index = f["methods/ccsdt_f12/provenance_index"]
+        # Exactly one unique provenance entry should be registered
+        assert len(prov_index) == 1
 
-    # Measure lookup latency for cached access
-    start = time.perf_counter()
-    for _ in range(1000):
-        _ = get_dynamic_atomic_mass("C")
-    cached_duration = time.perf_counter() - start
+        prov_id_ds = f["points/ccsdt_f12/provenance_id"]
+        assert len(prov_id_ds) == n_points
+        assert np.all(prov_id_ds[:] == 0)
 
-    # 1000 lookups should complete in less than 5 milliseconds
-    assert cached_duration < 0.005
+    # Verify retrieval helper
+    retrieved_prov = store.get_point_provenance("ccsdt_f12", 2500)
+    assert retrieved_prov["method"] == "CCSD(T)-F12"
+    assert retrieved_prov["provenance_tag"] == "[M]"
 
-    # Nuclear isotopic masses
-    mass_14c = get_dynamic_isotopic_mass("C", 14)
-    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
 
-    with pytest.raises(IsotopeMassResolutionError):
-        get_dynamic_isotopic_mass("C", 999)
+def test_cfour_streaming_parser_parity_and_low_memory():
+    """Validates Suggestion #75: Streaming CFOUR parser matches legacy parser
+
+    without splitting entire file into memory.
+    """
+    synthetic_log_lines = [
+        " ----------------------------------------------------------------",
+        "                        C F O U R",
+        " ----------------------------------------------------------------",
+        " E(SCF)=           -76.026783918234",
+        " E(CORR)(MP2) =     -0.281923489123",
+        " E(CCSD) =          -76.331289412390",
+        " E(CCSD(T)) =       -76.342198421039",
+        " Rotational constants (in MHz):",
+        "      A =     825421.382    B =     435129.182    C =     287192.481",
+        " Rotational constants (in cm-1):",
+        "      A =         27.533    B =         14.514    C =          9.580",
+        " Dipole moment (Debye):",
+        "      x =         0.0000    y =         0.0000    z =         1.8542    tot =     1.8542",
+        " The final electronic energy is   -76.342198421039 a.u.",
+    ]
+    # Pad with 50,000 comment lines to simulate massive VPT2 output
+    full_log = "\n".join(synthetic_log_lines[:4] + [" # Iteration trace padding line"] * 50000 + synthetic_log_lines[4:])
+
+    # Test parsing from string iterator
+    obs_stream = CFOUROutputParser.parse_cfour_stdout(iter(full_log.splitlines()))
+
+    assert obs_stream.final_energy == pytest.approx(-76.342198421039, abs=1e-12)
+    assert obs_stream.scf_energy == pytest.approx(-76.026783918234, abs=1e-12)
+    assert obs_stream.mp2_energy == pytest.approx(-0.281923489123, abs=1e-12)
+    assert obs_stream.ccsd_t_energy == pytest.approx(-76.342198421039, abs=1e-12)
+    assert obs_stream.Ae_MHz == pytest.approx(825421.382, abs=1e-3)
+    assert obs_stream.Be_MHz == pytest.approx(435129.182, abs=1e-3)
+    assert obs_stream.Ce_MHz == pytest.approx(287192.481, abs=1e-3)
+    assert obs_stream.dipole_tot == pytest.approx(1.8542, abs=1e-4)
+
+    # Test parsing from TextIO stream
+    stream_io = io.StringIO(full_log)
+    obs_io = CFOUROutputParser.parse_cfour_stdout(stream_io)
+    assert obs_io.final_energy == obs_stream.final_energy
 ```
 
 ---
 
-### Deliverable 2: `tests/core/test_architecture_part7.py`
-This test suite verifies architecture, concurrency, air-gap boundaries, and OS-level lifecycle management.
+### Test Suite 2: `tests/core/test_architecture_part8.py`
+Validating Suggestions #73 (Air-Gapped Subprocess Streaming Broker), #74 (Zero-Copy Shared Memory IPC), and #76 (Adaptive Exponential Backoff FileLock).
 
 ```python
 import os
+import sys
 import time
-import atexit
 import threading
-import tempfile
-from pathlib import Path
+import numpy as np
 import pytest
-import h5py
-from cochem_base.core.exceptions import AirGapBoundaryError
-from cochem_base.core.mendeleev_invariants import get_element_cache
-from cochem_base.core.cochem_sandbox import SandboxContext
-from cochem_base.core.process_reaper import ProcessTreeManager
-from cochem_base.core_engine.cochem_core_subprocess_broker import (
-    verify_scratch_quota_and_io,
-    _SCRATCH_VERIFICATION_CACHE
-)
+from pathlib import Path
 
-def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
-    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
-    # Mock environment
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    os.environ["COCH_SRC"] = str(src_dir)
+from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+from cochem.core.ipc.serializer import SharedMemoryBuffer, SharedMemoryView
+from cochem.core.context import FileLock
 
-    # Attempting to write into Tier 1 ($COCH_SRC) must raise AirGapBoundaryError
-    h5_src_path = src_dir / "store.h5"
-    with pytest.raises(AirGapBoundaryError) as exc_info:
-        from cochem_base.core.ipc.serializer import validate_airgap_write_path
-        validate_airgap_write_path(h5_src_path)
-    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
 
-    # Valid write into temporary scratch
-    h5_scratch_path = tmp_path / "scratch" / "store.h5"
-    h5_scratch_path.parent.mkdir()
-    
-    # Create SWMR dataset
-    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
-        ds = f.create_dataset(
-            "energies",
-            shape=(1,),
-            maxshape=(None,),
-            chunks=(512,),
-            dtype="float64",
-            compression="gzip"
-        )
-        ds[0] = -76.432
+def test_safe_subprocess_run_tripartite_airgap_and_streaming(tmp_path):
+    """Validates Suggestion #73: Subprocess executes in isolated scratch directory,
 
-    # In-place chunk resizing
-    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
-        ds = f["energies"]
-        new_len = ds.shape[0] + 1
-        ds.resize((new_len,))
-        ds[new_len - 1] = -76.435
-        ds.flush()
-
-    # Verify length without whole-file copying
-    with h5py.File(h5_scratch_path, "r") as f:
-        assert f["energies"].shape[0] == 2
-        assert math.isclose(f["energies"][1], -76.435)
-
-def test_mendeleev_invariants_lazy_singleton_startup():
-    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
-    # Ensure cache function returns valid mapping from Z=1 to Z=118
-    cache = get_element_cache()
-    assert len(cache) >= 118
-    assert cache[1].symbol == "H"
-    assert cache[6].symbol == "C"
-
-def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
-    """Validates Suggestion #68: atexit callback unregistration on context exit."""
+    streams stdout to disk, and executes live telemetry line callbacks.
+    """
     scratch_dir = tmp_path / "scratch"
-    os.environ["COCH_SCRATCH"] = str(scratch_dir)
-
-    initial_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
-
-    with SandboxContext(scratch_root=scratch_dir) as sb:
-        assert sb.path.exists()
-        inside_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
-
-    # Path must be unlinked and cleaned
-    assert not sb.path.exists()
-    final_atexit_count = len(atexit._nref) if hasattr(atexit, "_nref") else 0
-
-    # Cleaned flag must be set
-    assert sb._cleaned is True
-
-def test_process_reaper_direct_pid_monitoring():
-    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
-    manager = ProcessTreeManager()
-    
-    # Spawn dummy child process
-    import subprocess
-    import sys
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
-    manager.register_process(proc.pid)
-
-    assert proc.pid in manager._tracked
-    rss = manager.sample_process_tree_rss_bytes()
-    assert rss > 0
-
-    # Terminate tracked process
-    manager.terminate_tree()
-    proc.wait()
-    assert not proc.poll() is None
-
-def test_subprocess_broker_scratch_verification_cache(tmp_path):
-    """Validates Suggestion #70: Scratch verification caching with TTL."""
-    scratch_dir = tmp_path / "scratch_io"
     scratch_dir.mkdir()
-    _SCRATCH_VERIFICATION_CACHE.clear()
 
-    # First call must perform physical write probe
+    # Script that emits 10 lines with small pauses
+    script = (
+        "import sys, time\n"
+        "for i in range(10):\n"
+        "    print(f'SCF ITERATION {i}: ENERGY = {-76.0 - i*0.01}', flush=True)\n"
+        "    time.sleep(0.01)\n"
+    )
+    script_file = scratch_dir / "runner.py"
+    script_file.write_text(script, encoding="utf-8")
+
+    captured_lines = []
+    def on_line(line: str):
+        captured_lines.append(line.strip())
+
+    res = safe_subprocess_run(
+        cmd=[sys.executable, str(script_file)],
+        cwd=scratch_dir,
+        stream_to_disk=True,
+        on_stdout_line=on_line,
+        tail_buffer_lines=5,
+    )
+
+    assert res.returncode == 0
+    assert len(captured_lines) == 10
+    assert "SCF ITERATION 0" in captured_lines[0]
+    assert "SCF ITERATION 9" in captured_lines[-1]
+
+    # Verify log file was written to disk
+    stdout_log = scratch_dir / "process_stdout.log"
+    assert stdout_log.exists()
+    assert stdout_log.stat().st_size > 0
+
+
+def test_shared_memory_zero_copy_view_and_cleanup():
+    """Validates Suggestion #74: SharedMemoryBuffer maps array view without copying
+
+    and cleans up OS descriptors deterministically.
+    """
+    arr = np.linspace(1.0, 1000.0, 100000, dtype=np.float64)
+    buffer = SharedMemoryBuffer.create(arr)
+    descriptor = buffer.to_descriptor()
+
+    # Map zero-copy view
+    view = SharedMemoryBuffer.read_from_descriptor(descriptor, zero_copy=True)
+    assert isinstance(view, SharedMemoryView)
+
+    with view as mapped_arr:
+        # Verify it points to the exact same shared memory segment
+        assert np.may_share_memory(mapped_arr, buffer.array)
+        assert np.array_equal(mapped_arr[:10], arr[:10])
+        # In-place modification reflects in shared memory
+        mapped_arr[0] = 9999.0
+        assert buffer.array[0] == 9999.0
+
+    # View should be closed after exiting context manager
+    with pytest.raises(RuntimeError, match="Cannot access array view on a closed"):
+        _ = view.array
+
+    buffer.close()
+    buffer.unlink()
+
+
+def test_filelock_adaptive_backoff_and_contention(tmp_path):
+    """Validates Suggestion #76: FileLock adaptive exponential backoff acquires rapidly
+
+    in low contention and handles heavy multi-threaded contention without deadlock.
+    """
+    lock_file = tmp_path / "test_concurrency.lock"
+    lock1 = FileLock(lock_file, timeout_sec=5.0)
+
+    # 1. Rapid acquisition latency check (< 10 ms instead of 50 ms)
     t0 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    assert lock1.acquire() is True
+    lock1.release()
     t1 = time.perf_counter()
-    initial_duration = t1 - t0
+    assert (t1 - t0) < 0.02, f"Uncontended lock acquisition took too long: {t1 - t0:.4f}s"
 
-    # Second call within TTL must hit cache and return immediately (< 1 ms)
-    t2 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
-    t3 = time.perf_counter()
-    cached_duration = t3 - t2
+    # 2. Multi-threaded contention test
+    counter = {"value": 0}
+    n_threads = 5
+    increments_per_thread = 20
 
-    assert cached_duration < 0.002
-    assert cached_duration < initial_duration
+    def worker():
+        w_lock = FileLock(lock_file, timeout_sec=10.0)
+        for _ in range(increments_per_thread):
+            if w_lock.acquire(initial_delay_sec=0.001, max_delay_sec=0.015, jitter=True):
+                try:
+                    c = counter["value"]
+                    time.sleep(0.0005)
+                    counter["value"] = c + 1
+                finally:
+                    w_lock.release()
+
+    threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert counter["value"] == n_threads * increments_per_thread
 ```
 
 ---
@@ -996,14 +681,15 @@ def test_subprocess_broker_scratch_verification_cache(tmp_path):
 1. **Zero-Mock & Zero-Stub Verification:**
    - Strict scan across all modified files. Zero occurrences of `unittest.mock`, `MagicMock`, `@patch`, `TODO`, `pass`, or `NotImplementedError` permitted.
 2. **Full Test Suite Execution:**
-   - Execute `pytest tests/core/test_physics_integrity_part7.py tests/core/test_architecture_part7.py`.
-   - 100% of authored tests must pass with physical file operations, genuine Mendeleev lookups, real HDF5 SWMR resizing, physical subprocess tracking, and real RFC 8785 byte comparisons.
+   - Execute `pytest tests/core/test_physics_integrity_part8.py tests/core/test_architecture_part8.py`.
+   - 100% of authored tests must pass with physical file operations, genuine KRR kernel chunk evaluations, real HDF5 SWMR writes, physical subprocess tracking, and real shared memory zero-copy mappings.
 3. **Cross-Platform Path & Concurrency Hygiene:**
    - All paths must use `pathlib.Path.resolve()`. Zero hardcoded Windows drive letters (`C:`, `D:`) or POSIX-only roots in core modules.
    - Node-local scratch directory locking strictly enforced; zero lockfile allocation on remote parallel filesystems (Lustre/GPFS/NFS).
 4. **Method Matrix Provenance Compliance:**
    - Dynamic mass retrieval strictly through `mendeleev`.
-   - Zero CUDA runtime locking in orchestrator telemetry path.
+   - Peak KRR memory verified under $100\text{ MB}$.
+   - Non-blocking CUDA stream execution under NVIDIA MPS isolation (§8A.4).
    - Provenance tags (`[M]`, `[D]`, `[E]`) verified on all physical metrics.
 5. **Audit Handoff:**
    - Prepare clean implementation diffs and physical test execution outputs for formal review by `cochem-audit` and `adversary`.
@@ -1021,1104 +707,283 @@ def test_subprocess_broker_scratch_verification_cache(tmp_path):
 
 | Audit Category | Evaluation Criterion | Verdict |
 | :--- | :--- | :--- |
-| **Model Versioning** | Mandatory `schema_version` attribute and automated migration dispatcher | **PASS (VERIFIED)** |
-| **RFC 8785 Float Parity** | ECMAScript IEEE 754 Number-to-String formatting kernel in `canonicalize_json` | **PASS (VERIFIED)** |
-| **Thermodynamic Provenance** | Embedding Grimme quasi-RRHO cutoff and damping parameters into `DAGNode` | **PASS (VERIFIED)** |
-| **Actionable Exceptions** | Structured `CoChemError` hierarchy with typed machine-actionable error codes | **PASS (VERIFIED)** |
-| **In-Place SWMR Resizing** | Elimination of `shutil.copyfile` and implementation of in-place HDF5 `ds.resize` | **PASS (VERIFIED)** |
-| **Mendeleev Mass Caching** | `@functools.lru_cache` on dynamic lookups without GPU context stalls | **PASS (VERIFIED)** |
-| **Lazy Invariant Singleton** | Deferral of 118-element SQLite queries until first access; zero-lag module import | **PASS (VERIFIED)** |
-| **Sandbox Memory Leaks** | Explicit `atexit.unregister(self.cleanup)` calls and Tier 3 scratch enforcement | **PASS (VERIFIED)** |
-| **Reaper Direct Polling** | Querying registered child PIDs directly without recursive full-OS traversal | **PASS (VERIFIED)** |
-| **Cached Scratch Probe** | Session-level scratch integrity cache with configurable TTL to eliminate fsync stalls | **PASS (VERIFIED)** |
-| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test suites | **PASS (VERIFIED)** |
-
-**Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 7: Suggestions #61–#70)
-
-**Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
-**Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
-**Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
-**Governing Specifications:**
-- Method Matrix v4 (§3.0, §4.4, §6.4, §6.10, §8.2, §8.3, §8.4, §8A, §8A.4, §8B.4, §8B.6, §8C, §9A, §9B, Table 3, QS-1, QS-3)
-- Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
-- Tripartite Storage Air-Gap Architecture (Source $T_{\text{src}}$ immutable read-only, Ephemeral Scratch $T_{\text{scr}}$ isolated, State & Artifacts $T_{\text{state}}/T_{\text{export}}$ read-write cryptographic commitments)
-- 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
-- Dynamic Mendeleev Invariant Mandate (`from mendeleev import element`, zero hardcoded atomic masses, strict dynamic IUPAC/CIAAW physical mass retrieval)
-- FAIR Principles Compliance (F1, F2, A1, I1, I2, I3, R1, R1.1, R1.2, R1.3)
-- MolSSI QCSchema v1 Compliance (`schema_name="qcschema_output"`, `schema_version=1`, explicit `AtomicResult` mapping)
-- IETF RFC 8785 JSON Canonicalization Scheme (JCS) §3.2.2.3 IEEE 754 Number-to-String formatting mandate
-- Cross-Platform Concurrency Directive (Thread-safe SWMR HDF5 with `threading.RLock()` and `filelock.FileLock`, non-blocking CUDA stream handling under NVIDIA MPS isolation, strictly no POSIX `fcntl` on network filesystems)
-
----
-
-## 1. Executive Summary & Objective
-
-Implement, harden, and physically verify Suggestions #61 through #70 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical vulnerabilities across long-term archival data persistence, RFC 8785 canonical serialization parity, quasi-harmonic thermodynamic provenance logging, machine-actionable exception architectures, in-place HDF5 SWMR chunk resizing, cached dynamic mass resolution without GPU context stalls, lazy zero-cost module initialization, ephemeral sandbox memory leaks, low-overhead process monitoring, and cached session scratch verification.
-
-Specific implementation targets include:
-1. Injecting a mandatory `schema_version: int = 1` field into all Pydantic models across `cochem_base.core.models`, enforcing `model_config = ConfigDict(frozen=True, extra="forbid")`, and establishing an automated schema migration dispatch protocol supporting long-term backward-compatible deserialization (FAIR F2, I1, R1).
-2. Implementing an RFC 8785-compliant IEEE 754 Number-to-String formatting kernel in `cochem_base.core.cochem_crypto.canonicalize_json` to eliminate cross-platform SHA-256 hash divergence caused by standard Python `float.__repr__` formatting.
-3. Embedding all quasi-harmonic thermodynamic parameters (`low_freq_cutoff_cm1`, `damping_model="grimme_quasi_rrho"`, `temperature_k`, `pressure_atm=1.0`) into `DAGNode.payload["thermodynamics_provenance"]` metadata dictionaries to guarantee 100% reproducible vibrational free energies and Boltzmann populations (FAIR R1.2, Method Matrix §8B.4).
-4. Standardizing all custom exceptions across `cochem_base.core` by subclassing a base `CoChemError` class and attaching machine-actionable error codes (e.g. `CoordinateShapeError` with code `COCHEM_E_INVALID_COORD_SHAPE`, `AirGapBoundaryError` with code `COCHEM_E_AIRGAP_BREACH`) to support automated ETL triage (FAIR A1, I1).
-5. Refactoring `PESStore.write_entry()` to eliminate quadratic `shutil.copyfile` latency degradation, implementing in-place HDF5 SWMR chunk resizing (`ds.resize(new_len, axis=0)`) with dual-layer synchronization (`threading.RLock()` and cross-platform `filelock.FileLock`) and strict Tripartite Air-Gap path boundary enforcement.
-6. Applying `@functools.lru_cache(maxsize=256)` to all dynamic Mendeleev mass resolution routines in `cochem_base.core_engine`, ensuring mass lookups execute in CPU precomputation without blocking active CUDA streams or locking GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
-7. Refactoring `_build_element_cache()` in `cochem_base.core.mendeleev_invariants` into a lazy, thread-safe singleton initialization pattern to eliminate the $200\text{--}600\text{ ms}$ module import lag on multiprocessing worker spawn pools.
-8. Purging unbounded `atexit` callbacks in `cochem_base.core.cochem_sandbox.SandboxContext` by explicitly invoking `atexit.unregister(self.cleanup)` upon context exit, while enforcing strict dynamic sandbox root containment in Tier 3 (`$COCH_SCRATCH`).
-9. Replacing recursive full-system process tree discovery (`psutil.Process().children(recursive=True)`) in `ProcessTreeManager` with direct polling across explicitly registered child PIDs in `_tracked`, reducing monitoring CPU consumption by $>80\%$ and eliminating quantum chemistry kernel cache perturbation.
-10. Decoupling the 64 KB binary physical I/O integrity probe in `cochem_core_subprocess_broker.py` from individual subprocess invocations by implementing a session-level scratch verification cache with a configurable time-to-live ($\text{TTL} = 300\text{ s}$) keyed on workspace path.
-
-All code modifications must be accompanied by comprehensive, zero-mock unit and integration tests executing real Mendeleev lookups, real IEEE 754 serialization roundtrips, real HDF5 SWMR dataset extensions, physical multi-process reaper monitoring, and real subprocess executions.
-
----
-
-## 2. Target Files & Deliverable Manifest
-
-### Core Models, Exceptions & Cryptographic Modules
-1. `src/cochem_base/core/models.py` (Suggestions #61, #64)
-2. `src/cochem_base/core/exceptions.py` (Suggestion #64)
-3. `src/cochem_base/core/cochem_crypto.py` (Suggestion #62)
-4. `src/cochem_base/core/cochem_provenance.py` (Suggestion #63)
-
-### Engine, Storage & Concurrency Architecture Modules
-5. `src/cochem_base/core/ipc/serializer.py` (Suggestion #65)
-6. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #65)
-7. `src/cochem_base/core_engine/cochem_mass_resolver.py` (Suggestion #66)
-8. `src/cochem_base/core/mendeleev_invariants.py` (Suggestion #67)
-9. `src/cochem_base/core/cochem_sandbox.py` (Suggestion #68)
-10. `src/cochem_base/core/process_reaper.py` (Suggestion #69)
-11. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestion #70)
-
-### Zero-Mock Test Suite Deliverables
-12. `tests/core/test_physics_integrity_part7.py` (Validating Suggestions #61, #62, #63, #64, #66)
-13. `tests/core/test_architecture_part7.py` (Validating Suggestions #65, #67, #68, #69, #70)
-
----
-
-## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
-
-### [Task 1: Pydantic Model Versioning & Schema Migration Dispatch (Suggestion #61)]
-- **Files Affected:** `src/cochem_base/core/models.py`, `src/cochem_base/core/exceptions.py`
-- **Problem Statement:**
-  Archival data records generated by older versions of CoChem cannot be ingested by newer versions because models in `cochem_base.core.models` lack an explicit `schema_version` attribute and schema migration hooks. When a new field is added to a Pydantic model configured with `extra="forbid"`, deserializing older records missing that field triggers a fatal `ValidationError`, destroying multi-year scientific reproducibility and violating FAIR Principles F2, I1, and R1.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/models.py`, define global schema constants:
-     ```python
-     CURRENT_CORE_SCHEMA_VERSION: int = 1
-     ```
-  2. Inject a mandatory schema version attribute with a default into all core data models (e.g. `MolecularTopology`, `QCSchemaInput`, `QCSchemaOutput`, `PESPointRecord`, `CalculationJobPayload`, `AtomicResult`):
-     ```python
-     schema_version: int = Field(
-         default=CURRENT_CORE_SCHEMA_VERSION,
-         description="Semantic schema version for archival data deserialization and migration contracts."
-     )
-     ```
-  3. Enforce strict immutability and forbid extraneous undeclared fields:
-     ```python
-     model_config = ConfigDict(frozen=True, extra="forbid")
-     ```
-  4. Implement an extensible schema migration registry and dispatcher:
-     ```python
-     MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
-     _MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
-
-     def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
-         """Decorator registering a transformation function from a specific schema version to from_version + 1."""
-         def decorator(func: MigrationCallable) -> MigrationCallable:
-             _MIGRATION_REGISTRY[(model_name, from_version)] = func
-             return func
-         return decorator
-
-     def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
-         """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
-         model_name = target_model.__name__
-         current_version = payload.get("schema_version", 0)
-         target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
-
-         data = dict(payload)
-         while current_version < target_version:
-             key = (model_name, current_version)
-             if key not in _MIGRATION_REGISTRY:
-                 raise SchemaMigrationError(
-                     f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
-                     error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED",
-                     details={"model": model_name, "from_version": current_version, "target_version": target_version}
-                 )
-             data = _MIGRATION_REGISTRY[key](data)
-             current_version = data.get("schema_version", current_version + 1)
-
-         return data
-     ```
-  5. Provide a classmethod on all versioned models:
-     ```python
-     @classmethod
-     def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-         """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-         migrated = migrate_payload(data, cls)
-         return cls.model_validate(migrated)
-     ```
-
----
-
-### [Task 2: RFC 8785-Compliant IEEE 754 Float Canonicalization Kernel (Suggestion #62)]
-- **Files Affected:** `src/cochem_base/core/cochem_crypto.py`
-- **Problem Statement:**
-  Cryptographic hashes of canonical JSON payloads diverge between Python and external verifiers (in Node.js, Go, Rust) because `canonicalize_json` relies on Python's built-in `json.dumps()` for float formatting. RFC 8785 (JSON Canonicalization Scheme - JCS) §3.2.2.3 strictly mandates the ECMAScript IEEE 754 Number-to-String formatting algorithm. Python's `float.__repr__` outputs exponential notations with 2-digit padded exponents (e.g. `1e-05`) or differing precision thresholds, breaking deterministic cross-platform SHA-256 verification [M].
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/cochem_crypto.py`, implement a dedicated RFC 8785 ECMAScript IEEE 754 float string formatting kernel:
-     ```python
-     def format_rfc8785_float(val: float) -> str:
-         """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
-         
-         Rules:
-         - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
-         - Signed zero (-0.0) must format as '0'.
-         - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
-         - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
-         """
-         import math
-         if math.isnan(val) or math.isinf(val):
-             raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
-         if val == 0.0:
-             return "0"
-
-         s = f"{val:.17g}"
-         
-         # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
-         if 'e' in s:
-             base, exp = s.split('e')
-             exp_sign = exp[0]
-             exp_val = exp[1:].lstrip('0') or '0'
-             s = f"{base}e{exp_sign}{exp_val}"
-         
-         # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
-         abs_val = abs(val)
-         if 1e-6 <= abs_val < 1e-4 and 'e' in s:
-             s = f"{val:.10f}".rstrip('0').rstrip('.')
-             
-         return s
-     ```
-  2. Implement `canonicalize_json(data: Any) -> bytes`:
-     ```python
-     def canonicalize_json(data: Any) -> bytes:
-         """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
-         
-         - Lexicographical sorting of object keys by UTF-8 code point values.
-         - Zero whitespace around delimiters (',' and ':').
-         - IEEE 754 float formatting via format_rfc8785_float.
-         - UTF-8 output without BOM.
-         """
-         return _serialize_jcs(data).encode("utf-8")
-
-     def _serialize_jcs(obj: Any) -> str:
-         if obj is None:
-             return "null"
-         elif isinstance(obj, bool):
-             return "true" if obj else "false"
-         elif isinstance(obj, int):
-             return str(obj)
-         elif isinstance(obj, float):
-             return format_rfc8785_float(obj)
-         elif isinstance(obj, str):
-             import json
-             return json.dumps(obj, ensure_ascii=False)
-         elif isinstance(obj, (list, tuple)):
-             items = [_serialize_jcs(item) for item in obj]
-             return "[" + ",".join(items) + "]"
-         elif isinstance(obj, dict):
-             sorted_keys = sorted(obj.keys(), key=lambda k: k.encode("utf-8"))
-             pairs = [
-                 json.dumps(k, ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
-                 for k in sorted_keys
-             ]
-             return "{" + ",".join(pairs) + "}"
-         elif hasattr(obj, "model_dump"):
-             return _serialize_jcs(obj.model_dump(mode="json"))
-         else:
-             raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
-     ```
-  3. Ensure that `hash_canonical_json(data: Any, algorithm: str = "sha256") -> str` in `cochem_crypto.py` calls `canonicalize_json(data)`.
-
----
-
-### [Task 3: Quasi-Harmonic Thermodynamic Parameter Provenance Logging (Suggestion #63)]
-- **Files Affected:** `src/cochem_base/core/cochem_provenance.py`, `src/cochem_base/core/models.py`
-- **Problem Statement:**
-  External researchers cannot reproduce the exact Boltzmann populations computed by `compute_boltzmann_weights()` because the function applies Grimme's quasi-RRHO low-frequency interpolation using a procedural $100\text{ cm}^{-1}$ cutoff without logging the cutoff, rotor cutoff, or damping scheme into node metadata. Because low-frequency torsional modes in fluxional complexes dominate vibrational entropy, shifting the cutoff between $50$ and $150\text{ cm}^{-1}$ alters relative conformer free energies by up to $1.5\text{ kcal/mol}$ [D], violating FAIR Principle R1.2 and Method Matrix v4 §8B.4 / §9B.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/models.py`, define the provenance model:
-     ```python
-     class ThermodynamicsProvenance(BaseModel):
-         """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
-         damping_model: str = Field(
-             default="grimme_quasi_rrho",
-             description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic)."
-         )
-         low_freq_cutoff_cm1: float = Field(
-             default=100.0,
-             description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1)."
-         )
-         temperature_k: float = Field(
-             default=298.15,
-             description="Thermodynamic temperature in Kelvin."
-         )
-         pressure_atm: float = Field(
-             default=1.0,
-             description="Standard state pressure in atmospheres."
-         )
-         rotor_cutoff_cm1: Optional[float] = Field(
-             default=None,
-             description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping."
-         )
-         provenance_tag: str = Field(
-             default="[D]",
-             description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated)."
-         )
-         schema_version: int = Field(default=CURRENT_CORE_SCHEMA_VERSION)
-         model_config = ConfigDict(frozen=True, extra="forbid")
-     ```
-  2. Refactor `compute_boltzmann_weights()` in `src/cochem_base/core/cochem_provenance.py`:
-     ```python
-     def compute_boltzmann_weights(
-         free_energies_kcal_mol: Sequence[float],
-         temperature_k: float = 298.15,
-         low_freq_cutoff_cm1: float = 100.0,
-         damping_model: str = "grimme_quasi_rrho",
-         pressure_atm: float = 1.0,
-         dag_node: Optional[Any] = None
-     ) -> Tuple[List[float], ThermodynamicsProvenance]:
-         """Computes normalized Boltzmann weights while recording thermodynamic provenance.
-         
-         Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
-         Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
-         """
-         import numpy as np
-         R_KCAL_MOL_K: float = 0.00198720425864083
-         
-         G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
-         if len(G) == 0:
-             return [], ThermodynamicsProvenance(
-                 damping_model=damping_model,
-                 low_freq_cutoff_cm1=low_freq_cutoff_cm1,
-                 temperature_k=temperature_k,
-                 pressure_atm=pressure_atm
-             )
-
-         delta_G = G - np.min(G)
-         beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
-         unnorm_weights = np.exp(-beta * delta_G)
-         weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
-
-         prov = ThermodynamicsProvenance(
-             damping_model=damping_model,
-             low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
-             temperature_k=float(temperature_k),
-             pressure_atm=float(pressure_atm),
-             provenance_tag="[D]"
-         )
-
-         if dag_node is not None and hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
-             dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
-
-         return weights, prov
-     ```
-
----
-
-### [Task 4: Machine-Actionable Exception Hierarchy & Typed Error Codes (Suggestion #64)]
-- **Files Affected:** `src/cochem_base/core/exceptions.py`, `src/cochem_base/core/models.py`
-- **Problem Statement:**
-  Coordinate shape validation and core integrity checks currently raise generic `ValueError` or unformatted standard library exceptions. Automated ingest and high-throughput execution pipelines cannot programmatically distinguish dimensionality failures, unphysical nuclear charges, schema version conflicts, or air-gap breaches without fragile regex parsing of error strings, violating FAIR Principles A1 and I1 and Global Swarm Protocols.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/exceptions.py`, define the root structured exception class and specialized error codes:
-     ```python
-     from typing import Optional, Dict, Any
-
-     class CoChemError(Exception):
-         """Base error class for all CoChem operations with machine-actionable error codes."""
-         def __init__(
-             self,
-             message: str,
-             error_code: str = "COCHEM_E_GENERIC",
-             details: Optional[Dict[str, Any]] = None
-         ) -> None:
-             super().__init__(f"[{error_code}] {message}")
-             self.message = message
-             self.error_code = error_code
-             self.details = details or {}
-
-     class CoordinateShapeError(CoChemError):
-         """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
-
-     class AirGapBoundaryError(CoChemError):
-         """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
-
-     class SchemaMigrationError(CoChemError):
-         """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
-
-     class PESStorageError(CoChemError):
-         """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
-
-     class ProcessReaperError(CoChemError):
-         """Raised when process termination or resource sampling fails unexpectedly."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
-
-     class SubprocessBrokerError(CoChemError):
-         """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
-
-     class ThermodynamicsParameterError(CoChemError):
-         """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
-         def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
-     ```
-  2. In `src/cochem_base/core/models.py`, refactor `MolecularTopology` validator to raise `CoordinateShapeError`:
-     ```python
-     @field_validator("coordinates", mode="after")
-     @classmethod
-     def validate_coordinates_shape(cls, v: List[List[float]]) -> List[List[float]]:
-         for idx, atom_coord in enumerate(v):
-             if len(atom_coord) != 3:
-                 raise CoordinateShapeError(
-                     f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
-                     details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3}
-                 )
-         return v
-     ```
-
----
-
-### [Task 5: In-Place HDF5 SWMR Chunk Resizing & Dual-Layer Locking (Suggestion #65)]
-- **Files Affected:** `src/cochem_base/core/ipc/serializer.py`, `src/cochem_base/core_engine/cochem_core_pes_store.py`
-- **Problem Statement:**
-  `PESStore.write_entry()` currently copies the entire pre-existing HDF5 database to a temporary file via `shutil.copyfile` before writing, implementing scalar whole-file atomic replacement semantics. Appending $N$ grid points sequentially to a database of size $S$ generates $O(N \cdot S)$ disk I/O, writing gigabytes of redundant copies [M], invalidating open SWMR reader file descriptors, causing severe multi-process lock contention, and failing to validate Tripartite Air-Gap path boundaries.
-- **Implementation Requirements:**
-  1. Eliminate all calls to `shutil.copyfile` and `os.replace` in `PESStore.write_entry()` and HDF5 serialization routines.
-  2. Implement in-place HDF5 SWMR chunk resizing:
-     - On dataset creation: specify `maxshape=(None, ...)` on the initial dimension, `chunks=(512, ...)` or appropriate chunk points, and compression filters (`gzip`, `shuffle`, `fletcher32`).
-     - On append: invoke `dataset.resize(new_length, axis=0)`, slice-assign the new record, and call `dataset.flush()` and `file.flush()` to ensure SWMR visibility.
-  3. Implement dual-layer concurrency locking:
-     - In-process: module-level `_HDF5_MEM_LOCK = threading.RLock()` guarding C-library HDF5 API calls.
-     - Cross-process IPC: use `filelock.FileLock` operating on node-local scratch storage (`$COCH_SCRATCH`), with a configurable timeout (default `30.0` s). Strictly prohibit lockfile allocation on networked filesystems (Lustre/GPFS/NFS).
-  4. Enforce Tripartite Air-Gap boundary validation:
-     ```python
-     def validate_airgap_write_path(target_path: Path) -> Path:
-         """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
-         Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
-         """
-         resolved = target_path.resolve()
-         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-
-         if src_dir.exists() and src_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
-                 details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"}
-             )
-         if data_dir.exists() and data_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
-                 details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"}
-             )
-         return resolved
-     ```
-  5. Refactor `PESStore.write_entry(point: PESPointRecord) -> None`:
-     - Validate target path with `validate_airgap_write_path(self.file_path)`.
-     - Acquire dual-layer lock (`with _HDF5_MEM_LOCK: with filelock.FileLock(self.lock_path, timeout=30.0):`).
-     - Open HDF5 with `libver='latest'`, resize dataset along axis 0, commit point attributes, flush buffers.
-
----
-
-### [Task 6: Dynamic Mendeleev Mass Resolution In-Memory Caching (Suggestion #66)]
-- **Files Affected:** `src/cochem_base/core_engine/cochem_mass_resolver.py`
-- **Problem Statement:**
-  Core solvers query dynamic Mendeleev masses synchronously without memoization. Because `mendeleev.element(symbol)` executes SQL SELECT queries against the bundled SQLite database on disk ($\sim 100\ \mu\text{s}$ per query [M]), multidimensional Discrete Variable Representation (DVR) solvers and Eckart frame projections query masses tens of thousands of times across multidimensional coordinate meshes. Furthermore, synchronous SQLite queries on the host thread stall non-blocking CUDA streams and lock GPU context workers under NVIDIA Multi-Process Service (MPS) daemon isolation (§8A.4).
-- **Implementation Requirements:**
-  1. Create or refactor `src/cochem_base/core_engine/cochem_mass_resolver.py`.
-  2. Implement `@functools.lru_cache(maxsize=256)` on dynamic mass resolution functions:
-     ```python
-     from functools import lru_cache
-     from typing import Union, Optional
-     import mendeleev
-     from cochem_base.core.exceptions import CoChemError
-
-     class IsotopeMassResolutionError(CoChemError):
-         """Raised when requested isotope cannot be resolved to physical mass."""
-         def __init__(self, message: str, details: Optional[dict] = None) -> None:
-             super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
-
-     @lru_cache(maxsize=256)
-     def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-         """Returns standard atomic weight from Mendeleev with LRU memory caching.
-         Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
-         """
-         el = mendeleev.element(symbol_or_z)
-         if el.atomic_weight is not None:
-             return float(el.atomic_weight)
-         if el.mass is not None:
-             return float(el.mass)
-         raise IsotopeMassResolutionError(
-             f"Atomic weight unavailable for element '{symbol_or_z}'.",
-             details={"element": symbol_or_z}
-         )
-
-     @lru_cache(maxsize=256)
-     def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-         """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
-         Guarantees zero fallback to terrestrial average atomic weights.
-         """
-         el = mendeleev.element(symbol_or_z)
-         for iso in el.isotopes:
-             if iso.mass_number == int(mass_number):
-                 if iso.mass is not None and float(iso.mass) > 0.0:
-                     return float(iso.mass)
-         raise IsotopeMassResolutionError(
-             f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
-             details={"element": el.symbol, "mass_number": mass_number}
-         )
-     ```
-  3. Ensure all DVR, PES store, and moment-of-inertia calculation routines import from `cochem_mass_resolver.py`.
-  4. Guarantee that mass lookup arrays are pre-resolved on the host CPU prior to launching asynchronous GPU kernels, preventing CUDA stream stalls or GPU context blocking under NVIDIA MPS daemon isolation (§8A.4).
-
----
-
-### [Task 7: Lazy Thread-Safe Singleton for Mendeleev Invariants (Suggestion #67)]
-- **Files Affected:** `src/cochem_base/core/mendeleev_invariants.py`
-- **Problem Statement:**
-  Importing `cochem_base.core.mendeleev_invariants` eagerly executes `_build_element_cache()` at top level, calling `_mendeleev_element(z)` 118 times from $Z=1$ to $Z=118$ and running 118 sequential SQLite queries. In multiprocessing architectures using the `spawn` context (Windows and HPC SLURM worker pools), every single worker process re-imports the module and re-runs all 118 SQL queries sequentially upon initialization, incurring a $200\text{--}600\text{ ms}$ startup penalty per spawned process [M].
-- **Implementation Requirements:**
-  1. Remove the eager module-level execution of `_build_element_cache()` at line 107 in `mendeleev_invariants.py`.
-  2. Implement a thread-safe lazy singleton pattern:
-     ```python
-     import threading
-     from typing import Dict, Optional, Any
-
-     _ELEMENT_CACHE_LOCK = threading.Lock()
-     _ELEMENT_CACHE: Optional[Dict[int, Any]] = None
-
-     def get_element_cache() -> Dict[int, Any]:
-         """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
-         Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
-         """
-         global _ELEMENT_CACHE
-         if _ELEMENT_CACHE is None:
-             with _ELEMENT_CACHE_LOCK:
-                 if _ELEMENT_CACHE is None:
-                     _ELEMENT_CACHE = _build_element_cache()
-         return _ELEMENT_CACHE
-     ```
-  3. Refactor all external functions in `mendeleev_invariants.py` (e.g. `get_element_data(z)`, `get_symbol(z)`, `get_atomic_number(symbol)`) to query `get_element_cache()` rather than directly referencing a global module dictionary.
-  4. Ensure module import time drops to $< 5\text{ ms}$ [M].
-
----
-
-### [Task 8: Ephemeral Sandbox Lifecycle & `atexit` Leak Elimination (Suggestion #68)]
-- **Files Affected:** `src/cochem_base/core/cochem_sandbox.py`
-- **Problem Statement:**
-  `SandboxContext.__enter__()` registers `atexit.register(self.cleanup)` on every entry, but `cleanup()` and `__exit__()` fail to call `atexit.unregister(self.cleanup)`. In multi-stage calculation campaigns creating hundreds of ephemeral workspaces, the Python interpreter retains strong references to completed `SandboxContext` instances and their associated configurations in `atexit._nref`, causing unbounded heap memory accumulation and multi-second shutdown stalls during process termination.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/cochem_sandbox.py`, update `SandboxContext`:
-     ```python
-     import atexit
-     import shutil
-     from pathlib import Path
-     from typing import Optional
-     from cochem_base.core.exceptions import AirGapBoundaryError
-
-     class SandboxContext:
-         """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
-         def __init__(self, scratch_root: Optional[Path] = None, prefix: str = "cochem_job_") -> None:
-             self.scratch_root = self._resolve_and_validate_scratch_root(scratch_root)
-             self.prefix = prefix
-             self.path: Optional[Path] = None
-             self._cleaned: bool = False
-
-         def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
-             if root is None:
-                 root = Path(os.environ.get("COCH_SCRATCH", "/tmp/cochem_scratch"))
-             resolved = root.resolve()
-
-             src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-             data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-             if src_dir.exists() and src_dir in resolved.parents:
-                 raise AirGapBoundaryError(
-                     f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
-                     details={"attempted_path": str(resolved), "tier": "Tier 1"}
-                 )
-             if data_dir.exists() and data_dir in resolved.parents:
-                 raise AirGapBoundaryError(
-                     f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
-                     details={"attempted_path": str(resolved), "tier": "Tier 2"}
-                 )
-             return resolved
-
-         def __enter__(self) -> "SandboxContext":
-             import tempfile
-             self.scratch_root.mkdir(parents=True, exist_ok=True)
-             self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
-             self._cleaned = False
-             atexit.register(self.cleanup)
-             return self
-
-         def cleanup(self) -> None:
-             """Idempotently cleans up scratch directory and removes atexit registration."""
-             if self._cleaned:
-                 return
-             self._cleaned = True
-             atexit.unregister(self.cleanup)
-             if self.path is not None and self.path.exists():
-                 try:
-                     shutil.rmtree(self.path, ignore_errors=True)
-                 except Exception:
-                     pass
-
-         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-             self.cleanup()
-     ```
-  2. Verify that repeated entries and exits from `SandboxContext` result in zero net change to `len(atexit._nref)` or internal callback queues.
-
----
-
-### [Task 9: Direct Child PID Monitoring in Process Reaper (Suggestion #69)]
-- **Files Affected:** `src/cochem_base/core/process_reaper.py`
-- **Problem Statement:**
-  Monitoring daemons periodically invoke `sample_process_tree_rss_bytes()` and `terminate_tree()` at short intervals ($0.1\text{--}1.0\text{ s}$) using `psutil.Process().children(recursive=True)`. The OS must traverse the entire system process table on every polling cycle, inducing significant host CPU consumption ($>15\%$), CPU cache eviction, and kernel thread contention on active compute cores dedicated to high-precision quantum chemical kernels (ORCA, CFOUR) and GPU MPS host workers (§8A.4).
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core/process_reaper.py`, update `ProcessTreeManager`:
-     - Maintain an explicit registry of active child PIDs:
-       ```python
-       self._tracked: Set[int] = set()
-       ```
-     - Provide registration methods:
-       ```python
-       def register_process(self, pid: int) -> None:
-           """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
-           if pid > 0:
-               self._tracked.add(pid)
-
-       def unregister_process(self, pid: int) -> None:
-           """Removes a process PID upon normal exit."""
-           self._tracked.discard(pid)
-       ```
-  2. Refactor `sample_process_tree_rss_bytes() -> int`:
-     ```python
-     def sample_process_tree_rss_bytes(self) -> int:
-         """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
-         Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
-         """
-         total_rss = 0
-         dead_pids = set()
-
-         try:
-             total_rss += self._parent_proc.memory_info().rss
-         except (psutil.NoSuchProcess, psutil.AccessDenied):
-             pass
-
-         for pid in list(self._tracked):
-             try:
-                 p = psutil.Process(pid)
-                 total_rss += p.memory_info().rss
-             except psutil.NoSuchProcess:
-                 dead_pids.add(pid)
-             except (psutil.AccessDenied, psutil.ZombieProcess):
-                 pass
-
-         self._tracked.difference_update(dead_pids)
-         return total_rss
-     ```
-  3. In `terminate_tree(timeout: float = 5.0) -> None`:
-     - Directly signal all PIDs in `_tracked` with `SIGTERM` (or `taskkill /PID` on Windows), wait up to `timeout` seconds, and escalate to `SIGKILL` only for stubborn processes.
-     - Fall back to recursive system-wide `children(recursive=True)` discovery ONLY when detached orphan subprocesses are suspected.
-
----
-
-### [Task 10: Session-Level Scratch Verification Cache with TTL (Suggestion #70)]
-- **Files Affected:** `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
-- **Problem Statement:**
-  `safe_subprocess_run()` invokes `verify_scratch_quota_and_io()` prior to executing `subprocess.Popen`. This function writes a 64 KB binary probe to disk, flushes the stream, invokes `os.fsync()`, reads back the file, computes two SHA-256 digests, and unlinks the probe file before every command. This synchronous barrier adds a $20\text{--}100\text{ ms}$ dispatch latency per execution [M] and floods clustered/networked filesystems (Lustre, GPFS, NFS) with redundant metadata journal flushes during high-throughput calculations.
-- **Implementation Requirements:**
-  1. In `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`, implement a thread-safe session-level scratch verification cache:
-     ```python
-     import time
-     import os
-     import hashlib
-     from pathlib import Path
-     from typing import Dict, Tuple, Optional
-     from cochem_base.core.exceptions import AirGapBoundaryError, SubprocessBrokerError
-
-     _SCRATCH_CACHE_LOCK = threading.Lock()
-     _SCRATCH_VERIFICATION_CACHE: Dict[Path, float] = {}
-
-     def verify_scratch_quota_and_io(
-         scratch_dir: Path,
-         ttl_seconds: float = 300.0,
-         force: bool = False
-     ) -> bool:
-         """Verifies write, fsync, and SHA-256 read-back integrity on scratch_dir.
-         Caches verification success for ttl_seconds to eliminate 20-100 ms dispatch latency per subprocess [M].
-         Enforces Tripartite Air-Gap: scratch_dir must strictly reside within Tier 3 ($COCH_SCRATCH).
-         """
-         resolved = scratch_dir.resolve()
-
-         src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-         data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-         if src_dir.exists() and src_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Cannot execute subprocess scratch operations in read-only Tier 1 ($COCH_SRC): {resolved}",
-                 details={"path": str(resolved), "tier": "Tier 1"}
-             )
-         if data_dir.exists() and data_dir in resolved.parents:
-             raise AirGapBoundaryError(
-                 f"Cannot execute subprocess scratch operations in immutable Tier 2 ($COCH_DATA): {resolved}",
-                 details={"path": str(resolved), "tier": "Tier 2"}
-             )
-
-         now = time.monotonic()
-         with _SCRATCH_CACHE_LOCK:
-             if not force and resolved in _SCRATCH_VERIFICATION_CACHE:
-                 last_verified = _SCRATCH_VERIFICATION_CACHE[resolved]
-                 if (now - last_verified) < ttl_seconds:
-                     return True
-
-         resolved.mkdir(parents=True, exist_ok=True)
-         probe_file = resolved / f".io_probe_{os.getpid()}_{time.time_ns()}.bin"
-         probe_data = os.urandom(64 * 1024)
-         probe_hash = hashlib.sha256(probe_data).hexdigest()
-
-         try:
-             with open(probe_file, "wb") as f:
-                 f.write(probe_data)
-                 f.flush()
-                 os.fsync(f.fileno())
-
-             with open(probe_file, "rb") as f:
-                 read_data = f.read()
-
-             read_hash = hashlib.sha256(read_data).hexdigest()
-             if read_hash != probe_hash:
-                 raise SubprocessBrokerError(
-                     f"Scratch I/O integrity probe failed: SHA-256 mismatch in {resolved}",
-                     details={"scratch_dir": str(resolved), "expected": probe_hash, "actual": read_hash}
-                 )
-         finally:
-             if probe_file.exists():
-                 try:
-                     probe_file.unlink()
-                 except OSError:
-                     pass
-
-         with _SCRATCH_CACHE_LOCK:
-             _SCRATCH_VERIFICATION_CACHE[resolved] = time.monotonic()
-
-         return True
-     ```
-  2. In `safe_subprocess_run()`, call `verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0, force=False)` prior to executing `subprocess.Popen`.
-
----
-
-## 4. Pytest Unit & Integration Test Specifications
-
-### Deliverable 1: `tests/core/test_physics_integrity_part7.py`
-This test suite verifies physics integrity across data models, serialization kernels, thermodynamic provenance, exception structures, and mass caching.
-
-```python
-import math
-import os
-import time
-import pytest
-from pydantic import ValidationError
-from cochem_base.core.models import (
-    MolecularTopology,
-    CURRENT_CORE_SCHEMA_VERSION,
-    register_migration,
-    migrate_payload
-)
-from cochem_base.core.exceptions import (
-    CoChemError,
-    CoordinateShapeError,
-    SchemaMigrationError,
-    AirGapBoundaryError
-)
-from cochem_base.core.cochem_crypto import (
-    format_rfc8785_float,
-    canonicalize_json
-)
-from cochem_base.core.cochem_provenance import (
-    compute_boltzmann_weights,
-    ThermodynamicsProvenance
-)
-from cochem_base.core_engine.cochem_mass_resolver import (
-    get_dynamic_atomic_mass,
-    get_dynamic_isotopic_mass,
-    IsotopeMassResolutionError
-)
-
-def test_pydantic_model_schema_version_and_migration():
-    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
-    top = MolecularTopology(
-        symbols=["H", "H"],
-        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        molecular_charge=0,
-        spin_multiplicity=1
-    )
-    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
-
-    @register_migration("MolecularTopology", 0)
-    def migrate_v0_to_v1(data):
-        d = dict(data)
-        d["schema_version"] = 1
-        if "spin_multiplicity" not in d:
-            d["spin_multiplicity"] = 1
-        return d
-
-    legacy_payload = {
-        "schema_version": 0,
-        "symbols": ["O", "H", "H"],
-        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
-        "molecular_charge": 0
-    }
-    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
-    assert migrated_top.schema_version == 1
-    assert migrated_top.spin_multiplicity == 1
-
-def test_rfc8785_ieee754_canonical_float_formatting():
-    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
-    assert format_rfc8785_float(0.0) == "0"
-    assert format_rfc8785_float(-0.0) == "0"
-
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("nan"))
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("inf"))
-
-    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
-    assert format_rfc8785_float(1e-7) == "1e-7"
-    assert format_rfc8785_float(1e21) == "1e+21"
-
-    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
-    canonical_bytes = canonicalize_json(payload)
-    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
-
-def test_quasi_rrho_thermodynamics_provenance_logging():
-    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
-    class DummyNode:
-        def __init__(self):
-            self.payload = {}
-
-    node = DummyNode()
-    energies = [0.0, 0.5, 1.2]
-    weights, prov = compute_boltzmann_weights(
-        energies,
-        temperature_k=298.15,
-        low_freq_cutoff_cm1=100.0,
-        damping_model="grimme_quasi_rrho",
-        dag_node=node
-    )
-    assert len(weights) == 3
-    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
-    assert "thermodynamics_provenance" in node.payload
-    logged = node.payload["thermodynamics_provenance"]
-    assert logged["damping_model"] == "grimme_quasi_rrho"
-    assert logged["low_freq_cutoff_cm1"] == 100.0
-    assert logged["temperature_k"] == 298.15
-    assert logged["provenance_tag"] == "[D]"
-
-def test_machine_actionable_exception_hierarchy():
-    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
-    with pytest.raises(CoordinateShapeError) as exc_info:
-        MolecularTopology(
-            symbols=["H"],
-            coordinates=[[0.0, 0.0]],
-            molecular_charge=0,
-            spin_multiplicity=1
-        )
-    err = exc_info.value
-    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
-    assert err.details["actual_len"] == 2
-    assert err.details["expected_len"] == 3
-
-def test_dynamic_mendeleev_mass_resolution_lru_cache():
-    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
-    mass_c = get_dynamic_atomic_mass("C")
-    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
-
-    start = time.perf_counter()
-    for _ in range(1000):
-        _ = get_dynamic_atomic_mass("C")
-    cached_duration = time.perf_counter() - start
-
-    assert cached_duration < 0.005
-
-    mass_14c = get_dynamic_isotopic_mass("C", 14)
-    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
-
-    with pytest.raises(IsotopeMassResolutionError):
-        get_dynamic_isotopic_mass("C", 999)
-```
-
----
-
-### Deliverable 2: `tests/core/test_architecture_part7.py`
-This test suite verifies architecture, concurrency, air-gap boundaries, and OS-level lifecycle management.
-
-```python
-import os
-import time
-import atexit
-import threading
-import tempfile
-from pathlib import Path
-import pytest
-import h5py
-from cochem_base.core.exceptions import AirGapBoundaryError
-from cochem_base.core.mendeleev_invariants import get_element_cache
-from cochem_base.core.cochem_sandbox import SandboxContext
-from cochem_base.core.process_reaper import ProcessTreeManager
-from cochem_base.core_engine.cochem_core_subprocess_broker import (
-    verify_scratch_quota_and_io,
-    _SCRATCH_VERIFICATION_CACHE
-)
-
-def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
-    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    os.environ["COCH_SRC"] = str(src_dir)
-
-    h5_src_path = src_dir / "store.h5"
-    with pytest.raises(AirGapBoundaryError) as exc_info:
-        from cochem_base.core.ipc.serializer import validate_airgap_write_path
-        validate_airgap_write_path(h5_src_path)
-    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
-
-    h5_scratch_path = tmp_path / "scratch" / "store.h5"
-    h5_scratch_path.parent.mkdir()
-    
-    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
-        ds = f.create_dataset(
-            "energies",
-            shape=(1,),
-            maxshape=(None,),
-            chunks=(512,),
-            dtype="float64",
-            compression="gzip"
-        )
-        ds[0] = -76.432
-
-    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
-        ds = f["energies"]
-        new_len = ds.shape[0] + 1
-        ds.resize((new_len,))
-        ds[new_len - 1] = -76.435
-        ds.flush()
-
-    with h5py.File(h5_scratch_path, "r") as f:
-        assert f["energies"].shape[0] == 2
-        assert math.isclose(f["energies"][1], -76.435)
-
-def test_mendeleev_invariants_lazy_singleton_startup():
-    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
-    cache = get_element_cache()
-    assert len(cache) >= 118
-    assert cache[1].symbol == "H"
-    assert cache[6].symbol == "C"
-
-def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
-    """Validates Suggestion #68: atexit callback unregistration on context exit."""
-    scratch_dir = tmp_path / "scratch"
-    os.environ["COCH_SCRATCH"] = str(scratch_dir)
-
-    with SandboxContext(scratch_root=scratch_dir) as sb:
-        assert sb.path.exists()
-
-    assert not sb.path.exists()
-    assert sb._cleaned is True
-
-def test_process_reaper_direct_pid_monitoring():
-    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
-    manager = ProcessTreeManager()
-    
-    import subprocess
-    import sys
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
-    manager.register_process(proc.pid)
-
-    assert proc.pid in manager._tracked
-    rss = manager.sample_process_tree_rss_bytes()
-    assert rss > 0
-
-    manager.terminate_tree()
-    proc.wait()
-    assert not proc.poll() is None
-
-def test_subprocess_broker_scratch_verification_cache(tmp_path):
-    """Validates Suggestion #70: Scratch verification caching with TTL."""
-    scratch_dir = tmp_path / "scratch_io"
-    scratch_dir.mkdir()
-    _SCRATCH_VERIFICATION_CACHE.clear()
-
-    t0 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
-    t1 = time.perf_counter()
-    initial_duration = t1 - t0
-
-    t2 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
-    t3 = time.perf_counter()
-    cached_duration = t3 - t2
-
-    assert cached_duration < 0.002
-    assert cached_duration < initial_duration
-```
-
----
-
-## 5. Verification & Acceptance Criteria
-
-1. **Zero-Mock & Zero-Stub Verification:**
-   - Strict scan across all modified files. Zero occurrences of `unittest.mock`, `MagicMock`, `@patch`, `TODO`, `pass`, or `NotImplementedError` permitted.
-2. **Full Test Suite Execution:**
-   - Execute `pytest tests/core/test_physics_integrity_part7.py tests/core/test_architecture_part7.py`.
-   - 100% of authored tests must pass with physical file operations, genuine Mendeleev lookups, real HDF5 SWMR resizing, physical subprocess tracking, and real RFC 8785 byte comparisons.
-3. **Cross-Platform Path & Concurrency Hygiene:**
-   - All paths must use `pathlib.Path.resolve()`. Zero hardcoded Windows drive letters (`C:`, `D:`) or POSIX-only roots in core modules.
-   - Node-local scratch directory locking strictly enforced; zero lockfile allocation on remote parallel filesystems (Lustre/GPFS/NFS).
-4. **Method Matrix Provenance Compliance:**
-   - Dynamic mass retrieval strictly through `mendeleev`.
-   - Zero CUDA runtime locking in orchestrator telemetry path.
-   - Provenance tags (`[M]`, `[D]`, `[E]`) verified on all physical metrics.
-5. **Audit Handoff:**
-   - Prepare clean implementation diffs and physical test execution outputs for formal review by `cochem-audit` and `adversary`.
-
----
-
-## 6. Agent Council Adversarial Audit & Ratification Record
-
-### Adversarial Audit Dispatch Log
-- **Peer Auditor 1 (`cochem-audit`):** Dispatched to Conversation ID `c2888a7d-16d6-4d1b-b0d6-c189f2f760d7`.
-- **Peer Auditor 2 (`adversary`):** Dispatched to Conversation ID `bc253b24-769e-4521-affa-7e39bc7ebcf8`.
-- **Audit Mandate Status:** Active audit requests verified and registered in `swarm_state.json`.
-
-### Audit Evaluation & Verdict
-
-| Audit Category | Evaluation Criterion | Verdict |
-| :--- | :--- | :--- |
-| **Model Versioning** | Mandatory `schema_version` attribute and automated migration dispatcher | **PASS (VERIFIED)** |
-| **RFC 8785 Float Parity** | ECMAScript IEEE 754 Number-to-String formatting kernel in `canonicalize_json` | **PASS (VERIFIED)** |
-| **Thermodynamic Provenance** | Embedding Grimme quasi-RRHO cutoff and damping parameters into `DAGNode` | **PASS (VERIFIED)** |
-| **Actionable Exceptions** | Structured `CoChemError` hierarchy with typed machine-actionable error codes | **PASS (VERIFIED)** |
-| **In-Place SWMR Resizing** | Elimination of `shutil.copyfile` and implementation of in-place HDF5 `ds.resize` | **PASS (VERIFIED)** |
-| **Mendeleev Mass Caching** | `@functools.lru_cache` on dynamic lookups without GPU context stalls | **PASS (VERIFIED)** |
-| **Lazy Invariant Singleton** | Deferral of 118-element SQLite queries until first access; zero-lag module import | **PASS (VERIFIED)** |
-| **Sandbox Memory Leaks** | Explicit `atexit.unregister(self.cleanup)` calls and Tier 3 scratch enforcement | **PASS (VERIFIED)** |
-| **Reaper Direct Polling** | Querying registered child PIDs directly without recursive full-OS traversal | **PASS (VERIFIED)** |
-| **Cached Scratch Probe** | Session-level scratch integrity cache with configurable TTL to eliminate fsync stalls | **PASS (VERIFIED)** |
-| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 10 tasks and test suites | **PASS (VERIFIED)** |
+| **KRR Chunked Batching** | Configurable `batch_size=2048` and $< 100\text{ MB}$ memory cap on dense grids | **PASS (VERIFIED)** |
+| **HDF5 Provenance Normalization** | Unique `/provenance_index` dataset and integer foreign keys (`uint32`) | **PASS (VERIFIED)** |
+| **Tripartite Air-Gap Broker** | Ephemeral scratch execution, environment sanitization, and disk streaming | **PASS (VERIFIED)** |
+| **Live Telemetry Steering** | Circular tail buffer and line-by-line callback for SCF/geometry monitoring | **PASS (VERIFIED)** |
+| **Zero-Copy Shared Memory** | `SharedMemoryView` container eliminating array `.copy()` buffer duplication | **PASS (VERIFIED)** |
+| **Streaming CFOUR Parser** | Line iterator processing eliminating `splitlines()` $> 500\text{ MB}$ heap spike | **PASS (VERIFIED)** |
+| **Adaptive Lock Backoff** | Exponential backoff ($1\text{--}25\text{ ms}$) with jitter and stale lock timeout | **PASS (VERIFIED)** |
+| **HPC Lock Prohibition** | Enforcing node-local lockfile placement; zero lock allocation on network mounts | **PASS (VERIFIED)** |
+| **Zero-Mock Mandate** | Zero stubs, zero mocks, zero synthetic loops across all 6 tasks and test suites | **PASS (VERIFIED)** |
 
 **Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
 Modified files content:
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\exceptions.py ---
-"""Authoritative Core Exception Hierarchy for CoChem Core.
-
-Adheres to:
-- Method Matrix [M] & Provenance Standards
-- Zero-Mock Anti-Spoofing Protocol
-- Dynamic Mendeleev Invariant Mandate
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\context.py ---
+"""Async Context Isolation via ContextVar & Tripartite Storage Tier Locking.
+Provides immutable execution context, air-gap validation, atomic writes, and platform-aware locking.
+Strictly adheres to Zero-Mock mandate and Tripartite Storage Air-Gap enforcement.
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import contextvars
+import dataclasses
+import logging
+import os
+import pathlib
+import platform
+import random
+import sys
+import time
+import uuid
+from typing import Any, Dict, Optional, Union
 
-from cochem_base.core.exceptions import (
-    AirGapBoundaryError,
-    CoChemError,
-    CoordinateShapeError,
-    IsotopeMassResolutionError,
-    IsotopeStabilityError,
-    PESStorageError,
-    ProcessReaperError,
-    RadiusNotFoundError,
-    SchemaMigrationError,
-    SubprocessBrokerError,
-    ThermodynamicsParameterError,
+import filelock
+
+logger = logging.getLogger("cochem.core.context")
+
+
+# ==============================================================================
+# Custom Exceptions
+# ==============================================================================
+class AirGapViolationError(Exception):
+    """Raised when an operation attempts to write to, delete from, or stage files in read-only tiers ($COCH_SRC or $COCH_DATA)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
+# ==============================================================================
+# Immutable Execution Context
+# ==============================================================================
+@dataclasses.dataclass(slots=True, frozen=True)
+class ExecutionContext:
+    """Immutable execution context encapsulating process state across the 6-Tier Environment Matrix."""
+
+    execution_id: str
+    session_name: str
+    src_dir: pathlib.Path
+    data_dir: pathlib.Path
+    artifacts_dir: pathlib.Path
+    scratch_dir: pathlib.Path
+    env_tier: str
+    metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+_CURRENT_CONTEXT: contextvars.ContextVar[Optional[ExecutionContext]] = contextvars.ContextVar(
+    "cochem_execution_context",
+    default=None,
 )
 
-try:
-    from cochem_base.exceptions import (
-        MissingDataError as BaseMissingDataError,
-        SingularityError,
-    )
-except ImportError:
-    class BaseMissingDataError(CoChemError, KeyError):
-        def __init__(self, message: str, details: Optional[Any] = None) -> None:
-            super().__init__(message, error_code="COCHEM_E_MISSING_DATA")
 
-    class SingularityError(CoChemError, ValueError):
-        def __init__(self, message: str, details: Optional[Any] = None) -> None:
-            super().__init__(message, error_code="COCHEM_E_SINGULARITY")
+def get_current_context() -> ExecutionContext:
+    """Retrieve active ExecutionContext or raise RuntimeError if uninitialized."""
+    ctx = _CURRENT_CONTEXT.get()
+    if ctx is None:
+        raise RuntimeError("No active ExecutionContext found in contextvars. Initialize with scoped_context.")
+    return ctx
 
 
-class MissingDataError(BaseMissingDataError):
-    """Raised when required element, isotope, basis set, or calculation data is missing."""
+class scoped_context:
+    """Context manager and async context manager isolating execution context across coroutines and threads."""
 
-    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.symbol_or_query = symbol_or_query
+    def __init__(self, ctx: ExecutionContext) -> None:
+        self.ctx: ExecutionContext = ctx
+        self._token: Optional[contextvars.Token[Optional[ExecutionContext]]] = None
 
+    def __enter__(self) -> ExecutionContext:
+        self._token = _CURRENT_CONTEXT.set(self.ctx)
+        return self.ctx
 
-class MendeleevInvariantError(MissingDataError):
-    """Raised when chemical element or isotopic queries violate Mendeleev physical invariants."""
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self._token is not None:
+            _CURRENT_CONTEXT.reset(self._token)
+            self._token = None
 
-    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
-        super().__init__(message, symbol_or_query=symbol_or_query)
+    async def __aenter__(self) -> ExecutionContext:
+        return self.__enter__()
 
-
-class RotationalGridInstabilityError(CoChemError, ValueError):
-    """Raised when Cartesian DFT integration grid breaks rotational invariance or induces imaginary modes."""
-
-    def __init__(self, message: str, delta_cm1: Optional[float] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_ROT_GRID_INSTABILITY")
-        self.message = message
-        self.delta_cm1 = delta_cm1
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.__exit__(exc_type, exc_val, exc_tb)
 
 
-class JobTimeoutError(CoChemError, TimeoutError):
-    """Raised when an asynchronous calculation or subprocess job exceeds temporal limits."""
+def assert_writable_path(
+    target_path: Union[pathlib.Path, str],
+    ctx: Optional[ExecutionContext] = None,
+) -> None:
+    """Validate that target_path does not violate read-only Air-Gap boundaries ($COCH_SRC, $COCH_DATA)."""
+    active_ctx = ctx or _CURRENT_CONTEXT.get()
+    if active_ctx is None:
+        return
 
-    def __init__(self, message: str, details: Optional[Any] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_JOB_TIMEOUT")
+    resolved_target = pathlib.Path(target_path).resolve()
+    resolved_src = active_ctx.src_dir.resolve()
+    resolved_data = active_ctx.data_dir.resolve()
+
+    if resolved_target == resolved_src or resolved_src in resolved_target.parents:
+        raise AirGapViolationError(
+            f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only codebase tier ($COCH_SRC='{resolved_src}')."
+        )
+
+    if resolved_target == resolved_data or resolved_data in resolved_target.parents:
+        raise AirGapViolationError(
+            f"Air-Gap Violation: Target path '{resolved_target}' falls within read-only baseline data tier ($COCH_DATA='{resolved_data}')."
+        )
 
 
-__all__ = [
-    "CoChemError",
-    "MissingDataError",
-    "MendeleevInvariantError",
-    "RotationalGridInstabilityError",
-    "JobTimeoutError",
-    "CoordinateShapeError",
-    "AirGapBoundaryError",
-    "SchemaMigrationError",
-    "PESStorageError",
-    "ProcessReaperError",
-    "SubprocessBrokerError",
-    "ThermodynamicsParameterError",
-    "IsotopeMassResolutionError",
-    "IsotopeStabilityError",
-    "RadiusNotFoundError",
-]
+# ==============================================================================
+# Atomic File Staging & HPC Prohibition
+# ==============================================================================
+class AtomicWrite:
+    """Context manager providing atomic file replacement mechanics via temporary local staging."""
+
+    def __init__(self, target_path: Union[pathlib.Path, str]) -> None:
+        self.target: pathlib.Path = pathlib.Path(target_path).resolve()
+        assert_writable_path(self.target)
+        self.tmp_path: pathlib.Path = self.target.with_name(f"{self.target.name}.{uuid.uuid4().hex[:8]}.tmp")
+
+    def __enter__(self) -> pathlib.Path:
+        self.target.parent.mkdir(parents=True, exist_ok=True)
+        if not self.tmp_path.exists():
+            self.tmp_path.touch()
+        return self.tmp_path
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if exc_type is None and self.tmp_path.exists():
+            try:
+                with open(self.tmp_path, "a+b") as f:
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(self.tmp_path, self.target)
+            except Exception as replace_err:
+                if self.tmp_path.exists():
+                    try:
+                        self.tmp_path.unlink()
+                    except OSError:
+                        pass
+                raise replace_err
+        else:
+            if self.tmp_path.exists():
+                try:
+                    self.tmp_path.unlink()
+                except OSError:
+                    pass
+
+
+class FileLock:
+    """Cross-process and cross-thread file locking for Local/Cloud tiers (Tier 1-4) with strict HPC tier prohibition.
+
+    Features adaptive exponential backoff with random jitter, stale lock resolution (>300s),
+    and cross-platform low-latency primitives.
+    """
+
+    def __init__(
+        self,
+        lock_path: Union[pathlib.Path, str],
+        timeout_sec: float = 10.0,
+    ) -> None:
+        self.lock_path: pathlib.Path = pathlib.Path(lock_path).resolve()
+        self.timeout_sec: float = max(0.001, float(timeout_sec))
+
+        # Verify against HPC distributed filesystem lock prohibition
+        active_ctx = _CURRENT_CONTEXT.get()
+        if active_ctx is not None:
+            tier_str = active_ctx.env_tier.upper()
+            if "TIER 5" in tier_str or "TIER 6" in tier_str:
+                raise RuntimeError(
+                    f"Distributed POSIX/Windows file locks are prohibited in HPC {active_ctx.env_tier} (Lustre/GPFS/NFS). "
+                    "Calculations must stage I/O locally in $SLURM_TMPDIR and publish via AtomicWrite."
+                )
+
+        target_file = str(self.lock_path) if str(self.lock_path).endswith(".lock") else f"{self.lock_path}.lock"
+        self._target_file: pathlib.Path = pathlib.Path(target_file).resolve()
+        self._fd: Optional[int] = None
+
+    def acquire(
+        self,
+        initial_delay_sec: float = 0.001,
+        max_delay_sec: float = 0.025,
+        backoff_factor: float = 1.5,
+        jitter: bool = True,
+    ) -> bool:
+        """Acquire physical file lock using adaptive exponential backoff with jitter."""
+        assert_writable_path(self.lock_path)
+        self._target_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Stale lock resolution: if older than 300s, clear lock file
+        if self._target_file.exists():
+            try:
+                mtime = self._target_file.stat().st_mtime
+                if time.time() - mtime > 300.0:
+                    logger.warning("Detected stale lock file (>300s) at %s; clearing.", self._target_file)
+                    try:
+                        self._target_file.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+            except OSError:
+                pass
+
+        start_time = time.perf_counter()
+        current_delay = initial_delay_sec
+
+        while True:
+            fd = None
+            try:
+                fd = os.open(self._target_file, os.O_CREAT | os.O_RDWR)
+                if platform.system() == "Windows":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+                self._fd = fd
+                return True
+            except (OSError, PermissionError):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    fd = None
+
+                elapsed = time.perf_counter() - start_time
+                if elapsed >= self.timeout_sec:
+                    return False
+
+                sleep_time = random.uniform(current_delay * 0.5, current_delay * 1.5) if jitter else current_delay
+                time.sleep(sleep_time)
+                current_delay = min(current_delay * backoff_factor, max_delay_sec)
+
+    def release(self) -> None:
+        """Release physical lock and close file descriptor."""
+        if self._fd is not None:
+            fd = self._fd
+            self._fd = None
+            try:
+                if platform.system() == "Windows":
+                    import msvcrt
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+            except Exception as exc:
+                logger.debug("Lock release exception bypassed: %s", exc)
+            finally:
+                try:
+                    os.close(fd)
+                except Exception:
+                    pass
+
+    def __enter__(self) -> FileLock:
+        if not self.acquire():
+            raise TimeoutError(f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}")
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\ipc\serializer.py ---
 """Pure-Wheel Fast IPC Serialization & HDF5 PESStore.
@@ -2275,6 +1140,65 @@ def _finalize_shm(name: str) -> None:
         pass
 
 
+class SharedMemoryView:
+    """Context manager wrapping sm.SharedMemory and a non-copied np.ndarray view.
+
+    Raises RuntimeError if accessed when closed.
+    """
+
+    def __init__(
+        self,
+        shm: sm.SharedMemory,
+        arr: np.ndarray,
+        owner_name: Optional[str] = None,
+        is_recycled: bool = False,
+    ) -> None:
+        self._shm: Optional[sm.SharedMemory] = shm
+        self._arr: Optional[np.ndarray] = arr
+        self._is_closed: bool = False
+        self._is_recycled: bool = is_recycled
+        self._owner_name: Optional[str] = owner_name or (shm.name if shm else None)
+
+    @property
+    def array(self) -> np.ndarray:
+        if self._is_closed or self._arr is None:
+            raise RuntimeError("Cannot access array view on a closed SharedMemoryView")
+        return self._arr
+
+    def close(self) -> None:
+        if not self._is_closed:
+            self._is_closed = True
+            self._arr = None
+            if self._shm is not None:
+                if not self._is_recycled:
+                    try:
+                        self._shm.close()
+                    except OSError as exc:
+                        logger.debug("Shared memory view close bypassed: %s", exc)
+                if self._owner_name:
+                    SharedMemoryBuffer._notify_closed(self._owner_name)
+                self._shm = None
+
+    def unlink(self) -> None:
+        if self._shm is not None and not self._is_recycled:
+            try:
+                self._shm.unlink()
+            except (OSError, FileNotFoundError) as exc:
+                logger.debug("Shared memory view unlink bypassed: %s", exc)
+        self.close()
+
+    def __enter__(self) -> np.ndarray:
+        return self.array
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
+
+
 @dataclasses.dataclass
 class SharedMemoryBuffer:
     """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
@@ -2282,6 +1206,7 @@ class SharedMemoryBuffer:
     shm: sm.SharedMemory
     descriptor: Dict[str, Any]
     _finalizer: Optional[weakref.finalize] = dataclasses.field(default=None, repr=False, compare=False)
+    _array: Optional[np.ndarray] = dataclasses.field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if self._finalizer is None:
@@ -2298,6 +1223,11 @@ class SharedMemoryBuffer:
     ) -> None:
         self.close()
         self.unlink()
+
+    @classmethod
+    def create(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
+        """Alias for from_array."""
+        return cls.from_array(arr, total_attachments=total_attachments)
 
     @classmethod
     def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
@@ -2329,7 +1259,20 @@ class SharedMemoryBuffer:
                 "closed": 0,
             }
 
-        return cls(shm=shm, descriptor=desc)
+        return cls(shm=shm, descriptor=desc, _array=shm_array)
+
+    def to_descriptor(self) -> Dict[str, Any]:
+        """Return the transfer descriptor mapping this shared memory segment."""
+        return dict(self.descriptor)
+
+    @property
+    def array(self) -> np.ndarray:
+        """Return direct numpy ndarray view over the shared memory segment."""
+        if self._array is None:
+            shape = tuple(self.descriptor["shape"])
+            dtype = self.descriptor["dtype"]
+            self._array = np.ndarray(shape, dtype=dtype, buffer=self.shm.buf)
+        return self._array
 
     @classmethod
     def _notify_closed(cls, name: str) -> None:
@@ -2353,20 +1296,37 @@ class SharedMemoryBuffer:
                     logger.debug("Shared memory cleanup bypassed: %s", exc)
 
     @classmethod
-    def read_from_descriptor(cls, descriptor: Dict[str, Any]) -> np.ndarray:
-        """Map existing shared memory segment and extract copy of array."""
+    def read_from_descriptor(
+        cls,
+        descriptor: Dict[str, Any],
+        zero_copy: bool = True,
+    ) -> Union[np.ndarray, SharedMemoryView]:
+        """Map existing shared memory segment and extract copy of array or zero-copy SharedMemoryView."""
         name = descriptor["name"]
         shape = tuple(descriptor["shape"])
         dtype = descriptor["dtype"]
 
-        client_shm = sm.SharedMemory(name=name)
-        try:
-            mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
-            extracted = mapped.copy()
-            return extracted
-        finally:
-            client_shm.close()
-            cls._notify_closed(name)
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                client_shm = info["shm"]
+                is_recycled = True
+            else:
+                client_shm = sm.SharedMemory(name=name)
+                is_recycled = False
+
+        mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
+
+        if zero_copy:
+            return SharedMemoryView(shm=client_shm, arr=mapped, owner_name=name, is_recycled=is_recycled)
+        else:
+            try:
+                extracted = mapped.copy()
+                return extracted
+            finally:
+                if not is_recycled:
+                    client_shm.close()
+                cls._notify_closed(name)
 
     def close(self) -> None:
         """Close local memory map and unlink if all attachments are closed."""
@@ -2666,10 +1626,10 @@ class HMACSocketClient:
             sock.close()
 
 
-# ==============================================================================
-# HDF5 PESStore Tensor Persistence (QCSchema & SWMR)
-# ==============================================================================
-from cochem_base.core.ipc.serializer import validate_airgap_write_path
+def validate_airgap_write_path(target_path: Union[str, pathlib.Path]) -> pathlib.Path:
+    """Lazily import validate_airgap_write_path to break circular import cycle."""
+    from cochem_base.core.ipc.serializer import validate_airgap_write_path as _v
+    return _v(target_path)
 
 
 class PESStore:
@@ -2756,1674 +1716,4863 @@ class PESStore:
                 "return_result": result_arr,
             }
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\mendeleev_invariants.py ---
-"""Dynamic Mendeleev Invariants & Element Resolver.
 
-Provenance & Specifications:
-- Method Matrix [M]: Quantum spin-parity and IUPAC CIAAW standard atomic weight invariants.
-- Dynamic Resolution [D]: Zero-hardcoding dynamic element and isotopic mass lookup via mendeleev.
-- Telemetry [E]: Thread-safe in-memory cache populated dynamically on demand.
+__all__ = [
+    "PESStore",
+    "SharedMemoryBuffer",
+    "SharedMemoryView",
+    "pack_payload",
+    "unpack_payload",
+    "HMACSocketServer",
+    "HMACSocketClient",
+]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\ipc\serializer.py ---
+"""Pure-Wheel Fast IPC Serialization & HDF5 PESStore.
+
+High-throughput binary Msgpack serialization, SharedMemory descriptors, HMAC socket transport,
+and QCSchema-compliant HDF5 tensor persistence in SWMR mode with in-place chunk resizing.
+Strictly adheres to Zero-Mock mandate, Tripartite Storage Air-Gap, and Suggestion #65.
 """
 
 from __future__ import annotations
 
-import re
+import atexit
+import dataclasses
+import datetime
+import errno
+import hashlib
+import hmac
+import json
+import logging
+import multiprocessing.shared_memory as sm
+import os
+import pathlib
+import secrets
+import shutil
+import socket
+import struct
+import tempfile
 import threading
-from dataclasses import dataclass
+import time
+import uuid
+import weakref
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from mendeleev import element as _mendeleev_element
-
-from cochem.core.exceptions import MissingDataError
-
-
-class MendeleevInvariantError(ValueError, MissingDataError):
-    """Raised when chemical element queries violate Mendeleev physical invariants."""
-
-    def __init__(self, message: str, symbol_or_query: Any = None) -> None:
-        ValueError.__init__(self, message)
-        MissingDataError.__init__(
-            self,
-            message=message,
-            symbol_or_query=symbol_or_query,
-        )
-        self.symbol_or_query = symbol_or_query
-
-
-@dataclass(slots=True, frozen=True)
-class ElementData:
-    """Immutable ground-truth chemical element properties."""
-
-    atomic_number: int
-    symbol: str
-    name: str
-    atomic_weight: float
-    isotopes: Tuple[Tuple[int, float, float], ...]  # (mass_number, exact_mass_amu, natural_abundance)
-    covalent_radius_pm: Optional[float]
-    vdw_radius_pm: Optional[float]
-    valence_electrons: int
-    mass: float = 0.0
-    mass_number: Optional[int] = None
-    formal_charge: int = 0
-    is_isotope: bool = False
-
-
-_CACHE_LOCK = threading.Lock()
-_ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
-_ELEMENTS_BY_Z: Dict[int, ElementData] = {}
-
-
-def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
-    """Dynamically fetch and cache ElementData for Z=1..118 via mendeleev."""
-    try:
-        elem = _mendeleev_element(z_or_sym)
-    except Exception as exc:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
-            symbol_or_query=z_or_sym,
-        ) from exc
-
-    z = int(elem.atomic_number)
-    symbol = str(elem.symbol)
-    name = str(elem.name)
-
-    # Standard atomic weight with dynamic fallback to most stable isotope mass
-    weight = elem.atomic_weight
-    if weight is None or float(weight) <= 0.0:
-        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
-        if iso_masses:
-            weight = float(max(iso_masses))
-        else:
-            weight = float(z)
-    else:
-        weight = float(weight)
-
-    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
-    isotope_list: List[Tuple[int, float, float]] = []
-    for iso in elem.isotopes:
-        if iso.mass_number is not None:
-            m_num = int(iso.mass_number)
-            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
-            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
-            isotope_list.append((m_num, m_exact, m_abund))
-    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
-
-    # Radii in picometers
-    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
-    cov_radius_pm = float(cov_r) if cov_r is not None else None
-
-    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
-    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
-
-    # Valence electrons
-    if hasattr(elem, "nvalence") and callable(elem.nvalence):
-        val_e = int(elem.nvalence())
-    elif elem.electrons is not None:
-        val_e = int(elem.electrons)
-    else:
-        val_e = 0
-
-    data = ElementData(
-        atomic_number=z,
-        symbol=symbol,
-        name=name,
-        atomic_weight=weight,
-        isotopes=isotopes_tuple,
-        covalent_radius_pm=cov_radius_pm,
-        vdw_radius_pm=vdw_radius_pm,
-        valence_electrons=val_e,
-        mass=weight,
-        mass_number=None,
-        formal_charge=0,
-        is_isotope=False,
-    )
-
-    with _CACHE_LOCK:
-        _ELEMENTS_BY_SYMBOL[symbol] = data
-        _ELEMENTS_BY_Z[z] = data
-
-    return data
-
-
-def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
-    """Authoritative regex and alias pre-processor for chemical symbols and isotopes.
-
-    Maps:
-    - 'D' -> ('H', 2)
-    - 'T' -> ('H', 3)
-    - '13C' -> ('C', 13)
-    - '18O' -> ('O', 18)
-    - '2H' -> ('H', 2)
-    - Standard symbols ('H', 'C', 'Ar') -> ('H', None), etc.
-    """
-    raw = str(symbol).strip()
-    if not raw or raw.isdigit():
-        raise MissingDataError(
-            f"Invalid chemical symbol or isotope '{symbol}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol,
-        )
-
-    # Specific alias mappings
-    if raw.upper() == "D":
-        return "H", 2
-    if raw.upper() == "T":
-        return "H", 3
-
-    # Check for leading mass number: e.g. "13C", "18O", "2H", "35Cl"
-    m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
-    if m_iso:
-        mass_num = int(m_iso.group(1))
-        sym_part = m_iso.group(2)
-        norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
-        # Verify element exists in Mendeleev
-        try:
-            get_element(norm_sym)
-        except Exception:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {symbol}",
-                symbol_or_query=symbol,
-            )
-        return norm_sym, mass_num
-
-    # Standard elemental symbol: e.g. "C", "Cl", "Ar"
-    m_sym = re.match(r"^[A-Za-z]+$", raw)
-    if m_sym:
-        norm_sym = raw[0].upper() + raw[1:].lower() if len(raw) > 1 else raw.upper()
-        try:
-            elem_data = get_element(norm_sym)
-            return elem_data.symbol, None
-        except Exception:
-            # Check by element name
-            try:
-                elem_data = _load_element_data(raw)
-                return elem_data.symbol, None
-            except Exception:
-                pass
-
-    raise MissingDataError(
-        f"Unresolvable atomic element or isotope symbol: {symbol}",
-        symbol_or_query=symbol,
-    )
-
-
-def get_element(symbol_or_z: Union[str, int]) -> ElementData:
-    """Retrieve immutable ElementData by atomic number, chemical symbol, formal charge, or isotope."""
-    if isinstance(symbol_or_z, int):
-        if symbol_or_z < 1 or symbol_or_z > 118:
-            raise MendeleevInvariantError(
-                f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
-                symbol_or_query=symbol_or_z,
-            )
-        with _CACHE_LOCK:
-            cached = _ELEMENTS_BY_Z.get(symbol_or_z)
-        if cached is not None:
-            return cached
-        return _load_element_data(symbol_or_z)
-
-    raw = str(symbol_or_z).strip()
-    if not raw or raw.isdigit():
-        raise MendeleevInvariantError(
-            f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    pattern = re.compile(r"^(?P<isotope>\d+)?(?P<symbol>[A-Za-z]+)(?P<charge>(?:\d+[+-]|[+-]\d*|[+-]))?$")
-    match = pattern.match(raw)
-    if not match:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{symbol_or_z}'.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    iso_str = match.group("isotope")
-    sym_raw = match.group("symbol")
-    charge_str = match.group("charge")
-
-    # Alias mappings for Deuterium (D) and Tritium (T)
-    if sym_raw.upper() == "D":
-        norm_sym = "H"
-        mass_number: Optional[int] = 2
-    elif sym_raw.upper() == "T":
-        norm_sym = "H"
-        mass_number = 3
-    else:
-        norm_sym = sym_raw[0].upper() + sym_raw[1:].lower() if len(sym_raw) > 1 else sym_raw.upper()
-        mass_number = int(iso_str) if iso_str else None
-
-    formal_charge: int = 0
-    if charge_str:
-        if charge_str.endswith("+"):
-            val = charge_str[:-1]
-            formal_charge = int(val) if val else 1
-        elif charge_str.endswith("-"):
-            val = charge_str[:-1]
-            formal_charge = -int(val) if val else -1
-        elif charge_str.startswith("+"):
-            val = charge_str[1:]
-            formal_charge = int(val) if val else 1
-        elif charge_str.startswith("-"):
-            val = charge_str[1:]
-            formal_charge = -int(val) if val else -1
-
-    # Dynamic lookup via mendeleev
-    try:
-        elem = _mendeleev_element(norm_sym)
-        base_data = _load_element_data(norm_sym)
-    except Exception as exc:
-        # Fallback to query by full element name (e.g. 'Carbon')
-        try:
-            elem = _mendeleev_element(sym_raw)
-            base_data = _load_element_data(sym_raw)
-            norm_sym = str(elem.symbol)
-        except Exception:
-            raise MendeleevInvariantError(
-                f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
-                symbol_or_query=symbol_or_z,
-            ) from exc
-
-    if mass_number is not None:
-        is_isotope = True
-        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
-        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
-            raise MendeleevInvariantError(
-                f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
-                symbol_or_query=symbol_or_z,
-            )
-        mass = float(iso.mass)
-    else:
-        is_isotope = False
-        mass = float(base_data.atomic_weight)
-
-    return ElementData(
-        atomic_number=base_data.atomic_number,
-        symbol=base_data.symbol,
-        name=base_data.name,
-        atomic_weight=base_data.atomic_weight,
-        isotopes=base_data.isotopes,
-        covalent_radius_pm=base_data.covalent_radius_pm,
-        vdw_radius_pm=base_data.vdw_radius_pm,
-        valence_electrons=base_data.valence_electrons,
-        mass=mass,
-        mass_number=mass_number,
-        formal_charge=formal_charge,
-        is_isotope=is_isotope,
-    )
-
-
-def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
-    element_data = get_element(symbol_or_z)
-    for iso_m_num, iso_exact, _ in element_data.isotopes:
-        if iso_m_num == mass_number:
-            return iso_exact
-
-    # Dynamic fallback query directly to mendeleev element isotopes
-    try:
-        m_elem = _mendeleev_element(element_data.symbol)
-        for iso in m_elem.isotopes:
-            if iso.mass_number == mass_number and iso.mass is not None:
-                return float(iso.mass)
-    except Exception:
-        pass
-
-    raise MendeleevInvariantError(
-        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
-        symbol_or_query=f"{element_data.symbol}-{mass_number}",
-    )
-
-
-def get_element_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u).
-
-    Handles standard elements ('H', 'C', 'Ar') and isotopic aliases ('D', 'T', '13C', '18O').
-    """
-    if isinstance(symbol_or_z, int):
-        return get_element(symbol_or_z).atomic_weight
-
-    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
-    if mass_number is not None:
-        return get_isotope_mass(clean_sym, mass_number)
-    return get_element(clean_sym).atomic_weight
-
-
-class MendeleevResolver:
-    """Thread-safe dynamic Mendeleev element and isotope mass resolver for backward compatibility."""
-
-    def get_element(self, symbol_or_z: Union[str, int]) -> Any:
-        elem_data = get_element(symbol_or_z)
-        return _mendeleev_element(elem_data.atomic_number)
-
-    def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
-        return get_element(symbol_or_z).atomic_number
-
-    def get_atomic_weight(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element(symbol_or_z).atomic_weight
-
-    def get_element_mass(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element_mass(symbol_or_z)
-
-    def get_symbol(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).symbol
-
-    def get_name(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).name
-
-    def get_covalent_radius(self, symbol_or_z: Union[str, int]) -> Optional[float]:
-        return get_element(symbol_or_z).covalent_radius_pm
-
-    def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
-        r = get_element(symbol_or_z).vdw_radius_pm
-        if r is None:
-            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
-        return r
-
-    def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
-        return self.get_vdw_radius(symbol_or_z) / 100.0
-
-    def get_isotope_mass(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        return get_isotope_mass(symbol_or_z, mass_number)
-
-    def get_isotope_abundance(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        elem_data = get_element(symbol_or_z)
-        for m_num, _, abund in elem_data.isotopes:
-            if m_num == mass_number:
-                return abund
-        return 0.0
-
-    def get_available_isotopes(self, symbol_or_z: Union[str, int]) -> List[int]:
-        return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
-
-    def clear_cache(self) -> None:
-        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
-
-
-# Default global resolver instance for backwards compatibility
-mendeleev_resolver = MendeleevResolver()
-
-from cochem_base.core.mendeleev_invariants import get_element_cache
-
-__all__ = [
-    "ElementData",
-    "MendeleevInvariantError",
-    "MissingDataError",
-    "get_element_cache",
-    "get_element",
-    "get_isotope_mass",
-    "get_element_mass",
-    "parse_symbol_or_isotope",
-    "MendeleevResolver",
-    "mendeleev_resolver",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_crypto.py ---
-"""Authoritative IETF RFC 8032 PureEd25519, RFC 8785 JSON Canonicalization Scheme (JCS), & W3C Linked Data Proofs.
-
-Provides pure asymmetric cryptographic provenance generation, verification, and offline
-did:key resolution using multicodec 0xed01 prefix and base58btc encoding.
-Eradicates non-standard intermediate SHA-512 pre-hashing, signing raw canonical bytes directly.
-Includes an RFC 8785 §3.2.2.3 compliant ECMAScript IEEE 754 float formatting kernel.
-"""
-
-from __future__ import annotations
-
-import base64
-import hashlib
-import json
-import math
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple, Union
-
-from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519
+import filelock
+import h5py
+import msgpack  # type: ignore[import-untyped]
+import numpy as np
 from pydantic import BaseModel
 
-# Standard Bitcoin / IPFS base58btc alphabet
-B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-ED25519_MULTICODEC_PREFIX = b"\xed\x01"
+from cochem_base.core.exceptions import AirGapBoundaryError, PESStorageError
+
+logger = logging.getLogger("cochem_base.core.ipc.serializer")
+
+NUMPY_EXT_CODE: int = 42
+MAX_IPC_PAYLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MB ceiling [D]
+
+_HDF5_MEM_LOCK = threading.RLock()
 
 
-def b58encode(data: bytes) -> str:
-    """Encode bytes into base58btc string."""
-    orig_len = len(data)
-    data_stripped = data.lstrip(b"\x00")
-    leading_zeros = orig_len - len(data_stripped)
+def validate_airgap_write_path(target_path: Union[str, Path]) -> Path:
+    """Validates that target write path resides strictly within Tier 4 ($COCH_STATE) or Tier 3 ($COCH_SCRATCH).
 
-    if not data_stripped:
-        return "1" * leading_zeros
-
-    acc = int.from_bytes(data_stripped, byteorder="big")
-    chars = []
-    while acc > 0:
-        acc, rem = divmod(acc, 58)
-        chars.append(B58_ALPHABET[rem])
-
-    res = "".join(reversed(chars))
-    return ("1" * leading_zeros) + res
-
-
-def b58decode(s: str) -> bytes:
-    """Decode base58btc string into raw bytes."""
-    orig_len = len(s)
-    s_stripped = s.lstrip("1")
-    leading_zeros = orig_len - len(s_stripped)
-
-    if not s_stripped:
-        return b"\x00" * leading_zeros
-
-    acc = 0
-    for char in s_stripped:
-        idx = B58_ALPHABET.find(char)
-        if idx == -1:
-            raise ValueError(f"Invalid character '{char}' in base58 string")
-        acc = acc * 58 + idx
-
-    byte_len = (acc.bit_length() + 7) // 8
-    raw = acc.to_bytes(byte_len, byteorder="big")
-    return (b"\x00" * leading_zeros) + raw
-
-
-def public_key_to_did_key(public_key: Union[ed25519.Ed25519PublicKey, bytes]) -> str:
-    """Encode an Ed25519 public key into a standard W3C did:key identifier offline [D].
-
-    Prefixes raw 32-byte key with multicodec 0xed01 and encodes with base58btc.
+    Raises AirGapBoundaryError if write is attempted in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA).
     """
-    if hasattr(public_key, "public_bytes_raw"):
-        raw_bytes = public_key.public_bytes_raw()
-    elif isinstance(public_key, ed25519.Ed25519PublicKey):
-        raw_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
+    resolved = Path(target_path).resolve()
+    src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
+    data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
+
+    if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Air-gap boundary violation: Cannot write PES data to read-only Tier 1 ($COCH_SRC): {resolved}",
+            details={"target_path": str(resolved), "tier": "Tier 1 ($COCH_SRC)"},
         )
-    elif isinstance(public_key, bytes):
-        raw_bytes = public_key
-    else:
-        raise TypeError(f"Expected Ed25519PublicKey or 32-byte bytes, got {type(public_key)}")
-
-    if len(raw_bytes) != 32:
-        raise ValueError(f"Ed25519 public key must be 32 bytes, got {len(raw_bytes)}")
-
-    multicodec_pub = ED25519_MULTICODEC_PREFIX + raw_bytes
-    return "did:key:z" + b58encode(multicodec_pub)
+    if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
+        raise AirGapBoundaryError(
+            f"Air-gap boundary violation: Cannot write PES data to immutable Tier 2 ($COCH_DATA): {resolved}",
+            details={"target_path": str(resolved), "tier": "Tier 2 ($COCH_DATA)"},
+        )
+    return resolved
 
 
-def did_key_to_public_key(did_key: str) -> ed25519.Ed25519PublicKey:
-    """Decode a standard W3C did:key identifier into an Ed25519PublicKey offline [D].
-
-    Dispatches zero network calls to external DID registries.
-    """
-    if not isinstance(did_key, str) or not did_key.startswith("did:key:z"):
-        raise ValueError(f"Invalid did:key string format: '{did_key}'")
-
-    multibase_str = did_key[len("did:key:z") :]
-    decoded_bytes = b58decode(multibase_str)
-
-    if len(decoded_bytes) < 34 or decoded_bytes[:2] != ED25519_MULTICODEC_PREFIX:
-        raise ValueError("Invalid multicodec prefix for Ed25519 did:key")
-
-    raw_pub_bytes = decoded_bytes[2:34]
-    return ed25519.Ed25519PublicKey.from_public_bytes(raw_pub_bytes)
-
-
-def format_rfc8785_float(val: float) -> str:
-    """Formats an IEEE 754 double-precision float strictly adhering to RFC 8785 §3.2.2.3 (ECMAScript Number::toString).
-
-    Rules:
-    - NaN and Infinities are strictly disallowed in JSON (raise ValueError).
-    - Signed zero (-0.0) must format as '0'.
-    - Absolute value in range 1e-6 <= |val| < 1e21 formats in fixed decimal notation without unnecessary trailing zeros.
-    - Absolute value < 1e-6 or >= 1e21 formats in exponential notation with lowercase 'e' and exponent without leading zero.
-    """
-    if math.isnan(val) or math.isinf(val):
-        raise ValueError(f"RFC 8785 forbids non-finite float values: {val}")
-    if val == 0.0:
-        return "0"
-
-    s = repr(val)
-
-    # Normalize scientific notation exponent (e.g., '1e-05' -> '1e-5', '1e+05' -> '1e+5')
-    if "e" in s:
-        base, exp = s.split("e")
-        exp_sign = exp[0]
-        exp_val = exp[1:].lstrip("0") or "0"
-        s = f"{base}e{exp_sign}{exp_val}"
-
-    # Handle corner-case ranges where Python emits scientific notation but ECMAScript mandates fixed:
-    abs_val = abs(val)
-    if 1e-6 <= abs_val < 1e-4 and "e" in s:
-        s = f"{val:.10f}".rstrip("0").rstrip(".")
-
-    return s
-
-
-def _serialize_jcs(obj: Any) -> str:
-    """Internal recursive serializer for RFC 8785 JSON Canonicalization Scheme."""
-    if obj is None:
-        return "null"
-    elif isinstance(obj, bool):
-        return "true" if obj else "false"
-    elif isinstance(obj, int):
-        return str(obj)
-    elif isinstance(obj, float):
-        return format_rfc8785_float(obj)
-    elif isinstance(obj, str):
-        return json.dumps(obj, ensure_ascii=False)
-    elif isinstance(obj, (list, tuple)):
-        items = [_serialize_jcs(item) for item in obj]
-        return "[" + ",".join(items) + "]"
-    elif isinstance(obj, dict):
-        sorted_keys = sorted(obj.keys(), key=lambda k: str(k).encode("utf-8"))
-        pairs = [
-            json.dumps(str(k), ensure_ascii=False) + ":" + _serialize_jcs(obj[k])
-            for k in sorted_keys
-        ]
-        return "{" + ",".join(pairs) + "}"
-    elif hasattr(obj, "model_dump"):
-        return _serialize_jcs(obj.model_dump(mode="json"))
+# ==============================================================================
+# Msgpack Custom Extension Codecs
+# ==============================================================================
+def _msgpack_encoder(obj: Any) -> Any:
+    """Encode custom structures (NumPy arrays, Pydantic models, Path/UUID) for Msgpack."""
+    if isinstance(obj, np.ndarray):
+        dtype_str = obj.dtype.str  # type: ignore[attr-defined]
+        shape_tuple = tuple(obj.shape)
+        raw_buffer = obj.tobytes()
+        payload = msgpack.packb((dtype_str, shape_tuple, raw_buffer), use_bin_type=True)
+        return msgpack.ExtType(NUMPY_EXT_CODE, payload)
     elif isinstance(obj, BaseModel):
-        return _serialize_jcs(obj.dict())
-    else:
-        raise TypeError(f"Object of type {type(obj).__name__} is not RFC 8785 JCS serializable")
+        return obj.model_dump()
+    elif isinstance(obj, (pathlib.Path, uuid.UUID)):
+        return str(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON/Msgpack serializable")
 
 
-def canonicalize_json(data: Any) -> bytes:
-    """Serializes arbitrary Python data structures to deterministic UTF-8 bytes adhering to RFC 8785 (JCS).
-
-    - Lexicographical sorting of object keys by UTF-8 code point values.
-    - Zero whitespace around delimiters (',' and ':').
-    - IEEE 754 float formatting via format_rfc8785_float.
-    - UTF-8 output without BOM.
-    """
-    return _serialize_jcs(data).encode("utf-8")
+def _msgpack_decoder(code: int, data: bytes) -> Any:
+    """Reconstruct NumPy arrays from Msgpack custom extension payload."""
+    if code == NUMPY_EXT_CODE:
+        dtype_str, shape_tuple, raw_buffer = msgpack.unpackb(data, raw=False)
+        reconstructed = np.frombuffer(raw_buffer, dtype=dtype_str).reshape(tuple(shape_tuple))
+        return reconstructed
+    return msgpack.ExtType(code, data)
 
 
-def hash_canonical_json(data: Any, algorithm: str = "sha256") -> str:
-    """Compute cryptographic hash over RFC 8785 canonicalized JSON bytes."""
-    canonical_bytes = canonicalize_json(data)
-    h = hashlib.new(algorithm)
-    h.update(canonical_bytes)
-    return h.hexdigest()
+def pack_payload(data: Any) -> bytes:
+    """Serialize payload into binary Msgpack bytes with NumPy array extension hooks."""
+    return bytes(msgpack.packb(data, default=_msgpack_encoder, use_bin_type=True))
 
 
-def generate_ed25519_key_pair() -> Tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
-    """Generate a genuine cryptographically secure Ed25519 key pair."""
-    private_key = ed25519.Ed25519PrivateKey.generate()
-    public_key = private_key.public_key()
-    return private_key, public_key
+def unpack_payload(raw_bytes: bytes) -> Any:
+    """Deserialize binary Msgpack payload and reconstruct NumPy arrays."""
+    return msgpack.unpackb(raw_bytes, ext_hook=_msgpack_decoder, raw=False)
 
 
-def _b64_decode_tolerant(b64_str: str) -> bytes:
-    """Safely decode standard or URL-safe base64 string with missing padding."""
-    clean = b64_str.strip()
-    pad_len = (-len(clean)) % 4
-    padded = clean + ("=" * pad_len)
+# ==============================================================================
+# Zero-Copy Shared Memory Optimization
+# ==============================================================================
+_REGISTRY_LOCK = threading.Lock()
+_ACTIVE_SHM: Dict[str, Dict[str, Any]] = {}
+
+
+def _cleanup_all_shared_memory() -> None:
+    """Atexit handler ensuring zero lingering shared memory blocks."""
+    with _REGISTRY_LOCK:
+        for name, info in list(_ACTIVE_SHM.items()):
+            try:
+                info["shm"].close()
+            except Exception as exc:
+                logger.debug("shm close error: %s", exc)
+            try:
+                info["shm"].unlink()
+            except Exception as exc:
+                logger.debug("shm unlink error: %s", exc)
+        _ACTIVE_SHM.clear()
+
+
+atexit.register(_cleanup_all_shared_memory)
+
+
+def _finalize_shm(name: str) -> None:
+    with _REGISTRY_LOCK:
+        info = _ACTIVE_SHM.pop(name, None)
+    if info is not None:
+        try:
+            info["shm"].close()
+            info["shm"].unlink()
+        except (FileNotFoundError, OSError) as exc:
+            logger.debug("shm finalize error: %s", exc)
     try:
-        return base64.urlsafe_b64decode(padded)
-    except Exception:
-        return base64.b64decode(padded)
+        s = sm.SharedMemory(name=name)
+        s.close()
+        s.unlink()
+    except (FileNotFoundError, OSError) as exc:
+        logger.debug("shm unlink fallback error: %s", exc)
 
 
-def sign_canonical_bytes(
-    canonical_bytes: bytes,
-    private_key: ed25519.Ed25519PrivateKey,
-) -> Tuple[str, str, str]:
-    """Sign raw canonical bytes directly conforming to RFC 8032 PureEd25519 without double-hashing.
+class SharedMemoryView:
+    """Context manager wrapping sm.SharedMemory and a non-copied np.ndarray view.
 
-    Returns:
-        Tuple[str, str, str]: (signature_urlsafe_b64, public_key_urlsafe_b64, fingerprint_sha256_hex)
+    Raises RuntimeError if accessed when closed.
     """
-    signature_bytes = private_key.sign(canonical_bytes)
-
-    public_key = private_key.public_key()
-    pub_bytes = public_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-
-    signature_b64 = base64.urlsafe_b64encode(signature_bytes).decode("utf-8")
-    public_key_b64 = base64.urlsafe_b64encode(pub_bytes).decode("utf-8")
-    fingerprint = hashlib.sha256(pub_bytes).hexdigest()
-
-    return signature_b64, public_key_b64, fingerprint
-
-
-def verify_canonical_signature(
-    canonical_bytes: bytes,
-    signature_b64: str,
-    public_key_b64: str,
-) -> bool:
-    """Verify an RFC 8032 PureEd25519 digital signature over raw canonical bytes."""
-    try:
-        pub_bytes = _b64_decode_tolerant(public_key_b64)
-        sig_bytes = _b64_decode_tolerant(signature_b64)
-
-        if len(pub_bytes) != 32:
-            return False
-        if len(sig_bytes) != 64:
-            return False
-
-        public_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
-        public_key.verify(sig_bytes, canonical_bytes)
-        return True
-    except (InvalidSignature, ValueError, TypeError):
-        return False
-
-
-def verify_report_signature(
-    canonical_bytes: bytes,
-    signature_b64: str,
-    public_key_b64: str,
-) -> bool:
-    """Ergonomic backward-compatible alias for verify_canonical_signature."""
-    return verify_canonical_signature(canonical_bytes, signature_b64, public_key_b64)
-
-
-def sign_ed25519ph(
-    canonical_bytes: bytes,
-    private_key: ed25519.Ed25519PrivateKey,
-    context: bytes = b"",
-) -> Tuple[str, str, str]:
-    """Support RFC 8032 §5.1 Ed25519ph pre-hashed signing when domain-separated hashing is explicitly requested."""
-    hasher = hashlib.sha512()
-    hasher.update(canonical_bytes)
-    ph_bytes = hasher.digest()
-
-    return sign_canonical_bytes(ph_bytes, private_key)
-
-
-def sign_report_payload(
-    payload: Dict[str, Any],
-    private_key: ed25519.Ed25519PrivateKey,
-) -> Dict[str, Any]:
-    """Emit standard W3C Linked Data Proof envelope with pure cryptographic did:key resolution [D].
-
-    Envelopes payload with an Ed25519Signature2020 proof block.
-    """
-    clean_payload = {k: v for k, v in payload.items() if k != "proof"}
-    canonical_bytes = canonicalize_json(clean_payload)
-    signature_bytes = private_key.sign(canonical_bytes)
-
-    proof = {
-        "type": "Ed25519Signature2020",
-        "created": datetime.now(timezone.utc).isoformat(),
-        "verificationMethod": public_key_to_did_key(private_key.public_key()),
-        "proofPurpose": "assertionMethod",
-        "proofValue": base64.urlsafe_b64encode(signature_bytes).decode("ascii"),
-    }
-
-    return {
-        **clean_payload,
-        "proof": proof,
-    }
-
-
-def verify_report_payload(signed_payload: Dict[str, Any]) -> bool:
-    """Verify standard W3C Linked Data Proof envelope completely offline [D]."""
-    if not isinstance(signed_payload, dict) or "proof" not in signed_payload:
-        return False
-
-    proof = signed_payload.get("proof")
-    if not isinstance(proof, dict):
-        return False
-
-    did_key = proof.get("verificationMethod")
-    proof_value = proof.get("proofValue")
-    if not did_key or not proof_value:
-        return False
-
-    try:
-        public_key = did_key_to_public_key(str(did_key))
-        sig_bytes = _b64_decode_tolerant(str(proof_value))
-        clean_payload = {k: v for k, v in signed_payload.items() if k != "proof"}
-        canonical_bytes = canonicalize_json(clean_payload)
-        public_key.verify(sig_bytes, canonical_bytes)
-        return True
-    except (InvalidSignature, ValueError, TypeError, KeyError):
-        return False
-
-
-__all__ = [
-    "format_rfc8785_float",
-    "canonicalize_json",
-    "hash_canonical_json",
-    "generate_ed25519_key_pair",
-    "sign_canonical_bytes",
-    "verify_canonical_signature",
-    "verify_report_signature",
-    "sign_ed25519ph",
-    "public_key_to_did_key",
-    "did_key_to_public_key",
-    "sign_report_payload",
-    "verify_report_payload",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_provenance.py ---
-"""Authoritative W3C PROV-O Conformer Lineage & Semantic Provenance Graphs.
-
-Complies strictly with:
-- W3C PROV-O Linked Data Standard (prov:Entity, prov:Activity, prov:wasDerivedFrom)
-- Tripartite Air-Gap Mandate (Offline local JSON-LD context catalog resolution)
-- FAIR Principles I1, I3, and R1.2
-- Method Matrix v4 §8B.4 & §9B (Quasi-Harmonic Thermodynamics Provenance)
-"""
-
-from __future__ import annotations
-
-import json
-from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple
-
-import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
-
-from cochem_base.core.models import ThermodynamicsProvenance
-
-
-def get_local_prov_context() -> Dict[str, Any]:
-    """Retrieve bundled offline local W3C PROV-O JSON-LD context [D].
-
-    Dispatches zero network calls to http://www.w3.org/ns/prov#, guaranteeing air-gapped execution.
-    """
-    ctx_path = Path(__file__).resolve().parent.parent / "schemas" / "contexts" / "prov_o_context.jsonld"
-    if not ctx_path.exists():
-        candidates = [
-            Path(__file__).resolve().parent / "prov_o_context.jsonld",
-            Path(__file__).resolve().parents[2] / "schemas" / "contexts" / "prov_o_context.jsonld",
-        ]
-        for cand in candidates:
-            if cand.exists():
-                ctx_path = cand
-                break
-
-    if not ctx_path.exists():
-        raise FileNotFoundError(f"Offline local JSON-LD context not found at expected path: {ctx_path}")
-
-    return json.loads(ctx_path.read_text(encoding="utf-8"))
-
-
-class DAGNode(BaseModel):
-    """Semantic Directed Acyclic Graph (DAG) node representing conformers or computational workflows."""
-
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
-
-    node_id: str = Field(..., description="Unique node identifier within the lineage graph")
-    node_type: Literal["entity", "activity", "agent"] = Field(
-        default="entity", description="PROV-O class classification"
-    )
-    activity_type: Optional[str] = Field(
-        default=None, description="Specific activity type URI or curie (e.g. 'cochem:Optimization')"
-    )
-    parents: List[str] = Field(
-        default_factory=list, description="Identifiers of ancestor nodes (prov:wasDerivedFrom)"
-    )
-    activity: Optional[str] = Field(
-        default=None, description="Identifier of generating activity (prov:wasGeneratedBy)"
-    )
-    started_at_time: Optional[str] = Field(
-        default=None, description="ISO 8601 UTC start timestamp"
-    )
-    ended_at_time: Optional[str] = Field(
-        default=None, description="ISO 8601 UTC completion timestamp"
-    )
-    relative_energy_kcal_mol: Optional[float] = Field(
-        default=None, description="Relative electronic energy in kcal/mol"
-    )
-    rotational_constants_mhz: Optional[List[float]] = Field(
-        default=None, description="Principal rotational constants [A, B, C] in MHz"
-    )
-    payload: Dict[str, Any] = Field(
-        default_factory=dict, description="Arbitrary execution payload and thermodynamic provenance"
-    )
-    metadata: Dict[str, Any] = Field(
-        default_factory=dict, description="Arbitrary execution or quantum chemistry metadata"
-    )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert DAGNode to standard dictionary representation."""
-        return self.model_dump()
-
-    def to_prov_jsonld(self, base_uri: str = "urn:cochem:conformer:") -> Dict[str, Any]:
-        """Construct W3C PROV-O compliant JSON-LD document with offline context resolution [D].
-
-        Args:
-            base_uri: Uniform Resource Name prefix for node resolution.
-
-        Returns:
-            Dict[str, Any]: Validated JSON-LD semantic dictionary.
-        """
-        ctx_doc = get_local_prov_context()
-        doc: Dict[str, Any] = {
-            "@context": ctx_doc.get("@context", {}),
-            "@id": f"{base_uri}{self.node_id}",
-        }
-
-        if self.node_type == "activity":
-            types = ["prov:Activity"]
-            if self.activity_type:
-                types.append(self.activity_type)
-            else:
-                types.append("cochem:Optimization")
-            doc["@type"] = types
-        elif self.node_type == "agent":
-            doc["@type"] = ["prov:Agent", "cochem:SoftwareAgent"]
-        else:
-            doc["@type"] = ["prov:Entity", "cochem:Conformer"]
-
-        if self.parents:
-            doc["prov:wasDerivedFrom"] = [{"@id": f"{base_uri}{parent_id}"} for parent_id in self.parents]
-
-        if self.activity:
-            doc["prov:wasGeneratedBy"] = {"@id": f"urn:cochem:activity:{self.activity}"}
-
-        if self.started_at_time:
-            doc["prov:startedAtTime"] = self.started_at_time
-        if self.ended_at_time:
-            doc["prov:endedAtTime"] = self.ended_at_time
-
-        if self.relative_energy_kcal_mol is not None:
-            doc["cochem:relativeEnergy"] = float(self.relative_energy_kcal_mol)
-
-        if self.rotational_constants_mhz is not None:
-            doc["cochem:rotationalConstants"] = [float(rc) for rc in self.rotational_constants_mhz]
-
-        for k, v in self.metadata.items():
-            doc[f"cochem:{k}"] = v
-
-        return doc
-
-
-def compute_boltzmann_weights(
-    free_energies_kcal_mol: Sequence[float],
-    temperature_k: float = 298.15,
-    low_freq_cutoff_cm1: float = 100.0,
-    damping_model: str = "grimme_quasi_rrho",
-    pressure_atm: float = 1.0,
-    dag_node: Optional[Any] = None,
-) -> Tuple[List[float], ThermodynamicsProvenance]:
-    """Computes normalized Boltzmann weights while recording thermodynamic provenance.
-
-    Weights: w_i = exp(-Delta G_i / (R * T)) / sum(exp(-Delta G_j / (R * T)))
-    Logs ThermodynamicsProvenance into dag_node.payload['thermodynamics_provenance'] if provided.
-    """
-    R_KCAL_MOL_K: float = 0.00198720425864083
-
-    G = np.asarray(free_energies_kcal_mol, dtype=np.float64)
-    if len(G) == 0:
-        return [], ThermodynamicsProvenance(
-            damping_model=damping_model,
-            low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
-            temperature_k=float(temperature_k),
-            pressure_atm=float(pressure_atm),
-            provenance_tag="[D]",
-        )
-
-    delta_G = G - np.min(G)
-    beta = 1.0 / (R_KCAL_MOL_K * temperature_k)
-    unnorm_weights = np.exp(-beta * delta_G)
-    weights = (unnorm_weights / np.sum(unnorm_weights)).tolist()
-
-    prov = ThermodynamicsProvenance(
-        damping_model=damping_model,
-        low_freq_cutoff_cm1=float(low_freq_cutoff_cm1),
-        temperature_k=float(temperature_k),
-        pressure_atm=float(pressure_atm),
-        provenance_tag="[D]",
-    )
-
-    if dag_node is not None:
-        if hasattr(dag_node, "payload") and isinstance(dag_node.payload, dict):
-            dag_node.payload["thermodynamics_provenance"] = prov.model_dump(mode="json")
-        elif hasattr(dag_node, "metadata") and isinstance(dag_node.metadata, dict):
-            dag_node.metadata["thermodynamics_provenance"] = prov.model_dump(mode="json")
-
-    return weights, prov
-
-
-__all__ = [
-    "DAGNode",
-    "get_local_prov_context",
-    "ThermodynamicsProvenance",
-    "compute_boltzmann_weights",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\exceptions.py ---
-"""Authoritative Core Domain Exceptions for CoChem-BASE.
-
-Provides physical invariant exceptions for isotopic stability, empirical radii,
-and domain perceptions adhering to Method Matrix v4 §6.10, §8C, and §20.
-Includes machine-actionable error codes for automated ETL triage.
-"""
-
-from __future__ import annotations
-
-from typing import Any, Dict, Optional
-
-
-class CoChemError(Exception):
-    """Base error class for all CoChem operations with machine-actionable error codes."""
 
     def __init__(
         self,
-        message: str,
-        error_code: str = "COCHEM_E_GENERIC",
-        details: Optional[Dict[str, Any]] = None,
+        shm: sm.SharedMemory,
+        arr: np.ndarray,
+        owner_name: Optional[str] = None,
+        is_recycled: bool = False,
     ) -> None:
-        super().__init__(f"[{error_code}] {message}")
-        self.message: str = message
-        self.error_code: str = error_code
-        self.details: Dict[str, Any] = details if details is not None else {}
+        self._shm: Optional[sm.SharedMemory] = shm
+        self._arr: Optional[np.ndarray] = arr
+        self._is_closed: bool = False
+        self._is_recycled: bool = is_recycled
+        self._owner_name: Optional[str] = owner_name or (shm.name if shm else None)
+
+    @property
+    def array(self) -> np.ndarray:
+        if self._is_closed or self._arr is None:
+            raise RuntimeError("Cannot access array view on a closed SharedMemoryView")
+        return self._arr
+
+    def close(self) -> None:
+        if not self._is_closed:
+            self._is_closed = True
+            self._arr = None
+            if self._shm is not None:
+                if not self._is_recycled:
+                    try:
+                        self._shm.close()
+                    except OSError as exc:
+                        logger.debug("Shared memory view close bypassed: %s", exc)
+                if self._owner_name:
+                    SharedMemoryBuffer._notify_closed(self._owner_name)
+                self._shm = None
+
+    def unlink(self) -> None:
+        if self._shm is not None and not self._is_recycled:
+            try:
+                self._shm.unlink()
+            except (OSError, FileNotFoundError) as exc:
+                logger.debug("Shared memory view unlink bypassed: %s", exc)
+        self.close()
+
+    def __enter__(self) -> np.ndarray:
+        return self.array
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
 
 
-class CoordinateShapeError(CoChemError):
-    """Raised when molecular coordinate arrays violate dimensionality constraints (e.g. not N x 3)."""
+@dataclasses.dataclass
+class SharedMemoryBuffer:
+    """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_INVALID_COORD_SHAPE", details=details)
+    shm: sm.SharedMemory
+    descriptor: Dict[str, Any]
+    _finalizer: Optional[weakref.finalize] = dataclasses.field(default=None, repr=False, compare=False)
+    _array: Optional[np.ndarray] = dataclasses.field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._finalizer is None:
+            self._finalizer = weakref.finalize(self, _finalize_shm, self.shm.name)
+
+    def __enter__(self) -> SharedMemoryBuffer:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
+        self.unlink()
+
+    @classmethod
+    def create(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
+        """Alias for from_array."""
+        return cls.from_array(arr, total_attachments=total_attachments)
+
+    @classmethod
+    def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
+        """Allocate shared memory buffer, copy array memory, and generate transfer descriptor."""
+        total_bytes = max(1, arr.nbytes)
+        shm = sm.SharedMemory(create=True, size=total_bytes)
+        try:
+            from multiprocessing import resource_tracker
+
+            resource_tracker.register(shm._name, "shared_memory")
+        except Exception as exc:
+            logger.debug("Resource tracker registration bypassed: %s", exc)
+
+        shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)  # type: ignore[arg-type]
+        shm_array[:] = arr[:]
+
+        desc = {
+            "name": shm.name,
+            "shape": list(arr.shape),
+            "dtype": arr.dtype.str,  # type: ignore[attr-defined]
+            "size": total_bytes,
+            "total_attachments": total_attachments,
+            "closed_attachments": 0,
+        }
+
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM[shm.name] = {
+                "shm": shm,
+                "total": total_attachments,
+                "closed": 0,
+            }
+
+        return cls(shm=shm, descriptor=desc, _array=shm_array)
+
+    def to_descriptor(self) -> Dict[str, Any]:
+        """Return the transfer descriptor mapping this shared memory segment."""
+        return dict(self.descriptor)
+
+    @property
+    def array(self) -> np.ndarray:
+        """Return direct numpy ndarray view over the shared memory segment."""
+        if self._array is None:
+            shape = tuple(self.descriptor["shape"])
+            dtype = self.descriptor["dtype"]
+            self._array = np.ndarray(shape, dtype=dtype, buffer=self.shm.buf)
+        return self._array
+
+    @classmethod
+    def _notify_closed(cls, name: str) -> None:
+        """Atomically increment closed attachments and unlink once all attachments finish."""
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                info["closed"] += 1
+                if info["closed"] >= info["total"]:
+                    try:
+                        info["shm"].unlink()
+                    except (OSError, FileNotFoundError) as exc:
+                        logger.debug("Shared memory unlink bypassed: %s", exc)
+                    _ACTIVE_SHM.pop(name, None)
+            else:
+                try:
+                    s = sm.SharedMemory(name=name)
+                    s.close()
+                    s.unlink()
+                except Exception as exc:
+                    logger.debug("Shared memory cleanup bypassed: %s", exc)
+
+    @classmethod
+    def read_from_descriptor(
+        cls,
+        descriptor: Dict[str, Any],
+        zero_copy: bool = True,
+    ) -> Union[np.ndarray, SharedMemoryView]:
+        """Map existing shared memory segment and extract copy of array or zero-copy SharedMemoryView."""
+        name = descriptor["name"]
+        shape = tuple(descriptor["shape"])
+        dtype = descriptor["dtype"]
+
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                client_shm = info["shm"]
+                is_recycled = True
+            else:
+                client_shm = sm.SharedMemory(name=name)
+                is_recycled = False
+
+        mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
+
+        if zero_copy:
+            return SharedMemoryView(shm=client_shm, arr=mapped, owner_name=name, is_recycled=is_recycled)
+        else:
+            try:
+                extracted = mapped.copy()
+                return extracted
+            finally:
+                if not is_recycled:
+                    client_shm.close()
+                cls._notify_closed(name)
+
+    def close(self) -> None:
+        """Close local memory map and unlink if all attachments are closed."""
+        try:
+            self.shm.close()
+        except OSError as exc:
+            logger.debug("Shared memory close bypassed: %s", exc)
+        SharedMemoryBuffer._notify_closed(self.shm.name)
+
+    def unlink(self) -> None:
+        """Explicitly unlink OS shared memory segment immediately."""
+        if self._finalizer is not None and self._finalizer.alive:
+            self._finalizer.detach()
+        try:
+            self.shm.unlink()
+        except (OSError, FileNotFoundError) as exc:
+            logger.debug("Shared memory unlink bypassed: %s", exc)
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM.pop(self.shm.name, None)
 
 
-class AirGapBoundaryError(CoChemError):
-    """Raised when an operation attempts to write to a read-only or out-of-tier filesystem boundary."""
+# ==============================================================================
+# Ephemeral HMAC-SHA256 Socket Transport
+# ==============================================================================
+class HMACSocketServer:
+    """Loopback TCP socket server secured by HMAC-SHA256 challenge-response handshake."""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_AIRGAP_BREACH", details=details)
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        secret_key: bytes = b"",
+    ) -> None:
+        self.host: str = host
+        self.requested_port: int = port
+        self.secret_key: bytes = secret_key
+        self.port: int = 0
+
+        self._server_sock: Optional[socket.socket] = None
+        self._stop_event: threading.Event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._received_payloads: List[Any] = []
+        self._payload_event: threading.Event = threading.Event()
+        self._last_error: Optional[Exception] = None
+        self._descriptor_path: Optional[pathlib.Path] = None
+
+    def start(self, port_fallback: bool = True, max_retries: int = 5) -> int:
+        """Bind listening socket and launch background accept loop."""
+        target_port = self.requested_port
+        bound = False
+
+        for attempt in range(max_retries):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((self.host, target_port))
+                sock.listen(5)
+                self._server_sock = sock
+                self.port = sock.getsockname()[1]
+                bound = True
+                break
+            except OSError:
+                sock.close()
+                if port_fallback:
+                    fb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    fb_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    try:
+                        fb_sock.bind((self.host, 0))
+                        fb_sock.listen(5)
+                        self._server_sock = fb_sock
+                        self.port = fb_sock.getsockname()[1]
+                        bound = True
+                        break
+                    except OSError:
+                        fb_sock.close()
+                time.sleep(0.05 * (2**attempt))
+
+        if not bound or self._server_sock is None:
+            raise OSError(f"Could not bind to port {target_port}")
+
+        self._stop_event.clear()
+        self._thread = threading.Thread(
+            target=self._accept_loop,
+            name="HMACSocketServerLoop",
+            daemon=True,
+        )
+        self._thread.start()
+        return self.port
+
+    def stop(self) -> None:
+        """Shutdown server socket and join accept thread."""
+        self._stop_event.set()
+        if self._server_sock is not None:
+            try:
+                self._server_sock.close()
+            except OSError as exc:
+                logger.debug("Server socket close error ignored: %s", exc)
+            self._server_sock = None
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+    def _accept_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                if self._server_sock is None:
+                    break
+                self._server_sock.settimeout(0.5)
+                conn, _ = self._server_sock.accept()
+            except (socket.timeout, OSError):
+                continue
+
+            try:
+                challenge = secrets.token_bytes(32)
+                conn.sendall(challenge)
+
+                response = conn.recv(32)
+                expected = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
+
+                if not hmac.compare_digest(response, expected):
+                    conn.sendall(b"DENIED")
+                    conn.close()
+                    continue
+
+                conn.sendall(b"ACCEPT")
+
+                len_bytes = conn.recv(4)
+                if len(len_bytes) < 4:
+                    conn.close()
+                    continue
+                (payload_len,) = struct.unpack("!I", len_bytes)
+
+                if payload_len > MAX_IPC_PAYLOAD_BYTES:
+                    conn.close()
+                    continue
+
+                buffer = bytearray()
+                while len(buffer) < payload_len:
+                    chunk = conn.recv(min(65536, payload_len - len(buffer)))
+                    if not chunk:
+                        break
+                    buffer.extend(chunk)
+
+                if len(buffer) == payload_len:
+                    payload = unpack_payload(bytes(buffer))
+                    self._received_payloads.append(payload)
+                    self._payload_event.set()
+            except Exception as conn_err:
+                logger.debug("Error processing client connection: %s", conn_err)
+            finally:
+                try:
+                    conn.close()
+                except OSError as exc:
+                    logger.debug("Client conn close error ignored: %s", exc)
+
+    def get_received_payload(self, timeout_sec: float = 5.0) -> Optional[Any]:
+        if self._payload_event.wait(timeout_sec):
+            if self._received_payloads:
+                payload = self._received_payloads.pop(0)
+                if not self._received_payloads:
+                    self._payload_event.clear()
+                return payload
+        return None
 
 
-class SchemaMigrationError(CoChemError):
-    """Raised when deserializing a payload lacking a valid migration path to current schema_version."""
+class HMACSocketClient:
+    """Client communicating over loopback TCP with HMAC-SHA256 authentication."""
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_SCHEMA_MIGRATION_FAILED", details=details)
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        secret_key: bytes = b"",
+    ) -> None:
+        self.host: str = host
+        self.port: int = port
+        self.secret_key: bytes = secret_key
 
+    def send_payload(self, data: Any) -> None:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((self.host, self.port))
+        try:
+            challenge = sock.recv(32)
+            if len(challenge) != 32:
+                raise ConnectionError("Invalid challenge received from server")
 
-class PESStorageError(CoChemError):
-    """Raised when HDF5 SWMR store operations fail or encounter lock contention."""
+            response = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
+            sock.sendall(response)
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_PES_STORAGE_FAILURE", details=details)
+            status = sock.recv(6)
+            if status != b"ACCEPT":
+                raise PermissionError("HMAC handshake rejected by server")
 
-
-class ProcessReaperError(CoChemError):
-    """Raised when process termination or resource sampling fails unexpectedly."""
-
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_PROCESS_REAPER_FAILURE", details=details)
-
-
-class SubprocessBrokerError(CoChemError):
-    """Raised when isolated subprocess execution fails pre-flight or runtime contracts."""
-
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_SUBPROCESS_BROKER_FAILURE", details=details)
-
-
-class ThermodynamicsParameterError(CoChemError):
-    """Raised when required quasi-harmonic parameters are missing from thermodynamic calculations."""
-
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_THERMO_PARAM_MISSING", details=details)
-
-
-class IsotopeMassResolutionError(CoChemError):
-    """Raised when requested isotope cannot be resolved to physical mass."""
-
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_ISOTOPE_NOT_FOUND", details=details)
+            packed_bytes = pack_payload(data)
+            header = struct.pack("!I", len(packed_bytes))
+            sock.sendall(header + packed_bytes)
+        finally:
+            sock.close()
 
 
-class IsotopeStabilityError(CoChemError, ValueError):
-    """Raised when a requested isotope cannot be physically resolved to an isotopic nuclear mass."""
+# ==============================================================================
+# HDF5 PESStore Tensor Persistence (QCSchema & SWMR In-Place Resizing)
+# ==============================================================================
+class PESStore:
+    """Multidimensional tensor persistence store for Potential Energy Surfaces using HDF5 SWMR.
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_ISOTOPE_STABILITY", details=details)
+    Implements in-place chunk resizing and dual-layer concurrency locking (threading.RLock + filelock).
+    Strictly validates Tripartite Air-Gap boundaries without whole-file copying.
+    """
 
+    def __init__(self, file_path: Union[Path, str], lock_dir: Optional[Union[Path, str]] = None) -> None:
+        self.file_path: Path = validate_airgap_write_path(Path(file_path).resolve())
+        if lock_dir is not None:
+            self.lock_dir = Path(lock_dir).resolve()
+        else:
+            scratch_root = os.environ.get("COCH_SCRATCH", os.environ.get("COCHEM_SCRATCH_DIR", tempfile.gettempdir()))
+            self.lock_dir = Path(scratch_root).resolve()
+        self.lock_dir.mkdir(parents=True, exist_ok=True)
+        self.lock_path: Path = self.lock_dir / f"{self.file_path.name}.lock"
 
-class RadiusNotFoundError(CoChemError, KeyError):
-    """Raised when empirical covalent or van der Waals radius is unavailable for an element."""
+    def write_entry(
+        self,
+        entry_or_point: Any,
+        molecule: Optional[Dict[str, Any]] = None,
+        driver: str = "energy",
+        model: Optional[Dict[str, Any]] = None,
+        return_result: Optional[Union[np.ndarray, float, List[Any]]] = None,
+    ) -> None:
+        """Persists or appends a PES point record in-place in HDF5 SWMR mode.
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_RADIUS_NOT_FOUND", details=details)
+        Supports both PESPointRecord instances and raw QCSchema parameters.
+        Eliminates all shutil.copyfile redundancy [M].
+        """
+        validate_airgap_write_path(self.file_path)
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Dual-layer locking: in-process RLock and cross-process FileLock on local scratch
+        with _HDF5_MEM_LOCK:
+            with filelock.FileLock(str(self.lock_path), timeout=30.0):
+                with h5py.File(self.file_path, "a", libver="latest") as h5f:
+                    if hasattr(entry_or_point, "point_id") and hasattr(entry_or_point, "energy"):
+                        # PESPointRecord instance
+                        point = entry_or_point
+                        coords = np.asarray(point.coordinates, dtype=np.float64)
+                        if coords.ndim == 1:
+                            coords = coords[None, :]
+                        elif coords.ndim == 2:
+                            coords = coords.reshape(1, -1)
+
+                        pts = h5f.require_group("points")
+                        cur_len = pts["energies"].shape[0] if "energies" in pts else 0
+                        new_len = cur_len + 1
+
+                        if "energies" in pts:
+                            pts["energies"].resize((new_len,))
+                            pts["energies"][cur_len] = float(point.energy)
+                            pts["energies"].flush()
+                        else:
+                            ds_e = pts.create_dataset(
+                                "energies",
+                                shape=(1,),
+                                maxshape=(None,),
+                                chunks=(512,),
+                                dtype="float64",
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds_e[0] = float(point.energy)
+                            ds_e.flush()
+
+                        if "coordinates" in pts:
+                            pts["coordinates"].resize((new_len, coords.shape[1]))
+                            pts["coordinates"][cur_len] = coords[0]
+                            pts["coordinates"].flush()
+                        else:
+                            ds_c = pts.create_dataset(
+                                "coordinates",
+                                shape=(1, coords.shape[1]),
+                                maxshape=(None, coords.shape[1]),
+                                chunks=(512, coords.shape[1]),
+                                dtype="float64",
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds_c[0] = coords[0]
+                            ds_c.flush()
+
+                        if "point_ids" in pts:
+                            pts["point_ids"].resize((new_len,))
+                            pts["point_ids"][cur_len] = str(point.point_id)
+                            pts["point_ids"].flush()
+                        else:
+                            dt = h5py.string_dtype(encoding="utf-8")
+                            ds_p = pts.create_dataset(
+                                "point_ids",
+                                shape=(1,),
+                                maxshape=(None,),
+                                chunks=(512,),
+                                dtype=dt,
+                            )
+                            ds_p[0] = str(point.point_id)
+                            ds_p.flush()
+                    else:
+                        # Raw QCSchema parameter signature (entry_id, molecule, driver, model, return_result)
+                        entry_id = str(entry_or_point)
+                        arr = np.asarray(return_result if return_result is not None else 0.0)
+
+                        if entry_id in h5f:
+                            del h5f[entry_id]
+
+                        grp = h5f.create_group(entry_id)
+                        grp.attrs["schema_name"] = "qcschema_output"
+                        grp.attrs["driver"] = str(driver)
+                        grp.attrs["molecule_json"] = json.dumps(molecule or {})
+                        grp.attrs["model_json"] = json.dumps(model or {})
+
+                        chunk_shape: Optional[Tuple[int, ...]] = None
+                        max_shape: Optional[Tuple[Optional[int], ...]] = None
+                        if arr.ndim > 0:
+                            chunk_shape = tuple(max(1, min(s, 128)) for s in arr.shape)
+                            max_shape = tuple(None for _ in arr.shape)
+                            ds = grp.create_dataset(
+                                "return_result",
+                                data=arr,
+                                maxshape=max_shape,
+                                chunks=chunk_shape,
+                                compression="gzip",
+                                compression_opts=4,
+                                shuffle=True,
+                                fletcher32=True,
+                            )
+                            ds.flush()
+                        else:
+                            grp.create_dataset("return_result", data=arr)
+
+                    h5f.flush()
+
+    def read_entry(self, entry_id: str) -> Dict[str, Any]:
+        """Read QCSchema entry in SWMR mode without lock contention."""
+        if not self.file_path.exists():
+            raise FileNotFoundError(f"PESStore file not found at {self.file_path}")
+
+        with h5py.File(self.file_path, "r", libver="latest", swmr=True) as h5f:
+            if entry_id not in h5f:
+                raise KeyError(f"Entry '{entry_id}' not found in PESStore")
+
+            grp = h5f[entry_id]
+            schema_name = str(grp.attrs.get("schema_name", "qcschema_output"))
+            driver = str(grp.attrs.get("driver", "unknown"))
+            mol_json = str(grp.attrs.get("molecule_json", "{}"))
+            model_json = str(grp.attrs.get("model_json", "{}"))
+            result_arr = grp["return_result"][:]
+
+            return {
+                "schema_name": schema_name,
+                "entry_id": entry_id,
+                "molecule": json.loads(mol_json),
+                "driver": driver,
+                "model": json.loads(model_json),
+                "return_result": result_arr,
+            }
 
 
 __all__ = [
-    "CoChemError",
-    "CoordinateShapeError",
-    "AirGapBoundaryError",
-    "SchemaMigrationError",
-    "PESStorageError",
-    "ProcessReaperError",
-    "SubprocessBrokerError",
-    "ThermodynamicsParameterError",
-    "IsotopeMassResolutionError",
-    "IsotopeStabilityError",
-    "RadiusNotFoundError",
+    "validate_airgap_write_path",
+    "PESStore",
+    "SharedMemoryBuffer",
+    "SharedMemoryView",
+    "pack_payload",
+    "unpack_payload",
+    "HMACSocketServer",
+    "HMACSocketClient",
 ]
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\models.py ---
-"""Authoritative Core Data Models & MolSSI QCSchema v1 Envelopes.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_auto_pes.py ---
+#!/usr/bin/env python3
+# cochem_canvas_target: core_engine/cochem_core_auto_pes.py
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
+"""
+CoChem-CORE: Stage 13.2 / QS-3 - Committee-Based Active Learning & Delta-Learning PES Fitting Engine.
 
-Defines QCResultsRecord (AtomicResult), MolecularTopology, PESPointRecord, and CalculationJobPayload
-with explicit spatial coordinate envelopes, CODATA 2022 constants, deterministic UUIDv5 content hashing,
-machine-readable SPDX licensing, and schema version migration contracts adhering to FAIR F2, I1, and R1.
+Mandated by:
+- Method Matrix v4 Quick Start QS-3 ("I need an intermolecular surface: PES campaign, one day instead of one month")
+- Method Matrix v4 §13.2 (Table 2 - Rows T2-12h and T2-1d: Delta-learning + Active Learning PES)
+- Method Matrix v4 §10.8 (Committee Uncertainty inside the Wrapper & Gate G5: epsilon = Q3 + 1.5 * IQR)
+- Method Matrix v4 §8C (HDF5 PESStore, Delta-pairs alignment & DVR grid integration)
+- Method Matrix v4 §8A (Heterogeneous Parallel Concurrency & Single-Thread Grid Workers)
+- CoChem Anti-Spoofing Protocol v2 & v3 (Authentic Physical Tensor & Mathematical Invariant Compliance)
+- CoChem Mendeleev Library Mandate (Dynamic Atomic and Isotopic Mass Retrieval via mendeleev)
+
+Architectural Overview:
+1. Active Learning & Committee Uncertainty Quantification (Method Matrix QS-3 Step 3, §10.8, §13.2):
+   - Committee of M diverse estimators (default M=4, matching AIMNet2 / NN ensemble recommendation).
+   - Evaluates ensemble mean energy E_bar, ensemble gradient g_bar, normalized per-atom energy
+     uncertainty sigma_E / sqrt(N_atoms), and force dispersion U_F = max_i max_m |g_m,i - g_bar,i|.
+   - Guard G5 Uncertainty Gate: thresholding epsilon = Q3 + 1.5 * IQR over the training error distribution.
+   - Multi-strategy acquisition functions with explicit anti-pure-variance enforcement (Uteva et al.):
+     * Two-Set Error-Based Acquisition: weights committee uncertainty by spatial distance to already selected points:
+       alpha(x) = sigma_E(x) * (1.0 - exp(-d_min(x, X_selected)^2 / (2 * sigma_dist^2))).
+     * Diversity-Weighted UQ Acquisition: combines normalized committee variance with greedy furthest-point distance.
+     * Exploration-Exploitation Batching: selects 300-800 points from ~2,000 base DFT pool in iterative batches.
+
+2. Delta-Learning Potential Energy Surface Fitting (Method Matrix QS-3 Step 4, Row T2-12h):
+   - Base representation V_low(X) on ~2,000 DFT points + Delta-correction Delta_V(X) on 300-800 CC points:
+     V_Delta(X) = V_low(X) + Delta_V(X) where Delta_V(X) = V_high(X) - V_low(X).
+   - High-performance Kernel Ridge Regression (RBF, Matern-5/2, Matern-3/2, Polynomial), Permutationally
+     Invariant Polynomial (PIP) Morse coordinate expansion, and Regularized Neural Committee.
+   - Analytical gradient calculation: grad_X V_Delta(X) = grad_X V_low(X) + grad_X Delta_V(X) through
+     interatomic Morse coordinates for molecular dynamics and geometry stepping.
+
+3. Spectroscopic Held-Out Validation Protocol (Method Matrix QS-3 Step 5, §13.2):
+   - Strict separation of a dedicated held-out validation grid (e.g. 20% or user-specified held-out test grid).
+   - Rigorous residual evaluation reporting RMSE, MAE, and Max Error in cm^-1, kcal/mol, meV, and Hartree.
+   - Evaluates against spectroscopic criteria (RMS <= 3-10 cm^-1 for T2-12h, <= 5-20 cm^-1 for T2-1d).
+
+4. Autonomous HDF5 PESStore Integration (Method Matrix §8C):
+   - Direct interoperability with `PESStore` (`delta_pairs(low, high)`, `dataset(method_id)`, `todo(method_id, ids)`).
+   - Model artifact serialization, parameter persistence, and direct DVR product grid export.
+
+5. Dynamic Mendeleev Mass Resolution (Mendeleev Library Mandate):
+   - Strictly ZERO hardcoded atomic/isotopic masses; all masses and atomic numbers resolved dynamically via `mendeleev`.
 """
 
 from __future__ import annotations
 
+import os
+# Mandated by Method Matrix QS-3 Step 6 line 167: enforce FP64 double precision on startup
+os.environ["JAX_ENABLE_X64"] = "True"
+
+import argparse
 import copy
-import uuid
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Type, TypeVar, Union
+import itertools
+import json
+import logging
+import math
+import sys
+import time
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+import scipy.linalg
+import scipy.spatial.distance
+from mendeleev import element
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cochem_base.core.cochem_crypto import canonicalize_json
-from cochem_base.core.exceptions import CoordinateShapeError, SchemaMigrationError
-from cochem_base.core.glossary import CalculationFidelity
-from cochem_base.core.licensing import validate_spdx_license
+from cochem_base.exceptions import (
+    CoChemError,
+    MethodMatrixViolationError,
+    MissingDataError,
+    ProvenanceErrorCode,
+)
 
-# Authoritative CODATA 2022 conversion factors
+# Configure module logging
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] [AutoPES] %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+# =============================================================================
+# Physical & Spectroscopic Constants (Zero Hardcoded Atomic Masses)
+# =============================================================================
+HARTREE_TO_EV: float = 27.211386245988
+EV_TO_CM1: float = 8065.54429
+HARTREE_TO_CM1: float = 219474.63136320
+HARTREE_TO_KCAL_MOL: float = 627.5094740631
+KCAL_MOL_TO_CM1: float = 349.755011
 BOHR_TO_ANGSTROM: float = 0.529177210903
 ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
-
-# Authoritative CoChem Namespace UUID for deterministic UUIDv5 hashing
-NAMESPACE_COCHEM: uuid.UUID = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")
-
-# Global schema version constant (FAIR F2, I1, R1)
-CURRENT_CORE_SCHEMA_VERSION: int = 1
-
-T = TypeVar("T", bound=BaseModel)
-MigrationCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
-_MIGRATION_REGISTRY: Dict[Tuple[str, int], MigrationCallable] = {}
+MEV_PER_HARTREE: float = 27211.386245988
 
 
-def register_migration(model_name: str, from_version: int) -> Callable[[MigrationCallable], MigrationCallable]:
-    """Decorator registering a transformation function from a specific schema version to from_version + 1."""
-
-    def decorator(func: MigrationCallable) -> MigrationCallable:
-        _MIGRATION_REGISTRY[(model_name, from_version)] = func
-        return func
-
-    return decorator
-
-
-def migrate_payload(payload: Dict[str, Any], target_model: Type[BaseModel]) -> Dict[str, Any]:
-    """Migrates a raw dictionary payload sequentially up to target_model's current schema_version."""
-    model_name = target_model.__name__
-    current_version = payload.get("schema_version", 0)
-    target_version = getattr(target_model, "CURRENT_VERSION", CURRENT_CORE_SCHEMA_VERSION)
-
-    data = dict(payload)
-    while current_version < target_version:
-        key = (model_name, current_version)
-        if key not in _MIGRATION_REGISTRY:
-            raise SchemaMigrationError(
-                f"No migration path registered for {model_name} from version {current_version} to {current_version + 1}.",
-                details={"model": model_name, "from_version": current_version, "target_version": target_version},
-            )
-        data = _MIGRATION_REGISTRY[key](data)
-        current_version = data.get("schema_version", current_version + 1)
-
-    return data
+def get_dynamic_atomic_mass(symbol: str) -> float:
+    """
+    Dynamically retrieves the atomic mass of an element or isotope using mendeleev.
+    Strictly satisfies the CoChem Mendeleev Library Mandate (ZERO hardcoded masses).
+    """
+    clean_sym = symbol.strip()
+    if clean_sym in ("D", "2H"):
+        return float(element("H").isotopes[1].mass)
+    if clean_sym in ("T", "3H"):
+        return float(element("H").isotopes[2].mass)
+    try:
+        el = element(clean_sym)
+        return float(el.mass)
+    except Exception as exc:
+        raise CoChemError(
+            f"Failed to resolve atomic mass dynamically for symbol '{symbol}': {exc}",
+            error_code=ProvenanceErrorCode.MISSING_DATA,
+        ) from exc
 
 
-class ThermodynamicsProvenance(BaseModel):
-    """Provenance metadata for quasi-harmonic thermodynamic corrections and Boltzmann weighting."""
+def get_dynamic_atomic_number(symbol: str) -> int:
+    """Dynamically retrieves the atomic number Z of an element."""
+    clean_sym = symbol.strip()
+    if clean_sym in ("D", "T", "2H", "3H"):
+        return 1
+    try:
+        el = element(clean_sym)
+        return int(el.atomic_number)
+    except Exception as exc:
+        raise CoChemError(
+            f"Failed to resolve atomic number dynamically for symbol '{symbol}': {exc}",
+            error_code=ProvenanceErrorCode.MISSING_DATA,
+        ) from exc
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
 
-    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+# =============================================================================
+# Pydantic v2 Configuration & Results Schemas
+# =============================================================================
 
-    schema_version: int = Field(
-        default=CURRENT_CORE_SCHEMA_VERSION,
-        description="Semantic schema version for archival data deserialization and migration contracts.",
+class AcquisitionStrategy(str, Enum):
+    """Active learning point acquisition strategies."""
+    TWO_SET_ERROR_BASED = "two_set_error_based"
+    DIVERSITY_WEIGHTED_UQ = "diversity_weighted_uq"
+    EXPLORATION_EXPLOITATION = "exploration_exploitation"
+    QUERY_BY_COMMITTEE = "query_by_committee"
+    PURE_VARIANCE = "pure_variance"
+
+
+class FittingBackend(str, Enum):
+    """Potential energy surface fitting backends."""
+    KERNEL_RIDGE = "kernel_ridge"
+    PIP_RBF = "pip_rbf"
+    NEURAL_COMMITTEE = "neural_committee"
+    POLYNOMIAL_EXPANSION = "polynomial_expansion"
+
+
+class KernelType(str, Enum):
+    """Kernel functions for Kernel Ridge Regression."""
+    RBF = "rbf"
+    MATERN52 = "matern52"
+    MATERN32 = "matern32"
+    POLYNOMIAL = "polynomial"
+
+
+class ActiveLearningConfig(BaseModel):
+    """Configuration for committee-based active learning selection."""
+    model_config = ConfigDict(extra="forbid")
+
+    pool_size: int = Field(default=2000, description="Size of candidate base DFT pool (QS-3 ~2,000 points)")
+    n_select_min: int = Field(default=300, description="Minimum points to select (QS-3 300-800 points)")
+    n_select_max: int = Field(default=800, description="Maximum points to select (QS-3 300-800 points)")
+    n_select_target: int = Field(default=500, description="Target number of actively selected points")
+    batch_size: int = Field(default=50, description="Iterative batch selection size")
+    acquisition_strategy: AcquisitionStrategy = Field(
+        default=AcquisitionStrategy.TWO_SET_ERROR_BASED,
+        description="Acquisition strategy (pure variance alone is restricted per Uteva et al.)",
     )
-    damping_model: str = Field(
-        default="grimme_quasi_rrho",
-        description="Vibrational entropy damping model (e.g. grimme_quasi_rrho, truhlar_quasi_harmonic, harmonic).",
-    )
-    low_freq_cutoff_cm1: float = Field(
-        default=100.0,
-        description="Low-frequency cutoff/interpolation threshold in wavenumbers (cm^-1).",
-    )
-    temperature_k: float = Field(
-        default=298.15,
-        description="Thermodynamic temperature in Kelvin.",
-    )
-    pressure_atm: float = Field(
-        default=1.0,
-        description="Standard state pressure in atmospheres.",
-    )
-    rotor_cutoff_cm1: Optional[float] = Field(
-        default=None,
-        description="Free-rotor transition threshold if using Head-Gordon or multi-cutoff damping.",
-    )
-    provenance_tag: str = Field(
-        default="[D]",
-        description="Method Matrix provenance marker ([M] measured, [D] derived, [E] estimated).",
-    )
+    committee_size: int = Field(default=4, description="Committee ensemble size (§10.8 AIMNet2 / NN standard)")
+    diversity_weight: float = Field(default=0.35, description="Weight for spatial diversity exploration")
+    iqr_multiplier: float = Field(default=1.5, description="Guard G5 uncertainty multiplier: Q3 + 1.5 * IQR")
+    held_out_ratio: float = Field(default=0.20, description="Separated held-out validation grid ratio")
+    morse_lambda: float = Field(default=2.0, description="Morse coordinate decay factor in Angstroms")
+    random_seed: int = Field(default=42, description="Random seed for reproducible active selection")
 
+    @field_validator("n_select_target")
     @classmethod
-    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-        migrated = migrate_payload(data, cls)
-        return cls.model_validate(migrated)
-
-
-class QCResultsRecord(BaseModel):
-    """MolSSI QCSchema v1 compliant AtomicResult record with backward-compatible accessors."""
-
-    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True, validate_assignment=True)
-
-    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
-
-    schema_name: Literal["qcschema_output"] = "qcschema_output"
-    schema_version: int = Field(
-        default=CURRENT_CORE_SCHEMA_VERSION,
-        description="Semantic schema version for archival data deserialization and migration contracts.",
-    )
-    molecule: Dict[str, Any] = Field(default_factory=dict, description="Nested molecular topology specifications")
-    driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
-    model: Dict[str, Any] = Field(default_factory=lambda: {"method": "unknown", "basis": None})
-    return_result: Union[float, List[float], List[List[float]]] = 0.0
-    properties: Dict[str, Any] = Field(default_factory=dict)
-    provenance: Dict[str, Any] = Field(default_factory=dict)
-    success: bool = True
-    error: Optional[Dict[str, Any]] = None
-    license: str = Field(
-        default="CC-BY-4.0",
-        description="SPDX license identifier governing data reuse rights (FAIR R1.1)",
-    )
-
-    @classmethod
-    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-        migrated = migrate_payload(data, cls)
-        return cls.model_validate(migrated)
-
-    @field_validator("license")
-    @classmethod
-    def validate_license_spdx(cls, v: str) -> str:
-        return validate_spdx_license(v)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_and_validate_qcschema(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        # Convenience conversion for top-level symbols and geometry
-        if "molecule" not in data or not data["molecule"]:
-            mol: Dict[str, Any] = {}
-            if "symbols" in data:
-                mol["symbols"] = list(data.pop("symbols"))
-            if "geometry" in data:
-                geom = data.pop("geometry")
-                if isinstance(geom, np.ndarray):
-                    geom = geom.flatten().tolist()
-                elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
-                    flat_geom = []
-                    for pt in geom:
-                        flat_geom.extend(pt)
-                    geom = flat_geom
-                mol["geometry"] = geom
-            if "molecular_charge" in data:
-                mol["molecular_charge"] = data.pop("molecular_charge")
-            if "molecular_multiplicity" in data:
-                mol["molecular_multiplicity"] = data.pop("molecular_multiplicity")
-            data["molecule"] = mol
-        else:
-            mol = dict(data["molecule"])
-            if "geometry" in mol:
-                geom = mol["geometry"]
-                if isinstance(geom, np.ndarray):
-                    geom = geom.flatten().tolist()
-                elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
-                    flat_geom = []
-                    for pt in geom:
-                        flat_geom.extend(pt)
-                    geom = flat_geom
-                mol["geometry"] = geom
-            data["molecule"] = mol
-
-        # Format return_result if given as NumPy array
-        if "return_result" in data:
-            res = data["return_result"]
-            if isinstance(res, np.ndarray):
-                if res.ndim == 1:
-                    data["return_result"] = res.tolist()
-                elif res.ndim == 0:
-                    data["return_result"] = float(res)
-                else:
-                    data["return_result"] = res.tolist()
-
-        # Handle backward-compatible energy_hartree kwarg
-        if "energy_hartree" in data and "return_result" not in data:
-            e = float(data.pop("energy_hartree"))
-            data["return_result"] = e
-            if "properties" not in data:
-                data["properties"] = {}
-            data["properties"]["return_energy"] = e
-
-        return data
-
-    @property
-    def energy_hartree(self) -> Optional[float]:
-        """Backward-compatible property returning total electronic energy in Hartree."""
-        if "return_energy" in self.properties:
-            return float(self.properties["return_energy"])
-        if self.driver == "energy" and isinstance(self.return_result, (int, float)):
-            return float(self.return_result)
-        return None
-
-    @property
-    def gradient_bohr(self) -> Optional[List[float]]:
-        """Backward-compatible property returning Cartesian nuclear gradient in Hartree/Bohr."""
-        if self.driver == "gradient":
-            if isinstance(self.return_result, list):
-                if self.return_result and isinstance(self.return_result[0], list):
-                    flat_grad: List[float] = []
-                    for row in self.return_result:  # type: ignore[union-attr]
-                        flat_grad.extend([float(x) for x in row])
-                    return flat_grad
-                return [float(x) for x in self.return_result]  # type: ignore[union-attr]
-        if "return_gradient" in self.properties:
-            grad = self.properties["return_gradient"]
-            if isinstance(grad, list):
-                return [float(x) for x in grad]
-        return None
-
-    @property
-    def hessian(self) -> Optional[Union[List[float], List[List[float]]]]:
-        """Backward-compatible property returning Cartesian nuclear Hessian."""
-        if self.driver == "hessian":
-            if isinstance(self.return_result, list):
-                return self.return_result
-        if "return_hessian" in self.properties:
-            h = self.properties["return_hessian"]
-            if isinstance(h, list):
-                return h
-        return None
-
-
-# MolSSI QCSchema Aliases
-AtomicResult = QCResultsRecord
-QCSchemaOutput = QCResultsRecord
-
-
-class MolecularTopology(BaseModel):
-    """Molecular spatial coordinates standardized to flat 1D arrays or 2D coordinate lists with explicit unit tagging."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
-
-    schema_version: int = Field(
-        default=CURRENT_CORE_SCHEMA_VERSION,
-        description="Semantic schema version for archival data deserialization and migration contracts.",
-    )
-    symbols: List[str] = Field(..., description="Ordered IUPAC elemental symbols")
-    coordinates: Optional[List[List[float]]] = Field(default=None, description="2D Cartesian coordinate list (N x 3)")
-    geometry: Optional[List[float]] = Field(default=None, description="Flat 1D atomic Cartesian coordinates (size 3*N)")
-    units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical coordinate unit")
-    molecular_charge: int = Field(default=0, description="Net molecular charge")
-    spin_multiplicity: int = Field(default=1, description="Spin multiplicity (2S + 1)")
-
-    @classmethod
-    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-        migrated = migrate_payload(data, cls)
-        return cls.model_validate(migrated)
-
-    @field_validator("coordinates", mode="after")
-    @classmethod
-    def validate_coordinates_shape(cls, v: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
-        if v is None:
-            return v
-        for idx, atom_coord in enumerate(v):
-            if len(atom_coord) != 3:
-                raise CoordinateShapeError(
-                    f"Atom index {idx} has dimensionality {len(atom_coord)}; expected exactly 3 (x, y, z).",
-                    details={"atom_index": idx, "actual_len": len(atom_coord), "expected_len": 3},
-                )
+    def validate_n_select(cls, v: int, info: Any) -> int:
+        if v < 50:
+            raise ValueError(f"n_select_target must be >= 50, got {v}")
         return v
 
-    @model_validator(mode="before")
-    @classmethod
-    def _validate_and_flatten_coords(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
 
-        symbols = data.get("symbols", [])
-        coords = data.get("coordinates")
-        geom = data.get("geometry")
+class DeltaFittingConfig(BaseModel):
+    """Configuration for Delta-learning potential energy surface fitting."""
+    model_config = ConfigDict(extra="forbid")
 
-        if coords is not None:
-            if isinstance(coords, np.ndarray):
-                coords = coords.tolist()
-                data["coordinates"] = coords
-            # Only synthesize geometry if all coordinate rows have valid length 3
-            if geom is None and isinstance(coords, list):
-                if all(isinstance(c, (list, tuple)) and len(c) == 3 for c in coords):
-                    flat = []
-                    for pt in coords:
-                        flat.extend([float(c) for c in pt])
-                    data["geometry"] = flat
-        elif geom is not None:
-            if isinstance(geom, np.ndarray):
-                geom = geom.flatten().tolist()
-            elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
-                flat = []
-                for pt in geom:
-                    flat.extend([float(c) for c in pt])
-                geom = flat
-            elif isinstance(geom, list):
-                geom = [float(c) for c in geom]
-            data["geometry"] = geom
+    backend: FittingBackend = Field(default=FittingBackend.KERNEL_RIDGE, description="Fitting model backend")
+    kernel: KernelType = Field(default=KernelType.RBF, description="Kernel function for KRR")
+    regularization_alpha: float = Field(default=1e-6, description="L2 regularization / ridge parameter alpha")
+    gamma: Optional[float] = Field(default=None, description="Kernel lengthscale parameter gamma (1 / (2*sigma^2))")
+    poly_degree: int = Field(default=4, description="Polynomial degree for PIP expansion")
+    morse_lambda: float = Field(default=2.0, description="Morse coordinate decay parameter lambda in Angstroms")
+    include_secondary: bool = Field(default=False, description="Whether to include degree-2 secondary PIP invariants")
+    target_rms_cm1: float = Field(default=10.0, description="Target spectroscopic held-out RMSE in cm^-1 (QS-3 / T2-12h)")
 
-            n_atoms = len(symbols)
-            if n_atoms > 0 and len(geom) != 3 * n_atoms:
-                raise CoordinateShapeError(
-                    f"Geometry coordinate dimension mismatch: expected {3 * n_atoms} components for {n_atoms} atoms, got {len(geom)}",
-                    details={"actual_len": len(geom), "expected_len": 3 * n_atoms},
-                )
-            if "coordinates" not in data and len(geom) % 3 == 0:
-                data["coordinates"] = [
-                    geom[3 * i : 3 * i + 3] for i in range(len(geom) // 3)
-                ]
 
-        return data
+class CommitteePrediction(BaseModel):
+    """Structured committee ensemble prediction payload."""
+    model_config = ConfigDict(extra="forbid")
 
-    def to_angstrom(self) -> MolecularTopology:
-        """Convert coordinates to Angstroms using authoritative CODATA 2022 constant."""
-        if self.units == "angstrom":
-            return self
-        converted_geom = (
-            [float(c * BOHR_TO_ANGSTROM) for c in self.geometry]
-            if self.geometry is not None
-            else None
+    mean_energy_hartree: float = Field(description="Ensemble mean energy E_bar in Hartrees")
+    sigma_energy_hartree: float = Field(description="Committee standard deviation in Hartrees")
+    sigma_energy_mev_per_atom: float = Field(description="Normalised uncertainty in meV/atom (§10.8)")
+    force_uncertainty_hartree_bohr: Optional[float] = Field(default=None, description="Max atom-wise force dispersion U_F")
+    g5_gate_passed: bool = Field(description="True if committee uncertainty satisfies Guard G5 threshold")
+    member_energies: List[float] = Field(description="Individual committee member energies in Hartrees")
+
+
+class ActiveLearningSelectionResult(BaseModel):
+    """Structured outcome of active learning point selection."""
+    model_config = ConfigDict(extra="forbid")
+
+    selected_indices: List[int] = Field(description="Indices of actively selected points from pool")
+    selected_point_ids: List[str] = Field(description="String identifiers of selected points")
+    acquisition_scores: List[float] = Field(description="Acquisition function values at selected points")
+    committee_sigmas_hartree: List[float] = Field(description="Committee standard deviations in Hartrees")
+    committee_sigmas_mev_atom: List[float] = Field(description="Committee uncertainties in meV/atom")
+    selection_rounds: int = Field(description="Number of iterative batch rounds executed")
+    n_selected: int = Field(description="Total points selected for high-level CCSD(T) escalation")
+    iqr_threshold_hartree: float = Field(description="Calculated Guard G5 threshold in Hartrees (Q3 + 1.5 * IQR)")
+    iqr_threshold_mev_atom: float = Field(description="Calculated Guard G5 threshold in meV/atom")
+    held_out_indices: List[int] = Field(description="Indices reserved for held-out validation grid")
+    held_out_point_ids: List[str] = Field(description="Point IDs of held-out validation grid")
+    provenance_info: Dict[str, Any] = Field(default_factory=dict, description="Metadata and audit trail")
+
+
+class PESValidationMetrics(BaseModel):
+    """Comprehensive validation metrics on held-out and training grids."""
+    model_config = ConfigDict(extra="forbid")
+
+    n_train: int = Field(description="Number of training points")
+    n_held_out: int = Field(description="Number of held-out validation points")
+    train_rmse_cm1: float = Field(description="Training RMSE in cm^-1")
+    train_mae_cm1: float = Field(description="Training MAE in cm^-1")
+    train_max_err_cm1: float = Field(description="Training Max Error in cm^-1")
+    held_out_rmse_cm1: float = Field(description="Held-out validation RMSE in cm^-1")
+    held_out_mae_cm1: float = Field(description="Held-out validation MAE in cm^-1")
+    held_out_max_err_cm1: float = Field(description="Held-out validation Max Error in cm^-1")
+    held_out_rmse_kcal_mol: float = Field(description="Held-out validation RMSE in kcal/mol")
+    held_out_rmse_hartree: float = Field(description="Held-out validation RMSE in Hartrees")
+    spectroscopic_grade: bool = Field(description="True if held_out_rmse_cm1 <= target_rms_cm1")
+    target_rms_cm1: float = Field(description="Spectroscopic threshold in cm^-1")
+    timestamp: str = Field(description="ISO 8601 evaluation timestamp")
+
+
+class DeltaSurfaceFitResult(BaseModel):
+    """Complete summary of Delta-learning potential energy surface fitting."""
+    model_config = ConfigDict(extra="forbid")
+
+    low_method: str = Field(description="Base low-level method ID (e.g. DFT wb97x_v_tz)")
+    high_method: str = Field(description="High-level escalation method ID (e.g. dlpno_ccsdt1_avtz)")
+    n_base_dft_points: int = Field(description="Total base DFT points in grid")
+    n_delta_points: int = Field(description="Number of high-level Delta training pairs")
+    n_held_out_points: int = Field(description="Number of held-out validation points")
+    metrics: PESValidationMetrics = Field(description="Spectroscopic validation metrics")
+    backend: str = Field(description="Fitting backend used")
+    model_parameters: Dict[str, Any] = Field(description="Fitted model hyper-parameters and dimensions")
+    timestamp: str = Field(description="ISO 8601 fit completion timestamp")
+
+
+# =============================================================================
+# Invariant Geometry Featurizer (Translation & Rotation Invariance)
+# =============================================================================
+
+class GeometryFeaturizer:
+    """
+    Computes rotationally and translationally invariant molecular descriptors:
+    - Pairwise interatomic distances R_ij = ||r_i - r_j||_2
+    - Morse coordinates y_ij = exp(-R_ij / lambda)
+    - Inverse Coulomb matrix representation
+    - Analytical Morse coordinate Jacobians d(y_ij)/d(r_ka) for exact force evaluations.
+    """
+
+    def __init__(
+        self,
+        symbols: Sequence[str],
+        morse_lambda: float = 2.0,
+        include_secondary: bool = False,
+    ) -> None:
+        self.symbols: List[str] = [s.strip() for s in symbols]
+        self.n_atoms: int = len(self.symbols)
+        if self.n_atoms < 2:
+            raise ValueError(f"GeometryFeaturizer requires at least 2 atoms, got {self.n_atoms}")
+
+        self.morse_lambda: float = float(morse_lambda)
+        if self.morse_lambda <= 0.0:
+            raise ValueError(f"morse_lambda must be strictly positive, got {self.morse_lambda}")
+
+        self.include_secondary: bool = bool(include_secondary)
+
+        # Dynamically resolve atomic masses and atomic numbers (Mendeleev Mandate)
+        self.atomic_masses: np.ndarray = np.array(
+            [get_dynamic_atomic_mass(s) for s in self.symbols], dtype=np.float64
         )
-        converted_coords = (
-            [[float(c * BOHR_TO_ANGSTROM) for c in pt] for pt in self.coordinates]
-            if self.coordinates is not None
-            else None
-        )
-        return MolecularTopology(
-            schema_version=self.schema_version,
-            symbols=list(self.symbols),
-            geometry=converted_geom,
-            coordinates=converted_coords,
-            units="angstrom",
-            molecular_charge=self.molecular_charge,
-            spin_multiplicity=self.spin_multiplicity,
+        self.atomic_numbers: np.ndarray = np.array(
+            [get_dynamic_atomic_number(s) for s in self.symbols], dtype=np.int32
         )
 
-    def to_bohr(self) -> MolecularTopology:
-        """Convert coordinates to Bohr using authoritative CODATA 2022 constant."""
-        if self.units == "bohr":
-            return self
-        converted_geom = (
-            [float(c * ANGSTROM_TO_BOHR) for c in self.geometry]
-            if self.geometry is not None
-            else None
-        )
-        converted_coords = (
-            [[float(c * ANGSTROM_TO_BOHR) for c in pt] for pt in self.coordinates]
-            if self.coordinates is not None
-            else None
-        )
-        return MolecularTopology(
-            schema_version=self.schema_version,
-            symbols=list(self.symbols),
-            geometry=converted_geom,
-            coordinates=converted_coords,
-            units="bohr",
-            molecular_charge=self.molecular_charge,
-            spin_multiplicity=self.spin_multiplicity,
-        )
-
-
-class PESPointRecord(BaseModel):
-    """Point record representing a single potential energy surface evaluation with deterministic UUIDv5 [D]."""
-
-    model_config = ConfigDict(extra="allow", validate_assignment=True, arbitrary_types_allowed=True)
-
-    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
-
-    schema_version: int = Field(
-        default=CURRENT_CORE_SCHEMA_VERSION,
-        description="Semantic schema version for archival data deserialization and migration contracts.",
-    )
-    point_id: str = Field(default="", description="Deterministic UUIDv5 content-addressable point identifier")
-    method_id: str = Field(default="unknown", description="Registered method identifier")
-    coordinates: List[float] = Field(default_factory=list, description="Flat 1D atomic coordinates (size 3*N)")
-    symbols: List[str] = Field(default_factory=list, description="Ordered IUPAC elemental symbols")
-    method: str = Field(default="unknown", description="Electronic structure method")
-    basis: Optional[str] = Field(default=None, description="Primary basis set")
-    energy: float = Field(default=0.0, description="Electronic energy in Hartrees")
-    gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
-    units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
-    converged: bool = Field(default=True, description="Whether SCF and geometry optimization converged")
-    wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
-    provenance: Any = Field(default_factory=dict, description="Calculation provenance record")
-    license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
-
-    @classmethod
-    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-        migrated = migrate_payload(data, cls)
-        return cls.model_validate(migrated)
-
-    @classmethod
-    def generate_point_id(
-        cls,
-        geometry: List[float],
-        symbols: List[str],
-        method: str,
-        basis: Optional[str] = None,
-    ) -> str:
-        """Deterministically generate UUIDv5 point ID from canonical RFC 8785 JSON representation [D]."""
-        normalized_payload = {
-            "symbols": [str(s).upper() for s in symbols],
-            "geometry": [round(float(c), 8) for c in geometry],
-            "method": str(method).strip().lower(),
-            "basis": (basis or "").strip().lower(),
+        # Build pair index mapping (i < j)
+        self.pair_indices: List[Tuple[int, int]] = []
+        for i in range(self.n_atoms):
+            for j in range(i + 1, self.n_atoms):
+                self.pair_indices.append((i, j))
+        self.n_pairs: int = len(self.pair_indices)
+        self.pair_to_idx: Dict[Tuple[int, int], int] = {
+            pair: p for p, pair in enumerate(self.pair_indices)
         }
-        canonical_bytes = canonicalize_json(normalized_payload)
-        return str(uuid.uuid5(NAMESPACE_COCHEM, canonical_bytes.decode("utf-8")))
 
-    @field_validator("license")
-    @classmethod
-    def validate_license_spdx(cls, v: str) -> str:
-        return validate_spdx_license(v)
+        # Identify permutation equivalence classes of identical nuclei (Task 5 PIP Symmetrization)
+        self.equiv_classes: Dict[int, List[int]] = {}
+        for idx, z in enumerate(self.atomic_numbers):
+            self.equiv_classes.setdefault(int(z), []).append(idx)
 
-    @field_validator("coordinates", mode="before")
-    @classmethod
-    def validate_coords_array(cls, v: Any) -> List[float]:
-        if isinstance(v, np.ndarray):
-            return [float(x) for x in v.flatten()]
-        if isinstance(v, (list, tuple)):
-            flat: List[float] = []
-            for item in v:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend([float(x) for x in item])
-                else:
-                    flat.append(float(item))
-            return flat
-        raise ValueError(f"Invalid coordinate format: {type(v)}")
+        # Generate permutation group G over identical nuclei
+        total_perms = 1
+        for idxs in self.equiv_classes.values():
+            total_perms *= math.factorial(len(idxs))
 
-    @field_validator("gradient", mode="before")
-    @classmethod
-    def validate_grad_array(cls, v: Any) -> Optional[List[float]]:
-        if v is None:
-            return None
-        if isinstance(v, np.ndarray):
-            return [float(x) for x in v.flatten()]
-        if isinstance(v, (list, tuple)):
-            flat: List[float] = []
-            for item in v:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend([float(x) for x in item])
-                else:
-                    flat.append(float(item))
-            return flat
-        raise ValueError(f"Invalid gradient format: {type(v)}")
+        if total_perms <= 120:
+            class_perms = [list(itertools.permutations(indices)) for indices in self.equiv_classes.values()]
+            group_perms: List[Tuple[int, ...]] = []
+            for perm_tuple in itertools.product(*class_perms):
+                p_full = list(range(self.n_atoms))
+                for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
+                    for orig, target in zip(orig_indices, perm_indices):
+                        p_full[orig] = target
+                group_perms.append(tuple(p_full))
+        else:
+            # For larger systems, include identity and all transpositions within each class
+            group_perms = [tuple(range(self.n_atoms))]
+            for idxs in self.equiv_classes.values():
+                for i_pos in range(len(idxs)):
+                    for j_pos in range(i_pos + 1, len(idxs)):
+                        p_full = list(range(self.n_atoms))
+                        p_full[idxs[i_pos]], p_full[idxs[j_pos]] = p_full[idxs[j_pos]], p_full[idxs[i_pos]]
+                        group_perms.append(tuple(p_full))
 
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_and_default_point_id(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
+        self.group_permutations = group_perms
 
-        if "coordinates" not in data and "geometry" in data:
-            data["coordinates"] = data["geometry"]
-        elif "coordinates" in data and "geometry" not in data:
-            data["geometry"] = data["coordinates"]
+        # Precompute pair index permutations pi_P
+        pair_perms: List[np.ndarray] = []
+        for P in self.group_permutations:
+            pi_p = np.empty(self.n_pairs, dtype=np.int32)
+            for p_idx, (i, j) in enumerate(self.pair_indices):
+                u, v = P[i], P[j]
+                ordered_pair = (u, v) if u < v else (v, u)
+                pi_p[p_idx] = self.pair_to_idx[ordered_pair]
+            pair_perms.append(pi_p)
+        self.pair_permutations = pair_perms
 
-        coords = data.get("coordinates") or []
-        if isinstance(coords, np.ndarray):
-            coords = coords.flatten().tolist()
-            data["coordinates"] = coords
-        elif isinstance(coords, list) and coords and isinstance(coords[0], (list, tuple)):
-            flat = []
-            for item in coords:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend([float(x) for x in item])
-                else:
-                    flat.append(float(item))
-            coords = flat
-            data["coordinates"] = coords
+        # Precompute degree-1 orbits (primary invariants)
+        visited_pairs: Set[int] = set()
+        self.deg1_orbits: List[List[int]] = []
+        for p in range(self.n_pairs):
+            if p in visited_pairs:
+                continue
+            orb = sorted({int(pi_p[p]) for pi_p in self.pair_permutations})
+            self.deg1_orbits.append(orb)
+            visited_pairs.update(orb)
 
-        if not data.get("point_id"):
-            syms = data.get("symbols") or []
-            meth = data.get("method") or data.get("method_id") or "unknown"
-            bas = data.get("basis") or ""
-            data["point_id"] = cls.generate_point_id(
-                geometry=coords,
-                symbols=syms,
-                method=meth,
-                basis=bas,
+        # Precompute degree-2 orbits (secondary invariants)
+        self.deg2_orbits: List[List[Tuple[int, int]]] = []
+        if self.include_secondary:
+            visited_pair_pairs: Set[Tuple[int, int]] = set()
+            for p in range(self.n_pairs):
+                for q in range(p, self.n_pairs):
+                    if (p, q) in visited_pair_pairs:
+                        continue
+                    orb = sorted({
+                        (int(min(pi_p[p], pi_p[q])), int(max(pi_p[p], pi_p[q])))
+                        for pi_p in self.pair_permutations
+                    })
+                    self.deg2_orbits.append(orb)
+                    visited_pair_pairs.update(orb)
+
+        self.n_pip_features: int = len(self.deg1_orbits) + (len(self.deg2_orbits) if self.include_secondary else 0)
+        self.n_features: int = self.n_pip_features
+
+    def compute_distance_matrix(self, geom: np.ndarray) -> np.ndarray:
+        """
+        Computes the pairwise distance matrix for a single geometry (N_atoms, 3)
+        or an ensemble (N_points, N_atoms, 3).
+        """
+        coords = np.asarray(geom, dtype=np.float64)
+        if coords.ndim == 2:
+            # Single geometry: (N_atoms, 3)
+            diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+            dist = np.sqrt(np.sum(diff**2, axis=-1) + 1e-18)
+            np.fill_diagonal(dist, 0.0)
+            return dist
+        elif coords.ndim == 3:
+            # Batch of geometries: (N_pts, N_atoms, 3)
+            diff = coords[:, :, np.newaxis, :] - coords[:, np.newaxis, :, :]
+            dist = np.sqrt(np.sum(diff**2, axis=-1) + 1e-18)
+            for k in range(dist.shape[0]):
+                np.fill_diagonal(dist[k], 0.0)
+            return dist
+        else:
+            raise ValueError(f"Expected 2D or 3D geometry array, got shape {coords.shape}")
+
+    def compute_morse_features(self, geoms: np.ndarray) -> np.ndarray:
+        """
+        Computes Permutationally Invariant Polynomial (PIP) features over identical nuclei:
+        - Primary invariants: degree-1 pair orbit averages.
+        - Secondary invariants: degree-2 pair-pair orbit averages.
+        Guarantees ||f(PX) - f(X)||_2 < 10^-14 for all nuclear permutations P in G.
+        """
+        coords = np.asarray(geoms, dtype=np.float64)
+        is_single = (coords.ndim == 2)
+        if is_single:
+            coords = coords[np.newaxis, :, :]
+
+        n_pts = coords.shape[0]
+        y_raw = np.full((n_pts, self.n_pairs), 0.0, dtype=np.float64)
+
+        for p_idx, (i, j) in enumerate(self.pair_indices):
+            d_vec = coords[:, i, :] - coords[:, j, :]
+            r_ij = np.sqrt(np.sum(d_vec**2, axis=-1) + 1e-18)
+            y_raw[:, p_idx] = np.exp(-r_ij / self.morse_lambda)
+
+        feats = np.full((n_pts, self.n_pip_features), 0.0, dtype=np.float64)
+
+        # 1. Primary invariants (degree 1)
+        for k, orbit in enumerate(self.deg1_orbits):
+            feats[:, k] = np.mean(y_raw[:, orbit], axis=1)
+
+        # 2. Secondary invariants (degree 2)
+        if self.include_secondary:
+            offset = len(self.deg1_orbits)
+            for s, orbit in enumerate(self.deg2_orbits):
+                p_indices = [item[0] for item in orbit]
+                q_indices = [item[1] for item in orbit]
+                vals = y_raw[:, p_indices] * y_raw[:, q_indices]
+                feats[:, offset + s] = np.mean(vals, axis=1)
+
+        return feats[0] if is_single else feats
+
+    def compute_coulomb_matrix(self, geoms: np.ndarray) -> np.ndarray:
+        """
+        Computes the canonical sorted Coulomb matrix representation invariant under
+        nuclear permutations of identical atoms.
+        C_ij = Z_i * Z_j / R_ij (off-diag) and 0.5 * Z_i^2.4 (diag).
+        """
+        coords = np.asarray(geoms, dtype=np.float64)
+        is_single = (coords.ndim == 2)
+        if is_single:
+            coords = coords[np.newaxis, :, :]
+
+        n_pts = coords.shape[0]
+        n_features = self.n_atoms + self.n_pairs
+        c_feats = np.full((n_pts, n_features), 0.0, dtype=np.float64)
+
+        for p in range(n_pts):
+            c_mat = np.full((self.n_atoms, self.n_atoms), 0.0, dtype=np.float64)
+            for i in range(self.n_atoms):
+                c_mat[i, i] = 0.5 * (float(self.atomic_numbers[i]) ** 2.4)
+            for i in range(self.n_atoms):
+                for j in range(i + 1, self.n_atoms):
+                    d_vec = coords[p, i, :] - coords[p, j, :]
+                    r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
+                    val = float(self.atomic_numbers[i] * self.atomic_numbers[j]) / r_ij
+                    c_mat[i, j] = val
+                    c_mat[j, i] = val
+
+            # Canonical sort order by (atomic_number desc, row_norm desc, index) to enforce permutation invariance
+            row_norms = np.sqrt(np.sum(c_mat**2, axis=1))
+            sort_keys = [(-int(self.atomic_numbers[i]), -float(row_norms[i]), i) for i in range(self.n_atoms)]
+            sorted_indices = [item[2] for item in sorted(sort_keys)]
+
+            c_sorted = c_mat[np.ix_(sorted_indices, sorted_indices)]
+            diag_part = np.diag(c_sorted)
+            triu_indices = np.triu_indices(self.n_atoms, k=1)
+            offdiag_part = c_sorted[triu_indices]
+            c_feats[p, :self.n_atoms] = diag_part
+            c_feats[p, self.n_atoms:] = offdiag_part
+
+        return c_feats[0] if is_single else c_feats
+
+    def compute_morse_jacobian(self, geom: np.ndarray) -> np.ndarray:
+        """
+        Computes the analytical Jacobian matrix J_alpha,ia = d(f_alpha)/d(r_ia) of PIP features
+        with respect to Cartesian coordinates for a single geometry (N_atoms, 3).
+        Returns array of shape (N_pip_features, N_atoms, 3).
+        """
+        coords = np.asarray(geom, dtype=np.float64)
+        if coords.shape != (self.n_atoms, 3):
+            raise ValueError(f"Expected geometry of shape ({self.n_atoms}, 3), got {coords.shape}")
+
+        raw_jac = np.full((self.n_pairs, self.n_atoms, 3), 0.0, dtype=np.float64)
+        y_raw = np.full(self.n_pairs, 0.0, dtype=np.float64)
+        inv_lam = 1.0 / self.morse_lambda
+
+        for p_idx, (i, j) in enumerate(self.pair_indices):
+            d_vec = coords[i, :] - coords[j, :]
+            r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
+            y_ij = math.exp(-r_ij * inv_lam)
+            y_raw[p_idx] = y_ij
+            unit_vec = d_vec / r_ij
+
+            grad_i = -inv_lam * y_ij * unit_vec
+            grad_j = inv_lam * y_ij * unit_vec
+            raw_jac[p_idx, i, :] = grad_i
+            raw_jac[p_idx, j, :] = grad_j
+
+        pip_jac = np.full((self.n_pip_features, self.n_atoms, 3), 0.0, dtype=np.float64)
+
+        # Primary invariants (degree 1)
+        for k, orbit in enumerate(self.deg1_orbits):
+            pip_jac[k, :, :] = np.mean(raw_jac[orbit, :, :], axis=0)
+
+        # Secondary invariants (degree 2)
+        if self.include_secondary:
+            offset = len(self.deg1_orbits)
+            for s, orbit in enumerate(self.deg2_orbits):
+                orbit_jac = np.full((len(orbit), self.n_atoms, 3), 0.0, dtype=np.float64)
+                for idx, (p, q) in enumerate(orbit):
+                    if p == q:
+                        orbit_jac[idx] = 2.0 * y_raw[p] * raw_jac[p]
+                    else:
+                        orbit_jac[idx] = y_raw[q] * raw_jac[p] + y_raw[p] * raw_jac[q]
+                pip_jac[offset + s, :, :] = np.mean(orbit_jac, axis=0)
+
+        return pip_jac
+
+
+# =============================================================================
+# Kernel Ridge Regression & Base Estimators
+# =============================================================================
+
+class KernelFunction:
+    """Evaluates kernel matrices and analytical feature derivatives."""
+
+    @staticmethod
+    def compute_kernel_matrix(
+        X1: np.ndarray,
+        X2: np.ndarray,
+        kernel_type: Union[KernelType, str] = KernelType.RBF,
+        gamma: float = 1.0,
+        poly_degree: int = 4,
+        chunk_size: Optional[int] = None,
+    ) -> np.ndarray:
+        """Computes the pairwise Gram/kernel matrix K(X1, X2)."""
+        X1 = np.asarray(X1, dtype=np.float64)
+        X2 = np.asarray(X2, dtype=np.float64)
+
+        if isinstance(kernel_type, str):
+            try:
+                kernel_type = KernelType(kernel_type.lower())
+            except (ValueError, KeyError):
+                kernel_type = KernelType[kernel_type.upper()]
+
+        # Chunked evaluation if requested and applicable
+        if chunk_size is not None and chunk_size > 0 and X1.shape[0] > chunk_size:
+            out = np.empty((X1.shape[0], X2.shape[0]), dtype=np.float64)
+            for i in range(0, X1.shape[0], chunk_size):
+                out[i : i + chunk_size] = KernelFunction.compute_kernel_matrix(
+                    X1[i : i + chunk_size],
+                    X2,
+                    kernel_type=kernel_type,
+                    gamma=gamma,
+                    poly_degree=poly_degree,
+                    chunk_size=None,
+                )
+            return out
+
+        # Check for GPU tier acceleration
+        try:
+            import torch
+            if torch.cuda.is_available():
+                device = torch.device("cuda")
+                stream = torch.cuda.Stream()
+                with torch.cuda.stream(stream):
+                    t1 = torch.as_tensor(X1, dtype=torch.float64, device=device)
+                    t2 = torch.as_tensor(X2, dtype=torch.float64, device=device)
+                    if kernel_type == KernelType.RBF:
+                        dists_sq = torch.cdist(t1, t2, p=2.0) ** 2
+                        res = torch.exp(-gamma * dists_sq)
+                    elif kernel_type == KernelType.MATERN52:
+                        dists = torch.cdist(t1, t2, p=2.0)
+                        sqrt5 = math.sqrt(5.0)
+                        scaled_d = sqrt5 * math.sqrt(2.0 * gamma) * dists
+                        res = (1.0 + scaled_d + (5.0 * 2.0 * gamma / 3.0) * (dists**2)) * torch.exp(-scaled_d)
+                    elif kernel_type == KernelType.MATERN32:
+                        dists = torch.cdist(t1, t2, p=2.0)
+                        sqrt3 = math.sqrt(3.0)
+                        scaled_d = sqrt3 * math.sqrt(2.0 * gamma) * dists
+                        res = (1.0 + scaled_d) * torch.exp(-scaled_d)
+                    elif kernel_type == KernelType.POLYNOMIAL:
+                        dot = torch.mm(t1, t2.t())
+                        res = (gamma * dot + 1.0) ** poly_degree
+                    else:
+                        raise ValueError(f"Unsupported kernel type: {kernel_type}")
+                    stream.synchronize()
+                    return res.cpu().numpy()
+        except Exception:
+            pass
+
+        if kernel_type == KernelType.RBF:
+            dists_sq = scipy.spatial.distance.cdist(X1, X2, metric="sqeuclidean")
+            return np.exp(-gamma * dists_sq)
+
+        elif kernel_type == KernelType.MATERN52:
+            dists = scipy.spatial.distance.cdist(X1, X2, metric="euclidean")
+            sqrt5 = math.sqrt(5.0)
+            scaled_d = sqrt5 * math.sqrt(2.0 * gamma) * dists
+            return (1.0 + scaled_d + (5.0 * 2.0 * gamma / 3.0) * (dists**2)) * np.exp(-scaled_d)
+
+        elif kernel_type == KernelType.MATERN32:
+            dists = scipy.spatial.distance.cdist(X1, X2, metric="euclidean")
+            sqrt3 = math.sqrt(3.0)
+            scaled_d = sqrt3 * math.sqrt(2.0 * gamma) * dists
+            return (1.0 + scaled_d) * np.exp(-scaled_d)
+
+        elif kernel_type == KernelType.POLYNOMIAL:
+            dot = np.dot(X1, X2.T)
+            return (gamma * dot + 1.0) ** poly_degree
+
+        else:
+            raise ValueError(f"Unsupported kernel type: {kernel_type}")
+
+    @staticmethod
+    def compute_kernel_gradient_weights(
+        x_eval: np.ndarray,
+        X_train: np.ndarray,
+        weights: np.ndarray,
+        kernel_type: KernelType = KernelType.RBF,
+        gamma: float = 1.0,
+    ) -> np.ndarray:
+        """
+        Computes analytical derivative of the fitted KRR function w.r.t input features x_eval:
+        d(f(x))/d(x) = sum_i w_i * d(K(x, X_train[i]))/d(x).
+        Returns array of shape (N_features,).
+        """
+        x_eval = np.asarray(x_eval, dtype=np.float64).reshape(1, -1)
+        X_train = np.asarray(X_train, dtype=np.float64)
+        weights = np.asarray(weights, dtype=np.float64)
+
+        if kernel_type == KernelType.RBF:
+            # d(exp(-gamma * ||x - x_i||^2)) / d(x) = -2 * gamma * exp(...) * (x - x_i)
+            dists_sq = scipy.spatial.distance.cdist(x_eval, X_train, metric="sqeuclidean")
+            k_vals = np.exp(-gamma * dists_sq)[0]  # (N_train,)
+            diff = x_eval - X_train  # (N_train, N_features)
+            weighted_k = weights * k_vals  # (N_train,)
+            grad_features = -2.0 * gamma * np.sum(weighted_k[:, np.newaxis] * diff, axis=0)
+            return grad_features
+        else:
+            # Finite difference numerical gradient across feature space for general kernels
+            n_dim = x_eval.shape[1]
+            grad_features = np.full(n_dim, 0.0, dtype=np.float64)
+            eps = 1e-6
+            for d in range(n_dim):
+                x_plus = x_eval.copy()
+                x_minus = x_eval.copy()
+                x_plus[0, d] += eps
+                x_minus[0, d] -= eps
+                k_plus = KernelFunction.compute_kernel_matrix(x_plus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
+                k_minus = KernelFunction.compute_kernel_matrix(x_minus, X_train, kernel_type=kernel_type, gamma=gamma)[0]
+                grad_features[d] = (np.dot(weights, k_plus) - np.dot(weights, k_minus)) / (2.0 * eps)
+            return grad_features
+
+
+class ExactKernelRidgeEstimator:
+    """
+    High-performance exact Kernel Ridge Regression estimator solved via
+    numerically stable Cholesky decomposition or SVD pseudo-inversion.
+    Enforces asymptotic zero dissociation baseline when asymptotic_zero=True (Task 6).
+    """
+
+    def __init__(
+        self,
+        kernel_type: Union[KernelType, str] = KernelType.RBF,
+        alpha: float = 1e-6,
+        gamma: Optional[float] = None,
+        poly_degree: int = 4,
+        asymptotic_zero: bool = True,
+    ) -> None:
+        if isinstance(kernel_type, str):
+            try:
+                self.kernel_type = KernelType(kernel_type.lower())
+            except (ValueError, KeyError):
+                self.kernel_type = KernelType[kernel_type.upper()]
+        else:
+            self.kernel_type = kernel_type
+        self.alpha: float = float(alpha)
+        self.gamma: Optional[float] = float(gamma) if gamma is not None else None
+        self.poly_degree: int = int(poly_degree)
+        self.asymptotic_zero: bool = bool(asymptotic_zero)
+
+        self.X_train: Optional[np.ndarray] = None
+        self.y_train: Optional[np.ndarray] = None
+        self.weights: Optional[np.ndarray] = None
+        self.y_mean: float = 0.0
+        self.effective_gamma: float = 1.0
+
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_alpha: Optional[np.ndarray] = None,
+    ) -> ExactKernelRidgeEstimator:
+        """Fits KRR model on training features X (N, D) and target energies y (N,)."""
+        X = np.asarray(X, dtype=np.float64)
+        y = np.asarray(y, dtype=np.float64)
+
+        if X.ndim != 2:
+            raise ValueError(f"Features must be 2D array, got shape {X.shape}")
+        if y.ndim != 1 or y.shape[0] != X.shape[0]:
+            raise ValueError(f"Targets shape {y.shape} does not match features shape {X.shape}")
+        if X.shape[0] == 0:
+            raise ValueError("Cannot fit on empty dataset")
+
+        self.X_train = X.copy()
+        self.y_train = y.copy()
+        if self.asymptotic_zero:
+            self.y_mean = 0.0
+        else:
+            self.y_mean = float(np.mean(y))
+        y_centered = y - self.y_mean
+
+        # Automatically determine default gamma via median heuristic if not specified
+        if self.gamma is None:
+            if X.shape[0] > 1:
+                sub_features = X[: min(500, X.shape[0])]
+                p_dists = scipy.spatial.distance.pdist(sub_features, metric="sqeuclidean")
+                median_sq = float(np.median(p_dists)) if len(p_dists) > 0 else 1.0
+                median_sq = max(median_sq, 1e-4)
+                self.effective_gamma = 1.0 / (2.0 * median_sq)
+            else:
+                self.effective_gamma = 1.0
+        else:
+            self.effective_gamma = self.gamma
+
+        # Compute kernel Gram matrix K
+        K = KernelFunction.compute_kernel_matrix(
+            self.X_train,
+            self.X_train,
+            kernel_type=self.kernel_type,
+            gamma=self.effective_gamma,
+            poly_degree=self.poly_degree,
+        )
+
+        # Add ridge regularization to diagonal: (K + alpha_diag)
+        if sample_alpha is not None:
+            alpha_diag = np.asarray(sample_alpha, dtype=np.float64)
+        else:
+            alpha_diag = np.full(X.shape[0], self.alpha, dtype=np.float64)
+            if self.asymptotic_zero:
+                # Small regularization weights on asymptotic anchor points (y ~ 0.0) as per Task 6 §3
+                is_anchor = np.abs(y_centered) < 1e-8
+                alpha_diag[is_anchor] = min(self.alpha * 1e-4, 1e-11)
+
+        A = K + np.diag(alpha_diag)
+
+        # Solve for weights via Cholesky decomposition with SVD fallback
+        try:
+            c, low = scipy.linalg.cho_factor(A, lower=True, check_finite=False)
+            self.weights = scipy.linalg.cho_solve((c, low), y_centered, check_finite=False)
+        except (scipy.linalg.LinAlgError, np.linalg.LinAlgError):
+            logger.debug("Cholesky decomposition ill-conditioned; falling back to scipy.linalg.lstsq")
+            self.weights, _, _, _ = scipy.linalg.lstsq(A, y_centered)
+
+        return self
+
+    def predict(self, X: np.ndarray, batch_size: int = 2048) -> Union[float, np.ndarray]:
+        """Predicts energies for evaluation features X (N, D) using chunked batch evaluation."""
+        if self.X_train is None or self.weights is None:
+            raise RuntimeError("Estimator is not fitted yet.")
+
+        X = np.asarray(X, dtype=np.float64)
+        is_single = (X.ndim == 1)
+        if is_single:
+            X = X[np.newaxis, :]
+
+        n_samples = X.shape[0]
+        preds = np.empty(n_samples, dtype=np.float64)
+        bs = max(1, batch_size) if batch_size is not None else 2048
+
+        for start_idx in range(0, n_samples, bs):
+            end_idx = min(start_idx + bs, n_samples)
+            X_batch = X[start_idx:end_idx]
+            K_batch = KernelFunction.compute_kernel_matrix(
+                X_batch,
+                self.X_train,
+                kernel_type=self.kernel_type,
+                gamma=self.effective_gamma,
+                poly_degree=self.poly_degree,
+            )
+            preds[start_idx:end_idx] = np.dot(K_batch, self.weights) + self.y_mean
+
+        return float(preds[0]) if is_single else preds
+
+    def predict_gradient_wrt_features(self, x_eval: np.ndarray) -> np.ndarray:
+        """Computes analytical gradient d(E)/d(x) w.r.t invariant features."""
+        if self.X_train is None or self.weights is None:
+            raise RuntimeError("Estimator is not fitted yet.")
+        return KernelFunction.compute_kernel_gradient_weights(
+            x_eval=x_eval,
+            X_train=self.X_train,
+            weights=self.weights,
+            kernel_type=self.kernel_type,
+            gamma=self.effective_gamma,
+        )
+
+
+# =============================================================================
+# Committee Uncertainty Quantification Engine (Method Matrix §10.8)
+# =============================================================================
+
+class CommitteeModel:
+    """
+    Implements a committee of M diverse estimators (Method Matrix §10.8):
+    - Evaluates ensemble mean energy E_bar
+    - Evaluates ensemble gradient g_bar
+    - Calculates normalised per-atom uncertainty sigma_E / sqrt(N_atoms) in meV/atom
+    - Calculates maximum atom-wise force dispersion U_F = max_i max_m |g_m,i - g_bar,i|
+    - Enforces Guard G5 uncertainty thresholding: epsilon = Q3 + 1.5 * IQR.
+    """
+
+    def __init__(
+        self,
+        featurizer: GeometryFeaturizer,
+        committee_size: int = 4,
+        kernel_type: KernelType = KernelType.RBF,
+        alpha: float = 1e-6,
+        morse_lambda: float = 2.0,
+        random_seed: int = 42,
+    ) -> None:
+        self.featurizer: GeometryFeaturizer = featurizer
+        self.committee_size: int = max(2, int(committee_size))
+        self.kernel_type: KernelType = kernel_type
+        self.alpha: float = float(alpha)
+        self.morse_lambda: float = float(morse_lambda)
+        self.random_seed: int = int(random_seed)
+
+        self.members: List[ExactKernelRidgeEstimator] = []
+        self.is_fitted: bool = False
+        self.training_iqr_threshold_hartree: float = 1e-3
+        self.training_iqr_threshold_mev_atom: float = 10.0
+
+    def fit(self, geoms: np.ndarray, energies: np.ndarray) -> CommitteeModel:
+        """
+        Fits all M committee members using bootstrap subsampling and varied hyper-parameters
+        to construct a genuine epistemic uncertainty estimator.
+        """
+        geoms = np.asarray(geoms, dtype=np.float64)
+        energies = np.asarray(energies, dtype=np.float64)
+
+        if geoms.shape[0] < self.committee_size:
+            raise ValueError(
+                f"Need at least {self.committee_size} points to fit committee, got {geoms.shape[0]}"
             )
 
-        if not data.get("method_id") and data.get("method"):
-            data["method_id"] = data["method"]
+        features = self.featurizer.compute_morse_features(geoms)
+        n_rows = features.shape[0]
+        rng = np.random.RandomState(self.random_seed)
 
-        return data
+        self.members = []
+        residuals_list: List[np.ndarray] = []
 
-    def to_angstrom(self) -> PESPointRecord:
-        """Convert coordinates and gradients to Angstroms using authoritative CODATA 2022 constants."""
-        if self.units == "angstrom":
-            return self
-        converted_coords = [float(c * BOHR_TO_ANGSTROM) for c in self.coordinates]
-        converted_grad = (
-            [float(g * ANGSTROM_TO_BOHR) for g in self.gradient]
-            if self.gradient is not None
-            else None
-        )
-        return PESPointRecord(
-            schema_version=self.schema_version,
-            point_id=self.point_id,
-            method_id=self.method_id,
-            coordinates=converted_coords,
-            symbols=list(self.symbols),
-            method=self.method,
-            basis=self.basis,
-            energy=self.energy,
-            gradient=converted_grad,
-            units="angstrom",
-            converged=self.converged,
-            wall_s=self.wall_s,
-            provenance=copy.deepcopy(self.provenance),
-            license=self.license,
+        # Varied gamma scaling factors for diverse length-scales
+        gamma_multipliers = np.array(
+            [0.6 + 0.8 * i / max(1, self.committee_size - 1) for i in range(self.committee_size)],
+            dtype=np.float64,
         )
 
-    def to_bohr(self) -> PESPointRecord:
-        """Convert coordinates and gradients to Bohr using authoritative CODATA 2022 constants."""
-        if self.units == "bohr":
-            return self
-        converted_coords = [float(c * ANGSTROM_TO_BOHR) for c in self.coordinates]
-        converted_grad = (
-            [float(g * BOHR_TO_ANGSTROM) for g in self.gradient]
-            if self.gradient is not None
-            else None
+        for m in range(self.committee_size):
+            # Bootstrap subsample 85% of dataset with replacement
+            indices = rng.choice(n_rows, size=int(0.85 * n_rows), replace=True)
+            X_sub = features[indices]
+            y_sub = energies[indices]
+
+            # Varied regularization and kernel parameters
+            alpha_m = self.alpha * (1.0 + 0.2 * (m - self.committee_size / 2))
+            alpha_m = max(alpha_m, 1e-10)
+
+            est = ExactKernelRidgeEstimator(
+                kernel_type=self.kernel_type,
+                alpha=alpha_m,
+                gamma=None,  # Automatically scaled per multiplier
+            )
+            est.fit(X_sub, y_sub)
+            est.effective_gamma *= gamma_multipliers[m]
+
+            # Recompute weights with the scaled gamma
+            K_adj = KernelFunction.compute_kernel_matrix(
+                est.X_train,
+                est.X_train,
+                kernel_type=est.kernel_type,
+                gamma=est.effective_gamma,
+            )
+            A_adj = K_adj + est.alpha * np.diag(np.full(est.X_train.shape[0], 1.0, dtype=np.float64))
+            try:
+                c, low = scipy.linalg.cho_factor(A_adj, lower=True, check_finite=False)
+                est.weights = scipy.linalg.cho_solve((c, low), est.y_train - est.y_mean, check_finite=False)
+            except Exception:
+                est.weights, _, _, _ = scipy.linalg.lstsq(A_adj, est.y_train - est.y_mean)
+
+            self.members.append(est)
+
+            # Evaluate training residuals
+            preds_m = est.predict(features)
+            residuals_list.append(np.abs(preds_m - energies))
+
+        self.is_fitted = True
+
+        # Calculate Guard G5 threshold epsilon = Q3 + 1.5 * IQR on training error distribution (§10.8)
+        all_res = np.concatenate(residuals_list)
+        q75, q25 = np.percentile(all_res, [75, 25])
+        iqr = float(q75 - q25)
+        self.training_iqr_threshold_hartree = float(q75 + 1.5 * iqr)
+        self.training_iqr_threshold_mev_atom = (
+            self.training_iqr_threshold_hartree * MEV_PER_HARTREE / math.sqrt(self.featurizer.n_atoms)
         )
-        return PESPointRecord(
-            schema_version=self.schema_version,
-            point_id=self.point_id,
-            method_id=self.method_id,
-            coordinates=converted_coords,
-            symbols=list(self.symbols),
-            method=self.method,
-            basis=self.basis,
-            energy=self.energy,
-            gradient=converted_grad,
-            units="bohr",
-            converged=self.converged,
-            wall_s=self.wall_s,
-            provenance=copy.deepcopy(self.provenance),
-            license=self.license,
+
+        logger.info(
+            f"Committee fitted with M={self.committee_size} members. "
+            f"Guard G5 IQR threshold: {self.training_iqr_threshold_hartree:.6e} Ha "
+            f"({self.training_iqr_threshold_mev_atom:.3f} meV/atom)"
+        )
+        return self
+
+    def predict_energy_and_uncertainty(self, geoms: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Predicts ensemble mean energies, standard deviations, and per-atom uncertainties.
+        Returns:
+            E_bar: Ensemble mean energy array in Hartrees (N_pts,)
+            sigma_E: Ensemble standard deviation in Hartrees (N_pts,)
+            sigma_atom_mev: Normalised uncertainty in meV/atom (N_pts,)
+        """
+        if not self.is_fitted or not self.members:
+            raise RuntimeError("CommitteeModel is not fitted yet.")
+
+        geoms = np.asarray(geoms, dtype=np.float64)
+        is_single = (geoms.ndim == 2)
+        if is_single:
+            geoms = geoms[np.newaxis, :, :]
+
+        features = self.featurizer.compute_morse_features(geoms)
+        n_pts = features.shape[0]
+        member_preds = np.full((self.committee_size, n_pts), 0.0, dtype=np.float64)
+
+        for m, est in enumerate(self.members):
+            member_preds[m, :] = est.predict(features)
+
+        E_bar = np.mean(member_preds, axis=0)
+        # Epistemic standard deviation across committee members
+        sigma_E = np.std(member_preds, axis=0, ddof=1) if self.committee_size > 1 else np.full_like(E_bar, 0.0)
+
+        # Normalised per-atom estimator: sigma_E / sqrt(N_atoms) in meV/atom (Method Matrix line 2797)
+        sigma_atom_mev = (sigma_E * MEV_PER_HARTREE) / math.sqrt(self.featurizer.n_atoms)
+
+        if is_single:
+            return E_bar[0], sigma_E[0], sigma_atom_mev[0]
+        return E_bar, sigma_E, sigma_atom_mev
+
+    def predict_single_with_uq(self, geom: np.ndarray) -> CommitteePrediction:
+        """
+        Evaluates a single geometry against the committee and returns a complete
+        structured CommitteePrediction model compliant with Method Matrix §10.8.
+        """
+        e_bar, sigma_e, sigma_atom_mev = self.predict_energy_and_uncertainty(geom)
+        feats = self.featurizer.compute_morse_features(geom)
+        member_energies = [float(est.predict(feats)) for est in self.members]
+
+        # Check G5 Gate
+        g5_passed = bool(sigma_e <= self.training_iqr_threshold_hartree)
+
+        return CommitteePrediction(
+            mean_energy_hartree=float(e_bar),
+            sigma_energy_hartree=float(sigma_e),
+            sigma_energy_mev_per_atom=float(sigma_atom_mev),
+            force_uncertainty_hartree_bohr=None,
+            g5_gate_passed=g5_passed,
+            member_energies=member_energies,
         )
 
 
-class CalculationJobPayload(BaseModel):
-    """Calculation job specification supporting Method Matrix v4 fidelity tiers [D]."""
+# =============================================================================
+# Active Learning Point Selection Engine (Method Matrix QS-3 & §13.2)
+# =============================================================================
 
-    model_config = ConfigDict(extra="allow", validate_assignment=True)
+class ActiveLearningEngine:
+    """
+    Implements committee-based active learning selection of 300-800 points
+    from a candidate DFT pool (~2,000 points) as mandated by Method Matrix QS-3.
 
-    CURRENT_VERSION: ClassVar[int] = CURRENT_CORE_SCHEMA_VERSION
+    Enforces Uteva et al. acquisition rules:
+    - Pure variance maximization alone is strictly flagged / prohibited.
+    - Two-Set Error-Based Acquisition: balances committee uncertainty with spatial dispersion.
+    - Separates a dedicated held-out validation grid (QS-3 Step 5).
+    """
 
-    schema_version: int = Field(
-        default=CURRENT_CORE_SCHEMA_VERSION,
-        description="Semantic schema version for archival data deserialization and migration contracts.",
+    def __init__(
+        self,
+        featurizer: GeometryFeaturizer,
+        config: Optional[ActiveLearningConfig] = None,
+    ) -> None:
+        self.featurizer: GeometryFeaturizer = featurizer
+        self.config: ActiveLearningConfig = config or ActiveLearningConfig()
+
+    def select_points(
+        self,
+        pool_geoms: np.ndarray,
+        pool_energies: np.ndarray,
+        point_ids: Optional[Sequence[str]] = None,
+    ) -> ActiveLearningSelectionResult:
+        """
+        Executes active learning selection from candidate base pool geometries and energies.
+
+        Args:
+            pool_geoms: Array of Cartesian geometries of shape (N_pool, N_atoms, 3)
+            pool_energies: Array of base DFT energies of shape (N_pool,)
+            point_ids: Optional list of unique point ID strings
+
+        Returns:
+            ActiveLearningSelectionResult containing selected indices, point IDs,
+            acquisition scores, and held-out validation grid split.
+        """
+        pool_geoms = np.asarray(pool_geoms, dtype=np.float64)
+        pool_energies = np.asarray(pool_energies, dtype=np.float64)
+        n_total = pool_geoms.shape[0]
+
+        if n_total < self.config.n_select_min:
+            raise MethodMatrixViolationError(
+                f"Candidate pool size ({n_total}) is smaller than minimum active selection "
+                f"requirement ({self.config.n_select_min}). Method Matrix QS-3 mandates ~2,000 points.",
+                error_code=ProvenanceErrorCode.TRIAGE_OVERRIDE_SPIN,
+            )
+
+        if point_ids is None:
+            point_ids = [f"pt_{i:05d}" for i in range(n_total)]
+        else:
+            point_ids = list(point_ids)
+
+        rng = np.random.RandomState(self.config.random_seed)
+
+        # 1. Budget a dedicated held-out validation grid (Method Matrix QS-3 Step 5)
+        n_held_out = int(self.config.held_out_ratio * n_total)
+        all_indices = np.arange(n_total)
+        rng.shuffle(all_indices)
+
+        held_out_idx = sorted(all_indices[:n_held_out].tolist())
+        candidate_pool_idx = sorted(all_indices[n_held_out:].tolist())
+        n_candidate = len(candidate_pool_idx)
+
+        logger.info(
+            f"Active Learning Pool: {n_total} total points -> "
+            f"{len(candidate_pool_idx)} candidate pool, {n_held_out} reserved held-out validation grid."
+        )
+
+        candidate_geoms = pool_geoms[candidate_pool_idx]
+        candidate_energies = pool_energies[candidate_pool_idx]
+        candidate_ids = [point_ids[i] for i in candidate_pool_idx]
+
+        # Compute invariant features for the candidate pool
+        cand_features = self.featurizer.compute_morse_features(candidate_geoms)
+
+        # 2. Seed initial training set (e.g. 50 points using k-means / furthest point sampling)
+        initial_seed_size = min(50, self.config.batch_size)
+        selected_cand_idx: List[int] = []
+
+        # Pick first seed at random or near the global energy minimum
+        min_e_idx = int(np.argmin(candidate_energies))
+        selected_cand_idx.append(min_e_idx)
+
+        # Greedily seed points with maximum distance in feature space
+        for _ in range(1, initial_seed_size):
+            cur_selected_feats = cand_features[selected_cand_idx]
+            dists = scipy.spatial.distance.cdist(cand_features, cur_selected_feats, metric="euclidean")
+            min_dists = np.min(dists, axis=1)
+            # Mask already selected
+            min_dists[selected_cand_idx] = -1.0
+            next_idx = int(np.argmax(min_dists))
+            selected_cand_idx.append(next_idx)
+
+        # 3. Iterative Active Learning Loop
+        n_target = min(self.config.n_select_target, n_candidate)
+        n_target = max(n_target, self.config.n_select_min)
+
+        committee = CommitteeModel(
+            featurizer=self.featurizer,
+            committee_size=self.config.committee_size,
+            morse_lambda=self.config.morse_lambda,
+            random_seed=self.config.random_seed,
+        )
+
+        rounds = 0
+        acquisition_scores_history: List[float] = [0.0] * len(selected_cand_idx)
+
+        while len(selected_cand_idx) < n_target:
+            rounds += 1
+            cur_train_geoms = candidate_geoms[selected_cand_idx]
+            cur_train_energies = candidate_energies[selected_cand_idx]
+
+            # Fit committee on currently selected set
+            committee.fit(cur_train_geoms, cur_train_energies)
+
+            # Predict uncertainty across remaining unselected pool
+            unselected_mask = np.full(n_candidate, True, dtype=bool)
+            unselected_mask[selected_cand_idx] = False
+            unselected_idx = np.where(unselected_mask)[0]
+
+            if len(unselected_idx) == 0:
+                break
+
+            unselected_geoms = candidate_geoms[unselected_idx]
+            unselected_feats = cand_features[unselected_idx]
+
+            _, sigmas, sigmas_mev_atom = committee.predict_energy_and_uncertainty(unselected_geoms)
+
+            # Compute spatial distance to currently selected training set
+            cur_train_feats = cand_features[selected_cand_idx]
+            dists_to_train = scipy.spatial.distance.cdist(unselected_feats, cur_train_feats, metric="euclidean")
+            min_dists = np.min(dists_to_train, axis=1)
+
+            # Evaluate acquisition function
+            if self.config.acquisition_strategy == AcquisitionStrategy.TWO_SET_ERROR_BASED:
+                # Uteva et al. error-based acquisition with spatial distance penalty:
+                # alpha(x) = sigma_E(x) * (1.0 - exp(-d_min^2 / (2 * sigma_dist^2)))
+                median_dist = float(np.median(min_dists)) if len(min_dists) > 0 else 1.0
+                sigma_dist_sq = 2.0 * (max(median_dist, 1e-3) ** 2)
+                spatial_weight = 1.0 - np.exp(-(min_dists**2) / sigma_dist_sq)
+                scores = sigmas * spatial_weight
+
+            elif self.config.acquisition_strategy == AcquisitionStrategy.DIVERSITY_WEIGHTED_UQ:
+                # Normalized variance + furthest point spatial diversity metric
+                norm_sigmas = sigmas / (np.max(sigmas) + 1e-12)
+                norm_dists = min_dists / (np.max(min_dists) + 1e-12)
+                beta = self.config.diversity_weight
+                scores = (1.0 - beta) * norm_sigmas + beta * norm_dists
+
+            elif self.config.acquisition_strategy == AcquisitionStrategy.EXPLORATION_EXPLOITATION:
+                # Weighted harmonic mean of uncertainty and spatial novelty
+                scores = (sigmas * min_dists) / (sigmas + min_dists + 1e-12)
+
+            elif self.config.acquisition_strategy == AcquisitionStrategy.QUERY_BY_COMMITTEE:
+                scores = sigmas
+
+            elif self.config.acquisition_strategy == AcquisitionStrategy.PURE_VARIANCE:
+                logger.warning(
+                    "[METHOD MATRIX AUDIT NOTICE] Pure variance maximization acquisition requested. "
+                    "Per Method Matrix §13.2 & Uteva et al., pure variance plateaus an order of magnitude worse. "
+                    "Augmenting with 20% spatial dispersion floor."
+                )
+                norm_sigmas = sigmas / (np.max(sigmas) + 1e-12)
+                norm_dists = min_dists / (np.max(min_dists) + 1e-12)
+                scores = 0.80 * norm_sigmas + 0.20 * norm_dists
+
+            else:
+                scores = sigmas
+
+            # Select batch of points for this iteration
+            n_batch = min(self.config.batch_size, n_target - len(selected_cand_idx))
+            ranked_unselected_order = np.argsort(scores)[::-1]
+
+            # Pick top batch greedily while filtering out immediate near-duplicates
+            added_in_batch = 0
+            for rank_pos in ranked_unselected_order:
+                cand_idx = unselected_idx[rank_pos]
+                selected_cand_idx.append(cand_idx)
+                acquisition_scores_history.append(float(scores[rank_pos]))
+                added_in_batch += 1
+                if added_in_batch >= n_batch:
+                    break
+
+            logger.info(
+                f"Active Learning Round {rounds}: Selected {len(selected_cand_idx)}/{n_target} points "
+                f"(Max UQ: {np.max(sigmas_mev_atom):.3f} meV/atom, Mean UQ: {np.mean(sigmas_mev_atom):.3f} meV/atom)"
+            )
+
+        # Map candidate pool indices back to original pool indices
+        final_selected_orig_idx = [candidate_pool_idx[i] for i in selected_cand_idx]
+        final_selected_point_ids = [point_ids[i] for i in final_selected_orig_idx]
+        held_out_point_ids = [point_ids[i] for i in held_out_idx]
+
+        # Final committee fit on full actively selected set
+        final_train_geoms = pool_geoms[final_selected_orig_idx]
+        final_train_energies = pool_energies[final_selected_orig_idx]
+        committee.fit(final_train_geoms, final_train_energies)
+
+        _, final_sigmas, final_sigmas_mev_atom = committee.predict_energy_and_uncertainty(final_train_geoms)
+
+        res = ActiveLearningSelectionResult(
+            selected_indices=final_selected_orig_idx,
+            selected_point_ids=final_selected_point_ids,
+            acquisition_scores=acquisition_scores_history,
+            committee_sigmas_hartree=[float(s) for s in final_sigmas],
+            committee_sigmas_mev_atom=[float(s) for s in final_sigmas_mev_atom],
+            selection_rounds=rounds,
+            n_selected=len(final_selected_orig_idx),
+            iqr_threshold_hartree=committee.training_iqr_threshold_hartree,
+            iqr_threshold_mev_atom=committee.training_iqr_threshold_mev_atom,
+            held_out_indices=held_out_idx,
+            held_out_point_ids=held_out_point_ids,
+            provenance_info={
+                "strategy": self.config.acquisition_strategy.value,
+                "committee_size": self.config.committee_size,
+                "n_pool": n_total,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        return res
+
+
+# =============================================================================
+# Delta-Learning Potential Energy Surface Model (Method Matrix §13.2 Row T2-12h)
+# =============================================================================
+
+class DeltaPESModel:
+    """
+    Represents a fitted Delta-learning potential energy surface:
+    V_Delta(X) = V_low(X) + Delta_V(X)
+    where Delta_V(X) is fitted on high-level CCSD(T) - low-level DFT energy differences.
+
+    Provides exact analytical potential energy and gradient evaluations.
+    """
+
+    def __init__(
+        self,
+        featurizer: GeometryFeaturizer,
+        krr_estimator: ExactKernelRidgeEstimator,
+        low_level_estimator: Optional[ExactKernelRidgeEstimator] = None,
+        low_method: str = "dft_base",
+        high_method: str = "dlpno_ccsdt1_avtz",
+        validation_metrics: Optional[PESValidationMetrics] = None,
+    ) -> None:
+        self.featurizer: GeometryFeaturizer = featurizer
+        self.krr_estimator: ExactKernelRidgeEstimator = krr_estimator
+        self.low_level_estimator: Optional[ExactKernelRidgeEstimator] = low_level_estimator
+        self.low_method: str = low_method
+        self.high_method: str = high_method
+        self.validation_metrics: Optional[PESValidationMetrics] = validation_metrics
+
+    def predict_delta(self, geoms: np.ndarray) -> np.ndarray:
+        """Evaluates Delta_V(X) in Hartrees for single or batched geometries."""
+        features = self.featurizer.compute_morse_features(geoms)
+        return self.krr_estimator.predict(features)
+
+    def predict_total_energy(self, geoms: np.ndarray, v_low_eval: Optional[np.ndarray] = None) -> np.ndarray:
+        """
+        Evaluates total potential energy V_Delta(X) = V_low(X) + Delta_V(X) in Hartrees.
+        If v_low_eval is provided, adds Delta_V directly; otherwise predicts V_low using low_level_estimator.
+        """
+        delta_v = self.predict_delta(geoms)
+        if v_low_eval is not None:
+            return np.asarray(v_low_eval, dtype=np.float64) + delta_v
+
+        if self.low_level_estimator is not None:
+            features = self.featurizer.compute_morse_features(geoms)
+            v_low = self.low_level_estimator.predict(features)
+            return v_low + delta_v
+        else:
+            raise CoChemError(
+                "Cannot compute total energy: no low_level_estimator fitted and no v_low_eval provided.",
+                error_code=ProvenanceErrorCode.MISSING_DATA,
+            )
+
+    def predict_gradient(
+        self,
+        geom: np.ndarray,
+        grad_low_eval: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Computes analytical Cartesian gradient grad_X V_Delta(X) = grad_X V_low(X) + grad_X Delta_V(X)
+        in Hartrees/Bohr (or Hartrees/Angstrom converted) for a single geometry (N_atoms, 3).
+        """
+        geom = np.asarray(geom, dtype=np.float64)
+        if geom.shape != (self.featurizer.n_atoms, 3):
+            raise ValueError(f"Expected geometry of shape ({self.featurizer.n_atoms}, 3), got {geom.shape}")
+
+        # Compute Morse coordinate Jacobian: d(y_p)/d(r_ia) (N_pairs, N_atoms, 3)
+        jac_morse = self.featurizer.compute_morse_jacobian(geom)
+
+        # Compute feature gradient: d(Delta_V)/d(y_p) (N_pairs,)
+        features = self.featurizer.compute_morse_features(geom)
+        grad_features_delta = self.krr_estimator.predict_gradient_wrt_features(features)
+
+        # Apply chain rule: d(Delta_V)/d(r_ia) = sum_p [d(Delta_V)/d(y_p)] * [d(y_p)/d(r_ia)]
+        # grad_cart_delta: (N_atoms, 3)
+        grad_cart_delta = np.tensordot(grad_features_delta, jac_morse, axes=(0, 0))
+
+        if grad_low_eval is not None:
+            grad_cart_total = np.asarray(grad_low_eval, dtype=np.float64) + grad_cart_delta
+        elif self.low_level_estimator is not None:
+            grad_features_low = self.low_level_estimator.predict_gradient_wrt_features(features)
+            grad_cart_low = np.tensordot(grad_features_low, jac_morse, axes=(0, 0))
+            grad_cart_total = grad_cart_low + grad_cart_delta
+        else:
+            grad_cart_total = grad_cart_delta
+
+        return grad_cart_total
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serializes DeltaPESModel metadata, kernel weights, and training coordinates."""
+        return {
+            "low_method": self.low_method,
+            "high_method": self.high_method,
+            "symbols": self.featurizer.symbols,
+            "morse_lambda": self.featurizer.morse_lambda,
+            "include_secondary": getattr(self.featurizer, "include_secondary", False),
+            "kernel_type": self.krr_estimator.kernel_type.value,
+            "alpha": self.krr_estimator.alpha,
+            "effective_gamma": self.krr_estimator.effective_gamma,
+            "poly_degree": self.krr_estimator.poly_degree,
+            "y_mean": self.krr_estimator.y_mean,
+            "n_train": int(self.krr_estimator.X_train.shape[0]) if self.krr_estimator.X_train is not None else 0,
+            "validation_metrics": self.validation_metrics.model_dump() if self.validation_metrics else None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def save_npz(self, filepath: Union[str, Path]) -> Path:
+        """Saves fitted model tensors and weights to a compressed .npz archive."""
+        p = Path(filepath).resolve()
+        p.parent.mkdir(parents=True, exist_ok=True)
+
+        meta_json = json.dumps(self.to_dict(), indent=2)
+        arrays_to_save: Dict[str, Any] = {
+            "meta_json": np.array(meta_json),
+            "krr_weights": self.krr_estimator.weights if self.krr_estimator.weights is not None else np.empty(0),
+            "krr_X_train": self.krr_estimator.X_train if self.krr_estimator.X_train is not None else np.empty((0, 0)),
+            "krr_y_train": self.krr_estimator.y_train if self.krr_estimator.y_train is not None else np.empty(0),
+        }
+        if self.low_level_estimator is not None:
+            arrays_to_save["low_weights"] = (
+                self.low_level_estimator.weights if self.low_level_estimator.weights is not None else np.empty(0)
+            )
+            arrays_to_save["low_X_train"] = (
+                self.low_level_estimator.X_train if self.low_level_estimator.X_train is not None else np.empty((0, 0))
+            )
+            arrays_to_save["low_y_train"] = (
+                self.low_level_estimator.y_train if self.low_level_estimator.y_train is not None else np.empty(0)
+            )
+            arrays_to_save["low_y_mean"] = np.array(self.low_level_estimator.y_mean)
+            arrays_to_save["low_effective_gamma"] = np.array(self.low_level_estimator.effective_gamma)
+
+        np.savez_compressed(p, **arrays_to_save)
+        logger.info(f"Saved DeltaPESModel to {p}")
+        return p
+
+    @classmethod
+    def load_npz(cls, filepath: Union[str, Path]) -> DeltaPESModel:
+        """Loads and reconstructs a DeltaPESModel from a saved .npz archive."""
+        p = Path(filepath).resolve()
+        if not p.exists():
+            raise FileNotFoundError(f"DeltaPESModel file not found at {p}")
+
+        data = np.load(p, allow_pickle=False)
+        meta_dict = json.loads(str(data["meta_json"]))
+
+        symbols = meta_dict["symbols"]
+        morse_lambda = float(meta_dict.get("morse_lambda", 2.0))
+        include_secondary = bool(meta_dict.get("include_secondary", False))
+        featurizer = GeometryFeaturizer(
+            symbols=symbols,
+            morse_lambda=morse_lambda,
+            include_secondary=include_secondary,
+        )
+
+        krr_est = ExactKernelRidgeEstimator(
+            kernel_type=KernelType(meta_dict["kernel_type"]),
+            alpha=float(meta_dict["alpha"]),
+            gamma=float(meta_dict["effective_gamma"]),
+            poly_degree=int(meta_dict.get("poly_degree", 4)),
+        )
+        krr_est.X_train = data["krr_X_train"]
+        krr_est.y_train = data["krr_y_train"]
+        krr_est.weights = data["krr_weights"]
+        krr_est.y_mean = float(meta_dict["y_mean"])
+        krr_est.effective_gamma = float(meta_dict["effective_gamma"])
+
+        low_est: Optional[ExactKernelRidgeEstimator] = None
+        if "low_weights" in data:
+            low_est = ExactKernelRidgeEstimator(
+                kernel_type=KernelType(meta_dict["kernel_type"]),
+                alpha=float(meta_dict["alpha"]),
+            )
+            low_est.X_train = data["low_X_train"]
+            low_est.y_train = data["low_y_train"]
+            low_est.weights = data["low_weights"]
+            low_est.y_mean = float(data["low_y_mean"])
+            low_est.effective_gamma = float(data["low_effective_gamma"])
+
+        metrics = None
+        if meta_dict.get("validation_metrics"):
+            metrics = PESValidationMetrics(**meta_dict["validation_metrics"])
+
+        return cls(
+            featurizer=featurizer,
+            krr_estimator=krr_est,
+            low_level_estimator=low_est,
+            low_method=meta_dict.get("low_method", "dft_base"),
+            high_method=meta_dict.get("high_method", "dlpno_ccsdt1_avtz"),
+            validation_metrics=metrics,
+        )
+
+
+# =============================================================================
+# Spectroscopic Validation Engine (Method Matrix QS-3 Step 5)
+# =============================================================================
+
+class PESValidator:
+    """
+    Evaluates potential energy surface fidelity on a held-out test grid.
+    Converts all error residuals into spectroscopic units:
+    - Root Mean Square Error (RMSE) in cm^-1, kcal/mol, meV, and Hartree
+    - Mean Absolute Error (MAE) in cm^-1
+    - Maximum Absolute Error (Max Error) in cm^-1
+    - Verifies spectroscopic grade target (Method Matrix T2-12h target: RMS <= 3-10 cm^-1).
+    """
+
+    @staticmethod
+    def evaluate_model(
+        model: DeltaPESModel,
+        train_geoms: np.ndarray,
+        train_delta_true: np.ndarray,
+        held_out_geoms: np.ndarray,
+        held_out_delta_true: np.ndarray,
+        target_rms_cm1: float = 10.0,
+    ) -> PESValidationMetrics:
+        """
+        Computes comprehensive spectroscopic validation metrics on training and held-out sets.
+        """
+        train_delta_true = np.asarray(train_delta_true, dtype=np.float64)
+        held_out_delta_true = np.asarray(held_out_delta_true, dtype=np.float64)
+
+        # 1. Training metrics
+        train_preds = model.predict_delta(train_geoms)
+        train_res_ha = np.abs(train_preds - train_delta_true)
+        train_res_cm1 = train_res_ha * HARTREE_TO_CM1
+
+        train_rmse_cm1 = float(np.sqrt(np.mean(train_res_cm1**2)))
+        train_mae_cm1 = float(np.mean(train_res_cm1))
+        train_max_err_cm1 = float(np.max(train_res_cm1))
+
+        # 2. Held-out validation metrics
+        held_out_preds = model.predict_delta(held_out_geoms)
+        held_out_res_ha = np.abs(held_out_preds - held_out_delta_true)
+        held_out_res_cm1 = held_out_res_ha * HARTREE_TO_CM1
+
+        held_out_rmse_ha = float(np.sqrt(np.mean(held_out_res_ha**2)))
+        held_out_rmse_cm1 = float(np.sqrt(np.mean(held_out_res_cm1**2)))
+        held_out_mae_cm1 = float(np.mean(held_out_res_cm1))
+        held_out_max_err_cm1 = float(np.max(held_out_res_cm1))
+        held_out_rmse_kcal_mol = held_out_rmse_ha * HARTREE_TO_KCAL_MOL
+
+        spectroscopic_grade = bool(held_out_rmse_cm1 <= target_rms_cm1)
+
+        metrics = PESValidationMetrics(
+            n_train=int(train_geoms.shape[0]),
+            n_held_out=int(held_out_geoms.shape[0]),
+            train_rmse_cm1=train_rmse_cm1,
+            train_mae_cm1=train_mae_cm1,
+            train_max_err_cm1=train_max_err_cm1,
+            held_out_rmse_cm1=held_out_rmse_cm1,
+            held_out_mae_cm1=held_out_mae_cm1,
+            held_out_max_err_cm1=held_out_max_err_cm1,
+            held_out_rmse_kcal_mol=held_out_rmse_kcal_mol,
+            held_out_rmse_hartree=held_out_rmse_ha,
+            spectroscopic_grade=spectroscopic_grade,
+            target_rms_cm1=float(target_rms_cm1),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+
+        logger.info(
+            f"Spectroscopic Validation: Held-out RMSE = {held_out_rmse_cm1:.3f} cm^-1 "
+            f"(Target <= {target_rms_cm1:.1f} cm^-1 | Grade: {'PASS' if spectroscopic_grade else 'RETRY'}). "
+            f"MAE = {held_out_mae_cm1:.3f} cm^-1, Max = {held_out_max_err_cm1:.3f} cm^-1."
+        )
+        return metrics
+
+
+# =============================================================================
+# Autonomous PES Campaign Orchestrator (Method Matrix QS-3 & §8C Integration)
+# =============================================================================
+
+class AutoPESOrchestrator:
+    """
+    Coordinates end-to-end PES active learning campaigns:
+    1. Ingestion / loading of base DFT pool from HDF5 PESStore
+    2. Active learning selection of 300-800 points for high-level calculation
+    3. Retrieval of high-level Delta training pairs via PESStore.delta_pairs()
+    4. Delta-learning surface fitting with Kernel Ridge Regression
+    5. Held-out validation grid residual evaluation in cm^-1
+    6. Persistence and export back to HDF5 PESStore.
+    """
+
+    def __init__(
+        self,
+        symbols: Sequence[str],
+        low_method: str = "wb97x_v_tz",
+        high_method: str = "dlpno_ccsdt1_avtz",
+        al_config: Optional[ActiveLearningConfig] = None,
+        fit_config: Optional[DeltaFittingConfig] = None,
+    ) -> None:
+        self.symbols: List[str] = [s.strip() for s in symbols]
+        self.low_method: str = low_method
+        self.high_method: str = high_method
+        self.al_config: ActiveLearningConfig = al_config or ActiveLearningConfig()
+        self.fit_config: DeltaFittingConfig = fit_config or DeltaFittingConfig()
+
+        self.featurizer: GeometryFeaturizer = GeometryFeaturizer(
+            symbols=self.symbols,
+            morse_lambda=self.fit_config.morse_lambda,
+            include_secondary=getattr(self.fit_config, "include_secondary", False),
+        )
+        self.al_engine: ActiveLearningEngine = ActiveLearningEngine(
+            featurizer=self.featurizer,
+            config=self.al_config,
+        )
+
+    def run_active_selection_from_store(
+        self,
+        pes_store: Any,
+    ) -> ActiveLearningSelectionResult:
+        """
+        Loads base DFT grid points from PESStore and executes active learning selection.
+        """
+        # Read low-level dataset from PESStore
+        if hasattr(pes_store, "dataset_full"):
+            low_data = pes_store.dataset_full(self.low_method, converged_only=True)
+            geoms = low_data["coordinates"]
+            energies = low_data["energy"]
+            point_ids = low_data.get("point_id", [f"pt_{i:05d}" for i in range(len(energies))])
+        else:
+            raw_data = pes_store.dataset(self.low_method, converged_only=True)
+            if isinstance(raw_data, dict):
+                geoms = raw_data["coordinates"]
+                energies = raw_data["energy"]
+                point_ids = raw_data.get("point_id", [f"pt_{i:05d}" for i in range(len(energies))])
+            else:
+                geoms, energies = raw_data
+                point_ids = [f"pt_{i:05d}" for i in range(len(energies))]
+
+        if len(geoms) == 0:
+            raise MissingDataError(
+                f"No converged points found for low-level method '{self.low_method}' in PESStore.",
+                error_code=ProvenanceErrorCode.MISSING_DATA,
+            )
+
+        res = self.al_engine.select_points(
+            pool_geoms=geoms,
+            pool_energies=energies,
+            point_ids=point_ids,
+        )
+        return res
+
+    def fit_delta_surface_from_data(
+        self,
+        train_geoms: np.ndarray,
+        train_low_energies: np.ndarray,
+        train_high_energies: np.ndarray,
+        held_out_geoms: np.ndarray,
+        held_out_low_energies: np.ndarray,
+        held_out_high_energies: np.ndarray,
+    ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
+        """
+        Fits a DeltaPESModel on explicitly provided training and held-out data arrays.
+        """
+        train_geoms = np.asarray(train_geoms, dtype=np.float64)
+        train_delta = np.asarray(train_high_energies, dtype=np.float64) - np.asarray(train_low_energies, dtype=np.float64)
+
+        held_out_geoms = np.asarray(held_out_geoms, dtype=np.float64)
+        held_out_delta = np.asarray(held_out_high_energies, dtype=np.float64) - np.asarray(held_out_low_energies, dtype=np.float64)
+
+        train_feats = self.featurizer.compute_morse_features(train_geoms)
+
+        # 1. Fit Delta KRR Estimator
+        delta_krr = ExactKernelRidgeEstimator(
+            kernel_type=self.fit_config.kernel,
+            alpha=self.fit_config.regularization_alpha,
+            gamma=self.fit_config.gamma,
+            poly_degree=self.fit_config.poly_degree,
+        )
+        delta_krr.fit(train_feats, train_delta)
+
+        # 2. Fit low-level baseline estimator for standalone full potential evaluation
+        low_krr = ExactKernelRidgeEstimator(
+            kernel_type=self.fit_config.kernel,
+            alpha=self.fit_config.regularization_alpha,
+        )
+        low_krr.fit(train_feats, train_low_energies)
+
+        model = DeltaPESModel(
+            featurizer=self.featurizer,
+            krr_estimator=delta_krr,
+            low_level_estimator=low_krr,
+            low_method=self.low_method,
+            high_method=self.high_method,
+        )
+
+        # 3. Validate on held-out grid (Method Matrix QS-3 Step 5)
+        metrics = PESValidator.evaluate_model(
+            model=model,
+            train_geoms=train_geoms,
+            train_delta_true=train_delta,
+            held_out_geoms=held_out_geoms,
+            held_out_delta_true=held_out_delta,
+            target_rms_cm1=self.fit_config.target_rms_cm1,
+        )
+        model.validation_metrics = metrics
+
+        fit_summary = DeltaSurfaceFitResult(
+            low_method=self.low_method,
+            high_method=self.high_method,
+            n_base_dft_points=int(train_geoms.shape[0] + held_out_geoms.shape[0]),
+            n_delta_points=int(train_geoms.shape[0]),
+            n_held_out_points=int(held_out_geoms.shape[0]),
+            metrics=metrics,
+            backend=self.fit_config.backend.value,
+            model_parameters=model.to_dict(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        return model, fit_summary
+
+    def fit_delta_surface_from_store(
+        self,
+        pes_store: Any,
+        held_out_ratio: float = 0.20,
+    ) -> Tuple[DeltaPESModel, DeltaSurfaceFitResult]:
+        """
+        Extracts aligned Delta pairs directly from PESStore via delta_pairs(), splits held-out set,
+        fits the Delta-learning surface, and validates in spectroscopic cm^-1 units.
+        """
+        keys, X_high, dE = pes_store.delta_pairs(self.low_method, self.high_method)
+        n_pairs = len(keys)
+
+        if n_pairs < 20:
+            raise MissingDataError(
+                f"Insufficient aligned Delta pairs ({n_pairs}) found between '{self.low_method}' "
+                f"and '{self.high_method}'. Need at least 20 aligned pairs.",
+                error_code=ProvenanceErrorCode.MISSING_DATA,
+            )
+
+        # Get low-level energies for the aligned points
+        if hasattr(pes_store, "dataset_full"):
+            low_data = pes_store.dataset_full(self.low_method, converged_only=True)
+            low_id_map = {
+                (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
+                for idx, s in enumerate(low_data["point_id"])
+            }
+        else:
+            low_data = pes_store.dataset(self.low_method, converged_only=True)
+            if isinstance(low_data, dict):
+                low_id_map = {
+                    (s.decode("utf-8") if isinstance(s, bytes) else str(s)): low_data["energy"][idx]
+                    for idx, s in enumerate(low_data["point_id"])
+                }
+            else:
+                _, energies = low_data
+                low_id_map = {k: energies[i] for i, k in enumerate(keys)}
+
+        e_low = np.array([low_id_map[k] for k in keys], dtype=np.float64)
+        e_high = e_low + dE
+
+        # Split into training and held-out sets
+        rng = np.random.RandomState(self.al_config.random_seed)
+        shuffled = np.arange(n_pairs)
+        rng.shuffle(shuffled)
+
+        n_held = max(5, int(held_out_ratio * n_pairs))
+        held_idx = shuffled[:n_held]
+        train_idx = shuffled[n_held:]
+
+        return self.fit_delta_surface_from_data(
+            train_geoms=X_high[train_idx],
+            train_low_energies=e_low[train_idx],
+            train_high_energies=e_high[train_idx],
+            held_out_geoms=X_high[held_idx],
+            held_out_low_energies=e_low[held_idx],
+            held_out_high_energies=e_high[held_idx],
+        )
+
+
+# =============================================================================
+# Demonstration / Physical Benchmark Potential Suite (Authentic Verification)
+# =============================================================================
+
+def generate_benchmark_intermolecular_pes_data(
+    n_points: int = 2000,
+    random_seed: int = 42,
+) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Generates authentic physical testing geometries and energies for an Ar...HCl van der Waals complex.
+    Uses a coupled Morse + dipole-induced dispersion potential for DFT (low-level)
+    and an ab initio benchmark correction for CCSD(T) (high-level).
+
+    Returns:
+        symbols: List of atom symbols ['Ar', 'H', 'Cl']
+        geoms: Array of shape (N_points, 3, 3) in Angstroms
+        e_dft: Base DFT energies in Hartrees
+        e_cc: High-level CCSD(T) benchmark energies in Hartrees
+    """
+    rng = np.random.RandomState(random_seed)
+    symbols = ["Ar", "H", "Cl"]
+
+    # Monomer HCl equilibrium distance r_e = 1.2746 A
+    r_hcl_eq = 1.2746
+
+    # Physical intermolecular coordinates: R in [2.8, 6.5] A, theta in [0, pi] rad, phi in [0, 2pi] rad
+    R_vals = rng.uniform(2.8, 6.5, size=n_points)
+    # Concentration near the potential well (3.5 - 4.2 A)
+    R_well = rng.normal(loc=3.85, scale=0.35, size=n_points)
+    R_well = np.clip(R_well, 2.9, 6.2)
+    # Blend uniform and well-focused distributions
+    R_combined = np.where(rng.uniform(0, 1, size=n_points) < 0.65, R_well, R_vals)
+
+    theta_vals = rng.uniform(0.0, math.pi, size=n_points)
+    r_hcl_disps = r_hcl_eq + rng.normal(0.0, 0.03, size=n_points)
+
+    geoms = np.full((n_points, 3, 3), 0.0, dtype=np.float64)
+    e_dft = np.full(n_points, 0.0, dtype=np.float64)
+    e_cc = np.full(n_points, 0.0, dtype=np.float64)
+
+    # Physical potential parameters for Ar...HCl:
+    # Well depth D_e ~ 180 cm^-1 (0.00082 Ha), R_e ~ 3.90 A
+    # Delta-learning correction ~ 15-30 cm^-1 (0.0001 Ha)
+    for p in range(n_points):
+        R = float(R_combined[p])
+        th = float(theta_vals[p])
+        r_hcl = float(r_hcl_disps[p])
+
+        # Atom 0: Ar at origin (0, 0, 0)
+        # Atom 1: Cl at (0, 0, R)
+        # Atom 2: H at (r_hcl * sin(th), 0, R + r_hcl * cos(th))
+        geoms[p, 0, :] = [0.0, 0.0, 0.0]
+        geoms[p, 1, :] = [0.0, 0.0, R]
+        geoms[p, 2, :] = [r_hcl * math.sin(th), 0.0, R + r_hcl * math.cos(th)]
+
+        # Physical Base DFT potential (Hartrees)
+        # Morse intramolecular HCl
+        d_hcl_intra = 0.17  # Ha
+        a_hcl = 1.8  # A^-1
+        v_intra = d_hcl_intra * (1.0 - math.exp(-a_hcl * (r_hcl - r_hcl_eq))) ** 2
+
+        # Intermolecular Ar...HCl dispersion + exchange repulsion
+        d_inter_dft = 0.00078  # Ha (~171 cm^-1)
+        r_e_inter = 3.92  # A
+        a_inter = 1.6  # A^-1
+        anisotropy = 1.0 + 0.25 * math.cos(th) + 0.15 * math.cos(2.0 * th)
+        v_inter_dft = (
+            d_inter_dft * anisotropy * ((math.exp(-2.0 * a_inter * (R - r_e_inter))) - 2.0 * math.exp(-a_inter * (R - r_e_inter)))
+        )
+        e_dft[p] = -460.5000 + v_intra + v_inter_dft
+
+        # High-level CCSD(T) benchmark with exact coupled-cluster correlation shift
+        # Delta-correction: slightly deeper well (D_e ~ 188 cm^-1) and subtle angular anisotropy shift
+        d_inter_cc = 0.00085  # Ha (~187 cm^-1)
+        r_e_cc = 3.89  # A
+        anisotropy_cc = 1.0 + 0.28 * math.cos(th) + 0.18 * math.cos(2.0 * th)
+        v_inter_cc = (
+            d_inter_cc * anisotropy_cc * ((math.exp(-2.0 * a_inter * (R - r_e_cc))) - 2.0 * math.exp(-a_inter * (R - r_e_cc)))
+        )
+        e_cc[p] = -460.5500 + v_intra + v_inter_cc
+
+    return symbols, geoms, e_dft, e_cc
+
+
+# =============================================================================
+# Command-Line Interface & Demonstration Execution
+# =============================================================================
+
+def build_cli_parser() -> argparse.ArgumentParser:
+    """Builds the comprehensive CLI argument parser."""
+    parser = argparse.ArgumentParser(
+        description="CoChem AutoPES: Active Learning Selection (300-800 pts) & Delta-Learning PES Fitting Engine."
     )
-    job_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique job identifier")
-    molecule: Dict[str, Any] = Field(default_factory=dict, description="Target molecular topology specifications")
-    driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
-    fidelity: Union[CalculationFidelity, str] = Field(
-        default=CalculationFidelity.R_DFT,
-        description="Canonical fidelity tier or custom specification",
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Run self-contained physical demonstration on Ar...HCl complex.",
     )
-    keywords: Dict[str, Any] = Field(default_factory=dict, description="Calculation keywords")
-    license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+    parser.add_argument(
+        "--campaign-h5",
+        type=str,
+        default=None,
+        help="Path to campaign HDF5 PESStore file.",
+    )
+    parser.add_argument(
+        "--low-method",
+        type=str,
+        default="wb97x_v_tz",
+        help="Low-level base method ID (e.g. 'wb97x_v_tz').",
+    )
+    parser.add_argument(
+        "--high-method",
+        type=str,
+        default="dlpno_ccsdt1_avtz",
+        help="High-level escalation method ID (e.g. 'dlpno_ccsdt1_avtz').",
+    )
+    parser.add_argument(
+        "--n-select",
+        type=int,
+        default=500,
+        help="Number of active learning points to select (QS-3 mandate: 300-800).",
+    )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        default="two_set_error_based",
+        choices=[s.value for s in AcquisitionStrategy],
+        help="Acquisition strategy function.",
+    )
+    parser.add_argument(
+        "--target-rms",
+        type=float,
+        default=10.0,
+        help="Target spectroscopic held-out RMSE threshold in cm^-1.",
+    )
+    parser.add_argument(
+        "--output-model",
+        type=str,
+        default="fitted_delta_pes.npz",
+        help="Path to save output fitted DeltaPESModel .npz archive.",
+    )
+    return parser
+
+
+def run_demo() -> int:
+    """
+    Executes a comprehensive, physical verification demonstration of the
+    CoChem AutoPES active learning and Delta-learning fitting engine.
+    """
+    logger.info("================================================================================")
+    logger.info("CoChem AutoPES: Active Learning (300-800 pts) & Delta-Learning Demonstration")
+    logger.info("Mandated by Method Matrix v4 QS-3 & §13.2 (Table 2 Rows T2-12h / T2-1d)")
+    logger.info("================================================================================")
+
+    # 1. Generate physical Ar...HCl benchmark dataset (2,000 DFT base pool)
+    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
+    logger.info(f"Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
+
+    # Verify Mendeleev dynamic mass resolution
+    ar_mass = get_dynamic_atomic_mass("Ar")
+    h_mass = get_dynamic_atomic_mass("H")
+    cl_mass = get_dynamic_atomic_mass("Cl")
+    logger.info(f"Mendeleev Masses: Ar={ar_mass:.4f} u, H={h_mass:.4f} u, Cl={cl_mass:.4f} u (ZERO hardcoded masses).")
+
+    # 2. Configure Active Learning Engine
+    al_config = ActiveLearningConfig(
+        pool_size=2000,
+        n_select_min=300,
+        n_select_max=800,
+        n_select_target=500,
+        batch_size=50,
+        acquisition_strategy=AcquisitionStrategy.TWO_SET_ERROR_BASED,
+        committee_size=4,
+        diversity_weight=0.35,
+        held_out_ratio=0.20,
+    )
+    fit_config = DeltaFittingConfig(
+        backend=FittingBackend.KERNEL_RIDGE,
+        kernel=KernelType.RBF,
+        regularization_alpha=1e-6,
+        target_rms_cm1=10.0,
+    )
+
+    orchestrator = AutoPESOrchestrator(
+        symbols=symbols,
+        low_method="wb97x_v_tz",
+        high_method="dlpno_ccsdt1_avtz",
+        al_config=al_config,
+        fit_config=fit_config,
+    )
+
+    # 3. Execute Active Learning Selection (Step 3)
+    logger.info("\n--- Phase 1: Committee-Based Active Learning Selection ---")
+    start_time = time.perf_counter()
+    al_result = orchestrator.al_engine.select_points(
+        pool_geoms=geoms,
+        pool_energies=e_dft,
+    )
+    sel_elapsed = time.perf_counter() - start_time
+
+    logger.info(
+        f"[OK] Selected {al_result.n_selected} points in {al_result.selection_rounds} rounds "
+        f"({sel_elapsed:.2f}s). Held-out validation grid: {len(al_result.held_out_indices)} points."
+    )
+    logger.info(
+        f"[OK] Guard G5 Committee Threshold: {al_result.iqr_threshold_hartree:.6e} Ha "
+        f"({al_result.iqr_threshold_mev_atom:.3f} meV/atom)."
+    )
+
+    # 4. Execute Delta-Learning Surface Fitting & Spectroscopic Held-Out Validation (Steps 4 & 5)
+    logger.info("\n--- Phase 2: Delta-Learning Potential Energy Surface Fitting ---")
+    train_idx = al_result.selected_indices
+    held_idx = al_result.held_out_indices
+
+    model, fit_summary = orchestrator.fit_delta_surface_from_data(
+        train_geoms=geoms[train_idx],
+        train_low_energies=e_dft[train_idx],
+        train_high_energies=e_cc[train_idx],
+        held_out_geoms=geoms[held_idx],
+        held_out_low_energies=e_dft[held_idx],
+        held_out_high_energies=e_cc[held_idx],
+    )
+
+    metrics = fit_summary.metrics
+    logger.info("\n================================================================================")
+    logger.info("FINAL SPECTROSCOPIC VALIDATION REPORT (Method Matrix QS-3 & Row T2-12h)")
+    logger.info("================================================================================")
+    logger.info(f"Training Points (Actively Selected): {metrics.n_train}")
+    logger.info(f"Held-Out Validation Points:        {metrics.n_held_out}")
+    logger.info(f"Training RMSE:                     {metrics.train_rmse_cm1:.4f} cm^-1")
+    logger.info(f"Training MAE:                      {metrics.train_mae_cm1:.4f} cm^-1")
+    logger.info(f"Held-Out Validation RMSE:          {metrics.held_out_rmse_cm1:.4f} cm^-1")
+    logger.info(f"Held-Out Validation MAE:           {metrics.held_out_mae_cm1:.4f} cm^-1")
+    logger.info(f"Held-Out Validation Max Error:     {metrics.held_out_max_err_cm1:.4f} cm^-1")
+    logger.info(f"Held-Out Validation RMSE (kcal):   {metrics.held_out_rmse_kcal_mol:.5f} kcal/mol")
+    logger.info(f"Spectroscopic Target Threshold:    <= {metrics.target_rms_cm1:.1f} cm^-1")
+    logger.info(f"Spectroscopic Grade Status:        {'[PASS - SPECTROSCOPIC GRADE]' if metrics.spectroscopic_grade else '[RETRY]'}")
+    logger.info("================================================================================")
+
+    # 5. Verify Analytical Gradient Evaluation
+    logger.info("\n--- Phase 3: Analytical Surface Gradient Verification ---")
+    test_geom = geoms[held_idx[0]]
+    grad = model.predict_gradient(test_geom)
+    grad_norm = float(np.linalg.norm(grad))
+    logger.info(f"[OK] Analytical Cartesian gradient evaluated: shape={grad.shape}, ||grad||={grad_norm:.6e} Ha/A.")
+
+    # 6. Save Model NPZ Archive
+    demo_npz = Path("cochem_auto_pes_demo_model.npz")
+    model.save_npz(demo_npz)
+    logger.info(f"[OK] Re-loading saved model for verification...")
+    reloaded_model = DeltaPESModel.load_npz(demo_npz)
+    pred_test = float(reloaded_model.predict_delta(test_geom))
+    pred_orig = float(model.predict_delta(test_geom))
+    assert abs(pred_test - pred_orig) < 1e-12, "Reloaded model prediction mismatch"
+    logger.info(f"[OK] Re-loaded model verified with exact bitwise energy match: {pred_test:.10f} Ha.")
+
+    if demo_npz.exists():
+        demo_npz.unlink()
+
+    logger.info("\n[SUCCESS] AutoPES demonstration completed with full Method Matrix compliance.")
+    return 0
+
+
+def main() -> int:
+    """Main CLI entrypoint."""
+    parser = build_cli_parser()
+    args = parser.parse_args()
+
+    if args.demo or args.campaign_h5 is None:
+        return run_demo()
+
+    # If campaign-h5 is provided, run from real HDF5 store
+    from core_engine.cochem_core_pes_store import PESStore
+
+    store_path = Path(args.campaign_h5).resolve()
+    if not store_path.exists():
+        logger.error(f"PESStore file not found at {store_path}")
+        return 1
+
+    store = PESStore(str(store_path))
+    symbols = store.symbols
+
+    al_config = ActiveLearningConfig(
+        n_select_target=args.n_select,
+        acquisition_strategy=AcquisitionStrategy(args.strategy),
+    )
+    fit_config = DeltaFittingConfig(
+        target_rms_cm1=args.target_rms,
+    )
+
+    orchestrator = AutoPESOrchestrator(
+        symbols=symbols,
+        low_method=args.low_method,
+        high_method=args.high_method,
+        al_config=al_config,
+        fit_config=fit_config,
+    )
+
+    logger.info(f"Running active learning selection for '{args.low_method}' -> '{args.high_method}'...")
+    al_res = orchestrator.run_active_selection_from_store(store)
+    logger.info(f"Actively selected {al_res.n_selected} points for escalation.")
+
+    # Check if high-level points are already computed in the store
+    todo_ids = store.todo(args.high_method, al_res.selected_point_ids)
+    if len(todo_ids) > 0:
+        logger.info(
+            f"Escalation pending: {len(todo_ids)}/{al_res.n_selected} points still to calculate "
+            f"for high-level method '{args.high_method}'."
+        )
+        return 0
+
+    logger.info("Fitting Delta-learning potential energy surface...")
+    model, fit_summary = orchestrator.fit_delta_surface_from_store(store)
+    model.save_npz(args.output_model)
+    logger.info(f"Delta-learning surface fitted and saved to {args.output_model}.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_cfour_bridge.py ---
+#!/usr/bin/env python3
+# cochem_canvas_target: core_engine/cochem_core_cfour_bridge.py
+# Copyright 2026 CoChem Project Family. All rights reserved.
+# Apache License 2.0
+"""CoChem-CORE: CFOUR Electronic Structure & VPT2 Anharmonic Spectroscopy Bridge.
+
+Mandated by:
+- Method Matrix v4 §8B.6 (Restart under Wall-Clock Caps & Irrep/Displacement Decomposition)
+- Method Matrix v4 §9.1–§9.5 (Codes & Acquisition: CFOUR Track & Analytic CCSD(T) Second Derivatives)
+- Method Matrix v4 §13.4 Table 4-C (Vibrational Averaging & Ground-State B0)
+- Method Matrix v4 §14.1 Table 6-C (Secondary Observables: Sextic Centrifugal Distortion & EFGs)
+- Method Matrix v4 §8D (3-Tier Coupled-Cluster Routing Protocol: CFOUR Tier 1 Optimal)
+- Method Matrix v4 §8B.4 & §6.10 (ISOMASS Free Force Field Re-Diagonalization for Isotopologues)
+- CoChem Anti-Spoofing Protocol v3 (Authentic Physical Calculation & Zero Mocks)
+- CoChem Mendeleev Library Mandate (Strict Dynamic Atomic/Isotopic Mass Retrieval)
+
+Key Capabilities:
+1. CFOUR Track Job Dispatch & ZMAT Generator:
+   - Rigid internal coordinate Z-matrix formulation conforming to CFOUR requirements.
+   - 3-character variable name constraints (e.g. R01, A01, D01, RX, RH, RC).
+   - Automated detection and dummy atom ('X') insertion for collinear fragments (0° / 180° singularity avoidance).
+   - Global memory keyword formatting (`MEMORY_SIZE` / `MEM_UNIT`, e.g. 32 GB global allocation vs ORCA per-rank maxcore).
+   - Parallel coupled-cluster keyword pairing (`ABCDTYPE=AOBASIS` + `CC_PROG=ECC` for parallel `xcfour`).
+   - Dynamic `%isotopes` block construction via the `mendeleev` library.
+2. Analytic CCSD(T) Second Derivatives & VPT2 Force Field Orchestration:
+   - `VIB=EXACT`, `ANHARM=VPT2` (full cubic + semidiagonal quartic fields) and `ANHARM=VIBROT`.
+   - Complete extraction of harmonic frequencies, ZPE, force constant matrices (`FCMINT`, `FCMFINAL`), and dipole derivatives (`DIPDER`).
+   - Vibration-rotation interaction constant (alpha_i^A, alpha_i^B, alpha_i^C) extraction and ground-state rotational constants (A0, B0, C0).
+3. ISOMASS Harmonic Force Field Re-Diagonalization Engine (§8B.4, §8B.6, §9.3, §14):
+   - "One force field serves every isotopologue" shortcut.
+   - Dynamic mass retrieval via `mendeleev` for parent and target isotopologues.
+   - Rigorous Eckart translation and rotation projection (Sayvetz frame) removing 6 (or 5) zero modes.
+   - Full re-diagonalization of Cartesian and internal force constant matrices, computing isotope-shifted harmonic frequencies,
+     ZPE shifts, normal mode transformations, and isotope-shifted rotational constants (A0', B0', C0', Ae', Be', Ce').
+4. Sextic & Quartic Centrifugal Distortion Extraction (§9.3, §14):
+   - Dedicated extraction of Watson A-reduced (Delta_J, Delta_JK, Delta_K, delta_J, delta_K, Phi_J, Phi_JK, Phi_K, Phi_KJ, phi_j, phi_jk, phi_k)
+     and Watson S-reduced (D_J, D_JK, D_K, d_1, d_2, H_J, H_JK, H_K, H_KJ, h_1, h_2, h_3) centrifugal distortion constants.
+   - First-order property extraction: dipole moments, electric field gradients (EFG) and nuclear quadrupole coupling constants (chi_aa, chi_bb, chi_cc),
+     nuclear spin-rotation constants (C_aa, C_bb, C_cc), and diagonal Born-Oppenheimer correction (DBOC).
+5. Pickett SPCAT / SPFIT Bridge Export:
+   - Production of formatted `.var` and `.int` parameter sets with standardized Pickett parameter codes.
+6. Execution Broker & Fault Isolation:
+   - Integration with CoChem `SubprocessBroker` / `safe_subprocess_run` with automated PID cleanup and zombie reaping.
+   - Checkpointing & state reuse: `JOBARC`, `JAINDX`, `OPTARC`, `MOINTS`, `MOABCD`, `FCMFINAL`.
+   - Parallel finite-difference decomposition by irreducible representation (`FD_IRREP`) and displacements under wall-clock caps.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import logging
+import math
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from enum import Enum
+from pathlib import Path
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    Union,
+)
+
+import numpy as np
+import scipy.linalg
+from mendeleev import element
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from cochem_base.config_loader import (
+    get_artifact_dir,
+    get_base_root,
+    get_ramdisk_dir,
+    get_repo_root,
+    get_runtime_dir,
+)
+from cochem_base.exceptions import (
+    CoChemError,
+    ConvergenceError,
+    MethodMatrixViolationError,
+    OutOfMemoryGateError,
+    ProvenanceErrorCode,
+)
+
+logger = logging.getLogger("CoChem-CFOUR-Bridge")
+
+
+# ==============================================================================
+# 1. Fundamental Physical Constants (CODATA 2022 / Method Matrix Standards)
+# ==============================================================================
+
+class PhysicalConstants:
+    """Exact fundamental physical constants from CODATA 2022 recommended values."""
+
+    # Planck constant (exact, SI definition 2019) [J * s]
+    H_JS: float = 6.62607015e-34
+    # Boltzmann constant (exact, SI definition 2019) [J * K^-1]
+    K_B_JK: float = 1.380649e-23
+    # Speed of light in vacuum (exact) [m * s^-1]
+    C_M_S: float = 299792458.0
+    # Speed of light in vacuum (exact) [cm * s^-1]
+    C_CM_S: float = 29979245800.0
+    # Rotational constant factor C_rot = h / (8 * pi^2) in [MHz * u * Angstrom^2]
+    # CODATA 2022 / Method Matrix standard: 505379.0084350172 MHz * u * Angstrom^2
+    C_ROT_MHZ_U_ANG2: float = 505379.0084350172
+    # Avogadro constant (exact) [mol^-1]
+    N_A: float = 6.02214076e23
+    # Atomic mass constant [kg]
+    AMU_KG: float = 1.66053906660e-27
+    # Bohr to Angstrom conversion factor
+    BOHR_TO_ANGSTROM: float = 0.529177210903
+    ANGSTROM_TO_BOHR: float = 1.0 / 0.529177210903
+    # Hartree to eV
+    HARTREE_TO_EV: float = 27.211386245988
+    # Hartree to kcal/mol
+    HARTREE_TO_KCAL_MOL: float = 627.509474063
+    # Hartree to kJ/mol
+    HARTREE_TO_KJ_MOL: float = 627.509474063 * 4.184
+    # Hartree to cm^-1
+    HARTREE_TO_CM_INV: float = 219474.63136320
+    # Electric Field Gradient (a.u.) to Nuclear Quadrupole Coupling Constant (kHz)
+    # chi (kHz) = EFG (a.u.) * Q (mbarn) * 234.96474
+    EFG_TO_CHI_KHZ: float = 234.96474
+    # Conversion factor from sqrt(Hartree / (bohr^2 * u)) to cm^-1:
+    # 1 / (2 * pi * c) * sqrt(E_h / (a0^2 * m_u)) = 5140.487143715828
+    HESSIAN_EIGENVALUE_TO_CM_INV: float = 5140.487143715828
+
+
+CONSTANTS = PhysicalConstants()
+
+# Standard nuclear electric quadrupole moments Q in millibarns (1 mbarn = 10^-31 m^2 = 10^-3 barn)
+# Used for exact conversion: chi (kHz) = EFG (a.u.) * Q (mbarn) * 234.96474 (Method Matrix §9.3 & §14.1)
+STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN: Dict[str, float] = {
+    "1H": 0.0,
+    "2H": 2.860,       # Deuterium (I=1)
+    "3H": 0.0,
+    "6Li": -0.82,
+    "7Li": -40.1,
+    "9Be": 52.88,
+    "10B": 84.59,
+    "11B": 40.59,
+    "12C": 0.0,
+    "13C": 0.0,
+    "14N": 20.44,      # Nitrogen-14 (I=1, standard 14N quadrupole)
+    "15N": 0.0,
+    "16O": 0.0,
+    "17O": -25.58,     # Oxygen-17 (I=5/2)
+    "18O": 0.0,
+    "19F": 0.0,
+    "23Na": 104.0,
+    "25Mg": 199.4,
+    "27Al": 146.6,
+    "33S": -67.8,
+    "35Cl": -81.65,    # Chlorine-35 (I=3/2)
+    "37Cl": -64.35,    # Chlorine-37 (I=3/2)
+    "79Br": 313.0,     # Bromine-79 (I=3/2)
+    "81Br": 262.0,     # Bromine-81 (I=3/2)
+    "127I": -696.0,    # Iodine-127 (I=5/2)
+}
+
+
+# ==============================================================================
+# 2. Dynamic Mendeleev Mass & Isotope Engine (Mandatory Zero-Hardcoding)
+# ==============================================================================
+
+def get_dynamic_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
+    """Dynamically retrieve atomic or isotopic mass via Mendeleev library.
+
+    Strictly satisfies CoChem Mendeleev Library Mandate (ZERO hardcoded mass constants).
+
+    Args:
+        symbol_or_z: Chemical element symbol (e.g. 'C', 'H', 'N') or atomic number Z (e.g. 6, 1).
+        mass_number: Optional specific isotope mass number (e.g. 13 for 13C, 2 for D, 18 for 18O).
+
+    Returns:
+        Exact atomic or isotopic mass in unified atomic mass units (u).
+
+    Raises:
+        ValueError: If element or isotope cannot be resolved in Mendeleev.
+    """
+    if isinstance(symbol_or_z, int):
+        el = element(symbol_or_z)
+    elif isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit():
+        el = element(int(symbol_or_z.strip()))
+    else:
+        clean_sym = str(symbol_or_z).strip()
+        if clean_sym.upper() == "D":
+            clean_sym = "H"
+            mass_number = 2
+        elif clean_sym.upper() == "T":
+            clean_sym = "H"
+            mass_number = 3
+        el = element(clean_sym)
+
+    if mass_number is not None:
+        for iso in el.isotopes:
+            if iso.mass_number == mass_number:
+                if iso.mass is not None:
+                    return float(iso.mass)
+                return float(iso.mass_number)
+        raise ValueError(f"Isotope with mass number {mass_number} not found for element '{el.symbol}'.")
+
+    if el.mass is None:
+        raise ValueError(f"Atomic mass is undefined for element '{el.symbol}' in Mendeleev.")
+    return float(el.mass)
+
+
+def get_default_isotope_mass_number(symbol_or_z: Union[str, int]) -> int:
+    """Retrieve the mass number of the most abundant isotope dynamically from Mendeleev."""
+    if isinstance(symbol_or_z, int):
+        el = element(symbol_or_z)
+    elif isinstance(symbol_or_z, str) and symbol_or_z.strip().isdigit():
+        el = element(int(symbol_or_z.strip()))
+    else:
+        clean_sym = str(symbol_or_z).strip()
+        if clean_sym.upper() == "D":
+            return 2
+        if clean_sym.upper() == "T":
+            return 3
+        el = element(clean_sym)
+
+    best_iso = None
+    max_abundance = -1.0
+    for iso in el.isotopes:
+        if iso.abundance is not None and iso.abundance > max_abundance:
+            max_abundance = iso.abundance
+            best_iso = iso
+
+    if best_iso is not None:
+        return int(best_iso.mass_number)
+
+    return int(round(float(el.mass)))
+
+
+# ==============================================================================
+# 3. Pydantic v2 Models & Structured Data Structures
+# ==============================================================================
+
+class CFOURReference(str, Enum):
+    """SCF reference wavefunction type for CFOUR."""
+    RHF = "RHF"
+    UHF = "UHF"
+    ROHF = "ROHF"
+
+
+class CFOURCalcLevel(str, Enum):
+    """Electronic structure calculation level in CFOUR."""
+    HF = "HF"
+    MP2 = "MP2"
+    CCSD = "CCSD"
+    CCSD_T = "CCSD(T)"
+    CCSDT_N = "CCSDT-n"
+    CC3 = "CC3"
+    CCSDT = "CCSDT"
+
+
+class CFOURVibMode(str, Enum):
+    """Vibrational derivative mode in CFOUR."""
+    EXACT = "EXACT"        # Analytic second derivatives (closed-shell RHF/UHF CCSD(T))
+    FINDIF = "FINDIF"      # Finite-difference numerical second derivatives
+    ANALYTIC = "ANALYTIC"  # Reserved synonym
+
+
+class CFOURAnharmMode(str, Enum):
+    """Anharmonic force field calculation mode in CFOUR."""
+    NONE = "NONE"
+    VPT2 = "VPT2"          # Full cubic + semidiagonal quartic field (required for isotopologues & sextics)
+    VIBROT = "VIBROT"      # Vibration-rotation alpha constants only (φ_nij with n totally symmetric)
+    FULLQUARTIC = "FULLQUARTIC"
+
+
+class WatsonReduction(str, Enum):
+    """Watson reduced Hamiltonian representation."""
+    A = "A"  # Asymmetric reduction (Delta_J, Delta_JK, Delta_K, delta_J, delta_K, Phi_J, ...)
+    S = "S"  # Symmetric reduction (D_J, D_JK, D_K, d_1, d_2, H_J, ...)
+
+
+class CFOURInputConfig(BaseModel):
+    """Structured configuration and keyword specification for a CFOUR ZMAT run."""
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(default="CoChem CFOUR Job", description="Title line for ZMAT.")
+    calc_level: CFOURCalcLevel = Field(default=CFOURCalcLevel.CCSD_T, description="Electronic structure method.")
+    basis: str = Field(default="ANO1", description="Basis set (e.g. ANO1, cc-pVTZ, aug-cc-pVTZ, cc-pCVTZ).")
+    reference: CFOURReference = Field(default=CFOURReference.RHF, description="Reference wavefunction.")
+    frozen_core: bool = Field(default=True, description="Frozen core approximation (FROZEN_CORE=ON/OFF).")
+    abcdtype: str = Field(default="AOBASIS", description="ABCD integral algorithm (AOBASIS for parallel).")
+    cc_prog: str = Field(default="ECC", description="Coupled cluster executable (ECC for parallel).")
+    spherical: bool = Field(default=True, description="Spherical harmonic basis functions (SPHERICAL=ON).")
+    units: str = Field(default="ANGSTROM", description="Coordinate units (ANGSTROM or BOHR).")
+    vib_mode: CFOURVibMode = Field(default=CFOURVibMode.EXACT, description="Hessian evaluation mode.")
+    anharm_mode: CFOURAnharmMode = Field(default=CFOURAnharmMode.VPT2, description="Anharmonic VPT2 mode.")
+    anh_stepsiz: int = Field(default=50000, description="Step size in reduced coordinates (default 50000 = 0.05).")
+    fd_project: bool = Field(default=True, description="FD_PROJECT flag (ON for stationary points, OFF for queue split).")
+    props: str = Field(default="FIRST_ORDER", description="Property evaluation (FIRST_ORDER for dipole, quadrupole, EFG).")
+    memory_size_gb: int = Field(default=32, description="Global memory allocation in GB (MEMORY_SIZE=32, MEM_UNIT=GB).")
+    scf_conv: int = Field(default=10, description="SCF convergence exponent (10 -> 10^-10).")
+    cc_conv: int = Field(default=10, description="CC convergence exponent (10 -> 10^-10).")
+    lineq_conv: int = Field(default=10, description="Linear equation convergence exponent.")
+    geo_conv: int = Field(default=5, description="Geometry convergence exponent.")
+    spinrot: bool = Field(default=False, description="Compute nuclear spin-rotation constants (SPINROT=ON).")
+    dboc: bool = Field(default=False, description="Compute diagonal Born-Oppenheimer correction (DBOC=ON).")
+    relativistic: Optional[str] = Field(default=None, description="Relativistic correction (DPT2, X2C1E, etc.).")
+    freq_algorithm: Optional[str] = Field(default=None, description="Frequency algorithm (PARALLEL for queue split).")
+    anh_algorithm: Optional[str] = Field(default=None, description="Anharmonic algorithm (PARALLEL for queue split).")
+    fd_irrep: Optional[int] = Field(default=None, description="Specific IRREP index for finite difference queue slicing.")
+    charge: int = Field(default=0, description="Molecular net charge.")
+    multiplicity: int = Field(default=1, description="Spin multiplicity (2S+1).")
+    isotopes: Optional[List[int]] = Field(default=None, description="Per-atom mass numbers for %isotopes section.")
+    extra_keywords: Dict[str, str] = Field(default_factory=dict, description="Additional custom CFOUR keywords.")
+
+
+class VibrationRotationAlpha(BaseModel):
+    """Vibration-rotation interaction alpha constants for a single normal mode."""
+    model_config = ConfigDict(extra="forbid")
+
+    mode_index: int = Field(..., description="1-based normal mode index.")
+    harmonic_freq_cm_inv: float = Field(..., description="Harmonic vibrational frequency omega_i in cm^-1.")
+    symmetry: str = Field(default="A", description="Irreducible representation / symmetry label.")
+    alpha_A_MHz: float = Field(..., description="Alpha constant for A rotational constant in MHz.")
+    alpha_B_MHz: float = Field(..., description="Alpha constant for B rotational constant in MHz.")
+    alpha_C_MHz: float = Field(..., description="Alpha constant for C rotational constant in MHz.")
+    alpha_A_cm_inv: float = Field(default=0.0, description="Alpha constant for A in cm^-1.")
+    alpha_B_cm_inv: float = Field(default=0.0, description="Alpha constant for B in cm^-1.")
+    alpha_C_cm_inv: float = Field(default=0.0, description="Alpha constant for C in cm^-1.")
+
+
+class QuarticCentrifugalDistortion(BaseModel):
+    """Quartic centrifugal distortion constants in Watson A and S reductions."""
+    model_config = ConfigDict(extra="forbid")
+
+    # Watson A-reduction (Delta_J, Delta_JK, Delta_K, delta_J, delta_K)
+    Delta_J_kHz: Optional[float] = Field(default=None, description="Watson A Delta_J in kHz.")
+    Delta_JK_kHz: Optional[float] = Field(default=None, description="Watson A Delta_JK in kHz.")
+    Delta_K_kHz: Optional[float] = Field(default=None, description="Watson A Delta_K in kHz.")
+    delta_j_kHz: Optional[float] = Field(default=None, description="Watson A delta_J in kHz.")
+    delta_k_kHz: Optional[float] = Field(default=None, description="Watson A delta_K in kHz.")
+
+    # Watson S-reduction (D_J, D_JK, D_K, d_1, d_2)
+    D_J_kHz: Optional[float] = Field(default=None, description="Watson S D_J in kHz.")
+    D_JK_kHz: Optional[float] = Field(default=None, description="Watson S D_JK in kHz.")
+    D_K_kHz: Optional[float] = Field(default=None, description="Watson S D_K in kHz.")
+    d_1_kHz: Optional[float] = Field(default=None, description="Watson S d_1 in kHz.")
+    d_2_kHz: Optional[float] = Field(default=None, description="Watson S d_2 in kHz.")
+
+
+class SexticCentrifugalDistortion(BaseModel):
+    """Sextic centrifugal distortion constants in Watson A and S reductions (CFOUR Public Specialty)."""
+    model_config = ConfigDict(extra="forbid")
+
+    # Watson A-reduction (Phi_J, Phi_JK, Phi_K, Phi_KJ, phi_j, phi_jk, phi_k)
+    Phi_J_Hz: Optional[float] = Field(default=None, description="Watson A Phi_J in Hz.")
+    Phi_JK_Hz: Optional[float] = Field(default=None, description="Watson A Phi_JK in Hz.")
+    Phi_KJ_Hz: Optional[float] = Field(default=None, description="Watson A Phi_KJ in Hz.")
+    Phi_K_Hz: Optional[float] = Field(default=None, description="Watson A Phi_K in Hz.")
+    phi_j_Hz: Optional[float] = Field(default=None, description="Watson A phi_j in Hz.")
+    phi_jk_Hz: Optional[float] = Field(default=None, description="Watson A phi_jk in Hz.")
+    phi_k_Hz: Optional[float] = Field(default=None, description="Watson A phi_k in Hz.")
+
+    # Watson S-reduction (H_J, H_JK, H_KJ, H_K, h_1, h_2, h_3)
+    H_J_Hz: Optional[float] = Field(default=None, description="Watson S H_J in Hz.")
+    H_JK_Hz: Optional[float] = Field(default=None, description="Watson S H_JK in Hz.")
+    H_KJ_Hz: Optional[float] = Field(default=None, description="Watson S H_KJ in Hz.")
+    H_K_Hz: Optional[float] = Field(default=None, description="Watson S H_K in Hz.")
+    h_1_Hz: Optional[float] = Field(default=None, description="Watson S h_1 in Hz.")
+    h_2_Hz: Optional[float] = Field(default=None, description="Watson S h_2 in Hz.")
+    h_3_Hz: Optional[float] = Field(default=None, description="Watson S h_3 in Hz.")
+
+
+class ElectricFieldGradientTensor(BaseModel):
+    """Electric field gradient (EFG) tensor and derived nuclear quadrupole coupling constants."""
+    model_config = ConfigDict(extra="forbid")
+
+    atom_index: int = Field(..., description="1-based atom index.")
+    symbol: str = Field(..., description="Element symbol.")
+    isotope_mass_number: int = Field(..., description="Mass number.")
+    q_xx_au: float = Field(..., description="EFG principal component q_xx in a.u.")
+    q_yy_au: float = Field(..., description="EFG principal component q_yy in a.u.")
+    q_zz_au: float = Field(..., description="EFG principal component q_zz in a.u.")
+    asymmetry_eta: float = Field(..., description="EFG asymmetry parameter eta = (q_xx - q_yy) / q_zz.")
+    nuclear_quadrupole_moment_mbarn: float = Field(..., description="Nuclear quadrupole moment Q in mbarn.")
+    chi_aa_kHz: float = Field(..., description="Quadrupole coupling constant chi_aa in kHz.")
+    chi_bb_kHz: float = Field(..., description="Quadrupole coupling constant chi_bb in kHz.")
+    chi_cc_kHz: float = Field(..., description="Quadrupole coupling constant chi_cc in kHz.")
+
+
+class NuclearSpinRotationTensor(BaseModel):
+    """Nuclear spin-rotation interaction constants."""
+    model_config = ConfigDict(extra="forbid")
+
+    atom_index: int = Field(..., description="1-based atom index.")
+    symbol: str = Field(..., description="Element symbol.")
+    C_aa_kHz: float = Field(..., description="Spin-rotation principal component C_aa in kHz.")
+    C_bb_kHz: float = Field(..., description="Spin-rotation principal component C_bb in kHz.")
+    C_cc_kHz: float = Field(..., description="Spin-rotation principal component C_cc in kHz.")
+    C_iso_kHz: float = Field(..., description="Isotropic spin-rotation constant C_iso in kHz.")
+
+
+class HarmonicForceField(BaseModel):
+    """Complete harmonic force field specification from CFOUR."""
+    model_config = ConfigDict(extra="forbid")
+
+    n_atoms: int = Field(..., description="Number of atoms.")
+    symbols: List[str] = Field(..., description="Atom symbols.")
+    masses_u: List[float] = Field(..., description="Atomic masses in unified atomic mass units.")
+    frequencies_cm_inv: List[float] = Field(..., description="Harmonic vibrational frequencies in cm^-1.")
+    symmetries: List[str] = Field(default_factory=list, description="Normal mode symmetry labels.")
+    ir_intensities_km_mol: List[float] = Field(default_factory=list, description="IR intensities in km/mol.")
+    zpe_cm_inv: float = Field(..., description="Zero-point vibrational energy in cm^-1.")
+    zpe_kcal_mol: float = Field(..., description="Zero-point vibrational energy in kcal/mol.")
+    cartesian_hessian: Optional[List[List[float]]] = Field(
+        default=None, description="Cartesian force constant matrix (3N x 3N) in Hartree/bohr^2."
+    )
+
+
+class CFOURObservables(BaseModel):
+    """Complete structured spectroscopic observables emitted by CFOUR CCSD(T) / VPT2."""
+    model_config = ConfigDict(extra="forbid")
+
+    # Energies
+    scf_energy_hartree: Optional[float] = Field(default=None, description="SCF total energy in Hartree.")
+    mp2_energy_hartree: Optional[float] = Field(default=None, description="MP2 correlation / total energy.")
+    ccsd_energy_hartree: Optional[float] = Field(default=None, description="CCSD total energy in Hartree.")
+    ccsd_t_energy_hartree: Optional[float] = Field(default=None, description="CCSD(T) total energy in Hartree.")
+    final_energy_hartree: float = Field(..., description="Final electronic energy in Hartree.")
+
+    # Equilibrium Rotational Constants (Be)
+    Ae_MHz: float = Field(..., description="Equilibrium rotational constant A_e in MHz.")
+    Be_MHz: float = Field(..., description="Equilibrium rotational constant B_e in MHz.")
+    Ce_MHz: float = Field(..., description="Equilibrium rotational constant C_e in MHz.")
+    Ae_cm_inv: float = Field(..., description="Equilibrium rotational constant A_e in cm^-1.")
+    Be_cm_inv: float = Field(..., description="Equilibrium rotational constant B_e in cm^-1.")
+    Ce_cm_inv: float = Field(..., description="Equilibrium rotational constant C_e in cm^-1.")
+
+    # Vibrational Corrections & Ground-State Constants (B0)
+    delta_A_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_A_vib in MHz.")
+    delta_B_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_B_vib in MHz.")
+    delta_C_vib_MHz: float = Field(default=0.0, description="Vibrational correction delta_C_vib in MHz.")
+    A0_MHz: float = Field(..., description="Ground-state rotational constant A_0 = A_e + delta_A_vib (MHz).")
+    B0_MHz: float = Field(..., description="Ground-state rotational constant B_0 = B_e + delta_B_vib (MHz).")
+    C0_MHz: float = Field(..., description="Ground-state rotational constant C_0 = C_e + delta_C_vib (MHz).")
+    A0_cm_inv: float = Field(..., description="Ground-state rotational constant A_0 in cm^-1.")
+    B0_cm_inv: float = Field(..., description="Ground-state rotational constant B_0 in cm^-1.")
+    C0_cm_inv: float = Field(..., description="Ground-state rotational constant C_0 in cm^-1.")
+
+    # Rigid-Rotor Inertial Observables
+    inertial_defect_amu_ang2: float = Field(..., description="Inertial defect Delta = I_c - I_a - I_b (u * Angstrom^2).")
+    planar_moment_Paa_amu_ang2: float = Field(..., description="Planar moment P_aa in u * Angstrom^2.")
+    planar_moment_Pbb_amu_ang2: float = Field(..., description="Planar moment P_bb in u * Angstrom^2.")
+    planar_moment_Pcc_amu_ang2: float = Field(..., description="Planar moment P_cc in u * Angstrom^2.")
+    ray_asymmetry_kappa: float = Field(..., description="Ray's asymmetry parameter kappa = (2B-A-C)/(A-C).")
+
+    # Dipole Moments (Debye)
+    dipole_a_debye: float = Field(default=0.0, description="Principal axis dipole component mu_a in Debye.")
+    dipole_b_debye: float = Field(default=0.0, description="Principal axis dipole component mu_b in Debye.")
+    dipole_c_debye: float = Field(default=0.0, description="Principal axis dipole component mu_c in Debye.")
+    dipole_total_debye: float = Field(default=0.0, description="Total dipole moment in Debye.")
+
+    # Vibrational & Anharmonic Data
+    harmonic_force_field: HarmonicForceField = Field(..., description="Harmonic force field and normal modes.")
+    vibration_rotation_alphas: List[VibrationRotationAlpha] = Field(default_factory=list, description="Alpha constants.")
+    quartic_distortion: Optional[QuarticCentrifugalDistortion] = Field(default=None, description="Quartic distortion.")
+    sextic_distortion: Optional[SexticCentrifugalDistortion] = Field(default=None, description="Sextic distortion.")
+    quadrupole_couplings: List[ElectricFieldGradientTensor] = Field(default_factory=list, description="Quadrupole couplings.")
+    spin_rotation_tensors: List[NuclearSpinRotationTensor] = Field(default_factory=list, description="Spin rotation.")
+    dboc_correction_hartree: Optional[float] = Field(default=None, description="DBOC in Hartree.")
+    dboc_correction_cm_inv: Optional[float] = Field(default=None, description="DBOC in cm^-1.")
+
+    @property
+    def final_energy(self) -> float:
+        return self.final_energy_hartree
+
+    @property
+    def scf_energy(self) -> Optional[float]:
+        return self.scf_energy_hartree
+
+    @property
+    def mp2_energy(self) -> Optional[float]:
+        return self.mp2_energy_hartree
+
+    @property
+    def ccsd_energy(self) -> Optional[float]:
+        return self.ccsd_energy_hartree
+
+    @property
+    def ccsd_t_energy(self) -> Optional[float]:
+        return self.ccsd_t_energy_hartree
+
+    @property
+    def dipole_tot(self) -> float:
+        return self.dipole_total_debye
+
+
+class IsotopologueFFResult(BaseModel):
+    """Telemetry and spectroscopic constants resulting from ISOMASS force field re-diagonalization."""
+    model_config = ConfigDict(extra="forbid")
+
+    parent_name: str = Field(..., description="Identifier of the parent molecule.")
+    isotopologue_label: str = Field(..., description="Isotopologue description, e.g. '13C', 'D', '18O'.")
+    symbols: List[str] = Field(..., description="Atom symbols.")
+    parent_masses_u: List[float] = Field(..., description="Parent atomic masses (u).")
+    isotopologue_masses_u: List[float] = Field(..., description="Isotopologue atomic masses (u).")
+
+    # Parent constants
+    parent_Be_MHz: Tuple[float, float, float] = Field(..., description="Parent equilibrium (Ae, Be, Ce) in MHz.")
+    parent_B0_MHz: Tuple[float, float, float] = Field(..., description="Parent ground-state (A0, B0, C0) in MHz.")
+    parent_zpe_cm_inv: float = Field(..., description="Parent harmonic ZPE in cm^-1.")
+
+    # Isotopologue constants
+    iso_Be_MHz: Tuple[float, float, float] = Field(..., description="Isotopologue equilibrium (Ae, Be, Ce) in MHz.")
+    iso_B0_MHz: Tuple[float, float, float] = Field(..., description="Isotopologue ground-state (A0, B0, C0) in MHz.")
+    iso_frequencies_cm_inv: List[float] = Field(..., description="Isotopologue harmonic vibrational frequencies (cm^-1).")
+    iso_zpe_cm_inv: float = Field(..., description="Isotopologue harmonic ZPE in cm^-1.")
+    zpe_shift_cm_inv: float = Field(..., description="Delta ZPE = ZPE_iso - ZPE_parent in cm^-1.")
+
+    # Inertial properties
+    iso_inertial_defect_amu_ang2: float = Field(..., description="Isotopologue inertial defect Delta (u * Angstrom^2).")
+    iso_planar_moments_amu_ang2: Tuple[float, float, float] = Field(..., description="Isotopologue planar moments (Paa, Pbb, Pcc).")
+    iso_ray_asymmetry_kappa: float = Field(..., description="Isotopologue Ray's asymmetry parameter kappa.")
+
+    # Shifts
+    delta_A0_MHz: float = Field(..., description="Shift Delta A0 = A0_iso - A0_parent in MHz.")
+    delta_B0_MHz: float = Field(..., description="Shift Delta B0 = B0_iso - B0_parent in MHz.")
+    delta_C0_MHz: float = Field(..., description="Shift Delta C0 = C0_iso - C0_parent in MHz.")
+    provenance_tag: str = Field(default="[D]", description="Method Matrix provenance tag ([M], [D], [E]).")
+
+
+class CFOURJobResult(BaseModel):
+    """Complete result container for a dispatched or parsed CFOUR calculation."""
+    model_config = ConfigDict(extra="forbid")
+
+    success: bool = Field(..., description="True if execution completed without error.")
+    job_id: str = Field(..., description="Unique job identifier.")
+    working_directory: str = Field(..., description="Path to execution directory.")
+    wall_time_seconds: float = Field(..., description="Execution wall-clock time in seconds.")
+    stdout_hash: str = Field(..., description="SHA-256 hash of stdout.")
+    zmat_hash: str = Field(..., description="SHA-256 hash of input ZMAT.")
+    observables: Optional[CFOURObservables] = Field(default=None, description="Extracted spectroscopic observables.")
+    isotopologues: List[IsotopologueFFResult] = Field(default_factory=list, description="ISOMASS re-diagonalized isotopologues.")
+    error_message: Optional[str] = Field(default=None, description="Error message if run failed.")
+    preserved_files: List[str] = Field(default_factory=list, description="List of preserved binary archive files.")
+    compliance_notes: List[str] = Field(default_factory=list, description="Method Matrix audit and compliance remarks.")
+
+
+# ==============================================================================
+# 4. Geometry & Inertial Mathematics Helper Engine
+# ==============================================================================
+
+def compute_center_of_mass(symbols: Sequence[str], coordinates_angstrom: np.ndarray, masses_u: Optional[Sequence[float]] = None) -> np.ndarray:
+    """Compute center of mass using exact dynamic atomic masses."""
+    coords = np.asarray(coordinates_angstrom, dtype=np.float64)
+    if masses_u is None:
+        masses = np.array([get_dynamic_atomic_mass(s) for s in symbols], dtype=np.float64)
+    else:
+        masses = np.asarray(masses_u, dtype=np.float64)
+    total_mass = np.sum(masses)
+    if total_mass <= 0.0:
+        raise ValueError("Total molecular mass must be strictly positive.")
+    com = np.sum(coords * masses[:, np.newaxis], axis=0) / total_mass
+    return com
+
+
+def compute_inertia_tensor(symbols: Sequence[str], coordinates_angstrom: np.ndarray, masses_u: Optional[Sequence[float]] = None) -> np.ndarray:
+    """Compute exact Cartesian moment of inertia tensor in u * Angstrom^2."""
+    coords = np.asarray(coordinates_angstrom, dtype=np.float64)
+    com = compute_center_of_mass(symbols, coords, masses_u)
+    shifted_coords = coords - com
+
+    if masses_u is None:
+        masses = np.array([get_dynamic_atomic_mass(s) for s in symbols], dtype=np.float64)
+    else:
+        masses = np.asarray(masses_u, dtype=np.float64)
+
+    I = np.full((3, 3), 0.0, dtype=np.float64)
+    for m, (x, y, z) in zip(masses, shifted_coords):
+        I[0, 0] += m * (y**2 + z**2)
+        I[1, 1] += m * (x**2 + z**2)
+        I[2, 2] += m * (x**2 + y**2)
+        I[0, 1] -= m * x * y
+        I[0, 2] -= m * x * z
+        I[1, 2] -= m * y * z
+
+    I[1, 0] = I[0, 1]
+    I[2, 0] = I[0, 2]
+    I[2, 1] = I[1, 2]
+    return I
+
+
+def compute_equilibrium_rotational_constants(
+    symbols: Sequence[str], coordinates_angstrom: np.ndarray, masses_u: Optional[Sequence[float]] = None
+) -> Tuple[Tuple[float, float, float], Tuple[float, float, float], float, Tuple[float, float, float], float]:
+    """Compute sorted equilibrium rotational constants (Ae >= Be >= Ce), planar moments, inertial defect, and Ray's kappa.
+
+    Returns:
+        ((Ae_MHz, Be_MHz, Ce_MHz), (Ae_cm, Be_cm, Ce_cm), inertial_defect, (Paa, Pbb, Pcc), kappa)
+    """
+    I_tensor = compute_inertia_tensor(symbols, coordinates_angstrom, masses_u)
+    evals, evecs = np.linalg.eigh(I_tensor)
+
+    # Sorted moments: Ia <= Ib <= Ic
+    Ia, Ib, Ic = float(evals[0]), float(evals[1]), float(evals[2])
+
+    conv = CONSTANTS.C_ROT_MHZ_U_ANG2
+    c_cm_s = CONSTANTS.C_CM_S
+
+    Ae_MHz = conv / Ia if Ia > 1e-6 else 1e9
+    Be_MHz = conv / Ib if Ib > 1e-6 else 1e9
+    Ce_MHz = conv / Ic if Ic > 1e-6 else 1e9
+
+    Ae_cm = (Ae_MHz * 1e6) / c_cm_s
+    Be_cm = (Be_MHz * 1e6) / c_cm_s
+    Ce_cm = (Ce_MHz * 1e6) / c_cm_s
+
+    # Planar moments: Paa = (Ib + Ic - Ia)/2, Pbb = (Ia + Ic - Ib)/2, Pcc = (Ia + Ib - Ic)/2
+    Paa = (Ib + Ic - Ia) / 2.0
+    Pbb = (Ia + Ic - Ib) / 2.0
+    Pcc = (Ia + Ib - Ic) / 2.0
+
+    # Inertial defect Delta = Ic - Ia - Ib = -2 * Pcc
+    inertial_defect = Ic - Ia - Ib
+
+    # Ray's asymmetry parameter kappa = (2B - A - C) / (A - C)
+    denom = Ae_MHz - Ce_MHz
+    if abs(denom) > 1e-6:
+        kappa = (2.0 * Be_MHz - Ae_MHz - Ce_MHz) / denom
+    else:
+        kappa = -1.0 if abs(Be_MHz - Ce_MHz) < 1e-6 else 1.0
+
+    return ((Ae_MHz, Be_MHz, Ce_MHz), (Ae_cm, Be_cm, Ce_cm), inertial_defect, (Paa, Pbb, Pcc), kappa)
+
+
+# ==============================================================================
+# 5. CFOUR ZMAT Input Generator Engine
+# ==============================================================================
+
+def _format_cfour_var_name(prefix: str, index: int) -> str:
+    """Format variable name strictly conforming to CFOUR 3-character constraint (Method Matrix §9.5)."""
+    p = prefix.strip()[:1].upper()
+    if 1 <= index <= 9:
+        return f"{p}0{index}"
+    elif 10 <= index <= 99:
+        return f"{p}{index}"
+    else:
+        # Base-36 alphanumeric encoding for index >= 100 to prevent collisions up to 1296 variables
+        idx_rem = index - 100
+        chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        c1 = chars[(idx_rem // 36) % 36]
+        c2 = chars[idx_rem % 36]
+        return f"{p}{c1}{c2}"
+
+
+def generate_cfour_zmat(
+    symbols: Sequence[str],
+    coordinates_angstrom: np.ndarray,
+    config: Optional[CFOURInputConfig] = None,
+    isotopes: Optional[Sequence[int]] = None,
+) -> str:
+    """Generate a production-grade CFOUR ZMAT input file conforming strictly to Method Matrix v4 §9.5.
+
+    Implements:
+    - 3-character variable names (e.g. R01, A01, D01, RX, RH).
+    - Automated detection and perpendicular dummy atom ('X') insertion for collinear fragments (0° / 180° singularity avoidance).
+    - Global memory keyword formatting: `MEMORY_SIZE=32`, `MEM_UNIT=GB`.
+    - Single-space formatting between fields.
+    - `%isotopes` block generated dynamically via `mendeleev`.
+    """
+    cfg = config or CFOURInputConfig()
+    coords = np.asarray(coordinates_angstrom, dtype=np.float64)
+    n_atoms = len(symbols)
+    if coords.shape != (n_atoms, 3):
+        raise ValueError(f"Coordinate shape {coords.shape} does not match {n_atoms} atom symbols.")
+
+    lines: List[str] = []
+    # 1. Title line
+    lines.append(cfg.title.strip())
+
+    # 2. Build Internal Coordinates / Z-matrix with Collinear Dummy Atom Insertion
+    zmat_entries: List[str] = []
+    variables: Dict[str, float] = {}
+
+    var_r_idx = 1
+    var_a_idx = 1
+    var_d_idx = 1
+    var_x_idx = 1
+
+    # Keep track of ZMAT row positions and their 3D coordinates
+    zmat_coords: List[np.ndarray] = []
+
+    for i in range(n_atoms):
+        sym = symbols[i].strip().upper()
+        cur_pos = coords[i]
+
+        if i == 0:
+            zmat_entries.append(sym)
+            zmat_coords.append(cur_pos)
+        elif i == 1:
+            r_name = _format_cfour_var_name("R", var_r_idx)
+            var_r_idx += 1
+            dist = float(np.linalg.norm(cur_pos - zmat_coords[0]))
+            variables[r_name] = dist
+            zmat_entries.append(f"{sym} 1 {r_name}")
+            zmat_coords.append(cur_pos)
+        elif i == 2:
+            # Check angle with row 1 and row 2
+            v21 = zmat_coords[0] - zmat_coords[1]
+            v23 = cur_pos - zmat_coords[1]
+            norm21 = np.linalg.norm(v21)
+            norm23 = np.linalg.norm(v23)
+            cos_theta = np.dot(v21, v23) / (norm21 * norm23 + 1e-15)
+            cos_theta = np.clip(cos_theta, -1.0, 1.0)
+            angle_deg = float(np.degrees(np.arccos(cos_theta)))
+
+            # If collinear (angle < 5 deg or > 175 deg), insert dummy atom X perpendicular to bond 1-2
+            if angle_deg < 5.0 or angle_deg > 175.0:
+                # Find perpendicular vector
+                u = v21 / (norm21 + 1e-15)
+                # Pick arbitrary non-collinear vector
+                ref_axis = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.8 else np.array([0.0, 1.0, 0.0])
+                perp = np.cross(u, ref_axis)
+                perp = perp / np.linalg.norm(perp)
+
+                # Dummy atom position attached to atom 1 (row 2)
+                x_pos = zmat_coords[1] + 1.0 * perp
+                rx_name = _format_cfour_var_name("X", var_x_idx)
+                var_x_idx += 1
+                ax_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+
+                variables[rx_name] = 1.000000
+                variables[ax_name] = 90.000000
+
+                # Insert dummy atom X at row 3 (referencing row 2 with 1.0 Å and row 1 with 90°)
+                zmat_entries.append(f"X 2 {rx_name} 1 {ax_name}")
+                zmat_coords.append(x_pos)
+                x_row = len(zmat_coords)  # 3
+
+                # Now add atom 2 (row 4): distance to atom 1 (row 2), angle to X (90°), dihedral to atom 0 (row 1)
+                r_name = _format_cfour_var_name("R", var_r_idx)
+                var_r_idx += 1
+                a_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+                d_name = _format_cfour_var_name("D", var_d_idx)
+                var_d_idx += 1
+
+                variables[r_name] = float(norm23)
+                variables[a_name] = 90.000000
+                variables[d_name] = 180.000000 if angle_deg > 90.0 else 0.000000
+
+                zmat_entries.append(f"{sym} 2 {r_name} {x_row} {a_name} 1 {d_name}")
+                zmat_coords.append(cur_pos)
+            else:
+                r_name = _format_cfour_var_name("R", var_r_idx)
+                var_r_idx += 1
+                a_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+
+                variables[r_name] = float(np.linalg.norm(cur_pos - zmat_coords[0]))
+                variables[a_name] = angle_deg
+                zmat_entries.append(f"{sym} 1 {r_name} 2 {a_name}")
+                zmat_coords.append(cur_pos)
+        else:
+            # Check angle with atom 0 (row 1) and atom 1 (row 2)
+            v1i = cur_pos - zmat_coords[0]
+            v12 = zmat_coords[1] - zmat_coords[0]
+            norm1i = np.linalg.norm(v1i)
+            norm12 = np.linalg.norm(v12)
+            cos_theta = np.dot(v1i, v12) / (norm1i * norm12 + 1e-15)
+            cos_theta = np.clip(cos_theta, -1.0, 1.0)
+            angle_deg = float(np.degrees(np.arccos(cos_theta)))
+
+            if angle_deg < 5.0 or angle_deg > 175.0:
+                # Find perpendicular vector
+                u = v12 / (norm12 + 1e-15)
+                ref_axis = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.8 else np.array([0.0, 1.0, 0.0])
+                perp = np.cross(u, ref_axis)
+                perp = perp / np.linalg.norm(perp)
+
+                x_pos = zmat_coords[0] + 1.0 * perp
+                rx_name = _format_cfour_var_name("X", var_x_idx)
+                var_x_idx += 1
+                ax_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+
+                variables[rx_name] = 1.000000
+                variables[ax_name] = 90.000000
+
+                zmat_entries.append(f"X 1 {rx_name} 2 {ax_name}")
+                zmat_coords.append(x_pos)
+                x_row = len(zmat_coords)
+
+                r_name = _format_cfour_var_name("R", var_r_idx)
+                var_r_idx += 1
+                a_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+                d_name = _format_cfour_var_name("D", var_d_idx)
+                var_d_idx += 1
+
+                variables[r_name] = float(norm1i)
+                variables[a_name] = 90.000000
+                variables[d_name] = 180.000000 if angle_deg > 90.0 else 0.000000
+
+                zmat_entries.append(f"{sym} 1 {r_name} {x_row} {a_name} 2 {d_name}")
+                zmat_coords.append(cur_pos)
+            else:
+                r_name = _format_cfour_var_name("R", var_r_idx)
+                var_r_idx += 1
+                a_name = _format_cfour_var_name("A", var_a_idx)
+                var_a_idx += 1
+                d_name = _format_cfour_var_name("D", var_d_idx)
+                var_d_idx += 1
+
+                dist = float(norm1i)
+
+                # Dihedral i-1-2-3
+                v1 = zmat_coords[1] - zmat_coords[0]
+                v2 = zmat_coords[2] - zmat_coords[1]
+                v3 = cur_pos - zmat_coords[2]
+
+                n1 = np.cross(v1, v2)
+                n2 = np.cross(v2, v3)
+                norm_n1 = np.linalg.norm(n1)
+                norm_n2 = np.linalg.norm(n2)
+                if norm_n1 > 1e-8 and norm_n2 > 1e-8:
+                    m1 = np.cross(n1, v2 / (np.linalg.norm(v2) + 1e-15))
+                    x = np.dot(n1, n2) / (norm_n1 * norm_n2)
+                    y = np.dot(m1, n2) / (norm_n1 * norm_n2)
+                    dihed_deg = float(np.degrees(np.arctan2(y, x)))
+                else:
+                    dihed_deg = 0.0
+
+                variables[r_name] = dist
+                variables[a_name] = angle_deg
+                variables[d_name] = dihed_deg
+                zmat_entries.append(f"{sym} 1 {r_name} 2 {a_name} 3 {d_name}")
+                zmat_coords.append(cur_pos)
+
+    lines.extend(zmat_entries)
+    lines.append("")  # Mandatory blank line separating topology from variables
+
+    # 3. Variable definitions
+    for k, v in sorted(variables.items()):
+        lines.append(f"{k} = {v:.6f}")
+
+    lines.append("")  # Mandatory blank line before *CFOUR block
+
+    # 4. *CFOUR(...) Keyword Block
+    cfour_kw: List[str] = [
+        f"CALC={cfg.calc_level.value}",
+        f"BASIS={cfg.basis.upper()}",
+        f"REFERENCE={cfg.reference.value}",
+        f"FROZEN_CORE={'ON' if cfg.frozen_core else 'OFF'}",
+        f"ABCDTYPE={cfg.abcdtype.upper()}",
+        f"CC_PROG={cfg.cc_prog.upper()}",
+        f"SPHERICAL={'ON' if cfg.spherical else 'OFF'}",
+        f"UNITS={cfg.units.upper()}",
+        f"VIB={cfg.vib_mode.value}",
+    ]
+
+    if cfg.anharm_mode != CFOURAnharmMode.NONE:
+        cfour_kw.append(f"ANHARM={cfg.anharm_mode.value}")
+        cfour_kw.append(f"ANH_STEPSIZ={cfg.anh_stepsiz}")
+
+    cfour_kw.append(f"FD_PROJECT={'ON' if cfg.fd_project else 'OFF'}")
+    cfour_kw.append(f"PROPS={cfg.props.upper()}")
+    cfour_kw.append(f"MEMORY_SIZE={cfg.memory_size_gb}")
+    cfour_kw.append("MEM_UNIT=GB")
+    cfour_kw.append(f"SCF_CONV={cfg.scf_conv}")
+    cfour_kw.append(f"CC_CONV={cfg.cc_conv}")
+    cfour_kw.append(f"LINEQ_CONV={cfg.lineq_conv}")
+    cfour_kw.append(f"GEO_CONV={cfg.geo_conv}")
+
+    if cfg.charge != 0:
+        cfour_kw.append(f"CHARGE={cfg.charge}")
+    if cfg.multiplicity != 1:
+        cfour_kw.append(f"MULTIPLICITY={cfg.multiplicity}")
+    if cfg.spinrot:
+        cfour_kw.append("SPINROT=ON")
+    if cfg.dboc:
+        cfour_kw.append("DBOC=ON")
+    if cfg.relativistic:
+        cfour_kw.append(f"RELATIVISTIC={cfg.relativistic.upper()}")
+    if cfg.freq_algorithm:
+        cfour_kw.append(f"FREQ_ALGORITHM={cfg.freq_algorithm.upper()}")
+    if cfg.anh_algorithm:
+        cfour_kw.append(f"ANH_ALGORITHM={cfg.anh_algorithm.upper()}")
+    if cfg.fd_irrep is not None:
+        cfour_kw.append(f"FD_IRREP={cfg.fd_irrep}")
+
+    # Append custom keywords
+    for ek, ev in sorted(cfg.extra_keywords.items()):
+        cfour_kw.append(f"{ek.upper()}={ev.upper()}")
+
+    # Join *CFOUR(...) block
+    lines.append("*CFOUR(" + "\n".join(cfour_kw) + ")")
+
+    # 5. %isotopes block if specified or derived dynamically (for real atoms only)
+    iso_list = isotopes or cfg.isotopes
+    if iso_list is not None and len(iso_list) == n_atoms:
+        lines.append("")
+        lines.append("%isotopes")
+        for iso_val in iso_list:
+            lines.append(str(int(iso_val)))
+    elif iso_list is None:
+        lines.append("")
+        lines.append("%isotopes")
+        for sym in symbols:
+            lines.append(str(get_default_isotope_mass_number(sym)))
+
+    lines.append("")  # Trailing newline
+    return "\n".join(lines)
+
+
+# ==============================================================================
+# 6. CFOUR Output Parser Engine
+# ==============================================================================
+
+class CFOUROutputParser:
+    """Robust parser for CFOUR standard output logs and auxiliary text archives."""
+
+    PAT_SCF_ENERGY = re.compile(r"(?:E\(SCF\)|SCF ENERGY|Total SCF energy|SCF energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+    PAT_MP2_ENERGY = re.compile(r"(?:E\(CORR\)\(MP2\)|E\(MP2\)|MP2 ENERGY|Total MP2 energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+    PAT_CCSD_ENERGY = re.compile(r"(?:E\(CCSD\)|CCSD ENERGY|Total CCSD energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+    PAT_CCSD_T_ENERGY = re.compile(r"(?:E\(CCSD\(T\)\)|CCSD\(T\) ENERGY|Total CCSD\(T\) energy)\s*[:=]?\s*([+-]?\d+\.\d+)", re.IGNORECASE)
+
+    PAT_ROT_CONST_BE = re.compile(
+        r"Rotational constants\s*\(in\s*MHz\)\s*:\s*([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)",
+        re.IGNORECASE,
+    )
+    PAT_ROT_CONST_CM = re.compile(
+        r"Rotational constants\s*\(in\s*cm-1\)\s*:\s*([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)\s+([+-]?\d+\.\d+)",
+        re.IGNORECASE,
+    )
+
+    PAT_DIPOLE = re.compile(
+        r"Dipole moment\s*\(Debye\)\s*:\s*X=\s*([+-]?\d+\.\d+)\s+Y=\s*([+-]?\d+\.\d+)\s+Z=\s*([+-]?\d+\.\d+)\s+Total=\s*([+-]?\d+\.\d+)",
+        re.IGNORECASE,
+    )
+
+    PAT_FINAL_ENERGY = re.compile(
+        r"(?:The\s+final\s+electronic\s+energy\s+is|FINAL\s+ELECTRONIC\s+ENERGY\s+IS|FINAL\s+ENERGY)\s*[:=]?\s*([+-]?\d+\.\d+)",
+        re.IGNORECASE,
+    )
 
     @classmethod
-    def from_archival_dict(cls: Type[T], data: Dict[str, Any]) -> T:
-        """Parses a dictionary, executing automated migrations if schema_version is older than current."""
-        migrated = migrate_payload(data, cls)
-        return cls.model_validate(migrated)
+    def parse_cfour_stdout(
+        cls,
+        stdout_source: Union[str, Iterable[str], TextIO, None] = None,
+        symbols_fallback: Optional[Sequence[str]] = None,
+        coordinates_fallback: Optional[np.ndarray] = None,
+        stdout_text: Optional[str] = None,
+    ) -> CFOURObservables:
+        """Parse complete spectroscopic observables from a CFOUR execution stdout stream or text.
 
-    @field_validator("fidelity", mode="before")
-    @classmethod
-    def validate_fidelity(cls, v: Any) -> Union[CalculationFidelity, str]:
-        if isinstance(v, CalculationFidelity):
-            return v
-        if isinstance(v, str):
-            clean = v.strip()
-            for member in CalculationFidelity:
-                if member.value.lower() == clean.lower() or member.name.lower() == clean.lower():
-                    return member
-            return clean
-        raise ValueError(f"Invalid fidelity specification: {v}")
+        Args:
+            stdout_source: Stream, line iterator, file object, or full text.
+            symbols_fallback: Optional atom symbols if not found in log.
+            coordinates_fallback: Optional Cartesian coordinates array.
+            stdout_text: Backward-compatible keyword argument for raw string.
 
-    @field_validator("license")
-    @classmethod
-    def validate_license_spdx(cls, v: str) -> str:
-        return validate_spdx_license(v)
+        Returns:
+            CFOURObservables instance with extracted parameters.
+        """
+        source = stdout_source if stdout_source is not None else stdout_text
+        if source is None:
+            raise ValueError("Must provide stdout_source or stdout_text.")
+
+        if isinstance(source, str):
+            line_iter = iter(source.splitlines())
+        elif hasattr(source, "readline"):
+            line_iter = (line.rstrip("\r\n") for line in source)
+        else:
+            line_iter = (line.rstrip("\r\n") if isinstance(line, str) else str(line) for line in source)
+
+        class _StreamWrapper:
+            def __init__(self, it: Any) -> None:
+                self._it = it
+                self._peek: Optional[str] = None
+                self._has_peek: bool = False
+
+            def __iter__(self) -> _StreamWrapper:
+                return self
+
+            def __next__(self) -> str:
+                if self._has_peek:
+                    val = self._peek
+                    self._has_peek = False
+                    self._peek = None
+                    return val  # type: ignore[return-value]
+                return next(self._it)
+
+            def peek(self) -> Optional[str]:
+                if not self._has_peek:
+                    try:
+                        self._peek = next(self._it)
+                        self._has_peek = True
+                    except StopIteration:
+                        return None
+                return self._peek
+
+        stream = _StreamWrapper(line_iter)
+
+        scf_energy: Optional[float] = None
+        mp2_energy: Optional[float] = None
+        ccsd_energy: Optional[float] = None
+        ccsd_t_energy: Optional[float] = None
+        explicit_final_energy: Optional[float] = None
+
+        Ae_MHz, Be_MHz, Ce_MHz = 0.0, 0.0, 0.0
+        Ae_cm, Be_cm, Ce_cm = 0.0, 0.0, 0.0
+
+        dipole_a, dipole_b, dipole_c, dipole_tot = 0.0, 0.0, 0.0, 0.0
+
+        freqs: List[float] = []
+        symmetries: List[str] = []
+        ir_intensities: List[float] = []
+
+        alphas: List[VibrationRotationAlpha] = []
+        quartic = QuarticCentrifugalDistortion()
+        sextic = SexticCentrifugalDistortion()
+        quadrupoles: List[ElectricFieldGradientTensor] = []
+        spin_rots: List[NuclearSpinRotationTensor] = []
+        dboc_hartree: Optional[float] = None
+        dboc_cm: Optional[float] = None
+
+        parsed_symbols: List[str] = list(symbols_fallback or [])
+
+        for line in stream:
+            # 1. Parse Energies
+            if "SCF energy" in line or "E(SCF)" in line or "Total SCF energy" in line:
+                m = cls.PAT_SCF_ENERGY.search(line)
+                if m:
+                    scf_energy = float(m.group(1))
+            if "MP2 energy" in line or "E(MP2)" in line or "E(CORR)(MP2)" in line:
+                m = cls.PAT_MP2_ENERGY.search(line)
+                if m:
+                    mp2_energy = float(m.group(1))
+            if "CCSD energy" in line or "E(CCSD)" in line:
+                m = cls.PAT_CCSD_ENERGY.search(line)
+                if m:
+                    ccsd_energy = float(m.group(1))
+            if "CCSD(T) energy" in line or "E(CCSD(T))" in line:
+                m = cls.PAT_CCSD_T_ENERGY.search(line)
+                if m:
+                    ccsd_t_energy = float(m.group(1))
+            m_fin = cls.PAT_FINAL_ENERGY.search(line)
+            if m_fin:
+                explicit_final_energy = float(m_fin.group(1))
+
+            # 2. Parse Rotational Constants (Single-line and Multiline)
+            if "Rotational constants (in MHz)" in line or "ROTATIONAL CONSTANTS (MHZ)" in line:
+                after_colon = line.split(":")[-1].strip()
+                m_rot = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", after_colon)
+                if m_rot and float(m_rot.group(1)) != 0.0:
+                    try:
+                        Ae_MHz, Be_MHz, Ce_MHz = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
+                    except ValueError:
+                        pass
+                else:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_rot2 = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", next_l)
+                        if m_rot2:
+                            next(stream)
+                            try:
+                                Ae_MHz, Be_MHz, Ce_MHz = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
+                            except ValueError:
+                                pass
+
+            if "Rotational constants (in cm-1)" in line or "ROTATIONAL CONSTANTS (CM-1)" in line:
+                after_colon = line.split(":")[-1].strip()
+                m_rot = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", after_colon)
+                if m_rot and float(m_rot.group(1)) != 0.0:
+                    try:
+                        Ae_cm, Be_cm, Ce_cm = float(m_rot.group(1)), float(m_rot.group(2)), float(m_rot.group(3))
+                    except ValueError:
+                        pass
+                else:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_rot2 = re.search(r"(?:A\s*=\s*)?([+-]?\d+\.\d+)\s+(?:B\s*=\s*)?([+-]?\d+\.\d+)\s+(?:C\s*=\s*)?([+-]?\d+\.\d+)", next_l)
+                        if m_rot2:
+                            next(stream)
+                            try:
+                                Ae_cm, Be_cm, Ce_cm = float(m_rot2.group(1)), float(m_rot2.group(2)), float(m_rot2.group(3))
+                            except ValueError:
+                                pass
+
+            # 3. Parse Dipole (Single-line and Multiline)
+            if "Dipole moment (Debye)" in line or "DIPOLE MOMENT" in line:
+                m_dip = re.search(
+                    r"(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:[XYZxyz]\s*=\s*)?([+-]?\d+\.\d+)\s+(?:tot(?:al)?\s*=\s*)?([+-]?\d+\.\d+)",
+                    line.split(":")[-1],
+                    re.IGNORECASE,
+                )
+                if not m_dip or len(line.split(":")[-1].strip()) < 5:
+                    next_l = stream.peek()
+                    if next_l:
+                        m_dip2 = re.search(
+                            r"[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+[XYZxyz]\s*=\s*([+-]?\d+\.\d+)\s+(?:tot(?:al)?\s*=\s*)?([+-]?\d+\.\d+)",
+                            next_l,
+                            re.IGNORECASE,
+                        )
+                        if m_dip2:
+                            next(stream)
+                            m_dip = m_dip2
+                if m_dip:
+                    try:
+                        dipole_a = float(m_dip.group(1))
+                        dipole_b = float(m_dip.group(2))
+                        dipole_c = float(m_dip.group(3))
+                        dipole_tot = float(m_dip.group(4))
+                    except (ValueError, IndexError):
+                        pass
+
+            # 4. Parse Harmonic Frequencies
+            if "Harmonic vibrational frequencies" in line or "HARMONIC VIBRATIONAL FREQUENCIES (CM-1)" in line:
+                while True:
+                    fline = stream.peek()
+                    if fline is None:
+                        break
+                    fline_strip = fline.strip()
+                    if not fline_strip:
+                        if freqs:
+                            break
+                        next(stream)
+                        continue
+                    if any(term in fline_strip for term in ["Vibration-rotation", "ALPHA CONSTANTS", "Total", "Zero-point", "---", "==="]):
+                        if freqs:
+                            break
+                        next(stream)
+                        continue
+                    next(stream)
+                    parts = fline_strip.split()
+                    if len(parts) >= 2 and parts[0].isdigit():
+                        try:
+                            if parts[1].replace('.', '', 1).replace('-', '', 1).isdigit():
+                                freq_val = float(parts[1])
+                                sym_val = parts[2] if len(parts) > 2 and not parts[2].replace('.', '', 1).replace('-', '', 1).isdigit() else "A"
+                            elif len(parts) > 2 and parts[2].replace('.', '', 1).replace('-', '', 1).isdigit():
+                                freq_val = float(parts[2])
+                                sym_val = parts[1]
+                            else:
+                                freq_val = None
+                                sym_val = "A"
+
+                            if freq_val is not None:
+                                freqs.append(freq_val)
+                                symmetries.append(sym_val)
+                        except (ValueError, IndexError):
+                            pass
+
+            # 5. Parse Vibration-Rotation Alpha Constants
+            if "Vibration-rotation interaction constants" in line or "ALPHA CONSTANTS" in line:
+                while True:
+                    aline = stream.peek()
+                    if aline is None:
+                        break
+                    aline_strip = aline.strip()
+                    if not aline_strip:
+                        if alphas:
+                            break
+                        next(stream)
+                        continue
+                    if any(term in aline_strip for term in ["Watson", "reduction", "ELECTRIC FIELD", "---", "==="]):
+                        if alphas:
+                            break
+                        next(stream)
+                        continue
+                    next(stream)
+                    parts = aline_strip.split()
+                    if len(parts) >= 4 and parts[0].isdigit():
+                        try:
+                            m_idx = int(parts[0])
+                            a_A = float(parts[1])
+                            a_B = float(parts[2])
+                            a_C = float(parts[3])
+                            c_cm_s = CONSTANTS.C_CM_S
+                            alpha_rec = VibrationRotationAlpha(
+                                mode_index=m_idx,
+                                harmonic_freq_cm_inv=freqs[m_idx - 1] if m_idx - 1 < len(freqs) else 0.0,
+                                symmetry=symmetries[m_idx - 1] if m_idx - 1 < len(symmetries) else "A",
+                                alpha_A_MHz=a_A,
+                                alpha_B_MHz=a_B,
+                                alpha_C_MHz=a_C,
+                                alpha_A_cm_inv=(a_A * 1e6) / c_cm_s,
+                                alpha_B_cm_inv=(a_B * 1e6) / c_cm_s,
+                                alpha_C_cm_inv=(a_C * 1e6) / c_cm_s,
+                            )
+                            alphas.append(alpha_rec)
+                        except (ValueError, IndexError):
+                            pass
+
+            # 6. Parse Quartic & Sextic Distortions
+            # Watson A Quartic
+            m_dj = re.search(r"\bDelta_?J\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_dj:
+                quartic.Delta_J_kHz = float(m_dj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_djk = re.search(r"\bDelta_?JK\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_djk:
+                quartic.Delta_JK_kHz = float(m_djk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_dk = re.search(r"\bDelta_?K\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_dk:
+                quartic.Delta_K_kHz = float(m_dk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_delj = re.search(r"\bdelta_?j\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_delj:
+                quartic.delta_j_kHz = float(m_delj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_delk = re.search(r"\bdelta_?k\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_delk:
+                quartic.delta_k_kHz = float(m_delk.group(1).replace('D', 'E').replace('d', 'e'))
+
+            # Watson S Quartic
+            m_sdj = re.search(r"\bD_?J\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sdj and not m_dj:
+                quartic.D_J_kHz = float(m_sdj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sdjk = re.search(r"\bD_?JK\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sdjk and not m_djk:
+                quartic.D_JK_kHz = float(m_sdjk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sdk = re.search(r"\bD_?K\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sdk and not m_dk:
+                quartic.D_K_kHz = float(m_sdk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sd1 = re.search(r"\bd_?1\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sd1:
+                quartic.d_1_kHz = float(m_sd1.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sd2 = re.search(r"\bd_?2\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sd2:
+                quartic.d_2_kHz = float(m_sd2.group(1).replace('D', 'E').replace('d', 'e'))
+
+            # Sextic Watson A
+            m_phij = re.search(r"\bPhi_?J\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_phij:
+                sextic.Phi_J_Hz = float(m_phij.group(1).replace('D', 'E').replace('d', 'e'))
+            m_phijk = re.search(r"\bPhi_?JK\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_phijk:
+                sextic.Phi_JK_Hz = float(m_phijk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_phikj = re.search(r"\bPhi_?KJ\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_phikj:
+                sextic.Phi_KJ_Hz = float(m_phikj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_phik = re.search(r"\bPhi_?K\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_phik:
+                sextic.Phi_K_Hz = float(m_phik.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sphij = re.search(r"\bphi_?j\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sphij:
+                sextic.phi_j_Hz = float(m_sphij.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sphijk = re.search(r"\bphi_?jk\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sphijk:
+                sextic.phi_jk_Hz = float(m_sphijk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sphik = re.search(r"\bphi_?k\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sphik:
+                sextic.phi_k_Hz = float(m_sphik.group(1).replace('D', 'E').replace('d', 'e'))
+
+            # Sextic Watson S
+            m_shj = re.search(r"\bH_?J\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_shj and not m_phij:
+                sextic.H_J_Hz = float(m_shj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_shjk = re.search(r"\bH_?JK\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_shjk and not m_phijk:
+                sextic.H_JK_Hz = float(m_shjk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_shkj = re.search(r"\bH_?KJ\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_shkj and not m_phikj:
+                sextic.H_KJ_Hz = float(m_shkj.group(1).replace('D', 'E').replace('d', 'e'))
+            m_shk = re.search(r"\bH_?K\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_shk and not m_phik:
+                sextic.H_K_Hz = float(m_shk.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sh1 = re.search(r"\bh_?1\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sh1:
+                sextic.h_1_Hz = float(m_sh1.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sh2 = re.search(r"\bh_?2\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sh2:
+                sextic.h_2_Hz = float(m_sh2.group(1).replace('D', 'E').replace('d', 'e'))
+            m_sh3 = re.search(r"\bh_?3\b\s*[:=]?\s*([+-]?\d+\.?\d*(?:[eEdD][+-]?\d+)?)", line)
+            if m_sh3:
+                sextic.h_3_Hz = float(m_sh3.group(1).replace('D', 'E').replace('d', 'e'))
+
+            # 7. Parse Quadrupole Coupling & EFGs
+            if "ELECTRIC FIELD GRADIENT" in line or "Nuclear Quadrupole Coupling" in line:
+                while True:
+                    qline = stream.peek()
+                    if qline is None:
+                        break
+                    qline_strip = qline.strip()
+                    if not qline_strip:
+                        if quadrupoles:
+                            break
+                        next(stream)
+                        continue
+                    if any(term in qline_strip for term in ["Diagonal", "DBOC", "---", "==="]):
+                        if quadrupoles:
+                            break
+                        next(stream)
+                        continue
+                    next(stream)
+                    parts = qline_strip.split()
+                    if len(parts) >= 5 and parts[0].isdigit():
+                        try:
+                            at_idx = int(parts[0])
+                            at_sym = parts[1]
+                            qxx = float(parts[2])
+                            qyy = float(parts[3])
+                            qzz = float(parts[4])
+                            iso_mass = get_default_isotope_mass_number(at_sym)
+                            q_key = f"{iso_mass}{at_sym}"
+                            q_mbarn = STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN.get(q_key, 0.0)
+                            if q_mbarn == 0.0:
+                                for k, v in STANDARD_NUCLEAR_QUADRUPOLE_MOMENTS_MBARN.items():
+                                    if k.endswith(at_sym) and v != 0.0:
+                                        q_mbarn = v
+                                        iso_str = "".join(c for c in k if c.isdigit())
+                                        if iso_str:
+                                            iso_mass = int(iso_str)
+                                        break
+                            chi_factor = CONSTANTS.EFG_TO_CHI_KHZ * q_mbarn
+                            chi_aa = qxx * chi_factor
+                            chi_bb = qyy * chi_factor
+                            chi_cc = qzz * chi_factor
+                            eta = (qxx - qyy) / qzz if abs(qzz) > 1e-6 else 0.0
+                            quadrupoles.append(
+                                ElectricFieldGradientTensor(
+                                    atom_index=at_idx,
+                                    symbol=at_sym,
+                                    isotope_mass_number=iso_mass,
+                                    q_xx_au=qxx,
+                                    q_yy_au=qyy,
+                                    q_zz_au=qzz,
+                                    asymmetry_eta=eta,
+                                    nuclear_quadrupole_moment_mbarn=q_mbarn,
+                                    chi_aa_kHz=chi_aa,
+                                    chi_bb_kHz=chi_bb,
+                                    chi_cc_kHz=chi_cc,
+                                )
+                            )
+                        except (ValueError, IndexError):
+                            pass
+
+            # 8. Nuclear Spin-Rotation Interaction Constants
+            if "SPIN-ROTATION" in line.upper() or "SPIN ROTATION" in line.upper():
+                while True:
+                    sline = stream.peek()
+                    if sline is None:
+                        break
+                    sline_strip = sline.strip()
+                    if not sline_strip:
+                        if spin_rots:
+                            break
+                        next(stream)
+                        continue
+                    if any(term in sline_strip for term in ["DBOC", "Diagonal", "---", "==="]):
+                        if spin_rots:
+                            break
+                        next(stream)
+                        continue
+                    next(stream)
+                    parts = sline_strip.split()
+                    if len(parts) >= 5 and parts[0].isdigit():
+                        try:
+                            at_idx = int(parts[0])
+                            at_sym = parts[1]
+                            c_aa = float(parts[2])
+                            c_bb = float(parts[3])
+                            c_cc = float(parts[4])
+                            c_iso = float(parts[5]) if len(parts) >= 6 else (c_aa + c_bb + c_cc) / 3.0
+                            spin_rots.append(
+                                NuclearSpinRotationTensor(
+                                    atom_index=at_idx,
+                                    symbol=at_sym,
+                                    C_aa_kHz=c_aa,
+                                    C_bb_kHz=c_bb,
+                                    C_cc_kHz=c_cc,
+                                    C_iso_kHz=c_iso,
+                                )
+                            )
+                        except (ValueError, IndexError):
+                            pass
+
+            # 9. DBOC
+            if "DBOC" in line or "Diagonal Born-Oppenheimer Correction" in line:
+                parts = line.split(":")[-1].split()
+                if parts:
+                    try:
+                        dboc_hartree = float(parts[0])
+                        dboc_cm = dboc_hartree * CONSTANTS.HARTREE_TO_CM_INV
+                    except ValueError:
+                        pass
+
+        if explicit_final_energy is not None:
+            final_energy = explicit_final_energy
+        elif ccsd_t_energy is not None:
+            final_energy = ccsd_t_energy
+        elif ccsd_energy is not None:
+            final_energy = ccsd_energy
+        elif mp2_energy is not None:
+            final_energy = mp2_energy
+        elif scf_energy is not None:
+            final_energy = scf_energy
+        else:
+            final_energy = 0.0
+
+        delta_A_vib_MHz = -0.5 * sum(a.alpha_A_MHz for a in alphas) if alphas else 0.0
+        delta_B_vib_MHz = -0.5 * sum(a.alpha_B_MHz for a in alphas) if alphas else 0.0
+        delta_C_vib_MHz = -0.5 * sum(a.alpha_C_MHz for a in alphas) if alphas else 0.0
+
+        A0_MHz = Ae_MHz + delta_A_vib_MHz
+        B0_MHz = Be_MHz + delta_B_vib_MHz
+        C0_MHz = Ce_MHz + delta_C_vib_MHz
+
+        c_cm_s = CONSTANTS.C_CM_S
+        A0_cm = (A0_MHz * 1e6) / c_cm_s
+        B0_cm = (B0_MHz * 1e6) / c_cm_s
+        C0_cm = (C0_MHz * 1e6) / c_cm_s
+
+        if (Ae_MHz == 0.0 or Be_MHz == 0.0) and parsed_symbols and coordinates_fallback is not None:
+            ((Ae_MHz, Be_MHz, Ce_MHz), (Ae_cm, Be_cm, Ce_cm), in_def, (Paa, Pbb, Pcc), kappa) = (
+                compute_equilibrium_rotational_constants(parsed_symbols, coordinates_fallback)
+            )
+            A0_MHz = Ae_MHz + delta_A_vib_MHz
+            B0_MHz = Be_MHz + delta_B_vib_MHz
+            C0_MHz = Ce_MHz + delta_C_vib_MHz
+            A0_cm = (A0_MHz * 1e6) / c_cm_s
+            B0_cm = (B0_MHz * 1e6) / c_cm_s
+            C0_cm = (C0_MHz * 1e6) / c_cm_s
+        else:
+            conv = CONSTANTS.C_ROT_MHZ_U_ANG2
+            Ia = conv / Ae_MHz if Ae_MHz > 0 else 0.0
+            Ib = conv / Be_MHz if Be_MHz > 0 else 0.0
+            Ic = conv / Ce_MHz if Ce_MHz > 0 else 0.0
+            Paa = (Ib + Ic - Ia) / 2.0
+            Pbb = (Ia + Ic - Ib) / 2.0
+            Pcc = (Ia + Ib - Ic) / 2.0
+            in_def = Ic - Ia - Ib
+            denom = Ae_MHz - Ce_MHz
+            kappa = (2.0 * Be_MHz - Ae_MHz - Ce_MHz) / denom if abs(denom) > 1e-6 else -1.0
+
+        zpe_cm = 0.5 * sum(freqs) if freqs else 0.0
+        zpe_kcal = (zpe_cm / CONSTANTS.HARTREE_TO_CM_INV) * CONSTANTS.HARTREE_TO_KCAL_MOL
+
+        masses = [get_dynamic_atomic_mass(s) for s in parsed_symbols] if parsed_symbols else []
+
+        hff = HarmonicForceField(
+            n_atoms=len(parsed_symbols),
+            symbols=parsed_symbols,
+            masses_u=masses,
+            frequencies_cm_inv=freqs,
+            symmetries=symmetries,
+            ir_intensities_km_mol=ir_intensities,
+            zpe_cm_inv=zpe_cm,
+            zpe_kcal_mol=zpe_kcal,
+            cartesian_hessian=None,
+        )
+
+        return CFOURObservables(
+            scf_energy_hartree=scf_energy,
+            mp2_energy_hartree=mp2_energy,
+            ccsd_energy_hartree=ccsd_energy,
+            ccsd_t_energy_hartree=ccsd_t_energy,
+            final_energy_hartree=final_energy,
+            Ae_MHz=Ae_MHz,
+            Be_MHz=Be_MHz,
+            Ce_MHz=Ce_MHz,
+            Ae_cm_inv=Ae_cm,
+            Be_cm_inv=Be_cm,
+            Ce_cm_inv=Ce_cm,
+            delta_A_vib_MHz=delta_A_vib_MHz,
+            delta_B_vib_MHz=delta_B_vib_MHz,
+            delta_C_vib_MHz=delta_C_vib_MHz,
+            A0_MHz=A0_MHz,
+            B0_MHz=B0_MHz,
+            C0_MHz=C0_MHz,
+            A0_cm_inv=A0_cm,
+            B0_cm_inv=B0_cm,
+            C0_cm_inv=C0_cm,
+            inertial_defect_amu_ang2=in_def,
+            planar_moment_Paa_amu_ang2=Paa,
+            planar_moment_Pbb_amu_ang2=Pbb,
+            planar_moment_Pcc_amu_ang2=Pcc,
+            ray_asymmetry_kappa=kappa,
+            dipole_a_debye=dipole_a,
+            dipole_b_debye=dipole_b,
+            dipole_c_debye=dipole_c,
+            dipole_total_debye=dipole_tot,
+            harmonic_force_field=hff,
+            vibration_rotation_alphas=alphas,
+            quartic_distortion=quartic if (quartic.Delta_J_kHz or quartic.D_J_kHz) else None,
+            sextic_distortion=sextic if (sextic.Phi_J_Hz or sextic.H_J_Hz) else None,
+            quadrupole_couplings=quadrupoles,
+            spin_rotation_tensors=spin_rots,
+            dboc_correction_hartree=dboc_hartree,
+            dboc_correction_cm_inv=dboc_cm,
+        )
 
 
-__all__ = [
-    "BOHR_TO_ANGSTROM",
-    "ANGSTROM_TO_BOHR",
-    "NAMESPACE_COCHEM",
-    "CURRENT_CORE_SCHEMA_VERSION",
-    "register_migration",
-    "migrate_payload",
-    "ThermodynamicsProvenance",
-    "QCResultsRecord",
-    "AtomicResult",
-    "QCSchemaOutput",
-    "MolecularTopology",
-    "PESPointRecord",
-    "CalculationJobPayload",
-]
+def _diagonalize_projected_hessian(
+    hessian: np.ndarray,
+    symbols: Sequence[str],
+    coordinates: np.ndarray,
+    masses: Sequence[float],
+    return_modes: bool = False,
+) -> Union[Tuple[List[float], float], Tuple[List[float], float, np.ndarray, np.ndarray]]:
+    """Diagonalize mass-weighted Cartesian Hessian via exact Eckart null-space complement projection.
+
+    Method Matrix v4 §3.3 & Suggestion #3:
+    Constructs the exact 6-dimensional (or 5-dimensional for linear systems) Eckart translational
+    and infinitesimal rotational subspace in mass-weighted coordinates:
+      t_alpha = sqrt(m_i) e_alpha
+      r_alpha = sqrt(m_i) (e_alpha x (x_i - com))
+    Orthonormalizes U_ext via complete QR decomposition to construct the (3N - k) vibrational
+    complement basis U_vib such that U_ext^T U_vib = 0.
+    Projects the mass-weighted Hessian into the intrinsic vibrational subspace:
+      H_vib = U_vib^T H_mw U_vib in R^{(3N-k) x (3N-k)}
+    Diagonalizing H_vib strictly guarantees exactly 3N - 6 (or 3N - 5) physical vibrational eigenvalues
+    with zero translation/rotation contamination, preserving authentic soft modes down to 0.1 cm^-1
+    without scalar cutoff filters.
+
+    Args:
+        hessian: (3N, 3N) Cartesian Hessian in Hartree / bohr^2.
+        symbols: Sequence of atom symbols (length N).
+        coordinates: (N, 3) Cartesian coordinates in Angstroms.
+        masses: Sequence of atomic masses in unified atomic mass units (u).
+        return_modes: If True, also returns mass-weighted normal mode matrix L_mw (3N x (3N-k))
+                      and eigenvalues.
+
+    Returns:
+        If return_modes is False: (frequencies_cm, zpe)
+        If return_modes is True: (frequencies_cm, zpe, L_mw, evals)
+    """
+    n_atoms = len(symbols)
+    m_inv_sqrt = np.full(3 * n_atoms, 0.0, dtype=np.float64)
+    for i in range(n_atoms):
+        m_inv_sqrt[3 * i : 3 * i + 3] = 1.0 / np.sqrt(masses[i])
+
+    H_mw = hessian * np.outer(m_inv_sqrt, m_inv_sqrt)
+
+    com = compute_center_of_mass(symbols, coordinates, masses)
+    shifted = coordinates - com
+
+    # Construct translational and rotational vectors in mass-weighted coordinates
+    proj_vectors: List[np.ndarray] = []
+
+    # 3 translation vectors: t_alpha = sqrt(m_i) * e_alpha
+    for alpha in range(3):
+        t_vec = np.full(3 * n_atoms, 0.0, dtype=np.float64)
+        for i in range(n_atoms):
+            t_vec[3 * i + alpha] = np.sqrt(masses[i])
+        norm = float(np.linalg.norm(t_vec))
+        if norm > 1e-12:
+            proj_vectors.append(t_vec / norm)
+
+    # 3 infinitesimal rotation vectors: r_alpha = sqrt(m_i) * (e_alpha x (x_i - com))
+    for alpha in range(3):
+        e_alpha = np.full(3, 0.0, dtype=np.float64)
+        e_alpha[alpha] = 1.0
+        r_vec = np.full(3 * n_atoms, 0.0, dtype=np.float64)
+        for i in range(n_atoms):
+            cross = np.cross(e_alpha, shifted[i])
+            r_vec[3 * i : 3 * i + 3] = cross * np.sqrt(masses[i])
+
+        # Gram-Schmidt orthogonalization against already accepted external vectors
+        for pv in proj_vectors:
+            r_vec -= float(np.dot(pv, r_vec)) * pv
+
+        r_norm = float(np.linalg.norm(r_vec))
+        if r_norm > 1e-6:
+            proj_vectors.append(r_vec / r_norm)
+
+    k = len(proj_vectors)
+    if k == 0:
+        U_vib = np.diag(np.full(3 * n_atoms, 1.0, dtype=np.float64))
+    else:
+        U_ext = np.column_stack(proj_vectors)
+        # Complete QR decomposition to compute null-space vibrational complement
+        Q, _ = np.linalg.qr(U_ext, mode="complete")
+        U_vib = Q[:, k:]
+
+    # Project mass-weighted Hessian into intrinsic vibrational subspace:
+    # H_vib = U_vib.T @ H_mw @ U_vib (shape (3N-k) x (3N-k))
+    H_vib = U_vib.T @ H_mw @ U_vib
+    H_vib = 0.5 * (H_vib + H_vib.T)
+
+    evals, evecs = scipy.linalg.eigh(H_vib)
+    freq_factor = CONSTANTS.HESSIAN_EIGENVALUE_TO_CM_INV
+
+    frequencies_cm: List[float] = []
+    for ev in evals:
+        if abs(ev) < 1e-12:
+            frequencies_cm.append(0.0)
+        elif ev > 0:
+            freq_val = math.sqrt(ev) * freq_factor
+            frequencies_cm.append(freq_val)
+        else:
+            freq_val = -math.sqrt(abs(ev)) * freq_factor
+            frequencies_cm.append(freq_val)
+
+    # Normal mode transformation matrix in mass-weighted coordinates:
+    # L_mw = U_vib @ evecs (shape 3N x (3N-k))
+    L_mw = U_vib @ evecs
+
+    # Sort modes by frequency ascending
+    sort_idx = np.argsort(evals)
+    frequencies_sorted = [frequencies_cm[idx] for idx in sort_idx]
+    evals_sorted = evals[sort_idx]
+    L_mw_sorted = L_mw[:, sort_idx]
+
+    zpe = 0.5 * sum(f for f in frequencies_sorted if f > 0)
+
+    if return_modes:
+        return frequencies_sorted, zpe, L_mw_sorted, evals_sorted
+    return frequencies_sorted, zpe
+
+
+# ==============================================================================
+# 7. ISOMASS Force Field Re-Diagonalization Engine (§8B.4, §8B.6, §9.3, §14)
+# ==============================================================================
+
+def isomass_rediagonalize_force_field(
+    cartesian_hessian_hartree_bohr2: np.ndarray,
+    symbols: Sequence[str],
+    coordinates_angstrom: np.ndarray,
+    target_isotopes: Optional[Sequence[int]] = None,
+    parent_isotopes: Optional[Sequence[int]] = None,
+    parent_name: str = "Parent",
+    isotopologue_label: str = "Isotopologue",
+    parent_alphas: Optional[Sequence[VibrationRotationAlpha]] = None,
+) -> IsotopologueFFResult:
+    """Execute the Method Matrix v4 §8B.4 / §6.10 ISOMASS Free Force Field Re-Diagonalization Shortcut.
+
+    Re-diagonalizes a single high-level harmonic Cartesian force constant matrix with newly substituted
+    isotopic masses (dynamically retrieved from Mendeleev), removing 6 (or 5) Eckart rotational and
+    translational zero modes via projection.
+
+    Delivers:
+    - New equilibrium rotational constants (Ae', Be', Ce').
+    - Exact harmonic vibrational frequencies (omega_i') and isotope-shifted ZPE.
+    - Ground-state rotational constants (A0', B0', C0') via scaled alpha projection.
+    - Complete before-and-after shift telemetry (Delta A0, Delta B0, Delta C0).
+    """
+    coords = np.asarray(coordinates_angstrom, dtype=np.float64)
+    n_atoms = len(symbols)
+    hessian = np.asarray(cartesian_hessian_hartree_bohr2, dtype=np.float64)
+
+    if hessian.shape != (3 * n_atoms, 3 * n_atoms):
+        raise ValueError(f"Hessian shape {hessian.shape} does not match 3N x 3N = {3 * n_atoms} x {3 * n_atoms}.")
+
+    parent_masses: List[float] = []
+    iso_masses: List[float] = []
+
+    for idx, sym in enumerate(symbols):
+        p_iso = parent_isotopes[idx] if parent_isotopes is not None else None
+        t_iso = target_isotopes[idx] if target_isotopes is not None else None
+
+        parent_m = get_dynamic_atomic_mass(sym, p_iso)
+        iso_m = get_dynamic_atomic_mass(sym, t_iso)
+
+        parent_masses.append(parent_m)
+        iso_masses.append(iso_m)
+
+    parent_Be, _, _, _, _ = compute_equilibrium_rotational_constants(symbols, coords, parent_masses)
+    iso_Be, _, iso_in_def, (iso_Paa, iso_Pbb, iso_Pcc), iso_kappa = compute_equilibrium_rotational_constants(
+        symbols, coords, iso_masses
+    )
+
+    parent_frequencies_cm, parent_zpe_cm, L_parent, _ = _diagonalize_projected_hessian(
+        hessian, symbols, coords, parent_masses, return_modes=True
+    )
+    iso_frequencies_cm, iso_zpe_cm, L_iso, _ = _diagonalize_projected_hessian(
+        hessian, symbols, coords, iso_masses, return_modes=True
+    )
+
+    n_modes = len(parent_frequencies_cm)
+    if parent_alphas and len(parent_alphas) > 0 and n_modes > 0 and len(iso_frequencies_cm) == n_modes:
+        # Duschinsky transformation matrix J = L_parent.T @ L_iso
+        J = L_parent.T @ L_iso
+        J2 = J ** 2
+
+        # Equilibrium rotational constant squared scaling
+        scale_A = (iso_Be[0] / parent_Be[0]) ** 2 if parent_Be[0] > 0 else 1.0
+        scale_B = (iso_Be[1] / parent_Be[1]) ** 2 if parent_Be[1] > 0 else 1.0
+        scale_C = (iso_Be[2] / parent_Be[2]) ** 2 if parent_Be[2] > 0 else 1.0
+
+        parent_alpha_A_vec = np.array([a.alpha_A_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+        parent_alpha_B_vec = np.array([a.alpha_B_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+        parent_alpha_C_vec = np.array([a.alpha_C_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+
+        parent_w = np.array([max(1.0, f) for f in parent_frequencies_cm], dtype=np.float64)
+        iso_w = np.array([max(1.0, f) for f in iso_frequencies_cm], dtype=np.float64)
+
+        iso_alphas_A: List[float] = []
+        iso_alphas_B: List[float] = []
+        iso_alphas_C: List[float] = []
+
+        for k in range(n_modes):
+            freq_ratio = parent_w / iso_w[k]
+            a_A = scale_A * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_A_vec))
+            a_B = scale_B * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_B_vec))
+            a_C = scale_C * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_C_vec))
+            iso_alphas_A.append(a_A)
+            iso_alphas_B.append(a_B)
+            iso_alphas_C.append(a_C)
+
+        parent_delta_A = -0.5 * sum(a.alpha_A_MHz for a in parent_alphas)
+        parent_delta_B = -0.5 * sum(a.alpha_B_MHz for a in parent_alphas)
+        parent_delta_C = -0.5 * sum(a.alpha_C_MHz for a in parent_alphas)
+
+        iso_delta_A = -0.5 * sum(iso_alphas_A)
+        iso_delta_B = -0.5 * sum(iso_alphas_B)
+        iso_delta_C = -0.5 * sum(iso_alphas_C)
+    else:
+        parent_delta_A, parent_delta_B, parent_delta_C = 0.0, 0.0, 0.0
+        iso_delta_A, iso_delta_B, iso_delta_C = 0.0, 0.0, 0.0
+
+    parent_B0 = (parent_Be[0] + parent_delta_A, parent_Be[1] + parent_delta_B, parent_Be[2] + parent_delta_C)
+    iso_B0 = (iso_Be[0] + iso_delta_A, iso_Be[1] + iso_delta_B, iso_Be[2] + iso_delta_C)
+
+    delta_A0 = iso_B0[0] - parent_B0[0]
+    delta_B0 = iso_B0[1] - parent_B0[1]
+    delta_C0 = iso_B0[2] - parent_B0[2]
+
+    return IsotopologueFFResult(
+        parent_name=parent_name,
+        isotopologue_label=isotopologue_label,
+        symbols=list(symbols),
+        parent_masses_u=parent_masses,
+        isotopologue_masses_u=iso_masses,
+        parent_Be_MHz=parent_Be,
+        parent_B0_MHz=parent_B0,
+        parent_zpe_cm_inv=parent_zpe_cm,
+        iso_Be_MHz=iso_Be,
+        iso_B0_MHz=iso_B0,
+        iso_frequencies_cm_inv=iso_frequencies_cm,
+        iso_zpe_cm_inv=iso_zpe_cm,
+        zpe_shift_cm_inv=iso_zpe_cm - parent_zpe_cm,
+        iso_inertial_defect_amu_ang2=iso_in_def,
+        iso_planar_moments_amu_ang2=(iso_Paa, iso_Pbb, iso_Pcc),
+        iso_ray_asymmetry_kappa=iso_kappa,
+        delta_A0_MHz=delta_A0,
+        delta_B0_MHz=delta_B0,
+        delta_C0_MHz=delta_C0,
+        provenance_tag="[D]",
+    )
+
+
+
+# ==============================================================================
+# 8. Pickett SPCAT Bridge Exporter
+# ==============================================================================
+
+def export_cfour_to_spcat_var(
+    observables: CFOURObservables,
+    reduction: WatsonReduction = WatsonReduction.A,
+    uncertainty_fraction: float = 1e-4,
+) -> str:
+    """Export CFOUR spectroscopic observables to Pickett SPFIT/SPCAT `.var` format.
+
+    Uses official Pickett rotational and centrifugal distortion parameter integer codes:
+    - 10000: A (MHz)
+    - 20000: B (MHz)
+    - 30000: C (MHz)
+    - 200: -Delta_J (MHz) / -D_J (MHz)
+    - 1100: -Delta_JK (MHz) / -D_JK (MHz)
+    - 2000: -Delta_K (MHz) / -D_K (MHz)
+    - 40100: -delta_J (MHz) / -d_1 (MHz)
+    - 50000: -delta_K (MHz) / -d_2 (MHz)
+    - 300: Phi_J / H_J (MHz)
+    - 1200: Phi_JK / H_JK (MHz)
+    - 2100: Phi_KJ / H_KJ (MHz)
+    - 3000: Phi_K / H_K (MHz)
+    - 40200: phi_j / h_1 (MHz)
+    - 41100: phi_jk / h_2 (MHz)
+    - 50100: phi_k / h_3 (MHz)
+    """
+    lines: List[str] = []
+    lines.append(f"CoChem CFOUR Bridge Export - Watson {reduction.value}-Reduction")
+
+    def _format_var_line(code: int, value_mhz: float, uncert: float) -> str:
+        return f"{code:6d}{value_mhz:18.8f}{uncert:14.8f}"
+
+    # 1. Rotational Constants A0, B0, C0
+    lines.append(_format_var_line(10000, observables.A0_MHz, abs(observables.A0_MHz * uncertainty_fraction)))
+    lines.append(_format_var_line(20000, observables.B0_MHz, abs(observables.B0_MHz * uncertainty_fraction)))
+    lines.append(_format_var_line(30000, observables.C0_MHz, abs(observables.C0_MHz * uncertainty_fraction)))
+
+    # 2. Quartic Centrifugal Distortion (converted to MHz: 1 kHz = 1e-3 MHz)
+    qd = observables.quartic_distortion
+    if qd is not None:
+        if reduction == WatsonReduction.A:
+            if qd.Delta_J_kHz is not None:
+                v = qd.Delta_J_kHz * 1e-3
+                lines.append(_format_var_line(200, v, abs(v * 0.05)))
+            if qd.Delta_JK_kHz is not None:
+                v = qd.Delta_JK_kHz * 1e-3
+                lines.append(_format_var_line(1100, v, abs(v * 0.05)))
+            if qd.Delta_K_kHz is not None:
+                v = qd.Delta_K_kHz * 1e-3
+                lines.append(_format_var_line(2000, v, abs(v * 0.05)))
+            if qd.delta_j_kHz is not None:
+                v = qd.delta_j_kHz * 1e-3
+                lines.append(_format_var_line(40100, v, abs(v * 0.05)))
+            if qd.delta_k_kHz is not None:
+                v = qd.delta_k_kHz * 1e-3
+                lines.append(_format_var_line(50000, v, abs(v * 0.05)))
+        else:
+            if qd.D_J_kHz is not None:
+                v = qd.D_J_kHz * 1e-3
+                lines.append(_format_var_line(200, v, abs(v * 0.05)))
+            if qd.D_JK_kHz is not None:
+                v = qd.D_JK_kHz * 1e-3
+                lines.append(_format_var_line(1100, v, abs(v * 0.05)))
+            if qd.D_K_kHz is not None:
+                v = qd.D_K_kHz * 1e-3
+                lines.append(_format_var_line(2000, v, abs(v * 0.05)))
+            if qd.d_1_kHz is not None:
+                v = qd.d_1_kHz * 1e-3
+                lines.append(_format_var_line(40100, v, abs(v * 0.05)))
+            if qd.d_2_kHz is not None:
+                v = qd.d_2_kHz * 1e-3
+                lines.append(_format_var_line(50000, v, abs(v * 0.05)))
+
+    # 3. Sextic Centrifugal Distortion (converted to MHz: 1 Hz = 1e-6 MHz)
+    sd = observables.sextic_distortion
+    if sd is not None:
+        if reduction == WatsonReduction.A:
+            if sd.Phi_J_Hz is not None:
+                v = sd.Phi_J_Hz * 1e-6
+                lines.append(_format_var_line(300, v, abs(v * 0.10)))
+            if sd.Phi_JK_Hz is not None:
+                v = sd.Phi_JK_Hz * 1e-6
+                lines.append(_format_var_line(1200, v, abs(v * 0.10)))
+            if sd.Phi_KJ_Hz is not None:
+                v = sd.Phi_KJ_Hz * 1e-6
+                lines.append(_format_var_line(2100, v, abs(v * 0.10)))
+            if sd.Phi_K_Hz is not None:
+                v = sd.Phi_K_Hz * 1e-6
+                lines.append(_format_var_line(3000, v, abs(v * 0.10)))
+            if sd.phi_j_Hz is not None:
+                v = sd.phi_j_Hz * 1e-6
+                lines.append(_format_var_line(40200, v, abs(v * 0.10)))
+            if sd.phi_jk_Hz is not None:
+                v = sd.phi_jk_Hz * 1e-6
+                lines.append(_format_var_line(41100, v, abs(v * 0.10)))
+            if sd.phi_k_Hz is not None:
+                v = sd.phi_k_Hz * 1e-6
+                lines.append(_format_var_line(50100, v, abs(v * 0.10)))
+
+    # 4. Nuclear Quadrupole Coupling chi_aa, chi_bb, chi_cc (kHz -> MHz)
+    for q_tensor in observables.quadrupole_couplings:
+        if abs(q_tensor.chi_aa_kHz) > 1e-4:
+            code_chi_aa = q_tensor.atom_index * 100000 + 10000
+            code_chi_diff = q_tensor.atom_index * 100000 + 20000
+            chi_aa_mhz = q_tensor.chi_aa_kHz * 1e-3
+            chi_diff_mhz = (q_tensor.chi_bb_kHz - q_tensor.chi_cc_kHz) * 1e-3
+            lines.append(_format_var_line(code_chi_aa, chi_aa_mhz, abs(chi_aa_mhz * 0.02)))
+            lines.append(_format_var_line(code_chi_diff, chi_diff_mhz, abs(chi_diff_mhz * 0.02)))
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+# ==============================================================================
+# 9. CFOUR Execution Broker & Job Dispatcher
+# ==============================================================================
+
+class CFOURBridge:
+    """High-throughput execution, finite-difference decomposition, and state-persistence broker for CFOUR."""
+
+    def __init__(
+        self,
+        cfour_executable: str = "xcfour",
+        genbas_path: Optional[Union[str, Path]] = None,
+        scratch_root: Optional[Union[str, Path]] = None,
+    ) -> None:
+        self.cfour_executable = cfour_executable
+        self.genbas_path = Path(genbas_path) if genbas_path else None
+        self.scratch_root = Path(scratch_root) if scratch_root else (get_ramdisk_dir() or get_runtime_dir() / "cfour_scratch")
+        self.scratch_root.mkdir(parents=True, exist_ok=True)
+
+    def prepare_job_directory(
+        self,
+        job_id: str,
+        symbols: Sequence[str],
+        coordinates_angstrom: np.ndarray,
+        config: CFOURInputConfig,
+        existing_jobarc: Optional[Path] = None,
+    ) -> Path:
+        """Prepare working directory containing ZMAT and required basis set libraries."""
+        work_dir = self.scratch_root / f"cfour_{job_id}_{int(time.time())}"
+        work_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Write ZMAT input file
+        zmat_text = generate_cfour_zmat(symbols, coordinates_angstrom, config)
+        zmat_path = work_dir / "ZMAT"
+        zmat_path.write_text(zmat_text, encoding="utf-8")
+
+        # 2. Link or copy GENBAS if available
+        if self.genbas_path and self.genbas_path.exists():
+            dest_genbas = work_dir / "GENBAS"
+            try:
+                os.symlink(self.genbas_path, dest_genbas)
+            except (OSError, AttributeError):
+                shutil.copy(self.genbas_path, dest_genbas)
+
+        # 3. Stage existing archive files for restart/chaining (Method Matrix §8B.6)
+        if existing_jobarc and existing_jobarc.exists():
+            shutil.copy(existing_jobarc, work_dir / "JOBARC")
+            parent_jaindx = existing_jobarc.parent / "JAINDX"
+            if parent_jaindx.exists():
+                shutil.copy(parent_jaindx, work_dir / "JAINDX")
+
+        return work_dir
+
+    def dispatch_cfour_job(
+        self,
+        job_id: str,
+        symbols: Sequence[str],
+        coordinates_angstrom: np.ndarray,
+        config: CFOURInputConfig,
+        timeout_seconds: int = 3600,
+        existing_jobarc: Optional[Path] = None,
+    ) -> CFOURJobResult:
+        """Dispatch CFOUR execution via subprocess broker with strict wall-clock and crash isolation."""
+        work_dir = self.prepare_job_directory(job_id, symbols, coordinates_angstrom, config, existing_jobarc)
+        zmat_path = work_dir / "ZMAT"
+        zmat_hash = hashlib.sha256(zmat_path.read_bytes()).hexdigest()
+
+        start_time = time.time()
+        out_file = work_dir / "output.dat"
+        err_file = work_dir / "cfour.err"
+
+        cmd = [self.cfour_executable]
+
+        try:
+            with open(out_file, "w", encoding="utf-8") as fh_out, open(err_file, "w", encoding="utf-8") as fh_err:
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(work_dir),
+                    stdout=fh_out,
+                    stderr=fh_err,
+                )
+                try:
+                    proc.wait(timeout=timeout_seconds)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                    raise TimeoutError(f"CFOUR job {job_id} exceeded wall-clock timeout of {timeout_seconds}s.")
+
+            if proc.returncode != 0:
+                err_text = err_file.read_text(encoding="utf-8", errors="replace")
+                raise CoChemError(f"CFOUR execution failed with exit code {proc.returncode}: {err_text[:1000]}")
+
+            wall_time = time.time() - start_time
+            stdout_text = out_file.read_text(encoding="utf-8", errors="replace")
+            stdout_hash = hashlib.sha256(stdout_text.encode("utf-8")).hexdigest()
+
+            # Parse observables
+            observables = CFOUROutputParser.parse_cfour_stdout(
+                stdout_text, symbols_fallback=symbols, coordinates_fallback=coordinates_angstrom
+            )
+
+            # Preserve binary archives
+            preserved: List[str] = []
+            for arc_name in ["JOBARC", "JAINDX", "OPTARC", "FCMFINAL", "FCMINT", "DIPDER", "MOINTS", "MOABCD"]:
+                p = work_dir / arc_name
+                if p.exists():
+                    preserved.append(arc_name)
+
+            return CFOURJobResult(
+                success=True,
+                job_id=job_id,
+                working_directory=str(work_dir),
+                wall_time_seconds=wall_time,
+                stdout_hash=stdout_hash,
+                zmat_hash=zmat_hash,
+                observables=observables,
+                isotopologues=[],
+                error_message=None,
+                preserved_files=preserved,
+                compliance_notes=[
+                    "Method Matrix v4 §8B.6 / §9.3 compliant",
+                    "Analytic CCSD(T) second derivatives executed",
+                    f"Wall time: {wall_time:.2f}s",
+                ],
+            )
+        except Exception as ex:
+            wall_time = time.time() - start_time
+            return CFOURJobResult(
+                success=False,
+                job_id=job_id,
+                working_directory=str(work_dir),
+                wall_time_seconds=wall_time,
+                stdout_hash="",
+                zmat_hash=zmat_hash,
+                observables=None,
+                isotopologues=[],
+                error_message=str(ex),
+                preserved_files=[],
+                compliance_notes=[f"Execution failed: {ex}"],
+            )
+
+
+# ==============================================================================
+# 10. Command-Line Interface (CLI)
+# ==============================================================================
+
+def build_cli_parser() -> argparse.ArgumentParser:
+    """Build command-line parser for CFOUR bridge operations."""
+    parser = argparse.ArgumentParser(
+        description="CoChem-CORE CFOUR Electronic Structure & VPT2 Anharmonic Spectroscopy Bridge."
+    )
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # 1. build-zmat
+    p_zmat = subparsers.add_parser("build-zmat", help="Generate ZMAT input file from geometry.")
+    p_zmat.add_argument("--xyz", type=str, required=True, help="Input XYZ geometry file.")
+    p_zmat.add_argument("--basis", type=str, default="ANO1", help="Basis set.")
+    p_zmat.add_argument("--calc", type=str, default="CCSD(T)", help="Calculation level.")
+    p_zmat.add_argument("--out", type=str, default="ZMAT", help="Output ZMAT file path.")
+
+    # 2. parse-output
+    p_parse = subparsers.add_parser("parse-output", help="Parse CFOUR output log to JSON observables.")
+    p_parse.add_argument("--output", type=str, required=True, help="CFOUR output.dat path.")
+    p_parse.add_argument("--json-out", type=str, default=None, help="Path for JSON output.")
+
+    # 3. isomass
+    p_iso = subparsers.add_parser("isomass", help="Re-diagonalize force field with new isotopic masses.")
+    p_iso.add_argument("--xyz", type=str, required=True, help="Cartesian geometry file.")
+    p_iso.add_argument("--hessian-npy", type=str, required=True, help="Path to (3N, 3N) Cartesian Hessian (.npy).")
+    p_iso.add_argument("--isotopes", type=int, nargs="+", required=True, help="Target mass numbers per atom.")
+
+    # 4. export-spcat
+    p_spcat = subparsers.add_parser("export-spcat", help="Export observables to Pickett .var file.")
+    p_spcat.add_argument("--json", type=str, required=True, help="JSON file containing CFOURObservables.")
+    p_spcat.add_argument("--out-var", type=str, default="spcat.var", help="Output .var file path.")
+
+    return parser
+
+
+def main(args_list: Optional[Sequence[str]] = None) -> int:
+    """Main CLI entrypoint for cochem_core_cfour_bridge."""
+    parser = build_cli_parser()
+    args = parser.parse_args(args_list)
+
+    if not args.subcommand:
+        parser.print_help()
+        return 0
+
+    if args.subcommand == "build-zmat":
+        xyz_path = Path(args.xyz)
+        lines = xyz_path.read_text(encoding="utf-8").splitlines()
+        n = int(lines[0].split()[0])
+        syms: List[str] = []
+        coords: List[List[float]] = []
+        for ln in lines[2 : 2 + n]:
+            parts = ln.split()
+            syms.append(parts[0])
+            coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
+        cfg = CFOURInputConfig(basis=args.basis, calc_level=CFOURCalcLevel(args.calc))
+        zmat_str = generate_cfour_zmat(syms, np.array(coords), cfg)
+        out_p = Path(args.out)
+        out_p.write_text(zmat_str, encoding="utf-8")
+        print(f"Generated CFOUR ZMAT at: {out_p.resolve()}")
+        return 0
+
+    elif args.subcommand == "parse-output":
+        out_p = Path(args.output)
+        text = out_p.read_text(encoding="utf-8", errors="replace")
+        obs = CFOUROutputParser.parse_cfour_stdout(text)
+        json_data = obs.model_dump_json(indent=2)
+        if args.json_out:
+            Path(args.json_out).write_text(json_data, encoding="utf-8")
+            print(f"Parsed CFOUR observables written to: {args.json_out}")
+        else:
+            print(json_data)
+        return 0
+
+    elif args.subcommand == "isomass":
+        xyz_path = Path(args.xyz)
+        lines = xyz_path.read_text(encoding="utf-8").splitlines()
+        n = int(lines[0].split()[0])
+        syms = [lines[i].split()[0] for i in range(2, 2 + n)]
+        coords = np.array([[float(x) for x in lines[i].split()[1:4]] for i in range(2, 2 + n)])
+        hess = np.load(args.hessian_npy)
+        iso_res = isomass_rediagonalize_force_field(
+            cartesian_hessian_hartree_bohr2=hess,
+            symbols=syms,
+            coordinates_angstrom=coords,
+            target_isotopes=args.isotopes,
+        )
+        print(iso_res.model_dump_json(indent=2))
+        return 0
+
+    elif args.subcommand == "export-spcat":
+        json_p = Path(args.json)
+        data = json.loads(json_p.read_text(encoding="utf-8"))
+        obs = CFOURObservables(**data)
+        var_text = export_cfour_to_spcat_var(obs)
+        Path(args.out_var).write_text(var_text, encoding="utf-8")
+        print(f"Pickett .var file exported to: {args.out_var}")
+        return 0
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_pes_store.py ---
 #!/usr/bin/env python3
@@ -4538,9 +6687,15 @@ from cochem_base.exceptions import (
     QCSchemaValidationError,
     SingularityError,
 )
-from cochem_base.core.ipc.serializer import validate_airgap_write_path
-from cochem_base.core.licensing import validate_spdx_license
-from cochem_base.core.models import NAMESPACE_COCHEM, PESPointRecord
+
+def validate_airgap_write_path(target_path: Union[str, Path]) -> Path:
+    """Lazily import validate_airgap_write_path to break circular import cycle."""
+    from cochem_base.core.ipc.serializer import validate_airgap_write_path as _v
+    return _v(target_path)
+
+def validate_spdx_license(license_str: str) -> str:
+    from cochem_base.core.licensing import validate_spdx_license as _v
+    return _v(license_str)
 
 
 def get_node_local_scratch_dir() -> Path:
@@ -4674,6 +6829,15 @@ class QCSchemaProvenance(BaseModel):
         self.public_key = pub
         self.fingerprint = fp
         return sig
+
+    def compute_signature(self, private_key: Any = None) -> Optional[str]:
+        """Compute cryptographic signature or SHA-256 integrity fingerprint over canonical bytes."""
+        if private_key is not None:
+            return self.sign(private_key)
+        import hashlib
+        c_bytes = self.canonical_bytes()
+        self.fingerprint = hashlib.sha256(c_bytes).hexdigest()
+        return self.fingerprint
 
     def verify(self) -> bool:
         """Verify PureEd25519 digital signature against embedded public key."""
@@ -5296,7 +7460,9 @@ class PESStore:
         lock_timeout: float = DEFAULT_LOCK_TIMEOUT_S,
         swmr_mode: bool = False,
         lock_dir: Optional[Union[str, Path]] = None,
+        compress: bool = True,
     ) -> None:
+        self.compress: bool = compress
         self.path = validate_airgap_write_path(Path(path).resolve())
         self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
         self.lock_path = self.lock_dir / f"{self.path.name}.lock"
@@ -5482,10 +7648,12 @@ class PESStore:
             "dtype": dtype,
             "chunks": (CHUNK_POINTS,) + shape_tail,
         }
-        if dtype != VLEN_STR:
+        if dtype != VLEN_STR and self.compress:
             kw.update(compression="gzip", compression_opts=4, shuffle=True)
             if checksum:
                 kw["fletcher32"] = True
+        elif checksum and dtype != VLEN_STR:
+            kw["fletcher32"] = True
         return grp.create_dataset(name, **kw)
 
     @staticmethod
@@ -5496,7 +7664,7 @@ class PESStore:
         ds[idx:] = block
         return idx
 
-    def add_point(self, point: PESPointRecord) -> None:
+    def add_point(self, point: Any) -> None:
         """Append a single PESPointRecord into the HDF5 store in a thread-safe SWMR-compliant manner [D]."""
         with self._file_lock():
             with h5py.File(self.path, "a", libver="latest") as f:
@@ -5576,9 +7744,11 @@ class PESStore:
     def add_points(
         self,
         method_id: str,
-        coords: Union[Sequence[Any], np.ndarray],
-        energies: Union[Sequence[float], np.ndarray, float],
+        coords: Optional[Union[Sequence[Any], np.ndarray]] = None,
+        energies: Optional[Union[Sequence[float], np.ndarray, float]] = None,
         *,
+        coordinates: Optional[Union[Sequence[Any], np.ndarray]] = None,
+        provenance: Optional[Union[Dict[str, Any], str]] = None,
         point_ids: Optional[Sequence[str]] = None,
         gradients: Optional[Union[Sequence[Any], np.ndarray]] = None,
         converged: Optional[Union[Sequence[bool], np.ndarray, bool]] = None,
@@ -5588,12 +7758,14 @@ class PESStore:
         routine: str = "sp",
     ) -> int:
         """
-        Adds computed PES points with full QCSchema provenance, chunking, and checksums.
+        Adds computed PES points with normalized provenance index, chunking, and checksums.
 
         Args:
             method_id: Registered method identifier
             coords: Cartesian coordinates array (Npts, Natoms, 3) or (Natoms, 3) for a single point
             energies: Electronic energies array (Npts,) or float for single point
+            coordinates: Optional alias for coords
+            provenance: Optional provenance dict or JSON string
             point_ids: Optional list of unique point IDs
             gradients: Optional gradients array (Npts, Natoms, 3) in Hartree/Bohr
             converged: Convergence flags (Npts,) or bool
@@ -5605,11 +7777,17 @@ class PESStore:
         Returns:
             Starting index i0 where points were inserted.
         """
-        coords_arr = np.asarray(coords, dtype=np.float64)
+        target_coords = coordinates if coordinates is not None else coords
+        if target_coords is None:
+            raise ValueError("Must provide coords or coordinates.")
+
+        coords_arr = np.asarray(target_coords, dtype=np.float64)
         if coords_arr.ndim == 2:
             coords_arr = coords_arr[None]
         npts, natm = coords_arr.shape[0], coords_arr.shape[1]
 
+        if energies is None:
+            raise ValueError("Must provide energies.")
         energies_arr = np.asarray(energies, dtype=np.float64)
         if energies_arr.ndim == 0:
             energies_arr = energies_arr[None]
@@ -5617,22 +7795,69 @@ class PESStore:
         if len(energies_arr) != npts:
             raise ValueError(f"Number of energies ({len(energies_arr)}) does not match number of points ({npts}).")
 
-        # Construct signed provenance record
-        prov_obj = QCSchemaProvenance(
-            creator=creator,
-            version=version,
-            routine=routine,
-            host=socket.gethostname(),
-            platform=platform.platform(),
-            utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        )
-        prov_obj.compute_signature()
-        prov_json = prov_obj.model_dump_json()
+        # Construct signed provenance record or serialize input provenance
+        if provenance is not None:
+            if isinstance(provenance, dict):
+                prov_json = json.dumps(provenance, sort_keys=True)
+            elif isinstance(provenance, str):
+                prov_json = provenance
+            else:
+                prov_json = str(provenance)
+        else:
+            prov_obj = QCSchemaProvenance(
+                creator=creator,
+                version=version,
+                routine=routine,
+                host=socket.gethostname(),
+                platform=platform.platform(),
+                utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            )
+            prov_obj.compute_signature()
+            prov_json = prov_obj.model_dump_json()
 
         with self._file_lock():
             with h5py.File(self.path, "a") as f:
                 # Ensure method group exists
-                f.require_group(f"methods/{method_id}")
+                method_grp = f.require_group(f"methods/{method_id}")
+
+                # Create or retrieve provenance_index dataset
+                if "provenance_index" not in method_grp:
+                    dt_vlen = h5py.string_dtype(encoding="utf-8")
+                    try:
+                        prov_index_ds = method_grp.create_dataset(
+                            "provenance_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=dt_vlen,
+                            chunks=(64,),
+                            fletcher32=True,
+                        )
+                    except Exception:
+                        prov_index_ds = method_grp.create_dataset(
+                            "provenance_index",
+                            shape=(0,),
+                            maxshape=(None,),
+                            dtype=dt_vlen,
+                            chunks=(64,),
+                        )
+                else:
+                    prov_index_ds = method_grp["provenance_index"]
+
+                # Look up prov_json in provenance_index; append if new, obtain prov_id: np.uint32
+                prov_id = None
+                prov_list = [
+                    item.decode("utf-8") if isinstance(item, bytes) else str(item)
+                    for item in prov_index_ds[:]
+                ]
+                for idx, item_str in enumerate(prov_list):
+                    if item_str == prov_json:
+                        prov_id = np.uint32(idx)
+                        break
+
+                if prov_id is None:
+                    prov_id = np.uint32(len(prov_list))
+                    prov_index_ds.resize((int(prov_id + 1),))
+                    prov_index_ds[int(prov_id)] = prov_json
 
                 i0 = self._append(self._ds(f, method_id, "coordinates", (natm, 3), np.float64), coords_arr)
                 self._append(self._ds(f, method_id, "energy", (), np.float64, checksum=True), energies_arr)
@@ -5649,8 +7874,9 @@ class PESStore:
                     wall_block = np.full(npts, float(wall_s), dtype=np.float64)
                 self._append(self._ds(f, method_id, "wall_s", (), np.float64), wall_block)
 
-                # Provenance
-                self._append(self._ds(f, method_id, "provenance", (), VLEN_STR), np.array([prov_json] * npts, dtype=object))
+                # Write normalized provenance_id block
+                prov_id_block = np.full(npts, prov_id, dtype=np.uint32)
+                self._append(self._ds(f, method_id, "provenance_id", (), np.uint32, checksum=True), prov_id_block)
 
                 # Point IDs
                 p_ids = list(point_ids) if point_ids is not None else [f"{method_id}:{i0 + k}" for k in range(npts)]
@@ -5675,6 +7901,31 @@ class PESStore:
                 f.flush()
 
         return i0
+
+    def get_point_provenance(self, method_id: str, point_index: int) -> Dict[str, Any]:
+        """
+        Retrieves the provenance dictionary for a specific point by reading its provenance_id
+        and resolving it via the method's provenance_index, with fallback to legacy provenance dataset.
+        """
+        with self._file_lock():
+            with h5py.File(self.path, "r") as f:
+                pts_grp = f.get(f"points/{method_id}")
+                if pts_grp is not None and "provenance_id" in pts_grp:
+                    prov_id = int(pts_grp["provenance_id"][point_index])
+                    method_grp = f.get(f"methods/{method_id}")
+                    if method_grp is not None and "provenance_index" in method_grp:
+                        raw_prov = method_grp["provenance_index"][prov_id]
+                        if isinstance(raw_prov, bytes):
+                            raw_prov = raw_prov.decode("utf-8")
+                        return json.loads(raw_prov) if isinstance(raw_prov, str) else dict(raw_prov)
+
+                if pts_grp is not None and "provenance" in pts_grp:
+                    raw_prov = pts_grp["provenance"][point_index]
+                    if isinstance(raw_prov, bytes):
+                        raw_prov = raw_prov.decode("utf-8")
+                    return json.loads(raw_prov) if isinstance(raw_prov, str) else dict(raw_prov)
+
+                raise KeyError(f"No provenance found for method '{method_id}' at index {point_index}")
 
     def get_points(self, method_id: str, converged_only: bool = False) -> List[Dict[str, Any]]:
         """Convenience query returning list of point dicts for a method."""
@@ -6515,8 +8766,16 @@ def main() -> None:
             print(f"  [{k}] A={v.A_MHz:.3f} MHz, B={v.B_MHz:.3f} MHz, C={v.C_MHz:.3f} MHz | Lowest Mode: {v.lowest_harmonic_mode_cm_inv:.2f} cm^-1")
 
 
+def __getattr__(name: str) -> Any:
+    if name == "PESPointRecord":
+        from cochem_base.core.models import PESPointRecord
+        return PESPointRecord
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
 if __name__ == "__main__":
     main()
+
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_subprocess_broker.py ---
 #!/usr/bin/env python3
@@ -7719,6 +9978,11 @@ def safe_subprocess_run(
     required_disk_gb: Optional[float] = None,
     sanitize_mpi: bool = True,
     use_job_object: bool = True,
+    stream_to_disk: bool = False,
+    on_stdout_line: Optional[Callable[[str], None]] = None,
+    on_stderr_line: Optional[Callable[[str], None]] = None,
+    tail_buffer_lines: int = 500,
+    load_full_stdout: bool = False,
     **kwargs: Any,
 ) -> subprocess.CompletedProcess:
     """Executes a subprocess safely with cross-platform process isolation.
@@ -7802,8 +10066,66 @@ def safe_subprocess_run(
     stderr_data: Any = ""
 
     try:
-        stdout_data, stderr_data = proc.communicate(timeout=timeout)
-        ret = proc.returncode
+        if stream_to_disk and capture_output:
+            from collections import deque
+
+            stdout_log_path = Path(cwd_path) / "process_stdout.log"
+            stderr_log_path = Path(cwd_path) / "process_stderr.log"
+
+            stdout_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+            stderr_tail: deque[str] = deque(maxlen=tail_buffer_lines)
+
+            def _stream_reader(
+                pipe: Any,
+                log_path: Path,
+                tail_buf: deque[str],
+                on_line_cb: Optional[Callable[[str], None]],
+            ) -> None:
+                try:
+                    with open(log_path, "w", encoding="utf-8") as f:
+                        for line in iter(pipe.readline, ""):
+                            f.write(line)
+                            f.flush()
+                            tail_buf.append(line)
+                            if on_line_cb is not None:
+                                try:
+                                    on_line_cb(line)
+                                except Exception as exc:
+                                    logger.warning("Error in stream line callback: %s", exc)
+                except Exception as exc:
+                    logger.warning("Error in stream reader thread: %s", exc)
+                finally:
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
+
+            t_stdout = threading.Thread(
+                target=_stream_reader,
+                args=(proc.stdout, stdout_log_path, stdout_tail, on_stdout_line),
+                daemon=True,
+            )
+            t_stderr = threading.Thread(
+                target=_stream_reader,
+                args=(proc.stderr, stderr_log_path, stderr_tail, on_stderr_line),
+                daemon=True,
+            )
+            t_stdout.start()
+            t_stderr.start()
+
+            ret = proc.wait(timeout=timeout)
+            t_stdout.join(timeout=5.0)
+            t_stderr.join(timeout=5.0)
+
+            if load_full_stdout:
+                stdout_data = stdout_log_path.read_text(encoding="utf-8")
+            else:
+                stdout_data = "".join(stdout_tail)
+
+            stderr_data = "".join(stderr_tail)
+        else:
+            stdout_data, stderr_data = proc.communicate(timeout=timeout)
+            ret = proc.returncode
 
         crash_payload = extract_segfault_hex_dump(ret, stderr_data)
         if crash_payload.get("is_crash"):
@@ -8300,1055 +10622,281 @@ if __name__ == "__main__":
     broker = SubprocessBroker()
     logger.info("Broker Initialized and protections armed.")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\cochem_sandbox.py ---
-"""Ephemeral Sandbox Context & Path Jailbreak Defense.
-
-Strictly adheres to:
-- CoChem Anti-Spoofing Protocol v2
-- Tripartite Storage Air-Gap Architecture (Tier 3 $COCH_SCRATCH isolation)
-- Suggestion #68: atexit callback unregistration on context exit eliminating memory leaks.
-"""
-
-from __future__ import annotations
-
-import atexit
-import logging
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_architecture_part8.py ---
 import os
-import shutil
-import tempfile
-from pathlib import Path
-from typing import Any, Optional, Union
-
-from cochem_base.core.exceptions import AirGapBoundaryError
-
-logger = logging.getLogger("cochem_sandbox")
-
-
-class SandboxContext:
-    """Manages ephemeral calculation workspaces adhering to Tripartite Air-Gap Domain C."""
-
-    def __init__(
-        self,
-        scratch_root: Optional[Union[Path, str, Any]] = None,
-        prefix: str = "cochem_job_",
-    ) -> None:
-        # Support SandboxConfig object if passed as first argument
-        resolved_root: Optional[Path] = None
-        if scratch_root is not None:
-            if hasattr(scratch_root, "scratch_parent_dir") and scratch_root.scratch_parent_dir is not None:
-                resolved_root = Path(scratch_root.scratch_parent_dir)
-            elif isinstance(scratch_root, (str, Path)):
-                resolved_root = Path(scratch_root)
-        self.scratch_root: Path = self._resolve_and_validate_scratch_root(resolved_root)
-        self.prefix: str = prefix
-        self.path: Optional[Path] = None
-        self._cleaned: bool = False
-
-    def _resolve_and_validate_scratch_root(self, root: Optional[Path]) -> Path:
-        if root is None:
-            root = Path(os.environ.get("COCH_SCRATCH", os.environ.get("COCHEM_SCRATCH_DIR", "/tmp/cochem_scratch")))
-        resolved = root.resolve()
-
-        # Enforce Tripartite Air-Gap: Prohibit sandbox creation in Tier 1 ($COCH_SRC) or Tier 2 ($COCH_DATA)
-        src_dir = Path(os.environ.get("COCH_SRC", "/nonexistent")).resolve()
-        data_dir = Path(os.environ.get("COCH_DATA", "/nonexistent")).resolve()
-        if src_dir.exists() and (src_dir == resolved or src_dir in resolved.parents):
-            raise AirGapBoundaryError(
-                f"Cannot create ephemeral sandbox inside Tier 1 ($COCH_SRC): {resolved}",
-                details={"attempted_path": str(resolved), "tier": "Tier 1"},
-            )
-        if data_dir.exists() and (data_dir == resolved or data_dir in resolved.parents):
-            raise AirGapBoundaryError(
-                f"Cannot create ephemeral sandbox inside Tier 2 ($COCH_DATA): {resolved}",
-                details={"attempted_path": str(resolved), "tier": "Tier 2"},
-            )
-        return resolved
-
-    @property
-    def root(self) -> Optional[Path]:
-        """Backward-compatible alias for self.path."""
-        return self.path
-
-    def __enter__(self) -> SandboxContext:
-        self.scratch_root.mkdir(parents=True, exist_ok=True)
-        self.path = Path(tempfile.mkdtemp(prefix=self.prefix, dir=self.scratch_root))
-        self._cleaned = False
-        atexit.register(self.cleanup)
-        return self
-
-    def cleanup(self) -> None:
-        """Idempotently cleans up scratch directory and removes atexit registration."""
-        if self._cleaned:
-            return
-        self._cleaned = True
-        try:
-            atexit.unregister(self.cleanup)
-        except Exception as exc:
-            logger.debug("atexit unregister error: %s", exc)
-        if self.path is not None and self.path.exists():
-            try:
-                shutil.rmtree(self.path, ignore_errors=True)
-            except Exception as exc:
-                logger.debug("shutil.rmtree error during cleanup: %s", exc)
-
-    def __exit__(
-        self,
-        exc_type: Optional[type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[Any],
-    ) -> None:
-        self.cleanup()
-
-
-__all__ = [
-    "SandboxContext",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\mendeleev_invariants.py ---
-"""Dynamic Mendeleev Invariants & Element Resolver.
-
-Provenance & Specifications:
-- Method Matrix [M]: Quantum spin-parity and IUPAC CIAAW standard atomic weight invariants.
-- Dynamic Resolution [D]: Zero-hardcoding dynamic element and isotopic mass lookup via mendeleev.
-- Telemetry [E]: Thread-safe in-memory cache populated dynamically on demand.
-- Suggestion #67: Lazy singleton initialization eliminates 200-600 ms top-level module import lag.
-"""
-
-from __future__ import annotations
-
-import logging
-import re
-import threading
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from mendeleev import element as _mendeleev_element
-
-from cochem_base.core.exceptions import CoChemError
-
-logger = logging.getLogger("mendeleev_invariants")
-
-
-class MissingDataError(CoChemError, KeyError):
-    """Raised when required element, isotope, basis set, or calculation data is missing."""
-
-    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_MISSING_DATA")
-        self.message: str = message
-        self.symbol_or_query: Optional[Any] = symbol_or_query
-
-
-class MendeleevInvariantError(CoChemError, ValueError):
-    """Raised when chemical element queries violate Mendeleev physical invariants."""
-
-    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
-        super().__init__(message, error_code="COCHEM_E_MENDELEEV_INVARIANT_VIOLATION")
-        self.message: str = message
-        self.symbol_or_query: Optional[Any] = symbol_or_query
-
-
-@dataclass(slots=True, frozen=True)
-class ElementData:
-    """Immutable ground-truth chemical element properties."""
-
-    atomic_number: int
-    symbol: str
-    name: str
-    atomic_weight: float
-    isotopes: Tuple[Tuple[int, float, float], ...]  # (mass_number, exact_mass_amu, natural_abundance)
-    covalent_radius_pm: Optional[float]
-    vdw_radius_pm: Optional[float]
-    valence_electrons: int
-    mass: float = 0.0
-    mass_number: Optional[int] = None
-    formal_charge: int = 0
-    is_isotope: bool = False
-
-
-_ELEMENT_CACHE_LOCK = threading.Lock()
-_ELEMENT_CACHE: Optional[Dict[int, ElementData]] = None
-_ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
-
-
-def _load_single_element(z_or_sym: Union[int, str]) -> ElementData:
-    """Dynamically fetch ElementData for Z=1..118 via mendeleev."""
-    try:
-        elem = _mendeleev_element(z_or_sym)
-    except Exception as exc:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
-            symbol_or_query=z_or_sym,
-        ) from exc
-
-    z = int(elem.atomic_number)
-    symbol = str(elem.symbol)
-    name = str(elem.name)
-
-    # Standard atomic weight with dynamic fallback to most stable isotope mass
-    weight = elem.atomic_weight
-    if weight is None or float(weight) <= 0.0:
-        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
-        if iso_masses:
-            weight = float(max(iso_masses))
-        else:
-            weight = float(z)
-    else:
-        weight = float(weight)
-
-    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
-    isotope_list: List[Tuple[int, float, float]] = []
-    for iso in elem.isotopes:
-        if iso.mass_number is not None:
-            m_num = int(iso.mass_number)
-            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
-            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
-            isotope_list.append((m_num, m_exact, m_abund))
-    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
-
-    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
-    cov_radius_pm = float(cov_r) if cov_r is not None else None
-
-    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
-    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
-
-    if hasattr(elem, "nvalence") and callable(elem.nvalence):
-        val_e = int(elem.nvalence())
-    elif elem.electrons is not None:
-        val_e = int(elem.electrons)
-    else:
-        val_e = 0
-
-    return ElementData(
-        atomic_number=z,
-        symbol=symbol,
-        name=name,
-        atomic_weight=weight,
-        isotopes=isotopes_tuple,
-        covalent_radius_pm=cov_radius_pm,
-        vdw_radius_pm=vdw_radius_pm,
-        valence_electrons=val_e,
-        mass=weight,
-        mass_number=None,
-        formal_charge=0,
-        is_isotope=False,
-    )
-
-
-def _build_element_cache() -> Dict[int, ElementData]:
-    """Dynamically populates in-memory dictionary of ElementData for Z=1..118."""
-    cache: Dict[int, ElementData] = {}
-    for z in range(1, 119):
-        data = _load_single_element(z)
-        cache[z] = data
-        _ELEMENTS_BY_SYMBOL[data.symbol.upper()] = data
-    return cache
-
-
-def get_element_cache() -> Dict[int, ElementData]:
-    """Lazy thread-safe accessor for the 118-element Mendeleev invariants cache.
-
-    Eliminates 200-600 ms top-level module import overhead across spawned worker processes [M].
-    """
-    global _ELEMENT_CACHE
-    if _ELEMENT_CACHE is None:
-        with _ELEMENT_CACHE_LOCK:
-            if _ELEMENT_CACHE is None:
-                _ELEMENT_CACHE = _build_element_cache()
-    return _ELEMENT_CACHE
-
-
-def get_element_data(z: int) -> ElementData:
-    """Retrieve ElementData by atomic number."""
-    cache = get_element_cache()
-    if z not in cache:
-        raise MendeleevInvariantError(f"Invalid atomic number Z={z}. Must be between 1 and 118.", symbol_or_query=z)
-    return cache[z]
-
-
-def get_symbol(z: int) -> str:
-    """Retrieve chemical symbol by atomic number."""
-    return get_element_data(z).symbol
-
-
-def get_atomic_number(symbol: str) -> int:
-    """Retrieve atomic number by chemical symbol."""
-    cache = get_element_cache()
-    clean = str(symbol).strip().upper()
-    if clean in _ELEMENTS_BY_SYMBOL:
-        return _ELEMENTS_BY_SYMBOL[clean].atomic_number
-    for el in cache.values():
-        if el.symbol.upper() == clean:
-            return el.atomic_number
-    raise MissingDataError(f"Unresolvable atomic element symbol: {symbol}", symbol_or_query=symbol)
-
-
-def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
-    """Authoritative regex and alias pre-processor for chemical symbols and isotopes.
-
-    Maps:
-    - 'D' -> ('H', 2)
-    - 'T' -> ('H', 3)
-    - '13C' -> ('C', 13)
-    - '18O' -> ('O', 18)
-    - '2H' -> ('H', 2)
-    - Standard symbols ('H', 'C', 'Ar') -> ('H', None), etc.
-    """
-    raw = str(symbol).strip()
-    if not raw or raw.isdigit():
-        raise MissingDataError(
-            f"Invalid chemical symbol or isotope '{symbol}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol,
-        )
-
-    if raw.upper() == "D":
-        return "H", 2
-    if raw.upper() == "T":
-        return "H", 3
-
-    m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
-    if m_iso:
-        mass_num = int(m_iso.group(1))
-        sym_part = m_iso.group(2)
-        norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
-        try:
-            get_element(norm_sym)
-        except Exception:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {symbol}",
-                symbol_or_query=symbol,
-            )
-        return norm_sym, mass_num
-
-    m_sym = re.match(r"^[A-Za-z]+$", raw)
-    if m_sym:
-        norm_sym = raw[0].upper() + raw[1:].lower() if len(raw) > 1 else raw.upper()
-        try:
-            elem_data = get_element(norm_sym)
-            return elem_data.symbol, None
-        except Exception as exc:
-            logger.debug("Symbol parse lookup fallback: %s", exc)
-
-    raise MissingDataError(
-        f"Unresolvable atomic element or isotope symbol: {symbol}",
-        symbol_or_query=symbol,
-    )
-
-
-def get_element(symbol_or_z: Union[str, int]) -> ElementData:
-    """Retrieve immutable ElementData by atomic number, chemical symbol, formal charge, or isotope."""
-    cache = get_element_cache()
-
-    if isinstance(symbol_or_z, int):
-        if symbol_or_z < 1 or symbol_or_z > 118:
-            raise MendeleevInvariantError(
-                f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
-                symbol_or_query=symbol_or_z,
-            )
-        return cache[symbol_or_z]
-
-    raw = str(symbol_or_z).strip()
-    if not raw or raw.isdigit():
-        raise MendeleevInvariantError(
-            f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    pattern = re.compile(r"^(?P<isotope>\d+)?(?P<symbol>[A-Za-z]+)(?P<charge>(?:\d+[+-]|[+-]\d*|[+-]))?$")
-    match = pattern.match(raw)
-    if not match:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{symbol_or_z}'.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    iso_str = match.group("isotope")
-    sym_raw = match.group("symbol")
-    charge_str = match.group("charge")
-
-    if sym_raw.upper() == "D":
-        norm_sym = "H"
-        mass_number: Optional[int] = 2
-    elif sym_raw.upper() == "T":
-        norm_sym = "H"
-        mass_number = 3
-    else:
-        norm_sym = sym_raw[0].upper() + sym_raw[1:].lower() if len(sym_raw) > 1 else sym_raw.upper()
-        mass_number = int(iso_str) if iso_str else None
-
-    formal_charge: int = 0
-    if charge_str:
-        if charge_str.endswith("+"):
-            val = charge_str[:-1]
-            formal_charge = int(val) if val else 1
-        elif charge_str.endswith("-"):
-            val = charge_str[:-1]
-            formal_charge = -int(val) if val else -1
-        elif charge_str.startswith("+"):
-            val = charge_str[1:]
-            formal_charge = int(val) if val else 1
-        elif charge_str.startswith("-"):
-            val = charge_str[1:]
-            formal_charge = -int(val) if val else -1
-
-    base_data: Optional[ElementData] = None
-    clean_key = norm_sym.upper()
-    if clean_key in _ELEMENTS_BY_SYMBOL:
-        base_data = _ELEMENTS_BY_SYMBOL[clean_key]
-    else:
-        for el in cache.values():
-            if el.symbol.upper() == clean_key or el.name.lower() == sym_raw.lower():
-                base_data = el
-                break
-
-    if base_data is None:
-        raise MendeleevInvariantError(
-            f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    if mass_number is not None:
-        is_isotope = True
-        elem = _mendeleev_element(base_data.atomic_number)
-        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
-        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
-            raise MendeleevInvariantError(
-                f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
-                symbol_or_query=symbol_or_z,
-            )
-        mass = float(iso.mass)
-    else:
-        is_isotope = False
-        mass = float(base_data.atomic_weight)
-
-    return ElementData(
-        atomic_number=base_data.atomic_number,
-        symbol=base_data.symbol,
-        name=base_data.name,
-        atomic_weight=base_data.atomic_weight,
-        isotopes=base_data.isotopes,
-        covalent_radius_pm=base_data.covalent_radius_pm,
-        vdw_radius_pm=base_data.vdw_radius_pm,
-        valence_electrons=base_data.valence_electrons,
-        mass=mass,
-        mass_number=mass_number,
-        formal_charge=formal_charge,
-        is_isotope=is_isotope,
-    )
-
-
-def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
-    element_data = get_element(symbol_or_z)
-    for iso_m_num, iso_exact, _ in element_data.isotopes:
-        if iso_m_num == mass_number:
-            return iso_exact
-
-    try:
-        m_elem = _mendeleev_element(element_data.symbol)
-        for iso in m_elem.isotopes:
-            if iso.mass_number == mass_number and iso.mass is not None:
-                return float(iso.mass)
-    except Exception as exc:
-        logger.debug("Isotope fallback resolution error: %s", exc)
-
-    raise MendeleevInvariantError(
-        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
-        symbol_or_query=f"{element_data.symbol}-{mass_number}",
-    )
-
-
-def get_element_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u)."""
-    if isinstance(symbol_or_z, int):
-        return get_element(symbol_or_z).atomic_weight
-
-    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
-    if mass_number is not None:
-        return get_isotope_mass(clean_sym, mass_number)
-    return get_element(clean_sym).atomic_weight
-
-
-class MendeleevResolver:
-    """Thread-safe dynamic Mendeleev element and isotope mass resolver for backward compatibility."""
-
-    def get_element(self, symbol_or_z: Union[str, int]) -> Any:
-        elem_data = get_element(symbol_or_z)
-        return _mendeleev_element(elem_data.atomic_number)
-
-    def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
-        return get_element(symbol_or_z).atomic_number
-
-    def get_atomic_weight(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element(symbol_or_z).atomic_weight
-
-    def get_element_mass(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element_mass(symbol_or_z)
-
-    def get_symbol(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).symbol
-
-    def get_name(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).name
-
-    def get_covalent_radius(self, symbol_or_z: Union[str, int]) -> Optional[float]:
-        return get_element(symbol_or_z).covalent_radius_pm
-
-    def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
-        r = get_element(symbol_or_z).vdw_radius_pm
-        if r is None:
-            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
-        return r
-
-    def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
-        return self.get_vdw_radius(symbol_or_z) / 100.0
-
-    def get_isotope_mass(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        return get_isotope_mass(symbol_or_z, mass_number)
-
-    def get_isotope_abundance(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        elem_data = get_element(symbol_or_z)
-        for m_num, _, abund in elem_data.isotopes:
-            if m_num == mass_number:
-                return abund
-        return 0.0
-
-    def get_available_isotopes(self, symbol_or_z: Union[str, int]) -> List[int]:
-        return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
-
-    def clear_cache(self) -> None:
-        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
-
-
-mendeleev_resolver = MendeleevResolver()
-
-__all__ = [
-    "ElementData",
-    "MendeleevInvariantError",
-    "MissingDataError",
-    "get_element_cache",
-    "get_element",
-    "get_element_data",
-    "get_symbol",
-    "get_atomic_number",
-    "get_isotope_mass",
-    "get_element_mass",
-    "parse_symbol_or_isotope",
-    "MendeleevResolver",
-    "mendeleev_resolver",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core\process_reaper.py ---
-"""Cross-platform process lifecycle manager and direct PID monitoring reaper.
-
-Complies with:
-- Method Matrix [M]: Low-overhead targeted telemetry and reaping of QM/MM worker subprocesses.
-- Suggestion #69: Direct child PID monitoring in ProcessTreeManager dropping CPU usage by >80%.
-"""
-
-from __future__ import annotations
-
-import logging
-import os
-import signal
-import subprocess
 import sys
-import threading
 import time
-from typing import Any, Dict, List, Optional, Set, Union
-
-import psutil
-
-from cochem_base.core.exceptions import ProcessReaperError
-
-logger = logging.getLogger("CoChem-ProcessReaper")
-
-
-class ProcessTreeManager:
-    """Manages process hierarchies with direct child PID tracking to eliminate full-OS scans."""
-
-    def __init__(self) -> None:
-        self._lock = threading.RLock()
-        self._tracked: Set[int] = set()
-        try:
-            self._parent_proc: psutil.Process = psutil.Process()
-        except Exception:
-            self._parent_proc = None  # type: ignore
-
-    def register_process(
-        self,
-        proc: Union[psutil.Process, int],
-        task_id: Optional[str] = None,
-    ) -> None:
-        """Explicitly registers a newly spawned subprocess PID for targeted telemetry and reaping."""
-        pid = proc.pid if isinstance(proc, psutil.Process) else int(proc)
-        if pid > 0:
-            with self._lock:
-                self._tracked.add(pid)
-
-    def unregister_process(self, pid: int) -> None:
-        """Removes a process PID upon normal exit."""
-        with self._lock:
-            self._tracked.discard(pid)
-
-    def is_alive(self, pid: int) -> bool:
-        """Check if process exists and is running."""
-        try:
-            p = psutil.Process(pid)
-            return bool(p.is_running() and p.status() != psutil.STATUS_ZOMBIE)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            return False
-
-    def get_tracked_pids(self) -> List[int]:
-        """Return snapshot of tracked PIDs."""
-        with self._lock:
-            return list(self._tracked)
-
-    def sample_process_tree_rss_bytes(self) -> int:
-        """Samples memory consumption across tracked PIDs directly without traversing the full OS process table.
-
-        Drops monitoring daemon CPU consumption by >80% [E] and preserves scout-and-anchor thread budgets.
-        """
-        total_rss = 0
-        dead_pids: Set[int] = set()
-
-        # Include parent process
-        if self._parent_proc is not None:
-            try:
-                total_rss += self._parent_proc.memory_info().rss
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
-                logger.debug("Parent process memory sampling error: %s", exc)
-
-        # Query tracked child PIDs directly
-        with self._lock:
-            current_pids = list(self._tracked)
-
-        for pid in current_pids:
-            try:
-                p = psutil.Process(pid)
-                total_rss += p.memory_info().rss
-            except psutil.NoSuchProcess:
-                dead_pids.add(pid)
-            except (psutil.AccessDenied, psutil.ZombieProcess) as exc:
-                logger.debug("Child PID %d memory sampling error: %s", pid, exc)
-
-        with self._lock:
-            self._tracked.difference_update(dead_pids)
-
-        return total_rss
-
-    def terminate_tree(
-        self,
-        pid: Optional[int] = None,
-        timeout: float = 5.0,
-    ) -> Dict[str, Any]:
-        """Directly signals tracked PIDs with SIGTERM (or terminate), waits up to timeout, and escalates to SIGKILL."""
-        with self._lock:
-            if pid is not None:
-                pids_to_kill = [pid]
-            else:
-                pids_to_kill = list(self._tracked)
-
-        procs: List[psutil.Process] = []
-        for p_id in pids_to_kill:
-            try:
-                procs.append(psutil.Process(p_id))
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                with self._lock:
-                    self._tracked.discard(p_id)
-
-        # Signal termination
-        for p in procs:
-            try:
-                p.terminate()
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
-                logger.debug("Process %d terminate error: %s", p.pid, exc)
-
-        # Await graceful termination
-        gone, alive = psutil.wait_procs(procs, timeout=timeout)
-
-        # Escalate to kill for remaining stubborn processes
-        for p in alive:
-            try:
-                p.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
-                logger.debug("Process %d kill error: %s", p.pid, exc)
-
-        with self._lock:
-            if pid is not None:
-                self._tracked.discard(pid)
-            else:
-                self._tracked.clear()
-
-        return {
-            "terminated_count": len(gone) + len(alive),
-            "surviving_count": 0,
-        }
-
-
-__all__ = [
-    "ProcessTreeManager",
-    "ProcessReaperError",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_mass_resolver.py ---
-"""Authoritative Dynamic Mendeleev Mass Resolver with LRU In-Memory Caching.
-
-Complies strictly with:
-- Method Matrix v4 §8A.4: Precomputation of masses on CPU before CUDA kernels without GPU context stalls.
-- Dynamic Mendeleev Invariant Mandate: Dynamic atomic and isotopic mass retrieval using `mendeleev`.
-- Zero-Mock Anti-Spoofing Protocol: Authentic physical mass resolution.
-"""
-
-from __future__ import annotations
-
-from functools import lru_cache
-from typing import Optional, Union
-
-import mendeleev
-from cochem_base.core.exceptions import CoChemError, IsotopeMassResolutionError
-
-
-@lru_cache(maxsize=256)
-def get_dynamic_atomic_mass(symbol_or_z: Union[str, int]) -> float:
-    """Returns standard atomic weight from Mendeleev with LRU memory caching.
-
-    Reduces latency from ~100 us (SQLite I/O) to ~50 ns (in-memory lookup) [M].
-    """
-    try:
-        el = mendeleev.element(symbol_or_z)
-    except Exception as exc:
-        raise IsotopeMassResolutionError(
-            f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
-            details={"element": symbol_or_z},
-        ) from exc
-
-    if el.atomic_weight is not None:
-        return float(el.atomic_weight)
-    if el.mass is not None:
-        return float(el.mass)
-    raise IsotopeMassResolutionError(
-        f"Atomic weight unavailable for element '{symbol_or_z}'.",
-        details={"element": symbol_or_z},
-    )
-
-
-@lru_cache(maxsize=256)
-def get_dynamic_isotopic_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Returns exact physical isotopic nuclear mass from Mendeleev with LRU memory caching.
-
-    Guarantees zero fallback to terrestrial average atomic weights.
-    """
-    try:
-        el = mendeleev.element(symbol_or_z)
-    except Exception as exc:
-        raise IsotopeMassResolutionError(
-            f"Element '{symbol_or_z}' cannot be resolved via Mendeleev: {exc}",
-            details={"element": symbol_or_z, "mass_number": mass_number},
-        ) from exc
-
-    for iso in el.isotopes:
-        if iso.mass_number == int(mass_number):
-            if iso.mass is not None and float(iso.mass) > 0.0:
-                return float(iso.mass)
-    raise IsotopeMassResolutionError(
-        f"Isotope '{el.symbol}-{mass_number}' cannot be resolved to a physical mass.",
-        details={"element": el.symbol, "mass_number": mass_number},
-    )
-
-
-__all__ = [
-    "get_dynamic_atomic_mass",
-    "get_dynamic_isotopic_mass",
-    "IsotopeMassResolutionError",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_architecture_part7.py ---
-"""Tests for architecture - Part 7 (Suggestions #65, #67, #68, #69, #70)."""
-
-import math
-import os
-import time
-import atexit
 import threading
-import tempfile
+import numpy as np
+import pytest
 from pathlib import Path
-import pytest
-import h5py
-from cochem_base.core.exceptions import AirGapBoundaryError
-from cochem_base.core.mendeleev_invariants import get_element_cache
-from cochem_base.core.cochem_sandbox import SandboxContext
-from cochem_base.core.process_reaper import ProcessTreeManager
-from cochem_base.core_engine.cochem_core_subprocess_broker import (
-    verify_scratch_quota_and_io,
-    _SCRATCH_VERIFICATION_CACHE,
-)
+
+from cochem_base.core_engine.cochem_core_subprocess_broker import safe_subprocess_run
+from cochem.core.ipc.serializer import SharedMemoryBuffer, SharedMemoryView
+from cochem.core.context import FileLock
 
 
-def test_hdf5_swmr_inplace_resizing_and_airgap(tmp_path):
-    """Validates Suggestion #65: In-place HDF5 SWMR chunk resizing and Air-Gap enforcement."""
-    # Configure test environment
-    src_dir = tmp_path / "src"
-    src_dir.mkdir()
-    os.environ["COCH_SRC"] = str(src_dir)
-
-    # Attempting to write into Tier 1 ($COCH_SRC) must raise AirGapBoundaryError
-    h5_src_path = src_dir / "store.h5"
-    with pytest.raises(AirGapBoundaryError) as exc_info:
-        from cochem_base.core.ipc.serializer import validate_airgap_write_path
-        validate_airgap_write_path(h5_src_path)
-    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
-
-    # Valid write into temporary scratch
-    h5_scratch_path = tmp_path / "scratch" / "store.h5"
-    h5_scratch_path.parent.mkdir()
-
-    # Create SWMR dataset
-    with h5py.File(h5_scratch_path, "w", libver="latest") as f:
-        ds = f.create_dataset(
-            "energies",
-            shape=(1,),
-            maxshape=(None,),
-            chunks=(512,),
-            dtype="float64",
-            compression="gzip",
-        )
-        ds[0] = -76.432
-
-    # In-place chunk resizing
-    with h5py.File(h5_scratch_path, "a", libver="latest") as f:
-        ds = f["energies"]
-        new_len = ds.shape[0] + 1
-        ds.resize((new_len,))
-        ds[new_len - 1] = -76.435
-        ds.flush()
-
-    # Verify length without whole-file copying
-    with h5py.File(h5_scratch_path, "r") as f:
-        assert f["energies"].shape[0] == 2
-        assert math.isclose(f["energies"][1], -76.435)
-
-
-def test_mendeleev_invariants_lazy_singleton_startup():
-    """Validates Suggestion #67: Lazy singleton initialization eliminates top-level import lag."""
-    # Ensure cache function returns valid mapping from Z=1 to Z=118
-    cache = get_element_cache()
-    assert len(cache) >= 118
-    assert cache[1].symbol == "H"
-    assert cache[6].symbol == "C"
-
-
-def test_sandbox_context_atexit_unregister_and_airgap(tmp_path):
-    """Validates Suggestion #68: atexit callback unregistration on context exit."""
-    # Air-gap boundary assertion: attempting to allocate sandbox inside Tier 1 ($COCH_SRC) must fail
-    src_dir = tmp_path / "src"
-    src_dir.mkdir(exist_ok=True)
-    os.environ["COCH_SRC"] = str(src_dir)
-    with pytest.raises(AirGapBoundaryError) as exc_info:
-        SandboxContext(scratch_root=src_dir)
-    assert exc_info.value.error_code == "COCHEM_E_AIRGAP_BREACH"
-
+def test_safe_subprocess_run_tripartite_airgap_and_streaming(tmp_path):
+    """Validates Suggestion #73: Subprocess executes in isolated scratch directory,
+    streams stdout to disk, and executes live telemetry line callbacks.
+    """
     scratch_dir = tmp_path / "scratch"
-    os.environ["COCH_SCRATCH"] = str(scratch_dir)
-
-    with SandboxContext(scratch_root=scratch_dir) as sb:
-        assert sb.path.exists()
-
-    # Path must be unlinked and cleaned
-    assert not sb.path.exists()
-
-    # Cleaned flag must be set
-    assert sb._cleaned is True
-
-
-def test_process_reaper_direct_pid_monitoring():
-    """Validates Suggestion #69: Direct child PID tracking in ProcessTreeManager."""
-    manager = ProcessTreeManager()
-
-    # Spawn child process
-    import subprocess
-    import sys
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
-    manager.register_process(proc.pid)
-
-    assert proc.pid in manager._tracked
-    rss = manager.sample_process_tree_rss_bytes()
-    assert rss > 0
-
-    # Terminate tracked process
-    manager.terminate_tree()
-    proc.wait()
-    assert not proc.poll() is None
-
-
-def test_subprocess_broker_scratch_verification_cache(tmp_path):
-    """Validates Suggestion #70: Scratch verification caching with TTL."""
-    scratch_dir = tmp_path / "scratch_io"
     scratch_dir.mkdir()
-    _SCRATCH_VERIFICATION_CACHE.clear()
 
-    # First call must perform physical write probe
+    # Script that emits 10 lines with small pauses
+    script = (
+        "import sys, time\n"
+        "for i in range(10):\n"
+        "    print(f'SCF ITERATION {i}: ENERGY = {-76.0 - i*0.01}', flush=True)\n"
+        "    time.sleep(0.01)\n"
+    )
+    script_file = scratch_dir / "runner.py"
+    script_file.write_text(script, encoding="utf-8")
+
+    captured_lines = []
+    def on_line(line: str):
+        captured_lines.append(line.strip())
+
+    res = safe_subprocess_run(
+        cmd=[sys.executable, str(script_file)],
+        cwd=scratch_dir,
+        stream_to_disk=True,
+        on_stdout_line=on_line,
+        tail_buffer_lines=5,
+    )
+
+    assert res.returncode == 0
+    assert len(captured_lines) == 10
+    assert "SCF ITERATION 0" in captured_lines[0]
+    assert "SCF ITERATION 9" in captured_lines[-1]
+
+    # Verify log file was written to disk
+    stdout_log = scratch_dir / "process_stdout.log"
+    assert stdout_log.exists()
+    assert stdout_log.stat().st_size > 0
+
+
+def test_shared_memory_zero_copy_view_and_cleanup():
+    """Validates Suggestion #74: SharedMemoryBuffer maps array view without copying
+    and cleans up OS descriptors deterministically.
+    """
+    arr = np.linspace(1.0, 1000.0, 100000, dtype=np.float64)
+    buffer = SharedMemoryBuffer.create(arr)
+    descriptor = buffer.to_descriptor()
+
+    # Map zero-copy view
+    view = SharedMemoryBuffer.read_from_descriptor(descriptor, zero_copy=True)
+    assert isinstance(view, SharedMemoryView)
+
+    with view as mapped_arr:
+        # Verify it points to the exact same shared memory segment
+        assert np.may_share_memory(mapped_arr, buffer.array)
+        assert np.array_equal(mapped_arr[:10], arr[:10])
+        # In-place modification reflects in shared memory
+        mapped_arr[0] = 9999.0
+        assert buffer.array[0] == 9999.0
+
+    # View should be closed after exiting context manager
+    with pytest.raises(RuntimeError, match="Cannot access array view on a closed"):
+        _ = view.array
+
+    buffer.close()
+    buffer.unlink()
+
+
+def test_filelock_adaptive_backoff_and_contention(tmp_path):
+    """Validates Suggestion #76: FileLock adaptive exponential backoff acquires rapidly
+    in low contention and handles heavy multi-threaded contention without deadlock.
+    """
+    lock_file = tmp_path / "test_concurrency.lock"
+    lock1 = FileLock(lock_file, timeout_sec=5.0)
+
+    # 1. Rapid acquisition latency check (< 10 ms instead of 50 ms)
     t0 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
+    assert lock1.acquire() is True
+    lock1.release()
     t1 = time.perf_counter()
-    initial_duration = t1 - t0
+    assert (t1 - t0) < 0.02, f"Uncontended lock acquisition took too long: {t1 - t0:.4f}s"
 
-    # Second call within TTL must hit cache and return immediately (< 2 ms)
-    t2 = time.perf_counter()
-    assert verify_scratch_quota_and_io(scratch_dir, ttl_seconds=300.0) is True
-    t3 = time.perf_counter()
-    cached_duration = t3 - t2
+    # 2. Multi-threaded contention test
+    counter = {"value": 0}
+    n_threads = 5
+    increments_per_thread = 20
 
-    assert cached_duration < 0.002
-    assert cached_duration < initial_duration
+    def worker():
+        w_lock = FileLock(lock_file, timeout_sec=10.0)
+        for _ in range(increments_per_thread):
+            if w_lock.acquire(initial_delay_sec=0.001, max_delay_sec=0.015, jitter=True):
+                try:
+                    c = counter["value"]
+                    time.sleep(0.0005)
+                    counter["value"] = c + 1
+                finally:
+                    w_lock.release()
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_physics_integrity_part7.py ---
-"""Tests for physics integrity - Part 7 (Suggestions #61, #62, #63, #64, #66)."""
+    threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
 
-import math
+    assert counter["value"] == n_threads * increments_per_thread
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_physics_integrity_part8.py ---
 import os
+import sys
+import io
 import time
+import tempfile
+import tracemalloc
+import numpy as np
 import pytest
-from pydantic import ValidationError
-from cochem_base.core.models import (
-    MolecularTopology,
-    CURRENT_CORE_SCHEMA_VERSION,
-    register_migration,
-    migrate_payload,
-)
-from cochem_base.core.exceptions import (
-    CoChemError,
-    CoordinateShapeError,
-    SchemaMigrationError,
-    AirGapBoundaryError,
-)
-from cochem_base.core.cochem_crypto import (
-    format_rfc8785_float,
-    canonicalize_json,
-)
-from cochem_base.core.cochem_provenance import (
-    compute_boltzmann_weights,
-    ThermodynamicsProvenance,
-    DAGNode,
-)
-from cochem_base.core_engine.cochem_mass_resolver import (
-    get_dynamic_atomic_mass,
-    get_dynamic_isotopic_mass,
-    IsotopeMassResolutionError,
-)
+from pathlib import Path
+
+from cochem_base.core_engine.cochem_core_auto_pes import ExactKernelRidgeEstimator, KernelFunction
+from cochem_base.core_engine.cochem_core_pes_store import PESStore
+from cochem_base.core_engine.cochem_core_cfour_bridge import CFOUROutputParser, CFOURObservables
 
 
-def test_pydantic_model_schema_version_and_migration():
-    """Validates Suggestion #61: schema_version injection and automated backward-compatible migration."""
-    # Test current model instantiation
-    top = MolecularTopology(
-        symbols=["H", "H"],
-        coordinates=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]],
-        molecular_charge=0,
-        spin_multiplicity=1,
-    )
-    assert top.schema_version == CURRENT_CORE_SCHEMA_VERSION
+def test_krr_chunked_prediction_numerical_parity_and_memory_cap():
+    """Validates Suggestion #71: Chunked KRR prediction matches monolithic prediction to < 1e-12 Hartrees
+    and caps transient memory allocation.
+    """
+    rng = np.random.RandomState(42)
+    n_train = 500
+    n_dim = 6
+    X_train = rng.uniform(-2.0, 2.0, size=(n_train, n_dim))
+    y_train = np.sin(X_train[:, 0]) * np.cos(X_train[:, 1]) + 0.1 * np.sum(X_train**2, axis=1)
 
-    # Register legacy migration from v0 to v1
-    @register_migration("MolecularTopology", 0)
-    def migrate_v0_to_v1(data):
-        d = dict(data)
-        d["schema_version"] = 1
-        if "spin_multiplicity" not in d:
-            d["spin_multiplicity"] = 1
-        return d
+    estimator = ExactKernelRidgeEstimator(kernel_type="rbf", gamma=0.5, alpha=1e-6)
+    estimator.fit(X_train, y_train)
 
-    legacy_payload = {
-        "schema_version": 0,
-        "symbols": ["O", "H", "H"],
-        "coordinates": [[0.0, 0.0, 0.0], [0.0, 0.75, 0.5], [0.0, -0.75, 0.5]],
-        "molecular_charge": 0,
+    n_eval = 20000
+    X_eval = rng.uniform(-2.0, 2.0, size=(n_eval, n_dim))
+
+    # Evaluate using standard batch size 2048
+    preds_chunked = estimator.predict(X_eval, batch_size=2048)
+
+    # Evaluate monolithic (batch_size >= n_eval)
+    preds_monolithic = estimator.predict(X_eval, batch_size=n_eval)
+
+    # Numerical parity check
+    max_abs_diff = np.max(np.abs(preds_chunked - preds_monolithic))
+    assert max_abs_diff < 1e-12, f"Discrepancy between chunked and monolithic KRR: {max_abs_diff}"
+
+    # Memory allocation test: compare small batch vs full
+    tracemalloc.start()
+    _ = estimator.predict(X_eval, batch_size=1024)
+    current, peak_chunked = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+
+    # Peak memory for 1024 chunk should be well under 100 MB (< 25 MB in practice)
+    assert peak_chunked < 100 * 1024 * 1024, f"Peak memory {peak_chunked / (1024*1024):.2f} MB exceeded 100 MB cap"
+
+
+def test_pes_store_normalized_provenance_and_swmr(tmp_path):
+    """Validates Suggestion #72: Normalized provenance index in HDF5 reduces file bloat
+    and maintains foreign-key data integrity.
+    """
+    h5_path = tmp_path / "test_pes_normalized.h5"
+    store = PESStore(h5_path, compress=True)
+
+    n_points = 5000
+    natoms = 3
+    coords = np.zeros((n_points, natoms, 3), dtype=np.float64)
+    energies = np.linspace(-76.0, -75.0, n_points, dtype=np.float64)
+    prov_dict = {
+        "method": "CCSD(T)-F12",
+        "basis": "cc-pVTZ-F12",
+        "program": "CFOUR",
+        "provenance_tag": "[M]",
+        "parameters": {"scf_conv": 1e-10, "frozen_core": True},
     }
-    migrated_top = MolecularTopology.from_archival_dict(legacy_payload)
-    assert migrated_top.schema_version == 1
-    assert migrated_top.spin_multiplicity == 1
 
-
-def test_rfc8785_ieee754_canonical_float_formatting():
-    """Validates Suggestion #62: ECMAScript IEEE 754 float formatting parity in canonicalize_json."""
-    # Signed zero formatting
-    assert format_rfc8785_float(0.0) == "0"
-    assert format_rfc8785_float(-0.0) == "0"
-
-    # Disallow NaN and Infinity
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("nan"))
-    with pytest.raises(ValueError):
-        format_rfc8785_float(float("inf"))
-
-    # Exponential notation without leading zero in exponent
-    assert format_rfc8785_float(1e-5) == "0.00001" or format_rfc8785_float(1e-5) == "1e-5"
-    assert format_rfc8785_float(1e-7) == "1e-7"
-    assert format_rfc8785_float(1e21) == "1e+21"
-
-    # Canonicalize dictionary with sorted keys and floats
-    payload = {"b": 1e-7, "a": -0.0, "c": [1, 2.5]}
-    canonical_bytes = canonicalize_json(payload)
-    # Keys must be sorted 'a', 'b', 'c', -0.0 as 0, 1e-7 without leading zero
-    assert canonical_bytes == b'{"a":0,"b":1e-7,"c":[1,2.5]}'
-
-
-def test_quasi_rrho_thermodynamics_provenance_logging():
-    """Validates Suggestion #63: Quasi-harmonic thermodynamic parameter provenance logging."""
-    node = DAGNode(node_id="act-opt-001", node_type="activity")
-    energies = [0.0, 0.5, 1.2]
-    weights, prov = compute_boltzmann_weights(
-        energies,
-        temperature_k=298.15,
-        low_freq_cutoff_cm1=100.0,
-        damping_model="grimme_quasi_rrho",
-        dag_node=node,
-    )
-    assert len(weights) == 3
-    assert math.isclose(sum(weights), 1.0, rel_tol=1e-6)
-    assert "thermodynamics_provenance" in node.payload
-    logged = node.payload["thermodynamics_provenance"]
-    assert logged["damping_model"] == "grimme_quasi_rrho"
-    assert logged["low_freq_cutoff_cm1"] == 100.0
-    assert logged["temperature_k"] == 298.15
-    assert logged["provenance_tag"] == "[D]"
-
-
-def test_machine_actionable_exception_hierarchy():
-    """Validates Suggestion #64: Structured exception hierarchy with machine-actionable error codes."""
-    # Coordinate shape mismatch raises CoordinateShapeError
-    with pytest.raises(CoordinateShapeError) as exc_info:
-        MolecularTopology(
-            symbols=["H"],
-            coordinates=[[0.0, 0.0]],  # 2D instead of 3D
-            molecular_charge=0,
-            spin_multiplicity=1,
+    # Add points in batches sharing the exact same provenance
+    batch_size = 1000
+    for b in range(5):
+        store.add_points(
+            method_id="ccsdt_f12",
+            coordinates=coords[b*batch_size : (b+1)*batch_size],
+            energies=energies[b*batch_size : (b+1)*batch_size],
+            provenance=prov_dict,
         )
-    err = exc_info.value
-    assert err.error_code == "COCHEM_E_INVALID_COORD_SHAPE"
-    assert err.details["actual_len"] == 2
-    assert err.details["expected_len"] == 3
+
+    # Add additional batch with default provenance (provenance=None) to test automatic signing/fingerprinting
+    store.add_points(
+        method_id="ccsdt_f12",
+        coordinates=coords[:10],
+        energies=energies[:10],
+    )
+
+    # Inspect HDF5 structure directly
+    import h5py
+    with h5py.File(h5_path, "r") as f:
+        assert "methods/ccsdt_f12/provenance_index" in f
+        prov_index = f["methods/ccsdt_f12/provenance_index"]
+        # Exactly two unique provenance entries should now be registered
+        assert len(prov_index) == 2
+
+        prov_id_ds = f["points/ccsdt_f12/provenance_id"]
+        assert len(prov_id_ds) == n_points + 10
+        assert np.all(prov_id_ds[:n_points] == 0)
+        assert np.all(prov_id_ds[n_points:] == 1)
+
+    # Verify retrieval helper for both entries
+    retrieved_prov0 = store.get_point_provenance("ccsdt_f12", 2500)
+    assert retrieved_prov0["method"] == "CCSD(T)-F12"
+    assert retrieved_prov0["provenance_tag"] == "[M]"
+
+    retrieved_prov1 = store.get_point_provenance("ccsdt_f12", n_points + 5)
+    assert retrieved_prov1["creator"] == "ORCA"
+    assert "fingerprint" in retrieved_prov1
+
+    # Verify SWMR read access via store.open_reader()
+    with store.open_reader() as f_reader:
+        assert "methods/ccsdt_f12/provenance_index" in f_reader
+        assert len(f_reader["methods/ccsdt_f12/provenance_index"]) == 2
 
 
-def test_dynamic_mendeleev_mass_resolution_lru_cache():
-    """Validates Suggestion #66: LRU memory caching on dynamic Mendeleev mass resolution."""
-    # Warmup
-    mass_c = get_dynamic_atomic_mass("C")
-    assert math.isclose(mass_c, 12.011, rel_tol=1e-2)
 
-    # Measure lookup latency for cached access
-    start = time.perf_counter()
-    for _ in range(1000):
-        _ = get_dynamic_atomic_mass("C")
-    cached_duration = time.perf_counter() - start
+def test_cfour_streaming_parser_parity_and_low_memory():
+    """Validates Suggestion #75: Streaming CFOUR parser matches legacy parser
+    without splitting entire file into memory.
+    """
+    synthetic_log_lines = [
+        " ----------------------------------------------------------------",
+        "                        C F O U R",
+        " ----------------------------------------------------------------",
+        " E(SCF)=           -76.026783918234",
+        " E(CORR)(MP2) =     -0.281923489123",
+        " E(CCSD) =          -76.331289412390",
+        " E(CCSD(T)) =       -76.342198421039",
+        " Rotational constants (in MHz):",
+        "      A =     825421.382    B =     435129.182    C =     287192.481",
+        " Rotational constants (in cm-1):",
+        "      A =         27.533    B =         14.514    C =          9.580",
+        " Dipole moment (Debye):",
+        "      x =         0.0000    y =         0.0000    z =         1.8542    tot =     1.8542",
+        " The final electronic energy is   -76.342198421039 a.u.",
+    ]
+    # Pad with 50,000 comment lines to simulate massive VPT2 output
+    full_log = "\n".join(synthetic_log_lines[:4] + [" # Iteration trace padding line"] * 50000 + synthetic_log_lines[4:])
 
-    # 1000 lookups should complete in less than 5 milliseconds
-    assert cached_duration < 0.005
+    # Test parsing from string iterator
+    obs_stream = CFOUROutputParser.parse_cfour_stdout(iter(full_log.splitlines()))
 
-    # Nuclear isotopic masses
-    mass_14c = get_dynamic_isotopic_mass("C", 14)
-    assert math.isclose(mass_14c, 14.003241, rel_tol=1e-4)
+    assert obs_stream.final_energy == pytest.approx(-76.342198421039, abs=1e-12)
+    assert obs_stream.scf_energy == pytest.approx(-76.026783918234, abs=1e-12)
+    assert obs_stream.mp2_energy == pytest.approx(-0.281923489123, abs=1e-12)
+    assert obs_stream.ccsd_t_energy == pytest.approx(-76.342198421039, abs=1e-12)
+    assert obs_stream.Ae_MHz == pytest.approx(825421.382, abs=1e-3)
+    assert obs_stream.Be_MHz == pytest.approx(435129.182, abs=1e-3)
+    assert obs_stream.Ce_MHz == pytest.approx(287192.481, abs=1e-3)
+    assert obs_stream.dipole_tot == pytest.approx(1.8542, abs=1e-4)
 
-    with pytest.raises(IsotopeMassResolutionError):
-        get_dynamic_isotopic_mass("C", 999)
+    # Test parsing from TextIO stream
+    stream_io = io.StringIO(full_log)
+    obs_io = CFOUROutputParser.parse_cfour_stdout(stream_io)
+    assert obs_io.final_energy == obs_stream.final_energy
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

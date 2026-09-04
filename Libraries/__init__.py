@@ -39,11 +39,13 @@ from Libraries.cochem_torq_training_schemas import (
 
 # Dynamic Mendeleev Masses
 from Libraries.cochem_torq_masses import (
+    get_atomic_masses,
     get_monoisotopic_mass,
     get_monoisotopic_masses,
     get_monoisotopic_masses_tensor,
     resolve_ciaaw_monoisotopic_mass,
 )
+
 
 # GNN Warm Restart Scheduler
 from Libraries.cochem_torq_gnn_scheduler import (
@@ -228,6 +230,52 @@ from Libraries.cochem_torq_environment import (
     resolve_hpc_safe_scratch,
 )
 
+# TORQ Molecular Dynamics Part 1 (Chunk 21)
+from Libraries.cochem_torq_md_errors import (
+    EnergyDriftExceededError,
+    HardwareDispatchError as MDHardwareDispatchError,
+    ReplicaExchangeDivergenceError,
+    SymplecticIntegratorError,
+    TorqMDError,
+)
+from Libraries.cochem_torq_md_schemas import (
+    ExchangeLog,
+    MDState,
+    REMDConfig,
+    TrajectoryFrame,
+    VelocityVerletConfig,
+)
+from Libraries.cochem_torq_md_env import (
+    dispatch_md_device,
+    resolve_hpc_safe_scratch as resolve_md_scratch,
+)
+from Libraries.cochem_torq_symplectic import (
+    BOLTZMANN_CONSTANT,
+    ELEMENTARY_CHARGE,
+    KAPPA_ACC,
+    KAPPA_ACC_INV,
+    UNIFIED_ATOMIC_MASS_KG,
+    VelocityVerletIntegrator,
+    compute_conservative_forces,
+    compute_dimensional_acceleration,
+    compute_instantaneous_temperature,
+    compute_kinetic_energy,
+    remove_center_of_mass_momentum,
+)
+from Libraries.cochem_torq_remd import (
+    ReplicaExchangeEngine,
+    ReplicaState,
+    baoab_langevin_step,
+    compute_geometric_temperature_schedule,
+    evaluate_metropolis_swap,
+    rescale_velocities_on_swap,
+)
+from Libraries.cochem_torq_trajectory import (
+    HDF5TrajectoryReader,
+    HDF5TrajectoryWriter,
+)
+
+
 # Active Learning (Chunk 18)
 from Libraries.cochem_torq_active_learning import (
     ActiveLearningOrchestrator,
@@ -394,6 +442,7 @@ __all__ = [
     "ConformalInterval",
     "LBFGSOptimizationState",
     # Masses
+    "get_atomic_masses",
     "get_monoisotopic_mass",
     "get_monoisotopic_masses",
     "get_monoisotopic_masses_tensor",
@@ -561,5 +610,37 @@ __all__ = [
     "verify_onnx_parity",
     "dispatch_device_safely",
     "resolve_hpc_safe_scratch",
+    # Chunk 21: TORQ Molecular Dynamics Part 1 (Symplectic & REMD)
+    "TorqMDError",
+    "EnergyDriftExceededError",
+    "SymplecticIntegratorError",
+    "ReplicaExchangeDivergenceError",
+    "MDHardwareDispatchError",
+    "VelocityVerletConfig",
+    "REMDConfig",
+    "MDState",
+    "TrajectoryFrame",
+    "ExchangeLog",
+    "dispatch_md_device",
+    "resolve_md_scratch",
+    "KAPPA_ACC",
+    "KAPPA_ACC_INV",
+    "BOLTZMANN_CONSTANT",
+    "ELEMENTARY_CHARGE",
+    "UNIFIED_ATOMIC_MASS_KG",
+    "compute_dimensional_acceleration",
+    "remove_center_of_mass_momentum",
+    "compute_kinetic_energy",
+    "compute_instantaneous_temperature",
+    "VelocityVerletIntegrator",
+    "compute_geometric_temperature_schedule",
+    "evaluate_metropolis_swap",
+    "rescale_velocities_on_swap",
+    "baoab_langevin_step",
+    "ReplicaState",
+    "ReplicaExchangeEngine",
+    "HDF5TrajectoryWriter",
+    "HDF5TrajectoryReader",
 ]
+
 

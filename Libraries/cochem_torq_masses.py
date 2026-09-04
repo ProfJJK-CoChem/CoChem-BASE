@@ -70,3 +70,30 @@ def resolve_ciaaw_monoisotopic_mass(atomic_number: int) -> float:
     abundant_iso = max(elem.isotopes, key=lambda iso: iso.abundance or 0.0)
     return float(abundant_iso.mass if abundant_iso.mass is not None else elem.mass)
 
+
+def get_atomic_masses(
+    atomic_numbers: torch.Tensor,
+    device: torch.device | str = "cpu",
+) -> torch.Tensor:
+    """Retrieve CIAAW standard atomic weights in unified atomic mass units (u). [M]
+
+    Parameters
+    ----------
+    atomic_numbers : torch.Tensor
+        Tensor of atomic numbers Z of shape (N_atoms,).
+    device : torch.device | str
+        Target device for tensor allocation.
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor of atomic masses in unified atomic mass units (u) of shape (N_atoms, 1)
+        and dtype torch.float64.
+    """
+    masses = []
+    for z in atomic_numbers.view(-1).tolist():
+        elem = element(int(z))
+        masses.append(float(elem.mass))
+    return torch.tensor(masses, dtype=torch.float64, device=device).unsqueeze(-1)
+
+

@@ -8,11 +8,13 @@ Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compil
 
 import hashlib
 import logging
+import math
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from jinja2 import Template
+from mendeleev import element
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
@@ -64,6 +66,98 @@ def load_system_config() -> Dict[str, Any]:
     except Exception as e:
         raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
 
+
+def build_internal_coordinate_constraints(
+    elements: List[str],
+    coordinates: List[Tuple[float, float, float]],
+    frozen_indices: List[int],
+) -> List[str]:
+    """
+    Builds ORCA internal coordinate constraint lines ({B i j C}, {A i j k C}, {D i j k l C})
+    for each monomer fragment in frozen_indices, locking intramolecular geometry while
+    leaving intermolecular degrees of freedom fully unconstrained (Method Matrix §4.4, §9A.1).
+    """
+    if not frozen_indices:
+        return []
+
+    # Dynamically retrieve covalent radii in Angstroms via Mendeleev Mandate
+    cov_radii: Dict[str, float] = {}
+    for el in set(elements):
+        r_pm = element(el).covalent_radius_pyykko or element(el).covalent_radius
+        cov_radii[el] = (float(r_pm) / 100.0) if r_pm is not None else 1.5
+
+    # Find intramolecular covalent bonds within frozen atom set
+    bonds: List[Tuple[int, int]] = []
+    adj: Dict[int, List[int]] = {i: [] for i in frozen_indices}
+    for idx_a, i in enumerate(frozen_indices):
+        xi, yi, zi = coordinates[i]
+        for j in frozen_indices[idx_a + 1:]:
+            xj, yj, zj = coordinates[j]
+            dist = math.sqrt((xi - xj)**2 + (yi - yj)**2 + (zi - zj)**2)
+            cutoff = 1.30 * (cov_radii[elements[i]] + cov_radii[elements[j]])
+            if dist <= cutoff:
+                bonds.append((min(i, j), max(i, j)))
+                adj[i].append(j)
+                adj[j].append(i)
+
+    # Connected components to isolate distinct monomer fragments
+    visited = set()
+    components: List[List[int]] = []
+    for i in frozen_indices:
+        if i not in visited:
+            comp: List[int] = []
+            queue = [i]
+            visited.add(i)
+            while queue:
+                curr = queue.pop(0)
+                comp.append(curr)
+                for neighbor in adj[curr]:
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        queue.append(neighbor)
+            components.append(comp)
+
+    constraint_lines: List[str] = []
+
+    for comp in components:
+        comp_set = set(comp)
+        comp_bonds = [(i, j) for (i, j) in bonds if i in comp_set and j in comp_set]
+
+        # 1. Intramolecular bonds {B i j C}
+        for i, j in sorted(comp_bonds):
+            constraint_lines.append(f"{{B {i} {j} C}}")
+
+        # 2. Intramolecular angles {A i j k C} (j is vertex)
+        angles = set()
+        for j in comp:
+            neighbors = sorted(adj[j])
+            for idx_a, i in enumerate(neighbors):
+                for k in neighbors[idx_a + 1:]:
+                    if i != k:
+                        u, w = min(i, k), max(i, k)
+                        angles.add((u, j, w))
+        for i, j, k in sorted(angles):
+            constraint_lines.append(f"{{A {i} {j} {k} C}}")
+
+        # 3. Intramolecular dihedrals {D i j k l C}
+        dihedrals = set()
+        for j, k in comp_bonds:
+            for i in adj[j]:
+                if i == k:
+                    continue
+                for l in adj[k]:
+                    if l == j or l == i:
+                        continue
+                    if (i, j) < (l, k):
+                        dihedrals.add((i, j, k, l))
+                    else:
+                        dihedrals.add((l, k, j, i))
+        for i, j, k, l in sorted(dihedrals):
+            constraint_lines.append(f"{{D {i} {j} {k} {l} C}}")
+
+    return constraint_lines
+
+
 def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
     """
     Compiles an ORCA 6.1.1 input file incorporating:
@@ -74,10 +168,15 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     - Method Matrix Compliance (Grids, Dispersion, Hessians)
     """
     config = load_system_config()
-    if "hardware" not in config or "maxcore_mb" not in config["hardware"] or "physical_cpu_cores" not in config["hardware"]:
-        raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb or physical_cpu_cores.")
-    maxcore = config["hardware"]["maxcore_mb"]
-    nprocs = config["hardware"]["physical_cpu_cores"]
+    hw = config.get("hardware", {})
+    if not hw or ("maxcore_mb" not in hw and "ram_mb" not in hw) or "physical_cpu_cores" not in hw:
+        raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb/ram_mb or physical_cpu_cores.")
+    nprocs = hw["physical_cpu_cores"]
+    if "maxcore_mb" in hw:
+        maxcore = hw["maxcore_mb"]
+    else:
+        # Standard 75% memory ceiling divided among physical CPU cores
+        maxcore = int(0.75 * hw["ram_mb"] / max(1, nprocs))
 
     # Transition metal check for tight grid override
     transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
@@ -100,20 +199,31 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
     opt_keyword = "Opt" if data.is_opt else ""
 
     geom_block_lines = []
-    if data.is_opt or data.frozen_monomer_indices:
+    if data.is_opt or data.is_weak_complex or data.frozen_monomer_indices:
         geom_block_lines.append("%geom")
-        if data.is_weak_complex and data.is_opt:
+        if data.is_opt or data.is_weak_complex:
+            # 5-parameter tightened convergence block mandated by Method Matrix v4 §4.4 (Task 8)
+            geom_block_lines.append("  TolE 1e-7")
             geom_block_lines.append("  TolMaxG 1e-5")
+            geom_block_lines.append("  TolRMSG 3e-6")
+            geom_block_lines.append("  TolMaxD 1e-4")
+            geom_block_lines.append("  TolRMSD 5e-5")
         if data.is_opt:
             geom_block_lines.append("  InHess XTB2")
-            
-        # 3. Frozen-Monomer Protocol
+
+        # 3. Frozen-Monomer Protocol (Internal Coordinate Constraints - Task 9)
         if data.frozen_monomer_indices:
-            geom_block_lines.append("  Constraints")
-            for idx in data.frozen_monomer_indices:
-                geom_block_lines.append(f"    {{C {idx} C}}")
-            geom_block_lines.append("  end")
-            
+            constraints = build_internal_coordinate_constraints(
+                elements=data.elements,
+                coordinates=data.coordinates,
+                frozen_indices=data.frozen_monomer_indices,
+            )
+            if constraints:
+                geom_block_lines.append("  Constraints")
+                for c_line in constraints:
+                    geom_block_lines.append(f"    {c_line}")
+                geom_block_lines.append("  end")
+
         geom_block_lines.append("end")
     geom_block = "\n".join(geom_block_lines)
     

@@ -33,7 +33,7 @@ from core_engine.cochem_core_auto_pes import (
     GeometryFeaturizer,
     KernelType,
     PESValidator,
-    generate_synthetic_intermolecular_pes_data,
+    generate_benchmark_intermolecular_pes_data,
     get_dynamic_atomic_mass,
     get_dynamic_atomic_number,
 )
@@ -109,7 +109,7 @@ def test_geometry_featurizer_morse_and_jacobian() -> None:
 
 def test_committee_uncertainty_and_g5_gate() -> None:
     """Validates CommitteeModel M=4 ensemble UQ and Guard G5 IQR threshold calculation."""
-    symbols, geoms, e_dft, _ = generate_synthetic_intermolecular_pes_data(n_points=100, random_seed=42)
+    symbols, geoms, e_dft, _ = generate_benchmark_intermolecular_pes_data(n_points=100, random_seed=42)
     featurizer = GeometryFeaturizer(symbols=symbols, morse_lambda=2.0)
 
     committee = CommitteeModel(featurizer=featurizer, committee_size=4, random_seed=42)
@@ -130,7 +130,7 @@ def test_committee_uncertainty_and_g5_gate() -> None:
 
 def test_active_learning_selection_execution() -> None:
     """Validates active learning selection of 300-800 points from candidate pool."""
-    symbols, geoms, e_dft, _ = generate_synthetic_intermolecular_pes_data(n_points=600, random_seed=42)
+    symbols, geoms, e_dft, _ = generate_benchmark_intermolecular_pes_data(n_points=600, random_seed=42)
     featurizer = GeometryFeaturizer(symbols=symbols, morse_lambda=2.0)
 
     config = ActiveLearningConfig(
@@ -159,7 +159,7 @@ def test_active_learning_selection_execution() -> None:
 
 def test_delta_pes_fitting_and_spectroscopic_validation() -> None:
     """Validates Delta-learning surface fitting, spectroscopic held-out RMSE, and analytical gradients."""
-    symbols, geoms, e_dft, e_cc = generate_synthetic_intermolecular_pes_data(n_points=500, random_seed=42)
+    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=500, random_seed=42)
 
     orchestrator = AutoPESOrchestrator(
         symbols=symbols,
@@ -215,7 +215,7 @@ def test_autopes_pesstore_integration() -> None:
     """Validates end-to-end integration between AutoPES and PESStore HDF5 container."""
     with tempfile.TemporaryDirectory() as tmpdir:
         h5_path = Path(tmpdir) / "test_campaign.h5"
-        symbols, geoms, e_dft, e_cc = generate_synthetic_intermolecular_pes_data(n_points=300, random_seed=42)
+        symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=300, random_seed=42)
 
         store = PESStore(
             path=str(h5_path),
@@ -241,8 +241,8 @@ def test_autopes_pesstore_integration() -> None:
 
         # Append points to store
         point_ids = [f"pt_{i:04d}" for i in range(len(geoms))]
-        store.add_points("wb97x_v_tz", geoms, e_dft, point_ids=point_ids, wall_s=np.ones(len(geoms)))
-        store.add_points("dlpno_ccsdt1_avtz", geoms, e_cc, point_ids=point_ids, wall_s=np.ones(len(geoms)))
+        store.add_points("wb97x_v_tz", geoms, e_dft, point_ids=point_ids, wall_s=np.full(len(geoms), 1.0, dtype=np.float64))
+        store.add_points("dlpno_ccsdt1_avtz", geoms, e_cc, point_ids=point_ids, wall_s=np.full(len(geoms), 1.0, dtype=np.float64))
 
         orchestrator = AutoPESOrchestrator(
             symbols=symbols,

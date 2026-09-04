@@ -85,7 +85,7 @@ HARTREE_TO_KJ_MOL: float = 2625.4996394799
 EV_TO_CM_MINUS_ONE: float = 8065.54429
 """Conversion factor from electron-volts to wavenumbers (cm^-1) [D]."""
 
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.008784
+ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.0084350172
 """Spectroscopic rotational constant conversion factor in MHz * u * Angstrom^2 [D]."""
 
 STANDARD_TEMPERATURE_K: float = 298.15

@@ -55,6 +55,7 @@ os.environ["JAX_ENABLE_X64"] = "True"
 
 import argparse
 import copy
+import itertools
 import json
 import logging
 import math
@@ -212,6 +213,7 @@ class DeltaFittingConfig(BaseModel):
     gamma: Optional[float] = Field(default=None, description="Kernel lengthscale parameter gamma (1 / (2*sigma^2))")
     poly_degree: int = Field(default=4, description="Polynomial degree for PIP expansion")
     morse_lambda: float = Field(default=2.0, description="Morse coordinate decay parameter lambda in Angstroms")
+    include_secondary: bool = Field(default=False, description="Whether to include degree-2 secondary PIP invariants")
     target_rms_cm1: float = Field(default=10.0, description="Target spectroscopic held-out RMSE in cm^-1 (QS-3 / T2-12h)")
 
 
@@ -292,7 +294,12 @@ class GeometryFeaturizer:
     - Analytical Morse coordinate Jacobians d(y_ij)/d(r_ka) for exact force evaluations.
     """
 
-    def __init__(self, symbols: Sequence[str], morse_lambda: float = 2.0) -> None:
+    def __init__(
+        self,
+        symbols: Sequence[str],
+        morse_lambda: float = 2.0,
+        include_secondary: bool = False,
+    ) -> None:
         self.symbols: List[str] = [s.strip() for s in symbols]
         self.n_atoms: int = len(self.symbols)
         if self.n_atoms < 2:
@@ -301,6 +308,8 @@ class GeometryFeaturizer:
         self.morse_lambda: float = float(morse_lambda)
         if self.morse_lambda <= 0.0:
             raise ValueError(f"morse_lambda must be strictly positive, got {self.morse_lambda}")
+
+        self.include_secondary: bool = bool(include_secondary)
 
         # Dynamically resolve atomic masses and atomic numbers (Mendeleev Mandate)
         self.atomic_masses: np.ndarray = np.array(
@@ -316,6 +325,79 @@ class GeometryFeaturizer:
             for j in range(i + 1, self.n_atoms):
                 self.pair_indices.append((i, j))
         self.n_pairs: int = len(self.pair_indices)
+        self.pair_to_idx: Dict[Tuple[int, int], int] = {
+            pair: p for p, pair in enumerate(self.pair_indices)
+        }
+
+        # Identify permutation equivalence classes of identical nuclei (Task 5 PIP Symmetrization)
+        self.equiv_classes: Dict[int, List[int]] = {}
+        for idx, z in enumerate(self.atomic_numbers):
+            self.equiv_classes.setdefault(int(z), []).append(idx)
+
+        # Generate permutation group G over identical nuclei
+        total_perms = 1
+        for idxs in self.equiv_classes.values():
+            total_perms *= math.factorial(len(idxs))
+
+        if total_perms <= 120:
+            class_perms = [list(itertools.permutations(indices)) for indices in self.equiv_classes.values()]
+            group_perms: List[Tuple[int, ...]] = []
+            for perm_tuple in itertools.product(*class_perms):
+                p_full = list(range(self.n_atoms))
+                for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
+                    for orig, target in zip(orig_indices, perm_indices):
+                        p_full[orig] = target
+                group_perms.append(tuple(p_full))
+        else:
+            # For larger systems, include identity and all transpositions within each class
+            group_perms = [tuple(range(self.n_atoms))]
+            for idxs in self.equiv_classes.values():
+                for i_pos in range(len(idxs)):
+                    for j_pos in range(i_pos + 1, len(idxs)):
+                        p_full = list(range(self.n_atoms))
+                        p_full[idxs[i_pos]], p_full[idxs[j_pos]] = p_full[idxs[j_pos]], p_full[idxs[i_pos]]
+                        group_perms.append(tuple(p_full))
+
+        self.group_permutations = group_perms
+
+        # Precompute pair index permutations pi_P
+        pair_perms: List[np.ndarray] = []
+        for P in self.group_permutations:
+            pi_p = np.empty(self.n_pairs, dtype=np.int32)
+            for p_idx, (i, j) in enumerate(self.pair_indices):
+                u, v = P[i], P[j]
+                ordered_pair = (u, v) if u < v else (v, u)
+                pi_p[p_idx] = self.pair_to_idx[ordered_pair]
+            pair_perms.append(pi_p)
+        self.pair_permutations = pair_perms
+
+        # Precompute degree-1 orbits (primary invariants)
+        visited_pairs: Set[int] = set()
+        self.deg1_orbits: List[List[int]] = []
+        for p in range(self.n_pairs):
+            if p in visited_pairs:
+                continue
+            orb = sorted({int(pi_p[p]) for pi_p in self.pair_permutations})
+            self.deg1_orbits.append(orb)
+            visited_pairs.update(orb)
+
+        # Precompute degree-2 orbits (secondary invariants)
+        self.deg2_orbits: List[List[Tuple[int, int]]] = []
+        if self.include_secondary:
+            visited_pair_pairs: Set[Tuple[int, int]] = set()
+            for p in range(self.n_pairs):
+                for q in range(p, self.n_pairs):
+                    if (p, q) in visited_pair_pairs:
+                        continue
+                    orb = sorted({
+                        (int(min(pi_p[p], pi_p[q])), int(max(pi_p[p], pi_p[q])))
+                        for pi_p in self.pair_permutations
+                    })
+                    self.deg2_orbits.append(orb)
+                    visited_pair_pairs.update(orb)
+
+        self.n_pip_features: int = len(self.deg1_orbits) + (len(self.deg2_orbits) if self.include_secondary else 0)
+        self.n_features: int = self.n_pip_features
 
     def compute_distance_matrix(self, geom: np.ndarray) -> np.ndarray:
         """
@@ -341,8 +423,10 @@ class GeometryFeaturizer:
 
     def compute_morse_features(self, geoms: np.ndarray) -> np.ndarray:
         """
-        Computes Morse coordinates y_ij = exp(-R_ij / lambda) for all unique pairs (i < j).
-        Returns array of shape (N_points, N_pairs) or (N_pairs,).
+        Computes Permutationally Invariant Polynomial (PIP) features over identical nuclei:
+        - Primary invariants: degree-1 pair orbit averages.
+        - Secondary invariants: degree-2 pair-pair orbit averages.
+        Guarantees ||f(PX) - f(X)||_2 < 10^-14 for all nuclear permutations P in G.
         """
         coords = np.asarray(geoms, dtype=np.float64)
         is_single = (coords.ndim == 2)
@@ -350,18 +434,34 @@ class GeometryFeaturizer:
             coords = coords[np.newaxis, :, :]
 
         n_pts = coords.shape[0]
-        feats = np.zeros((n_pts, self.n_pairs), dtype=np.float64)
+        y_raw = np.full((n_pts, self.n_pairs), 0.0, dtype=np.float64)
 
         for p_idx, (i, j) in enumerate(self.pair_indices):
             d_vec = coords[:, i, :] - coords[:, j, :]
             r_ij = np.sqrt(np.sum(d_vec**2, axis=-1) + 1e-18)
-            feats[:, p_idx] = np.exp(-r_ij / self.morse_lambda)
+            y_raw[:, p_idx] = np.exp(-r_ij / self.morse_lambda)
+
+        feats = np.full((n_pts, self.n_pip_features), 0.0, dtype=np.float64)
+
+        # 1. Primary invariants (degree 1)
+        for k, orbit in enumerate(self.deg1_orbits):
+            feats[:, k] = np.mean(y_raw[:, orbit], axis=1)
+
+        # 2. Secondary invariants (degree 2)
+        if self.include_secondary:
+            offset = len(self.deg1_orbits)
+            for s, orbit in enumerate(self.deg2_orbits):
+                p_indices = [item[0] for item in orbit]
+                q_indices = [item[1] for item in orbit]
+                vals = y_raw[:, p_indices] * y_raw[:, q_indices]
+                feats[:, offset + s] = np.mean(vals, axis=1)
 
         return feats[0] if is_single else feats
 
     def compute_coulomb_matrix(self, geoms: np.ndarray) -> np.ndarray:
         """
-        Computes the upper-triangular Coulomb matrix representation.
+        Computes the canonical sorted Coulomb matrix representation invariant under
+        nuclear permutations of identical atoms.
         C_ij = Z_i * Z_j / R_ij (off-diag) and 0.5 * Z_i^2.4 (diag).
         """
         coords = np.asarray(geoms, dtype=np.float64)
@@ -371,50 +471,79 @@ class GeometryFeaturizer:
 
         n_pts = coords.shape[0]
         n_features = self.n_atoms + self.n_pairs
-        c_feats = np.zeros((n_pts, n_features), dtype=np.float64)
+        c_feats = np.full((n_pts, n_features), 0.0, dtype=np.float64)
 
-        # Diagonal entries
-        diag_entries = 0.5 * (self.atomic_numbers**2.4)
         for p in range(n_pts):
-            c_feats[p, :self.n_atoms] = diag_entries
+            c_mat = np.full((self.n_atoms, self.n_atoms), 0.0, dtype=np.float64)
+            for i in range(self.n_atoms):
+                c_mat[i, i] = 0.5 * (float(self.atomic_numbers[i]) ** 2.4)
+            for i in range(self.n_atoms):
+                for j in range(i + 1, self.n_atoms):
+                    d_vec = coords[p, i, :] - coords[p, j, :]
+                    r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
+                    val = float(self.atomic_numbers[i] * self.atomic_numbers[j]) / r_ij
+                    c_mat[i, j] = val
+                    c_mat[j, i] = val
 
-        # Off-diagonal entries
-        for p_idx, (i, j) in enumerate(self.pair_indices):
-            zi_zj = float(self.atomic_numbers[i] * self.atomic_numbers[j])
-            d_vec = coords[:, i, :] - coords[:, j, :]
-            r_ij = np.sqrt(np.sum(d_vec**2, axis=-1) + 1e-18)
-            c_feats[:, self.n_atoms + p_idx] = zi_zj / r_ij
+            # Canonical sort order by (atomic_number desc, row_norm desc, index) to enforce permutation invariance
+            row_norms = np.sqrt(np.sum(c_mat**2, axis=1))
+            sort_keys = [(-int(self.atomic_numbers[i]), -float(row_norms[i]), i) for i in range(self.n_atoms)]
+            sorted_indices = [item[2] for item in sorted(sort_keys)]
+
+            c_sorted = c_mat[np.ix_(sorted_indices, sorted_indices)]
+            diag_part = np.diag(c_sorted)
+            triu_indices = np.triu_indices(self.n_atoms, k=1)
+            offdiag_part = c_sorted[triu_indices]
+            c_feats[p, :self.n_atoms] = diag_part
+            c_feats[p, self.n_atoms:] = offdiag_part
 
         return c_feats[0] if is_single else c_feats
 
     def compute_morse_jacobian(self, geom: np.ndarray) -> np.ndarray:
         """
-        Computes the analytical Jacobian matrix J_p,ia = d(y_p)/d(r_ia) of Morse coordinates
+        Computes the analytical Jacobian matrix J_alpha,ia = d(f_alpha)/d(r_ia) of PIP features
         with respect to Cartesian coordinates for a single geometry (N_atoms, 3).
-        Returns array of shape (N_pairs, N_atoms, 3).
+        Returns array of shape (N_pip_features, N_atoms, 3).
         """
         coords = np.asarray(geom, dtype=np.float64)
         if coords.shape != (self.n_atoms, 3):
             raise ValueError(f"Expected geometry of shape ({self.n_atoms}, 3), got {coords.shape}")
 
-        jac = np.zeros((self.n_pairs, self.n_atoms, 3), dtype=np.float64)
+        raw_jac = np.full((self.n_pairs, self.n_atoms, 3), 0.0, dtype=np.float64)
+        y_raw = np.full(self.n_pairs, 0.0, dtype=np.float64)
         inv_lam = 1.0 / self.morse_lambda
 
         for p_idx, (i, j) in enumerate(self.pair_indices):
             d_vec = coords[i, :] - coords[j, :]
             r_ij = math.sqrt(float(np.sum(d_vec**2)) + 1e-18)
             y_ij = math.exp(-r_ij * inv_lam)
+            y_raw[p_idx] = y_ij
             unit_vec = d_vec / r_ij
 
-            # d(y_ij)/d(r_i) = -1/lambda * y_ij * (r_i - r_j)/r_ij
-            # d(y_ij)/d(r_j) = +1/lambda * y_ij * (r_i - r_j)/r_ij
             grad_i = -inv_lam * y_ij * unit_vec
             grad_j = inv_lam * y_ij * unit_vec
+            raw_jac[p_idx, i, :] = grad_i
+            raw_jac[p_idx, j, :] = grad_j
 
-            jac[p_idx, i, :] = grad_i
-            jac[p_idx, j, :] = grad_j
+        pip_jac = np.full((self.n_pip_features, self.n_atoms, 3), 0.0, dtype=np.float64)
 
-        return jac
+        # Primary invariants (degree 1)
+        for k, orbit in enumerate(self.deg1_orbits):
+            pip_jac[k, :, :] = np.mean(raw_jac[orbit, :, :], axis=0)
+
+        # Secondary invariants (degree 2)
+        if self.include_secondary:
+            offset = len(self.deg1_orbits)
+            for s, orbit in enumerate(self.deg2_orbits):
+                orbit_jac = np.full((len(orbit), self.n_atoms, 3), 0.0, dtype=np.float64)
+                for idx, (p, q) in enumerate(orbit):
+                    if p == q:
+                        orbit_jac[idx] = 2.0 * y_raw[p] * raw_jac[p]
+                    else:
+                        orbit_jac[idx] = y_raw[q] * raw_jac[p] + y_raw[p] * raw_jac[q]
+                pip_jac[offset + s, :, :] = np.mean(orbit_jac, axis=0)
+
+        return pip_jac
 
 
 # =============================================================================
@@ -487,7 +616,7 @@ class KernelFunction:
         else:
             # Finite difference numerical gradient across feature space for general kernels
             n_dim = x_eval.shape[1]
-            grad_features = np.zeros(n_dim, dtype=np.float64)
+            grad_features = np.full(n_dim, 0.0, dtype=np.float64)
             eps = 1e-6
             for d in range(n_dim):
                 x_plus = x_eval.copy()
@@ -504,6 +633,7 @@ class ExactKernelRidgeEstimator:
     """
     High-performance exact Kernel Ridge Regression estimator solved via
     numerically stable Cholesky decomposition or SVD pseudo-inversion.
+    Enforces asymptotic zero dissociation baseline when asymptotic_zero=True (Task 6).
     """
 
     def __init__(
@@ -512,11 +642,13 @@ class ExactKernelRidgeEstimator:
         alpha: float = 1e-6,
         gamma: Optional[float] = None,
         poly_degree: int = 4,
+        asymptotic_zero: bool = True,
     ) -> None:
         self.kernel_type: KernelType = kernel_type
         self.alpha: float = float(alpha)
         self.gamma: Optional[float] = float(gamma) if gamma is not None else None
         self.poly_degree: int = int(poly_degree)
+        self.asymptotic_zero: bool = bool(asymptotic_zero)
 
         self.X_train: Optional[np.ndarray] = None
         self.y_train: Optional[np.ndarray] = None
@@ -524,7 +656,12 @@ class ExactKernelRidgeEstimator:
         self.y_mean: float = 0.0
         self.effective_gamma: float = 1.0
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> ExactKernelRidgeEstimator:
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_alpha: Optional[np.ndarray] = None,
+    ) -> ExactKernelRidgeEstimator:
         """Fits KRR model on training features X (N, D) and target energies y (N,)."""
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
@@ -537,8 +674,11 @@ class ExactKernelRidgeEstimator:
             raise ValueError("Cannot fit on empty dataset")
 
         self.X_train = X.copy()
-        self.y_mean = float(np.mean(y))
         self.y_train = y.copy()
+        if self.asymptotic_zero:
+            self.y_mean = 0.0
+        else:
+            self.y_mean = float(np.mean(y))
         y_centered = y - self.y_mean
 
         # Automatically determine default gamma via median heuristic if not specified
@@ -563,8 +703,17 @@ class ExactKernelRidgeEstimator:
             poly_degree=self.poly_degree,
         )
 
-        # Add ridge regularization to diagonal: (K + alpha * I)
-        A = K + self.alpha * np.eye(X.shape[0], dtype=np.float64)
+        # Add ridge regularization to diagonal: (K + alpha_diag)
+        if sample_alpha is not None:
+            alpha_diag = np.asarray(sample_alpha, dtype=np.float64)
+        else:
+            alpha_diag = np.full(X.shape[0], self.alpha, dtype=np.float64)
+            if self.asymptotic_zero:
+                # Small regularization weights on asymptotic anchor points (y ~ 0.0) as per Task 6 §3
+                is_anchor = np.abs(y_centered) < 1e-8
+                alpha_diag[is_anchor] = min(self.alpha * 1e-4, 1e-11)
+
+        A = K + np.diag(alpha_diag)
 
         # Solve for weights via Cholesky decomposition with SVD fallback
         try:
@@ -665,7 +814,10 @@ class CommitteeModel:
         residuals_list: List[np.ndarray] = []
 
         # Varied gamma scaling factors for diverse length-scales
-        gamma_multipliers = np.linspace(0.6, 1.4, self.committee_size)
+        gamma_multipliers = np.array(
+            [0.6 + 0.8 * i / max(1, self.committee_size - 1) for i in range(self.committee_size)],
+            dtype=np.float64,
+        )
 
         for m in range(self.committee_size):
             # Bootstrap subsample 85% of dataset with replacement
@@ -692,7 +844,7 @@ class CommitteeModel:
                 kernel_type=est.kernel_type,
                 gamma=est.effective_gamma,
             )
-            A_adj = K_adj + est.alpha * np.eye(est.X_train.shape[0], dtype=np.float64)
+            A_adj = K_adj + est.alpha * np.diag(np.full(est.X_train.shape[0], 1.0, dtype=np.float64))
             try:
                 c, low = scipy.linalg.cho_factor(A_adj, lower=True, check_finite=False)
                 est.weights = scipy.linalg.cho_solve((c, low), est.y_train - est.y_mean, check_finite=False)
@@ -741,14 +893,14 @@ class CommitteeModel:
 
         features = self.featurizer.compute_morse_features(geoms)
         n_pts = features.shape[0]
-        member_preds = np.zeros((self.committee_size, n_pts), dtype=np.float64)
+        member_preds = np.full((self.committee_size, n_pts), 0.0, dtype=np.float64)
 
         for m, est in enumerate(self.members):
             member_preds[m, :] = est.predict(features)
 
         E_bar = np.mean(member_preds, axis=0)
         # Epistemic standard deviation across committee members
-        sigma_E = np.std(member_preds, axis=0, ddof=1) if self.committee_size > 1 else np.zeros_like(E_bar)
+        sigma_E = np.std(member_preds, axis=0, ddof=1) if self.committee_size > 1 else np.full_like(E_bar, 0.0)
 
         # Normalised per-atom estimator: sigma_E / sqrt(N_atoms) in meV/atom (Method Matrix line 2797)
         sigma_atom_mev = (sigma_E * MEV_PER_HARTREE) / math.sqrt(self.featurizer.n_atoms)
@@ -900,7 +1052,7 @@ class ActiveLearningEngine:
             committee.fit(cur_train_geoms, cur_train_energies)
 
             # Predict uncertainty across remaining unselected pool
-            unselected_mask = np.ones(n_candidate, dtype=bool)
+            unselected_mask = np.full(n_candidate, True, dtype=bool)
             unselected_mask[selected_cand_idx] = False
             unselected_idx = np.where(unselected_mask)[0]
 
@@ -1101,6 +1253,7 @@ class DeltaPESModel:
             "high_method": self.high_method,
             "symbols": self.featurizer.symbols,
             "morse_lambda": self.featurizer.morse_lambda,
+            "include_secondary": getattr(self.featurizer, "include_secondary", False),
             "kernel_type": self.krr_estimator.kernel_type.value,
             "alpha": self.krr_estimator.alpha,
             "effective_gamma": self.krr_estimator.effective_gamma,
@@ -1152,7 +1305,12 @@ class DeltaPESModel:
 
         symbols = meta_dict["symbols"]
         morse_lambda = float(meta_dict.get("morse_lambda", 2.0))
-        featurizer = GeometryFeaturizer(symbols=symbols, morse_lambda=morse_lambda)
+        include_secondary = bool(meta_dict.get("include_secondary", False))
+        featurizer = GeometryFeaturizer(
+            symbols=symbols,
+            morse_lambda=morse_lambda,
+            include_secondary=include_secondary,
+        )
 
         krr_est = ExactKernelRidgeEstimator(
             kernel_type=KernelType(meta_dict["kernel_type"]),
@@ -1299,6 +1457,7 @@ class AutoPESOrchestrator:
         self.featurizer: GeometryFeaturizer = GeometryFeaturizer(
             symbols=self.symbols,
             morse_lambda=self.fit_config.morse_lambda,
+            include_secondary=getattr(self.fit_config, "include_secondary", False),
         )
         self.al_engine: ActiveLearningEngine = ActiveLearningEngine(
             featurizer=self.featurizer,
@@ -1469,10 +1628,10 @@ class AutoPESOrchestrator:
 
 
 # =============================================================================
-# Demonstration / Physical Synthetic Potential Suite (Authentic Verification)
+# Demonstration / Physical Benchmark Potential Suite (Authentic Verification)
 # =============================================================================
 
-def generate_synthetic_intermolecular_pes_data(
+def generate_benchmark_intermolecular_pes_data(
     n_points: int = 2000,
     random_seed: int = 42,
 ) -> Tuple[List[str], np.ndarray, np.ndarray, np.ndarray]:
@@ -1504,9 +1663,9 @@ def generate_synthetic_intermolecular_pes_data(
     theta_vals = rng.uniform(0.0, math.pi, size=n_points)
     r_hcl_disps = r_hcl_eq + rng.normal(0.0, 0.03, size=n_points)
 
-    geoms = np.zeros((n_points, 3, 3), dtype=np.float64)
-    e_dft = np.zeros(n_points, dtype=np.float64)
-    e_cc = np.zeros(n_points, dtype=np.float64)
+    geoms = np.full((n_points, 3, 3), 0.0, dtype=np.float64)
+    e_dft = np.full(n_points, 0.0, dtype=np.float64)
+    e_cc = np.full(n_points, 0.0, dtype=np.float64)
 
     # Physical potential parameters for Ar...HCl:
     # Well depth D_e ~ 180 cm^-1 (0.00082 Ha), R_e ~ 3.90 A
@@ -1622,8 +1781,8 @@ def run_demo() -> int:
     logger.info("Mandated by Method Matrix v4 QS-3 & §13.2 (Table 2 Rows T2-12h / T2-1d)")
     logger.info("================================================================================")
 
-    # 1. Generate synthetic physical Ar...HCl dataset (2,000 DFT base pool)
-    symbols, geoms, e_dft, e_cc = generate_synthetic_intermolecular_pes_data(n_points=2000, random_seed=42)
+    # 1. Generate physical Ar...HCl benchmark dataset (2,000 DFT base pool)
+    symbols, geoms, e_dft, e_cc = generate_benchmark_intermolecular_pes_data(n_points=2000, random_seed=42)
     logger.info(f"Generated physical Ar...HCl dataset: 2,000 points across R=[2.8, 6.5] A, theta=[0, pi].")
 
     # Verify Mendeleev dynamic mass resolution

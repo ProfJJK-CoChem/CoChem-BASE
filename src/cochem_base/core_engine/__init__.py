@@ -134,7 +134,7 @@ from core_engine.cochem_core_auto_pes import (
     GeometryFeaturizer,
     KernelType,
     PESValidator,
-    generate_synthetic_intermolecular_pes_data,
+    generate_benchmark_intermolecular_pes_data,
     get_dynamic_atomic_mass as get_dynamic_atomic_mass_auto_pes,
     get_dynamic_atomic_number,
 )
@@ -187,7 +187,7 @@ __all__ = [
     "export_cfour_to_spcat_var",
     "generate_cfour_zmat",
     "isomass_rediagonalize_force_field",
-    "generate_synthetic_intermolecular_pes_data",
+    "generate_benchmark_intermolecular_pes_data",
     "get_dynamic_atomic_mass_auto_pes",
     "get_dynamic_atomic_number",
     "ANGSTROM_TO_BOHR",

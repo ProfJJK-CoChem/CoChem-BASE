@@ -75,7 +75,21 @@ from typing import (
 )
 
 import h5py
-import numba  # type: ignore[import-untyped]
+try:
+    import numba  # type: ignore[import-untyped]
+    HAS_NUMBA = True
+except ImportError:
+    HAS_NUMBA = False
+
+    class _NumbaFallback:
+        @staticmethod
+        def njit(*args: Any, **kwargs: Any) -> Callable[[Any], Any]:
+            def decorator(fn: Any) -> Any:
+                return fn
+            return decorator
+
+    numba = _NumbaFallback()  # type: ignore
+
 import numpy as np
 import psutil
 from mendeleev import element

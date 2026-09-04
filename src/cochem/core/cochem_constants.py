@@ -13,6 +13,11 @@ import scipy.constants
 from mendeleev import element
 
 
+# Authoritative conversion constant for rotational constants: MHz * u * Angstrom^2
+# Derived from CODATA 2022: C_rot = 10^-6 * h / (8 * pi^2 * u * Angstrom^2)
+C_ROT_MHZ_U_ANG2: float = 505379.0084350172
+
+
 @dataclass(frozen=True)
 class PhysicalConstant:
     """Immutable representation of a physical constant with CODATA provenance."""
@@ -55,19 +60,86 @@ class PhysicalConstantsRegistry:
         "atomic mass constant": "u",
     }
 
+    _SYMBOL_ALIASES: Dict[str, str] = {
+        "h": "Planck constant",
+        "c": "speed of light in vacuum",
+        "e": "elementary charge",
+        "u": "atomic mass constant",
+        "amu": "atomic mass constant",
+        "k_B": "Boltzmann constant",
+        "kB": "Boltzmann constant",
+        "k": "Boltzmann constant",
+        "N_A": "Avogadro constant",
+        "NA": "Avogadro constant",
+        "R": "molar gas constant",
+    }
+
+    _DERIVED_CONSTANTS: Dict[str, Tuple[float, str, str, str]] = {
+        "C_ROT_MHZ_U_ANG2": (
+            C_ROT_MHZ_U_ANG2,
+            "MHz * u * Angstrom^2",
+            "C_rot",
+            "Authoritative rotational constant conversion factor (Method Matrix / CODATA 2022 derived)",
+        ),
+        "C_rot": (
+            C_ROT_MHZ_U_ANG2,
+            "MHz * u * Angstrom^2",
+            "C_rot",
+            "Authoritative rotational constant conversion factor (Method Matrix / CODATA 2022 derived)",
+        ),
+        "c_rot": (
+            C_ROT_MHZ_U_ANG2,
+            "MHz * u * Angstrom^2",
+            "C_rot",
+            "Authoritative rotational constant conversion factor (Method Matrix / CODATA 2022 derived)",
+        ),
+    }
+
     @staticmethod
     @functools.lru_cache(maxsize=256)
     def get_constant(name: str) -> PhysicalConstant:
-        """Query physical constant dynamically from scipy CODATA 2018 database."""
-        if name not in scipy.constants.physical_constants:
-            raise KeyError(f"Constant '{name}' not found in CODATA 2018 registry.")
+        """Query physical constant dynamically from registry or scipy CODATA database.
 
-        val, unit, unc = scipy.constants.physical_constants[name]
-        provenance = "[E]" if unc == 0.0 else "[D]"
-        symbol = PhysicalConstantsRegistry._CONVENTIONAL_SYMBOLS.get(name, name)
+        Provenance tag rules (Method Matrix v4 & Task 10):
+        - Exact CODATA SI standards (unc == 0.0) or measured CODATA standards: [M].
+        - Derived analytical constants (e.g. C_rot = h / (8*pi^2)): [D].
+        - Empirical / heuristic parameters: [E].
+        """
+        if name in PhysicalConstantsRegistry._DERIVED_CONSTANTS:
+            val, unit, sym, src = PhysicalConstantsRegistry._DERIVED_CONSTANTS[name]
+            return PhysicalConstant(
+                name=name,
+                symbol=sym,
+                value=float(val),
+                uncertainty=0.0,
+                unit=unit,
+                provenance="[D]",
+                source=src,
+            )
+
+        resolved_name = PhysicalConstantsRegistry._SYMBOL_ALIASES.get(name, name)
+        if resolved_name in PhysicalConstantsRegistry._DERIVED_CONSTANTS:
+            val, unit, sym, src = PhysicalConstantsRegistry._DERIVED_CONSTANTS[resolved_name]
+            return PhysicalConstant(
+                name=resolved_name,
+                symbol=name,
+                value=float(val),
+                uncertainty=0.0,
+                unit=unit,
+                provenance="[D]",
+                source=src,
+            )
+
+        if resolved_name not in scipy.constants.physical_constants:
+            raise KeyError(f"Constant '{name}' (resolved as '{resolved_name}') not found in CODATA registry.")
+
+        val, unit, unc = scipy.constants.physical_constants[resolved_name]
+        symbol = PhysicalConstantsRegistry._CONVENTIONAL_SYMBOLS.get(resolved_name, name)
+
+        provenance = "[M]"
 
         return PhysicalConstant(
-            name=name,
+            name=resolved_name,
             symbol=symbol,
             value=float(val),
             uncertainty=float(unc),

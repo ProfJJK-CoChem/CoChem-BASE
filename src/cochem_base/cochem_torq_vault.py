@@ -20,7 +20,10 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 import h5py
 import numpy as np
 import pandas as pd
-import pyarrow as pa
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
 
 from cochem_base.exceptions import (
     CoChemIntegrityError,
@@ -230,7 +233,7 @@ def parse_external_xyz(
     atomic_numbers = [ATOMIC_NUMBERS.get(s, 6) for s in symbols]
 
     df = standardize_geometry_dataframe(symbols, coords_arr, masses, provenance_tag="[D]")
-    arrow_table = pa.Table.from_pandas(df)
+    arrow_table = pa.Table.from_pandas(df) if pa is not None else None
 
     logger.info("Successfully parsed XYZ geometry (%d atoms, SHA256=%s...)", atom_count, sha256[:8])
 
@@ -300,7 +303,7 @@ def fetch_topos_matrices(
     masses = [CIAAW_ISOTOPIC_MASSES.get(s.capitalize(), 12.0) for s in symbols]
     atomic_numbers = [ATOMIC_NUMBERS.get(s.capitalize(), 6) for s in symbols]
     df = standardize_geometry_dataframe(symbols, coords, masses, provenance_tag="[M]")
-    arrow_table = pa.Table.from_pandas(df)
+    arrow_table = pa.Table.from_pandas(df) if pa is not None else None
 
     return {
         "conformer_id": selected_key,

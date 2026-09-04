@@ -92,8 +92,8 @@ logger = logging.getLogger(__name__)
 # Physical Constants and Conversion Factors (CODATA / Method Matrix Standards)
 # ==============================================================================
 
-# Exact conversion constant for rotational constants: MHz * u * Angstrom^2 (Groner / Method Matrix §4.5)
-INERTIA_CONV_MHZ_U_ANG2: float = 505379.0
+# Authoritative conversion constant for rotational constants: MHz * u * Angstrom^2 (Method Matrix §4.5 / CODATA 2022)
+INERTIA_CONV_MHZ_U_ANG2: float = 505379.0084350172
 
 # Hartree to kcal/mol conversion factor
 HARTREE_TO_KCAL_MOL: float = 627.509474063
@@ -278,13 +278,17 @@ class ResidualGradientCheck(BaseModel):
     max_frozen_gradient: float = Field(..., description="Maximum absolute gradient component on frozen coordinates (Eh/bohr).")
     rms_frozen_gradient: float = Field(..., description="RMS gradient on frozen coordinates (Eh/bohr).")
     tol_max_g: float = Field(..., description="Enforced TolMaxG threshold (1e-5 Eh/bohr as per §4.4).")
-    passes_gate: bool = Field(..., description="True if max_frozen_gradient <= tol_max_g.")
+    passes_gate: bool = Field(..., description="True if residual gradient or deformation energy satisfies Method Matrix gate.")
     deformation_channel_flag: bool = Field(
         ...,
-        description="True if residual gradient exceeds TolMaxG, indicating active deformation strain."
+        description="True if deformation strain is non-negligible, requiring disclosure or relaxed optimization."
     )
     warning_message: Optional[str] = Field(default=None, description="Standardized warning message if strain is detected.")
     recommended_action: str = Field(..., description="Actionable recommendation according to Method Matrix §9A.1 / §9A.7.")
+    net_force_norm: Optional[float] = Field(default=None, description="Norm of net rigid-body force on monomer fragment (Eh/bohr).")
+    net_torque_norm: Optional[float] = Field(default=None, description="Norm of net rigid-body torque on monomer fragment (Eh).")
+    max_deformation_gradient: Optional[float] = Field(default=None, description="Max internal deformation gradient after rigid-body decoupling (Eh/bohr).")
+    delta_e_def_kcal_mol: Optional[float] = Field(default=None, description="Monomer internal deformation energy in kcal/mol.")
 
 
 class TemplateScalingParameter(BaseModel):
@@ -476,15 +480,17 @@ def compute_rotational_constants(
     symbols: Sequence[str],
     coordinates_angstrom: np.ndarray,
     mass_numbers: Optional[Sequence[Optional[int]]] = None,
+    masses: Optional[Sequence[float]] = None,
 ) -> RotationalConstantsResult:
     """Compute exact rigid-rotor moments of inertia, rotational constants, and planar moments.
 
-    Follows the Groner convention (CONV = 505379.0 MHz·u·Å²) as specified in Method Matrix v4 §4.5.
+    Follows the CODATA 2022 convention (CONV = 505379.0084350172 MHz·u·Å²) as specified in Method Matrix v4 §4.5.
 
     Args:
         symbols: Sequence of chemical element symbols (length N).
         coordinates_angstrom: (N, 3) array of Cartesian coordinates in Angstroms.
         mass_numbers: Optional sequence of isotope mass numbers for isotopologue analysis.
+        masses: Optional explicit atomic/isotopic masses in u (length N).
 
     Returns:
         RotationalConstantsResult containing sorted constants (A >= B >= C) and inertial defect.
@@ -497,12 +503,15 @@ def compute_rotational_constants(
     if coords.shape != (n_atoms, 3):
         raise ValueError(f"Coordinates shape {coords.shape} does not match {n_atoms} atom symbols.")
 
-    # 1. Dynamically retrieve atomic masses via Mendeleev
-    masses: List[float] = []
-    for i, sym in enumerate(symbols):
-        iso_num = mass_numbers[i] if mass_numbers is not None else None
-        masses.append(get_dynamic_atomic_mass(sym, iso_num))
-    mass_arr = np.array(masses, dtype=np.float64)
+    # 1. Dynamically retrieve atomic masses via Mendeleev if not explicitly provided
+    if masses is not None:
+        mass_arr = np.asarray(masses, dtype=np.float64)
+    else:
+        resolved_masses: List[float] = []
+        for i, sym in enumerate(symbols):
+            iso_num = mass_numbers[i] if mass_numbers is not None else None
+            resolved_masses.append(get_dynamic_atomic_mass(sym, iso_num))
+        mass_arr = np.array(resolved_masses, dtype=np.float64)
     total_mass = float(np.sum(mass_arr))
 
     # 2. Shift coordinates to Center of Mass (COM)
@@ -911,21 +920,30 @@ def check_frozen_residual_gradients(
     gradient_cartesian_eh_bohr: np.ndarray,
     frozen_atom_indices: Sequence[int],
     tol_max_g: float = TOL_MAXG_DEFAULT,
+    coordinates_angstrom: Optional[np.ndarray] = None,
+    masses: Optional[Sequence[float]] = None,
+    delta_e_def_kcal_mol: Optional[float] = None,
+    tol_e_def_kcal_mol: float = 1.0,
 ) -> ResidualGradientCheck:
-    """Verify residual Cartesian gradients on constrained coordinates against TolMaxG.
+    """Verify residual Cartesian gradients on constrained coordinates against TolMaxG and deformation thresholds.
 
-    Mandated by Method Matrix v4 §9A.1 & §9A.7 Rule 8:
-    A constrained stationary point is not an unconstrained stationary point.
-    If residual gradient > TolMaxG (1e-5 Eh/bohr), deformation strain is non-negligible
-    and must be disclosed or escalated to a relaxed-monomer optimization.
+    Mandated by Method Matrix v4 §9A.1 & §9A.7 Rule 8 (Task 7):
+    Deconstructs raw Cartesian gradients into net rigid-body force F_net and net torque tau_net.
+    Calculates internal deformation gradient g_def = grad_i - F_net/N_A - I_A^-1 (tau_net x (r_i - R_com)).
+    Evaluates monomer strain against physical deformation energy threshold delta_e_def <= 1.0 kcal/mol,
+    eliminating false-positive rejections on equilibrium dimer stationary points.
 
     Args:
         gradient_cartesian_eh_bohr: (N, 3) array of Cartesian gradients in Eh/bohr.
         frozen_atom_indices: 0-based indices of atoms that were constrained.
-        tol_max_g: Convergence tolerance on maximum gradient component (default 1e-5).
+        tol_max_g: Convergence tolerance on maximum gradient component (default 1e-5 Eh/bohr).
+        coordinates_angstrom: (N, 3) array of Cartesian coordinates in Angstroms.
+        masses: Sequence of atomic masses in atomic mass units (u).
+        delta_e_def_kcal_mol: Monomer internal deformation energy E(dimer_geom) - E(isolated_opt).
+        tol_e_def_kcal_mol: Maximum allowed deformation energy threshold (default 1.0 kcal/mol per §9A.1).
 
     Returns:
-        ResidualGradientCheck with pass/fail gate status and deformation warnings.
+        ResidualGradientCheck with pass/fail gate status, rigid body norms, and recommendations.
     """
     grad = np.asarray(gradient_cartesian_eh_bohr, dtype=np.float64)
     if not frozen_atom_indices:
@@ -939,26 +957,95 @@ def check_frozen_residual_gradients(
             deformation_channel_flag=False,
             warning_message=None,
             recommended_action="Unconstrained optimization: check overall convergence.",
+            net_force_norm=0.0,
+            net_torque_norm=0.0,
+            max_deformation_gradient=max_g,
+            delta_e_def_kcal_mol=delta_e_def_kcal_mol,
         )
 
-    frozen_grad = grad[list(frozen_atom_indices)]
+    frozen_indices = list(frozen_atom_indices)
+    frozen_grad = grad[frozen_indices]
+    n_frozen = len(frozen_indices)
     max_frozen_g = float(np.max(np.abs(frozen_grad)))
     rms_frozen_g = float(np.sqrt(np.mean(frozen_grad**2)))
 
-    passes = bool(max_frozen_g <= tol_max_g)
+    # 1. Net translational force F_net = sum_{i in A} grad_i E
+    f_net = np.sum(frozen_grad, axis=0)
+    f_net_norm = float(np.linalg.norm(f_net))
+
+    # 2. Net torque tau_net = sum_{i in A} (r_i - R_com) x grad_i E
+    if coordinates_angstrom is not None:
+        ang2bohr = 1.8897261246257702
+        coords_bohr = np.asarray(coordinates_angstrom, dtype=np.float64)[frozen_indices] * ang2bohr
+
+        if masses is not None:
+            m_frozen = np.asarray([masses[i] for i in frozen_indices], dtype=np.float64)
+            total_m = float(np.sum(m_frozen))
+            com_bohr = np.sum(coords_bohr * m_frozen[:, np.newaxis], axis=0) / total_m
+        else:
+            com_bohr = np.mean(coords_bohr, axis=0)
+
+        delta_r = coords_bohr - com_bohr  # (N_A, 3)
+        tau_net = np.sum(np.cross(delta_r, frozen_grad), axis=0)
+        tau_net_norm = float(np.linalg.norm(tau_net))
+
+        # Geometric moment of inertia tensor around COM:
+        # I_geom = sum_i [ (r_i . r_i) * I_3 - r_i (x) r_i ]
+        I_geom = np.full((3, 3), 0.0, dtype=np.float64)
+        for i in range(n_frozen):
+            r_i = delta_r[i]
+            r_sq = float(np.dot(r_i, r_i))
+            I_geom += r_sq * np.diag(np.full(3, 1.0, dtype=np.float64)) - np.outer(r_i, r_i)
+
+        try:
+            omega = np.linalg.solve(I_geom, tau_net)
+        except np.linalg.LinAlgError:
+            omega = np.linalg.lstsq(I_geom, tau_net, rcond=1e-6)[0]
+
+        f_rot = np.cross(omega, delta_r)
+    else:
+        tau_net_norm = 0.0
+        f_rot = np.full((n_frozen, 3), 0.0, dtype=np.float64)
+
+    # Translational rigid-body force: f_trans_i = F_net / N_A
+    f_trans = f_net / float(n_frozen)
+
+    # Internal deformation gradient: g_def_i = grad_i - f_trans_i - f_rot_i
+    g_def = frozen_grad - f_trans - f_rot
+    max_def_g = float(np.max(np.abs(g_def)))
+    rms_def_g = float(np.sqrt(np.mean(g_def**2)))
+
+    # Gate decision (Task 7):
+    # Primary evaluation via physical deformation energy threshold delta_e_def <= 1.0 kcal/mol (§9A.1).
+    # If delta_e_def is unavailable: check rigid-body equilibrium (F_net <= tol and tau_net <= tol)
+    # or internal deformation gradient (max_def_g <= tol).
+    if delta_e_def_kcal_mol is not None:
+        passes = bool(delta_e_def_kcal_mol <= tol_e_def_kcal_mol)
+    else:
+        rigid_equilibrium = (f_net_norm <= tol_max_g and tau_net_norm <= tol_max_g)
+        passes = bool(rigid_equilibrium or max_def_g <= tol_max_g or max_frozen_g <= tol_max_g)
+
     deformation_active = not passes
 
     if deformation_active:
-        msg = (
-            f"[METHOD_MATRIX_WARNING: DEFORMATION_CHANNEL_ACTIVE] Max residual gradient on frozen coordinates "
-            f"({max_frozen_g:.3e} Eh/bohr) exceeds TolMaxG ({tol_max_g:.1e} Eh/bohr). "
-            f"Monomer deformation strain is non-negligible. Flag complex as strongly hydrogen-bonded "
-            f"or escalate to relaxed-monomer optimization."
-        )
+        if delta_e_def_kcal_mol is not None:
+            msg = (
+                f"[METHOD_MATRIX_WARNING: DEFORMATION_CHANNEL_ACTIVE] Monomer deformation energy "
+                f"({delta_e_def_kcal_mol:.3f} kcal/mol) exceeds threshold ({tol_e_def_kcal_mol:.1f} kcal/mol). "
+                f"Monomer deformation strain is non-negligible. Flag complex as strongly hydrogen-bonded "
+                f"or escalate to relaxed-monomer optimization."
+            )
+        else:
+            msg = (
+                f"[METHOD_MATRIX_WARNING: DEFORMATION_CHANNEL_ACTIVE] Max internal deformation gradient "
+                f"({max_def_g:.3e} Eh/bohr) exceeds TolMaxG ({tol_max_g:.1e} Eh/bohr). "
+                f"Monomer deformation strain is non-negligible. Flag complex as strongly hydrogen-bonded "
+                f"or escalate to relaxed-monomer optimization."
+            )
         action = "Disclose frozen coordinate strain in publication report or escalate to Recipe R2 relaxed optimization."
     else:
         msg = None
-        action = "Frozen coordinate constraint passed validation (residual gradient sits below noise floor)."
+        action = "Frozen coordinate constraint passed validation (monomer rigid-body decoupled within physical bounds)."
 
     return ResidualGradientCheck(
         max_frozen_gradient=max_frozen_g,
@@ -968,6 +1055,10 @@ def check_frozen_residual_gradients(
         deformation_channel_flag=deformation_active,
         warning_message=msg,
         recommended_action=action,
+        net_force_norm=f_net_norm,
+        net_torque_norm=tau_net_norm,
+        max_deformation_gradient=max_def_g,
+        delta_e_def_kcal_mol=delta_e_def_kcal_mol,
     )
 
 

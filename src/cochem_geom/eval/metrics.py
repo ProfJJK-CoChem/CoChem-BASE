@@ -89,7 +89,7 @@ EV_TO_KJ_MOL: float = HARTREE_TO_KJ_MOL / HARTREE_TO_EV
 EV_TO_CM_MINUS_ONE: float = 8065.54429
 """Conversion factor from electron-volts to wavenumbers (cm^-1) [D]."""
 
-ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.008784
+ROTATIONAL_CONSTANT_MHZ_U_ANGSTROM_SQ: float = 505379.0084350172
 """Spectroscopic rotational constant conversion factor in MHz * u * Angstrom^2 [D]."""
 
 STANDARD_TEMPERATURE_K: float = 298.15
@@ -194,12 +194,15 @@ def get_monoisotopic_mass(symbol_or_z: Union[str, int]) -> float:
     raise ValueError(f"Monoisotopic mass not found for element '{symbol_or_z}'")
 
 
-def get_atomic_masses(atomic_numbers: torch.Tensor) -> torch.Tensor:
+def get_atomic_masses(
+    atomic_numbers: torch.Tensor,
+    dtype: torch.dtype = torch.float64,
+) -> torch.Tensor:
     """Dynamically query atomic masses for a tensor of atomic numbers [M]."""
     masses: List[float] = []
     for z_val in atomic_numbers.view(-1).tolist():
         masses.append(get_atomic_mass(int(z_val)))
-    return torch.tensor(masses, dtype=torch.float32, device=atomic_numbers.device).view(atomic_numbers.shape)
+    return torch.tensor(masses, dtype=dtype, device=atomic_numbers.device).view(atomic_numbers.shape)
 
 
 # ==============================================================================
@@ -584,9 +587,9 @@ def compute_moments_of_inertia(
         - principal_moments: (..., 3) sorted (I_a, I_b, I_c) in u * Angstrom^2 [D]
         - rotational_constants_mhz: (..., 3) sorted (A, B, C) in MHz [D]
     """
-    masses = get_atomic_masses(atomic_numbers)  # (..., N)
+    masses = get_atomic_masses(atomic_numbers, dtype=positions.dtype)  # (..., N)
     w_mass = masses.unsqueeze(-1)  # (..., N, 1)
-    total_mass = torch.sum(w_mass, dim=-2, keepdim=True) + 1e-12
+    total_mass = torch.clamp(torch.sum(w_mass, dim=-2, keepdim=True), min=1e-12)
 
     # Center of mass
     com = torch.sum(positions * w_mass, dim=-2, keepdim=True) / total_mass

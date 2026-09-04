@@ -22,9 +22,8 @@ from cochem_torq_vault import CIAAW_ISOTOPIC_MASSES
 logger = logging.getLogger("CoChem-TORQ.Alignment")
 
 # Fundamental Conversion Constant:
-# h / (8 * pi^2 * u * A^2) in MHz
-# h = 6.62607015e-34 J*s, u = 1.66053906892e-27 kg, A = 1e-10 m
-INERTIA_CONVERSION_AMU_ANG2_MHZ: float = 505379.006
+# h / (8 * pi^2 * u * A^2) in MHz (CODATA 2022 / Method Matrix Standard)
+INERTIA_CONVERSION_AMU_ANG2_MHZ: float = 505379.0084350172
 
 
 def translate_com_to_origin(

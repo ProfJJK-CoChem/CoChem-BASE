@@ -77,6 +77,8 @@ import scipy.linalg
 import scipy.sparse.linalg
 from mendeleev import element
 
+from cochem_base.exceptions import MethodMatrixViolationError, MissingDataError
+
 # Configure logger
 logger = logging.getLogger("cochem.core_dvr_solver")
 if not logger.handlers:
@@ -127,11 +129,8 @@ CM_INV_TO_JOULE: float = PLANCK_CONSTANT_J_S * SPEED_OF_LIGHT_CM_S  # J / cm^-1
 AMU_TO_AU_MASS: float = ATOMIC_MASS_UNIT_KG / ELECTRON_MASS_KG
 
 # Inertia (u * Angstrom^2) to Rotational Constant (MHz):
-# B (MHz) = h / (8 * pi^2 * I) * 1e-6
-INERTIA_TO_MHZ_FACTOR: float = (
-    PLANCK_CONSTANT_J_S
-    / (8.0 * (math.pi ** 2) * ATOMIC_MASS_UNIT_KG * (ANGSTROM_TO_METER ** 2))
-) * 1.0e-6  # ~505379.0091414361 MHz * u * Angstrom^2
+# Authoritative derived rotational conversion constant (Method Matrix §4.5 / CODATA 2022)
+INERTIA_TO_MHZ_FACTOR: float = 505379.0084350172
 
 # Inertia (u * Angstrom^2) to Rotational Constant (cm^-1):
 INERTIA_TO_CM_INV_FACTOR: float = INERTIA_TO_MHZ_FACTOR / CM_INV_TO_MHZ  # ~16.857629 cm^-1 * u * A^2
@@ -881,44 +880,136 @@ class MatrixFreeDVROperator(scipy.sparse.linalg.LinearOperator):
 def nan_regularization_watchdog(
     array_or_matrix: np.ndarray,
     damping: float = 1e-8,
-    name: str = "DVR Hamiltonian",
+    name: str = "DVR Potential Grid",
 ) -> np.ndarray:
-    """Inspects potential/Hamiltonian arrays for NaNs or Infinities and applies Tikhonov regularization.
+    """Inspects potential/Hamiltonian arrays for NaNs/Infinities and enforces cubic spline interpolation.
+
+    Method Matrix v4 §7 & Suggestion #4:
+    Eradicates np.nan_to_num(..., nan=0.0). Fabricating a 0.0 potential minimum at calculation failures
+    is strictly prohibited as it collapses wavefunctions into spurious delta distributions.
+
+    Pipeline:
+    1. Validates presence of NaN/Inf values.
+    2. For 1D and 2D arrays, if non-finite points lie on the outer boundary or interpolation
+       cannot resolve missing data within physical bounds, raises MethodMatrixViolationError.
+    3. If missing points lie within the interior (convex hull of valid physical points),
+       performs cubic spline interpolation (scipy.interpolate.CubicSpline for 1D,
+       scipy.interpolate.griddata(method='cubic') for 2D).
 
     Args:
-        array_or_matrix: 1D or 2D array to inspect.
-        damping: Tikhonov regularization scalar lambda added to diagonal upon singularity detection.
+        array_or_matrix: 1D or 2D potential or Hamiltonian array to inspect.
+        damping: Regularization parameter (unused for nan replacement).
         name: Telemetry identifier name.
 
     Returns:
-        Regularized finite numerical array.
+        Regularized finite numerical array with smoothly interpolated interior holes.
+
+    Raises:
+        MethodMatrixViolationError: If non-finite points lie on the boundary or cannot be interpolated.
     """
     arr = np.asarray(array_or_matrix, dtype=np.float64)
-    has_nan = bool(np.isnan(arr).any())
-    has_inf = bool(np.isinf(arr).any())
+    finite_mask = np.isfinite(arr)
 
-    if has_nan or has_inf:
-        logger.warning(
-            "[W: SINGULARITY_DETECTED] Non-finite tensor detected in %s (NaN=%s, Inf=%s). "
-            "Applying Tikhonov micro-damping (lambda=%.2e).",
-            name,
-            has_nan,
-            has_inf,
-            damping,
+    if np.all(finite_mask):
+        if arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
+            return (arr + arr.T) / 2.0
+        return arr
+
+    logger.warning(
+        "[W: SINGULARITY_DETECTED] Non-finite values detected in %s. "
+        "Engaging Method Matrix cubic spline interpolation gate.",
+        name,
+    )
+
+    if arr.ndim == 1:
+        n = len(arr)
+        # Check boundary points: index 0 and index n - 1
+        if not finite_mask[0] or not finite_mask[-1]:
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Non-finite boundary values detected at index 0 or {n-1}. "
+                f"Fabrication of potential minima or boundary extrapolation is strictly prohibited."
+            )
+
+        valid_idx = np.where(finite_mask)[0]
+        missing_idx = np.where(~finite_mask)[0]
+
+        if len(valid_idx) < 4:
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Insufficient physical points ({len(valid_idx)}) "
+                f"for cubic spline interpolation."
+            )
+
+        try:
+            cs = scipy.interpolate.CubicSpline(valid_idx, arr[valid_idx])
+            arr_resolved = arr.copy()
+            arr_resolved[missing_idx] = cs(missing_idx)
+        except Exception as exc:
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Cubic spline interpolation failed: {exc}"
+            ) from exc
+
+        if not np.all(np.isfinite(arr_resolved)):
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Interpolation produced non-finite values."
+            )
+        return arr_resolved
+
+    elif arr.ndim == 2:
+        nrows, ncols = arr.shape
+        # Check outer boundary: first row, last row, first col, last col
+        boundary_mask = np.full(arr.shape, False, dtype=bool)
+        boundary_mask[0, :] = True
+        boundary_mask[-1, :] = True
+        boundary_mask[:, 0] = True
+        boundary_mask[:, -1] = True
+
+        if np.any(~finite_mask & boundary_mask):
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Non-finite points lie on outer grid boundary of shape {arr.shape}. "
+                f"Fabrication of potential boundary minima is strictly prohibited."
+            )
+
+        y_valid, x_valid = np.where(finite_mask)
+        y_missing, x_missing = np.where(~finite_mask)
+
+        if len(y_valid) < 16:
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Insufficient physical points ({len(y_valid)}) "
+                f"for 2D cubic interpolation."
+            )
+
+        points = np.column_stack([y_valid, x_valid])
+        values = arr[finite_mask]
+        xi = np.column_stack([y_missing, x_missing])
+
+        try:
+            interp_vals = scipy.interpolate.griddata(points, values, xi, method="cubic")
+            nan_sub = np.isnan(interp_vals)
+            if np.any(nan_sub):
+                fallback_vals = scipy.interpolate.griddata(points, values, xi[nan_sub], method="nearest")
+                interp_vals[nan_sub] = fallback_vals
+        except Exception as exc:
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: 2D cubic grid interpolation failed: {exc}"
+            ) from exc
+
+        if not np.all(np.isfinite(interp_vals)):
+            raise MethodMatrixViolationError(
+                f"Method Matrix Violation in {name}: Interpolation could not resolve all missing interior points."
+            )
+
+        arr_resolved = arr.copy()
+        arr_resolved[~finite_mask] = interp_vals
+
+        if nrows == ncols:
+            return (arr_resolved + arr_resolved.T) / 2.0
+        return arr_resolved
+
+    else:
+        raise MethodMatrixViolationError(
+            f"Method Matrix Violation in {name}: Unsupported tensor dimensionality ({arr.ndim}D) "
+            f"for spline potential interpolation."
         )
-        cleaned = np.nan_to_num(arr, nan=0.0, posinf=1e12, neginf=-1e12)
-        if cleaned.ndim == 2:
-            n = cleaned.shape[0]
-            sym = (cleaned + cleaned.T) / 2.0
-            diag_eye = np.diag(np.full(n, 1.0, dtype=np.float64))
-            return sym + damping * diag_eye
-        elif cleaned.ndim == 1:
-            return cleaned + damping
-        return cleaned
-
-    if arr.ndim == 2:
-        return (arr + arr.T) / 2.0
-    return arr
 
 
 # =============================================================================

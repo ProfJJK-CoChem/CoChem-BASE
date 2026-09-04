@@ -112,8 +112,8 @@ class PhysicalConstants:
     # Speed of light in vacuum (exact) [cm * s^-1]
     C_CM_S: float = 29979245800.0
     # Rotational constant factor C_rot = h / (8 * pi^2) in [MHz * u * Angstrom^2]
-    # Groner / Method Matrix standard: 505379.008435 MHz * u * Angstrom^2
-    C_ROT_MHZ_U_ANG2: float = 505379.008435
+    # CODATA 2022 / Method Matrix standard: 505379.0084350172 MHz * u * Angstrom^2
+    C_ROT_MHZ_U_ANG2: float = 505379.0084350172
     # Avogadro constant (exact) [mol^-1]
     N_A: float = 6.02214076e23
     # Atomic mass constant [kg]
@@ -331,9 +331,9 @@ class VibrationRotationAlpha(BaseModel):
     alpha_A_MHz: float = Field(..., description="Alpha constant for A rotational constant in MHz.")
     alpha_B_MHz: float = Field(..., description="Alpha constant for B rotational constant in MHz.")
     alpha_C_MHz: float = Field(..., description="Alpha constant for C rotational constant in MHz.")
-    alpha_A_cm_inv: float = Field(..., description="Alpha constant for A in cm^-1.")
-    alpha_B_cm_inv: float = Field(..., description="Alpha constant for B in cm^-1.")
-    alpha_C_cm_inv: float = Field(..., description="Alpha constant for C in cm^-1.")
+    alpha_A_cm_inv: float = Field(default=0.0, description="Alpha constant for A in cm^-1.")
+    alpha_B_cm_inv: float = Field(default=0.0, description="Alpha constant for B in cm^-1.")
+    alpha_C_cm_inv: float = Field(default=0.0, description="Alpha constant for C in cm^-1.")
 
 
 class QuarticCentrifugalDistortion(BaseModel):
@@ -558,7 +558,7 @@ def compute_inertia_tensor(symbols: Sequence[str], coordinates_angstrom: np.ndar
     else:
         masses = np.asarray(masses_u, dtype=np.float64)
 
-    I = np.zeros((3, 3), dtype=np.float64)
+    I = np.full((3, 3), 0.0, dtype=np.float64)
     for m, (x, y, z) in zip(masses, shifted_coords):
         I[0, 0] += m * (y**2 + z**2)
         I[1, 1] += m * (x**2 + z**2)
@@ -1378,10 +1378,37 @@ def _diagonalize_projected_hessian(
     symbols: Sequence[str],
     coordinates: np.ndarray,
     masses: Sequence[float],
-) -> Tuple[List[float], float]:
-    """Diagonalize mass-weighted Cartesian Hessian after Eckart projection of translations and rotations."""
+    return_modes: bool = False,
+) -> Union[Tuple[List[float], float], Tuple[List[float], float, np.ndarray, np.ndarray]]:
+    """Diagonalize mass-weighted Cartesian Hessian via exact Eckart null-space complement projection.
+
+    Method Matrix v4 §3.3 & Suggestion #3:
+    Constructs the exact 6-dimensional (or 5-dimensional for linear systems) Eckart translational
+    and infinitesimal rotational subspace in mass-weighted coordinates:
+      t_alpha = sqrt(m_i) e_alpha
+      r_alpha = sqrt(m_i) (e_alpha x (x_i - com))
+    Orthonormalizes U_ext via complete QR decomposition to construct the (3N - k) vibrational
+    complement basis U_vib such that U_ext^T U_vib = 0.
+    Projects the mass-weighted Hessian into the intrinsic vibrational subspace:
+      H_vib = U_vib^T H_mw U_vib in R^{(3N-k) x (3N-k)}
+    Diagonalizing H_vib strictly guarantees exactly 3N - 6 (or 3N - 5) physical vibrational eigenvalues
+    with zero translation/rotation contamination, preserving authentic soft modes down to 0.1 cm^-1
+    without scalar cutoff filters.
+
+    Args:
+        hessian: (3N, 3N) Cartesian Hessian in Hartree / bohr^2.
+        symbols: Sequence of atom symbols (length N).
+        coordinates: (N, 3) Cartesian coordinates in Angstroms.
+        masses: Sequence of atomic masses in unified atomic mass units (u).
+        return_modes: If True, also returns mass-weighted normal mode matrix L_mw (3N x (3N-k))
+                      and eigenvalues.
+
+    Returns:
+        If return_modes is False: (frequencies_cm, zpe)
+        If return_modes is True: (frequencies_cm, zpe, L_mw, evals)
+    """
     n_atoms = len(symbols)
-    m_inv_sqrt = np.zeros(3 * n_atoms, dtype=np.float64)
+    m_inv_sqrt = np.full(3 * n_atoms, 0.0, dtype=np.float64)
     for i in range(n_atoms):
         m_inv_sqrt[3 * i : 3 * i + 3] = 1.0 / np.sqrt(masses[i])
 
@@ -1390,58 +1417,78 @@ def _diagonalize_projected_hessian(
     com = compute_center_of_mass(symbols, coordinates, masses)
     shifted = coordinates - com
 
+    # Construct translational and rotational vectors in mass-weighted coordinates
     proj_vectors: List[np.ndarray] = []
 
-    # 3 translation vectors
+    # 3 translation vectors: t_alpha = sqrt(m_i) * e_alpha
     for alpha in range(3):
-        t_vec = np.zeros(3 * n_atoms, dtype=np.float64)
+        t_vec = np.full(3 * n_atoms, 0.0, dtype=np.float64)
         for i in range(n_atoms):
             t_vec[3 * i + alpha] = np.sqrt(masses[i])
-        norm = np.linalg.norm(t_vec)
+        norm = float(np.linalg.norm(t_vec))
         if norm > 1e-12:
             proj_vectors.append(t_vec / norm)
 
-    # 3 rotation vectors
+    # 3 infinitesimal rotation vectors: r_alpha = sqrt(m_i) * (e_alpha x (x_i - com))
     for alpha in range(3):
-        e_alpha = np.zeros(3, dtype=np.float64)
+        e_alpha = np.full(3, 0.0, dtype=np.float64)
         e_alpha[alpha] = 1.0
-        r_vec = np.zeros(3 * n_atoms, dtype=np.float64)
+        r_vec = np.full(3 * n_atoms, 0.0, dtype=np.float64)
         for i in range(n_atoms):
-            cross = np.cross(shifted[i], e_alpha)
+            cross = np.cross(e_alpha, shifted[i])
             r_vec[3 * i : 3 * i + 3] = cross * np.sqrt(masses[i])
-        norm = np.linalg.norm(r_vec)
-        if norm > 1e-12:
-            r_vec = r_vec / norm
-            for pv in proj_vectors:
-                r_vec -= np.dot(pv, r_vec) * pv
-            r_norm = np.linalg.norm(r_vec)
-            if r_norm > 1e-6:
-                proj_vectors.append(r_vec / r_norm)
 
-    P_matrix = np.eye(3 * n_atoms, dtype=np.float64)
-    for pv in proj_vectors:
-        P_matrix -= np.outer(pv, pv)
+        # Gram-Schmidt orthogonalization against already accepted external vectors
+        for pv in proj_vectors:
+            r_vec -= float(np.dot(pv, r_vec)) * pv
 
-    H_proj = P_matrix @ H_mw @ P_matrix
-    H_proj = 0.5 * (H_proj + H_proj.T)
+        r_norm = float(np.linalg.norm(r_vec))
+        if r_norm > 1e-6:
+            proj_vectors.append(r_vec / r_norm)
 
-    evals, evecs = scipy.linalg.eigh(H_proj)
+    k = len(proj_vectors)
+    if k == 0:
+        U_vib = np.diag(np.full(3 * n_atoms, 1.0, dtype=np.float64))
+    else:
+        U_ext = np.column_stack(proj_vectors)
+        # Complete QR decomposition to compute null-space vibrational complement
+        Q, _ = np.linalg.qr(U_ext, mode="complete")
+        U_vib = Q[:, k:]
+
+    # Project mass-weighted Hessian into intrinsic vibrational subspace:
+    # H_vib = U_vib.T @ H_mw @ U_vib (shape (3N-k) x (3N-k))
+    H_vib = U_vib.T @ H_mw @ U_vib
+    H_vib = 0.5 * (H_vib + H_vib.T)
+
+    evals, evecs = scipy.linalg.eigh(H_vib)
     freq_factor = CONSTANTS.HESSIAN_EIGENVALUE_TO_CM_INV
-    frequencies_cm: List[float] = []
 
+    frequencies_cm: List[float] = []
     for ev in evals:
-        if abs(ev) < 1e-7:
-            continue
-        if ev > 0:
+        if abs(ev) < 1e-12:
+            frequencies_cm.append(0.0)
+        elif ev > 0:
             freq_val = math.sqrt(ev) * freq_factor
             frequencies_cm.append(freq_val)
         else:
             freq_val = -math.sqrt(abs(ev)) * freq_factor
             frequencies_cm.append(freq_val)
 
-    frequencies_cm.sort()
-    zpe = 0.5 * sum(f for f in frequencies_cm if f > 0)
-    return frequencies_cm, zpe
+    # Normal mode transformation matrix in mass-weighted coordinates:
+    # L_mw = U_vib @ evecs (shape 3N x (3N-k))
+    L_mw = U_vib @ evecs
+
+    # Sort modes by frequency ascending
+    sort_idx = np.argsort(evals)
+    frequencies_sorted = [frequencies_cm[idx] for idx in sort_idx]
+    evals_sorted = evals[sort_idx]
+    L_mw_sorted = L_mw[:, sort_idx]
+
+    zpe = 0.5 * sum(f for f in frequencies_sorted if f > 0)
+
+    if return_modes:
+        return frequencies_sorted, zpe, L_mw_sorted, evals_sorted
+    return frequencies_sorted, zpe
 
 
 # ==============================================================================
@@ -1495,21 +1542,51 @@ def isomass_rediagonalize_force_field(
         symbols, coords, iso_masses
     )
 
-    parent_frequencies_cm, parent_zpe_cm = _diagonalize_projected_hessian(hessian, symbols, coords, parent_masses)
-    iso_frequencies_cm, iso_zpe_cm = _diagonalize_projected_hessian(hessian, symbols, coords, iso_masses)
+    parent_frequencies_cm, parent_zpe_cm, L_parent, _ = _diagonalize_projected_hessian(
+        hessian, symbols, coords, parent_masses, return_modes=True
+    )
+    iso_frequencies_cm, iso_zpe_cm, L_iso, _ = _diagonalize_projected_hessian(
+        hessian, symbols, coords, iso_masses, return_modes=True
+    )
 
-    if parent_alphas and len(parent_alphas) > 0:
+    n_modes = len(parent_frequencies_cm)
+    if parent_alphas and len(parent_alphas) > 0 and n_modes > 0 and len(iso_frequencies_cm) == n_modes:
+        # Duschinsky transformation matrix J = L_parent.T @ L_iso
+        J = L_parent.T @ L_iso
+        J2 = J ** 2
+
+        # Equilibrium rotational constant squared scaling
+        scale_A = (iso_Be[0] / parent_Be[0]) ** 2 if parent_Be[0] > 0 else 1.0
+        scale_B = (iso_Be[1] / parent_Be[1]) ** 2 if parent_Be[1] > 0 else 1.0
+        scale_C = (iso_Be[2] / parent_Be[2]) ** 2 if parent_Be[2] > 0 else 1.0
+
+        parent_alpha_A_vec = np.array([a.alpha_A_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+        parent_alpha_B_vec = np.array([a.alpha_B_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+        parent_alpha_C_vec = np.array([a.alpha_C_MHz for a in parent_alphas[:n_modes]], dtype=np.float64)
+
+        parent_w = np.array([max(1.0, f) for f in parent_frequencies_cm], dtype=np.float64)
+        iso_w = np.array([max(1.0, f) for f in iso_frequencies_cm], dtype=np.float64)
+
+        iso_alphas_A: List[float] = []
+        iso_alphas_B: List[float] = []
+        iso_alphas_C: List[float] = []
+
+        for k in range(n_modes):
+            freq_ratio = parent_w / iso_w[k]
+            a_A = scale_A * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_A_vec))
+            a_B = scale_B * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_B_vec))
+            a_C = scale_C * float(np.sum(J2[:, k] * freq_ratio * parent_alpha_C_vec))
+            iso_alphas_A.append(a_A)
+            iso_alphas_B.append(a_B)
+            iso_alphas_C.append(a_C)
+
         parent_delta_A = -0.5 * sum(a.alpha_A_MHz for a in parent_alphas)
         parent_delta_B = -0.5 * sum(a.alpha_B_MHz for a in parent_alphas)
         parent_delta_C = -0.5 * sum(a.alpha_C_MHz for a in parent_alphas)
 
-        scale_A = iso_Be[0] / parent_Be[0] if parent_Be[0] > 0 else 1.0
-        scale_B = iso_Be[1] / parent_Be[1] if parent_Be[1] > 0 else 1.0
-        scale_C = iso_Be[2] / parent_Be[2] if parent_Be[2] > 0 else 1.0
-
-        iso_delta_A = parent_delta_A * scale_A
-        iso_delta_B = parent_delta_B * scale_B
-        iso_delta_C = parent_delta_C * scale_C
+        iso_delta_A = -0.5 * sum(iso_alphas_A)
+        iso_delta_B = -0.5 * sum(iso_alphas_B)
+        iso_delta_C = -0.5 * sum(iso_alphas_C)
     else:
         parent_delta_A, parent_delta_B, parent_delta_C = 0.0, 0.0, 0.0
         iso_delta_A, iso_delta_B, iso_delta_C = 0.0, 0.0, 0.0

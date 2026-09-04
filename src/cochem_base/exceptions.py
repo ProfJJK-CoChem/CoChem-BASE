@@ -609,6 +609,14 @@ class HDF5LockTimeoutError(CoChemError, TimeoutError):
     )
 
 
+class DatabaseLockTimeoutError(HDF5LockTimeoutError):
+    """Raised when acquiring an HDF5 database lock times out after eviction and retries."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT
+    )
+
+
 class RegistryLockError(CoChemError, TimeoutError):
     """Raised when registry lock acquisition or release times out or fails."""
 
@@ -1253,6 +1261,7 @@ __all__ = [
     "PhysicsIntegrityError",
     # Infrastructure & Storage Exceptions
     "HDF5LockTimeoutError",
+    "DatabaseLockTimeoutError",
     "RegistryLockError",
     "SecurityIntegrityError",
     "ConfigError",

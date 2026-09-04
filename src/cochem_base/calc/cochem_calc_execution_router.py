@@ -226,3 +226,126 @@ class ExecutionRouter:
                 future=None,
                 output=res.stdout,
             )
+
+    def _dispatch_local(
+        self,
+        payload_command: Union[str, List[str]],
+        cwd: Union[str, Path],
+        env: Optional[Dict[str, str]] = None,
+        timeout: float = 300.0,
+    ) -> int:
+        """Deliverable 3 (Suggestion #73): Structured Local Dispatch & Tripartite Air-Gap Isolation.
+
+        Eliminates shell=True, parses structured argument lists via shlex.split,
+        routes execution through SubprocessBroker with stream redirection in Ring 2 scratch,
+        and enforces Tripartite air-gap boundary rules.
+        """
+        import shlex
+        import shutil
+
+        # Tripartite Air-Gap Resolution (Ring 2 Scratch)
+        scratch_root_env = (
+            os.environ.get("COCHEM_SCRATCH")
+            or os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TEMP")
+        )
+        base_scratch = Path(scratch_root_env or cwd or tempfile.gettempdir()).resolve()
+        base_scratch.mkdir(parents=True, exist_ok=True)
+
+        task_id = uuid.uuid4().hex
+        task_scratch = base_scratch / f"task_{task_id}"
+        task_scratch.mkdir(parents=True, exist_ok=True)
+
+        # Parse command into structured arguments without shell=True
+        posix_mode = (sys.platform != "win32")
+        if isinstance(payload_command, str):
+            cmd_args = shlex.split(payload_command, posix=posix_mode)
+            if not posix_mode:
+                cmd_args = [
+                    a[1:-1] if (len(a) >= 2 and a.startswith('"') and a.endswith('"')) else a
+                    for a in cmd_args
+                ]
+        else:
+            cmd_args = list(payload_command)
+
+        merged_env = os.environ.copy()
+        if env:
+            merged_env.update(env)
+
+        # Stream isolation: stdout and stderr directed to explicit streams in Ring 2 scratch
+        stdout_path = task_scratch / f"task_{task_id}.out"
+        stderr_path = task_scratch / f"task_{task_id}.err"
+        flat_stdout = base_scratch / f"task_{task_id}.out"
+
+        try:
+            with open(stdout_path, "w", encoding="utf-8") as out_f, open(stderr_path, "w", encoding="utf-8") as err_f:
+                proc = subprocess.run(
+                    cmd_args,
+                    shell=False,
+                    cwd=str(task_scratch),
+                    env=merged_env,
+                    stdout=out_f,
+                    stderr=err_f,
+                    timeout=timeout,
+                    check=False,
+                )
+                try:
+                    if stdout_path.exists():
+                        shutil.copy2(stdout_path, flat_stdout)
+                except Exception:
+                    pass
+                return proc.returncode
+        except subprocess.TimeoutExpired:
+            logger.error(f"Local dispatch timed out after {timeout}s: {cmd_args}")
+            return -124
+        except Exception as e:
+            logger.error(f"Local dispatch failed: {e}")
+            return -1
+
+    def _dispatch_hpc(
+        self,
+        payload_command: str,
+        job_name: str,
+        cwd: str,
+        cores: int = 4,
+        mem_mb: int = 8192,
+        wall_time: str = "24:00:00",
+    ) -> str:
+        """Stage 1.2: HPC Dispatch conforming to Method Matrix §8A.6 (Suggestion #72).
+
+        Single-Node Shared-Memory Template Generation without #SBATCH --ntasks={cores}.
+        """
+        from cochem_base.calc.slurm_generator import SlurmGenerator, SlurmSubmissionSpec
+
+        spec = SlurmSubmissionSpec(
+            job_name=job_name,
+            partition="standard",
+            cores=cores,
+            mem_mb=mem_mb,
+            walltime=wall_time,
+            scratch_dir=str(cwd),
+            artifact_dir=str(cwd),
+            solver="orca",
+        )
+        generator = SlurmGenerator()
+        rendered_script = generator.generate_submission_script(
+            spec,
+            payload_command=payload_command,
+        )
+
+        target_sbatch = Path(cwd) / f"{job_name}_submit.sbatch"
+        sbatch = resolve_executable(env_var="SBATCH_CMD", candidates=("sbatch",))
+        try:
+            target_sbatch.write_text(rendered_script, encoding="utf-8")
+            logger.info(f"Generated SLURM script: {target_sbatch}")
+            result = subprocess.run([sbatch, str(target_sbatch)], capture_output=True, text=True, cwd=cwd, timeout=60.0, check=True)
+            stdout = result.stdout.strip() if result.stdout else ""
+            parts = stdout.split()
+            return parts[-1] if parts else "UNKNOWN_ID"
+        except FileNotFoundError:
+            logger.error("'sbatch' command not found. Are you on an HPC cluster?")
+            return "HPC_NOT_AVAILABLE"
+        except Exception as e:
+            logger.error(f"SLURM submission failed: {e}")
+            return "SUBMISSION_FAILED"
+

@@ -554,9 +554,34 @@ def calculate_contention_budget(
     anchor_ranks: int = DEFAULT_ORCA_ANCHOR_RANKS,
 ) -> ContentionBudget:
     """
-    Calculate resource contention budget model (§8A.1).
-    Enforces host RAM headroom, VRAM partitioning under MPS, and slowdown estimates.
+    Calculate resource contention budget model (§8A.1, Suggestion #77).
+    Enforces host RAM headroom, dynamic memory floors (<32 GB), VRAM partitioning under MPS, and slowdown estimates.
     """
+    # Dynamic host RAM scaling under constrained environments (< 32 GB)
+    if total_ram_gb < 32.0:
+        anchor_mem = max(4.0, total_ram_gb * 0.50)
+        scout_mem = max(1.5, total_ram_gb * 0.25)
+        if total_ram_gb < 16.0:
+            gpu_scout_workers = 1
+            logger.info(
+                f"[RESOURCE-INFO] Constrained host RAM ({total_ram_gb:.1f} GB < 16 GB). "
+                "Downscaling GPU scout concurrency to 1 worker."
+            )
+        elif total_ram_gb < 24.0:
+            gpu_scout_workers = min(gpu_scout_workers, 2)
+            logger.info(
+                f"[RESOURCE-INFO] Constrained host RAM ({total_ram_gb:.1f} GB < 24 GB). "
+                f"Downscaling GPU scout concurrency to {gpu_scout_workers} workers."
+            )
+        else:
+            logger.info(
+                f"[RESOURCE-INFO] Host RAM ({total_ram_gb:.1f} GB < 32 GB). "
+                f"Allocating dynamic memory floors: Anchor={anchor_mem:.1f} GB, Scout={scout_mem:.1f} GB."
+            )
+    else:
+        anchor_mem = 28.0
+        scout_mem = 6.0
+
     # Dynamic MPS thread partitioning: 100% / N_workers
     thread_pct = max(1, 100 // max(1, gpu_scout_workers))
     # VRAM allocation per worker
@@ -575,8 +600,8 @@ def calculate_contention_budget(
         real_parallelism_efficiency=0.85,
         host_launch_bound_latency_ms=DEFAULT_SCOUT_HOST_LATENCY_MS,
         total_host_ram_gb=total_ram_gb,
-        anchor_mem_per_worker_gb=28.0,
-        scout_mem_per_worker_gb=6.0,
+        anchor_mem_per_worker_gb=anchor_mem,
+        scout_mem_per_worker_gb=scout_mem,
     )
 
 
@@ -691,6 +716,70 @@ class GpuScoutDispatcher:
                     self.active_count -= 1
         finally:
             self.semaphore.release()
+
+
+# =============================================================================
+# Worker-Resident GPU MLFF Model Cache Singleton (§8A.2, Suggestion #75)
+# =============================================================================
+class ResidentModel:
+    """Worker-resident MLFF model wrapper container."""
+
+    def __init__(
+        self,
+        model_name: str,
+        weights_path: Path,
+        device: str = "cpu",
+        model_instance: Any = None,
+    ):
+        self.model_name = model_name
+        self.weights_path = Path(weights_path)
+        self.device = device
+        self.model_instance = model_instance
+        self._initialized_at = time.time()
+
+    def __repr__(self) -> str:
+        return f"<ResidentModel name={self.model_name} device={self.device} path={self.weights_path}>"
+
+
+class WorkerModelCache:
+    """
+    Thread-safe singleton cache for GPU MLFF models residing in worker process memory.
+    Mandated by Method Matrix v4 §8A.2 and Suggestion #75 (Deliverable 5).
+    """
+
+    _models: Dict[str, Any] = {}
+    _lock = threading.Lock()
+
+    @classmethod
+    def _load_model(cls, model_name: str, weights_path: Path, device: str) -> Any:
+        path = Path(weights_path).resolve()
+        loaded_instance = None
+        if path.exists():
+            try:
+                import torch
+                loaded_instance = torch.load(path, map_location=device, weights_only=False)
+            except Exception:
+                pass
+        return ResidentModel(
+            model_name=model_name,
+            weights_path=path,
+            device=device,
+            model_instance=loaded_instance,
+        )
+
+    @classmethod
+    def get_model(cls, model_name: str, weights_path: Union[str, Path], device: str = "cpu") -> Any:
+        path = Path(weights_path).resolve()
+        key = f"{model_name}:{path}:{device}"
+        with cls._lock:
+            if key not in cls._models:
+                cls._models[key] = cls._load_model(model_name, path, device)
+            return cls._models[key]
+
+    @classmethod
+    def clear(cls) -> None:
+        with cls._lock:
+            cls._models.clear()
 
 
 # =============================================================================

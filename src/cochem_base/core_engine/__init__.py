@@ -9,11 +9,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-_parent_dir = str(Path(__file__).resolve().parent.parent)
-if _parent_dir not in sys.path:
-    sys.path.insert(0, _parent_dir)
-
-from core_engine.cochem_core_context_compressor import (
+from .cochem_core_context_compressor import (
     ASTContextCompressor,
     ASTContextSummary,
     ContextCompressor,
@@ -50,7 +46,7 @@ from core_engine.cochem_core_context_compressor import (
     truncate_traceback,
 )
 
-from core_engine.cochem_core_dvr_solver import (
+from .cochem_core_dvr_solver import (
     DVR1DSolver,
     DVR2DSolver,
     DVRGridType,
@@ -83,7 +79,7 @@ from core_engine.cochem_core_dvr_solver import (
     solve_dvr_matrix_free,
 )
 
-from core_engine.cochem_core_frozen_monomer import (
+from .cochem_core_frozen_monomer import (
     ANGSTROM_TO_BOHR,
     BOHR_TO_ANGSTROM,
     HARTREE_TO_KCAL_MOL,
@@ -129,7 +125,7 @@ from core_engine.cochem_core_frozen_monomer import (
     replace_monomer_geometry_in_complex,
     validate_composite_protocol,
 )
-from core_engine.cochem_core_auto_pes import (
+from .cochem_core_auto_pes import (
     AcquisitionStrategy,
     ActiveLearningConfig,
     ActiveLearningEngine,
@@ -145,7 +141,7 @@ from core_engine.cochem_core_auto_pes import (
     get_dynamic_atomic_mass as get_dynamic_atomic_mass_auto_pes,
     get_dynamic_atomic_number,
 )
-from core_engine.cochem_core_cfour_bridge import (
+from .cochem_core_cfour_bridge import (
     CFOURAnharmMode,
     CFOURBridge,
     CFOURCalcLevel,

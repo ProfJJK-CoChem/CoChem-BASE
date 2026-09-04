@@ -1576,7 +1576,17 @@ def main() -> int:
             [ 0.505,  0.000, -0.057],
             [ 1.933,  0.000, -0.772],
         ])
-        c2 = c1 + 0.02 * np.random.randn(*c1.shape)
+        from ase import Atoms
+        from ase.calculators.emt import EMT
+        from ase.optimize import BFGS
+        
+        # Real physical computation using ASE EMT potential instead of random noise
+        atoms = Atoms("OHHOHH", positions=c1)
+        atoms.calc = EMT()
+        opt = BFGS(atoms, logfile=None)
+        opt.run(fmax=0.5, steps=5)
+        c2 = atoms.get_positions()
+        
         g3 = check_guard_g3_basin_identity(c1, c2, ["O", "H", "H", "O", "H", "H"])
         g4 = check_guard_g4_rank_inversion(
             [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],

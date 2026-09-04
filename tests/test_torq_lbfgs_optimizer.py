@@ -160,9 +160,27 @@ def test_lbfgs_clash_guard_aborts_on_overlap() -> None:
     assert exc_info.value.component == "lbfgs_optimizer"
     assert exc_info.value.diagnostics["min_distance_angstrom"] < 0.7
 
+    lj_engine = LennardJonesBaselineEngine()
+    
+    def physical_potential(r: torch.Tensor) -> torch.Tensor:
+        N = len(WATER_DIMER_Z)
+        sigmas = [lj_engine._get_params(zi)[0] for zi in WATER_DIMER_Z]
+        epsilons = [lj_engine._get_params(zi)[1] for zi in WATER_DIMER_Z]
+        sig = torch.tensor(sigmas, dtype=torch.float64, device=r.device)
+        eps = torch.tensor(epsilons, dtype=torch.float64, device=r.device)
+        sig_ij = 0.5 * (sig.unsqueeze(1) + sig.unsqueeze(0))
+        eps_ij = torch.sqrt(eps.unsqueeze(1) * eps.unsqueeze(0))
+        diff = r.unsqueeze(1) - r.unsqueeze(0)
+        dist = torch.norm(diff, dim=-1)
+        mask = torch.triu(torch.ones((N, N), dtype=torch.bool, device=r.device), diagonal=1)
+        safe_dist = torch.where(mask, dist, torch.ones_like(dist))
+        sr6 = (sig_ij / safe_dist) ** 6
+        sr12 = sr6**2
+        return torch.sum(torch.where(mask, 4.0 * eps_ij * (sr12 - sr6), torch.zeros_like(sr6)))
+
     # Also test optimizer aborts when starting with clashing geometry
     optimizer = LBFGSOptimizer()
     with pytest.raises(ClashDetectedError):
         optimizer.minimize(
-            lambda r: torch.sum(r**2), clash_coords, WATER_DIMER_Z
+            physical_potential, clash_coords, WATER_DIMER_Z
         )

@@ -129,11 +129,47 @@ class GFN2xTBEngine(BaselinePhysicsEngine):
                 method="GFN2-xTB",
                 diagnostics={"atomic_count": len(atomic_numbers)},
             )
-        # Genuine execution if xtb available
-        raise BaselineExecutionError(
-            "TORQ_BASELINE_EXEC_FAIL: GFN2-xTB execution failed during runtime dispatch",
-            method="GFN2-xTB",
-        )
+            
+        import tempfile
+        import os
+        from ase import Atoms
+        from ase.io import write
+        
+        atoms = Atoms(numbers=atomic_numbers, positions=coordinates.detach().cpu().numpy())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            xyz_path = os.path.join(tmpdir, "mol.xyz")
+            write(xyz_path, atoms, format="xyz")
+            
+            try:
+                result = subprocess.run(["xtb", xyz_path, "--gfn", "2", "--grad"], cwd=tmpdir, capture_output=True, text=True, check=True)
+                
+                energy_hartree = 0.0
+                for line in result.stdout.splitlines():
+                    if "TOTAL ENERGY" in line:
+                        parts = line.split()
+                        energy_hartree = float(parts[-3]) if len(parts) >= 3 else 0.0
+                
+                grad_path = os.path.join(tmpdir, "gradient")
+                forces_hartree_bohr = []
+                with open(grad_path, "r") as f:
+                    lines = f.readlines()
+                    for line in lines[2:2+len(atomic_numbers)]:
+                        parts = line.split()
+                        forces_hartree_bohr.append([-float(parts[0]), -float(parts[1]), -float(parts[2])])
+                        
+                energy_ev = float(energy_hartree * HARTREE_TO_EV)
+                forces_tensor = UnitHarmonizer.convert_forces(
+                    torch.tensor(forces_hartree_bohr, dtype=coordinates.dtype, device=coordinates.device),
+                    from_length_unit="Bohr", to_length_unit="Angstrom",
+                    from_energy_unit="Hartree", to_energy_unit="eV"
+                )
+                return energy_ev, forces_tensor
+                
+            except Exception as e:
+                raise BaselineExecutionError(
+                    f"TORQ_BASELINE_EXEC_FAIL: GFN2-xTB execution failed during runtime dispatch: {e}",
+                    method="GFN2-xTB",
+                )
 
 
 class PM6Engine(BaselinePhysicsEngine):
@@ -144,11 +180,66 @@ class PM6Engine(BaselinePhysicsEngine):
         coordinates: torch.Tensor,
         atomic_numbers: Sequence[int],
     ) -> Tuple[float, torch.Tensor]:
-        raise BaselineExecutionError(
-            "TORQ_BASELINE_UNAVAILABLE: PM6 solver not found in runtime environment",
-            method="PM6",
-            diagnostics={"atomic_count": len(atomic_numbers)},
-        )
+        import shutil
+        import subprocess
+        import tempfile
+        import os
+        from ase import Atoms
+        from ase.io import write
+        
+        if shutil.which("mopac") is None:
+            raise BaselineExecutionError(
+                "TORQ_BASELINE_UNAVAILABLE: PM6 solver not found in runtime environment",
+                method="PM6",
+                diagnostics={"atomic_count": len(atomic_numbers)},
+            )
+            
+        atoms = Atoms(numbers=atomic_numbers, positions=coordinates.detach().cpu().numpy())
+        with tempfile.TemporaryDirectory() as tmpdir:
+            try:
+                xyz_path = os.path.join(tmpdir, "mol.xyz")
+                write(xyz_path, atoms, format="xyz")
+                
+                mop_path = os.path.join(tmpdir, "mol.mop")
+                with open(mop_path, "w") as f:
+                    f.write("PM6 1SCF GRADIENTS\nTitle\n\n")
+                    for i in range(len(atomic_numbers)):
+                        pos = atoms.positions[i]
+                        f.write(f"{atoms.get_chemical_symbols()[i]} {pos[0]} 1 {pos[1]} 1 {pos[2]} 1\n")
+                
+                subprocess.run(["mopac", mop_path], cwd=tmpdir, capture_output=True, text=True, check=True)
+                
+                out_path = os.path.join(tmpdir, "mol.out")
+                energy_ev = 0.0
+                forces_ev_angstrom = []
+                reading_grad = False
+                with open(out_path, "r") as f:
+                    for line in f:
+                        if "FINAL HEAT OF FORMATION" in line:
+                            kcal = float(line.split()[5])
+                            energy_ev = kcal * KCAL_PER_MOL_TO_EV
+                        elif "FINAL POINT AND DERIVATIVES" in line:
+                            reading_grad = True
+                        elif reading_grad and len(line.split()) == 8:
+                            parts = line.split()
+                            try:
+                                fx = -float(parts[5]) * KCAL_PER_MOL_TO_EV
+                                fy = -float(parts[6]) * KCAL_PER_MOL_TO_EV
+                                fz = -float(parts[7]) * KCAL_PER_MOL_TO_EV
+                                forces_ev_angstrom.append([fx, fy, fz])
+                            except ValueError:
+                                pass
+                
+                if len(forces_ev_angstrom) != len(atomic_numbers):
+                    raise ValueError("Failed to parse all forces from MOPAC output.")
+                    
+                return energy_ev, torch.tensor(forces_ev_angstrom, dtype=coordinates.dtype, device=coordinates.device)
+                
+            except Exception as e:
+                raise BaselineExecutionError(
+                    f"TORQ_BASELINE_EXEC_FAIL: PM6 execution failed: {e}",
+                    method="PM6",
+                )
 
 
 class EMTBaselineEngine(BaselinePhysicsEngine):
@@ -161,16 +252,27 @@ class EMTBaselineEngine(BaselinePhysicsEngine):
     ) -> Tuple[float, torch.Tensor]:
         try:
             import ase  # noqa: F401
+            from ase import Atoms
             from ase.calculators.emt import EMT
         except ImportError:
             raise BaselineExecutionError(
                 "TORQ_BASELINE_UNAVAILABLE: ASE EMT library not found",
                 method="EMT",
             )
-        raise BaselineExecutionError(
-            "TORQ_BASELINE_EXEC_FAIL: EMT calculation failed",
-            method="EMT",
-        )
+        
+        atoms = Atoms(numbers=atomic_numbers, positions=coordinates.detach().cpu().numpy())
+        atoms.calc = EMT()
+        
+        try:
+            energy = atoms.get_potential_energy()
+            forces = atoms.get_forces()
+        except Exception as e:
+            raise BaselineExecutionError(
+                f"TORQ_BASELINE_EXEC_FAIL: EMT calculation failed: {e}",
+                method="EMT",
+            )
+        
+        return float(energy), torch.tensor(forces, dtype=coordinates.dtype, device=coordinates.device)
 
 
 class LennardJonesBaselineEngine(BaselinePhysicsEngine):

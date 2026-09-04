@@ -135,17 +135,37 @@ def test_delta_ml_forward_pipeline() -> None:
 
     coords = torch.tensor(WATER_MONOMER_COORDS, dtype=torch.float64)
 
+    class SimpleMLPotential(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.net = torch.nn.Sequential(
+                torch.nn.Linear(3, 16),
+                torch.nn.GELU(),
+                torch.nn.Linear(16, 1)
+            )
+            
+        def forward(self, coords: torch.Tensor) -> torch.Tensor:
+            return torch.sum(self.net(coords))
+
+    ml_model = SimpleMLPotential().to(torch.float64)
+    # Deterministic initialization for test reproducibility
+    for p in ml_model.parameters():
+        torch.nn.init.constant_(p, 0.01)
+
     def analytical_delta_potential_predictor(
         r: torch.Tensor, z: list[int]
     ) -> tuple[float, torch.Tensor]:
-        # Authentic delta perturbation from ML model
-        return 0.0542, 0.01 * r
+        r_clone = r.clone().detach().requires_grad_(True)
+        energy = ml_model(r_clone)
+        forces = -torch.autograd.grad(energy, r_clone, create_graph=False)[0]
+        return float(energy.item()), forces.detach()
 
     e_pred, f_pred = engine.forward(
         coords, WATER_MONOMER_Z, analytical_delta_potential_predictor
     )
 
     e_base, f_base = lj_engine.calculate(coords, WATER_MONOMER_Z)
+    e_delta_expected, f_delta_expected = analytical_delta_potential_predictor(coords, WATER_MONOMER_Z)
 
-    assert abs(e_pred - (e_base + 0.0542)) < 1e-12
-    assert torch.max(torch.abs(f_pred - (f_base + 0.01 * coords))).item() < 1e-12
+    assert abs(e_pred - (e_base + e_delta_expected)) < 1e-12
+    assert torch.max(torch.abs(f_pred - (f_base + f_delta_expected))).item() < 1e-12

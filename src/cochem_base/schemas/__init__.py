@@ -130,9 +130,143 @@ class ConformerEnsemblePayload(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Ensemble metadata")
 
 
+# =====================================================================
+# Chunk 6 Ecosystem Schemas (Suggestions #51-#60)
+# =====================================================================
+
+from typing import Literal
+
+
+class ActiveLearningBatchConfig(BaseModel):
+    """Configuration for sequential furthest-point repulsion active learning batch selection. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+
+    batch_size: int = Field(default=32, ge=1, le=512)
+    repulsion_length_scale: float = Field(
+        default=0.5,
+        gt=0.0,
+        alias="repulsion_radius",
+        description="Spatial repulsion radius sigma_repulse in Angstroms",
+    )
+    diversity_weight: float = Field(default=1.0, ge=0.0, le=1.0)
+    kernel_type: Literal["gaussian", "morse"] = "gaussian"
+
+
+class HardwareTelemetryReport(BaseModel):
+    """Authentic live hardware telemetry report queried from OS and GPU driver. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    device_count: int = Field(ge=0)
+    gpu_available: bool
+    device_name: str
+    vram_total_mb: float = Field(ge=0.0)
+    vram_free_mb: float = Field(ge=0.0)
+    selected_runtime: Literal["cuda", "mps", "cpu", "onnx_cpu"]
+
+
+class ANI2xCutoffConfig(BaseModel):
+    """Configuration for ANI-2x continuous radial envelope and self-interaction diagonal masking. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    cutoff_radius: float = Field(default=5.2, gt=1.0, le=10.0, description="Radial cutoff in Angstroms")
+    envelope_type: Literal["cosine", "quintic"] = "cosine"
+    mask_self_interactions: bool = True
+
+
+class ConformalCalibrationConfig(BaseModel):
+    """Configuration for split-conformal prediction calibration and quantile evaluation. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    significance_level: float = Field(default=0.05, gt=0.0, lt=1.0)
+    hypothesis_scope: Literal["marginal", "atomwise_bonferroni"] = "marginal"
+    min_calibration_observations: int = Field(
+        default=50,
+        ge=20,
+        description="Must satisfy n >= ceil((1 - alpha) / alpha) to guarantee valid quantile evaluation",
+    )
+
+
+class ForceMatchingLossConfig(BaseModel):
+    """Configuration for multi-task energy and force Huber matching loss normalization. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    energy_weight: float = Field(default=1.0, ge=0.0)
+    force_weight: float = Field(default=10.0, ge=0.0)
+    huber_delta_energy: float = Field(default=0.01, gt=0.0)
+    huber_delta_force: float = Field(default=0.05, gt=0.0)
+    normalization_mode: Literal["atom_norm", "coordinate_component"] = "atom_norm"
+    virial_weight: float = Field(default=0.0, ge=0.0)
+
+
+class GoatExploreDaemonConfig(BaseModel):
+    """Configuration for persistent ORCA GOAT-EXPLORE daemon and stochastic hopping. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    socket_path: str
+    scratch_dir: str
+    max_hopping_steps: int = Field(default=100, ge=1)
+    tight_opt_threshold: bool = True
+    rmsd_dedup_threshold: float = Field(default=0.15, gt=0.0)
+
+
+class PipSymmetryConfig(BaseModel):
+    """Configuration for Permutation Invariant Polynomial (PIP) closed subgroup orbit averaging. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    max_symmetric_order: int = Field(
+        default=120,
+        ge=2,
+        description="Upper bound before invoking subgroup orbit averaging",
+    )
+    subgroup_type: Literal["full", "alternating", "automorphism_wreath"] = "automorphism_wreath"
+    invariance_tolerance: float = Field(
+        default=1e-14,
+        gt=0.0,
+        description="Permutation invariance tolerance in Eh",
+    )
+
+
+class KrrRegularizationConfig(BaseModel):
+    """Configuration for Kernel Ridge Regression condition-number floor and diagonal Tikhonov jitter. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    base_alpha: float = Field(default=1e-6, gt=0.0)
+    anchor_alpha_floor: float = Field(default=1e-8, gt=0.0)
+    jitter_epsilon: float = Field(default=1e-9, gt=0.0)
+    max_jitter_escalation: float = Field(default=1e-6, gt=0.0)
+
+
+class DeltaMLDispersionConfig(BaseModel):
+    """Configuration for Becke-Johnson damped D3 dispersion baseline augmentation in Delta-ML. [M]"""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    use_d3_dispersion: bool = True
+    damping_scheme: Literal["bj", "zero"] = "bj"
+    s6_scale: float = Field(default=1.0, ge=0.0)
+    s8_scale: float = Field(default=0.0, ge=0.0)
+
+
 __all__ = [
     "GradientPayload",
     "QuantumJobSpec",
     "ConstraintPayload",
     "ConformerEnsemblePayload",
+    "ActiveLearningBatchConfig",
+    "HardwareTelemetryReport",
+    "ANI2xCutoffConfig",
+    "ConformalCalibrationConfig",
+    "ForceMatchingLossConfig",
+    "GoatExploreDaemonConfig",
+    "PipSymmetryConfig",
+    "KrrRegularizationConfig",
+    "DeltaMLDispersionConfig",
 ]

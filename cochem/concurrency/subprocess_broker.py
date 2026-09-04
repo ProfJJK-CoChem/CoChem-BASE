@@ -1,0 +1,494 @@
+"""Deterministic Subprocess Broker & Fault Ladder.
+Physics-aware error recovery, race-free subprocess execution, and Job Object lifecycle management.
+Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
+"""
+
+from __future__ import annotations
+
+import atexit
+from collections import deque
+import ctypes
+import dataclasses
+
+import enum
+import logging
+import os
+import pathlib
+import shutil
+import signal
+import subprocess
+import sys
+import time
+import uuid
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+
+from cochem.core.context import assert_writable_path
+from cochem.core.hardware.topology import TopologyDiscoveryEngine
+
+logger = logging.getLogger("cochem.concurrency.subprocess_broker")
+
+
+class FailureCategory(enum.Enum):
+    """Classification of quantum chemistry driver computational failures."""
+
+    SCF_NON_CONVERGENCE = "SCF_NON_CONVERGENCE"
+    SCF_CONVERGENCE_FAILURE = "SCF_NON_CONVERGENCE"
+    GRID_INTEGRATION_FAILURE = "GRID_INTEGRATION_FAILURE"
+    GEOMETRY_OPTIMIZATION_STAGNATION = "GEOMETRY_OPTIMIZATION_STAGNATION"
+    CONFORMER_SEARCH_FAILURE = "CONFORMER_SEARCH_FAILURE"
+    UNKNOWN_FAILURE = "UNKNOWN_FAILURE"
+
+
+@dataclasses.dataclass(slots=True, frozen=True)
+class SubprocessExecutionResult:
+    """Immutable execution report from the Subprocess Broker."""
+
+    success: bool
+    stdout: str
+    stderr: str
+    returncode: int
+    retries_attempted: int
+    final_params: Dict[str, Any]
+
+
+class DiagnosticTriageEngine:
+    """Diagnostic Triage and Solver Remediation Matrix."""
+
+    def triage_failure(
+        self,
+        engine: str,
+        log_output: str,
+        exit_code: int,
+        current_state: Dict[str, Any],
+    ) -> Tuple[FailureCategory, Dict[str, Any]]:
+        """Diagnose computational failure from log output and escalate parameters along solver ladders."""
+        upper_log = log_output.upper()
+        engine_upper = engine.upper()
+        new_state = dict(current_state)
+
+        # 1. SCF Non-Convergence Escalation
+        if "SCF NOT CONVERGED" in upper_log or "CONVERGENCE FAILED" in upper_log or "NOT CONVERGE" in upper_log or "FAILED TO CONVERGE" in upper_log:
+            if engine_upper == "ORCA":
+                orca_ladder = ["PModel", "Auto", "HCore"]
+                current_guess = str(current_state.get("guess", "PModel"))
+                next_idx = orca_ladder.index(current_guess) + 1 if current_guess in orca_ladder else 1
+                new_state["guess"] = orca_ladder[min(next_idx, len(orca_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "CFOUR":
+                cfour_ladder = ["CORE", "SOCORE", "OLD"]
+                current_guess = str(current_state.get("guess", "CORE"))
+                next_idx = cfour_ladder.index(current_guess) + 1 if current_guess in cfour_ladder else 1
+                new_state["guess"] = cfour_ladder[min(next_idx, len(cfour_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            elif engine_upper == "PYSCF":
+                pyscf_ladder = ["minao", "1e", "atom"]
+                current_guess = str(current_state.get("init_guess", "minao"))
+                next_idx = pyscf_ladder.index(current_guess) + 1 if current_guess in pyscf_ladder else 1
+                new_state["init_guess"] = pyscf_ladder[min(next_idx, len(pyscf_ladder) - 1)]
+                return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            new_state["damping"] = True
+            return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+        # 2. Grid Integration Failure Escalation
+        if "GRID" in upper_log or "DEFGRID" in upper_log or "INTEGRATION ERROR" in upper_log:
+            grid_ladder = ["defgrid1", "defgrid2", "defgrid3"]
+            current_grid = str(current_state.get("grid", "defgrid1"))
+            next_idx = grid_ladder.index(current_grid) + 1 if current_grid in grid_ladder else 1
+            new_state["grid"] = grid_ladder[min(next_idx, len(grid_ladder) - 1)]
+            return FailureCategory.GRID_INTEGRATION_FAILURE, new_state
+
+        # 3. Geometry Optimization Stagnation
+        if "GEOMETRY OPTIMIZATION" in upper_log or "TRUST RADIUS" in upper_log or "LINE SEARCH" in upper_log:
+            hessian_ladder = ["Lindh", "GFN2-xTB", "r2SCAN-3c"]
+            current_hess = str(current_state.get("model_hessian", "Lindh"))
+            next_idx = hessian_ladder.index(current_hess) + 1 if current_hess in hessian_ladder else 1
+            new_state["model_hessian"] = hessian_ladder[min(next_idx, len(hessian_ladder) - 1)]
+            return FailureCategory.GEOMETRY_OPTIMIZATION_STAGNATION, new_state
+
+        # 4. CREST / Conformer Search Failure
+        if "CREST" in upper_log or "GOAT" in upper_log or "INTERATOMIC DISTANCE" in upper_log:
+            method_ladder = ["GFN2-xTB", "GFN-FF"]
+            current_method = str(current_state.get("method", "GFN2-xTB"))
+            next_idx = method_ladder.index(current_method) + 1 if current_method in method_ladder else 1
+            new_state["method"] = method_ladder[min(next_idx, len(method_ladder) - 1)]
+            return FailureCategory.CONFORMER_SEARCH_FAILURE, new_state
+
+        return FailureCategory.UNKNOWN_FAILURE, new_state
+
+
+class SubprocessBroker:
+    """Broker managing child process lifecycle, Win32 Job Objects, and remediation ladders."""
+
+    def __init__(
+        self,
+        context_or_engine: Union[Any, str] = "cochem_worker",
+        initial_params: Optional[Dict[str, Any]] = None,
+        scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        base_scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        max_retries: int = 3,
+        **kwargs: Any,
+    ) -> None:
+        if isinstance(context_or_engine, str):
+            self.engine_name: str = context_or_engine
+        else:
+            self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
+            if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
+                scratch_dir = context_or_engine.scratch_dir
+
+        self.current_params: Dict[str, Any] = dict(initial_params or {})
+        self.max_retries: int = max(1, int(max_retries))
+        self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
+        self.topology_engine: TopologyDiscoveryEngine = TopologyDiscoveryEngine()
+
+        # Tripartite Workspace Air-Gap dynamic scratch resolution
+        explicit_scratch = base_scratch_dir or scratch_dir
+        if explicit_scratch is not None:
+            self.base_scratch_dir: pathlib.Path = pathlib.Path(explicit_scratch).resolve()
+        else:
+            env_scratch = (
+                os.environ.get("SLURM_TMPDIR")
+                or os.environ.get("TMPDIR")
+                or os.environ.get("TEMP")
+            )
+            if env_scratch:
+                self.base_scratch_dir = pathlib.Path(env_scratch).resolve()
+            else:
+                self.base_scratch_dir = (pathlib.Path.home() / ".cochem" / "scratch").resolve()
+
+        assert_writable_path(self.base_scratch_dir)
+        self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self.scratch_dir = self.base_scratch_dir
+
+        self._job_handle: Optional[Any] = None
+        self._init_process_group_guard()
+        atexit.register(self.cleanup)
+
+
+    def _init_process_group_guard(self) -> None:
+        """Initialize Windows Job Object with KILL_ON_JOB_CLOSE or configure POSIX process group."""
+        if sys.platform == "win32":
+            try:
+                # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+                job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if job_handle:
+                    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("PerProcessUserTimeLimit", ctypes.c_int64),
+                            ("PerJobUserTimeLimit", ctypes.c_int64),
+                            ("LimitFlags", ctypes.c_uint32),
+                            ("MinimumWorkingSetSize", ctypes.c_size_t),
+                            ("MaximumWorkingSetSize", ctypes.c_size_t),
+                            ("ActiveProcessLimit", ctypes.c_uint32),
+                            ("Affinity", ctypes.c_size_t),
+                            ("PriorityClass", ctypes.c_uint32),
+                            ("SchedulingClass", ctypes.c_uint32),
+                        ]
+
+                    class IO_COUNTERS(ctypes.Structure):
+                        _fields_ = [
+                            ("ReadOperationCount", ctypes.c_uint64),
+                            ("WriteOperationCount", ctypes.c_uint64),
+                            ("OtherOperationCount", ctypes.c_uint64),
+                            ("ReadTransferCount", ctypes.c_uint64),
+                            ("WriteTransferCount", ctypes.c_uint64),
+                            ("OtherTransferCount", ctypes.c_uint64),
+                        ]
+
+                    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                        _fields_ = [
+                            ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                            ("IoInfo", IO_COUNTERS),
+                            ("ProcessMemoryLimit", ctypes.c_size_t),
+                            ("JobMemoryLimit", ctypes.c_size_t),
+                            ("PeakProcessMemoryLimit", ctypes.c_size_t),
+                            ("PeakJobMemoryLimit", ctypes.c_size_t),
+                        ]
+
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    info.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+                    JobObjectExtendedLimitInformation = 9
+                    ctypes.windll.kernel32.SetInformationJobObject(
+                        job_handle,
+                        JobObjectExtendedLimitInformation,
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self._job_handle = job_handle
+            except Exception as job_err:
+                logger.debug("Windows Job Object initialization bypassed: %s", job_err)
+
+    def assign_to_job(self, proc: subprocess.Popen[Any]) -> None:
+        """Assign subprocess handle to Win32 Job Object."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                # Open process handle with PROCESS_SET_QUOTA | PROCESS_TERMINATE
+                PROCESS_ALL_ACCESS = 0x1F0FFF
+                p_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, proc.pid)
+                if p_handle:
+                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, p_handle)
+                    ctypes.windll.kernel32.CloseHandle(p_handle)
+            except Exception as assign_err:
+                logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
+
+    def execute(
+        self,
+        command: List[str],
+        timeout_sec: float = 60.0,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+    ) -> SubprocessExecutionResult:
+        """Executes command under deterministic fault ladder with process containment."""
+        return self.execute_with_remediation(
+            command=command,
+            timeout_sec=timeout_sec,
+            remediate_callback=remediate_callback,
+        )
+
+    def execute_with_remediation(
+        self,
+        command: List[str],
+        timeout_sec: float = 60.0,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+    ) -> SubprocessExecutionResult:
+        """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
+        retries = 0
+        last_stdout = ""
+        last_stderr = ""
+        last_code = 1
+
+        # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
+        job_id = uuid.uuid4().hex
+        job_scratch = self.base_scratch_dir / f"cochem_exec_{job_id}"
+        job_scratch.mkdir(parents=True, exist_ok=True)
+
+        current_cmd = list(command)
+
+        try:
+            while retries < self.max_retries:
+                env = dict(self.topology_engine.get_worker_env())
+                # GPU allocation guard: CPU-only environments must explicitly have empty string
+                available_gpus = self.topology_engine.get_available_gpus()
+                num_gpus = len(available_gpus)
+                if num_gpus > 0:
+                    assigned = self.current_params.get("assigned_gpu", available_gpus[0])
+                    env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+                else:
+                    env["CUDA_VISIBLE_DEVICES"] = ""
+
+                # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
+                mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
+                env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+
+                kwargs: Dict[str, Any] = {
+                    "cwd": str(job_scratch),
+                    "env": env,
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.PIPE,
+                    "text": True,
+                }
+
+                if sys.platform == "win32":
+                    CREATE_SUSPENDED = 0x00000004
+                    kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                else:
+                    kwargs["start_new_session"] = True
+                    if sys.platform.startswith("linux"):
+                        def _posix_pdeathsig() -> None:
+                            try:
+                                import ctypes
+                                libc = ctypes.CDLL("libc.so.6")
+                                PR_SET_PDEATHSIG = 1
+                                SIGKILL = 9
+                                libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                            except Exception as _e:
+                                logger.debug(f"Ignored exception: {_e}")
+                        kwargs["preexec_fn"] = _posix_pdeathsig
+
+                try:
+                    proc = subprocess.Popen(current_cmd, **kwargs)
+                    self.assign_to_job(proc)
+                    if sys.platform == "win32":
+                        try:
+                            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+                        except Exception as _e:
+                            logger.debug(f"Ignored exception: {_e}")
+
+                    try:
+                        out, err = proc.communicate(timeout=timeout_sec)
+                        code = proc.returncode
+                    except subprocess.TimeoutExpired:
+                        self.terminate_process_tree(proc)
+                        out, err = "", "Subprocess execution timed out"
+                        code = -1
+
+                    # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
+                    stdout_buf: deque[str] = deque(maxlen=10485760)
+                    stderr_buf: deque[str] = deque(maxlen=10485760)
+                    stdout_buf.extend(out or "")
+                    stderr_buf.extend(err or "")
+                    last_stdout = "".join(stdout_buf)
+                    last_stderr = "".join(stderr_buf)
+                    last_code = code
+
+
+                    if code == 0:
+                        # Extract validated artifacts to artifacts dir if designated
+                        artifacts_env = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACTS")
+                        if artifacts_env:
+                            art_dir = pathlib.Path(artifacts_env)
+                            art_dir.mkdir(parents=True, exist_ok=True)
+                            for ext in [".out", ".property.txt", ".gbw"]:
+                                for f in job_scratch.glob(f"*{ext}"):
+                                    try:
+                                        shutil.copy2(str(f), str(art_dir / f.name))
+                                    except Exception as _e:
+                                        logger.debug(f"Ignored exception: {_e}")
+
+                        return SubprocessExecutionResult(
+                            success=True,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=0,
+                            retries_attempted=retries,
+                            final_params=self.current_params,
+                        )
+
+                    # Execute diagnostic triage on error output
+                    cat, updated_params = self.triage.triage_failure(
+                        engine=self.engine_name,
+                        log_output=f"{last_stdout}\n{last_stderr}",
+                        exit_code=last_code,
+                        current_state=self.current_params,
+                    )
+
+                    self.current_params = updated_params
+                    retries += 1
+                    logger.warning(
+                        "Subprocess failure (attempt %d/%d) classified as %s. Escalated parameters: %s",
+                        retries,
+                        self.max_retries,
+                        cat.value,
+                        self.current_params,
+                    )
+
+                    # Tripartite Air-Gap scratch remediation (§8B) [M]
+                    preserve_gbw = bool(
+                        self.current_params.get("moread", False)
+                        or "gbw" in str(self.current_params).lower()
+                        or any(job_scratch.glob("*.gbw"))
+                    )
+                    self._sanitize_remediation_scratch(job_scratch, preserve_gbw=preserve_gbw)
+
+                    # Apply dynamic remediation callback if provided
+                    if remediate_callback is not None:
+                        new_cmd = remediate_callback(cat, self.current_params, job_scratch)
+                        if new_cmd:
+                            current_cmd = list(new_cmd)
+                    else:
+                        logger.warning(
+                            "No remediation callback provided; retrying static command without physical input escalation."
+                        )
+
+                except Exception as exec_err:
+                    last_stderr = str(exec_err)
+                    last_code = 1
+                    retries += 1
+
+            return SubprocessExecutionResult(
+                success=False,
+                stdout=last_stdout,
+                stderr=last_stderr,
+                returncode=last_code,
+                retries_attempted=retries,
+                final_params=self.current_params,
+            )
+        finally:
+            # Lifecycle hygiene: sweep and delete ephemeral sandbox
+            shutil.rmtree(str(job_scratch), ignore_errors=True)
+
+
+    @staticmethod
+    def _sanitize_remediation_scratch(scratch_dir: Union[str, pathlib.Path], preserve_gbw: bool = False) -> None:
+        """Sanitizes ephemeral remediation scratch directory to prevent engine startup crashes (§8B) [M].
+
+        Wipes dirty transient files (*.tmp*, *.prop*, *.scfp_tmp*, *.lock, unclosed *.hess).
+        When preserve_gbw=True (MOREAD reuse / grid escalation), stages valid .gbw checkpoints
+        into a staging buffer and restores them after purging transients.
+        """
+        s_path = pathlib.Path(scratch_dir).resolve()
+        if not s_path.exists() or not s_path.is_dir():
+            return
+
+        staged_gbws: List[Tuple[pathlib.Path, pathlib.Path]] = []
+
+        if preserve_gbw:
+            for gbw_file in s_path.glob("*.gbw"):
+                staged = s_path / f".staged_{gbw_file.name}"
+                try:
+                    shutil.copy2(str(gbw_file), str(staged))
+                    staged_gbws.append((staged, gbw_file))
+                except Exception as _e:
+                    logger.debug("Failed staging gbw checkpoint %s: %s", gbw_file, _e)
+
+        transient_patterns = ["*.tmp*", "*.prop*", "*.scfp_tmp*", "*.lock", "*.hess"]
+        for pattern in transient_patterns:
+            for transient_file in s_path.glob(pattern):
+                try:
+                    if transient_file.is_file():
+                        transient_file.unlink(missing_ok=True)
+                    elif transient_file.is_dir():
+                        shutil.rmtree(str(transient_file), ignore_errors=True)
+                except Exception as _e:
+                    logger.debug("Failed removing transient file %s: %s", transient_file, _e)
+
+        if preserve_gbw and staged_gbws:
+            for staged, orig in staged_gbws:
+                try:
+                    if staged.exists():
+                        shutil.move(str(staged), str(orig))
+                except Exception as _e:
+                    logger.debug("Failed restoring staged checkpoint %s: %s", staged, _e)
+
+    def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
+        """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""
+        pid = proc.pid
+        try:
+            import psutil
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            parent.terminate()
+            _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+        except Exception:
+            if sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError) as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+            else:
+                try:
+                    proc.kill()
+                except Exception as _e:
+                    logger.debug(f"Ignored exception: {_e}")
+
+    def cleanup(self) -> None:
+        """Close Job Object handle and release scratch resources."""
+        if sys.platform == "win32" and self._job_handle is not None:
+            try:
+                ctypes.windll.kernel32.CloseHandle(self._job_handle)
+            except Exception as _e:
+                logger.debug(f"Ignored exception: {_e}")
+            self._job_handle = None

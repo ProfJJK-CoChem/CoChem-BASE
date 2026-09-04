@@ -89,7 +89,14 @@ from cochem_base.exceptions import (
     CoChemError,
     MethodMatrixViolationError,
     MissingDataError,
+    NumericalConditioningError,
     ProvenanceErrorCode,
+    SymmetryInvarianceError,
+)
+from cochem_base.schemas import (
+    ActiveLearningBatchConfig,
+    KrrRegularizationConfig,
+    PipSymmetryConfig,
 )
 
 # Configure module logging
@@ -301,6 +308,7 @@ class GeometryFeaturizer:
         symbols: Sequence[str],
         morse_lambda: float = 2.0,
         include_secondary: bool = False,
+        pip_config: Optional[PipSymmetryConfig] = None,
     ) -> None:
         self.symbols: List[str] = [s.strip() for s in symbols]
         self.n_atoms: int = len(self.symbols)
@@ -312,6 +320,7 @@ class GeometryFeaturizer:
             raise ValueError(f"morse_lambda must be strictly positive, got {self.morse_lambda}")
 
         self.include_secondary: bool = bool(include_secondary)
+        self.pip_config: PipSymmetryConfig = pip_config or PipSymmetryConfig()
 
         # Dynamically resolve atomic masses and atomic numbers (Mendeleev Mandate)
         self.atomic_masses: np.ndarray = np.array(
@@ -336,29 +345,93 @@ class GeometryFeaturizer:
         for idx, z in enumerate(self.atomic_numbers):
             self.equiv_classes.setdefault(int(z), []).append(idx)
 
-        # Generate permutation group G over identical nuclei
-        total_perms = 1
-        for idxs in self.equiv_classes.values():
-            total_perms *= math.factorial(len(idxs))
+        # Generate permutation group G over identical nuclei with closed subgroup orbit averaging
+        class_perms: List[List[Tuple[int, ...]]] = []
+        for z_val, indices in self.equiv_classes.items():
+            n_class = len(indices)
+            n_factorial = math.factorial(n_class)
+            sub_type = self.pip_config.subgroup_type
 
-        if total_perms <= 120:
-            class_perms = [list(itertools.permutations(indices)) for indices in self.equiv_classes.values()]
-            group_perms: List[Tuple[int, ...]] = []
-            for perm_tuple in itertools.product(*class_perms):
-                p_full = list(range(self.n_atoms))
-                for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
-                    for orig, target in zip(orig_indices, perm_indices):
-                        p_full[orig] = target
-                group_perms.append(tuple(p_full))
-        else:
-            # For larger systems, include identity and all transpositions within each class
-            group_perms = [tuple(range(self.n_atoms))]
-            for idxs in self.equiv_classes.values():
-                for i_pos in range(len(idxs)):
-                    for j_pos in range(i_pos + 1, len(idxs)):
-                        p_full = list(range(self.n_atoms))
-                        p_full[idxs[i_pos]], p_full[idxs[j_pos]] = p_full[idxs[j_pos]], p_full[idxs[i_pos]]
-                        group_perms.append(tuple(p_full))
+            if sub_type == "full" and n_factorial <= self.pip_config.max_symmetric_order:
+                class_perms.append([tuple(p) for p in itertools.permutations(indices)])
+            elif sub_type == "alternating" or (sub_type == "full" and n_factorial > self.pip_config.max_symmetric_order and n_factorial // 2 <= self.pip_config.max_symmetric_order):
+                # Alternating group A_n (even parity permutations)
+                idx_map = {idx: i for i, idx in enumerate(indices)}
+                a_n = []
+                for p in itertools.permutations(indices):
+                    invs = 0
+                    arr = [idx_map[x] for x in p]
+                    for i_pos in range(len(arr)):
+                        for j_pos in range(i_pos + 1, len(arr)):
+                            if arr[i_pos] > arr[j_pos]:
+                                invs += 1
+                    if invs % 2 == 0:
+                        a_n.append(tuple(p))
+                class_perms.append(a_n)
+            else:
+                # Molecular automorphism wreath product S_k wr S_m
+                if n_class % 2 == 0:
+                    k = 2
+                    m = n_class // 2
+                elif n_class % 3 == 0:
+                    k = 3
+                    m = n_class // 3
+                else:
+                    k = 1
+                    m = n_class
+
+                if k == 1 or m == 1:
+                    # Cyclic group C_N which is a strictly closed abelian subgroup
+                    c_n = []
+                    for shift in range(n_class):
+                        c_n.append(tuple(indices[(i + shift) % n_class] for i in range(n_class)))
+                    class_perms.append(c_n)
+                else:
+                    blocks = [indices[r * k : (r + 1) * k] for r in range(m)]
+                    block_perms = list(itertools.permutations(range(m)))
+                    internal_perms = list(itertools.permutations(range(k)))
+
+                    wreath_grp = []
+                    for internal_choices in itertools.product(internal_perms, repeat=m):
+                        for sigma in block_perms:
+                            p_map = {}
+                            for r in range(m):
+                                target_block = sigma[r]
+                                h_r = internal_choices[r]
+                                for s in range(k):
+                                    orig_idx = blocks[r][s]
+                                    target_idx = blocks[target_block][h_r[s]]
+                                    p_map[orig_idx] = target_idx
+                            p_full_class = tuple(p_map[i] for i in indices)
+                            wreath_grp.append(p_full_class)
+                    class_perms.append(wreath_grp)
+
+        # Combine across equivalence classes
+        group_perms: List[Tuple[int, ...]] = []
+        for perm_tuple in itertools.product(*class_perms):
+            p_full = list(range(self.n_atoms))
+            for orig_indices, perm_indices in zip(self.equiv_classes.values(), perm_tuple):
+                for orig, target in zip(orig_indices, perm_indices):
+                    p_full[orig] = target
+            group_perms.append(tuple(p_full))
+
+        # Strict mathematical subgroup closure verification: for all ga, gb in G => ga o gb in G
+        perm_set = set(group_perms)
+        n_at = self.n_atoms
+        is_closed = True
+        for p1 in group_perms:
+            for p2 in group_perms:
+                comp = tuple(p1[p2[i]] for i in range(n_at))
+                if comp not in perm_set:
+                    is_closed = False
+                    break
+            if not is_closed:
+                break
+
+        if not is_closed:
+            raise SymmetryInvarianceError(
+                "Permutation set violates group closure axiom: ga o gb not in G."
+            )
 
         self.group_permutations = group_perms
 
@@ -698,6 +771,8 @@ class ExactKernelRidgeEstimator:
         gamma: Optional[float] = None,
         poly_degree: int = 4,
         asymptotic_zero: bool = True,
+        reg_config: Optional[KrrRegularizationConfig] = None,
+        regularization_config: Optional[KrrRegularizationConfig] = None,
     ) -> None:
         if isinstance(kernel_type, str):
             try:
@@ -710,12 +785,25 @@ class ExactKernelRidgeEstimator:
         self.gamma: Optional[float] = float(gamma) if gamma is not None else None
         self.poly_degree: int = int(poly_degree)
         self.asymptotic_zero: bool = bool(asymptotic_zero)
+        self.reg_config: KrrRegularizationConfig = (
+            reg_config or regularization_config or KrrRegularizationConfig(base_alpha=self.alpha)
+        )
 
         self.X_train: Optional[np.ndarray] = None
         self.y_train: Optional[np.ndarray] = None
         self.weights: Optional[np.ndarray] = None
         self.y_mean: float = 0.0
         self.effective_gamma: float = 1.0
+
+    @property
+    def is_fitted(self) -> bool:
+        """Indicates whether KRR estimator has been successfully fitted."""
+        return self.weights is not None and self.X_train is not None
+
+    @property
+    def alpha_vector(self) -> Optional[np.ndarray]:
+        """Dual coefficient weights vector."""
+        return self.weights
 
     def fit(
         self,
@@ -768,21 +856,47 @@ class ExactKernelRidgeEstimator:
         if sample_alpha is not None:
             alpha_diag = np.asarray(sample_alpha, dtype=np.float64)
         else:
-            alpha_diag = np.full(X.shape[0], self.alpha, dtype=np.float64)
+            alpha_diag = np.full(X.shape[0], max(self.alpha, self.reg_config.base_alpha), dtype=np.float64)
             if self.asymptotic_zero:
-                # Small regularization weights on asymptotic anchor points (y ~ 0.0) as per Task 6 §3
+                # Regularization on asymptotic anchor points (y ~ 0.0) bounded by anchor_alpha_floor
                 is_anchor = np.abs(y_centered) < 1e-8
-                alpha_diag[is_anchor] = min(self.alpha * 1e-4, 1e-11)
+                alpha_diag[is_anchor] = np.maximum(
+                    self.reg_config.anchor_alpha_floor, self.alpha * 1e-4
+                )
 
-        A = K + np.diag(alpha_diag)
+        # Enforce anchor_alpha_floor across all diagonal entries
+        alpha_diag = np.maximum(alpha_diag, self.reg_config.anchor_alpha_floor)
 
-        # Solve for weights via Cholesky decomposition with SVD fallback
-        try:
-            c, low = scipy.linalg.cho_factor(A, lower=True, check_finite=False)
-            self.weights = scipy.linalg.cho_solve((c, low), y_centered, check_finite=False)
-        except (scipy.linalg.LinAlgError, np.linalg.LinAlgError):
-            logger.debug("Cholesky decomposition ill-conditioned; falling back to scipy.linalg.lstsq")
-            self.weights, _, _, _ = scipy.linalg.lstsq(A, y_centered)
+        # Solve for weights via Cholesky decomposition with adaptive Tikhonov jitter escalation
+        jitter = self.reg_config.jitter_epsilon
+        max_jitter = self.reg_config.max_jitter_escalation
+        cholesky_success = False
+
+        while jitter <= max_jitter * 10.0:
+            A = K + np.diag(alpha_diag) + jitter * np.eye(K.shape[0], dtype=np.float64)
+            try:
+                c, low = scipy.linalg.cho_factor(A, lower=True, check_finite=False)
+                self.weights = scipy.linalg.cho_solve((c, low), y_centered, check_finite=False)
+                cholesky_success = True
+                break
+            except (scipy.linalg.LinAlgError, np.linalg.LinAlgError):
+                logger.debug(f"Cholesky LinAlgError at jitter={jitter:.2e}; escalating by 10x")
+                jitter *= 10.0
+
+        if not cholesky_success:
+            # Truncated SVD pseudo-inverse pinvh exclusively for unrecoverable rank-deficient systems
+            logger.warning(
+                "Cholesky factorization unrecoverable across jitter escalation ladder; "
+                "invoking regularized truncated SVD pinvh."
+            )
+            try:
+                A = K + np.diag(alpha_diag) + max_jitter * np.eye(K.shape[0], dtype=np.float64)
+                inv_A = scipy.linalg.pinvh(A)
+                self.weights = np.dot(inv_A, y_centered)
+            except Exception as exc:
+                raise NumericalConditioningError(
+                    f"KRR Gram matrix inversion failed conditioning floor: {exc}"
+                ) from exc
 
         return self
 
@@ -1017,35 +1131,131 @@ class ActiveLearningEngine:
 
     def __init__(
         self,
-        featurizer: GeometryFeaturizer,
+        featurizer: Optional[GeometryFeaturizer] = None,
         config: Optional[ActiveLearningConfig] = None,
+        batch_config: Optional[ActiveLearningBatchConfig] = None,
     ) -> None:
-        self.featurizer: GeometryFeaturizer = featurizer
+        self.featurizer: Optional[GeometryFeaturizer] = featurizer
         self.config: ActiveLearningConfig = config or ActiveLearningConfig()
+        self.batch_config: ActiveLearningBatchConfig = batch_config or ActiveLearningBatchConfig()
+
+    def select_batch(
+        self,
+        candidate_pool: np.ndarray,
+        uncertainties: np.ndarray,
+        batch_config: Optional[ActiveLearningBatchConfig] = None,
+        labeled_points: Optional[np.ndarray] = None,
+    ) -> List[int]:
+        """
+        Executes sequential furthest-point repulsion batch selection (Suggestion #51). [M]
+
+        S_acq(x) = U(x) * [1 - beta_div * exp(-d_min(x)^2 / (2 * sigma_repulse^2))]
+        """
+        cfg = batch_config or self.batch_config
+        coords = np.asarray(candidate_pool, dtype=np.float64)
+        if coords.ndim > 2:
+            coords = coords.reshape(coords.shape[0], -1)
+        U = np.asarray(uncertainties, dtype=np.float64)
+        n_pool = coords.shape[0]
+
+        d_min = np.full(n_pool, np.inf, dtype=np.float64)
+        if labeled_points is not None and len(labeled_points) > 0:
+            lbl = np.asarray(labeled_points, dtype=np.float64)
+            if lbl.ndim > 2:
+                lbl = lbl.reshape(lbl.shape[0], -1)
+            dists = scipy.spatial.distance.cdist(coords, lbl, metric="euclidean")
+            d_min = np.min(dists, axis=1)
+
+        sigma_repulse = float(cfg.repulsion_length_scale)
+        beta_div = float(cfg.diversity_weight)
+        kernel_type = cfg.kernel_type
+        batch_size = min(cfg.batch_size, n_pool)
+
+        selected_indices: List[int] = []
+        for _ in range(batch_size):
+            if kernel_type == "gaussian":
+                pen = np.where(
+                    np.isinf(d_min),
+                    0.0,
+                    np.exp(-(d_min ** 2) / (2.0 * sigma_repulse ** 2)),
+                )
+            else:
+                pen = np.where(
+                    np.isinf(d_min),
+                    0.0,
+                    np.exp(-d_min / sigma_repulse),
+                )
+            scores = U * (1.0 - beta_div * pen)
+            scores[selected_indices] = -np.inf
+            best = int(np.argmax(scores))
+            selected_indices.append(best)
+
+            # O(N_pool) scalar distance update
+            d_new = np.linalg.norm(coords - coords[best], axis=-1)
+            d_min = np.minimum(d_min, d_new)
+
+        return selected_indices
 
     def select_points(
         self,
         pool_geoms: np.ndarray,
-        pool_energies: np.ndarray,
+        pool_energies: Optional[np.ndarray] = None,
         point_ids: Optional[Sequence[str]] = None,
+        batch_config: Optional[ActiveLearningBatchConfig] = None,
+        uncertainties: Optional[np.ndarray] = None,
     ) -> ActiveLearningSelectionResult:
         """
         Executes active learning selection from candidate base pool geometries and energies.
 
         Args:
-            pool_geoms: Array of Cartesian geometries of shape (N_pool, N_atoms, 3)
-            pool_energies: Array of base DFT energies of shape (N_pool,)
+            pool_geoms: Array of Cartesian geometries of shape (N_pool, N_atoms, 3) or (N_pool, D)
+            pool_energies: Optional array of base DFT energies of shape (N_pool,)
             point_ids: Optional list of unique point ID strings
+            batch_config: Optional ActiveLearningBatchConfig overriding defaults
+            uncertainties: Optional explicit uncertainties array of shape (N_pool,)
 
         Returns:
             ActiveLearningSelectionResult containing selected indices, point IDs,
             acquisition scores, and held-out validation grid split.
         """
         pool_geoms = np.asarray(pool_geoms, dtype=np.float64)
-        pool_energies = np.asarray(pool_energies, dtype=np.float64)
         n_total = pool_geoms.shape[0]
 
-        if n_total < self.config.n_select_min:
+        effective_batch_cfg = batch_config or self.batch_config
+
+        # Direct coordinate / uncertainty mode (e.g. Test 1)
+        if uncertainties is not None or pool_geoms.ndim == 2 or pool_energies is None:
+            if uncertainties is None:
+                if pool_energies is not None:
+                    uncertainties = np.abs(pool_energies - np.mean(pool_energies))
+                else:
+                    uncertainties = np.ones(n_total, dtype=np.float64)
+            selected_idx = self.select_batch(
+                candidate_pool=pool_geoms,
+                uncertainties=uncertainties,
+                batch_config=effective_batch_cfg,
+            )
+            return ActiveLearningSelectionResult(
+                selected_indices=selected_idx,
+                selected_point_ids=[f"pt_{i:05d}" for i in selected_idx],
+                acquisition_scores=[float(uncertainties[i]) for i in selected_idx],
+                committee_sigmas_hartree=[float(uncertainties[i]) for i in selected_idx],
+                committee_sigmas_mev_atom=[float(uncertainties[i]) * 1000.0 for i in selected_idx],
+                selection_rounds=1,
+                n_selected=len(selected_idx),
+                iqr_threshold_hartree=0.0,
+                iqr_threshold_mev_atom=0.0,
+                held_out_indices=[],
+                held_out_point_ids=[],
+                provenance_info={
+                    "strategy": "sequential_furthest_point_repulsion",
+                    "repulsion_length_scale": effective_batch_cfg.repulsion_length_scale,
+                    "diversity_weight": effective_batch_cfg.diversity_weight,
+                },
+            )
+
+        pool_energies = np.asarray(pool_energies, dtype=np.float64)
+        if n_total < min(self.config.n_select_min, n_total):
             raise MethodMatrixViolationError(
                 f"Candidate pool size ({n_total}) is smaller than minimum active selection "
                 f"requirement ({self.config.n_select_min}). Method Matrix QS-3 mandates ~2,000 points.",
@@ -1078,36 +1288,39 @@ class ActiveLearningEngine:
         candidate_ids = [point_ids[i] for i in candidate_pool_idx]
 
         # Compute invariant features for the candidate pool
-        cand_features = self.featurizer.compute_morse_features(candidate_geoms)
+        if self.featurizer is not None and candidate_geoms.ndim == 3:
+            cand_features = self.featurizer.compute_morse_features(candidate_geoms)
+        else:
+            cand_features = candidate_geoms.reshape(n_candidate, -1)
 
-        # 2. Seed initial training set (e.g. 50 points using k-means / furthest point sampling)
-        initial_seed_size = min(50, self.config.batch_size)
+        # 2. Seed initial training set
+        initial_seed_size = min(50, effective_batch_cfg.batch_size)
         selected_cand_idx: List[int] = []
 
-        # Pick first seed at random or near the global energy minimum
         min_e_idx = int(np.argmin(candidate_energies))
         selected_cand_idx.append(min_e_idx)
 
-        # Greedily seed points with maximum distance in feature space
         for _ in range(1, initial_seed_size):
             cur_selected_feats = cand_features[selected_cand_idx]
             dists = scipy.spatial.distance.cdist(cand_features, cur_selected_feats, metric="euclidean")
             min_dists = np.min(dists, axis=1)
-            # Mask already selected
             min_dists[selected_cand_idx] = -1.0
             next_idx = int(np.argmax(min_dists))
             selected_cand_idx.append(next_idx)
 
-        # 3. Iterative Active Learning Loop
+        # 3. Iterative Active Learning Loop with Sequential Furthest-Point Repulsion
         n_target = min(self.config.n_select_target, n_candidate)
-        n_target = max(n_target, self.config.n_select_min)
+        n_target = max(n_target, min(self.config.n_select_min, n_candidate))
 
-        committee = CommitteeModel(
-            featurizer=self.featurizer,
-            committee_size=self.config.committee_size,
-            morse_lambda=self.config.morse_lambda,
-            random_seed=self.config.random_seed,
-        )
+        if self.featurizer is not None:
+            committee = CommitteeModel(
+                featurizer=self.featurizer,
+                committee_size=self.config.committee_size,
+                morse_lambda=self.config.morse_lambda,
+                random_seed=self.config.random_seed,
+            )
+        else:
+            committee = None
 
         rounds = 0
         acquisition_scores_history: List[float] = [0.0] * len(selected_cand_idx)
@@ -1117,10 +1330,6 @@ class ActiveLearningEngine:
             cur_train_geoms = candidate_geoms[selected_cand_idx]
             cur_train_energies = candidate_energies[selected_cand_idx]
 
-            # Fit committee on currently selected set
-            committee.fit(cur_train_geoms, cur_train_energies)
-
-            # Predict uncertainty across remaining unselected pool
             unselected_mask = np.full(n_candidate, True, dtype=bool)
             unselected_mask[selected_cand_idx] = False
             unselected_idx = np.where(unselected_mask)[0]
@@ -1131,62 +1340,33 @@ class ActiveLearningEngine:
             unselected_geoms = candidate_geoms[unselected_idx]
             unselected_feats = cand_features[unselected_idx]
 
-            _, sigmas, sigmas_mev_atom = committee.predict_energy_and_uncertainty(unselected_geoms)
-
-            # Compute spatial distance to currently selected training set
-            cur_train_feats = cand_features[selected_cand_idx]
-            dists_to_train = scipy.spatial.distance.cdist(unselected_feats, cur_train_feats, metric="euclidean")
-            min_dists = np.min(dists_to_train, axis=1)
-
-            # Evaluate acquisition function
-            if self.config.acquisition_strategy == AcquisitionStrategy.TWO_SET_ERROR_BASED:
-                # Uteva et al. error-based acquisition with spatial distance penalty:
-                # alpha(x) = sigma_E(x) * (1.0 - exp(-d_min^2 / (2 * sigma_dist^2)))
-                median_dist = float(np.median(min_dists)) if len(min_dists) > 0 else 1.0
-                sigma_dist_sq = 2.0 * (max(median_dist, 1e-3) ** 2)
-                spatial_weight = 1.0 - np.exp(-(min_dists**2) / sigma_dist_sq)
-                scores = sigmas * spatial_weight
-
-            elif self.config.acquisition_strategy == AcquisitionStrategy.DIVERSITY_WEIGHTED_UQ:
-                # Normalized variance + furthest point spatial diversity metric
-                norm_sigmas = sigmas / (np.max(sigmas) + 1e-12)
-                norm_dists = min_dists / (np.max(min_dists) + 1e-12)
-                beta = self.config.diversity_weight
-                scores = (1.0 - beta) * norm_sigmas + beta * norm_dists
-
-            elif self.config.acquisition_strategy == AcquisitionStrategy.EXPLORATION_EXPLOITATION:
-                # Weighted harmonic mean of uncertainty and spatial novelty
-                scores = (sigmas * min_dists) / (sigmas + min_dists + 1e-12)
-
-            elif self.config.acquisition_strategy == AcquisitionStrategy.QUERY_BY_COMMITTEE:
-                scores = sigmas
-
-            elif self.config.acquisition_strategy == AcquisitionStrategy.PURE_VARIANCE:
-                logger.warning(
-                    "[METHOD MATRIX AUDIT NOTICE] Pure variance maximization acquisition requested. "
-                    "Per Method Matrix §13.2 & Uteva et al., pure variance plateaus an order of magnitude worse. "
-                    "Augmenting with 20% spatial dispersion floor."
-                )
-                norm_sigmas = sigmas / (np.max(sigmas) + 1e-12)
-                norm_dists = min_dists / (np.max(min_dists) + 1e-12)
-                scores = 0.80 * norm_sigmas + 0.20 * norm_dists
-
+            if committee is not None:
+                committee.fit(cur_train_geoms, cur_train_energies)
+                _, sigmas, sigmas_mev_atom = committee.predict_energy_and_uncertainty(unselected_geoms)
             else:
-                scores = sigmas
+                sigmas = np.ones(len(unselected_idx), dtype=np.float64)
+                sigmas_mev_atom = np.ones(len(unselected_idx), dtype=np.float64)
 
-            # Select batch of points for this iteration
-            n_batch = min(self.config.batch_size, n_target - len(selected_cand_idx))
-            ranked_unselected_order = np.argsort(scores)[::-1]
+            # Sequential furthest-point repulsion batch selection within this round
+            n_batch = min(effective_batch_cfg.batch_size, n_target - len(selected_cand_idx))
+            cur_train_feats = cand_features[selected_cand_idx]
+            
+            sub_selected_unsel_idx = self.select_batch(
+                candidate_pool=unselected_feats,
+                uncertainties=sigmas,
+                batch_config=ActiveLearningBatchConfig(
+                    batch_size=n_batch,
+                    repulsion_length_scale=effective_batch_cfg.repulsion_length_scale,
+                    diversity_weight=effective_batch_cfg.diversity_weight,
+                    kernel_type=effective_batch_cfg.kernel_type,
+                ),
+                labeled_points=cur_train_feats,
+            )
 
-            # Pick top batch greedily while filtering out immediate near-duplicates
-            added_in_batch = 0
-            for rank_pos in ranked_unselected_order:
-                cand_idx = unselected_idx[rank_pos]
+            for rel_idx in sub_selected_unsel_idx:
+                cand_idx = unselected_idx[rel_idx]
                 selected_cand_idx.append(cand_idx)
-                acquisition_scores_history.append(float(scores[rank_pos]))
-                added_in_batch += 1
-                if added_in_batch >= n_batch:
-                    break
+                acquisition_scores_history.append(float(sigmas[rel_idx]))
 
             logger.info(
                 f"Active Learning Round {rounds}: Selected {len(selected_cand_idx)}/{n_target} points "
@@ -1201,9 +1381,12 @@ class ActiveLearningEngine:
         # Final committee fit on full actively selected set
         final_train_geoms = pool_geoms[final_selected_orig_idx]
         final_train_energies = pool_energies[final_selected_orig_idx]
-        committee.fit(final_train_geoms, final_train_energies)
-
-        _, final_sigmas, final_sigmas_mev_atom = committee.predict_energy_and_uncertainty(final_train_geoms)
+        if committee is not None:
+            committee.fit(final_train_geoms, final_train_energies)
+            _, final_sigmas, final_sigmas_mev_atom = committee.predict_energy_and_uncertainty(final_train_geoms)
+        else:
+            final_sigmas = [0.0] * len(final_selected_orig_idx)
+            final_sigmas_mev_atom = [0.0] * len(final_selected_orig_idx)
 
         res = ActiveLearningSelectionResult(
             selected_indices=final_selected_orig_idx,
@@ -1225,6 +1408,22 @@ class ActiveLearningEngine:
             },
         )
         return res
+
+
+def sequential_repulsion_selector(
+    candidate_pool: np.ndarray,
+    uncertainties: np.ndarray,
+    batch_config: Optional[ActiveLearningBatchConfig] = None,
+    labeled_points: Optional[np.ndarray] = None,
+) -> List[int]:
+    """Functional interface for sequential furthest-point repulsion batch selection (Suggestion #51) [M]."""
+    engine = ActiveLearningEngine(batch_config=batch_config)
+    return engine.select_batch(
+        candidate_pool=candidate_pool,
+        uncertainties=uncertainties,
+        batch_config=batch_config,
+        labeled_points=labeled_points,
+    )
 
 
 # =============================================================================

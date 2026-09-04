@@ -6,6 +6,13 @@ High-throughput computational chemistry core execution engines.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+_parent_dir = str(Path(__file__).resolve().parent.parent)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
+
 from core_engine.cochem_core_context_compressor import (
     ASTContextCompressor,
     ASTContextSummary,

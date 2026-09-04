@@ -1,10 +1,2 @@
-"""CoChem Root Package."""
-
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-_src_cochem = Path(__file__).resolve().parent.parent / "src" / "cochem"
-if _src_cochem.exists() and str(_src_cochem) not in __path__:
-    __path__.append(str(_src_cochem))
+"""CoChem Ecosystem Root Namespace Package."""
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)

@@ -30,6 +30,14 @@ from cochem_base.exceptions import (
 
 logger = logging.getLogger("CoChem-TORQ.Engine")
 
+try:
+    from Libraries.cochem_torq_engine import ExecutionContext
+except Exception:
+    try:
+        from cochem_torq_engine import ExecutionContext
+    except Exception:
+        ExecutionContext = None  # type: ignore
+
 
 def validate_method_matrix_compliance(calc_spec: Optional[Dict[str, Any]] = None, **kwargs: Any) -> bool:
     """

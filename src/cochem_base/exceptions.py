@@ -845,6 +845,54 @@ class KraitchmanSingularityError(SingularityError):
     )
 
 
+class HardwareTelemetryError(HardwareDetectionError):
+    """Raised when hardware telemetry query, driver detection, or runtime dispatching fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.HARDWARE_DETECTION_FAILED
+    )
+
+
+class ConformalCalibrationError(ConfigError):
+    """Raised when conformal prediction calibration fails due to sample size or coverage criteria."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONFIG_VALIDATION_FAILED
+    )
+
+
+class GoatDaemonExecutionError(ConvergenceError):
+    """Raised when ORCA GOAT-EXPLORE daemon execution, socket binding, or hopping fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+
+class SymmetryInvarianceError(PhysicsIntegrityError):
+    """Raised when molecular permutation-inversion symmetry or energy invariance is violated."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INTEGRITY_VIOLATION
+    )
+
+
+class NumericalConditioningError(SingularityError):
+    """Raised when KRR Gram matrix conditioning or Cholesky decomposition fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SINGULARITY_DETECTED
+    )
+
+
+class DispersionIntegrationError(MethodMatrixViolationError):
+    """Raised when D3/D4 dispersion correction integration or conservative force evaluation fails."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.DISPERSION_MISSING
+    )
+
+
 # =====================================================================
 # Warnings
 # =====================================================================
@@ -1200,6 +1248,12 @@ __all__ = [
     "AirGapViolationError",
     "CoChemIntegrityError",
     "KraitchmanSingularityError",
+    "HardwareTelemetryError",
+    "ConformalCalibrationError",
+    "GoatDaemonExecutionError",
+    "SymmetryInvarianceError",
+    "NumericalConditioningError",
+    "DispersionIntegrationError",
     # Warnings
     "CoChemWarning",
     "KraitchmanZPVEWarning",

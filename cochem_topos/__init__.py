@@ -1,5 +1,2 @@
-"""Top-level package for CoChem-TOPOS convenience exports."""
-
+"""CoChem-TOPOS Package."""
 from __future__ import annotations
-
-from cochem.topos import *  # noqa: F401, F403

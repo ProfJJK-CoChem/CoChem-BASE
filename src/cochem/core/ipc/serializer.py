@@ -6,6 +6,7 @@ Strictly adheres to Zero-Mock mandate and authentic binary serialization.
 
 from __future__ import annotations
 
+import atexit
 import dataclasses
 import hashlib
 import hmac
@@ -73,6 +74,28 @@ def unpack_payload(raw_bytes: bytes) -> Any:
 # ==============================================================================
 # Zero-Copy Shared Memory Optimization
 # ==============================================================================
+_REGISTRY_LOCK = threading.Lock()
+_ACTIVE_SHM: Dict[str, Dict[str, Any]] = {}
+
+
+def _cleanup_all_shared_memory() -> None:
+    """Atexit handler ensuring zero lingering shared memory blocks."""
+    with _REGISTRY_LOCK:
+        for name, info in list(_ACTIVE_SHM.items()):
+            try:
+                info["shm"].close()
+            except Exception:
+                pass
+            try:
+                info["shm"].unlink()
+            except Exception:
+                pass
+        _ACTIVE_SHM.clear()
+
+
+atexit.register(_cleanup_all_shared_memory)
+
+
 @dataclasses.dataclass(slots=True)
 class SharedMemoryBuffer:
     """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
@@ -81,10 +104,16 @@ class SharedMemoryBuffer:
     descriptor: Dict[str, Any]
 
     @classmethod
-    def from_array(cls, arr: np.ndarray) -> SharedMemoryBuffer:
+    def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
         """Allocate shared memory buffer, copy array memory, and generate transfer descriptor."""
         total_bytes = max(1, arr.nbytes)
         shm = sm.SharedMemory(create=True, size=total_bytes)
+        try:
+            from multiprocessing import resource_tracker
+            resource_tracker.register(shm._name, "shared_memory")
+        except Exception:
+            pass
+
         shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)  # type: ignore[arg-type]
         shm_array[:] = arr[:]
 
@@ -93,8 +122,39 @@ class SharedMemoryBuffer:
             "shape": list(arr.shape),
             "dtype": arr.dtype.str,  # type: ignore[attr-defined]
             "size": total_bytes,
+            "total_attachments": total_attachments,
+            "closed_attachments": 0,
         }
+
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM[shm.name] = {
+                "shm": shm,
+                "total": total_attachments,
+                "closed": 0,
+            }
+
         return cls(shm=shm, descriptor=desc)
+
+    @classmethod
+    def _notify_closed(cls, name: str) -> None:
+        """Atomically increment closed attachments and unlink once all attachments finish."""
+        with _REGISTRY_LOCK:
+            info = _ACTIVE_SHM.get(name)
+            if info is not None:
+                info["closed"] += 1
+                if info["closed"] >= info["total"]:
+                    try:
+                        info["shm"].unlink()
+                    except (OSError, FileNotFoundError):
+                        pass
+                    _ACTIVE_SHM.pop(name, None)
+            else:
+                try:
+                    s = sm.SharedMemory(name=name)
+                    s.close()
+                    s.unlink()
+                except Exception:
+                    pass
 
     @classmethod
     def read_from_descriptor(cls, descriptor: Dict[str, Any]) -> np.ndarray:
@@ -110,20 +170,24 @@ class SharedMemoryBuffer:
             return extracted
         finally:
             client_shm.close()
+            cls._notify_closed(name)
 
     def close(self) -> None:
-        """Close local memory map."""
+        """Close local memory map and unlink if all attachments are closed."""
         try:
             self.shm.close()
         except OSError:
             pass
+        SharedMemoryBuffer._notify_closed(self.shm.name)
 
     def unlink(self) -> None:
-        """Unlink OS shared memory segment."""
+        """Explicitly unlink OS shared memory segment immediately."""
         try:
             self.shm.unlink()
-        except OSError:
+        except (OSError, FileNotFoundError):
             pass
+        with _REGISTRY_LOCK:
+            _ACTIVE_SHM.pop(self.shm.name, None)
 
 
 # ==============================================================================

@@ -11,7 +11,7 @@ import sys
 import time
 import atexit
 import psutil
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from pydantic import BaseModel, Field, ValidationError
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -69,12 +69,13 @@ class JobManager:
         2592000   # Tier 10: T4-1mo (De novo benchmark target execution)
     ]
 
-    def __init__(self, max_job_history: int = 1000) -> None:
+    def __init__(self, max_job_history: int = 1000, poll_interval: float = 0.1, **kwargs: Any) -> None:
         """Initialize the job manager."""
         self.jobs: Dict[str, JobInfo] = {}
         self.job_counter = 0
         self.active_processes: Dict[str, Dict[str, Any]] = {}
         self.max_job_history = max_job_history
+        self.poll_interval = poll_interval
         atexit.register(self._cleanup_all_processes)
 
     def _cleanup_all_processes(self) -> None:
@@ -233,34 +234,23 @@ class JobManager:
                 return job
             await asyncio.sleep(0.05)
 
-    async def run_job(self, config: Union[Dict[str, Any], JobConfig], timeout: Optional[float] = None) -> JobInfo:
-        """Submits, executes, and waits for a job to finish, returning JobInfo with stdout/stderr."""
-        job_id = await self.submit_job(config)
+    async def run_job(self, job_id: str, timeout: Optional[float] = None) -> Optional[JobInfo]:
+        """Run a job asynchronously and wait for its completion."""
+        if job_id not in self.jobs:
+            logger.warning(f"Job {job_id} not found")
+            return None
+
         job = self.jobs[job_id]
         if timeout is not None:
             job.max_duration = int(timeout)
-        await self.start_job(job_id)
+        if job_id not in self.active_processes:
+            await self.start_job(job_id)
+
         proc_info = self.active_processes.get(job_id)
-        if proc_info:
-            proc = proc_info['process']
-            try:
-                stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=job.max_duration)
-                job.stdout = stdout_bytes.decode('utf-8', errors='replace')
-                job.stderr = stderr_bytes.decode('utf-8', errors='replace')
-                job.return_code = proc.returncode
-                job.status = 'completed' if proc.returncode == 0 else 'failed'
-            except asyncio.TimeoutError:
-                if proc.pid:
-                    self._kill_process_tree(proc.pid)
-                await proc.wait()
-                job.return_code = -1
-                job.status = 'timed_out'
-                job.error = f"Job {job_id} exceeded temporal maximum duration ({job.max_duration}s)"
-            finally:
-                job.completed_at = time.time()
-                job.duration = job.completed_at - (job.started_at or job.created_at)
-                self.active_processes.pop(job_id, None)
-        return job
+        if proc_info and "task" in proc_info:
+            await proc_info["task"]
+
+        return self.jobs.get(job_id, job)
 
     async def start_job(self, job_id: str) -> None:
         """Start a submitted job using asyncio subprocess execution."""
@@ -299,16 +289,17 @@ class JobManager:
                 stderr=asyncio.subprocess.PIPE
             )
 
-            self.active_processes[job_id] = {
-                'process': process,
-                'start_time': time.time(),
-                'max_duration': job.max_duration
-            }
-
             job.status = 'running'
             job.started_at = time.time()
 
-            asyncio.create_task(self._enforce_timeout(job_id))
+            task = asyncio.create_task(self._unified_reader(job_id, process, float(job.max_duration)))
+
+            self.active_processes[job_id] = {
+                'process': process,
+                'start_time': time.time(),
+                'max_duration': job.max_duration,
+                'task': task,
+            }
 
             logger.info(f"Job {job_id} started successfully")
 
@@ -318,25 +309,24 @@ class JobManager:
             job.error = str(e)
             job.completed_at = time.time()
 
-    async def _enforce_timeout(self, job_id: str) -> None:
-        """Enforce timeout with asyncio.wait_for and platform-safe termination."""
-        if job_id not in self.active_processes:
-            return
-
-        process_info = self.active_processes[job_id]
-        process = process_info['process']
-        max_duration = process_info['max_duration']
-
+    async def _unified_reader(
+        self, job_id: str, process: asyncio.subprocess.Process, timeout: float
+    ) -> Tuple[str, str, int]:
+        """Consolidated single-task stream reader and timeout watchdog."""
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=max_duration)
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
+            out_str = stdout_bytes.decode('utf-8', errors='replace')
+            err_str = stderr_bytes.decode('utf-8', errors='replace')
+            ret = process.returncode or 0
             if job_id in self.jobs:
-                self.jobs[job_id].stdout = stdout_bytes.decode('utf-8', errors='replace')
-                self.jobs[job_id].stderr = stderr_bytes.decode('utf-8', errors='replace')
-            logger.info(f"Job {job_id} completed with return code {process.returncode}")
-            self._complete_job(job_id, process.returncode or 0)
-
+                self.jobs[job_id].stdout = out_str
+                self.jobs[job_id].stderr = err_str
+                self.jobs[job_id].return_code = ret
+            logger.info(f"Job {job_id} completed with return code {ret}")
+            self._complete_job(job_id, ret)
+            return out_str, err_str, ret
         except asyncio.TimeoutError:
-            logger.warning(f"⏰ Job {job_id} timeout reached ({max_duration}s), terminating process tree")
+            logger.warning(f"⏰ Job {job_id} timeout reached ({timeout}s), terminating process tree")
             try:
                 if process.pid:
                     self._kill_process_tree(process.pid)
@@ -346,12 +336,25 @@ class JobManager:
             await process.wait()
             if job_id in self.jobs:
                 self.jobs[job_id].status = 'timed_out'
-                self.jobs[job_id].error = f"Job {job_id} exceeded temporal maximum duration ({max_duration}s)"
-            self._complete_job(job_id, process.returncode or -1, timed_out=True)
-
+                self.jobs[job_id].error = f"Job {job_id} exceeded temporal maximum duration ({timeout}s)"
+                self.jobs[job_id].return_code = -1
+            self._complete_job(job_id, -1, timed_out=True)
+            return "", f"Job {job_id} exceeded temporal maximum duration ({timeout}s)", -1
         except Exception as e:
-            logger.error(f"Error in timeout enforcement for job {job_id}: {e}")
+            logger.error(f"Error in unified reader for job {job_id}: {e}")
             self._complete_job(job_id, -1)
+            return "", str(e), -1
+        finally:
+            if job_id in self.jobs:
+                self.jobs[job_id].completed_at = time.time()
+                self.jobs[job_id].duration = self.jobs[job_id].completed_at - (self.jobs[job_id].started_at or self.jobs[job_id].created_at)
+            self.active_processes.pop(job_id, None)
+
+    async def _enforce_timeout(self, job_id: str) -> None:
+        """Deprecated alias pointing to unified reader task."""
+        proc_info = self.active_processes.get(job_id)
+        if proc_info and "task" in proc_info:
+            await proc_info["task"]
 
     def _complete_job(self, job_id: str, return_code: int, timed_out: bool = False) -> None:
         """Mark a job as completed or failed and clean up resources."""

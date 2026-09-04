@@ -482,8 +482,9 @@ def build_grid_1d(
         raise ValueError(f"Number of grid points must be at least 2, got {n}")
 
     if gtype == DVRGridType.SINC:
-        coords = np.array([x_min + (x_max - x_min) * i / float(n - 1) for i in range(n)], dtype=np.float64)
-        dx = float(coords[1] - coords[0])
+        # Colbert & Miller (1992): strictly interior grid points enforcing Dirichlet boundary conditions
+        dx = (x_max - x_min) / float(n + 1)
+        coords = np.array([x_min + i * dx for i in range(1, n + 1)], dtype=np.float64)
         weights = np.full(n, dx, dtype=np.float64)
         return coords, weights
 

@@ -632,6 +632,42 @@ def enforce_cpu_affinity(pid: int, cpu_cores: Optional[List[int]] = None) -> boo
         return False
 
 
+def build_thread_affinity_env(
+    cores: Optional[Sequence[int]] = None,
+    is_scout: bool = False,
+    num_mps_ranks: Optional[int] = None,
+    mps_mem_limit_mb: Optional[int] = None,
+    base_env: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
+    """
+    Constructs an environment dictionary with proactive OpenMP/MKL thread affinity
+    and NVIDIA Multi-Process Service (MPS) mediation settings.
+
+    Mandated by Suggestion #19 and Method Matrix §8A.1 Scout-and-Anchor policy:
+    - Pre-injects GOMP_CPU_AFFINITY, KMP_AFFINITY, OMP_PLACES, OMP_PROC_BIND.
+    - Zero CUDA-Locking MPS parameters: CUDA_MPS_ACTIVE_THREAD_PERCENTAGE,
+      CUDA_MPS_PINNED_DEVICE_MEM_LIMIT.
+    """
+    env = dict(base_env if base_env is not None else os.environ)
+
+    if cores is not None and len(cores) > 0:
+        core_list = [int(c) for c in cores]
+        core_str = ",".join(str(c) for c in core_list)
+        env["GOMP_CPU_AFFINITY"] = core_str
+        env["KMP_AFFINITY"] = f"explicit,proclist=[{core_str}],granularity=fine"
+        env["OMP_PLACES"] = ",".join(f"{{{c}}}" for c in core_list)
+        env["OMP_PROC_BIND"] = "close"
+
+    if num_mps_ranks is not None and num_mps_ranks > 0:
+        pct = max(1, int(100 / num_mps_ranks))
+        env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(pct)
+
+    if mps_mem_limit_mb is not None and mps_mem_limit_mb > 0:
+        env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] = f"{int(mps_mem_limit_mb)}M"
+
+    return env
+
+
 def detect_mpi_environment(
     env: Optional[Dict[str, str]] = None,
     cmd: Optional[Union[str, List[str]]] = None,
@@ -1152,6 +1188,9 @@ def safe_subprocess_run(
     if sanitize_mpi:
         target_env = sanitize_mpi_environment(target_env, cmd=parsed_cmd)
 
+    if cpu_affinity is not None:
+        target_env = build_thread_affinity_env(cores=cpu_affinity, base_env=target_env)
+
     popen_args: Dict[str, Any] = {
         "cwd": cwd_str,
         "env": target_env,
@@ -1164,11 +1203,33 @@ def safe_subprocess_run(
 
     job_obj = WindowsJobObject() if (use_job_object and platform.system() == "Windows") else None
 
-    proc = subprocess.Popen(parsed_cmd, **popen_args)
-    register_popen_process(proc)
-
-    if job_obj is not None:
+    if job_obj is not None and platform.system() == "Windows":
+        CREATE_SUSPENDED = 0x00000004
+        popen_args["creationflags"] = popen_args.get("creationflags", 0) | CREATE_SUSPENDED
+        proc = subprocess.Popen(parsed_cmd, **popen_args)
+        register_popen_process(proc)
         job_obj.assign_popen(proc)
+        try:
+            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+        except Exception:
+            pass
+    else:
+        if platform.system() != "Windows":
+            popen_args.setdefault("start_new_session", True)
+            if platform.system() == "Linux":
+                def _posix_pdeathsig() -> None:
+                    try:
+                        import ctypes
+                        libc = ctypes.CDLL("libc.so.6")
+                        PR_SET_PDEATHSIG = 1
+                        SIGKILL = 9
+                        libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                    except Exception:
+                        pass
+                popen_args.setdefault("preexec_fn", _posix_pdeathsig)
+
+        proc = subprocess.Popen(parsed_cmd, **popen_args)
+        register_popen_process(proc)
 
     if cpu_affinity is not None:
         enforce_cpu_affinity(proc.pid, cpu_affinity)
@@ -1639,6 +1700,7 @@ __all__ = [
     "cleanup_zombie_processes",
     "kill_process_tree",
     "enforce_cpu_affinity",
+    "build_thread_affinity_env",
     "detect_cpu_topology",
     "CPUTopologyManager",
     "detect_mpi_environment",

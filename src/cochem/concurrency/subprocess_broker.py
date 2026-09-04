@@ -116,12 +116,19 @@ class SubprocessBroker:
 
     def __init__(
         self,
-        engine_name: str,
+        context_or_engine: Union[Any, str] = "cochem_worker",
         initial_params: Optional[Dict[str, Any]] = None,
         scratch_dir: Optional[Union[pathlib.Path, str]] = None,
         max_retries: int = 3,
+        **kwargs: Any,
     ) -> None:
-        self.engine_name: str = engine_name
+        if isinstance(context_or_engine, str):
+            self.engine_name: str = context_or_engine
+        else:
+            self.engine_name = getattr(context_or_engine, "session_name", "cochem_worker")
+            if scratch_dir is None and hasattr(context_or_engine, "scratch_dir"):
+                scratch_dir = context_or_engine.scratch_dir
+
         self.current_params: Dict[str, Any] = dict(initial_params or {})
         self.max_retries: int = max(1, int(max_retries))
         self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
@@ -208,6 +215,14 @@ class SubprocessBroker:
             except Exception as assign_err:
                 logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
 
+    def execute(
+        self,
+        command: List[str],
+        timeout_sec: float = 60.0,
+    ) -> SubprocessExecutionResult:
+        """Executes command under deterministic fault ladder with process containment."""
+        return self.execute_with_remediation(command=command, timeout_sec=timeout_sec)
+
     def execute_with_remediation(
         self,
         command: List[str],
@@ -220,7 +235,14 @@ class SubprocessBroker:
         last_code = 1
 
         while retries < self.max_retries:
-            env = self.topology_engine.get_worker_env()
+            env = dict(self.topology_engine.get_worker_env())
+            # Scrub inherited CUDA_VISIBLE_DEVICES unless GPU assignment is explicitly designated
+            if "CUDA_VISIBLE_DEVICES" in env and "CUDA_VISIBLE_DEVICES" not in self.current_params:
+                pass
+            # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
+            mps_pipe = self.scratch_dir / f"mps_pipe_{os.getpid()}_{retries}"
+            env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+
             kwargs: Dict[str, Any] = {
                 "cwd": str(self.scratch_dir),
                 "env": env,
@@ -229,12 +251,31 @@ class SubprocessBroker:
                 "text": True,
             }
 
-            if sys.platform != "win32":
+            if sys.platform == "win32":
+                CREATE_SUSPENDED = 0x00000004
+                kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+            else:
                 kwargs["start_new_session"] = True
+                if sys.platform.startswith("linux"):
+                    def _posix_pdeathsig() -> None:
+                        try:
+                            import ctypes
+                            libc = ctypes.CDLL("libc.so.6")
+                            PR_SET_PDEATHSIG = 1
+                            SIGKILL = 9
+                            libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                        except Exception:
+                            pass
+                    kwargs["preexec_fn"] = _posix_pdeathsig
 
             try:
                 proc = subprocess.Popen(command, **kwargs)
                 self.assign_to_job(proc)
+                if sys.platform == "win32":
+                    try:
+                        ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+                    except Exception:
+                        pass
 
                 try:
                     out, err = proc.communicate(timeout=timeout_sec)
@@ -293,23 +334,30 @@ class SubprocessBroker:
     def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
         """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""
         pid = proc.pid
-        if sys.platform != "win32":
-            try:
-                pgid = os.getpgid(pid)
-                os.killpg(pgid, signal.SIGTERM)
-                start = time.time()
-                while time.time() - start < grace_timeout:
-                    if proc.poll() is not None:
-                        return
-                    time.sleep(0.1)
-                os.killpg(pgid, signal.SIGKILL)
-            except (OSError, ProcessLookupError):
-                pass
-        else:
-            try:
-                proc.terminate()
-                proc.wait(timeout=grace_timeout)
-            except Exception:
+        try:
+            import psutil
+            parent = psutil.Process(pid)
+            children = parent.children(recursive=True)
+            for child in children:
+                try:
+                    child.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            parent.terminate()
+            _, alive = psutil.wait_procs(children + [parent], timeout=grace_timeout)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except Exception:
+            if sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    pass
+            else:
                 try:
                     proc.kill()
                 except Exception:

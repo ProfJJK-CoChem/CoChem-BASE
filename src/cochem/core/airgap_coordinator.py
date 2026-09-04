@@ -10,6 +10,8 @@ import os
 import pathlib
 import shutil
 import sqlite3
+import threading
+import uuid
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -26,19 +28,29 @@ class AirGapViolationError(PermissionError):
 class TripartiteStorageConfig:
     """Immutable topological layout configuration for tripartite storage."""
 
-    code_root: pathlib.Path
-    artifacts_root: pathlib.Path
     scratch_root: pathlib.Path
+    artifacts_root: pathlib.Path
+    code_root: Optional[pathlib.Path] = None
+
+
+AirGapConfig = TripartiteStorageConfig
 
 
 class TripartiteAirGapCoordinator:
     """Storage coordinator enforcing zero-overlap air-gap and sandboxed publication."""
 
     def __init__(self, config: TripartiteStorageConfig) -> None:
+        scr = config.scratch_root.resolve()
+        art = config.artifacts_root.resolve()
+        code = (
+            config.code_root.resolve()
+            if config.code_root is not None
+            else (scr.parent / "cochem_src").resolve()
+        )
         self.config: TripartiteStorageConfig = TripartiteStorageConfig(
-            code_root=config.code_root.resolve(),
-            artifacts_root=config.artifacts_root.resolve(),
-            scratch_root=config.scratch_root.resolve(),
+            code_root=code,
+            artifacts_root=art,
+            scratch_root=scr,
         )
         self.validate_disjointness()
 
@@ -133,7 +145,8 @@ class TripartiteAirGapCoordinator:
                     hasher.update(chunk)
             sha256_hash = hasher.hexdigest()
 
-        temp_dest = dest.with_name(f"{dest.name}.tmp_{os.getpid()}")
+        staging_name = f"{dest.name}.tmp_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}"
+        temp_dest = dest.with_name(staging_name)
         try:
             shutil.copy2(source, temp_dest)
             os.replace(temp_dest, dest)

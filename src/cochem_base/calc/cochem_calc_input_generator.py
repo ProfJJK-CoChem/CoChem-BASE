@@ -11,12 +11,15 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from jinja2 import Template
 from mendeleev import element
+from numpy.typing import ArrayLike
+import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from cochem.core.exceptions import RotationalGridInstabilityError
 from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -31,6 +34,7 @@ class MoleculeInput(BaseModel):
     multiplicity: int = Field(default=1, description="Spin multiplicity")
     is_weak_complex: bool = Field(default=False, description="Is this a weak intermolecular complex?")
     is_opt: bool = Field(default=True, description="Is this a geometry optimization?")
+    is_freq: bool = Field(default=False, description="Is this a harmonic frequency or Hessian calculation?")
     frozen_monomer_indices: Optional[List[int]] = Field(default=None, description="0-indexed atom indices to freeze")
     implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvation model (e.g., CPCM(Water), SMD)")
 
@@ -40,6 +44,15 @@ class MoleculeInput(BaseModel):
             if "D3" not in self.theory_level.upper() and "D4" not in self.theory_level.upper():
                 raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
         
+        is_freq_task = (
+            self.is_freq
+            or "FREQ" in self.theory_level.upper()
+            or "NUMFREQ" in self.theory_level.upper()
+            or "HESS" in self.theory_level.upper()
+        )
+        if is_freq_task and "DEFGRID1" in self.theory_level.upper():
+            raise ValueError("[METHOD_MATRIX_VIOLATION_DEFGRID] defgrid1 is forbidden for frequency/Hessian tasks; defgrid3 is mandated.")
+
         # 4. Hessian Preconditioning Safeguards
         if self.is_opt and "CALC_HESS TRUE" in self.theory_level.upper():
             self.theory_level = re.sub(r'(?i)calc_hess\s+true', '', self.theory_level).strip()
@@ -183,9 +196,15 @@ def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) 
                          "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
                          "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
     needs_tight_grid = any(el in data.elements for el in transition_metals)
+    is_frequency_task = (
+        data.is_freq
+        or "FREQ" in data.theory_level.upper()
+        or "NUMFREQ" in data.theory_level.upper()
+        or "HESS" in data.theory_level.upper()
+    )
 
-    # 2. Dynamic Grid Tightening
-    grid_keyword = "defgrid3" if needs_tight_grid else "defgrid1"
+    # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
+    grid_keyword = "defgrid3" if (needs_tight_grid or is_frequency_task) else "defgrid1"
 
     coord_block = []
     for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
@@ -274,3 +293,113 @@ end
 
     logger.info(f"Generated secure ORCA input for Basin: {data.basin_id} with PROVENANCE: [E]")
     return output_path
+
+
+def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
+    """Compiles a PySCF calculation script deck enforcing defgrid3-equivalent grid levels for frequency tasks."""
+    is_frequency_task = (
+        data.is_freq
+        or "FREQ" in data.theory_level.upper()
+        or "NUMFREQ" in data.theory_level.upper()
+        or "HESS" in data.theory_level.upper()
+    )
+    grid_level = 4 if is_frequency_task else 3
+
+    atom_lines = []
+    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
+        atom_lines.append(f"    ['{el}', ({x:.8f}, {y:.8f}, {z:.8f})],")
+    atom_str = "\n".join(atom_lines)
+
+    pyscf_script = f"""# PySCF Input Deck: Basin {data.basin_id}
+# Provenance: [M] Method Matrix §16.1
+import pyscf
+from pyscf import gto, dft, hessian
+
+mol = gto.Mole()
+mol.atom = [
+{atom_str}
+]
+mol.basis = 'def2-tzvp'
+mol.charge = {data.charge}
+mol.spin = {data.multiplicity - 1}
+mol.build()
+
+mf = dft.RKS(mol)
+mf.xc = 'b3lyp'
+mf.grids.level = {grid_level}  # Level {grid_level} enforced (defgrid3 standard)
+mf.kernel()
+"""
+    out_base = output_dir if output_dir else get_artifact_base()
+    out_base.mkdir(parents=True, exist_ok=True)
+    output_path = out_base / f"{data.basin_id}_pyscf.py"
+    output_path.write_text(pyscf_script, encoding="utf-8")
+    return output_path
+
+
+def validate_rotational_mode_stability(
+    geometry: np.ndarray,
+    calc_engine: Callable[[np.ndarray], np.ndarray],
+    threshold_cm1: float = 50.0,
+    max_delta_cm1: float = 1.0,
+) -> bool:
+    """Validates that soft intermolecular vibrational modes (< 50 cm^-1) remain rotationally invariant.
+
+    Rotates Cartesian geometry by 45 degrees around non-principal axis v = [1, 1, 1] / sqrt(3)
+    using Rodrigues rotation matrix:
+        R = I + (sin theta) K + (1 - cos theta) K^2
+
+    Args:
+        geometry: (N, 3) Cartesian coordinates.
+        calc_engine: Callable taking (N, 3) coordinates and returning 1D array of harmonic frequencies (cm^-1).
+        threshold_cm1: Cutoff below which modes are considered soft (default 50.0 cm^-1).
+        max_delta_cm1: Maximum allowed variation in frequency after rotation (default 1.0 cm^-1).
+
+    Raises:
+        RotationalGridInstabilityError: If any mode < threshold_cm1 shifts by > max_delta_cm1 or flips imaginary.
+    """
+    coords = np.asarray(geometry, dtype=np.float64)
+    orig_freqs = np.asarray(calc_engine(coords), dtype=np.float64)
+
+    # Detect if any calculated vibrational mode satisfies omega < threshold_cm1
+    soft_indices = [i for i, w in enumerate(orig_freqs) if w < threshold_cm1]
+    if not soft_indices:
+        return True
+
+    # Rotate Cartesian geometry by 45 degrees around non-principal axis v = [1, 1, 1] / sqrt(3)
+    theta = math.pi / 4.0  # 45 degrees
+    v = np.array([1.0, 1.0, 1.0], dtype=np.float64) / math.sqrt(3.0)
+    vx, vy, vz = v[0], v[1], v[2]
+
+    # Skew-symmetric matrix K
+    K = np.array([
+        [0.0, -vz, vy],
+        [vz, 0.0, -vx],
+        [-vy, vx, 0.0],
+    ], dtype=np.float64)
+
+    # Orthogonal rotation matrix: R = I + sin(theta) * K + (1 - cos(theta)) * K^2
+    I = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
+    R = I + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
+
+    coords_rot = coords @ R.T
+    rot_freqs = np.asarray(calc_engine(coords_rot), dtype=np.float64)
+
+    # Assert that all low-frequency modes remain stable within max_delta_cm1 and do not flip to imaginary
+    for idx in soft_indices:
+        w_orig = orig_freqs[idx]
+        w_rot = rot_freqs[idx]
+
+        if w_orig >= 0.0 and w_rot < 0.0:
+            raise RotationalGridInstabilityError(
+                f"Rotational grid instability: mode {idx} flipped from {w_orig:.2f} cm^-1 to imaginary {w_rot:.2f} cm^-1 after rotation.",
+                delta_cm1=abs(w_rot - w_orig),
+            )
+
+        delta = abs(w_rot - w_orig)
+        if delta > max_delta_cm1:
+            raise RotationalGridInstabilityError(
+                f"Rotational grid instability: mode {idx} shifted by {delta:.2f} cm^-1 (exceeds tolerance {max_delta_cm1:.2f} cm^-1; {w_orig:.2f} vs {w_rot:.2f}).",
+                delta_cm1=delta,
+            )
+
+    return True

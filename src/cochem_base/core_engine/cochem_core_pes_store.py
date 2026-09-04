@@ -61,7 +61,9 @@ import platform
 import shutil
 import socket
 import sys
+import threading
 import time
+import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from enum import Enum
@@ -85,6 +87,12 @@ import numpy as np
 from filelock import FileLock, Timeout
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
 
 from cochem_base.config_loader import (
     get_artifact_dir,
@@ -452,10 +460,11 @@ def compute_inertia_tensor(
     r = coords_arr - com
     masses = get_atomic_masses_for_symbols(symbols, mass_numbers)
 
-    I = np.zeros((3, 3), dtype=np.float64)
+    I = np.full((3, 3), 0.0, dtype=np.float64)
+    eye3 = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
     for m_i, r_i in zip(masses, r, strict=False):
         r_sq = float(np.dot(r_i, r_i))
-        I += m_i * (r_sq * np.eye(3, dtype=np.float64) - np.outer(r_i, r_i))
+        I += m_i * (r_sq * eye3 - np.outer(r_i, r_i))
 
     evals, evecs = np.linalg.eigh(I)
     idx = np.argsort(evals)
@@ -701,6 +710,112 @@ def reanalyze_isotopologue_suite(
 # 5. CORE HDF5 PES STORE (Method Matrix §8C)
 # =============================================================================
 
+class ReadWriteFileLock:
+    """Portable cross-platform Reader-Writer Lock backed by FileLock token tracking."""
+
+    def __init__(self, lock_path: Union[str, Path], timeout: float = 30.0) -> None:
+        self.lock_path = Path(lock_path)
+        self.writer_lock_path = self.lock_path.with_name(self.lock_path.name + ".writer.lock")
+        self.readers_dir = self.lock_path.with_name(self.lock_path.name + ".readers")
+        self.timeout = timeout
+        self.writer_lock = FileLock(str(self.writer_lock_path), timeout=timeout)
+        self.readers_dir.mkdir(parents=True, exist_ok=True)
+        self._local = threading.local()
+
+    def _get_write_depth(self) -> int:
+        return getattr(self._local, "write_depth", 0)
+
+    def _set_write_depth(self, val: int) -> None:
+        self._local.write_depth = val
+
+    def _get_read_depth(self) -> int:
+        return getattr(self._local, "read_depth", 0)
+
+    def _set_read_depth(self, val: int) -> None:
+        self._local.read_depth = val
+
+    @contextmanager
+    def read_lock(self) -> Generator[None, None, None]:
+        """Shared read lock allowing unbounded concurrent readers with re-entrancy."""
+        # If the current thread already holds the write lock, reading is re-entrant and safe
+        if self._get_write_depth() > 0:
+            yield
+            return
+
+        read_depth = self._get_read_depth()
+        if read_depth > 0:
+            self._set_read_depth(read_depth + 1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(self._get_read_depth() - 1)
+            return
+
+        token = self.readers_dir / f"read_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}.token"
+        t0 = time.time()
+        while self.writer_lock.is_locked:
+            if time.time() - t0 > self.timeout:
+                raise HDF5LockTimeoutError(
+                    f"Timed out after {self.timeout}s waiting for read lock on {self.lock_path}",
+                    error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
+                )
+            time.sleep(0.005)
+
+        token.touch(exist_ok=True)
+        self._set_read_depth(1)
+        try:
+            yield
+        finally:
+            self._set_read_depth(0)
+            token.unlink(missing_ok=True)
+
+    @contextmanager
+    def write_lock(self) -> Generator[None, None, None]:
+        """Exclusive write lock waiting for active readers to finish."""
+        depth = self._get_write_depth()
+        if depth > 0:
+            # Re-entrant acquisition by the same thread
+            self._set_write_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_write_depth(self._get_write_depth() - 1)
+            return
+
+        try:
+            self.writer_lock.acquire(timeout=self.timeout)
+        except Timeout as exc:
+            raise HDF5LockTimeoutError(
+                f"Timed out after {self.timeout}s acquiring writer lock on {self.lock_path}",
+                error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
+            ) from exc
+
+        self._set_write_depth(1)
+        t0 = time.time()
+        try:
+            while any(self.readers_dir.glob("*.token")):
+                # Clean up stale tokens from exited processes
+                for tok in list(self.readers_dir.glob("*.token")):
+                    parts = tok.stem.split("_")
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        r_pid = int(parts[1])
+                        if HAS_PSUTIL and not psutil.pid_exists(r_pid):
+                            tok.unlink(missing_ok=True)
+                if not any(self.readers_dir.glob("*.token")):
+                    break
+                if time.time() - t0 > self.timeout:
+                    raise HDF5LockTimeoutError(
+                        f"Timed out after {self.timeout}s waiting for readers to clear on {self.lock_path}",
+                        error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
+                    )
+                time.sleep(0.005)
+            yield
+        finally:
+            self._set_write_depth(0)
+            if self.writer_lock.is_locked:
+                self.writer_lock.release()
+
+
 class PESStore:
     """
     Resizable, chunked, gzip+shuffle+fletcher32 HDF5 PES Store with QCSchema field names.
@@ -720,6 +835,7 @@ class PESStore:
         self.path = Path(path).resolve()
         self.lock_path = self.path.parent / f"{self.path.name}.lock"
         self.lock_timeout = lock_timeout
+        self.rw_lock = ReadWriteFileLock(self.lock_path, timeout=self.lock_timeout)
         new_file = not self.path.exists()
 
         if new_file:
@@ -761,18 +877,20 @@ class PESStore:
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
         """Cross-platform byte-range file lock context manager."""
-        lock = FileLock(str(self.lock_path), timeout=self.lock_timeout)
-        try:
-            lock.acquire()
+        with self.rw_lock.write_lock():
             yield
-        except Timeout as exc:
-            raise HDF5LockTimeoutError(
-                f"Timed out after {self.lock_timeout}s waiting for lock on {self.path}",
-                error_code=ProvenanceErrorCode.HDF5_SWMR_LOCK_TIMEOUT,
-            ) from exc
-        finally:
-            if lock.is_locked:
-                lock.release()
+
+    @contextmanager
+    def shared_read_lock(self) -> Generator[None, None, None]:
+        """Shared read lock allowing unbounded concurrent readers."""
+        with self.rw_lock.read_lock():
+            yield
+
+    @contextmanager
+    def exclusive_write_lock(self) -> Generator[None, None, None]:
+        """Exclusive write lock waiting for active readers to clear."""
+        with self.rw_lock.write_lock():
+            yield
 
     # -------------------------------------------------------------------------
     # Method Registration (QCSchema v1)
@@ -933,13 +1051,13 @@ class PESStore:
                 self._append(self._ds(f, method_id, "energy", (), np.float64, checksum=True), energies_arr)
 
                 # Convergence
-                conv_block = np.ones(npts, dtype=bool) if converged is None else np.asarray(converged, dtype=bool)
+                conv_block = np.full(npts, True, dtype=bool) if converged is None else np.asarray(converged, dtype=bool)
                 if conv_block.ndim == 0:
                     conv_block = np.full(npts, bool(converged), dtype=bool)
                 self._append(self._ds(f, method_id, "converged", (), np.bool_), conv_block)
 
                 # Wall time
-                wall_block = np.zeros(npts, dtype=np.float64) if wall_s is None else np.asarray(wall_s, dtype=np.float64)
+                wall_block = np.full(npts, 0.0, dtype=np.float64) if wall_s is None else np.asarray(wall_s, dtype=np.float64)
                 if wall_block.ndim == 0:
                     wall_block = np.full(npts, float(wall_s), dtype=np.float64)
                 self._append(self._ds(f, method_id, "wall_s", (), np.float64), wall_block)
@@ -967,7 +1085,27 @@ class PESStore:
                     nan_pad = np.full((npts, natm, 3), np.nan, dtype=np.float64)
                     self._append(f[f"points/{method_id}/gradient"], nan_pad)
 
+                f.flush()
+
         return i0
+
+    def get_points(self, method_id: str, converged_only: bool = False) -> List[Dict[str, Any]]:
+        """Convenience query returning list of point dicts for a method."""
+        payload = self.dataset_full(method_id, converged_only=converged_only)
+        n = min(len(payload["energy"]), len(payload["point_id"]), len(payload["coordinates"]))
+        points_list = []
+        for i in range(n):
+            pt = {
+                "point_id": payload["point_id"][i],
+                "coordinates": payload["coordinates"][i],
+                "energy": float(payload["energy"][i]),
+                "converged": bool(payload["converged"][i]),
+                "wall_s": float(payload["wall_s"][i]),
+            }
+            if "gradient" in payload and i < len(payload["gradient"]):
+                pt["gradient"] = payload["gradient"][i]
+            points_list.append(pt)
+        return points_list
 
     # -------------------------------------------------------------------------
     # Hessians & Isotopologue Storage
@@ -1141,7 +1279,7 @@ class PESStore:
         Returns:
             Tuple of (coordinates (Npts, Natoms, 3), energies (Npts,))
         """
-        with self._file_lock():
+        with self.shared_read_lock():
             with h5py.File(self.path, "r") as f:
                 if f"points/{method_id}" not in f:
                     raise KeyError(f"No points dataset found for method '{method_id}'.")
@@ -1153,7 +1291,7 @@ class PESStore:
 
     def dataset_full(self, method_id: str, converged_only: bool = True) -> Dict[str, Any]:
         """Retrieves full points payload dictionary for a method."""
-        with self._file_lock():
+        with self.shared_read_lock():
             with h5py.File(self.path, "r") as f:
                 if f"points/{method_id}" not in f:
                     raise KeyError(f"No points dataset found for method '{method_id}'.")
@@ -1330,6 +1468,7 @@ class BifurcatedPESStore:
         symbols: Sequence[str] = (),
         molecular_charge: int = 0,
         spin_multiplicity: int = 1,
+        lock_timeout: float = DEFAULT_LOCK_TIMEOUT_S,
     ) -> None:
         art_dir = get_artifact_dir()
         runtime_dir = get_runtime_dir()
@@ -1349,6 +1488,7 @@ class BifurcatedPESStore:
         self.symbols = list(symbols)
         self.molecular_charge = molecular_charge
         self.spin_multiplicity = spin_multiplicity
+        self.lock_timeout = lock_timeout
 
         # Initialize underlying PES stores
         self.active_store = PESStore(
@@ -1357,6 +1497,7 @@ class BifurcatedPESStore:
             symbols=symbols,
             molecular_charge=molecular_charge,
             spin_multiplicity=spin_multiplicity,
+            lock_timeout=lock_timeout,
         )
         self.archive_store = PESStore(
             path=self.archive_path,
@@ -1364,6 +1505,7 @@ class BifurcatedPESStore:
             symbols=symbols,
             molecular_charge=molecular_charge,
             spin_multiplicity=spin_multiplicity,
+            lock_timeout=lock_timeout,
         )
 
     # -------------------------------------------------------------------------
@@ -1372,22 +1514,26 @@ class BifurcatedPESStore:
     @contextmanager
     def active_writer(self) -> Generator[PESStore, None, None]:
         """Context manager providing thread-safe write access to active runtime store."""
-        yield self.active_store
+        with self.active_store.exclusive_write_lock():
+            yield self.active_store
 
     @contextmanager
     def active_reader(self) -> Generator[PESStore, None, None]:
         """Context manager providing concurrent read access to active runtime store."""
-        yield self.active_store
+        with self.active_store.shared_read_lock():
+            yield self.active_store
 
     @contextmanager
     def archive_writer(self) -> Generator[PESStore, None, None]:
         """Context manager providing thread-safe write access to archival store."""
-        yield self.archive_store
+        with self.archive_store.exclusive_write_lock():
+            yield self.archive_store
 
     @contextmanager
     def archive_reader(self) -> Generator[PESStore, None, None]:
         """Context manager providing read access to archival store."""
-        yield self.archive_store
+        with self.archive_store.shared_read_lock():
+            yield self.archive_store
 
     # -------------------------------------------------------------------------
     # Point Recording & Promotion
@@ -1525,6 +1671,68 @@ class BifurcatedPESStore:
 
         logger.info(f"Promoted {total_promoted} active runtime points to archival store {self.archive_path}")
         return total_promoted
+
+
+class TripartitePESStore(BifurcatedPESStore):
+    """
+    Tripartite PES Store architecture incorporating:
+    1. Active runtime SWMR store for real-time trajectory/grid evaluation.
+    2. Shared reader / exclusive writer synchronization via ReadWriteFileLock.
+    3. Archival store for long-term compressed QCSchema representations.
+    """
+
+    def __init__(
+        self,
+        path: Optional[Union[str, Path]] = None,
+        complex_name: str = "",
+        symbols: Sequence[str] = (),
+        molecular_charge: int = 0,
+        spin_multiplicity: int = 1,
+        lock_timeout: float = DEFAULT_LOCK_TIMEOUT_S,
+        archive_path: Optional[Union[str, Path]] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(
+            active_runtime_path=path,
+            archive_pes_path=archive_path,
+            complex_name=complex_name,
+            symbols=symbols,
+            molecular_charge=molecular_charge,
+            spin_multiplicity=spin_multiplicity,
+            lock_timeout=lock_timeout,
+        )
+
+    def register_method(self, method_id: str, **attrs: Any) -> None:
+        """Registers computational method into the active runtime store."""
+        self.active_store.register_method(method_id, **attrs)
+
+    def get_points(self, method_id: str, converged_only: bool = False) -> List[Dict[str, Any]]:
+        """Retrieves points for a method from active runtime store."""
+        return self.active_store.get_points(method_id, converged_only=converged_only)
+
+    def add_points(self, *args: Any, **kwargs: Any) -> int:
+        """Appends points into the active runtime store."""
+        return self.active_store.add_points(*args, **kwargs)
+
+    def list_methods(self) -> List[str]:
+        """Lists methods registered in active runtime store."""
+        return self.active_store.list_methods()
+
+    def get_method(self, method_id: str) -> Dict[str, Any]:
+        """Retrieves metadata attributes for a registered method."""
+        return self.active_store.get_method(method_id)
+
+    def todo(self, method_id: str, wanted_point_ids: Sequence[str]) -> List[str]:
+        """Identifies missing or unconverged points in active runtime store."""
+        return self.active_store.todo(method_id, wanted_point_ids)
+
+    def dataset(self, *args: Any, **kwargs: Any) -> Tuple[np.ndarray, np.ndarray]:
+        """Extracts aligned coordinates and energies from active runtime store."""
+        return self.active_store.dataset(*args, **kwargs)
+
+    def dataset_full(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Extracts full structured dataset dictionary from active runtime store."""
+        return self.active_store.dataset_full(*args, **kwargs)
 
 
 # =============================================================================

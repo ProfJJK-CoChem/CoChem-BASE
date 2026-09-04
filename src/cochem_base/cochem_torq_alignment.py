@@ -17,7 +17,8 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 
-from cochem_torq_vault import CIAAW_ISOTOPIC_MASSES
+from cochem.core.exceptions import MissingDataError
+from cochem.core.mendeleev_invariants import get_element_mass
 
 logger = logging.getLogger("CoChem-TORQ.Alignment")
 
@@ -44,9 +45,16 @@ def translate_com_to_origin(
     if masses is not None:
         mass_arr = np.asarray(masses, dtype=np.float64)
     else:
-        mass_arr = np.array(
-            [CIAAW_ISOTOPIC_MASSES.get(s.capitalize(), 12.0) for s in symbols], dtype=np.float64
-        )
+        resolved_masses = []
+        for s in symbols:
+            try:
+                resolved_masses.append(get_element_mass(s))
+            except Exception as exc:
+                raise MissingDataError(
+                    f"Unresolvable atomic element or isotope symbol: {s}",
+                    symbol_or_query=s,
+                ) from exc
+        mass_arr = np.array(resolved_masses, dtype=np.float64)
 
     total_mass = float(np.sum(mass_arr))
     if total_mass <= 0.0:
@@ -75,9 +83,16 @@ def diagonalize_principal_axes(
     if masses is not None:
         mass_arr = np.asarray(masses, dtype=np.float64)
     else:
-        mass_arr = np.array(
-            [CIAAW_ISOTOPIC_MASSES.get(s.capitalize(), 12.0) for s in symbols], dtype=np.float64
-        )
+        resolved_masses = []
+        for s in symbols:
+            try:
+                resolved_masses.append(get_element_mass(s))
+            except Exception as exc:
+                raise MissingDataError(
+                    f"Unresolvable atomic element or isotope symbol: {s}",
+                    symbol_or_query=s,
+                ) from exc
+        mass_arr = np.array(resolved_masses, dtype=np.float64)
 
     x = centered_coords[:, 0]
     y = centered_coords[:, 1]

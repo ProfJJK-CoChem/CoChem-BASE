@@ -17,7 +17,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import networkx as nx
 import numpy as np
 
-from cochem_torq_vault import CIAAW_ISOTOPIC_MASSES
+from cochem.core.exceptions import MissingDataError
+from cochem.core.mendeleev_invariants import get_element, get_element_mass
 
 logger = logging.getLogger("CoChem-TORQ.Topology")
 
@@ -61,11 +62,19 @@ def build_molecular_graph(
     g = nx.Graph()
 
     for i in range(n_atoms):
-        sym = symbols[i].capitalize()
+        sym = symbols[i].strip()
+        try:
+            mass_val = get_element_mass(sym)
+            elem_data = get_element(sym)
+        except Exception as exc:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {sym}",
+                symbol_or_query=sym,
+            ) from exc
         g.add_node(
             i,
-            symbol=sym,
-            mass=CIAAW_ISOTOPIC_MASSES.get(sym, 12.0),
+            symbol=elem_data.symbol,
+            mass=mass_val,
             coord=coordinates[i],
         )
 
@@ -73,11 +82,13 @@ def build_molecular_graph(
     dist_mat = np.sqrt(np.sum(diff**2, axis=-1))
 
     for i in range(n_atoms):
-        sym_i = symbols[i].capitalize()
-        r_i = COVALENT_RADII_ANG.get(sym_i, 0.76)
+        sym_i = symbols[i].strip()
+        elem_i = get_element(sym_i)
+        r_i = (elem_i.covalent_radius_pm / 100.0) if elem_i.covalent_radius_pm else COVALENT_RADII_ANG.get(elem_i.symbol, 0.76)
         for j in range(i + 1, n_atoms):
-            sym_j = symbols[j].capitalize()
-            r_j = COVALENT_RADII_ANG.get(sym_j, 0.76)
+            sym_j = symbols[j].strip()
+            elem_j = get_element(sym_j)
+            r_j = (elem_j.covalent_radius_pm / 100.0) if elem_j.covalent_radius_pm else COVALENT_RADII_ANG.get(elem_j.symbol, 0.76)
             bond_thresh = (r_i + r_j) * scale_factor
             if dist_mat[i, j] <= bond_thresh:
                 g.add_edge(i, j, distance=float(dist_mat[i, j]))

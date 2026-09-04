@@ -38,6 +38,8 @@ except ImportError:
     _mendeleev_element = None
 
 from cochem_tensor_extractor import CIAAW_ISOTOPIC_MASSES
+from cochem.core.exceptions import MissingDataError
+from cochem.core.mendeleev_invariants import get_element, get_element_mass, get_isotope_mass
 
 logger = logging.getLogger("CoChem-TORQ")
 
@@ -110,12 +112,25 @@ def standardize_geometry_dataframe(
     atomic_nums: List[int] = []
 
     for i, sym in enumerate(symbols):
-        clean_sym = sym.capitalize()
+        clean_sym = sym.strip()
         if masses is not None and i < len(masses):
             computed_masses.append(float(masses[i]))
         else:
-            computed_masses.append(CIAAW_ISOTOPIC_MASSES.get(clean_sym, 12.0))
-        atomic_nums.append(ATOMIC_NUMBERS.get(clean_sym, 6))
+            try:
+                computed_masses.append(get_element_mass(clean_sym))
+            except Exception as exc:
+                raise MissingDataError(
+                    f"Unresolvable atomic element or isotope symbol: {clean_sym}",
+                    symbol_or_query=clean_sym,
+                ) from exc
+        try:
+            elem_data = get_element(clean_sym)
+            atomic_nums.append(elem_data.atomic_number)
+        except Exception as exc:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {clean_sym}",
+                symbol_or_query=clean_sym,
+            ) from exc
 
     df = pd.DataFrame(
         {
@@ -229,8 +244,17 @@ def parse_external_xyz(
                 },
             )
 
-    masses = [CIAAW_ISOTOPIC_MASSES.get(s, 12.0) for s in symbols]
-    atomic_numbers = [ATOMIC_NUMBERS.get(s, 6) for s in symbols]
+    masses = []
+    atomic_numbers = []
+    for s in symbols:
+        try:
+            masses.append(get_element_mass(s))
+            atomic_numbers.append(get_element(s).atomic_number)
+        except Exception as exc:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {s}",
+                symbol_or_query=s,
+            ) from exc
 
     df = standardize_geometry_dataframe(symbols, coords_arr, masses, provenance_tag="[D]")
     arrow_table = pa.Table.from_pandas(df) if pa is not None else None
@@ -300,8 +324,17 @@ def fetch_topos_matrices(
         )
         gbw_path = str(conf_node.attrs.get("gbw_path", ""))
 
-    masses = [CIAAW_ISOTOPIC_MASSES.get(s.capitalize(), 12.0) for s in symbols]
-    atomic_numbers = [ATOMIC_NUMBERS.get(s.capitalize(), 6) for s in symbols]
+    masses = []
+    atomic_numbers = []
+    for s in symbols:
+        try:
+            masses.append(get_element_mass(s))
+            atomic_numbers.append(get_element(s).atomic_number)
+        except Exception as exc:
+            raise MissingDataError(
+                f"Unresolvable atomic element or isotope symbol: {s}",
+                symbol_or_query=s,
+            ) from exc
     df = standardize_geometry_dataframe(symbols, coords, masses, provenance_tag="[M]")
     arrow_table = pa.Table.from_pandas(df) if pa is not None else None
 

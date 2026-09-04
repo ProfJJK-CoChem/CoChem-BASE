@@ -112,6 +112,12 @@ from cochem.core.ingestors.protocols import (
 # 8. Mendeleev Mass Invariants
 from cochem.core.mendeleev_invariants import MendeleevInvariantError
 
+# 9. Stage-0 Facade Re-exports: HDF5 Manager, Models, Constants, PES Records
+from cochem_base.core.cochem_core_hdf5_manager import CoChemHDF5Manager
+from cochem_base.core.models import MolecularTopology, QCResultsRecord
+from cochem_base.core.glossary import UnitConversionConstants
+from cochem_base.core_engine.cochem_core_pes_store import PESPointRecord
+
 __all__ = [
     # Registry
     "cochem_core_registry_manager",
@@ -197,4 +203,11 @@ __all__ = [
     "SpinContaminationError",
     # Mendeleev Invariants
     "MendeleevInvariantError",
+    # Stage-0 Facade Deliverables
+    "CoChemHDF5Manager",
+    "QCResultsRecord",
+    "MolecularTopology",
+    "PESPointRecord",
+    "UnitConversionConstants",
 ]
+

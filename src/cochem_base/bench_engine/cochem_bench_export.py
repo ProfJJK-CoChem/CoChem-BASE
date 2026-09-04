@@ -48,8 +48,7 @@ from pydantic import BaseModel, Field
 # Physical Constants & System Defaults
 # ==============================================================================
 
-# Exact CODATA Conversion: Hartree to kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.509474063
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
 
 # Default Output Workspace Directory (Stage 5.0)
 DEFAULT_PROCESSED_DIR: Path = Path(r"D:\__CoChem\CoChem_Artifacts\BENCH_Workspace\Processed")

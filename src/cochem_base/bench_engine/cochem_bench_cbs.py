@@ -61,8 +61,7 @@ logger = logging.getLogger(__name__)
 # Physical Constants & Parameter Matrix
 # ==============================================================================
 
-# Exact CODATA Conversion: Hartree to kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.509474063
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
 
 # Mathematical Guardrail Threshold: Uncertainty ceiling for CBS extrapolation (kcal/mol)
 CBS_UNCERTAINTY_THRESHOLD_KCAL_MOL: float = 10.0

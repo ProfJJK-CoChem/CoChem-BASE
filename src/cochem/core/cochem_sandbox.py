@@ -13,13 +13,16 @@ import shutil
 import signal
 import sys
 import tempfile
+import threading
 import time
+import weakref
 from dataclasses import dataclass
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 _QUARANTINED_PATHS: list[pathlib.Path] = []
+_ACTIVE_SANDBOXES: weakref.WeakSet[SandboxContext] = weakref.WeakSet()
 
 
 def _sweep_quarantine() -> None:
@@ -32,7 +35,17 @@ def _sweep_quarantine() -> None:
             pass
 
 
+def _global_sandbox_atexit_cleanup() -> None:
+    """Global atexit teardown iterating over surviving weak references."""
+    for sb in list(_ACTIVE_SANDBOXES):
+        try:
+            sb.cleanup()
+        except Exception:
+            pass
+
+
 atexit.register(_sweep_quarantine)
+atexit.register(_global_sandbox_atexit_cleanup)
 
 
 class SandboxSecurityViolationError(PermissionError):
@@ -73,6 +86,16 @@ class SandboxContext:
         parent_dir: Optional[pathlib.Path] = None
         if self.config.scratch_parent_dir is not None:
             parent_dir = self.config.scratch_parent_dir.resolve()
+        else:
+            scratch_env = (
+                os.environ.get("COCHEM_SCRATCH_DIR")
+                or os.environ.get("SLURM_TMPDIR")
+                or os.environ.get("TMPDIR")
+            )
+            if scratch_env:
+                parent_dir = pathlib.Path(scratch_env).resolve()
+
+        if parent_dir is not None:
             parent_dir.mkdir(parents=True, exist_ok=True)
 
         self._temp_dir = tempfile.TemporaryDirectory(
@@ -81,6 +104,7 @@ class SandboxContext:
         )
         self.root = pathlib.Path(self._temp_dir.name).resolve()
         self._active = True
+        _ACTIVE_SANDBOXES.add(self)
         self._register_cleanup_traps()
         return self
 
@@ -148,6 +172,7 @@ class SandboxContext:
             return
 
         self._active = False
+        _ACTIVE_SANDBOXES.discard(self)
         target_root = self.root
 
         for attempt in range(self.config.max_cleanup_retries):
@@ -164,11 +189,14 @@ class SandboxContext:
                 time.sleep(backoff_time)
 
     def _register_cleanup_traps(self) -> None:
-        """Register atexit hooks and OS signal handlers for robust teardown."""
+        """Register OS signal handlers for robust teardown in main thread only."""
         if self._trap_registered:
             return
 
-        atexit.register(self.cleanup)
+        if threading.current_thread() is not threading.main_thread():
+            logger.debug("Bypassing signal.signal traps in non-main worker thread.")
+            return
+
         try:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 prev_handler = signal.getsignal(sig)

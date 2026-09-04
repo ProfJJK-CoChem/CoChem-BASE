@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import copy
 import hashlib
 import hmac
 import json
@@ -74,6 +75,7 @@ from typing import (
     Generator,
     Iterable,
     List,
+    Literal,
     Optional,
     Sequence,
     Set,
@@ -128,10 +130,12 @@ SPEED_OF_LIGHT_M_S = 2.99792458e8         # m / s (CODATA exact)
 ATOMIC_MASS_UNIT_KG = 1.66053906660e-27   # kg / u
 ANGSTROM_TO_METER = 1.0e-10               # m / Angstrom
 BOHR_TO_ANGSTROM = 0.529177210903         # Angstrom / Bohr
+ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM  # Bohr / Angstrom
 BOHR_TO_METER = 0.529177210903e-10        # m / Bohr
 HARTREE_TO_JOULE = 4.3597447222071e-18    # J / Hartree
 HARTREE_TO_EV = 27.211386245988           # eV / Hartree
 HARTREE_TO_CM_INV = 219474.63136320       # cm^-1 / Hartree
+ROTATIONAL_INERTIA_CONVERSION = 505379.0084350172  # MHz * u * Angstrom^2
 
 # Factor converting Inertia (u * Angstrom^2) to Rotational Constant (MHz):
 # B = h / (8 * pi^2 * I) * 1e-6 (Hz -> MHz)
@@ -174,7 +178,7 @@ class DriverType(str, Enum):
 
 
 class QCSchemaProvenance(BaseModel):
-    """QCSchema v1 compliant calculation provenance metadata."""
+    """QCSchema v1 compliant calculation provenance metadata with asymmetric Ed25519 signatures."""
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
     creator: str = Field(default="ORCA", description="Name of quantum chemistry package or MLFF engine")
@@ -186,16 +190,49 @@ class QCSchemaProvenance(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         description="ISO 8601 UTC timestamp",
     )
-    hmac_signature: Optional[str] = Field(
-        default=None, description="HMAC-SHA256 cryptographic signature for provenance audit"
+    signature: Optional[str] = Field(
+        default=None, description="URL-safe base64 encoded Ed25519 digital signature"
+    )
+    public_key: Optional[str] = Field(
+        default=None, description="URL-safe base64 encoded Ed25519 public key"
+    )
+    fingerprint: Optional[str] = Field(
+        default=None, description="SHA-256 fingerprint of public key"
+    )
+    signature_algorithm: str = Field(
+        default="PureEd25519", description="Cryptographic signing standard"
     )
 
-    def compute_signature(self, secret_key: str = "CoChem-Provenance-Secret") -> str:
-        """Computes HMAC-SHA256 signature across core provenance fields."""
-        payload = f"{self.creator}|{self.version}|{self.routine}|{self.host}|{self.platform}|{self.utc}"
-        sig = hmac.new(secret_key.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
-        self.hmac_signature = sig
+    def canonical_bytes(self) -> bytes:
+        """Construct RFC 8785 canonical bytes for core provenance fields."""
+        from cochem_base.core.cochem_crypto import canonicalize_json
+        payload = {
+            "creator": self.creator,
+            "version": self.version,
+            "routine": self.routine,
+            "host": self.host,
+            "platform": self.platform,
+            "utc": self.utc,
+        }
+        return canonicalize_json(payload)
+
+    def sign(self, private_key: Any) -> str:
+        """Sign provenance metadata with PureEd25519 and populate signature/public_key/fingerprint."""
+        from cochem_base.core.cochem_crypto import sign_canonical_bytes
+        c_bytes = self.canonical_bytes()
+        sig, pub, fp = sign_canonical_bytes(c_bytes, private_key)
+        self.signature = sig
+        self.public_key = pub
+        self.fingerprint = fp
         return sig
+
+    def verify(self) -> bool:
+        """Verify PureEd25519 digital signature against embedded public key."""
+        if not self.signature or not self.public_key:
+            return False
+        from cochem_base.core.cochem_crypto import verify_canonical_signature
+        c_bytes = self.canonical_bytes()
+        return verify_canonical_signature(c_bytes, self.signature, self.public_key)
 
 
 class QCSchemaMethodRecord(BaseModel):
@@ -223,32 +260,89 @@ class PESPointRecord(BaseModel):
 
     point_id: str = Field(..., description="Unique stable point identifier (e.g. 'grid_2d:142', 'iso_003')")
     method_id: str = Field(..., description="Registered method identifier in /methods/<method_id>")
-    coordinates: Union[List[List[float]], np.ndarray] = Field(..., description="Atomic Cartesian coordinates in Angstroms (N, 3)")
+    coordinates: List[float] = Field(..., description="Flat 1D atomic coordinates in Bohr (size 3*N)")
     energy: float = Field(..., description="Electronic energy in Hartrees")
-    gradient: Optional[Union[List[List[float]], np.ndarray]] = Field(None, description="Energy gradients in Hartree/Bohr (N, 3)")
+    gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
+    units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
     converged: bool = Field(default=True, description="Whether SCF and geometry optimization converged")
     wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
     provenance: QCSchemaProvenance = Field(default_factory=QCSchemaProvenance, description="Calculation provenance record")
 
     @field_validator("coordinates", mode="before")
     @classmethod
-    def validate_coords_array(cls, v: Any) -> Any:
+    def validate_coords_array(cls, v: Any) -> List[float]:
         if isinstance(v, np.ndarray):
-            return v
+            return [float(x) for x in v.flatten()]
         if isinstance(v, (list, tuple)):
-            return np.asarray(v, dtype=np.float64)
-        return v
+            flat: List[float] = []
+            for item in v:
+                if isinstance(item, (list, tuple, np.ndarray)):
+                    flat.extend([float(x) for x in item])
+                else:
+                    flat.append(float(item))
+            return flat
+        raise ValueError(f"Invalid coordinate format: {type(v)}")
 
     @field_validator("gradient", mode="before")
     @classmethod
-    def validate_grad_array(cls, v: Any) -> Any:
+    def validate_grad_array(cls, v: Any) -> Optional[List[float]]:
         if v is None:
             return None
         if isinstance(v, np.ndarray):
-            return v
+            return [float(x) for x in v.flatten()]
         if isinstance(v, (list, tuple)):
-            return np.asarray(v, dtype=np.float64)
-        return v
+            flat: List[float] = []
+            for item in v:
+                if isinstance(item, (list, tuple, np.ndarray)):
+                    flat.extend([float(x) for x in item])
+                else:
+                    flat.append(float(item))
+            return flat
+        raise ValueError(f"Invalid gradient format: {type(v)}")
+
+    def to_angstrom(self) -> PESPointRecord:
+        """Convert coordinates and gradients to Angstroms using authoritative CODATA 2022 constants."""
+        if self.units == "angstrom":
+            return self
+        converted_coords = [float(c * BOHR_TO_ANGSTROM) for c in self.coordinates]
+        converted_grad = (
+            [float(g * ANGSTROM_TO_BOHR) for g in self.gradient]
+            if self.gradient is not None
+            else None
+        )
+        return PESPointRecord(
+            point_id=self.point_id,
+            method_id=self.method_id,
+            coordinates=converted_coords,
+            energy=self.energy,
+            gradient=converted_grad,
+            units="angstrom",
+            converged=self.converged,
+            wall_s=self.wall_s,
+            provenance=copy.deepcopy(self.provenance),
+        )
+
+    def to_bohr(self) -> PESPointRecord:
+        """Convert coordinates and gradients to Bohr using authoritative CODATA 2022 constants."""
+        if self.units == "bohr":
+            return self
+        converted_coords = [float(c * ANGSTROM_TO_BOHR) for c in self.coordinates]
+        converted_grad = (
+            [float(g * BOHR_TO_ANGSTROM) for g in self.gradient]
+            if self.gradient is not None
+            else None
+        )
+        return PESPointRecord(
+            point_id=self.point_id,
+            method_id=self.method_id,
+            coordinates=converted_coords,
+            energy=self.energy,
+            gradient=converted_grad,
+            units="bohr",
+            converged=self.converged,
+            wall_s=self.wall_s,
+            provenance=copy.deepcopy(self.provenance),
+        )
 
 
 class PESGridDefinition(BaseModel):
@@ -1397,21 +1491,21 @@ class PESStore:
             conv = p["converged"][:]
             energies = p["energy"][:]
 
-                total_pts = 1
-                for dim in shape:
-                    total_pts *= dim
+            total_pts = 1
+            for dim in shape:
+                total_pts *= dim
 
-                V = np.full(total_pts, np.nan, dtype=np.float64)
-                prefix = f"{grid_id}:"
-                for j, k in enumerate(ids):
-                    if k.startswith(prefix) and conv[j]:
-                        try:
-                            idx = int(k.split(":")[1])
-                            if 0 <= idx < total_pts:
-                                V[idx] = energies[j]
-                        except (ValueError, IndexError):
-                            logger.debug("Failed to parse point index from point_id '%s'", k)
-                return V.reshape(shape)
+            V = np.full(total_pts, np.nan, dtype=np.float64)
+            prefix = f"{grid_id}:"
+            for j, k in enumerate(ids):
+                if k.startswith(prefix) and conv[j]:
+                    try:
+                        idx = int(k.split(":")[1])
+                        if 0 <= idx < total_pts:
+                            V[idx] = energies[j]
+                    except (ValueError, IndexError):
+                        logger.debug("Failed to parse point index from point_id '%s'", k)
+            return V.reshape(shape)
 
     # -------------------------------------------------------------------------
     # Checkpoints & Integrity

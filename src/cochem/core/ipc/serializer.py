@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import atexit
 import dataclasses
+import datetime
+import errno
 import hashlib
 import hmac
 import json
@@ -19,7 +21,9 @@ import secrets
 import shutil
 import socket
 import struct
+import tempfile
 import threading
+import time
 import uuid
 import weakref
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -37,6 +41,18 @@ logger = logging.getLogger("cochem.core.ipc.serializer")
 NUMPY_EXT_CODE: int = 42
 
 MAX_IPC_PAYLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MB ceiling [D]
+
+
+class IPCBindError(OSError):
+    """Base exception for IPC socket binding failures."""
+
+    pass
+
+
+class PortContentionError(IPCBindError):
+    """Raised when an IPC port remains in contention after retry exhaustion."""
+
+    pass
 
 
 class IPCPayloadError(Exception):
@@ -272,14 +288,100 @@ class HMACSocketServer:
         self._received_payloads: List[Any] = []
         self._payload_event: threading.Event = threading.Event()
         self._last_error: Optional[IPCPayloadError] = None
+        self._descriptor_path: Optional[pathlib.Path] = None
 
-    def start(self) -> None:
-        """Bind listening socket and launch background accept loop."""
-        self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_sock.bind((self.host, self.requested_port))
-        self._server_sock.listen(5)
-        self.port = self._server_sock.getsockname()[1]
+    def start(self, port_fallback: bool = True, max_retries: int = 5) -> int:
+        """Bind listening socket and launch background accept loop.
+
+        Recovers dynamically from port contention (EADDRINUSE / WinError 10048).
+        Publishes atomic port descriptor to COCHEM_SCRATCH_DIR.
+        """
+        target_port = self.requested_port
+        backoff_base = 0.05
+        bound = False
+
+        for attempt in range(max_retries):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind((self.host, target_port))
+                sock.listen(5)
+                self._server_sock = sock
+                self.port = sock.getsockname()[1]
+                bound = True
+                break
+            except OSError as err:
+                sock.close()
+                self._server_sock = None
+                # Check for port contention: EADDRINUSE or Windows 10048 / 10013 / EACCES
+                is_in_use = (
+                    err.errno in (errno.EADDRINUSE, errno.EACCES)
+                    or getattr(err, "winerror", None) in (10048, 10013)
+                    or err.errno in (10048, 10013)
+                )
+                if is_in_use:
+                    if port_fallback:
+                        # Fallback immediately to ephemeral port 0
+                        fb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        fb_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                        try:
+                            fb_sock.bind((self.host, 0))
+                            fb_sock.listen(5)
+                            self._server_sock = fb_sock
+                            self.port = fb_sock.getsockname()[1]
+                            bound = True
+                            break
+                        except OSError as fb_err:
+                            fb_sock.close()
+                            self._server_sock = None
+                            raise IPCBindError(f"Failed to bind ephemeral fallback port: {fb_err}") from fb_err
+                    else:
+                        if attempt < max_retries - 1:
+                            time.sleep(backoff_base * (2**attempt))
+                            continue
+                        else:
+                            raise PortContentionError(
+                                f"Port {target_port} contention exhausted after {max_retries} retries: {err}"
+                            ) from err
+                else:
+                    raise IPCBindError(f"Socket bind failed on {self.host}:{target_port}: {err}") from err
+
+        if not bound or self._server_sock is None:
+            raise PortContentionError(f"Could not bind to port {target_port}")
+
+        # Publish active binding metadata to atomic file ipc_server_{pid}.json in COCHEM_SCRATCH_DIR
+        scratch_dir_env = (
+            os.environ.get("COCHEM_SCRATCH_DIR")
+            or os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TMPDIR")
+        )
+        if scratch_dir_env:
+            scratch_dir = pathlib.Path(scratch_dir_env).resolve()
+        else:
+            scratch_dir = pathlib.Path(tempfile.gettempdir()).resolve()
+        scratch_dir.mkdir(parents=True, exist_ok=True)
+
+        pid = os.getpid()
+        desc_file = scratch_dir / f"ipc_server_{pid}.json"
+        tmp_file = scratch_dir / f"ipc_server_{pid}_{uuid.uuid4().hex[:8]}.tmp"
+
+        auth_token_hash = hashlib.sha256(self.secret_key).hexdigest()
+        created_utc = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        meta = {
+            "pid": pid,
+            "host": self.host,
+            "port": self.port,
+            "created_utc": created_utc,
+            "auth_token_hash": auth_token_hash,
+        }
+
+        payload_bytes = json.dumps(meta, indent=2).encode("utf-8")
+        with open(tmp_file, "wb") as f:
+            f.write(payload_bytes)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_file, desc_file)
+        self._descriptor_path = desc_file
 
         self._stop_event.clear()
         self._thread = threading.Thread(
@@ -288,17 +390,26 @@ class HMACSocketServer:
             daemon=True,
         )
         self._thread.start()
+        return self.port
 
     def stop(self) -> None:
-        """Shutdown server socket and join accept thread."""
+        """Shutdown server socket, clean up descriptor file, and join accept thread."""
         self._stop_event.set()
         if self._server_sock is not None:
             try:
                 self._server_sock.close()
             except OSError:
                 pass
+            self._server_sock = None
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=2.0)
+            self._thread = None
+        if self._descriptor_path is not None and self._descriptor_path.exists():
+            try:
+                self._descriptor_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            self._descriptor_path = None
 
     def _accept_loop(self) -> None:
         """Accept inbound client connections and execute HMAC handshake."""

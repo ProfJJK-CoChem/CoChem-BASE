@@ -42,8 +42,9 @@ except ImportError:
 
 logger = logging.getLogger("CoChem.TOPOS.FAIRExporter")
 
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
+
 # Physical Constants (CODATA 2018 / 2022)
-HARTREE_TO_KCAL_MOL: float = 627.509474
 GAS_CONSTANT_KCAL_MOL_K: float = 1.98720425864083e-3  # R in kcal/(mol*K)
 DEFAULT_TEMPERATURE_K: float = 298.15  # Standard ambient temperature (25 °C)
 CROSSREF_POLITE_INTERVAL_S: float = 1.0  # CrossRef Polite Pool: 1 request/sec

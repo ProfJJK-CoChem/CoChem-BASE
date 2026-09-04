@@ -52,8 +52,7 @@ from pydantic import BaseModel, Field
 # Physical Constants & System Defaults
 # ==============================================================================
 
-# Exact CODATA Conversion: Hartree to kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.509474063
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
 
 # Default Atomic Number Threshold for Relativistic Corrections (4th Period+: K and beyond)
 DEFAULT_RELATIVISTIC_Z_THRESHOLD: int = 19

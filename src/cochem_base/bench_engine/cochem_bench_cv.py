@@ -48,8 +48,7 @@ from pydantic import BaseModel, Field
 # Physical Constants
 # ==============================================================================
 
-# Exact CODATA Conversion: Hartree to kcal/mol
-HARTREE_TO_KCAL_MOL: float = 627.509474063
+from cochem_base.core.glossary import HARTREE_TO_KCAL_MOL
 
 
 # ==============================================================================

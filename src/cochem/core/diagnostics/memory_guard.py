@@ -50,6 +50,68 @@ def stimulate_memory_growth(
     return allocated_blocks
 
 
+def discover_accelerator() -> Dict[str, Any]:
+    """Dynamically discover available compute accelerators without hardcoded device ordinals."""
+    info: Dict[str, Any] = {
+        "type": "cpu",
+        "device": "cpu",
+        "count": 0,
+        "supports_fp64": True,
+    }
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            dev_idx = torch.cuda.current_device() if torch.cuda.device_count() > 0 else 0
+            return {
+                "type": "cuda",
+                "device": f"cuda:{dev_idx}",
+                "count": torch.cuda.device_count(),
+                "supports_fp64": True,
+            }
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return {
+                "type": "mps",
+                "device": "mps",
+                "count": 1,
+                "supports_fp64": False,
+            }
+    except Exception:
+        pass
+
+    try:
+        import jax
+
+        devices = jax.devices()
+        if devices and devices[0].platform in ("gpu", "cuda"):
+            return {
+                "type": "cuda",
+                "device": str(devices[0]),
+                "count": len(devices),
+                "supports_fp64": True,
+            }
+    except Exception:
+        pass
+
+    return info
+
+
+def dispatch_device_for_dtype(
+    dtype: str = "float64", requested_device: Optional[str] = None
+) -> str:
+    """Dispatch accelerator device, routing Apple Silicon MPS FP64 compute to CPU."""
+    accel = discover_accelerator()
+    req = requested_device.lower() if requested_device else accel["type"]
+    if ("mps" in req or accel["type"] == "mps") and dtype in ("float64", "fp64", "double"):
+        logger.info(
+            "[HARDWARE: MPS_FP64_CPU_FALLBACK] Apple Silicon MPS lacks native FP64 compute; falling back to CPU."
+        )
+        return "cpu"
+    if requested_device:
+        return requested_device
+    return accel["device"]
+
+
 class MemoryGuardDaemon:
     """Daemon watchdog sampling host RAM, child process trees, and GPU VRAM at configured intervals."""
 
@@ -78,14 +140,20 @@ class MemoryGuardDaemon:
         self._init_vram_driver()
 
     def _init_vram_driver(self) -> None:
-        """Initialize NVML binding if available, otherwise gracefully fallback to CPU-only."""
+        """Initialize accelerator handle without hardcoded device ordinals."""
+        self._accel_info = discover_accelerator()
         try:
             import pynvml  # type: ignore[import-untyped]
 
             pynvml.nvmlInit()
             device_count = pynvml.nvmlDeviceGetCount()
             if device_count > 0:
-                self._nvml_handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+                dev_idx = 0
+                if self._accel_info["type"] == "cuda":
+                    parts = self._accel_info["device"].split(":")
+                    if len(parts) > 1 and parts[1].isdigit():
+                        dev_idx = int(parts[1])
+                self._nvml_handle = pynvml.nvmlDeviceGetHandleByIndex(dev_idx)
                 self._has_pynvml = True
         except Exception:
             self._has_pynvml = False
@@ -100,7 +168,16 @@ class MemoryGuardDaemon:
                 info = pynvml.nvmlDeviceGetMemoryInfo(self._nvml_handle)
                 return int(info.used)
             except Exception:
-                return 0
+                pass
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return int(torch.cuda.memory_allocated())
+            if hasattr(torch, "mps") and hasattr(torch.mps, "current_allocated_memory"):
+                return int(torch.mps.current_allocated_memory())
+        except Exception:
+            pass
         return 0
 
     def sample_process_tree_rss_bytes(self) -> int:
@@ -145,8 +222,28 @@ class MemoryGuardDaemon:
         self.record_sample(sample)
         return sample
 
+    @staticmethod
+    def _compute_subwindow_slope(t_vals: List[float], y_vals: List[float]) -> Tuple[float, float]:
+        """Compute OLS linear regression slope in MB/min and R^2 over a series."""
+        m = len(t_vals)
+        if m < 2:
+            return 0.0, 0.0
+        t_m = sum(t_vals) / m
+        y_m = sum(y_vals) / m
+        dt = [t - t_m for t in t_vals]
+        dy = [y - y_m for y in y_vals]
+        stt = sum(d * d for d in dt)
+        sty = sum(d_t * d_y for d_t, d_y in zip(dt, dy, strict=False))
+        syy = sum(d * d for d in dy)
+        if stt <= 1e-9:
+            return 0.0, 0.0
+        slope_bytes_per_sec = sty / stt
+        slope_mb_min = (slope_bytes_per_sec * 60.0) / 1_000_000.0
+        r2 = (sty * sty) / (stt * syy) if syy > 1e-9 else 0.0
+        return slope_mb_min, r2
+
     def evaluate_leak(self) -> Tuple[bool, float, float]:
-        """Compute Ordinary Least Squares (OLS) linear regression across memory history.
+        """Evaluate memory telemetry for genuine leaks vs transient step-function plateaus.
 
         Returns:
             Tuple[bool, float, float]: (is_leak, slope_mb_min, r_squared)
@@ -159,33 +256,26 @@ class MemoryGuardDaemon:
             return False, 0.0, 0.0
 
         t_values = [s.timestamp_sec for s in samples]
-        # Track aggregate physical memory (RSS + VRAM)
         y_values = [float(s.rss_bytes + s.vram_bytes) for s in samples]
 
-        t_mean = sum(t_values) / n
-        y_mean = sum(y_values) / n
+        # Overall window slope and R^2
+        slope_overall, r2_overall = self._compute_subwindow_slope(t_values, y_values)
 
-        t_diff = [t - t_mean for t in t_values]
-        y_diff = [y - y_mean for y in y_values]
+        # Partition window into First Half (0..mid-1) and Second Half (mid..n-1)
+        mid = n // 2
+        slope_first, r2_first = self._compute_subwindow_slope(t_values[:mid], y_values[:mid])
+        slope_second, r2_second = self._compute_subwindow_slope(t_values[mid:], y_values[mid:])
 
-        sum_tt = sum(dt * dt for dt in t_diff)
-        sum_ty = sum(dt * dy for dt, dy in zip(t_diff, y_diff, strict=False))
-        sum_yy = sum(dy * dy for dy in y_diff)
+        # Plateau Detection Logic:
+        # If overall slope > 5.0 MB/min, but Second Half slope is approximately zero (|slope_second| < 0.5 MB/min),
+        # classify as bounded step-function allocation and suppress leak alert.
+        if abs(slope_second) < 0.5:
+            return False, slope_overall, r2_overall
 
-        if sum_tt <= 1e-9:
-            return False, 0.0, 0.0
-
-        slope_bytes_per_sec = sum_ty / sum_tt
-        slope_mb_min = (slope_bytes_per_sec * 60.0) / 1_000_000.0
-
-        if sum_yy <= 1e-9:
-            r_squared = 0.0
-        else:
-            r_squared = (sum_ty * sum_ty) / (sum_tt * sum_yy)
-
-        # Leak criteria: N >= 30, growth slope > 5.0 MB/min, and R^2 > 0.95
-        is_leak = bool(slope_mb_min > 5.0 and r_squared > 0.95)
-        return is_leak, slope_mb_min, r_squared
+        # A true creeping leak requires both First Half and Second Half slopes to be consistently positive
+        # (slope_first > 2.0 MB/min and slope_second > 2.0 MB/min with R^2 > 0.90)
+        is_leak = bool(slope_first > 2.0 and slope_second > 2.0 and r2_overall > 0.90)
+        return is_leak, slope_overall, r2_overall
 
     def trigger_leak_check(self) -> None:
         """Perform evaluation and dispatch on_leak_detected callback if confirmed."""
@@ -277,3 +367,8 @@ class MemoryGuardDaemon:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.stop()
+
+
+# Backward-compatible alias for test conformance
+MemoryGuard = MemoryGuardDaemon
+

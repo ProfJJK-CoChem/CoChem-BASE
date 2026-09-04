@@ -43,6 +43,10 @@ class ElementData:
     covalent_radius_pm: Optional[float]
     vdw_radius_pm: Optional[float]
     valence_electrons: int
+    mass: float = 0.0
+    mass_number: Optional[int] = None
+    formal_charge: int = 0
+    is_isotope: bool = False
 
 
 _CACHE_LOCK = threading.Lock()
@@ -55,7 +59,7 @@ def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
     try:
         elem = _mendeleev_element(z_or_sym)
     except Exception as exc:
-        raise MissingDataError(
+        raise MendeleevInvariantError(
             f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
             symbol_or_query=z_or_sym,
         ) from exc
@@ -109,6 +113,10 @@ def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
         covalent_radius_pm=cov_radius_pm,
         vdw_radius_pm=vdw_radius_pm,
         valence_electrons=val_e,
+        mass=weight,
+        mass_number=None,
+        formal_charge=0,
+        is_isotope=False,
     )
 
     with _CACHE_LOCK:
@@ -180,10 +188,10 @@ def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
 
 
 def get_element(symbol_or_z: Union[str, int]) -> ElementData:
-    """Retrieve immutable ElementData by atomic number, chemical symbol, or isotopic alias."""
+    """Retrieve immutable ElementData by atomic number, chemical symbol, formal charge, or isotope."""
     if isinstance(symbol_or_z, int):
         if symbol_or_z < 1 or symbol_or_z > 118:
-            raise MissingDataError(
+            raise MendeleevInvariantError(
                 f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
                 symbol_or_query=symbol_or_z,
             )
@@ -195,43 +203,92 @@ def get_element(symbol_or_z: Union[str, int]) -> ElementData:
 
     raw = str(symbol_or_z).strip()
     if not raw or raw.isdigit():
-        raise MissingDataError(
+        raise MendeleevInvariantError(
             f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
             symbol_or_query=symbol_or_z,
         )
 
-    # Normalize standard alias
-    if raw.upper() == "D" or raw.upper() == "T":
+    pattern = re.compile(r"^(?P<isotope>\d+)?(?P<symbol>[A-Za-z]+)(?P<charge>(?:\d+[+-]|[+-]\d*|[+-]))?$")
+    match = pattern.match(raw)
+    if not match:
+        raise MendeleevInvariantError(
+            f"Dynamic element resolution failed for query '{symbol_or_z}'.",
+            symbol_or_query=symbol_or_z,
+        )
+
+    iso_str = match.group("isotope")
+    sym_raw = match.group("symbol")
+    charge_str = match.group("charge")
+
+    # Alias mappings for Deuterium (D) and Tritium (T)
+    if sym_raw.upper() == "D":
         norm_sym = "H"
+        mass_number: Optional[int] = 2
+    elif sym_raw.upper() == "T":
+        norm_sym = "H"
+        mass_number = 3
     else:
-        m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
-        if m_iso:
-            sym_part = m_iso.group(2)
-            norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
-        elif len(raw) == 1:
-            norm_sym = raw.upper()
-        elif len(raw) <= 3:
-            norm_sym = raw[0].upper() + raw[1:].lower()
-        else:
-            norm_sym = raw.capitalize()
+        norm_sym = sym_raw[0].upper() + sym_raw[1:].lower() if len(sym_raw) > 1 else sym_raw.upper()
+        mass_number = int(iso_str) if iso_str else None
 
-    with _CACHE_LOCK:
-        cached = _ELEMENTS_BY_SYMBOL.get(norm_sym)
-    if cached is not None:
-        return cached
+    formal_charge: int = 0
+    if charge_str:
+        if charge_str.endswith("+"):
+            val = charge_str[:-1]
+            formal_charge = int(val) if val else 1
+        elif charge_str.endswith("-"):
+            val = charge_str[:-1]
+            formal_charge = -int(val) if val else -1
+        elif charge_str.startswith("+"):
+            val = charge_str[1:]
+            formal_charge = int(val) if val else 1
+        elif charge_str.startswith("-"):
+            val = charge_str[1:]
+            formal_charge = -int(val) if val else -1
 
-    # Query mendeleev
+    # Dynamic lookup via mendeleev
     try:
-        return _load_element_data(norm_sym)
-    except Exception:
-        # Fallback to query by name
+        elem = _mendeleev_element(norm_sym)
+        base_data = _load_element_data(norm_sym)
+    except Exception as exc:
+        # Fallback to query by full element name (e.g. 'Carbon')
         try:
-            return _load_element_data(raw)
+            elem = _mendeleev_element(sym_raw)
+            base_data = _load_element_data(sym_raw)
+            norm_sym = str(elem.symbol)
         except Exception:
-            raise MissingDataError(
-                f"Dynamic element resolution failed for query '{symbol_or_z}'.",
+            raise MendeleevInvariantError(
+                f"Dynamic element resolution failed for query '{symbol_or_z}': element '{norm_sym}' not found.",
+                symbol_or_query=symbol_or_z,
+            ) from exc
+
+    if mass_number is not None:
+        is_isotope = True
+        iso = next((i for i in elem.isotopes if i.mass_number == mass_number), None)
+        if iso is None or iso.mass is None or float(iso.mass) <= 0.0:
+            raise MendeleevInvariantError(
+                f"No isotope with mass number A={mass_number} found for element '{norm_sym}'.",
                 symbol_or_query=symbol_or_z,
             )
+        mass = float(iso.mass)
+    else:
+        is_isotope = False
+        mass = float(base_data.atomic_weight)
+
+    return ElementData(
+        atomic_number=base_data.atomic_number,
+        symbol=base_data.symbol,
+        name=base_data.name,
+        atomic_weight=base_data.atomic_weight,
+        isotopes=base_data.isotopes,
+        covalent_radius_pm=base_data.covalent_radius_pm,
+        vdw_radius_pm=base_data.vdw_radius_pm,
+        valence_electrons=base_data.valence_electrons,
+        mass=mass,
+        mass_number=mass_number,
+        formal_charge=formal_charge,
+        is_isotope=is_isotope,
+    )
 
 
 def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
@@ -250,7 +307,7 @@ def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
     except Exception:
         pass
 
-    raise MissingDataError(
+    raise MendeleevInvariantError(
         f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
         symbol_or_query=f"{element_data.symbol}-{mass_number}",
     )

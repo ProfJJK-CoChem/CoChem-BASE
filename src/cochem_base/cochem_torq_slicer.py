@@ -21,12 +21,17 @@ from scipy.optimize import brentq
 
 logger = logging.getLogger("CoChem-TORQ.Slicer")
 
+from cochem_base.core.glossary import (
+    AMU_TO_KG,
+    HARTREE_TO_CM_INV,
+    HARTREE_TO_KCAL_MOL,
+    UnitConversionConstants,
+)
+
 # Fundamental Conversion Factors
-HARTREE_TO_KCAL_MOL: float = 627.509474
-HARTREE_TO_CM1: float = 219474.63
+HARTREE_TO_CM1: float = HARTREE_TO_CM_INV
 KCAL_MOL_TO_CM1: float = 349.755
 PLANCK_HBAR_SI: float = 1.054571817e-34  # J * s
-AMU_TO_KG: float = 1.66053906892e-27  # kg / u
 ANGSTROM_TO_M: float = 1.0e-10  # m / Angstrom
 JOULE_TO_CM1: float = 5.034116567e22  # cm^-1 / J
 

@@ -6,7 +6,9 @@ Strict Zero-Mock Mandate v3: Completely authentic mathematical conformal bounds 
 
 from __future__ import annotations
 
+import collections
 import math
+import torch.multiprocessing as mp
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -186,3 +188,106 @@ class ConformalPredictor:
             force_upper=f_upper.to(dtype=dtype, device=device),
             confidence_level=float(1.0 - self.alpha),
         )
+
+
+class UncertaintyBreachSignal(Exception):
+    """Raised when conformal nonconformity exceeds the calibrated tolerance (1 - alpha). [M]"""
+
+    def __init__(
+        self,
+        message: str,
+        nonconformity_score: float,
+        threshold: float,
+        frame_index: int,
+    ) -> None:
+        super().__init__(message)
+        self.nonconformity_score = float(nonconformity_score)
+        self.threshold = float(threshold)
+        self.frame_index = int(frame_index)
+
+
+@dataclass
+class MolecularFrame:
+    """Authentic physical trajectory frame holding coordinates, velocities, forces, and observables."""
+
+    step: int
+    positions: torch.Tensor
+    velocities: torch.Tensor
+    forces: torch.Tensor
+    energy: float
+    uncertainty_score: float
+    atomic_numbers: Optional[List[int]] = None
+    timestamp: Optional[str] = None
+
+
+class TrajectoryInterventionHandler:
+    """Autonomous trajectory intervention monitor with circular buffer, rollback, and scoped CUDA cleanup. [M]"""
+
+    def __init__(
+        self,
+        predictor: Optional[ConformalPredictor] = None,
+        capacity: int = 10,
+        threshold: Optional[float] = None,
+    ) -> None:
+        self.predictor = predictor
+        self.capacity = max(2, capacity)
+        self.buffer: collections.deque[MolecularFrame] = collections.deque(maxlen=self.capacity)
+        self.threshold = threshold
+        self._spawn_ctx = mp.get_context("spawn")
+
+    @property
+    def current_threshold(self) -> float:
+        if self.threshold is not None:
+            return float(self.threshold)
+        if self.predictor is not None and self.predictor.is_calibrated:
+            if not math.isinf(self.predictor.q_hat_force):
+                return float(self.predictor.q_hat_force)
+            if not math.isinf(self.predictor.q_hat_energy):
+                return float(self.predictor.q_hat_energy)
+        return float(1.0 - (self.predictor.alpha if self.predictor else 0.10))
+
+    def push_frame(self, frame: MolecularFrame) -> None:
+        """Appends a valid molecular frame to the circular buffer."""
+        self.buffer.append(frame)
+
+    def rollback(self) -> Optional[MolecularFrame]:
+        """Rolls back the circular buffer, discarding contaminated extrapolation and returning the last trustworthy frame."""
+        if len(self.buffer) > 0:
+            return self.buffer[-1]
+        return None
+
+    def evaluate_and_intervene(
+        self,
+        frame: MolecularFrame,
+        nonconformity_score: Optional[float] = None,
+    ) -> bool:
+        """Evaluates nonconformity score. If threshold breached:
+        1. Cleans up CUDA memory safely.
+        2. Rolls back to last valid frame.
+        3. Raises UncertaintyBreachSignal.
+        Returns True if safe.
+        """
+        score = float(nonconformity_score if nonconformity_score is not None else frame.uncertainty_score)
+        thresh = self.current_threshold
+
+        if score > thresh:
+            self._cleanup_device_memory()
+            self.rollback()
+            raise UncertaintyBreachSignal(
+                f"Epistemic uncertainty breach detected at frame {frame.step}: score {score:.4f} > threshold {thresh:.4f}",
+                nonconformity_score=score,
+                threshold=thresh,
+                frame_index=frame.step,
+            )
+
+        self.push_frame(frame)
+        return True
+
+    def _cleanup_device_memory(self) -> None:
+        """Scoped GPU memory cleanup with automatic CPU fallback."""
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+

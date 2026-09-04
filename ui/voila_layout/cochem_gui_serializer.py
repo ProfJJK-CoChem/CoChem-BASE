@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Any, Dict, List, Optional, Union
 import jinja2
 
 # Ensure cochem_geom is accessible if running directly
@@ -66,15 +67,19 @@ def generate_geom_block(
         return jinja2.Template(ORCA_TEMPLATE).render(meta=meta, output=output)
 
     elif engine == "CFOUR":
-        deck = CFOURInputDeckSchema(
-            method=method,
-            basis=basis,
-            geometry_zmat=geometry if geometry.strip() else "O\nH 1 0.96\nH 1 0.96 2 104.5",
-        )
-        output = deck.format_zmat_string()
+        spec = {
+            "method": method,
+            "basis": basis,
+            "geometry": geometry if geometry.strip() else "O 0.0 0.0 0.0\nH 0.0 0.757 -0.469\nH 0.0 -0.757 -0.469",
+            "mult": 1,
+            "ref": "RHF",
+            "symmetry": "OFF",
+            "vpt2": "OFF",
+        }
+        output = serialize_cfour_input(spec)
         
         meta = [
-            "CFOUR Geometry Parameters",
+            "CFOUR Geometry Parameters (Cartesian SYMMETRY=OFF Frame Alignment) [M]",
             f"TOPOS Heuristic: {topos_heuristic}",
             f"TOPOS Deduplication Tolerance: {topos_dedup:.3f}"
         ]
@@ -86,3 +91,70 @@ def generate_geom_block(
         return jinja2.Template(CFOUR_TEMPLATE).render(meta=meta, output=output)
 
     return f"# Unsupported Engine: {engine}"
+
+
+def serialize_cfour_input(spec: Union[Dict[str, Any], Any]) -> str:
+    """Serializes a calculation spec into an authentic CFOUR input deck with coordinate frame alignment. [M]
+
+    Enforces Method Matrix §9, §13, §14 requirements:
+    - *CFOUR(CALC=...,BASIS=...,COORD=CARTESIAN,EXCITE=NONE,MULT=1,REF=RHF,SYMMETRY=OFF,VPT2=OFF)
+    - SYMMETRY=OFF guarantees CFOUR will not reorient the Cartesian frame into a non-standard
+      subgroup symmetry orientation, preserving principal-axis dipole moment components (mu_a, mu_b, mu_c).
+    - Cartesian coordinates in standard 4-column format terminated by standard CFOUR blank lines.
+    """
+    if hasattr(spec, "model_dump"):
+        data = spec.model_dump()
+    elif isinstance(spec, dict):
+        data = spec
+    else:
+        data = vars(spec)
+
+    calc = str(data.get("calc") or data.get("method") or "CCSD(T)").upper()
+    basis = str(data.get("basis") or data.get("basis_set") or "ANO0").upper()
+    mult = int(data.get("mult") or data.get("multiplicity") or 1)
+    ref = str(data.get("ref") or "RHF").upper()
+    excite = str(data.get("excite") or "NONE").upper()
+    vpt2 = str(data.get("vpt2") or "OFF").upper()
+    title = str(data.get("title") or "CoChem CFOUR Deck Generation").strip()
+
+    raw_geom = data.get("geometry") or data.get("geometry_xyz") or data.get("coordinates") or ""
+    
+    coord_rows: List[str] = []
+    if isinstance(raw_geom, str):
+        lines = [line.strip() for line in raw_geom.strip().splitlines() if line.strip()]
+        start_idx = 0
+        if len(lines) > 2 and lines[0].isdigit():
+            start_idx = 2
+        for line in lines[start_idx:]:
+            parts = line.split()
+            if len(parts) >= 4:
+                elem = parts[0].capitalize()
+                x = float(parts[1])
+                y = float(parts[2])
+                z = float(parts[3])
+                coord_rows.append(f"{elem:<4} {x:14.8f} {y:14.8f} {z:14.8f}")
+    elif isinstance(raw_geom, (list, tuple)):
+        symbols = data.get("symbols") or []
+        for i, row in enumerate(raw_geom):
+            if len(row) == 4 and isinstance(row[0], str):
+                elem = str(row[0]).capitalize()
+                x, y, z = float(row[1]), float(row[2]), float(row[3])
+            elif len(row) == 3 and i < len(symbols):
+                elem = str(symbols[i]).capitalize()
+                x, y, z = float(row[0]), float(row[1]), float(row[2])
+            else:
+                continue
+            coord_rows.append(f"{elem:<4} {x:14.8f} {y:14.8f} {z:14.8f}")
+
+    deck_lines = [
+        title,
+        f"*CFOUR(CALC={calc},BASIS={basis},COORD=CARTESIAN,EXCITE={excite}",
+        f"MULT={mult},REF={ref},SYMMETRY=OFF,VPT2={vpt2})",
+        "",
+    ]
+    deck_lines.extend(coord_rows)
+    deck_lines.append("")
+    deck_lines.append("")
+
+    return "\n".join(deck_lines)
+

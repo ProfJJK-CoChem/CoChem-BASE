@@ -487,6 +487,10 @@ class MethodMatrixViolationError(ProvenanceError):
     )
 
 
+MethodologyViolationError = MethodMatrixViolationError
+_EXCEPTION_REGISTRY["MethodologyViolationError"] = MethodMatrixViolationError
+
+
 class ExceptionDeflectionBlockedError(ProvenanceError):
     """Raised when an attempt to deflect or silently suppress an exception is detected and blocked."""
 

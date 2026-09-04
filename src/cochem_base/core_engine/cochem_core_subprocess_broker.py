@@ -1297,7 +1297,15 @@ class SubprocessBroker:
         memory_limit_gb: float = 8.0,
         total_ram_threshold_gb: float = 128.0,
     ) -> None:
-        default_work_dir = get_artifact_dir() / "Scratch"
+        env_scratch = (
+            os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TMPDIR")
+            or os.environ.get("TEMP")
+        )
+        if env_scratch:
+            default_work_dir = Path(env_scratch) / "cochem_scratch"
+        else:
+            default_work_dir = get_artifact_dir() / "Scratch"
         self.cwd = resolve_mapped_path(cwd, default_work_dir) if cwd is not None else default_work_dir
         self.cwd.mkdir(parents=True, exist_ok=True)
         self.env = env if env is not None else os.environ.copy()

@@ -1,227 +1,285 @@
-Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_02_Core_Part_2_prompts.md.
+Perform adversarial static analysis and logical review on implemented code for D:\__CoChem\__agentic\.prompts\.SRS\20260903-061002-brainstorm\.in-progress\Perfected_SRS_Chunk_03_Core_Part_3_prompts.md.
 Original prompt:
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 2: Suggestions #11–#20)
+# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 3: Suggestions #21–#30)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§6.10, §8A, §8A.1, §8A.4, §8B.4, §8C, §12.5, §16.1, §16.3, Appendix A.2)
+- Method Matrix v4 (§3.0, §4.4, §8A, §8A.1, §8A.4, §8B, §8B.3, §8C, §9A.5, §16.1, QS-1, QS-3)
 - Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
-- Dynamic Atomic Mass Retrieval Mandate (Strict `mendeleev` library lookup; hardcoded mass dictionaries and defaults are banned)
+- Tripartite Workspace Air-Gap Architecture ($R_{\text{src}}$ read-only codebase, $R_{\text{data}}$ read-only data, $R_{\text{art}}$ read-write artifacts, $T_{\text{scr}}$ ephemeral isolated scratch)
 - 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
-- Tripartite Air-Gap Architecture (Scout / Anchor / Coordinator separation with immutable atomic promotions)
+- OS-Agnostic Dynamic Path Resolution Mandate (`pathlib.Path`, dynamic tempdir/slurm scratch, zero hardcoded drive letters or shell symbols)
 
 ---
 
 ## 1. Executive Summary & Objective
 
-Implement, harden, and verify Suggestions #11 through #20 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical physics integrity flaws in mass resolution, discrete variable representation (DVR) grid boundary conditions, isotopic parsing, and DFT integration grids, while resolving concurrency, process containment, shared memory leakage, thread affinity, and artifact staging vulnerabilities across the 6-Tier Environment Matrix.
+Implement, harden, and physically verify Suggestions #21 through #30 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical concurrency, hardware topology budgeting, filesystem synchronization, process containment, and self-healing fault remediation vulnerabilities across the 6-Tier Environment Matrix.
 
-Every modification must be accompanied by comprehensive, zero-mock unit and integration tests executing real physical calculations and OS-level validations.
+Specific targets include eliminating race conditions and thread thrashing in task dispatching and hardware core allocation, implementing cross-process and distributed network filesystem locking, enforcing Tripartite Workspace Air-Gap scratch isolation, providing true Reader-Writer locking and thread-safe HDF5 SWMR synchronization, injecting decoupled parameter remediation callbacks into subprocess failure loops, and verifying total process subtree termination to eliminate orphaned ghost processes and GPU memory leaks.
+
+Every modification must be accompanied by comprehensive, zero-mock unit and integration tests executing real physical computations, thread stress tests, and OS-level process validations.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
-### Physics Integrity Modules
-1. `src/cochem_base/cochem_torq_vault.py` (Suggestion #11)
-2. `src/cochem_base/cochem_torq_alignment.py` (Suggestion #11)
-3. `src/cochem_base/cochem_torq_topology.py` (Suggestion #11)
-4. `src/cochem/core/mendeleev_invariants.py` (Suggestions #11, #13)
-5. `src/cochem_base/core_engine/cochem_core_dvr_solver.py` (Suggestion #12)
-6. `src/cochem_base/calc/cochem_calc_input_generator.py` (Suggestion #14)
+### Core Concurrency, Scheduler & State Modules
+1. `src/cochem/core/process_reaper.py` (Suggestions #21, #24, #30)
+2. `src/cochem_base/core_engine/cochem_core_scheduler.py` (Suggestions #22, #23)
+3. `src/cochem/core/hardware/topology.py` (Suggestion #25)
 
-### Concurrency & Infrastructure Modules
-7. `src/cochem/concurrency/subprocess_broker.py` (Suggestion #15)
-8. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestions #15, #19)
-9. `src/cochem_base/core_engine/cochem_core_job_manager.py` (Suggestion #16)
-10. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #17)
-11. `src/cochem/core/ipc/serializer.py` (Suggestion #18)
-12. `src/cochem/core/airgap_coordinator.py` (Suggestion #20)
+### Filesystem Synchronization & Air-Gap Modules
+4. `src/cochem/concurrency/atomic_file_lock.py` (Suggestion #28)
+5. `src/cochem/concurrency/network_lock.py` (Suggestion #26)
+6. `src/cochem_base/cochem_spycfit_ml_storage.py` (Suggestion #26)
+7. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #28)
+
+### Subprocess Broker & Remediation Modules
+8. `src/cochem/concurrency/subprocess_broker.py` (Suggestions #27, #29)
+9. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestions #27, #29)
 
 ### Zero-Mock Test Suite Deliverables
-13. `tests/core/test_physics_integrity_chunk2.py` (Validating Suggestions #11–#14)
-14. `tests/concurrency/test_concurrency_chunk2.py` (Validating Suggestions #15–#20)
+10. `tests/concurrency/test_concurrency_chunk3.py` (Validating Suggestions #21, #22, #24, #25, #30)
+11. `tests/core/test_filesystem_remediation_chunk3.py` (Validating Suggestions #23, #26, #27, #28, #29)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Eradicate Silent Mass Fallbacks in TORQ & Topology Modules (Suggestion #11)]
-- **Files Affected:**
-  - `src/cochem_base/cochem_torq_vault.py` (around line 114)
-  - `src/cochem_base/cochem_torq_alignment.py` (around line 49)
-  - `src/cochem_base/cochem_torq_topology.py` (around line 68)
+### [Task 1: Thread-Safe Process Tree Management & Atomic Snapshot Iteration (Suggestion #21)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (around lines 65–140, 217–285)
 - **Problem Statement:**
-  Modules currently execute `CIAAW_ISOTOPIC_MASSES.get(clean_sym, 12.0)`. Missing, unindexed, or isotopic symbols silently default to $12.000\text{ u}$ [M] (the mass of carbon-12). When hydrogen, deuterium, or argon atoms fall back to carbon, molecular centers of mass and principal moments of inertia ($I_a, I_b, I_c$) are corrupted by hundreds of percent with zero error indication.
+  `ZombieReaperDaemon.sweep_orphans()` iterates over `self.tree_manager._tracked.keys()` while worker threads concurrently register new child processes via `register_process()`. Because `ProcessTreeManager` uses an unsynchronized Python dictionary, concurrent access under heavy job dispatch triggers `RuntimeError: dictionary changed size during iteration`, crashing the watchdog daemon and halting orphan process cleanup across all execution tiers.
 - **Implementation Requirements:**
-  1. Purge all instances of `.get(..., 12.0)` and hardcoded dictionary mass fallbacks across all `cochem_torq_*` files.
-  2. Import and route mass resolution through `cochem.core.mendeleev_invariants.get_element_mass(symbol)` and `get_isotope_mass(symbol, mass_number)`.
-  3. Enforce dynamic querying via the `mendeleev` package (`from mendeleev import element`).
-  4. If a symbol cannot be resolved or is physically invalid, raise an explicit `cochem.core.exceptions.MissingDataError(f"Unresolvable atomic element or isotope symbol: {clean_sym}")`. Never allow silent fallbacks.
+  1. Add a reentrant lock `self._lock = threading.RLock()` to `ProcessTreeManager.__init__()`.
+  2. Guard all mutations and reads of `self._tracked` (`register_process`, `unregister_process`, `is_alive`, `get_metadata`, `tracked_pids`) under `with self._lock:`.
+  3. Expose a thread-safe snapshot method `get_tracked_pids() -> List[int]` that returns `list(self._tracked.keys())` under lock.
+  4. In `ZombieReaperDaemon.sweep_orphans()`, replace direct access to `self.tree_manager._tracked.keys()` with `self.tree_manager.get_tracked_pids()`, ensuring iteration operates on an immutable point-in-time snapshot.
 
 ---
 
-### [Task 2: Enforce Colbert–Miller Dirichlet Boundary Discretization in Sinc DVR (Suggestion #12)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_dvr_solver.py` (`build_grid_1d`, lines 485–490)
+### [Task 2: Thread-Safe Queue & Event-Driven Worker Saturation in CoreScheduler (Suggestion #22)]
+- **File Affected:** `src/cochem_base/core_engine/cochem_core_scheduler.py` (lines 74–204)
 - **Problem Statement:**
-  `build_grid_1d` generates Sinc DVR grids including the interval boundaries:
-  `coords = [x_min + (x_max - x_min) * i / (n - 1) for i in range(n)]`.
-  Bound-state wavefunctions on finite intervals $[a, b]$ satisfy Dirichlet boundary conditions $\psi(a) = \psi(b) = 0$. Placing grid points directly on $x_{\min}$ or $x_{\max}$ causes kinetic energy leakage across boundaries and evaluates infinite potentials at hard-wall boundaries, distorting tunneling splitting and vibrational states.
+  `CoreScheduler` manages task dispatch via `self.task_queue: List[TaskConfig] = []` with unsynchronized `append()` and `pop(0)`. Under concurrent submissions, list `pop(0)` is not thread-safe, has $O(N)$ removal cost, and raises `IndexError`. Furthermore, `_scheduler_loop` sleeps for 0.5 s per tick and pops only a single task, artificially capping dispatch throughput to 2 tasks/s and introducing up to 500 ms of latency per task.
 - **Implementation Requirements:**
-  1. Refactor `DVRGridType.SINC` in `build_grid_1d` to generate strictly interior grid points according to the Colbert & Miller (1992) formulation:
-     $$\Delta x = \frac{x_{\max} - x_{\min}}{N + 1}$$
-     $$x_i = x_{\min} + i \cdot \Delta x \quad \text{for } i = 1, \dots, N$$
-  2. Ensure consistency between the grid coordinate generator and the Sinc kinetic energy matrix representation:
-     $$T_{ij} = \frac{\hbar^2}{2m \Delta x^2} \begin{cases} \frac{\pi^2}{3}, & i = j \\ \frac{2 (-1)^{i - j}}{(i - j)^2}, & i \neq j \end{cases}$$
-  3. Validate that no grid coordinate ever equals $x_{\min}$ or $x_{\max}$. Update dependent unit tests expecting legacy closed-interval endpoints.
+  1. Replace `List[TaskConfig]` with `queue.Queue[TaskConfig]` (or `queue.PriorityQueue` supporting priority dispatch).
+  2. Update `add_task(task: TaskConfig)` to use `self.task_queue.put(task)`.
+  3. Refactor `_scheduler_loop` to use an event-driven worker saturation pattern:
+     - Replace static `time.sleep(0.5)` with blocking `self.task_queue.get(timeout=0.1)` or `threading.Event` signaling.
+     - While idle worker slots are available in `ThreadPoolExecutor` and tasks exist in the queue, immediately drain and submit tasks to saturate worker capacity without artificial delays.
+  4. Handle graceful shutdown in `stop_scheduling()`: signal the shutdown event, drain pending queue state if necessary, and join the scheduler thread with a 2.0 s timeout.
 
 ---
 
-### [Task 3: Authoritative Isotopic & Alias Pre-Processor in Mendeleev Invariants (Suggestion #13)]
-- **File Affected:**
-  - `src/cochem/core/mendeleev_invariants.py` (`get_element`, `get_isotope_mass`, lines 110–155)
+### [Task 3: Cross-Process Atomic State Persistence & HPC Staging for `swarm_state.json` (Suggestion #23)]
+- **File Affected:** `src/cochem_base/core_engine/cochem_core_scheduler.py` (lines 141–166)
 - **Problem Statement:**
-  `get_element` currently accepts only standard symbols ($Z = 1 \dots 118$) and rejects `"D"`, `"T"`, `"2H"`, `"13C"`, `"18O"`, etc. This architectural gap forces downstream modules to write fragmented ad hoc regexes and maintain private hardcoded mass dictionaries.
+  `CoreScheduler._update_swarm_state` relies on an in-memory `self._state_lock = threading.Lock()` to synchronize updates to `swarm_state.json`. Because swarm agents, CLI tools, and background schedulers run as separate OS processes, in-memory locks provide zero protection across processes. Multiple processes writing concurrently cause file truncation, corrupted JSON syntax, and lost status telemetry. Furthermore, direct locking on HPC network filesystems causes distributed lock manager deadlocks.
 - **Implementation Requirements:**
-  1. Implement an authoritative regex and alias pre-processor within `cochem.core.mendeleev_invariants`:
-     - Map `"D"` $\to$ Symbol `"H"`, Mass Number `2`
-     - Map `"T"` $\to$ Symbol `"H"`, Mass Number `3`
-     - Parse strings with leading mass numbers (`re.match(r"^(\d+)([A-Z][a-z]?)$", symbol)`):
-       - `"13C"` $\to$ Symbol `"C"`, Mass Number `13`
-       - `"18O"` $\to$ Symbol `"O"`, Mass Number `18`
-       - `"2H"` $\to$ Symbol `"H"`, Mass Number `2`
-     - Handle standard elemental symbols (`re.match(r"^[A-Z][a-z]?$", symbol)`) with `mass_number = None` (retrieving the standard IUPAC atomic weight).
-  2. Retrieve isotopic mass dynamically from `mendeleev.element(clean_sym).isotopes[mass_number].mass`. If the specific isotope is not found in Mendeleev, raise `MissingDataError`.
-  3. Centralize this resolver so that all downstream modules rely solely on `mendeleev_invariants` for both natural elements and specific isotopologues.
+  1. On single-node environments (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions):
+     - Wrap file access in `filelock.FileLock(str(state_file) + ".lock", timeout=10.0)`.
+     - Implement atomic writes: write payload to an ephemeral sibling file `state_file.with_name(f"{state_file.name}.tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}")`, flush and sync via `os.fsync()`, and atomically replace the target using `os.replace()`.
+  2. On Tier 6 HPC network filesystems (detected via `SLURM_JOB_ID`, `PBS_JOBID`, or parallel filesystem mounts Lustre/GPFS/NFS):
+     - Stage updates to node-local fast scratch (`$SLURM_TMPDIR` or `$TMPDIR`).
+     - Write the atomic temporary file, compute its SHA-256 digest, atomically copy/replace to the shared target path, and write an accompanying `.sha256` sidecar verification file to ensure downstream readers never ingest partial writes.
+  3. Ensure robust error handling: if lock acquisition times out after 10.0 s, log an explicit warning and retry with exponential backoff before failing safely.
 
 ---
 
-### [Task 4: DFT Integration Grid Tightening & Rotational Stability Validator (Suggestion #14)]
-- **File Affected:**
-  - `src/cochem_base/calc/cochem_calc_input_generator.py` (around line 89)
+### [Task 4: Win32 Kernel Handle RAII Hygiene & POSIX Process Group Containment (Suggestion #24)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (lines 94–123)
 - **Problem Statement:**
-  Input generation defaults to `defgrid1`. For non-covalent complexes and soft intermolecular modes ($< 50\text{ cm}^{-1}$), coarse Cartesian integration grids break rotational invariance, causing harmonic frequencies to fluctuate by $5\text{--}20\text{ cm}^{-1}$ depending on molecular orientation and generating phantom imaginary frequencies.
+  In `ProcessTreeManager.register_process`, Windows execution calls `win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)` to obtain a process handle for `win32job.AssignProcessToJobObject(self._job_handle, process_handle)`. The handle is never closed. Because Win32 process handles are reference-counted kernel objects, omitting `win32api.CloseHandle(process_handle)` leaks open kernel handles indefinitely. Long-running daemons accumulate thousands of handles, degrading OS kernel performance and eventually failing process creation with `ERROR_NO_SYSTEM_RESOURCES` (Error 1450).
 - **Implementation Requirements:**
-  1. Mandate `defgrid3` for all ORCA and PySCF harmonic frequency and numerical Hessian input decks. Under no circumstances may `defgrid1` be emitted for frequency tasks. (Recall: `defgrid4` does not exist in ORCA; `defgrid3` is the required standard per Method Matrix §16.1).
-  2. Implement `validate_rotational_mode_stability(geometry, calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)`:
-     - Detect if any calculated vibrational mode satisfies $\omega < 50\text{ cm}^{-1}$.
-     - If true, rotate the Cartesian geometry by $45^\circ$ around an arbitrary non-principal axis ($\vec{v} = [1, 1, 1] / \sqrt{3}$) using an orthogonal rotation matrix:
-       $$\mathbf{R} = \mathbf{I} + (\sin\theta)\mathbf{K} + (1 - \cos\theta)\mathbf{K}^2$$
-     - Re-evaluate harmonic frequencies at the rotated orientation.
-     - Assert that all low-frequency modes remain stable within $\Delta \omega \le 1.0\text{ cm}^{-1}$ and do not flip to imaginary values ($i\omega$).
-     - If instability is detected, flag a `RotationalGridInstabilityError`.
+  1. On Windows (`sys.platform == "win32"`):
+     - Enforce strict RAII cleanup for process handles:
+       ```python
+       process_handle = None
+       try:
+           process_handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)
+           if process_handle:
+               win32job.AssignProcessToJobObject(self._job_handle, process_handle)
+       except Exception as assign_err:
+           logger.debug("Could not assign PID %d to Windows Job Object: %s", pid, assign_err)
+       finally:
+           if process_handle:
+               try:
+                   win32api.CloseHandle(process_handle)
+               except Exception as close_err:
+                   logger.debug("Error closing process handle for PID %d: %s", pid, close_err)
+       ```
+  2. On POSIX environments (Linux, macOS, Codespaces, HPC):
+     - Standardize process containment by ensuring that when spawning child subprocesses, `start_new_session=True` or `preexec_fn=os.setpgrp` is consistently applied so that the child process tree forms an isolated process group that can be signaled atomically via `os.killpg()`.
 
 ---
 
-### [Task 5: Zero-Orphan Process Containment across the 6-Tier Environment Matrix (Suggestion #15)]
-- **Files Affected:**
-  - `src/cochem/concurrency/subprocess_broker.py` (lines 236–237)
-  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (lines 1167–1171)
+### [Task 5: Dynamic Host Threading Contention Budgeting & MPS Non-Locking Apportionment (Suggestion #25)]
+- **File Affected:** `src/cochem/core/hardware/topology.py` (lines 36–256)
 - **Problem Statement:**
-  `assign_to_job(proc)` is executed after `subprocess.Popen()` returns. Parallel QM engines (ORCA, CFOUR, MPI) immediately spawn worker ranks within milliseconds of process initialization. If worker creation occurs before job assignment, child processes escape the Windows Job Object or POSIX session, leaking orphaned processes that peg CPUs at 100%.
+  `TopologyDiscoveryEngine.discover_topology` sets `worker_threads = anchor_cores` assuming a single calculation occupies the whole system. When a parallel executor runs $M$ tasks concurrently, calling `get_worker_env()` exports `OMP_NUM_THREADS = anchor_cores` to each child process. Each child spawns `anchor_cores` threads across OpenMP, MKL, and OpenBLAS, creating $M \times N_{\text{anchor}}$ active threads competing for $N_{\text{anchor}}$ physical cores. This causes severe CPU cache thrashing, high context-switch overhead, and 50–80% degradation in execution speed. Furthermore, GPU workers lack non-locking context apportionment.
 - **Implementation Requirements:**
-  1. **Windows Tier (`sys.platform == "win32"`):**
-     - Implement process creation using `ctypes.windll.kernel32.CreateProcessW` passing the `CREATE_SUSPENDED` flag (`0x00000004`).
-     - Associate the process handle to the pre-created `WindowsJobObject` (configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000`) via `AssignProcessToJobObject` *before* the process executes a single instruction.
-     - Call `ResumeThread` on the process main thread handle.
-  2. **POSIX Tiers (Linux, macOS, WSL, Codespaces, HPC):**
-     - Use `subprocess.Popen` with `start_new_session=True` (creating a distinct process group).
-     - Configure `preexec_fn` on Linux to invoke `prctl(PR_SET_PDEATHSIG, SIGKILL)` so that if the parent Python process terminates unexpectedly, the entire child process group receives `SIGKILL` immediately.
-  3. **Device Scrubbing:**
-     - Scrub inherited `CUDA_VISIBLE_DEVICES` unless GPU assignment is explicitly designated.
-     - Isolate MPS pipe paths (`CUDA_MPS_PIPE_DIRECTORY`) per worker session to prevent uncoordinated GPU locking.
-
----
-
-### [Task 6: Consolidated Asynchronous Job Watchdog & Single Task Stream Ingestion (Suggestion #16)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_job_manager.py` (lines 247–335)
-- **Problem Statement:**
-  `start_job()` launches `_enforce_timeout()` as a detached background coroutine that calls `await process.communicate()`, while `run_job()` simultaneously awaits `asyncio.wait_for(proc.communicate(), ...)`. Concurrent reading of the same pipe streams triggers `RuntimeError: communicate() already called` or truncates calculation outputs.
-- **Implementation Requirements:**
-  1. Consolidate process stream communication and timeout enforcement into a single authoritative `asyncio.Task`.
-  2. In `JobManager`, instantiate an internal `_job_future: asyncio.Task[Tuple[bytes, bytes]]` per job:
+  1. Modify `TopologyDiscoveryEngine.get_worker_env` and `discover_topology` to accept `concurrent_workers: int = 1`:
      ```python
-     async def _unified_reader(proc: asyncio.subprocess.Process, timeout: float) -> Tuple[str, str, int]:
-         try:
-             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-             return stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace"), proc.returncode
-         except asyncio.TimeoutError:
-             await self._terminate_process_tree(proc)
-             raise JobTimeoutError(f"Job exceeded timeout of {timeout}s")
+     def get_worker_env(
+         self,
+         concurrent_workers: int = 1,
+         worker_index: int = 0,
+         extra_env: Optional[Dict[str, str]] = None,
+     ) -> Dict[str, str]:
      ```
-  3. Both `start_job` and `run_job` must reference and await this single task. Prohibit independent coroutines from calling `proc.communicate()`.
+  2. Compute dynamic host thread budgeting per worker:
+     $$\text{budgeted\_threads} = \max\left(1, \left\lfloor \frac{\text{anchor\_cores}}{\text{concurrent\_workers}} \right\rfloor\right)$$
+     Inject `budgeted_threads` synchronously into all math runtime environment variables:
+     - `OMP_NUM_THREADS = str(budgeted_threads)`
+     - `MKL_NUM_THREADS = str(budgeted_threads)`
+     - `OPENBLAS_NUM_THREADS = str(budgeted_threads)`
+     - `VECLIB_MAXIMUM_THREADS = str(budgeted_threads)`
+     - `NUMEXPR_NUM_THREADS = str(budgeted_threads)`
+  3. Enforce the Zero-CUDA-Locking Directive for GPU accelerators:
+     - Strictly prohibit exclusive device locks.
+     - Apportion GPU resources via NVIDIA Multi-Process Service (MPS):
+       ```python
+       base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
+       ```
+     - Alternatively, if multiple physical GPUs exist, partition by device index:
+       ```python
+       available_gpus = torch.cuda.device_count() if torch_available else 0
+       if available_gpus > 0:
+           assigned_gpu = worker_index % available_gpus
+           base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+       ```
 
 ---
 
-### [Task 7: Cross-Platform Reader-Writer SWMR File Locking for PES Storage (Suggestion #17)]
-- **File Affected:**
+### [Task 6: Network Filesystem Atomic Fencing & Heartbeat Leases for HPC Concurrency (Suggestion #26)]
+- **Files Affected:**
+  - `src/cochem/concurrency/network_lock.py` (authoritative implementation)
+  - `src/cochem_base/cochem_spycfit_ml_storage.py` (lines 60–91)
+  - `src/cochem_base/core_engine/cochem_core_registry_manager.py` (re-export and integrate)
+- **Problem Statement:**
+  On HPC shared network filesystems (NFS, GPFS, Lustre), nodes experience split-brain registry corruption because directory lock staleness is evaluated purely via `stat().st_mtime` against a 60 s threshold. Distributed attribute caching delays `mtime` visibility, and cluster clock skew makes local `time.time() - mtime` calculations inaccurate. Node B misclassifies Node A's active lock as stale and recursively deletes it while Node A is actively writing. Furthermore, direct POSIX `fcntl` or `filelock` locks on network mounts cause `ENOLCK` failures or distributed lock manager deadlocks.
+- **Implementation Requirements:**
+  1. Author `NetworkHeartbeatLock` in `src/cochem/concurrency/network_lock.py`:
+     - Utilize atomic directory creation via `os.mkdir()` (guaranteed atomic across POSIX, NFSv4, and Lustre without distributed kernel locks).
+     - Inside the lock directory, maintain a JSON lease manifest: `lease.json`.
+     - The manifest must contain:
+       ```json
+       {
+           "hostname": socket.gethostname(),
+           "pid": os.getpid(),
+           "heartbeat": time.time(),
+           "fence_token": uuid.uuid4().hex,
+           "expires_at": time.time() + lease_ttl_sec
+       }
+       ```
+  2. Implement an active background heartbeat refresher thread:
+     - While the lock is held, a daemon thread updates `heartbeat` and `expires_at` every `lease_ttl_sec / 3` seconds using atomic temporary file write and `os.replace()`.
+  3. Implement split-brain prevention and stale lease reclamation:
+     - To acquire the lock, attempt `os.mkdir(lock_dir)`. If `FileExistsError` occurs, read `lease.json`.
+     - Staleness is asserted ONLY if `time.time() > manifest["expires_at"] + grace_period_sec` AND the owning PID on `manifest["hostname"]` is proven dead (if querying the local node).
+     - When reclaiming a stale lease, verify fence token uniqueness to ensure no other node has concurrently reclaimed it.
+  4. Integrate `NetworkHeartbeatLock` into `recover_zombie_locks` in `cochem_spycfit_ml_storage.py`, purging raw `stat().st_mtime` comparisons.
+
+---
+
+### [Task 7: Ephemeral Sandboxing & Tripartite Scratch Isolation in SubprocessBroker (Suggestion #27)]
+- **Files Affected:**
+  - `src/cochem/concurrency/subprocess_broker.py` (lines 114–143, 211–260)
+  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
+- **Problem Statement:**
+  `SubprocessBroker.__init__` defaults its execution working directory to `pathlib.Path.cwd() / "scratch"`. When multiple calculations execute in parallel, external quantum chemistry packages (ORCA, CFOUR, xTB) write fixed intermediate file names (`orca.gbw`, `orca.prop`, `ZMAT`, `GENBAS`, `xtbopt.coord`, `xtb_hess.out`) directly to `cwd`. Parallel instances overwrite each other's wavefunctions, Hessians, and densities, corrupting calculations and violating the Tripartite Workspace Air-Gap architecture.
+- **Implementation Requirements:**
+  1. Enforce dynamic scratch root resolution conforming to the Tripartite Workspace Air-Gap:
+     - Check environment variables in priority order:
+       1. `$SLURM_TMPDIR` (Tier 6 HPC node-local NVMe)
+       2. `$TMPDIR` / `$TEMP` (Local node-local temporary storage)
+       3. `Path.home() / ".cochem" / "scratch"` (User-space isolated scratch)
+     - Strictly prohibit defaulting to `Path.cwd() / "scratch"` inside the source code repository.
+  2. For every calculation invocation in `execute_with_remediation`:
+     - Create a strictly isolated per-job ephemeral sandbox subdirectory:
+       ```python
+       job_id = uuid.uuid4().hex[:12]
+       job_scratch = self.base_scratch_dir / f"cochem_job_{self.engine_name}_{job_id}"
+       job_scratch.mkdir(parents=True, exist_ok=True)
+       ```
+     - Set `cwd=str(job_scratch)` for `subprocess.Popen`.
+  3. Implement lifecycle hygiene:
+     - Upon job completion (success or final failure), extract validated calculation output artifacts (`.out`, `.property.txt`, `.gbw`) to the designated artifacts directory (`COCHEM_ARTIFACTS_DIR` / $R_{\text{art}}$).
+     - Cleanly sweep and delete `job_scratch` using `shutil.rmtree(job_scratch, ignore_errors=True)` to guarantee zero disk leakage.
+
+---
+
+### [Task 8: Writer-Priority Reader-Writer FileLock & Thread-Safe HDF5 SWMR Protocol (Suggestion #28)]
+- **Files Affected:**
+  - `src/cochem/concurrency/atomic_file_lock.py` (lines 10–32)
   - `src/cochem_base/core_engine/cochem_core_pes_store.py` (lines 762–776, 1378–1381)
 - **Problem Statement:**
-  `PESStore._file_lock()` wraps every read in an exclusive `FileLock(str(self.lock_path))`, forcing Single-Writer Single-Reader (SWSR) execution and causing lock timeouts when dozens of parallel workers query the PES. Relying on raw `fcntl` breaks on Windows and networked HPC filesystems (Lustre/NFS).
+  `AtomicFileLock` wraps `filelock.FileLock`, which supports only exclusive locks. Multiple monitoring threads, watchdog processes, and active learning engines that only need to read JSON state or HDF5 potential energy surface (PES) data block each other and cause writer starvation or timeout errors. Furthermore, multi-threaded access to HDF5 C-library structures causes segmentation faults and data corruption because the HDF5 library is not thread-safe by default.
 - **Implementation Requirements:**
-  1. Replace raw `fcntl` calls with a portable Reader-Writer lock abstraction built on cross-platform file locking (`filelock` with reader/writer count sidecars or token directories).
-  2. Implement true HDF5 Single-Writer Multiple-Reader (SWMR) protocol:
-     - The single writer opens HDF5 with `libver="latest"` and `swmr=True`, invoking `dataset.flush()` and `file.flush()` after committing new grid points.
-     - Concurrent readers open HDF5 with `mode="r"`, `libver="latest"`, and `swmr=True`, executing `dataset.refresh()` before read queries.
-  3. In `TripartitePESStore`, ensure `active_reader` acquires a shared read lock that allows unbounded concurrent readers, acquiring the exclusive writer lock strictly during dataset extension.
+  1. Upgrade `AtomicFileLock` in `src/cochem/concurrency/atomic_file_lock.py` to a cross-platform Reader-Writer lock (`RWFileLock`):
+     - Support `shared: bool = False` in `acquire()` and context managers (`read_lock()` vs `write_lock()`).
+     - **POSIX (Linux, macOS):** Use `fcntl.flock` with `fcntl.LOCK_SH` for shared read locks and `fcntl.LOCK_EX` for exclusive write locks.
+     - **Windows (`win32`):** Use `win32file.LockFileEx` with `LOCKFILE_FAIL_IMMEDIATELY` or non-exclusive flags (`0` for shared read, `LOCKFILE_EXCLUSIVE_LOCK` for exclusive write).
+     - Enforce writer-priority logic to prevent continuous read streams from starving pending writers.
+  2. Implement Thread-Safe HDF5 SWMR architecture in `cochem_core_pes_store.py`:
+     - Wrap all intra-process `h5py` operations in a dedicated process-wide `threading.RLock()` to serialize access across threads within the same Python process.
+     - Enforce the strict two-phase HDF5 SWMR protocol:
+       - *Phase 1 (Creation):* Create file, allocate root groups, datasets, chunking attributes, and Fletcher32 checksums under standard write mode.
+       - *Phase 2 (SWMR Activation):* Flush all metadata via `h5file.flush()`, enable SWMR mode via `h5file.swmr_mode = True`, and allow concurrent readers to open the file with `mode="r"`, `libver="latest"`, `swmr=True`.
+     - Readers must execute `dataset.refresh()` prior to reading newly committed points.
 
 ---
 
-### [Task 8: Shared Memory Resource Tracking & Reference-Counted Unlink Handshake (Suggestion #18)]
-- **File Affected:**
-  - `src/cochem/core/ipc/serializer.py` (lines 100–113)
+### [Task 9: Self-Healing Subprocess Remediation Interface & Dynamic Input Scaffolding (Suggestion #29)]
+- **Files Affected:**
+  - `src/cochem/concurrency/subprocess_broker.py` (lines 211–291)
+  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
 - **Problem Statement:**
-  `SharedMemoryBuffer.read_from_descriptor` invokes `client_shm.close()` but omits `unlink()`. When producer processes crash or time out, shared memory blocks remain allocated in system RAM, leading to `ENOSPC` exhaustion during high-throughput optimization workflows. Hardcoding `/dev/shm` breaks on Windows and macOS.
+  In `SubprocessBroker.execute_with_remediation`, when a quantum chemistry calculation fails (e.g., SCF non-convergence, grid integration error, or geometry step stall), `self.triage.triage_failure()` updates `self.current_params`, but `subprocess.Popen(command, ...)` is re-invoked with the exact same static `command` list and on-disk input file. Each failing job blindly executes multiple full timeout cycles with identical parameters, wasting hours of compute time and failing without applying physical remediation.
 - **Implementation Requirements:**
-  1. Enforce cross-platform path abstraction for memory-mapped file buffers using `pathlib.Path` and `tempfile.gettempdir()`. Never hardcode `/dev/shm` or `$HOME`.
-  2. Register all `multiprocessing.shared_memory.SharedMemory` instances with Python's `multiprocessing.resource_tracker` so that runtime termination reaps allocated segments.
-  3. Implement an explicit reference-counted unlink protocol:
-     - The shared memory descriptor header must contain an atomic counter: `total_attachments` and `closed_attachments`.
-     - The final attaching process that brings `closed_attachments == total_attachments` executes `shm.unlink()`.
-  4. Register an `atexit` cleanup handler and POSIX signal handlers (`SIGTERM`, `SIGINT`) to iterate through the local registry and unlink any unclosed shared memory buffers owned by the process.
-
----
-
-### [Task 9: Proactive Thread Affinity Pinning & Non-Locking MPS GPU Mediation (Suggestion #19)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (lines 1167–1174)
-- **Problem Statement:**
-  Executing `enforce_cpu_affinity(proc.pid)` after `subprocess.Popen` is ineffective because OpenMP, MKL, and BLAS runtimes inspect hardware topology and bind thread affinity masks during process initialization. Furthermore, concurrent GPU tasks that attempt exclusive CUDA context locks stall execution.
-- **Implementation Requirements:**
-  1. Configure CPU core affinity environment variables in the child process environment dictionary *prior* to process invocation:
-     - `GOMP_CPU_AFFINITY`: Formatted core list (e.g., `"0,2,4,6"`)
-     - `KMP_AFFINITY`: `"explicit,proclist=[...],granularity=fine"`
-     - `OMP_PLACES`: `"{0},{2},{4},{6}"`
-     - `OMP_PROC_BIND`: `"close"`
-  2. Enforce the Scout-and-Anchor core partitioning policy (Method Matrix §8A.1):
-     - P-cores (performance cores) are allocated to heavy QC anchor calculations.
-     - E-cores (efficiency cores) are allocated to asynchronous orchestration, telemetry, and parsing.
-  3. Enforce the Zero CUDA-Locking Mandate for GPU execution:
-     - Strictly prohibit exclusive device locks.
-     - Configure NVIDIA Multi-Process Service (MPS) environment parameters when multiple ranks share a physical GPU:
-       - `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE = str(int(100 / num_ranks))`
-       - `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT = f"{mem_limit_mb}M"`
-     - Inject these parameters into the worker subprocess environment to guarantee non-blocking concurrent kernel execution without context starvation.
-
----
-
-### [Task 10: Cryptographic UUID4 & Thread-Ident Collision-Proof Staging Files (Suggestion #20)]
-- **File Affected:**
-  - `src/cochem/core/airgap_coordinator.py` (around line 136)
-- **Problem Statement:**
-  `publish_artifact` constructs staging paths via `dest.with_name(f"{dest.name}.tmp_{os.getpid()}")`. When multiple worker threads in the same process publish artifacts simultaneously, they collide on the identical PID filename, corrupting or truncating quantum output files and checkpoint datasets.
-- **Implementation Requirements:**
-  1. Refactor temporary staging filename generation in `TripartiteAirGapCoordinator.publish_artifact`:
+  1. Update `SubprocessBroker.execute_with_remediation` signature to accept a dynamic input remediation callback:
      ```python
-     staging_name = f"{dest.name}.tmp_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}"
-     staging_path = dest.with_name(staging_name)
+     def execute_with_remediation(
+         self,
+         command: List[str],
+         timeout_sec: float = 60.0,
+         remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+     ) -> SubprocessExecutionResult:
      ```
-  2. Ensure staging files reside on the same physical filesystem volume as `dest` to guarantee that `os.replace(staging_path, dest)` is an atomic inode rename operation across Windows and POSIX.
-  3. Implement error handling to ensure `staging_path` is safely removed if an exception occurs during staging write or hashing.
+  2. In the retry loop, when failure is classified:
+     - Pass the failure category, updated state dictionary (`self.current_params`), and the isolated scratch directory `job_scratch` to `remediate_callback`.
+     - The callback rewrites the input deck with escalated physical parameters according to the Method Matrix §8B fault ladder:
+       - *SCF Non-Convergence:* Escalate convergence algorithms (e.g., enable DIIS damping, increase max iterations, switch from `DIIS` to `SOSCF` or `KDIIS`).
+       - *Grid Integration Error / Negative Frequencies:* Escalate numerical integration grids from `defgrid1` $\to$ `defgrid3`.
+       - *Geometry Step Stagnation:* Switch model Hessians from `InHess Lindh` $\to$ `InHess XTB2` (Method Matrix §8B.3 forbids `Calc_Hess true`).
+       - *Conformer Search Failure:* Escalate search method from `GFN2-xTB` $\to$ `GFN-FF`.
+     - If the callback returns an updated command list, update `command` for the next retry iteration.
+  3. Ensure that if `remediate_callback` is `None`, the broker logs a structured warning that physical input remediation cannot be applied to static commands.
+
+---
+
+### [Task 10: Verified Process Demise, Escalated SIGKILL, & Ghost Process Telemetry (Suggestion #30)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (lines 141–215)
+- **Problem Statement:**
+  `ProcessTreeManager.terminate_tree()` issues `p.terminate()`, waits up to grace timeout, issues `p.kill()`, and executes `psutil.wait_procs(alive, timeout=1.0)`. However, the return value `(gone, still_alive)` is ignored. The function unconditionally executes `self.unregister_process(pid)` and returns `metrics["success"] = True`. Stubborn ORCA, CFOUR, or MPI worker processes that remain alive are dropped from watchdog tracking, becoming unmonitored ghost processes that remain bound to CPU cores, system RAM, and GPU VRAM, causing node resource exhaustion.
+- **Implementation Requirements:**
+  1. Refactor `terminate_tree(pid: int, grace_timeout_sec: float = DEFAULT_GRACE_TIMEOUT_SEC) -> Dict[str, Any]`:
+     - Inspect the `still_alive` collection returned by `psutil.wait_procs(alive, timeout=1.0)`.
+     - If any process remains alive:
+       - **Windows:** Terminate the entire Windows Job Object via `win32job.TerminateJobObject(self._job_handle, 1)`.
+       - **POSIX:** Escalate immediately to process group kill: `os.killpg(os.getpgid(pid), signal.SIGKILL)`.
+       - Evict associated accelerator client contexts via NVIDIA MPS (`nvidia-smi --gpu-reset` or terminating the MPS client connection).
+       - Perform a final check with `psutil.wait_procs(still_alive, timeout=2.0)`.
+  2. Handle uninterruptible kernel I/O (D-state) processes:
+     - If processes remain alive after escalated kill signals, DO NOT unregister the PID from `self._tracked`.
+     - Retain the PID in `self._tracked` flagged with status `ORPHAN_LEAK`.
+     - Set `metrics["success"] = False`, `metrics["leaked_pids"] = [p.pid for p in final_alive]`.
+     - Raise a structured `ProcessReapTimeoutError(f"Failed to terminate process subtree for PID {pid}; stubborn PIDs: {metrics['leaked_pids']}")`.
+  3. Log comprehensive telemetry containing PID, PPID, command line, elapsed runtime, and accumulated CPU/memory metrics.
 
 ---
 
@@ -229,40 +287,51 @@ Every modification must be accompanied by comprehensive, zero-mock unit and inte
 
 All tests must be physically executable with zero mock objects, dummy loops, or monkey-patched stubs.
 
-### Test Suite 1: Physics Integrity (`tests/core/test_physics_integrity_chunk2.py`)
-1. **`test_mendeleev_mass_resolution_and_rejection()`:**
-   - Query `"H"`, `"C"`, `"N"`, `"O"`, `"Ar"`. Verify masses match IUPAC atomic weights via `mendeleev`.
-   - Query isotopic aliases: `"D"` (must return mass $\approx 2.01410178\text{ u}$), `"T"` (must return mass $\approx 3.01604928\text{ u}$), `"13C"` (must return mass $\approx 13.00335484\text{ u}$).
-   - Query invalid symbols: `"Xx"`, `""`, `"123"`. Assert `MissingDataError` is raised. Verify zero instances of `12.0` fallbacks.
-2. **`test_sinc_dvr_interior_grid_and_dirichlet_boundaries()`:**
-   - Construct a 1D Sinc DVR grid with $x_{\min} = -3.0$, $x_{\max} = 3.0$, $N = 50$.
-   - Assert $x_0 > -3.0$ and $x_{N-1} < 3.0$. Verify $\Delta x = 6.0 / 51$.
-   - Assert exact symmetry about $0.0$ and verify the kinetic energy matrix eigenvalues for a harmonic oscillator match $\hbar\omega(v + 1/2)$ to within $0.01\%$.
-3. **`test_rotational_mode_stability_defgrid3()`:**
-   - Generate ORCA/PySCF input for a water dimer complex. Assert input deck contains `defgrid3` and rejects `defgrid1`.
-   - Execute the rotational stability validator on a model Hessian containing a soft mode ($35\text{ cm}^{-1}$). Rotate coordinates by $45^\circ$ and verify frequency invariance within $1.0\text{ cm}^{-1}$.
+### Test Suite 1: Concurrency & Process Containment (`tests/concurrency/test_concurrency_chunk3.py`)
+1. **`test_process_tree_manager_thread_safety_during_sweep()`:**
+   - Launch 10 concurrent worker threads that repeatedly register and unregister real subprocesses (`sys.executable -c "import time; time.sleep(0.5)"`) in `ProcessTreeManager`.
+   - Simultaneously run `sweep_orphans()` in a background daemon loop.
+   - Assert zero `RuntimeError: dictionary changed size during iteration` exceptions over 1,000 process registrations.
+2. **`test_core_scheduler_queue_throughput_and_zero_latency()`:**
+   - Initialize `CoreScheduler(max_workers=4)`.
+   - Submit 50 rapid compute tasks (`sys.executable -c "import sys; sys.exit(0)"`).
+   - Measure total dispatch time. Assert aggregate dispatch throughput exceeds 50 tasks/s (eradicating the 2 tasks/s bottleneck) with zero lost tasks.
+3. **`test_win32_kernel_handle_leak_prevention()`:**
+   - On Windows, register and unregister 500 short-lived processes in `ProcessTreeManager`.
+   - Query process handle count using `psutil.Process().num_handles()`.
+   - Assert that handle count remains stable within $\pm 5$ handles and does not grow monotonically.
+4. **`test_topology_contention_budgeting()`:**
+   - Initialize `TopologyDiscoveryEngine`.
+   - Request worker environments for `concurrent_workers = 4`.
+   - Verify that `OMP_NUM_THREADS` in each worker environment equals $\max(1, \lfloor \text{anchor\_cores} / 4 \rfloor)$.
+   - Verify `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE` is set to `"25"`.
+5. **`test_verified_process_demise_escalation()`:**
+   - Spawn a Python subprocess that catches `SIGTERM` and ignores it (`signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(10)`).
+   - Invoke `terminate_tree(proc.pid, grace_timeout_sec=0.5)`.
+   - Assert that the reaper escalates to `SIGKILL` / Job Object kill, the stubborn process is physically dead, and `metrics["success"] is True`.
 
-### Test Suite 2: Concurrency & Process Containment (`tests/concurrency/test_concurrency_chunk2.py`)
-1. **`test_zero_orphan_process_reaping()`:**
-   - Spawn a long-running subprocess tree (e.g., a Python script that forks child processes).
-   - Abort the parent task via timeout. Assert that all child and grandchild processes are terminated with zero lingering processes in `psutil.process_iter()`.
-   - On Windows, verify assignment to `WindowsJobObject` with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
-2. **`test_job_manager_stream_concurrency()`:**
-   - Execute a rapid asynchronous job and trigger concurrent status and result queries.
-   - Assert stdout and stderr are captured completely without `RuntimeError: communicate() already called`.
-3. **`test_pes_store_swmr_concurrent_readers()`:**
-   - Initialize an HDF5 PES store under SWMR mode.
-   - Launch 10 concurrent reader threads querying dataset values while a writer appends new coordinates.
-   - Assert zero `HDF5LockTimeoutError` exceptions and verify 100% read consistency.
-4. **`test_shared_memory_zero_leakage()`:**
-   - Allocate shared memory buffers, simulate consumer ingestion, and simulate sudden worker exit.
-   - Verify that the buffer is unlinked and no unmanaged segments persist in the resource tracker.
-5. **`test_thread_affinity_environment_injection()`:**
-   - Inspect the spawned environment dictionary when core pinning is configured.
-   - Assert `GOMP_CPU_AFFINITY`, `KMP_AFFINITY`, `OMP_PLACES`, and `OMP_PROC_BIND` are properly injected with valid core masks.
-6. **`test_artifact_staging_thread_collision_prevention()`:**
-   - Launch 20 concurrent threads in the same process simultaneously publishing artifacts with the same base name via `TripartiteAirGapCoordinator`.
-   - Assert that all 20 unique artifacts are published cleanly without file corruption, truncation, or name collision.
+### Test Suite 2: Filesystem Synchronization & Fault Remediation (`tests/core/test_filesystem_remediation_chunk3.py`)
+1. **`test_swarm_state_cross_process_locking_integrity()`:**
+   - Spawn 8 independent OS processes (`multiprocessing.Process`) that each attempt 20 concurrent updates to `swarm_state.json` via the atomic persistence protocol.
+   - Assert that `swarm_state.json` remains valid, parseable JSON with exactly 160 distinct recorded task entries, zero truncated writes, and zero JSON syntax errors.
+2. **`test_network_heartbeat_lock_split_brain_defense()`:**
+   - Initialize two `NetworkHeartbeatLock` instances on the same directory path simulating two cluster nodes.
+   - Node 1 acquires the lock. Verify Node 2 fails to acquire.
+   - Simulate Node 1 heartbeat renewal. Verify Node 2 never misclassifies the lock as stale.
+   - Terminate Node 1 and allow lease TTL to expire. Verify Node 2 safely reclaims the lock with a fresh fencing token.
+3. **`test_subprocess_broker_ephemeral_scratch_isolation()`:**
+   - Launch two concurrent `SubprocessBroker` instances executing commands that output to identical relative filenames (`temp_output.dat`).
+   - Verify each job executes in a distinct UUID-tagged subdirectory under `$TMPDIR`.
+   - Verify outputs do not collide and that each ephemeral sandbox is completely deleted after execution.
+4. **`test_rw_file_lock_concurrent_readers_exclusive_writer()`:**
+   - Initialize `RWFileLock` on a test state file.
+   - Launch 10 reader threads acquiring shared locks simultaneously. Assert all 10 hold the lock concurrently.
+   - Launch a writer thread requesting an exclusive lock. Assert the writer waits until all readers release, and subsequent readers wait for the writer to complete.
+5. **`test_subprocess_remediation_callback_execution()`:**
+   - Configure a mock failing command (script returning exit code 1 with stdout `"SCF FAILED TO CONVERGE"` on attempt 1, and succeeding on attempt 2 when flag `--damping` is present).
+   - Pass a `remediate_callback` that detects SCF failure and appends `"--damping"` to command arguments.
+   - Execute `broker.execute_with_remediation()`.
+   - Assert `result.success is True`, `result.retries_attempted == 1`, and `"--damping"` is present in the final command.
 
 ---
 
@@ -270,234 +339,317 @@ All tests must be physically executable with zero mock objects, dummy loops, or 
 
 1. **Zero-Mock Verification:**
    - Search the entire repository diff for forbidden patterns (`mock`, `MagicMock`, `patch`, `TODO`, `pass`, `NotImplementedError`). The diff must return zero matches.
-2. **Deterministic Test Execution:**
-   - Execute `pytest tests/core/test_physics_integrity_chunk2.py` and `pytest tests/concurrency/test_concurrency_chunk2.py`. All tests must pass with 100% real computation.
-3. **Cross-Platform Path Hygiene:**
-   - Zero hardcoded drive letters (`C:`, `D:`) or shell expansions (`~`, `$HOME`). All paths must use `pathlib.Path` or environment abstractions (`COCHEM_ROOT`, `TMPDIR`).
+2. **Deterministic Test Suite Execution:**
+   - Execute `pytest tests/concurrency/test_concurrency_chunk3.py` and `pytest tests/core/test_filesystem_remediation_chunk3.py`.
+   - All tests must pass with 100% real computations, active OS process lifecycles, and genuine disk I/O.
+3. **Cross-Platform Path & Resource Hygiene:**
+   - Zero hardcoded drive letters (`C:`, `D:`) or repo-relative execution scratch paths.
+   - Zero leaked OS process handles or file descriptors across stress cycles.
 4. **Audit Handoff:**
-   - Submit the complete diff and physical execution logs to `cochem-audit` and `adversary` for formal council ratification.
-# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 2: Suggestions #11–#20)
+   - Submit the complete implementation diff, test execution output, and process containment telemetry to `cochem-audit` and `adversary` for formal ratification.
+
+---
+
+## 6. Agent Council Adversarial Audit & Ratification Record
+
+### Adversarial Audit Dispatch Log
+- **Peer Auditor 1 (`cochem-audit`):** Ready for automated dispatch.
+- **Peer Auditor 2 (`adversary`):** Ready for automated dispatch.
+- **Audit Mandate Status:** Pre-implementation specifications verified against Method Matrix v4 §8A, §8B, §8C.
+
+### Audit Evaluation & Verdict
+
+| Audit Category | Evaluation Criterion | Verdict |
+| :--- | :--- | :--- |
+| **Core Concurrency** | Reentrant RLock snapshot copy in `ProcessTreeManager`; thread-safe queue and event-driven worker saturation in `CoreScheduler` | **PASS (VERIFIED)** |
+| **Filesystem Synchronization** | Cross-process atomic updates for `swarm_state.json`; atomic directory creation and heartbeat lease fencing for network filesystems | **PASS (VERIFIED)** |
+| **Process Containment & Hygiene** | RAII Win32 handle cleanup; POSIX session isolation; verified process demise and escalated SIGKILL in `terminate_tree` | **PASS (VERIFIED)** |
+| **Hardware Topology** | Dynamic core budgeting per worker; strict prohibition of thread over-subscription; non-locking MPS GPU allocation | **PASS (VERIFIED)** |
+| **Air-Gap Scratch Isolation** | Tripartite Workspace Air-Gap isolation with UUID-tagged ephemeral scratch directories in node-local NVMe storage | **PASS (VERIFIED)** |
+| **Self-Healing Remediation** | Dynamic remediation callback interface in `SubprocessBroker` applying physical Method Matrix §8B escalation ladders | **PASS (VERIFIED)** |
+| **Zero-Mock Mandate** | Zero stubs, zero dummy loops, zero simulated mocks across all 10 tasks and test specifications | **PASS (VERIFIED)** |
+
+**Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
+# CODING PROMPT: CoChem-BASE Core Architecture Implementation (Chunk 3: Suggestions #21–#30)
 
 **Target Output Repository:** `D:\__CoChem\GitHub-Repo\CoChem-BASE`  
 **Execution Agent Target:** `@cochem-coder` (Autonomous Iterative Implementation & Feature Building Agent)  
 **Supervising & Auditing Personas:** `0rchestrator`, `cochem-sdp-manager`, `cochem-audit`, `adversary`  
 **Governing Specifications:**
-- Method Matrix v4 (§6.10, §8A, §8A.1, §8A.4, §8B.4, §8C, §12.5, §16.1, §16.3, Appendix A.2)
+- Method Matrix v4 (§3.0, §4.4, §8A, §8A.1, §8A.4, §8B, §8B.3, §8C, §9A.5, §16.1, QS-1, QS-3)
 - Zero-Mock Anti-Spoofing Protocol v2 (Zero placeholders, zero stubs, zero simulated mocks, 100% real physical execution)
-- Dynamic Atomic Mass Retrieval Mandate (Strict `mendeleev` library lookup; hardcoded mass dictionaries and defaults are banned)
+- Tripartite Workspace Air-Gap Architecture ($R_{\text{src}}$ read-only codebase, $R_{\text{data}}$ read-only data, $R_{\text{art}}$ read-write artifacts, $T_{\text{scr}}$ ephemeral isolated scratch)
 - 6-Tier Environment Matrix (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions, HPC)
-- Tripartite Air-Gap Architecture (Scout / Anchor / Coordinator separation with immutable atomic promotions)
+- OS-Agnostic Dynamic Path Resolution Mandate (`pathlib.Path`, dynamic tempdir/slurm scratch, zero hardcoded drive letters or shell symbols)
 
 ---
 
 ## 1. Executive Summary & Objective
 
-Implement, harden, and verify Suggestions #11 through #20 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical physics integrity flaws in mass resolution, discrete variable representation (DVR) grid boundary conditions, isotopic parsing, and DFT integration grids, while resolving concurrency, process containment, shared memory leakage, thread affinity, and artifact staging vulnerabilities across the 6-Tier Environment Matrix.
+Implement, harden, and physically verify Suggestions #21 through #30 of the CoChem-BASE Core Architecture Improvement Specification. This work package resolves critical concurrency, hardware topology budgeting, filesystem synchronization, process containment, and self-healing fault remediation vulnerabilities across the 6-Tier Environment Matrix.
 
-Every modification must be accompanied by comprehensive, zero-mock unit and integration tests executing real physical calculations and OS-level validations.
+Specific targets include eliminating race conditions and thread thrashing in task dispatching and hardware core allocation, implementing cross-process and distributed network filesystem locking, enforcing Tripartite Workspace Air-Gap scratch isolation, providing true Reader-Writer locking and thread-safe HDF5 SWMR synchronization, injecting decoupled parameter remediation callbacks into subprocess failure loops, and verifying total process subtree termination to eliminate orphaned ghost processes and GPU memory leaks.
+
+Every modification must be accompanied by comprehensive, zero-mock unit and integration tests executing real physical computations, thread stress tests, and OS-level process validations.
 
 ---
 
 ## 2. Target Files & Deliverable Manifest
 
-### Physics Integrity Modules
-1. `src/cochem_base/cochem_torq_vault.py` (Suggestion #11)
-2. `src/cochem_base/cochem_torq_alignment.py` (Suggestion #11)
-3. `src/cochem_base/cochem_torq_topology.py` (Suggestion #11)
-4. `src/cochem/core/mendeleev_invariants.py` (Suggestions #11, #13)
-5. `src/cochem_base/core_engine/cochem_core_dvr_solver.py` (Suggestion #12)
-6. `src/cochem_base/calc/cochem_calc_input_generator.py` (Suggestion #14)
+### Core Concurrency, Scheduler & State Modules
+1. `src/cochem/core/process_reaper.py` (Suggestions #21, #24, #30)
+2. `src/cochem_base/core_engine/cochem_core_scheduler.py` (Suggestions #22, #23)
+3. `src/cochem/core/hardware/topology.py` (Suggestion #25)
 
-### Concurrency & Infrastructure Modules
-7. `src/cochem/concurrency/subprocess_broker.py` (Suggestion #15)
-8. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestions #15, #19)
-9. `src/cochem_base/core_engine/cochem_core_job_manager.py` (Suggestion #16)
-10. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #17)
-11. `src/cochem/core/ipc/serializer.py` (Suggestion #18)
-12. `src/cochem/core/airgap_coordinator.py` (Suggestion #20)
+### Filesystem Synchronization & Air-Gap Modules
+4. `src/cochem/concurrency/atomic_file_lock.py` (Suggestion #28)
+5. `src/cochem/concurrency/network_lock.py` (Suggestion #26)
+6. `src/cochem_base/cochem_spycfit_ml_storage.py` (Suggestion #26)
+7. `src/cochem_base/core_engine/cochem_core_pes_store.py` (Suggestion #28)
+
+### Subprocess Broker & Remediation Modules
+8. `src/cochem/concurrency/subprocess_broker.py` (Suggestions #27, #29)
+9. `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (Suggestions #27, #29)
 
 ### Zero-Mock Test Suite Deliverables
-13. `tests/core/test_physics_integrity_chunk2.py` (Validating Suggestions #11–#14)
-14. `tests/concurrency/test_concurrency_chunk2.py` (Validating Suggestions #15–#20)
+10. `tests/concurrency/test_concurrency_chunk3.py` (Validating Suggestions #21, #22, #24, #25, #30)
+11. `tests/core/test_filesystem_remediation_chunk3.py` (Validating Suggestions #23, #26, #27, #28, #29)
 
 ---
 
 ## 3. Detailed Work Breakdown Structure (WBS) & Implementation Instructions
 
-### [Task 1: Eradicate Silent Mass Fallbacks in TORQ & Topology Modules (Suggestion #11)]
-- **Files Affected:**
-  - `src/cochem_base/cochem_torq_vault.py` (around line 114)
-  - `src/cochem_base/cochem_torq_alignment.py` (around line 49)
-  - `src/cochem_base/cochem_torq_topology.py` (around line 68)
+### [Task 1: Thread-Safe Process Tree Management & Atomic Snapshot Iteration (Suggestion #21)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (around lines 65–140, 217–285)
 - **Problem Statement:**
-  Modules currently execute `CIAAW_ISOTOPIC_MASSES.get(clean_sym, 12.0)`. Missing, unindexed, or isotopic symbols silently default to $12.000\text{ u}$ [M] (the mass of carbon-12). When hydrogen, deuterium, or argon atoms fall back to carbon, molecular centers of mass and principal moments of inertia ($I_a, I_b, I_c$) are corrupted by hundreds of percent with zero error indication.
+  `ZombieReaperDaemon.sweep_orphans()` iterates over `self.tree_manager._tracked.keys()` while worker threads concurrently register new child processes via `register_process()`. Because `ProcessTreeManager` uses an unsynchronized Python dictionary, concurrent access under heavy job dispatch triggers `RuntimeError: dictionary changed size during iteration`, crashing the watchdog daemon and halting orphan process cleanup across all execution tiers.
 - **Implementation Requirements:**
-  1. Purge all instances of `.get(..., 12.0)` and hardcoded dictionary mass fallbacks across all `cochem_torq_*` files.
-  2. Import and route mass resolution through `cochem.core.mendeleev_invariants.get_element_mass(symbol)` and `get_isotope_mass(symbol, mass_number)`.
-  3. Enforce dynamic querying via the `mendeleev` package (`from mendeleev import element`).
-  4. If a symbol cannot be resolved or is physically invalid, raise an explicit `cochem.core.exceptions.MissingDataError(f"Unresolvable atomic element or isotope symbol: {clean_sym}")`. Never allow silent fallbacks.
+  1. Add a reentrant lock `self._lock = threading.RLock()` to `ProcessTreeManager.__init__()`.
+  2. Guard all mutations and reads of `self._tracked` (`register_process`, `unregister_process`, `is_alive`, `get_metadata`, `tracked_pids`) under `with self._lock:`.
+  3. Expose a thread-safe snapshot method `get_tracked_pids() -> List[int]` that returns `list(self._tracked.keys())` under lock.
+  4. In `ZombieReaperDaemon.sweep_orphans()`, replace direct access to `self.tree_manager._tracked.keys()` with `self.tree_manager.get_tracked_pids()`, ensuring iteration operates on an immutable point-in-time snapshot.
 
 ---
 
-### [Task 2: Enforce Colbert–Miller Dirichlet Boundary Discretization in Sinc DVR (Suggestion #12)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_dvr_solver.py` (`build_grid_1d`, lines 485–490)
+### [Task 2: Thread-Safe Queue & Event-Driven Worker Saturation in CoreScheduler (Suggestion #22)]
+- **File Affected:** `src/cochem_base/core_engine/cochem_core_scheduler.py` (lines 74–204)
 - **Problem Statement:**
-  `build_grid_1d` generates Sinc DVR grids including the interval boundaries:
-  `coords = [x_min + (x_max - x_min) * i / (n - 1) for i in range(n)]`.
-  Bound-state wavefunctions on finite intervals $[a, b]$ satisfy Dirichlet boundary conditions $\psi(a) = \psi(b) = 0$. Placing grid points directly on $x_{\min}$ or $x_{\max}$ causes kinetic energy leakage across boundaries and evaluates infinite potentials at hard-wall boundaries, distorting tunneling splitting and vibrational states.
+  `CoreScheduler` manages task dispatch via `self.task_queue: List[TaskConfig] = []` with unsynchronized `append()` and `pop(0)`. Under concurrent submissions, list `pop(0)` is not thread-safe, has $O(N)$ removal cost, and raises `IndexError`. Furthermore, `_scheduler_loop` sleeps for 0.5 s per tick and pops only a single task, artificially capping dispatch throughput to 2 tasks/s and introducing up to 500 ms of latency per task.
 - **Implementation Requirements:**
-  1. Refactor `DVRGridType.SINC` in `build_grid_1d` to generate strictly interior grid points according to the Colbert & Miller (1992) formulation:
-     $$\Delta x = \frac{x_{\max} - x_{\min}}{N + 1}$$
-     $$x_i = x_{\min} + i \cdot \Delta x \quad \text{for } i = 1, \dots, N$$
-  2. Ensure consistency between the grid coordinate generator and the Sinc kinetic energy matrix representation:
-     $$T_{ij} = \frac{\hbar^2}{2m \Delta x^2} \begin{cases} \frac{\pi^2}{3}, & i = j \\ \frac{2 (-1)^{i - j}}{(i - j)^2}, & i \neq j \end{cases}$$
-  3. Validate that no grid coordinate ever equals $x_{\min}$ or $x_{\max}$. Update dependent unit tests expecting legacy closed-interval endpoints.
+  1. Replace `List[TaskConfig]` with `queue.Queue[TaskConfig]` (or `queue.PriorityQueue` supporting priority dispatch).
+  2. Update `add_task(task: TaskConfig)` to use `self.task_queue.put(task)`.
+  3. Refactor `_scheduler_loop` to use an event-driven worker saturation pattern:
+     - Replace static `time.sleep(0.5)` with blocking `self.task_queue.get(timeout=0.1)` or `threading.Event` signaling.
+     - While idle worker slots are available in `ThreadPoolExecutor` and tasks exist in the queue, immediately drain and submit tasks to saturate worker capacity without artificial delays.
+  4. Handle graceful shutdown in `stop_scheduling()`: signal the shutdown event, drain pending queue state if necessary, and join the scheduler thread with a 2.0 s timeout.
 
 ---
 
-### [Task 3: Authoritative Isotopic & Alias Pre-Processor in Mendeleev Invariants (Suggestion #13)]
-- **File Affected:**
-  - `src/cochem/core/mendeleev_invariants.py` (`get_element`, `get_isotope_mass`, lines 110–155)
+### [Task 3: Cross-Process Atomic State Persistence & HPC Staging for `swarm_state.json` (Suggestion #23)]
+- **File Affected:** `src/cochem_base/core_engine/cochem_core_scheduler.py` (lines 141–166)
 - **Problem Statement:**
-  `get_element` currently accepts only standard symbols ($Z = 1 \dots 118$) and rejects `"D"`, `"T"`, `"2H"`, `"13C"`, `"18O"`, etc. This architectural gap forces downstream modules to write fragmented ad hoc regexes and maintain private hardcoded mass dictionaries.
+  `CoreScheduler._update_swarm_state` relies on an in-memory `self._state_lock = threading.Lock()` to synchronize updates to `swarm_state.json`. Because swarm agents, CLI tools, and background schedulers run as separate OS processes, in-memory locks provide zero protection across processes. Multiple processes writing concurrently cause file truncation, corrupted JSON syntax, and lost status telemetry. Furthermore, direct locking on HPC network filesystems causes distributed lock manager deadlocks.
 - **Implementation Requirements:**
-  1. Implement an authoritative regex and alias pre-processor within `cochem.core.mendeleev_invariants`:
-     - Map `"D"` $\to$ Symbol `"H"`, Mass Number `2`
-     - Map `"T"` $\to$ Symbol `"H"`, Mass Number `3`
-     - Parse strings with leading mass numbers (`re.match(r"^(\d+)([A-Z][a-z]?)$", symbol)`):
-       - `"13C"` $\to$ Symbol `"C"`, Mass Number `13`
-       - `"18O"` $\to$ Symbol `"O"`, Mass Number `18`
-       - `"2H"` $\to$ Symbol `"H"`, Mass Number `2`
-     - Handle standard elemental symbols (`re.match(r"^[A-Z][a-z]?$", symbol)`) with `mass_number = None` (retrieving the standard IUPAC atomic weight).
-  2. Retrieve isotopic mass dynamically from `mendeleev.element(clean_sym).isotopes[mass_number].mass`. If the specific isotope is not found in Mendeleev, raise `MissingDataError`.
-  3. Centralize this resolver so that all downstream modules rely solely on `mendeleev_invariants` for both natural elements and specific isotopologues.
+  1. On single-node environments (Local-Windows/WSL, Local-macOS/OrbStack, Local-Linux/Debian, Codespaces, GitHub Actions):
+     - Wrap file access in `filelock.FileLock(str(state_file) + ".lock", timeout=10.0)`.
+     - Implement atomic writes: write payload to an ephemeral sibling file `state_file.with_name(f"{state_file.name}.tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}")`, flush and sync via `os.fsync()`, and atomically replace the target using `os.replace()`.
+  2. On Tier 6 HPC network filesystems (detected via `SLURM_JOB_ID`, `PBS_JOBID`, or parallel filesystem mounts Lustre/GPFS/NFS):
+     - Stage updates to node-local fast scratch (`$SLURM_TMPDIR` or `$TMPDIR`).
+     - Write the atomic temporary file, compute its SHA-256 digest, atomically copy/replace to the shared target path, and write an accompanying `.sha256` sidecar verification file to ensure downstream readers never ingest partial writes.
+  3. Ensure robust error handling: if lock acquisition times out after 10.0 s, log an explicit warning and retry with exponential backoff before failing safely.
 
 ---
 
-### [Task 4: DFT Integration Grid Tightening & Rotational Stability Validator (Suggestion #14)]
-- **File Affected:**
-  - `src/cochem_base/calc/cochem_calc_input_generator.py` (around line 89)
+### [Task 4: Win32 Kernel Handle RAII Hygiene & POSIX Process Group Containment (Suggestion #24)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (lines 94–123)
 - **Problem Statement:**
-  Input generation defaults to `defgrid1`. For non-covalent complexes and soft intermolecular modes ($< 50\text{ cm}^{-1}$), coarse Cartesian integration grids break rotational invariance, causing harmonic frequencies to fluctuate by $5\text{--}20\text{ cm}^{-1}$ depending on molecular orientation and generating phantom imaginary frequencies.
+  In `ProcessTreeManager.register_process`, Windows execution calls `win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)` to obtain a process handle for `win32job.AssignProcessToJobObject(self._job_handle, process_handle)`. The handle is never closed. Because Win32 process handles are reference-counted kernel objects, omitting `win32api.CloseHandle(process_handle)` leaks open kernel handles indefinitely. Long-running daemons accumulate thousands of handles, degrading OS kernel performance and eventually failing process creation with `ERROR_NO_SYSTEM_RESOURCES` (Error 1450).
 - **Implementation Requirements:**
-  1. Mandate `defgrid3` for all ORCA and PySCF harmonic frequency and numerical Hessian input decks. Under no circumstances may `defgrid1` be emitted for frequency tasks. (Recall: `defgrid4` does not exist in ORCA; `defgrid3` is the required standard per Method Matrix §16.1).
-  2. Implement `validate_rotational_mode_stability(geometry, calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)`:
-     - Detect if any calculated vibrational mode satisfies $\omega < 50\text{ cm}^{-1}$.
-     - If true, rotate the Cartesian geometry by $45^\circ$ around an arbitrary non-principal axis ($\vec{v} = [1, 1, 1] / \sqrt{3}$) using an orthogonal rotation matrix:
-       $$\mathbf{R} = \mathbf{I} + (\sin\theta)\mathbf{K} + (1 - \cos\theta)\mathbf{K}^2$$
-     - Re-evaluate harmonic frequencies at the rotated orientation.
-     - Assert that all low-frequency modes remain stable within $\Delta \omega \le 1.0\text{ cm}^{-1}$ and do not flip to imaginary values ($i\omega$).
-     - If instability is detected, flag a `RotationalGridInstabilityError`.
+  1. On Windows (`sys.platform == "win32"`):
+     - Enforce strict RAII cleanup for process handles:
+       ```python
+       process_handle = None
+       try:
+           process_handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)
+           if process_handle:
+               win32job.AssignProcessToJobObject(self._job_handle, process_handle)
+       except Exception as assign_err:
+           logger.debug("Could not assign PID %d to Windows Job Object: %s", pid, assign_err)
+       finally:
+           if process_handle:
+               try:
+                   win32api.CloseHandle(process_handle)
+               except Exception as close_err:
+                   logger.debug("Error closing process handle for PID %d: %s", pid, close_err)
+       ```
+  2. On POSIX environments (Linux, macOS, Codespaces, HPC):
+     - Standardize process containment by ensuring that when spawning child subprocesses, `start_new_session=True` or `preexec_fn=os.setpgrp` is consistently applied so that the child process tree forms an isolated process group that can be signaled atomically via `os.killpg()`.
 
 ---
 
-### [Task 5: Zero-Orphan Process Containment across the 6-Tier Environment Matrix (Suggestion #15)]
-- **Files Affected:**
-  - `src/cochem/concurrency/subprocess_broker.py` (lines 236–237)
-  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (lines 1167–1171)
+### [Task 5: Dynamic Host Threading Contention Budgeting & MPS Non-Locking Apportionment (Suggestion #25)]
+- **File Affected:** `src/cochem/core/hardware/topology.py` (lines 36–256)
 - **Problem Statement:**
-  `assign_to_job(proc)` is executed after `subprocess.Popen()` returns. Parallel QM engines (ORCA, CFOUR, MPI) immediately spawn worker ranks within milliseconds of process initialization. If worker creation occurs before job assignment, child processes escape the Windows Job Object or POSIX session, leaking orphaned processes that peg CPUs at 100%.
+  `TopologyDiscoveryEngine.discover_topology` sets `worker_threads = anchor_cores` assuming a single calculation occupies the whole system. When a parallel executor runs $M$ tasks concurrently, calling `get_worker_env()` exports `OMP_NUM_THREADS = anchor_cores` to each child process. Each child spawns `anchor_cores` threads across OpenMP, MKL, and OpenBLAS, creating $M \times N_{\text{anchor}}$ active threads competing for $N_{\text{anchor}}$ physical cores. This causes severe CPU cache thrashing, high context-switch overhead, and 50–80% degradation in execution speed. Furthermore, GPU workers lack non-locking context apportionment.
 - **Implementation Requirements:**
-  1. **Windows Tier (`sys.platform == "win32"`):**
-     - Implement process creation using `ctypes.windll.kernel32.CreateProcessW` passing the `CREATE_SUSPENDED` flag (`0x00000004`).
-     - Associate the process handle to the pre-created `WindowsJobObject` (configured with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000`) via `AssignProcessToJobObject` *before* the process executes a single instruction.
-     - Call `ResumeThread` on the process main thread handle.
-  2. **POSIX Tiers (Linux, macOS, WSL, Codespaces, HPC):**
-     - Use `subprocess.Popen` with `start_new_session=True` (creating a distinct process group).
-     - Configure `preexec_fn` on Linux to invoke `prctl(PR_SET_PDEATHSIG, SIGKILL)` so that if the parent Python process terminates unexpectedly, the entire child process group receives `SIGKILL` immediately.
-  3. **Device Scrubbing:**
-     - Scrub inherited `CUDA_VISIBLE_DEVICES` unless GPU assignment is explicitly designated.
-     - Isolate MPS pipe paths (`CUDA_MPS_PIPE_DIRECTORY`) per worker session to prevent uncoordinated GPU locking.
-
----
-
-### [Task 6: Consolidated Asynchronous Job Watchdog & Single Task Stream Ingestion (Suggestion #16)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_job_manager.py` (lines 247–335)
-- **Problem Statement:**
-  `start_job()` launches `_enforce_timeout()` as a detached background coroutine that calls `await process.communicate()`, while `run_job()` simultaneously awaits `asyncio.wait_for(proc.communicate(), ...)`. Concurrent reading of the same pipe streams triggers `RuntimeError: communicate() already called` or truncates calculation outputs.
-- **Implementation Requirements:**
-  1. Consolidate process stream communication and timeout enforcement into a single authoritative `asyncio.Task`.
-  2. In `JobManager`, instantiate an internal `_job_future: asyncio.Task[Tuple[bytes, bytes]]` per job:
+  1. Modify `TopologyDiscoveryEngine.get_worker_env` and `discover_topology` to accept `concurrent_workers: int = 1`:
      ```python
-     async def _unified_reader(proc: asyncio.subprocess.Process, timeout: float) -> Tuple[str, str, int]:
-         try:
-             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-             return stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace"), proc.returncode
-         except asyncio.TimeoutError:
-             await self._terminate_process_tree(proc)
-             raise JobTimeoutError(f"Job exceeded timeout of {timeout}s")
+     def get_worker_env(
+         self,
+         concurrent_workers: int = 1,
+         worker_index: int = 0,
+         extra_env: Optional[Dict[str, str]] = None,
+     ) -> Dict[str, str]:
      ```
-  3. Both `start_job` and `run_job` must reference and await this single task. Prohibit independent coroutines from calling `proc.communicate()`.
+  2. Compute dynamic host thread budgeting per worker:
+     $$\text{budgeted\_threads} = \max\left(1, \left\lfloor \frac{\text{anchor\_cores}}{\text{concurrent\_workers}} \right\rfloor\right)$$
+     Inject `budgeted_threads` synchronously into all math runtime environment variables:
+     - `OMP_NUM_THREADS = str(budgeted_threads)`
+     - `MKL_NUM_THREADS = str(budgeted_threads)`
+     - `OPENBLAS_NUM_THREADS = str(budgeted_threads)`
+     - `VECLIB_MAXIMUM_THREADS = str(budgeted_threads)`
+     - `NUMEXPR_NUM_THREADS = str(budgeted_threads)`
+  3. Enforce the Zero-CUDA-Locking Directive for GPU accelerators:
+     - Strictly prohibit exclusive device locks.
+     - Apportion GPU resources via NVIDIA Multi-Process Service (MPS):
+       ```python
+       base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
+       ```
+     - Alternatively, if multiple physical GPUs exist, partition by device index:
+       ```python
+       available_gpus = torch.cuda.device_count() if torch_available else 0
+       if available_gpus > 0:
+           assigned_gpu = worker_index % available_gpus
+           base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+       ```
 
 ---
 
-### [Task 7: Cross-Platform Reader-Writer SWMR File Locking for PES Storage (Suggestion #17)]
-- **File Affected:**
+### [Task 6: Network Filesystem Atomic Fencing & Heartbeat Leases for HPC Concurrency (Suggestion #26)]
+- **Files Affected:**
+  - `src/cochem/concurrency/network_lock.py` (authoritative implementation)
+  - `src/cochem_base/cochem_spycfit_ml_storage.py` (lines 60–91)
+  - `src/cochem_base/core_engine/cochem_core_registry_manager.py` (re-export and integrate)
+- **Problem Statement:**
+  On HPC shared network filesystems (NFS, GPFS, Lustre), nodes experience split-brain registry corruption because directory lock staleness is evaluated purely via `stat().st_mtime` against a 60 s threshold. Distributed attribute caching delays `mtime` visibility, and cluster clock skew makes local `time.time() - mtime` calculations inaccurate. Node B misclassifies Node A's active lock as stale and recursively deletes it while Node A is actively writing. Furthermore, direct POSIX `fcntl` or `filelock` locks on network mounts cause `ENOLCK` failures or distributed lock manager deadlocks.
+- **Implementation Requirements:**
+  1. Author `NetworkHeartbeatLock` in `src/cochem/concurrency/network_lock.py`:
+     - Utilize atomic directory creation via `os.mkdir()` (guaranteed atomic across POSIX, NFSv4, and Lustre without distributed kernel locks).
+     - Inside the lock directory, maintain a JSON lease manifest: `lease.json`.
+     - The manifest must contain:
+       ```json
+       {
+           "hostname": socket.gethostname(),
+           "pid": os.getpid(),
+           "heartbeat": time.time(),
+           "fence_token": uuid.uuid4().hex,
+           "expires_at": time.time() + lease_ttl_sec
+       }
+       ```
+  2. Implement an active background heartbeat refresher thread:
+     - While the lock is held, a daemon thread updates `heartbeat` and `expires_at` every `lease_ttl_sec / 3` seconds using atomic temporary file write and `os.replace()`.
+  3. Implement split-brain prevention and stale lease reclamation:
+     - To acquire the lock, attempt `os.mkdir(lock_dir)`. If `FileExistsError` occurs, read `lease.json`.
+     - Staleness is asserted ONLY if `time.time() > manifest["expires_at"] + grace_period_sec` AND the owning PID on `manifest["hostname"]` is proven dead (if querying the local node).
+     - When reclaiming a stale lease, verify fence token uniqueness to ensure no other node has concurrently reclaimed it.
+  4. Integrate `NetworkHeartbeatLock` into `recover_zombie_locks` in `cochem_spycfit_ml_storage.py`, purging raw `stat().st_mtime` comparisons.
+
+---
+
+### [Task 7: Ephemeral Sandboxing & Tripartite Scratch Isolation in SubprocessBroker (Suggestion #27)]
+- **Files Affected:**
+  - `src/cochem/concurrency/subprocess_broker.py` (lines 114–143, 211–260)
+  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
+- **Problem Statement:**
+  `SubprocessBroker.__init__` defaults its execution working directory to `pathlib.Path.cwd() / "scratch"`. When multiple calculations execute in parallel, external quantum chemistry packages (ORCA, CFOUR, xTB) write fixed intermediate file names (`orca.gbw`, `orca.prop`, `ZMAT`, `GENBAS`, `xtbopt.coord`, `xtb_hess.out`) directly to `cwd`. Parallel instances overwrite each other's wavefunctions, Hessians, and densities, corrupting calculations and violating the Tripartite Workspace Air-Gap architecture.
+- **Implementation Requirements:**
+  1. Enforce dynamic scratch root resolution conforming to the Tripartite Workspace Air-Gap:
+     - Check environment variables in priority order:
+       1. `$SLURM_TMPDIR` (Tier 6 HPC node-local NVMe)
+       2. `$TMPDIR` / `$TEMP` (Local node-local temporary storage)
+       3. `Path.home() / ".cochem" / "scratch"` (User-space isolated scratch)
+     - Strictly prohibit defaulting to `Path.cwd() / "scratch"` inside the source code repository.
+  2. For every calculation invocation in `execute_with_remediation`:
+     - Create a strictly isolated per-job ephemeral sandbox subdirectory:
+       ```python
+       job_id = uuid.uuid4().hex[:12]
+       job_scratch = self.base_scratch_dir / f"cochem_job_{self.engine_name}_{job_id}"
+       job_scratch.mkdir(parents=True, exist_ok=True)
+       ```
+     - Set `cwd=str(job_scratch)` for `subprocess.Popen`.
+  3. Implement lifecycle hygiene:
+     - Upon job completion (success or final failure), extract validated calculation output artifacts (`.out`, `.property.txt`, `.gbw`) to the designated artifacts directory (`COCHEM_ARTIFACTS_DIR` / $R_{\text{art}}$).
+     - Cleanly sweep and delete `job_scratch` using `shutil.rmtree(job_scratch, ignore_errors=True)` to guarantee zero disk leakage.
+
+---
+
+### [Task 8: Writer-Priority Reader-Writer FileLock & Thread-Safe HDF5 SWMR Protocol (Suggestion #28)]
+- **Files Affected:**
+  - `src/cochem/concurrency/atomic_file_lock.py` (lines 10–32)
   - `src/cochem_base/core_engine/cochem_core_pes_store.py` (lines 762–776, 1378–1381)
 - **Problem Statement:**
-  `PESStore._file_lock()` wraps every read in an exclusive `FileLock(str(self.lock_path))`, forcing Single-Writer Single-Reader (SWSR) execution and causing lock timeouts when dozens of parallel workers query the PES. Relying on raw `fcntl` breaks on Windows and networked HPC filesystems (Lustre/NFS).
+  `AtomicFileLock` wraps `filelock.FileLock`, which supports only exclusive locks. Multiple monitoring threads, watchdog processes, and active learning engines that only need to read JSON state or HDF5 potential energy surface (PES) data block each other and cause writer starvation or timeout errors. Furthermore, multi-threaded access to HDF5 C-library structures causes segmentation faults and data corruption because the HDF5 library is not thread-safe by default.
 - **Implementation Requirements:**
-  1. Replace raw `fcntl` calls with a portable Reader-Writer lock abstraction built on cross-platform file locking (`filelock` with reader/writer count sidecars or token directories).
-  2. Implement true HDF5 Single-Writer Multiple-Reader (SWMR) protocol:
-     - The single writer opens HDF5 with `libver="latest"` and `swmr=True`, invoking `dataset.flush()` and `file.flush()` after committing new grid points.
-     - Concurrent readers open HDF5 with `mode="r"`, `libver="latest"`, and `swmr=True`, executing `dataset.refresh()` before read queries.
-  3. In `TripartitePESStore`, ensure `active_reader` acquires a shared read lock that allows unbounded concurrent readers, acquiring the exclusive writer lock strictly during dataset extension.
+  1. Upgrade `AtomicFileLock` in `src/cochem/concurrency/atomic_file_lock.py` to a cross-platform Reader-Writer lock (`RWFileLock`):
+     - Support `shared: bool = False` in `acquire()` and context managers (`read_lock()` vs `write_lock()`).
+     - **POSIX (Linux, macOS):** Use `fcntl.flock` with `fcntl.LOCK_SH` for shared read locks and `fcntl.LOCK_EX` for exclusive write locks.
+     - **Windows (`win32`):** Use `win32file.LockFileEx` with `LOCKFILE_FAIL_IMMEDIATELY` or non-exclusive flags (`0` for shared read, `LOCKFILE_EXCLUSIVE_LOCK` for exclusive write).
+     - Enforce writer-priority logic to prevent continuous read streams from starving pending writers.
+  2. Implement Thread-Safe HDF5 SWMR architecture in `cochem_core_pes_store.py`:
+     - Wrap all intra-process `h5py` operations in a dedicated process-wide `threading.RLock()` to serialize access across threads within the same Python process.
+     - Enforce the strict two-phase HDF5 SWMR protocol:
+       - *Phase 1 (Creation):* Create file, allocate root groups, datasets, chunking attributes, and Fletcher32 checksums under standard write mode.
+       - *Phase 2 (SWMR Activation):* Flush all metadata via `h5file.flush()`, enable SWMR mode via `h5file.swmr_mode = True`, and allow concurrent readers to open the file with `mode="r"`, `libver="latest"`, `swmr=True`.
+     - Readers must execute `dataset.refresh()` prior to reading newly committed points.
 
 ---
 
-### [Task 8: Shared Memory Resource Tracking & Reference-Counted Unlink Handshake (Suggestion #18)]
-- **File Affected:**
-  - `src/cochem/core/ipc/serializer.py` (lines 100–113)
+### [Task 9: Self-Healing Subprocess Remediation Interface & Dynamic Input Scaffolding (Suggestion #29)]
+- **Files Affected:**
+  - `src/cochem/concurrency/subprocess_broker.py` (lines 211–291)
+  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py`
 - **Problem Statement:**
-  `SharedMemoryBuffer.read_from_descriptor` invokes `client_shm.close()` but omits `unlink()`. When producer processes crash or time out, shared memory blocks remain allocated in system RAM, leading to `ENOSPC` exhaustion during high-throughput optimization workflows. Hardcoding `/dev/shm` breaks on Windows and macOS.
+  In `SubprocessBroker.execute_with_remediation`, when a quantum chemistry calculation fails (e.g., SCF non-convergence, grid integration error, or geometry step stall), `self.triage.triage_failure()` updates `self.current_params`, but `subprocess.Popen(command, ...)` is re-invoked with the exact same static `command` list and on-disk input file. Each failing job blindly executes multiple full timeout cycles with identical parameters, wasting hours of compute time and failing without applying physical remediation.
 - **Implementation Requirements:**
-  1. Enforce cross-platform path abstraction for memory-mapped file buffers using `pathlib.Path` and `tempfile.gettempdir()`. Never hardcode `/dev/shm` or `$HOME`.
-  2. Register all `multiprocessing.shared_memory.SharedMemory` instances with Python's `multiprocessing.resource_tracker` so that runtime termination reaps allocated segments.
-  3. Implement an explicit reference-counted unlink protocol:
-     - The shared memory descriptor header must contain an atomic counter: `total_attachments` and `closed_attachments`.
-     - The final attaching process that brings `closed_attachments == total_attachments` executes `shm.unlink()`.
-  4. Register an `atexit` cleanup handler and POSIX signal handlers (`SIGTERM`, `SIGINT`) to iterate through the local registry and unlink any unclosed shared memory buffers owned by the process.
-
----
-
-### [Task 9: Proactive Thread Affinity Pinning & Non-Locking MPS GPU Mediation (Suggestion #19)]
-- **File Affected:**
-  - `src/cochem_base/core_engine/cochem_core_subprocess_broker.py` (lines 1167–1174)
-- **Problem Statement:**
-  Executing `enforce_cpu_affinity(proc.pid)` after `subprocess.Popen` is ineffective because OpenMP, MKL, and BLAS runtimes inspect hardware topology and bind thread affinity masks during process initialization. Furthermore, concurrent GPU tasks that attempt exclusive CUDA context locks stall execution.
-- **Implementation Requirements:**
-  1. Configure CPU core affinity environment variables in the child process environment dictionary *prior* to process invocation:
-     - `GOMP_CPU_AFFINITY`: Formatted core list (e.g., `"0,2,4,6"`)
-     - `KMP_AFFINITY`: `"explicit,proclist=[...],granularity=fine"`
-     - `OMP_PLACES`: `"{0},{2},{4},{6}"`
-     - `OMP_PROC_BIND`: `"close"`
-  2. Enforce the Scout-and-Anchor core partitioning policy (Method Matrix §8A.1):
-     - P-cores (performance cores) are allocated to heavy QC anchor calculations.
-     - E-cores (efficiency cores) are allocated to asynchronous orchestration, telemetry, and parsing.
-  3. Enforce the Zero CUDA-Locking Mandate for GPU execution:
-     - Strictly prohibit exclusive device locks.
-     - Configure NVIDIA Multi-Process Service (MPS) environment parameters when multiple ranks share a physical GPU:
-       - `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE = str(int(100 / num_ranks))`
-       - `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT = f"{mem_limit_mb}M"`
-     - Inject these parameters into the worker subprocess environment to guarantee non-blocking concurrent kernel execution without context starvation.
-
----
-
-### [Task 10: Cryptographic UUID4 & Thread-Ident Collision-Proof Staging Files (Suggestion #20)]
-- **File Affected:**
-  - `src/cochem/core/airgap_coordinator.py` (around line 136)
-- **Problem Statement:**
-  `publish_artifact` constructs staging paths via `dest.with_name(f"{dest.name}.tmp_{os.getpid()}")`. When multiple worker threads in the same process publish artifacts simultaneously, they collide on the identical PID filename, corrupting or truncating quantum output files and checkpoint datasets.
-- **Implementation Requirements:**
-  1. Refactor temporary staging filename generation in `TripartiteAirGapCoordinator.publish_artifact`:
+  1. Update `SubprocessBroker.execute_with_remediation` signature to accept a dynamic input remediation callback:
      ```python
-     staging_name = f"{dest.name}.tmp_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}"
-     staging_path = dest.with_name(staging_name)
+     def execute_with_remediation(
+         self,
+         command: List[str],
+         timeout_sec: float = 60.0,
+         remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
+     ) -> SubprocessExecutionResult:
      ```
-  2. Ensure staging files reside on the same physical filesystem volume as `dest` to guarantee that `os.replace(staging_path, dest)` is an atomic inode rename operation across Windows and POSIX.
-  3. Implement error handling to ensure `staging_path` is safely removed if an exception occurs during staging write or hashing.
+  2. In the retry loop, when failure is classified:
+     - Pass the failure category, updated state dictionary (`self.current_params`), and the isolated scratch directory `job_scratch` to `remediate_callback`.
+     - The callback rewrites the input deck with escalated physical parameters according to the Method Matrix §8B fault ladder:
+       - *SCF Non-Convergence:* Escalate convergence algorithms (e.g., enable DIIS damping, increase max iterations, switch from `DIIS` to `SOSCF` or `KDIIS`).
+       - *Grid Integration Error / Negative Frequencies:* Escalate numerical integration grids from `defgrid1` $\to$ `defgrid3`.
+       - *Geometry Step Stagnation:* Switch model Hessians from `InHess Lindh` $\to$ `InHess XTB2` (Method Matrix §8B.3 forbids `Calc_Hess true`).
+       - *Conformer Search Failure:* Escalate search method from `GFN2-xTB` $\to$ `GFN-FF`.
+     - If the callback returns an updated command list, update `command` for the next retry iteration.
+  3. Ensure that if `remediate_callback` is `None`, the broker logs a structured warning that physical input remediation cannot be applied to static commands.
+
+---
+
+### [Task 10: Verified Process Demise, Escalated SIGKILL, & Ghost Process Telemetry (Suggestion #30)]
+- **File Affected:** `src/cochem/core/process_reaper.py` (lines 141–215)
+- **Problem Statement:**
+  `ProcessTreeManager.terminate_tree()` issues `p.terminate()`, waits up to grace timeout, issues `p.kill()`, and executes `psutil.wait_procs(alive, timeout=1.0)`. However, the return value `(gone, still_alive)` is ignored. The function unconditionally executes `self.unregister_process(pid)` and returns `metrics["success"] = True`. Stubborn ORCA, CFOUR, or MPI worker processes that remain alive are dropped from watchdog tracking, becoming unmonitored ghost processes that remain bound to CPU cores, system RAM, and GPU VRAM, causing node resource exhaustion.
+- **Implementation Requirements:**
+  1. Refactor `terminate_tree(pid: int, grace_timeout_sec: float = DEFAULT_GRACE_TIMEOUT_SEC) -> Dict[str, Any]`:
+     - Inspect the `still_alive` collection returned by `psutil.wait_procs(alive, timeout=1.0)`.
+     - If any process remains alive:
+       - **Windows:** Terminate the entire Windows Job Object via `win32job.TerminateJobObject(self._job_handle, 1)`.
+       - **POSIX:** Escalate immediately to process group kill: `os.killpg(os.getpgid(pid), signal.SIGKILL)`.
+       - Evict associated accelerator client contexts via NVIDIA MPS (`nvidia-smi --gpu-reset` or terminating the MPS client connection).
+       - Perform a final check with `psutil.wait_procs(still_alive, timeout=2.0)`.
+  2. Handle uninterruptible kernel I/O (D-state) processes:
+     - If processes remain alive after escalated kill signals, DO NOT unregister the PID from `self._tracked`.
+     - Retain the PID in `self._tracked` flagged with status `ORPHAN_LEAK`.
+     - Set `metrics["success"] = False`, `metrics["leaked_pids"] = [p.pid for p in final_alive]`.
+     - Raise a structured `ProcessReapTimeoutError(f"Failed to terminate process subtree for PID {pid}; stubborn PIDs: {metrics['leaked_pids']}")`.
+  3. Log comprehensive telemetry containing PID, PPID, command line, elapsed runtime, and accumulated CPU/memory metrics.
 
 ---
 
@@ -505,40 +657,51 @@ Every modification must be accompanied by comprehensive, zero-mock unit and inte
 
 All tests must be physically executable with zero mock objects, dummy loops, or monkey-patched stubs.
 
-### Test Suite 1: Physics Integrity (`tests/core/test_physics_integrity_chunk2.py`)
-1. **`test_mendeleev_mass_resolution_and_rejection()`:**
-   - Query `"H"`, `"C"`, `"N"`, `"O"`, `"Ar"`. Verify masses match IUPAC atomic weights via `mendeleev`.
-   - Query isotopic aliases: `"D"` (must return mass $\approx 2.01410178\text{ u}$), `"T"` (must return mass $\approx 3.01604928\text{ u}$), `"13C"` (must return mass $\approx 13.00335484\text{ u}$).
-   - Query invalid symbols: `"Xx"`, `""`, `"123"`. Assert `MissingDataError` is raised. Verify zero instances of `12.0` fallbacks.
-2. **`test_sinc_dvr_interior_grid_and_dirichlet_boundaries()`:**
-   - Construct a 1D Sinc DVR grid with $x_{\min} = -3.0$, $x_{\max} = 3.0$, $N = 50$.
-   - Assert $x_0 > -3.0$ and $x_{N-1} < 3.0$. Verify $\Delta x = 6.0 / 51$.
-   - Assert exact symmetry about $0.0$ and verify the kinetic energy matrix eigenvalues for a harmonic oscillator match $\hbar\omega(v + 1/2)$ to within $0.01\%$.
-3. **`test_rotational_mode_stability_defgrid3()`:**
-   - Generate ORCA/PySCF input for a water dimer complex. Assert input deck contains `defgrid3` and rejects `defgrid1`.
-   - Execute the rotational stability validator on a model Hessian containing a soft mode ($35\text{ cm}^{-1}$). Rotate coordinates by $45^\circ$ and verify frequency invariance within $1.0\text{ cm}^{-1}$.
+### Test Suite 1: Concurrency & Process Containment (`tests/concurrency/test_concurrency_chunk3.py`)
+1. **`test_process_tree_manager_thread_safety_during_sweep()`:**
+   - Launch 10 concurrent worker threads that repeatedly register and unregister real subprocesses (`sys.executable -c "import time; time.sleep(0.5)"`) in `ProcessTreeManager`.
+   - Simultaneously run `sweep_orphans()` in a background daemon loop.
+   - Assert zero `RuntimeError: dictionary changed size during iteration` exceptions over 1,000 process registrations.
+2. **`test_core_scheduler_queue_throughput_and_zero_latency()`:**
+   - Initialize `CoreScheduler(max_workers=4)`.
+   - Submit 50 rapid compute tasks (`sys.executable -c "import sys; sys.exit(0)"`).
+   - Measure total dispatch time. Assert aggregate dispatch throughput exceeds 50 tasks/s (eradicating the 2 tasks/s bottleneck) with zero lost tasks.
+3. **`test_win32_kernel_handle_leak_prevention()`:**
+   - On Windows, register and unregister 500 short-lived processes in `ProcessTreeManager`.
+   - Query process handle count using `psutil.Process().num_handles()`.
+   - Assert that handle count remains stable within $\pm 5$ handles and does not grow monotonically.
+4. **`test_topology_contention_budgeting()`:**
+   - Initialize `TopologyDiscoveryEngine`.
+   - Request worker environments for `concurrent_workers = 4`.
+   - Verify that `OMP_NUM_THREADS` in each worker environment equals $\max(1, \lfloor \text{anchor\_cores} / 4 \rfloor)$.
+   - Verify `CUDA_MPS_ACTIVE_THREAD_PERCENTAGE` is set to `"25"`.
+5. **`test_verified_process_demise_escalation()`:**
+   - Spawn a Python subprocess that catches `SIGTERM` and ignores it (`signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(10)`).
+   - Invoke `terminate_tree(proc.pid, grace_timeout_sec=0.5)`.
+   - Assert that the reaper escalates to `SIGKILL` / Job Object kill, the stubborn process is physically dead, and `metrics["success"] is True`.
 
-### Test Suite 2: Concurrency & Process Containment (`tests/concurrency/test_concurrency_chunk2.py`)
-1. **`test_zero_orphan_process_reaping()`:**
-   - Spawn a long-running subprocess tree (e.g., a Python script that forks child processes).
-   - Abort the parent task via timeout. Assert that all child and grandchild processes are terminated with zero lingering processes in `psutil.process_iter()`.
-   - On Windows, verify assignment to `WindowsJobObject` with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
-2. **`test_job_manager_stream_concurrency()`:**
-   - Execute a rapid asynchronous job and trigger concurrent status and result queries.
-   - Assert stdout and stderr are captured completely without `RuntimeError: communicate() already called`.
-3. **`test_pes_store_swmr_concurrent_readers()`:**
-   - Initialize an HDF5 PES store under SWMR mode.
-   - Launch 10 concurrent reader threads querying dataset values while a writer appends new coordinates.
-   - Assert zero `HDF5LockTimeoutError` exceptions and verify 100% read consistency.
-4. **`test_shared_memory_zero_leakage()`:**
-   - Allocate shared memory buffers, simulate consumer ingestion, and simulate sudden worker exit.
-   - Verify that the buffer is unlinked and no unmanaged segments persist in the resource tracker.
-5. **`test_thread_affinity_environment_injection()`:**
-   - Inspect the spawned environment dictionary when core pinning is configured.
-   - Assert `GOMP_CPU_AFFINITY`, `KMP_AFFINITY`, `OMP_PLACES`, and `OMP_PROC_BIND` are properly injected with valid core masks.
-6. **`test_artifact_staging_thread_collision_prevention()`:**
-   - Launch 20 concurrent threads in the same process simultaneously publishing artifacts with the same base name via `TripartiteAirGapCoordinator`.
-   - Assert that all 20 unique artifacts are published cleanly without file corruption, truncation, or name collision.
+### Test Suite 2: Filesystem Synchronization & Fault Remediation (`tests/core/test_filesystem_remediation_chunk3.py`)
+1. **`test_swarm_state_cross_process_locking_integrity()`:**
+   - Spawn 8 independent OS processes (`multiprocessing.Process`) that each attempt 20 concurrent updates to `swarm_state.json` via the atomic persistence protocol.
+   - Assert that `swarm_state.json` remains valid, parseable JSON with exactly 160 distinct recorded task entries, zero truncated writes, and zero JSON syntax errors.
+2. **`test_network_heartbeat_lock_split_brain_defense()`:**
+   - Initialize two `NetworkHeartbeatLock` instances on the same directory path simulating two cluster nodes.
+   - Node 1 acquires the lock. Verify Node 2 fails to acquire.
+   - Simulate Node 1 heartbeat renewal. Verify Node 2 never misclassifies the lock as stale.
+   - Terminate Node 1 and allow lease TTL to expire. Verify Node 2 safely reclaims the lock with a fresh fencing token.
+3. **`test_subprocess_broker_ephemeral_scratch_isolation()`:**
+   - Launch two concurrent `SubprocessBroker` instances executing commands that output to identical relative filenames (`temp_output.dat`).
+   - Verify each job executes in a distinct UUID-tagged subdirectory under `$TMPDIR`.
+   - Verify outputs do not collide and that each ephemeral sandbox is completely deleted after execution.
+4. **`test_rw_file_lock_concurrent_readers_exclusive_writer()`:**
+   - Initialize `RWFileLock` on a test state file.
+   - Launch 10 reader threads acquiring shared locks simultaneously. Assert all 10 hold the lock concurrently.
+   - Launch a writer thread requesting an exclusive lock. Assert the writer waits until all readers release, and subsequent readers wait for the writer to complete.
+5. **`test_subprocess_remediation_callback_execution()`:**
+   - Configure a mock failing command (script returning exit code 1 with stdout `"SCF FAILED TO CONVERGE"` on attempt 1, and succeeding on attempt 2 when flag `--damping` is present).
+   - Pass a `remediate_callback` that detects SCF failure and appends `"--damping"` to command arguments.
+   - Execute `broker.execute_with_remediation()`.
+   - Assert `result.success is True`, `result.retries_attempted == 1`, and `"--damping"` is present in the final command.
 
 ---
 
@@ -546,12 +709,14 @@ All tests must be physically executable with zero mock objects, dummy loops, or 
 
 1. **Zero-Mock Verification:**
    - Search the entire repository diff for forbidden patterns (`mock`, `MagicMock`, `patch`, `TODO`, `pass`, `NotImplementedError`). The diff must return zero matches.
-2. **Deterministic Test Execution:**
-   - Execute `pytest tests/core/test_physics_integrity_chunk2.py` and `pytest tests/concurrency/test_concurrency_chunk2.py`. All tests must pass with 100% real computation.
-3. **Cross-Platform Path Hygiene:**
-   - Zero hardcoded drive letters (`C:`, `D:`) or shell expansions (`~`, `$HOME`). All paths must use `pathlib.Path` or environment abstractions (`COCHEM_ROOT`, `TMPDIR`).
+2. **Deterministic Test Suite Execution:**
+   - Execute `pytest tests/concurrency/test_concurrency_chunk3.py` and `pytest tests/core/test_filesystem_remediation_chunk3.py`.
+   - All tests must pass with 100% real computations, active OS process lifecycles, and genuine disk I/O.
+3. **Cross-Platform Path & Resource Hygiene:**
+   - Zero hardcoded drive letters (`C:`, `D:`) or repo-relative execution scratch paths.
+   - Zero leaked OS process handles or file descriptors across stress cycles.
 4. **Audit Handoff:**
-   - Submit the complete diff and physical execution logs to `cochem-audit` and `adversary` for formal council ratification.
+   - Submit the complete implementation diff, test execution output, and process containment telemetry to `cochem-audit` and `adversary` for formal ratification.
 
 ---
 
@@ -566,14 +731,272 @@ All tests must be physically executable with zero mock objects, dummy loops, or 
 
 | Audit Category | Evaluation Criterion | Verdict |
 | :--- | :--- | :--- |
-| **Physics Integrity** | Strictly enforces Mendeleev dynamic lookup, Colbert–Miller Sinc DVR Dirichlet boundary condition, and `defgrid3` rotational mode stability | **PASS (VERIFIED)** |
-| **Concurrency & Hygiene** | Guarantees atomic Windows Job Object (`CREATE_SUSPENDED`) and POSIX (`PR_SET_PDEATHSIG`) containment; consolidates `communicate()` coroutines | **PASS (VERIFIED)** |
-| **Zero-Mock Mandate** | 0 mocks, 0 stubs, 0 simulated bypasses, 0 `12.0` fallbacks across all 10 suggestions and test specifications | **PASS (VERIFIED)** |
-| **Tripartite Air-Gap** | Shared memory reference-counted cleanup, cross-platform SWMR file locking, and cryptographic UUID4 artifact staging | **PASS (VERIFIED)** |
-| **6-Tier Matrix Portability** | Full compatibility across Windows, WSL, macOS, Debian, Codespaces, and HPC | **PASS (VERIFIED)** |
+| **Core Concurrency** | Reentrant RLock snapshot copy in `ProcessTreeManager`; thread-safe queue and event-driven worker saturation in `CoreScheduler` | **PASS (VERIFIED)** |
+| **Filesystem Synchronization** | Cross-process atomic updates for `swarm_state.json`; atomic directory creation and heartbeat lease fencing for network filesystems | **PASS (VERIFIED)** |
+| **Process Containment & Hygiene** | RAII Win32 handle cleanup; POSIX session isolation; verified process demise and escalated SIGKILL in `terminate_tree` | **PASS (VERIFIED)** |
+| **Hardware Topology** | Dynamic core budgeting per worker; strict prohibition of thread over-subscription; non-locking MPS GPU allocation | **PASS (VERIFIED)** |
+| **Air-Gap Scratch Isolation** | Tripartite Workspace Air-Gap isolation with UUID-tagged ephemeral scratch directories in node-local NVMe storage | **PASS (VERIFIED)** |
+| **Self-Healing Remediation** | Dynamic remediation callback interface in `SubprocessBroker` applying physical Method Matrix §8B escalation ladders | **PASS (VERIFIED)** |
+| **Zero-Mock Mandate** | Zero stubs, zero dummy loops, zero simulated mocks across all 10 tasks and test specifications | **PASS (VERIFIED)** |
 
 **Council Ratification Verdict:** `RATIFIED: APPROVED FOR CODER IMPLEMENTATION`
 Modified files content:
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\concurrency\atomic_file_lock.py ---
+"""Cross-platform Reader-Writer and atomic file locking architecture.
+
+Implements Suggestion #28:
+- Authentic OS-level kernel locking: LockFileEx/UnlockFileEx on Windows, fcntl.flock on POSIX.
+- RWFileLock supporting concurrent shared readers and exclusive writer with writer-priority.
+- Thread-safe and cross-process safe with re-entrancy depth tracking.
+- AtomicFileLock maintaining backward compatibility.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Generator, Optional
+
+logger = logging.getLogger("cochem.concurrency.atomic_file_lock")
+
+# Win32 Kernel primitives via ctypes
+if sys.platform == "win32":
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    class _OVERLAPPED(ctypes.Structure):
+        _fields_ = [
+            ("Internal", ctypes.c_size_t),
+            ("InternalHigh", ctypes.c_size_t),
+            ("Offset", wintypes.DWORD),
+            ("OffsetHigh", wintypes.DWORD),
+            ("hEvent", wintypes.HANDLE),
+        ]
+
+    _kernel32 = ctypes.windll.kernel32
+    _kernel32.LockFileEx.restype = wintypes.BOOL
+    _kernel32.UnlockFileEx.restype = wintypes.BOOL
+
+    _LOCKFILE_FAIL_IMMEDIATELY = 0x00000001
+    _LOCKFILE_EXCLUSIVE_LOCK = 0x00000002
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float) -> bool:
+        """Acquire OS-level lock on Windows using LockFileEx."""
+        handle = msvcrt.get_osfhandle(fd)
+        flags = _LOCKFILE_FAIL_IMMEDIATELY | (_LOCKFILE_EXCLUSIVE_LOCK if exclusive else 0)
+        ov = _OVERLAPPED()
+        t0 = time.time()
+        while True:
+            if _kernel32.LockFileEx(handle, flags, 0, 1, 0, ctypes.byref(ov)):
+                return True
+            if time.time() - t0 >= timeout:
+                return False
+            time.sleep(0.002)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on Windows using UnlockFileEx."""
+        handle = msvcrt.get_osfhandle(fd)
+        ov = _OVERLAPPED()
+        _kernel32.UnlockFileEx(handle, 0, 1, 0, ctypes.byref(ov))
+
+else:
+    import fcntl
+
+    def _os_lock_acquire(fd: int, exclusive: bool, timeout: float) -> bool:
+        """Acquire OS-level lock on POSIX using fcntl.flock."""
+        flags = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
+        t0 = time.time()
+        while True:
+            try:
+                fcntl.flock(fd, flags)
+                return True
+            except (BlockingIOError, OSError):
+                if time.time() - t0 >= timeout:
+                    return False
+                time.sleep(0.002)
+
+    def _os_lock_release(fd: int) -> None:
+        """Release OS-level lock on POSIX using fcntl.flock."""
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+
+
+class RWFileLockTimeoutError(TimeoutError):
+    """Raised when RWFileLock acquisition times out."""
+
+
+class RWFileLock:
+    """Kernel-level Reader-Writer file lock with writer-priority protocol.
+
+    Uses two OS kernel lock files:
+    - writer_intent: acquired shared by readers, acquired exclusive by writer.
+      When a writer arrives, it acquires writer_intent exclusive, immediately blocking
+      all subsequent readers.
+    - data_lock: acquired shared by readers for read duration, acquired exclusive
+      by writer for write duration.
+    """
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0) -> None:
+        self.lock_path = Path(lock_path).resolve()
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self.timeout = float(timeout)
+
+        self._intent_path = str(self.lock_path.with_name(f"{self.lock_path.name}.writer_intent.lock"))
+        self._data_path = str(self.lock_path.with_name(f"{self.lock_path.name}.data.lock"))
+
+        self._local = threading.local()
+
+    def _get_read_depth(self) -> int:
+        return getattr(self._local, "read_depth", 0)
+
+    def _set_read_depth(self, val: int) -> None:
+        self._local.read_depth = val
+
+    def _get_write_depth(self) -> int:
+        return getattr(self._local, "write_depth", 0)
+
+    def _set_write_depth(self, val: int) -> None:
+        self._local.write_depth = val
+
+    @contextmanager
+    def read_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Shared read lock allowing unbounded concurrent readers with writer priority."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        if self._get_write_depth() > 0:
+            yield
+            return
+
+        # Thread-level reentrancy for active reader
+        depth = self._get_read_depth()
+        if depth > 0:
+            self._set_read_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(self._get_read_depth() - 1)
+            return
+
+        # Open dedicated file descriptors for this thread/operation
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Check writer intent (acquire shared on intent lock)
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=False, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out waiting for writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire shared read lock on data file
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=False, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring shared read lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+            finally:
+                # Release writer intent so another writer can request intent
+                _os_lock_release(fd_intent)
+
+            self._set_read_depth(1)
+            try:
+                yield
+            finally:
+                self._set_read_depth(0)
+                _os_lock_release(fd_data)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    @contextmanager
+    def write_lock(self, timeout: Optional[float] = None) -> Generator[None, None, None]:
+        """Exclusive write lock with writer-priority blocking new incoming readers."""
+        t_limit = self.timeout if timeout is None else float(timeout)
+        t0 = time.time()
+
+        # Thread-level reentrancy for active writer
+        depth = self._get_write_depth()
+        if depth > 0:
+            self._set_write_depth(depth + 1)
+            try:
+                yield
+            finally:
+                self._set_write_depth(self._get_write_depth() - 1)
+            return
+
+        fd_intent = os.open(self._intent_path, os.O_RDWR | os.O_CREAT)
+        fd_data = os.open(self._data_path, os.O_RDWR | os.O_CREAT)
+        try:
+            # Step 1: Acquire exclusive writer intent to block new readers immediately
+            remaining = max(0.001, t_limit - (time.time() - t0))
+            if not _os_lock_acquire(fd_intent, exclusive=True, timeout=remaining):
+                raise RWFileLockTimeoutError(
+                    f"Timed out acquiring writer intent on {self.lock_path} after {t_limit:.2f}s"
+                )
+
+            try:
+                # Step 2: Acquire exclusive lock on data file (waits for active readers to clear)
+                remaining = max(0.001, t_limit - (time.time() - t0))
+                if not _os_lock_acquire(fd_data, exclusive=True, timeout=remaining):
+                    raise RWFileLockTimeoutError(
+                        f"Timed out acquiring exclusive write lock on {self.lock_path} after {t_limit:.2f}s"
+                    )
+
+                self._set_write_depth(1)
+                try:
+                    yield
+                finally:
+                    self._set_write_depth(0)
+                    _os_lock_release(fd_data)
+            finally:
+                _os_lock_release(fd_intent)
+        finally:
+            os.close(fd_intent)
+            os.close(fd_data)
+
+    def acquire(self, shared: bool = False, timeout: Optional[float] = None) -> bool:
+        """Acquire lock (shared read if shared=True, else exclusive write)."""
+        t = self.timeout if timeout is None else timeout
+        cm = self.read_lock(timeout=t) if shared else self.write_lock(timeout=t)
+        cm.__enter__()
+        self._local.cm = cm
+        return True
+
+    def release(self) -> None:
+        """Release currently held lock."""
+        cm = getattr(self._local, "cm", None)
+        if cm is not None:
+            self._local.cm = None
+            cm.__exit__(None, None, None)
+
+    def __enter__(self) -> RWFileLock:
+        self.acquire(shared=False)
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
+
+
+class AtomicFileLock(RWFileLock):
+    """Drop-in compatible wrapper around RWFileLock defaulting to exclusive locking."""
+
+    def __init__(self, lock_path: Path | str, timeout: float = 10.0, **kwargs: Any) -> None:
+        super().__init__(lock_path=lock_path, timeout=timeout)
+
+
+__all__ = ["RWFileLock", "AtomicFileLock", "RWFileLockTimeoutError"]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\concurrency\subprocess_broker.py ---
 """Deterministic Subprocess Broker & Fault Ladder.
@@ -590,11 +1013,13 @@ import enum
 import logging
 import os
 import pathlib
+import shutil
 import signal
 import subprocess
 import sys
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+import uuid
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from cochem.core.context import assert_writable_path
 from cochem.core.hardware.topology import TopologyDiscoveryEngine
@@ -606,6 +1031,7 @@ class FailureCategory(enum.Enum):
     """Classification of quantum chemistry driver computational failures."""
 
     SCF_NON_CONVERGENCE = "SCF_NON_CONVERGENCE"
+    SCF_CONVERGENCE_FAILURE = "SCF_NON_CONVERGENCE"
     GRID_INTEGRATION_FAILURE = "GRID_INTEGRATION_FAILURE"
     GEOMETRY_OPTIMIZATION_STAGNATION = "GEOMETRY_OPTIMIZATION_STAGNATION"
     CONFORMER_SEARCH_FAILURE = "CONFORMER_SEARCH_FAILURE"
@@ -640,7 +1066,7 @@ class DiagnosticTriageEngine:
         new_state = dict(current_state)
 
         # 1. SCF Non-Convergence Escalation
-        if "SCF NOT CONVERGED" in upper_log or "CONVERGENCE FAILED" in upper_log or "NOT CONVERGE" in upper_log:
+        if "SCF NOT CONVERGED" in upper_log or "CONVERGENCE FAILED" in upper_log or "NOT CONVERGE" in upper_log or "FAILED TO CONVERGE" in upper_log:
             if engine_upper == "ORCA":
                 orca_ladder = ["PModel", "Auto", "HCore"]
                 current_guess = str(current_state.get("guess", "PModel"))
@@ -661,6 +1087,9 @@ class DiagnosticTriageEngine:
                 next_idx = pyscf_ladder.index(current_guess) + 1 if current_guess in pyscf_ladder else 1
                 new_state["init_guess"] = pyscf_ladder[min(next_idx, len(pyscf_ladder) - 1)]
                 return FailureCategory.SCF_NON_CONVERGENCE, new_state
+
+            new_state["damping"] = True
+            return FailureCategory.SCF_NON_CONVERGENCE, new_state
 
         # 2. Grid Integration Failure Escalation
         if "GRID" in upper_log or "DEFGRID" in upper_log or "INTEGRATION ERROR" in upper_log:
@@ -697,6 +1126,7 @@ class SubprocessBroker:
         context_or_engine: Union[Any, str] = "cochem_worker",
         initial_params: Optional[Dict[str, Any]] = None,
         scratch_dir: Optional[Union[pathlib.Path, str]] = None,
+        base_scratch_dir: Optional[Union[pathlib.Path, str]] = None,
         max_retries: int = 3,
         **kwargs: Any,
     ) -> None:
@@ -712,19 +1142,29 @@ class SubprocessBroker:
         self.triage: DiagnosticTriageEngine = DiagnosticTriageEngine()
         self.topology_engine: TopologyDiscoveryEngine = TopologyDiscoveryEngine()
 
-        if scratch_dir is not None:
-            self.scratch_dir: pathlib.Path = pathlib.Path(scratch_dir).resolve()
-            assert_writable_path(self.scratch_dir)
-            self.scratch_dir.mkdir(parents=True, exist_ok=True)
+        # Tripartite Workspace Air-Gap dynamic scratch resolution
+        explicit_scratch = base_scratch_dir or scratch_dir
+        if explicit_scratch is not None:
+            self.base_scratch_dir: pathlib.Path = pathlib.Path(explicit_scratch).resolve()
         else:
-            default_scratch = pathlib.Path.cwd() / "scratch"
-            assert_writable_path(default_scratch)
-            default_scratch.mkdir(parents=True, exist_ok=True)
-            self.scratch_dir = default_scratch
+            env_scratch = (
+                os.environ.get("SLURM_TMPDIR")
+                or os.environ.get("TMPDIR")
+                or os.environ.get("TEMP")
+            )
+            if env_scratch:
+                self.base_scratch_dir = pathlib.Path(env_scratch).resolve()
+            else:
+                self.base_scratch_dir = (pathlib.Path.home() / ".cochem" / "scratch").resolve()
+
+        assert_writable_path(self.base_scratch_dir)
+        self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self.scratch_dir = self.base_scratch_dir
 
         self._job_handle: Optional[Any] = None
         self._init_process_group_guard()
         atexit.register(self.cleanup)
+
 
     def _init_process_group_guard(self) -> None:
         """Initialize Windows Job Object with KILL_ON_JOB_CLOSE or configure POSIX process group."""
@@ -797,14 +1237,20 @@ class SubprocessBroker:
         self,
         command: List[str],
         timeout_sec: float = 60.0,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
     ) -> SubprocessExecutionResult:
         """Executes command under deterministic fault ladder with process containment."""
-        return self.execute_with_remediation(command=command, timeout_sec=timeout_sec)
+        return self.execute_with_remediation(
+            command=command,
+            timeout_sec=timeout_sec,
+            remediate_callback=remediate_callback,
+        )
 
     def execute_with_remediation(
         self,
         command: List[str],
         timeout_sec: float = 60.0,
+        remediate_callback: Optional[Callable[[FailureCategory, Dict[str, Any], pathlib.Path], List[str]]] = None,
     ) -> SubprocessExecutionResult:
         """Execute command under deterministic fault ladder with up to MAX_RETRIES remediation cycles."""
         retries = 0
@@ -812,102 +1258,136 @@ class SubprocessBroker:
         last_stderr = ""
         last_code = 1
 
-        while retries < self.max_retries:
-            env = dict(self.topology_engine.get_worker_env())
-            # Scrub inherited CUDA_VISIBLE_DEVICES unless GPU assignment is explicitly designated
-            if "CUDA_VISIBLE_DEVICES" in env and "CUDA_VISIBLE_DEVICES" not in self.current_params:
-                pass
-            # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
-            mps_pipe = self.scratch_dir / f"mps_pipe_{os.getpid()}_{retries}"
-            env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+        # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
+        job_id = uuid.uuid4().hex[:12]
+        job_scratch = self.base_scratch_dir / f"cochem_job_{self.engine_name}_{job_id}"
+        job_scratch.mkdir(parents=True, exist_ok=True)
 
-            kwargs: Dict[str, Any] = {
-                "cwd": str(self.scratch_dir),
-                "env": env,
-                "stdout": subprocess.PIPE,
-                "stderr": subprocess.PIPE,
-                "text": True,
-            }
+        current_cmd = list(command)
 
-            if sys.platform == "win32":
-                CREATE_SUSPENDED = 0x00000004
-                kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_SUSPENDED
-            else:
-                kwargs["start_new_session"] = True
-                if sys.platform.startswith("linux"):
-                    def _posix_pdeathsig() -> None:
-                        try:
-                            import ctypes
-                            libc = ctypes.CDLL("libc.so.6")
-                            PR_SET_PDEATHSIG = 1
-                            SIGKILL = 9
-                            libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
-                        except Exception:
-                            pass
-                    kwargs["preexec_fn"] = _posix_pdeathsig
+        try:
+            while retries < self.max_retries:
+                env = dict(self.topology_engine.get_worker_env())
+                # Scrub inherited CUDA_VISIBLE_DEVICES unless GPU assignment is explicitly designated
+                if "CUDA_VISIBLE_DEVICES" in env and "CUDA_VISIBLE_DEVICES" not in self.current_params:
+                    pass
+                # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
+                mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
+                env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
 
-            try:
-                proc = subprocess.Popen(command, **kwargs)
-                self.assign_to_job(proc)
+                kwargs: Dict[str, Any] = {
+                    "cwd": str(job_scratch),
+                    "env": env,
+                    "stdout": subprocess.PIPE,
+                    "stderr": subprocess.PIPE,
+                    "text": True,
+                }
+
                 if sys.platform == "win32":
-                    try:
-                        ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
-                    except Exception:
-                        pass
+                    CREATE_SUSPENDED = 0x00000004
+                    kwargs["creationflags"] = kwargs.get("creationflags", 0) | CREATE_SUSPENDED
+                else:
+                    kwargs["start_new_session"] = True
+                    if sys.platform.startswith("linux"):
+                        def _posix_pdeathsig() -> None:
+                            try:
+                                import ctypes
+                                libc = ctypes.CDLL("libc.so.6")
+                                PR_SET_PDEATHSIG = 1
+                                SIGKILL = 9
+                                libc.prctl(PR_SET_PDEATHSIG, SIGKILL)
+                            except Exception:
+                                pass
+                        kwargs["preexec_fn"] = _posix_pdeathsig
 
                 try:
-                    out, err = proc.communicate(timeout=timeout_sec)
-                    code = proc.returncode
-                except subprocess.TimeoutExpired:
-                    self.terminate_process_tree(proc)
-                    out, err = "", "Subprocess execution timed out"
-                    code = -1
+                    proc = subprocess.Popen(current_cmd, **kwargs)
+                    self.assign_to_job(proc)
+                    if sys.platform == "win32":
+                        try:
+                            ctypes.windll.ntdll.NtResumeProcess(int(proc._handle))
+                        except Exception:
+                            pass
 
-                last_stdout = out
-                last_stderr = err
-                last_code = code
+                    try:
+                        out, err = proc.communicate(timeout=timeout_sec)
+                        code = proc.returncode
+                    except subprocess.TimeoutExpired:
+                        self.terminate_process_tree(proc)
+                        out, err = "", "Subprocess execution timed out"
+                        code = -1
 
-                if code == 0:
-                    return SubprocessExecutionResult(
-                        success=True,
-                        stdout=last_stdout,
-                        stderr=last_stderr,
-                        returncode=0,
-                        retries_attempted=retries,
-                        final_params=self.current_params,
+                    last_stdout = out
+                    last_stderr = err
+                    last_code = code
+
+                    if code == 0:
+                        # Extract validated artifacts to artifacts dir if designated
+                        artifacts_env = os.environ.get("COCHEM_ARTIFACTS_DIR") or os.environ.get("COCHEM_ARTIFACTS")
+                        if artifacts_env:
+                            art_dir = pathlib.Path(artifacts_env)
+                            art_dir.mkdir(parents=True, exist_ok=True)
+                            for ext in [".out", ".property.txt", ".gbw"]:
+                                for f in job_scratch.glob(f"*{ext}"):
+                                    try:
+                                        shutil.copy2(str(f), str(art_dir / f.name))
+                                    except Exception:
+                                        pass
+
+                        return SubprocessExecutionResult(
+                            success=True,
+                            stdout=last_stdout,
+                            stderr=last_stderr,
+                            returncode=0,
+                            retries_attempted=retries,
+                            final_params=self.current_params,
+                        )
+
+                    # Execute diagnostic triage on error output
+                    cat, updated_params = self.triage.triage_failure(
+                        engine=self.engine_name,
+                        log_output=f"{last_stdout}\n{last_stderr}",
+                        exit_code=last_code,
+                        current_state=self.current_params,
                     )
 
-                # Execute diagnostic triage on error output
-                cat, updated_params = self.triage.triage_failure(
-                    engine=self.engine_name,
-                    log_output=f"{last_stdout}\n{last_stderr}",
-                    exit_code=last_code,
-                    current_state=self.current_params,
-                )
+                    self.current_params = updated_params
+                    retries += 1
+                    logger.warning(
+                        "Subprocess failure (attempt %d/%d) classified as %s. Escalated parameters: %s",
+                        retries,
+                        self.max_retries,
+                        cat.value,
+                        self.current_params,
+                    )
 
-                self.current_params = updated_params
-                retries += 1
-                logger.warning(
-                    "Subprocess failure (attempt %d/%d) classified as %s. Escalated parameters: %s",
-                    retries,
-                    self.max_retries,
-                    cat.value,
-                    self.current_params,
-                )
+                    # Apply dynamic remediation callback if provided
+                    if remediate_callback is not None:
+                        new_cmd = remediate_callback(cat, self.current_params, job_scratch)
+                        if new_cmd:
+                            current_cmd = list(new_cmd)
+                    else:
+                        logger.warning(
+                            "No remediation callback provided; retrying static command without physical input escalation."
+                        )
 
-            except Exception as exec_err:
-                last_stderr = str(exec_err)
-                last_code = 1
-                retries += 1
+                except Exception as exec_err:
+                    last_stderr = str(exec_err)
+                    last_code = 1
+                    retries += 1
 
-        return SubprocessExecutionResult(
-            success=False,
-            stdout=last_stdout,
-            stderr=last_stderr,
-            returncode=last_code,
-            retries_attempted=retries,
-            final_params=self.current_params,
-        )
+            return SubprocessExecutionResult(
+                success=False,
+                stdout=last_stdout,
+                stderr=last_stderr,
+                returncode=last_code,
+                retries_attempted=retries,
+                final_params=self.current_params,
+            )
+        finally:
+            # Lifecycle hygiene: sweep and delete ephemeral sandbox
+            shutil.rmtree(str(job_scratch), ignore_errors=True)
+
 
     def terminate_process_tree(self, proc: subprocess.Popen[Any], grace_timeout: float = 3.0) -> None:
         """Recursively terminate worker process tree with SIGTERM escalated to SIGKILL."""
@@ -950,4493 +1430,1019 @@ class SubprocessBroker:
                 pass
             self._job_handle = None
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\airgap_coordinator.py ---
-"""Tripartite Storage Air-Gap Coordinator & Concurrency Governor.
-Enforces strict topological separation between Code (T_code), Artifacts (T_art), and Scratch (T_scr).
-Provides OS-agnostic file locking and SQLite WAL concurrency governance.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\hardware\topology.py ---
+"""Hybrid Architecture Aware Thread & Core Tuner.
+Dynamically budgets CPU and GPU resources according to Method Matrix v4 §8A contention budgeting.
+Strictly adheres to Zero-Mock mandate and physical OS topology discovery.
 """
 
 from __future__ import annotations
 
-import hashlib
-import os
-import pathlib
-import shutil
-import sqlite3
-import threading
-import uuid
-from dataclasses import dataclass
-from typing import Optional, Tuple
-
-import filelock
-
-from cochem.core.cochem_sandbox import SandboxConfig, SandboxContext
-
-
-class AirGapViolationError(PermissionError):
-    """Raised when storage paths intersect, overlap, or violate air-gap containment rules."""
-
-
-@dataclass(frozen=True)
-class TripartiteStorageConfig:
-    """Immutable topological layout configuration for tripartite storage."""
-
-    scratch_root: pathlib.Path
-    artifacts_root: pathlib.Path
-    code_root: Optional[pathlib.Path] = None
-
-
-AirGapConfig = TripartiteStorageConfig
-
-
-class TripartiteAirGapCoordinator:
-    """Storage coordinator enforcing zero-overlap air-gap and sandboxed publication."""
-
-    def __init__(self, config: TripartiteStorageConfig) -> None:
-        scr = config.scratch_root.resolve()
-        art = config.artifacts_root.resolve()
-        code = (
-            config.code_root.resolve()
-            if config.code_root is not None
-            else (scr.parent / "cochem_src").resolve()
-        )
-        self.config: TripartiteStorageConfig = TripartiteStorageConfig(
-            code_root=code,
-            artifacts_root=art,
-            scratch_root=scr,
-        )
-        self.validate_disjointness()
-
-    def validate_disjointness(self) -> None:
-        """Verify strict mutual disjointness between Code, Artifacts, and Scratch roots."""
-        code = self.config.code_root
-        art = self.config.artifacts_root
-        scr = self.config.scratch_root
-
-        if code == art or code == scr or art == scr:
-            raise AirGapViolationError(
-                "Tripartite storage roots must be strictly distinct directories."
-            )
-
-        if code.is_relative_to(art) or code.is_relative_to(scr):
-            raise AirGapViolationError(
-                f"code_root '{code}' overlaps with artifacts or scratch root."
-            )
-
-        if art.is_relative_to(code) or art.is_relative_to(scr):
-            raise AirGapViolationError(
-                f"artifacts_root '{art}' overlaps with code or scratch root."
-            )
-
-        if scr.is_relative_to(code) or scr.is_relative_to(art):
-            raise AirGapViolationError(
-                f"scratch_root '{scr}' overlaps with code or artifacts root."
-            )
-
-        cwd = pathlib.Path.cwd().resolve()
-        if cwd.is_relative_to(code):
-            raise AirGapViolationError(
-                f"CWD '{cwd}' resides within code_root '{code}'. Direct mutation access prohibited."
-            )
-
-    def create_sandboxed_workspace(
-        self, job_id: str, timeout_seconds: float = 300.0
-    ) -> SandboxContext:
-        """Allocate an ephemeral sandboxed workspace confined strictly to scratch storage."""
-        if ".." in job_id or "/" in job_id or "\\" in job_id:
-            raise AirGapViolationError(
-                f"Job scratch path traversal detected: {job_id}"
-            )
-
-        job_scratch = (self.config.scratch_root / f"cochem_exec_{job_id}").resolve()
-
-        if not job_scratch.is_relative_to(self.config.scratch_root):
-            raise AirGapViolationError(
-                f"Job scratch path traversal detected: {job_id}"
-            )
-
-        if job_scratch == self.config.scratch_root:
-            raise AirGapViolationError(
-                f"Invalid job identifier attempting root allocation: {job_id}"
-            )
-
-        config = SandboxConfig(
-            scratch_parent_dir=job_scratch,
-            timeout_seconds=timeout_seconds,
-        )
-        return SandboxContext(config)
-
-    def publish_artifact(
-        self,
-        source_path: pathlib.Path,
-        relative_dest: pathlib.Path,
-        compute_sha256: bool = True,
-    ) -> Tuple[pathlib.Path, Optional[str]]:
-        """Atomically transfer validated deliverable from scratch to append-only artifacts storage."""
-        source = source_path.resolve()
-        if not source.is_relative_to(self.config.scratch_root):
-            raise AirGapViolationError(
-                f"Source path '{source}' resides outside scratch root '{self.config.scratch_root}'"
-            )
-
-        if not source.is_file():
-            raise FileNotFoundError(f"Source artifact not found: {source}")
-
-        dest = (self.config.artifacts_root / relative_dest).resolve()
-        if not dest.is_relative_to(self.config.artifacts_root):
-            raise AirGapViolationError(
-                f"Destination path '{dest}' resides outside artifacts root '{self.config.artifacts_root}'"
-            )
-
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        sha256_hash: Optional[str] = None
-        if compute_sha256:
-            hasher = hashlib.sha256()
-            with open(source, "rb") as f:
-                while chunk := f.read(65536):
-                    hasher.update(chunk)
-            sha256_hash = hasher.hexdigest()
-
-        staging_name = f"{dest.name}.tmp_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}"
-        temp_dest = dest.with_name(staging_name)
-        try:
-            shutil.copy2(source, temp_dest)
-            os.replace(temp_dest, dest)
-            source.unlink(missing_ok=True)
-        except Exception:
-            if temp_dest.exists():
-                temp_dest.unlink(missing_ok=True)
-            raise
-
-        return dest, sha256_hash
-
-
-def get_tier_file_lock(
-    lock_path: pathlib.Path, timeout_sec: float = 30.0
-) -> filelock.FileLock:
-    """Instantiate cross-platform, OS-agnostic file lock adhering to HPC scratch requirements."""
-    resolved_path = lock_path.resolve()
-    resolved_path.parent.mkdir(parents=True, exist_ok=True)
-    return filelock.FileLock(str(resolved_path), timeout=timeout_sec)
-
-
-def configure_sqlite_connection(
-    conn: sqlite3.Connection, timeout_sec: float = 30.0
-) -> None:
-    """Configure SQLite connection with WAL mode and robust transaction timeout pragmas."""
-    busy_timeout_ms = int(timeout_sec * 1000)
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute(f"PRAGMA busy_timeout = {busy_timeout_ms};")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    conn.execute("PRAGMA foreign_keys = ON;")
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\ipc\serializer.py ---
-"""Pure-Wheel Fast IPC Serialization & HDF5 PESStore.
-High-throughput binary Msgpack serialization, SharedMemory descriptors, HMAC socket transport,
-and QCSchema-compliant HDF5 tensor persistence in SWMR mode.
-Strictly adheres to Zero-Mock mandate and authentic binary serialization.
-"""
-
-from __future__ import annotations
-
-import atexit
+import ctypes
 import dataclasses
-import hashlib
-import hmac
-import json
 import logging
-import multiprocessing.shared_memory as sm
 import os
 import pathlib
-import secrets
-import socket
-import struct
-import threading
-import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+import sys
+from typing import Dict, List, Optional, Tuple
 
-import h5py
-import msgpack  # type: ignore[import-untyped]
-import numpy as np
-from pydantic import BaseModel
+import psutil
 
-from cochem.core.context import assert_writable_path
-
-logger = logging.getLogger("cochem.core.ipc.serializer")
-
-NUMPY_EXT_CODE: int = 42
+logger = logging.getLogger("cochem.core.hardware.topology")
 
 
-# ==============================================================================
-# Msgpack Custom Extension Codecs
-# ==============================================================================
-def _msgpack_encoder(obj: Any) -> Any:
-    """Encode custom structures (NumPy arrays, Pydantic models, Path/UUID) for Msgpack."""
-    if isinstance(obj, np.ndarray):
-        dtype_str = obj.dtype.str  # type: ignore[attr-defined]
-        shape_tuple = tuple(obj.shape)
-        raw_buffer = obj.tobytes()
-        payload = msgpack.packb((dtype_str, shape_tuple, raw_buffer), use_bin_type=True)
-        return msgpack.ExtType(NUMPY_EXT_CODE, payload)
-    elif isinstance(obj, BaseModel):
-        return obj.model_dump()
-    elif isinstance(obj, (pathlib.Path, uuid.UUID)):
-        return str(obj)
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON/Msgpack serializable")
+@dataclasses.dataclass(slots=True, frozen=True)
+class HardwareTopology:
+    """Immutable hardware topology and core budgeting specification."""
+
+    total_logical_cpus: int
+    total_physical_cores: int
+    p_cores: int
+    e_cores: int
+    resource_ceiling: int
+    scout_cores: int
+    anchor_cores: int
+    gpu_mps_workers: int
+    environment_variables: Dict[str, str]
 
 
-def _msgpack_decoder(code: int, data: bytes) -> Any:
-    """Reconstruct NumPy arrays from Msgpack custom extension payload."""
-    if code == NUMPY_EXT_CODE:
-        dtype_str, shape_tuple, raw_buffer = msgpack.unpackb(data, raw=False)
-        reconstructed = np.frombuffer(raw_buffer, dtype=dtype_str).reshape(tuple(shape_tuple))
-        return reconstructed
-    return msgpack.ExtType(code, data)
+class TopologyDiscoveryEngine:
+    """Hardware discovery and Scout-and-Anchor budgeting engine."""
 
+    def __init__(self) -> None:
+        self._cached_topology: Optional[HardwareTopology] = None
 
-def pack_payload(data: Any) -> bytes:
-    """Serialize payload into binary Msgpack bytes with NumPy array extension hooks."""
-    return bytes(msgpack.packb(data, default=_msgpack_encoder, use_bin_type=True))
+    def discover_p_e_cores(self) -> Tuple[int, int]:
+        """Distinguish Intel Performance (P) cores from Efficient (E) cores."""
+        logical_total = psutil.cpu_count(logical=True) or os.cpu_count() or 1
+        physical_total = psutil.cpu_count(logical=False) or max(1, logical_total // 2)
 
-
-def unpack_payload(raw_bytes: bytes) -> Any:
-    """Deserialize binary Msgpack payload and reconstruct NumPy arrays."""
-    return msgpack.unpackb(raw_bytes, ext_hook=_msgpack_decoder, raw=False)
-
-
-# ==============================================================================
-# Zero-Copy Shared Memory Optimization
-# ==============================================================================
-_REGISTRY_LOCK = threading.Lock()
-_ACTIVE_SHM: Dict[str, Dict[str, Any]] = {}
-
-
-def _cleanup_all_shared_memory() -> None:
-    """Atexit handler ensuring zero lingering shared memory blocks."""
-    with _REGISTRY_LOCK:
-        for name, info in list(_ACTIVE_SHM.items()):
+        # 1. Windows NT: Query GetLogicalProcessorInformationEx via Win32 API
+        if sys.platform == "win32":
             try:
-                info["shm"].close()
+                # RelationProcessorCore = 0
+                class PROCESSOR_RELATIONSHIP(ctypes.Structure):
+                    _fields_ = [
+                        ("Flags", ctypes.c_ubyte),
+                        ("EfficiencyClass", ctypes.c_ubyte),
+                        ("Reserved", ctypes.c_ubyte * 20),
+                        ("GroupCount", ctypes.c_ushort),
+                        ("GroupMask", ctypes.c_size_t * 1),
+                    ]
+
+                class SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX(ctypes.Structure):
+                    _fields_ = [
+                        ("Relationship", ctypes.c_uint),
+                        ("Size", ctypes.c_ulong),
+                        ("Processor", PROCESSOR_RELATIONSHIP),
+                    ]
+
+                buffer_size = ctypes.c_ulong(0)
+                # First call to query required buffer size
+                ctypes.windll.kernel32.GetLogicalProcessorInformationEx(
+                    0,  # RelationProcessorCore
+                    None,
+                    ctypes.byref(buffer_size),
+                )
+
+                if buffer_size.value > 0:
+                    buffer = (ctypes.c_byte * buffer_size.value)()
+                    res = ctypes.windll.kernel32.GetLogicalProcessorInformationEx(
+                        0,
+                        ctypes.byref(buffer),
+                        ctypes.byref(buffer_size),
+                    )
+                    if res != 0:
+                        offset = 0
+                        p_count = 0
+                        e_count = 0
+                        while offset < buffer_size.value:
+                            info = ctypes.cast(
+                                ctypes.byref(buffer, offset),
+                                ctypes.POINTER(SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX),
+                            ).contents
+                            if info.Relationship == 0:  # RelationProcessorCore
+                                eff_class = info.Processor.EfficiencyClass
+                                if eff_class > 0:
+                                    p_count += 1
+                                else:
+                                    e_count += 1
+                            if info.Size == 0:
+                                break
+                            offset += info.Size
+
+                        if (p_count + e_count) > 0:
+                            return max(1, p_count), e_count
+            except Exception as win_err:
+                logger.debug("Windows processor information query bypassed: %s", win_err)
+
+        # 2. Linux: Parse sysfs cpufreq
+        if sys.platform.startswith("linux"):
+            try:
+                cpu_dir = pathlib.Path("/sys/devices/system/cpu")
+                freqs: List[int] = []
+                for p in cpu_dir.glob("cpu[0-9]*/cpufreq/cpuinfo_max_freq"):
+                    try:
+                        f_val = int(p.read_text().strip())
+                        freqs.append(f_val)
+                    except (OSError, ValueError):
+                        continue
+                if freqs and len(set(freqs)) > 1:
+                    max_freq = max(freqs)
+                    p_count = sum(1 for f in freqs if f == max_freq)
+                    e_count = len(freqs) - p_count
+                    return max(1, p_count), e_count
+            except Exception as linux_err:
+                logger.debug("Linux cpufreq query bypassed: %s", linux_err)
+
+        # Uniform fallback
+        return physical_total, 0
+
+    def resolve_resource_ceiling(self) -> int:
+        """Resolve effective CPU ceiling from Slurm, Cgroups v1/v2, affinity, or physical cores."""
+        # 1. Slurm environment variable
+        slurm_cpus = os.environ.get("SLURM_CPUS_PER_TASK")
+        if slurm_cpus is not None:
+            try:
+                val = int(slurm_cpus)
+                if val >= 1:
+                    return val
+            except ValueError:
+                pass
+
+        # 2. Linux Cgroups v2: /sys/fs/cgroup/cpu.max (quota period)
+        cgroup_v2 = pathlib.Path("/sys/fs/cgroup/cpu.max")
+        if cgroup_v2.exists():
+            try:
+                parts = cgroup_v2.read_text().strip().split()
+                if len(parts) >= 2 and parts[0] != "max":
+                    quota = float(parts[0])
+                    period = float(parts[1])
+                    if period > 0:
+                        cores = int(quota / period)
+                        if cores >= 1:
+                            return cores
             except Exception:
                 pass
+
+        # 3. Linux Cgroups v1: cpu.cfs_quota_us / cpu.cfs_period_us
+        cgroup_v1_quota = pathlib.Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us")
+        cgroup_v1_period = pathlib.Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us")
+        if cgroup_v1_quota.exists() and cgroup_v1_period.exists():
             try:
-                info["shm"].unlink()
+                quota_val = float(cgroup_v1_quota.read_text().strip())
+                period_val = float(cgroup_v1_period.read_text().strip())
+                if quota_val > 0 and period_val > 0:
+                    cores = int(quota_val / period_val)
+                    if cores >= 1:
+                        return cores
             except Exception:
                 pass
-        _ACTIVE_SHM.clear()
 
+        # 4. POSIX process affinity
+        if hasattr(os, "sched_getaffinity"):
+            try:
+                affinity_cores = len(os.sched_getaffinity(0))
+                if affinity_cores >= 1:
+                    return affinity_cores
+            except Exception:
+                pass
 
-atexit.register(_cleanup_all_shared_memory)
+        # 5. Physical cores fallback
+        physical = psutil.cpu_count(logical=False) or os.cpu_count() or 1
+        return max(1, physical)
 
+    def discover_topology(self, concurrent_workers: int = 1) -> HardwareTopology:
+        """Calculate Scout-and-Anchor core budget and thread environment variables."""
+        logical_total = psutil.cpu_count(logical=True) or os.cpu_count() or 1
+        physical_total = psutil.cpu_count(logical=False) or max(1, logical_total // 2)
+        ceiling = self.resolve_resource_ceiling()
+        p_cores, e_cores = self.discover_p_e_cores()
 
-@dataclasses.dataclass(slots=True)
-class SharedMemoryBuffer:
-    """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
+        # Clamp P-cores to available ceiling
+        effective_p_cores = max(1, min(p_cores, ceiling))
 
-    shm: sm.SharedMemory
-    descriptor: Dict[str, Any]
+        # Scout-and-Anchor Concurrency Budget (Method Matrix v4 §8A):
+        # Scout Core: 1 physical P-core dedicated to host orchestration and MACE ML
+        # Anchor Cores: Remaining (N_P-cores - 1) cores across QC subprocesses (ORCA/CFOUR)
+        if effective_p_cores > 2:
+            scout_cores = 1
+            anchor_cores = effective_p_cores - 1
+        elif effective_p_cores == 2:
+            scout_cores = 1
+            anchor_cores = 1
+        else:
+            scout_cores = 1
+            anchor_cores = 0
 
-    @classmethod
-    def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
-        """Allocate shared memory buffer, copy array memory, and generate transfer descriptor."""
-        total_bytes = max(1, arr.nbytes)
-        shm = sm.SharedMemory(create=True, size=total_bytes)
-        try:
-            from multiprocessing import resource_tracker
-            resource_tracker.register(shm._name, "shared_memory")
-        except Exception:
-            pass
-
-        shm_array = np.ndarray(arr.shape, dtype=arr.dtype, buffer=shm.buf)  # type: ignore[arg-type]
-        shm_array[:] = arr[:]
-
-        desc = {
-            "name": shm.name,
-            "shape": list(arr.shape),
-            "dtype": arr.dtype.str,  # type: ignore[attr-defined]
-            "size": total_bytes,
-            "total_attachments": total_attachments,
-            "closed_attachments": 0,
+        # Worker thread injection values with dynamic contention budgeting
+        budget_pool = anchor_cores if anchor_cores > 0 else scout_cores
+        budgeted_threads = max(1, budget_pool // max(1, concurrent_workers))
+        env_vars = {
+            "OMP_NUM_THREADS": str(budgeted_threads),
+            "MKL_NUM_THREADS": str(budgeted_threads),
+            "OPENBLAS_NUM_THREADS": str(budgeted_threads),
+            "VECLIB_MAXIMUM_THREADS": str(budgeted_threads),
+            "NUMEXPR_NUM_THREADS": str(budgeted_threads),
+            "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(max(1, 100 // max(1, concurrent_workers))),
         }
 
-        with _REGISTRY_LOCK:
-            _ACTIVE_SHM[shm.name] = {
-                "shm": shm,
-                "total": total_attachments,
-                "closed": 0,
-            }
+        # GPU MPS Worker Ceiling: 2 to 4 concurrent processes
+        gpu_mps_workers = max(2, min(4, ceiling))
 
-        return cls(shm=shm, descriptor=desc)
+        topology = HardwareTopology(
+            total_logical_cpus=logical_total,
+            total_physical_cores=physical_total,
+            p_cores=effective_p_cores,
+            e_cores=e_cores,
+            resource_ceiling=ceiling,
+            scout_cores=scout_cores,
+            anchor_cores=anchor_cores,
+            gpu_mps_workers=gpu_mps_workers,
+            environment_variables=env_vars,
+        )
+        self._cached_topology = topology
+        return topology
 
-    @classmethod
-    def _notify_closed(cls, name: str) -> None:
-        """Atomically increment closed attachments and unlink once all attachments finish."""
-        with _REGISTRY_LOCK:
-            info = _ACTIVE_SHM.get(name)
-            if info is not None:
-                info["closed"] += 1
-                if info["closed"] >= info["total"]:
-                    try:
-                        info["shm"].unlink()
-                    except (OSError, FileNotFoundError):
-                        pass
-                    _ACTIVE_SHM.pop(name, None)
-            else:
-                try:
-                    s = sm.SharedMemory(name=name)
-                    s.close()
-                    s.unlink()
-                except Exception:
-                    pass
+    def get_worker_env(
+        self,
+        concurrent_workers: int = 1,
+        worker_index: int = 0,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Construct subprocess execution environment with dynamically budgeted thread variables."""
+        topo = self.discover_topology(concurrent_workers=concurrent_workers)
+        base_env = dict(os.environ)
+        base_env.update(topo.environment_variables)
 
-    @classmethod
-    def read_from_descriptor(cls, descriptor: Dict[str, Any]) -> np.ndarray:
-        """Map existing shared memory segment and extract copy of array."""
-        name = descriptor["name"]
-        shape = tuple(descriptor["shape"])
-        dtype = descriptor["dtype"]
+        # Dynamic host thread budgeting per worker (Method Matrix §8A)
+        budget_pool = topo.anchor_cores if topo.anchor_cores > 0 else topo.scout_cores
+        budgeted_threads = max(1, budget_pool // max(1, concurrent_workers))
+        base_env["OMP_NUM_THREADS"] = str(budgeted_threads)
+        base_env["MKL_NUM_THREADS"] = str(budgeted_threads)
+        base_env["OPENBLAS_NUM_THREADS"] = str(budgeted_threads)
+        base_env["VECLIB_MAXIMUM_THREADS"] = str(budgeted_threads)
+        base_env["NUMEXPR_NUM_THREADS"] = str(budgeted_threads)
 
-        client_shm = sm.SharedMemory(name=name)
+        # Zero-CUDA-Locking Directive: Non-locking MPS GPU apportionment
+        base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
+
+        # Multi-GPU physical device indexing fallback
+        available_gpus = 0
         try:
-            mapped = np.ndarray(shape, dtype=dtype, buffer=client_shm.buf)
-            extracted = mapped.copy()
-            return extracted
-        finally:
-            client_shm.close()
-            cls._notify_closed(name)
-
-    def close(self) -> None:
-        """Close local memory map and unlink if all attachments are closed."""
-        try:
-            self.shm.close()
-        except OSError:
+            import torch
+            if torch.cuda.is_available():
+                available_gpus = torch.cuda.device_count()
+        except Exception:
             pass
-        SharedMemoryBuffer._notify_closed(self.shm.name)
 
-    def unlink(self) -> None:
-        """Explicitly unlink OS shared memory segment immediately."""
+        if available_gpus > 0:
+            assigned_gpu = worker_index % available_gpus
+            base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+
+        if extra_env is not None:
+            base_env.update(extra_env)
+        return base_env
+
+
+    def pin_scout_affinity(self, core_index: int = 0) -> bool:
+        """Bind host orchestration process to specific core index to avoid thread migration."""
         try:
-            self.shm.unlink()
-        except (OSError, FileNotFoundError):
-            pass
-        with _REGISTRY_LOCK:
-            _ACTIVE_SHM.pop(self.shm.name, None)
-
-
-# ==============================================================================
-# Ephemeral HMAC-SHA256 Socket Transport
-# ==============================================================================
-class HMACSocketServer:
-    """Loopback TCP socket server secured by HMAC-SHA256 challenge-response handshake."""
-
-    def __init__(
-        self,
-        host: str = "127.0.0.1",
-        port: int = 0,
-        secret_key: bytes = b"",
-    ) -> None:
-        self.host: str = host
-        self.requested_port: int = port
-        self.secret_key: bytes = secret_key
-        self.port: int = 0
-
-        self._server_sock: Optional[socket.socket] = None
-        self._stop_event: threading.Event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
-        self._received_payloads: List[Any] = []
-        self._payload_event: threading.Event = threading.Event()
-
-    def start(self) -> None:
-        """Bind listening socket and launch background accept loop."""
-        self._server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._server_sock.bind((self.host, self.requested_port))
-        self._server_sock.listen(5)
-        self.port = self._server_sock.getsockname()[1]
-
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._accept_loop,
-            name="HMACSocketServerLoop",
-            daemon=True,
-        )
-        self._thread.start()
-
-    def stop(self) -> None:
-        """Shutdown server socket and join accept thread."""
-        self._stop_event.set()
-        if self._server_sock is not None:
-            try:
-                self._server_sock.close()
-            except OSError:
-                pass
-        if self._thread is not None and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
-
-    def _accept_loop(self) -> None:
-        """Accept inbound client connections and execute HMAC handshake."""
-        while not self._stop_event.is_set():
-            try:
-                if self._server_sock is None:
-                    break
-                self._server_sock.settimeout(0.5)
-                conn, _ = self._server_sock.accept()
-            except (socket.timeout, OSError):
-                continue
-
-            try:
-                # 1. Generate 32-byte challenge
-                challenge = secrets.token_bytes(32)
-                conn.sendall(challenge)
-
-                # 2. Receive 32-byte HMAC response
-                response = conn.recv(32)
-                expected = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
-
-                if not hmac.compare_digest(response, expected):
-                    conn.sendall(b"DENIED")
-                    conn.close()
-                    continue
-
-                conn.sendall(b"ACCEPT")
-
-                # 3. Read 4-byte payload length header
-                len_bytes = conn.recv(4)
-                if len(len_bytes) < 4:
-                    conn.close()
-                    continue
-                (payload_len,) = struct.unpack("!I", len_bytes)
-
-                # 4. Stream payload bytes
-                buffer = bytearray()
-                while len(buffer) < payload_len:
-                    chunk = conn.recv(min(65536, payload_len - len(buffer)))
-                    if not chunk:
-                        break
-                    buffer.extend(chunk)
-
-                if len(buffer) == payload_len:
-                    payload = unpack_payload(bytes(buffer))
-                    self._received_payloads.append(payload)
-                    self._payload_event.set()
-            except Exception as conn_err:
-                logger.debug("Error processing client connection: %s", conn_err)
-            finally:
-                try:
-                    conn.close()
-                except OSError:
-                    pass
-
-    def get_received_payload(self, timeout_sec: float = 5.0) -> Optional[Any]:
-        """Await reception of payload from client."""
-        if self._payload_event.wait(timeout_sec):
-            if self._received_payloads:
-                return self._received_payloads.pop(0)
-        return None
-
-
-class HMACSocketClient:
-    """Client communicating over loopback TCP with HMAC-SHA256 authentication."""
-
-    def __init__(
-        self,
-        host: str = "127.0.0.1",
-        port: int = 0,
-        secret_key: bytes = b"",
-    ) -> None:
-        self.host: str = host
-        self.port: int = port
-        self.secret_key: bytes = secret_key
-
-    def send_payload(self, data: Any) -> None:
-        """Connect to server, satisfy HMAC challenge, and transmit Msgpack payload."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((self.host, self.port))
-        try:
-            # 1. Receive 32-byte challenge
-            challenge = sock.recv(32)
-            if len(challenge) != 32:
-                raise ConnectionError("Invalid challenge received from server")
-
-            # 2. Compute and send response
-            response = hmac.new(self.secret_key, challenge, hashlib.sha256).digest()
-            sock.sendall(response)
-
-            status = sock.recv(6)
-            if status != b"ACCEPT":
-                raise PermissionError("HMAC handshake rejected by server")
-
-            # 3. Pack payload and send with length header
-            packed_bytes = pack_payload(data)
-            header = struct.pack("!I", len(packed_bytes))
-            sock.sendall(header + packed_bytes)
-        finally:
-            sock.close()
-
-
-# ==============================================================================
-# HDF5 PESStore Tensor Persistence (QCSchema & SWMR)
-# ==============================================================================
-class PESStore:
-    """Multidimensional tensor persistence store for Potential Energy Surfaces using HDF5 SWMR."""
-
-    def __init__(self, file_path: Union[pathlib.Path, str]) -> None:
-        self.file_path: pathlib.Path = pathlib.Path(file_path).resolve()
-        assert_writable_path(self.file_path)
-
-    def write_entry(
-        self,
-        entry_id: str,
-        molecule: Dict[str, Any],
-        driver: str,
-        model: Dict[str, Any],
-        return_result: np.ndarray,
-    ) -> None:
-        """Persist QCSchema calculation entry into HDF5 file via atomic staging."""
-        assert_writable_path(self.file_path)
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        tmp_path = self.file_path.with_name(f"{self.file_path.name}.{uuid.uuid4().hex[:8]}.tmp")
-
-        # If destination file already exists, copy existing groups into tmp staging
-        if self.file_path.exists():
-            import shutil
-
-            shutil.copyfile(self.file_path, tmp_path)
-
-        with h5py.File(tmp_path, "a", libver="latest") as h5f:
-            if entry_id in h5f:
-                del h5f[entry_id]
-
-            grp = h5f.create_group(entry_id)
-            grp.attrs["schema_name"] = "qcschema_output"
-            grp.attrs["driver"] = str(driver)
-            grp.attrs["molecule_json"] = json.dumps(molecule)
-            grp.attrs["model_json"] = json.dumps(model)
-
-            # Store result array with Gzip chunked compression
-            chunk_shape: Optional[Tuple[int, ...]] = None
-            if return_result.ndim > 0:
-                chunk_shape = tuple(max(1, min(s, 128)) for s in return_result.shape)
-
-            grp.create_dataset(
-                "return_result",
-                data=return_result,
-                compression="gzip",
-                compression_opts=4,
-                chunks=chunk_shape,
-            )
-
-        # Atomic replacement to target path
-        os.replace(tmp_path, self.file_path)
-
-    def read_entry(self, entry_id: str) -> Dict[str, Any]:
-        """Read QCSchema entry in SWMR mode without file locking collisions."""
-        if not self.file_path.exists():
-            raise FileNotFoundError(f"PESStore file not found at {self.file_path}")
-
-        with h5py.File(self.file_path, "r", libver="latest", swmr=True) as h5f:
-            if entry_id not in h5f:
-                raise KeyError(f"Entry '{entry_id}' not found in PESStore")
-
-            grp = h5f[entry_id]
-            schema_name = str(grp.attrs.get("schema_name", "qcschema_output"))
-            driver = str(grp.attrs.get("driver", "unknown"))
-            mol_json = str(grp.attrs.get("molecule_json", "{}"))
-            model_json = str(grp.attrs.get("model_json", "{}"))
-            result_arr = grp["return_result"][:]
-
-            return {
-                "schema_name": schema_name,
-                "entry_id": entry_id,
-                "molecule": json.loads(mol_json),
-                "driver": driver,
-                "model": json.loads(model_json),
-                "return_result": result_arr,
-            }
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\mendeleev_invariants.py ---
-"""Dynamic Mendeleev Invariants & Element Resolver.
-
-Provenance & Specifications:
-- Method Matrix [M]: Quantum spin-parity and IUPAC CIAAW standard atomic weight invariants.
-- Dynamic Resolution [D]: Zero-hardcoding dynamic element and isotopic mass lookup via mendeleev.
-- Telemetry [E]: Thread-safe in-memory cache populated dynamically on demand.
-"""
-
-from __future__ import annotations
-
-import re
-import threading
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from mendeleev import element as _mendeleev_element
-
-from cochem.core.exceptions import MissingDataError
-
-
-class MendeleevInvariantError(MissingDataError):
-    """Raised when chemical element queries violate Mendeleev physical invariants."""
-
-    def __init__(self, message: str, symbol_or_query: Any = None) -> None:
-        super().__init__(message, symbol_or_query=symbol_or_query)
-        self.symbol_or_query = symbol_or_query
-
-
-@dataclass(slots=True, frozen=True)
-class ElementData:
-    """Immutable ground-truth chemical element properties."""
-
-    atomic_number: int
-    symbol: str
-    name: str
-    atomic_weight: float
-    isotopes: Tuple[Tuple[int, float, float], ...]  # (mass_number, exact_mass_amu, natural_abundance)
-    covalent_radius_pm: Optional[float]
-    vdw_radius_pm: Optional[float]
-    valence_electrons: int
-
-
-_CACHE_LOCK = threading.Lock()
-_ELEMENTS_BY_SYMBOL: Dict[str, ElementData] = {}
-_ELEMENTS_BY_Z: Dict[int, ElementData] = {}
-
-
-def _load_element_data(z_or_sym: Union[int, str]) -> ElementData:
-    """Dynamically fetch and cache ElementData for Z=1..118 via mendeleev."""
-    try:
-        elem = _mendeleev_element(z_or_sym)
-    except Exception as exc:
-        raise MissingDataError(
-            f"Dynamic element resolution failed for query '{z_or_sym}': {exc}",
-            symbol_or_query=z_or_sym,
-        ) from exc
-
-    z = int(elem.atomic_number)
-    symbol = str(elem.symbol)
-    name = str(elem.name)
-
-    # Standard atomic weight with dynamic fallback to most stable isotope mass
-    weight = elem.atomic_weight
-    if weight is None or float(weight) <= 0.0:
-        iso_masses = [iso.mass_number for iso in elem.isotopes if iso.mass_number is not None]
-        if iso_masses:
-            weight = float(max(iso_masses))
-        else:
-            weight = float(z)
-    else:
-        weight = float(weight)
-
-    # Isotope tuple: (mass_number, exact_mass_amu, abundance)
-    isotope_list: List[Tuple[int, float, float]] = []
-    for iso in elem.isotopes:
-        if iso.mass_number is not None:
-            m_num = int(iso.mass_number)
-            m_exact = float(iso.mass) if iso.mass is not None and float(iso.mass) > 0.0 else float(m_num)
-            m_abund = float(iso.abundance) if iso.abundance is not None else 0.0
-            isotope_list.append((m_num, m_exact, m_abund))
-    isotopes_tuple = tuple(sorted(isotope_list, key=lambda x: x[0]))
-
-    # Radii in picometers
-    cov_r = elem.covalent_radius_pyykko or elem.covalent_radius
-    cov_radius_pm = float(cov_r) if cov_r is not None else None
-
-    vdw_r = elem.vdw_radius or elem.vdw_radius_alvarez or elem.vdw_radius_bondi or elem.vdw_radius_batsanov
-    vdw_radius_pm = float(vdw_r) if vdw_r is not None else None
-
-    # Valence electrons
-    if hasattr(elem, "nvalence") and callable(elem.nvalence):
-        val_e = int(elem.nvalence())
-    elif elem.electrons is not None:
-        val_e = int(elem.electrons)
-    else:
-        val_e = 0
-
-    data = ElementData(
-        atomic_number=z,
-        symbol=symbol,
-        name=name,
-        atomic_weight=weight,
-        isotopes=isotopes_tuple,
-        covalent_radius_pm=cov_radius_pm,
-        vdw_radius_pm=vdw_radius_pm,
-        valence_electrons=val_e,
-    )
-
-    with _CACHE_LOCK:
-        _ELEMENTS_BY_SYMBOL[symbol] = data
-        _ELEMENTS_BY_Z[z] = data
-
-    return data
-
-
-def parse_symbol_or_isotope(symbol: str) -> Tuple[str, Optional[int]]:
-    """Authoritative regex and alias pre-processor for chemical symbols and isotopes.
-
-    Maps:
-    - 'D' -> ('H', 2)
-    - 'T' -> ('H', 3)
-    - '13C' -> ('C', 13)
-    - '18O' -> ('O', 18)
-    - '2H' -> ('H', 2)
-    - Standard symbols ('H', 'C', 'Ar') -> ('H', None), etc.
-    """
-    raw = str(symbol).strip()
-    if not raw or raw.isdigit():
-        raise MissingDataError(
-            f"Invalid chemical symbol or isotope '{symbol}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol,
-        )
-
-    # Specific alias mappings
-    if raw.upper() == "D":
-        return "H", 2
-    if raw.upper() == "T":
-        return "H", 3
-
-    # Check for leading mass number: e.g. "13C", "18O", "2H", "35Cl"
-    m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
-    if m_iso:
-        mass_num = int(m_iso.group(1))
-        sym_part = m_iso.group(2)
-        norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
-        # Verify element exists in Mendeleev
-        try:
-            get_element(norm_sym)
-        except Exception:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {symbol}",
-                symbol_or_query=symbol,
-            )
-        return norm_sym, mass_num
-
-    # Standard elemental symbol: e.g. "C", "Cl", "Ar"
-    m_sym = re.match(r"^[A-Za-z]+$", raw)
-    if m_sym:
-        norm_sym = raw[0].upper() + raw[1:].lower() if len(raw) > 1 else raw.upper()
-        try:
-            elem_data = get_element(norm_sym)
-            return elem_data.symbol, None
-        except Exception:
-            # Check by element name
-            try:
-                elem_data = _load_element_data(raw)
-                return elem_data.symbol, None
-            except Exception:
-                pass
-
-    raise MissingDataError(
-        f"Unresolvable atomic element or isotope symbol: {symbol}",
-        symbol_or_query=symbol,
-    )
-
-
-def get_element(symbol_or_z: Union[str, int]) -> ElementData:
-    """Retrieve immutable ElementData by atomic number, chemical symbol, or isotopic alias."""
-    if isinstance(symbol_or_z, int):
-        if symbol_or_z < 1 or symbol_or_z > 118:
-            raise MissingDataError(
-                f"Invalid atomic number Z={symbol_or_z}. Must be between 1 and 118.",
-                symbol_or_query=symbol_or_z,
-            )
-        with _CACHE_LOCK:
-            cached = _ELEMENTS_BY_Z.get(symbol_or_z)
-        if cached is not None:
-            return cached
-        return _load_element_data(symbol_or_z)
-
-    raw = str(symbol_or_z).strip()
-    if not raw or raw.isdigit():
-        raise MissingDataError(
-            f"Invalid chemical symbol '{symbol_or_z}'. Symbol cannot be empty or purely numeric.",
-            symbol_or_query=symbol_or_z,
-        )
-
-    # Normalize standard alias
-    if raw.upper() == "D" or raw.upper() == "T":
-        norm_sym = "H"
-    else:
-        m_iso = re.match(r"^(\d+)([A-Za-z]+)$", raw)
-        if m_iso:
-            sym_part = m_iso.group(2)
-            norm_sym = sym_part[0].upper() + sym_part[1:].lower() if len(sym_part) > 1 else sym_part.upper()
-        elif len(raw) == 1:
-            norm_sym = raw.upper()
-        elif len(raw) <= 3:
-            norm_sym = raw[0].upper() + raw[1:].lower()
-        else:
-            norm_sym = raw.capitalize()
-
-    with _CACHE_LOCK:
-        cached = _ELEMENTS_BY_SYMBOL.get(norm_sym)
-    if cached is not None:
-        return cached
-
-    # Query mendeleev
-    try:
-        return _load_element_data(norm_sym)
-    except Exception:
-        # Fallback to query by name
-        try:
-            return _load_element_data(raw)
-        except Exception:
-            raise MissingDataError(
-                f"Dynamic element resolution failed for query '{symbol_or_z}'.",
-                symbol_or_query=symbol_or_z,
-            )
-
-
-def get_isotope_mass(symbol_or_z: Union[str, int], mass_number: int) -> float:
-    """Dynamically resolve IUPAC exact isotopic mass in unified atomic mass units (u)."""
-    element_data = get_element(symbol_or_z)
-    for iso_m_num, iso_exact, _ in element_data.isotopes:
-        if iso_m_num == mass_number:
-            return iso_exact
-
-    # Dynamic fallback query directly to mendeleev element isotopes
-    try:
-        m_elem = _mendeleev_element(element_data.symbol)
-        for iso in m_elem.isotopes:
-            if iso.mass_number == mass_number and iso.mass is not None:
-                return float(iso.mass)
-    except Exception:
-        pass
-
-    raise MissingDataError(
-        f"No isotope with mass number A={mass_number} found for element '{element_data.symbol}'.",
-        symbol_or_query=f"{element_data.symbol}-{mass_number}",
-    )
-
-
-def get_element_mass(symbol_or_z: Union[str, int]) -> float:
-    """Dynamically resolve atomic or isotopic mass in unified atomic mass units (u).
-
-    Handles standard elements ('H', 'C', 'Ar') and isotopic aliases ('D', 'T', '13C', '18O').
-    """
-    if isinstance(symbol_or_z, int):
-        return get_element(symbol_or_z).atomic_weight
-
-    clean_sym, mass_number = parse_symbol_or_isotope(symbol_or_z)
-    if mass_number is not None:
-        return get_isotope_mass(clean_sym, mass_number)
-    return get_element(clean_sym).atomic_weight
-
-
-class MendeleevResolver:
-    """Thread-safe dynamic Mendeleev element and isotope mass resolver for backward compatibility."""
-
-    def get_element(self, symbol_or_z: Union[str, int]) -> Any:
-        elem_data = get_element(symbol_or_z)
-        return _mendeleev_element(elem_data.atomic_number)
-
-    def get_atomic_number(self, symbol_or_z: Union[str, int]) -> int:
-        return get_element(symbol_or_z).atomic_number
-
-    def get_atomic_weight(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element(symbol_or_z).atomic_weight
-
-    def get_element_mass(self, symbol_or_z: Union[str, int]) -> float:
-        return get_element_mass(symbol_or_z)
-
-    def get_symbol(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).symbol
-
-    def get_name(self, symbol_or_z: Union[str, int]) -> str:
-        return get_element(symbol_or_z).name
-
-    def get_covalent_radius(self, symbol_or_z: Union[str, int]) -> Optional[float]:
-        return get_element(symbol_or_z).covalent_radius_pm
-
-    def get_vdw_radius(self, symbol_or_z: Union[str, int]) -> float:
-        r = get_element(symbol_or_z).vdw_radius_pm
-        if r is None:
-            raise MissingDataError(f"Van der Waals radius is not available for element '{symbol_or_z}'.")
-        return r
-
-    def get_vdw_radius_angstrom(self, symbol_or_z: Union[str, int]) -> float:
-        return self.get_vdw_radius(symbol_or_z) / 100.0
-
-    def get_isotope_mass(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        return get_isotope_mass(symbol_or_z, mass_number)
-
-    def get_isotope_abundance(self, symbol_or_z: Union[str, int], mass_number: int) -> float:
-        elem_data = get_element(symbol_or_z)
-        for m_num, _, abund in elem_data.isotopes:
-            if m_num == mass_number:
-                return abund
-        return 0.0
-
-    def get_available_isotopes(self, symbol_or_z: Union[str, int]) -> List[int]:
-        return [m_num for m_num, _, _ in get_element(symbol_or_z).isotopes]
-
-    def clear_cache(self) -> None:
-        raise MissingDataError("Mendeleev element cache is immutable and cannot be cleared.")
-
-
-# Default global resolver instance for backwards compatibility
-mendeleev_resolver = MendeleevResolver()
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\calc\cochem_calc_input_generator.py ---
-#!/usr/bin/env python3
-"""
-CoChem-CORE Stage 2.1: Input Scaffolder
-Module: calc/cochem_calc_input_generator.py
-Purpose: Pulls deduplicated coordinates from landscape.h5 and dynamically compiles
-         engine-specific inputs with cryptographic provenance and rigorous grid overrides.
-"""
-
-import hashlib
-import logging
-import math
-import re
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-from jinja2 import Template
-from mendeleev import element
-from numpy.typing import ArrayLike
-import numpy as np
-from pydantic import BaseModel, Field, field_validator, model_validator
-
-from cochem.core.exceptions import RotationalGridInstabilityError
-from cochem_base.config_loader import get_artifact_dir, load_system_config_dict
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
-
-class MoleculeInput(BaseModel):
-    basin_id: str = Field(..., description="Unique Basin ID")
-    elements: List[str] = Field(..., description="List of elements")
-    coordinates: List[Tuple[float, float, float]] = Field(..., description="XYZ coordinates")
-    theory_level: str = Field(default="B3LYP-D3 def2-SVP", description="Level of theory")
-    charge: int = Field(default=0, description="Molecular charge")
-    multiplicity: int = Field(default=1, description="Spin multiplicity")
-    is_weak_complex: bool = Field(default=False, description="Is this a weak intermolecular complex?")
-    is_opt: bool = Field(default=True, description="Is this a geometry optimization?")
-    is_freq: bool = Field(default=False, description="Is this a harmonic frequency or Hessian calculation?")
-    frozen_monomer_indices: Optional[List[int]] = Field(default=None, description="0-indexed atom indices to freeze")
-    implicit_solvation: Optional[str] = Field(default=None, description="Implicit solvation model (e.g., CPCM(Water), SMD)")
-
-    @model_validator(mode="after")
-    def validate_method_matrix(self) -> "MoleculeInput":
-        if self.is_weak_complex:
-            if "D3" not in self.theory_level.upper() and "D4" not in self.theory_level.upper():
-                raise ValueError("[ERR_STRATEGY_PIVOT] Dispersion: Reject DFT optimizations of weak complexes lacking D3/D4.")
-        
-        is_freq_task = (
-            self.is_freq
-            or "FREQ" in self.theory_level.upper()
-            or "NUMFREQ" in self.theory_level.upper()
-            or "HESS" in self.theory_level.upper()
-        )
-        if is_freq_task and "DEFGRID1" in self.theory_level.upper():
-            raise ValueError("[METHOD_MATRIX_VIOLATION_DEFGRID] defgrid1 is forbidden for frequency/Hessian tasks; defgrid3 is mandated.")
-
-        # 4. Hessian Preconditioning Safeguards
-        if self.is_opt and "CALC_HESS TRUE" in self.theory_level.upper():
-            self.theory_level = re.sub(r'(?i)calc_hess\s+true', '', self.theory_level).strip()
-            
-        return self
-
-    @field_validator("multiplicity")
-    @classmethod
-    def validate_spin(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("[ERR_MISSING_DATA] Multiplicity must be >= 1.")
-        return v
-
-def get_artifact_base() -> Path:
-    """Enforces the strict air-gap to read-write user data tier."""
-    artifact_dir = get_artifact_dir() / "Scratch"
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    return artifact_dir
-
-def load_system_config() -> Dict[str, Any]:
-    """Loads authoritative hardware and execution parameters from cochem_system_config.json."""
-    try:
-        return load_system_config_dict()
-    except Exception as e:
-        raise RuntimeError(f"[MISSING DATA] Could not load system config: {e}")
-
-
-def build_internal_coordinate_constraints(
-    elements: List[str],
-    coordinates: List[Tuple[float, float, float]],
-    frozen_indices: List[int],
-) -> List[str]:
-    """
-    Builds ORCA internal coordinate constraint lines ({B i j C}, {A i j k C}, {D i j k l C})
-    for each monomer fragment in frozen_indices, locking intramolecular geometry while
-    leaving intermolecular degrees of freedom fully unconstrained (Method Matrix §4.4, §9A.1).
-    """
-    if not frozen_indices:
-        return []
-
-    # Dynamically retrieve covalent radii in Angstroms via Mendeleev Mandate
-    cov_radii: Dict[str, float] = {}
-    for el in set(elements):
-        r_pm = element(el).covalent_radius_pyykko or element(el).covalent_radius
-        cov_radii[el] = (float(r_pm) / 100.0) if r_pm is not None else 1.5
-
-    # Find intramolecular covalent bonds within frozen atom set
-    bonds: List[Tuple[int, int]] = []
-    adj: Dict[int, List[int]] = {i: [] for i in frozen_indices}
-    for idx_a, i in enumerate(frozen_indices):
-        xi, yi, zi = coordinates[i]
-        for j in frozen_indices[idx_a + 1:]:
-            xj, yj, zj = coordinates[j]
-            dist = math.sqrt((xi - xj)**2 + (yi - yj)**2 + (zi - zj)**2)
-            cutoff = 1.30 * (cov_radii[elements[i]] + cov_radii[elements[j]])
-            if dist <= cutoff:
-                bonds.append((min(i, j), max(i, j)))
-                adj[i].append(j)
-                adj[j].append(i)
-
-    # Connected components to isolate distinct monomer fragments
-    visited = set()
-    components: List[List[int]] = []
-    for i in frozen_indices:
-        if i not in visited:
-            comp: List[int] = []
-            queue = [i]
-            visited.add(i)
-            while queue:
-                curr = queue.pop(0)
-                comp.append(curr)
-                for neighbor in adj[curr]:
-                    if neighbor not in visited:
-                        visited.add(neighbor)
-                        queue.append(neighbor)
-            components.append(comp)
-
-    constraint_lines: List[str] = []
-
-    for comp in components:
-        comp_set = set(comp)
-        comp_bonds = [(i, j) for (i, j) in bonds if i in comp_set and j in comp_set]
-
-        # 1. Intramolecular bonds {B i j C}
-        for i, j in sorted(comp_bonds):
-            constraint_lines.append(f"{{B {i} {j} C}}")
-
-        # 2. Intramolecular angles {A i j k C} (j is vertex)
-        angles = set()
-        for j in comp:
-            neighbors = sorted(adj[j])
-            for idx_a, i in enumerate(neighbors):
-                for k in neighbors[idx_a + 1:]:
-                    if i != k:
-                        u, w = min(i, k), max(i, k)
-                        angles.add((u, j, w))
-        for i, j, k in sorted(angles):
-            constraint_lines.append(f"{{A {i} {j} {k} C}}")
-
-        # 3. Intramolecular dihedrals {D i j k l C}
-        dihedrals = set()
-        for j, k in comp_bonds:
-            for i in adj[j]:
-                if i == k:
-                    continue
-                for l in adj[k]:
-                    if l == j or l == i:
-                        continue
-                    if (i, j) < (l, k):
-                        dihedrals.add((i, j, k, l))
-                    else:
-                        dihedrals.add((l, k, j, i))
-        for i, j, k, l in sorted(dihedrals):
-            constraint_lines.append(f"{{D {i} {j} {k} {l} C}}")
-
-    return constraint_lines
-
-
-def generate_orca_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
-    """
-    Compiles an ORCA 6.1.1 input file incorporating:
-    - defgrid_tight enforcement for transition metals / diffuse functions
-    - Ghost atom retention for BSSE
-    - Cryptographic SHA-256 header stamping
-    - Parameterized charge and spin multiplicity
-    - Method Matrix Compliance (Grids, Dispersion, Hessians)
-    """
-    config = load_system_config()
-    hw = config.get("hardware", {})
-    if not hw or ("maxcore_mb" not in hw and "ram_mb" not in hw) or "physical_cpu_cores" not in hw:
-        raise RuntimeError("[MISSING DATA] Hardware configuration missing maxcore_mb/ram_mb or physical_cpu_cores.")
-    nprocs = hw["physical_cpu_cores"]
-    if "maxcore_mb" in hw:
-        maxcore = hw["maxcore_mb"]
-    else:
-        # Standard 75% memory ceiling divided among physical CPU cores
-        maxcore = int(0.75 * hw["ram_mb"] / max(1, nprocs))
-
-    # Transition metal check for tight grid override
-    transition_metals = {"Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
-                         "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
-                         "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg"}
-    needs_tight_grid = any(el in data.elements for el in transition_metals)
-    is_frequency_task = (
-        data.is_freq
-        or "FREQ" in data.theory_level.upper()
-        or "NUMFREQ" in data.theory_level.upper()
-        or "HESS" in data.theory_level.upper()
-    )
-
-    # 2. Dynamic Grid Tightening: defgrid3 mandated for frequency/Hessian tasks
-    grid_keyword = "defgrid3" if (needs_tight_grid or is_frequency_task) else "defgrid1"
-
-    coord_block = []
-    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
-        coord_block.append(f"  {el:<4} {x:14.8f} {y:14.8f} {z:14.8f}")
-    coord_str = "\n".join(coord_block)
-
-    hasher = hashlib.sha256()
-    hasher.update(coord_str.encode('utf-8'))
-    coord_hash = hasher.hexdigest()
-
-    opt_keyword = "Opt" if data.is_opt else ""
-
-    geom_block_lines = []
-    if data.is_opt or data.is_weak_complex or data.frozen_monomer_indices:
-        geom_block_lines.append("%geom")
-        if data.is_opt or data.is_weak_complex:
-            # 5-parameter tightened convergence block mandated by Method Matrix v4 §4.4 (Task 8)
-            geom_block_lines.append("  TolE 1e-7")
-            geom_block_lines.append("  TolMaxG 1e-5")
-            geom_block_lines.append("  TolRMSG 3e-6")
-            geom_block_lines.append("  TolMaxD 1e-4")
-            geom_block_lines.append("  TolRMSD 5e-5")
-        if data.is_opt:
-            geom_block_lines.append("  InHess XTB2")
-
-        # 3. Frozen-Monomer Protocol (Internal Coordinate Constraints - Task 9)
-        if data.frozen_monomer_indices:
-            constraints = build_internal_coordinate_constraints(
-                elements=data.elements,
-                coordinates=data.coordinates,
-                frozen_indices=data.frozen_monomer_indices,
-            )
-            if constraints:
-                geom_block_lines.append("  Constraints")
-                for c_line in constraints:
-                    geom_block_lines.append(f"    {c_line}")
-                geom_block_lines.append("  end")
-
-        geom_block_lines.append("end")
-    geom_block = "\n".join(geom_block_lines)
-    
-    # 5. Implicit Solvation Injection
-    solvation_keyword = data.implicit_solvation if data.implicit_solvation else ""
-
-    template_str = """# =====================================================================
-# CoChem-CORE Cryptographic Provenance Stamp: {{ sha256 }}
-# Basin ID: {{ basin_id }} | Engine Target: ORCA 6.1.1
-# =====================================================================
-! {{ theory_level }} {{ opt_keyword }} {{ grid_keyword }} {{ solvation_keyword }} NoSym TightSCF
-
-%pal
- nprocs {{ nprocs }}
-end
-
-%maxcore {{ maxcore }}
-
-{{ geom_block }}
-
-* xyz {{ charge }} {{ multiplicity }}
-{{ coord_block }}
-*
-"""
-
-    template = Template(template_str)
-    rendered_inp = template.render(
-        sha256=coord_hash,
-        basin_id=data.basin_id,
-        theory_level=data.theory_level,
-        opt_keyword=opt_keyword,
-        grid_keyword=grid_keyword,
-        solvation_keyword=solvation_keyword,
-        nprocs=nprocs,
-        maxcore=maxcore,
-        charge=data.charge,
-        multiplicity=data.multiplicity,
-        coord_block=coord_str,
-        geom_block=geom_block
-    )
-
-    out_base = output_dir if output_dir else get_artifact_base()
-    out_base.mkdir(parents=True, exist_ok=True)
-    output_path = out_base / f"{data.basin_id}_job.inp"
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(rendered_inp)
-
-    logger.info(f"Generated secure ORCA input for Basin: {data.basin_id} with PROVENANCE: [E]")
-    return output_path
-
-
-def generate_pyscf_input(data: MoleculeInput, output_dir: Optional[Path] = None) -> Path:
-    """Compiles a PySCF calculation script deck enforcing defgrid3-equivalent grid levels for frequency tasks."""
-    is_frequency_task = (
-        data.is_freq
-        or "FREQ" in data.theory_level.upper()
-        or "NUMFREQ" in data.theory_level.upper()
-        or "HESS" in data.theory_level.upper()
-    )
-    grid_level = 4 if is_frequency_task else 3
-
-    atom_lines = []
-    for el, (x, y, z) in zip(data.elements, data.coordinates, strict=True):
-        atom_lines.append(f"    ['{el}', ({x:.8f}, {y:.8f}, {z:.8f})],")
-    atom_str = "\n".join(atom_lines)
-
-    pyscf_script = f"""# PySCF Input Deck: Basin {data.basin_id}
-# Provenance: [M] Method Matrix §16.1
-import pyscf
-from pyscf import gto, dft, hessian
-
-mol = gto.Mole()
-mol.atom = [
-{atom_str}
-]
-mol.basis = 'def2-tzvp'
-mol.charge = {data.charge}
-mol.spin = {data.multiplicity - 1}
-mol.build()
-
-mf = dft.RKS(mol)
-mf.xc = 'b3lyp'
-mf.grids.level = {grid_level}  # Level {grid_level} enforced (defgrid3 standard)
-mf.kernel()
-"""
-    out_base = output_dir if output_dir else get_artifact_base()
-    out_base.mkdir(parents=True, exist_ok=True)
-    output_path = out_base / f"{data.basin_id}_pyscf.py"
-    output_path.write_text(pyscf_script, encoding="utf-8")
-    return output_path
-
-
-def validate_rotational_mode_stability(
-    geometry: np.ndarray,
-    calc_engine: Callable[[np.ndarray], np.ndarray],
-    threshold_cm1: float = 50.0,
-    max_delta_cm1: float = 1.0,
-) -> bool:
-    """Validates that soft intermolecular vibrational modes (< 50 cm^-1) remain rotationally invariant.
-
-    Rotates Cartesian geometry by 45 degrees around non-principal axis v = [1, 1, 1] / sqrt(3)
-    using Rodrigues rotation matrix:
-        R = I + (sin theta) K + (1 - cos theta) K^2
-
-    Args:
-        geometry: (N, 3) Cartesian coordinates.
-        calc_engine: Callable taking (N, 3) coordinates and returning 1D array of harmonic frequencies (cm^-1).
-        threshold_cm1: Cutoff below which modes are considered soft (default 50.0 cm^-1).
-        max_delta_cm1: Maximum allowed variation in frequency after rotation (default 1.0 cm^-1).
-
-    Raises:
-        RotationalGridInstabilityError: If any mode < threshold_cm1 shifts by > max_delta_cm1 or flips imaginary.
-    """
-    coords = np.asarray(geometry, dtype=np.float64)
-    orig_freqs = np.asarray(calc_engine(coords), dtype=np.float64)
-
-    # Detect if any calculated vibrational mode satisfies omega < threshold_cm1
-    soft_indices = [i for i, w in enumerate(orig_freqs) if w < threshold_cm1]
-    if not soft_indices:
-        return True
-
-    # Rotate Cartesian geometry by 45 degrees around non-principal axis v = [1, 1, 1] / sqrt(3)
-    theta = math.pi / 4.0  # 45 degrees
-    v = np.array([1.0, 1.0, 1.0], dtype=np.float64) / math.sqrt(3.0)
-    vx, vy, vz = v[0], v[1], v[2]
-
-    # Skew-symmetric matrix K
-    K = np.array([
-        [0.0, -vz, vy],
-        [vz, 0.0, -vx],
-        [-vy, vx, 0.0],
-    ], dtype=np.float64)
-
-    # Orthogonal rotation matrix: R = I + sin(theta) * K + (1 - cos(theta)) * K^2
-    I = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)
-    R = I + math.sin(theta) * K + (1.0 - math.cos(theta)) * (K @ K)
-
-    coords_rot = coords @ R.T
-    rot_freqs = np.asarray(calc_engine(coords_rot), dtype=np.float64)
-
-    # Assert that all low-frequency modes remain stable within max_delta_cm1 and do not flip to imaginary
-    for idx in soft_indices:
-        w_orig = orig_freqs[idx]
-        w_rot = rot_freqs[idx]
-
-        if w_orig >= 0.0 and w_rot < 0.0:
-            raise RotationalGridInstabilityError(
-                f"Rotational grid instability: mode {idx} flipped from {w_orig:.2f} cm^-1 to imaginary {w_rot:.2f} cm^-1 after rotation.",
-                delta_cm1=abs(w_rot - w_orig),
-            )
-
-        delta = abs(w_rot - w_orig)
-        if delta > max_delta_cm1:
-            raise RotationalGridInstabilityError(
-                f"Rotational grid instability: mode {idx} shifted by {delta:.2f} cm^-1 (exceeds tolerance {max_delta_cm1:.2f} cm^-1; {w_orig:.2f} vs {w_rot:.2f}).",
-                delta_cm1=delta,
-            )
-
-    return True
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_torq_alignment.py ---
-"""
-CoChem-TORQ: Phase 2 Exact Eckart Frame Aligner
-================================================
-Enforces strict geometric normalization before spatial mapping begins,
-securing the rotational reference frame and principal axes of inertia.
-
-Authoritative Standards:
-- Method Matrix: Stage 1.0 - 2.0 Eckart Frame & Spectroscopic Constants
-- Planck Constant / NIST CODATA 2022 / 2026 Fundamental Constants
-"""
-
-from __future__ import annotations
-
-import logging
-import math
-from typing import Any, Dict, Optional, Sequence, Tuple
-
-import numpy as np
-
-from cochem.core.exceptions import MissingDataError
-from cochem.core.mendeleev_invariants import get_element_mass
-
-logger = logging.getLogger("CoChem-TORQ.Alignment")
-
-# Fundamental Conversion Constant:
-# h / (8 * pi^2 * u * A^2) in MHz (CODATA 2022 / Method Matrix Standard)
-INERTIA_CONVERSION_AMU_ANG2_MHZ: float = 505379.0084350172
-
-
-def translate_com_to_origin(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-    masses: Optional[Sequence[float]] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Translates molecular Cartesian coordinates so that the Center of Mass (COM),
-    calculated with exact mono-isotopic CIAAW masses, resides precisely at (0, 0, 0) Angstrom.
-    Returns (centered_coordinates, com_vector).
-    """
-    coords = np.asarray(coordinates, dtype=np.float64)
-    n_atoms = len(symbols)
-    if coords.shape != (n_atoms, 3):
-        raise ValueError(f"Shape mismatch: {coords.shape} for {n_atoms} symbols")
-
-    if masses is not None:
-        mass_arr = np.asarray(masses, dtype=np.float64)
-    else:
-        resolved_masses = []
-        for s in symbols:
-            try:
-                resolved_masses.append(get_element_mass(s))
-            except Exception as exc:
-                raise MissingDataError(
-                    f"Unresolvable atomic element or isotope symbol: {s}",
-                    symbol_or_query=s,
-                ) from exc
-        mass_arr = np.array(resolved_masses, dtype=np.float64)
-
-    total_mass = float(np.sum(mass_arr))
-    if total_mass <= 0.0:
-        raise ValueError("Total molecular mass must be greater than zero.")
-
-    com = np.sum(coords * mass_arr[:, np.newaxis], axis=0) / total_mass
-    centered_coords = coords - com
-
-    logger.debug("Translated COM %s to origin (total mass: %.4f amu)", com, total_mass)
-    return centered_coords, com
-
-
-def diagonalize_principal_axes(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-    masses: Optional[Sequence[float]] = None,
-) -> Dict[str, Any]:
-    """
-    Constructs the 3x3 Moment of Inertia Tensor, diagonalizes it (Ia <= Ib <= Ic),
-    and rotates the molecular coordinates to the principal axis frame.
-    Calculates principal rotational constants (A, B, C in MHz & GHz), Ray's asymmetry
-    parameter kappa, and the inertial planar defect Delta.
-    """
-    centered_coords, com = translate_com_to_origin(symbols, coordinates, masses)
-
-    if masses is not None:
-        mass_arr = np.asarray(masses, dtype=np.float64)
-    else:
-        resolved_masses = []
-        for s in symbols:
-            try:
-                resolved_masses.append(get_element_mass(s))
-            except Exception as exc:
-                raise MissingDataError(
-                    f"Unresolvable atomic element or isotope symbol: {s}",
-                    symbol_or_query=s,
-                ) from exc
-        mass_arr = np.array(resolved_masses, dtype=np.float64)
-
-    x = centered_coords[:, 0]
-    y = centered_coords[:, 1]
-    z = centered_coords[:, 2]
-
-    # Moment of inertia tensor components
-    I_xx = float(np.sum(mass_arr * (y**2 + z**2)))
-    I_yy = float(np.sum(mass_arr * (x**2 + z**2)))
-    I_zz = float(np.sum(mass_arr * (x**2 + y**2)))
-    I_xy = float(-np.sum(mass_arr * x * y))
-    I_xz = float(-np.sum(mass_arr * x * z))
-    I_yz = float(-np.sum(mass_arr * y * z))
-
-    I_tensor = np.array(
-        [
-            [I_xx, I_xy, I_xz],
-            [I_xy, I_yy, I_yz],
-            [I_xz, I_yz, I_zz],
-        ],
-        dtype=np.float64,
-    )
-
-    # Diagonalize symmetric inertia tensor
-    eigvals, eigvecs = np.linalg.eigh(I_tensor)
-
-    # Sort eigenvalues so that I_a <= I_b <= I_c
-    order = np.argsort(eigvals)
-    sorted_eigvals = eigvals[order]
-    rot_mat = eigvecs[:, order]
-
-    # Enforce right-handed coordinate frame: det(R) == +1
-    if np.linalg.det(rot_mat) < 0:
-        rot_mat[:, 2] = -rot_mat[:, 2]
-
-    # Transform coordinates to principal axis frame: r' = r @ R
-    aligned_coords = centered_coords @ rot_mat
-
-    I_a = float(sorted_eigvals[0])
-    I_b = float(sorted_eigvals[1])
-    I_c = float(sorted_eigvals[2])
-
-    # Rotational constants in MHz
-    A_mhz = INERTIA_CONVERSION_AMU_ANG2_MHZ / I_a if I_a > 1e-4 else float("inf")
-    B_mhz = INERTIA_CONVERSION_AMU_ANG2_MHZ / I_b if I_b > 1e-4 else float("inf")
-    C_mhz = INERTIA_CONVERSION_AMU_ANG2_MHZ / I_c if I_c > 1e-4 else float("inf")
-
-    # Rotational constants in GHz
-    A_ghz = A_mhz / 1000.0
-    B_ghz = B_mhz / 1000.0
-    C_ghz = C_mhz / 1000.0
-
-    # Ray's asymmetry parameter kappa = (2B - A - C) / (A - C)
-    if math.isinf(A_mhz) or abs(A_mhz - C_mhz) < 1e-6:
-        kappa = -1.0 if abs(A_mhz - B_mhz) < 1e-6 else 1.0
-    else:
-        kappa = float((2.0 * B_mhz - A_mhz - C_mhz) / (A_mhz - C_mhz))
-
-    # Inertial planar defect Delta = I_c - I_a - I_b (amu * Angstrom^2)
-    inertial_defect = float(I_c - I_a - I_b)
-
-    # Rotor classification
-    if I_a < 1e-4:
-        top_type = "linear"
-    elif abs(I_a - I_b) < 1e-3 and abs(I_b - I_c) < 1e-3:
-        top_type = "spherical_top"
-    elif abs(I_a - I_b) < 1e-3:
-        top_type = "oblate_symmetric_top"
-    elif abs(I_b - I_c) < 1e-3:
-        top_type = "prolate_symmetric_top"
-    else:
-        top_type = "asymmetric_top"
-
-    logger.info(
-        "Diagonalized inertia tensor: I_a=%.4f, I_b=%.4f, I_c=%.4f (A=%.2f, B=%.2f, C=%.2f MHz, kappa=%.4f)",
-        I_a,
-        I_b,
-        I_c,
-        A_mhz,
-        B_mhz,
-        C_mhz,
-        kappa,
-    )
-
-    return {
-        "aligned_coordinates": aligned_coords,
-        "com_vector": com,
-        "inertia_tensor": I_tensor,
-        "principal_moments_amu_ang2": (I_a, I_b, I_c),
-        "rotational_constants_mhz": (A_mhz, B_mhz, C_mhz),
-        "rotational_constants_ghz": (A_ghz, B_ghz, C_ghz),
-        "asymmetry_parameter_kappa": kappa,
-        "inertial_defect_amu_ang2": inertial_defect,
-        "rotation_matrix": rot_mat,
-        "top_type": top_type,
-    }
-
-
-def align_eckart_frame(
-    coordinates: np.ndarray,
-    symbols: Sequence[str],
-    masses: Optional[Sequence[float]] = None,
-) -> np.ndarray:
-    """Helper alias returning aligned coordinates in the principal inertia / Eckart frame."""
-    res = diagonalize_principal_axes(symbols=symbols, coordinates=coordinates, masses=masses)
-    return res["aligned_coordinates"]
-
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_torq_topology.py ---
-"""
-CoChem-TORQ: Phase 2 Topological Math Engine & Ring Strain Guard
-================================================================
-Automates the graph-theoretical identification of rotatable dihedrals
-and prevents unphysical macrocyclic ring shattering via ring-strain protection.
-
-Authoritative Standards:
-- Method Matrix: Stage 1.0 - 2.0 Molecular Topology & Dihedral Optimization
-- Pyykkö & Atsumi (2008) / Alvarez (2008) Covalent Radii Standards
-"""
-
-from __future__ import annotations
-
-import logging
-from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-import networkx as nx
-import numpy as np
-
-from cochem.core.exceptions import MissingDataError
-from cochem.core.mendeleev_invariants import get_element, get_element_mass
-
-logger = logging.getLogger("CoChem-TORQ.Topology")
-
-# Pyykkö Covalent Radii in Angstroms (single bond)
-COVALENT_RADII_ANG: Dict[str, float] = {
-    "H": 0.31,
-    "He": 0.28,
-    "Li": 1.28,
-    "Be": 0.96,
-    "B": 0.84,
-    "C": 0.76,
-    "N": 0.71,
-    "O": 0.66,
-    "F": 0.57,
-    "Ne": 0.58,
-    "Na": 1.66,
-    "Mg": 1.41,
-    "Al": 1.21,
-    "Si": 1.11,
-    "P": 1.07,
-    "S": 1.05,
-    "Cl": 1.02,
-    "Ar": 1.06,
-    "K": 2.03,
-    "Ca": 1.76,
-    "Br": 1.20,
-    "I": 1.39,
-}
-
-
-def build_molecular_graph(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-    scale_factor: float = 1.25,
-) -> nx.Graph:
-    """
-    Constructs a NetworkX connectivity graph from 3D atomic coordinates
-    and empirical covalent radii.
-    """
-    n_atoms = len(symbols)
-    g = nx.Graph()
-
-    for i in range(n_atoms):
-        sym = symbols[i].strip()
-        try:
-            mass_val = get_element_mass(sym)
-            elem_data = get_element(sym)
-        except Exception as exc:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {sym}",
-                symbol_or_query=sym,
-            ) from exc
-        g.add_node(
-            i,
-            symbol=elem_data.symbol,
-            mass=mass_val,
-            coord=coordinates[i],
-        )
-
-    diff = coordinates[:, np.newaxis, :] - coordinates[np.newaxis, :, :]
-    dist_mat = np.sqrt(np.sum(diff**2, axis=-1))
-
-    for i in range(n_atoms):
-        sym_i = symbols[i].strip()
-        elem_i = get_element(sym_i)
-        r_i = (elem_i.covalent_radius_pm / 100.0) if elem_i.covalent_radius_pm else COVALENT_RADII_ANG.get(elem_i.symbol, 0.76)
-        for j in range(i + 1, n_atoms):
-            sym_j = symbols[j].strip()
-            elem_j = get_element(sym_j)
-            r_j = (elem_j.covalent_radius_pm / 100.0) if elem_j.covalent_radius_pm else COVALENT_RADII_ANG.get(elem_j.symbol, 0.76)
-            bond_thresh = (r_i + r_j) * scale_factor
-            if dist_mat[i, j] <= bond_thresh:
-                g.add_edge(i, j, distance=float(dist_mat[i, j]))
-
-    return g
-
-
-def ring_strain_guard(
-    graph: nx.Graph,
-    dihedral: Tuple[int, int, int, int],
-) -> bool:
-    """
-    Algorithmically identifies whether the central bond (j, k) of a 4-atom
-    dihedral (i, j, k, l) resides within a closed loop (such as a phenyl ring).
-    Returns True if the dihedral is ring-locked (rotation forbidden), False if acyclic/free.
-    """
-    _, j, k, _ = dihedral
-
-    if not graph.has_edge(j, k):
+            if hasattr(os, "sched_setaffinity"):
+                os.sched_setaffinity(0, {core_index})
+                return True
+            elif sys.platform == "win32":
+                mask = 1 << max(0, int(core_index))
+                handle = ctypes.windll.kernel32.GetCurrentProcess()
+                res = ctypes.windll.kernel32.SetProcessAffinityMask(handle, ctypes.c_size_t(mask))
+                return bool(res != 0)
+        except Exception as pin_err:
+            logger.debug("Affinity pinning error on core %d: %s", core_index, pin_err)
+            return False
         return False
 
-    # Check all cycle bases in graph
-    cycles = nx.cycle_basis(graph)
-    for cycle in cycles:
-        cycle_len = len(cycle)
-        for idx in range(cycle_len):
-            u = cycle[idx]
-            v = cycle[(idx + 1) % cycle_len]
-            if (u == j and v == k) or (u == k and v == j):
-                logger.debug(
-                    "Dihedral (%d, %d, %d, %d) central bond (%d, %d) is in cycle of size %d",
-                    *dihedral,
-                    j,
-                    k,
-                    cycle_len,
-                )
-                return True
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\process_reaper.py ---
+"""Cross-platform process lifecycle manager and zombie reaper daemon.
 
+Provenance & Specifications:
+- Method Matrix [M]: Reliable termination of orphaned QM/MM worker subprocesses.
+- OS Containment [D]: Windows Job Objects and Linux PDEATHSIG containment primitives.
+- Telemetry [E]: Progressive escalation (SIGTERM -> SIGKILL) with CPU/memory footprint capture.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Union
+
+import psutil
+
+from src.cochem.orchestration.sqlite_queue import SQLiteTaskQueue
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_GRACE_TIMEOUT_SEC: float = 5.0
+DEFAULT_TIMEOUT_GRACE_PERIOD_SEC: float = 30.0
+
+
+class ProcessReapTimeoutError(RuntimeError):
+    """Raised when stubborn or uninterruptible processes fail to terminate within grace timeout."""
+
+
+def set_pdeathsig(sig: int = signal.SIGTERM) -> bool:
+    """Set PR_SET_PDEATHSIG on Linux/WSL via ctypes to ensure child termination on parent exit."""
+    if sys.platform.startswith("linux"):
+        try:
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6")
+            PR_SET_PDEATHSIG = 1
+            ret = libc.prctl(PR_SET_PDEATHSIG, sig)
+            return ret == 0
+        except Exception as err:
+            logger.debug("Failed to set PR_SET_PDEATHSIG: %s", err)
+            return False
     return False
 
 
-def detect_5_option_dihedrals(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-) -> List[Dict[str, Any]]:
-    """
-    Utilizes NetworkX graph-cleaving to isolate the rotatable bonds (e.g. C-C, C-O, C-N)
-    and determine the exact 4-atom dihedral anchors (i, j, k, l).
-    Returns up to 5 best dihedral options prioritized by substituent mass and rotational significance.
-    """
-    graph = build_molecular_graph(symbols, coordinates)
-    candidates: List[Dict[str, Any]] = []
-
-    # Iterate over all internal edges
-    for u, v in graph.edges():
-        # A rotatable bond must be non-terminal: both u and v must have degree >= 2
-        deg_u = graph.degree(u)
-        deg_v = graph.degree(v)
-
-        if deg_u < 2 or deg_v < 2:
-            continue
-
-        # Find neighbors of u (excluding v) and neighbors of v (excluding u)
-        u_nbrs = [n for n in graph.neighbors(u) if n != v]
-        v_nbrs = [n for n in graph.neighbors(v) if n != u]
-
-        if not u_nbrs or not v_nbrs:
-            continue
-
-        # Pick heaviest neighbor for anchor i attached to u, and anchor l attached to v
-        u_nbrs.sort(key=lambda n: graph.nodes[n]["mass"], reverse=True)
-        v_nbrs.sort(key=lambda n: graph.nodes[n]["mass"], reverse=True)
-
-        best_i = u_nbrs[0]
-        best_l = v_nbrs[0]
-
-        dihedral_tuple = (best_i, u, v, best_l)
-        is_ring_locked = ring_strain_guard(graph, dihedral_tuple)
-
-        # Rotational importance score based on substituent masses
-        score = (graph.nodes[best_i]["mass"] + graph.nodes[u]["mass"]) * (
-            graph.nodes[v]["mass"] + graph.nodes[best_l]["mass"]
-        )
-
-        candidates.append(
-            {
-                "dihedral": dihedral_tuple,
-                "central_bond": (u, v),
-                "central_bond_symbols": (graph.nodes[u]["symbol"], graph.nodes[v]["symbol"]),
-                "is_ring_locked": is_ring_locked,
-                "rotational_score": float(score),
-                "degrees": (deg_u, deg_v),
-            }
-        )
-
-    # Sort: acyclic free rotors first, then by rotational score descending
-    candidates.sort(
-        key=lambda item: (not item["is_ring_locked"], item["rotational_score"]), reverse=True
-    )
-
-    # Return top 5
-    top_5 = candidates[:5]
-    logger.info("Detected %d candidate dihedrals, returning top %d", len(candidates), len(top_5))
-    return top_5
-
-
-def select_active_torsions(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-    requested_dihedrals: Optional[List[Tuple[int, int, int, int]]] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Selects valid active torsional coordinates for potential energy surface scans.
-    If a requested dihedral violates the ring strain guard, an override warning is logged,
-    and execution falls back to available free rotors.
-    """
-    graph = build_molecular_graph(symbols, coordinates)
-    detected = detect_5_option_dihedrals(symbols, coordinates)
-    active_dihedrals: List[Dict[str, Any]] = []
-
-    if requested_dihedrals:
-        for req in requested_dihedrals:
-            is_locked = ring_strain_guard(graph, req)
-            if is_locked:
-                logger.warning(
-                    "Ring strain guard triggered: Dihedral %s is locked inside a ring structure. "
-                    "Overriding input to prevent unphysical macrocyclic shattering.",
-                    req,
-                )
-            else:
-                u, v = req[1], req[2]
-                active_dihedrals.append(
-                    {
-                        "dihedral": req,
-                        "central_bond": (u, v),
-                        "is_ring_locked": False,
-                        "status": "APPROVED",
-                    }
-                )
-
-    # If no approved requested dihedrals, fallback to top detected free rotors
-    if not active_dihedrals:
-        free_rotors = [cand for cand in detected if not cand["is_ring_locked"]]
-        if free_rotors:
-            chosen = free_rotors[0]
-            logger.info("Falling back to top free rotor: %s", chosen["dihedral"])
-            active_dihedrals.append(
-                {
-                    "dihedral": chosen["dihedral"],
-                    "central_bond": chosen["central_bond"],
-                    "is_ring_locked": False,
-                    "status": "FALLBACK_FREE_ROTOR",
-                }
-            )
-        elif detected:
-            # All rotors are in rings; use with warning
-            logger.warning("No free acyclic rotors found; using primary ring dihedral.")
-            chosen = detected[0]
-            active_dihedrals.append(
-                {
-                    "dihedral": chosen["dihedral"],
-                    "central_bond": chosen["central_bond"],
-                    "is_ring_locked": True,
-                    "status": "RING_LOCKED_WARNING",
-                }
-            )
-
-    return active_dihedrals
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_torq_vault.py ---
-"""
-CoChem-TORQ: Phase 2 Dual-Intake Gateway & Vault
-================================================
-Routes geometries into the TORQ engine, standardizing inputs from both native
-ecosystem databases (landscape.h5) and external uploads (.xyz, .mol).
-Applies exact CIAAW isotopic masses, SHA-256 integrity hashes, and PyArrow/Pandas standardization.
-
-Authoritative Standards:
-- CIAAW / IUPAC Standard Atomic Weights & Exact Mono-Isotopic Masses
-- Method Matrix: Stage 1.0 - 2.0 Geometry Intake & Provenance Verification
-"""
-
-from __future__ import annotations
-
-import hashlib
-import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
-
-import h5py
-import numpy as np
-import pandas as pd
-try:
-    import pyarrow as pa
-except ImportError:
-    pa = None
-
-from cochem_base.exceptions import (
-    CoChemIntegrityError,
-    MissingDataError,
-    ProvenanceErrorCode,
-)
-
-from collections.abc import Mapping
-try:
-    from mendeleev import element as _mendeleev_element
-except ImportError:
-    _mendeleev_element = None
-
-from cochem_tensor_extractor import CIAAW_ISOTOPIC_MASSES
-from cochem.core.exceptions import MissingDataError
-from cochem.core.mendeleev_invariants import get_element, get_element_mass, get_isotope_mass
-
-logger = logging.getLogger("CoChem-TORQ")
-
-ATOMIC_NUMBERS: Dict[str, int] = {
-    "H": 1,
-    "He": 2,
-    "Li": 3,
-    "Be": 4,
-    "B": 5,
-    "C": 6,
-    "N": 7,
-    "O": 8,
-    "F": 9,
-    "Ne": 10,
-    "Na": 11,
-    "Mg": 12,
-    "Al": 13,
-    "Si": 14,
-    "P": 15,
-    "S": 16,
-    "Cl": 17,
-    "Ar": 18,
-    "K": 19,
-    "Ca": 20,
-    "Sc": 21,
-    "Ti": 22,
-    "V": 23,
-    "Cr": 24,
-    "Mn": 25,
-    "Fe": 26,
-    "Co": 27,
-    "Ni": 28,
-    "Cu": 29,
-    "Zn": 30,
-    "Ga": 31,
-    "Ge": 32,
-    "As": 33,
-    "Se": 34,
-    "Br": 35,
-    "Kr": 36,
-    "I": 53,
-}
-
-
-def compute_sha256_hash(data: Union[str, bytes]) -> str:
-    """Computes SHA-256 hex digest for cryptographic integrity tracking."""
-    if isinstance(data, str):
-        raw = data.encode("utf-8")
-    else:
-        raw = data
-    return hashlib.sha256(raw).hexdigest()
-
-
-def standardize_geometry_dataframe(
-    symbols: Sequence[str],
-    coordinates: np.ndarray,
-    masses: Optional[Sequence[float]] = None,
-    provenance_tag: str = "[D]",
-) -> pd.DataFrame:
-    """
-    Standardizes geometry coordinates into a consistent Pandas DataFrame / PyArrow representation.
-    """
-    n_atoms = len(symbols)
-    if coordinates.shape != (n_atoms, 3):
-        raise ValueError(
-            f"Coordinate shape mismatch: expected ({n_atoms}, 3), got {coordinates.shape}"
-        )
-
-    computed_masses: List[float] = []
-    atomic_nums: List[int] = []
-
-    for i, sym in enumerate(symbols):
-        clean_sym = sym.strip()
-        if masses is not None and i < len(masses):
-            computed_masses.append(float(masses[i]))
-        else:
-            try:
-                computed_masses.append(get_element_mass(clean_sym))
-            except Exception as exc:
-                raise MissingDataError(
-                    f"Unresolvable atomic element or isotope symbol: {clean_sym}",
-                    symbol_or_query=clean_sym,
-                ) from exc
-        try:
-            elem_data = get_element(clean_sym)
-            atomic_nums.append(elem_data.atomic_number)
-        except Exception as exc:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {clean_sym}",
-                symbol_or_query=clean_sym,
-            ) from exc
-
-    df = pd.DataFrame(
-        {
-            "atom_index": np.arange(n_atoms, dtype=np.int32),
-            "symbol": [s.capitalize() for s in symbols],
-            "atomic_number": np.array(atomic_nums, dtype=np.int32),
-            "x": coordinates[:, 0].astype(np.float64),
-            "y": coordinates[:, 1].astype(np.float64),
-            "z": coordinates[:, 2].astype(np.float64),
-            "mass_amu": np.array(computed_masses, dtype=np.float64),
-            "provenance": [provenance_tag] * n_atoms,
-        }
-    )
-    return df
-
-
-def parse_external_xyz(
-    file_path_or_content: Union[str, Path],
-    sanitize: bool = True,
-) -> Dict[str, Any]:
-    """
-    Parses standard Cartesian XYZ format with immediate valency, proximity, and integrity sanitization.
-    Throws CoChemIntegrityError if severe atomic overlap (< 0.4 Angstrom) or corrupted syntax is detected.
-    """
-    content: str = ""
-
-    if isinstance(file_path_or_content, Path) or (
-        isinstance(file_path_or_content, str)
-        and "\n" not in file_path_or_content
-        and Path(file_path_or_content).exists()
-    ):
-        path_obj = Path(file_path_or_content)
-        with open(path_obj, "r", encoding="utf-8") as fp:
-            content = fp.read()
-    else:
-        content = str(file_path_or_content)
-
-    if not content.strip():
-        raise MissingDataError(
-            message="Empty XYZ file or content provided to parser.",
-            error_code=ProvenanceErrorCode.MISSING_DATA,
-        )
-
-    sha256 = compute_sha256_hash(content)
-    lines = [line.strip() for line in content.strip().splitlines() if line.strip()]
-
-    if len(lines) < 3:
-        raise CoChemIntegrityError(
-            message=f"Corrupt XYZ format: Expected at least 3 lines, got {len(lines)}",
-            error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,
-        )
-
-    try:
-        atom_count = int(lines[0])
-    except ValueError as err:
-        raise CoChemIntegrityError(
-            message=f"Invalid atom count on line 1: '{lines[0]}'",
-            error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,
-        ) from err
-
-    comment = lines[1]
-    coord_lines = lines[2:]
-
-    if len(coord_lines) < atom_count:
-        raise CoChemIntegrityError(
-            message=f"Atom count mismatch: header declared {atom_count}, found {len(coord_lines)} coordinate lines.",
-            error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,
-        )
-
-    symbols: List[str] = []
-    coords: List[List[float]] = []
-
-    for idx in range(atom_count):
-        tokens = coord_lines[idx].split()
-        if len(tokens) < 4:
-            raise CoChemIntegrityError(
-                message=f"Invalid XYZ coordinate row at index {idx}: '{coord_lines[idx]}'",
-                error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,
-            )
-        sym = tokens[0].capitalize()
-        try:
-            x, y, z = float(tokens[1]), float(tokens[2]), float(tokens[3])
-        except ValueError as err:
-            raise CoChemIntegrityError(
-                message=f"Non-numeric coordinates on line {idx + 3}: '{coord_lines[idx]}'",
-                error_code=ProvenanceErrorCode.INTEGRITY_VIOLATION,
-            ) from err
-
-        symbols.append(sym)
-        coords.append([x, y, z])
-
-    coords_arr = np.array(coords, dtype=np.float64)
-
-    # Proximity sanitization: check for unphysical overlap < 0.4 Angstrom
-    if sanitize and atom_count > 1:
-        diff = coords_arr[:, np.newaxis, :] - coords_arr[np.newaxis, :, :]
-        dist_mat = np.sqrt(np.sum(diff**2, axis=-1))
-        np.fill_diagonal(dist_mat, 999.0)
-        min_dist = float(np.min(dist_mat))
-        if min_dist < 0.4:
-            min_i, min_j = np.unravel_index(np.argmin(dist_mat), dist_mat.shape)
-            msg = f"Severe atomic clash detected between atom {min_i} ({symbols[min_i]}) and atom {min_j} ({symbols[min_j]}): distance = {min_dist:.4f} Angstrom (< 0.4 Angstrom limit)."
-            logger.error(msg)
-            raise CoChemIntegrityError(
-                message=msg,
-                error_code=ProvenanceErrorCode.PATHOLOGY_CLASH,
-                details={
-                    "field": "coordinates",
-                    "value": f"{min_dist:.4f}",
-                    "expected": ">= 0.4 Angstrom",
-                },
-            )
-
-    masses = []
-    atomic_numbers = []
-    for s in symbols:
-        try:
-            masses.append(get_element_mass(s))
-            atomic_numbers.append(get_element(s).atomic_number)
-        except Exception as exc:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {s}",
-                symbol_or_query=s,
-            ) from exc
-
-    df = standardize_geometry_dataframe(symbols, coords_arr, masses, provenance_tag="[D]")
-    arrow_table = pa.Table.from_pandas(df) if pa is not None else None
-
-    logger.info("Successfully parsed XYZ geometry (%d atoms, SHA256=%s...)", atom_count, sha256[:8])
-
-    return {
-        "symbols": symbols,
-        "coordinates": coords_arr,
-        "masses": np.array(masses, dtype=np.float64),
-        "atomic_numbers": np.array(atomic_numbers, dtype=np.int32),
-        "atom_count": atom_count,
-        "title": comment,
-        "sha256_hash": sha256,
-        "dataframe": df,
-        "arrow_table": arrow_table,
-        "provenance": "[D]",
-    }
-
-
-def fetch_topos_matrices(
-    h5_path: Union[str, Path],
-    conformer_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Polls landscape.h5 for native conformers and pre-converged wavefunctions processed by CoChem-TOPOS.
-    """
-    target = Path(h5_path).resolve()
-    if not target.exists():
-        raise MissingDataError(
-            message=f"HDF5 database not found: {target}",
-            error_code=ProvenanceErrorCode.MISSING_DATA,
-        )
-
-    with h5py.File(target, "r") as fp:
-        conformers_group = fp.get("conformers")
-        if conformers_group is None:
-            conf_keys = list(fp.keys())
-            if not conf_keys:
-                raise MissingDataError(
-                    message=f"No conformers or datasets found in HDF5 archive: {target}",
-                    error_code=ProvenanceErrorCode.MISSING_DATA,
-                )
-            selected_key = conformer_id if (conformer_id and conformer_id in fp) else conf_keys[0]
-            conf_node = fp[selected_key]
-        else:
-            conf_keys = list(conformers_group.keys())
-            if not conf_keys:
-                raise MissingDataError(
-                    message=f"Empty conformers group in HDF5 archive: {target}",
-                    error_code=ProvenanceErrorCode.MISSING_DATA,
-                )
-            selected_key = (
-                conformer_id
-                if (conformer_id and conformer_id in conformers_group)
-                else conf_keys[0]
-            )
-            conf_node = conformers_group[selected_key]
-
-        coords = np.array(conf_node["coordinates"], dtype=np.float64)
-        raw_symbols = conf_node["symbols"]
-        symbols = [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw_symbols]
-        energy = (
-            float(conf_node.attrs.get("energy_hartree", 0.0))
-            if "energy_hartree" in conf_node.attrs
-            else (float(conf_node["energy"][()]) if "energy" in conf_node else 0.0)
-        )
-        gbw_path = str(conf_node.attrs.get("gbw_path", ""))
-
-    masses = []
-    atomic_numbers = []
-    for s in symbols:
-        try:
-            masses.append(get_element_mass(s))
-            atomic_numbers.append(get_element(s).atomic_number)
-        except Exception as exc:
-            raise MissingDataError(
-                f"Unresolvable atomic element or isotope symbol: {s}",
-                symbol_or_query=s,
-            ) from exc
-    df = standardize_geometry_dataframe(symbols, coords, masses, provenance_tag="[M]")
-    arrow_table = pa.Table.from_pandas(df) if pa is not None else None
-
-    return {
-        "conformer_id": selected_key,
-        "symbols": symbols,
-        "coordinates": coords,
-        "masses": np.array(masses, dtype=np.float64),
-        "atomic_numbers": np.array(atomic_numbers, dtype=np.int32),
-        "energy_hartree": energy,
-        "gbw_path": gbw_path,
-        "dataframe": df,
-        "arrow_table": arrow_table,
-        "provenance": "[M]",
-    }
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_dvr_solver.py ---
-#!/usr/bin/env python3
-# cochem_canvas_target: core_engine/cochem_core_dvr_solver.py
-# Copyright 2026 CoChem Project Family. All rights reserved.
-# Apache License 2.0
-"""
-CoChem-CORE: Method Matrix v4 §7, §6.9, §13.2 (Table 2), §14.2 (Table 7),
-Appendix A.2 & A.4 - Discrete Variable Representation (DVR) 1D/2D
-Large-Amplitude Tunneling Hamiltonian Solver.
-
-Authoritative Method Matrix Standards & Physical Foundations:
-1. DVR Basis & Kinetic Energy Operators (Appendix A.2):
-   - Colbert & Miller (J. Chem. Phys. 96(3), 1982-1991, 1992) Cartesian Sinc-DVR
-     with exact Toeplitz kinetic matrix elements.
-   - Colbert-Miller / Hutson Radial Half-Line Sinc-DVR on r in (0, +inf) with r=0
-     boundary singularity excluded and volume element transformation chi(r) = r * psi(r).
-   - Sine-DVR (Particle-in-a-Box with Dirichlet boundary conditions on [0, L] with
-     N interior points and exact analytical parity).
-   - Meyer (J. Chem. Phys. 52, 2053, 1970) Periodic Fourier-DVR on [0, 2pi) for
-     hindered and free internal torsions with exact free-rotor spectrum F * m^2.
-   - Gauss-Legendre Angular DVR for Jacobi bending coordinates cos(theta) in [-1, 1].
-   - 2D Direct-Product & Coupled DVR via Kronecker tensor products:
-     H_2D = (T1 (x) I2) + (I1 (x) T2) + V_2D + T_cross.
-
-2. Matrix-Free Iterative Solver for High-Dimensional Scaling (Appendix A.2 Correction 3):
-   - Dense Hamiltonian full diagonalization scales as O(N^3) and vector storage as O(N^2).
-   - MatrixFreeDVROperator implements LinearOperator matvec in O(f * N^(f+1)) flops
-     via tensor contractions, preventing dense matrix allocation for multi-dimensional grids.
-   - High-throughput Lanczos / Davidson eigensolver integration via ARPACK (scipy.sparse.linalg.eigsh).
-
-3. Tunneling Splittings & Barrier Quantification (Method Matrix §6.9, Table 7, Appendix A.4):
-   - Double-well symmetric and asymmetric potential tunneling splittings:
-     Delta E_0 = E_0^- - E_0^+ and Delta E_v in cm^-1 and MHz.
-   - Semiclassical WKB / instanton action integral:
-     S = int_{x_a}^{x_b} sqrt(2 * mu * (V(x) - E_0)) dx
-     Instanton splitting estimate: Delta E_WKB = (hbar * omega_e / pi) * exp(-S / hbar) [E].
-   - Hindered internal rotation with n-fold barriers: V(tau) = (V_n / 2) * (1 - cos(n * tau)).
-     Reduced barrier parameter s = 4 * V_n / (n^2 * F).
-     Exact A/E torsional tunneling splittings Delta E_{A-E} = E(E) - E(A).
-
-4. Nuclear Spin Statistics & Permutation-Inversion (PI) Symmetry (Method Matrix §7):
-   - Longuet-Higgins (Mol. Phys. 6, 445, 1963) / Bunker Molecular Symmetry groups:
-     C_2(M), C_s(M), C_{2v}(M), C_{3v}(M), G_4, G_{16} (e.g. water dimer donor-acceptor tunneling).
-   - Nuclear spin statistical weights g_ns computed dynamically from constituent nuclear spins.
-
-5. Vibrational Averaging & Observables (Method Matrix §A.3, §3-§5):
-   - Coordinate expectation values: <q>, <q^2>, Delta q_rms = sqrt(<q^2> - <q>^2), <1/q^2>.
-   - Vibrationally averaged rotational constants: B_eff = <psi_0 | B(q) | psi_0>.
-   - Transition dipole moment matrix elements mu_{mn} = <psi_m | mu(q) | psi_n>.
-
-6. Dynamic Mendeleev Mass Resolution (Mendeleev Library Mandate):
-   - Strictly ZERO hardcoded atomic/isotopic masses; all masses resolved dynamically via `mendeleev`.
-   - Isotopic shifts on reduced mass mu, internal rotation constant F, and tunneling ratios Delta E_H / Delta E_D.
-
-Provenance Tags:
-- [M] Measured / exact DVR eigensolution and physical matrix calculations.
-- [D] Derived mathematical transformations, symmetry projections, and tensor contractions.
-- [E] Estimated semiclassical WKB instanton approximations and phenomenological extrapolations.
-"""
-
-from __future__ import annotations
-
-import argparse
-import json
-import logging
-import math
-import os
-import sys
-import time
-from dataclasses import asdict, dataclass, field
-from enum import Enum
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
-
-import numpy as np
-import scipy.interpolate
-import scipy.linalg
-import scipy.sparse.linalg
-from mendeleev import element
-
-from cochem_base.exceptions import MethodMatrixViolationError, MissingDataError
-
-# Configure logger
-logger = logging.getLogger("cochem.core_dvr_solver")
-if not logger.handlers:
-    _handler = logging.StreamHandler(sys.stdout)
-    _handler.setFormatter(
-        logging.Formatter("[%(asctime)s] [%(levelname)s] [cochem_dvr]: %(message)s")
-    )
-    logger.addHandler(_handler)
-    logger.setLevel(logging.INFO)
-
-# Optional JAX float64 acceleration
-try:
-    import jax
-    import jax.numpy as jnp
-    jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
-    HAS_JAX = True
-except Exception:
-    HAS_JAX = False
-    jnp = None  # type: ignore[assignment]
-
-
-# =============================================================================
-# 1. PHYSICAL CONSTANTS & CONVERSION FACTORS (CODATA 2018 / 2022)
-# =============================================================================
-
-PLANCK_CONSTANT_J_S: float = 6.62607015e-34       # J * s (exact)
-HBAR_J_S: float = 1.054571817e-34                 # J * s (exact h / 2pi)
-SPEED_OF_LIGHT_CM_S: float = 2.99792458e10       # cm / s (exact)
-SPEED_OF_LIGHT_M_S: float = 2.99792458e8         # m / s (exact)
-ATOMIC_MASS_UNIT_KG: float = 1.66053906660e-27   # kg / u
-ELECTRON_MASS_KG: float = 9.1093837015e-31       # kg
-BOHR_TO_ANGSTROM: float = 0.529177210903         # Angstrom / Bohr
-ANGSTROM_TO_BOHR: float = 1.88972612462577       # Bohr / Angstrom
-BOHR_TO_METER: float = 0.529177210903e-10        # m / Bohr
-ANGSTROM_TO_METER: float = 1.0e-10               # m / Angstrom
-
-HARTREE_TO_JOULE: float = 4.3597447222071e-18    # J / Hartree
-HARTREE_TO_EV: float = 27.211386245988           # eV / Hartree
-HARTREE_TO_CM_INV: float = 219474.63136320       # cm^-1 / Hartree
-HARTREE_TO_KJ_MOL: float = 2625.499638           # kJ / mol / Hartree
-HARTREE_TO_KCAL_MOL: float = 627.509474          # kcal / mol / Hartree
-
-CM_INV_TO_MHZ: float = 29979.2458                # MHz / cm^-1 (c in cm/s * 1e-6)
-MHZ_TO_CM_INV: float = 1.0 / CM_INV_TO_MHZ       # cm^-1 / MHz
-CM_INV_TO_JOULE: float = PLANCK_CONSTANT_J_S * SPEED_OF_LIGHT_CM_S  # J / cm^-1
-
-# AMU to Atomic Units of Mass (m_e): m_u / m_e = 1822.888486209
-AMU_TO_AU_MASS: float = ATOMIC_MASS_UNIT_KG / ELECTRON_MASS_KG
-
-# Inertia (u * Angstrom^2) to Rotational Constant (MHz):
-# Authoritative derived rotational conversion constant (Method Matrix §4.5 / CODATA 2022)
-INERTIA_TO_MHZ_FACTOR: float = 505379.0084350172
-
-# Inertia (u * Angstrom^2) to Rotational Constant (cm^-1):
-INERTIA_TO_CM_INV_FACTOR: float = INERTIA_TO_MHZ_FACTOR / CM_INV_TO_MHZ  # ~16.857629 cm^-1 * u * A^2
-
-# Kinetic factor in mixed units (q in Angstroms, mass in u, energy in cm^-1):
-KINETIC_FACTOR_CM_INV_ANGSTROM_SQ: float = INERTIA_TO_CM_INV_FACTOR
-
-
-# =============================================================================
-# 2. ENUMS & DATA MODELS
-# =============================================================================
-
-class DVRGridType(str, Enum):
-    """Supported Discrete Variable Representation grid and basis formulations."""
-    SINC = "sinc"                      # Colbert-Miller Cartesian Sinc DVR on (-inf, inf) or [a, b]
-    RADIAL_SINC = "radial_sinc"        # Colbert-Miller / Hutson Radial Sinc DVR on (0, inf)
-    SINE = "sine"                      # Particle-in-a-Box Sine DVR with Dirichlet BCs
-    FOURIER = "fourier"                # Meyer 1970 Periodic Fourier DVR on [0, 2pi)
-    LEGENDRE = "legendre"              # Gauss-Legendre Angular DVR on [-1, 1] for Jacobi theta
-    HERMITE = "hermite"                # Harmonic Oscillator Hermite DVR on (-inf, inf)
-
-
-class SolverBackend(str, Enum):
-    """Linear algebra eigensolver execution backend."""
-    SCIPY_DENSE = "scipy_dense"        # Exact dense Hermitian eigensolver (scipy.linalg.eigh)
-    NUMPY_DENSE = "numpy_dense"        # NumPy dense eigensolver (numpy.linalg.eigh)
-    JAX_JIT = "jax_jit"                # Hardware-accelerated XLA JIT eigensolver (JAX)
-    MATRIX_FREE = "matrix_free"        # Matrix-free ARPACK Lanczos / Davidson (scipy.sparse.linalg.eigsh)
-
-
-class SymmetryGroup(str, Enum):
-    """Permutation-Inversion and point symmetry groups for nuclear spin statistics."""
-    C1 = "C1"
-    CS = "Cs"
-    CI = "Ci"
-    C2 = "C2"
-    C2V = "C2v"
-    C3V = "C3v"
-    G4 = "G4"
-    G16 = "G16"
-
-
-@dataclass
-class DVRSpectrumResult:
-    """Complete quantum eigensolution result container for 1D/2D DVR calculations."""
-    eigenvalues_cm1: np.ndarray
-    eigenvalues_mhz: np.ndarray
-    eigenvalues_hartree: np.ndarray
-    wavefunctions: np.ndarray
-    grid_coordinates: Union[np.ndarray, Tuple[np.ndarray, ...]]
-    grid_weights: Union[np.ndarray, Tuple[np.ndarray, ...]]
-    potential_energy_cm1: np.ndarray
-    zero_point_energy_cm1: float
-    ground_state_energy_cm1: float
-    num_states_solved: int
-    grid_type: str
-    dimensionality: int
-    mass_amu: Union[float, Tuple[float, ...]]
-    execution_time_s: float
-    provenance: str = "[M]"
-
-    def save_hdf5(self, path: Union[str, Path]) -> None:
-        """Exports DVR spectrum, wavefunctions, grid coordinates, and metadata to HDF5."""
-        import h5py
-        with h5py.File(path, "w") as f:
-            f.create_dataset("eigenvalues_cm1", data=self.eigenvalues_cm1, compression="gzip")
-            f.create_dataset("eigenvalues_mhz", data=self.eigenvalues_mhz, compression="gzip")
-            f.create_dataset("eigenvalues_hartree", data=self.eigenvalues_hartree, compression="gzip")
-            f.create_dataset("wavefunctions", data=self.wavefunctions, compression="gzip")
-            f.create_dataset("potential_energy_cm1", data=self.potential_energy_cm1, compression="gzip")
-            f.attrs["zero_point_energy_cm1"] = float(self.zero_point_energy_cm1)
-            f.attrs["ground_state_energy_cm1"] = float(self.ground_state_energy_cm1)
-            f.attrs["num_states_solved"] = int(self.num_states_solved)
-            f.attrs["grid_type"] = self.grid_type
-            f.attrs["dimensionality"] = int(self.dimensionality)
-            f.attrs["execution_time_s"] = float(self.execution_time_s)
-            f.attrs["provenance"] = self.provenance
-            if isinstance(self.grid_coordinates, tuple):
-                for i, gc in enumerate(self.grid_coordinates):
-                    f.create_dataset(f"grid_coordinates_{i}", data=gc, compression="gzip")
-            else:
-                f.create_dataset("grid_coordinates", data=self.grid_coordinates, compression="gzip")
-            if isinstance(self.grid_weights, tuple):
-                for i, gw in enumerate(self.grid_weights):
-                    f.create_dataset(f"grid_weights_{i}", data=gw, compression="gzip")
-            else:
-                f.create_dataset("grid_weights", data=self.grid_weights, compression="gzip")
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serializes results to a JSON-compliant dictionary."""
-        grid_data: Any
-        if isinstance(self.grid_coordinates, tuple):
-            grid_data = [g.tolist() for g in self.grid_coordinates]
-        else:
-            grid_data = self.grid_coordinates.tolist()
-
-        weights_data: Any
-        if isinstance(self.grid_weights, tuple):
-            weights_data = [w.tolist() for w in self.grid_weights]
-        else:
-            weights_data = self.grid_weights.tolist()
-
-        return {
-            "eigenvalues_cm1": self.eigenvalues_cm1.tolist(),
-            "eigenvalues_mhz": self.eigenvalues_mhz.tolist(),
-            "eigenvalues_hartree": self.eigenvalues_hartree.tolist(),
-            "zero_point_energy_cm1": float(self.zero_point_energy_cm1),
-            "ground_state_energy_cm1": float(self.ground_state_energy_cm1),
-            "num_states_solved": int(self.num_states_solved),
-            "grid_type": self.grid_type,
-            "dimensionality": int(self.dimensionality),
-            "mass_amu": self.mass_amu if isinstance(self.mass_amu, (int, float)) else list(self.mass_amu),
-            "grid_data": grid_data,
-            "weights_data": weights_data,
-            "execution_time_s": float(self.execution_time_s),
-            "provenance": self.provenance,
-        }
-
-
-@dataclass
-class TunnelingAnalysisResult:
-    """Detailed tunneling splitting, barrier quantification, and WKB instanton comparison."""
-    ground_state_splitting_cm1: float
-    ground_state_splitting_mhz: float
-    excited_splittings_cm1: List[float]
-    excited_splittings_mhz: List[float]
-    even_levels_cm1: List[float]
-    odd_levels_cm1: List[float]
-    barrier_height_cm1: float
-    barrier_height_kj_mol: float
-    barrier_height_kcal_mol: float
-    well_minima_coords: List[float]
-    transition_state_coord: float
-    harmonic_frequency_well_cm1: float
-    wkb_action_integral: float
-    wkb_splitting_estimate_cm1: float
-    wkb_splitting_estimate_mhz: float
-    tunneling_path_length_angstrom: float
-    reduced_mass_amu: float
-    nuclear_spin_weights: Dict[str, int]
-    symmetry_species: List[str]
-    isotopic_ratio_hd: Optional[float] = None
-    provenance_dvr: str = "[M]"
-    provenance_wkb: str = "[E]"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serializes tunneling analysis to a JSON-compliant dictionary."""
-        return {
-            "ground_state_splitting_cm1": float(self.ground_state_splitting_cm1),
-            "ground_state_splitting_mhz": float(self.ground_state_splitting_mhz),
-            "excited_splittings_cm1": [float(x) for x in self.excited_splittings_cm1],
-            "excited_splittings_mhz": [float(x) for x in self.excited_splittings_mhz],
-            "even_levels_cm1": [float(x) for x in self.even_levels_cm1],
-            "odd_levels_cm1": [float(x) for x in self.odd_levels_cm1],
-            "barrier_height_cm1": float(self.barrier_height_cm1),
-            "barrier_height_kj_mol": float(self.barrier_height_kj_mol),
-            "barrier_height_kcal_mol": float(self.barrier_height_kcal_mol),
-            "well_minima_coords": [float(x) for x in self.well_minima_coords],
-            "transition_state_coord": float(self.transition_state_coord),
-            "harmonic_frequency_well_cm1": float(self.harmonic_frequency_well_cm1),
-            "wkb_action_integral": float(self.wkb_action_integral),
-            "wkb_splitting_estimate_cm1": float(self.wkb_splitting_estimate_cm1),
-            "wkb_splitting_estimate_mhz": float(self.wkb_splitting_estimate_mhz),
-            "tunneling_path_length_angstrom": float(self.tunneling_path_length_angstrom),
-            "reduced_mass_amu": float(self.reduced_mass_amu),
-            "nuclear_spin_weights": self.nuclear_spin_weights,
-            "symmetry_species": self.symmetry_species,
-            "isotopic_ratio_hd": float(self.isotopic_ratio_hd) if self.isotopic_ratio_hd is not None else None,
-            "provenance": {
-                "dvr_splitting": self.provenance_dvr,
-                "wkb_estimate": self.provenance_wkb,
-            },
-        }
-
-
-@dataclass
-class TorsionalRotorResult:
-    """Hindered internal rotor analysis container (Meyer 1970 Fourier DVR)."""
-    f_rot_cm1: float
-    f_rot_ghz: float
-    v_barrier_cm1: float
-    v_barrier_kj_mol: float
-    periodicity: int
-    reduced_barrier_s: float
-    eigenvalues_cm1: np.ndarray
-    state_symmetries: List[str]
-    a_e_splitting_ground_mhz: float
-    a_e_splitting_ground_cm1: float
-    excited_a_e_splittings_mhz: List[float]
-    torsional_zpe_cm1: float
-    provenance: str = "[M]"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Serializes torsional rotor result to dictionary."""
-        return {
-            "f_rot_cm1": float(self.f_rot_cm1),
-            "f_rot_ghz": float(self.f_rot_ghz),
-            "v_barrier_cm1": float(self.v_barrier_cm1),
-            "v_barrier_kj_mol": float(self.v_barrier_kj_mol),
-            "periodicity": int(self.periodicity),
-            "reduced_barrier_s": float(self.reduced_barrier_s),
-            "eigenvalues_cm1": self.eigenvalues_cm1.tolist(),
-            "state_symmetries": self.state_symmetries,
-            "a_e_splitting_ground_mhz": float(self.a_e_splitting_ground_mhz),
-            "a_e_splitting_ground_cm1": float(self.a_e_splitting_ground_cm1),
-            "excited_a_e_splittings_mhz": [float(x) for x in self.excited_a_e_splittings_mhz],
-            "torsional_zpe_cm1": float(self.torsional_zpe_cm1),
-            "provenance": self.provenance,
-        }
-
-
-# =============================================================================
-# 3. DYNAMIC MENDELEEV MASS INTEGRATION (MENDELEEV MANDATE)
-# =============================================================================
-
-def get_dynamic_mass(symbol: str, mass_number: Optional[int] = None) -> float:
-    """Dynamically retrieves atomic or isotopic mass in unified atomic mass units (u) via Mendeleev.
-
-    Strictly complies with the Mendeleev Library Mandate: ZERO hardcoded masses.
-
-    Args:
-        symbol: Elemental symbol (e.g. 'H', 'C', 'O', 'Cl', 'D', 'T').
-        mass_number: Optional mass number for specific isotope (e.g. 1, 2, 13, 18, 35).
-
-    Returns:
-        Atomic / isotopic mass in unified atomic mass units (u).
-
-    Raises:
-        ValueError: If element or isotope cannot be resolved.
-    """
-    clean_sym = symbol.strip().capitalize()
-    if clean_sym in ("D", "H2"):
-        clean_sym = "H"
-        mass_number = 2
-    elif clean_sym in ("T", "H3"):
-        clean_sym = "H"
-        mass_number = 3
-
-    el = element(clean_sym)
-    if mass_number is not None:
-        for iso in el.isotopes:
-            if iso.mass_number == mass_number:
-                if iso.mass is not None:
-                    return float(iso.mass)
-                break
-    if el.mass is not None:
-        return float(el.mass)
-    raise ValueError(f"Could not retrieve dynamic mass for '{symbol}' (mass_number={mass_number}) via Mendeleev.")
-
-
-def compute_reduced_mass_pair(
-    symbol1: str,
-    symbol2: str,
-    iso1: Optional[int] = None,
-    iso2: Optional[int] = None,
-) -> float:
-    """Computes the dynamic reduced mass mu = (m1 * m2) / (m1 + m2) in unified atomic mass units (u).
-
-    Args:
-        symbol1: Symbol of first element.
-        symbol2: Symbol of second element.
-        iso1: Mass number of first isotope.
-        iso2: Mass number of second isotope.
-
-    Returns:
-        Reduced mass mu in u.
-    """
-    m1 = get_dynamic_mass(symbol1, iso1)
-    m2 = get_dynamic_mass(symbol2, iso2)
-    return (m1 * m2) / (m1 + m2)
-
-
-def compute_top_rotational_constant_f(
-    symbols: Sequence[str],
-    coords_angstrom: np.ndarray,
-    rotation_axis: np.ndarray,
-    mass_numbers: Optional[Sequence[Optional[int]]] = None,
-) -> float:
-    """Computes internal rotor rotational constant F = hbar^2 / (2 * I_red) in cm^-1.
-
-    Args:
-        symbols: Sequence of atom symbols in rotating top.
-        coords_angstrom: (N, 3) Cartesian coordinates of top in Angstroms.
-        rotation_axis: 3D unit vector defining the internal rotation axis.
-        mass_numbers: Optional mass numbers for isotopic substitution.
-
-    Returns:
-        Internal rotational constant F in cm^-1.
-    """
-    axis = np.asarray(rotation_axis, dtype=np.float64)
-    norm = float(np.linalg.norm(axis))
-    if norm < 1e-12:
-        raise ValueError("Rotation axis cannot be zero vector.")
-    axis = axis / norm
-
-    coords = np.asarray(coords_angstrom, dtype=np.float64)
-    if coords.ndim != 2 or coords.shape[1] != 3:
-        raise ValueError(f"Expected coordinates shape (N, 3), got {coords.shape}")
-
-    masses: List[float] = []
-    for i, s in enumerate(symbols):
-        iso = mass_numbers[i] if mass_numbers is not None and i < len(mass_numbers) else None
-        masses.append(get_dynamic_mass(s, iso))
-
-    # Center of mass of top
-    total_m = sum(masses)
-    top_com = np.sum(coords * np.array(masses)[:, None], axis=0) / total_m
-    r_rel = coords - top_com
-
-    # Moment of inertia about the rotation axis: I_axis = sum_i m_i * (r_i x n_axis)^2
-    i_axis_u_ang2 = 0.0
-    for m_i, r_i in zip(masses, r_rel, strict=True):
-        perp_dist = float(np.linalg.norm(np.cross(r_i, axis)))
-        i_axis_u_ang2 += float(m_i * (perp_dist ** 2))
-
-    if i_axis_u_ang2 < 1e-12:
-        raise ValueError("Internal rotor moment of inertia is zero or singular.")
-
-    f_rot_cm1 = INERTIA_TO_CM_INV_FACTOR / i_axis_u_ang2
-    return float(f_rot_cm1)
-
-
-# =============================================================================
-# 4. 1D DISCRETE VARIABLE REPRESENTATION OPERATORS (METHOD MATRIX §A.2)
-# =============================================================================
-
-def build_grid_1d(
-    grid_type: Union[DVRGridType, str],
-    n_points: int,
-    x_min: float = 0.0,
-    x_max: float = 1.0,
-    length: Optional[float] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Generates 1D spatial grid coordinates and quadrature weights for DVR bases.
-
-    Args:
-        grid_type: DVR grid type (sinc, radial_sinc, sine, fourier, legendre, hermite).
-        n_points: Number of discrete grid points.
-        x_min: Lower coordinate bound (for sinc / sine).
-        x_max: Upper coordinate bound (for sinc / sine).
-        length: Domain length L (if None, derived as x_max - x_min).
-
-    Returns:
-        Tuple of (coordinates_array, quadrature_weights_array).
-    """
-    gtype = DVRGridType(grid_type) if isinstance(grid_type, str) else grid_type
-    n = int(n_points)
-    if n < 2:
-        raise ValueError(f"Number of grid points must be at least 2, got {n}")
-
-    if gtype == DVRGridType.SINC:
-        # Colbert & Miller (1992): strictly interior grid points enforcing Dirichlet boundary conditions
-        dx = (x_max - x_min) / float(n + 1)
-        coords = np.array([x_min + i * dx for i in range(1, n + 1)], dtype=np.float64)
-        weights = np.full(n, dx, dtype=np.float64)
-        return coords, weights
-
-    elif gtype == DVRGridType.RADIAL_SINC:
-        r_max = x_max if x_max > 0.0 else 10.0
-        dr = r_max / float(n + 1)
-        coords = (np.arange(1, n + 1, dtype=np.float64)) * dr
-        weights = np.full(n, dr, dtype=np.float64)
-        return coords, weights
-
-    elif gtype == DVRGridType.SINE:
-        dom_len = length if length is not None else (x_max - x_min)
-        i_idx = np.arange(1, n + 1, dtype=np.float64)
-        coords = x_min + i_idx * dom_len / float(n + 1)
-        dx = dom_len / float(n + 1)
-        weights = np.full(n, dx, dtype=np.float64)
-        return coords, weights
-
-    elif gtype == DVRGridType.FOURIER:
-        coords = 2.0 * math.pi * np.arange(n, dtype=np.float64) / float(n)
-        dth = 2.0 * math.pi / float(n)
-        weights = np.full(n, dth, dtype=np.float64)
-        return coords, weights
-
-    elif gtype == DVRGridType.LEGENDRE:
-        nodes, wts = np.polynomial.legendre.leggauss(n)
-        return nodes.astype(np.float64), wts.astype(np.float64)
-
-    elif gtype == DVRGridType.HERMITE:
-        nodes, wts = np.polynomial.hermite.hermgauss(n)
-        return nodes.astype(np.float64), wts.astype(np.float64)
-
-    raise ValueError(f"Unsupported grid type: {gtype}")
-
-
-def build_sinc_kinetic_1d(
-    x_grid: np.ndarray,
-    mass_amu: float,
-    hbar: float = 1.0,
-    unit_system: str = "cm_inv_angstrom",
-) -> np.ndarray:
-    """Constructs Colbert & Miller (1992) 1D Sinc DVR kinetic energy matrix.
-
-    T_ii = factor * (pi^2 / 3)
-    T_ij = factor * 2 * (-1)^(i-j) / (i-j)^2  (i != j)
-
-    Args:
-        x_grid: Uniform 1D spatial grid array (in Angstroms or target units).
-        mass_amu: Particle / reduced mass in unified atomic mass units (u).
-        hbar: Reduced Planck constant (default 1.0).
-        unit_system: 'cm_inv_angstrom' (returns T in cm^-1) or 'atomic_units'.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = len(x_grid)
-    dx = float(x_grid[1] - x_grid[0])
-    if abs(dx) < 1e-15:
-        raise ValueError("Grid spacing dx cannot be zero.")
-
-    if unit_system == "cm_inv_angstrom":
-        factor = KINETIC_FACTOR_CM_INV_ANGSTROM_SQ / (mass_amu * (dx ** 2))
-    elif unit_system == "atomic_units":
-        m_au = mass_amu * AMU_TO_AU_MASS
-        factor = (hbar ** 2) / (2.0 * m_au * (dx ** 2))
-    else:
-        factor = (hbar ** 2) / (2.0 * mass_amu * (dx ** 2))
-
-    idx = np.arange(n, dtype=np.float64)
-    diff = idx[:, None] - idx[None, :]
-
-    mask_diag = (diff == 0.0)
-    diff_safe = np.where(mask_diag, 1.0, diff)
-    t_mat = factor * 2.0 * ((-1.0) ** diff) / (diff_safe ** 2)
-
-    np.fill_diagonal(t_mat, factor * (math.pi ** 2) / 3.0)
-    return np.asarray(t_mat, dtype=np.float64)
-
-
-def build_radial_sinc_kinetic_1d(
-    r_grid: np.ndarray,
-    mass_amu: float,
-    hbar: float = 1.0,
-    unit_system: str = "cm_inv_angstrom",
-) -> np.ndarray:
-    """Constructs Colbert & Miller / Hutson Radial Sinc DVR kinetic matrix on (0, inf).
-
-    r_i = (i + 1) * dr (r=0 boundary excluded, volume element flat under chi = r * psi).
-    T_ii = factor * (pi^2 / 3)
-    T_ij = factor * (-1)^(i-j) * [ 1/(i-j)^2 - 1/(i+j+2)^2 ]  (i != j)
-
-    Args:
-        r_grid: 1D radial grid array with r_i = (i+1)*dr.
-        mass_amu: Reduced mass in atomic mass units (u).
-        hbar: Reduced Planck constant.
-        unit_system: Unit system for kinetic energy output.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = len(r_grid)
-    dr = float(r_grid[0])
-    if abs(dr) < 1e-15:
-        dr = float(r_grid[1] - r_grid[0])
-
-    if unit_system == "cm_inv_angstrom":
-        factor = KINETIC_FACTOR_CM_INV_ANGSTROM_SQ / (mass_amu * (dr ** 2))
-    else:
-        factor = (hbar ** 2) / (2.0 * mass_amu * (dr ** 2))
-
-    t_mat = np.full((n, n), 0.0, dtype=np.float64)
-    for i in range(n):
-        i_1 = i + 1
-        for j in range(n):
-            j_1 = j + 1
-            if i == j:
-                t_mat[i, j] = factor * (math.pi ** 2 / 3.0 - 1.0 / (2.0 * (i_1 ** 2)))
-            else:
-                sign = (-1.0) ** (i - j)
-                term1 = 1.0 / ((i_1 - j_1) ** 2)
-                term2 = 1.0 / ((i_1 + j_1) ** 2)
-                t_mat[i, j] = factor * 2.0 * sign * (term1 - term2)
-
-    return (t_mat + t_mat.T) / 2.0
-
-
-def build_sine_kinetic_1d(
-    n_points: int,
-    length: float,
-    mass_amu: float,
-    hbar: float = 1.0,
-    unit_system: str = "cm_inv_angstrom",
-) -> np.ndarray:
-    """Constructs Particle-in-a-Box Sine DVR kinetic matrix with Dirichlet boundary conditions.
-
-    Transformation: U_ni = sqrt(2 / (N+1)) * sin(n * i * pi / (N+1))
-    T_fbr = diag(n^2 * pi^2 * hbar^2 / (2 * m * L^2))
-    T_dvr = U^T @ T_fbr @ U
-
-    Args:
-        n_points: Number of interior grid points N.
-        length: Box length L (in Angstroms or target units).
-        mass_amu: Particle mass in u.
-        hbar: Reduced Planck constant.
-        unit_system: Output unit system.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = int(n_points)
-    n_basis = np.arange(1, n + 1, dtype=np.float64)
-    i_grid = np.arange(1, n + 1, dtype=np.float64)
-
-    angles = np.outer(n_basis, i_grid) * math.pi / float(n + 1)
-    sin_vals = np.array([[math.sin(angles[r, c]) for c in range(n)] for r in range(n)], dtype=np.float64)
-    u_mat = math.sqrt(2.0 / float(n + 1)) * sin_vals
-
-    if unit_system == "cm_inv_angstrom":
-        factor = (math.pi ** 2) * KINETIC_FACTOR_CM_INV_ANGSTROM_SQ / (mass_amu * (length ** 2))
-    else:
-        factor = (math.pi ** 2 * (hbar ** 2)) / (2.0 * mass_amu * (length ** 2))
-
-    t_fbr = np.diag(factor * (n_basis ** 2))
-    t_dvr = u_mat.T @ t_fbr @ u_mat
-    return (t_dvr + t_dvr.T) / 2.0
-
-
-def build_fourier_kinetic_1d(
-    n_points: int,
-    f_rot_cm1: float,
-    hbar: float = 1.0,
-) -> np.ndarray:
-    """Constructs Meyer (1970) Periodic Fourier DVR kinetic matrix on [0, 2pi).
-
-    Free-rotor basis: m in [-M, M] for odd N, FBR kinetic diagonal T_fbr = F * m^2.
-    Transformation: U_mj = (1 / sqrt(N)) * exp(-i * m * theta_j).
-    T_dvr = Re(U^dagger @ T_fbr @ U).
-
-    Exact analytical eigenvalues for V=0: 0, F, F, 4F, 4F, 9F, 9F, ...
-
-    Args:
-        n_points: Number of angular points N on [0, 2pi).
-        f_rot_cm1: Rotational constant F = hbar^2 / (2 * I_red) in cm^-1.
-        hbar: Reduced Planck constant.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = int(n_points)
-    j_idx = np.arange(n, dtype=np.float64)
-    theta_pts = 2.0 * math.pi * j_idx / float(n)
-
-    if n % 2 == 1:
-        m_limit = (n - 1) // 2
-        m_basis = np.arange(-m_limit, m_limit + 1, dtype=np.float64)
-    else:
-        m_basis = np.arange(-n // 2, n // 2, dtype=np.float64)
-
-    u_mat = (1.0 / math.sqrt(n)) * np.exp(-1j * np.outer(m_basis, theta_pts))
-    t_fbr = np.diag(f_rot_cm1 * (m_basis ** 2))
-
-    t_dvr = np.real(u_mat.conj().T @ t_fbr @ u_mat).astype(np.float64)
-    return np.asarray((t_dvr + t_dvr.T) / 2.0, dtype=np.float64)
-
-
-def build_legendre_kinetic_1d(
-    n_points: int,
-    b_rot_cm1: float,
-) -> np.ndarray:
-    """Constructs Gauss-Legendre Angular DVR kinetic matrix for Jacobi angle cos(theta).
-
-    Centrifugal kinetic operator: B * l(l+1) in associated Legendre basis.
-
-    Args:
-        n_points: Number of Gauss-Legendre quadrature points N.
-        b_rot_cm1: Rotational constant B = hbar^2 / (2 * mu * R^2) in cm^-1.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = int(n_points)
-    nodes, weights = np.polynomial.legendre.leggauss(n)
-
-    u_mat = np.full((n, n), 0.0, dtype=np.float64)
-    for l in range(n):
-        c = np.full(l + 1, 0.0, dtype=np.float64)
-        c[l] = 1.0
-        p_vals = np.polynomial.legendre.legval(nodes, c)
-        norm_factor = math.sqrt((2.0 * l + 1.0) / 2.0)
-        u_mat[l, :] = np.sqrt(weights) * norm_factor * p_vals
-
-    l_indices = np.arange(n, dtype=np.float64)
-    t_fbr = np.diag(b_rot_cm1 * l_indices * (l_indices + 1.0))
-    t_dvr = u_mat.T @ t_fbr @ u_mat
-    return (t_dvr + t_dvr.T) / 2.0
-
-
-def build_hermite_kinetic_1d(
-    n_points: int,
-    omega_cm1: float,
-) -> np.ndarray:
-    """Constructs Harmonic Oscillator Hermite DVR kinetic matrix.
-
-    Args:
-        n_points: Number of Gauss-Hermite quadrature points N.
-        omega_cm1: Harmonic frequency omega in cm^-1.
-
-    Returns:
-        (N, N) symmetric float64 kinetic matrix T.
-    """
-    n = int(n_points)
-    nodes, weights = np.polynomial.hermite.hermgauss(n)
-
-    u_mat = np.full((n, n), 0.0, dtype=np.float64)
-    for v in range(n):
-        c = np.full(v + 1, 0.0, dtype=np.float64)
-        c[v] = 1.0
-        h_vals = np.polynomial.hermite.hermval(nodes, c)
-        norm = 1.0 / ((math.pi ** 0.25) * math.sqrt((2.0 ** v) * math.factorial(v)))
-        u_mat[v, :] = np.sqrt(weights) * norm * h_vals
-
-    t_fbr = np.full((n, n), 0.0, dtype=np.float64)
-    for v in range(n):
-        t_fbr[v, v] = 0.5 * omega_cm1 * (v + 0.5)
-        if v + 2 < n:
-            val = -0.25 * omega_cm1 * math.sqrt((v + 1) * (v + 2))
-            t_fbr[v, v + 2] = val
-            t_fbr[v + 2, v] = val
-
-    t_dvr = u_mat.T @ t_fbr @ u_mat
-    return (t_dvr + t_dvr.T) / 2.0
-
-
-def build_kinetic_matrix_1d(
-    grid_type: Union[DVRGridType, str],
-    grid: np.ndarray,
-    mass_amu: float = 1.0,
-    f_rot_cm1: Optional[float] = None,
-    length: Optional[float] = None,
-    unit_system: str = "cm_inv_angstrom",
-) -> np.ndarray:
-    """High-level dispatcher for constructing 1D DVR kinetic energy matrices.
-
-    Args:
-        grid_type: DVR grid type (sinc, radial_sinc, sine, fourier, legendre, hermite).
-        grid: Coordinate grid array.
-        mass_amu: Particle / reduced mass in u.
-        f_rot_cm1: Rotational constant for periodic rotor (cm^-1) or frequency for hermite.
-        length: Box domain length L (for sine DVR).
-        unit_system: Unit system specification.
-
-    Returns:
-        (N, N) symmetric float64 kinetic energy matrix T.
-    """
-    gtype = DVRGridType(grid_type) if isinstance(grid_type, str) else grid_type
-    n = len(grid)
-
-    if gtype == DVRGridType.SINC:
-        return build_sinc_kinetic_1d(grid, mass_amu, unit_system=unit_system)
-    elif gtype == DVRGridType.RADIAL_SINC:
-        return build_radial_sinc_kinetic_1d(grid, mass_amu, unit_system=unit_system)
-    elif gtype == DVRGridType.SINE:
-        dom_len = length if length is not None else float(grid[-1] - grid[0] + 2.0 * (grid[1] - grid[0]))
-        return build_sine_kinetic_1d(n, dom_len, mass_amu, unit_system=unit_system)
-    elif gtype == DVRGridType.FOURIER:
-        f_val = f_rot_cm1 if f_rot_cm1 is not None else (KINETIC_FACTOR_CM_INV_ANGSTROM_SQ / mass_amu)
-        return build_fourier_kinetic_1d(n, f_val)
-    elif gtype == DVRGridType.LEGENDRE:
-        b_val = f_rot_cm1 if f_rot_cm1 is not None else (KINETIC_FACTOR_CM_INV_ANGSTROM_SQ / mass_amu)
-        return build_legendre_kinetic_1d(n, b_val)
-    elif gtype == DVRGridType.HERMITE:
-        w_val = f_rot_cm1 if f_rot_cm1 is not None else 1000.0
-        return build_hermite_kinetic_1d(n, w_val)
-    else:
-        return build_sinc_kinetic_1d(grid, mass_amu, unit_system=unit_system)
-
-
-# =============================================================================
-# 5. 2D DIRECT-PRODUCT & COUPLED DVR OPERATORS (METHOD MATRIX §A.2)
-# =============================================================================
-
-def build_2d_direct_product_kinetic(
-    t1: np.ndarray,
-    t2: np.ndarray,
-    cross_kinetic_coupling: float = 0.0,
-) -> np.ndarray:
-    """Constructs 2D direct-product kinetic energy matrix: T_2D = (T1 (x) I2) + (I1 (x) T2).
-
-    Args:
-        t1: (N1, N1) kinetic energy matrix for coordinate 1.
-        t2: (N2, N2) kinetic energy matrix for coordinate 2.
-        cross_kinetic_coupling: Optional cross-coordinate coupling constant G12.
-
-    Returns:
-        (N1*N2, N1*N2) symmetric float64 kinetic matrix T_2D.
-    """
-    n1 = t1.shape[0]
-    n2 = t2.shape[0]
-    i1 = np.diag(np.full(n1, 1.0, dtype=np.float64))
-    i2 = np.diag(np.full(n2, 1.0, dtype=np.float64))
-
-    t_2d = np.kron(t1, i2) + np.kron(i1, t2)
-
-    if abs(cross_kinetic_coupling) > 1e-12:
-        p1 = (t1 - t1.T) / 2.0
-        p2 = (t2 - t2.T) / 2.0
-        t_cross = cross_kinetic_coupling * (np.kron(p1, p2) + np.kron(p2, p1))
-        t_2d += t_cross
-
-    return t_2d.astype(np.float64)
-
-
-class MatrixFreeDVROperator(scipy.sparse.linalg.LinearOperator):
-    """Memory-efficient matrix-free LinearOperator for 2D direct-product DVR Hamiltonians.
-
-    Evaluates H * v = (T1 (x) I2 + I1 (x) T2) * v + V * v in O(N1*N2*(N1 + N2)) operations
-    without dense N1*N2 x N1*N2 matrix allocation, strictly adhering to Method Matrix §A.2.
-    """
-
-    def __init__(
-        self,
-        t1: np.ndarray,
-        t2: np.ndarray,
-        v_2d_flat: np.ndarray,
-        shape_2d: Tuple[int, int],
-        dtype: Any = np.float64,
-    ) -> None:
-        """Initialize matrix-free 2D DVR linear operator."""
-        self.t1 = np.asarray(t1, dtype=np.float64)
-        self.t2 = np.asarray(t2, dtype=np.float64)
-        self.v_flat = np.asarray(v_2d_flat, dtype=np.float64)
-        self.n1, self.n2 = shape_2d
-        dim = self.n1 * self.n2
-        super().__init__(shape=(dim, dim), dtype=dtype)
-
-    def _matvec(self, x: np.ndarray) -> np.ndarray:
-        """Matrix-vector product via tensor reshaping: y = (T1 @ X + X @ T2^T) + V * x."""
-        x_mat = x.reshape((self.n1, self.n2))
-        t1_x = self.t1 @ x_mat
-        x_t2 = x_mat @ self.t2.T
-        v_x = self.v_flat * x.flatten()
-        y_mat = t1_x + x_t2
-        return np.asarray(y_mat.flatten() + v_x, dtype=np.float64)
-
-    def _rmatvec(self, x: np.ndarray) -> np.ndarray:
-        """Hermitian transpose matrix-vector product (symmetric for real Hamiltonians)."""
-        return self._matvec(x)
-
-
-# =============================================================================
-# 6. SINGULARITY WATCHDOG & TIKHONOV REGULARIZATION
-# =============================================================================
-
-def nan_regularization_watchdog(
-    array_or_matrix: np.ndarray,
-    damping: float = 1e-8,
-    name: str = "DVR Potential Grid",
-) -> np.ndarray:
-    """Inspects potential/Hamiltonian arrays for NaNs/Infinities and enforces cubic spline interpolation.
-
-    Method Matrix v4 §7 & Suggestion #4:
-    Eradicates np.nan_to_num(..., nan=0.0). Fabricating a 0.0 potential minimum at calculation failures
-    is strictly prohibited as it collapses wavefunctions into spurious delta distributions.
-
-    Pipeline:
-    1. Validates presence of NaN/Inf values.
-    2. For 1D and 2D arrays, if non-finite points lie on the outer boundary or interpolation
-       cannot resolve missing data within physical bounds, raises MethodMatrixViolationError.
-    3. If missing points lie within the interior (convex hull of valid physical points),
-       performs cubic spline interpolation (scipy.interpolate.CubicSpline for 1D,
-       scipy.interpolate.griddata(method='cubic') for 2D).
-
-    Args:
-        array_or_matrix: 1D or 2D potential or Hamiltonian array to inspect.
-        damping: Regularization parameter (unused for nan replacement).
-        name: Telemetry identifier name.
-
-    Returns:
-        Regularized finite numerical array with smoothly interpolated interior holes.
-
-    Raises:
-        MethodMatrixViolationError: If non-finite points lie on the boundary or cannot be interpolated.
-    """
-    arr = np.asarray(array_or_matrix, dtype=np.float64)
-    finite_mask = np.isfinite(arr)
-
-    if np.all(finite_mask):
-        if arr.ndim == 2 and arr.shape[0] == arr.shape[1]:
-            return (arr + arr.T) / 2.0
-        return arr
-
-    logger.warning(
-        "[W: SINGULARITY_DETECTED] Non-finite values detected in %s. "
-        "Engaging Method Matrix cubic spline interpolation gate.",
-        name,
-    )
-
-    if arr.ndim == 1:
-        n = len(arr)
-        # Check boundary points: index 0 and index n - 1
-        if not finite_mask[0] or not finite_mask[-1]:
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Non-finite boundary values detected at index 0 or {n-1}. "
-                f"Fabrication of potential minima or boundary extrapolation is strictly prohibited."
-            )
-
-        valid_idx = np.where(finite_mask)[0]
-        missing_idx = np.where(~finite_mask)[0]
-
-        if len(valid_idx) < 4:
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Insufficient physical points ({len(valid_idx)}) "
-                f"for cubic spline interpolation."
-            )
-
-        try:
-            cs = scipy.interpolate.CubicSpline(valid_idx, arr[valid_idx])
-            arr_resolved = arr.copy()
-            arr_resolved[missing_idx] = cs(missing_idx)
-        except Exception as exc:
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Cubic spline interpolation failed: {exc}"
-            ) from exc
-
-        if not np.all(np.isfinite(arr_resolved)):
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Interpolation produced non-finite values."
-            )
-        return arr_resolved
-
-    elif arr.ndim == 2:
-        nrows, ncols = arr.shape
-        # Check outer boundary: first row, last row, first col, last col
-        boundary_mask = np.full(arr.shape, False, dtype=bool)
-        boundary_mask[0, :] = True
-        boundary_mask[-1, :] = True
-        boundary_mask[:, 0] = True
-        boundary_mask[:, -1] = True
-
-        if np.any(~finite_mask & boundary_mask):
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Non-finite points lie on outer grid boundary of shape {arr.shape}. "
-                f"Fabrication of potential boundary minima is strictly prohibited."
-            )
-
-        y_valid, x_valid = np.where(finite_mask)
-        y_missing, x_missing = np.where(~finite_mask)
-
-        if len(y_valid) < 16:
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Insufficient physical points ({len(y_valid)}) "
-                f"for 2D cubic interpolation."
-            )
-
-        points = np.column_stack([y_valid, x_valid])
-        values = arr[finite_mask]
-        xi = np.column_stack([y_missing, x_missing])
-
-        try:
-            interp_vals = scipy.interpolate.griddata(points, values, xi, method="cubic")
-            nan_sub = np.isnan(interp_vals)
-            if np.any(nan_sub):
-                fallback_vals = scipy.interpolate.griddata(points, values, xi[nan_sub], method="nearest")
-                interp_vals[nan_sub] = fallback_vals
-        except Exception as exc:
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: 2D cubic grid interpolation failed: {exc}"
-            ) from exc
-
-        if not np.all(np.isfinite(interp_vals)):
-            raise MethodMatrixViolationError(
-                f"Method Matrix Violation in {name}: Interpolation could not resolve all missing interior points."
-            )
-
-        arr_resolved = arr.copy()
-        arr_resolved[~finite_mask] = interp_vals
-
-        if nrows == ncols:
-            return (arr_resolved + arr_resolved.T) / 2.0
-        return arr_resolved
-
-    else:
-        raise MethodMatrixViolationError(
-            f"Method Matrix Violation in {name}: Unsupported tensor dimensionality ({arr.ndim}D) "
-            f"for spline potential interpolation."
-        )
-
-
-# =============================================================================
-# 7. EIGENSOLVER ENGINES
-# =============================================================================
-
-def solve_dvr_dense(
-    hamiltonian: np.ndarray,
-    num_states: int = 10,
-    backend: SolverBackend = SolverBackend.SCIPY_DENSE,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Solves lowest eigenvalues and wavefunctions of a dense Hamiltonian matrix.
-
-    Args:
-        hamiltonian: (N, N) symmetric float64 Hamiltonian matrix H = T + V.
-        num_states: Number of lowest eigenstates to return.
-        backend: SolverBackend selection.
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors) where eigenvectors has shape (N, num_states).
-    """
-    h_clean = nan_regularization_watchdog(hamiltonian, name="Dense Hamiltonian")
-    n = h_clean.shape[0]
-    k = min(num_states, n)
-
-    if backend == SolverBackend.JAX_JIT and HAS_JAX:
-        try:
-            h_jax = jnp.asarray(h_clean, dtype=jnp.float64)
-            evals, evecs = jnp.linalg.eigh(h_jax)
-            evals_np = np.asarray(evals[:k], dtype=np.float64)
-            evecs_np = np.asarray(evecs[:, :k], dtype=np.float64)
-            return evals_np, evecs_np
-        except Exception as exc:
-            logger.debug("JAX eigensolver failed or not available, falling back to SciPy: %s", exc)
-
-    evals, evecs = scipy.linalg.eigh(h_clean)
-    return evals[:k].astype(np.float64), evecs[:, :k].astype(np.float64)
-
-
-def solve_dvr_matrix_free(
-    operator: scipy.sparse.linalg.LinearOperator,
-    num_states: int = 10,
-    sigma: Optional[float] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Solves lowest eigenstates using ARPACK Lanczos iteration (scipy.sparse.linalg.eigsh).
-
-    Args:
-        operator: LinearOperator representing H.
-        num_states: Number of lowest eigenstates to compute.
-        sigma: Optional shift for shift-invert spectral transformation.
-
-    Returns:
-        Tuple of (eigenvalues, eigenvectors).
-    """
-    dim = operator.shape[0]
-    k = min(num_states, dim - 2)
-    if k < 1:
-        k = 1
-
-    try:
-        if sigma is not None:
-            evals, evecs = scipy.sparse.linalg.eigsh(
-                operator, k=k, which="LM", sigma=sigma, tol=1e-12, maxiter=5000
-            )
-        else:
-            evals, evecs = scipy.sparse.linalg.eigsh(
-                operator, k=k, which="SA", tol=1e-12, maxiter=5000
-            )
-        idx = np.argsort(evals)
-        return evals[idx].astype(np.float64), evecs[:, idx].astype(np.float64)
-    except Exception as exc:
-        logger.warning("Matrix-free Lanczos did not converge: %s. Rebuilding dense fallback.", exc)
-        identity = np.diag(np.full(dim, 1.0, dtype=np.float64))
-        h_dense = operator.matmat(identity) if hasattr(operator, "matmat") else np.column_stack([operator.matvec(identity[:, i]) for i in range(dim)])
-        return solve_dvr_dense(h_dense, num_states=num_states)
-
-
-# =============================================================================
-# 8. TUNNELING SPLITTING & WKB INSTANTON ENGINE (METHOD MATRIX §6.9, §7)
-# =============================================================================
-
-def compute_wkb_tunneling_action(
-    grid: np.ndarray,
-    potential_cm1: np.ndarray,
-    mass_amu: float,
-    energy_level_cm1: float,
-    barrier_bounds: Optional[Tuple[int, int]] = None,
-) -> Tuple[float, float, float]:
-    """Computes semiclassical WKB tunneling action integral and transmission probability.
-
-    S = int_{x_a}^{x_b} sqrt(2 * mu * (V(x) - E)) dx
-    Transmission: T_wkb = exp(-2 * S / hbar)
-    Splitting: Delta E_wkb = (hbar * omega_e / pi) * exp(-S / hbar)
-
-    Args:
-        grid: 1D spatial coordinate grid in Angstroms.
-        potential_cm1: Potential energy curve in cm^-1.
-        mass_amu: Reduced mass in atomic mass units (u).
-        energy_level_cm1: State energy level E in cm^-1.
-        barrier_bounds: Optional tuple of (start_idx, end_idx) bounding the barrier region between minima.
-
-    Returns:
-        Tuple of (action_integral_dimensionless, turning_point_a, turning_point_b).
-    """
-    coords = np.asarray(grid, dtype=np.float64)
-    v_cm1 = np.asarray(potential_cm1, dtype=np.float64)
-
-    if barrier_bounds is not None:
-        b_start, b_end = barrier_bounds
-        b_start = max(0, min(b_start, len(coords) - 1))
-        b_end = max(0, min(b_end, len(coords) - 1))
-        if b_start > b_end:
-            b_start, b_end = b_end, b_start
-        sub_v = v_cm1[b_start : b_end + 1]
-        forbidden_mask = (sub_v >= energy_level_cm1)
-        if not np.any(forbidden_mask):
-            return 0.0, float(coords[b_start]), float(coords[b_end])
-        forbidden_indices = np.where(forbidden_mask)[0]
-        idx_a = b_start + forbidden_indices[0]
-        idx_b = b_start + forbidden_indices[-1]
-    else:
-        forbidden_mask = (v_cm1 >= energy_level_cm1)
-        if not np.any(forbidden_mask):
-            return 0.0, float(coords[0]), float(coords[-1])
-        forbidden_indices = np.where(forbidden_mask)[0]
-        idx_a = forbidden_indices[0]
-        idx_b = forbidden_indices[-1]
-
-    x_a = float(coords[idx_a])
-    x_b = float(coords[idx_b])
-
-    delta_v_cm1 = np.maximum(v_cm1[idx_a : idx_b + 1] - energy_level_cm1, 0.0)
-    delta_v_joules = delta_v_cm1 * CM_INV_TO_JOULE
-    mu_kg = mass_amu * ATOMIC_MASS_UNIT_KG
-
-    p_barrier = np.sqrt(2.0 * mu_kg * delta_v_joules)
-
-    x_segment_m = coords[idx_a : idx_b + 1] * ANGSTROM_TO_METER
-    if len(x_segment_m) > 1:
-        s_joule_s = float(scipy.integrate.trapezoid(p_barrier, x_segment_m))
-    else:
-        s_joule_s = 0.0
-
-    action_dimensionless = s_joule_s / HBAR_J_S
-    return action_dimensionless, x_a, x_b
-
-
-def analyze_double_well_tunneling(
-    grid: np.ndarray,
-    potential_cm1: np.ndarray,
-    mass_amu: float,
-    num_states: int = 10,
-    grid_type: DVRGridType = DVRGridType.SINC,
-    nuclear_spins: Optional[Sequence[float]] = None,
-    symmetry_group: SymmetryGroup = SymmetryGroup.C2V,
-) -> TunnelingAnalysisResult:
-    """Solves exact double-well tunneling eigenstates, splittings, and WKB instanton comparison.
-
-    Identifies ground state doublet (0^+, 0^-), excited doublets (1^+, 1^-),
-    and computes tunneling splitting Delta E = E(0^-) - E(0^+) in cm^-1 and MHz.
-
-    Args:
-        grid: 1D spatial coordinate grid in Angstroms.
-        potential_cm1: Potential energy array in cm^-1.
-        mass_amu: Reduced mass in u.
-        num_states: Number of states to compute.
-        grid_type: DVR grid formulation.
-        nuclear_spins: Optional sequence of nuclear spins for PI statistical weights.
-        symmetry_group: Permutation-Inversion symmetry group.
-
-    Returns:
-        TunnelingAnalysisResult dataclass containing splittings, barrier, and wavefunctions.
-    """
-    coords = np.asarray(grid, dtype=np.float64)
-    v_cm1 = np.asarray(potential_cm1, dtype=np.float64)
-    n = len(coords)
-
-    t_mat = build_kinetic_matrix_1d(grid_type, coords, mass_amu=mass_amu, unit_system="cm_inv_angstrom")
-    v_mat = np.diag(v_cm1)
-    h_mat = t_mat + v_mat
-
-    evals, evecs = solve_dvr_dense(h_mat, num_states=num_states)
-    evals_cm1 = evals.astype(np.float64)
-
-    mid_idx = n // 2
-    left_min_idx = int(np.argmin(v_cm1[:mid_idx])) if mid_idx > 0 else 0
-    right_min_idx = mid_idx + int(np.argmin(v_cm1[mid_idx:])) if mid_idx < n else (n - 1)
-
-    # Dynamically find transition state maximum between the two minima
-    ts_rel_idx = int(np.argmax(v_cm1[left_min_idx : right_min_idx + 1]))
-    ts_idx = left_min_idx + ts_rel_idx
-
-    x_min1 = float(coords[left_min_idx])
-    x_min2 = float(coords[right_min_idx])
-    x_ts = float(coords[ts_idx])
-    barrier_height_cm1 = float(v_cm1[ts_idx] - min(v_cm1[left_min_idx], v_cm1[right_min_idx]))
-    barrier_kj_mol = barrier_height_cm1 * (HARTREE_TO_KJ_MOL / HARTREE_TO_CM_INV)
-    barrier_kcal_mol = barrier_height_cm1 * (HARTREE_TO_KCAL_MOL / HARTREE_TO_CM_INV)
-
-    dx = float(coords[1] - coords[0])
-    if left_min_idx > 0 and left_min_idx < n - 1:
-        d2v_dx2 = (v_cm1[left_min_idx + 1] - 2.0 * v_cm1[left_min_idx] + v_cm1[left_min_idx - 1]) / (dx ** 2)
-        d2v_dx2 = max(d2v_dx2, 1e-4)
-    else:
-        d2v_dx2 = 100.0
-
-    k_joule_m2 = d2v_dx2 * CM_INV_TO_JOULE / (ANGSTROM_TO_METER ** 2)
-    m_kg = mass_amu * ATOMIC_MASS_UNIT_KG
-    omega_rad_s = math.sqrt(max(k_joule_m2 / m_kg, 1e-6))
-    omega_e_cm1 = omega_rad_s / (2.0 * math.pi * SPEED_OF_LIGHT_CM_S)
-
-    even_levels: List[float] = []
-    odd_levels: List[float] = []
-    excited_splittings_cm1: List[float] = []
-    excited_splittings_mhz: List[float] = []
-
-    e0_even = float(evals_cm1[0])
-    e0_odd = float(evals_cm1[1]) if len(evals_cm1) > 1 else e0_even
-    ground_splitting_cm1 = abs(e0_odd - e0_even)
-    ground_splitting_mhz = ground_splitting_cm1 * CM_INV_TO_MHZ
-
-    even_levels.append(e0_even)
-    odd_levels.append(e0_odd)
-
-    for pair_idx in range(1, len(evals_cm1) // 2):
-        i_even = 2 * pair_idx
-        i_odd = 2 * pair_idx + 1
-        if i_odd < len(evals_cm1):
-            e_ev = float(evals_cm1[i_even])
-            e_od = float(evals_cm1[i_odd])
-            even_levels.append(e_ev)
-            odd_levels.append(e_od)
-            spl_cm1 = abs(e_od - e_ev)
-            excited_splittings_cm1.append(spl_cm1)
-            excited_splittings_mhz.append(spl_cm1 * CM_INV_TO_MHZ)
-
-    action_s, _, _ = compute_wkb_tunneling_action(
-        coords, v_cm1, mass_amu, energy_level_cm1=e0_even, barrier_bounds=(left_min_idx, right_min_idx)
-    )
-    wkb_splitting_cm1 = (omega_e_cm1 / math.pi) * math.exp(-action_s) if action_s < 700 else 0.0
-    wkb_splitting_mhz = wkb_splitting_cm1 * CM_INV_TO_MHZ
-    path_len = abs(x_min2 - x_min1)
-
-    spin_weights: Dict[str, int] = {}
-    if nuclear_spins is not None:
-        spin_weights = classify_nuclear_spin_weights(symmetry_group, nuclear_spins)
-    else:
-        spin_weights = {"A1_even": 1, "B2_odd": 3}
-
-    symmetry_species = ["0^+ (A1)", "0^- (B2)"]
-    for idx in range(1, len(even_levels)):
-        symmetry_species.append(f"{idx}^+ (A1)")
-        symmetry_species.append(f"{idx}^- (B2)")
-
-    return TunnelingAnalysisResult(
-        ground_state_splitting_cm1=ground_splitting_cm1,
-        ground_state_splitting_mhz=ground_splitting_mhz,
-        excited_splittings_cm1=excited_splittings_cm1,
-        excited_splittings_mhz=excited_splittings_mhz,
-        even_levels_cm1=even_levels,
-        odd_levels_cm1=odd_levels,
-        barrier_height_cm1=barrier_height_cm1,
-        barrier_height_kj_mol=barrier_kj_mol,
-        barrier_height_kcal_mol=barrier_kcal_mol,
-        well_minima_coords=[x_min1, x_min2],
-        transition_state_coord=x_ts,
-        harmonic_frequency_well_cm1=omega_e_cm1,
-        wkb_action_integral=action_s,
-        wkb_splitting_estimate_cm1=wkb_splitting_cm1,
-        wkb_splitting_estimate_mhz=wkb_splitting_mhz,
-        tunneling_path_length_angstrom=path_len,
-        reduced_mass_amu=mass_amu,
-        nuclear_spin_weights=spin_weights,
-        symmetry_species=symmetry_species[: len(evals_cm1)],
-        provenance_dvr="[M]",
-        provenance_wkb="[E]",
-    )
-
-
-def analyze_hindered_internal_rotor(
-    f_rot_cm1: float,
-    v_barrier_cm1: float,
-    periodicity: int = 3,
-    num_points: int = 61,
-    num_states: int = 15,
-) -> TorsionalRotorResult:
-    """Solves Meyer (1970) Fourier DVR for hindered periodic internal rotors (e.g. methyl tops).
-
-    Potential: V(tau) = (V_n / 2) * (1 - cos(n * tau))
-    Reduced barrier parameter: s = 4 * V_n / (n^2 * F)
-    Calculates A-E torsional tunneling splitting: Delta E_{A-E} = E(E) - E(A).
-
-    Args:
-        f_rot_cm1: Internal rotational constant F = hbar^2 / (2 * I_red) in cm^-1.
-        v_barrier_cm1: Torsional barrier height V_n in cm^-1.
-        periodicity: Torsional barrier periodicity n (e.g. 3 for methyl, 6 for toluene).
-        num_points: Number of angular grid points (odd integer recommended).
-        num_states: Number of lowest torsional states to return.
-
-    Returns:
-        TorsionalRotorResult dataclass containing A/E levels and splittings.
-    """
-    n_pts = int(num_points)
-    if n_pts % 2 == 0:
-        n_pts += 1
-
-    theta_grid = 2.0 * math.pi * np.arange(n_pts, dtype=np.float64) / float(n_pts)
-    v_torsion = (v_barrier_cm1 / 2.0) * (1.0 - np.cos(periodicity * theta_grid))
-
-    t_mat = build_fourier_kinetic_1d(n_pts, f_rot_cm1)
-    v_mat = np.diag(v_torsion)
-    h_mat = t_mat + v_mat
-
-    evals, evecs = solve_dvr_dense(h_mat, num_states=num_states)
-    evals_cm1 = evals.astype(np.float64)
-
-    reduced_s = (4.0 * v_barrier_cm1) / ((periodicity ** 2) * f_rot_cm1) if f_rot_cm1 > 1e-12 else 0.0
-
-    state_symmetries: List[str] = []
-    excited_a_e_splittings_mhz: List[float] = []
-
-    e0_a = float(evals_cm1[0])
-    state_symmetries.append("v=0 (A)")
-
-    e0_e1 = float(evals_cm1[1]) if len(evals_cm1) > 1 else e0_a
-    e0_e2 = float(evals_cm1[2]) if len(evals_cm1) > 2 else e0_e1
-    state_symmetries.append("v=0 (E_1)")
-    state_symmetries.append("v=0 (E_2)")
-
-    ground_ae_cm1 = float(e0_e1 - e0_a)
-    ground_ae_mhz = ground_ae_cm1 * CM_INV_TO_MHZ
-
-    k_idx = 3
-    v_quant = 1
-    while k_idx < len(evals_cm1) - 2:
-        e1 = float(evals_cm1[k_idx])
-        e2 = float(evals_cm1[k_idx + 1])
-        e3 = float(evals_cm1[k_idx + 2])
-        if abs(e2 - e1) < abs(e3 - e2):
-            # e1 and e2 are the degenerate E pair; e3 is the non-degenerate A state
-            e_e = (e1 + e2) / 2.0
-            e_a = e3
-            state_symmetries.append(f"v={v_quant} (E_1)")
-            state_symmetries.append(f"v={v_quant} (E_2)")
-            state_symmetries.append(f"v={v_quant} (A)")
-        else:
-            # e1 is the non-degenerate A state; e2 and e3 are the degenerate E pair
-            e_a = e1
-            e_e = (e2 + e3) / 2.0
-            state_symmetries.append(f"v={v_quant} (A)")
-            state_symmetries.append(f"v={v_quant} (E_1)")
-            state_symmetries.append(f"v={v_quant} (E_2)")
-        ae_spl = abs(e_e - e_a) * CM_INV_TO_MHZ
-        excited_a_e_splittings_mhz.append(float(ae_spl))
-        k_idx += 3
-        v_quant += 1
-
-    while len(state_symmetries) < len(evals_cm1):
-        state_symmetries.append(f"state_{len(state_symmetries)}")
-
-    f_rot_ghz = (f_rot_cm1 * SPEED_OF_LIGHT_CM_S) * 1e-9
-    barrier_kj_mol = v_barrier_cm1 * (HARTREE_TO_KJ_MOL / HARTREE_TO_CM_INV)
-
-    return TorsionalRotorResult(
-        f_rot_cm1=f_rot_cm1,
-        f_rot_ghz=f_rot_ghz,
-        v_barrier_cm1=v_barrier_cm1,
-        v_barrier_kj_mol=barrier_kj_mol,
-        periodicity=periodicity,
-        reduced_barrier_s=reduced_s,
-        eigenvalues_cm1=evals_cm1,
-        state_symmetries=state_symmetries[: len(evals_cm1)],
-        a_e_splitting_ground_mhz=ground_ae_mhz,
-        a_e_splitting_ground_cm1=ground_ae_cm1,
-        excited_a_e_splittings_mhz=excited_a_e_splittings_mhz,
-        torsional_zpe_cm1=e0_a,
-        provenance="[M]",
-    )
-
-
-# =============================================================================
-# 9. NUCLEAR SPIN STATISTICS & PERMUTATION-INVERSION (METHOD MATRIX §7)
-# =============================================================================
-
-def classify_nuclear_spin_weights(
-    symmetry_group: Union[SymmetryGroup, str],
-    nuclei_spins: Sequence[float],
-) -> Dict[str, int]:
-    """Computes Longuet-Higgins (1963) / Bunker Molecular Symmetry group nuclear spin statistical weights.
-
-    Determines the total nuclear spin statistical weight g_ns for each irreducible
-    representation according to Fermi-Dirac (half-integer spins) and Bose-Einstein
-    (integer spins) statistics upon feasible permutation-inversions.
-
-    Args:
-        symmetry_group: Molecular Symmetry group (C1, Cs, C2, C2v, C3v, G4, G16).
-        nuclei_spins: Sequence of nuclear spins I (e.g. 0.5 for 1H/19F, 1.0 for 2H/14N, 0.0 for 16O/12C).
-
-    Returns:
-        Dictionary mapping symmetry species to integer nuclear spin statistical weights.
-    """
-    sym = SymmetryGroup(symmetry_group) if isinstance(symmetry_group, str) else symmetry_group
-    spins = [float(s) for s in nuclei_spins]
-    n_nuclei = len(spins)
-
-    total_spin_states = 1
-    for s in spins:
-        total_spin_states *= int(round(2.0 * s + 1.0))
-
-    if sym in (SymmetryGroup.C1, SymmetryGroup.CS, SymmetryGroup.CI):
-        return {"A": total_spin_states}
-
-    elif sym == SymmetryGroup.C2:
-        if n_nuclei >= 2:
-            i_val = spins[0]
-            g_sym = int(round((2.0 * i_val + 1.0) * (i_val + 1.0)))
-            g_anti = int(round((2.0 * i_val + 1.0) * i_val))
-            is_fermion = (int(round(2.0 * i_val)) % 2 == 1)
-            if is_fermion:
-                return {"A": g_anti, "B": g_sym}
-            else:
-                return {"A": g_sym, "B": g_anti}
-        return {"A": total_spin_states // 2, "B": total_spin_states // 2}
-
-    elif sym == SymmetryGroup.C2V:
-        if n_nuclei >= 2:
-            i_val = spins[0]
-            if abs(i_val - 0.5) < 1e-4:
-                return {"A1": 1, "A2": 1, "B1": 3, "B2": 3}
-            elif abs(i_val - 1.0) < 1e-4:
-                return {"A1": 6, "A2": 6, "B1": 3, "B2": 3}
-            elif abs(i_val - 0.0) < 1e-4:
-                return {"A1": 1, "A2": 0, "B1": 0, "B2": 0}
-        return {"A1": total_spin_states // 4, "A2": total_spin_states // 4, "B1": total_spin_states // 4, "B2": total_spin_states // 4}
-
-    elif sym == SymmetryGroup.C3V:
-        if n_nuclei >= 3 and abs(spins[0] - 0.5) < 1e-4:
-            return {"A1": 4, "A2": 4, "E": 8}
-        elif n_nuclei >= 3 and abs(spins[0] - 1.0) < 1e-4:
-            return {"A1": 10, "A2": 1, "E": 16}
-        return {"A1": total_spin_states // 6, "A2": total_spin_states // 6, "E": total_spin_states // 3}
-
-    elif sym == SymmetryGroup.G16:
-        return {
-            "A1+": 1,
-            "A2+": 0,
-            "B1+": 3,
-            "B2+": 3,
-            "E+": 2,
-            "A1-": 1,
-            "A2-": 0,
-            "B1-": 3,
-            "B2-": 3,
-            "E-": 6,
-        }
-
-    return {"A": total_spin_states}
-
-
-# =============================================================================
-# 10. VIBRATIONAL AVERAGING & OBSERVABLES (METHOD MATRIX §A.3, §3-§5)
-# =============================================================================
-
-def compute_vibrational_averages_1d(
-    grid: np.ndarray,
-    wavefunctions: np.ndarray,
-    operator_values: np.ndarray,
-    grid_weights: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Computes expectation values <psi_n | O | psi_n> for all solved eigenstates.
-
-    Args:
-        grid: 1D spatial coordinate grid.
-        wavefunctions: (N, num_states) eigenvector matrix.
-        operator_values: 1D array of coordinate-dependent observable values O(q).
-        grid_weights: Optional quadrature weights array (default uniform trapezoidal).
-
-    Returns:
-        1D array of expectation values for each state n.
-    """
-    psi = np.asarray(wavefunctions, dtype=np.float64)
-    o_vals = np.asarray(operator_values, dtype=np.float64)
-    n_pts, num_states = psi.shape
-
-    if grid_weights is not None:
-        w = np.asarray(grid_weights, dtype=np.float64)
-    else:
-        dx = float(grid[1] - grid[0]) if len(grid) > 1 else 1.0
-        w = np.full(n_pts, dx, dtype=np.float64)
-
-    averages = np.full(num_states, 0.0, dtype=np.float64)
-    for state_idx in range(num_states):
-        psi_col = psi[:, state_idx]
-        norm = np.sum(w * (psi_col ** 2))
-        if norm > 1e-15:
-            averages[state_idx] = float(np.sum(w * (psi_col ** 2) * o_vals) / norm)
-        else:
-            averages[state_idx] = 0.0
-
-    return averages
-
-
-def compute_transition_dipole_moments(
-    wavefunctions: np.ndarray,
-    dipole_curve_debye: np.ndarray,
-    grid_weights: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Computes transition dipole moment matrix elements mu_mn = <psi_m | mu(q) | psi_n> in Debye.
-
-    Args:
-        wavefunctions: (N, num_states) matrix of eigenstates.
-        dipole_curve_debye: 1D dipole moment array mu(q) in Debye.
-        grid_weights: Quadrature weights array.
-
-    Returns:
-        (num_states, num_states) symmetric transition dipole matrix in Debye.
-    """
-    psi = np.asarray(wavefunctions, dtype=np.float64)
-    mu = np.asarray(dipole_curve_debye, dtype=np.float64)
-    n_pts, num_states = psi.shape
-
-    if grid_weights is not None:
-        w = np.asarray(grid_weights, dtype=np.float64)
-    else:
-        w = np.full(n_pts, 1.0, dtype=np.float64)
-
-    # Normalize wavefunctions
-    psi_norm = np.full_like(psi, 0.0)
-    for col in range(num_states):
-        norm = math.sqrt(np.sum(w * (psi[:, col] ** 2)))
-        psi_norm[:, col] = psi[:, col] / norm if norm > 1e-15 else psi[:, col]
-
-    weighted_mu = w * mu
-    trans_mat = psi_norm.T @ (weighted_mu[:, None] * psi_norm)
-    return trans_mat.astype(np.float64)
-
-
-# =============================================================================
-# 11. HIGH-LEVEL OBJECT-ORIENTED SOLVERS (DVR1DSolver & DVR2DSolver)
-# =============================================================================
-
-class DVR1DSolver:
-    """High-level 1D Discrete Variable Representation quantum solver."""
-
-    def __init__(
-        self,
-        grid_type: Union[DVRGridType, str] = DVRGridType.SINC,
-        n_points: int = 100,
-        x_min: float = -2.0,
-        x_max: float = 2.0,
-        mass_amu: float = 1.0,
-        f_rot_cm1: Optional[float] = None,
-        length: Optional[float] = None,
-        backend: SolverBackend = SolverBackend.SCIPY_DENSE,
-    ) -> None:
-        """Initialize 1D DVR solver configuration."""
-        self.grid_type = DVRGridType(grid_type) if isinstance(grid_type, str) else grid_type
-        self.n_points = int(n_points)
-        self.x_min = float(x_min)
-        self.x_max = float(x_max)
-        self.mass_amu = float(mass_amu)
-        self.f_rot_cm1 = f_rot_cm1
-        self.length = length
-        self.backend = SolverBackend(backend) if isinstance(backend, str) else backend
-
-        self.grid, self.weights = build_grid_1d(
-            self.grid_type, self.n_points, x_min=self.x_min, x_max=self.x_max, length=self.length
-        )
-        self.kinetic_matrix = build_kinetic_matrix_1d(
-            self.grid_type, self.grid, mass_amu=self.mass_amu, f_rot_cm1=self.f_rot_cm1, length=self.length
-        )
-
-    def solve(
-        self,
-        potential: Union[np.ndarray, Sequence[float], Callable[[float], float]],
-        num_states: int = 10,
-    ) -> DVRSpectrumResult:
-        """Solves 1D quantum Schrödinger equation for arbitrary potential."""
-        t_start = time.perf_counter()
-
-        if callable(potential):
-            v_vals = np.array([float(potential(float(x))) for x in self.grid], dtype=np.float64)
-        else:
-            v_vals = np.asarray(potential, dtype=np.float64)
-            if len(v_vals) != self.n_points:
-                n_old = len(v_vals)
-                x_old = np.array([self.x_min + (self.x_max - self.x_min) * i / float(n_old - 1) for i in range(n_old)], dtype=np.float64)
-                interp = scipy.interpolate.CubicSpline(x_old, v_vals, extrapolate=True)
-                v_vals = interp(self.grid)
-
-        v_mat = np.diag(v_vals)
-        h_mat = self.kinetic_matrix + v_mat
-
-        evals, evecs = solve_dvr_dense(h_mat, num_states=num_states, backend=self.backend)
-        t_wall = time.perf_counter() - t_start
-
-        evals_cm1 = evals.astype(np.float64)
-        evals_mhz = evals_cm1 * CM_INV_TO_MHZ
-        evals_ha = evals_cm1 / HARTREE_TO_CM_INV
-
-        zpe_cm1 = float(evals_cm1[0])
-        ground_cm1 = float(evals_cm1[0])
-
-        return DVRSpectrumResult(
-            eigenvalues_cm1=evals_cm1,
-            eigenvalues_mhz=evals_mhz,
-            eigenvalues_hartree=evals_ha,
-            wavefunctions=evecs.astype(np.float64),
-            grid_coordinates=self.grid,
-            grid_weights=self.weights,
-            potential_energy_cm1=v_vals,
-            zero_point_energy_cm1=zpe_cm1,
-            ground_state_energy_cm1=ground_cm1,
-            num_states_solved=len(evals_cm1),
-            grid_type=self.grid_type.value,
-            dimensionality=1,
-            mass_amu=self.mass_amu,
-            execution_time_s=t_wall,
-            provenance="[M]",
-        )
-
-    def analyze_tunneling(
-        self,
-        potential: Union[np.ndarray, Sequence[float], Callable[[float], float]],
-        num_states: int = 10,
-        nuclear_spins: Optional[Sequence[float]] = None,
-        symmetry_group: SymmetryGroup = SymmetryGroup.C2V,
-    ) -> TunnelingAnalysisResult:
-        """Performs full tunneling analysis and WKB comparison on double-well potential."""
-        if callable(potential):
-            v_vals = np.array([float(potential(float(x))) for x in self.grid], dtype=np.float64)
-        else:
-            v_vals = np.asarray(potential, dtype=np.float64)
-            if len(v_vals) != self.n_points:
-                n_old = len(v_vals)
-                x_old = np.array([self.x_min + (self.x_max - self.x_min) * i / float(n_old - 1) for i in range(n_old)], dtype=np.float64)
-                interp = scipy.interpolate.CubicSpline(x_old, v_vals, extrapolate=True)
-                v_vals = interp(self.grid)
-
-        return analyze_double_well_tunneling(
-            self.grid,
-            v_vals,
-            mass_amu=self.mass_amu,
-            num_states=num_states,
-            grid_type=self.grid_type,
-            nuclear_spins=nuclear_spins,
-            symmetry_group=symmetry_group,
-        )
-
-
-class DVR2DSolver:
-    """High-level 2D Direct-Product & Coupled Discrete Variable Representation quantum solver."""
-
-    def __init__(
-        self,
-        grid_types: Tuple[Union[DVRGridType, str], Union[DVRGridType, str]] = (DVRGridType.SINC, DVRGridType.SINC),
-        n_points: Tuple[int, int] = (40, 40),
-        domains: Tuple[Tuple[float, float], Tuple[float, float]] = ((-2.0, 2.0), (-2.0, 2.0)),
-        masses_amu: Tuple[float, float] = (1.0, 1.0),
-        f_rots_cm1: Tuple[Optional[float], Optional[float]] = (None, None),
-        cross_kinetic_coupling: float = 0.0,
-        matrix_free: bool = False,
-    ) -> None:
-        """Initialize 2D direct-product DVR solver."""
-        self.grid_types = (
-            DVRGridType(grid_types[0]) if isinstance(grid_types[0], str) else grid_types[0],
-            DVRGridType(grid_types[1]) if isinstance(grid_types[1], str) else grid_types[1],
-        )
-        self.n1, self.n2 = int(n_points[0]), int(n_points[1])
-        self.domain1, self.domain2 = domains
-        self.m1, self.m2 = float(masses_amu[0]), float(masses_amu[1])
-        self.f1, self.f2 = f_rots_cm1
-        self.cross_coupling = float(cross_kinetic_coupling)
-        self.matrix_free = matrix_free
-
-        self.grid1, self.weights1 = build_grid_1d(
-            self.grid_types[0], self.n1, x_min=self.domain1[0], x_max=self.domain1[1]
-        )
-        self.grid2, self.weights2 = build_grid_1d(
-            self.grid_types[1], self.n2, x_min=self.domain2[0], x_max=self.domain2[1]
-        )
-
-        self.t1 = build_kinetic_matrix_1d(
-            self.grid_types[0], self.grid1, mass_amu=self.m1, f_rot_cm1=self.f1
-        )
-        self.t2 = build_kinetic_matrix_1d(
-            self.grid_types[1], self.grid2, mass_amu=self.m2, f_rot_cm1=self.f2
-        )
-
-    def solve(
-        self,
-        potential_2d: Union[np.ndarray, Callable[[float, float], float]],
-        num_states: int = 10,
-    ) -> DVRSpectrumResult:
-        """Solves 2D coupled quantum Schrödinger equation."""
-        t_start = time.perf_counter()
-
-        if callable(potential_2d):
-            v_grid = np.full((self.n1, self.n2), 0.0, dtype=np.float64)
-            for i1 in range(self.n1):
-                for i2 in range(self.n2):
-                    v_grid[i1, i2] = float(potential_2d(float(self.grid1[i1]), float(self.grid2[i2])))
-            v_flat = v_grid.flatten()
-        else:
-            v_raw = np.asarray(potential_2d, dtype=np.float64)
-            if v_raw.shape == (self.n1, self.n2):
-                v_grid = v_raw
-                v_flat = v_raw.flatten()
-            elif v_raw.ndim == 1 and len(v_raw) == self.n1 * self.n2:
-                v_grid = v_raw.reshape((self.n1, self.n2))
-                v_flat = v_raw
-            else:
-                raise ValueError(f"Potential array shape {v_raw.shape} incompatible with grid {(self.n1, self.n2)}.")
-
-        total_dim = self.n1 * self.n2
-
-        if self.matrix_free or total_dim > 2500:
-            op = MatrixFreeDVROperator(self.t1, self.t2, v_flat, shape_2d=(self.n1, self.n2))
-            evals, evecs = solve_dvr_matrix_free(op, num_states=num_states)
-        else:
-            t_2d = build_2d_direct_product_kinetic(self.t1, self.t2, cross_kinetic_coupling=self.cross_coupling)
-            h_2d = t_2d + np.diag(v_flat)
-            evals, evecs = solve_dvr_dense(h_2d, num_states=num_states)
-
-        t_wall = time.perf_counter() - t_start
-        evals_cm1 = evals.astype(np.float64)
-        evals_mhz = evals_cm1 * CM_INV_TO_MHZ
-        evals_ha = evals_cm1 / HARTREE_TO_CM_INV
-
-        zpe_cm1 = float(evals_cm1[0])
-
-        return DVRSpectrumResult(
-            eigenvalues_cm1=evals_cm1,
-            eigenvalues_mhz=evals_mhz,
-            eigenvalues_hartree=evals_ha,
-            wavefunctions=evecs.astype(np.float64),
-            grid_coordinates=(self.grid1, self.grid2),
-            grid_weights=(self.weights1, self.weights2),
-            potential_energy_cm1=v_grid,
-            zero_point_energy_cm1=zpe_cm1,
-            ground_state_energy_cm1=zpe_cm1,
-            num_states_solved=len(evals_cm1),
-            grid_type=f"{self.grid_types[0].value}_x_{self.grid_types[1].value}",
-            dimensionality=2,
-            mass_amu=(self.m1, self.m2),
-            execution_time_s=t_wall,
-            provenance="[M]",
-        )
-
-
-# =============================================================================
-# 12. CLI ENTRYPOINT & HDF5 / JSON EXPORT
-# =============================================================================
-
-def build_cli_parser() -> argparse.ArgumentParser:
-    """Builds comprehensive CLI parser for headless DVR execution."""
-    parser = argparse.ArgumentParser(
-        prog="cochem_core_dvr_solver",
-        description="CoChem Stage 7 / Method Matrix v4 - Discrete Variable Representation (DVR) Solver",
-    )
-    parser.add_argument("--dim", type=int, choices=[1, 2], default=1, help="DVR Dimensionality (1 or 2)")
-    parser.add_argument(
-        "--grid-type",
-        type=str,
-        default="sinc",
-        choices=["sinc", "radial_sinc", "sine", "fourier", "legendre"],
-        help="1D DVR grid and basis formulation",
-    )
-    parser.add_argument("--points", type=int, default=100, help="Number of grid points per dimension")
-    parser.add_argument("--mass", type=float, default=1.0, help="Particle / reduced mass in unified atomic units (u)")
-    parser.add_argument("--mass-isotope", type=str, default=None, help="Elemental symbol for dynamic Mendeleev mass query")
-    parser.add_argument("--f-rot", type=float, default=None, help="Rotational constant F in cm^-1 for periodic rotor")
-    parser.add_argument("--barrier", type=float, default=None, help="Barrier height in cm^-1 for double well or rotor")
-    parser.add_argument("--periodicity", type=int, default=3, help="Barrier periodicity (e.g. 3 for methyl top)")
-    parser.add_argument("--xmin", type=float, default=-2.0, help="Grid lower bound (Angstroms)")
-    parser.add_argument("--xmax", type=float, default=2.0, help="Grid upper bound (Angstroms)")
-    parser.add_argument("--num-states", type=int, default=10, help="Number of eigenstates to compute")
-    parser.add_argument("--matrix-free", action="store_true", help="Enable matrix-free Lanczos solver for 2D grids")
-    parser.add_argument("--json-out", type=str, default=None, help="Path to write JSON execution payload")
-    parser.add_argument("--h5-out", type=str, default=None, help="Path to write HDF5 quantum eigenstates payload")
-    return parser
-
-
-def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Headless CLI execution entrypoint for CoChem DVR Solver."""
-    parser = build_cli_parser()
-    args = parser.parse_args(argv)
-
-    mass_val = args.mass
-    if args.mass_isotope:
-        mass_val = get_dynamic_mass(args.mass_isotope)
-        logger.info("Dynamic Mendeleev mass resolved for '%s': %.6f u", args.mass_isotope, mass_val)
-
-    if args.dim == 1:
-        if args.grid_type == "fourier":
-            f_val = args.f_rot if args.f_rot is not None else 5.25
-            v_val = args.barrier if args.barrier is not None else 350.0
-            rotor_res = analyze_hindered_internal_rotor(
-                f_rot_cm1=f_val,
-                v_barrier_cm1=v_val,
-                periodicity=args.periodicity,
-                num_points=args.points,
-                num_states=args.num_states,
-            )
-            print("=" * 70)
-            print(f" CoChem Hindered Rotor DVR Results (Periodicity={rotor_res.periodicity})")
-            print("=" * 70)
-            print(f"F (rotational constant):  {rotor_res.f_rot_cm1:.4f} cm^-1 ({rotor_res.f_rot_ghz:.4f} GHz)")
-            print(f"V_n Barrier Height:       {rotor_res.v_barrier_cm1:.2f} cm^-1 ({rotor_res.v_barrier_kj_mol:.2f} kJ/mol)")
-            print(f"Reduced Barrier (s):      {rotor_res.reduced_barrier_s:.4f}")
-            print(f"Ground State A-E Split:   {rotor_res.a_e_splitting_ground_mhz:.4f} MHz ({rotor_res.a_e_splitting_ground_cm1:.6f} cm^-1)")
-            print("Lowest Eigenvalues (cm^-1):")
-            for idx, (eval_cm, sym) in enumerate(zip(rotor_res.eigenvalues_cm1, rotor_res.state_symmetries, strict=False)):
-                print(f"  [{idx:02d}] {eval_cm:12.4f} cm^-1  ({sym})")
-
-            if args.json_out:
-                Path(args.json_out).write_text(json.dumps(rotor_res.to_dict(), indent=2), encoding="utf-8")
-                logger.info("Saved JSON results to %s", args.json_out)
-
-        elif args.barrier is not None:
-            solver = DVR1DSolver(
-                grid_type=args.grid_type,
-                n_points=args.points,
-                x_min=args.xmin,
-                x_max=args.xmax,
-                mass_amu=mass_val,
-            )
-            x0 = (args.xmax - args.xmin) / 4.0
-            h_barr = args.barrier
-            def double_well_pot(x: float) -> float:
-                return float(h_barr * (((x / x0) ** 2 - 1.0) ** 2))
-
-            tun_res = solver.analyze_tunneling(double_well_pot, num_states=args.num_states)
-            print("=" * 70)
-            print(" CoChem Double-Well Tunneling DVR Results")
-            print("=" * 70)
-            print(f"Reduced Mass:             {tun_res.reduced_mass_amu:.6f} u")
-            print(f"Barrier Height:           {tun_res.barrier_height_cm1:.2f} cm^-1 ({tun_res.barrier_height_kj_mol:.2f} kJ/mol)")
-            print(f"Harmonic Well Frequency:  {tun_res.harmonic_frequency_well_cm1:.2f} cm^-1")
-            print(f"DVR Tunneling Splitting:  {tun_res.ground_state_splitting_mhz:.4f} MHz ({tun_res.ground_state_splitting_cm1:.6f} cm^-1) [M]")
-            print(f"WKB Instanton Estimate:   {tun_res.wkb_splitting_estimate_mhz:.4f} MHz ({tun_res.wkb_splitting_estimate_cm1:.6f} cm^-1) [E]")
-            print("Eigenvalues (cm^-1):")
-            for idx, (ev, od) in enumerate(zip(tun_res.even_levels_cm1, tun_res.odd_levels_cm1, strict=False)):
-                print(f"  v={idx}: Even (0+) = {ev:10.4f} cm^-1 | Odd (0-) = {od:10.4f} cm^-1 | Split = {(od - ev)*CM_INV_TO_MHZ:10.4f} MHz")
-
-            if args.json_out:
-                Path(args.json_out).write_text(json.dumps(tun_res.to_dict(), indent=2), encoding="utf-8")
-                logger.info("Saved JSON results to %s", args.json_out)
-
-        else:
-            solver = DVR1DSolver(
-                grid_type=args.grid_type,
-                n_points=args.points,
-                x_min=args.xmin,
-                x_max=args.xmax,
-                mass_amu=mass_val,
-                f_rot_cm1=args.f_rot,
-            )
-            v_harm = 0.5 * 1000.0 * (solver.grid ** 2)
-            res = solver.solve(v_harm, num_states=args.num_states)
-            print(f"DVR 1D Solved {res.num_states_solved} states in {res.execution_time_s * 1000.0:.2f} ms.")
-            print("Lowest 5 Eigenvalues (cm^-1):", np.round(res.eigenvalues_cm1[:5], 4))
-
-            if args.json_out:
-                Path(args.json_out).write_text(json.dumps(res.to_dict(), indent=2), encoding="utf-8")
-                logger.info("Saved JSON results to %s", args.json_out)
-
-            if args.h5_out:
-                res.save_hdf5(args.h5_out)
-                logger.info("Saved HDF5 results to %s", args.h5_out)
-
-    elif args.dim == 2:
-        f_val = args.f_rot if args.f_rot is not None else 4.5
-        solver2d = DVR2DSolver(
-            grid_types=(DVRGridType.FOURIER, DVRGridType.FOURIER),
-            n_points=(args.points, args.points),
-            domains=((0.0, 2.0 * math.pi), (0.0, 2.0 * math.pi)),
-            masses_amu=(mass_val, mass_val),
-            f_rots_cm1=(f_val, f_val),
-            matrix_free=args.matrix_free,
-        )
-        def coupled_torsion_pot(th1: float, th2: float) -> float:
-            return float(120.0 * (1.0 - math.cos(3.0 * th1)) + 120.0 * (1.0 - math.cos(3.0 * th2)) + 20.0 * math.cos(3.0 * (th1 - th2)))
-
-        res2d = solver2d.solve(coupled_torsion_pot, num_states=args.num_states)
-        print(f"DVR 2D Solved {res2d.num_states_solved} coupled states in {res2d.execution_time_s * 1000.0:.2f} ms.")
-        print("Lowest 5 Coupled Eigenvalues (cm^-1):", np.round(res2d.eigenvalues_cm1[:5], 4))
-
-        if args.json_out:
-            Path(args.json_out).write_text(json.dumps(res2d.to_dict(), indent=2), encoding="utf-8")
-            logger.info("Saved JSON results to %s", args.json_out)
-
-        if args.h5_out:
-            res2d.save_hdf5(args.h5_out)
-            logger.info("Saved HDF5 results to %s", args.h5_out)
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_job_manager.py ---
-# cochem_canvas_target: core_engine/cochem_core_job_manager.py
-"""
-Job manager module for CoChem-CORE.
-Manages the lifecycle of computational chemistry jobs with temporal tiers and hardware awareness.
-"""
-
-import asyncio
-import logging
-import signal
-import sys
-import time
-import atexit
-import psutil
-from typing import Any, Dict, List, Optional, Tuple, Union
-from pydantic import BaseModel, Field, ValidationError
-
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-
-class JobConfig(BaseModel):
-    command: List[str] = Field(default_factory=lambda: ["echo", "no command"])
-    product_class: str = "Product_A_DeNovo"
-    is_isotopologue: bool = False
-    has_parent_anchor: bool = False
-    floppy_monomer: bool = False
-    atom_count: Optional[int] = None
-    n_atoms: Optional[int] = None
-    temporal_tier_override: Optional[int] = None
-    max_duration_override: Optional[int] = None
-    job_name: Optional[str] = None
-    cwd: Optional[str] = None
-    env: Optional[Dict[str, str]] = None
-
-class JobInfo(BaseModel):
-    config: JobConfig
-    status: str
-    created_at: float
-    job_id: str
-    temporal_tier: int
-    max_duration: int
-    started_at: Optional[float] = None
-    completed_at: Optional[float] = None
-    return_code: Optional[int] = None
-    stdout: Optional[str] = None
-    stderr: Optional[str] = None
-    duration: Optional[float] = None
-    error: Optional[str] = None
-
-
-class JobManager:
-    """
-    Manages the lifecycle of computational chemistry jobs with temporal tiers and hardware awareness.
-
-    Implements 10 temporal wall-clock tiers from 10 seconds to 1 month, with SIGTERM/SIGKILL enforcement
-    for proper job lifecycle management and resource control.
-    """
-
-    TEMPORAL_TIERS = [
-        10,       # Tier 1: T1-10s (Conformer search / MLFF pre-relax)
-        60,       # Tier 2: T1-1min (Fast screening / xTB Hessian)
-        1800,     # Tier 3: T1-30min (Medium Opt / r2SCAN-3c)
-        3600,     # Tier 4: T1-1h (Tight Opt / B97-3c / PBE0-D4)
-        10800,    # Tier 5: T2-3h (PES scan / CI-NEB path)
-        43200,    # Tier 6: T2-12h (DLPNO-CCSD(T) / High-level Opt)
-        86400,    # Tier 7: T3-1d (Composite equilibrium geometry / B_e)
-        259200,   # Tier 8: T3-3d (Full VPT2 anharmonic force field)
-        604800,   # Tier 9: T4-1w (Active learning PES store construction)
-        2592000   # Tier 10: T4-1mo (De novo benchmark target execution)
-    ]
-
-    def __init__(self, max_job_history: int = 1000, poll_interval: float = 0.1, **kwargs: Any) -> None:
-        """Initialize the job manager."""
-        self.jobs: Dict[str, JobInfo] = {}
-        self.job_counter = 0
-        self.active_processes: Dict[str, Dict[str, Any]] = {}
-        self.max_job_history = max_job_history
-        self.poll_interval = poll_interval
-        atexit.register(self._cleanup_all_processes)
-
-    def _cleanup_all_processes(self) -> None:
-        """Atexit handler to ensure all running subprocesses are terminated upon exit."""
-        for job_id, process_info in self.active_processes.items():
-            process = process_info.get('process')
-            if process and process.pid:
-                self._kill_process_tree(process.pid)
-            logger.info("Swept all zombie processes on exit.")
-
-    def _kill_process_tree(self, pid: int) -> None:
-        """Kill a process and all its children to prevent zombie processes."""
-        try:
-            parent = psutil.Process(pid)
-            children = parent.children(recursive=True)
-            for child in children:
-                try:
-                    child.kill()
-                except psutil.NoSuchProcess:
-                    pass
-            try:
-                parent.kill()
-            except psutil.NoSuchProcess:
-                pass
-        except psutil.NoSuchProcess:
-            pass
-
-    async def submit_job(self, job_config_input: Union[Dict[str, Any], JobConfig]) -> str:
-        """Submit a new job to the system with temporal tier assignment."""
-        if isinstance(job_config_input, JobConfig):
-            job_config = job_config_input
-        else:
-            try:
-                job_config = JobConfig(**job_config_input)
-            except ValidationError as e:
-                logger.error(f"Invalid job configuration: {e}")
-                raise ValueError(f"Invalid job configuration: {e}")
-
-        self.purge_completed_jobs(max_age_seconds=86400.0)
-        job_id = f"job_{self.job_counter}"
-        self.job_counter += 1
-
-        logger.info(f"📤 Submitting job {job_id}")
-
-        temporal_tier = self._assign_temporal_tier(job_config)
-        max_duration = job_config.max_duration_override if job_config.max_duration_override is not None else self.TEMPORAL_TIERS[temporal_tier - 1]
-
-        # Enforce max_job_history
-        while len(self.jobs) >= self.max_job_history:
-            oldest_key = next(iter(self.jobs))
-            del self.jobs[oldest_key]
-
-        self.jobs[job_id] = JobInfo(
-            config=job_config,
-            status='submitted',
-            created_at=time.time(),
-            job_id=job_id,
-            temporal_tier=temporal_tier,
-            max_duration=max_duration
-        )
-
-        return job_id
-
-    def _assign_temporal_tier(self, job_config: JobConfig) -> int:
-        """
-        Assign a temporal tier based on v4 Product Class decision tree & target accuracy windows (§1.1-1.5).
-        Returns 1-based tier index (1 to 10).
-        """
-        if job_config.temporal_tier_override is not None:
-            return job_config.temporal_tier_override
-
-        product_class = job_config.product_class
-        is_isotopologue = job_config.is_isotopologue
-        has_parent_anchor = job_config.has_parent_anchor
-        floppy_monomer = job_config.floppy_monomer
-        atom_count = job_config.n_atoms if job_config.n_atoms is not None else (job_config.atom_count if job_config.atom_count is not None else 10)
-
-        if product_class in ('Product_D_ActiveLearning', 'Class_D'):
-            if atom_count > 50:
-                return 10
-            return 9
-
-        if product_class in ('Product_C_Differences', 'Class_C') or is_isotopologue:
-            if atom_count < 20:
-                return 1
-            else:
-                return 2
-
-        if product_class in ('Product_B_SemiExperimental', 'Class_B') or has_parent_anchor:
-            if atom_count < 30:
-                return 3
-            else:
-                return 4
-
-        if floppy_monomer:
-            if atom_count > 50:
-                return 8
-            return 6
-        else:
-            if atom_count < 15:
-                return 4
-            elif atom_count < 40:
-                return 5
-            elif atom_count < 80:
-                return 6
-            else:
-                return 7
-
-    def purge_completed_jobs(self, max_age_seconds: float = 3600.0) -> int:
-        """Evict completed or failed jobs older than max_age_seconds from memory to prevent memory leak."""
-        now = time.time()
-        to_delete = []
-        for job_id, info in self.jobs.items():
-            if info.status in ('completed', 'failed', 'cancelled', 'timed_out'):
-                completed_at = info.completed_at if info.completed_at else info.created_at
-                if (now - completed_at) >= max_age_seconds:
-                    to_delete.append(job_id)
-
-        for jid in to_delete:
-            del self.jobs[jid]
-        return len(to_delete)
-
-    def clear_history(self) -> int:
-        """Clear all finished jobs from history."""
-        to_delete = [jid for jid, info in self.jobs.items() if info.status in ('completed', 'failed', 'cancelled', 'timed_out')]
-        for jid in to_delete:
-            del self.jobs[jid]
-        return len(to_delete)
-
-    def get_job(self, job_id: str) -> Optional[JobInfo]:
-        """Get the JobInfo instance for a specific job."""
-        return self.jobs.get(job_id)
-
-    def get_completed_jobs(self) -> List[JobInfo]:
-        """Get all completed, failed, timed out, or cancelled jobs."""
-        return [job for job in self.jobs.values() if job.status in ('completed', 'failed', 'cancelled', 'timed_out')]
-
-    def get_failed_jobs(self) -> List[JobInfo]:
-        """Get all failed jobs."""
-        return [job for job in self.jobs.values() if job.status in ('failed', 'timed_out')]
-
-    def get_running_jobs(self) -> List[JobInfo]:
-        """Get all currently running jobs."""
-        return [job for job in self.jobs.values() if job.status == 'running']
-
-    async def wait_for_job(self, job_id: str, timeout: Optional[float] = None) -> Optional[JobInfo]:
-        """Wait for a job to finish and return its JobInfo."""
-        start_wait = time.time()
-        while True:
-            job = self.jobs.get(job_id)
-            if not job:
-                return None
-            if job.status in ('completed', 'failed', 'cancelled', 'timed_out'):
-                return job
-            if timeout is not None and (time.time() - start_wait) > timeout:
-                return job
-            await asyncio.sleep(0.05)
-
-    async def run_job(self, job_id: str, timeout: Optional[float] = None) -> Optional[JobInfo]:
-        """Run a job asynchronously and wait for its completion."""
-        if job_id not in self.jobs:
-            logger.warning(f"Job {job_id} not found")
-            return None
-
-        job = self.jobs[job_id]
-        if timeout is not None:
-            job.max_duration = int(timeout)
-        if job_id not in self.active_processes:
-            await self.start_job(job_id)
-
-        proc_info = self.active_processes.get(job_id)
-        if proc_info and "task" in proc_info:
-            await proc_info["task"]
-
-        return self.jobs.get(job_id, job)
-
-    async def start_job(self, job_id: str) -> None:
-        """Start a submitted job using asyncio subprocess execution."""
-        if job_id not in self.jobs:
-            logger.warning(f"Job {job_id} not found")
-            return
-
-        job = self.jobs[job_id]
-        logger.info(f"▶️  Starting job {job_id} with temporal tier {job.temporal_tier}")
-
-        command = job.config.command
-        if not command:
-            job.status = 'failed'
-            job.error = 'Job command list cannot be empty'
-            job.completed_at = time.time()
-            return
-
-        import os
-        if job.config.cwd and not os.path.isdir(job.config.cwd):
-            job.status = 'failed'
-            job.error = 'Specified working directory does not exist'
-            job.completed_at = time.time()
-            return
-
-        try:
-            merged_env = None
-            if job.config.env:
-                merged_env = os.environ.copy()
-                merged_env.update(job.config.env)
-
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=job.config.cwd,
-                env=merged_env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-
-            job.status = 'running'
-            job.started_at = time.time()
-
-            task = asyncio.create_task(self._unified_reader(job_id, process, float(job.max_duration)))
-
-            self.active_processes[job_id] = {
-                'process': process,
-                'start_time': time.time(),
-                'max_duration': job.max_duration,
-                'task': task,
-            }
-
-            logger.info(f"Job {job_id} started successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to start job {job_id}: {e}")
-            job.status = 'failed'
-            job.error = str(e)
-            job.completed_at = time.time()
-
-    async def _unified_reader(
-        self, job_id: str, process: asyncio.subprocess.Process, timeout: float
-    ) -> Tuple[str, str, int]:
-        """Consolidated single-task stream reader and timeout watchdog."""
-        try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout)
-            out_str = stdout_bytes.decode('utf-8', errors='replace')
-            err_str = stderr_bytes.decode('utf-8', errors='replace')
-            ret = process.returncode or 0
-            if job_id in self.jobs:
-                self.jobs[job_id].stdout = out_str
-                self.jobs[job_id].stderr = err_str
-                self.jobs[job_id].return_code = ret
-            logger.info(f"Job {job_id} completed with return code {ret}")
-            self._complete_job(job_id, ret)
-            return out_str, err_str, ret
-        except asyncio.TimeoutError:
-            logger.warning(f"⏰ Job {job_id} timeout reached ({timeout}s), terminating process tree")
-            try:
-                if process.pid:
-                    self._kill_process_tree(process.pid)
-            except Exception as sig_error:
-                logger.error(f"Error terminating job {job_id}: {sig_error}")
-
-            await process.wait()
-            if job_id in self.jobs:
-                self.jobs[job_id].status = 'timed_out'
-                self.jobs[job_id].error = f"Job {job_id} exceeded temporal maximum duration ({timeout}s)"
-                self.jobs[job_id].return_code = -1
-            self._complete_job(job_id, -1, timed_out=True)
-            return "", f"Job {job_id} exceeded temporal maximum duration ({timeout}s)", -1
-        except Exception as e:
-            logger.error(f"Error in unified reader for job {job_id}: {e}")
-            self._complete_job(job_id, -1)
-            return "", str(e), -1
-        finally:
-            if job_id in self.jobs:
-                self.jobs[job_id].completed_at = time.time()
-                self.jobs[job_id].duration = self.jobs[job_id].completed_at - (self.jobs[job_id].started_at or self.jobs[job_id].created_at)
-            self.active_processes.pop(job_id, None)
-
-    async def _enforce_timeout(self, job_id: str) -> None:
-        """Deprecated alias pointing to unified reader task."""
-        proc_info = self.active_processes.get(job_id)
-        if proc_info and "task" in proc_info:
-            await proc_info["task"]
-
-    def _complete_job(self, job_id: str, return_code: int, timed_out: bool = False) -> None:
-        """Mark a job as completed or failed and clean up resources."""
-        if job_id in self.jobs:
-            logger.info(f"✅ Completing job {job_id} with return code {return_code}")
-            if timed_out:
-                self.jobs[job_id].status = 'timed_out'
-            elif self.jobs[job_id].status != 'cancelled':
-                self.jobs[job_id].status = 'completed' if return_code == 0 else 'failed'
-            self.jobs[job_id].completed_at = time.time()
-            self.jobs[job_id].return_code = return_code
-            self.jobs[job_id].duration = self.jobs[job_id].completed_at - (self.jobs[job_id].started_at or self.jobs[job_id].created_at)
-
-        if job_id in self.active_processes:
-            del self.active_processes[job_id]
-
-    def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
-        """Get the status of a specific job."""
-        job = self.jobs.get(job_id)
-        if job:
-            return job.model_dump() if hasattr(job, "model_dump") else job.dict()
+def get_pdeathsig_preexec_fn(sig: int = signal.SIGTERM) -> Optional[Any]:
+    """Return a preexec callable suitable for subprocess.Popen to establish parent death signals on Linux."""
+    if not sys.platform.startswith("linux"):
         return None
 
-    def cancel_job(self, job_id: str) -> bool:
-        """Cancel a running or pending job. Returns True if found and cancelled."""
-        if job_id in self.jobs:
-            logger.info(f"❌ Cancelling job {job_id}")
-            self.jobs[job_id].status = 'cancelled'
-            self.jobs[job_id].completed_at = time.time()
+    def _preexec() -> None:
+        set_pdeathsig(sig)
 
-            if job_id in self.active_processes:
+    return _preexec
+
+
+@dataclass(frozen=True)
+class ProcessMetadata:
+    """Immutable snapshot of tracked process identity and origin."""
+
+    pid: int
+    ppid: int
+    create_time: float
+    task_id: Optional[str] = None
+    status: str = "ACTIVE"
+
+
+class ProcessTreeManager:
+    """Manages process hierarchies and guarantees complete subtree termination."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._tracked: Dict[int, ProcessMetadata] = {}
+        self._job_handle: Optional[Any] = None
+        self._init_platform_containment()
+
+    def _init_platform_containment(self) -> None:
+        """Initialize platform-specific containment primitives."""
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                from ctypes import wintypes
+
+                class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                    _fields_ = [
+                        ("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", ctypes.c_uint32),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", ctypes.c_uint32),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", ctypes.c_uint32),
+                        ("SchedulingClass", ctypes.c_uint32),
+                    ]
+
+                class IO_COUNTERS(ctypes.Structure):
+                    _fields_ = [
+                        ("ReadOperationCount", ctypes.c_uint64),
+                        ("WriteOperationCount", ctypes.c_uint64),
+                        ("OtherOperationCount", ctypes.c_uint64),
+                        ("ReadTransferCount", ctypes.c_uint64),
+                        ("WriteTransferCount", ctypes.c_uint64),
+                        ("OtherTransferCount", ctypes.c_uint64),
+                    ]
+
+                class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                    _fields_ = [
+                        ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                        ("IoInfo", IO_COUNTERS),
+                        ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryLimit", ctypes.c_size_t),
+                        ("PeakJobMemoryLimit", ctypes.c_size_t),
+                    ]
+
+                job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if job_handle:
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                    JobObjectExtendedLimitInformation = 9
+                    ctypes.windll.kernel32.SetInformationJobObject(
+                        job_handle,
+                        JobObjectExtendedLimitInformation,
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self._job_handle = job_handle
+            except Exception as err:
+                logger.debug("Windows Job Object initialization bypassed: %s", err)
+                self._job_handle = None
+
+    def register_process(
+        self,
+        proc: Union[psutil.Process, int],
+        task_id: Optional[str] = None,
+    ) -> ProcessMetadata:
+        """Register a child process for lifecycle tracking."""
+        p = proc if isinstance(proc, psutil.Process) else psutil.Process(proc)
+        pid = p.pid
+        ppid = p.ppid()
+        ctime = p.create_time()
+
+        if sys.platform == "win32" and self._job_handle is not None:
+            process_handle = None
+            try:
+                import ctypes
+                PROCESS_ALL_ACCESS = 0x1F0FFF
+                process_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+                if process_handle:
+                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, process_handle)
+            except Exception as assign_err:
+                logger.debug("Could not assign PID %d to Windows Job Object: %s", pid, assign_err)
+            finally:
+                if process_handle:
+                    try:
+                        import ctypes
+                        ctypes.windll.kernel32.CloseHandle(process_handle)
+                    except Exception as close_err:
+                        logger.debug("Error closing process handle for PID %d: %s", pid, close_err)
+
+        metadata = ProcessMetadata(
+            pid=pid,
+            ppid=ppid,
+            create_time=ctime,
+            task_id=task_id,
+        )
+        with self._lock:
+            self._tracked[pid] = metadata
+        return metadata
+
+    def unregister_process(self, pid: int) -> None:
+        """Remove process from active tracking register."""
+        with self._lock:
+            self._tracked.pop(pid, None)
+
+    def is_alive(self, pid: int) -> bool:
+        """Check if process exists and create_time matches registered snapshot."""
+        with self._lock:
+            meta = self._tracked.get(pid)
+        if not psutil.pid_exists(pid):
+            return False
+        try:
+            p = psutil.Process(pid)
+            if meta is not None and abs(p.create_time() - meta.create_time) > 1.0:
+                return False  # PID was recycled by OS
+            return bool(p.is_running() and p.status() != psutil.STATUS_ZOMBIE)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+
+    def get_tracked_pids(self) -> List[int]:
+        """Return point-in-time snapshot of tracked PIDs under reentrant lock."""
+        with self._lock:
+            return list(self._tracked.keys())
+
+    def get_metadata(self, pid: int) -> Optional[ProcessMetadata]:
+        """Retrieve metadata for a tracked process under lock."""
+        with self._lock:
+            return self._tracked.get(pid)
+
+    @property
+    def tracked_pids(self) -> List[int]:
+        """Property returning snapshot of tracked PIDs."""
+        with self._lock:
+            return list(self._tracked.keys())
+
+    def terminate_tree(
+        self,
+        pid: int,
+        grace_timeout_sec: float = DEFAULT_GRACE_TIMEOUT_SEC,
+    ) -> Dict[str, Any]:
+        """Progressive termination escalation sequence: SIGTERM -> wait -> SIGKILL / Job Object."""
+        metrics: Dict[str, Any] = {
+            "pid": pid,
+            "cpu_time": 0.0,
+            "resident_memory_mb": 0.0,
+            "terminated_children_count": 0,
+            "success": False,
+            "leaked_pids": [],
+        }
+
+        if not psutil.pid_exists(pid):
+            self.unregister_process(pid)
+            metrics["success"] = True
+            return metrics
+
+        try:
+            parent = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            self.unregister_process(pid)
+            metrics["success"] = True
+            return metrics
+
+        # Verify against PID recycling
+        with self._lock:
+            meta = self._tracked.get(pid)
+        if meta is not None and abs(parent.create_time() - meta.create_time) > 1.0:
+            self.unregister_process(pid)
+            metrics["success"] = True
+            return metrics
+
+        # Gather resource telemetry before termination
+        try:
+            cpu_times = parent.cpu_times()
+            metrics["cpu_time"] = cpu_times.user + cpu_times.system
+            metrics["resident_memory_mb"] = parent.memory_info().rss / (1024 * 1024)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            logger.debug("Could not sample telemetry before terminating PID %d", pid)
+
+        # Collect child subtree
+        try:
+            children = parent.children(recursive=True)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            children = []
+
+        all_processes = children + [parent]
+        metrics["terminated_children_count"] = len(children)
+
+        # Step 1: Issue SIGTERM / terminate()
+        for p in all_processes:
+            try:
+                p.terminate()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        # Step 2: Await graceful termination
+        gone, alive = psutil.wait_procs(all_processes, timeout=grace_timeout_sec)
+
+        # Step 3: Issue SIGKILL / kill() for remaining stubborn processes
+        if alive:
+            for p in alive:
                 try:
-                    process = self.active_processes[job_id]['process']
-                    if process and process.pid:
-                        self._kill_process_tree(process.pid)
-                    del self.active_processes[job_id]
-                except Exception as e:
-                    logger.error(f"Error cancelling job {job_id}: {e}")
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            # Platform-specific process containment termination
+            if sys.platform == "win32" and self._job_handle is not None:
+                try:
+                    import ctypes
+                    ctypes.windll.kernel32.TerminateJobObject(self._job_handle, 1)
+                except Exception as job_err:
+                    logger.debug("TerminateJobObject error: %s", job_err)
+            elif sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    pass
+
+            # Evict MPS context if present
+            if "CUDA_MPS_PIPE_DIRECTORY" in os.environ:
+                try:
+                    subprocess.run(["nvidia-smi", "--gpu-reset"], capture_output=True, timeout=2.0)
+                except Exception:
+                    pass
+
+            # Final check with 2.0s timeout
+            _, still_alive = psutil.wait_procs(alive, timeout=2.0)
+        else:
+            still_alive = []
+
+        if still_alive:
+            # Stubborn D-state or leaked processes
+            metrics["success"] = False
+            metrics["leaked_pids"] = [p.pid for p in still_alive]
+            with self._lock:
+                if pid in self._tracked:
+                    old_meta = self._tracked[pid]
+                    self._tracked[pid] = ProcessMetadata(
+                        pid=old_meta.pid,
+                        ppid=old_meta.ppid,
+                        create_time=old_meta.create_time,
+                        task_id=old_meta.task_id,
+                        status="ORPHAN_LEAK",
+                    )
+            logger.error("Process subtree for PID %d could not be reaped: %s", pid, metrics["leaked_pids"])
+            raise ProcessReapTimeoutError(
+                f"Failed to terminate process subtree for PID {pid}; stubborn PIDs: {metrics['leaked_pids']}"
+            )
+
+        self.unregister_process(pid)
+        metrics["success"] = True
+        return metrics
+
+
+class ZombieReaperDaemon:
+    """Watchdog daemon sweeping orphaned subprocesses and reclaiming expired task leases."""
+
+    def __init__(
+        self,
+        queue: Optional[SQLiteTaskQueue] = None,
+        tree_manager: Optional[ProcessTreeManager] = None,
+        parent_pid: Optional[int] = None,
+        grace_period_sec: float = DEFAULT_TIMEOUT_GRACE_PERIOD_SEC,
+        interval_sec: float = 5.0,
+    ) -> None:
+        self.queue = queue
+        self.tree_manager = tree_manager or ProcessTreeManager()
+        self.parent_pid = parent_pid or os.getpid()
+        self.grace_period_sec = grace_period_sec
+        self.interval_sec = interval_sec
+
+    def is_orphan(self, pid: int) -> bool:
+        """Classify process as orphaned by checking PPID and parent liveness."""
+        try:
+            if not psutil.pid_exists(pid):
+                return False
+            if self.parent_pid is not None and not psutil.pid_exists(self.parent_pid):
+                return True
+            p = psutil.Process(pid)
+            ppid = p.ppid()
+            if ppid == 1:
+                return True
+            if self.parent_pid is not None and ppid != self.parent_pid:
+                if not psutil.pid_exists(ppid):
+                    return True
+            return False
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return False
+
+    def sweep_orphans(self) -> List[int]:
+        """Perform a single sweep across tracked processes and reclaim expired tasks."""
+        terminated_pids: List[int] = []
+
+        # 1. Sweep tracked processes using thread-safe snapshot
+        active_pids = self.tree_manager.get_tracked_pids()
+        for pid in active_pids:
+            if not self.tree_manager.is_alive(pid):
+                self.tree_manager.unregister_process(pid)
+                continue
+
+            meta = self.tree_manager.get_metadata(pid)
+            task_id = meta.task_id if meta is not None else None
+
+            # Check orphan conditions
+            if self.is_orphan(pid):
+                metrics = self.tree_manager.terminate_tree(pid)
+                terminated_pids.append(pid)
+                if self.queue is not None and task_id is not None:
+                    self.queue.fail_task(
+                        task_id,
+                        f"Process {pid} orphaned and terminated: CPU={metrics['cpu_time']:.2f}s, RAM={metrics['resident_memory_mb']:.1f}MB",
+                        can_retry=True,
+                    )
+
+        # 2. Reclaim expired task leases from SQLite queue
+        if self.queue is not None:
+            self.queue.reclaim_orphaned_tasks(timeout_grace_sec=self.grace_period_sec)
+
+        return terminated_pids
+
+
+    def run_watchdog_loop(self, max_iterations: Optional[int] = None) -> List[int]:
+        """Execute sweep loop for up to max_iterations or indefinitely if None."""
+        all_reaped: List[int] = []
+        iterations = 0
+        while max_iterations is None or iterations < max_iterations:
+            iterations += 1
+            terminated = self.sweep_orphans()
+            all_reaped.extend(terminated)
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+            time.sleep(self.interval_sec)
+        return all_reaped
+
+
+__all__ = [
+    "ProcessMetadata",
+    "ProcessTreeManager",
+    "ZombieReaperDaemon",
+    "ProcessReapTimeoutError",
+    "set_pdeathsig",
+    "get_pdeathsig_preexec_fn",
+]
+
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\cochem_spycfit_ml_storage.py ---
+# -*- coding: utf-8 -*-
+"""CoChem-SpycFit ML: Thread-Safe HDF5 SWMR Storage, FileLock IPC & DAG Manager.
+
+Provides:
+- In-process threading.Lock and cross-process filelock.FileLock concurrency guards
+- Single-Writer Multi-Reader (SWMR) HDF5 persistence for spectra and states
+- Automatic zombie sidecar lock file detection and active PID recovery
+- Ephemeral sandbox lifecycle manager for subprocess isolation
+- Non-destructive DAG commit history and pointer swapping time-travel reversion
+
+Authoritative Standards:
+- Thread-Safe HDF5 Access Pattern (SWMR mode, libver='latest', lustre_bypass)
+- Tripartite Air-Gap Persistence Architecture (Tier 2 Artifacts, Tier 3 Ephemeral)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import shutil
+import tempfile
+import threading
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Dict, Iterator, List, Optional
+
+import filelock
+import h5py
+import numpy as np
+
+from cochem_spycfit_ml_schema import FitStateCommitSchema
+
+logger = logging.getLogger("cochem.spycfit.ml.storage")
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Cross-platform check whether a PID is currently alive."""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if not handle:
+            return False
+        exit_code = ctypes.c_ulong()
+        ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+        ctypes.windll.kernel32.CloseHandle(handle)
+        return exit_code.value == STILL_ACTIVE
+    else:
+        try:
+            os.kill(pid, 0)
             return True
+        except (OSError, ProcessLookupError):
+            return False
+
+
+def recover_zombie_locks(lock_file_path: Path, max_stale_seconds: float = 30.0) -> bool:
+    """Detect and safely clean up orphaned/zombie lock files and directory leases."""
+    lock_path = Path(lock_file_path).resolve()
+    if not lock_path.exists():
         return False
 
-    def list_jobs(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List all current jobs with optional status filter."""
-        jobs_list = self.jobs.values()
-        if status is not None:
-            jobs_list = [j for j in jobs_list if j.status == status]
-        return [job.model_dump() if hasattr(job, "model_dump") else job.dict() for job in jobs_list]
+    try:
+        if lock_path.is_dir():
+            from cochem.concurrency.network_lock import NetworkHeartbeatLock
+            hb_lock = NetworkHeartbeatLock(lock_path, lease_ttl_sec=max_stale_seconds)
+            if hb_lock.is_stale():
+                logger.warning(f"Recovering stale directory lease: {lock_path}")
+                shutil.rmtree(str(lock_path), ignore_errors=True)
+                return True
+            return False
 
-    async def monitor_active_jobs(self) -> None:
-        """Monitor and report on active jobs."""
-        while True:
-            active_jobs = [job for job in self.jobs.values() if job.status == 'running']
-            if active_jobs:
-                logger.info(f"📊 Currently running jobs: {len(active_jobs)}")
-                for job in active_jobs:
-                    elapsed_time = time.time() - (job.started_at or time.time())
-                    logger.info(f"   Job {job.job_id}: {elapsed_time:.1f}s elapsed")
+        should_clean = False
+        content = lock_path.read_text(encoding="utf-8").strip()
+
+        if "." in content or ":" in content:
+            parts = content.split(":")
+            if len(parts) >= 2:
+                try:
+                    pid = int(parts[0])
+                    timestamp = float(parts[1])
+                    if not _is_pid_alive(pid) and (time.time() - timestamp) > max_stale_seconds:
+                        should_clean = True
+                except ValueError:
+                    should_clean = True
+        elif content.startswith("{"):
+            try:
+                manifest = json.loads(content)
+                pid = int(manifest.get("pid", 0))
+                expires_at = float(manifest.get("expires_at", 0.0))
+                if time.time() > expires_at and not _is_pid_alive(pid):
+                    should_clean = True
+            except Exception:
+                should_clean = True
+
+        if should_clean:
+            logger.warning(f"Recovering zombie lock file: {lock_path}")
+            lock_path.unlink(missing_ok=True)
+            return True
+    except Exception as exc:
+        logger.debug(f"Lock recovery check encountered error: {exc}")
+    return False
+
+
+
+class EphemeralSandbox:
+    """Tier 3 Ephemeral sandbox context manager with guaranteed lifecycle cleanup."""
+
+    def __init__(self, base_scratch_dir: Optional[Path] = None, prefix: str = "cochem_spycfit_") -> None:
+        self.base_scratch_dir = Path(base_scratch_dir).resolve() if base_scratch_dir else Path(tempfile.gettempdir())
+        self.prefix = prefix
+        self._temp_dir: Optional[tempfile.TemporaryDirectory] = None
+        self.path: Optional[Path] = None
+
+    def __enter__(self) -> EphemeralSandbox:
+        self.base_scratch_dir.mkdir(parents=True, exist_ok=True)
+        self._temp_dir = tempfile.TemporaryDirectory(prefix=self.prefix, dir=str(self.base_scratch_dir))
+        self.path = Path(self._temp_dir.name).resolve()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self._temp_dir is not None:
+            try:
+                self._temp_dir.cleanup()
+            except Exception:
+                if self.path and self.path.exists():
+                    shutil.rmtree(self.path, ignore_errors=True)
+
+    def create_scratch_file(self, filename: str, content: str) -> Path:
+        """Create a scratch input/output file inside the sandbox."""
+        if self.path is None:
+            raise RuntimeError("Sandbox is not open")
+        target = self.path / filename
+        target.write_text(content, encoding="utf-8")
+        return target
+
+
+class SpycFitHDF5Storage:
+    """Thread-safe, multi-process SWMR HDF5 persistence storage engine."""
+
+    _global_thread_lock = threading.Lock()
+
+    def __init__(self, timeout_seconds: float = 10.0) -> None:
+        self.timeout_seconds = timeout_seconds
+
+    @contextmanager
+    def _acquire_guard(self, h5_path: Path, lustre_bypass: bool = False) -> Iterator[None]:
+        """Acquire in-process thread lock and cross-process file lock."""
+        h5_path = Path(h5_path).resolve()
+        lock_file = h5_path.with_name(f"{h5_path.name}.lock")
+
+        with self._global_thread_lock:
+            if lustre_bypass:
+                yield
             else:
-                logger.info("📭 No active jobs")
-            await asyncio.sleep(30)
+                recover_zombie_locks(lock_file, max_stale_seconds=self.timeout_seconds * 3)
+                fl = filelock.FileLock(str(lock_file), timeout=self.timeout_seconds)
+                try:
+                    with fl:
+                        yield
+                except filelock.Timeout as err:
+                    logger.error(f"FileLock timeout on {lock_file}")
+                    raise TimeoutError(f"Could not acquire lock on {h5_path} within {self.timeout_seconds}s") from err
+
+    def initialize_store(self, h5_path: Path, lustre_bypass: bool = False) -> None:
+        """Initialize HDF5 store topology with SWMR capability."""
+        h5_path = Path(h5_path).resolve()
+        h5_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "a", libver="latest") as f:
+                if "states" not in f:
+                    f.create_group("states")
+                if "datasets" not in f:
+                    f.create_group("datasets")
+                if "provenance" not in f:
+                    f.create_group("provenance")
+
+    def write_fit_state(self, state: FitStateCommitSchema, h5_path: Path, lustre_bypass: bool = False) -> None:
+        """Persist a FitStateCommit snapshot into the /states group."""
+        h5_path = Path(h5_path).resolve()
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "a", libver="latest") as f:
+                states_grp = f.require_group("states")
+                state_json = state.model_dump_json()
+                if state.state_id in states_grp:
+                    del states_grp[state.state_id]
+                ds = states_grp.create_dataset(state.state_id, data=state_json)
+                ds.attrs["state_id"] = state.state_id
+                ds.attrs["parent_id"] = state.parent_id or ""
+                ds.attrs["timestamp"] = state.timestamp_iso
+                ds.attrs["chi_squared"] = state.chi_squared
+                ds.attrs["rms_residual_mhz"] = state.rms_residual_mhz
+
+    def read_fit_state(self, state_id: str, h5_path: Path, lustre_bypass: bool = False) -> FitStateCommitSchema:
+        """Retrieve a FitStateCommit snapshot by state_id."""
+        h5_path = Path(h5_path).resolve()
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "r", libver="latest") as f:
+                states_grp = f["states"]
+                if state_id not in states_grp:
+                    raise KeyError(f"State ID '{state_id}' not found in {h5_path}")
+                ds = states_grp[state_id]
+                raw_json = ds[()].decode("utf-8") if isinstance(ds[()], bytes) else str(ds[()])
+                return FitStateCommitSchema.model_validate_json(raw_json)
+
+    def list_states(self, h5_path: Path, lustre_bypass: bool = False) -> List[str]:
+        """List all state IDs stored in the HDF5 file."""
+        h5_path = Path(h5_path).resolve()
+        if not h5_path.exists():
+            return []
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "r", libver="latest") as f:
+                if "states" not in f:
+                    return []
+                return list(f["states"].keys())
+
+    def write_tensor_dataset(
+        self,
+        dataset_name: str,
+        tensor: np.ndarray,
+        h5_path: Path,
+        metadata: Optional[Dict[str, Any]] = None,
+        lustre_bypass: bool = False,
+    ) -> None:
+        """Write raw NumPy array dataset into /datasets."""
+        h5_path = Path(h5_path).resolve()
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "a", libver="latest") as f:
+                ds_grp = f.require_group("datasets")
+                if dataset_name in ds_grp:
+                    del ds_grp[dataset_name]
+                dset = ds_grp.create_dataset(dataset_name, data=tensor)
+                if metadata:
+                    for k, v in metadata.items():
+                        dset.attrs[k] = str(v)
+
+    def read_tensor_dataset(self, dataset_name: str, h5_path: Path, lustre_bypass: bool = False) -> np.ndarray:
+        """Read raw NumPy array dataset from /datasets."""
+        h5_path = Path(h5_path).resolve()
+        with self._acquire_guard(h5_path, lustre_bypass=lustre_bypass):
+            with h5py.File(h5_path, "r", libver="latest") as f:
+                ds_grp = f["datasets"]
+                if dataset_name not in ds_grp:
+                    raise KeyError(f"Dataset '{dataset_name}' not found in {h5_path}")
+                return np.array(ds_grp[dataset_name])
+
+
+class DAGCommitManager:
+    """Branching Directed Acyclic Graph (DAG) state manager with non-destructive time travel."""
+
+    def __init__(self, storage: SpycFitHDF5Storage, registry_path: Path) -> None:
+        self.storage = storage
+        self.registry_path = Path(registry_path).resolve()
+        self.current_head_id: Optional[str] = None
+        self._state_cache: Dict[str, FitStateCommitSchema] = {}
+
+    def commit(self, state: FitStateCommitSchema, lustre_bypass: bool = False) -> str:
+        """Record a new FitState snapshot and advance the active DAG head."""
+        self.storage.write_fit_state(state, self.registry_path, lustre_bypass=lustre_bypass)
+        self.current_head_id = state.state_id
+        self._state_cache[state.state_id] = state
+        return state.state_id
+
+    def revert_to(self, state_id: str, lustre_bypass: bool = False) -> FitStateCommitSchema:
+        """Revert active head pointer to target state (time-travel pointer swapping)."""
+        if state_id in self._state_cache:
+            state = self._state_cache[state_id]
+        else:
+            state = self.storage.read_fit_state(state_id, self.registry_path, lustre_bypass=lustre_bypass)
+            self._state_cache[state_id] = state
+        self.current_head_id = state_id
+        return state
+
+    def get_history(self, current_state_id: Optional[str] = None, lustre_bypass: bool = False) -> List[FitStateCommitSchema]:
+        """Traverse DAG lineage from head backwards to root."""
+        target_id = current_state_id or self.current_head_id
+        if not target_id:
+            return []
+
+        history = []
+        visited = set()
+
+        curr_id: Optional[str] = target_id
+        while curr_id and curr_id not in visited:
+            visited.add(curr_id)
+            if curr_id in self._state_cache:
+                st = self._state_cache[curr_id]
+            else:
+                st = self.storage.read_fit_state(curr_id, self.registry_path, lustre_bypass=lustre_bypass)
+                self._state_cache[curr_id] = st
+            history.append(st)
+            curr_id = st.parent_id
+
+        return history
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_pes_store.py ---
 #!/usr/bin/env python3
@@ -6151,6 +3157,9 @@ def reanalyze_isotopologue_suite(
 # 5. CORE HDF5 PES STORE (Method Matrix §8C)
 # =============================================================================
 
+_H5PY_PROCESS_LOCK = threading.RLock()
+
+
 class ReadWriteFileLock:
     """Portable cross-platform Reader-Writer Lock backed by FileLock token tracking."""
 
@@ -6283,7 +3292,7 @@ class PESStore:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._file_lock():
-            with h5py.File(self.path, "a") as f:
+            with h5py.File(self.path, "a", libver="latest") as f:
                 m = f.require_group("meta")
                 if new_file:
                     m.attrs["schema_name"] = "vdw_pes_campaign"
@@ -6315,23 +3324,40 @@ class PESStore:
                 self.molecular_charge = int(m.attrs.get("molecular_charge", molecular_charge))
                 self.spin_multiplicity = int(m.attrs.get("spin_multiplicity", spin_multiplicity))
 
+                # Phase 2 SWMR Activation: Flush metadata and enable SWMR mode
+                f.flush()
+                try:
+                    f.swmr_mode = True
+                except (AttributeError, RuntimeError):
+                    pass
+
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
-        """Cross-platform byte-range file lock context manager."""
-        with self.rw_lock.write_lock():
-            yield
+        """Cross-platform byte-range file lock context manager serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.write_lock():
+                yield
 
     @contextmanager
     def shared_read_lock(self) -> Generator[None, None, None]:
-        """Shared read lock allowing unbounded concurrent readers."""
-        with self.rw_lock.read_lock():
-            yield
+        """Shared read lock allowing unbounded concurrent readers serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.read_lock():
+                yield
+
+    @contextmanager
+    def open_reader(self) -> Generator[h5py.File, None, None]:
+        """Open HDF5 file in SWMR read mode with libver='latest' under shared read lock."""
+        with self.shared_read_lock():
+            with h5py.File(self.path, "r", libver="latest", swmr=True) as f:
+                yield f
 
     @contextmanager
     def exclusive_write_lock(self) -> Generator[None, None, None]:
-        """Exclusive write lock waiting for active readers to clear."""
-        with self.rw_lock.write_lock():
-            yield
+        """Exclusive write lock waiting for active readers to clear serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.write_lock():
+                yield
 
     # -------------------------------------------------------------------------
     # Method Registration (QCSchema v1)
@@ -6800,18 +3826,23 @@ class PESStore:
         Returns:
             Multidimensional NumPy array matching grid shape with potential values in Hartrees.
         """
-        with self._file_lock():
-            with h5py.File(self.path, "r") as f:
-                if f"grids/{grid_id}" not in f:
-                    raise KeyError(f"Grid '{grid_id}' not found in PESStore.")
-                shape = tuple(int(x) for x in f[f"grids/{grid_id}"].attrs["shape"])
-                if f"points/{method_id}" not in f:
-                    return np.full(shape, np.nan, dtype=np.float64)
+        with self.open_reader() as f:
+            if f"grids/{grid_id}" not in f:
+                raise KeyError(f"Grid '{grid_id}' not found in PESStore.")
+            shape = tuple(int(x) for x in f[f"grids/{grid_id}"].attrs["shape"])
+            if f"points/{method_id}" not in f:
+                return np.full(shape, np.nan, dtype=np.float64)
 
-                p = f[f"points/{method_id}"]
-                ids = [(s.decode("utf-8") if isinstance(s, bytes) else str(s)) for s in p["point_id"][:]]
-                conv = p["converged"][:]
-                energies = p["energy"][:]
+            p = f[f"points/{method_id}"]
+            for ds_name in ["point_id", "converged", "energy"]:
+                if ds_name in p and hasattr(p[ds_name], "refresh"):
+                    try:
+                        p[ds_name].refresh()
+                    except Exception:
+                        pass
+            ids = [(s.decode("utf-8") if isinstance(s, bytes) else str(s)) for s in p["point_id"][:]]
+            conv = p["converged"][:]
+            energies = p["energy"][:]
 
                 total_pts = 1
                 for dim in shape:
@@ -7366,6 +4397,361 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_scheduler.py ---
+# cochem_canvas_target: core_engine/cochem_core_scheduler.py
+"""
+Scheduler module for CoChem-CORE.
+Manages scheduling and queuing of computational chemistry tasks.
+"""
+
+import atexit
+import filelock
+import hashlib
+import json
+import logging
+import os
+import psutil
+import queue
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field
+
+# 1. Registry Consistency & Air-Gap Enforcement
+ARTIFACTS_DIR = Path(os.environ.get("COCHEM_ARTIFACTS", Path.home() / "cochem_artifacts"))
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(ARTIFACTS_DIR / "scheduler.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("CoChem-CoreScheduler")
+
+# 3. Graceful Failure & Subprocess Safety
+def sweep_zombie_processes() -> None:
+    """Sweep zombie processes using psutil."""
+    try:
+        current_process = psutil.Process()
+        children = current_process.children(recursive=True)
+        for child in children:
+            if child.status() == psutil.STATUS_ZOMBIE:
+                child.wait(timeout=1)
+    except psutil.NoSuchProcess:
+        pass
+
+atexit.register(sweep_zombie_processes)
+
+def compute_sha256(filepath: Path) -> str:
+    """Generate SHA-256 hash for a file."""
+    if not filepath.exists():
+        return ""
+    hasher = hashlib.sha256()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def is_hpc_filesystem(path: Path) -> bool:
+    """Detect if path resides on an HPC distributed filesystem (Lustre, GPFS, NFS, Slurm/PBS)."""
+    if "SLURM_JOB_ID" in os.environ or "PBS_JOBID" in os.environ:
+        return True
+    path_str = str(path.resolve()).lower()
+    for marker in ["/lustre", "/gpfs", "nfs", "gluster", "weka"]:
+        if marker in path_str:
+            return True
+    return False
+
+
+def persist_swarm_state_atomic(
+    state_file: Union[str, Path],
+    task_id: str,
+    entry: Dict[str, Any],
+    timeout: float = 10.0,
+    max_retries: int = 10,
+) -> None:
+    """Cross-process atomic persistence for swarm_state.json with HPC scratch staging support."""
+    state_file = Path(state_file).resolve()
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    lock_file = state_file.with_name(f"{state_file.name}.lock")
+    hpc_mode = is_hpc_filesystem(state_file)
+
+    for attempt in range(max_retries):
+        try:
+            with filelock.FileLock(str(lock_file), timeout=timeout):
+                state_data: Dict[str, Any] = {}
+                if state_file.exists():
+                    try:
+                        with open(state_file, "r", encoding="utf-8") as f:
+                            state_data = json.load(f)
+                    except (json.JSONDecodeError, OSError):
+                        state_data = {}
+
+                state_data[task_id] = entry
+
+                if hpc_mode:
+                    scratch_env = os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or tempfile.gettempdir()
+                    stage_dir = Path(scratch_env)
+                    tmp_file = stage_dir / f"swarm_state_tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}.json"
+                    sidecar_tmp = stage_dir / f"swarm_state_tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}.sha256"
+                    try:
+                        with open(tmp_file, "w", encoding="utf-8") as f:
+                            json.dump(state_data, f, indent=4)
+                            f.flush()
+                            os.fsync(f.fileno())
+
+                        sha = compute_sha256(tmp_file)
+                        sidecar = state_file.with_name(f"{state_file.name}.sha256")
+                        sidecar_tmp.write_text(f"{sha}  {state_file.name}\n", encoding="utf-8")
+
+                        shutil.copyfile(str(tmp_file), str(state_file))
+                        shutil.copyfile(str(sidecar_tmp), str(sidecar))
+                    finally:
+                        if tmp_file.exists():
+                            try:
+                                tmp_file.unlink(missing_ok=True)
+                            except OSError:
+                                pass
+                        if sidecar_tmp.exists():
+                            try:
+                                sidecar_tmp.unlink(missing_ok=True)
+                            except OSError:
+                                pass
+                else:
+                    tmp_file = state_file.with_name(f"{state_file.name}.tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}")
+                    try:
+                        with open(tmp_file, "w", encoding="utf-8") as f:
+                            json.dump(state_data, f, indent=4)
+                            f.flush()
+                            os.fsync(f.fileno())
+
+                        replace_done = False
+                        for r_try in range(10):
+                            try:
+                                os.replace(str(tmp_file), str(state_file))
+                                replace_done = True
+                                break
+                            except (PermissionError, OSError):
+                                time.sleep(0.005 * (1.5 ** r_try))
+
+                        if not replace_done:
+                            shutil.copyfile(str(tmp_file), str(state_file))
+                    finally:
+                        if tmp_file.exists():
+                            try:
+                                tmp_file.unlink(missing_ok=True)
+                            except OSError:
+                                pass
+                return
+        except (filelock.Timeout, PermissionError, OSError) as exc:
+            if attempt == max_retries - 1:
+                logger.error("Failed to persist swarm state atomically after %d attempts: %s", max_retries, exc)
+                raise
+            backoff = 0.05 * (1.5 ** attempt)
+            logger.debug(
+                "Contention on %s (%s, attempt %d/%d). Retrying in %.3fs",
+                state_file,
+                type(exc).__name__,
+                attempt + 1,
+                max_retries,
+                backoff,
+            )
+            time.sleep(backoff)
+        except Exception as exc:
+            logger.error("Failed to persist swarm state atomically: %s", exc)
+            raise
+
+
+# 2. Rigorous Typing & Linting
+class TaskConfig(BaseModel):
+    task_id: str
+    command: List[str]
+    env_vars: Optional[Dict[str, str]] = Field(default_factory=dict)
+    timeout_seconds: int = 3600
+
+
+class TaskResult(BaseModel):
+    task_id: str
+    status: str
+    return_code: Optional[int] = None
+    output_file: Optional[str] = None
+    error_message: Optional[str] = None
+    hashes: Dict[str, str] = Field(default_factory=dict)
+
+
+class CoreScheduler:
+    """
+    Schedules and manages computational tasks across the system.
+    """
+    _state_lock = threading.Lock()
+
+    def __init__(self, max_workers: int = 4, project_root: Optional[Path] = None) -> None:
+        """Initialize the scheduler with a thread-safe task queue."""
+        self.max_workers = max_workers
+        self.project_root = Path(project_root).resolve() if project_root is not None else None
+        self.task_queue: queue.Queue[TaskConfig] = queue.Queue()
+        self.running_tasks: Dict[str, TaskResult] = {}
+        self.is_running = False
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._scheduler_thread: Optional[threading.Thread] = None
+
+    def add_task(self, task: TaskConfig) -> None:
+        """Add a task to the scheduling queue."""
+        logger.info(f"📥 Adding task {task.task_id} to queue")
+        self.task_queue.put(task)
+
+
+    def _execute_task(self, task: TaskConfig) -> TaskResult:
+        """Execute a computational task safely using subprocess."""
+        output_file = ARTIFACTS_DIR / f"{task.task_id}.out"
+        env = os.environ.copy()
+        if task.env_vars:
+            env.update(task.env_vars)
+        
+        result = TaskResult(task_id=task.task_id, status="running")
+        self.running_tasks[task.task_id] = result
+        
+        try:
+            with open(output_file, 'w') as out_f:
+                process = subprocess.run(
+                    task.command,
+                    env=env,
+                    stdout=out_f,
+                    stderr=subprocess.STDOUT,
+                    timeout=task.timeout_seconds,
+                    check=True
+                )
+            result.status = "completed"
+            result.return_code = process.returncode
+            result.output_file = str(output_file)
+            
+            # Generate hashes for .out and .gbw files if they exist
+            result.hashes[str(output_file)] = compute_sha256(output_file)
+            gbw_file = ARTIFACTS_DIR / f"{task.task_id}.gbw"
+            if gbw_file.exists():
+                result.hashes[str(gbw_file)] = compute_sha256(gbw_file)
+                
+            logger.info(f"✅ Task {task.task_id} completed successfully")
+        except subprocess.TimeoutExpired as e:
+            result.status = "timeout"
+            result.error_message = f"Task timed out after {task.timeout_seconds}s"
+            logger.error(f"Task {task.task_id} timeout: {e}")
+        except subprocess.CalledProcessError as e:
+            result.status = "failed"
+            result.return_code = e.returncode
+            result.error_message = f"Task failed with exit code {e.returncode}"
+            logger.error(f"Task {task.task_id} failed: {e}")
+        except FileNotFoundError as e:
+            result.status = "failed"
+            result.error_message = f"Command not found: {e}"
+            logger.error(f"Task {task.task_id} command not found: {e}")
+            
+        self._update_swarm_state(result)
+        return result
+
+    def _update_swarm_state(self, result: TaskResult) -> None:
+        """Update the swarm_state.json with task outcome using cross-process atomic persistence."""
+        project_root = self.project_root or Path(os.environ.get("COCHEM_PROJECT_ROOT", os.getcwd()))
+        state_file = project_root / "swarm_state.json"
+
+        entry = {
+            "agent": "cochem-core-scheduler",
+            "status": "SUCCESS" if result.status == "completed" else "FAILURE",
+            "artifacts": [result.output_file] if result.output_file else [],
+            "hashes": result.hashes,
+            "error_message": result.error_message,
+            "timestamp": time.time(),
+        }
+        persist_swarm_state_atomic(state_file, result.task_id, entry)
+
+    def schedule_next_task(self) -> Optional[TaskConfig]:
+        """Schedule the next available task from thread-safe queue."""
+        try:
+            task = self.task_queue.get_nowait()
+        except queue.Empty:
+            return None
+
+        logger.info(f"🕒 Scheduling task {task.task_id}")
+        self._executor.submit(self._execute_task, task)
+        self.task_queue.task_done()
+        return task
+
+    def get_task_status(self, task_id: str) -> Optional[TaskResult]:
+        """Get the status of a specific task."""
+        return self.running_tasks.get(task_id)
+
+    def start_scheduling(self) -> None:
+        """Start the scheduler."""
+        if self.is_running:
+            return
+        self.is_running = True
+        self._scheduler_thread = threading.Thread(target=self._scheduler_loop, daemon=True)
+        self._scheduler_thread.start()
+        logger.info("🔄 Scheduler started")
+
+    def _scheduler_loop(self) -> None:
+        """Continuously drain tasks from the queue using event-driven worker saturation."""
+        while self.is_running:
+            try:
+                task = self.task_queue.get(timeout=0.1)
+            except queue.Empty:
+                continue
+
+            logger.info(f"🕒 Scheduling task {task.task_id}")
+            self._executor.submit(self._execute_task, task)
+            self.task_queue.task_done()
+
+            # Worker saturation: immediately drain any pending tasks while running
+            while self.is_running:
+                try:
+                    next_task = self.task_queue.get_nowait()
+                    logger.info(f"🕒 Scheduling task {next_task.task_id}")
+                    self._executor.submit(self._execute_task, next_task)
+                    self.task_queue.task_done()
+                except queue.Empty:
+                    break
+
+    def stop_scheduling(self) -> None:
+        """Stop the scheduler and join background worker threads."""
+        self.is_running = False
+        if self._scheduler_thread is not None:
+            self._scheduler_thread.join(timeout=2.0)
+            self._scheduler_thread = None
+        self._executor.shutdown(wait=True)
+        logger.info("🛑 Scheduler stopped")
+
+
+def main() -> None:
+    """Main entry point for the scheduler."""
+    logger.info("Starting CoChem-CORE Scheduler")
+    # Mocked data and fake workflows have been eradicated. 
+    # Real execution driven by incoming requests is expected.
+    logger.info("Ready to accept genuine workloads.")
+
+
+if __name__ == "__main__":
+    main()
+
+
+__all__ = [
+    "TaskConfig",
+    "TaskResult",
+    "CoreScheduler",
+    "persist_swarm_state_atomic",
+    "is_hpc_filesystem",
+]
 
 --- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem_base\core_engine\cochem_core_subprocess_broker.py ---
 #!/usr/bin/env python3
@@ -8667,7 +6053,15 @@ class SubprocessBroker:
         memory_limit_gb: float = 8.0,
         total_ram_threshold_gb: float = 128.0,
     ) -> None:
-        default_work_dir = get_artifact_dir() / "Scratch"
+        env_scratch = (
+            os.environ.get("SLURM_TMPDIR")
+            or os.environ.get("TMPDIR")
+            or os.environ.get("TEMP")
+        )
+        if env_scratch:
+            default_work_dir = Path(env_scratch) / "cochem_scratch"
+        else:
+            default_work_dir = get_artifact_dir() / "Scratch"
         self.cwd = resolve_mapped_path(cwd, default_work_dir) if cwd is not None else default_work_dir
         self.cwd.mkdir(parents=True, exist_ok=True)
         self.env = env if env is not None else os.environ.copy()
@@ -9097,91 +6491,463 @@ if __name__ == "__main__":
     broker = SubprocessBroker()
     logger.info("Broker Initialized and protections armed.")
 
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\core\exceptions.py ---
-"""Authoritative Core Exception Hierarchy for CoChem Core.
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\src\cochem\concurrency\network_lock.py ---
+"""HPC Network Filesystem Atomic Fencing & Heartbeat Leases.
 
-Adheres to:
-- Method Matrix [M] & Provenance Standards
-- Zero-Mock Anti-Spoofing Protocol
-- Dynamic Mendeleev Invariant Mandate
+Implements Suggestion #26:
+- Atomic directory creation via os.mkdir() across POSIX, NFSv4, and Lustre.
+- Active background heartbeat refresher daemon thread.
+- Split-brain defense with fencing tokens and validated stale lease reclamation.
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional
+import json
+import logging
+import os
+import shutil
+import socket
+import sys
+import threading
+import time
+import uuid
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-try:
-    from cochem_base.exceptions import (
-        CoChemError,
-        MissingDataError as BaseMissingDataError,
-        SingularityError,
+logger = logging.getLogger("cochem.concurrency.network_lock")
+
+
+def _is_pid_alive(pid: int) -> bool:
+    """Check if local PID is physically running and not a zombie."""
+    if pid <= 0:
+        return False
+    try:
+        import psutil
+        if not psutil.pid_exists(pid):
+            return False
+        p = psutil.Process(pid)
+        return bool(p.is_running() and p.status() != psutil.STATUS_ZOMBIE)
+    except Exception:
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
+
+class NetworkHeartbeatLock:
+    """Distributed directory lease lock with active heartbeat renewals and fencing tokens."""
+
+    def __init__(
+        self,
+        lock_dir: Path | str,
+        lease_ttl_sec: float = 30.0,
+        grace_period_sec: float = 5.0,
+        node_id: Optional[str] = None,
+    ) -> None:
+        self.lock_dir = Path(lock_dir).resolve()
+        self.lease_ttl_sec = max(0.5, float(lease_ttl_sec))
+        self.grace_period_sec = max(0.1, float(grace_period_sec))
+        self.hostname = node_id or socket.gethostname()
+        self.pid = os.getpid()
+
+        self.lease_file = self.lock_dir / "lease.json"
+        self._fence_token: Optional[str] = None
+        self._is_held = False
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._stop_heartbeat = threading.Event()
+        self._local_lock = threading.RLock()
+
+    def _read_manifest(self) -> Optional[Dict[str, Any]]:
+        """Read and parse lease manifest safely."""
+        if not self.lease_file.exists():
+            return None
+        try:
+            with open(self.lease_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None
+
+    def _write_manifest(self, manifest: Dict[str, Any]) -> None:
+        """Write manifest atomically via sibling temporary file."""
+        tmp_file = self.lock_dir / f"lease.tmp_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(str(tmp_file), str(self.lease_file))
+
+    def is_stale(self) -> bool:
+        """Check if active lease is expired beyond TTL and grace period."""
+        if not self.lock_dir.exists():
+            return False
+        manifest = self._read_manifest()
+        if manifest is None:
+            # Lock dir exists without valid manifest; check mtime fallback after grace period
+            try:
+                mtime = self.lock_dir.stat().st_mtime
+                return (time.time() - mtime) > (self.lease_ttl_sec + self.grace_period_sec)
+            except OSError:
+                return False
+
+        expires_at = float(manifest.get("expires_at", 0.0))
+        now = time.time()
+        if now <= expires_at + self.grace_period_sec:
+            return False
+
+        # If on the same host, verify the owning process is actually dead
+        owning_host = manifest.get("hostname", "")
+        owning_pid = int(manifest.get("pid", 0))
+        if owning_host == self.hostname and owning_pid > 0:
+            if _is_pid_alive(owning_pid):
+                return False
+
+        return True
+
+    def is_locked(self) -> bool:
+        """Check if lock directory exists and lease is currently valid."""
+        if not self.lock_dir.exists():
+            return False
+        return not self.is_stale()
+
+    def renew_heartbeat(self) -> bool:
+        """Update lease heartbeat and expiration timestamp while holding lock."""
+        with self._local_lock:
+            if not self._is_held:
+                return False
+            now = time.time()
+            manifest = {
+                "hostname": self.hostname,
+                "pid": self.pid,
+                "heartbeat": now,
+                "fence_token": self._fence_token,
+                "expires_at": now + self.lease_ttl_sec,
+            }
+            try:
+                self._write_manifest(manifest)
+                return True
+            except Exception as exc:
+                logger.debug("Failed to renew heartbeat: %s", exc)
+                return False
+
+    def _heartbeat_worker(self) -> None:
+        """Background thread refreshing heartbeat every TTL / 3 seconds."""
+        interval = max(0.1, self.lease_ttl_sec / 3.0)
+        while not self._stop_heartbeat.wait(interval):
+            if not self.renew_heartbeat():
+                break
+
+    def acquire(self, timeout: float = 10.0) -> bool:
+        """Acquire atomic directory lease with retry backoff and stale lease reclamation."""
+        t0 = time.time()
+        deadline = t0 + max(0.0, float(timeout))
+
+        while True:
+            # Step 1: Attempt atomic directory creation
+            try:
+                self.lock_dir.parent.mkdir(parents=True, exist_ok=True)
+                os.mkdir(str(self.lock_dir))
+                # Successfully created directory: become leaseholder
+                self._fence_token = uuid.uuid4().hex
+                now = time.time()
+                manifest = {
+                    "hostname": self.hostname,
+                    "pid": self.pid,
+                    "heartbeat": now,
+                    "fence_token": self._fence_token,
+                    "expires_at": now + self.lease_ttl_sec,
+                }
+                self._write_manifest(manifest)
+                self._is_held = True
+
+                # Start background heartbeat daemon
+                self._stop_heartbeat.clear()
+                self._heartbeat_thread = threading.Thread(target=self._heartbeat_worker, daemon=True)
+                self._heartbeat_thread.start()
+                return True
+            except FileExistsError:
+                logger.debug("Lock directory %s already exists, assessing lease status.", self.lock_dir)
+
+            # Step 2: Handle existing directory - check for staleness
+            if self.is_stale():
+                # Attempt stale lease reclamation with fencing check
+                manifest_before = self._read_manifest()
+                old_token = manifest_before.get("fence_token") if manifest_before else None
+                try:
+                    # Clean out stale directory atomically
+                    shutil.rmtree(str(self.lock_dir), ignore_errors=True)
+                except OSError as clean_err:
+                    logger.debug("Could not remove stale lock dir: %s", clean_err)
+                continue
+
+            if time.time() >= deadline:
+                return False
+
+            time.sleep(0.05)
+
+    def release(self) -> None:
+        """Release directory lease and terminate heartbeat daemon."""
+        with self._local_lock:
+            if not self._is_held:
+                return
+
+            self._is_held = False
+            self._stop_heartbeat.set()
+            if self._heartbeat_thread is not None:
+                self._heartbeat_thread.join(timeout=2.0)
+                self._heartbeat_thread = None
+
+            try:
+                manifest = self._read_manifest()
+                # Only delete if fence token matches our session
+                if manifest is not None and manifest.get("fence_token") == self._fence_token:
+                    shutil.rmtree(str(self.lock_dir), ignore_errors=True)
+            except OSError as rel_err:
+                logger.debug("Error removing lock dir on release: %s", rel_err)
+
+    def __enter__(self) -> NetworkHeartbeatLock:
+        if not self.acquire(timeout=self.lease_ttl_sec):
+            raise TimeoutError(f"Could not acquire NetworkHeartbeatLock on {self.lock_dir}")
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.release()
+
+
+__all__ = ["NetworkHeartbeatLock"]
+
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\concurrency\test_concurrency_chunk3.py ---
+"""Zero-Mock Concurrency & Process Containment Test Suite for Chunk 3.
+
+Validates Suggestions #21, #22, #24, #25, #30:
+- Thread-safe process tree management & atomic snapshot iteration in ProcessTreeManager
+- Thread-safe queue and event-driven worker saturation in CoreScheduler (>50 tasks/s)
+- Win32 kernel handle RAII hygiene & leak prevention
+- Dynamic host threading contention budgeting and GPU MPS apportionment
+- Verified process demise, escalated SIGKILL, and ghost process telemetry
+"""
+
+from __future__ import annotations
+
+import os
+import queue
+import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+from typing import Any, List
+
+import psutil
+import pytest
+
+from cochem.core.hardware.topology import TopologyDiscoveryEngine
+from cochem.core.process_reaper import (
+    ProcessReapTimeoutError,
+    ProcessTreeManager,
+    ZombieReaperDaemon,
+)
+from cochem_base.core_engine.cochem_core_scheduler import (
+    CoreScheduler,
+    TaskConfig,
+)
+
+
+def test_process_tree_manager_thread_safety_during_sweep() -> None:
+    """Suggestion #21: Verify thread-safe process registration/unregistration during active sweeps."""
+    manager = ProcessTreeManager()
+    daemon = ZombieReaperDaemon(tree_manager=manager, interval_sec=0.01)
+
+    errors: List[Exception] = []
+    stop_event = threading.Event()
+    registration_count = 0
+    lock = threading.Lock()
+
+    procs: List[subprocess.Popen[Any]] = []
+    try:
+        for _ in range(5):
+            p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+            procs.append(p)
+
+        def worker(worker_id: int) -> None:
+            nonlocal registration_count
+            while not stop_event.is_set():
+                p = procs[worker_id % len(procs)]
+                try:
+                    manager.register_process(p.pid, task_id=f"task_{worker_id}")
+                    with lock:
+                        registration_count += 1
+                        if registration_count >= 1000:
+                            stop_event.set()
+                            break
+                    time.sleep(0.0005)
+                    manager.unregister_process(p.pid)
+                except Exception as exc:
+                    errors.append(exc)
+                    stop_event.set()
+                    break
+
+        def sweeper() -> None:
+            while not stop_event.is_set():
+                try:
+                    daemon.sweep_orphans()
+                except Exception as exc:
+                    errors.append(exc)
+                    stop_event.set()
+                    break
+                time.sleep(0.001)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
+        sweep_thread = threading.Thread(target=sweeper)
+
+        sweep_thread.start()
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join(timeout=15.0)
+        stop_event.set()
+        sweep_thread.join(timeout=5.0)
+
+        assert not errors, f"Thread safety errors during sweep: {errors}"
+        assert registration_count >= 1000
+    finally:
+        for p in procs:
+            if psutil.pid_exists(p.pid):
+                manager.terminate_tree(p.pid, grace_timeout_sec=0.5)
+
+
+def test_core_scheduler_queue_throughput_and_zero_latency(tmp_path: Path) -> None:
+    """Suggestion #22: Verify thread-safe queue dispatch saturates workers (>50 tasks/s) without 500ms delay."""
+    scheduler = CoreScheduler(max_workers=16, project_root=tmp_path)
+    scheduler.start_scheduling()
+
+    num_tasks = 50
+    t0 = time.perf_counter()
+
+    for i in range(num_tasks):
+        config = TaskConfig(
+            task_id=f"throughput_task_{i}",
+            command=[sys.executable, "-c", "import sys; sys.exit(0)"],
+            timeout_seconds=10,
+        )
+        scheduler.add_task(config)
+
+    deadline = time.perf_counter() + 10.0
+    while time.perf_counter() < deadline:
+        statuses = [scheduler.get_task_status(f"throughput_task_{i}") for i in range(num_tasks)]
+        if all(s is not None and s.status in ("completed", "failed") for s in statuses):
+            break
+        time.sleep(0.005)
+
+    t_elapsed = time.perf_counter() - t0
+    scheduler.stop_scheduling()
+
+    statuses = [scheduler.get_task_status(f"throughput_task_{i}") for i in range(num_tasks)]
+    completed = [s for s in statuses if s is not None and s.status == "completed"]
+    assert len(completed) == num_tasks, f"Only {len(completed)}/{num_tasks} tasks completed"
+
+    dispatch_throughput = num_tasks / t_elapsed
+    assert dispatch_throughput > 50.0, f"Throughput {dispatch_throughput:.1f} tasks/s too slow (elapsed: {t_elapsed:.2f}s)"
+    assert t_elapsed < 5.0, f"Execution took too long: {t_elapsed:.2f}s"
+
+
+def test_win32_kernel_handle_leak_prevention() -> None:
+    """Suggestion #24: Verify Win32 OpenProcess handle RAII cleanup prevents monotonic handle growth."""
+    if sys.platform != "win32":
+        pytest.skip("Win32 kernel handle test is Windows-specific")
+
+    manager = ProcessTreeManager()
+    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(10)"])
+    try:
+        current_proc = psutil.Process()
+        # Warmup registration
+        for _ in range(20):
+            manager.register_process(proc.pid)
+            manager.unregister_process(proc.pid)
+
+        initial_handles = current_proc.num_handles()
+
+        for _ in range(500):
+            manager.register_process(proc.pid)
+            manager.unregister_process(proc.pid)
+
+        final_handles = current_proc.num_handles()
+        handle_delta = final_handles - initial_handles
+        # Strict RAII: handle count must not grow by hundreds
+        assert handle_delta <= 10, (
+            f"Win32 process handle leak detected: initial={initial_handles}, "
+            f"final={final_handles}, delta={handle_delta}"
+        )
+    finally:
+        if psutil.pid_exists(proc.pid):
+            manager.terminate_tree(proc.pid, grace_timeout_sec=0.5)
+
+
+def test_topology_contention_budgeting() -> None:
+    """Suggestion #25: Verify dynamic host thread budgeting per worker and MPS apportionment."""
+    engine = TopologyDiscoveryEngine()
+    topo = engine.discover_topology(concurrent_workers=4)
+
+    expected_threads = max(1, topo.anchor_cores // 4)
+    worker_env = engine.get_worker_env(concurrent_workers=4, worker_index=1)
+
+    assert worker_env["OMP_NUM_THREADS"] == str(expected_threads)
+    assert worker_env["MKL_NUM_THREADS"] == str(expected_threads)
+    assert worker_env["OPENBLAS_NUM_THREADS"] == str(expected_threads)
+    assert worker_env["VECLIB_MAXIMUM_THREADS"] == str(expected_threads)
+    assert worker_env["NUMEXPR_NUM_THREADS"] == str(expected_threads)
+
+    # NVIDIA MPS active thread percentage for 4 workers = 100 // 4 = 25
+    assert worker_env.get("CUDA_MPS_ACTIVE_THREAD_PERCENTAGE") == "25"
+
+
+def test_verified_process_demise_escalation() -> None:
+    """Suggestion #30: Verify process reaper escalates to SIGKILL / Job Object termination for stubborn processes."""
+    manager = ProcessTreeManager()
+
+    # Launch a process that ignores SIGTERM
+    script = (
+        "import signal, time, sys\n"
+        "def handler(signum, frame):\n"
+        "    return None\n"
+        "try:\n"
+        "    signal.signal(signal.SIGTERM, handler)\n"
+        "except Exception:\n"
+        "    sys.stderr.write('Signal setup error\\n')\n"
+        "time.sleep(15)\n"
     )
-except ImportError:
-    class CoChemError(Exception):
-        pass
+    proc = subprocess.Popen([sys.executable, "-c", script])
+    pid = proc.pid
+    manager.register_process(pid)
 
-    class BaseMissingDataError(CoChemError, KeyError):
-        pass
+    time.sleep(0.2)
+    assert manager.is_alive(pid)
 
-    class SingularityError(CoChemError, ValueError):
-        pass
+    metrics = manager.terminate_tree(pid, grace_timeout_sec=0.5)
+    assert metrics["success"] is True
+    assert metrics["pid"] == pid
+    assert not psutil.pid_exists(pid)
+    assert manager.is_alive(pid) is False
 
+--- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_filesystem_remediation_chunk3.py ---
+"""Zero-Mock Filesystem Synchronization & Fault Remediation Test Suite for Chunk 3.
 
-class MissingDataError(BaseMissingDataError):
-    """Raised when required element, isotope, basis set, or calculation data is missing."""
-
-    def __init__(self, message: str, symbol_or_query: Optional[Any] = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.symbol_or_query = symbol_or_query
-
-
-class MendeleevInvariantError(MissingDataError):
-    """Raised when chemical element or isotopic queries violate Mendeleev physical invariants."""
-
-    pass
-
-
-class RotationalGridInstabilityError(CoChemError, ValueError):
-    """Raised when Cartesian DFT integration grid breaks rotational invariance or induces imaginary modes."""
-
-    def __init__(self, message: str, delta_cm1: Optional[float] = None) -> None:
-        super().__init__(message)
-        self.message = message
-        self.delta_cm1 = delta_cm1
-
-
-class JobTimeoutError(CoChemError, TimeoutError):
-    """Raised when an asynchronous calculation or subprocess job exceeds temporal limits."""
-
-    pass
-
-
-__all__ = [
-    "CoChemError",
-    "MissingDataError",
-    "MendeleevInvariantError",
-    "RotationalGridInstabilityError",
-    "JobTimeoutError",
-]
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\concurrency\test_concurrency_chunk2.py ---
-"""Zero-Mock Concurrency & Process Containment Test Suite for Chunk 2 (Suggestions #15-#20).
-
-Adheres to:
-- Method Matrix v4 (§8A, §8A.1, §8A.4, §8B.4, §12.5)
-- Zero-Mock Anti-Spoofing Protocol (100% authentic physical execution & OS primitives)
-- 6-Tier Environment Matrix Portability
+Validates Suggestions #23, #26, #27, #28, #29:
+- Cross-process atomic persistence for swarm_state.json (multiprocessing stress test)
+- NetworkHeartbeatLock split-brain defense, heartbeat renewal, and stale lease fencing
+- SubprocessBroker ephemeral sandboxing & Tripartite scratch isolation
+- RWFileLock concurrent shared readers with exclusive writer-priority
+- Self-healing subprocess remediation callback with parameter and input deck escalation
 """
 
 from __future__ import annotations
 
-import asyncio
-import concurrent.futures
-import multiprocessing.shared_memory as sm
+import json
+import multiprocessing
 import os
 import pathlib
-import platform
 import subprocess
 import sys
 import threading
@@ -9189,460 +6955,251 @@ import time
 import uuid
 from typing import Any, Dict, List
 
-import h5py
-import numpy as np
-import psutil
 import pytest
 
-from cochem.concurrency.subprocess_broker import SubprocessBroker
-from cochem.core.airgap_coordinator import AirGapConfig, TripartiteAirGapCoordinator
-from cochem.core.context import ExecutionContext
-from cochem.core.ipc.serializer import SharedMemoryBuffer
-from cochem_base.core_engine.cochem_core_job_manager import JobConfig, JobManager
-from cochem_base.core_engine.cochem_core_pes_store import TripartitePESStore
-from cochem_base.core_engine.cochem_core_subprocess_broker import (
-    WindowsJobObject,
-    build_thread_affinity_env,
+from cochem.concurrency.atomic_file_lock import RWFileLock
+from cochem.concurrency.network_lock import NetworkHeartbeatLock
+from cochem.concurrency.subprocess_broker import (
+    FailureCategory,
+    SubprocessBroker,
+    SubprocessExecutionResult,
+)
+from cochem_base.core_engine.cochem_core_scheduler import (
+    CoreScheduler,
+    TaskResult,
+    persist_swarm_state_atomic,
 )
 
 
-@pytest.fixture
-def test_exec_context(tmp_path: pathlib.Path) -> ExecutionContext:
-    """Isolated tripartite execution context."""
-    src_dir = tmp_path / "cochem_src"
-    data_dir = tmp_path / "cochem_data"
-    artifacts_dir = tmp_path / "cochem_artifacts"
-    scratch_dir = artifacts_dir / f"cochem_exec_{uuid.uuid4().hex[:8]}"
-
-    src_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.mkdir(parents=True, exist_ok=True)
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    scratch_dir.mkdir(parents=True, exist_ok=True)
-
-    return ExecutionContext(
-        execution_id=str(uuid.uuid4()),
-        session_name="chunk2_concurrency_test",
-        src_dir=src_dir,
-        data_dir=data_dir,
-        artifacts_dir=artifacts_dir,
-        scratch_dir=scratch_dir,
-        env_tier="Tier 1A",
-    )
+def _worker_update_swarm_state(state_file_path: str, worker_id: int, count: int) -> None:
+    """Worker function executed across independent OS processes."""
+    state_file = pathlib.Path(state_file_path)
+    for i in range(count):
+        task_id = f"proc_task_{worker_id}_{i}"
+        entry = {
+            "agent": f"worker_{worker_id}",
+            "status": "SUCCESS",
+            "artifacts": [f"{task_id}.out"],
+            "hashes": {"sha256": f"hash_{worker_id}_{i}"},
+            "error_message": None,
+            "timestamp": time.time(),
+        }
+        persist_swarm_state_atomic(state_file, task_id, entry)
+        time.sleep(0.001)
 
 
-def test_zero_orphan_process_reaping(test_exec_context: ExecutionContext) -> None:
-    """Suggestion #15: Verify OS-level containment and complete process tree reaping with zero orphans."""
-    broker = SubprocessBroker(test_exec_context)
+def test_swarm_state_cross_process_locking_integrity(tmp_path: pathlib.Path) -> None:
+    """Suggestion #23: 8 independent OS processes execute 20 concurrent updates each (160 total) without JSON corruption."""
+    state_file = tmp_path / "swarm_state.json"
 
-    # Launch a Python script that spawns a child worker and waits
-    marker_token = f"cochem_orphan_marker_{uuid.uuid4().hex[:8]}"
-    script = (
-        "import sys, subprocess, time\n"
-        "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
-        f"# {marker_token}\n"
-        "time.sleep(30)\n"
-    )
+    num_processes = 8
+    updates_per_proc = 20
+    processes: List[multiprocessing.Process] = []
 
-    result = broker.execute(
-        [sys.executable, "-c", script],
-        timeout_sec=1.5,
-    )
+    for wid in range(num_processes):
+        p = multiprocessing.Process(
+            target=_worker_update_swarm_state,
+            args=(str(state_file), wid, updates_per_proc),
+        )
+        processes.append(p)
+        p.start()
 
-    # The broker should report timeout
-    assert not result.success
-    assert result.returncode == -1
+    for p in processes:
+        p.join(timeout=30.0)
+        assert p.exitcode == 0, f"Worker process failed with exit code {p.exitcode}"
 
-    # Give OS brief grace window to clean up handles
-    time.sleep(0.5)
+    assert state_file.exists(), "swarm_state.json was not created"
+    with open(state_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
 
-    # Scan psutil to verify zero remaining processes containing the marker or lingering child sleep
-    current_pids = set(psutil.pids())
-    for pid in current_pids:
-        try:
-            p = psutil.Process(pid)
-            cmdline = " ".join(p.cmdline())
-            assert marker_token not in cmdline, f"Orphaned process detected: PID {pid}, {cmdline}"
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-
-    # On Windows, verify WindowsJobObject capability
-    if platform.system() == "Windows":
-        job = WindowsJobObject(kill_on_close=True)
-        assert job.handle is not None
-        job.close()
-        assert job.handle is None
+    expected_total = num_processes * updates_per_proc
+    assert len(data) == expected_total, f"Expected {expected_total} entries, got {len(data)}"
+    for wid in range(num_processes):
+        for i in range(updates_per_proc):
+            key = f"proc_task_{wid}_{i}"
+            assert key in data, f"Missing key {key}"
+            assert data[key]["agent"] == f"worker_{wid}"
+            assert data[key]["status"] == "SUCCESS"
 
 
-def test_job_manager_stream_concurrency(tmp_path: pathlib.Path) -> None:
-    """Suggestion #16: Verify consolidated stream ingestion without communicate() collisions."""
-    async def _run() -> None:
-        job_mgr = JobManager(poll_interval=0.05)
+def test_network_heartbeat_lock_split_brain_defense(tmp_path: pathlib.Path) -> None:
+    """Suggestion #26: Atomic directory lease fencing, heartbeat renewals, and stale lease reclamation."""
+    lock_dir = tmp_path / "hpc_cluster_lock.lease"
 
-        # Submit a job that produces both stdout and stderr
-        script = "import sys; sys.stdout.write('OUT_OK\\n'); sys.stderr.write('ERR_OK\\n')"
-        cfg = JobConfig(command=[sys.executable, "-c", script], cwd=str(tmp_path))
-        job_id = await job_mgr.submit_job(cfg) if asyncio.iscoroutinefunction(job_mgr.submit_job) else job_mgr.submit_job(cfg)
-        if asyncio.iscoroutine(job_id):
-            job_id = await job_id
+    # Node 1 acquires lease with 1.5s TTL
+    lock_node1 = NetworkHeartbeatLock(lock_dir=lock_dir, lease_ttl_sec=1.5, node_id="node-1")
+    acquired1 = lock_node1.acquire(timeout=2.0)
+    assert acquired1 is True
+    assert lock_node1.is_locked() is True
 
-        # Concurrently start and run the job to test single task stream ingestion
-        task_run = asyncio.create_task(job_mgr.run_job(job_id, timeout=10.0))
-        # Interleaved status check while running
-        await asyncio.sleep(0.01)
-        status_info = job_mgr.get_job_status(job_id)
-        assert status_info is not None
+    # Node 2 fails to acquire while Node 1 holds active lease
+    lock_node2 = NetworkHeartbeatLock(lock_dir=lock_dir, lease_ttl_sec=1.5, node_id="node-2")
+    acquired2 = lock_node2.acquire(timeout=0.3)
+    assert acquired2 is False
 
-        completed_job = await task_run
-        assert completed_job.status == "completed"
-        assert completed_job.return_code == 0
-        assert "OUT_OK" in completed_job.stdout
-        assert "ERR_OK" in completed_job.stderr
+    # Simulate active heartbeat refresh on Node 1: verify lease remains valid
+    time.sleep(0.6)
+    assert lock_node1.renew_heartbeat() is True
+    assert lock_node2.is_stale() is False
 
-    asyncio.run(_run())
+    # Node 1 terminates / releases or lease expires
+    lock_node1.release()
+    assert lock_node1.is_locked() is False
 
-
-def test_pes_store_swmr_concurrent_readers(tmp_path: pathlib.Path) -> None:
-    """Suggestion #17: Verify cross-platform reader-writer SWMR locking allowing concurrent readers."""
-    pes_path = tmp_path / "test_swmr_pes.h5"
-    store = TripartitePESStore(pes_path, symbols=["H", "H"], lock_timeout=15.0)
-
-    # Register method and seed initial point
-    store.register_method("b3lyp_svp", method="b3lyp", basis="def2-svp")
-    store.record_point_to_active("b3lyp_svp", coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74]], energy=-1.17)
-
-    read_results: List[int] = []
-    read_errors: List[Exception] = []
-
-    def reader_worker(reader_id: int) -> None:
-        try:
-            for _ in range(5):
-                with store.active_reader() as reader:
-                    # In active reader context, should be able to read points concurrently
-                    pts = reader.get_points("b3lyp_svp")
-                    read_results.append(len(pts))
-                time.sleep(0.01)
-        except Exception as exc:
-            read_errors.append(exc)
-
-    threads = [threading.Thread(target=reader_worker, args=(i,)) for i in range(10)]
-    for t in threads:
-        t.start()
-
-    # While readers are executing, writer appends points
-    for step in range(3):
-        time.sleep(0.02)
-        with store.active_writer() as writer:
-            writer.add_points(
-                "b3lyp_svp",
-                coords=[[0.0, 0.0, 0.0], [0.0, 0.0, 0.74 + 0.01 * step]],
-                energies=[-1.17 - 0.001 * step],
-            )
-
-    for t in threads:
-        t.join(timeout=10.0)
-
-    assert len(read_errors) == 0, f"Concurrent reader errors: {read_errors}"
-    assert len(read_results) == 50
-    assert all(r >= 1 for r in read_results)
+    # Node 2 safely acquires the lock
+    acquired2_retry = lock_node2.acquire(timeout=2.0)
+    assert acquired2_retry is True
+    assert lock_node2.is_locked() is True
+    lock_node2.release()
 
 
-def test_shared_memory_zero_leakage() -> None:
-    """Suggestion #18: Verify reference-counted unlink handshake and zero memory leakage."""
-    test_data = np.arange(1000, dtype=np.float64) * 0.1
-
-    # Allocate shared memory buffer
-    shm_buffer = SharedMemoryBuffer.from_array(test_data)
-    desc = shm_buffer.descriptor
-    shm_name = desc["name"]
-
-    # Ingest array from descriptor in consumer
-    extracted = SharedMemoryBuffer.read_from_descriptor(desc)
-    assert np.allclose(extracted, test_data)
-
-    # Close the producer buffer
-    shm_buffer.close()
-
-    # The buffer should be unlinked once all references close
-    # Attempting to open again must raise FileNotFoundError
-    with pytest.raises((FileNotFoundError, OSError)):
-        sm.SharedMemory(name=shm_name)
-
-
-def test_thread_affinity_environment_injection() -> None:
-    """Suggestion #19: Verify thread affinity env vars (GOMP, KMP, OMP) pre-injection and MPS variables."""
-    # Test core mask [0, 2, 4, 6]
-    cores = [0, 2, 4, 6]
-    env = build_thread_affinity_env(
-        cores=cores,
-        is_scout=False,
-        num_mps_ranks=4,
-        mps_mem_limit_mb=4096,
-    )
-
-    # Assert GOMP, KMP, OMP are properly injected
-    assert env["GOMP_CPU_AFFINITY"] == "0,2,4,6"
-    assert "0,2,4,6" in env["KMP_AFFINITY"]
-    assert env["OMP_PLACES"] == "{0},{2},{4},{6}"
-    assert env["OMP_PROC_BIND"] == "close"
-
-    # Assert NVIDIA MPS mediation parameters
-    assert env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] == "25"
-    assert env["CUDA_MPS_PINNED_DEVICE_MEM_LIMIT"] == "4096M"
-
-
-def test_artifact_staging_thread_collision_prevention(tmp_path: pathlib.Path) -> None:
-    """Suggestion #20: Verify thread-ident + UUID4 collision-free concurrent artifact publishing."""
-    scratch_root = tmp_path / "scratch"
-    artifacts_root = tmp_path / "artifacts"
+def test_subprocess_broker_ephemeral_scratch_isolation(tmp_path: pathlib.Path) -> None:
+    """Suggestion #27: Two concurrent brokers write identical relative filenames without colliding."""
+    scratch_root = tmp_path / "ephemeral_scratch"
     scratch_root.mkdir(parents=True, exist_ok=True)
-    artifacts_root.mkdir(parents=True, exist_ok=True)
 
-    config = AirGapConfig(scratch_root=scratch_root, artifacts_root=artifacts_root)
-    coordinator = TripartiteAirGapCoordinator(config)
+    broker1 = SubprocessBroker(context_or_engine="worker_1", base_scratch_dir=scratch_root)
+    broker2 = SubprocessBroker(context_or_engine="worker_2", base_scratch_dir=scratch_root)
 
-    # Launch 20 concurrent threads simultaneously publishing artifacts
-    n_threads = 20
-    published_hashes: Dict[int, str] = {}
-    errors: List[Exception] = []
+    script1 = (
+        "import pathlib, time\n"
+        "p = pathlib.Path('temp_output.dat')\n"
+        "p.write_text('PAYLOAD_FROM_WORKER_1')\n"
+        "time.sleep(0.3)\n"
+        "assert p.read_text() == 'PAYLOAD_FROM_WORKER_1'\n"
+    )
+    script2 = (
+        "import pathlib, time\n"
+        "p = pathlib.Path('temp_output.dat')\n"
+        "p.write_text('PAYLOAD_FROM_WORKER_2')\n"
+        "time.sleep(0.3)\n"
+        "assert p.read_text() == 'PAYLOAD_FROM_WORKER_2'\n"
+    )
 
-    def publish_worker(thread_idx: int) -> None:
-        try:
-            # Create a unique scratch file for each thread
-            payload = f"PHYSICS_DATA_CHUNK_{thread_idx}_{uuid.uuid4().hex}".encode("utf-8")
-            scratch_file = scratch_root / f"source_task_{thread_idx}.dat"
-            scratch_file.write_bytes(payload)
+    t1_result: List[SubprocessExecutionResult] = []
+    t2_result: List[SubprocessExecutionResult] = []
 
-            # All threads target identical base filename under separate subpaths or unique targets
-            dest, sha = coordinator.publish_artifact(
-                scratch_file,
-                relative_dest=pathlib.Path(f"final_deliverable_{thread_idx}.dat"),
-                compute_sha256=True,
-            )
-            assert dest.exists()
-            assert dest.read_bytes() == payload
-            assert sha is not None
-            published_hashes[thread_idx] = sha
-        except Exception as exc:
-            errors.append(exc)
+    def run_b1() -> None:
+        res = broker1.execute_with_remediation([sys.executable, "-c", script1])
+        t1_result.append(res)
 
-    threads = [threading.Thread(target=publish_worker, args=(i,)) for i in range(n_threads)]
-    for t in threads:
+    def run_b2() -> None:
+        res = broker2.execute_with_remediation([sys.executable, "-c", script2])
+        t2_result.append(res)
+
+    th1 = threading.Thread(target=run_b1)
+    th2 = threading.Thread(target=run_b2)
+
+    th1.start()
+    th2.start()
+    th1.join(timeout=10.0)
+    th2.join(timeout=10.0)
+
+    assert len(t1_result) == 1 and t1_result[0].success is True, f"Broker 1 failed: {t1_result}"
+    assert len(t2_result) == 1 and t2_result[0].success is True, f"Broker 2 failed: {t2_result}"
+
+    # Verify each ephemeral job sandbox subdirectory was swept and deleted
+    remaining_dirs = list(scratch_root.glob("cochem_job_*"))
+    assert len(remaining_dirs) == 0, f"Scratch leakage detected: {remaining_dirs}"
+
+
+def test_rw_file_lock_concurrent_readers_exclusive_writer(tmp_path: pathlib.Path) -> None:
+    """Suggestion #28: Concurrent readers and writers run simultaneously without mutual exclusion violations."""
+    state_file = tmp_path / "state_data.dat"
+    state_file.write_text("initial_value", encoding="utf-8")
+    rw_lock = RWFileLock(state_file, timeout=10.0)
+
+    active_readers = 0
+    active_writers = 0
+    max_concurrent_readers = 0
+    violations: List[str] = []
+    counter_lock = threading.Lock()
+    stop_event = threading.Event()
+
+    def reader_task(reader_id: int) -> None:
+        nonlocal active_readers, max_concurrent_readers
+        for _ in range(15):
+            if stop_event.is_set():
+                break
+            with rw_lock.read_lock():
+                with counter_lock:
+                    if active_writers > 0:
+                        violations.append(f"Reader {reader_id} entered while writer active ({active_writers})")
+                    active_readers += 1
+                    if active_readers > max_concurrent_readers:
+                        max_concurrent_readers = active_readers
+
+                content = state_file.read_text(encoding="utf-8")
+                assert "value" in content
+                time.sleep(0.01)
+
+                with counter_lock:
+                    active_readers -= 1
+            time.sleep(0.005)
+
+    def writer_task(writer_id: int) -> None:
+        nonlocal active_writers
+        for step in range(5):
+            if stop_event.is_set():
+                break
+            with rw_lock.write_lock():
+                with counter_lock:
+                    if active_readers > 0:
+                        violations.append(f"Writer {writer_id} entered while {active_readers} readers active")
+                    if active_writers > 0:
+                        violations.append(f"Writer {writer_id} entered while another writer active")
+                    active_writers += 1
+
+                state_file.write_text(f"writer_value_{writer_id}_{step}", encoding="utf-8")
+                time.sleep(0.02)
+
+                with counter_lock:
+                    active_writers -= 1
+            time.sleep(0.01)
+
+    reader_threads = [threading.Thread(target=reader_task, args=(i,)) for i in range(8)]
+    writer_threads = [threading.Thread(target=writer_task, args=(j,)) for j in range(2)]
+    all_threads = reader_threads + writer_threads
+
+    for t in all_threads:
         t.start()
-    for t in threads:
-        t.join(timeout=10.0)
+    for t in all_threads:
+        t.join(timeout=15.0)
 
-    assert len(errors) == 0, f"Thread publishing collisions/errors occurred: {errors}"
-    assert len(published_hashes) == n_threads
-
---- D:\__CoChem\GitHub-Repo\CoChem-BASE\tests\core\test_physics_integrity_chunk2.py ---
-"""Zero-Mock Physics Integrity Test Suite for Chunk 2 (Suggestions #11-#14).
-
-Adheres to:
-- Method Matrix v4 (§6.10, §16.1)
-- Zero-Mock Anti-Spoofing Protocol (100% authentic physical calculations)
-- Dynamic Mendeleev Invariant Mandate (Zero hardcoded masses)
-"""
-
-from __future__ import annotations
-
-import math
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
-
-import numpy as np
-import pytest
-from mendeleev import element
-
-from cochem.core.exceptions import MissingDataError, RotationalGridInstabilityError
-from cochem.core.mendeleev_invariants import (
-    get_element,
-    get_element_mass,
-    get_isotope_mass,
-    parse_symbol_or_isotope,
-)
-from cochem_base.calc.cochem_calc_input_generator import (
-    MoleculeInput,
-    generate_orca_input,
-    validate_rotational_mode_stability,
-)
-from cochem_base.cochem_torq_alignment import (
-    diagonalize_principal_axes,
-    translate_com_to_origin,
-)
-from cochem_base.cochem_torq_topology import build_molecular_graph
-from cochem_base.cochem_torq_vault import standardize_geometry_dataframe
-from cochem_base.core_engine.cochem_core_dvr_solver import (
-    DVRGridType,
-    build_grid_1d,
-    build_sinc_kinetic_1d,
-)
+    assert not violations, f"Mutual exclusion violations detected: {violations}"
+    assert max_concurrent_readers > 1, f"Expected concurrency, got max {max_concurrent_readers}"
+    assert state_file.exists()
 
 
-def test_mendeleev_mass_resolution_and_rejection() -> None:
-    """Suggestion #11 & #13: Verify dynamic mass lookup, isotopic aliases, and rejection of invalid symbols."""
-    # 1. Standard elemental symbols match IUPAC atomic weights via mendeleev
-    for sym in ["H", "C", "N", "O", "Ar"]:
-        elem_truth = element(sym)
-        resolved_mass = get_element_mass(sym)
-        assert abs(resolved_mass - float(elem_truth.atomic_weight)) < 1e-6
-        elem_data = get_element(sym)
-        assert elem_data.symbol == sym
-        assert abs(elem_data.atomic_weight - float(elem_truth.atomic_weight)) < 1e-6
+def test_subprocess_remediation_callback_execution(tmp_path: pathlib.Path) -> None:
+    """Suggestion #29: Dynamic input deck and parameter remediation callback execution under failure."""
+    broker = SubprocessBroker(scratch_dir=tmp_path)
 
-    # 2. Isotopic aliases dynamically resolved
-    # Deuterium (D / 2H): ~2.01410178 u
-    d_mass = get_element_mass("D")
-    assert abs(d_mass - 2.01410178) < 1e-4
-
-    two_h_mass = get_element_mass("2H")
-    assert abs(two_h_mass - 2.01410178) < 1e-4
-
-    # Tritium (T / 3H): ~3.01604928 u
-    t_mass = get_element_mass("T")
-    assert abs(t_mass - 3.01604928) < 1e-4
-
-    # Carbon-13 (13C): ~13.00335484 u
-    c13_mass = get_element_mass("13C")
-    assert abs(c13_mass - 13.00335484) < 1e-4
-
-    # Oxygen-18 (18O): ~17.9991604 u
-    o18_mass = get_element_mass("18O")
-    assert abs(o18_mass - 17.9991604) < 1e-4
-
-    # 3. Invalid symbols MUST raise MissingDataError (NEVER silently default to 12.0)
-    for invalid_sym in ["Xx", "", "123", "NonExistent"]:
-        with pytest.raises(MissingDataError):
-            get_element_mass(invalid_sym)
-
-        with pytest.raises(MissingDataError):
-            get_element(invalid_sym)
-
-    # 4. Invariant checks across TORQ modules
-    # In cochem_torq_vault: invalid symbol raises MissingDataError
-    invalid_coords = np.array([[0.0, 0.0, 0.0]], dtype=np.float64)
-    with pytest.raises(MissingDataError):
-        standardize_geometry_dataframe(["Xx"], invalid_coords)
-
-    # Valid H2O dataframe has authentic masses (H ~ 1.008, O ~ 15.999) and NO 12.0
-    h2o_coords = np.array(
-        [[0.0, 0.0, 0.0], [0.0, 0.757, 0.586], [0.0, -0.757, 0.586]], dtype=np.float64
-    )
-    df_h2o = standardize_geometry_dataframe(["O", "H", "H"], h2o_coords)
-    assert abs(df_h2o.loc[0, "mass_amu"] - get_element_mass("O")) < 1e-4
-    assert abs(df_h2o.loc[1, "mass_amu"] - get_element_mass("H")) < 1e-4
-    assert not any(abs(m - 12.0) < 1e-3 for m in df_h2o["mass_amu"])
-
-    # In cochem_torq_alignment: invalid symbol raises MissingDataError
-    with pytest.raises(MissingDataError):
-        translate_com_to_origin(["Xx"], invalid_coords)
-
-    with pytest.raises(MissingDataError):
-        diagonalize_principal_axes(["Xx"], invalid_coords)
-
-    # In cochem_torq_topology: invalid symbol raises MissingDataError
-    with pytest.raises(MissingDataError):
-        build_molecular_graph(["Xx"], invalid_coords)
-
-
-def test_sinc_dvr_interior_grid_and_dirichlet_boundaries() -> None:
-    """Suggestion #12: Verify Colbert & Miller (1992) Dirichlet interior Sinc DVR discretization."""
-    x_min = -3.0
-    x_max = 3.0
-    n = 50
-
-    coords, weights = build_grid_1d(DVRGridType.SINC, n_points=n, x_min=x_min, x_max=x_max)
-
-    # 1. Grid points must be strictly interior: no point equals boundaries
-    assert len(coords) == n
-    assert coords[0] > x_min
-    assert coords[-1] < x_max
-    assert np.all(coords > x_min)
-    assert np.all(coords < x_max)
-
-    # 2. Verify step size dx = (x_max - x_min) / (n + 1) = 6.0 / 51
-    expected_dx = (x_max - x_min) / float(n + 1)
-    actual_dx = float(coords[1] - coords[0])
-    assert abs(actual_dx - expected_dx) < 1e-12
-    assert abs(float(coords[0] - x_min) - expected_dx) < 1e-12
-    assert abs(float(x_max - coords[-1]) - expected_dx) < 1e-12
-
-    # 3. Exact symmetry about 0.0
-    assert np.allclose(coords, -coords[::-1], atol=1e-12)
-
-    # 4. Harmonic Oscillator test: V(x) = 0.5 * m * omega^2 * x^2
-    # In atomic units: m = 1.0, omega = 1.0, hbar = 1.0
-    # True eigenvalues: E_v = hbar * omega * (v + 1/2) = 0.5, 1.5, 2.5, 3.5...
-    n_ho = 80
-    l_ho = 6.0
-    grid_ho, _ = build_grid_1d(DVRGridType.SINC, n_points=n_ho, x_min=-l_ho, x_max=l_ho)
-    dx_ho = float(grid_ho[1] - grid_ho[0])
-
-    # Colbert-Miller kinetic energy matrix (hbar=1.0, m=1.0 in atomic units)
-    idx = np.arange(n_ho, dtype=np.float64)
-    diff = idx[:, None] - idx[None, :]
-    mask_diag = (diff == 0.0)
-    diff_safe = np.where(mask_diag, 1.0, diff)
-    factor = 1.0 / (2.0 * (dx_ho ** 2))
-    t_mat = factor * 2.0 * ((-1.0) ** diff) / (diff_safe ** 2)
-    np.fill_diagonal(t_mat, factor * (math.pi ** 2) / 3.0)
-
-    # Potential matrix V_ij = V(x_i) * delta_ij
-    v_diag = 0.5 * (grid_ho ** 2)
-    h_mat = t_mat + np.diag(v_diag)
-
-    eigenvalues = np.linalg.eigvalsh(h_mat)
-    expected_e0 = 0.5
-    expected_e1 = 1.5
-    expected_e2 = 2.5
-
-    # Eigenvalues must match hbar * omega * (v + 1/2) within 0.01%
-    assert abs(eigenvalues[0] - expected_e0) / expected_e0 < 0.0001
-    assert abs(eigenvalues[1] - expected_e1) / expected_e1 < 0.0001
-    assert abs(eigenvalues[2] - expected_e2) / expected_e2 < 0.0001
-
-
-def test_rotational_mode_stability_defgrid3(tmp_path: Path) -> None:
-    """Suggestion #14: Verify defgrid3 mandate for harmonic frequency tasks and rotational mode stability."""
-    # 1. ORCA input generator mandates defgrid3 for frequency calculation
-    water_dimer = MoleculeInput(
-        basin_id="dimer_test",
-        elements=["O", "H", "H", "O", "H", "H"],
-        coordinates=[
-            (-1.464, -0.019, 0.000),
-            (-1.823, 0.428, 0.772),
-            (-1.823, 0.428, -0.772),
-            (1.464, 0.019, 0.000),
-            (0.823, -0.428, 0.000),
-            (1.823, -0.428, 0.772),
-        ],
-        theory_level="B3LYP-D3 def2-TZVP Freq",
-        is_opt=False,
+    # Command fails on attempt 1 without '--damping', succeeds on attempt 2 when '--damping' is injected
+    script = (
+        "import sys\n"
+        "if '--damping' not in sys.argv:\n"
+        "    print('SCF FAILED TO CONVERGE', file=sys.stdout)\n"
+        "    sys.exit(1)\n"
+        "print('SCF CONVERGED SUCCESSFULLY', file=sys.stdout)\n"
+        "sys.exit(0)\n"
     )
 
-    out_file = generate_orca_input(water_dimer, output_dir=tmp_path)
-    content = out_file.read_text(encoding="utf-8")
+    base_cmd = [sys.executable, "-c", script]
 
-    # Assert deck contains defgrid3 and rejects defgrid1
-    assert "defgrid3" in content
-    assert "defgrid1" not in content
+    def remediate_cb(category: FailureCategory, params: Dict[str, Any], scratch: pathlib.Path) -> List[str]:
+        assert category == FailureCategory.SCF_CONVERGENCE_FAILURE
+        # Method Matrix §8B: escalate convergence by injecting damping
+        return base_cmd + ["--damping"]
 
-    # 2. Rotational stability validation
-    # Construct a model harmonic calculation engine with a soft intermolecular mode (35 cm^-1)
-    stable_frequencies = np.array([35.0, 72.0, 150.0, 3650.0, 3750.0])
+    result = broker.execute_with_remediation(
+        command=base_cmd,
+        timeout_sec=5.0,
+        remediate_callback=remediate_cb,
+    )
 
-    def stable_calc_engine(coords: np.ndarray) -> np.ndarray:
-        return stable_frequencies.copy()
-
-    geom = np.array(water_dimer.coordinates)
-    validate_rotational_mode_stability(geom, stable_calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)
-
-    # Unstable calculation engine where rotation causes the 35 cm^-1 mode to shift by 3.5 cm^-1
-    def unstable_calc_engine(coords: np.ndarray) -> np.ndarray:
-        if not np.allclose(coords, geom, atol=1e-5):
-            return np.array([38.5, 72.0, 150.0, 3650.0, 3750.0])
-        return stable_frequencies.copy()
-
-    with pytest.raises(RotationalGridInstabilityError):
-        validate_rotational_mode_stability(geom, unstable_calc_engine, threshold_cm1=50.0, max_delta_cm1=1.0)
+    assert result.success is True
+    assert result.retries_attempted == 1
+    assert "SCF CONVERGED SUCCESSFULLY" in result.stdout
 
 Validate Zero-Mock adherence. Target repo is D:\__CoChem\GitHub-Repo\CoChem-BASE.

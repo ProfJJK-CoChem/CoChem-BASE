@@ -710,6 +710,9 @@ def reanalyze_isotopologue_suite(
 # 5. CORE HDF5 PES STORE (Method Matrix §8C)
 # =============================================================================
 
+_H5PY_PROCESS_LOCK = threading.RLock()
+
+
 class ReadWriteFileLock:
     """Portable cross-platform Reader-Writer Lock backed by FileLock token tracking."""
 
@@ -842,7 +845,7 @@ class PESStore:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
         with self._file_lock():
-            with h5py.File(self.path, "a") as f:
+            with h5py.File(self.path, "a", libver="latest") as f:
                 m = f.require_group("meta")
                 if new_file:
                     m.attrs["schema_name"] = "vdw_pes_campaign"
@@ -874,23 +877,40 @@ class PESStore:
                 self.molecular_charge = int(m.attrs.get("molecular_charge", molecular_charge))
                 self.spin_multiplicity = int(m.attrs.get("spin_multiplicity", spin_multiplicity))
 
+                # Phase 2 SWMR Activation: Flush metadata and enable SWMR mode
+                f.flush()
+                try:
+                    f.swmr_mode = True
+                except (AttributeError, RuntimeError):
+                    pass
+
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
-        """Cross-platform byte-range file lock context manager."""
-        with self.rw_lock.write_lock():
-            yield
+        """Cross-platform byte-range file lock context manager serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.write_lock():
+                yield
 
     @contextmanager
     def shared_read_lock(self) -> Generator[None, None, None]:
-        """Shared read lock allowing unbounded concurrent readers."""
-        with self.rw_lock.read_lock():
-            yield
+        """Shared read lock allowing unbounded concurrent readers serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.read_lock():
+                yield
+
+    @contextmanager
+    def open_reader(self) -> Generator[h5py.File, None, None]:
+        """Open HDF5 file in SWMR read mode with libver='latest' under shared read lock."""
+        with self.shared_read_lock():
+            with h5py.File(self.path, "r", libver="latest", swmr=True) as f:
+                yield f
 
     @contextmanager
     def exclusive_write_lock(self) -> Generator[None, None, None]:
-        """Exclusive write lock waiting for active readers to clear."""
-        with self.rw_lock.write_lock():
-            yield
+        """Exclusive write lock waiting for active readers to clear serialized under process RLock."""
+        with _H5PY_PROCESS_LOCK:
+            with self.rw_lock.write_lock():
+                yield
 
     # -------------------------------------------------------------------------
     # Method Registration (QCSchema v1)
@@ -1359,18 +1379,23 @@ class PESStore:
         Returns:
             Multidimensional NumPy array matching grid shape with potential values in Hartrees.
         """
-        with self._file_lock():
-            with h5py.File(self.path, "r") as f:
-                if f"grids/{grid_id}" not in f:
-                    raise KeyError(f"Grid '{grid_id}' not found in PESStore.")
-                shape = tuple(int(x) for x in f[f"grids/{grid_id}"].attrs["shape"])
-                if f"points/{method_id}" not in f:
-                    return np.full(shape, np.nan, dtype=np.float64)
+        with self.open_reader() as f:
+            if f"grids/{grid_id}" not in f:
+                raise KeyError(f"Grid '{grid_id}' not found in PESStore.")
+            shape = tuple(int(x) for x in f[f"grids/{grid_id}"].attrs["shape"])
+            if f"points/{method_id}" not in f:
+                return np.full(shape, np.nan, dtype=np.float64)
 
-                p = f[f"points/{method_id}"]
-                ids = [(s.decode("utf-8") if isinstance(s, bytes) else str(s)) for s in p["point_id"][:]]
-                conv = p["converged"][:]
-                energies = p["energy"][:]
+            p = f[f"points/{method_id}"]
+            for ds_name in ["point_id", "converged", "energy"]:
+                if ds_name in p and hasattr(p[ds_name], "refresh"):
+                    try:
+                        p[ds_name].refresh()
+                    except Exception:
+                        pass
+            ids = [(s.decode("utf-8") if isinstance(s, bytes) else str(s)) for s in p["point_id"][:]]
+            conv = p["converged"][:]
+            energies = p["energy"][:]
 
                 total_pts = 1
                 for dim in shape:

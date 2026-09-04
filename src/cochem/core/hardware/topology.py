@@ -179,7 +179,7 @@ class TopologyDiscoveryEngine:
         physical = psutil.cpu_count(logical=False) or os.cpu_count() or 1
         return max(1, physical)
 
-    def discover_topology(self) -> HardwareTopology:
+    def discover_topology(self, concurrent_workers: int = 1) -> HardwareTopology:
         """Calculate Scout-and-Anchor core budget and thread environment variables."""
         logical_total = psutil.cpu_count(logical=True) or os.cpu_count() or 1
         physical_total = psutil.cpu_count(logical=False) or max(1, logical_total // 2)
@@ -202,14 +202,16 @@ class TopologyDiscoveryEngine:
             scout_cores = 1
             anchor_cores = 0
 
-        # Worker thread injection values
-        worker_threads = max(1, anchor_cores if anchor_cores > 0 else scout_cores)
+        # Worker thread injection values with dynamic contention budgeting
+        budget_pool = anchor_cores if anchor_cores > 0 else scout_cores
+        budgeted_threads = max(1, budget_pool // max(1, concurrent_workers))
         env_vars = {
-            "OMP_NUM_THREADS": str(worker_threads),
-            "MKL_NUM_THREADS": str(worker_threads),
-            "OPENBLAS_NUM_THREADS": str(worker_threads),
-            "VECLIB_MAXIMUM_THREADS": str(worker_threads),
-            "NUMEXPR_NUM_THREADS": str(worker_threads),
+            "OMP_NUM_THREADS": str(budgeted_threads),
+            "MKL_NUM_THREADS": str(budgeted_threads),
+            "OPENBLAS_NUM_THREADS": str(budgeted_threads),
+            "VECLIB_MAXIMUM_THREADS": str(budgeted_threads),
+            "NUMEXPR_NUM_THREADS": str(budgeted_threads),
+            "CUDA_MPS_ACTIVE_THREAD_PERCENTAGE": str(max(1, 100 // max(1, concurrent_workers))),
         }
 
         # GPU MPS Worker Ceiling: 2 to 4 concurrent processes
@@ -229,14 +231,46 @@ class TopologyDiscoveryEngine:
         self._cached_topology = topology
         return topology
 
-    def get_worker_env(self, extra_env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-        """Construct subprocess execution environment with pinned thread variables."""
-        topo = self.discover_topology()
+    def get_worker_env(
+        self,
+        concurrent_workers: int = 1,
+        worker_index: int = 0,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Construct subprocess execution environment with dynamically budgeted thread variables."""
+        topo = self.discover_topology(concurrent_workers=concurrent_workers)
         base_env = dict(os.environ)
         base_env.update(topo.environment_variables)
+
+        # Dynamic host thread budgeting per worker (Method Matrix §8A)
+        budget_pool = topo.anchor_cores if topo.anchor_cores > 0 else topo.scout_cores
+        budgeted_threads = max(1, budget_pool // max(1, concurrent_workers))
+        base_env["OMP_NUM_THREADS"] = str(budgeted_threads)
+        base_env["MKL_NUM_THREADS"] = str(budgeted_threads)
+        base_env["OPENBLAS_NUM_THREADS"] = str(budgeted_threads)
+        base_env["VECLIB_MAXIMUM_THREADS"] = str(budgeted_threads)
+        base_env["NUMEXPR_NUM_THREADS"] = str(budgeted_threads)
+
+        # Zero-CUDA-Locking Directive: Non-locking MPS GPU apportionment
+        base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
+
+        # Multi-GPU physical device indexing fallback
+        available_gpus = 0
+        try:
+            import torch
+            if torch.cuda.is_available():
+                available_gpus = torch.cuda.device_count()
+        except Exception:
+            pass
+
+        if available_gpus > 0:
+            assigned_gpu = worker_index % available_gpus
+            base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+
         if extra_env is not None:
             base_env.update(extra_env)
         return base_env
+
 
     def pin_scout_affinity(self, core_index: int = 0) -> bool:
         """Bind host orchestration process to specific core index to avoid thread migration."""

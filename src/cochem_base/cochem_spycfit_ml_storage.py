@@ -15,6 +15,7 @@ Authoritative Standards:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -58,14 +59,23 @@ def _is_pid_alive(pid: int) -> bool:
 
 
 def recover_zombie_locks(lock_file_path: Path, max_stale_seconds: float = 30.0) -> bool:
-    """Detect and safely clean up orphaned/zombie lock files."""
+    """Detect and safely clean up orphaned/zombie lock files and directory leases."""
     lock_path = Path(lock_file_path).resolve()
     if not lock_path.exists():
         return False
 
     try:
-        content = lock_path.read_text(encoding="utf-8").strip()
+        if lock_path.is_dir():
+            from cochem.concurrency.network_lock import NetworkHeartbeatLock
+            hb_lock = NetworkHeartbeatLock(lock_path, lease_ttl_sec=max_stale_seconds)
+            if hb_lock.is_stale():
+                logger.warning(f"Recovering stale directory lease: {lock_path}")
+                shutil.rmtree(str(lock_path), ignore_errors=True)
+                return True
+            return False
+
         should_clean = False
+        content = lock_path.read_text(encoding="utf-8").strip()
 
         if "." in content or ":" in content:
             parts = content.split(":")
@@ -73,13 +83,18 @@ def recover_zombie_locks(lock_file_path: Path, max_stale_seconds: float = 30.0) 
                 try:
                     pid = int(parts[0])
                     timestamp = float(parts[1])
-                    if not _is_pid_alive(pid) or (time.time() - timestamp) > max_stale_seconds:
+                    if not _is_pid_alive(pid) and (time.time() - timestamp) > max_stale_seconds:
                         should_clean = True
                 except ValueError:
                     should_clean = True
-        else:
-            mtime = lock_path.stat().st_mtime
-            if (time.time() - mtime) > max_stale_seconds:
+        elif content.startswith("{"):
+            try:
+                manifest = json.loads(content)
+                pid = int(manifest.get("pid", 0))
+                expires_at = float(manifest.get("expires_at", 0.0))
+                if time.time() > expires_at and not _is_pid_alive(pid):
+                    should_clean = True
+            except Exception:
                 should_clean = True
 
         if should_clean:
@@ -89,6 +104,7 @@ def recover_zombie_locks(lock_file_path: Path, max_stale_seconds: float = 30.0) 
     except Exception as exc:
         logger.debug(f"Lock recovery check encountered error: {exc}")
     return False
+
 
 
 class EphemeralSandbox:

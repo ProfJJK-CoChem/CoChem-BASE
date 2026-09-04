@@ -11,7 +11,9 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
@@ -24,6 +26,10 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_GRACE_TIMEOUT_SEC: float = 5.0
 DEFAULT_TIMEOUT_GRACE_PERIOD_SEC: float = 30.0
+
+
+class ProcessReapTimeoutError(RuntimeError):
+    """Raised when stubborn or uninterruptible processes fail to terminate within grace timeout."""
 
 
 def set_pdeathsig(sig: int = signal.SIGTERM) -> bool:
@@ -60,12 +66,14 @@ class ProcessMetadata:
     ppid: int
     create_time: float
     task_id: Optional[str] = None
+    status: str = "ACTIVE"
 
 
 class ProcessTreeManager:
     """Manages process hierarchies and guarantees complete subtree termination."""
 
     def __init__(self) -> None:
+        self._lock = threading.RLock()
         self._tracked: Dict[int, ProcessMetadata] = {}
         self._job_handle: Optional[Any] = None
         self._init_platform_containment()
@@ -74,19 +82,54 @@ class ProcessTreeManager:
         """Initialize platform-specific containment primitives."""
         if sys.platform == "win32":
             try:
-                import win32job  # type: ignore[import-untyped]
-                self._job_handle = win32job.CreateJobObject(None, "")
-                extended_info = win32job.QueryInformationJobObject(
-                    self._job_handle, win32job.JobObjectExtendedLimitInformation
-                )
-                extended_info["BasicLimitInformation"][
-                    "LimitFlags"
-                ] |= win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-                win32job.SetInformationJobObject(
-                    self._job_handle,
-                    win32job.JobObjectExtendedLimitInformation,
-                    extended_info,
-                )
+                import ctypes
+                from ctypes import wintypes
+
+                class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+                    _fields_ = [
+                        ("PerProcessUserTimeLimit", ctypes.c_int64),
+                        ("PerJobUserTimeLimit", ctypes.c_int64),
+                        ("LimitFlags", ctypes.c_uint32),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", ctypes.c_uint32),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", ctypes.c_uint32),
+                        ("SchedulingClass", ctypes.c_uint32),
+                    ]
+
+                class IO_COUNTERS(ctypes.Structure):
+                    _fields_ = [
+                        ("ReadOperationCount", ctypes.c_uint64),
+                        ("WriteOperationCount", ctypes.c_uint64),
+                        ("OtherOperationCount", ctypes.c_uint64),
+                        ("ReadTransferCount", ctypes.c_uint64),
+                        ("WriteTransferCount", ctypes.c_uint64),
+                        ("OtherTransferCount", ctypes.c_uint64),
+                    ]
+
+                class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+                    _fields_ = [
+                        ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+                        ("IoInfo", IO_COUNTERS),
+                        ("ProcessMemoryLimit", ctypes.c_size_t),
+                        ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryLimit", ctypes.c_size_t),
+                        ("PeakJobMemoryLimit", ctypes.c_size_t),
+                    ]
+
+                job_handle = ctypes.windll.kernel32.CreateJobObjectW(None, None)
+                if job_handle:
+                    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+                    info.BasicLimitInformation.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                    JobObjectExtendedLimitInformation = 9
+                    ctypes.windll.kernel32.SetInformationJobObject(
+                        job_handle,
+                        JobObjectExtendedLimitInformation,
+                        ctypes.byref(info),
+                        ctypes.sizeof(info),
+                    )
+                    self._job_handle = job_handle
             except Exception as err:
                 logger.debug("Windows Job Object initialization bypassed: %s", err)
                 self._job_handle = None
@@ -103,14 +146,22 @@ class ProcessTreeManager:
         ctime = p.create_time()
 
         if sys.platform == "win32" and self._job_handle is not None:
+            process_handle = None
             try:
-                import win32api  # type: ignore[import-untyped]
-                import win32con  # type: ignore[import-untyped]
-                import win32job  # type: ignore[import-untyped]
-                process_handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)
-                win32job.AssignProcessToJobObject(self._job_handle, process_handle)
+                import ctypes
+                PROCESS_ALL_ACCESS = 0x1F0FFF
+                process_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
+                if process_handle:
+                    ctypes.windll.kernel32.AssignProcessToJobObject(self._job_handle, process_handle)
             except Exception as assign_err:
                 logger.debug("Could not assign PID %d to Windows Job Object: %s", pid, assign_err)
+            finally:
+                if process_handle:
+                    try:
+                        import ctypes
+                        ctypes.windll.kernel32.CloseHandle(process_handle)
+                    except Exception as close_err:
+                        logger.debug("Error closing process handle for PID %d: %s", pid, close_err)
 
         metadata = ProcessMetadata(
             pid=pid,
@@ -118,16 +169,19 @@ class ProcessTreeManager:
             create_time=ctime,
             task_id=task_id,
         )
-        self._tracked[pid] = metadata
+        with self._lock:
+            self._tracked[pid] = metadata
         return metadata
 
     def unregister_process(self, pid: int) -> None:
         """Remove process from active tracking register."""
-        self._tracked.pop(pid, None)
+        with self._lock:
+            self._tracked.pop(pid, None)
 
     def is_alive(self, pid: int) -> bool:
         """Check if process exists and create_time matches registered snapshot."""
-        meta = self._tracked.get(pid)
+        with self._lock:
+            meta = self._tracked.get(pid)
         if not psutil.pid_exists(pid):
             return False
         try:
@@ -138,18 +192,35 @@ class ProcessTreeManager:
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
 
+    def get_tracked_pids(self) -> List[int]:
+        """Return point-in-time snapshot of tracked PIDs under reentrant lock."""
+        with self._lock:
+            return list(self._tracked.keys())
+
+    def get_metadata(self, pid: int) -> Optional[ProcessMetadata]:
+        """Retrieve metadata for a tracked process under lock."""
+        with self._lock:
+            return self._tracked.get(pid)
+
+    @property
+    def tracked_pids(self) -> List[int]:
+        """Property returning snapshot of tracked PIDs."""
+        with self._lock:
+            return list(self._tracked.keys())
+
     def terminate_tree(
         self,
         pid: int,
         grace_timeout_sec: float = DEFAULT_GRACE_TIMEOUT_SEC,
     ) -> Dict[str, Any]:
-        """Progressive termination escalation sequence: SIGTERM -> wait -> SIGKILL."""
+        """Progressive termination escalation sequence: SIGTERM -> wait -> SIGKILL / Job Object."""
         metrics: Dict[str, Any] = {
             "pid": pid,
             "cpu_time": 0.0,
             "resident_memory_mb": 0.0,
             "terminated_children_count": 0,
             "success": False,
+            "leaked_pids": [],
         }
 
         if not psutil.pid_exists(pid):
@@ -165,7 +236,8 @@ class ProcessTreeManager:
             return metrics
 
         # Verify against PID recycling
-        meta = self._tracked.get(pid)
+        with self._lock:
+            meta = self._tracked.get(pid)
         if meta is not None and abs(parent.create_time() - meta.create_time) > 1.0:
             self.unregister_process(pid)
             metrics["success"] = True
@@ -199,15 +271,57 @@ class ProcessTreeManager:
         gone, alive = psutil.wait_procs(all_processes, timeout=grace_timeout_sec)
 
         # Step 3: Issue SIGKILL / kill() for remaining stubborn processes
-        for p in alive:
-            try:
-                p.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-
-        # Final wait
         if alive:
-            psutil.wait_procs(alive, timeout=1.0)
+            for p in alive:
+                try:
+                    p.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+            # Platform-specific process containment termination
+            if sys.platform == "win32" and self._job_handle is not None:
+                try:
+                    import ctypes
+                    ctypes.windll.kernel32.TerminateJobObject(self._job_handle, 1)
+                except Exception as job_err:
+                    logger.debug("TerminateJobObject error: %s", job_err)
+            elif sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(pid)
+                    os.killpg(pgid, signal.SIGKILL)
+                except (OSError, ProcessLookupError):
+                    pass
+
+            # Evict MPS context if present
+            if "CUDA_MPS_PIPE_DIRECTORY" in os.environ:
+                try:
+                    subprocess.run(["nvidia-smi", "--gpu-reset"], capture_output=True, timeout=2.0)
+                except Exception:
+                    pass
+
+            # Final check with 2.0s timeout
+            _, still_alive = psutil.wait_procs(alive, timeout=2.0)
+        else:
+            still_alive = []
+
+        if still_alive:
+            # Stubborn D-state or leaked processes
+            metrics["success"] = False
+            metrics["leaked_pids"] = [p.pid for p in still_alive]
+            with self._lock:
+                if pid in self._tracked:
+                    old_meta = self._tracked[pid]
+                    self._tracked[pid] = ProcessMetadata(
+                        pid=old_meta.pid,
+                        ppid=old_meta.ppid,
+                        create_time=old_meta.create_time,
+                        task_id=old_meta.task_id,
+                        status="ORPHAN_LEAK",
+                    )
+            logger.error("Process subtree for PID %d could not be reaped: %s", pid, metrics["leaked_pids"])
+            raise ProcessReapTimeoutError(
+                f"Failed to terminate process subtree for PID {pid}; stubborn PIDs: {metrics['leaked_pids']}"
+            )
 
         self.unregister_process(pid)
         metrics["success"] = True
@@ -253,14 +367,14 @@ class ZombieReaperDaemon:
         """Perform a single sweep across tracked processes and reclaim expired tasks."""
         terminated_pids: List[int] = []
 
-        # 1. Sweep tracked processes
-        active_pids = list(self.tree_manager._tracked.keys())
+        # 1. Sweep tracked processes using thread-safe snapshot
+        active_pids = self.tree_manager.get_tracked_pids()
         for pid in active_pids:
             if not self.tree_manager.is_alive(pid):
                 self.tree_manager.unregister_process(pid)
                 continue
 
-            meta = self.tree_manager._tracked.get(pid)
+            meta = self.tree_manager.get_metadata(pid)
             task_id = meta.task_id if meta is not None else None
 
             # Check orphan conditions
@@ -280,6 +394,7 @@ class ZombieReaperDaemon:
 
         return terminated_pids
 
+
     def run_watchdog_loop(self, max_iterations: Optional[int] = None) -> List[int]:
         """Execute sweep loop for up to max_iterations or indefinitely if None."""
         all_reaped: List[int] = []
@@ -292,4 +407,14 @@ class ZombieReaperDaemon:
                 break
             time.sleep(self.interval_sec)
         return all_reaped
+
+
+__all__ = [
+    "ProcessMetadata",
+    "ProcessTreeManager",
+    "ZombieReaperDaemon",
+    "ProcessReapTimeoutError",
+    "set_pdeathsig",
+    "get_pdeathsig_preexec_fn",
+]
 

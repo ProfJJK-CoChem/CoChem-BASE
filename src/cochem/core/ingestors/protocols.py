@@ -11,6 +11,34 @@ from typing import Dict, List, Optional, Protocol, Tuple, Union, runtime_checkab
 from mendeleev import element
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from cochem.core.mendeleev_invariants import MendeleevInvariantError
+
+
+class QCValidationError(ValueError):
+    """Base domain exception for physical validation failures in quantum chemistry results."""
+
+    pass
+
+
+class HessianSymmetryError(QCValidationError):
+    """Raised when a Cartesian Hessian matrix violates symmetry |H_ij - H_ji| > 1e-5."""
+
+    def __init__(self, message: str, max_asymmetry: float, indices: Tuple[int, int]) -> None:
+        super().__init__(message)
+        self.max_asymmetry = max_asymmetry
+        self.indices = indices
+
+
+class SpinContaminationError(QCValidationError):
+    """Raised when calculated <S^2> deviates by > 10% from ideal S(S+1) reference value."""
+
+    def __init__(self, message: str, s2_calc: float, s2_ref: float, deviation_percent: float) -> None:
+        super().__init__(message)
+        self.s2_calc = s2_calc
+        self.s2_ref = s2_ref
+        self.deviation_percent = deviation_percent
+
+
 # ==============================================================================
 # Frozen CODATA 2022 Physical Conversion Constants
 # ==============================================================================
@@ -111,12 +139,17 @@ class MolecularStructureData(BaseModel):
             for m in user_masses:
                 val = float(m)
                 if val <= 0.0 or math.isnan(val) or math.isinf(val):
-                    raise ValueError(f"Invalid positive atomic mass: {val}")
+                    raise MendeleevInvariantError(f"Invalid positive atomic mass: {val}")
                 resolved_masses.append(val)
         else:
             for idx, sym in enumerate(syms):
                 clean_sym = str(sym).strip().capitalize()
-                elem = element(clean_sym)
+                try:
+                    elem = element(clean_sym)
+                except Exception as exc:
+                    raise MendeleevInvariantError(
+                        f"Dynamic element resolution failed for symbol '{clean_sym}': {exc}"
+                    ) from exc
                 target_iso = iso_list[idx] if iso_list is not None else None
 
                 if target_iso is not None:
@@ -131,12 +164,20 @@ class MolecularStructureData(BaseModel):
                         weight = elem.atomic_weight or float(target_iso)
                         resolved_masses.append(float(weight))
                 else:
-                    if elem.atomic_weight is not None:
+                    if elem.atomic_weight is not None and float(elem.atomic_weight) > 0.0:
                         resolved_masses.append(float(elem.atomic_weight))
+                    elif elem.mass_number is not None and float(elem.mass_number) > 0.0:
+                        resolved_masses.append(float(elem.mass_number))
                     else:
-                        # Fallback for synthetic transuranic elements without standard weight
-                        stable_mass = elem.mass_number or 0.0
-                        resolved_masses.append(float(stable_mass))
+                        raise MendeleevInvariantError(
+                            f"Element '{clean_sym}' lacks a standard atomic weight and default mass number in dynamic "
+                            "Mendeleev/IUPAC tables. A physical isotopic mass number must be explicitly specified in "
+                            "'isotopes' (e.g., isotopes=[252, ...]) or 'masses'."
+                        )
+
+        for m in resolved_masses:
+            if m <= 0.0 or math.isnan(m) or math.isinf(m):
+                raise MendeleevInvariantError(f"Invalid positive atomic mass: {m}")
 
         data["coordinates"] = cleaned_coords
         data["masses"] = resolved_masses
@@ -196,12 +237,24 @@ class QCResultsSchema(BaseModel):
                         raise ValueError(f"Non-finite Hessian entry at ({r_idx}, {c_idx}): {f_val}")
 
             # Verify matrix symmetry: |H_ij - H_ji| < 1e-5
+            max_asym = 0.0
+            worst_indices = (0, 0)
             for i in range(dim):
                 for j in range(i + 1, dim):
-                    hij = float(hess[i][j])
-                    hji = float(hess[j][i])
-                    if abs(hij - hji) > 1e-5:
-                        raise ValueError(f"Asymmetric Hessian matrix: |H[{i}][{j}] ({hij}) - H[{j}][{i}] ({hji})| = {abs(hij - hji):.6e} > 1e-5")
+                    diff = abs(float(hess[i][j]) - float(hess[j][i]))
+                    if diff > max_asym:
+                        max_asym = diff
+                        worst_indices = (i, j)
+
+            if max_asym > 1e-5:
+                i, j = worst_indices
+                hij = float(hess[i][j])
+                hji = float(hess[j][i])
+                raise HessianSymmetryError(
+                    f"Asymmetric Hessian matrix: |H[{i}][{j}] ({hij}) - H[{j}][{i}] ({hji})| = {max_asym:.6e} > 1e-5",
+                    max_asymmetry=max_asym,
+                    indices=(i, j),
+                )
 
         # Spin contamination audit: deviation <= 10%
         s2_calc = data.get("s2_expectation")
@@ -211,17 +264,15 @@ class QCResultsSchema(BaseModel):
             f_ref = float(str(s2_ref))
             if f_ref > 1e-6:
                 dev = abs(f_calc - f_ref) / f_ref
-                if dev > 0.10:
-                    raise ValueError(
-                        f"Spin contamination exceeded: deviation {dev:.2%} > 10% tolerance "
-                        f"(s2_expectation={f_calc}, s2_ideal={f_ref})."
-                    )
             else:
-                abs_dev = abs(f_calc - f_ref)
-                if abs_dev > 0.10:
-                    raise ValueError(
-                        f"Spin contamination exceeded: singlet absolute deviation {abs_dev:.4f} > 0.10 tolerance "
-                        f"(s2_expectation={f_calc}, s2_ideal={f_ref})."
-                    )
+                dev = abs(f_calc - f_ref)
+            if dev > 0.10:
+                raise SpinContaminationError(
+                    f"Spin contamination exceeded: deviation {dev:.2%} > 10% tolerance "
+                    f"(s2_expectation={f_calc}, s2_ideal={f_ref}).",
+                    s2_calc=f_calc,
+                    s2_ref=f_ref,
+                    deviation_percent=dev * 100.0,
+                )
 
         return data

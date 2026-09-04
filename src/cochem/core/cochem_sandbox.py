@@ -5,6 +5,7 @@ Strictly adheres to CoChem Anti-Spoofing Protocol v3 and Tripartite Storage Air-
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import pathlib
 import re
@@ -15,6 +16,23 @@ import tempfile
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+_QUARANTINED_PATHS: list[pathlib.Path] = []
+
+
+def _sweep_quarantine() -> None:
+    for p in list(_QUARANTINED_PATHS):
+        try:
+            if p.exists():
+                shutil.rmtree(p, ignore_errors=True)
+            _QUARANTINED_PATHS.remove(p)
+        except OSError:
+            pass
+
+
+atexit.register(_sweep_quarantine)
 
 
 class SandboxSecurityViolationError(PermissionError):
@@ -72,7 +90,21 @@ class SandboxContext:
         exc_val: Optional[BaseException],
         exc_tb: Optional[Any],
     ) -> None:
-        self.cleanup()
+        is_unwinding = exc_type is not None
+        try:
+            self.cleanup()
+        except OSError as cleanup_err:
+            if self.root is not None:
+                _QUARANTINED_PATHS.append(self.root)
+            if is_unwinding:
+                logger.warning(
+                    "Secondary OSError encountered during sandbox cleanup suppressed to preserve "
+                    "primary scientific exception: %s (unreclaimed scratch path: %s)",
+                    cleanup_err,
+                    self.root,
+                )
+                return None
+            raise
 
     def validate_path(self, target: pathlib.Path) -> pathlib.Path:
         """Validate target path against NTFS ADS, Win32 reserved names, and traversal."""

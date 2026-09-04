@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 class CudaMemoryManager:
     """Introspects physical GPU VRAM and manages non-blocking allocation budgeting."""
 
-    def __init__(self) -> None:
+    def __init__(self, allow_cpu_fallback: bool = True) -> None:
+        self.allow_cpu_fallback: bool = allow_cpu_fallback
         self._nvml_initialized: bool = False
         self._nvml_available: bool = False
         self._init_nvml_subsystem()
@@ -114,15 +115,49 @@ class CudaMemoryManager:
             fractional_limit=fractional_limit,
         )
 
+    def select_best_device(self, required_mb: int = 0) -> Optional[int]:
+        """Dynamically select the GPU device ordinal with highest free VRAM meeting required_mb."""
+        device_count = self.get_device_count()
+        if device_count == 0:
+            return None
+
+        best_device: Optional[int] = None
+        max_free_mb = -1
+
+        for dev_id in range(device_count):
+            try:
+                total_mb, free_mb = self.query_vram_megabytes(dev_id)
+                if free_mb >= required_mb and free_mb > max_free_mb:
+                    max_free_mb = free_mb
+                    best_device = dev_id
+            except Exception:
+                continue
+
+        return best_device
+
+    def allocate_device(
+        self, required_mb: int = 0, requested_device_id: Optional[int] = None
+    ) -> Optional[int]:
+        """Synchronously determine an available GPU device ordinal or None for CPU fallback."""
+        device_count = self.get_device_count()
+        if device_count == 0:
+            return None
+        if requested_device_id is not None and 0 <= requested_device_id < device_count:
+            return requested_device_id
+        return self.select_best_device(required_mb)
+
     def prepare_worker_environment(
         self,
-        device_id: int,
+        device_id: Optional[int],
         base_env: Optional[Dict[str, str]] = None,
     ) -> Dict[str, str]:
         """Generate subprocess environment enforcing GPU affinity and anti-fragmentation."""
         env = dict(os.environ) if base_env is None else dict(base_env)
-        env["CUDA_VISIBLE_DEVICES"] = str(device_id)
-        env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+        if device_id is not None and device_id >= 0:
+            env["CUDA_VISIBLE_DEVICES"] = str(device_id)
+            env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+        else:
+            env["CUDA_VISIBLE_DEVICES"] = ""
         return env
 
     async def acquire_vram_budget(
@@ -153,6 +188,52 @@ class CudaMemoryManager:
                 )
 
             sleep_duration = min(current_sleep, timeout_seconds - elapsed)
+            if sleep_duration > 0:
+                await asyncio.sleep(sleep_duration)
+            current_sleep = min(current_sleep * 2.0, poll_interval)
+
+    async def schedule_gpu_task(
+        self,
+        required_mb: int,
+        requested_device_id: Optional[int] = None,
+        timeout_seconds: float = 30.0,
+        timeout_sec: Optional[float] = None,
+        poll_interval: float = 0.5,
+    ) -> Optional[int]:
+        """Dynamically select and acquire VRAM budget on best available GPU, or None if no GPUs exist."""
+        actual_timeout = timeout_sec if timeout_sec is not None else timeout_seconds
+        device_count = self.get_device_count()
+        if device_count == 0:
+            if not self.allow_cpu_fallback:
+                raise CudaMemoryExhaustionError("No physical CUDA accelerators accessible and CPU fallback disallowed.")
+            return None
+
+        start_time = time.monotonic()
+        current_sleep = min(0.05, poll_interval)
+
+        while True:
+            dev_id = (
+                requested_device_id
+                if requested_device_id is not None and 0 <= requested_device_id < device_count
+                else self.select_best_device(required_mb)
+            )
+
+            if dev_id is not None:
+                try:
+                    budget = self.get_device_budget(dev_id)
+                    if budget.available_vram_mb >= required_mb:
+                        return budget.device_id
+                except CudaMemoryExhaustionError as exc:
+                    logger.debug("Device %s currently constrained: %s", dev_id, exc)
+
+            elapsed = time.monotonic() - start_time
+            if elapsed >= actual_timeout:
+                raise CudaMemoryExhaustionError(
+                    f"CUDA memory acquisition timeout: {required_mb} MB requested "
+                    f"could not be secured within {actual_timeout:.2f}s across {device_count} devices."
+                )
+
+            sleep_duration = min(current_sleep, actual_timeout - elapsed)
             if sleep_duration > 0:
                 await asyncio.sleep(sleep_duration)
             current_sleep = min(current_sleep * 2.0, poll_interval)

@@ -6,6 +6,7 @@ Provides OS-agnostic file locking and SQLite WAL concurrency governance.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import pathlib
 import shutil
@@ -19,6 +20,8 @@ import filelock
 
 from cochem.core.cochem_sandbox import SandboxConfig, SandboxContext
 
+logger = logging.getLogger(__name__)
+
 
 class AirGapViolationError(PermissionError):
     """Raised when storage paths intersect, overlap, or violate air-gap containment rules."""
@@ -31,6 +34,17 @@ class TripartiteStorageConfig:
     scratch_root: pathlib.Path
     artifacts_root: pathlib.Path
     code_root: Optional[pathlib.Path] = None
+    source_root: Optional[pathlib.Path] = None
+
+    def __post_init__(self) -> None:
+        effective_code = self.code_root or self.source_root
+        if effective_code is not None:
+            object.__setattr__(self, "code_root", effective_code)
+            object.__setattr__(self, "source_root", effective_code)
+
+    @property
+    def effective_source_root(self) -> Optional[pathlib.Path]:
+        return self.code_root
 
 
 AirGapConfig = TripartiteStorageConfig
@@ -121,6 +135,17 @@ class TripartiteAirGapCoordinator:
     ) -> Tuple[pathlib.Path, Optional[str]]:
         """Atomically transfer validated deliverable from scratch to append-only artifacts storage."""
         source = source_path.resolve()
+        rel_path = pathlib.Path(relative_dest)
+        dest = (self.config.artifacts_root / relative_dest).resolve()
+
+        if self.config.code_root is not None:
+            if (
+                source.is_relative_to(self.config.code_root)
+                or dest.is_relative_to(self.config.code_root)
+                or (rel_path.is_absolute() and rel_path.resolve().is_relative_to(self.config.code_root))
+            ):
+                raise AirGapViolationError("Source tier (T_src) is strictly immutable and read-only.")
+
         if not source.is_relative_to(self.config.scratch_root):
             raise AirGapViolationError(
                 f"Source path '{source}' resides outside scratch root '{self.config.scratch_root}'"
@@ -129,7 +154,6 @@ class TripartiteAirGapCoordinator:
         if not source.is_file():
             raise FileNotFoundError(f"Source artifact not found: {source}")
 
-        dest = (self.config.artifacts_root / relative_dest).resolve()
         if not dest.is_relative_to(self.config.artifacts_root):
             raise AirGapViolationError(
                 f"Destination path '{dest}' resides outside artifacts root '{self.config.artifacts_root}'"
@@ -145,18 +169,31 @@ class TripartiteAirGapCoordinator:
                     hasher.update(chunk)
             sha256_hash = hasher.hexdigest()
 
+        # Phase 1: Atomic Commit
         staging_name = f"{dest.name}.tmp_{os.getpid()}_{threading.get_ident()}_{uuid.uuid4().hex[:8]}"
         temp_dest = dest.with_name(staging_name)
         try:
             shutil.copy2(source, temp_dest)
             os.replace(temp_dest, dest)
-            source.unlink(missing_ok=True)
         except Exception:
             if temp_dest.exists():
                 temp_dest.unlink(missing_ok=True)
             raise
 
+        # Phase 2: Post-Commit Teardown
+        try:
+            source.unlink(missing_ok=True)
+        except OSError as cleanup_err:
+            logger.warning(
+                "Secondary scratch unlinking error suppressed: %s (unreclaimed scratch: %s)",
+                cleanup_err,
+                source,
+            )
+
         return dest, sha256_hash
+
+
+AirGapCoordinator = TripartiteAirGapCoordinator
 
 
 def get_tier_file_lock(

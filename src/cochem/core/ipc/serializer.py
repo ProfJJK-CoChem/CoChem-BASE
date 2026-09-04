@@ -16,12 +16,15 @@ import multiprocessing.shared_memory as sm
 import os
 import pathlib
 import secrets
+import shutil
 import socket
 import struct
 import threading
 import uuid
+import weakref
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import filelock
 import h5py
 import msgpack  # type: ignore[import-untyped]
 import numpy as np
@@ -32,6 +35,26 @@ from cochem.core.context import assert_writable_path
 logger = logging.getLogger("cochem.core.ipc.serializer")
 
 NUMPY_EXT_CODE: int = 42
+
+MAX_IPC_PAYLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MB ceiling [D]
+
+
+class IPCPayloadError(Exception):
+    """Base exception for IPC payload transmission failures."""
+
+    pass
+
+
+class TruncatedPayloadError(IPCPayloadError):
+    """Raised when an IPC connection terminates before receiving the full payload."""
+
+    pass
+
+
+class OversizedPayloadError(IPCPayloadError):
+    """Raised when a transmitted payload header exceeds the safety ceiling."""
+
+    pass
 
 
 # ==============================================================================
@@ -96,12 +119,46 @@ def _cleanup_all_shared_memory() -> None:
 atexit.register(_cleanup_all_shared_memory)
 
 
-@dataclasses.dataclass(slots=True)
+def _finalize_shm(name: str) -> None:
+    with _REGISTRY_LOCK:
+        info = _ACTIVE_SHM.pop(name, None)
+    if info is not None:
+        try:
+            info["shm"].close()
+            info["shm"].unlink()
+        except (FileNotFoundError, OSError):
+            pass
+    try:
+        s = sm.SharedMemory(name=name)
+        s.close()
+        s.unlink()
+    except (FileNotFoundError, OSError):
+        pass
+
+
+@dataclasses.dataclass
 class SharedMemoryBuffer:
     """Encapsulates a POSIX/Windows shared memory segment for large array transfers."""
 
     shm: sm.SharedMemory
     descriptor: Dict[str, Any]
+    _finalizer: Optional[weakref.finalize] = dataclasses.field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._finalizer is None:
+            self._finalizer = weakref.finalize(self, _finalize_shm, self.shm.name)
+
+    def __enter__(self) -> SharedMemoryBuffer:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
+        self.close()
+        self.unlink()
 
     @classmethod
     def from_array(cls, arr: np.ndarray, total_attachments: int = 2) -> SharedMemoryBuffer:
@@ -182,6 +239,8 @@ class SharedMemoryBuffer:
 
     def unlink(self) -> None:
         """Explicitly unlink OS shared memory segment immediately."""
+        if self._finalizer is not None and self._finalizer.alive:
+            self._finalizer.detach()
         try:
             self.shm.unlink()
         except (OSError, FileNotFoundError):
@@ -212,6 +271,7 @@ class HMACSocketServer:
         self._thread: Optional[threading.Thread] = None
         self._received_payloads: List[Any] = []
         self._payload_event: threading.Event = threading.Event()
+        self._last_error: Optional[IPCPayloadError] = None
 
     def start(self) -> None:
         """Bind listening socket and launch background accept loop."""
@@ -274,6 +334,15 @@ class HMACSocketServer:
                     continue
                 (payload_len,) = struct.unpack("!I", len_bytes)
 
+                if payload_len > MAX_IPC_PAYLOAD_BYTES:
+                    logger.error("IPC payload rejected: size %d exceeds 256 MB ceiling", payload_len)
+                    self._last_error = OversizedPayloadError(
+                        f"Payload size {payload_len} exceeds 256 MB limit"
+                    )
+                    self._payload_event.set()
+                    conn.close()
+                    continue
+
                 # 4. Stream payload bytes
                 buffer = bytearray()
                 while len(buffer) < payload_len:
@@ -281,6 +350,15 @@ class HMACSocketServer:
                     if not chunk:
                         break
                     buffer.extend(chunk)
+
+                if len(buffer) < payload_len:
+                    logger.error("IPC stream truncated: received %d of %d bytes", len(buffer), payload_len)
+                    self._last_error = TruncatedPayloadError(
+                        f"Stream truncated: received {len(buffer)} of {payload_len} bytes"
+                    )
+                    self._payload_event.set()
+                    conn.close()
+                    continue
 
                 if len(buffer) == payload_len:
                     payload = unpack_payload(bytes(buffer))
@@ -297,8 +375,20 @@ class HMACSocketServer:
     def get_received_payload(self, timeout_sec: float = 5.0) -> Optional[Any]:
         """Await reception of payload from client."""
         if self._payload_event.wait(timeout_sec):
+            if self._last_error is not None:
+                err = self._last_error
+                self._last_error = None
+                self._payload_event.clear()
+                raise err
             if self._received_payloads:
-                return self._received_payloads.pop(0)
+                payload = self._received_payloads.pop(0)
+                if not self._received_payloads:
+                    self._payload_event.clear()
+                return payload
+        if self._last_error is not None:
+            err = self._last_error
+            self._last_error = None
+            raise err
         return None
 
 
@@ -350,6 +440,8 @@ class PESStore:
     def __init__(self, file_path: Union[pathlib.Path, str]) -> None:
         self.file_path: pathlib.Path = pathlib.Path(file_path).resolve()
         assert_writable_path(self.file_path)
+        self.lock_path: pathlib.Path = pathlib.Path(str(self.file_path) + ".lock").resolve()
+        self._write_lock: threading.RLock = threading.RLock()
 
     def write_entry(
         self,
@@ -359,43 +451,46 @@ class PESStore:
         model: Dict[str, Any],
         return_result: np.ndarray,
     ) -> None:
-        """Persist QCSchema calculation entry into HDF5 file via atomic staging."""
+        """Persist QCSchema calculation entry into HDF5 file in SWMR mode."""
         assert_writable_path(self.file_path)
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        tmp_path = self.file_path.with_name(f"{self.file_path.name}.{uuid.uuid4().hex[:8]}.tmp")
+        if shutil.disk_usage(self.file_path.parent).free < 100 * 1024 * 1024:
+            raise IOError("Insufficient disk space on target volume for PESStore append")
 
-        # If destination file already exists, copy existing groups into tmp staging
-        if self.file_path.exists():
-            import shutil
+        arr = np.asarray(return_result)
+        chunk_shape: Optional[Tuple[int, ...]] = None
+        max_shape: Optional[Tuple[Optional[int], ...]] = None
+        if arr.ndim > 0:
+            chunk_shape = tuple(max(1, min(s, 128)) for s in arr.shape)
+            max_shape = tuple(None for _ in arr.shape)
 
-            shutil.copyfile(self.file_path, tmp_path)
+        with self._write_lock:
+            with filelock.FileLock(str(self.lock_path), timeout=30.0):
+                with h5py.File(self.file_path, "a", libver="latest") as h5f:
+                    if entry_id in h5f:
+                        del h5f[entry_id]
 
-        with h5py.File(tmp_path, "a", libver="latest") as h5f:
-            if entry_id in h5f:
-                del h5f[entry_id]
+                    grp = h5f.create_group(entry_id)
+                    grp.attrs["schema_name"] = "qcschema_output"
+                    grp.attrs["driver"] = str(driver)
+                    grp.attrs["molecule_json"] = json.dumps(molecule)
+                    grp.attrs["model_json"] = json.dumps(model)
 
-            grp = h5f.create_group(entry_id)
-            grp.attrs["schema_name"] = "qcschema_output"
-            grp.attrs["driver"] = str(driver)
-            grp.attrs["molecule_json"] = json.dumps(molecule)
-            grp.attrs["model_json"] = json.dumps(model)
+                    if arr.ndim > 0:
+                        grp.create_dataset(
+                            "return_result",
+                            data=arr,
+                            maxshape=max_shape,
+                            chunks=chunk_shape,
+                            compression="gzip",
+                            compression_opts=4,
+                            fletcher32=True,
+                        )
+                    else:
+                        grp.create_dataset("return_result", data=arr)
 
-            # Store result array with Gzip chunked compression
-            chunk_shape: Optional[Tuple[int, ...]] = None
-            if return_result.ndim > 0:
-                chunk_shape = tuple(max(1, min(s, 128)) for s in return_result.shape)
-
-            grp.create_dataset(
-                "return_result",
-                data=return_result,
-                compression="gzip",
-                compression_opts=4,
-                chunks=chunk_shape,
-            )
-
-        # Atomic replacement to target path
-        os.replace(tmp_path, self.file_path)
+                    h5f.flush()
 
     def read_entry(self, entry_id: str) -> Dict[str, Any]:
         """Read QCSchema entry in SWMR mode without file locking collisions."""

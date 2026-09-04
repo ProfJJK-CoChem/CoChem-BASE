@@ -18,11 +18,16 @@ from mendeleev import element as _mendeleev_element
 from cochem.core.exceptions import MissingDataError
 
 
-class MendeleevInvariantError(MissingDataError):
+class MendeleevInvariantError(ValueError, MissingDataError):
     """Raised when chemical element queries violate Mendeleev physical invariants."""
 
     def __init__(self, message: str, symbol_or_query: Any = None) -> None:
-        super().__init__(message, symbol_or_query=symbol_or_query)
+        ValueError.__init__(self, message)
+        MissingDataError.__init__(
+            self,
+            message=message,
+            symbol_or_query=symbol_or_query,
+        )
         self.symbol_or_query = symbol_or_query
 
 

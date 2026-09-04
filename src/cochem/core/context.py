@@ -15,6 +15,8 @@ import time
 import uuid
 from typing import Any, Dict, Optional, Union
 
+import filelock
+
 logger = logging.getLogger("cochem.core.context")
 
 
@@ -155,7 +157,6 @@ class FileLock:
     ) -> None:
         self.lock_path: pathlib.Path = pathlib.Path(lock_path).resolve()
         self.timeout_sec: float = max(0.1, float(timeout_sec))
-        self._fd: Optional[int] = None
 
         # Verify against HPC distributed filesystem lock prohibition
         active_ctx = _CURRENT_CONTEXT.get()
@@ -167,58 +168,28 @@ class FileLock:
                     "Calculations must stage I/O locally in $SLURM_TMPDIR and publish via AtomicWrite."
                 )
 
+        target_file = str(self.lock_path) if str(self.lock_path).endswith(".lock") else f"{self.lock_path}.lock"
+        self._internal_lock = filelock.FileLock(target_file, timeout=self.timeout_sec)
+
     def acquire(self) -> bool:
         """Acquire physical cross-process file lock within timeout window."""
         assert_writable_path(self.lock_path)
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-        start_epoch = time.time()
-        flags = os.O_RDWR | os.O_CREAT
-        self._fd = os.open(str(self.lock_path), flags, 0o666)
-
-        while True:
-            try:
-                if sys.platform == "win32":
-                    import msvcrt
-
-                    msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
-                    return True
-                else:
-                    import fcntl
-
-                    fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    return True
-            except (OSError, IOError) as lock_err:
-                if (time.time() - start_epoch) >= self.timeout_sec:
-                    if self._fd is not None:
-                        os.close(self._fd)
-                        self._fd = None
-                    raise TimeoutError(
-                        f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}"
-                    ) from lock_err
-                time.sleep(0.05)
+        try:
+            self._internal_lock.acquire(timeout=self.timeout_sec)
+            return True
+        except filelock.Timeout as lock_err:
+            raise TimeoutError(
+                f"Timed out after {self.timeout_sec}s acquiring lock on {self.lock_path}"
+            ) from lock_err
 
     def release(self) -> None:
-        """Release lock handle and close file descriptor."""
-        if self._fd is not None:
-            try:
-                if sys.platform == "win32":
-                    import msvcrt
-
-                    try:
-                        msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
-                    except OSError:
-                        pass
-                else:
-                    import fcntl
-
-                    try:
-                        fcntl.flock(self._fd, fcntl.LOCK_UN)
-                    except OSError:
-                        pass
-                os.close(self._fd)
-            finally:
-                self._fd = None
+        """Release lock handle."""
+        try:
+            self._internal_lock.release()
+        except Exception:
+            pass
 
     def __enter__(self) -> FileLock:
         self.acquire()

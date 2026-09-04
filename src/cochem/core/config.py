@@ -39,6 +39,12 @@ def sanitize_path(raw_path: Union[str, Path], base_dir: Optional[Path] = None) -
     return expanded.resolve()
 
 
+class ConfigurationParseError(Exception):
+    """Raised when a TOML configuration file contains syntax or I/O errors."""
+
+    pass
+
+
 class CoreConfig(BaseModel):
     """Core runtime engine settings."""
 
@@ -47,6 +53,7 @@ class CoreConfig(BaseModel):
     log_level: str = "INFO"
     scratch_dir: Path = Field(default_factory=lambda: Path("./scratch").resolve())
     max_workers: int = 4
+    memory_gb: int = 4
 
 
 class TelemetryConfig(BaseModel):
@@ -150,9 +157,26 @@ class CoChemConfigManager:
         try:
             with open(path, "rb") as f:
                 return tomllib.load(f)
-        except Exception as err:
-            logger.warning("Failed to load TOML configuration file %s: %s", path, err)
-            return {}
+        except tomllib.TOMLDecodeError as err:
+            raise ConfigurationParseError(
+                f"Fatal TOML syntax error in configuration file '{path.resolve()}': {err}"
+            ) from err
+        except OSError as err:
+            raise ConfigurationParseError(
+                f"Fatal I/O or permissions error reading configuration file '{path.resolve()}': {err}"
+            ) from err
+
+    def _load_user_config(self) -> Dict[str, Any]:
+        """Load user-level TOML configuration."""
+        user_config_path = Path.home() / ".config" / "cochem" / "cochem.toml"
+        if sys.platform == "win32" and "APPDATA" in os.environ:
+            user_config_path = Path(os.environ["APPDATA"]) / "cochem" / "cochem.toml"
+        return self._load_toml_file(user_config_path)
+
+    def _load_project_config(self) -> Dict[str, Any]:
+        """Load project-level TOML configuration."""
+        project_toml = self.project_root / "cochem.toml"
+        return self._load_toml_file(project_toml)
 
     def _load_legacy_config(self) -> Dict[str, Any]:
         """Check for deprecated cochem.json or config.ini and emit deprecation warning."""
@@ -198,22 +222,22 @@ class CoChemConfigManager:
                 merged[s_key].update(fields)
 
         # 3. User-level configuration (priority 4)
-        user_config_path = Path.home() / ".config" / "cochem" / "cochem.toml"
-        if sys.platform == "win32" and "APPDATA" in os.environ:
-            user_config_path = Path(os.environ["APPDATA"]) / "cochem" / "cochem.toml"
-        user_data = self._load_toml_file(user_config_path)
+        user_data = self._load_user_config()
         for sec, fields in user_data.items():
             s_key = sec.lower()
             if s_key in merged and isinstance(fields, dict):
                 merged[s_key].update(fields)
+            elif s_key == "memory_gb":
+                merged["core"]["memory_gb"] = int(fields)
 
         # 4. Project-level configuration (priority 3)
-        project_toml = self.project_root / "cochem.toml"
-        project_data = self._load_toml_file(project_toml)
+        project_data = self._load_project_config()
         for sec, fields in project_data.items():
             s_key = sec.lower()
             if s_key in merged and isinstance(fields, dict):
                 merged[s_key].update(fields)
+            elif s_key == "memory_gb":
+                merged["core"]["memory_gb"] = int(fields)
 
         # 5. Environment variables (priority 2)
         env_overrides = self._extract_env_overrides()
@@ -262,3 +286,9 @@ class CoChemConfigManager:
         if self._cached_config is None:
             return self.load_config()
         return self._cached_config
+
+
+def get_workspace_config(workspace_dir: Optional[Union[str, Path]] = None) -> CoChemRootConfig:
+    """Retrieve resolved configuration for target workspace directory."""
+    return CoChemConfigManager(project_root=workspace_dir).get_config()
+

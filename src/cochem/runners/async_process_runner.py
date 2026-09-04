@@ -217,7 +217,7 @@ class AsyncProcessRunner:
         task_name: str,
         binary_args: List[str],
         gpu_required_mb: Optional[int] = None,
-        device_id: int = 0,
+        device_id: Optional[int] = None,
         slurm_spec: Optional[SlurmJobDirectiveSpec] = None,
         partition_limits: Optional[Dict[str, Any]] = None,
         mpi_config: Optional[MpiClusterExecutionConfig] = None,
@@ -242,12 +242,12 @@ class AsyncProcessRunner:
 
         # 1. GPU VRAM Budgeting & Environment Isolation
         if gpu_required_mb is not None and gpu_required_mb > 0:
-            budget = await self.cuda_manager.acquire_vram_budget(
-                device_id=device_id,
+            assigned_dev = await self.cuda_manager.schedule_gpu_task(
                 required_mb=gpu_required_mb,
+                requested_device_id=device_id,
             )
             run_env = self.cuda_manager.prepare_worker_environment(
-                device_id=budget.device_id,
+                device_id=assigned_dev,
                 base_env=run_env,
             )
 

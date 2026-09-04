@@ -6,10 +6,8 @@ Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
 from __future__ import annotations
 
 import atexit
-from collections import deque
 import ctypes
 import dataclasses
-
 import enum
 import logging
 import os
@@ -19,9 +17,8 @@ import shutil
 import signal
 import subprocess
 import sys
-import threading
-import time
 import uuid
+from collections import deque
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from cochem.core.context import assert_writable_path
@@ -256,6 +253,36 @@ class SubprocessBroker:
             except Exception as assign_err:
                 logger.debug("Could not assign PID %d to Job Object: %s", proc.pid, assign_err)
 
+    def _prepare_worker_environment(
+        self,
+        worker_index: int = 0,
+        retries: int = 0,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Prepare isolated execution environment with unique MPS pipe/log dirs and partitioned GPU devices."""
+        worker_env = dict(self.topology_engine.get_worker_env(concurrent_workers=1, worker_index=worker_index))
+        available_gpus = self.topology_engine.get_available_gpus()
+        if available_gpus:
+            assigned = self.current_params.get("assigned_gpu", available_gpus[worker_index % len(available_gpus)])
+            worker_env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+        else:
+            worker_env["CUDA_VISIBLE_DEVICES"] = ""
+
+        if hasattr(self, "env") and self.env:
+            worker_env.update(self.env)
+        if extra_env:
+            worker_env.update(extra_env)
+
+        mps_dir = self.base_scratch_dir / "mps" / f"worker_{worker_index}_pid_{os.getpid()}_retry_{retries}"
+        mps_pipe = mps_dir / "pipe"
+        mps_log = mps_dir / "log"
+        mps_pipe.mkdir(parents=True, exist_ok=True)
+        mps_log.mkdir(parents=True, exist_ok=True)
+
+        worker_env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+        worker_env["CUDA_MPS_LOG_DIRECTORY"] = str(mps_log)
+        return worker_env
+
     def execute(
         self,
         command: Union[str, List[str]],
@@ -321,24 +348,11 @@ class SubprocessBroker:
         proc: Optional[subprocess.Popen[Any]] = None
         try:
             while retries < self.max_retries:
-                worker_env = dict(self.topology_engine.get_worker_env())
-                # GPU allocation guard: CPU-only environments must explicitly have empty string
-                available_gpus = self.topology_engine.get_available_gpus()
-                num_gpus = len(available_gpus)
-                if num_gpus > 0:
-                    assigned = self.current_params.get("assigned_gpu", available_gpus[0])
-                    worker_env["CUDA_VISIBLE_DEVICES"] = str(assigned)
-                else:
-                    worker_env["CUDA_VISIBLE_DEVICES"] = ""
-
-                if hasattr(self, "env") and self.env:
-                    worker_env.update(self.env)
-                if env:
-                    worker_env.update(env)
-
-                # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
-                mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
-                worker_env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
+                worker_env = self._prepare_worker_environment(
+                    worker_index=int(self.current_params.get("worker_index", 0)),
+                    retries=retries,
+                    extra_env=env,
+                )
 
                 proc_kwargs: Dict[str, Any] = {
                     "cwd": str(effective_cwd),

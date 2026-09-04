@@ -43,23 +43,24 @@ import time
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Optional, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 import h5py
 import mendeleev  # type: ignore[import-untyped]
 import networkx as nx
+
 try:
     import molsym  # type: ignore[import-untyped]
 except ImportError:
     molsym = None
 import numpy as np
+import scipy.constants as const
 from ase import Atoms, units
 from ase.calculators.calculator import Calculator, all_changes
 from ase.md.langevin import Langevin
 from ase.md.velocitydistribution import thermalize_momenta
 from pydantic import BaseModel, ConfigDict, Field
 from scipy.spatial import KDTree
-from scipy.spatial.transform import Rotation
 
 try:
     from cochem_base.exceptions import EcosystemDependencyError
@@ -154,10 +155,12 @@ logger = logging.getLogger("CoChem.TOPOS.Crusher")
 
 # Planck constant and unit conversion factor for rotational constants:
 # B (GHz) = h / (8 * pi^2 * I) where I is in Da * Angstrom^2
-ROTATIONAL_CONSTANT_CONVERSION_GHZ: float = 505.379008
+ROTATIONAL_CONSTANT_CONVERSION_GHZ: float = float(
+    const.h / (8.0 * np.pi**2 * const.atomic_mass * (1e-10)**2 * 1e9)
+)
 
-# Elementary charge to Debye-Angstrom conversion factor: 1 e * A = 4.8032047 Debye
-ELEMENTARY_CHARGE_TO_DEBYE: float = 4.8032047
+# Elementary charge to Debye-Angstrom conversion factor: 1 e * A = (e * 1e-10) / (1e-21 / c) Debye
+ELEMENTARY_CHARGE_TO_DEBYE: float = float((const.e * 1e-10) / (1e-21 / const.c))
 
 # Engine metadata
 ENGINE_VERSION: str = "4.0.0"
@@ -1208,6 +1211,35 @@ class PhysicalCascadeCalculator(Calculator):
         if base_atoms is not None and "rdkit_mol" in base_atoms.info:
             self._rdkit_mol = base_atoms.info["rdkit_mol"]
 
+    @staticmethod
+    def get_system_charge(atoms: Atoms) -> int:
+        """Extract net molecular system charge."""
+        if "charge" in atoms.info:
+            return int(atoms.info["charge"])
+        elif "net_charge" in atoms.info:
+            return int(atoms.info["net_charge"])
+        elif atoms.has("initial_charges"):
+            return int(round(np.sum(atoms.get_initial_charges())))
+        return 0
+
+    @staticmethod
+    def get_system_uhf(atoms: Atoms) -> int:
+        """Extract system unpaired electron count (uhf = 2S = multiplicity - 1)."""
+        if "uhf" in atoms.info:
+            return int(atoms.info["uhf"])
+        if "multiplicity" in atoms.info:
+            return max(0, int(atoms.info["multiplicity"]) - 1)
+        if "spin" in atoms.info:
+            return int(atoms.info["spin"])
+        return 0
+
+    @classmethod
+    def is_open_shell_or_charged(cls, atoms: Atoms) -> bool:
+        """Determine if system is open-shell (uhf > 0) or charged (charge != 0)."""
+        chrg = cls.get_system_charge(atoms)
+        uhf = cls.get_system_uhf(atoms)
+        return chrg != 0 or uhf > 0
+
     def calculate(
         self,
         atoms: Optional[Atoms] = None,
@@ -1220,15 +1252,23 @@ class PhysicalCascadeCalculator(Calculator):
         symbols = atoms.get_chemical_symbols()
         n_atoms = len(symbols)
 
-        # Tier 1: GFN-FF via xtb CLI if available
+        chrg = self.get_system_charge(atoms)
+        uhf = self.get_system_uhf(atoms)
+        is_open_or_charged = self.is_open_shell_or_charged(atoms)
+
+        # Tier 1: GFN-FF / GFN2-xTB via xtb CLI if available
         if shutil.which("xtb") is not None:
             try:
                 with tempfile.TemporaryDirectory() as td:
                     xyz_file = Path(td) / "mol.xyz"
                     from ase.io import write as ase_write
                     ase_write(str(xyz_file), atoms)
+                    if is_open_or_charged:
+                        cmd = ["xtb", str(xyz_file), "--gfn", "2", "--chrg", str(chrg), "--uhf", str(uhf), "--grad"]
+                    else:
+                        cmd = ["xtb", str(xyz_file), "--gfnff", "--grad"]
                     res = subprocess.run(
-                        ["xtb", str(xyz_file), "--gfnff", "--grad"],
+                        cmd,
                         cwd=td,
                         capture_output=True,
                         text=True,
@@ -1238,64 +1278,81 @@ class PhysicalCascadeCalculator(Calculator):
                     energy_val = 0.0
                     for line in res.stdout.splitlines():
                         if "TOTAL ENERGY" in line:
-                            energy_val = float(line.split()[-3]) * 27.211386245988
+                            energy_val = float(line.split()[-3]) * units.Hartree
                     grad_file = Path(td) / "gradient"
                     if grad_file.exists():
                         glines = grad_file.read_text().splitlines()
                         forces = []
-                        for l in glines[2 : 2 + n_atoms]:
-                            parts = [float(x) for x in l.split()]
-                            forces.append([-parts[0] * 51.4220675, -parts[1] * 51.4220675, -parts[2] * 51.4220675])
+                        hartree_per_bohr_to_ev_per_ang = units.Hartree / units.Bohr
+                        for gline in glines[2 : 2 + n_atoms]:
+                            parts = [float(x) for x in gline.split()]
+                            forces.append([
+                                -parts[0] * hartree_per_bohr_to_ev_per_ang,
+                                -parts[1] * hartree_per_bohr_to_ev_per_ang,
+                                -parts[2] * hartree_per_bohr_to_ev_per_ang,
+                            ])
                         self.results["energy"] = energy_val
                         self.results["forces"] = np.array(forces, dtype=np.float64)
                         return
             except Exception as exc:
-                logger.debug("Tier 1 GFN-FF calculation bypassed: %s", exc)
+                logger.debug("Tier 1 GFN calculation bypassed: %s", exc)
 
-        # Tier 2: RDKit MMFF94 with fallback to UFF
-        try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
+        # Tier 2: RDKit MMFF94 with fallback to UFF (strictly bypassed for open-shell / charged systems)
+        if not is_open_or_charged:
+            try:
+                from rdkit import Chem
+                from rdkit.Chem import AllChem
 
-            mol = None
-            if self._rdkit_mol is not None:
-                mol = Chem.Mol(self._rdkit_mol)
-            elif "rdkit_mol" in atoms.info:
-                mol = Chem.Mol(atoms.info["rdkit_mol"])
-            else:
-                rw_mol = Chem.RWMol()
-                for s in symbols:
-                    z = int(get_dynamic_atomic_number(s))
-                    rw_mol.AddAtom(Chem.Atom(z))
-                for i in range(n_atoms):
-                    r_i = get_dynamic_covalent_radius(symbols[i])
-                    for j in range(i + 1, n_atoms):
-                        r_j = get_dynamic_covalent_radius(symbols[j])
-                        dist = np.linalg.norm(pos[i] - pos[j])
-                        if dist < 1.25 * (r_i + r_j):
-                            rw_mol.AddBond(i, j, Chem.BondType.SINGLE)
-                mol = rw_mol.GetMol()
+                mol = None
+                if self._rdkit_mol is not None:
+                    mol = Chem.Mol(self._rdkit_mol)
+                elif "rdkit_mol" in atoms.info:
+                    mol = Chem.Mol(atoms.info["rdkit_mol"])
+                else:
+                    rw_mol = Chem.RWMol()
+                    for s in symbols:
+                        z = int(get_dynamic_atomic_number(s))
+                        rw_mol.AddAtom(Chem.Atom(z))
+                    for i in range(n_atoms):
+                        r_i = get_dynamic_covalent_radius(symbols[i])
+                        for j in range(i + 1, n_atoms):
+                            r_j = get_dynamic_covalent_radius(symbols[j])
+                            dist = np.linalg.norm(pos[i] - pos[j])
+                            if dist < 1.25 * (r_i + r_j):
+                                rw_mol.AddBond(i, j, Chem.BondType.SINGLE)
+                    mol = rw_mol.GetMol()
+                    try:
+                        Chem.SanitizeMol(mol)
+                    except Exception:
+                        mol.UpdatePropertyCache(strict=False)
 
-            conf = Chem.Conformer(n_atoms)
-            for i, p in enumerate(pos):
-                conf.SetAtomPosition(i, (float(p[0]), float(p[1]), float(p[2])))
-            mol.RemoveAllConformers()
-            mol.AddConformer(conf, assignId=True)
+                if mol is not None:
+                    try:
+                        mol.UpdatePropertyCache(strict=False)
+                    except Exception:
+                        pass
 
-            mp = AllChem.MMFFGetMoleculeProperties(mol)
-            ff = AllChem.MMFFGetMoleculeForceField(mol, mp) if mp is not None else None
-            if ff is None:
-                ff = AllChem.UFFGetMoleculeForceField(mol)
+                conf = Chem.Conformer(n_atoms)
+                for i, p in enumerate(pos):
+                    conf.SetAtomPosition(i, (float(p[0]), float(p[1]), float(p[2])))
+                mol.RemoveAllConformers()
+                mol.AddConformer(conf, assignId=True)
 
-            if ff is not None:
-                energy_ev = ff.CalcEnergy() * 0.0433641
-                grad = ff.CalcGrad()
-                forces_arr = -np.array(grad).reshape((n_atoms, 3)) * 0.0433641
-                self.results["energy"] = float(energy_ev)
-                self.results["forces"] = forces_arr
-                return
-        except Exception as exc:
-            logger.debug("Tier 2 RDKit MMFF94/UFF calculation bypassed: %s", exc)
+                mp = AllChem.MMFFGetMoleculeProperties(mol)
+                ff = AllChem.MMFFGetMoleculeForceField(mol, mp) if mp is not None else None
+                if ff is None:
+                    ff = AllChem.UFFGetMoleculeForceField(mol)
+
+                if ff is not None:
+                    kcal_per_mol_to_ev = units.kcal / units.mol
+                    energy_ev = ff.CalcEnergy() * kcal_per_mol_to_ev
+                    grad = ff.CalcGrad()
+                    forces_arr = -np.array(grad).reshape((n_atoms, 3)) * kcal_per_mol_to_ev
+                    self.results["energy"] = float(energy_ev)
+                    self.results["forces"] = forces_arr
+                    return
+            except Exception as exc:
+                logger.debug("Tier 2 RDKit MMFF94/UFF calculation bypassed: %s", exc)
 
         # Tier 3: TORQ MACE-MP0 neural network potential
         try:
@@ -1351,12 +1408,19 @@ class GOATConformerEngine:
                         if dist < 1.25 * (r_i + r_j):
                             rw_mol.AddBond(i, j, Chem.BondType.SINGLE)
                 m = rw_mol.GetMol()
+                try:
+                    Chem.SanitizeMol(m)
+                except Exception:
+                    m.UpdatePropertyCache(strict=False)
                 conf = Chem.Conformer(n_atoms)
                 for i, p in enumerate(pos):
                     conf.SetAtomPosition(i, (float(p[0]), float(p[1]), float(p[2])))
                 m.RemoveAllConformers()
                 m.AddConformer(conf, assignId=True)
-                Chem.AssignStereochemistry(m, force=True, cleanIt=True)
+                try:
+                    Chem.AssignStereochemistry(m, force=True, cleanIt=True)
+                except Exception:
+                    pass
                 return m
             except Exception as exc:
                 logger.debug("Failed converting Atoms to RDKit Mol: %s", exc)
@@ -1469,6 +1533,13 @@ class CRESTConformerEngine:
         self.ewin = ewin
         self.thread_budget = thread_budget
 
+    @staticmethod
+    def _compute_memory_budget_gb() -> float:
+        """Calculate memory budget clamped to min(0.80 * RAM, 64.0 GB)."""
+        import psutil
+        total_ram_gb = psutil.virtual_memory().total / (1024.0 ** 3)
+        return float(min(0.80 * total_ram_gb, 64.0))
+
     def _build_execution_env(self, budgeted_threads: Optional[int] = None) -> Dict[str, str]:
         """Inject mandatory OpenMP stack and thread limits into subprocess execution environment [M]."""
         threads = budgeted_threads or self.thread_budget or 1
@@ -1500,25 +1571,43 @@ class CRESTConformerEngine:
         effective_threads = thread_budget or self.thread_budget or 1
         env = self._build_execution_env(budgeted_threads=effective_threads)
 
+        env_scratch = os.environ.get("COCH_SCRATCH") or os.environ.get("COCHEM_SCRATCH_DIR")
+        if env_scratch:
+            base_scratch = Path(env_scratch)
+        else:
+            try:
+                from Libraries.cochem_torq_environment import resolve_hpc_safe_scratch
+                base_scratch = resolve_hpc_safe_scratch()
+            except Exception:
+                base_scratch = Path(tempfile.gettempdir())
+
+        import uuid
+        crest_workdir = base_scratch / f"crest_{uuid.uuid4().hex}"
+        crest_workdir.mkdir(parents=True, exist_ok=True)
+
         try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                xyz_path = Path(tmpdir) / "input.xyz"
-                from ase.io import write as ase_write
-                ase_write(str(xyz_path), seed_atoms)
+            xyz_path = crest_workdir / "input.xyz"
+            from ase.io import write as ase_write
+            ase_write(str(xyz_path), seed_atoms)
 
-                cmd = [crest_bin, str(xyz_path)] + flags + ["--ewin", str(self.ewin), "-T", str(effective_threads)]
-                subprocess.run(
-                    cmd, cwd=tmpdir, capture_output=True, text=True, timeout=120, check=True, env=env
-                )
+            cmd = [crest_bin, str(xyz_path)] + flags + ["--ewin", str(self.ewin), "-T", str(effective_threads)]
+            subprocess.run(
+                cmd, cwd=crest_workdir, capture_output=True, text=True, timeout=120, check=True, env=env
+            )
 
-                ensemble_path = Path(tmpdir) / "crest_conformers.xyz"
-                if not ensemble_path.exists():
-                    ensemble_path = Path(tmpdir) / "crest_ensemble.xyz"
-                if ensemble_path.exists():
-                    from ase.io import read as ase_read
-                    return ase_read(str(ensemble_path), index=":")
+            ensemble_path = crest_workdir / "crest_conformers.xyz"
+            if not ensemble_path.exists():
+                ensemble_path = crest_workdir / "crest_ensemble.xyz"
+            if ensemble_path.exists():
+                from ase.io import read as ase_read
+                return ase_read(str(ensemble_path), index=":")
+        except EcosystemDependencyError:
+            raise
         except Exception as exc:
             logger.warning(f"CREST binary execution skipped ({exc}). Using physical fallback.")
+        finally:
+            if crest_workdir.exists():
+                shutil.rmtree(crest_workdir, ignore_errors=True)
 
         goat_engine = GOATConformerEngine(temperature_k=350.0)
         return goat_engine.generate_conformers(seed_atoms, num_conformers=num_conformers)
@@ -1666,7 +1755,7 @@ class TopologyCrusher:
         mean_kdd = 0.0
         mw_rmsd = 0.0
         unw_rmsd = 0.0
-        is_enant = False
+        _is_enant = False
 
         for basin_idx, basin in enumerate(self.accepted_basins):
             b_coords = basin.get_numpy_coordinates()
@@ -1724,7 +1813,7 @@ class TopologyCrusher:
             verdict, mw_r, unw_r, enant_flag = rmsd_engine.evaluate_conformer_identity(
                 b_syms, b_coords, cand_syms, cand_coords
             )
-            mw_rmsd, unw_rmsd, is_enant = mw_r, unw_r, enant_flag
+            mw_rmsd, unw_rmsd, _is_enant = mw_r, unw_r, enant_flag
 
             if (mw_r <= eff_bthr) or (verdict == DeduplicationVerdict.DUPLICATE_REJECTED):
                 is_duplicate = True

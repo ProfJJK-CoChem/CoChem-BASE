@@ -77,13 +77,14 @@ if lib_path not in sys.path:
 os.environ["COCHEM_BASE_ROOT"] = str(REPO_ROOT)
 
 # Core CoChem imports
+from pydantic import BaseModel, Field, ValidationError, field_validator  # noqa: E402
+
 from cochem_base.config_loader import (  # noqa: E402
     get_artifact_dir,
     get_modules_dir,
     get_scratch_dir,
 )
 from cochem_base.exceptions import BinaryNotFoundError  # noqa: E402
-from pydantic import BaseModel, Field, ValidationError, field_validator  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
@@ -286,7 +287,11 @@ def load_phase_callable(phase_number: int) -> Callable[..., Any]:
     func_name = meta["func"]
 
     import importlib
-    module = importlib.import_module(mod_name)
+    candidate_mod = mod_name if mod_name.startswith("cochem_base.") else f"cochem_base.{mod_name}"
+    try:
+        module = importlib.import_module(candidate_mod)
+    except ImportError:
+        module = importlib.import_module(mod_name)
     func: Callable[..., Any] = getattr(module, func_name)
     return func
 
@@ -963,8 +968,8 @@ class CalculationMatrixConfig(BaseModel):
                 float(parts[1])
                 float(parts[2])
                 float(parts[3])
-            except ValueError:
-                raise ValueError(f"Coordinates must be numeric in line: '{line}'")
+            except ValueError as err:
+                raise ValueError(f"Coordinates must be numeric in line: '{line}'") from err
         return v
 
     @field_validator("engine")
@@ -1038,7 +1043,7 @@ def action_run(args: argparse.Namespace) -> int:
         print(f"Basis Set:   {matrix_cfg.basis_set}")
         print(f"Dry Run:     {args.dry_run}")
         print(f"Scratch:     {scratch}")
-        print(f"Validation:  Pydantic CalculationMatrixConfig Verified [M]")
+        print("Validation:  Pydantic CalculationMatrixConfig Verified [M]")
         print("=" * 60)
         if args.dry_run:
             print(TermColor.ok("[DRY RUN COMPLETE] Configuration valid. Input deck generation verified."))

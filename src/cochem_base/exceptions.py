@@ -398,9 +398,9 @@ class CoChemError(Exception):
 
     def to_diagnostic_telemetry(self) -> Dict[str, Any]:
         """Formats full system telemetry into a structured dictionary for PIs, auditors, and bug reports."""
-        import traceback
-        import sys
         import platform
+        import sys
+        import traceback
 
         code_val = self.error_code.value if isinstance(self.error_code, ProvenanceErrorCode) else self.error_code
 
@@ -773,6 +773,60 @@ class SingularityError(CoChemError, ValueError):
     default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
         ProvenanceErrorCode.SINGULARITY_DETECTED
     )
+
+
+class SCFConvergenceError(ConvergenceError):
+    """Raised when Self-Consistent Field (SCF) electronic iteration fails to converge."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.CONVERGENCE_FAILURE
+    )
+
+    def to_pedagogical_guidance(self) -> str:
+        """Translates low-level SCF convergence failure into clear didactic orbital intuition."""
+        return (
+            "Self-Consistent Field (SCF) electronic iteration did not reach numerical convergence. "
+            "In molecular orbital theory, this indicates electronic oscillation or near-degenerate frontier "
+            "orbitals (HOMO-LUMO gap closure). Recommended remediation: (1) Option 1: enable orbital damping or level shifting "
+            "(e.g. SOSCF / DIIS), (2) Option 2: switch initial orbital guess to PModel or HCore, or (3) Option 3: collapse "
+            "the numerical quadrature grid (e.g. defgrid3 -> defgrid2) to smooth the electronic energy landscape."
+        )
+
+
+class NegativeHessianFrequencyError(MethodMatrixViolationError):
+    """Raised when unexpected imaginary (negative) vibrational frequencies appear in a ground state geometry."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.INVALID_HESSIAN_STRATEGY
+    )
+
+    def to_pedagogical_guidance(self) -> str:
+        """Translates imaginary frequencies into didactic PES and normal mode distortion advice."""
+        return (
+            "Unexpected imaginary (negative) vibrational frequency encountered. A true ground-state local minimum "
+            "must possess 3N-6 strictly positive real normal mode frequencies. A transition state must possess exactly one "
+            "imaginary frequency along the reaction coordinate. Recommended remediation: (1) Option 1: distort atomic "
+            "coordinates slightly along the normal mode vector of the imaginary frequency and re-optimize, or (2) Option 2: "
+            "switch to an analytical Hessian or increase geometry convergence tightness."
+        )
+
+
+class BasisSetLinearDependencyError(SingularityError):
+    """Raised when basis set overlap matrix exhibits near-zero eigenvalues due to linear dependency."""
+
+    default_error_code: Optional[Union[ProvenanceErrorCode, str]] = (
+        ProvenanceErrorCode.SINGULARITY_DETECTED
+    )
+
+    def to_pedagogical_guidance(self) -> str:
+        """Translates basis set linear dependency into didactic diffuse function overlap advice."""
+        return (
+            "Near-singular basis set overlap matrix detected (basis set linear dependency). Diffuse basis functions "
+            "on adjacent centers overlap excessively, causing overlap matrix eigenvalues to approach zero and matrix "
+            "diagonalization to become ill-conditioned. Recommended remediation: (1) Option 1: adjust the linear dependency "
+            "threshold (e.g., THRESH 1e-6), or (2) Option 2: replace overly diffuse basis sets (e.g. aug-cc-pVTZ) with a contracted "
+            "or truncated basis set (e.g., def2-TZVP or jun-cc-pVTZ)."
+        )
 
 
 class OutOfMemoryGateError(CoChemError, MemoryError):
@@ -1289,6 +1343,9 @@ __all__ = [
     "DiskQuotaError",
     # Engine & Math Exceptions
     "ConvergenceError",
+    "SCFConvergenceError",
+    "NegativeHessianFrequencyError",
+    "BasisSetLinearDependencyError",
     "SpinContaminationError",
     "DispersionMissingError",
     "InvalidHessianStrategyError",

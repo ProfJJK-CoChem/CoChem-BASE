@@ -234,6 +234,7 @@ from Libraries.cochem_torq_onnx_export import (
 # Environment & Hardware Concurrency (Chunk 20)
 from Libraries.cochem_torq_environment import (
     EphemeralScratchSession,
+    atomic_promote_to_store,
     dispatch_device_safely,
     resolve_hpc_safe_scratch,
 )
@@ -287,6 +288,7 @@ from Libraries.cochem_torq_trajectory import (
 
 # Active Learning (Chunk 18)
 from Libraries.cochem_torq_active_learning import (
+    ActiveLearningHDF5Manager,
     ActiveLearningOrchestrator,
     ActiveLearningState,
     CandidateGeometry,
@@ -530,6 +532,7 @@ __all__ = [
     "save_atomic_checkpoint",
     "worker_init_fn",
     # Active Learning (Chunk 18)
+    "ActiveLearningHDF5Manager",
     "ActiveLearningOrchestrator",
     "ActiveLearningState",
     "CandidateGeometry",
@@ -625,6 +628,7 @@ __all__ = [
     "verify_onnx_parity",
     "dispatch_device_safely",
     "resolve_hpc_safe_scratch",
+    "atomic_promote_to_store",
     "EphemeralScratchSession",
 
     # Chunk 21: TORQ Molecular Dynamics Part 1 (Symplectic & REMD)

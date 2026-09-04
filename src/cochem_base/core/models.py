@@ -1,20 +1,29 @@
 """Authoritative Core Data Models & MolSSI QCSchema v1 Envelopes.
 
-Defines QCResultsRecord (AtomicResult) and MolecularTopology with explicit
-spatial coordinate dimensional envelopes, CODATA 2022 constants, and backward-compatible accessors.
+Defines QCResultsRecord (AtomicResult), MolecularTopology, PESPointRecord, and CalculationJobPayload
+with explicit spatial coordinate envelopes, CODATA 2022 constants, deterministic UUIDv5 content hashing,
+and machine-readable SPDX licensing.
 """
 
 from __future__ import annotations
 
 import copy
+import uuid
 from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from cochem_base.core.cochem_crypto import canonicalize_json
+from cochem_base.core.glossary import CalculationFidelity
+from cochem_base.core.licensing import validate_spdx_license
 
 # Authoritative CODATA 2022 conversion factors
 BOHR_TO_ANGSTROM: float = 0.529177210903
 ANGSTROM_TO_BOHR: float = 1.0 / BOHR_TO_ANGSTROM
+
+# Authoritative CoChem Namespace UUID for deterministic UUIDv5 hashing
+NAMESPACE_COCHEM: uuid.UUID = uuid.UUID("a6c4f69a-2d4e-4e68-912f-6e2101e4a682")
 
 
 class QCResultsRecord(BaseModel):
@@ -32,6 +41,15 @@ class QCResultsRecord(BaseModel):
     provenance: Dict[str, Any] = Field(default_factory=dict)
     success: bool = True
     error: Optional[Dict[str, Any]] = None
+    license: str = Field(
+        default="CC-BY-4.0",
+        description="SPDX license identifier governing data reuse rights (FAIR R1.1)",
+    )
+
+    @field_validator("license")
+    @classmethod
+    def validate_license_spdx(cls, v: str) -> str:
+        return validate_spdx_license(v)
 
     @model_validator(mode="before")
     @classmethod
@@ -64,12 +82,13 @@ class QCResultsRecord(BaseModel):
             if "geometry" in mol:
                 geom = mol["geometry"]
                 if isinstance(geom, np.ndarray):
-                    mol["geometry"] = geom.flatten().tolist()
+                    geom = geom.flatten().tolist()
                 elif isinstance(geom, list) and geom and isinstance(geom[0], (list, tuple)):
                     flat_geom = []
                     for pt in geom:
                         flat_geom.extend(pt)
-                    mol["geometry"] = flat_geom
+                    geom = flat_geom
+                mol["geometry"] = geom
             data["molecule"] = mol
 
         # Format return_result if given as NumPy array
@@ -191,3 +210,216 @@ class MolecularTopology(BaseModel):
             geometry=converted,
             units="bohr",
         )
+
+
+class PESPointRecord(BaseModel):
+    """Point record representing a single potential energy surface evaluation with deterministic UUIDv5 [D]."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True, arbitrary_types_allowed=True)
+
+    point_id: str = Field(default="", description="Deterministic UUIDv5 content-addressable point identifier")
+    method_id: str = Field(default="unknown", description="Registered method identifier")
+    coordinates: List[float] = Field(default_factory=list, description="Flat 1D atomic coordinates (size 3*N)")
+    symbols: List[str] = Field(default_factory=list, description="Ordered IUPAC elemental symbols")
+    method: str = Field(default="unknown", description="Electronic structure method")
+    basis: Optional[str] = Field(default=None, description="Primary basis set")
+    energy: float = Field(default=0.0, description="Electronic energy in Hartrees")
+    gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
+    units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
+    converged: bool = Field(default=True, description="Whether SCF and geometry optimization converged")
+    wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
+    provenance: Any = Field(default_factory=dict, description="Calculation provenance record")
+    license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @classmethod
+    def generate_point_id(
+        cls,
+        geometry: List[float],
+        symbols: List[str],
+        method: str,
+        basis: Optional[str] = None,
+    ) -> str:
+        """Deterministically generate UUIDv5 point ID from canonical RFC 8785 JSON representation [D]."""
+        normalized_payload = {
+            "symbols": [str(s).upper() for s in symbols],
+            "geometry": [round(float(c), 8) for c in geometry],
+            "method": str(method).strip().lower(),
+            "basis": (basis or "").strip().lower(),
+        }
+        canonical_bytes = canonicalize_json(normalized_payload)
+        return str(uuid.uuid5(NAMESPACE_COCHEM, canonical_bytes.decode("utf-8")))
+
+    @field_validator("license")
+    @classmethod
+    def validate_license_spdx(cls, v: str) -> str:
+        return validate_spdx_license(v)
+
+    @field_validator("coordinates", mode="before")
+    @classmethod
+    def validate_coords_array(cls, v: Any) -> List[float]:
+        if isinstance(v, np.ndarray):
+            return [float(x) for x in v.flatten()]
+        if isinstance(v, (list, tuple)):
+            flat: List[float] = []
+            for item in v:
+                if isinstance(item, (list, tuple, np.ndarray)):
+                    flat.extend([float(x) for x in item])
+                else:
+                    flat.append(float(item))
+            return flat
+        raise ValueError(f"Invalid coordinate format: {type(v)}")
+
+    @field_validator("gradient", mode="before")
+    @classmethod
+    def validate_grad_array(cls, v: Any) -> Optional[List[float]]:
+        if v is None:
+            return None
+        if isinstance(v, np.ndarray):
+            return [float(x) for x in v.flatten()]
+        if isinstance(v, (list, tuple)):
+            flat: List[float] = []
+            for item in v:
+                if isinstance(item, (list, tuple, np.ndarray)):
+                    flat.extend([float(x) for x in item])
+                else:
+                    flat.append(float(item))
+            return flat
+        raise ValueError(f"Invalid gradient format: {type(v)}")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_and_default_point_id(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        if "coordinates" not in data and "geometry" in data:
+            data["coordinates"] = data["geometry"]
+        elif "coordinates" in data and "geometry" not in data:
+            data["geometry"] = data["coordinates"]
+
+        coords = data.get("coordinates") or []
+        if isinstance(coords, np.ndarray):
+            coords = coords.flatten().tolist()
+            data["coordinates"] = coords
+        elif isinstance(coords, list) and coords and isinstance(coords[0], (list, tuple)):
+            flat = []
+            for item in coords:
+                if isinstance(item, (list, tuple, np.ndarray)):
+                    flat.extend([float(x) for x in item])
+                else:
+                    flat.append(float(item))
+            coords = flat
+            data["coordinates"] = coords
+
+        if not data.get("point_id"):
+            syms = data.get("symbols") or []
+            meth = data.get("method") or data.get("method_id") or "unknown"
+            bas = data.get("basis") or ""
+            data["point_id"] = cls.generate_point_id(
+                geometry=coords,
+                symbols=syms,
+                method=meth,
+                basis=bas,
+            )
+
+        if not data.get("method_id") and data.get("method"):
+            data["method_id"] = data["method"]
+
+        return data
+
+    def to_angstrom(self) -> PESPointRecord:
+        """Convert coordinates and gradients to Angstroms using authoritative CODATA 2022 constants."""
+        if self.units == "angstrom":
+            return self
+        converted_coords = [float(c * BOHR_TO_ANGSTROM) for c in self.coordinates]
+        converted_grad = (
+            [float(g * ANGSTROM_TO_BOHR) for g in self.gradient]
+            if self.gradient is not None
+            else None
+        )
+        return PESPointRecord(
+            point_id=self.point_id,
+            method_id=self.method_id,
+            coordinates=converted_coords,
+            symbols=list(self.symbols),
+            method=self.method,
+            basis=self.basis,
+            energy=self.energy,
+            gradient=converted_grad,
+            units="angstrom",
+            converged=self.converged,
+            wall_s=self.wall_s,
+            provenance=copy.deepcopy(self.provenance),
+            license=self.license,
+        )
+
+    def to_bohr(self) -> PESPointRecord:
+        """Convert coordinates and gradients to Bohr using authoritative CODATA 2022 constants."""
+        if self.units == "bohr":
+            return self
+        converted_coords = [float(c * ANGSTROM_TO_BOHR) for c in self.coordinates]
+        converted_grad = (
+            [float(g * BOHR_TO_ANGSTROM) for g in self.gradient]
+            if self.gradient is not None
+            else None
+        )
+        return PESPointRecord(
+            point_id=self.point_id,
+            method_id=self.method_id,
+            coordinates=converted_coords,
+            symbols=list(self.symbols),
+            method=self.method,
+            basis=self.basis,
+            energy=self.energy,
+            gradient=converted_grad,
+            units="bohr",
+            converged=self.converged,
+            wall_s=self.wall_s,
+            provenance=copy.deepcopy(self.provenance),
+            license=self.license,
+        )
+
+
+class CalculationJobPayload(BaseModel):
+    """Calculation job specification supporting Method Matrix v4 fidelity tiers [D]."""
+
+    model_config = ConfigDict(extra="allow", validate_assignment=True)
+
+    job_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Globally unique job identifier")
+    molecule: Dict[str, Any] = Field(default_factory=dict, description="Target molecular topology specifications")
+    driver: Literal["energy", "gradient", "hessian", "properties"] = "energy"
+    fidelity: Union[CalculationFidelity, str] = Field(
+        default=CalculationFidelity.R_DFT,
+        description="Canonical fidelity tier or custom specification",
+    )
+    keywords: Dict[str, Any] = Field(default_factory=dict, description="Calculation keywords")
+    license: str = Field(default="CC-BY-4.0", description="SPDX license identifier")
+
+    @field_validator("fidelity", mode="before")
+    @classmethod
+    def validate_fidelity(cls, v: Any) -> Union[CalculationFidelity, str]:
+        if isinstance(v, CalculationFidelity):
+            return v
+        if isinstance(v, str):
+            clean = v.strip()
+            for member in CalculationFidelity:
+                if member.value.lower() == clean.lower() or member.name.lower() == clean.lower():
+                    return member
+            return clean
+        raise ValueError(f"Invalid fidelity specification: {v}")
+
+    @field_validator("license")
+    @classmethod
+    def validate_license_spdx(cls, v: str) -> str:
+        return validate_spdx_license(v)
+
+
+__all__ = [
+    "BOHR_TO_ANGSTROM",
+    "ANGSTROM_TO_BOHR",
+    "NAMESPACE_COCHEM",
+    "QCResultsRecord",
+    "MolecularTopology",
+    "PESPointRecord",
+    "CalculationJobPayload",
+]

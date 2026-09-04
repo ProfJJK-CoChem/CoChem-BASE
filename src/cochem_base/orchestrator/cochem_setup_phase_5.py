@@ -52,7 +52,7 @@ except ImportError:
 try:
     from cochem_core_registry_schema import (
         CARBON_13_ISOTOPIC_MASS,
-        ISOTOPIC_MASSES,
+        get_registry_atomic_mass,
         CoChemSystemConfig,
         OSTarget,
         discover_host_hardware,
@@ -63,7 +63,7 @@ except ImportError:
         sys.path.insert(0, str(repo_root))
     from cochem_core_registry_schema import (
         CARBON_13_ISOTOPIC_MASS,
-        ISOTOPIC_MASSES,
+        get_registry_atomic_mass,
         CoChemSystemConfig,
         OSTarget,
         discover_host_hardware,
@@ -1014,7 +1014,7 @@ def validate_and_build_system_config(
             "codata_version": "2018",
             "isotopic_mass_locking": True,
             "isotopic_mass_13c": CARBON_13_ISOTOPIC_MASS,
-            "isotopic_masses": dict(ISOTOPIC_MASSES),
+            "isotopic_masses": {},
         }
 
     raw["status"] = "LOCKED"

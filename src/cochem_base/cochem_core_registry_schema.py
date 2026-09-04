@@ -9,6 +9,7 @@ All schemas strictly forbid extra fields and enforce validation on assignment.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import logging
@@ -40,26 +41,25 @@ logger = logging.getLogger(__name__)
 
 CARBON_13_ISOTOPIC_MASS: float = 13.00335483507
 
-ISOTOPIC_MASSES: Dict[str, float] = {
-    "1H": 1.00782503223,
-    "2H": 2.01410177812,
-    "3H": 3.01604928132,
-    "12C": 12.00000000000,
-    "13C": CARBON_13_ISOTOPIC_MASS,
-    "14N": 14.00307400443,
-    "15N": 15.00010889888,
-    "16O": 15.99491461957,
-    "17O": 16.99913175650,
-    "18O": 17.99915961286,
-    "19F": 18.99840316273,
-    "31P": 30.97376199842,
-    "32S": 31.97207117440,
-    "35Cl": 34.96885268200,
-    "37Cl": 36.96590260200,
-    "79Br": 78.91833760000,
-    "81Br": 80.91629100000,
-    "127I": 126.9044719000,
-}
+
+@functools.lru_cache(maxsize=512)
+def get_registry_atomic_mass(symbol_or_z: Union[str, int], mass_number: Optional[int] = None) -> float:
+    """Dynamic IUPAC/CIAAW mass resolver honoring the Mendeleev Mandate [M]."""
+    import mendeleev
+    from cochem_base.core.exceptions import IsotopeStabilityError
+
+    el = mendeleev.element(symbol_or_z)
+    if mass_number is not None:
+        iso = next((i for i in el.isotopes if i.mass_number == mass_number), None)
+        if iso is not None and iso.mass is not None:
+            return float(iso.mass)
+        raise IsotopeStabilityError(f"Isotope {el.symbol}-{mass_number} not found in Mendeleev.")
+    if el.atomic_weight is not None:
+        return float(el.atomic_weight)
+    if el.mass is not None:
+        return float(el.mass)
+    raise ValueError(f"No valid mass available for element {el.symbol}.")
+
 
 BYPASS_TOKENS: Set[str] = {"BYPASSED", "Not_Found", "missing"}
 
@@ -465,7 +465,7 @@ class EnvironmentSchema(BaseModel):
         description="Locked isotopic mass for Carbon-13 (^13C = 13.00335483507)",
     )
     isotopic_masses: Dict[str, float] = Field(
-        default_factory=lambda: dict(ISOTOPIC_MASSES),
+        default_factory=dict,
         description="Exact isotopic mass registry",
     )
     env_vars: Dict[str, str] = Field(default_factory=dict, description="Custom environment variable overrides")
@@ -515,11 +515,20 @@ class EnvironmentSchema(BaseModel):
         return p.resolve()
 
     def get_isotopic_mass(self, isotope: str) -> float:
-        """Retrieve authoritative locked isotopic mass float."""
+        """Retrieve authoritative locked isotopic mass float [M]."""
         if isotope in self.isotopic_masses:
             return self.isotopic_masses[isotope]
         if isotope == "13C":
             return self.isotopic_mass_13c
+        import re
+        m = re.match(r"^(\d+)?([A-Za-z]+)$", str(isotope).strip())
+        if m:
+            mass_num = int(m.group(1)) if m.group(1) else None
+            sym = m.group(2)
+            try:
+                return get_registry_atomic_mass(sym, mass_num)
+            except Exception as exc:
+                raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix: {exc}") from exc
         raise KeyError(f"Isotope '{isotope}' not registered in isotopic mass matrix.")
 
 

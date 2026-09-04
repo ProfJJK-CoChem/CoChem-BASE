@@ -6,7 +6,7 @@ CoChem-CORE: Re-exports authoritative schemas from root cochem_core_registry_sch
 from cochem_core_registry_schema import (
     BYPASS_TOKENS,
     CARBON_13_ISOTOPIC_MASS,
-    ISOTOPIC_MASSES,
+    get_registry_atomic_mass,
     CoChemConfig,
     CoChemSystemConfig,
     CorePinningConfig,
@@ -31,7 +31,7 @@ from cochem_core_registry_schema import (
 __all__ = [
     "BYPASS_TOKENS",
     "CARBON_13_ISOTOPIC_MASS",
-    "ISOTOPIC_MASSES",
+    "get_registry_atomic_mass",
     "CoChemConfig",
     "CoChemSystemConfig",
     "CorePinningConfig",

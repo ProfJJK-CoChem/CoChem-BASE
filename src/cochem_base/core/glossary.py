@@ -1,16 +1,56 @@
-"""Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Physical Conversion Constants.
+"""Authoritative CODATA 2018 / 2022 IEEE-754 FP64 Physical Conversion Constants & Method Matrix Glossary.
 
-Provides single repository source of truth for energy, coordinate, and rotational inertia conversions.
-Strictly adheres to Method Matrix §4.4, §5, §8B and authoritative CODATA recommendations.
+Provides single repository source of truth for energy, coordinate, and rotational inertia conversions,
+as well as canonical composite calculation fidelity tiers defined in Method Matrix v4 (§9A, Table 3).
+Strictly adheres to Method Matrix §4.4, §5, §8B, §9A and authoritative CODATA recommendations.
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from enum import Enum
 from typing import Final
 
-import scipy.constants
+
+class CalculationFidelity(str, Enum):
+    """Authoritative Method Matrix v4 calculation fidelity tiers and canonical composite recipes [D]."""
+
+    # Low / Semiempirical Tiers
+    XTB1 = "XTB1"
+    XTB2 = "XTB2"
+    PM6 = "PM6"
+    AM1 = "AM1"
+
+    # Single Reference / Mean Field
+    R_HF = "R_HF"
+    U_HF = "U_HF"
+    R_DFT = "R_DFT"
+    U_DFT = "U_DFT"
+    RO_DFT = "RO_DFT"
+
+    # Correlated Wavefunction
+    MP2 = "MP2"
+    DLPNO_CCSD_T = "DLPNO_CCSD_T"
+    CCSD_T = "CCSD_T"
+    CCSD_T_F12 = "CCSD_T_F12"
+    CASSCF = "CASSCF"
+    NEVPT2 = "NEVPT2"
+
+    # Method Matrix v4 Canonical Composite Tiers (Table 3 & §9A)
+    JUNCHS = "junChS"
+    JUNCHS_F12 = "junChS-F12"
+    CHS = "ChS"
+    CHS_F12 = "ChS-F12"
+    T3_10S = "T3-10s"
+    T3_1MIN = "T3-1min"
+    T3_30MIN = "T3-30min"
+    T3_3H = "T3-3h"
+    T3_12H = "T3-12h"
+    T4_1D = "T4-1d"
+    R2 = "R2"
+
+    # Custom / Open QCSchema Specification
+    CUSTOM_COMPOSITE = "CUSTOM_COMPOSITE"
 
 
 @dataclass(frozen=True)
@@ -46,6 +86,7 @@ SPEED_OF_LIGHT_CM_S: Final[float] = UnitConversionConstants.SPEED_OF_LIGHT_CM_S
 ROTATIONAL_INERTIA_CONVERSION: Final[float] = UnitConversionConstants.ROTATIONAL_INERTIA_CONVERSION
 
 __all__ = [
+    "CalculationFidelity",
     "UnitConversionConstants",
     "HARTREE_TO_EV",
     "HARTREE_TO_JOULE",

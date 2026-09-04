@@ -110,6 +110,17 @@ from cochem_base.exceptions import (
     QCSchemaValidationError,
     SingularityError,
 )
+from cochem_base.core.licensing import validate_spdx_license
+from cochem_base.core.models import NAMESPACE_COCHEM, PESPointRecord
+
+
+def get_node_local_scratch_dir() -> Path:
+    """Resolve node-local ephemeral scratch directory adhering to HPC Distributed Lock Prohibition [D]."""
+    scratch = os.environ.get("SLURM_TMPDIR") or os.environ.get("TMPDIR") or (Path.home() / ".cochem" / "scratch")
+    p = Path(scratch).resolve()
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
 
 # ---------------------------------------------------------------------------
 # Logging Setup
@@ -202,6 +213,14 @@ class QCSchemaProvenance(BaseModel):
     signature_algorithm: str = Field(
         default="PureEd25519", description="Cryptographic signing standard"
     )
+    license: str = Field(
+        default="CC-BY-4.0", description="SPDX license identifier governing data reuse rights (FAIR R1.1)"
+    )
+
+    @field_validator("license")
+    @classmethod
+    def validate_license(cls, v: str) -> str:
+        return validate_spdx_license(v)
 
     def canonical_bytes(self) -> bytes:
         """Construct RFC 8785 canonical bytes for core provenance fields."""
@@ -213,6 +232,7 @@ class QCSchemaProvenance(BaseModel):
             "host": self.host,
             "platform": self.platform,
             "utc": self.utc,
+            "license": self.license,
         }
         return canonicalize_json(payload)
 
@@ -248,101 +268,18 @@ class QCSchemaMethodRecord(BaseModel):
     frozen_core: bool = Field(default=True, description="Whether frozen core approximation was enabled")
     counterpoise: str = Field(default="none", description="Counterpoise status: 'none', 'half', or 'full'")
     keywords: Dict[str, Any] = Field(default_factory=dict, description="Dictionary of calculation keywords and tolerances")
+    license: str = Field(
+        default="CC-BY-4.0", description="SPDX license identifier governing data reuse rights (FAIR R1.1)"
+    )
     registered_utc: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         description="ISO 8601 registration timestamp",
     )
 
-
-class PESPointRecord(BaseModel):
-    """Point record representing a single potential energy surface evaluation."""
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, arbitrary_types_allowed=True)
-
-    point_id: str = Field(..., description="Unique stable point identifier (e.g. 'grid_2d:142', 'iso_003')")
-    method_id: str = Field(..., description="Registered method identifier in /methods/<method_id>")
-    coordinates: List[float] = Field(..., description="Flat 1D atomic coordinates in Bohr (size 3*N)")
-    energy: float = Field(..., description="Electronic energy in Hartrees")
-    gradient: Optional[List[float]] = Field(None, description="Flat 1D gradient in Hartree/Bohr (size 3*N)")
-    units: Literal["bohr", "angstrom"] = Field(default="bohr", description="Physical unit of spatial coordinates")
-    converged: bool = Field(default=True, description="Whether SCF and geometry optimization converged")
-    wall_s: float = Field(default=0.0, ge=0.0, description="Calculation wall clock time in seconds")
-    provenance: QCSchemaProvenance = Field(default_factory=QCSchemaProvenance, description="Calculation provenance record")
-
-    @field_validator("coordinates", mode="before")
+    @field_validator("license")
     @classmethod
-    def validate_coords_array(cls, v: Any) -> List[float]:
-        if isinstance(v, np.ndarray):
-            return [float(x) for x in v.flatten()]
-        if isinstance(v, (list, tuple)):
-            flat: List[float] = []
-            for item in v:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend([float(x) for x in item])
-                else:
-                    flat.append(float(item))
-            return flat
-        raise ValueError(f"Invalid coordinate format: {type(v)}")
-
-    @field_validator("gradient", mode="before")
-    @classmethod
-    def validate_grad_array(cls, v: Any) -> Optional[List[float]]:
-        if v is None:
-            return None
-        if isinstance(v, np.ndarray):
-            return [float(x) for x in v.flatten()]
-        if isinstance(v, (list, tuple)):
-            flat: List[float] = []
-            for item in v:
-                if isinstance(item, (list, tuple, np.ndarray)):
-                    flat.extend([float(x) for x in item])
-                else:
-                    flat.append(float(item))
-            return flat
-        raise ValueError(f"Invalid gradient format: {type(v)}")
-
-    def to_angstrom(self) -> PESPointRecord:
-        """Convert coordinates and gradients to Angstroms using authoritative CODATA 2022 constants."""
-        if self.units == "angstrom":
-            return self
-        converted_coords = [float(c * BOHR_TO_ANGSTROM) for c in self.coordinates]
-        converted_grad = (
-            [float(g * ANGSTROM_TO_BOHR) for g in self.gradient]
-            if self.gradient is not None
-            else None
-        )
-        return PESPointRecord(
-            point_id=self.point_id,
-            method_id=self.method_id,
-            coordinates=converted_coords,
-            energy=self.energy,
-            gradient=converted_grad,
-            units="angstrom",
-            converged=self.converged,
-            wall_s=self.wall_s,
-            provenance=copy.deepcopy(self.provenance),
-        )
-
-    def to_bohr(self) -> PESPointRecord:
-        """Convert coordinates and gradients to Bohr using authoritative CODATA 2022 constants."""
-        if self.units == "bohr":
-            return self
-        converted_coords = [float(c * ANGSTROM_TO_BOHR) for c in self.coordinates]
-        converted_grad = (
-            [float(g * BOHR_TO_ANGSTROM) for g in self.gradient]
-            if self.gradient is not None
-            else None
-        )
-        return PESPointRecord(
-            point_id=self.point_id,
-            method_id=self.method_id,
-            coordinates=converted_coords,
-            energy=self.energy,
-            gradient=converted_grad,
-            units="bohr",
-            converged=self.converged,
-            wall_s=self.wall_s,
-            provenance=copy.deepcopy(self.provenance),
-        )
+    def validate_license(cls, v: str) -> str:
+        return validate_spdx_license(v)
 
 
 class PESGridDefinition(BaseModel):
@@ -928,11 +865,15 @@ class PESStore:
         molecular_charge: int = 0,
         spin_multiplicity: int = 1,
         lock_timeout: float = DEFAULT_LOCK_TIMEOUT_S,
+        swmr_mode: bool = False,
+        lock_dir: Optional[Union[str, Path]] = None,
     ) -> None:
         self.path = Path(path).resolve()
-        self.lock_path = self.path.parent / f"{self.path.name}.lock"
+        self.lock_dir = Path(lock_dir).resolve() if lock_dir else get_node_local_scratch_dir()
+        self.lock_path = self.lock_dir / f"{self.path.name}.lock"
         self.lock_timeout = lock_timeout
         self.rw_lock = ReadWriteFileLock(self.lock_path, timeout=self.lock_timeout)
+        self.swmr_mode = swmr_mode
         new_file = not self.path.exists()
 
         if new_file:
@@ -957,11 +898,39 @@ class PESStore:
 
                 # Ensure required root groups exist
                 f.require_group("methods")
-                f.require_group("points")
+                pts_grp = f.require_group("points")
                 f.require_group("grids")
                 f.require_group("hessians")
                 f.require_group("isotopologues")
                 f.require_group("checkpoints")
+
+                # Pre-allocate chunked, resizable datasets before SWMR activation [D]
+                n_dim = 3 * max(1, len(symbols))
+                if "coordinates" not in pts_grp:
+                    pts_grp.create_dataset(
+                        "coordinates",
+                        shape=(0, n_dim),
+                        maxshape=(None, n_dim),
+                        dtype=np.float64,
+                        chunks=(512, n_dim),
+                    )
+                if "energies" not in pts_grp:
+                    pts_grp.create_dataset(
+                        "energies",
+                        shape=(0,),
+                        maxshape=(None,),
+                        dtype=np.float64,
+                        chunks=(512,),
+                    )
+                if "point_ids" not in pts_grp:
+                    dt = h5py.string_dtype(encoding="utf-8")
+                    pts_grp.create_dataset(
+                        "point_ids",
+                        shape=(0,),
+                        maxshape=(None,),
+                        dtype=dt,
+                        chunks=(512,),
+                    )
 
                 # Cache properties
                 self.n_atoms = int(m.attrs.get("n_atoms", len(symbols)))
@@ -973,10 +942,11 @@ class PESStore:
 
                 # Phase 2 SWMR Activation: Flush metadata and enable SWMR mode
                 f.flush()
-                try:
-                    f.swmr_mode = True
-                except (AttributeError, RuntimeError):
-                    pass
+                if self.swmr_mode:
+                    try:
+                        f.swmr_mode = True
+                    except (AttributeError, RuntimeError):
+                        pass
 
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
@@ -1096,6 +1066,76 @@ class PESStore:
         ds.resize(idx + len(block), axis=0)
         ds[idx:] = block
         return idx
+
+    def add_point(self, point: PESPointRecord) -> None:
+        """Append a single PESPointRecord into the HDF5 store in a thread-safe SWMR-compliant manner [D]."""
+        with self._file_lock():
+            with h5py.File(self.path, "a", libver="latest") as f:
+                pts = f.require_group("points")
+                coords = np.asarray(point.coordinates, dtype=np.float64)
+                if coords.ndim == 1:
+                    coords = coords[None, :]
+                elif coords.ndim == 2:
+                    coords = coords.reshape(1, -1)
+
+                cur_len = pts["energies"].shape[0] if "energies" in pts else 0
+                new_len = cur_len + 1
+
+                if "coordinates" in pts:
+                    if pts["coordinates"].shape[1] != coords.shape[1]:
+                        pts["coordinates"].resize((new_len, max(pts["coordinates"].shape[1], coords.shape[1])))
+                    else:
+                        pts["coordinates"].resize((new_len, coords.shape[1]))
+                    pts["coordinates"][cur_len] = coords[0]
+                else:
+                    pts.create_dataset(
+                        "coordinates",
+                        data=coords,
+                        maxshape=(None, coords.shape[1]),
+                        chunks=(512, coords.shape[1]),
+                    )
+
+                if "energies" in pts:
+                    pts["energies"].resize((new_len,))
+                    pts["energies"][cur_len] = float(point.energy)
+                else:
+                    pts.create_dataset(
+                        "energies",
+                        data=np.array([point.energy], dtype=np.float64),
+                        maxshape=(None,),
+                        chunks=(512,),
+                    )
+
+                if "point_ids" in pts:
+                    pts["point_ids"].resize((new_len,))
+                    pts["point_ids"][cur_len] = str(point.point_id)
+                else:
+                    dt = h5py.string_dtype(encoding="utf-8")
+                    d = pts.create_dataset(
+                        "point_ids",
+                        shape=(1,),
+                        maxshape=(None,),
+                        dtype=dt,
+                        chunks=(512,),
+                    )
+                    d[0] = str(point.point_id)
+
+                f.flush()
+
+    def get_all_point_ids(self) -> List[str]:
+        """Retrieve all registered point IDs with SWMR refresh [D]."""
+        with self.rw_lock.read_lock():
+            with h5py.File(self.path, "r", libver="latest", swmr=self.swmr_mode) as f:
+                if "/points/point_ids" in f:
+                    dset = f["/points/point_ids"]
+                    if self.swmr_mode:
+                        try:
+                            dset.refresh()
+                        except Exception:
+                            pass
+                    raw = dset[:]
+                    return [s.decode("utf-8") if isinstance(s, bytes) else str(s) for s in raw]
+                return []
 
     # -------------------------------------------------------------------------
     # Writing PES Points

@@ -105,8 +105,12 @@ class SchemaMigrationError(RegistryError, ValueError):
     """Raised when schema migration encounters an unrecoverable failure."""
 
 
-class IsotopeStabilityError(RegistryError):
+from cochem_base.core.exceptions import IsotopeStabilityError as _BaseIsotopeStabilityError
+
+
+class IsotopeStabilityError(RegistryError, _BaseIsotopeStabilityError):
     """Raised when isotopic mass resolution fails or mass record is missing."""
+
 
 
 # =============================================================================

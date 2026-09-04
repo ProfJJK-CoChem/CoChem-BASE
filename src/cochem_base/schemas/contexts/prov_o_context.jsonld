@@ -1,0 +1,33 @@
+{
+  "@context": {
+    "prov": "http://www.w3.org/ns/prov#",
+    "dcterms": "http://purl.org/dc/terms/",
+    "cochem": "https://cochem.org/schema/core#",
+    "Entity": "prov:Entity",
+    "Activity": "prov:Activity",
+    "Agent": "prov:Agent",
+    "wasDerivedFrom": {
+      "@id": "prov:wasDerivedFrom",
+      "@type": "@id"
+    },
+    "wasGeneratedBy": {
+      "@id": "prov:wasGeneratedBy",
+      "@type": "@id"
+    },
+    "wasAssociatedWith": {
+      "@id": "prov:wasAssociatedWith",
+      "@type": "@id"
+    },
+    "startedAtTime": {
+      "@id": "prov:startedAtTime",
+      "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+    },
+    "endedAtTime": {
+      "@id": "prov:endedAtTime",
+      "@type": "http://www.w3.org/2001/XMLSchema#dateTime"
+    },
+    "conformerId": "cochem:conformerId",
+    "relativeEnergy": "cochem:relativeEnergyKcalMol",
+    "rotationalConstants": "cochem:rotationalConstantsMHz"
+  }
+}

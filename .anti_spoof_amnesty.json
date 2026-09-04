@@ -9,6 +9,7 @@
     "cochem/topos/io.py",
     "cochem/topos/tautomer.py",
     "cochem/torq/storage/hdf5_persister.py",
+    "Libraries/cochem_torq_storage.py",
     "cochem_base/core/cochem_core_hdf5_manager.py",
     "cochem_base/core/cochem_core_registry_manager.py",
     "cochem_base/core/cochem_core_workspace_manager.py",

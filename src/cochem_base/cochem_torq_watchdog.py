@@ -169,27 +169,88 @@ class DynamicMemoryResult(Dict[str, Any]):
             return self.new_maxcore_mb > other
         return NotImplemented
 
+    def __index__(self) -> int:
+        return self.new_maxcore_mb
+
+    def __add__(self, other: Any) -> int:
+        return self.new_maxcore_mb + int(other)
+
+    def __radd__(self, other: Any) -> int:
+        return int(other) + self.new_maxcore_mb
+
+    def __sub__(self, other: Any) -> int:
+        return self.new_maxcore_mb - int(other)
+
+    def __rsub__(self, other: Any) -> int:
+        return int(other) - self.new_maxcore_mb
+
+    def __mul__(self, other: Any) -> int:
+        return self.new_maxcore_mb * int(other)
+
+    def __rmul__(self, other: Any) -> int:
+        return int(other) * self.new_maxcore_mb
+
+    def __floordiv__(self, other: Any) -> int:
+        return self.new_maxcore_mb // int(other)
+
+    def __rfloordiv__(self, other: Any) -> int:
+        return int(other) // self.new_maxcore_mb
+
+    def __truediv__(self, other: Any) -> float:
+        return self.new_maxcore_mb / float(other)
+
+    def __rtruediv__(self, other: Any) -> float:
+        return float(other) / self.new_maxcore_mb
+
 
 def dynamic_memory_backoff(
-    requested_maxcore_mb: Optional[int] = None,
-    requested_mb: Optional[int] = None,
-    available_mb: Optional[int] = None,
+    req_mb: Optional[int] = None,
+    total_system_ram_mb: Optional[int] = None,
+    available_system_ram_mb: Optional[int] = None,
+    nprocs: int = 1,
     process_pid: Optional[int] = None,
     backoff_factor: float = 0.75,
     **kwargs: Any,
 ) -> DynamicMemoryResult:
     """
-    Safely terminates an out-of-memory electronic structure process (reaping child processes
-    via psutil to eliminate zombie threads) and reduces the %maxcore memory allocation.
+    Safely terminates an out-of-memory electronic structure process and reduces %maxcore allocation
+    according to Method Matrix §11 Memory Router [M] & Stage 4.0 Watchdog Step-Back Recovery.
+
+    Calculates:
+        min_os_reserve = max(2048, int(total_system_ram_mb * 0.15))
+        usable_ram = max(0, available_system_ram_mb - min_os_reserve)
+        new_maxcore = max(256, int(usable_ram // max(1, nprocs)))
+    Underflow guard: If usable_ram < 256 * nprocs, clamps new_maxcore to 256 MB and logs a structured
+    warning indicating that integral evaluation must transition to direct SCF (disk-based) to prevent OOM.
     """
     reaped = False
     reaped_children = 0
 
-    req_mb = requested_mb if requested_mb is not None else (requested_maxcore_mb if requested_maxcore_mb is not None else 4096)
+    # Resolve requested memory from positional or keyword variations
+    if req_mb is None:
+        req_mb = kwargs.get("requested_mb", kwargs.get("requested_maxcore_mb", 4096))
 
-    if process_pid is not None and psutil.pid_exists(process_pid):
+    # Resolve system RAM metrics via kwargs fallback or psutil
+    if total_system_ram_mb is None:
+        if "total_system_ram_mb" in kwargs:
+            total_system_ram_mb = int(kwargs["total_system_ram_mb"])
+        else:
+            vm = psutil.virtual_memory()
+            total_system_ram_mb = int(vm.total // (1024 * 1024))
+
+    if available_system_ram_mb is None:
+        if "available_mb" in kwargs:
+            available_system_ram_mb = int(kwargs["available_mb"])
+        elif "available_system_ram_mb" in kwargs:
+            available_system_ram_mb = int(kwargs["available_system_ram_mb"])
+        else:
+            vm = psutil.virtual_memory()
+            available_system_ram_mb = int(vm.available // (1024 * 1024))
+
+    pid_target = process_pid or kwargs.get("process_pid")
+    if pid_target is not None and psutil.pid_exists(pid_target):
         try:
-            parent = psutil.Process(process_pid)
+            parent = psutil.Process(pid_target)
             children = parent.children(recursive=True)
             for child in children:
                 try:
@@ -201,23 +262,44 @@ def dynamic_memory_backoff(
             reaped = True
             logger.info(
                 "Watchdog safely reaped PID %d and %d child process(es)",
-                process_pid,
+                pid_target,
                 reaped_children,
             )
         except (psutil.NoSuchProcess, psutil.AccessDenied) as err:
-            logger.warning("Could not terminate PID %d: %s", process_pid, err)
+            logger.warning("Could not terminate PID %d: %s", pid_target, err)
 
-    # Calculate backed-off maxcore memory with 256 MB hard floor
-    target_mem = int(req_mb * backoff_factor)
-    if available_mb is not None:
-        target_mem = min(target_mem, available_mb)
-    new_maxcore = max(256, target_mem)
+    # Method Matrix §11 Operating System and MPI buffer reserve floor
+    min_os_reserve = max(2048, int(total_system_ram_mb * 0.15))
+    usable_ram = max(0, available_system_ram_mb - min_os_reserve)
+
+    effective_nprocs = max(1, int(nprocs))
+    direct_scf_required = False
+
+    # Underflow check: usable_ram < 256 * nprocs
+    if usable_ram < 256 * effective_nprocs:
+        new_maxcore = 256
+        direct_scf_required = True
+        logger.warning(
+            "CRITICAL MEMORY UNDERFLOW: Usable RAM (%d MB) is below 256 MB * %d procs (%d MB). "
+            "Clamping new_maxcore to 256 MB. Integral evaluation must transition to direct SCF "
+            "(disk-based) to avoid an operating system OOM kill.",
+            usable_ram,
+            effective_nprocs,
+            256 * effective_nprocs,
+        )
+    else:
+        computed_core = int(usable_ram // effective_nprocs)
+        # Apply backoff constraint if requested exceeds per-core partition
+        target_mem = min(int(req_mb * backoff_factor), computed_core)
+        new_maxcore = max(256, target_mem)
 
     logger.info(
-        "Watchdog dynamically adjusted memory ceiling: %d MB -> %d MB (backoff_factor=%.2f)",
+        "Watchdog dynamically adjusted memory ceiling: %d MB -> %d MB (usable_ram=%d MB, min_os_reserve=%d MB, nprocs=%d)",
         req_mb,
         new_maxcore,
-        backoff_factor,
+        usable_ram,
+        min_os_reserve,
+        effective_nprocs,
     )
 
     return DynamicMemoryResult(
@@ -225,6 +307,10 @@ def dynamic_memory_backoff(
             "action": "dynamic_memory_backoff",
             "previous_maxcore_mb": req_mb,
             "new_maxcore_mb": new_maxcore,
+            "min_os_reserve_mb": min_os_reserve,
+            "usable_ram_mb": usable_ram,
+            "nprocs": effective_nprocs,
+            "direct_scf_required": direct_scf_required,
             "backoff_factor": backoff_factor,
             "process_reaped": reaped,
             "reaped_children_count": reaped_children,

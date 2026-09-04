@@ -163,11 +163,29 @@ class CoChemGUI:
             placeholder="O 0.0 0.0 0.0\nH 0.0 0.75 -0.5\nH 0.0 0.75 0.5",
             layout=widgets.Layout(width='100%', height='100px')
         )
+        import shutil
+        orca_available = shutil.which("orca") is not None
+        cfour_available = shutil.which("xcfour") is not None or shutil.which("cfour") is not None
+        
+        engine_options = []
+        if orca_available:
+            engine_options.append(('ORCA', 'ORCA'))
+        else:
+            engine_options.append(('ORCA [Uninstalled: run python cli.py setup --phase 3]', 'ORCA'))
+            
+        if cfour_available:
+            engine_options.append(('CFOUR', 'CFOUR'))
+        else:
+            engine_options.append(('CFOUR [Uninstalled: run python cli.py setup --phase 3]', 'CFOUR'))
+
         self.matrix_engine = widgets.Dropdown(
-            options=['ORCA', 'CFOUR'],
+            options=engine_options,
             value='ORCA',
             description='Engine:'
         )
+        if not (orca_available and cfour_available):
+            self.matrix_engine.tooltip = "Uninstalled engines can be provisioned via: python cli.py setup --phase 3"
+
         self.matrix_method = widgets.Dropdown(
             options=['HF', 'B3LYP', 'MP2', 'CCSD', 'CCSD(T)'],
             value='B3LYP',
@@ -352,8 +370,13 @@ class CoChemGUI:
         
         # 4. Footer (Error & Notification System)
         self.footer_message = widgets.HTML("")
-        self.footer = widgets.HBox(
-            [self.footer_message],
+        self.telemetry_html = widgets.HTML("")
+        self.telemetry_accordion = widgets.Accordion(children=[self.telemetry_html])
+        self.telemetry_accordion.set_title(0, "Diagnostic Telemetry")
+        self.telemetry_accordion.layout.display = 'none'
+
+        self.footer = widgets.VBox(
+            [self.footer_message, self.telemetry_accordion],
             layout=widgets.Layout(
                 padding='10px',
                 border_top='2px solid #ccc',
@@ -361,6 +384,7 @@ class CoChemGUI:
                 background_color='#f8f9fa'
             )
         )
+
         
         # Set initial footer message if error exists
         if self.state.error_message:
@@ -402,14 +426,28 @@ class CoChemGUI:
         p2_path: Path = registry_dir / "p2.json"
         p7_path: Path = registry_dir / "p7.json"
         p11_path: Path = registry_dir / "p11.json"
+        sys_config_path: Path = registry_dir / "cochem_system_config.json"
+
+        is_degraded = False
+        if sys_config_path.exists():
+            try:
+                with open(sys_config_path, "r", encoding="utf-8") as f:
+                    cfg_data = json.load(f)
+                    if cfg_data.get("status") == "DEGRADED_OPERATIONAL":
+                        is_degraded = True
+            except Exception as e:
+                logger.debug(f"Failed to parse cochem_system_config.json: {e}")
 
         # Check if any crucial registry exists to determine initialization
-        if not (p2_path.exists() or p7_path.exists() or p11_path.exists()):
+        if not (p2_path.exists() or p7_path.exists() or p11_path.exists() or is_degraded):
             return False, "Not Initialized", False, False
 
         is_hpc: bool = False
         is_slurm: bool = False
         env_str: str = "Local (WSL/Codespaces)"
+        if is_degraded:
+            env_str = f"{env_str} [DEGRADED_OPERATIONAL]"
+
         
         if p7_path.exists():
             try:
@@ -447,12 +485,40 @@ class CoChemGUI:
         safe_val = html.escape(str(change['new']))
         self.header_env.value = f"<i>Environment: {safe_val}</i>"
         
-    def _update_footer(self, err: str) -> None:
-        if err:
-            safe_err = html.escape(str(err))
-            self.footer_message.value = f'<div style="color: #721c24; background-color: #f8d7da; padding: 10px; border: 1px solid #f5c6cb; border-radius: 5px; width: 100%;"><b>Warning:</b> {safe_err}</div>'
-        else:
+    def _update_footer(self, err: Any) -> None:
+        if not err:
             self.footer_message.value = ""
+            if hasattr(self, 'telemetry_accordion'):
+                self.telemetry_accordion.layout.display = 'none'
+            return
+
+        guidance = ""
+        telemetry = None
+        if hasattr(err, "to_pedagogical_guidance"):
+            try:
+                guidance = err.to_pedagogical_guidance()
+            except Exception:
+                guidance = str(err)
+        else:
+            guidance = str(err)
+
+        if hasattr(err, "to_diagnostic_telemetry"):
+            try:
+                telemetry = err.to_diagnostic_telemetry()
+            except Exception:
+                telemetry = None
+
+        safe_guidance = html.escape(str(guidance))
+        self.footer_message.value = f'<div style="color: #721c24; background-color: #f8d7da; padding: 10px; border: 1px solid #f5c6cb; border-radius: 5px; width: 100%;"><b>Guidance:</b> {safe_guidance}</div>'
+
+        if hasattr(self, 'telemetry_accordion') and hasattr(self, 'telemetry_html'):
+            if telemetry:
+                telemetry_str = html.escape(json.dumps(telemetry, indent=2))
+                self.telemetry_html.value = f"<pre style='font-size: 11px; max-height: 200px; overflow-y: auto;'>{telemetry_str}</pre>"
+                self.telemetry_accordion.layout.display = 'block'
+            else:
+                self.telemetry_accordion.layout.display = 'none'
+
             
     def _on_error_change(self, change: Any) -> None:
         self._update_footer(change['new'])

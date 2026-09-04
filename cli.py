@@ -407,6 +407,8 @@ def action_setup(args: argparse.Namespace) -> int:
     }
 
     overall_success = True
+    degraded_operational = False
+    missing_capabilities: List[str] = []
     start_total_time = time.perf_counter()
 
     for p_num in phases_to_run:
@@ -438,7 +440,7 @@ def action_setup(args: argparse.Namespace) -> int:
             timing_str = f"({report_dict.get('execution_time_sec', 0.0)}s)"
             if status_str == "PASSED":
                 print(f"     Status: {TermColor.ok('PASSED')} {timing_str}")
-            elif status_str == "DEGRADED":
+            elif status_str in ("DEGRADED", "DEGRADED_OPERATIONAL"):
                 print(f"     Status: {TermColor.warn('DEGRADED')} {timing_str}")
             else:
                 print(f"     Status: {TermColor.fail('FAILED')} {timing_str}")
@@ -446,21 +448,62 @@ def action_setup(args: argparse.Namespace) -> int:
                     print(f"     {TermColor.RED}Error: {report_dict['error']}{TermColor.RESET}")
 
         if not success:
-            overall_success = False
-            summary_results["overall_status"] = "FAILED"
-            if not args.json:
-                print(f"\n{TermColor.fail(f'Execution halted at Phase {p_num} due to fatal failure.')}")
-            break
+            # Decouple hard execution gates: Phase 1 & 2 mandatory; Phase 3+ optional solver tracks
+            if p_num in (1, 2):
+                overall_success = False
+                summary_results["overall_status"] = "FAILED"
+                if not args.json:
+                    print(f"\n{TermColor.fail(f'Execution halted at Phase {p_num} due to fatal core environment failure.')}")
+                break
+            else:
+                degraded_operational = True
+                phase_name = meta["name"]
+                missing_capabilities.append(f"Phase_{p_num}_{phase_name}")
+                if isinstance(report_dict, dict) and "missing_engines" in report_dict:
+                    for me in report_dict["missing_engines"]:
+                        missing_capabilities.append(str(me))
+                if not args.json:
+                    print(f"     {TermColor.warn(f'Phase {p_num} optional solver track incomplete. System operational in DEGRADED_OPERATIONAL mode.')}")
 
     summary_results["total_execution_time_sec"] = round(time.perf_counter() - start_total_time, 3)
+
+    if overall_success and degraded_operational:
+        summary_results["overall_status"] = "DEGRADED_OPERATIONAL"
+        summary_results["missing_capabilities"] = missing_capabilities
+
+    # Persist or update cochem_system_config.json in Registry directory
+    reg_dir = artifact_dir / "Registry"
+    reg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = reg_dir / "cochem_system_config.json"
+    existing_cfg: Dict[str, Any] = {}
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as fh:
+                existing_cfg = json.load(fh)
+        except Exception:
+            existing_cfg = {}
+    existing_cfg["status"] = summary_results["overall_status"]
+    existing_cfg["overall_status"] = summary_results["overall_status"]
+    existing_cfg["missing_capabilities"] = missing_capabilities
+    existing_cfg["last_setup_timestamp"] = summary_results["timestamp_utc"]
+    try:
+        with open(cfg_path, "w", encoding="utf-8") as fh:
+            json.dump(existing_cfg, fh, indent=2)
+    except Exception as _e:
+        logger.debug(f"Failed writing cochem_system_config.json: {_e}")
 
     if args.json:
         print(json.dumps(summary_results, indent=2))
     else:
         print("\n" + "=" * 78)
         if overall_success:
-            print(TermColor.ok(f"Stage 0 Bootstrap Completed Successfully in {summary_results['total_execution_time_sec']}s!"))
-            print(f"Registry Status: {TermColor.BOLD}LOCKED & VERIFIED{TermColor.RESET}")
+            if degraded_operational:
+                print(TermColor.warn(f"Stage 0 Bootstrap Finished in DEGRADED_OPERATIONAL mode ({summary_results['total_execution_time_sec']}s)."))
+                print(f"Missing Solver Capabilities: {', '.join(missing_capabilities) if missing_capabilities else 'None'}")
+                print(f"Registry Status: {TermColor.BOLD}DEGRADED_OPERATIONAL & FUNCTIONAL{TermColor.RESET}")
+            else:
+                print(TermColor.ok(f"Stage 0 Bootstrap Completed Successfully in {summary_results['total_execution_time_sec']}s!"))
+                print(f"Registry Status: {TermColor.BOLD}LOCKED & VERIFIED{TermColor.RESET}")
             print(f"Artifact Store:  {artifact_dir}")
         else:
             print(TermColor.fail(f"Stage 0 Bootstrap FAILED after {summary_results['total_execution_time_sec']}s."))

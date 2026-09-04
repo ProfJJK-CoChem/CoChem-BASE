@@ -117,16 +117,17 @@ def compute_rotational_constants(
     centered, _ = center_geometry_mass_weighted(coordinates, atomic_numbers)
     masses = np.array([get_monoisotopic_mass(int(z)) for z in atomic_numbers], dtype=np.float64)
 
-    # Inertia tensor in u * Angstrom^2
-    inertia = np.zeros((3, 3), dtype=np.float64)
     r2 = np.sum(centered ** 2, axis=1) # (N,)
-
-    for alpha in range(3):
-        for beta in range(3):
-            delta = 1.0 if alpha == beta else 0.0
-            inertia[alpha, beta] = np.sum(
-                masses * (delta * r2 - centered[:, alpha] * centered[:, beta])
-            )
+    inertia = np.array(
+        [
+            [
+                np.sum(masses * ((1.0 if alpha == beta else 0.0) * r2 - centered[:, alpha] * centered[:, beta]))
+                for beta in range(3)
+            ]
+            for alpha in range(3)
+        ],
+        dtype=np.float64,
+    )
 
     # Diagonalize inertia tensor
     eigvals = np.linalg.eigvalsh(inertia)
@@ -194,19 +195,97 @@ def check_stage_b_rotational_redundancy(
     return max_rel < threshold
 
 
-def route_qm_tier(max_force_std: float) -> str:
-    """Route candidate dynamically based on epistemic force uncertainty severity. [M]
-    
-    - Moderate (0.05 < alpha_F <= 0.2 eV/A): Tier T3-10s GFN2-xTB
-    - High (0.2 < alpha_F <= 0.8 eV/A): Tier T3O-1h ORCA 6.0 omegaB97X-V/jun-cc-pVTZ
-    - Extreme (alpha_F > 0.8 eV/A): Tier T3O-12h Canonical junChS composite scheme
+def route_qm_tier(
+    max_force_std: float,
+    hardware_topology: Optional[Any] = None,
+    compute_budget_hours: Optional[float] = None,
+    available_engines: Optional[Sequence[str]] = None,
+    interactive_gate: Optional[Callable[..., bool]] = None,
+    **kwargs: Any,
+) -> str:
+    """Route candidate dynamically based on epistemic force uncertainty severity and hardware availability [M].
+
+    - Moderate (0.05 < alpha_F <= 0.20 eV/A): Tier T3-10s GFN2-xTB
+    - High (0.20 < alpha_F <= 0.80 eV/A): Tier T3O-1h ORCA 6.0 omegaB97X-V/jun-cc-pVTZ
+    - Extreme (alpha_F > 0.80 eV/A): Tier T3O-12h Canonical junChS composite scheme
+
+    Hardware Triage Gate:
+    Inspects available local computational engines (e.g. ORCA, CFOUR) and the allocated compute budget
+    before assigning high-force-uncertainty candidates to high-cost composite tiers.
+    If a required engine is absent or projected wall-clock time exceeds budget, triggers an interactive
+    decision gate or gracefully degrades to the highest supported tier (e.g., 'B3LYP-D4/def2-TZVP' or 'T3O-1h').
     """
     if max_force_std <= 0.20:
-        return "T3-10s"
+        nominal_tier = "T3-10s"
     elif max_force_std <= 0.80:
-        return "T3O-1h"
+        nominal_tier = "T3O-1h"
     else:
-        return "T3O-12h"
+        nominal_tier = "T3O-12h"
+
+    if nominal_tier == "T3-10s":
+        return nominal_tier
+
+    # Normalize engine availability
+    engines: List[str] = []
+    if available_engines is not None:
+        engines = [e.lower() for e in available_engines]
+    elif hardware_topology is not None and hasattr(hardware_topology, "available_engines") and hardware_topology.available_engines:
+        engines = [e.lower() for e in hardware_topology.available_engines]
+    else:
+        import shutil
+        if shutil.which("orca") is not None:
+            engines.append("orca")
+        if shutil.which("xcfour") is not None or shutil.which("cfour") is not None:
+            engines.append("cfour")
+        if shutil.which("xtb") is not None:
+            engines.append("xtb")
+
+    # Ingest compute budget from hardware topology if not explicitly provided
+    if compute_budget_hours is None and hardware_topology is not None and hasattr(hardware_topology, "compute_budget_hours"):
+        compute_budget_hours = float(hardware_topology.compute_budget_hours)
+
+    needs_cfour = (nominal_tier == "T3O-12h")
+    needs_orca = (nominal_tier in ("T3O-1h", "T3O-12h"))
+    has_cfour = "cfour" in engines
+    has_orca = "orca" in engines
+
+    projected_hours = 12.0 if nominal_tier == "T3O-12h" else 1.0
+    budget_exceeded = (compute_budget_hours is not None and compute_budget_hours < projected_hours)
+
+    # Core capacity gate from hardware topology: T3O-12h requires >= 4 P-cores for parallel CC
+    if hardware_topology is not None and nominal_tier == "T3O-12h":
+        p_cores = getattr(hardware_topology, "p_cores", None)
+        if p_cores is not None and p_cores < 4:
+            budget_exceeded = True
+
+    missing_engines: List[str] = []
+    if needs_cfour and not has_cfour:
+        missing_engines.append("CFOUR")
+    if needs_orca and not has_orca:
+        missing_engines.append("ORCA")
+
+    if missing_engines or budget_exceeded:
+        if interactive_gate is not None:
+            decision = interactive_gate(
+                nominal_tier=nominal_tier,
+                missing_engines=missing_engines,
+                budget_exceeded=budget_exceeded,
+                compute_budget_hours=compute_budget_hours,
+            )
+            if decision:
+                return nominal_tier
+
+        # Graceful degradation cascade [M]
+        if has_orca:
+            if budget_exceeded and compute_budget_hours is not None and compute_budget_hours < 1.0:
+                return "T3-10s" if "xtb" in engines else "B3LYP-D4/def2-TZVP"
+            return "B3LYP-D4/def2-TZVP" if nominal_tier == "T3O-12h" else "T3O-1h"
+        elif "xtb" in engines:
+            return "T3-10s"
+        else:
+            return "B3LYP-D4/def2-TZVP"
+
+    return nominal_tier
 
 
 class ActiveLearningOrchestrator:

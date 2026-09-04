@@ -6,8 +6,10 @@ Strictly adheres to Zero-Mock mandate and authentic subprocess execution.
 from __future__ import annotations
 
 import atexit
+from collections import deque
 import ctypes
 import dataclasses
+
 import enum
 import logging
 import os
@@ -258,8 +260,8 @@ class SubprocessBroker:
         last_code = 1
 
         # Ephemeral per-job sandbox subdirectory conforming to Tripartite Air-Gap
-        job_id = uuid.uuid4().hex[:12]
-        job_scratch = self.base_scratch_dir / f"cochem_job_{self.engine_name}_{job_id}"
+        job_id = uuid.uuid4().hex
+        job_scratch = self.base_scratch_dir / f"cochem_exec_{job_id}"
         job_scratch.mkdir(parents=True, exist_ok=True)
 
         current_cmd = list(command)
@@ -267,9 +269,15 @@ class SubprocessBroker:
         try:
             while retries < self.max_retries:
                 env = dict(self.topology_engine.get_worker_env())
-                # Scrub inherited CUDA_VISIBLE_DEVICES unless GPU assignment is explicitly designated
-                if "CUDA_VISIBLE_DEVICES" in env and "CUDA_VISIBLE_DEVICES" not in self.current_params:
-                    env.pop("CUDA_VISIBLE_DEVICES", None)
+                # GPU allocation guard: CPU-only environments must explicitly have empty string
+                available_gpus = self.topology_engine.get_available_gpus()
+                num_gpus = len(available_gpus)
+                if num_gpus > 0:
+                    assigned = self.current_params.get("assigned_gpu", available_gpus[0])
+                    env["CUDA_VISIBLE_DEVICES"] = str(assigned)
+                else:
+                    env["CUDA_VISIBLE_DEVICES"] = ""
+
                 # Isolate MPS pipe paths per worker session to prevent uncoordinated GPU locking
                 mps_pipe = job_scratch / f"mps_pipe_{os.getpid()}_{retries}"
                 env["CUDA_MPS_PIPE_DIRECTORY"] = str(mps_pipe)
@@ -316,9 +324,15 @@ class SubprocessBroker:
                         out, err = "", "Subprocess execution timed out"
                         code = -1
 
-                    last_stdout = out
-                    last_stderr = err
+                    # Capture subprocess stdout/stderr using bounded 10 MB ring buffers
+                    stdout_buf: deque[str] = deque(maxlen=10485760)
+                    stderr_buf: deque[str] = deque(maxlen=10485760)
+                    stdout_buf.extend(out or "")
+                    stderr_buf.extend(err or "")
+                    last_stdout = "".join(stdout_buf)
+                    last_stderr = "".join(stderr_buf)
                     last_code = code
+
 
                     if code == 0:
                         # Extract validated artifacts to artifacts dir if designated

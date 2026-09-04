@@ -233,9 +233,11 @@ from Libraries.cochem_torq_onnx_export import (
 
 # Environment & Hardware Concurrency (Chunk 20)
 from Libraries.cochem_torq_environment import (
+    EphemeralScratchSession,
     dispatch_device_safely,
     resolve_hpc_safe_scratch,
 )
+
 
 # TORQ Molecular Dynamics Part 1 (Chunk 21)
 from Libraries.cochem_torq_md_errors import (
@@ -362,6 +364,12 @@ from Libraries.cochem_torq_delta_ml import (
     LennardJonesBaselineEngine,
     PM6Engine,
     UnitHarmonizer,
+)
+
+# Storage Architecture
+from Libraries.cochem_torq_storage import (
+    HDF5StorageManager,
+    HDF5TorqStorage,
 )
 
 # Conformal Prediction Uncertainty (Chunk 19)
@@ -617,6 +625,8 @@ __all__ = [
     "verify_onnx_parity",
     "dispatch_device_safely",
     "resolve_hpc_safe_scratch",
+    "EphemeralScratchSession",
+
     # Chunk 21: TORQ Molecular Dynamics Part 1 (Symplectic & REMD)
     "TorqMDError",
     "EnergyDriftExceededError",

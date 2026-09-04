@@ -280,18 +280,27 @@ class TopologyDiscoveryEngine:
         base_env["CUDA_MPS_ACTIVE_THREAD_PERCENTAGE"] = str(max(1, 100 // max(1, concurrent_workers)))
 
         # Zero-CUDA-Locking Directive (§8A, §19): Non-initializing GPU discovery [M]
-        available_gpus = self._discover_gpu_count()
-        if available_gpus > 0:
-            assigned_gpu = worker_index % available_gpus
+        available_gpus = self.get_available_gpus()
+        num_gpus = len(available_gpus)
+        if num_gpus > 0:
+            assigned_gpu = available_gpus[worker_index % num_gpus]
             base_env["CUDA_VISIBLE_DEVICES"] = str(assigned_gpu)
+        else:
+            base_env["CUDA_VISIBLE_DEVICES"] = ""
 
         if extra_env is not None:
             base_env.update(extra_env)
         return base_env
 
+    def get_available_gpus(self) -> List[int]:
+        """Return list of zero-indexed GPU identifiers available without initializing CUDA runtime."""
+        count = self._discover_gpu_count()
+        return list(range(count))
+
     @staticmethod
     def _discover_gpu_count() -> int:
         """Non-initializing GPU count query guaranteeing zero CUDA runtime lock in parent (§8A, §19) [M]."""
+
         # Tier 1: NVML query
         try:
             import pynvml

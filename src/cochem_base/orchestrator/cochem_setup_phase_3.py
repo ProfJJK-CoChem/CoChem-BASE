@@ -20,6 +20,7 @@ import platform
 import re
 import shutil
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -430,12 +431,234 @@ def resolve_binary_search_paths(
     return deduped
 
 
+def _get_pe_imported_dlls(pe_path: Path) -> List[str]:
+    """Extract list of imported DLL names from a PE binary without external dependencies."""
+    dlls: List[str] = []
+    try:
+        data = pe_path.read_bytes()
+        if len(data) < 64 or data[:2] != b"MZ":
+            return []
+        pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+        if len(data) < pe_offset + 4 or data[pe_offset : pe_offset + 4] != b"PE\0\0":
+            return []
+
+        num_sections = struct.unpack_from("<H", data, pe_offset + 6)[0]
+        opt_header_size = struct.unpack_from("<H", data, pe_offset + 20)[0]
+        opt_header_offset = pe_offset + 24
+
+        if opt_header_size == 0 or len(data) < opt_header_offset + opt_header_size:
+            return []
+
+        opt_magic = struct.unpack_from("<H", data, opt_header_offset)[0]
+        is_pe32_plus = opt_magic == 0x20B
+
+        data_dir_offset = opt_header_offset + (112 if is_pe32_plus else 96)
+        if len(data) < data_dir_offset + 16:
+            return []
+
+        import_rva, import_size = struct.unpack_from("<II", data, data_dir_offset + 8)
+        if import_rva == 0 or import_size == 0:
+            return []
+
+        sections_offset = opt_header_offset + opt_header_size
+        sections: List[Tuple[int, int, int, int]] = []
+        for i in range(num_sections):
+            sec_hdr = sections_offset + i * 40
+            if len(data) < sec_hdr + 40:
+                break
+            vsize, vaddr, raw_size, raw_ptr = struct.unpack_from("<IIII", data, sec_hdr + 8)
+            sections.append((vsize, vaddr, raw_size, raw_ptr))
+
+        def rva_to_offset(rva: int) -> Optional[int]:
+            for vsize, vaddr, raw_size, raw_ptr in sections:
+                if vaddr <= rva < vaddr + max(vsize, raw_size):
+                    return raw_ptr + (rva - vaddr)
+            return None
+
+        import_offset = rva_to_offset(import_rva)
+        if import_offset is None:
+            return []
+
+        curr = import_offset
+        while curr + 20 <= len(data):
+            orig_first_thunk, timestamp, fwd_chain, name_rva, first_thunk = struct.unpack_from(
+                "<IIIII", data, curr
+            )
+            if orig_first_thunk == 0 and name_rva == 0 and first_thunk == 0:
+                break
+            curr += 20
+            if name_rva == 0:
+                continue
+            name_offset = rva_to_offset(name_rva)
+            if name_offset is not None and name_offset < len(data):
+                end = data.find(b"\0", name_offset)
+                if end != -1:
+                    dll_name = data[name_offset:end].decode("ascii", errors="ignore")
+                    if dll_name:
+                        dlls.append(dll_name)
+    except Exception as exc:
+        logger.debug(f"Error parsing PE binary {pe_path}: {exc}")
+    return dlls
+
+
+def audit_binary_linkage(binary_path: Path) -> Tuple[bool, List[str]]:
+    """Inspect dynamic shared library linkage for a binary executable.
+
+    Checks:
+    - Linux: `ldd <binary_path>` looking for 'not found'
+    - macOS: `otool -L <binary_path>` verifying library existence
+    - Windows: PE import table parsing / dumpbin checking for DLL resolution
+
+    If missing dependencies are found in sibling directories (e.g. ../lib or lib/),
+    automatically appends those paths to the appropriate environment variables
+    (LD_LIBRARY_PATH, DYLD_LIBRARY_PATH, PATH).
+
+    Returns:
+    --------
+    Tuple[bool, List[str]]:
+        (is_valid, missing_libraries)
+    """
+    p = Path(binary_path).resolve()
+    if not p.exists() or not p.is_file():
+        return False, ["file_not_found"]
+
+    missing: List[str] = []
+    current_os = platform.system()
+
+    if current_os == "Linux":
+        try:
+            res = subprocess.run(
+                ["ldd", str(p)],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+            if res.returncode == 0:
+                for line in res.stdout.splitlines():
+                    if "not found" in line:
+                        parts = line.strip().split("=>")
+                        lib_name = parts[0].strip() if parts else line.strip()
+                        missing.append(lib_name)
+        except Exception as exc:
+            logger.debug(f"ldd audit failed on {p}: {exc}")
+
+    elif current_os == "Darwin":
+        try:
+            res = subprocess.run(
+                ["otool", "-L", str(p)],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+            if res.returncode == 0:
+                for line in res.stdout.splitlines()[1:]:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    dylib_path_str = line.split()[0]
+                    if dylib_path_str.startswith(("@", "/System", "/usr/lib")):
+                        continue
+                    if not Path(dylib_path_str).exists():
+                        missing.append(dylib_path_str)
+        except Exception as exc:
+            logger.debug(f"otool audit failed on {p}: {exc}")
+
+    elif current_os == "Windows":
+        imported_dlls: List[str] = []
+        if shutil.which("dumpbin"):
+            try:
+                res = subprocess.run(
+                    ["dumpbin", "/dependents", str(p)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5.0,
+                    check=False,
+                )
+                if res.returncode == 0:
+                    recording = False
+                    for line in res.stdout.splitlines():
+                        if "Image has the following dependencies:" in line:
+                            recording = True
+                            continue
+                        if recording:
+                            stripped = line.strip()
+                            if stripped and stripped.lower().endswith(".dll"):
+                                imported_dlls.append(stripped)
+                            elif not stripped and imported_dlls:
+                                break
+            except Exception:
+                pass
+
+        if not imported_dlls:
+            imported_dlls = _get_pe_imported_dlls(p)
+
+        sys_dirs = [
+            p.parent,
+            p.parent / "lib",
+            p.parent.parent / "lib",
+            Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32",
+            Path(os.environ.get("SystemRoot", r"C:\Windows")),
+        ]
+        path_env_dirs = [Path(x) for x in os.environ.get("PATH", "").split(os.pathsep) if x.strip()]
+        search_dirs = sys_dirs + path_env_dirs
+
+        for dll in imported_dlls:
+            dll_lower = dll.lower()
+            if dll_lower.startswith("api-ms-") or dll_lower.startswith("ext-ms-"):
+                continue
+            found = False
+            for d in search_dirs:
+                try:
+                    if (d / dll).exists() or (d / dll_lower).exists():
+                        found = True
+                        break
+                except OSError:
+                    continue
+            if not found:
+                missing.append(dll)
+
+    # Check sibling directories (../lib, ./lib) for missing dependencies
+    if missing:
+        sibling_lib_dirs = [
+            p.parent / "lib",
+            p.parent.parent / "lib",
+        ]
+        still_missing: List[str] = []
+        for lib in missing:
+            found_sibling = False
+            for s_dir in sibling_lib_dirs:
+                if s_dir.is_dir() and any(s_dir.glob(f"*{lib}*")):
+                    found_sibling = True
+                    if current_os == "Linux":
+                        curr_ld = os.environ.get("LD_LIBRARY_PATH", "")
+                        if str(s_dir) not in curr_ld:
+                            os.environ["LD_LIBRARY_PATH"] = f"{s_dir}:{curr_ld}" if curr_ld else str(s_dir)
+                    elif current_os == "Darwin":
+                        curr_dyld = os.environ.get("DYLD_LIBRARY_PATH", "")
+                        if str(s_dir) not in curr_dyld:
+                            os.environ["DYLD_LIBRARY_PATH"] = f"{s_dir}:{curr_dyld}" if curr_dyld else str(s_dir)
+                    elif current_os == "Windows":
+                        curr_path = os.environ.get("PATH", "")
+                        if str(s_dir) not in curr_path:
+                            os.environ["PATH"] = f"{s_dir};{curr_path}" if curr_path else str(s_dir)
+                    break
+            if not found_sibling:
+                still_missing.append(lib)
+        missing = still_missing
+
+    is_valid = len(missing) == 0
+    return is_valid, missing
+
+
 def discover_binary_path(
     engine_name: str,
     search_dirs: Optional[List[Union[str, Path]]] = None,
 ) -> Optional[Path]:
     """
     Evaluates candidate paths in order and returns the first existing, accessible executable file.
+    Validates dynamic library linkage before accepting candidate.
     """
     candidates = resolve_binary_search_paths(engine_name, custom_paths=search_dirs)
     for cand in candidates:
@@ -444,13 +667,18 @@ def discover_binary_path(
             if platform.system() != "Windows":
                 try:
                     mode = cand.stat().st_mode
-                    if mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH):
-                        return cand
+                    if not (mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)):
+                        continue
                 except OSError:
                     continue
-            else:
+
+            is_valid, missing = audit_binary_linkage(cand)
+            if is_valid:
                 return cand
+            else:
+                logger.warning(f"Binary {cand} failed dynamic linkage audit: missing {missing}")
     return None
+
 
 
 # =============================================================================

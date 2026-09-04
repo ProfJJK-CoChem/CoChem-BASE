@@ -6,6 +6,7 @@ Strict Zero-Mock Mandate v3: Completely authentic physics, dynamic baselines, an
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -17,6 +18,8 @@ from mendeleev import element
 
 from Libraries.cochem_torq_inference_errors import BaselineExecutionError
 from Libraries.cochem_torq_inference_schemas import DeltaMLConfig
+
+logger = logging.getLogger("CoChem-TORQ.DeltaML")
 
 # Conversion factors via scipy.constants
 HARTREE_TO_EV: float = float(const.value("Hartree energy in eV"))  # ~27.211386245981 eV [D]
@@ -96,21 +99,59 @@ class BaselinePhysicsEngine:
 
 
 
+class GFN2Result(dict):
+    """Result dictionary from GFN2-xTB calculations supporting dict access and tuple unpacking [M]."""
+
+    def __init__(
+        self,
+        *args: Any,
+        energy_ev: float = 0.0,
+        forces: Optional[torch.Tensor] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self["energy_ev"] = energy_ev
+        self["energy"] = energy_ev
+        self["forces"] = forces
+        self["forces_ev_angstrom"] = forces
+
+    def __iter__(self) -> Any:
+        # Support tuple unpacking: energy, forces = engine.calculate(...)
+        yield self["energy_ev"]
+        yield self["forces"]
+
+    def __getitem__(self, item: Any) -> Any:
+        if item == 0:
+            return self["energy_ev"]
+        if item == 1:
+            return self["forces"]
+        return super().__getitem__(item)
+
+
 class GFN2xTBEngine(BaselinePhysicsEngine):
-    """Adapter for physical GFN2-xTB semi-empirical calculations. [M]"""
+    """Adapter for physical GFN2-xTB semi-empirical calculations [M].
+
+    Prioritizes direct in-memory evaluation via the xtb-python C-API bindings,
+    with subprocess fallback to standalone CLI xtb.
+    Validates physical electron-spin parity:
+    (N_e - 2S) % 2 == 0 and 2S >= 0 and N_e > 0.
+    Maps uhf = multiplicity - 1 (unpaired electrons 2S).
+    """
 
     def __init__(self) -> None:
         self.xtb_available = False
+        self.has_xtb_python = False
         self._check_environment()
 
     def _check_environment(self) -> None:
-        """Verify presence of xtb-python library or xtb executable in PATH. [M]"""
+        """Verify presence of xtb-python library or xtb executable in PATH [M]."""
         try:
-            import xtb  # noqa: F401
+            from xtb.interface import Calculator, Param  # noqa: F401
             self.xtb_available = True
+            self.has_xtb_python = True
             return
         except ImportError:
-            pass
+            self.has_xtb_python = False
 
         if shutil.which("xtb") is not None:
             self.xtb_available = True
@@ -118,53 +159,175 @@ class GFN2xTBEngine(BaselinePhysicsEngine):
 
         self.xtb_available = False
 
+    @staticmethod
+    def _map_spin_to_uhf(multiplicity: int) -> int:
+        """Map spin multiplicity M (2S + 1) to number of unpaired electrons uhf = 2S."""
+        if multiplicity < 1:
+            raise ValueError(f"Invalid spin multiplicity: {multiplicity}. Multiplicity must be >= 1.")
+        return multiplicity - 1
+
+    def validate_electron_parity(
+        self,
+        atoms_or_z: Any,
+        charge: int = 0,
+        multiplicity: int = 1,
+    ) -> bool:
+        """Validate physical electron-spin parity before computation [M].
+
+        Z_tot = sum(Z_i)
+        N_e = Z_tot - charge
+        2S = multiplicity - 1
+        Enforces (N_e - 2S) % 2 == 0, 2S >= 0, and N_e > 0.
+        """
+        if hasattr(atoms_or_z, "numbers"):
+            atomic_numbers = [int(z) for z in atoms_or_z.numbers]
+        elif isinstance(atoms_or_z, (list, tuple, np.ndarray, torch.Tensor)):
+            if len(atoms_or_z) > 0 and isinstance(atoms_or_z[0], str):
+                atomic_numbers = [int(element(s).atomic_number) for s in atoms_or_z]
+            else:
+                atomic_numbers = [int(z) for z in atoms_or_z]
+        else:
+            raise ValueError(f"Cannot extract atomic numbers from: {type(atoms_or_z)}")
+
+        z_tot = sum(atomic_numbers)
+        n_e = z_tot - int(charge)
+        two_s = self._map_spin_to_uhf(multiplicity)
+
+        if n_e <= 0:
+            raise ValueError(
+                f"Invalid electron count: N_e={n_e} (Z_tot={z_tot}, charge={charge}). Electron count must be > 0."
+            )
+        if two_s < 0:
+            raise ValueError(f"Invalid unpaired electron count: 2S={two_s} from multiplicity {multiplicity}.")
+
+        if (n_e - two_s) % 2 != 0:
+            raise ValueError(
+                f"Electron parity violation: system has {n_e} electrons (Z_tot={z_tot}, charge={charge}) "
+                f"which cannot support spin multiplicity {multiplicity} (unpaired electrons 2S={two_s}). "
+                f"(N_e - 2S) must be an even integer."
+            )
+        return True
+
     def calculate(
         self,
-        coordinates: torch.Tensor,
-        atomic_numbers: Sequence[int],
-    ) -> Tuple[float, torch.Tensor]:
+        atoms: Any = None,
+        charge: int = 0,
+        multiplicity: int = 1,
+        **kwargs: Any,
+    ) -> GFN2Result:
+        """Compute baseline potential energy and forces via in-memory xtb-python or CLI xtb [M].
+
+        Supports backwards-compatible signatures:
+        calculate(coordinates, atomic_numbers, ...)
+        calculate(atoms, charge=..., multiplicity=...)
+        """
+        coords_input = None
+        z_input = None
+
+        if isinstance(atoms, torch.Tensor) or (isinstance(atoms, np.ndarray) and atoms.ndim == 2 and atoms.shape[1] == 3):
+            coords_input = atoms
+            if isinstance(charge, (list, tuple, np.ndarray, Sequence)) and not isinstance(charge, (int, float)):
+                z_input = charge
+                charge = int(kwargs.get("charge", 0))
+                multiplicity = int(kwargs.get("multiplicity", 1))
+            else:
+                z_input = kwargs.get("atomic_numbers")
+        elif atoms is not None and hasattr(atoms, "positions") and hasattr(atoms, "numbers"):
+            coords_input = torch.tensor(atoms.positions, dtype=torch.float64)
+            z_input = list(atoms.numbers)
+        elif "coordinates" in kwargs and "atomic_numbers" in kwargs:
+            coords_input = kwargs["coordinates"]
+            z_input = kwargs["atomic_numbers"]
+
+        if coords_input is None or z_input is None:
+            raise ValueError("calculate() requires atoms or (coordinates, atomic_numbers)")
+
+        # Validate electron parity before computation [M]
+        self.validate_electron_parity(z_input, charge=charge, multiplicity=multiplicity)
+        two_s = self._map_spin_to_uhf(multiplicity)
+
         if not self.xtb_available:
             raise BaselineExecutionError(
                 "TORQ_BASELINE_UNAVAILABLE: GFN2-xTB executable or xtb-python library not found in runtime environment",
                 method="GFN2-xTB",
-                diagnostics={"atomic_count": len(atomic_numbers)},
+                diagnostics={"atomic_count": len(z_input)},
             )
-            
+
+        coords_np = coords_input.detach().cpu().numpy() if isinstance(coords_input, torch.Tensor) else np.asarray(coords_input, dtype=np.float64)
+        z_np = np.array([int(z) for z in z_input], dtype=np.int32)
+        device = coords_input.device if isinstance(coords_input, torch.Tensor) else "cpu"
+        dtype = coords_input.dtype if isinstance(coords_input, torch.Tensor) else torch.float64
+
+        # 1. Prioritize direct in-memory evaluation via xtb-python
+        if self.has_xtb_python:
+            try:
+                from xtb.interface import Calculator, Param
+                bohr_coords = coords_np * 1.889726125
+                calc = Calculator(Param.GFN2xTB, z_np, bohr_coords)
+                calc.set_charge(charge)
+                calc.set_uhf(two_s)
+                res = calc.singlepoint()
+                energy_hartree = res.get_energy()
+                grad_hartree_bohr = res.get_gradient()
+
+                forces_hartree_bohr = -np.array(grad_hartree_bohr)
+                energy_ev = float(energy_hartree * HARTREE_TO_EV)
+                forces_tensor = UnitHarmonizer.convert_forces(
+                    torch.tensor(forces_hartree_bohr, dtype=dtype, device=device),
+                    from_length_unit="Bohr", to_length_unit="Angstrom",
+                    from_energy_unit="Hartree", to_energy_unit="eV",
+                )
+                return GFN2Result(
+                    energy_ev=energy_ev,
+                    forces=forces_tensor,
+                    charge=charge,
+                    multiplicity=multiplicity,
+                    uhf=two_s,
+                )
+            except Exception as py_err:
+                logger.debug("xtb-python in-memory evaluation error, falling back to CLI: %s", py_err)
+
+        # 2. Fallback to CLI xtb
         import tempfile
         import os
         from ase import Atoms
         from ase.io import write
-        
-        atoms = Atoms(numbers=atomic_numbers, positions=coordinates.detach().cpu().numpy())
+
+        ase_atoms = Atoms(numbers=z_np, positions=coords_np)
         with tempfile.TemporaryDirectory() as tmpdir:
             xyz_path = os.path.join(tmpdir, "mol.xyz")
-            write(xyz_path, atoms, format="xyz")
-            
+            write(xyz_path, ase_atoms, format="xyz")
+
+            cmd = ["xtb", xyz_path, "--gfn", "2", "--grad", "--chrg", str(charge), "--uhf", str(two_s)]
             try:
-                result = subprocess.run(["xtb", xyz_path, "--gfn", "2", "--grad"], cwd=tmpdir, capture_output=True, text=True, check=True)
-                
+                result = subprocess.run(cmd, cwd=tmpdir, capture_output=True, text=True, check=True)
                 energy_hartree = 0.0
                 for line in result.stdout.splitlines():
                     if "TOTAL ENERGY" in line:
                         parts = line.split()
                         energy_hartree = float(parts[-3]) if len(parts) >= 3 else 0.0
-                
+
                 grad_path = os.path.join(tmpdir, "gradient")
                 forces_hartree_bohr = []
                 with open(grad_path, "r") as f:
                     lines = f.readlines()
-                    for line in lines[2:2+len(atomic_numbers)]:
+                    for line in lines[2 : 2 + len(z_np)]:
                         parts = line.split()
                         forces_hartree_bohr.append([-float(parts[0]), -float(parts[1]), -float(parts[2])])
-                        
+
                 energy_ev = float(energy_hartree * HARTREE_TO_EV)
                 forces_tensor = UnitHarmonizer.convert_forces(
-                    torch.tensor(forces_hartree_bohr, dtype=coordinates.dtype, device=coordinates.device),
+                    torch.tensor(forces_hartree_bohr, dtype=dtype, device=device),
                     from_length_unit="Bohr", to_length_unit="Angstrom",
-                    from_energy_unit="Hartree", to_energy_unit="eV"
+                    from_energy_unit="Hartree", to_energy_unit="eV",
                 )
-                return energy_ev, forces_tensor
-                
+                return GFN2Result(
+                    energy_ev=energy_ev,
+                    forces=forces_tensor,
+                    charge=charge,
+                    multiplicity=multiplicity,
+                    uhf=two_s,
+                )
             except Exception as e:
                 raise BaselineExecutionError(
                     f"TORQ_BASELINE_EXEC_FAIL: GFN2-xTB execution failed during runtime dispatch: {e}",

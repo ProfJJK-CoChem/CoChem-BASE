@@ -330,6 +330,113 @@ class CoChemError(Exception):
             raise ValueError(f"Expected JSON object, got {type(data).__name__}")
         return cls.from_dict(data)
 
+    def to_pedagogical_guidance(self) -> str:
+        """Translates low-level quantum chemical failure signatures into clear, didactic chemical intuition.
+
+        Provides actionable remediation advice tailored for undergraduate students and novice researchers.
+        """
+        msg_upper = self.message.upper()
+        code_str = str(self.error_code).upper() if self.error_code is not None else ""
+        cls_name = self.__class__.__name__
+
+        # 1. SCF Convergence Failure
+        if "CONVERGENCE" in cls_name or "SCF" in msg_upper or "CONVERG" in msg_upper:
+            return (
+                "Self-Consistent Field (SCF) electronic iteration did not reach numerical convergence. "
+                "In molecular orbital theory, this indicates electronic oscillation or near-degenerate frontier "
+                "orbitals (HOMO-LUMO gap closure). Recommended remediation: (1) enable orbital damping or level shifting "
+                "(e.g. SOSCF / DIIS), (2) switch initial orbital guess to PModel or HCore, or (3) collapse the numerical "
+                "quadrature grid (e.g. defgrid3 -> defgrid2) to smooth the electronic energy landscape."
+            )
+
+        # 2. Severe Atomic Clash / Nuclear Overlap
+        if "CLASH" in msg_upper or "OVERLAP" in msg_upper or "PATHOLOGY" in code_str or "PATHOLOGY" in cls_name:
+            return (
+                "Severe atomic clash / unphysical nuclear overlap detected. According to the Pauli exclusion principle, "
+                "interpenetrating electron clouds experience steep repulsive Coulombic and exchange forces, causing the "
+                "potential energy surface to diverge. Recommended remediation: (1) inspect the 3D molecular geometry for "
+                "overlapping atoms (d < 0.65 * sum of vdW radii), (2) pre-relax coordinates using a force-field (GFN-FF or "
+                "MMFF94) prior to ab-initio calculation, or (3) verify bond topology."
+            )
+
+        # 3. Basis Set Linear Dependency / Singularity
+        if "SINGULAR" in msg_upper or "LINEAR DEPENDENCY" in msg_upper or "SINGULARITY" in cls_name:
+            return (
+                "Near-singular basis set overlap matrix detected (basis set linear dependency). Diffuse basis functions "
+                "on adjacent centers overlap excessively, causing overlap matrix eigenvalues to approach zero and matrix "
+                "diagonalization to become ill-conditioned. Recommended remediation: (1) adjust the linear dependency "
+                "threshold (e.g., THRESH 1e-6), or (2) replace overly diffuse basis sets (e.g. aug-cc-pVTZ) with a contracted "
+                "or truncated set (e.g., def2-TZVP or jun-cc-pVTZ)."
+            )
+
+        # 4. Negative / Imaginary Vibrational Frequencies
+        if "NEGATIVE" in msg_upper or "IMAGINARY" in msg_upper or "HESSIAN" in cls_name or "LAM" in cls_name:
+            return (
+                "Unexpected imaginary (negative) vibrational frequency encountered. A true ground-state local minimum "
+                "must possess 3N-6 strictly positive real normal mode frequencies. A transition state must possess exactly one "
+                "imaginary frequency along the reaction coordinate. Recommended remediation: (1) distort the atomic coordinates "
+                "slightly along the normal mode vector of the imaginary frequency and re-optimize, or (2) switch to an analytical Hessian."
+            )
+
+        # 5. Out of Memory (OOM)
+        if "MEMORY" in msg_upper or "OOM" in msg_upper or "ALLOCAT" in msg_upper or "OUTOFMEMORY" in cls_name:
+            return (
+                "Memory allocation threshold exceeded (%maxcore threshold). High-order electron correlation methods "
+                "(MP2, CCSD(T)) and four-center two-electron integral storage scale steeply with basis functions (O(N^4) to O(N^7)). "
+                "Recommended remediation: (1) transition integral evaluation to direct SCF (disk-based or on-the-fly), "
+                "(2) reduce the number of parallel MPI processes to allocate more RAM per core, or (3) use Resolution-of-Identity (RI/DF)."
+            )
+
+        # Generic didactic fallback
+        details_summary = f" (Context: {self.details})" if self.details else ""
+        return (
+            f"Computational failure in {cls_name}: {self.message}{details_summary}. "
+            "Please check calculation parameters, hardware resources, and input geometry plausibility."
+        )
+
+    def to_diagnostic_telemetry(self) -> Dict[str, Any]:
+        """Formats full system telemetry into a structured dictionary for PIs, auditors, and bug reports."""
+        import traceback
+        import sys
+        import platform
+
+        code_val = self.error_code.value if isinstance(self.error_code, ProvenanceErrorCode) else self.error_code
+
+        telemetry: Dict[str, Any] = {
+            "error_type": self.__class__.__name__,
+            "error_code": code_val,
+            "message": self.message,
+            "details": dict(self.details),
+            "timestamp": self.timestamp,
+            "platform": {
+                "system": platform.system(),
+                "release": platform.release(),
+                "machine": platform.machine(),
+                "python_version": sys.version.split()[0],
+            },
+        }
+
+        try:
+            import psutil
+            proc = psutil.Process()
+            mem_info = proc.memory_info()
+            telemetry["process_telemetry"] = {
+                "pid": proc.pid,
+                "rss_mb": round(mem_info.rss / (1024 * 1024), 2),
+                "vms_mb": round(mem_info.vms / (1024 * 1024), 2),
+            }
+        except Exception:
+            pass
+
+        if self.__traceback__ is not None:
+            telemetry["stack_trace"] = "".join(traceback.format_tb(self.__traceback__))
+        elif sys.exc_info()[2] is not None:
+            telemetry["stack_trace"] = "".join(traceback.format_tb(sys.exc_info()[2]))
+        else:
+            telemetry["stack_trace"] = None
+
+        return telemetry
+
     def __reduce__(self) -> Tuple[Any, Tuple[Any, ...]]:
         """Pickle serialization helper for multiprocessing compatibility.
 
@@ -354,9 +461,12 @@ class CoChemError(Exception):
 # Register base error in registry
 _EXCEPTION_REGISTRY["CoChemError"] = CoChemError
 
-# Backwards compatibility alias
+# Backwards compatibility aliases
 CoChemBaseError = CoChemError
 _EXCEPTION_REGISTRY["CoChemBaseError"] = CoChemError
+
+CoChemBaseException = CoChemError
+_EXCEPTION_REGISTRY["CoChemBaseException"] = CoChemError
 
 
 # =====================================================================
@@ -1019,6 +1129,7 @@ __all__ = [
     # Root Exceptions
     "CoChemError",
     "CoChemBaseError",
+    "CoChemBaseException",
     # Provenance & Method Matrix Exceptions
     "ProvenanceError",
     "MethodMatrixViolationError",
